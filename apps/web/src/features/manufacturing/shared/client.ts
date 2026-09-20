@@ -51,6 +51,7 @@ export type MfgOptions = {
   workCenters: Array<{ id: string; code: string; name: string }>;
   workOrders: Array<{ id: string; code: string; name: string }>;
   calendars: Array<{ id: string; code: string; name: string }>;
+  salesOrders: Array<{ id: string; code: string; name: string }>;
 };
 
 export function useMfgOptions() {

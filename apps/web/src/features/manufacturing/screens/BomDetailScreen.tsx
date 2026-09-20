@@ -17,7 +17,7 @@ type Component = { id: string; line_number: number; item_id: string; item_code: 
 type Bom = {
   id: string; code: string; name: string | null; version: number; revision: string | null; status: string; is_default: boolean; is_alternate: boolean; alternate_priority: number; output_quantity: string; effective_from: string | null; effective_to: string | null;
   item_id: string; item_code: string; item_name: string; rejection_reason: string | null; revision_note: string | null; notes: string | null; created_by: string; submitted_by: string | null; approved_at: string | null;
-  components: Component[]; versions: Array<{ id: string; version: number; revision: string | null; status: string; created_at: string; revision_note: string | null }>; otherStructures: Array<{ id: string; code: string; version: number; status: string; alternate_priority: number }>;
+  components: Component[]; outputs: Array<{ id: string; output_type: string; quantity: string; cost_share_percent: string; item_code: string; item_name: string }>; versions: Array<{ id: string; version: number; revision: string | null; status: string; created_at: string; revision_note: string | null }>; otherStructures: Array<{ id: string; code: string; version: number; status: string; alternate_priority: number }>;
 };
 type Line = { key: string; itemId: string; quantity: number; scrapPercent: number; issueMethod: string };
 type Explosion = { lines: Array<{ level: number; itemCode: string; itemName: string; requiredQuantity: string; isSubAssembly: boolean; bomCode: string | null }>; purchasedTotals: Array<{ itemCode: string; itemName: string; requiredQuantity: string }> };
@@ -114,7 +114,7 @@ export function BomDetailScreen({ id }: { id: string }) {
   const [notice, setNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [editing, setEditing] = useState<Line[] | null>(null);
-  const [dialog, setDialog] = useState<"reject" | "obsolete" | "propose" | "revise" | null>(null);
+  const [dialog, setDialog] = useState<"reject" | "obsolete" | "propose" | "revise" | "output" | null>(null);
   const [explodeQty, setExplodeQty] = useState(1);
   const [explosion, setExplosion] = useState<Explosion | null>(null);
   const [altFor, setAltFor] = useState<string | null>(null);
@@ -216,6 +216,23 @@ export function BomDetailScreen({ id }: { id: string }) {
         )}
       </MfgPanel>
 
+      <MfgPanel
+        title="By-products and co-products"
+        description="Extra outputs received with the main product each time production is reported, with a share of the cost."
+        actions={draft && canManage && <Button variant="secondary" onPress={() => setDialog("output")}>Add by-product</Button>}
+      >
+        {bom.outputs.length === 0 ? <p className="text-sm text-text-muted">None defined.</p> : (
+          <ul className="text-sm" aria-label="By-products">
+            {bom.outputs.map((o) => (
+              <li key={o.id} className="flex items-center gap-2">
+                {o.item_name} ({o.item_code}) — {quantity(o.quantity)} per output · {label(o.output_type)} · {quantity(o.cost_share_percent)}% of cost
+                {draft && canManage && <Button variant="ghost" size="compact" onPress={() => run.mutate({ action: "bom-output-remove", body: { id: o.id }, success: "By-product removed." })}>Remove</Button>}
+              </li>
+            ))}
+          </ul>
+        )}
+      </MfgPanel>
+
       <MfgPanel title="Explode" description="Multi-level requirement for a quantity of this product: every sub-assembly is opened, scrap allowance included.">
         <div className="flex flex-wrap items-end gap-2">
           <NumberField label="Quantity to make" value={explodeQty} minValue={0} step={1} onChange={(n) => setExplodeQty(Number.isNaN(n) ? 1 : n)} />
@@ -261,6 +278,7 @@ export function BomDetailScreen({ id }: { id: string }) {
       {dialog === "propose" && editing && (
         <ProposeDialog lines={editing} setLines={setEditing} options={options.data} excludeItemId={bom.item_id} error={error} isPending={run.isPending} onClose={() => { setDialog(null); setEditing(null); }} onConfirm={(title, reason, effectiveFrom) => run.mutate({ action: "change-create", body: { targetBomId: bom.id, title, reason, effectiveFrom: effectiveFrom || undefined, components: payloadLines(editing) }, success: "Engineering change proposed — see Engineering changes." })} />
       )}
+      {dialog === "output" && <OutputDialog options={options.data} error={error} isPending={run.isPending} onClose={() => setDialog(null)} onConfirm={(body) => run.mutate({ action: "bom-output-add", body: { bomId: bom.id, ...body }, success: "By-product added." })} />}
       {altFor && <AlternateDialog options={options.data} error={error} isPending={run.isPending} onClose={() => setAltFor(null)} onConfirm={(itemId, ratio) => run.mutate({ action: "alternate-add", body: { componentId: altFor, itemId, ratio }, success: "Alternate added." })} />}
     </div>
   );
@@ -332,6 +350,28 @@ function AlternateDialog({ options, onClose, onConfirm, isPending, error }: { op
         <div className="flex justify-end gap-2">
           <Button variant="secondary" onPress={onClose}>Close</Button>
           <Button variant="primary" onPress={() => onConfirm(itemId, ratio)} isLoading={isPending} isDisabled={!itemId}>Add alternate</Button>
+        </div>
+      </div>
+    </Dialog>
+  );
+}
+
+function OutputDialog({ options, onClose, onConfirm, isPending, error }: { options: MfgOptions | undefined; onClose: () => void; onConfirm: (body: { itemId: string; quantity: number; outputType: string; costSharePercent: number }) => void; isPending: boolean; error: string | null }) {
+  const [itemId, setItemId] = useState("");
+  const [quantityValue, setQuantityValue] = useState(1);
+  const [outputType, setOutputType] = useState("by_product");
+  const [share, setShare] = useState(0);
+  return (
+    <Dialog isOpen onOpenChange={(open) => !open && onClose()} title="Add by-product">
+      <div className="flex flex-col gap-4">
+        {error && <MfgAlert>{error}</MfgAlert>}
+        <Select label="Item produced" isRequired options={(options?.items ?? []).map((i) => ({ value: i.id, label: `${i.name} (${i.code})` }))} selectedKey={itemId || null} onSelectionChange={(k) => setItemId(String(k ?? ""))} placeholder="Select item" />
+        <Select label="Kind" options={[{ value: "by_product", label: "By-product" }, { value: "co_product", label: "Co-product" }]} selectedKey={outputType} onSelectionChange={(k) => setOutputType(String(k ?? "by_product"))} />
+        <NumberField label="Quantity per BOM output" value={quantityValue} minValue={0} step={0.001} onChange={(n) => setQuantityValue(Number.isNaN(n) ? 0 : n)} />
+        <NumberField label="Share of production cost (%)" value={share} minValue={0} step={1} onChange={(n) => setShare(Number.isNaN(n) ? 0 : n)} />
+        <div className="flex justify-end gap-2">
+          <Button variant="secondary" onPress={onClose}>Close</Button>
+          <Button variant="primary" onPress={() => onConfirm({ itemId, quantity: quantityValue, outputType, costSharePercent: share })} isLoading={isPending} isDisabled={!itemId || quantityValue <= 0}>Add by-product</Button>
         </div>
       </div>
     </Dialog>

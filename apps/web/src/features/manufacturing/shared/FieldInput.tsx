@@ -4,7 +4,7 @@ import { NumberField, Select, TextArea, TextField, type SelectOption } from "@ve
 
 import type { MfgOptions } from "@/features/manufacturing/shared/client";
 
-export type OptionSource = "items" | "warehouses" | "uoms" | "boms" | "routings" | "workCenters" | "workOrders" | "calendars";
+export type OptionSource = "items" | "warehouses" | "uoms" | "boms" | "routings" | "workCenters" | "workOrders" | "calendars" | "salesOrders";
 export type FieldValue = string | number;
 export type FieldDef = {
   name: string;
@@ -44,6 +44,8 @@ export function resolveOptions(field: FieldDef, options: MfgOptions | undefined)
       return (options?.routings ?? []).map((r) => ({ value: r.id, label: `${r.name} (${r.code})` }));
     case "workCenters":
       return (options?.workCenters ?? []).map((w) => ({ value: w.id, label: `${w.name} (${w.code})` }));
+    case "salesOrders":
+      return (options?.salesOrders ?? []).map((o) => ({ value: o.id, label: o.code }));
     case "calendars":
       return (options?.calendars ?? []).map((k) => ({ value: k.id, label: `${k.name} (${k.code})` }));
     case "workOrders":

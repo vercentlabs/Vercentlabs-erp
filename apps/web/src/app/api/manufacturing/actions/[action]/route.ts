@@ -2,6 +2,21 @@ import { z } from "zod";
 
 import {
   activateRouting,
+  addBomOutput,
+  cancelProductionOrder,
+  closeProductionOrder,
+  completeOperation,
+  createProductionOrder,
+  issueMaterials,
+  recordScrap,
+  releaseProductionOrder,
+  removeBomOutput,
+  reportProduction,
+  returnMaterials,
+  sendToRework,
+  skipOperation,
+  startOperation,
+  updateManufacturingSettings,
   addCalendarException,
   addComponentAlternate,
   addShift,
@@ -94,6 +109,36 @@ export async function POST(request: Request, ctx: { params: Promise<{ action: st
         return { record: await reviseRouting(client, context, idOf(input)) };
       case "routing-obsolete":
         return { record: await obsoleteRouting(client, context, idOf(input), String(input.reason ?? "")) };
+      case "order-create":
+        return { record: await createProductionOrder(client, context, input) };
+      case "order-release":
+        return { record: await releaseProductionOrder(client, context, idOf(input), { allowShortage: input.allowShortage === true }) };
+      case "order-cancel":
+        return { record: await cancelProductionOrder(client, context, idOf(input), String(input.reason ?? "")) };
+      case "order-close":
+        return { record: await closeProductionOrder(client, context, idOf(input), String(input.reason ?? "")) };
+      case "material-issue":
+        return { record: await issueMaterials(client, context, String(input.orderId ?? ""), input) };
+      case "material-return":
+        return { record: await returnMaterials(client, context, String(input.orderId ?? ""), input) };
+      case "operation-start":
+        return { record: await startOperation(client, context, idOf(input)) };
+      case "operation-complete":
+        return { record: await completeOperation(client, context, idOf(input), input) };
+      case "operation-skip":
+        return { record: await skipOperation(client, context, idOf(input), String(input.reason ?? "")) };
+      case "production-report":
+        return { record: await reportProduction(client, context, String(input.orderId ?? ""), input) };
+      case "scrap-record":
+        return { record: await recordScrap(client, context, String(input.orderId ?? ""), input) };
+      case "rework-create":
+        return { record: await sendToRework(client, context, String(input.orderId ?? ""), input) };
+      case "settings-save":
+        return { record: await updateManufacturingSettings(client, context, input) };
+      case "bom-output-add":
+        return { record: await addBomOutput(client, context, String(input.bomId ?? ""), input) };
+      case "bom-output-remove":
+        return { record: await removeBomOutput(client, context, idOf(input)) };
       default:
         throw new HttpError(404, "Unknown manufacturing action.");
     }

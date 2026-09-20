@@ -1,4 +1,4 @@
-import { explodeBom, getBom, getCapacityPlan, getRouting, listBoms, listCalendarExceptions, listCalendars, listEngineeringChanges, listManufacturingOptions, listRoutings, listShifts, listWorkCenters, whereUsed } from "@vercentlabs/api";
+import { explodeBom, getBom, getCapacityPlan, getManufacturingSettings, getProductionOrder, getRouting, getWipReport, listJobCards, listMaterialReservations, listProductionOrders, listProductionPostings, listScrapRecords, listBoms, listCalendarExceptions, listCalendars, listEngineeringChanges, listManufacturingOptions, listRoutings, listShifts, listWorkCenters, whereUsed } from "@vercentlabs/api";
 
 import { HttpError } from "@/core/http";
 import { manufacturingRead } from "@/features/manufacturing/shared/route-helpers";
@@ -38,6 +38,22 @@ export async function GET(request: Request, ctx: { params: Promise<{ kind: strin
         return { routing: await getRouting(client, context, get("id") ?? "") };
       case "capacity":
         return { capacity: await getCapacityPlan(client, context, { from: get("from"), days: get("days") }) };
+      case "orders":
+        return { rows: await listProductionOrders(client, context, { status: get("status"), sourceType: get("sourceType") }) };
+      case "order":
+        return { order: await getProductionOrder(client, context, get("id") ?? "") };
+      case "job-cards":
+        return { rows: await listJobCards(client, context, { status: get("status"), workCenterId: get("workCenterId") }) };
+      case "wip":
+        return { rows: await getWipReport(client, context) };
+      case "reservations":
+        return { rows: await listMaterialReservations(client, context) };
+      case "postings":
+        return { rows: await listProductionPostings(client, context, { types: get("types") }) };
+      case "scrap":
+        return { rows: await listScrapRecords(client, context) };
+      case "settings":
+        return { settings: await getManufacturingSettings(client, context) };
       default:
         throw new HttpError(404, "Unknown manufacturing view.");
     }

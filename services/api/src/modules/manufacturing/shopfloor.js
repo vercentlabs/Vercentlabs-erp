@@ -679,3 +679,30 @@ export async function listMaterialReservations(client, c) {
     return { ...r, outstanding_quantity: String(round(need)), shortage_quantity: String(round(Math.max(need - Number(r.reserved_quantity), 0))) };
   });
 }
+
+// Ledger of what moved through production orders: issues, returns, scrap, finished-goods and
+// by-product receipts (F164, F167, F174).
+export async function listProductionPostings(client, c, { types = null, limit = 250 } = {}) {
+  need(c, "manufacturing.view");
+  const values = [c.organizationId, c.companyId];
+  let filter = "";
+  if (types) { values.push(String(types).split(",").map((t) => t.trim()).filter(Boolean)); filter = ` AND p.posting_type=ANY($${values.length}::text[])`; }
+  values.push(Math.min(Math.max(Number(limit) || 250, 1), 500));
+  const { rows } = await client.query(
+    `SELECT p.id,p.posting_type,p.quantity::text AS quantity,p.unit_cost::text AS unit_cost,p.posted_at,p.batch_id,wo.work_order_number,item.code AS item_code,item.name AS item_name,warehouse.name AS warehouse_name
+       FROM tenant.manufacturing_production_postings p JOIN tenant.manufacturing_work_orders wo ON wo.id=p.work_order_id JOIN tenant.items item ON item.id=p.item_id JOIN tenant.warehouses warehouse ON warehouse.id=p.warehouse_id
+      WHERE p.organization_id=$1 AND p.company_id=$2${filter} ORDER BY p.posted_at DESC LIMIT $${values.length}`,
+    values,
+  );
+  return seeCost(c) ? rows : rows.map((r) => ({ ...r, unit_cost: null }));
+}
+
+export async function listScrapRecords(client, c) {
+  need(c, "manufacturing.view");
+  const { rows } = await client.query(
+    `SELECT s.id,s.category,s.scope,s.quantity::text AS quantity,s.unit_cost::text AS unit_cost,s.reason_code,s.note,s.created_at,wo.work_order_number,item.code AS item_code,item.name AS item_name
+       FROM tenant.manufacturing_scrap_records s JOIN tenant.manufacturing_work_orders wo ON wo.id=s.work_order_id JOIN tenant.items item ON item.id=s.item_id WHERE s.organization_id=$1 AND s.company_id=$2 ORDER BY s.created_at DESC LIMIT 300`,
+    [c.organizationId, c.companyId],
+  );
+  return seeCost(c) ? rows : rows.map((r) => ({ ...r, unit_cost: null }));
+}

@@ -20,3 +20,5 @@ export declare function listProductionOrders(client: any, context: Manufacturing
 export declare function getProductionOrder(client: any, context: ManufacturingContext, id: string): Promise<Row>;
 export declare function getWipReport(client: any, context: ManufacturingContext): Promise<Row[]>;
 export declare function listMaterialReservations(client: any, context: ManufacturingContext): Promise<Row[]>;
+export declare function listProductionPostings(client: any, context: ManufacturingContext, options?: { types?: string | null; limit?: number }): Promise<Row[]>;
+export declare function listScrapRecords(client: any, context: ManufacturingContext): Promise<Row[]>;

@@ -466,9 +466,9 @@ export const MODULE_NAVIGATION: readonly ModuleNavigation[] = [
         label: "Production",
         featureRange: "F158-F165",
         items: [
-          planned("Production Orders", "/manufacturing/production-orders"),
-          planned("Shop Floor", "/manufacturing/shop-floor"),
-          planned("Operations", "/manufacturing/operations"),
+          available("Production Orders", "/manufacturing/production-orders"),
+          available("Shop Floor", "/manufacturing/shop-floor"),
+          available("Operations", "/manufacturing/operations"),
         ],
       },
       {
@@ -476,9 +476,9 @@ export const MODULE_NAVIGATION: readonly ModuleNavigation[] = [
         label: "Materials",
         featureRange: "F166-F170",
         items: [
-          planned("Reservations", "/manufacturing/reservations"),
-          planned("Consumption", "/manufacturing/consumption"),
-          planned("WIP", "/manufacturing/wip"),
+          available("Reservations", "/manufacturing/reservations"),
+          available("Consumption", "/manufacturing/consumption"),
+          available("WIP", "/manufacturing/wip"),
         ],
       },
       {
@@ -486,9 +486,9 @@ export const MODULE_NAVIGATION: readonly ModuleNavigation[] = [
         label: "Output",
         featureRange: "F171-F175",
         items: [
-          planned("Finished Output", "/manufacturing/finished-output"),
-          planned("By-Products", "/manufacturing/by-products"),
-          planned("Scrap / Rework", "/manufacturing/scrap-rework"),
+          available("Finished Output", "/manufacturing/finished-output"),
+          available("By-Products", "/manufacturing/by-products"),
+          available("Scrap / Rework", "/manufacturing/scrap-rework"),
         ],
       },
       {
@@ -507,6 +507,7 @@ export const MODULE_NAVIGATION: readonly ModuleNavigation[] = [
           available("Calendars", "/manufacturing/calendars"),
           available("Shifts", "/manufacturing/shifts"),
           available("Holidays", "/manufacturing/calendar-exceptions"),
+          available("Settings", "/manufacturing/settings"),
         ],
       },
       {
