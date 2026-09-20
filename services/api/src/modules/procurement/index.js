@@ -1659,6 +1659,10 @@ async function decidePurchaseOrderAmendment(client, context, recordId, input, ap
   if (!pending || !["approved", "dispatched", "acknowledged", "partially_received"].includes(pending.previousStatus)) {
     throw new ProcurementError(409, "The purchase order amendment lineage is invalid.", "PROCUREMENT_AMENDMENT_LINEAGE");
   }
+  // Segregation of duties: whoever requested the amendment cannot approve it.
+  if (approved && pending.requestedBy && pending.requestedBy === context.userId) {
+    throw new ProcurementError(409, "The person who requested the amendment cannot approve it.", "PROCUREMENT_SELF_APPROVAL");
+  }
   const decisionReason = approved
     ? text(input.reason, "Approval note", { max: 1000 })
     : text(input.reason, "Rejection reason", { required: true, max: 1000 });
@@ -1834,9 +1838,17 @@ export async function awardSourcingEvent(client, context, recordId, input = {}) 
   }
   const lines = array(input.lines || bid.lines, "Award lines", { required: true });
   const idempotencyKey = `sourcing-award:${source.id}`;
+  // The caller was just authorised to AWARD (procurement.sourcing.award). Creating
+  // the PO/agreement is part of that one act, so it runs with the creation
+  // permission it needs; without this, no seeded role (a purchase manager holds
+  // award but not po.create; a buyer the reverse) could ever complete an award.
+  const creator = {
+    ...context,
+    permissions: [...(context.permissions || []), "procurement.po.create", "procurement.contracts.manage"],
+  };
   const created =
     awardType === "agreement"
-      ? await createProcurementRecord(client, context, "agreements", {
+      ? await createProcurementRecord(client, creator, "agreements", {
           companyId: source.company_id,
           branchId: source.branch_id,
           supplierId,
@@ -1849,7 +1861,7 @@ export async function awardSourcingEvent(client, context, recordId, input = {}) 
           selectedBidId,
           idempotencyKey,
         })
-      : await createProcurementRecord(client, context, "purchase-orders", {
+      : await createProcurementRecord(client, creator, "purchase-orders", {
           companyId: source.company_id,
           branchId: source.branch_id,
           supplierId,

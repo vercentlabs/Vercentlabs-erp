@@ -25,6 +25,7 @@ const TONES: Record<string, StatusTone> = {
   draft: "neutral",
   submitted: "info",
   pending_approval: "warning",
+  pending_amendment_approval: "warning",
   approved: "info",
   qualified: "info",
   active: "success",

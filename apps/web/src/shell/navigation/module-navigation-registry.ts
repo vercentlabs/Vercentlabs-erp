@@ -256,9 +256,9 @@ export const MODULE_NAVIGATION: readonly ModuleNavigation[] = [
         label: "Sourcing",
         featureRange: "F067-F072",
         items: [
-          planned("RFQs", "/procurement/rfqs"),
-          planned("Supplier Quotations", "/procurement/supplier-quotations"),
-          planned("Awards", "/procurement/awards"),
+          available("RFQs", "/procurement/rfqs"),
+          available("Supplier Quotations", "/procurement/supplier-quotations"),
+          available("Awards", "/procurement/awards"),
         ],
       },
       {
@@ -266,8 +266,8 @@ export const MODULE_NAVIGATION: readonly ModuleNavigation[] = [
         label: "Purchasing",
         featureRange: "F073-F078",
         items: [
-          planned("Purchase Orders", "/procurement/orders"),
-          planned("Agreements", "/procurement/agreements"),
+          available("Purchase Orders", "/procurement/orders"),
+          available("Agreements", "/procurement/agreements"),
         ],
       },
       {

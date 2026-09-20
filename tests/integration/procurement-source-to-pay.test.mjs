@@ -165,6 +165,117 @@ test("Procurement source-to-pay against real PostgreSQL", async (t) => {
       assert.equal(rec.lines.length, 1);
     });
 
+    // ---- sourcing: RFQ -> invitations -> bids -> evaluations -> award -> PO ----
+    async function activeSupplier(code) {
+      let sup = await tx((c) => createProcurementRecord(c, ctx.buyer, "suppliers", { supplierCode: code, legalName: `${code} Ltd`, currencyCode: "INR" }));
+      sup = await tx((c) => transitionProcurementRecord(c, ctx.buyer, "suppliers", sup.id, "submit", { expectedVersion: sup.version }));
+      sup = await tx((c) => transitionProcurementRecord(c, ctx.manager, "suppliers", sup.id, "qualify", { expectedVersion: sup.version }));
+      return tx((c) => transitionProcurementRecord(c, ctx.manager, "suppliers", sup.id, "activate", { expectedVersion: sup.version }));
+    }
+    const lines = (quantity, price) => [{ itemId, description: "Raw Widget", quantity, unitPrice: price, warehouseId }];
+    let rfq;
+    let supplierB;
+    let bidA;
+    let bidB;
+    let award;
+    await t.test("F069/F070: an RFQ is created, approved by someone else, activated and invited to several suppliers", async () => {
+      supplierB = await activeSupplier("SUP-002");
+      rfq = await tx((c) => createProcurementRecord(c, ctx.buyer, "sourcing-events", { title: "Widget RFQ", eventType: "rfq", bidCloseAt: "2026-12-01", requisitionId: requisition.id, lines: lines("10", "0") }));
+      assert.match(rfq.eventNumber, /^RFQ-/);
+      await assert.rejects(() => tx((c) => createProcurementRecord(c, ctx.requester, "sourcing-events", { title: "x", bidCloseAt: "2026-12-01" })), forbidden);
+      let r = await tx((c) => transitionProcurementRecord(c, ctx.buyer, "sourcing-events", rfq.id, "submit", { expectedVersion: rfq.version }));
+      await assert.rejects(() => tx((c) => transitionProcurementRecord(c, ctx.buyer, "sourcing-events", rfq.id, "approve", { expectedVersion: r.version })), (e) => e.code === "PROCUREMENT_SELF_APPROVAL");
+      r = await tx((c) => transitionProcurementRecord(c, ctx.manager, "sourcing-events", rfq.id, "approve", { expectedVersion: r.version }));
+      r = await tx((c) => transitionProcurementRecord(c, ctx.buyer, "sourcing-events", rfq.id, "activate", { expectedVersion: r.version }));
+      assert.equal(r.status, "active");
+      rfq = r;
+      for (const sup of [supplier, supplierB]) {
+        await tx((c) => createProcurementRecord(c, ctx.buyer, "sourcing-invitations", { parentId: rfq.id, supplierId: sup.id }));
+      }
+      const invitations = await tx((c) => listProcurementRecords(c, ctx.viewer, "sourcing-invitations", { parentId: rfq.id }));
+      assert.equal(invitations.total, 2, "the same RFQ went to multiple vendors");
+    });
+
+    await t.test("F071/F072: supplier quotations are captured as bids; evaluations score them", async () => {
+      bidA = await tx((c) => createProcurementRecord(c, ctx.buyer, "sourcing-bids", { parentId: rfq.id, supplierId: supplier.id, quotationNumber: "Q-A", currencyCode: "INR", leadTimeDays: 14, lines: lines("10", "100") }));
+      bidB = await tx((c) => createProcurementRecord(c, ctx.buyer, "sourcing-bids", { parentId: rfq.id, supplierId: supplierB.id, quotationNumber: "Q-B", currencyCode: "INR", leadTimeDays: 7, lines: lines("10", "110") }));
+      await tx((c) => createProcurementRecord(c, ctx.manager, "sourcing-evaluations", { parentId: rfq.id, bidId: bidA.id, criterion: "price", score: 90, weight: 50 }));
+      await tx((c) => createProcurementRecord(c, ctx.manager, "sourcing-evaluations", { parentId: rfq.id, bidId: bidB.id, criterion: "delivery", score: 95, weight: 50 }));
+      await assert.rejects(() => tx((c) => createProcurementRecord(c, ctx.viewer, "sourcing-bids", { parentId: rfq.id, supplierId: supplier.id })), forbidden);
+      await assert.rejects(() => tx((c) => createProcurementRecord(c, ctx.requester, "sourcing-evaluations", { parentId: rfq.id, bidId: bidA.id, criterion: "price", score: 1 })), forbidden);
+      const detail = await tx((c) => getProcurementRecord(c, ctx.viewer, "sourcing-events", rfq.id));
+      assert.equal(detail.bids.length, 2);
+      assert.equal(detail.evaluations.length, 2);
+    });
+
+    await t.test("F073: only a holder of sourcing.award can award; the award creates a draft PO and closes the RFQ, once", async () => {
+      const input = { expectedVersion: rfq.version, selectedBidId: bidB.id, awardType: "purchase-order", expectedDeliveryDate: "2026-12-20", lines: lines("10", "110") };
+      await assert.rejects(() => tx((c) => proc.awardSourcingEvent(c, ctx.buyer, rfq.id, input)), forbidden);
+      award = await tx((c) => proc.awardSourcingEvent(c, ctx.manager, rfq.id, input));
+      assert.equal(award.sourceEvent.status, "closed");
+      assert.equal(award.award.status, "draft");
+      assert.equal(award.award.supplierId, supplierB.id, "the PO goes to the winning bidder");
+      assert.equal(award.award.totals.grandTotal, "1100.00");
+      await assert.rejects(() => tx((c) => proc.awardSourcingEvent(c, ctx.manager, rfq.id, { ...input, expectedVersion: award.sourceEvent.version })), (e) => e.status === 409, "an RFQ is awarded once");
+    });
+
+    let order;
+    await t.test("F074/F075: PO submit -> approve (not by its creator) -> dispatch -> acknowledge", async () => {
+      order = award.award;
+      let o = await tx((c) => transitionProcurementRecord(c, ctx.manager, "purchase-orders", order.id, "submit", { expectedVersion: order.version }));
+      await assert.rejects(() => tx((c) => transitionProcurementRecord(c, ctx.manager, "purchase-orders", order.id, "approve", { expectedVersion: o.version })), (e) => e.code === "PROCUREMENT_SELF_APPROVAL");
+      await assert.rejects(() => tx((c) => transitionProcurementRecord(c, ctx.buyer, "purchase-orders", order.id, "approve", { expectedVersion: o.version })), forbidden);
+      o = await tx((c) => transitionProcurementRecord(c, ctx.approver, "purchase-orders", order.id, "approve", { expectedVersion: o.version }));
+      await assert.rejects(() => tx((c) => transitionProcurementRecord(c, ctx.approver, "purchase-orders", order.id, "dispatch", { expectedVersion: o.version })), forbidden, "dispatch needs po.dispatch");
+      o = await tx((c) => transitionProcurementRecord(c, ctx.buyer, "purchase-orders", order.id, "dispatch", { expectedVersion: o.version }));
+      o = await tx((c) => transitionProcurementRecord(c, ctx.buyer, "purchase-orders", order.id, "acknowledge", { expectedVersion: o.version }));
+      assert.equal(o.status, "acknowledged");
+      order = o;
+    });
+
+    await t.test("F076: amending an issued PO is a versioned change approved by a different person", async () => {
+      await assert.rejects(() => tx((c) => transitionProcurementRecord(c, ctx.buyer, "purchase-orders", order.id, "amend", { expectedVersion: order.version, title: order.title, supplierId: order.supplierId, expectedDeliveryDate: order.expectedDeliveryDate, lines: lines("8", "110") })), (e) => /reason/i.test(e.message));
+      const amended = await tx((c) => transitionProcurementRecord(c, ctx.buyer, "purchase-orders", order.id, "amend", { expectedVersion: order.version, reason: "Customer needs fewer", title: order.title, supplierId: order.supplierId, expectedDeliveryDate: order.expectedDeliveryDate, lines: lines("8", "110") }));
+      assert.equal(amended.status, "pending_amendment_approval");
+      assert.equal(amended.totals.grandTotal, "880.00");
+      await assert.rejects(() => tx((c) => transitionProcurementRecord(c, ctx.buyer, "purchase-orders", order.id, "approve-amendment", { expectedVersion: amended.version })), forbidden);
+      // a manager who holds both amend and approve cannot approve their OWN amendment
+      const amendSelf = await tx((c) => transitionProcurementRecord(c, ctx.manager, "purchase-orders", order.id, "reject-amendment", { expectedVersion: amended.version, reason: "Try again" }));
+      assert.equal(amendSelf.status, "acknowledged", "rejecting restores the original");
+      assert.equal(amendSelf.totals.grandTotal, "1100.00");
+      const second = await tx((c) => transitionProcurementRecord(c, ctx.manager, "purchase-orders", order.id, "amend", { expectedVersion: amendSelf.version, reason: "Reduce quantity", title: order.title, supplierId: order.supplierId, expectedDeliveryDate: order.expectedDeliveryDate, lines: lines("8", "110") }));
+      await assert.rejects(() => tx((c) => transitionProcurementRecord(c, ctx.manager, "purchase-orders", order.id, "approve-amendment", { expectedVersion: second.version })), (e) => e.code === "PROCUREMENT_SELF_APPROVAL");
+      const approved = await tx((c) => transitionProcurementRecord(c, ctx.approver, "purchase-orders", order.id, "approve-amendment", { expectedVersion: second.version, reason: "OK" }));
+      assert.equal(approved.status, "acknowledged");
+      assert.equal(approved.totals.grandTotal, "880.00");
+      assert.ok(approved.amendments.length >= 2, "amendment history is kept");
+      order = approved;
+    });
+
+    await t.test("F074: cancelling needs a reason and the po.cancel permission; a received PO cannot be cancelled", async () => {
+      const spare = await tx((c) => createProcurementRecord(c, ctx.buyer, "purchase-orders", { title: "Spare PO", supplierId: supplier.id, expectedDeliveryDate: "2026-12-30", lines: lines("1", "50") }));
+      await assert.rejects(() => tx((c) => transitionProcurementRecord(c, ctx.buyer, "purchase-orders", spare.id, "cancel", { expectedVersion: spare.version })), (e) => /reason/i.test(e.message));
+      await assert.rejects(() => tx((c) => transitionProcurementRecord(c, ctx.approver, "purchase-orders", spare.id, "cancel", { expectedVersion: spare.version, reason: "x" })), forbidden);
+      const cancelled = await tx((c) => transitionProcurementRecord(c, ctx.buyer, "purchase-orders", spare.id, "cancel", { expectedVersion: spare.version, reason: "Not needed" }));
+      assert.equal(cancelled.status, "cancelled");
+      await assert.rejects(() => tx((c) => transitionProcurementRecord(c, ctx.buyer, "purchase-orders", order.id, "cancel", { expectedVersion: order.version, reason: "x" })), (e) => e.code === "PROCUREMENT_INVALID_TRANSITION", "an acknowledged PO cannot simply be cancelled");
+    });
+
+    await t.test("F077/F078: agreements need approval by a contracts approver, then bind a PO to the contract", async () => {
+      let a = await tx((c) => createProcurementRecord(c, ctx.buyer, "agreements", { title: "Annual widget contract", supplierId: supplier.id, validFrom: "2026-01-01", validUntil: "2026-12-31", agreementType: "blanket", lines: lines("1000", "95") }));
+      assert.match(a.agreementNumber, /^AGR-/);
+      a = await tx((c) => transitionProcurementRecord(c, ctx.buyer, "agreements", a.id, "submit", { expectedVersion: a.version }));
+      await assert.rejects(() => tx((c) => transitionProcurementRecord(c, ctx.buyer, "agreements", a.id, "approve", { expectedVersion: a.version })), forbidden, "buyers hold contracts.manage, not contracts.approve");
+      a = await tx((c) => transitionProcurementRecord(c, ctx.approver, "agreements", a.id, "approve", { expectedVersion: a.version }));
+      a = await tx((c) => transitionProcurementRecord(c, ctx.buyer, "agreements", a.id, "activate", { expectedVersion: a.version }));
+      assert.equal(a.status, "active");
+      const call = await tx((c) => createProcurementRecord(c, ctx.buyer, "purchase-orders", { title: "Call-off", supplierId: supplier.id, agreementId: a.id, expectedDeliveryDate: "2026-11-01", lines: lines("50", "95") }));
+      assert.equal(call.agreementId, a.id);
+      const report = await tx((c) => proc.getProcurementReport(c, ctx.buyer, "agreement-consumption"));
+      assert.ok(report.rows.some((row) => row.dimension_value === a.id), "consumption against the agreement is reported");
+      await assert.rejects(() => tx((c) => transitionProcurementRecord(c, ctx.buyer, "agreements", a.id, "cancel", { expectedVersion: a.version })), (e) => /reason|Cannot/i.test(e.message));
+    });
+
     // -- later slices append here --
   } finally {
     await admin.end();
