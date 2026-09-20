@@ -1,7 +1,7 @@
-import { ModuleFoundationPage } from "@/shell/module-foundation/ModuleFoundationPage";
+import { InventoryHomeScreen } from "@/features/inventory/screens/InventoryScreens";
 
 export const metadata = { title: "Inventory" };
 
 export default function InventoryPage() {
-  return <ModuleFoundationPage moduleKey="stock" moduleLabel="Inventory" />;
+  return <InventoryHomeScreen />;
 }

@@ -337,9 +337,11 @@ export const MODULE_NAVIGATION: readonly ModuleNavigation[] = [
         label: "Items",
         featureRange: "F097-F102",
         items: [
-          planned("Items", "/inventory/items"),
-          planned("Variants", "/inventory/variants"),
-          planned("Units of Measure", "/inventory/units-of-measure"),
+          available("Items", "/inventory/items"),
+          available("Variants", "/inventory/variants"),
+          available("Categories", "/inventory/categories"),
+          available("Units of Measure", "/inventory/units-of-measure"),
+          available("Unit Conversions", "/inventory/conversions"),
         ],
       },
       {
@@ -347,9 +349,9 @@ export const MODULE_NAVIGATION: readonly ModuleNavigation[] = [
         label: "Stock",
         featureRange: "F103-F108",
         items: [
-          planned("Availability", "/inventory/availability"),
-          planned("Stock Ledger", "/inventory/ledger"),
-          planned("Reservations", "/inventory/reservations"),
+          available("Availability", "/inventory/availability"),
+          available("Stock Ledger", "/inventory/ledger"),
+          available("Reservations", "/inventory/reservations"),
         ],
       },
       {
@@ -357,8 +359,8 @@ export const MODULE_NAVIGATION: readonly ModuleNavigation[] = [
         label: "Warehouses",
         featureRange: "F109-F111",
         items: [
-          planned("Warehouses", "/inventory/warehouses"),
-          planned("Locations / Bins", "/inventory/locations"),
+          available("Warehouses", "/inventory/warehouses"),
+          available("Locations / Bins", "/inventory/locations"),
         ],
       },
       {
@@ -366,10 +368,10 @@ export const MODULE_NAVIGATION: readonly ModuleNavigation[] = [
         label: "Operations",
         featureRange: "F112-F118",
         items: [
-          planned("Receipts", "/inventory/receipts"),
-          planned("Issues", "/inventory/issues"),
-          planned("Transfers", "/inventory/transfers"),
-          planned("Adjustments", "/inventory/adjustments"),
+          available("Receipts", "/inventory/receipts"),
+          available("Issues", "/inventory/issues"),
+          available("Transfers", "/inventory/transfers"),
+          available("Adjustments", "/inventory/adjustments"),
         ],
       },
       {
@@ -377,9 +379,9 @@ export const MODULE_NAVIGATION: readonly ModuleNavigation[] = [
         label: "Traceability",
         featureRange: "F119-F125",
         items: [
-          planned("Lots / Batches", "/inventory/lots"),
-          planned("Serial Numbers", "/inventory/serial-numbers"),
-          planned("Expiry", "/inventory/expiry"),
+          available("Lots / Batches", "/inventory/lots"),
+          available("Serial Numbers", "/inventory/serial-numbers"),
+          available("Expiry", "/inventory/expiry"),
           planned("Genealogy", "/inventory/genealogy"),
         ],
       },
@@ -397,8 +399,8 @@ export const MODULE_NAVIGATION: readonly ModuleNavigation[] = [
         label: "Planning",
         featureRange: "F129-F132",
         items: [
-          planned("Replenishment", "/inventory/replenishment"),
-          planned("Reorder Rules", "/inventory/reorder-rules"),
+          available("Replenishment", "/inventory/replenishment"),
+          available("Reorder Rules", "/inventory/reorder-rules"),
         ],
       },
       {
@@ -406,7 +408,7 @@ export const MODULE_NAVIGATION: readonly ModuleNavigation[] = [
         label: "Valuation",
         featureRange: "F133-F138",
         items: [
-          planned("Costing", "/inventory/costing"),
+          available("Costing", "/inventory/costing"),
           planned("Inventory Valuation", "/inventory/valuation"),
           planned("Movement", "/inventory/movement"),
           planned("Aging", "/inventory/aging"),

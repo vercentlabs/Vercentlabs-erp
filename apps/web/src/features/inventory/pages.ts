@@ -1,0 +1,24 @@
+// Plain data (no components) so a Server Component page can read it: the title for the tab, and
+// which screen renders. The screens themselves are resolved in the client registry.
+export const INVENTORY_PAGES: Record<string, { title: string }> = {
+  items: { title: "Items" },
+  categories: { title: "Item categories" },
+  variants: { title: "Variants and SKUs" },
+  "units-of-measure": { title: "Units of measure" },
+  conversions: { title: "Unit conversions" },
+  warehouses: { title: "Warehouses" },
+  locations: { title: "Locations and bins" },
+  availability: { title: "Stock availability" },
+  ledger: { title: "Stock ledger" },
+  receipts: { title: "Stock receipts" },
+  issues: { title: "Stock issues" },
+  adjustments: { title: "Stock adjustments" },
+  transfers: { title: "Stock transfers" },
+  reservations: { title: "Reservations" },
+  lots: { title: "Lots and batches" },
+  expiry: { title: "Expiry" },
+  "serial-numbers": { title: "Serial numbers" },
+  "reorder-rules": { title: "Reorder rules" },
+  replenishment: { title: "Replenishment" },
+  costing: { title: "Costing and settings" },
+};
