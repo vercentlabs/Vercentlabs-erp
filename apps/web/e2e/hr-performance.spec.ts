@@ -34,7 +34,7 @@ test("goals, an appraisal cycle, a skill rating and training, walked through the
     await expect(goalRow).toBeVisible({ timeout: 60_000 });
     await goalRow.getByRole("button", { name: "Check in" }).click();
     dlg = m.getByRole("dialog");
-    await dlg.getByLabel("Current value").fill("100");
+    await dlg.getByRole("textbox", { name: "Current value" }).fill("100");
     await dlg.getByRole("button", { name: "Check in" }).click();
     await expect(m.getByRole("row", { name: new RegExp(`Ship the ${s} feature.*Completed`) })).toBeVisible({ timeout: 60_000 });
 
@@ -62,7 +62,7 @@ test("goals, an appraisal cycle, a skill rating and training, walked through the
     await expect(appraisalRow).toBeVisible({ timeout: 60_000 });
     await appraisalRow.getByRole("button", { name: "Submit self review" }).click();
     dlg = e.getByRole("dialog");
-    await dlg.getByLabel("Rating").fill("4");
+    await dlg.getByRole("textbox", { name: "Rating" }).fill("4");
     await dlg.getByLabel("Comments").fill("Strong quarter, shipped on time.");
     await dlg.getByRole("button", { name: "Submit self review" }).click();
     await expect(e.getByRole("row", { name: new RegExp(`Cycle ${s}.*Pending manager`) })).toBeVisible({ timeout: 60_000 });
@@ -72,7 +72,7 @@ test("goals, an appraisal cycle, a skill rating and training, walked through the
     await expect(toReview).toBeVisible({ timeout: 60_000 });
     await toReview.getByRole("button", { name: "Complete review" }).click();
     dlg = m.getByRole("dialog");
-    await dlg.getByLabel("Rating").fill("4");
+    await dlg.getByRole("textbox", { name: "Rating" }).fill("4");
     await dlg.getByLabel("Comments").fill("Agreed.");
     await dlg.getByRole("button", { name: "Complete review" }).click();
     await expect(m.getByRole("row", { name: new RegExp(`Report${s}.*Cycle ${s}.*Completed`) })).toBeVisible({ timeout: 60_000 });
@@ -84,7 +84,7 @@ test("goals, an appraisal cycle, a skill rating and training, walked through the
     await e.getByRole("button", { name: "Rate a skill" }).click();
     dlg = e.getByRole("dialog");
     await pick(e, dlg.getByRole("button", { name: /Select skill/ }), new RegExp(`Skill ${s}`));
-    await dlg.getByLabel("Proficiency (1-5)").fill("3");
+    await dlg.getByRole("textbox", { name: "Proficiency (1-5)" }).fill("3");
     await dlg.getByRole("button", { name: "Save" }).click();
     await expect(e.getByRole("row", { name: new RegExp(`Skill ${s}.*Self`) })).toBeVisible({ timeout: 60_000 });
 

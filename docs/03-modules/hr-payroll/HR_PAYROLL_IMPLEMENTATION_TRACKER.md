@@ -25,6 +25,14 @@ run and pass again once enough real time has passed. This is the same class of c
 Manufacturing (date round-trip/timezone sensitivity), not a code defect — it was reproduced, explained and
 deliberately not "fixed" by weakening the assertion.
 
+**`hr-workforce.spec.ts` browser flake (pre-existing, not introduced by this work):** its "hire, join,
+transfer..." journey intermittently fails clicking into a freshly-created employee's detail page — the
+browser navigates to `/hr/employee/<id>` and then immediately back to `/hr/employees` before the heading
+assertion runs. Reproduced running that spec alone (not just alongside the new `hr-performance.spec.ts`),
+so it is not cross-spec interference from this session's additions. Not investigated further given time
+available; the domain path it exercises (joining, onboarding checklist, probation) is independently proven
+by `hr-workforce.test.mjs` on real Postgres.
+
 **Recruitment e2e gap (not fixed):** `hr-recruitment.spec.ts`'s "New application" dialog leaves Save disabled
 even though both Select fields visibly show the correct selected label in the accessibility snapshot. Extensive
 static analysis of `Register.tsx`'s form-dialog logic (the `missing` computation, field-key collisions,
