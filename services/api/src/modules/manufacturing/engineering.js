@@ -208,6 +208,10 @@ export async function reviseBom(client, c, bomId, input = {}) {
      SELECT organization_id,$2,line_number,item_id,quantity,uom_id,scrap_percent,issue_method,warehouse_id,operation_sequence,notes FROM tenant.manufacturing_bom_components WHERE organization_id=$1 AND bom_id=$3`,
     [c.organizationId, bom.id, source.id],
   );
+  await client.query(
+    `INSERT INTO tenant.manufacturing_bom_outputs(organization_id,bom_id,item_id,output_type,quantity,cost_share_percent,warehouse_id,notes) SELECT organization_id,$2,item_id,output_type,quantity,cost_share_percent,warehouse_id,notes FROM tenant.manufacturing_bom_outputs WHERE organization_id=$1 AND bom_id=$3`,
+    [c.organizationId, bom.id, source.id],
+  );
   await recordEvent(client, c, "bom", bom.id, "manufacturing.bom.revised", { from: source.id, version });
   return bom;
 }
@@ -271,7 +275,8 @@ export async function getBom(client, c, bomId) {
   ).rows;
   const versions = (await client.query(`SELECT id,version,revision,status,created_at,approved_at,revision_note FROM tenant.manufacturing_boms WHERE organization_id=$1 AND company_id=$2 AND code=$3 ORDER BY version DESC`, [c.organizationId, c.companyId, bom.code])).rows;
   const alternatesForItem = (await client.query(`SELECT id,code,version,status,alternate_priority FROM tenant.manufacturing_boms WHERE organization_id=$1 AND company_id=$2 AND item_id=$3 AND id<>$4 AND status IN ('active','pending_approval','draft') ORDER BY is_alternate,alternate_priority`, [c.organizationId, c.companyId, bom.item_id, bom.id])).rows;
-  return { ...bom, item_code: item?.code, item_name: item?.name, components, versions, otherStructures: alternatesForItem };
+  const outputs = (await client.query(`SELECT o.id,o.output_type,o.quantity::text AS quantity,o.cost_share_percent::text AS cost_share_percent,item.code AS item_code,item.name AS item_name FROM tenant.manufacturing_bom_outputs o JOIN tenant.items item ON item.id=o.item_id WHERE o.organization_id=$1 AND o.bom_id=$2 ORDER BY item.name`, [c.organizationId, bom.id])).rows;
+  return { ...bom, item_code: item?.code, item_name: item?.name, components, outputs, versions, otherStructures: alternatesForItem };
 }
 
 // Multi-level explosion (F146): every level's requirement, with scrap allowance, using each
@@ -411,6 +416,10 @@ export async function implementEngineeringChange(client, c, id) {
     )
   ).rows[0];
   await insertComponents(client, c, bom.id, change.proposed_components);
+  await client.query(
+    `INSERT INTO tenant.manufacturing_bom_outputs(organization_id,bom_id,item_id,output_type,quantity,cost_share_percent,warehouse_id,notes) SELECT organization_id,$2,item_id,output_type,quantity,cost_share_percent,warehouse_id,notes FROM tenant.manufacturing_bom_outputs WHERE organization_id=$1 AND bom_id=$3`,
+    [c.organizationId, bom.id, target.id],
+  );
   const activated = await activate(client, c, bom);
   await client.query(`UPDATE tenant.manufacturing_engineering_changes SET status='implemented',implemented_at=now(),resulting_bom_id=$3,updated_at=now() WHERE organization_id=$1 AND id=$2`, [c.organizationId, change.id, activated.id]);
   await recordEvent(client, c, "engineering_change", change.id, "manufacturing.change.implemented", { bomId: activated.id, version });
@@ -439,4 +448,33 @@ export async function listEngineeringChanges(client, c, { status = null } = {}) 
     values,
   );
   return rows;
+}
+
+// By-products and co-products (F174): extra outputs received with the main product, per one BOM output.
+export async function addBomOutput(client, c, bomId, input = {}) {
+  need(c, "manufacturing.bom.manage");
+  const bom = await loadBom(client, c, bomId, { lock: true });
+  requireStatus(bom, "draft");
+  const item = await activeItem(client, c, input.itemId, "Output item");
+  if (item.id === bom.item_id) throw new MfgError(409, "The main product is not a by-product of itself.", "MFG_OUTPUT_INVALID");
+  const type = input.outputType === "co_product" ? "co_product" : "by_product";
+  const share = nonNegative(input.costSharePercent, "Cost share");
+  if (share >= 100) throw new MfgError(400, "Cost share must be below 100 percent.", "MFG_COST_SHARE_INVALID");
+  const total = Number((await client.query(`SELECT COALESCE(sum(cost_share_percent),0) AS s FROM tenant.manufacturing_bom_outputs WHERE organization_id=$1 AND bom_id=$2 AND item_id<>$3`, [c.organizationId, bom.id, item.id])).rows[0].s) + share;
+  if (total >= 100) throw new MfgError(400, "The cost shares of all by-products must add up to less than 100 percent.", "MFG_COST_SHARE_INVALID");
+  const { rows } = await client.query(
+    `INSERT INTO tenant.manufacturing_bom_outputs(organization_id,bom_id,item_id,output_type,quantity,cost_share_percent,warehouse_id,notes) VALUES($1,$2,$3,$4,$5,$6,$7,$8)
+     ON CONFLICT (bom_id,item_id) DO UPDATE SET output_type=EXCLUDED.output_type,quantity=EXCLUDED.quantity,cost_share_percent=EXCLUDED.cost_share_percent,warehouse_id=EXCLUDED.warehouse_id,notes=EXCLUDED.notes RETURNING *`,
+    [c.organizationId, bom.id, item.id, type, positive(input.quantity, "Quantity"), share, input.warehouseId ? uuid(input.warehouseId, "Warehouse") : null, text(input.notes, 500) || null],
+  );
+  return rows[0];
+}
+
+export async function removeBomOutput(client, c, outputId) {
+  need(c, "manufacturing.bom.manage");
+  const out = (await client.query(`SELECT o.id,bom.status FROM tenant.manufacturing_bom_outputs o JOIN tenant.manufacturing_boms bom ON bom.id=o.bom_id WHERE o.organization_id=$1 AND o.id=$2 AND bom.company_id=$3`, [c.organizationId, uuid(outputId, "Output"), c.companyId])).rows[0];
+  if (!out) throw new MfgError(404, "Output was not found.", "MFG_OUTPUT_NOT_FOUND");
+  if (out.status !== "draft") throw new MfgError(409, "Outputs can only be changed on a draft BOM; revise it first.", "MFG_BOM_STATE_INVALID");
+  await client.query(`DELETE FROM tenant.manufacturing_bom_outputs WHERE organization_id=$1 AND id=$2`, [c.organizationId, out.id]);
+  return { removed: true };
 }

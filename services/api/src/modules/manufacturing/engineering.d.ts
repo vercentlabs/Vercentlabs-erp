@@ -21,3 +21,5 @@ export declare function decideEngineeringChange(client: any, context: Manufactur
 export declare function implementEngineeringChange(client: any, context: ManufacturingContext, id: string): Promise<{ changeId: string; bom: Row }>;
 export declare function cancelEngineeringChange(client: any, context: ManufacturingContext, id: string, reason?: string): Promise<Row>;
 export declare function listEngineeringChanges(client: any, context: ManufacturingContext, options?: { status?: string | null }): Promise<Row[]>;
+export declare function addBomOutput(client: any, context: ManufacturingContext, bomId: string, input?: Row): Promise<Row>;
+export declare function removeBomOutput(client: any, context: ManufacturingContext, outputId: string): Promise<Row>;
