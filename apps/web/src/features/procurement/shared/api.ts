@@ -17,6 +17,7 @@ export type ProcOptions = {
   warehouses: Array<{ id: string; code: string; name: string }>;
   sourcingEvents: Array<{ id: string; label: string; status: string }>;
   uoms: Array<{ id: string; code: string; name: string }>;
+  accountingParties: Array<{ id: string; label: string }>;
   categories: Array<{ id: string; label: string; status: string }>;
   agreements: Array<{ id: string; label: string; status: string }>;
   requisitions: Array<{ id: string; label: string; status: string }>;

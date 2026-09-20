@@ -10,7 +10,7 @@ was built and proven, and — equally important — what is still open.
 
 | Layer | Evidence |
 |---|---|
-| Domain on real Postgres (RLS on, seeded-role permission sets, no owner bypass) | `tests/integration/procurement-source-to-pay.test.mjs` (25 tests) |
+| Domain on real Postgres (RLS on, seeded-role permission sets, no owner bypass) | `tests/integration/procurement-source-to-pay.test.mjs` (27 tests) |
 | Real browser, real personas (requester, buyer, approver, manager, goods-receipt user; owner only where the seeded roles hold no permission) | `apps/web/e2e/procurement-{requests,sourcing-orders,receiving,planning-analytics,settings}.spec.ts` |
 | Real ledger | the receiving spec reads `tenant.stock_balances` directly: only accepted quantity enters stock, a return's dispatch takes it out |
 | Static gates | route-security matrix (0 gaps), billing gate, eslint, tsc |
@@ -30,6 +30,8 @@ was built and proven, and — equally important — what is still open.
 7. **`policies`, `source-rules`, `portal-users` could not be written at all** (their tables lacked the version /
    hash columns every other child table has), so the invoice-matching tolerance was unsettable. Migration
    `134_procurement_settings_tables_versioning.sql`.
+
+8. **Call-offs were unbounded**: an order under an agreement could exceed, or ignore, what the agreement committed. Now enforced.
 
 ## Feature status
 
@@ -51,7 +53,7 @@ Legend: **Built+verified** · **Partial** (works, with named gaps) · **Not buil
 | F074 | Purchase orders | Built+verified | From scratch, requisition, RFQ award, agreement call-off or reorder. |
 | F075 | PO approvals | Built+verified | Submit/approve (not by creator)/reject/dispatch/acknowledge/cancel. Open: see F068 thresholds. |
 | F076 | PO amendments | Built+verified | Versioned; amendment approved by someone other than its requester; history shown. |
-| F077 | Blanket purchase orders | Built+verified | Agreements of type blanket with call-off orders and consumption view. Open: enforcement that call-offs cannot exceed committed quantity/value (shown, not blocked). |
+| F077 | Blanket purchase orders | Built+verified | Agreements of type blanket with call-off orders and consumption view. Call-offs are enforced: only an active agreement, only covered items, cumulative quantity never above the commitment (cancelling frees it). Open: value caps and price-vs-agreement checks. |
 | F078 | Purchase agreements & contracts | Built+verified | Approval (contracts approver), activation, validity. Open: expiry handling / renewal alerts, contract document attachments. |
 | F079 | Supplier price lists | Built+verified | Register with quantity breaks and validity; used to price reorder POs. **Not applied automatically when a buyer picks an item on a manual PO.** |
 | F080 | Goods receipt (GRN) | Built+verified | From a PO, approval posts accepted quantity to real stock; reversal takes it back out. |
@@ -75,8 +77,8 @@ Legend: **Built+verified** · **Partial** (works, with named gaps) · **Not buil
 ## Known limits of this session's work
 
 - Cross-module hand-offs stop at the boundary: a clean match creates an Accounting vendor bill **only when the
-  supplier is linked to an Accounting party** (there is no UI to set `accountingPartyId`), and that path was not
-  exercised end to end in a browser.
+  supplier is linked to an Accounting party** (settable from the supplier's Accounting tab), and the vendor-bill
+  creation itself was **not** exercised end to end (it needs a full Accounting foundation in the test organisation).
 - No supplier portal, e-mail sending, document attachments, or mobile/offline.
 - Accessibility and visual-regression gates were not run beyond the browser journeys.
 - Procurement lists fetch up to 200 rows per query; the performance and history screens aggregate that page in

@@ -117,7 +117,8 @@ export async function listProcurementPass1Options(client,c){
   const categories=await client.query(`SELECT record.id,COALESCE(record.data->>'name',record.data->>'code',record.id::text) AS label,record.status FROM tenant.procurement_categories record WHERE record.organization_id=$1${scope} AND record.status='active' ORDER BY label LIMIT 200`,values);
   const agreements=await client.query(`SELECT record.id,COALESCE(record.data->>'agreementNumber',record.data->>'title',record.id::text) AS label,record.status FROM tenant.procurement_agreements record WHERE record.organization_id=$1${scope} ORDER BY record.updated_at DESC LIMIT 1000`,values);
   const requisitions=await client.query(`SELECT record.id,COALESCE(record.data->>'requisitionNumber',record.data->>'title',record.id::text) AS label,record.status FROM tenant.procurement_requisitions record WHERE record.organization_id=$1${scope} ORDER BY record.updated_at DESC LIMIT 1000`,values);
-  return {suppliers:suppliers.rows,purchaseOrders:orders.rows,receipts:receipts.rows,items:items.rows,warehouses:warehouses.rows,sourcingEvents:sourcingEvents.rows,uoms:uoms.rows,categories:categories.rows,agreements:agreements.rows,requisitions:requisitions.rows};
+  const accountingParties=await client.query(`SELECT id,COALESCE(display_name,code) AS label FROM tenant.business_parties WHERE organization_id=$1 AND status='active' AND party_type IN ('supplier','both') AND (company_id IS NULL OR $2::uuid IS NULL OR company_id=$2) ORDER BY label LIMIT 1000`,[c.organizationId,c.activeCompanyId||null]);
+  return {accountingParties:accountingParties.rows,suppliers:suppliers.rows,purchaseOrders:orders.rows,receipts:receipts.rows,items:items.rows,warehouses:warehouses.rows,sourcingEvents:sourcingEvents.rows,uoms:uoms.rows,categories:categories.rows,agreements:agreements.rows,requisitions:requisitions.rows};
 }
 
 // F094: a reorder request (a stock item at or below its reorder point) becomes a DRAFT
@@ -165,4 +166,25 @@ export async function convertReorderRequestToPurchaseOrder(client, c, requestId)
   });
   const updated = await client.query(`UPDATE tenant.procurement_reorder_requests SET purchase_order_id=$3,status='converted',updated_by=$4,updated_at=now() WHERE organization_id=$1 AND id=$2 RETURNING *`, [c.organizationId, request.id, purchaseOrder.id, c.userId]);
   return { reorderRequest: updated.rows[0], purchaseOrder, idempotent: false, priced: Boolean(price) };
+}
+
+// Links a supplier to the Accounting business partner its invoices are booked to. A
+// clean invoice match is only handed to Accounting as a vendor bill when this link
+// exists. Suppliers are editable only while draft, so this is a separate, audited
+// operation that works at any lifecycle stage.
+export async function linkSupplierAccountingParty(client, c, input = {}) {
+  need(c, "procurement.suppliers.manage");
+  const target = await supplier(client, c, input.supplierId);
+  const partyId = uuid(input.accountingPartyId, "Accounting party");
+  const party = await client.query(`SELECT id FROM tenant.business_parties WHERE organization_id=$1 AND id=$2 AND status='active' AND party_type IN ('supplier','both')`, [c.organizationId, partyId]);
+  if (!party.rows[0]) throw new ProcurementError(404, "Active supplier party not found.", "PROCUREMENT_ACCOUNTING_PARTY_NOT_FOUND");
+  const updated = await client.query(
+    `UPDATE tenant.procurement_suppliers SET data=jsonb_set(data,'{accountingPartyId}',to_jsonb($3::text),true),version=version+1,updated_by=$4,updated_at=now() WHERE organization_id=$1 AND id=$2 RETURNING *`,
+    [c.organizationId, target.id, partyId, c.userId],
+  );
+  await client.query(
+    `INSERT INTO tenant.procurement_events(organization_id,company_id,entity_type,entity_id,event_type,payload,actor_user_id) VALUES($1,$2,'suppliers',$3,'accounting-party-linked',$4::jsonb,$5)`,
+    [c.organizationId, target.company_id || null, target.id, JSON.stringify({ accountingPartyId: partyId }), c.userId],
+  );
+  return updated.rows[0];
 }

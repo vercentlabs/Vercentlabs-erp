@@ -47,6 +47,7 @@ export const supplierForm: FormConfig = {
     { name: "email", label: "Email", kind: "text" },
     { name: "phone", label: "Phone", kind: "text" },
     { name: "website", label: "Website", kind: "text" },
+    { name: "accountingPartyId", label: "Accounting party (for vendor bills)", kind: "select", options: "accountingParties", placeholder: "Not linked" },
   ],
 };
 
@@ -65,7 +66,7 @@ export const supplierDetail: DetailConfig = {
     { label: "Tax registration", value: String(r.taxRegistrationNumber ?? "—") },
     { label: "Email", value: String(r.email ?? "—") },
     { label: "Phone", value: String(r.phone ?? "—") },
-    { label: "Accounting link", value: r.accountingPartyId ? "Linked to an Accounting party" : "Not linked — vendor bills cannot be created" },
+    { label: "Accounting link", value: r.accountingPartyId ? "Linked to an Accounting party" : "Not linked — edit the supplier to link one, or vendor bills will not be created" },
   ],
   actions: [
     { action: "submit", label: "Submit for qualification", from: ["draft"], permission: "procurement.suppliers.manage", primary: true },

@@ -456,6 +456,43 @@ test("Procurement source-to-pay against real PostgreSQL", async (t) => {
       assert.ok(Array.isArray(readiness.health.blockers) && Array.isArray(readiness.health.warnings));
     });
 
+    await t.test("F077: call-offs stay inside the agreement -- only active, only covered items, never more than committed", async () => {
+      let agreement = await tx((c) => createProcurementRecord(c, ctx.buyer, "agreements", { title: "Capped contract", supplierId: supplier.id, validFrom: "2026-01-01", validUntil: "2027-12-31", lines: lines("100", "50") }));
+      const callOff = (quantity, extra = {}) => tx((c) => createProcurementRecord(c, ctx.buyer, "purchase-orders", { title: "Call-off", supplierId: supplier.id, agreementId: agreement.id, expectedDeliveryDate: "2027-02-01", lines: lines(quantity, "50"), ...extra }));
+      await assert.rejects(() => callOff("1"), (e) => e.code === "PROCUREMENT_AGREEMENT_NOT_ACTIVE", "a draft agreement cannot be called off");
+      agreement = await tx((c) => transitionProcurementRecord(c, ctx.buyer, "agreements", agreement.id, "submit", { expectedVersion: agreement.version }));
+      agreement = await tx((c) => transitionProcurementRecord(c, ctx.approver, "agreements", agreement.id, "approve", { expectedVersion: agreement.version }));
+      agreement = await tx((c) => transitionProcurementRecord(c, ctx.buyer, "agreements", agreement.id, "activate", { expectedVersion: agreement.version }));
+      const first = await callOff("60");
+      assert.equal(first.agreementId, agreement.id);
+      await assert.rejects(() => callOff("41"), (e) => e.code === "PROCUREMENT_AGREEMENT_EXCEEDED", "60 + 41 > 100 committed");
+      const second = await callOff("40");
+      assert.equal(second.totals.grandTotal, "2000.00", "exactly the remainder is allowed");
+      await assert.rejects(() => callOff("1"), (e) => e.code === "PROCUREMENT_AGREEMENT_EXCEEDED", "the agreement is now fully called off");
+      await assert.rejects(() => tx((c) => createProcurementRecord(c, ctx.buyer, "purchase-orders", { title: "Other item", supplierId: supplier.id, agreementId: agreement.id, expectedDeliveryDate: "2027-02-01", lines: [{ description: "Something else", quantity: "1", unitPrice: "1" }] })), (e) => e.code === "PROCUREMENT_AGREEMENT_ITEM_NOT_COVERED");
+      // cancelling a call-off frees its quantity again
+      const cancelled = await tx((c) => transitionProcurementRecord(c, ctx.buyer, "purchase-orders", first.id, "cancel", { expectedVersion: first.version, reason: "Not needed" }));
+      assert.equal(cancelled.status, "cancelled");
+      const again = await callOff("55");
+      assert.ok(again.id);
+    });
+
+    await t.test("F084: a supplier is linked to an Accounting party at any lifecycle stage, by someone allowed to manage suppliers", async () => {
+      const partyId = randomUUID();
+      await admin.query("BEGIN");
+      await setTenantContext(admin, orgId);
+      await admin.query(`INSERT INTO tenant.business_parties(id,organization_id,company_id,code,party_type,display_name,status,created_by) VALUES ($1,$2,$3,'AP-1','supplier','Acme AP','active',$4)`, [partyId, orgId, companyId, users.buyer]);
+      await admin.query("COMMIT");
+      await assert.rejects(() => tx((c) => proc.linkSupplierAccountingParty(c, ctx.viewer, { supplierId: supplier.id, accountingPartyId: partyId })), forbidden);
+      await assert.rejects(() => tx((c) => proc.linkSupplierAccountingParty(c, ctx.buyer, { supplierId: supplier.id, accountingPartyId: randomUUID() })), (e) => e.status === 404);
+      const linked = await tx((c) => proc.linkSupplierAccountingParty(c, ctx.buyer, { supplierId: supplier.id, accountingPartyId: partyId }));
+      assert.equal(linked.data.accountingPartyId, partyId);
+      const options = await tx((c) => proc.listProcurementPass1Options(c, ctx.buyer));
+      assert.ok(options.accountingParties.some((party) => party.id === partyId));
+      const reread = await tx((c) => getProcurementRecord(c, ctx.viewer, "suppliers", supplier.id));
+      assert.equal(reread.accountingPartyId, partyId);
+    });
+
     // -- later slices append here --
   } finally {
     await admin.end();

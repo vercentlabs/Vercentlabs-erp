@@ -103,13 +103,13 @@ test.describe("Procurement planning, registers and analytics", () => {
       await expect(o.getByRole("heading", { name: "Landed cost" })).toBeVisible({ timeout: 180_000 });
       await o.getByRole("button", { name: "Add landed cost" }).click();
       const landed = o.getByRole("dialog", { name: "Add landed cost" });
-      await landed.getByLabel("Cost type").fill("Freight");
+      await landed.getByLabel("Cost type").fill(`Freight ${stamp}`);
       await setNumber(landed.getByRole("textbox", { name: "Amount" }), "150");
       await landed.getByRole("button", { name: "Save" }).click();
       await expect(landed.getByText(/Purchase Order or Goods Receipt/i)).toBeVisible({ timeout: 30_000 }); // must be tied to an order or receipt
       await pick(o, landed.getByRole("button", { name: /Select purchase order/ }), /PO-/);
       await landed.getByRole("button", { name: "Save" }).click();
-      await expect(o.getByRole("row", { name: /Freight.*INR 150\.00/ })).toBeVisible({ timeout: 30_000 });
+      await expect(o.getByRole("row", { name: new RegExp(`Freight ${stamp}.*INR 150\\.00`) })).toBeVisible({ timeout: 30_000 });
       // the buyer cannot record landed cost
       await b.goto("/procurement/landed-cost", { waitUntil: "domcontentloaded" });
       await expect(b.getByRole("heading", { name: "Landed cost" })).toBeVisible({ timeout: 60_000 });

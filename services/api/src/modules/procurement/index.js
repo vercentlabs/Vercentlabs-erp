@@ -672,6 +672,49 @@ async function loadReference(client, context, table, referenceId, companyId, lab
   return { ...(row.data || {}), ...row };
 }
 
+// F077/F078: an order raised under an agreement (a "call-off") must stay inside what
+// was committed. Only an ACTIVE agreement can be called off; each item's cumulative
+// ordered quantity (all non-cancelled, non-rejected orders under the agreement, plus
+// this one) may not exceed the agreement's committed quantity for that item.
+async function assertAgreementCapacity(client, context, resource, payload, excludeOrderId = null) {
+  if (resource !== "purchase-orders" || !payload.agreementId) return;
+  const agreementId = id(payload.agreementId, "Agreement");
+  const agreement = (
+    await client.query(`SELECT id,status,data FROM tenant.procurement_agreements WHERE organization_id=$1 AND id=$2`, [context.organizationId, agreementId])
+  ).rows[0];
+  if (!agreement) throw new ProcurementError(409, "Agreement does not exist.", "PROCUREMENT_REFERENCE_INVALID");
+  if (agreement.status !== "active") {
+    throw new ProcurementError(409, "Only an active agreement can be called off.", "PROCUREMENT_AGREEMENT_NOT_ACTIVE");
+  }
+  const key = (line) => String(line.itemId || String(line.description || "").trim().toLowerCase());
+  const committed = new Map();
+  const agreementLines = await client.query(`SELECT data FROM tenant.procurement_agreement_lines WHERE organization_id=$1 AND parent_id=$2`, [context.organizationId, agreementId]);
+  for (const row of agreementLines.rows) committed.set(key(row.data || {}), (committed.get(key(row.data || {})) || 0n) + decimal(row.data?.quantity ?? "0"));
+  const used = new Map();
+  const existing = await client.query(
+    `SELECT line.data FROM tenant.procurement_purchase_order_lines line
+       JOIN tenant.procurement_purchase_orders po ON po.organization_id=line.organization_id AND po.id=line.parent_id
+      WHERE po.organization_id=$1 AND po.agreement_id=$2 AND po.status NOT IN ('cancelled','rejected')
+        AND ($3::uuid IS NULL OR po.id<>$3)`,
+    [context.organizationId, agreementId, excludeOrderId],
+  );
+  for (const row of existing.rows) used.set(key(row.data || {}), (used.get(key(row.data || {})) || 0n) + decimal(row.data?.quantity ?? "0"));
+  for (const line of Array.isArray(payload.lines) ? payload.lines : []) {
+    const lineKey = key(line);
+    if (!committed.has(lineKey)) {
+      throw new ProcurementError(409, `"${line.description}" is not on this agreement.`, "PROCUREMENT_AGREEMENT_ITEM_NOT_COVERED");
+    }
+    used.set(lineKey, (used.get(lineKey) || 0n) + decimal(line.quantity ?? "0"));
+    if (used.get(lineKey) > committed.get(lineKey)) {
+      throw new ProcurementError(
+        409,
+        `"${line.description}" would exceed the agreement: ${format(used.get(lineKey), 4)} ordered against ${format(committed.get(lineKey), 4)} committed.`,
+        "PROCUREMENT_AGREEMENT_EXCEEDED",
+      );
+    }
+  }
+}
+
 async function validateDocumentReferences(client, context, resource, payload) {
   const references = {};
   const companyId = id(payload.companyId, "Company");
@@ -1150,6 +1193,7 @@ export async function createProcurementRecord(client, context, resource, input) 
   let payload = normalizeDocument(resource, input, context);
   payload = await ensureNumber(client, context, resource, payload);
   const references = await validateDocumentReferences(client, context, resource, payload);
+  await assertAgreementCapacity(client, context, resource, payload);
   const status = INITIAL_DOCUMENT_STATUS[resource] || "draft";
   const idempotencyKey = text(input.idempotencyKey, "Idempotency key", { max: 200 });
   const result = await client.query(
@@ -1251,6 +1295,7 @@ export async function updateProcurementRecord(client, context, resource, recordI
   let payload = normalizeDocument(resource, { ...(current.data || {}), ...input, companyId: current.company_id, branchId: current.branch_id }, context);
   payload = await ensureNumber(client, context, resource, payload);
   const references = await validateDocumentReferences(client, context, resource, payload);
+  await assertAgreementCapacity(client, context, resource, payload, id(recordId));
   const result = await client.query(
     `
       UPDATE tenant.${config.table}
@@ -1593,6 +1638,7 @@ export async function amendPurchaseOrder(client, context, recordId, input = {}) 
     "purchase-orders",
     merged,
   );
+  await assertAgreementCapacity(client, context, "purchase-orders", merged, orderId);
   const amendment = {
     amendmentId: randomUUID(),
     requestedAt: new Date().toISOString(),

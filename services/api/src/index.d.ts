@@ -598,6 +598,7 @@ export function upsertSupplierPurchasePrice(client: QueryClient, context: any, i
 export function createProcurementLandedCost(client: QueryClient, context: any, input?: Record<string, unknown>): Promise<any>;
 export function upsertSupplierLeadTime(client: QueryClient, context: any, input?: Record<string, unknown>): Promise<any>;
 export function createProcurementReorderRequest(client: QueryClient, context: any, input?: Record<string, unknown>): Promise<any>;
+export function linkSupplierAccountingParty(client: QueryClient, context: any, input?: Record<string, unknown>): Promise<any>;
 export function convertReorderRequestToPurchaseOrder(client: QueryClient, context: any, requestId: string): Promise<any>;
 export function createProcurementSubcontractOrder(client: QueryClient, context: any, input?: Record<string, unknown>): Promise<any>;
 export function listProcurementPass1Options(client: QueryClient, context: any): Promise<Record<string, any[]>>;

@@ -5,7 +5,7 @@ import { NumberField, Select, TextArea, TextField, type SelectOption } from "@ve
 import type { ProcOptions } from "@/features/procurement/shared/api";
 
 export type FieldKind = "text" | "date" | "number" | "textarea" | "select";
-export type OptionSource = "suppliers" | "warehouses" | "items" | "uoms" | "purchaseOrders" | "receipts" | "sourcingEvents" | "categories" | "agreements" | "requisitions";
+export type OptionSource = "suppliers" | "warehouses" | "items" | "uoms" | "purchaseOrders" | "receipts" | "sourcingEvents" | "categories" | "agreements" | "requisitions" | "accountingParties";
 export type FieldDef = {
   name: string;
   label: string;
@@ -41,6 +41,8 @@ export function resolveOptions(source: FieldDef["options"], options: ProcOptions
       return (o?.sourcingEvents ?? []).map((e) => ({ value: e.id, label: e.label }));
     case "categories":
       return (o?.categories ?? []).map((c) => ({ value: c.id, label: c.label }));
+    case "accountingParties":
+      return (o?.accountingParties ?? []).map((p) => ({ value: p.id, label: p.label }));
     case "agreements":
       return (o?.agreements ?? []).map((a) => ({ value: a.id, label: a.label }));
     case "requisitions":
