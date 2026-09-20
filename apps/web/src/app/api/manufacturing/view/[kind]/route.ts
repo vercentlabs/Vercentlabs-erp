@@ -1,4 +1,4 @@
-import { explodeBom, getBom, getCapacityPlan, getDowntimeSummary, listDowntime, listInspections, listSubcontractJobs, listTimeEntries, getMaterialAvailability, getMrpRun, listMrpRuns, getManufacturingSettings, getProductionOrder, getRouting, getWipReport, listJobCards, listMaterialReservations, listProductionOrders, listProductionPostings, listScrapRecords, listBoms, listCalendarExceptions, listCalendars, listEngineeringChanges, listManufacturingOptions, listRoutings, listShifts, listWorkCenters, whereUsed } from "@vercentlabs/api";
+import { explodeBom, getBom, getCapacityPlan, getEfficiencyReport, getProductionCostReport, getProductionDashboard, getProductionSummary, getStandardCost, getVarianceReport, getYieldReport, getDowntimeSummary, listDowntime, listInspections, listSubcontractJobs, listTimeEntries, getMaterialAvailability, getMrpRun, listMrpRuns, getManufacturingSettings, getProductionOrder, getRouting, getWipReport, listJobCards, listMaterialReservations, listProductionOrders, listProductionPostings, listScrapRecords, listBoms, listCalendarExceptions, listCalendars, listEngineeringChanges, listManufacturingOptions, listRoutings, listShifts, listWorkCenters, whereUsed } from "@vercentlabs/api";
 
 import { HttpError } from "@/core/http";
 import { manufacturingRead } from "@/features/manufacturing/shared/route-helpers";
@@ -10,6 +10,9 @@ export async function GET(request: Request, ctx: { params: Promise<{ kind: strin
   const { kind } = await ctx.params;
   const q = new URL(request.url).searchParams;
   const get = (name: string) => q.get(name) || undefined;
+  // "days" is a look-back window ending today; explicit from/to win.
+  const days = Math.min(Math.max(Math.trunc(Number(q.get("days") ?? 30)) || 30, 1), 730);
+  const window = { to: get("to") ?? new Date().toISOString().slice(0, 10), from: get("from") ?? new Date(Date.now() - days * 86400000).toISOString().slice(0, 10) };
   return manufacturingRead(async (client, context) => {
     switch (kind) {
       case "options":
@@ -68,6 +71,30 @@ export async function GET(request: Request, ctx: { params: Promise<{ kind: strin
         return { rows: await listDowntime(client, context, { openOnly: get("open") === "1" }), summary: await getDowntimeSummary(client, context, { days: get("days") ?? 30 }) };
       case "subcontract":
         return { rows: await listSubcontractJobs(client, context) };
+      case "dashboard":
+        return { dashboard: await getProductionDashboard(client, context) };
+      case "cost-report": {
+        const r = await getProductionCostReport(client, context, window);
+        return { rows: r.lines.map((l) => ({ id: String(l.orderId), ...l })), totals: r.totals };
+      }
+      case "variance": {
+        const r = await getVarianceReport(client, context, window);
+        return { rows: r.lines.map((l) => ({ id: String(l.orderId), ...l })), totals: r.totals };
+      }
+      case "yield": {
+        const r = await getYieldReport(client, context, window);
+        return { rows: r.lines.map((l) => ({ id: String(l.itemId), ...l })), reasons: r.reasons, overallYield: r.overallYield };
+      }
+      case "efficiency": {
+        const r = await getEfficiencyReport(client, context, { ...window, from: new Date(Math.max(Date.parse(window.from), Date.parse(window.to) - 59 * 86400000)).toISOString().slice(0, 10) });
+        return { rows: r.centers.map((l) => ({ id: String(l.workCenterId), ...l })) };
+      }
+      case "summary": {
+        const r = await getProductionSummary(client, context, window);
+        return { rows: r.lines.map((l) => ({ id: String(l.item_code), ...l })) };
+      }
+      case "standard-cost":
+        return { standard: await getStandardCost(client, context, { itemId: get("itemId"), quantity: get("quantity") ?? 1 }) };
       default:
         throw new HttpError(404, "Unknown manufacturing view.");
     }

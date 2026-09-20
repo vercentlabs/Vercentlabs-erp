@@ -545,6 +545,121 @@ const subcontracting: RegisterConfig = {
   searchText: (r) => text(r, ["work_order_number", "supplier_label", "operation_name"]),
 };
 
+const WINDOW = { name: "days", label: "Period", options: [{ value: "7", label: "Last 7 days" }, { value: "30", label: "Last 30 days" }, { value: "90", label: "Last 90 days" }, { value: "365", label: "Last year" }] };
+const sumOf = (rows: Row[], key: string) => rows.reduce((t, r) => t + Number(r[key] ?? 0), 0);
+
+const productionCost: RegisterConfig = {
+  key: "production-cost",
+  title: "Production cost",
+  description: "What each completed production order actually cost: material issued (less returns), labour and machine time, and subcontracting, per unit made.",
+  searchLabel: "Search orders",
+  emptyTitle: "No completed orders in this period",
+  emptyDescription: "Choose a longer period.",
+  source: { kind: "view", view: "cost-report", params: { days: "30" } },
+  filters: [WINDOW],
+  summary: (rows) => [{ label: "Orders", value: String(rows.length) }, { label: "Total cost", value: amount(sumOf(rows, "total")) }, { label: "Material", value: amount(sumOf(rows, "material")) }, { label: "Labour", value: amount(sumOf(rows, "labor")) }, { label: "Overhead", value: amount(sumOf(rows, "overhead")) }, { label: "Subcontract", value: amount(sumOf(rows, "subcontract")) }],
+  columns: () => [
+    link("order", "Order", (r) => String(r.orderNumber), (r) => `/manufacturing/order/${r.orderId}`),
+    col("product", "Product", (r) => `${r.itemName} (${r.itemCode})`),
+    col("qty", "Made", (r) => quantity(r.quantity)),
+    col("material", "Material", (r) => amount(r.material)),
+    col("labor", "Labour", (r) => amount(r.labor)),
+    col("overhead", "Overhead", (r) => amount(r.overhead)),
+    col("sub", "Subcontract", (r) => amount(r.subcontract)),
+    col("total", "Total", (r) => amount(r.total)),
+    col("unit", "Cost / unit", (r) => amount(r.perUnit)),
+  ],
+  searchText: (r) => text(r, ["orderNumber", "itemName", "itemCode"]),
+};
+
+const varianceReport: RegisterConfig = {
+  key: "variance",
+  title: "Cost variance",
+  description: "Actual against standard for each completed order, split into material price, material usage, labour and overhead. Negative is favourable. Standard is computed from the current BOM, routing and rates.",
+  searchLabel: "Search orders",
+  emptyTitle: "No completed orders in this period",
+  emptyDescription: "Choose a longer period.",
+  source: { kind: "view", view: "variance", params: { days: "30" } },
+  filters: [WINDOW],
+  summary: (rows) => [{ label: "Standard", value: amount(sumOf(rows, "standard")) }, { label: "Actual", value: amount(sumOf(rows, "actual")) }, { label: "Variance", value: amount(sumOf(rows, "variance")) }],
+  columns: () => [
+    link("order", "Order", (r) => String(r.orderNumber), (r) => `/manufacturing/order/${r.orderId}`),
+    col("product", "Product", (r) => `${r.itemName} (${r.itemCode})`),
+    col("standard", "Standard", (r) => amount(r.standard)),
+    col("actual", "Actual", (r) => amount(r.actual)),
+    { id: "variance", header: "Variance", accessorFn: (r: Row) => amount(r.variance), cell: ({ row }) => <StatusBadge tone={Number(row.original.variance) > 0 ? "danger" : Number(row.original.variance) < 0 ? "success" : "neutral"}>{amount(row.original.variance)}</StatusBadge> } as Col,
+    col("pct", "%", (r) => (r.variancePercent === null ? "—" : `${r.variancePercent}%`)),
+    col("price", "Material price", (r) => amount(r.materialPrice)),
+    col("usage", "Material usage", (r) => amount(r.materialUsage)),
+    col("labor", "Labour", (r) => amount(r.labor)),
+    col("overhead", "Overhead", (r) => amount(r.overhead)),
+  ],
+  searchText: (r) => text(r, ["orderNumber", "itemName", "itemCode"]),
+};
+
+const yieldReport: RegisterConfig = {
+  key: "yield",
+  title: "Yield",
+  description: "Good units as a share of good plus scrapped, and output against plan, by product. Rework orders are excluded so recovered units are not counted twice.",
+  searchLabel: "Search products",
+  emptyTitle: "No production in this period",
+  emptyDescription: "Choose a longer period.",
+  source: { kind: "view", view: "yield", params: { days: "30" } },
+  filters: [WINDOW],
+  summary: (rows) => [{ label: "Products", value: String(rows.length) }, { label: "Completed", value: quantity(sumOf(rows, "completed")) }, { label: "Scrapped", value: quantity(sumOf(rows, "scrapped")) }],
+  columns: () => [
+    strong("product", "Product", (r) => `${r.itemName} (${r.itemCode})`),
+    col("orders", "Orders", (r) => String(r.orders)),
+    col("planned", "Planned", (r) => quantity(r.planned)),
+    col("completed", "Completed", (r) => quantity(r.completed)),
+    col("scrapped", "Scrapped", (r) => quantity(r.scrapped)),
+    col("yield", "Yield", (r) => (r.yieldPercent === null ? "—" : `${r.yieldPercent}%`)),
+    col("attain", "Attainment", (r) => (r.attainmentPercent === null ? "—" : `${r.attainmentPercent}%`)),
+  ],
+  searchText: (r) => text(r, ["itemName", "itemCode"]),
+};
+
+const performance: RegisterConfig = {
+  key: "performance",
+  title: "Production efficiency",
+  description: "Overall equipment effectiveness per work center: availability (calendar time less downtime) x performance (planned against actual minutes) x quality (good against scrapped). Up to 60 days.",
+  searchLabel: "Search work centers",
+  emptyTitle: "No work centers",
+  emptyDescription: "Add work centers with calendars to measure them.",
+  source: { kind: "view", view: "efficiency", params: { days: "30" } },
+  filters: [{ name: "days", label: "Period", options: [{ value: "7", label: "Last 7 days" }, { value: "30", label: "Last 30 days" }, { value: "60", label: "Last 60 days" }] }],
+  columns: () => [
+    strong("wc", "Work center", (r) => `${r.name} (${r.code})`),
+    col("avail", "Available min", (r) => quantity(r.availableMinutes)),
+    col("down", "Downtime min", (r) => quantity(r.downtimeMinutes)),
+    col("ops", "Operations", (r) => String(r.operations)),
+    col("a", "Availability", (r) => (r.availabilityPercent === null ? "—" : `${r.availabilityPercent}%`)),
+    col("p", "Performance", (r) => (r.performancePercent === null ? "—" : `${r.performancePercent}%`)),
+    col("q", "Quality", (r) => (r.qualityPercent === null ? "—" : `${r.qualityPercent}%`)),
+    { id: "oee", header: "OEE", accessorFn: (r: Row) => (r.oeePercent === null ? "—" : `${r.oeePercent}%`), cell: ({ row }) => (row.original.oeePercent === null ? <span>—</span> : <StatusBadge tone={row.original.oeePercent >= 85 ? "success" : row.original.oeePercent >= 60 ? "warning" : "danger"}>{`${row.original.oeePercent}%`}</StatusBadge>) } as Col,
+  ],
+  searchText: (r) => text(r, ["name", "code"]),
+};
+
+const productionSummary: RegisterConfig = {
+  key: "production-summary",
+  title: "Production summary",
+  description: "Output by product over a period, with how many orders finished on or before their due date.",
+  searchLabel: "Search products",
+  emptyTitle: "No production in this period",
+  emptyDescription: "Choose a longer period.",
+  source: { kind: "view", view: "summary", params: { days: "30" } },
+  filters: [WINDOW],
+  columns: () => [
+    strong("product", "Product", (r) => `${r.item_name} (${r.item_code})`),
+    col("orders", "Orders", (r) => String(r.orders)),
+    col("planned", "Planned", (r) => quantity(r.planned)),
+    col("completed", "Completed", (r) => quantity(r.completed)),
+    col("ontime", "On time", (r) => (r.with_due ? `${r.on_time} of ${r.with_due}` : "—")),
+  ],
+  searchText: (r) => text(r, ["item_name", "item_code"]),
+};
+
 export const REGISTERS: Record<string, RegisterConfig> = {
   boms,
   "bom-versions": bomVersions,
@@ -568,4 +683,9 @@ export const REGISTERS: Record<string, RegisterConfig> = {
   inspections,
   downtime,
   subcontracting,
+  "production-cost": productionCost,
+  variance: varianceReport,
+  yield: yieldReport,
+  performance,
+  "production-summary": productionSummary,
 };

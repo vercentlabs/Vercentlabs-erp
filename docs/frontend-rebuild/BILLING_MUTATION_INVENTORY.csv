@@ -116,6 +116,7 @@ api/crm/tasks/route.ts,POST,via-mutation-option,gated,,"business-data mutation (
 api/inventory/actions/[action]/route.ts,POST,none,out-of-scope,,"business-data mutation (default assumption, needs confirmation)"
 api/inventory/master/[resource]/[id]/route.ts,PATCH,none,out-of-scope,,"business-data mutation (default assumption, needs confirmation)"
 api/inventory/master/[resource]/route.ts,POST,none,out-of-scope,,"business-data mutation (default assumption, needs confirmation)"
+api/manufacturing/actions/[action]/route.ts,POST,none,out-of-scope,,"business-data mutation (default assumption, needs confirmation)"
 api/notifications/[id]/read/route.ts,PATCH,none,out-of-scope,,"business-data mutation (default assumption, needs confirmation)"
 api/notifications/route.ts,PATCH,none,out-of-scope,,"business-data mutation (default assumption, needs confirmation)"
 api/pos/accounting/mappings/route.ts,POST,via-mutation-option,gated,,"business-data mutation (default assumption, needs confirmation)"

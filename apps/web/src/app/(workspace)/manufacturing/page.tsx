@@ -1,12 +1,7 @@
-import { ModuleFoundationPage } from "@/shell/module-foundation/ModuleFoundationPage";
+import { ManufacturingHomeScreen } from "@/features/manufacturing/screens/AnalyticsScreens";
 
 export const metadata = { title: "Manufacturing" };
 
 export default function ManufacturingPage() {
-  return (
-    <ModuleFoundationPage
-      moduleKey="manufacturing"
-      moduleLabel="Manufacturing"
-    />
-  );
+  return <ManufacturingHomeScreen />;
 }
