@@ -444,6 +444,107 @@ const mrp: RegisterConfig = {
   searchText: (r) => text(r, ["run_number", "note"]),
 };
 
+const REASONS = ["breakdown", "changeover", "no_material", "no_operator", "quality_issue", "planned_maintenance", "power_outage", "other"].map((value) => ({ value, label: label(value) }));
+
+const timeTracking: RegisterConfig = {
+  key: "time-tracking",
+  title: "Time tracking",
+  description: "Labour, machine and setup time logged against operations, costed at the work center's rates. Logged time is what an operation costs; log it from the production order.",
+  searchLabel: "Search time entries",
+  emptyTitle: "No time logged yet",
+  emptyDescription: "Start an operation and log time against it on the production order.",
+  source: { kind: "view", view: "time-entries" },
+  columns: () => [
+    col("when", "Started", (r) => dateTime(r.started_at)),
+    link("order", "Order", (r) => String(r.work_order_number), (r) => `/manufacturing/order/${r.work_order_id}`),
+    col("op", "Operation", (r) => `${r.sequence} · ${r.operation_name}`),
+    badge("type", "Type", (r) => r.entry_type),
+    col("who", "Operator", (r) => String(r.operator_label ?? "—")),
+    col("minutes", "Minutes", (r) => (r.ended_at ? quantity(r.minutes) : "running")),
+    col("rate", "Rate / hour", (r) => (r.rate === null ? "—" : quantity(r.rate))),
+    col("cost", "Cost", (r) => (r.cost === null ? "—" : amount(r.cost))),
+  ],
+  summary: (rows) => [{ label: "Entries", value: String(rows.length) }, { label: "Minutes", value: quantity(rows.reduce((t, r) => t + Number(r.minutes ?? 0), 0)) }],
+  searchText: (r) => text(r, ["work_order_number", "operation_name", "operator_label", "entry_type"]),
+  rowActions: [{ label: "Stop timer", permission: "manufacturing.production.post", show: (r) => !r.ended_at, success: "Timer stopped.", run: (r) => act("timer-stop", { id: r.id }) }],
+};
+
+const inspections: RegisterConfig = {
+  key: "inspections",
+  title: "Production inspections",
+  description: "In-process checks recorded against production orders. An operation flagged 'inspection required' cannot be completed until a passing inspection of it is on record. Record one from the production order.",
+  searchLabel: "Search inspections",
+  emptyTitle: "No inspections yet",
+  emptyDescription: "Inspections are recorded on a production order.",
+  source: { kind: "view", view: "inspections" },
+  columns: () => [
+    col("when", "When", (r) => dateTime(r.created_at)),
+    link("order", "Order", (r) => String(r.work_order_number), (r) => `/manufacturing/order/${r.work_order_id}`),
+    col("op", "Operation", (r) => (r.operation_name ? `${r.sequence} · ${r.operation_name}` : "Whole order")),
+    badge("result", "Result", (r) => (r.result === "pass" ? "completed" : "blocked")),
+    col("inspected", "Inspected", (r) => quantity(r.quantity_inspected)),
+    col("rejected", "Rejected", (r) => quantity(r.quantity_rejected)),
+    col("defect", "Defect", (r) => String(r.defect_code ?? "—")),
+    col("follow", "Follow-up", (r) => label(r.follow_up)),
+  ],
+  searchText: (r) => text(r, ["work_order_number", "defect_code", "item_code"]),
+};
+
+const downtime: RegisterConfig = {
+  key: "downtime",
+  title: "Downtime",
+  description: "When work centers stopped and why. A breakdown can stop the work center (it then gives no capacity) and raise a corrective maintenance order on its linked asset in Assets.",
+  searchLabel: "Search downtime",
+  emptyTitle: "No downtime logged",
+  emptyDescription: "Log downtime when a work center stops.",
+  source: { kind: "view", view: "downtime" },
+  createLabel: "Log downtime",
+  createPermission: "manufacturing.production.post",
+  save: { action: "downtime-start", success: "Downtime started." },
+  fields: [
+    { name: "workCenterId", label: "Work center", kind: "select", required: true, options: "workCenters" },
+    { name: "reasonCode", label: "Reason", kind: "select", required: true, defaultValue: "breakdown", options: REASONS },
+    { name: "category", label: "Kind", kind: "select", defaultValue: "unplanned", options: [{ value: "unplanned", label: "Unplanned" }, { value: "planned", label: "Planned" }] },
+    { name: "stopWorkCenter", label: "Take the work center out of service", kind: "bool", defaultValue: "false" },
+    { name: "requestMaintenance", label: "Raise a maintenance request", kind: "bool", defaultValue: "false" },
+    { name: "note", label: "Note", kind: "textarea" },
+  ],
+  columns: () => [
+    col("start", "Started", (r) => dateTime(r.started_at)),
+    strong("wc", "Work center", (r) => `${r.work_center_name} (${r.work_center_code})`),
+    col("reason", "Reason", (r) => label(r.reason_code)),
+    col("kind", "Kind", (r) => label(r.category)),
+    col("minutes", "Minutes", (r) => (r.ended_at ? quantity(r.minutes) : "running")),
+    col("stopped", "Out of service", (r) => (r.stopped_work_center ? "Yes" : "No")),
+    col("maint", "Maintenance", (r) => (r.maintenance_number ? `${r.maintenance_number} · ${label(r.maintenance_status)}` : "—")),
+    col("note", "Note", (r) => String(r.note ?? "—")),
+  ],
+  searchText: (r) => text(r, ["work_center_name", "reason_code", "note", "maintenance_number"]),
+  rowActions: [{ label: "End downtime", permission: "manufacturing.production.post", show: (r) => !r.ended_at, success: "Downtime ended.", run: (r) => act("downtime-end", { id: r.id }) }],
+};
+
+const subcontracting: RegisterConfig = {
+  key: "subcontracting",
+  title: "Subcontracting",
+  description: "Operations sent to an outside processor and brought back. Send out and receive from the production order; the cost joins the order's work in progress.",
+  searchLabel: "Search subcontract jobs",
+  emptyTitle: "Nothing subcontracted",
+  emptyDescription: "An operation defined as subcontracted in the routing can be sent out from the production order.",
+  source: { kind: "view", view: "subcontract" },
+  columns: () => [
+    link("order", "Order", (r) => String(r.work_order_number), (r) => `/manufacturing/order/${r.work_order_id}`),
+    col("op", "Operation", (r) => `${r.sequence} · ${r.operation_name}`),
+    strong("supplier", "Subcontractor", (r) => String(r.supplier_label)),
+    badge("status", "Status", (r) => (r.status === "received" ? "completed" : r.status === "sent" ? "in_progress" : r.status)),
+    col("sent", "Sent", (r) => dateTime(r.sent_at)),
+    col("due", "Expected back", (r) => calendarDate(r.expected_return)),
+    col("back", "Received", (r) => dateTime(r.received_at)),
+    col("good", "Good qty", (r) => quantity(r.quantity_good)),
+    col("cost", "Cost", (r) => (r.cost === null ? "—" : amount(r.cost))),
+  ],
+  searchText: (r) => text(r, ["work_order_number", "supplier_label", "operation_name"]),
+};
+
 export const REGISTERS: Record<string, RegisterConfig> = {
   boms,
   "bom-versions": bomVersions,
@@ -463,4 +564,8 @@ export const REGISTERS: Record<string, RegisterConfig> = {
   "by-products": byProducts,
   "scrap-rework": scrapRework,
   mrp,
+  "time-tracking": timeTracking,
+  inspections,
+  downtime,
+  subcontracting,
 };

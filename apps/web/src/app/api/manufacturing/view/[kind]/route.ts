@@ -1,4 +1,4 @@
-import { explodeBom, getBom, getCapacityPlan, getMaterialAvailability, getMrpRun, listMrpRuns, getManufacturingSettings, getProductionOrder, getRouting, getWipReport, listJobCards, listMaterialReservations, listProductionOrders, listProductionPostings, listScrapRecords, listBoms, listCalendarExceptions, listCalendars, listEngineeringChanges, listManufacturingOptions, listRoutings, listShifts, listWorkCenters, whereUsed } from "@vercentlabs/api";
+import { explodeBom, getBom, getCapacityPlan, getDowntimeSummary, listDowntime, listInspections, listSubcontractJobs, listTimeEntries, getMaterialAvailability, getMrpRun, listMrpRuns, getManufacturingSettings, getProductionOrder, getRouting, getWipReport, listJobCards, listMaterialReservations, listProductionOrders, listProductionPostings, listScrapRecords, listBoms, listCalendarExceptions, listCalendars, listEngineeringChanges, listManufacturingOptions, listRoutings, listShifts, listWorkCenters, whereUsed } from "@vercentlabs/api";
 
 import { HttpError } from "@/core/http";
 import { manufacturingRead } from "@/features/manufacturing/shared/route-helpers";
@@ -60,6 +60,14 @@ export async function GET(request: Request, ctx: { params: Promise<{ kind: strin
         return { run: await getMrpRun(client, context, get("id") ?? "") };
       case "material-availability":
         return { availability: await getMaterialAvailability(client, context, { itemId: get("itemId"), bomId: get("bomId"), quantity: get("quantity") ?? 1 }) };
+      case "time-entries":
+        return { rows: await listTimeEntries(client, context, { workOrderId: get("workOrderId") }) };
+      case "inspections":
+        return { rows: await listInspections(client, context) };
+      case "downtime":
+        return { rows: await listDowntime(client, context, { openOnly: get("open") === "1" }), summary: await getDowntimeSummary(client, context, { days: get("days") ?? 30 }) };
+      case "subcontract":
+        return { rows: await listSubcontractJobs(client, context) };
       default:
         throw new HttpError(404, "Unknown manufacturing view.");
     }

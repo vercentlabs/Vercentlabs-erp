@@ -12,13 +12,14 @@ import { amount, calendarDate, dateTime, label, quantity, tone } from "@/feature
 import { MfgAlert, MfgPanel, useCan } from "@/features/manufacturing/shared/MfgUi";
 
 type Material = { id: string; item_id: string; item_code: string; item_name: string; warehouse_name: string; issue_method: string; required_quantity: string; issued_quantity: string; returned_quantity: string; reserved_quantity: string; available_quantity: string; issued_cost: string | null };
-type Operation = { id: string; sequence: number; name: string; status: string; planned_minutes: string; actual_minutes: string | null; work_center_name: string | null; inspection_required: boolean };
+type Operation = { id: string; sequence: number; name: string; status: string; planned_minutes: string; actual_minutes: string | null; work_center_name: string | null; inspection_required: boolean; subcontracted: boolean };
 type Order = {
   id: string; work_order_number: string; status: string; priority: string; source_type: string; source_label: string | null; rework_of_id: string | null; quantity_planned: string; quantity_completed: string; quantity_scrapped: string;
   planned_start_at: string | null; planned_end_at: string | null; item_code: string; item_name: string; tracking_type: string; bom_code: string | null; bom_version: number | null; close_reason: string | null; cancel_reason: string | null; notes: string | null;
   materials: Material[]; operations: Operation[]; postings: Array<{ posting_type: string; quantity: string; unit_cost: string | null; posted_at: string; item_code: string }>;
   scrap: Array<{ id: string; category: string; scope: string; quantity: string; reason_code: string; note: string | null; item_code: string }>; outputs: Array<{ output_type: string; quantity: string; item_code: string; item_name: string }>;
   rework: Array<{ id: string; work_order_number: string; status: string; quantity_planned: string }>; costs: { material: string; labor: string; overhead: string; scrap: string; absorbed: string; wip: string } | null;
+  jobs: Array<{ id: string; operation_id: string; supplier_label: string; status: string; expected_return: string | null }>; inspections: Array<{ id: string; operation_id: string | null; result: string; quantity_inspected: string; quantity_rejected: string; defect_code: string | null }>; hold_reason: string | null;
 };
 
 const errorText = (error: unknown) => (error instanceof MfgApiError ? error.message : "That could not be completed.");
@@ -38,7 +39,7 @@ export function OrderDetailScreen({ id }: { id: string }) {
   const [batchNumber, setBatchNumber] = useState("");
   const [expiresOn, setExpiresOn] = useState("");
   const [serials, setSerials] = useState("");
-  const [dialog, setDialog] = useState<{ kind: "close" | "cancel" | "return" | "complete" | "skip" | "rework"; id?: string; title: string } | null>(null);
+  const [dialog, setDialog] = useState<{ kind: "close" | "cancel" | "return" | "complete" | "skip" | "rework" | "hold" | "log" | "inspect" | "send" | "receive"; id?: string; title: string } | null>(null);
   const [scrapScope, setScrapScope] = useState("product");
   const [scrapItem, setScrapItem] = useState("");
   const [scrapQty, setScrapQty] = useState(1);
@@ -90,6 +91,8 @@ export function OrderDetailScreen({ id }: { id: string }) {
             <StatusBadge tone={tone(order.status)}>{label(order.status)}</StatusBadge>
             {order.status === "planned" && canRelease && <Button variant="primary" onPress={() => run.mutate({ action: "order-release", body: { id: order.id }, success: "Order released; components reserved." })} isLoading={run.isPending}>Release</Button>}
             {order.status === "planned" && canRelease && shortage && <Button variant="secondary" onPress={() => run.mutate({ action: "order-release", body: { id: order.id, allowShortage: true }, success: "Order released with the shortage accepted." })}>Release anyway</Button>}
+            {active && canManage && <Button variant="secondary" onPress={() => setDialog({ kind: "hold", title: "Hold order" })}>Hold</Button>}
+            {order.status === "on_hold" && canManage && <Button variant="primary" onPress={() => run.mutate({ action: "order-resume", body: { id: order.id }, success: "Order resumed." })}>Resume</Button>}
             {active && canManage && <Button variant="secondary" onPress={() => setDialog({ kind: "close", title: "Close short" })}>Close short</Button>}
             {["planned", "released", "on_hold"].includes(order.status) && canManage && <Button variant="ghost" onPress={() => setDialog({ kind: "cancel", title: "Cancel order" })}>Cancel order</Button>}
             <Link href="/manufacturing/production-orders" className="text-sm text-brand hover:underline">Back to orders</Link>
@@ -98,6 +101,7 @@ export function OrderDetailScreen({ id }: { id: string }) {
       />
       {notice && <MfgAlert tone="success">{notice}</MfgAlert>}
       {error && <MfgAlert>{error}</MfgAlert>}
+      {order.status === "on_hold" && <MfgAlert tone="warning">On hold: {order.hold_reason}</MfgAlert>}
       {order.close_reason && <MfgAlert tone="info">Closed short: {order.close_reason}</MfgAlert>}
       {order.cancel_reason && <MfgAlert tone="warning">Cancelled: {order.cancel_reason}</MfgAlert>}
       <MetricStrip
@@ -169,6 +173,10 @@ export function OrderDetailScreen({ id }: { id: string }) {
                         {o.status === "ready" && active && canPost && <Button variant="ghost" size="compact" onPress={() => run.mutate({ action: "operation-start", body: { id: o.id }, success: "Operation started." })}>Start</Button>}
                         {o.status === "in_progress" && canPost && <Button variant="ghost" size="compact" onPress={() => setDialog({ kind: "complete", id: o.id, title: `Complete operation ${o.sequence}` })}>Complete</Button>}
                         {["pending", "ready"].includes(o.status) && active && canManage && <Button variant="ghost" size="compact" onPress={() => setDialog({ kind: "skip", id: o.id, title: `Skip operation ${o.sequence}` })}>Skip</Button>}
+                        {o.status === "in_progress" && !o.subcontracted && canPost && <Button variant="ghost" size="compact" onPress={() => setDialog({ kind: "log", id: o.id, title: `Log time on ${o.sequence}` })}>Log time</Button>}
+                        {(o.inspection_required || o.status === "in_progress") && !o.subcontracted && canPost && ["released", "in_progress", "on_hold"].includes(order.status) && <Button variant="ghost" size="compact" onPress={() => setDialog({ kind: "inspect", id: o.id, title: `Inspect operation ${o.sequence}` })}>Inspect</Button>}
+                        {o.subcontracted && o.status === "ready" && active && canPost && <Button variant="ghost" size="compact" onPress={() => setDialog({ kind: "send", id: o.id, title: `Send out operation ${o.sequence}` })}>Send out</Button>}
+                        {o.subcontracted && o.status === "in_progress" && canPost && order.jobs.find((j) => j.operation_id === o.id && j.status === "sent") && <Button variant="ghost" size="compact" onPress={() => setDialog({ kind: "receive", id: order.jobs.find((j) => j.operation_id === o.id && j.status === "sent")!.id, title: `Receive operation ${o.sequence}` })}>Receive</Button>}
                       </div>
                     </td>
                   </tr>
@@ -236,6 +244,11 @@ export function OrderDetailScreen({ id }: { id: string }) {
       {dialog?.kind === "skip" && <ReasonDialog title={dialog.title} error={error} isPending={run.isPending} onClose={() => setDialog(null)} onConfirm={(reason) => run.mutate({ action: "operation-skip", body: { id: dialog.id, reason }, success: "Operation skipped." })} />}
       {dialog?.kind === "complete" && <MinutesDialog title={dialog.title} error={error} isPending={run.isPending} onClose={() => setDialog(null)} onConfirm={(minutes) => run.mutate({ action: "operation-complete", body: { id: dialog.id, actualMinutes: minutes }, success: "Operation completed." })} />}
       {dialog?.kind === "return" && <ReturnDialog title={dialog.title} error={error} isPending={run.isPending} onClose={() => setDialog(null)} onConfirm={(q, reason) => post("material-return", { orderId: order.id, lines: [{ materialId: dialog.id, quantity: q, reason }] }, "Material returned to stock.")} />}
+      {dialog?.kind === "hold" && <ReasonDialog title={dialog.title} error={error} isPending={run.isPending} onClose={() => setDialog(null)} onConfirm={(reason) => run.mutate({ action: "order-hold", body: { id: order.id, reason }, success: "Order put on hold." })} />}
+      {dialog?.kind === "log" && <LogTimeDialog title={dialog.title} error={error} isPending={run.isPending} onClose={() => setDialog(null)} onConfirm={(body) => run.mutate({ action: "time-log", body: { operationId: dialog.id, ...body }, success: "Time logged." })} />}
+      {dialog?.kind === "inspect" && <InspectDialog title={dialog.title} error={error} isPending={run.isPending} onClose={() => setDialog(null)} onConfirm={(body) => run.mutate({ action: "inspection-record", body: { orderId: order.id, operationId: dialog.id, ...body }, success: "Inspection recorded." })} />}
+      {dialog?.kind === "send" && <SendDialog title={dialog.title} materials={order.materials} error={error} isPending={run.isPending} onClose={() => setDialog(null)} onConfirm={(body) => post("subcontract-send", { operationId: dialog.id, ...body }, "Sent to the subcontractor.")} />}
+      {dialog?.kind === "receive" && <ReceiveDialog title={dialog.title} error={error} isPending={run.isPending} onClose={() => setDialog(null)} onConfirm={(body) => run.mutate({ action: "subcontract-receive", body: { id: dialog.id, ...body }, success: "Received from the subcontractor." })} />}
       {dialog?.kind === "rework" && <ReworkDialog max={Number(order.quantity_scrapped)} error={error} isPending={run.isPending} onClose={() => setDialog(null)} onConfirm={(q, reason) => run.mutate({ action: "rework-create", body: { orderId: order.id, quantity: q, reason }, success: "Rework order created." })} />}
     </div>
   );
@@ -334,5 +347,63 @@ export function SettingsScreen() {
         {editable ? <div><Button variant="primary" onPress={() => save.mutate()} isLoading={save.isPending} isDisabled={!s}>Save settings</Button></div> : <p className="text-sm text-text-muted">You can view these settings but not change them.</p>}
       </MfgPanel>
     </div>
+  );
+}
+
+function LogTimeDialog({ title, onClose, onConfirm, isPending, error }: { title: string; onClose: () => void; onConfirm: (body: { minutes: number; entryType: string; operatorLabel: string | undefined }) => void; isPending: boolean; error: string | null }) {
+  const [minutes, setMinutes] = useState(30);
+  const [entryType, setEntryType] = useState("labor");
+  const [who, setWho] = useState("");
+  return (
+    <Shell title={title} onClose={onClose} error={error}>
+      <Select label="Kind of time" options={[{ value: "labor", label: "Labour" }, { value: "machine", label: "Machine" }, { value: "setup", label: "Setup" }]} selectedKey={entryType} onSelectionChange={(k) => setEntryType(String(k ?? "labor"))} />
+      <NumberField label="Minutes" value={minutes} minValue={0} step={5} onChange={(n) => setMinutes(Number.isNaN(n) ? 0 : n)} />
+      <TextField label="Operator" value={who} onChange={setWho} />
+      <Buttons onClose={onClose} confirm="Log time" onConfirm={() => onConfirm({ minutes, entryType, operatorLabel: who.trim() || undefined })} isPending={isPending} disabled={minutes <= 0} />
+    </Shell>
+  );
+}
+function InspectDialog({ title, onClose, onConfirm, isPending, error }: { title: string; onClose: () => void; onConfirm: (body: { quantityInspected: number; quantityRejected: number; defectCode: string | undefined; followUp: string; notes: string | undefined }) => void; isPending: boolean; error: string | null }) {
+  const [inspected, setInspected] = useState(1);
+  const [rejected, setRejected] = useState(0);
+  const [defect, setDefect] = useState("");
+  const [followUp, setFollowUp] = useState("none");
+  const [notes, setNotes] = useState("");
+  return (
+    <Shell title={title} onClose={onClose} error={error}>
+      <NumberField label="Quantity inspected" value={inspected} minValue={0} step={1} onChange={(n) => setInspected(Number.isNaN(n) ? 0 : n)} />
+      <NumberField label="Quantity rejected" value={rejected} minValue={0} step={1} onChange={(n) => setRejected(Number.isNaN(n) ? 0 : n)} />
+      {rejected > 0 && <TextField label="Defect" isRequired value={defect} onChange={setDefect} />}
+      {rejected > 0 && <Select label="What happens to the rejects" options={[{ value: "none", label: "Nothing yet" }, { value: "scrap", label: "Scrap the rejected units" }, { value: "hold", label: "Put the order on hold" }]} selectedKey={followUp} onSelectionChange={(k) => setFollowUp(String(k ?? "none"))} />}
+      <TextArea label="Notes" value={notes} onChange={setNotes} />
+      <Buttons onClose={onClose} confirm="Record inspection" onConfirm={() => onConfirm({ quantityInspected: inspected, quantityRejected: rejected, defectCode: defect.trim() || undefined, followUp, notes: notes.trim() || undefined })} isPending={isPending} disabled={inspected <= 0 || (rejected > 0 && !defect.trim())} />
+    </Shell>
+  );
+}
+function SendDialog({ title, materials, onClose, onConfirm, isPending, error }: { title: string; materials: Material[]; onClose: () => void; onConfirm: (body: { supplierLabel: string; expectedReturn: string | undefined; materials: Array<{ materialId: string; quantity: number }> }) => void; isPending: boolean; error: string | null }) {
+  const [supplier, setSupplier] = useState("");
+  const [due, setDue] = useState("");
+  const [qty, setQty] = useState<Record<string, number>>({});
+  return (
+    <Shell title={title} onClose={onClose} error={error}>
+      <TextField label="Subcontractor" isRequired value={supplier} onChange={setSupplier} />
+      <TextField label="Expected back" type="date" value={due} onChange={setDue} />
+      <p className="text-sm text-text-secondary">Material sent with the job (issued from stock to this order):</p>
+      {materials.map((m) => (
+        <NumberField key={m.id} label={`${m.item_name} (${m.item_code})`} value={qty[m.id] ?? 0} minValue={0} step={0.001} onChange={(n) => setQty((c) => ({ ...c, [m.id]: Number.isNaN(n) ? 0 : n }))} />
+      ))}
+      <Buttons onClose={onClose} confirm="Send out" onConfirm={() => onConfirm({ supplierLabel: supplier.trim(), expectedReturn: due || undefined, materials: Object.entries(qty).filter(([, q]) => q > 0).map(([materialId, quantity]) => ({ materialId, quantity })) })} isPending={isPending} disabled={!supplier.trim()} />
+    </Shell>
+  );
+}
+function ReceiveDialog({ title, onClose, onConfirm, isPending, error }: { title: string; onClose: () => void; onConfirm: (body: { quantityGood: number; cost: number }) => void; isPending: boolean; error: string | null }) {
+  const [good, setGood] = useState(0);
+  const [cost, setCost] = useState(0);
+  return (
+    <Shell title={title} onClose={onClose} error={error}>
+      <NumberField label="Good quantity received" value={good} minValue={0} step={1} onChange={(n) => setGood(Number.isNaN(n) ? 0 : n)} />
+      <NumberField label="Subcontract cost" value={cost} minValue={0} step={0.01} onChange={(n) => setCost(Number.isNaN(n) ? 0 : n)} />
+      <Buttons onClose={onClose} confirm="Receive" onConfirm={() => onConfirm({ quantityGood: good, cost })} isPending={isPending} disabled={good <= 0} />
+    </Shell>
   );
 }

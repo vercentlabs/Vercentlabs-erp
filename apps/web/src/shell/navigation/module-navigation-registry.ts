@@ -495,7 +495,10 @@ export const MODULE_NAVIGATION: readonly ModuleNavigation[] = [
         id: "quality",
         label: "Quality",
         featureRange: "F176-F177",
-        items: [planned("Quality / Holds", "/manufacturing/quality-holds")],
+        items: [available("Inspections", "/manufacturing/inspections"),
+          available("Downtime", "/manufacturing/downtime"),
+          available("Time Tracking", "/manufacturing/time-tracking"),
+          available("Subcontracting", "/manufacturing/subcontracting")],
       },
       {
         id: "resources",

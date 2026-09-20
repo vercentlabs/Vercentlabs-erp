@@ -6,6 +6,7 @@ import { postStockMovement, releaseStockReservation, reserveStock } from "../sto
 import { createStockBatch, receiveSerializedStock } from "../stock/master-operations.js";
 import { MfgError, dateOrNull, has, need, positive, recordEvent, text, uuid } from "./common.js";
 import { resolveBomForItem } from "./engineering.js";
+import { operationInspectionSatisfied } from "./execution.js";
 
 // Shop-floor execution (F155-F157, F162-F167, F172-F179).
 //
@@ -360,13 +361,17 @@ export async function completeOperation(client, c, operationId, input = {}) {
   need(c, "manufacturing.production.post");
   const op = await loadOperation(client, c, operationId);
   if (op.status !== "in_progress") throw new MfgError(409, "Only an operation that has been started can be completed.", "MFG_OPERATION_STATE_INVALID");
-  const minutes = input.actualMinutes === undefined || input.actualMinutes === "" ? Math.max(Math.round((Date.now() - new Date(op.started_at).getTime()) / 60000), 0) : Number(input.actualMinutes);
+  if (op.inspection_required && !(await operationInspectionSatisfied(client, c, op.id))) throw new MfgError(409, "This operation requires a passing inspection before it can be completed. Record one on the order.", "MFG_INSPECTION_REQUIRED");
+  // Logged time is the operation's cost; without any, the elapsed/entered minutes are costed at completion.
+  const logged = (await client.query(`SELECT count(*)::int AS n,COALESCE(sum(minutes) FILTER (WHERE ended_at IS NOT NULL),0) AS minutes FROM tenant.manufacturing_time_entries WHERE organization_id=$1 AND operation_id=$2`, [c.organizationId, op.id])).rows[0];
+  const hasLoggedTime = logged.n > 0;
+  const minutes = input.actualMinutes === undefined || input.actualMinutes === "" ? (hasLoggedTime ? Number(logged.minutes) : Math.max(Math.round((Date.now() - new Date(op.started_at).getTime()) / 60000), 0)) : Number(input.actualMinutes);
   if (!Number.isFinite(minutes) || minutes < 0) throw new MfgError(400, "Actual minutes must be zero or greater.", "MFG_QUANTITY_INVALID");
   const good = input.quantityGood === undefined || input.quantityGood === "" ? 0 : Number(input.quantityGood);
   if (!Number.isFinite(good) || good < 0) throw new MfgError(400, "Good quantity must be zero or greater.", "MFG_QUANTITY_INVALID");
   const center = op.work_center_id ? (await client.query(`SELECT hourly_rate,overhead_rate FROM tenant.manufacturing_work_centers WHERE id=$1`, [op.work_center_id])).rows[0] : null;
-  const labor = round((minutes / 60) * Number(center?.hourly_rate ?? 0));
-  const overhead = round((minutes / 60) * Number(center?.overhead_rate ?? 0));
+  const labor = hasLoggedTime ? 0 : round((minutes / 60) * Number(center?.hourly_rate ?? 0));
+  const overhead = hasLoggedTime ? 0 : round((minutes / 60) * Number(center?.overhead_rate ?? 0));
   const { rows } = await client.query(`UPDATE tenant.manufacturing_work_order_operations SET status='completed',completed_at=now(),completed_by=$3,actual_minutes=$4,quantity_good=$5 WHERE organization_id=$1 AND id=$2 RETURNING *`, [c.organizationId, op.id, c.userId, minutes, good]);
   await client.query(`UPDATE tenant.manufacturing_work_orders SET labor_cost=labor_cost+$2,overhead_cost=overhead_cost+$3,updated_at=now() WHERE id=$1`, [op.wo_id, labor, overhead]);
   await readyNext(client, c, op.wo_id);
@@ -457,8 +462,8 @@ export async function reportProduction(client, c, id, input = {}) {
   if (notIssued.length) throw new MfgError(409, `Issue these materials before reporting production: ${notIssued.join(", ")}.`, "MFG_MATERIAL_NOT_ISSUED");
 
   // Cost: what has accrued to the order and not yet been absorbed, allocated to this output.
-  const fresh = (await client.query(`SELECT material_cost,labor_cost,overhead_cost,cost_absorbed FROM tenant.manufacturing_work_orders WHERE id=$1`, [wo.id])).rows[0];
-  const accrued = Number(fresh.material_cost) + backflushCost + Number(fresh.labor_cost) + Number(fresh.overhead_cost);
+  const fresh = (await client.query(`SELECT material_cost,labor_cost,overhead_cost,subcontract_cost,cost_absorbed FROM tenant.manufacturing_work_orders WHERE id=$1`, [wo.id])).rows[0];
+  const accrued = Number(fresh.material_cost) + backflushCost + Number(fresh.labor_cost) + Number(fresh.overhead_cost) + Number(fresh.subcontract_cost);
   const completing = Number(wo.quantity_completed) + quantity >= Number(wo.quantity_planned) - 1e-9;
   const outstanding = Math.max(accrued - Number(fresh.cost_absorbed), 0);
   const absorb = round(completing ? outstanding : Math.min(outstanding, (accrued / Number(wo.quantity_planned)) * quantity));
@@ -497,8 +502,8 @@ export async function reportProduction(client, c, id, input = {}) {
   if (completing) {
     await releaseAllReservations(client, c, updated);
     await client.query(
-      `INSERT INTO tenant.manufacturing_cost_snapshots(organization_id,company_id,work_order_id,material_cost,labor_cost,overhead_cost,scrap_cost,total_cost,cost_per_unit,snapshot_type) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,'completion')`,
-      [c.organizationId, c.companyId, wo.id, updated.material_cost, updated.labor_cost, updated.overhead_cost, updated.scrap_cost, round(Number(updated.material_cost) + Number(updated.labor_cost) + Number(updated.overhead_cost)), round((Number(updated.material_cost) + Number(updated.labor_cost) + Number(updated.overhead_cost)) / Math.max(Number(updated.quantity_completed), 1))],
+      `INSERT INTO tenant.manufacturing_cost_snapshots(organization_id,company_id,work_order_id,material_cost,labor_cost,overhead_cost,scrap_cost,total_cost,cost_per_unit,snapshot_type,subcontract_cost) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,'completion',$10)`,
+      [c.organizationId, c.companyId, wo.id, updated.material_cost, updated.labor_cost, updated.overhead_cost, updated.scrap_cost, round(Number(updated.material_cost) + Number(updated.labor_cost) + Number(updated.overhead_cost) + Number(updated.subcontract_cost)), round((Number(updated.material_cost) + Number(updated.labor_cost) + Number(updated.overhead_cost) + Number(updated.subcontract_cost)) / Math.max(Number(updated.quantity_completed), 1)), updated.subcontract_cost],
     );
   }
   // Make-to-order: the goods just made are held for the sales order that asked for them.
@@ -533,7 +538,7 @@ export async function recordScrap(client, c, id, input = {}) {
   let movementId = null;
   if (scope === "product") {
     if (Number(wo.quantity_scrapped) + Number(wo.quantity_completed) + quantity > Number(wo.quantity_planned) + 1e-9) throw new MfgError(409, "Scrapped plus completed quantity cannot exceed the planned quantity.", "MFG_SCRAP_EXCEEDS_PLAN");
-    const accrued = Number(wo.material_cost) + Number(wo.labor_cost) + Number(wo.overhead_cost);
+    const accrued = Number(wo.material_cost) + Number(wo.labor_cost) + Number(wo.overhead_cost) + Number(wo.subcontract_cost);
     unitCost = round(accrued / Number(wo.quantity_planned));
     await client.query(`UPDATE tenant.manufacturing_work_orders SET quantity_scrapped=quantity_scrapped+$3,scrap_cost=scrap_cost+$4,updated_at=now() WHERE organization_id=$1 AND id=$2`, [c.organizationId, wo.id, quantity, round(unitCost * quantity)]);
   } else {
@@ -622,7 +627,7 @@ export async function getProductionOrder(client, c, id) {
   ).rows;
   const operations = (
     await client.query(
-      `SELECT op.id,op.sequence,op.name,op.status,op.planned_minutes::text AS planned_minutes,op.actual_minutes::text AS actual_minutes,op.started_at,op.completed_at,op.inspection_required,wc.code AS work_center_code,wc.name AS work_center_name
+      `SELECT op.id,op.sequence,op.name,op.status,op.planned_minutes::text AS planned_minutes,op.actual_minutes::text AS actual_minutes,op.started_at,op.completed_at,op.inspection_required,wc.code AS work_center_code,wc.name AS work_center_name,COALESCE((SELECT ro.subcontracted FROM tenant.manufacturing_routing_operations ro WHERE ro.id=op.routing_operation_id),false) AS subcontracted
          FROM tenant.manufacturing_work_order_operations op LEFT JOIN tenant.manufacturing_work_centers wc ON wc.id=op.work_center_id WHERE op.organization_id=$1 AND op.work_order_id=$2 ORDER BY op.sequence`,
       [c.organizationId, wo.id],
     )
@@ -630,8 +635,10 @@ export async function getProductionOrder(client, c, id) {
   const postings = (await client.query(`SELECT p.posting_type,p.quantity::text AS quantity,p.unit_cost::text AS unit_cost,p.posted_at,item.code AS item_code FROM tenant.manufacturing_production_postings p JOIN tenant.items item ON item.id=p.item_id WHERE p.organization_id=$1 AND p.work_order_id=$2 ORDER BY p.posted_at DESC LIMIT 200`, [c.organizationId, wo.id])).rows;
   const scrap = (await client.query(`SELECT s.id,s.category,s.scope,s.quantity::text AS quantity,s.reason_code,s.note,s.created_at,item.code AS item_code FROM tenant.manufacturing_scrap_records s JOIN tenant.items item ON item.id=s.item_id WHERE s.organization_id=$1 AND s.work_order_id=$2 ORDER BY s.created_at DESC`, [c.organizationId, wo.id])).rows;
   const outputs = (await client.query(`SELECT o.output_type,o.quantity::text AS quantity,item.code AS item_code,item.name AS item_name FROM tenant.manufacturing_bom_outputs o JOIN tenant.items item ON item.id=o.item_id WHERE o.organization_id=$1 AND o.bom_id=$2`, [c.organizationId, wo.bom_id])).rows;
+  const jobs = (await client.query(`SELECT j.id,j.operation_id,j.supplier_label,j.status,j.expected_return FROM tenant.manufacturing_subcontract_jobs j WHERE j.organization_id=$1 AND j.work_order_id=$2 ORDER BY j.sent_at`, [c.organizationId, wo.id])).rows;
+  const inspections = (await client.query(`SELECT i.id,i.operation_id,i.result,i.quantity_inspected::text AS quantity_inspected,i.quantity_rejected::text AS quantity_rejected,i.defect_code,i.created_at FROM tenant.manufacturing_inspections i WHERE i.organization_id=$1 AND i.work_order_id=$2 ORDER BY i.created_at DESC`, [c.organizationId, wo.id])).rows;
   const rework = (await client.query(`SELECT id,work_order_number,status,quantity_planned::text AS quantity_planned FROM tenant.manufacturing_work_orders WHERE organization_id=$1 AND rework_of_id=$2 ORDER BY created_at`, [c.organizationId, wo.id])).rows;
-  const wip = Number(wo.material_cost) + Number(wo.labor_cost) + Number(wo.overhead_cost) - Number(wo.cost_absorbed);
+  const wip = Number(wo.material_cost) + Number(wo.labor_cost) + Number(wo.overhead_cost) + Number(wo.subcontract_cost) - Number(wo.cost_absorbed);
   return {
     ...wo,
     item_code: item.code,
@@ -645,7 +652,10 @@ export async function getProductionOrder(client, c, id) {
     scrap,
     outputs,
     rework,
-    costs: cost ? { material: wo.material_cost, labor: wo.labor_cost, overhead: wo.overhead_cost, scrap: wo.scrap_cost, absorbed: wo.cost_absorbed, wip: String(round(Math.max(wip, 0))) } : null,
+    jobs,
+    inspections,
+    hold_reason: wo.hold_reason,
+    costs: cost ? { material: wo.material_cost, labor: wo.labor_cost, overhead: wo.overhead_cost, subcontract: wo.subcontract_cost, scrap: wo.scrap_cost, absorbed: wo.cost_absorbed, wip: String(round(Math.max(wip, 0))) } : null,
   };
 }
 
@@ -656,7 +666,7 @@ export async function getWipReport(client, c) {
   const { rows } = await client.query(
     `SELECT wo.id,wo.work_order_number,wo.status,item.code AS item_code,item.name AS item_name,wo.quantity_planned::text AS quantity_planned,wo.quantity_completed::text AS quantity_completed,
             wo.material_cost::text AS material_cost,wo.labor_cost::text AS labor_cost,wo.overhead_cost::text AS overhead_cost,wo.cost_absorbed::text AS cost_absorbed,
-            GREATEST(wo.material_cost+wo.labor_cost+wo.overhead_cost-wo.cost_absorbed,0)::text AS wip_value,
+            GREATEST(wo.material_cost+wo.labor_cost+wo.overhead_cost+wo.subcontract_cost-wo.cost_absorbed,0)::text AS wip_value,
             (SELECT COALESCE(sum(m.issued_quantity-m.returned_quantity),0)::text FROM tenant.manufacturing_work_order_materials m WHERE m.work_order_id=wo.id) AS net_issued_quantity
        FROM tenant.manufacturing_work_orders wo JOIN tenant.items item ON item.id=wo.item_id WHERE wo.organization_id=$1 AND wo.company_id=$2 AND wo.status IN ('released','in_progress','on_hold') ORDER BY wo.work_order_number`,
     [c.organizationId, c.companyId],
