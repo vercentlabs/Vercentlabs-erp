@@ -21,7 +21,7 @@ test.describe("POS authorization boundaries", () => {
 
       // Defense in depth, layer 1 -- the UI never even renders the
       // discount controls for a cashier without pos.discount.apply.
-      await expect(page.getByText("Cart discount (%)")).toHaveCount(0);
+      await expect(page.getByRole("button", { name: "Add cart discount" })).toHaveCount(0);
 
       await page.getByLabel("Search products").fill(world.itemCode);
       const productButton = page.getByRole("button", { name: new RegExp(world.itemName) });

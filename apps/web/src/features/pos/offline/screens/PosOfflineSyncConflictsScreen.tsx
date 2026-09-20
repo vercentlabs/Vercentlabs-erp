@@ -13,10 +13,12 @@ import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { ColumnDef } from "@tanstack/react-table";
 import { RotateCcw, XCircle } from "lucide-react";
-import { Button, Dialog, EnterpriseDataGrid, EnterpriseListPage, ErrorState, PermissionState, StatusBadge, TextField } from "@vercentlabs/design-system";
+import { Button, Dialog, EnterpriseDataGrid, EnterpriseListPage, ErrorState, NoResultsState, PermissionState, Select, StatusBadge, TextField } from "@vercentlabs/design-system";
 import { POS_PERMISSIONS } from "@vercentlabs/permissions";
 
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
+import { dateTime } from "@/features/pos/shared/format";
+import { PosAlert } from "@/features/pos/shared/PosUi";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import { PosApiError } from "@/features/pos/shared/http";
 import {
@@ -26,7 +28,6 @@ import {
   type PosOfflineSyncConflict,
 } from "@/features/pos/offline/api/offline-api";
 
-const dateFormatter = new Intl.DateTimeFormat("en-IN", { dateStyle: "medium", timeStyle: "short" });
 
 export function PosOfflineSyncConflictsScreen() {
   const workspace = useWorkspaceContext();
@@ -35,16 +36,17 @@ export function PosOfflineSyncConflictsScreen() {
 
   const [error, setError] = useState<string | null>(null);
   const [selected, setSelected] = useState<PosOfflineSyncConflict | null>(null);
+  const [statusFilter, setStatusFilter] = useState<"pending" | "resolved" | "all">("pending");
 
   const query = useQuery({
-    queryKey: scopedQueryKey(workspace, "pos", "offline-sync-conflicts", "pending"),
-    queryFn: () => listPosOfflineSyncConflicts({ status: "pending" }),
+    queryKey: scopedQueryKey(workspace, "pos", "offline-sync-conflicts", statusFilter),
+    queryFn: () => listPosOfflineSyncConflicts(statusFilter === "all" ? {} : { status: statusFilter }),
     enabled: canResolve,
   });
   const rows = query.data?.conflicts ?? [];
 
   function invalidate() {
-    queryClient.invalidateQueries({ queryKey: scopedQueryKey(workspace, "pos", "offline-sync-conflicts", "pending") });
+    queryClient.invalidateQueries({ queryKey: scopedQueryKey(workspace, "pos", "offline-sync-conflicts") });
   }
   function handleError(err: unknown) {
     setError(err instanceof PosApiError ? err.message : "This action could not be completed.");
@@ -59,7 +61,7 @@ export function PosOfflineSyncConflictsScreen() {
         cell: ({ row }) => <StatusBadge tone="warning">{CONFLICT_TYPE_LABEL[row.original.conflict_type] ?? row.original.conflict_type}</StatusBadge>,
       },
       { id: "detail", header: "Detail", accessorFn: (row) => row.detail ?? "—" },
-      { id: "createdAt", header: "Captured", accessorFn: (row) => dateFormatter.format(new Date(row.created_at)) },
+      { id: "createdAt", header: "Captured", accessorFn: (row) => dateTime(row.created_at) },
     ],
     [],
   );
@@ -70,16 +72,27 @@ export function PosOfflineSyncConflictsScreen() {
 
   return (
     <div className="flex flex-col gap-4">
-      {error && (
-        <p role="alert" className="rounded-[var(--radius-control)] border border-danger-emphasis/30 bg-danger-soft px-3 py-2 text-sm text-danger">
-          {error}
-        </p>
-      )}
+      {error && <PosAlert>{error}</PosAlert>}
 
       <EnterpriseListPage
         header={{
           title: "Offline sync conflicts",
           description: "Queued offline sales that could not be safely completed as-is. Nothing here is discarded automatically — resolve each one explicitly.",
+        }}
+        actionBar={{
+          start: (
+            <Select
+              aria-label="Status"
+              size="compact"
+              options={[
+                { value: "pending", label: "Awaiting resolution" },
+                { value: "resolved", label: "Resolved" },
+                { value: "all", label: "All" },
+              ]}
+              selectedKey={statusFilter}
+              onSelectionChange={(key) => setStatusFilter((key as "pending" | "resolved" | "all") ?? "pending")}
+            />
+          ),
         }}
       >
         <EnterpriseDataGrid<PosOfflineSyncConflict>
@@ -88,14 +101,17 @@ export function PosOfflineSyncConflictsScreen() {
           data={rows}
           getRowId={(row) => row.id}
           state={query.isError ? "error" : query.isLoading ? "loading" : rows.length === 0 ? "empty" : "ready"}
+          emptyContent={<NoResultsState title={statusFilter === "pending" ? "No conflicts to resolve" : "Nothing in this view"} description={statusFilter === "pending" ? "Every queued offline sale has synced cleanly." : "Try a different status."} />}
           errorContent={<ErrorState title="Could not load offline sync conflicts" description="Something went wrong fetching the conflict queue." action={{ label: "Retry", onPress: () => query.refetch() }} />}
-          rowActions={(row) => (
-            <span onClick={(event) => event.stopPropagation()}>
-              <Button variant="secondary" size="compact" onPress={() => setSelected(row)}>
-                Review
-              </Button>
-            </span>
-          )}
+          rowActions={(row) =>
+            row.status === "pending" ? (
+              <span onClick={(event) => event.stopPropagation()}>
+                <Button variant="secondary" size="compact" onPress={() => setSelected(row)}>
+                  Review
+                </Button>
+              </span>
+            ) : null
+          }
         />
       </EnterpriseListPage>
 
@@ -148,7 +164,7 @@ function ResolveConflictDialog({
         <p className="text-sm text-text-secondary">{conflict.detail}</p>
 
         <div className="grid grid-cols-2 gap-3 text-xs">
-          <div className="rounded-[var(--radius-control)] border border-border-strong p-2">
+          <div className="rounded-[var(--radius-control)] border border-border p-2">
             <p className="mb-1 font-medium text-text">Offline snapshot at capture</p>
             <ul className="flex flex-col gap-1">
               {(payload.lines ?? []).map((line, index) => (
@@ -158,7 +174,7 @@ function ResolveConflictDialog({
               ))}
             </ul>
           </div>
-          <div className="rounded-[var(--radius-control)] border border-border-strong p-2">
+          <div className="rounded-[var(--radius-control)] border border-border p-2">
             <p className="mb-1 font-medium text-text">Server state at conflict time</p>
             <pre className="whitespace-pre-wrap break-all text-text-secondary">{JSON.stringify(serverContext, null, 2)}</pre>
           </div>

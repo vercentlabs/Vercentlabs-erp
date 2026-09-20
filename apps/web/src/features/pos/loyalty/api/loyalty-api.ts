@@ -1,6 +1,6 @@
 "use client";
 
-import type { PosCart, PosLoyaltyProgram, PosLoyaltyLedgerEntry } from "@vercentlabs/api";
+import type { PosCart, PosLoyaltyProgram, PosLoyaltyLedgerEntry, PosLoyaltyExpiryResult } from "@vercentlabs/api";
 
 import { request, post, del } from "@/features/pos/shared/http";
 
@@ -18,3 +18,6 @@ export const listPosCustomerLoyaltyLedger = (customerId: string, limit?: number)
   request<{ rows: PosLoyaltyLedgerEntry[] }>(`/loyalty/customers/${customerId}/ledger${limit ? `?limit=${limit}` : ""}`);
 export const adjustPosCustomerLoyaltyBalance = (customerId: string, points: number, reason: string) =>
   post<{ balance: { customerId: string; balance: string } }>(`/loyalty/customers/${customerId}/adjust`, { points, reason });
+// F306 -- retire points older than the program's expiry days. The cutoff is
+// always derived server-side, so this takes no arguments.
+export const expirePosLoyaltyPoints = () => post<{ result: PosLoyaltyExpiryResult }>("/loyalty/expire", {});

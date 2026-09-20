@@ -4,12 +4,13 @@ import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { ColumnDef } from "@tanstack/react-table";
 import { Settings2 } from "lucide-react";
-import { Button, Checkbox, Dialog, EnterpriseDataGrid, EnterpriseListPage, ErrorState, IconButton, PermissionState } from "@vercentlabs/design-system";
+import { Button, Checkbox, Dialog, EnterpriseDataGrid, EnterpriseListPage, ErrorState, IconButton, NoResultsState, PermissionState, SearchField } from "@vercentlabs/design-system";
 import { POS_PERMISSIONS } from "@vercentlabs/permissions";
 
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import { PosApiError } from "@/features/pos/shared/http";
+import { PosAlert } from "@/features/pos/shared/PosUi";
 import { listPosStores } from "@/features/pos/stores/api/stores-api";
 import { listPosTerminals, type PosTerminal } from "@/features/pos/terminals/api/terminals-api";
 import {
@@ -45,7 +46,12 @@ export function PosCashiersScreen() {
   // listPosEligibleCashiers itself returns) without a separate request per
   // cashier.
   const grantsQuery = useQuery({ queryKey: scopedQueryKey(workspace, "pos", "store-access", "all"), queryFn: () => listPosStoreAccess(), enabled: canManage });
-  const rows = cashiersQuery.data?.rows ?? [];
+  const [search, setSearch] = useState("");
+  const allRows = cashiersQuery.data?.rows;
+  const rows = useMemo(() => {
+    const needle = search.trim().toLowerCase();
+    return (allRows ?? []).filter((cashier) => !needle || [cashier.fullName, cashier.email].some((value) => String(value ?? "").toLowerCase().includes(needle)));
+  }, [allRows, search]);
   const storeById = useMemo(() => new Map((storesQuery.data?.rows ?? []).map((s) => [s.id, s.name])), [storesQuery.data]);
   const grantsByCashier = useMemo(() => {
     const map = new Map<string, PosStoreAccessGrant[]>();
@@ -104,24 +110,24 @@ export function PosCashiersScreen() {
 
   return (
     <div className="flex flex-col gap-4">
-      {error && (
-        <p role="alert" className="rounded-[var(--radius-control)] border border-danger-emphasis/30 bg-danger-soft px-3 py-2 text-sm text-danger">
-          {error}
-        </p>
-      )}
-      <p className="text-sm text-text-secondary">
+      {error && <PosAlert>{error}</PosAlert>}
+      <EnterpriseListPage
+        header={{ title: "Cashiers", description: "Which store(s) and terminal(s) each eligible cashier or supervisor may operate." }}
+        actionBar={{ start: <SearchField aria-label="Search cashiers" placeholder="Search name or email…" value={search} onChange={setSearch} className="min-w-[260px]" /> }}
+      >
+        <PosAlert tone="info">
         Only active organization members already holding a POS role appear here. Assigning no stores leaves a cashier unrestricted (able to operate any
         store) until the first assignment is made for this company — the same &ldquo;unconfigured is permissive&rdquo; rule the checkout enforcement itself
         uses. Within an assigned store, a cashier may further be restricted to specific terminals instead of all of them.
-      </p>
-
-      <EnterpriseListPage header={{ title: "Cashiers", description: "Which store(s) and terminal(s) each eligible cashier or supervisor may operate." }}>
+        </PosAlert>
         <EnterpriseDataGrid<PosEligibleCashier>
           aria-label="Cashiers"
           columns={columns}
           data={rows}
           getRowId={(row) => row.id}
-          state={cashiersQuery.isError ? "error" : cashiersQuery.isLoading ? "loading" : rows.length === 0 ? "empty" : "ready"}
+          state={cashiersQuery.isError ? "error" : cashiersQuery.isLoading ? "loading" : rows.length === 0 && search.trim() ? "no-results" : rows.length === 0 ? "empty" : "ready"}
+          emptyContent={<NoResultsState title="No eligible cashiers" description="Only active members holding a POS role appear here." />}
+          noResultsContent={<NoResultsState title="No cashiers match your search" description="Check the spelling, or clear the search." action={{ label: "Clear search", onPress: () => setSearch("") }} />}
           errorContent={<ErrorState title="Could not load cashiers" description="Something went wrong fetching eligible cashiers." action={{ label: "Retry", onPress: () => cashiersQuery.refetch() }} />}
         />
       </EnterpriseListPage>

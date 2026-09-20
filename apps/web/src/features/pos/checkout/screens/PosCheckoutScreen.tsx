@@ -3,8 +3,9 @@
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Minus, Pause, Plus, Trash2, X } from "lucide-react";
-import { Button, ComboBox, Dialog, NumberField, SearchField, Select, StatusBadge, TextField } from "@vercentlabs/design-system";
+import Link from "next/link";
+import { BadgePercent, Minus, Pause, Plus, Trash2, X } from "lucide-react";
+import { Button, ComboBox, Dialog, IconButton, NumberField, PageHeader, SearchField, Select, StatusBadge, TextField } from "@vercentlabs/design-system";
 import type { PosCart } from "@vercentlabs/api";
 import { POS_PERMISSIONS } from "@vercentlabs/permissions";
 
@@ -36,11 +37,14 @@ import {
   setPosCartDiscount,
   setPosCartLineTracking,
   updatePosCartLineQuantity,
+  applyPosLineDiscount,
+  removePosLineDiscount,
   type PosCustomerMatch,
   type PosPaymentLeg,
   type PosProductMatch,
 } from "@/features/pos/checkout/api/checkout-api";
-import { money } from "@/features/pos/shared/format";
+import { money, statusLabel, statusTone } from "@/features/pos/shared/format";
+import { PosAlert, PosLoading, PosPanel } from "@/features/pos/shared/PosUi";
 import { getPosOfflineSnapshot } from "@/features/pos/offline/api/offline-api";
 import { OfflineCheckoutPanel } from "@/features/pos/offline/OfflineCheckoutPanel";
 import { useOnlineStatus } from "@/features/pos/offline/useOnlineStatus";
@@ -132,6 +136,7 @@ export function PosCheckoutScreen() {
   const presetCustomerId = searchParams.get("customerId");
   const presetCustomerName = searchParams.get("customerName");
   const canDiscount = workspace.roleSlugs.includes("organization_owner") || workspace.permissions.includes(POS_PERMISSIONS.discountApply);
+  const canApproveDiscounts = workspace.roleSlugs.includes("organization_owner") || workspace.permissions.includes(POS_PERMISSIONS.discountApprove);
   const canRedeemLoyalty = workspace.roleSlugs.includes("organization_owner") || workspace.permissions.includes(POS_PERMISSIONS.loyaltyRedeem);
   const online = useOnlineStatus();
 
@@ -145,8 +150,8 @@ export function PosCheckoutScreen() {
   const [selectedCustomer, setSelectedCustomer] = useState<PosCustomerMatch | null>(null);
   const [customerSearchInput, setCustomerSearchInput] = useState("");
   const [debouncedCustomerSearch, setDebouncedCustomerSearch] = useState("");
-  const [cartDiscountValue, setCartDiscountValue] = useState(0);
-  const [cartDiscountReason, setCartDiscountReason] = useState("");
+  const [cartDiscountOpen, setCartDiscountOpen] = useState(false);
+  const [lineDiscountLine, setLineDiscountLine] = useState<PosCart["lines"][number] | null>(null);
   const [redeemPointsInput, setRedeemPointsInput] = useState(0);
   const [tenderLines, setTenderLines] = useState<TenderLine[]>([{ id: newTenderLineId(), method: "cash", amount: 0 }]);
   const [completing, setCompleting] = useState(false);
@@ -175,7 +180,6 @@ export function PosCheckoutScreen() {
   const storesQuery = useQuery({ queryKey: scopedQueryKey(workspace, "pos", "stores"), queryFn: listPosStores });
   const terminalsQuery = useQuery({ queryKey: scopedQueryKey(workspace, "pos", "terminals"), queryFn: listPosTerminals });
   const shiftsQuery = useQuery({ queryKey: scopedQueryKey(workspace, "pos", "shifts"), queryFn: () => listPosShifts() });
-  void terminalsQuery;
 
   const myOpenShift = useMemo(
     () =>
@@ -307,6 +311,22 @@ export function PosCheckoutScreen() {
     return () => clearInterval(timer);
   }, [tenderLines]);
 
+  // F279-APP-001: while a discount is waiting on a supervisor, re-read the
+  // cart (read-only -- getPosCart never bumps the version) so the cashier sees
+  // "approved"/"rejected" the moment it is decided, instead of having to
+  // guess and press Complete to find out.
+  const hasPendingDiscountApproval = (cart?.discountApprovals ?? []).some((approval) => approval.status === "pending");
+  useEffect(() => {
+    if (!cart?.id || !hasPendingDiscountApproval) return;
+    const cartId = cart.id;
+    const timer = setInterval(() => {
+      getPosCart(cartId)
+        .then((result) => setCart(result.cart))
+        .catch(() => undefined);
+    }, 4000);
+    return () => clearInterval(timer);
+  }, [cart?.id, hasPendingDiscountApproval]);
+
   async function run(action: () => Promise<{ cart: PosCart }>) {
     setLoading(true);
     try {
@@ -359,11 +379,12 @@ export function PosCheckoutScreen() {
     setRedeemPointsInput(0);
   }
   const removeLoyaltyRedemption = () => cart && run(() => removePosCartLoyaltyRedemption(cart.id, cart.version));
-  const applyCartDiscount = () =>
-    cart &&
-    cartDiscountValue > 0 &&
-    cartDiscountReason.trim() &&
-    run(() => setPosCartDiscount(cart.id, { type: "percent", value: cartDiscountValue, reason: cartDiscountReason, expectedVersion: cart.version }));
+  const applyCartDiscount = (input: { type: "percent" | "amount"; value: number; reason: string }) =>
+    cart && run(() => setPosCartDiscount(cart.id, { ...input, expectedVersion: cart.version }));
+  const removeCartDiscount = () => cart && run(() => setPosCartDiscount(cart.id, { type: null, expectedVersion: cart.version }));
+  const applyLineDiscount = (lineId: string, input: { type: "percent" | "amount"; value: number; reason: string }) =>
+    cart && run(() => applyPosLineDiscount(cart.id, lineId, { ...input, expectedVersion: cart.version }));
+  const removeLineDiscount = (lineId: string) => cart && run(() => removePosLineDiscount(cart.id, lineId, cart.version));
   function selectCustomer(customer: PosCustomerMatch | null) {
     if (!cart) return;
     setSelectedCustomer(customer);
@@ -548,11 +569,7 @@ export function PosCheckoutScreen() {
   }
 
   if (hasMounted && shiftsQuery.isLoading) {
-    return (
-      <div className="flex items-center justify-center p-12">
-        <p className="text-sm text-text-secondary">Loading…</p>
-      </div>
-    );
+    return <PosLoading />;
   }
 
   if (!myOpenShift) {
@@ -569,338 +586,507 @@ export function PosCheckoutScreen() {
   if (confirmation) {
     const currency = store?.currencyCode ?? store?.currency_code ?? "";
     return (
-      <div className="flex flex-col items-center justify-center gap-4 p-12 text-center">
-        <StatusBadge tone="success">Sale complete</StatusBadge>
-        <h1 className="text-2xl font-semibold text-text">Receipt {confirmation.receiptNumber}</h1>
-        <p className="text-lg text-text">Total: {money(currency, confirmation.grandTotal)}</p>
-        <p className="text-lg text-text">Change due: {money(currency, confirmation.changeTotal)}</p>
-        <div className="flex gap-2">
-          <Button variant="secondary" onPress={() => router.push(`/pos/receipts/${confirmation.saleId}`)}>
-            View / print receipt
-          </Button>
-          <Button variant="primary" onPress={startNewSale}>
-            New sale
-          </Button>
-        </div>
+      <div className="mx-auto flex w-full max-w-lg flex-col gap-4 pt-8">
+        <PosPanel padding="lg" className="items-center text-center">
+          <StatusBadge tone="success">Sale complete</StatusBadge>
+          <h1 className="text-2xl font-semibold text-text">Receipt {confirmation.receiptNumber}</h1>
+          <dl className="grid w-full grid-cols-2 gap-3 rounded-[var(--radius-control)] bg-surface-muted p-4">
+            <div className="flex flex-col gap-0.5">
+              <dt className="text-xs font-medium text-text-muted">Total</dt>
+              <dd className="text-xl font-semibold tabular-nums text-text">{money(currency, confirmation.grandTotal)}</dd>
+            </div>
+            <div className="flex flex-col gap-0.5">
+              <dt className="text-xs font-medium text-text-muted">Change due</dt>
+              <dd className="text-xl font-semibold tabular-nums text-text">{money(currency, confirmation.changeTotal)}</dd>
+            </div>
+          </dl>
+          <div className="flex flex-wrap justify-center gap-2 pt-2">
+            <Button variant="secondary" size="large" onPress={() => router.push(`/pos/receipts/${confirmation.saleId}`)}>
+              View / print receipt
+            </Button>
+            <Button variant="primary" size="large" onPress={startNewSale}>
+              New sale
+            </Button>
+          </div>
+        </PosPanel>
       </div>
     );
   }
 
   const currency = store?.currencyCode ?? store?.currency_code ?? "";
+  const terminal = terminalsQuery.data?.rows.find((candidate) => candidate.id === myOpenShift.terminal_id);
+  const shiftNumber = (myOpenShift as { shift_number?: string }).shift_number;
+  const discountApprovals = cart?.discountApprovals ?? [];
+  const pendingApproval = discountApprovals.some((approval) => approval.status === "pending");
+  const rejectedApproval = discountApprovals.some((approval) => approval.status === "rejected");
+  const approvedApproval = discountApprovals.length > 0 && discountApprovals.every((approval) => approval.status === "approved");
+  const itemCount = (cart?.lines ?? []).reduce((count, line) => count + Number(line.quantity), 0);
+  const trackingIncomplete = (cart?.lines ?? []).some((line) => (line.tracking_type === "serial" && !line.serial_id) || (line.tracking_type === "batch" && !line.batch_id));
+  const completeBlockedReason = pendingApproval
+    ? "Waiting for supervisor approval of the discount."
+    : rejectedApproval
+      ? "The discount was rejected — remove it to continue."
+      : trackingIncomplete
+        ? "Enter the required serial or batch numbers."
+        : null;
 
   return (
-    <div className="flex h-full flex-col gap-4 lg:flex-row">
-      <div className="flex flex-1 flex-col gap-4">
-        <div className="flex items-center justify-between">
-          <h1 className="text-lg font-semibold text-text">Checkout</h1>
-          <Button variant="secondary" size="compact" onPress={() => setHeldCartsOpen(true)}>
-            <Pause className="size-4" aria-hidden="true" />
-            Held sales
-          </Button>
-        </div>
-        <div className="flex flex-col gap-2 sm:flex-row">
-          <SearchField label="Search products" placeholder="Search by name, code, barcode…" value={searchTerm} onChange={setSearchTerm} className="flex-1" />
-          <div className="flex items-end gap-2">
-            <TextField label="Scan / enter barcode" value={barcodeInput} onChange={setBarcodeInput} onKeyDown={(event) => event.key === "Enter" && scanBarcode()} />
-            <Button variant="secondary" onPress={scanBarcode}>
-              Add
+    <div className="flex flex-col gap-4">
+      <PageHeader
+        title="Checkout"
+        description={[store?.name, terminal?.name, shiftNumber ? `Shift ${shiftNumber}` : null].filter(Boolean).join(" · ") || undefined}
+        secondaryActions={
+          <div className="flex items-center gap-2">
+            <StatusBadge tone="success">Online</StatusBadge>
+            <Button variant="secondary" onPress={() => setHeldCartsOpen(true)}>
+              <Pause className="size-4" aria-hidden="true" />
+              Held sales
             </Button>
           </div>
-        </div>
+        }
+      />
 
-        {searchTerm.trim() && (
-          <div className="max-h-48 overflow-y-auto rounded-[var(--radius-panel)] border border-border-strong">
-            {(searchQuery.data?.rows ?? []).map((product) => (
-              <button
-                key={`${product.itemId}-${product.variantId ?? ""}`}
-                type="button"
-                onClick={() => addLine(product.itemId, product.variantId)}
-                className="flex w-full items-center justify-between border-b border-border px-3 py-2 text-left text-sm last:border-0 hover:bg-surface-muted"
-              >
-                <span>
-                  {product.name} <span className="text-text-muted">({product.code})</span>
-                </span>
-                <span className="tabular-nums">
-                  {money(currency, product.salesPrice)} · {product.availableQuantity} avail.
-                </span>
-              </button>
-            ))}
-            {searchQuery.isFetched && !(searchQuery.data?.rows ?? []).length && <p className="px-3 py-2 text-sm text-text-muted">No matches.</p>}
-          </div>
-        )}
-
-        <div className="flex-1 overflow-y-auto rounded-[var(--radius-panel)] border border-border-strong">
-          {!cart?.lines?.length ? (
-            <p className="p-6 text-center text-sm text-text-muted">{loading ? "Loading…" : "Cart is empty — search or scan a product to begin."}</p>
-          ) : (
-            cart.lines.map((line) => {
-              // F295 -- requires a serial/batch to be set before this line
-              // can actually be sold (enforced authoritatively at checkout
-              // by Stock's postStockMovement); this is only the UI nudge to
-              // capture it earlier, at the counter, rather than let the
-              // cashier discover the requirement from a failed checkout.
-              const needsSerial = line.tracking_type === "serial" && !line.serial_id;
-              const needsBatch = line.tracking_type === "batch" && !line.batch_id;
-              return (
-                <div key={line.id} className="flex flex-col gap-1.5 border-b border-border px-3 py-2 last:border-0">
-                  <div className="flex items-center justify-between gap-3">
-                    <div className="flex-1">
-                      <p className="text-sm font-medium text-text">{line.description}</p>
-                      <p className="text-xs text-text-muted">
-                        {money(currency, line.unit_price)} each
-                        {Number(line.manual_discount_amount) > 0 && <> · manual −{money(currency, line.manual_discount_amount)}</>}
-                        {Number(line.promotion_discount_amount) > 0 && <> · promo −{money(currency, line.promotion_discount_amount)}</>}
-                        {Number(line.coupon_discount_amount) > 0 && <> · coupon −{money(currency, line.coupon_discount_amount)}</>}
-                        {line.serial_id && <> · serial set</>}
-                        {line.batch_id && <> · batch set</>}
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-1">
-                      <Button variant="outline" size="compact" onPress={() => changeQuantity(line.id, Number(line.quantity) - 1)} aria-label="Decrease quantity">
-                        <Minus className="size-3.5" aria-hidden="true" />
-                      </Button>
-                      <span className="w-8 text-center tabular-nums">{Number(line.quantity)}</span>
-                      <Button variant="outline" size="compact" onPress={() => changeQuantity(line.id, Number(line.quantity) + 1)} aria-label="Increase quantity">
-                        <Plus className="size-3.5" aria-hidden="true" />
-                      </Button>
-                    </div>
-                    <span className="w-24 text-right tabular-nums">{money(currency, line.line_total)}</span>
-                    <Button variant="ghost" size="compact" onPress={() => cart && run(() => removePosCartLine(cart.id, line.id, cart.version))} aria-label="Remove line">
-                      <Trash2 className="size-4" aria-hidden="true" />
-                    </Button>
-                  </div>
-                  {(needsSerial || needsBatch) && (
-                    <div className="flex items-center gap-2 rounded-[var(--radius-control)] border border-warning-emphasis/30 bg-warning-soft px-2 py-1.5">
-                      <TextField
-                        label={needsSerial ? "Serial number required" : "Batch required"}
-                        placeholder={needsSerial ? "Scan or enter serial" : "Scan or enter batch"}
-                        value={trackingInputs[line.id] ?? ""}
-                        onChange={(value) => setTrackingInputs((prev) => ({ ...prev, [line.id]: value }))}
-                        className="flex-1"
-                      />
-                      <Button variant="secondary" size="compact" onPress={() => setLineTracking(line.id, needsSerial ? "serial" : "batch")}>
-                        Set
-                      </Button>
-                    </div>
-                  )}
-                </div>
-              );
-            })
-          )}
-        </div>
-      </div>
-
-      <div className="flex w-full flex-col gap-4 lg:w-96">
-        <StatusBadge tone="success" className="self-start">
-          Online
-        </StatusBadge>
-        {error && (
-          <p role="alert" className="rounded-[var(--radius-control)] border border-danger-emphasis/30 bg-danger-soft px-3 py-2 text-sm text-danger">
-            {error}
-          </p>
-        )}
-        {conflict && (
-          <p role="alert" className="flex items-center justify-between gap-2 rounded-[var(--radius-control)] border border-warning-emphasis/30 bg-warning-soft px-3 py-2 text-sm text-warning">
-            <span>{conflict} — the cart was refreshed with current server totals.</span>
-            <button type="button" onClick={() => setConflict(null)} aria-label="Dismiss">
-              <X className="size-4" />
-            </button>
-          </p>
-        )}
-
-        {selectedCustomer ? (
-          <div className="flex items-center justify-between gap-2 rounded-[var(--radius-control)] border border-border-strong px-3 py-2">
-            <div>
-              <p className="text-sm font-medium text-text">{selectedCustomer.displayName}</p>
-              {(selectedCustomer.phone || selectedCustomer.email) && (
-                <p className="text-xs text-text-muted">{selectedCustomer.phone || selectedCustomer.email}</p>
-              )}
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_24rem] lg:items-start">
+        <div className="flex min-w-0 flex-col gap-4">
+          <PosPanel title="Add items" description="Search the catalogue, or scan / type a barcode.">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
+              <SearchField label="Search products" placeholder="Search by name, code, barcode…" value={searchTerm} onChange={setSearchTerm} className="flex-1" />
+              <div className="flex items-end gap-2">
+                <TextField label="Scan / enter barcode" value={barcodeInput} onChange={setBarcodeInput} onKeyDown={(event) => event.key === "Enter" && scanBarcode()} />
+                <Button variant="secondary" onPress={scanBarcode}>
+                  Add
+                </Button>
+              </div>
             </div>
-            <Button variant="ghost" size="compact" onPress={() => selectCustomer(null)} aria-label="Clear selected customer">
-              <X className="size-4" aria-hidden="true" />
-            </Button>
-          </div>
-        ) : (
-          <ComboBox
-            label="Customer (blank = walk-in)"
-            placeholder="Search by name, code or phone…"
-            inputValue={customerSearchInput}
-            onInputChange={setCustomerSearchInput}
-            options={customerOptions}
-            isLoading={customerSearchQuery.isFetching}
-            emptyMessage={debouncedCustomerSearch.trim() ? "No matching customers" : "Type to search customers"}
-            allowsEmptyCollection
-            onSelectionChange={(key) => {
-              if (key == null) return;
-              const match = customerSearchQuery.data?.rows.find((row) => row.id === key);
-              if (match) selectCustomer(match);
-            }}
-          />
-        )}
 
-        <div className="flex items-end gap-2">
-          <TextField label="Coupon code" value={couponCode} onChange={setCouponCode} className="flex-1" />
-          {cart?.coupon_code ? (
-            <Button variant="secondary" onPress={removeCoupon}>
-              Remove
-            </Button>
-          ) : (
-            <Button variant="secondary" onPress={applyCoupon}>
-              Apply
-            </Button>
-          )}
+            {searchTerm.trim() && (
+              <div className="max-h-64 overflow-y-auto rounded-[var(--radius-control)] border border-border">
+                {(searchQuery.data?.rows ?? []).map((product) => (
+                  <button
+                    key={`${product.itemId}-${product.variantId ?? ""}`}
+                    type="button"
+                    onClick={() => addLine(product.itemId, product.variantId)}
+                    className="flex min-h-12 w-full items-center justify-between gap-3 border-b border-border px-3 py-2 text-left text-sm last:border-0 hover:bg-surface-muted focus-visible:bg-surface-muted focus-visible:outline-none"
+                  >
+                    <span>
+                      {product.name} <span className="text-text-muted">({product.code})</span>
+                    </span>
+                    <span className="shrink-0 tabular-nums text-text-secondary">
+                      {money(currency, product.salesPrice)} · {product.availableQuantity} avail.
+                    </span>
+                  </button>
+                ))}
+                {searchQuery.isFetched && !(searchQuery.data?.rows ?? []).length && <p className="px-3 py-3 text-sm text-text-muted">No matches.</p>}
+              </div>
+            )}
+          </PosPanel>
+
+          <PosPanel
+            title="Cart"
+            description={cart?.lines?.length ? `${itemCount} item${itemCount === 1 ? "" : "s"}` : undefined}
+            padding="none"
+            className="gap-0 lg:min-h-[22rem]"
+          >
+            {!cart?.lines?.length ? (
+              <p className="p-8 text-center text-sm text-text-muted">{loading ? "Loading…" : "Cart is empty — search or scan a product to begin."}</p>
+            ) : (
+              <div className="flex flex-col">
+                {cart.lines.map((line) => {
+                  // F295 -- requires a serial/batch to be set before this line
+                  // can actually be sold (enforced authoritatively at checkout
+                  // by Stock's postStockMovement); this is only the UI nudge to
+                  // capture it earlier, at the counter, rather than let the
+                  // cashier discover the requirement from a failed checkout.
+                  const needsSerial = line.tracking_type === "serial" && !line.serial_id;
+                  const needsBatch = line.tracking_type === "batch" && !line.batch_id;
+                  const lineApproval = discountApprovals.find((approval) => approval.cart_line_id === line.id);
+                  const hasManualDiscount = Number(line.manual_discount_amount) > 0;
+                  return (
+                    <div key={line.id} className="flex flex-col gap-2 border-t border-border px-4 py-3 first:border-t-0">
+                      <div className="flex items-center gap-3">
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm font-medium text-text">{line.description}</p>
+                          <p className="text-xs text-text-muted">
+                            {money(currency, line.unit_price)} each
+                            {Number(line.manual_discount_amount) > 0 && <> · manual −{money(currency, line.manual_discount_amount)}</>}
+                            {Number(line.promotion_discount_amount) > 0 && <> · promo −{money(currency, line.promotion_discount_amount)}</>}
+                            {Number(line.coupon_discount_amount) > 0 && <> · coupon −{money(currency, line.coupon_discount_amount)}</>}
+                            {line.serial_id && <> · serial set</>}
+                            {line.batch_id && <> · batch set</>}
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <IconButton variant="outline" size="large" onPress={() => changeQuantity(line.id, Number(line.quantity) - 1)} aria-label="Decrease quantity">
+                            <Minus className="size-4" aria-hidden="true" />
+                          </IconButton>
+                          <span className="w-9 text-center text-base font-medium tabular-nums">{Number(line.quantity)}</span>
+                          <IconButton variant="outline" size="large" onPress={() => changeQuantity(line.id, Number(line.quantity) + 1)} aria-label="Increase quantity">
+                            <Plus className="size-4" aria-hidden="true" />
+                          </IconButton>
+                        </div>
+                        <span className="w-24 text-right text-base font-semibold tabular-nums text-text">{money(currency, line.line_total)}</span>
+                        <IconButton variant="ghost" size="large" onPress={() => cart && run(() => removePosCartLine(cart.id, line.id, cart.version))} aria-label="Remove line">
+                          <Trash2 className="size-4" aria-hidden="true" />
+                        </IconButton>
+                      </div>
+
+                      {canDiscount && (
+                        <div className="flex flex-wrap items-center gap-2">
+                          {hasManualDiscount ? (
+                            <>
+                              <StatusBadge tone="warning">{`Discount −${money(currency, line.manual_discount_amount)}`}</StatusBadge>
+                              {lineApproval && <StatusBadge tone={statusTone(lineApproval.status)}>{lineApproval.status === "pending" ? "Awaiting approval" : statusLabel(lineApproval.status)}</StatusBadge>}
+                              <Button variant="ghost" size="compact" onPress={() => removeLineDiscount(line.id)}>
+                                Remove discount
+                              </Button>
+                            </>
+                          ) : (
+                            <Button variant="ghost" size="compact" onPress={() => setLineDiscountLine(line)}>
+                              <BadgePercent className="size-3.5" aria-hidden="true" />
+                              Add discount
+                            </Button>
+                          )}
+                        </div>
+                      )}
+
+                      {(needsSerial || needsBatch) && (
+                        <div className="flex items-end gap-2 rounded-[var(--radius-control)] border border-warning-emphasis/30 bg-warning-soft px-3 py-2">
+                          <TextField
+                            label={needsSerial ? "Serial number required" : "Batch required"}
+                            placeholder={needsSerial ? "Scan or enter serial" : "Scan or enter batch"}
+                            value={trackingInputs[line.id] ?? ""}
+                            onChange={(value) => setTrackingInputs((prev) => ({ ...prev, [line.id]: value }))}
+                            className="flex-1"
+                          />
+                          <Button variant="secondary" onPress={() => setLineTracking(line.id, needsSerial ? "serial" : "batch")}>
+                            Set
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </PosPanel>
         </div>
 
-        {canDiscount && (
-          <div className="flex flex-col gap-2 rounded-[var(--radius-control)] border border-border-strong p-3">
-            <p className="text-sm font-medium text-text">Cart discount (%)</p>
-            <NumberField label="Percent off" value={cartDiscountValue} onChange={setCartDiscountValue} minValue={0} maxValue={100} />
-            <TextField label="Reason" value={cartDiscountReason} onChange={setCartDiscountReason} />
-            <Button variant="secondary" onPress={applyCartDiscount}>
-              Apply cart discount
-            </Button>
-          </div>
-        )}
-
-        {cart?.customer_id && (
-          <div className="flex flex-col gap-2 rounded-[var(--radius-control)] border border-border-strong p-3">
-            <p className="text-sm font-medium text-text">Loyalty points</p>
-            {loyaltyBalanceQuery.data && (
-              <p className="text-sm text-text-secondary">
-                Balance: <span className="tabular-nums">{loyaltyBalanceQuery.data.balance.balance}</span> pts
-                {cart.loyalty?.pointsToEarn && Number(cart.loyalty.pointsToEarn) > 0 && (
-                  <> · will earn <span className="tabular-nums">{cart.loyalty.pointsToEarn}</span> pts on completion</>
+        <div className="flex flex-col gap-4 lg:sticky lg:top-4 lg:max-h-[calc(100dvh-7rem)] lg:overflow-y-auto lg:pr-1">
+          {error && <PosAlert>{error}</PosAlert>}
+          {conflict && (
+            <PosAlert tone="warning" className="flex items-center justify-between gap-2">
+              <span>{conflict} — the cart was refreshed with current server totals.</span>
+              <button type="button" onClick={() => setConflict(null)} aria-label="Dismiss">
+                <X className="size-4" />
+              </button>
+            </PosAlert>
+          )}
+          {pendingApproval && (
+            <PosAlert tone="warning">
+              <p className="font-medium">Waiting for a supervisor to approve the discount.</p>
+              <p className="text-xs">
+                Leave the cart as it is — any change restarts the approval.{" "}
+                {canApproveDiscounts && (
+                  <Link href="/pos/discount-approvals" className="font-medium underline">
+                    Open the approvals queue
+                  </Link>
                 )}
               </p>
+            </PosAlert>
+          )}
+          {rejectedApproval && <PosAlert>A supervisor rejected the discount. Remove it to complete this sale.</PosAlert>}
+          {approvedApproval && <PosAlert tone="success">Discount approved by a supervisor.</PosAlert>}
+
+          <PosPanel title="Customer & offers">
+            {selectedCustomer ? (
+              <div className="flex items-center justify-between gap-2 rounded-[var(--radius-control)] border border-border bg-surface-muted px-3 py-2">
+                <div>
+                  <p className="text-sm font-medium text-text">{selectedCustomer.displayName}</p>
+                  {(selectedCustomer.phone || selectedCustomer.email) && <p className="text-xs text-text-muted">{selectedCustomer.phone || selectedCustomer.email}</p>}
+                </div>
+                <IconButton variant="ghost" onPress={() => selectCustomer(null)} aria-label="Clear selected customer">
+                  <X className="size-4" aria-hidden="true" />
+                </IconButton>
+              </div>
+            ) : (
+              <ComboBox
+                label="Customer (blank = walk-in)"
+                placeholder="Search by name, code or phone…"
+                inputValue={customerSearchInput}
+                onInputChange={setCustomerSearchInput}
+                options={customerOptions}
+                isLoading={customerSearchQuery.isFetching}
+                emptyMessage={debouncedCustomerSearch.trim() ? "No matching customers" : "Type to search customers"}
+                allowsEmptyCollection
+                onSelectionChange={(key) => {
+                  if (key == null) return;
+                  const match = customerSearchQuery.data?.rows.find((row) => row.id === key);
+                  if (match) selectCustomer(match);
+                }}
+              />
             )}
-            {canRedeemLoyalty &&
-              (Number(cart.loyalty_redeem_points ?? 0) > 0 ? (
-                <div className="flex items-center justify-between">
-                  <p className="text-sm text-text-secondary">
-                    Redeeming <span className="tabular-nums">{cart.loyalty_redeem_points}</span> pts
-                    {cart.loyalty?.redeemAmount && <> (−{money(currency, cart.loyalty.redeemAmount)})</>}
-                  </p>
-                  <Button variant="secondary" onPress={removeLoyaltyRedemption}>
-                    Remove
-                  </Button>
-                </div>
+
+            <div className="flex items-end gap-2">
+              <TextField label="Coupon code" value={couponCode} onChange={setCouponCode} className="flex-1" />
+              {cart?.coupon_code ? (
+                <Button variant="secondary" onPress={removeCoupon}>
+                  Remove
+                </Button>
               ) : (
-                <div className="flex items-end gap-2">
-                  <NumberField label="Points to redeem" value={redeemPointsInput} onChange={setRedeemPointsInput} minValue={0} step={1} className="flex-1" />
-                  <Button variant="secondary" onPress={redeemLoyalty} isDisabled={redeemPointsInput <= 0}>
-                    Redeem
-                  </Button>
-                </div>
-              ))}
-          </div>
-        )}
+                <Button variant="secondary" onPress={applyCoupon}>
+                  Apply
+                </Button>
+              )}
+            </div>
+            {cart?.coupon_code && <p className="text-xs text-success">Coupon {cart.coupon_code} applied.</p>}
 
-        <div className="flex flex-col gap-1 rounded-[var(--radius-panel)] border border-border-strong bg-surface p-4 text-sm">
-          <Row label="Subtotal" value={money(currency, cart?.subtotal)} />
-          <Row label="Discounts" value={`−${money(currency, cart?.discount_total)}`} />
-          <Row label="Tax" value={money(currency, cart?.tax_total)} />
-          <div className="mt-1 flex items-center justify-between border-t border-border pt-2 text-base font-semibold text-text">
-            <span>Total</span>
-            <span className="tabular-nums">{money(currency, cart?.grand_total)}</span>
-          </div>
-        </div>
-
-        {exchangeReturnId && (
-          <p className="rounded-[var(--radius-control)] border border-warning-emphasis/30 bg-warning-soft px-3 py-2 text-sm text-warning">
-            Exchange mode — completing this sale also completes the linked return. Only cash tender is supported for exchanges.
-          </p>
-        )}
-
-        <div className="flex flex-col gap-3 rounded-[var(--radius-panel)] border border-border-strong p-3">
-          <p className="text-sm font-medium text-text">Tender</p>
-          {tenderLines.map((line) => (
-            <div key={line.id} className="flex flex-col gap-2 rounded-[var(--radius-control)] border border-border p-2">
-              <div className="flex items-end gap-2">
-                {line.method === "cash" ? (
-                  <span className="flex-1 text-sm font-medium text-text">Cash</span>
+            {canDiscount && (
+              <div className="flex flex-col gap-2 border-t border-border pt-3">
+                <p className="text-sm font-medium text-text">Cart discount</p>
+                {cart?.cart_discount_type ? (
+                  <div className="flex items-center justify-between gap-2 rounded-[var(--radius-control)] border border-border bg-surface-muted px-3 py-2 text-sm">
+                    <span className="text-text">
+                      {cart.cart_discount_type === "percent" ? `${Number(cart.cart_discount_value)}% off` : `${money(currency, cart.cart_discount_value)} off`}
+                      {cart.cart_discount_reason ? <span className="text-text-muted"> — {cart.cart_discount_reason}</span> : null}
+                    </span>
+                    <Button variant="ghost" size="compact" onPress={removeCartDiscount}>
+                      Remove
+                    </Button>
+                  </div>
                 ) : (
-                  <Select
-                    label="Method"
-                    className="flex-1"
-                    options={NON_CASH_METHOD_OPTIONS}
-                    selectedKey={line.method}
-                    onSelectionChange={(key) => updateTenderLine(line.id, { method: key as TenderMethod })}
-                    isDisabled={Boolean(line.paymentId)}
-                  />
-                )}
-                <NumberField
-                  label="Amount"
-                  value={line.amount}
-                  onChange={(value) => updateTenderLine(line.id, { amount: value })}
-                  minValue={0}
-                  step={0.01}
-                  isDisabled={Boolean(line.paymentId)}
-                  className="w-32"
-                />
-                {tenderLines.length > 1 && !line.paymentId && (
-                  <Button variant="ghost" size="compact" onPress={() => removeTenderLine(line.id)} aria-label="Remove tender line">
-                    <Trash2 className="size-4" aria-hidden="true" />
-                  </Button>
+                  <div>
+                    <Button variant="secondary" onPress={() => setCartDiscountOpen(true)} isDisabled={!cart?.lines?.length}>
+                      <BadgePercent className="size-4" aria-hidden="true" />
+                      Add cart discount
+                    </Button>
+                  </div>
                 )}
               </div>
-              {line.method !== "cash" && (
-                <div className="flex items-center gap-2">
-                  {!line.paymentId && (
-                    <Select
-                      label="Sandbox outcome"
-                      className="flex-1"
-                      options={SANDBOX_OUTCOME_OPTIONS}
-                      selectedKey={(tenderOutcome[line.id] || "immediate_success") as (typeof SANDBOX_OUTCOME_OPTIONS)[number]["value"]}
-                      onSelectionChange={(key) => setTenderOutcome((prev) => ({ ...prev, [line.id]: String(key) }))}
-                    />
-                  )}
-                  {!line.paymentId ? (
-                    <Button variant="secondary" onPress={() => chargeTenderLine(line)} isLoading={line.charging} isDisabled={line.amount <= 0}>
-                      Charge {line.method}
-                    </Button>
+            )}
+
+            {cart?.customer_id && (
+              <div className="flex flex-col gap-2 border-t border-border pt-3">
+                <p className="text-sm font-medium text-text">Loyalty points</p>
+                {loyaltyBalanceQuery.data && (
+                  <p className="text-sm text-text-secondary">
+                    Balance: <span className="tabular-nums">{loyaltyBalanceQuery.data.balance.balance}</span> pts
+                    {cart.loyalty?.pointsToEarn && Number(cart.loyalty.pointsToEarn) > 0 && (
+                      <>
+                        {" "}
+                        · will earn <span className="tabular-nums">{cart.loyalty.pointsToEarn}</span> pts on completion
+                      </>
+                    )}
+                  </p>
+                )}
+                {canRedeemLoyalty &&
+                  (Number(cart.loyalty_redeem_points ?? 0) > 0 ? (
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="text-sm text-text-secondary">
+                        Redeeming <span className="tabular-nums">{cart.loyalty_redeem_points}</span> pts
+                        {cart.loyalty?.redeemAmount && <> (−{money(currency, cart.loyalty.redeemAmount)})</>}
+                      </p>
+                      <Button variant="secondary" onPress={removeLoyaltyRedemption}>
+                        Remove
+                      </Button>
+                    </div>
                   ) : (
-                    <StatusBadge tone={line.status === "captured" ? "success" : line.status === "failed" ? "danger" : "warning"}>
-                      {line.status === "captured" ? "Captured" : line.status === "failed" ? "Declined" : "Processing…"}
-                    </StatusBadge>
+                    <div className="flex items-end gap-2">
+                      <NumberField label="Points to redeem" value={redeemPointsInput} onChange={setRedeemPointsInput} minValue={0} step={1} className="flex-1" />
+                      <Button variant="secondary" onPress={redeemLoyalty} isDisabled={redeemPointsInput <= 0}>
+                        Redeem
+                      </Button>
+                    </div>
+                  ))}
+              </div>
+            )}
+          </PosPanel>
+
+          <PosPanel title="Payment">
+            <div className="flex flex-col gap-1 text-sm">
+              <Row label="Subtotal" value={money(currency, cart?.subtotal)} />
+              <Row label="Discounts" value={`−${money(currency, cart?.discount_total)}`} />
+              <Row label="Tax" value={money(currency, cart?.tax_total)} />
+              <div className="mt-1 flex items-center justify-between border-t border-border pt-2 text-lg font-semibold text-text">
+                <span>Total</span>
+                <span className="tabular-nums">{money(currency, cart?.grand_total)}</span>
+              </div>
+            </div>
+
+            {exchangeReturnId && (
+              <PosAlert tone="warning">Exchange mode — completing this sale also completes the linked return. Only cash tender is supported for exchanges.</PosAlert>
+            )}
+
+            <div className="flex flex-col gap-3 border-t border-border pt-3">
+              <p className="text-sm font-medium text-text">Tender</p>
+              {tenderLines.map((line) => (
+                <div key={line.id} className="flex flex-col gap-2 rounded-[var(--radius-control)] border border-border p-3">
+                  <div className="flex items-end gap-2">
+                    {line.method === "cash" ? (
+                      <span className="flex-1 pb-2 text-sm font-medium text-text">Cash</span>
+                    ) : (
+                      <Select
+                        label="Method"
+                        className="flex-1"
+                        options={NON_CASH_METHOD_OPTIONS}
+                        selectedKey={line.method}
+                        onSelectionChange={(key) => updateTenderLine(line.id, { method: key as TenderMethod })}
+                        isDisabled={Boolean(line.paymentId)}
+                      />
+                    )}
+                    <NumberField
+                      label="Amount"
+                      value={line.amount}
+                      onChange={(value) => updateTenderLine(line.id, { amount: value })}
+                      minValue={0}
+                      step={0.01}
+                      isDisabled={Boolean(line.paymentId)}
+                      className="w-32"
+                    />
+                    {tenderLines.length > 1 && !line.paymentId && (
+                      <IconButton variant="ghost" onPress={() => removeTenderLine(line.id)} aria-label="Remove tender line">
+                        <Trash2 className="size-4" aria-hidden="true" />
+                      </IconButton>
+                    )}
+                  </div>
+                  {line.method !== "cash" && (
+                    <div className="flex items-end gap-2">
+                      {!line.paymentId && (
+                        <Select
+                          label="Sandbox outcome"
+                          className="flex-1"
+                          options={SANDBOX_OUTCOME_OPTIONS}
+                          selectedKey={(tenderOutcome[line.id] || "immediate_success") as (typeof SANDBOX_OUTCOME_OPTIONS)[number]["value"]}
+                          onSelectionChange={(key) => setTenderOutcome((prev) => ({ ...prev, [line.id]: String(key) }))}
+                        />
+                      )}
+                      {!line.paymentId ? (
+                        <Button variant="secondary" onPress={() => chargeTenderLine(line)} isLoading={line.charging} isDisabled={line.amount <= 0}>
+                          Charge {line.method}
+                        </Button>
+                      ) : (
+                        <StatusBadge tone={line.status === "captured" ? "success" : line.status === "failed" ? "danger" : "warning"}>
+                          {line.status === "captured" ? "Captured" : line.status === "failed" ? "Declined" : "Processing…"}
+                        </StatusBadge>
+                      )}
+                    </div>
                   )}
+                  {line.error && <p className="text-xs text-danger">{line.error}</p>}
+                </div>
+              ))}
+              {!exchangeReturnId && (
+                <div>
+                  <Button variant="ghost" size="compact" onPress={addTenderLine}>
+                    <Plus className="size-3.5" aria-hidden="true" />
+                    Add tender line (split payment)
+                  </Button>
                 </div>
               )}
-              {line.error && <p className="text-xs text-danger">{line.error}</p>}
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-text-secondary">Remaining to allocate</span>
+                <span className={`font-medium tabular-nums ${remainingToAllocate === 0 ? "text-success" : "text-text"}`}>{money(currency, remainingToAllocate)}</span>
+              </div>
+              {isSingleCashTender && <p className="text-sm text-text-secondary">Change: {money(currency, Math.max(0, tenderTotal - grandTotalNumber))}</p>}
             </div>
-          ))}
-          {!exchangeReturnId && (
-            <Button variant="ghost" size="compact" onPress={addTenderLine}>
-              + Add tender line (split payment)
-            </Button>
-          )}
-          <div className="flex items-center justify-between text-sm">
-            <span className="text-text-secondary">Remaining to allocate</span>
-            <span className={`tabular-nums font-medium ${remainingToAllocate === 0 ? "text-success" : "text-text"}`}>{money(currency, remainingToAllocate)}</span>
-          </div>
-          {isSingleCashTender && (
-            <p className="text-sm text-text-secondary">Change: {money(currency, Math.max(0, tenderTotal - grandTotalNumber))}</p>
-          )}
-        </div>
 
-        <Button
-          variant="primary"
-          onPress={completeSale}
-          isDisabled={!canComplete || (cart?.lines ?? []).some((line) => (line.tracking_type === "serial" && !line.serial_id) || (line.tracking_type === "batch" && !line.batch_id))}
-          isLoading={completing}
-        >
-          {exchangeReturnId ? "Complete exchange" : "Complete sale"}
-        </Button>
-        <Button variant="secondary" onPress={holdCurrentCart} isDisabled={!cart?.lines?.length} isLoading={loading}>
-          <Pause className="size-4" aria-hidden="true" />
-          Hold sale
-        </Button>
-        <Button variant="ghost" onPress={() => cart && run(() => cancelPosCart(cart.id).then((r) => ({ cart: r.cart })))}>
-          Cancel sale
-        </Button>
+            <div className="flex flex-col gap-2 border-t border-border pt-3">
+              <Button variant="primary" size="large" onPress={completeSale} isDisabled={!canComplete || Boolean(completeBlockedReason)} isLoading={completing}>
+                {exchangeReturnId ? "Complete exchange" : "Complete sale"}
+              </Button>
+              {completeBlockedReason && <p className="text-center text-xs text-text-muted">{completeBlockedReason}</p>}
+              <div className="grid grid-cols-2 gap-2">
+                <Button variant="secondary" onPress={holdCurrentCart} isDisabled={!cart?.lines?.length} isLoading={loading}>
+                  <Pause className="size-4" aria-hidden="true" />
+                  Hold sale
+                </Button>
+                <Button variant="ghost" onPress={() => cart && run(() => cancelPosCart(cart.id).then((r) => ({ cart: r.cart })))}>
+                  Cancel sale
+                </Button>
+              </div>
+            </div>
+          </PosPanel>
+        </div>
       </div>
 
       {heldCartsOpen && <HeldCartsDialog onClose={() => setHeldCartsOpen(false)} onResume={resumeHeldCart} currency={currency} />}
+      {lineDiscountLine && (
+        <DiscountDialog
+          title={`Discount — ${lineDiscountLine.description}`}
+          baseLabel="Line total before discount"
+          baseAmount={money(currency, lineDiscountLine.gross_amount ?? lineDiscountLine.line_total)}
+          onClose={() => setLineDiscountLine(null)}
+          onApply={(input) => {
+            applyLineDiscount(lineDiscountLine.id, input);
+            setLineDiscountLine(null);
+          }}
+        />
+      )}
+      {cartDiscountOpen && (
+        <DiscountDialog
+          title="Cart discount"
+          baseLabel="Cart subtotal"
+          baseAmount={money(currency, cart?.subtotal)}
+          onClose={() => setCartDiscountOpen(false)}
+          onApply={(input) => {
+            applyCartDiscount(input);
+            setCartDiscountOpen(false);
+          }}
+        />
+      )}
     </div>
+  );
+}
+
+// F279: manual discount, line- or cart-level. Type/value/reason go to the
+// same applyPosCartLineDiscount / setPosCartDiscount the API has always
+// exposed; the server decides whether the resulting percentage needs a
+// supervisor (the threshold is company policy -- pos_settings -- not
+// something the client should second-guess), so this only explains that
+// possibility rather than trying to predict it.
+function DiscountDialog({
+  title,
+  baseLabel,
+  baseAmount,
+  onClose,
+  onApply,
+}: {
+  title: string;
+  baseLabel: string;
+  baseAmount: string;
+  onClose: () => void;
+  onApply: (input: { type: "percent" | "amount"; value: number; reason: string }) => void;
+}) {
+  const [type, setType] = useState<"percent" | "amount">("percent");
+  const [value, setValue] = useState(0);
+  const [reason, setReason] = useState("");
+  return (
+    <Dialog isOpen onOpenChange={(open) => !open && onClose()} title={title}>
+      <div className="flex flex-col gap-4">
+        <p className="text-sm text-text-secondary">
+          {baseLabel}: <span className="tabular-nums text-text">{baseAmount}</span>. A larger discount needs a supervisor&apos;s approval before the sale can be completed.
+        </p>
+        <div className="grid grid-cols-2 gap-3">
+          <Select
+            label="Type"
+            options={[
+              { value: "percent", label: "Percent (%)" },
+              { value: "amount", label: "Amount" },
+            ]}
+            selectedKey={type}
+            onSelectionChange={(key) => setType(key === "amount" ? "amount" : "percent")}
+          />
+          <NumberField label={type === "percent" ? "Percent off" : "Amount off"} value={value} onChange={setValue} minValue={0} maxValue={type === "percent" ? 100 : undefined} step={type === "percent" ? 1 : 0.01} />
+        </div>
+        <TextField label="Reason" isRequired value={reason} onChange={setReason} />
+        <div className="flex justify-end gap-2">
+          <Button variant="secondary" onPress={onClose}>
+            Cancel
+          </Button>
+          <Button variant="primary" isDisabled={value <= 0 || !reason.trim()} onPress={() => onApply({ type, value, reason: reason.trim() })}>
+            Apply discount
+          </Button>
+        </div>
+      </div>
+    </Dialog>
   );
 }
 
@@ -923,7 +1109,7 @@ function HeldCartsDialog({ onClose, onResume, currency }: { onClose: () => void;
         ) : rows.length === 0 ? (
           <p className="p-4 text-center text-sm text-text-muted">No held sales right now.</p>
         ) : (
-          <ul className="flex max-h-96 flex-col divide-y divide-border overflow-y-auto rounded-[var(--radius-panel)] border border-border">
+          <ul className="flex max-h-96 flex-col divide-y divide-border overflow-y-auto rounded-[var(--radius-control)] border border-border">
             {rows.map((row) => (
               <li key={row.id} className="flex items-center justify-between gap-3 px-3 py-2">
                 <div>

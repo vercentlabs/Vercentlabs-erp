@@ -187,6 +187,97 @@ export async function adjustPosCustomerLoyaltyBalance(client, context, customerI
   return { customerId: customer.id, balance: updated.rows[0].balance };
 }
 
+// F306-CAP-001 (expiry): retire points that have outlived the program's
+// points_expiry_days. Until now the number was stored and shown but nothing
+// ever acted on it, so "points expire after N days" was configuration
+// without effect.
+//
+// MODEL (documented because the dossier leaves it to the implementation):
+// only 'earn' entries expire (a manual adjustment or a reversed redemption
+// is not a purchase reward), and every DEBIT against the customer -- a
+// redemption, a reversed earn, an earlier expiry, a negative adjustment --
+// consumes the OLDEST points first (FIFO). Therefore
+//
+//   expirable = earned-before-cutoff  -  all debits ever posted,  capped at the live balance
+//
+// which is deliberately conservative: it can under-expire (a debit that
+// really consumed a newer point still "uses up" an older one) but can never
+// expire a point the customer is still entitled to. Every expiry is a NEW
+// negative 'expire' ledger row and a balance update under that customer's own
+// row lock, in the same transaction -- the ledger is never edited. Because
+// earlier expiry rows are themselves debits, running this again immediately
+// finds nothing left to expire, so a retry or a double click is harmless.
+export async function expirePosLoyaltyPoints(client, context, { asOf = null, limit = 500 } = {}) {
+  requirePermission(context, "pos.loyalty.manage");
+  const program = await resolveActivePosLoyaltyProgram(client, context);
+  if (!program || !program.points_expiry_days) {
+    return { expiryDays: null, cutoff: null, customersExpired: 0, pointsExpired: asDatabaseDecimal(decimal(0)), skippedReason: program ? "no_expiry_configured" : "no_active_program" };
+  }
+  const reference = asOf ? new Date(asOf) : new Date();
+  if (Number.isNaN(reference.getTime())) throw posError(400, "asOf is not a valid date.", "POS_LOYALTY_EXPIRY_ASOF_INVALID");
+  const cutoff = new Date(reference.getTime() - Number(program.points_expiry_days) * 24 * 60 * 60 * 1000);
+  const boundedLimit = Math.min(1000, Math.max(1, Number(limit) || 500));
+
+  const candidates = await client.query(
+    `SELECT customer_id,
+            COALESCE(SUM(points) FILTER (WHERE entry_type='earn' AND created_at < $3),0) AS old_earned,
+            COALESCE(SUM(-points) FILTER (WHERE points < 0),0) AS debits
+       FROM tenant.pos_loyalty_ledger
+      WHERE organization_id=$1 AND company_id=$2
+      GROUP BY customer_id
+     HAVING COALESCE(SUM(points) FILTER (WHERE entry_type='earn' AND created_at < $3),0) > COALESCE(SUM(-points) FILTER (WHERE points < 0),0)
+      ORDER BY customer_id
+      LIMIT $4`,
+    [context.organizationId, context.companyId, cutoff.toISOString(), boundedLimit],
+  );
+
+  let pointsExpired = decimal(0);
+  let customersExpired = 0;
+  for (const candidate of candidates.rows) {
+    // Re-derive under the balance lock: a redemption committed between the
+    // scan above and this lock must not be expired out from under.
+    const balance = await lockOrCreateBalanceRow(client, context, candidate.customer_id);
+    const totals = await client.query(
+      `SELECT COALESCE(SUM(points) FILTER (WHERE entry_type='earn' AND created_at < $4),0) AS old_earned,
+              COALESCE(SUM(-points) FILTER (WHERE points < 0),0) AS debits
+         FROM tenant.pos_loyalty_ledger
+        WHERE organization_id=$1 AND company_id=$2 AND customer_id=$3`,
+      [context.organizationId, context.companyId, candidate.customer_id, cutoff.toISOString()],
+    );
+    const expirable = min(sub(decimal(totals.rows[0].old_earned), decimal(totals.rows[0].debits)), balance);
+    if (expirable <= 0n) continue;
+
+    await client.query(
+      `INSERT INTO tenant.pos_loyalty_ledger (organization_id,company_id,program_id,customer_id,entry_type,points,created_by,reason)
+       VALUES ($1,$2,$3,$4,'expire',$5,$6,$7)`,
+      [
+        context.organizationId,
+        context.companyId,
+        program.id,
+        candidate.customer_id,
+        asDatabaseDecimal(sub(decimal(0), expirable)),
+        context.userId,
+        `Points earned before ${cutoff.toISOString().slice(0, 10)} expired (${program.points_expiry_days}-day expiry)`,
+      ],
+    );
+    await client.query(`UPDATE tenant.pos_loyalty_balances SET balance=balance-$3,updated_at=now() WHERE organization_id=$1 AND customer_id=$2`, [
+      context.organizationId,
+      candidate.customer_id,
+      asDatabaseDecimal(expirable),
+    ]);
+    pointsExpired = add(pointsExpired, expirable);
+    customersExpired += 1;
+  }
+  return {
+    expiryDays: Number(program.points_expiry_days),
+    cutoff: cutoff.toISOString(),
+    customersExpired,
+    pointsExpired: asDatabaseDecimal(pointsExpired),
+    // true when the batch limit was hit, so the caller knows to run again.
+    moreRemaining: candidates.rows.length >= boundedLimit,
+  };
+}
+
 // --- cart-pricing.js integration -------------------------------------
 
 export async function resolveActivePosLoyaltyProgram(client, context) {

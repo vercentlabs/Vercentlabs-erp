@@ -225,7 +225,7 @@ export function OfflineCheckoutPanel() {
 
         <SearchField label="Search offline catalog" placeholder="Search by name, code or barcode…" value={searchTerm} onChange={setSearchTerm} />
         {searchTerm.trim() && (
-          <div className="max-h-48 overflow-y-auto rounded-[var(--radius-panel)] border border-border-strong">
+          <div className="max-h-48 overflow-y-auto rounded-[var(--radius-card)] border border-border">
             {filteredItems.map((item) => (
               <button
                 key={item.itemId}
@@ -246,7 +246,7 @@ export function OfflineCheckoutPanel() {
           </div>
         )}
 
-        <div className="flex-1 overflow-y-auto rounded-[var(--radius-panel)] border border-border-strong">
+        <div className="flex-1 overflow-y-auto rounded-[var(--radius-card)] border border-border">
           {lines.length === 0 ? (
             <p className="p-6 text-center text-sm text-text-muted">Cart is empty — search the offline catalog to begin.</p>
           ) : (
@@ -286,14 +286,14 @@ export function OfflineCheckoutPanel() {
         </div>
 
         {canDiscount && (
-          <div className="flex flex-col gap-2 rounded-[var(--radius-control)] border border-border-strong p-3">
+          <div className="flex flex-col gap-2 rounded-[var(--radius-control)] border border-border p-3">
             <p className="text-sm font-medium text-text">Manual discount (amount, split across lines)</p>
             <NumberField label="Discount amount" value={discountAmount} onChange={setDiscountAmount} minValue={0} step={0.01} />
             <TextField label="Reason" value={discountReason} onChange={setDiscountReason} />
           </div>
         )}
 
-        <div className="flex flex-col gap-1 rounded-[var(--radius-panel)] border border-border-strong bg-surface p-4 text-sm">
+        <div className="flex flex-col gap-1 rounded-[var(--radius-card)] border border-border bg-surface p-4 text-sm">
           <div className="flex items-center justify-between text-text-secondary">
             <span>Subtotal (estimate)</span>
             <span className="tabular-nums">{money(snapshot.store.currencyCode, String(totalsWithDiscount.subtotal))}</span>

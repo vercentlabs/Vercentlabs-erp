@@ -26,6 +26,36 @@ export declare function listPointOfSaleResource(
   },
 ): Promise<any[] | { rows: any[]; total: number }>;
 export declare function listPosStoreSetupOptions(client: any, context: PointOfSaleContext): Promise<{ branches: any[]; warehouses: any[]; priceLists: any[] }>;
+export type PosSettingsValues = {
+  require_shift_reconciliation: boolean;
+  allow_negative_stock: boolean;
+  allow_price_override: boolean;
+  require_return_approval: boolean;
+  prohibit_self_return_approval: boolean;
+  default_currency_code: string;
+  max_line_discount_percent: string;
+  max_cart_discount_percent: string;
+  discount_approval_threshold_percent: string;
+  cart_expiry_minutes: number;
+};
+export type PosSettings = { configured: boolean; updatedAt: string | null; settings: PosSettingsValues };
+export declare const POS_SETTINGS_DEFAULTS: Readonly<PosSettingsValues>;
+export declare function getPosSettings(client: any, context: PointOfSaleContext): Promise<PosSettings>;
+export declare function updatePosSettings(client: any, context: PointOfSaleContext, input: Partial<Record<keyof PosSettingsValues, string | number | boolean>>): Promise<PosSettings>;
+export type PosStorePaymentConfig = {
+  storeId: string;
+  storeName: string;
+  allowedMethods: string[];
+  providers: Array<{ payment_method: string; provider_key: string; credential_env_var: string | null; active: boolean }>;
+  availableProviders: string[];
+};
+export declare function getPosStorePaymentConfig(client: any, context: PointOfSaleContext, storeId: string): Promise<PosStorePaymentConfig>;
+export declare function setPosStorePaymentConfig(
+  client: any,
+  context: PointOfSaleContext,
+  storeId: string,
+  input: { allowedMethods: string[]; providers?: Record<string, { providerKey?: string; credentialEnvVar?: string | null }> },
+): Promise<PosStorePaymentConfig>;
 export declare function createStore(client: any, context: PointOfSaleContext, input: Record<string, any>): Promise<any>;
 export declare function updatePosStore(client: any, context: PointOfSaleContext, id: string, input: Record<string, any>): Promise<any>;
 export declare function setPosStoreActive(client: any, context: PointOfSaleContext, id: string, active: boolean): Promise<any>;
@@ -314,6 +344,8 @@ export type PosCart = {
   cart_discount_reason: string | null;
   loyalty_redeem_points: string | null;
   lines: PosCartLine[];
+  /** Discount-approval rows bound to this cart's CURRENT version (F279-APP-001). */
+  discountApprovals?: Array<{ id: string; approval_request_id: string | null; cart_line_id: string | null; status: "pending" | "approved" | "rejected"; discount_amount_snapshot: string; discount_percent_snapshot: string | null; reason: string }>;
   promotionExplanations?: Array<{ code: string; applied: boolean; amountSaved?: string; reason: string }>;
   coupon?: { id: string; code: string; amount: string } | null;
   loyalty?: {
@@ -366,6 +398,32 @@ export type PosHeldCart = {
   line_count: number;
 };
 export declare function listHeldPosCarts(client: any, context: PointOfSaleContext, options?: { search?: string }): Promise<PosHeldCart[]>;
+export type PosDiscountApproval = {
+  id: string;
+  approval_request_id: string | null;
+  cart_id: string;
+  cart_version: number;
+  cart_line_id: string | null;
+  status: "pending" | "approved" | "rejected";
+  reason: string;
+  discount_amount_snapshot: string;
+  discount_percent_snapshot: string | null;
+  cart_subtotal_snapshot: string;
+  requested_by: string;
+  requested_by_name: string | null;
+  approved_by: string | null;
+  approved_by_name: string | null;
+  approved_at: string | null;
+  cart_status: string;
+  current_cart_version: number;
+  currency_code: string;
+  /** True only while this row still matches the cart's live version -- an approval for an earlier version no longer counts at completion. */
+  is_current: boolean;
+  store_name: string;
+  terminal_name: string;
+  line_description: string | null;
+};
+export declare function listPosDiscountApprovals(client: any, context: PointOfSaleContext, options?: { status?: "pending" | "approved" | "rejected" | "all"; limit?: number }): Promise<PosDiscountApproval[]>;
 
 // F289 receipts
 export type PosReceiptPrintEvent = {
@@ -475,6 +533,15 @@ export declare function setPosLoyaltyProgramActive(client: any, context: PointOf
 export declare function getPosCustomerLoyaltyBalance(client: any, context: PointOfSaleContext, customerId: string): Promise<{ customerId: string; balance: string; updatedAt: string | null }>;
 export declare function listPosCustomerLoyaltyLedger(client: any, context: PointOfSaleContext, customerId: string, options?: { limit?: number }): Promise<PosLoyaltyLedgerEntry[]>;
 export declare function adjustPosCustomerLoyaltyBalance(client: any, context: PointOfSaleContext, customerId: string, points: number | string, reason: string): Promise<{ customerId: string; balance: string }>;
+export type PosLoyaltyExpiryResult = {
+  expiryDays: number | null;
+  cutoff: string | null;
+  customersExpired: number;
+  pointsExpired: string;
+  moreRemaining?: boolean;
+  skippedReason?: "no_active_program" | "no_expiry_configured";
+};
+export declare function expirePosLoyaltyPoints(client: any, context: PointOfSaleContext, options?: { asOf?: string | Date | null; limit?: number }): Promise<PosLoyaltyExpiryResult>;
 
 // F283 (card) / F284 (UPI/digital) / F285 (split tender) / F286 (multiple
 // payment methods): ONE payment-tender subsystem. Field names are

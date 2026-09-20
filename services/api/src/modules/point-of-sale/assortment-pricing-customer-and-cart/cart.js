@@ -15,7 +15,7 @@ import { decimal, div, mul, min, max, asDatabaseDecimal, formatDecimal } from ".
 import { priceCartLines } from "./cart-pricing.js";
 import { resolveActivePosLoyaltyProgram, getPosLoyaltyBalanceValue, requirePosLoyaltyRedemptionEligible } from "./loyalty.js";
 import { posError } from "../shared/errors.js";
-import { requirePermission, assertPosStoreAccess } from "../shared/access-control.js";
+import { requirePermission, assertPosStoreAccess, accessiblePosStoreIds } from "../shared/access-control.js";
 
 const OPEN_STATUSES = ["draft", "priced"];
 const HELD_CART_EXPIRY_MS = 24 * 60 * 60 * 1000;
@@ -326,7 +326,26 @@ export async function getPosCart(client, context, cartId) {
     cart.status = "expired";
   }
   const lines = await loadLines(client, context, cartId);
-  return { ...cart, lines };
+  const discountApprovals = await loadCartDiscountApprovals(client, context, cartId, cart.version);
+  return { ...cart, lines, discountApprovals };
+}
+
+// F279-APP-001: the approvals bound to the cart's CURRENT version only --
+// assertPosCartDiscountsApproved() matches on the exact version, so an
+// approval for any earlier version is already void and must not be shown to
+// the cashier as if it still counted. Lets the checkout screen show
+// "waiting for supervisor" / "approved" / "rejected" from the same
+// authoritative rows completePosCart() itself enforces, without a second
+// request or any client-side guess.
+async function loadCartDiscountApprovals(client, context, cartId, cartVersion) {
+  const result = await client.query(
+    `SELECT id, approval_request_id, cart_line_id, status, discount_amount_snapshot, discount_percent_snapshot, reason, requested_by, approved_by, approved_at
+       FROM tenant.pos_cart_discount_approvals
+      WHERE organization_id=$1 AND cart_id=$2 AND cart_version=$3
+      ORDER BY cart_line_id NULLS FIRST, id`,
+    [context.organizationId, cartId, cartVersion],
+  );
+  return result.rows;
 }
 
 export async function addPosCartLine(client, context, cartId, input) {
@@ -808,6 +827,58 @@ export async function listHeldPosCarts(client, context, { search } = {}) {
       WHERE cart.organization_id=$1 AND cart.company_id=$2 AND cart.status='held' AND cart.held_at > now() - interval '24 hours'${storeFilter}${searchFilter}
       ORDER BY cart.held_at DESC
       LIMIT 100`,
+    values,
+  );
+  return result.rows;
+}
+
+// F279-APP-001: the POS-side approvals queue. The generic /approvals inbox
+// only shows a request to its requester, its assignee, or someone holding the
+// blanket approvals.manage permission, and POS never sets an assignee -- so a
+// store manager who holds pos.discount.approve had no way to discover a
+// pending above-threshold discount. This lists the same pos_cart_discount_
+// approvals rows (never a copy), scoped to the caller's accessible stores
+// for a deciding role, or to their own requests otherwise. Deciding still
+// goes through the platform's decideApproval() (approval_request_id is
+// returned for exactly that), which is where maker-checker self-approval is
+// enforced -- this function grants no decision authority of its own.
+export async function listPosDiscountApprovals(client, context, { status = "pending", limit = 100 } = {}) {
+  requirePermission(context, "pos.view");
+  const canDecide = context.roleSlugs?.includes("organization_owner") || context.permissions?.includes("pos.discount.approve");
+  const values = [context.organizationId, context.companyId];
+  let filters = "";
+  if (status && status !== "all") {
+    values.push(status);
+    filters += ` AND a.status=$${values.length}`;
+  }
+  if (canDecide) {
+    const stores = await accessiblePosStoreIds(client, context);
+    if (stores) {
+      values.push(stores);
+      filters += ` AND cart.store_id = ANY($${values.length}::uuid[])`;
+    }
+  } else {
+    values.push(context.userId);
+    filters += ` AND a.requested_by=$${values.length}`;
+  }
+  values.push(Math.min(Math.max(Number(limit) || 100, 1), 200));
+  const result = await client.query(
+    `SELECT a.id, a.approval_request_id, a.cart_id, a.cart_version, a.cart_line_id, a.status, a.reason,
+            a.discount_amount_snapshot, a.discount_percent_snapshot, a.cart_subtotal_snapshot,
+            a.requested_by, requester.full_name AS requested_by_name, a.approved_by, approver.full_name AS approved_by_name, a.approved_at,
+            cart.status AS cart_status, cart.version AS current_cart_version, cart.currency_code,
+            (a.cart_version = cart.version AND cart.status IN ('draft','priced','held')) AS is_current,
+            store.name AS store_name, terminal.name AS terminal_name, line.description AS line_description
+       FROM tenant.pos_cart_discount_approvals a
+       JOIN tenant.pos_carts cart ON cart.organization_id=a.organization_id AND cart.id=a.cart_id
+       JOIN tenant.pos_stores store ON store.organization_id=cart.organization_id AND store.id=cart.store_id
+       JOIN tenant.pos_terminals terminal ON terminal.organization_id=cart.organization_id AND terminal.id=cart.terminal_id
+       LEFT JOIN tenant.pos_cart_lines line ON line.organization_id=a.organization_id AND line.id=a.cart_line_id
+       LEFT JOIN public.users requester ON requester.id=a.requested_by
+       LEFT JOIN public.users approver ON approver.id=a.approved_by
+      WHERE a.organization_id=$1 AND cart.company_id=$2${filters}
+      ORDER BY (a.status='pending') DESC, a.approved_at DESC NULLS FIRST, a.id
+      LIMIT $${values.length}`,
     values,
   );
   return result.rows;

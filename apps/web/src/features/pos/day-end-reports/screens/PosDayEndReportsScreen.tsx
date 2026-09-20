@@ -5,17 +5,7 @@ import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { ColumnDef } from "@tanstack/react-table";
 import { Plus } from "lucide-react";
-import {
-  Button,
-  EnterpriseDataGrid,
-  EnterpriseListPage,
-  ErrorState,
-  NoResultsState,
-  PermissionState,
-  Select,
-  StatusBadge,
-  type ActiveFilter,
-} from "@vercentlabs/design-system";
+import { type ActiveFilter, Button, EnterpriseDataGrid, EnterpriseListPage, ErrorState, NoResultsState, PermissionState, Select, StatusBadge, TextField } from "@vercentlabs/design-system";
 import { POS_PERMISSIONS } from "@vercentlabs/permissions";
 
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
@@ -25,7 +15,7 @@ import { generatePosDayEndReport, listPosDayEndReports } from "@/features/pos/da
 import { listPosStores } from "@/features/pos/stores/api/stores-api";
 import { listPosTerminals } from "@/features/pos/terminals/api/terminals-api";
 import { listPosShifts } from "@/features/pos/overview/api/overview-api";
-import { calendarDate, money } from "@/features/pos/shared/format";
+import { calendarDate, money, statusLabel } from "@/features/pos/shared/format";
 
 const PAGE_SIZE = 25;
 
@@ -138,7 +128,7 @@ export function PosDayEndReportsScreen() {
         id: "status",
         header: "Status",
         accessorKey: "status",
-        cell: ({ getValue }) => <StatusBadge tone={statusTone[String(getValue())] ?? "neutral"}>{String(getValue())}</StatusBadge>,
+        cell: ({ getValue }) => <StatusBadge tone={statusTone[String(getValue())] ?? "neutral"}>{statusLabel(String(getValue()))}</StatusBadge>,
       },
       { id: "sale_count", header: "Sales", accessorKey: "sale_count" },
       { id: "grand_sales_total", header: "Gross sales", accessorFn: (row) => money("", row.grand_sales_total) },
@@ -202,7 +192,7 @@ export function PosDayEndReportsScreen() {
       }}
     >
       {showGenerate && (
-        <div className="flex flex-col gap-3 rounded-[var(--radius-panel)] border border-border-strong bg-surface p-4">
+        <div className="flex flex-col gap-3 rounded-[var(--radius-card)] border border-border bg-surface p-4">
           <h2 className="text-sm font-semibold text-text">Generate a day-end report</h2>
           {generateError && (
             <p role="alert" className="rounded-[var(--radius-control)] border border-danger-emphasis/30 bg-danger-soft px-3 py-2 text-sm text-danger">
@@ -223,18 +213,7 @@ export function PosDayEndReportsScreen() {
             {genScopeType === "shift" ? (
               <Select label="Closed shift" options={closedShiftOptions} value={genShiftId} onChange={(value) => setGenShiftId(String(value ?? ""))} placeholder="Select a closed shift" />
             ) : (
-              <div className="flex flex-col gap-1.5">
-                <label className="text-sm font-medium text-text" htmlFor="day-end-business-date">
-                  Business date
-                </label>
-                <input
-                  id="day-end-business-date"
-                  type="date"
-                  value={genBusinessDate}
-                  onChange={(event) => setGenBusinessDate(event.target.value)}
-                  className="rounded-[var(--radius-control)] border border-border bg-surface px-3 py-2 text-sm text-text"
-                />
-              </div>
+              <TextField label="Business date" type="date" value={genBusinessDate} onChange={setGenBusinessDate} />
             )}
             <Select
               label="Terminal (optional for business day)"

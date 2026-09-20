@@ -4,17 +4,7 @@ import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import type { ColumnDef, SortingState } from "@tanstack/react-table";
-import {
-  EnterpriseDataGrid,
-  EnterpriseListPage,
-  ErrorState,
-  NoResultsState,
-  PermissionState,
-  SearchField,
-  Select,
-  StatusBadge,
-  type ActiveFilter,
-} from "@vercentlabs/design-system";
+import { type ActiveFilter, EnterpriseDataGrid, EnterpriseListPage, ErrorState, NoResultsState, PermissionState, SearchField, Select, StatusBadge, TextField } from "@vercentlabs/design-system";
 
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
@@ -24,7 +14,7 @@ import type { PosTransactionListFilters, PosTransactionRow } from "@/features/po
 import { listPosStores } from "@/features/pos/stores/api/stores-api";
 import { listPosTerminals } from "@/features/pos/terminals/api/terminals-api";
 import { listPosEligibleCashiers } from "@/features/pos/cashiers/api/cashiers-api";
-import { money } from "@/features/pos/shared/format";
+import { dateTime, money, statusLabel } from "@/features/pos/shared/format";
 
 const PAGE_SIZE = 25;
 
@@ -115,7 +105,7 @@ export function PosTransactionsScreen() {
         accessorKey: "receipt_number",
         cell: ({ row }) => <span className="font-medium text-text">{row.original.receipt_number}</span>,
       },
-      { id: "sale_date", header: "Date", accessorFn: (row) => new Date(row.sale_date).toLocaleString() },
+      { id: "sale_date", header: "Date", accessorFn: (row) => dateTime(row.sale_date) },
       { id: "store_name", header: "Store", accessorFn: (row) => `${row.store_name} / ${row.terminal_name}`, enableSorting: false },
       { id: "cashier_name", header: "Cashier", accessorFn: (row) => row.cashier_name ?? "—", enableSorting: false },
       { id: "customer_name", header: "Customer", accessorFn: (row) => row.customer_name ?? "Walk-in", enableSorting: false },
@@ -123,14 +113,14 @@ export function PosTransactionsScreen() {
         id: "status",
         header: "Status",
         accessorKey: "status",
-        cell: ({ getValue }) => <StatusBadge tone={statusTone[String(getValue())] ?? "neutral"}>{String(getValue()).replace("_", " ")}</StatusBadge>,
+        cell: ({ getValue }) => <StatusBadge tone={statusTone[String(getValue())] ?? "neutral"}>{statusLabel(String(getValue()))}</StatusBadge>,
       },
       {
         id: "accounting_posting_status",
         header: "Accounting",
         accessorKey: "accounting_posting_status",
         enableSorting: false,
-        cell: ({ getValue }) => <StatusBadge tone={accountingTone[String(getValue())] ?? "neutral"}>{String(getValue()).replace("_", " ")}</StatusBadge>,
+        cell: ({ getValue }) => <StatusBadge tone={accountingTone[String(getValue())] ?? "neutral"}>{statusLabel(String(getValue()))}</StatusBadge>,
       },
       { id: "grand_total", header: "Total", accessorFn: (row) => money(row.currency_code, row.grand_total) },
     ],
@@ -215,20 +205,8 @@ export function PosTransactionsScreen() {
               selectedKey={filters.paymentMethod ?? ""}
               onSelectionChange={(key) => setFilter("paymentMethod", key ? String(key) : undefined)}
             />
-            <input
-              aria-label="From date"
-              type="date"
-              value={filters.dateFrom ?? ""}
-              onChange={(event) => setFilter("dateFrom", event.target.value || undefined)}
-              className="rounded-[var(--radius-control)] border border-border bg-surface px-3 py-1.5 text-sm text-text"
-            />
-            <input
-              aria-label="To date"
-              type="date"
-              value={filters.dateTo ?? ""}
-              onChange={(event) => setFilter("dateTo", event.target.value || undefined)}
-              className="rounded-[var(--radius-control)] border border-border bg-surface px-3 py-1.5 text-sm text-text"
-            />
+            <TextField aria-label="From date" type="date" size="compact" value={filters.dateFrom ?? ""} onChange={(value) => setFilter("dateFrom", value || undefined)} />
+            <TextField aria-label="To date" type="date" size="compact" value={filters.dateTo ?? ""} onChange={(value) => setFilter("dateTo", value || undefined)} />
           </>
         ),
       }}

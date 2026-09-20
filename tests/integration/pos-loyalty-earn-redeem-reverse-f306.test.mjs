@@ -44,6 +44,7 @@ test("F306: loyalty earn/redeem/reverse against real PostgreSQL", async (t) => {
     getPosCustomerLoyaltyBalance,
     adjustPosCustomerLoyaltyBalance,
     commitPosLoyaltyForSale,
+    expirePosLoyaltyPoints,
     createPointOfSaleReturn,
     approvePointOfSaleReturn,
     completePointOfSaleReturn,
@@ -410,6 +411,69 @@ test("F306: loyalty earn/redeem/reverse against real PostgreSQL", async (t) => {
         (Number(balanceAfterReturn.balance) - Number(balanceBeforeReturn.balance)).toFixed(6),
         "-10.000000",
       );
+    });
+
+    await t.test("F306 EXPIRY: only earned points older than the program's expiry days expire, oldest-first against redemptions, capped at the balance, and re-running is a no-op", async () => {
+      const expiryCustomerId = randomUUID();
+      await admin.query(
+        `INSERT INTO tenant.business_parties(id,organization_id,company_id,code,party_type,display_name,status,created_by) VALUES ($1,$2,$3,'CUSTEXP','customer','Expiry Customer','active',$4)`,
+        [expiryCustomerId, orgId, companyId, userId],
+      );
+      const program = await tx((c) =>
+        upsertPosLoyaltyProgram(c, supervisorContext, { name: "Standard Loyalty", earnRatePointsPerCurrency: 0.1, redemptionValuePerPoint: 1, pointsExpiryDays: 30 }),
+      );
+      assert.equal(program.points_expiry_days, 30);
+
+      const daysAgo = (days) => new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
+      async function ledger(entryType, points, createdAt) {
+        await admin.query(
+          `INSERT INTO tenant.pos_loyalty_ledger(organization_id,company_id,program_id,customer_id,entry_type,points,created_by,created_at,reason)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,'expiry test seed')`,
+          [orgId, companyId, program.id, expiryCustomerId, entryType, points, userId, createdAt],
+        );
+      }
+      // Earned: 100 pts 90 days ago (expired), 40 pts 60 days ago (expired), 60 pts 5 days ago (still valid).
+      await ledger("earn", 100, daysAgo(90));
+      await ledger("earn", 40, daysAgo(60));
+      await ledger("earn", 60, daysAgo(5));
+      // Redeemed 30 (FIFO: consumes the oldest 30 of the expired 140), so 110 of the expired points remain.
+      await ledger("redeem", -30, daysAgo(2));
+      await admin.query(
+        `INSERT INTO tenant.pos_loyalty_balances(organization_id,customer_id,balance) VALUES ($1,$2,170) ON CONFLICT (organization_id,customer_id) DO UPDATE SET balance=170`,
+        [orgId, expiryCustomerId],
+      );
+
+      // A caller without loyalty-manage authority is refused outright.
+      await assert.rejects(() => tx((c) => expirePosLoyaltyPoints(c, cashierContext)), (error) => error.code === "FORBIDDEN");
+
+      const first = await tx((c) => expirePosLoyaltyPoints(c, supervisorContext));
+      assert.equal(first.expiryDays, 30);
+      assert.equal(Number(first.pointsExpired), 110, "140 expired-eligible earned minus the 30 already redeemed against the oldest points");
+      const afterFirst = await tx((c) => getPosCustomerLoyaltyBalance(c, supervisorContext, expiryCustomerId));
+      assert.equal(Number(afterFirst.balance), 60, "170 - 110: only the recently earned 60 points survive");
+
+      const expireRow = await admin.query(
+        `SELECT points, entry_type, reason FROM tenant.pos_loyalty_ledger WHERE organization_id=$1 AND customer_id=$2 AND entry_type='expire'`,
+        [orgId, expiryCustomerId],
+      );
+      assert.equal(expireRow.rows.length, 1, "expiry is a NEW ledger row; nothing is edited or deleted");
+      assert.equal(Number(expireRow.rows[0].points), -110);
+      const untouched = await admin.query(`SELECT count(*)::int AS n FROM tenant.pos_loyalty_ledger WHERE organization_id=$1 AND customer_id=$2 AND entry_type='earn'`, [orgId, expiryCustomerId]);
+      assert.equal(untouched.rows[0].n, 3, "the original earn rows are never modified");
+
+      // Idempotent: the expire row is itself a debit, so an immediate re-run finds nothing.
+      const second = await tx((c) => expirePosLoyaltyPoints(c, supervisorContext));
+      assert.equal(Number(second.pointsExpired), 0);
+      const afterSecond = await tx((c) => getPosCustomerLoyaltyBalance(c, supervisorContext, expiryCustomerId));
+      assert.equal(Number(afterSecond.balance), 60);
+
+      // Later, once the 5-day-old points cross the cutoff too, they expire on the next run.
+      const later = await tx((c) => expirePosLoyaltyPoints(c, supervisorContext, { asOf: new Date(Date.now() + 40 * 24 * 60 * 60 * 1000) }));
+      // The pass is company-wide, so earlier subtests' customers' aged points
+      // expire in the same run -- assert on this customer's own outcome.
+      assert.ok(Number(later.pointsExpired) >= 60, "at least this customer's 60 newly-aged points expired");
+      const afterLater = await tx((c) => getPosCustomerLoyaltyBalance(c, supervisorContext, expiryCustomerId));
+      assert.equal(Number(afterLater.balance), 0);
     });
   } finally {
     for (const table of [

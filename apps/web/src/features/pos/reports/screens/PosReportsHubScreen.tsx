@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { ArrowRight, BarChart3, FileCheck2, Receipt, ScrollText } from "lucide-react";
+import { PageHeader } from "@vercentlabs/design-system";
 
 // A CONSOLIDATION screen, not a new financial-calculation surface: F303
 // (day-end/Z reports), F304 (reconciliation), F305 (accounting posting) and
@@ -41,27 +42,24 @@ const REPORT_LINKS = [
 export function PosReportsHubScreen() {
   return (
     <div className="flex flex-col gap-6">
-      <div>
-        <h1 className="text-2xl font-semibold text-text">Reports</h1>
-        <p className="text-sm text-text-secondary">Every POS reporting surface in one place — day-end reports, reconciliation, accounting posting and analytics.</p>
-      </div>
+      <PageHeader title="Reports" description="Every POS reporting surface in one place — day-end reports, reconciliation, accounting posting and analytics." />
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         {REPORT_LINKS.map(({ href, icon: Icon, title, description }) => (
           <Link
             key={href}
             href={href}
-            className="flex flex-col gap-3 rounded-[var(--radius-panel)] border border-border-strong bg-surface p-5 transition-colors hover:border-brand hover:bg-surface-muted"
+            className="group flex flex-col gap-3 rounded-[var(--radius-card)] border border-border bg-surface p-4 transition-colors hover:border-brand-border hover:bg-brand-soft"
           >
             <div className="flex items-center justify-between">
-              <span className="flex size-9 items-center justify-center rounded-[var(--radius-control)] bg-brand-soft text-brand">
+              <span className="flex size-9 items-center justify-center rounded-[var(--radius-control)] bg-brand-soft text-brand group-hover:bg-surface">
                 <Icon className="size-5" aria-hidden="true" />
               </span>
               <ArrowRight className="size-4 text-text-muted" aria-hidden="true" />
             </div>
-            <div>
-              <h2 className="text-base font-semibold text-text">{title}</h2>
-              <p className="mt-1 text-sm text-text-secondary">{description}</p>
+            <div className="flex flex-col gap-1">
+              <h2 className="text-sm font-semibold text-text">{title}</h2>
+              <p className="text-sm text-text-secondary">{description}</p>
             </div>
           </Link>
         ))}

@@ -2,9 +2,9 @@
 
 import { request, post } from "@/features/pos/shared/http";
 
-export type PosTerminal = { id: string; code: string; name: string; storeId?: string; store_id?: string; status: string };
+export type PosTerminal = { id: string; code: string; name: string; storeId?: string; store_id?: string; store_name?: string | null; status: string };
 
-export const listPosTerminals = () => request<{ rows: PosTerminal[] }>("/terminals");
+export const listPosTerminals = () => request<{ rows: PosTerminal[] }>("/terminals?limit=200");
 export const createPosTerminal = (input: Record<string, unknown>) => post<{ terminal: PosTerminal }>("/terminals", input);
 export const updatePosTerminalRecord = (id: string, input: Record<string, unknown>) =>
   request<{ terminal: PosTerminal }>(`/terminals/${id}`, { method: "PATCH", body: JSON.stringify(input) });

@@ -51,6 +51,8 @@ test("F277-F281: cart, authoritative tax, discounts, promotions and coupons agai
     approvePointOfSaleReturn,
     completePointOfSaleReturn,
     decideApproval,
+    listPosDiscountApprovals,
+    getPosCart,
     setPosCartDiscount,
     cancelPosCart,
     getPosSaleReceipt,
@@ -285,6 +287,35 @@ test("F277-F281: cart, authoritative tax, discounts, promotions and coupons agai
       const stillPending = await admin.query(`SELECT status FROM public.approval_requests WHERE id=$1`, [approvalRequestId]);
       assert.equal(stillPending.rows[0].status, "pending");
 
+      // F279-APP-001: the request must be DISCOVERABLE by the people who can
+      // decide it. The generic /approvals inbox never showed it to a plain
+      // pos.discount.approve holder; the POS queue does -- from the same
+      // pos_cart_discount_approvals rows, never a copy.
+      const managerListContext = { organizationId: orgId, companyId, userId: managerId, roleSlugs: [], permissions: ["pos.view", "pos.discount.approve"] };
+      const pendingQueue = await tx((c) => listPosDiscountApprovals(c, managerListContext, { status: "pending" }));
+      const queued = pendingQueue.find((row) => row.approval_request_id === approvalRequestId);
+      assert.ok(queued, "a pending above-threshold discount must appear in a deciding manager's POS approval queue");
+      assert.equal(queued.status, "pending");
+      assert.equal(queued.is_current, true, "an approval bound to the cart's live version is current");
+      assert.equal(queued.requested_by_name, "F277 Supervisor");
+      assert.equal(queued.cart_id, cart.id);
+      assert.ok(queued.store_name && queued.terminal_name, "the queue row names the store and terminal so the manager can locate the sale");
+      assert.ok(Number(queued.discount_percent_snapshot) > 10, "the row carries the percentage that tripped the threshold");
+
+      // A requester without decision authority sees only their own requests;
+      // a cashier who requested nothing sees nothing.
+      const ownQueue = await tx((c) => listPosDiscountApprovals(c, supervisorContext, { status: "pending" }));
+      assert.ok(ownQueue.some((row) => row.approval_request_id === approvalRequestId), "the requester can see their own pending request");
+      const cashierQueue = await tx((c) => listPosDiscountApprovals(c, cashierContext, { status: "pending" }));
+      assert.equal(cashierQueue.filter((row) => row.approval_request_id === approvalRequestId).length, 0, "an unrelated cashier must not see another person's request");
+      await assert.rejects(() => tx((c) => listPosDiscountApprovals(c, { ...cashierContext, permissions: [] }, {})), (error) => error.code === "FORBIDDEN");
+
+      // The live cart itself reports the pending approval for its CURRENT
+      // version, so checkout can show "waiting for supervisor".
+      const liveCart = await tx((c) => getPosCart(c, cashierContext, cart.id));
+      assert.equal(liveCart.discountApprovals.length, 1);
+      assert.equal(liveCart.discountApprovals[0].status, "pending");
+
       // A real, separate approver without pos.discount.approve is refused.
       await assert.rejects(
         () =>
@@ -302,6 +333,17 @@ test("F277-F281: cart, authoritative tax, discounts, promotions and coupons agai
       const approvalRow = await admin.query(`SELECT status, approved_by FROM tenant.pos_cart_discount_approvals WHERE approval_request_id=$1`, [approvalRequestId]);
       assert.equal(approvalRow.rows[0].status, "approved");
       assert.equal(approvalRow.rows[0].approved_by, managerId, "approved_by must be the REAL decider's own authenticated id, never a client-supplied one (requirement D)");
+
+      // Once decided it leaves the pending queue and shows as approved, with
+      // the real approver's name -- and the live cart reflects it.
+      const pendingAfter = await tx((c) => listPosDiscountApprovals(c, managerListContext, { status: "pending" }));
+      assert.equal(pendingAfter.filter((row) => row.approval_request_id === approvalRequestId).length, 0);
+      const approvedQueue = await tx((c) => listPosDiscountApprovals(c, managerListContext, { status: "approved" }));
+      const approvedRow = approvedQueue.find((row) => row.approval_request_id === approvalRequestId);
+      assert.ok(approvedRow);
+      assert.equal(approvedRow.approved_by_name, "F279 Manager");
+      const approvedCart = await tx((c) => getPosCart(c, cashierContext, cart.id));
+      assert.equal(approvedCart.discountApprovals[0].status, "approved");
     });
 
     await t.test("F277: a stale expectedVersion is rejected with a clean conflict, not a silent overwrite", async () => {

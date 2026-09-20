@@ -19,3 +19,60 @@ export function calendarDate(value: string | null | undefined) {
   if (!value) return "";
   return value.slice(0, 10);
 }
+
+const dateTimeFormatter = new Intl.DateTimeFormat("en-IN", { dateStyle: "medium", timeStyle: "short" });
+
+// A full timestamp (created_at, closed_at, …) in the same "en-IN" medium
+// date + short time style CRM's lists use, instead of each screen calling
+// toLocaleString() and getting whatever the browser's locale happens to be.
+export function dateTime(value: string | null | undefined) {
+  if (!value) return "—";
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? "—" : dateTimeFormatter.format(parsed);
+}
+
+export type StatusTone = "neutral" | "info" | "success" | "warning" | "danger";
+
+// One status -> StatusBadge tone map for every POS lifecycle word, so
+// "completed" is the same colour on the Transactions list, a receipt and a
+// Z report rather than each screen deciding for itself.
+const STATUS_TONES: Record<string, StatusTone> = {
+  active: "success",
+  completed: "success",
+  closed: "success",
+  posted: "success",
+  approved: "success",
+  resolved: "success",
+  paid: "success",
+  reviewed: "info",
+  open: "info",
+  draft: "neutral",
+  held: "warning",
+  pending: "warning",
+  requested: "warning",
+  partially_returned: "warning",
+  variance: "warning",
+  syncing: "warning",
+  inactive: "neutral",
+  void: "neutral",
+  voided: "neutral",
+  cancelled: "neutral",
+  returned: "neutral",
+  failed: "danger",
+  rejected: "danger",
+  conflict: "danger",
+  error: "danger",
+};
+
+export function statusTone(status: string | null | undefined): StatusTone {
+  return STATUS_TONES[String(status ?? "").toLowerCase()] ?? "neutral";
+}
+
+// "partially_returned" -> "Partially returned"; acronyms keep their form.
+const ACRONYM_LABELS: Record<string, string> = { upi: "UPI", pos: "POS" };
+export function statusLabel(status: string | null | undefined) {
+  const raw = String(status ?? "").trim().toLowerCase();
+  if (ACRONYM_LABELS[raw]) return ACRONYM_LABELS[raw];
+  const text = String(status ?? "").replace(/_/g, " ").trim();
+  return text ? text.charAt(0).toUpperCase() + text.slice(1) : "—";
+}

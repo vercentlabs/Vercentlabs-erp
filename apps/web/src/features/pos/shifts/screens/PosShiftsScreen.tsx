@@ -5,20 +5,7 @@ import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { ColumnDef } from "@tanstack/react-table";
 import { Plus } from "lucide-react";
-import {
-  Button,
-  Dialog,
-  EnterpriseDataGrid,
-  EnterpriseListPage,
-  ErrorState,
-  NoResultsState,
-  NumberField,
-  PermissionState,
-  Select,
-  StatusBadge,
-  type ActiveFilter,
-  type SelectOption,
-} from "@vercentlabs/design-system";
+import { type ActiveFilter, Button, Dialog, EnterpriseDataGrid, EnterpriseListPage, ErrorState, NoResultsState, NumberField, PermissionState, Select, type SelectOption, StatusBadge, TextField } from "@vercentlabs/design-system";
 import { POS_PERMISSIONS } from "@vercentlabs/permissions";
 
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
@@ -28,7 +15,7 @@ import { listPosEligibleCashiers } from "@/features/pos/cashiers/api/cashiers-ap
 import { listPosStores } from "@/features/pos/stores/api/stores-api";
 import { listPosTerminals } from "@/features/pos/terminals/api/terminals-api";
 import { openPosShift, listPosShiftsPage, type PosShift, type PosShiftFilters } from "@/features/pos/shifts/api/shifts-api";
-import { money } from "@/features/pos/shared/format";
+import { dateTime, money, statusLabel } from "@/features/pos/shared/format";
 
 const PAGE_SIZE = 25;
 
@@ -137,11 +124,11 @@ export function PosShiftsScreen() {
 
   const columns: ColumnDef<PosShift, unknown>[] = useMemo(
     () => [
-      { id: "shift_number", header: "Shift #", accessorKey: "shift_number", cell: ({ row }) => <span className="font-mono font-medium text-text">{row.original.shift_number}</span> },
+      { id: "shift_number", header: "Shift #", accessorKey: "shift_number", cell: ({ row }) => <span className="whitespace-nowrap font-mono font-medium text-text">{row.original.shift_number}</span> },
       { id: "store", header: "Store", accessorFn: (row) => storeNameById.get(row.store_id) ?? row.store_id },
       { id: "terminal", header: "Terminal", accessorFn: (row) => terminalNameById.get(row.terminal_id) ?? row.terminal_id },
       { id: "cashier", header: "Cashier", accessorFn: (row) => cashierNameById.get(row.cashier_user_id) ?? row.cashier_user_id },
-      { id: "status", header: "Status", cell: ({ row }) => <StatusBadge tone={statusTone[row.original.status] ?? "neutral"}>{row.original.status}</StatusBadge> },
+      { id: "status", header: "Status", cell: ({ row }) => <StatusBadge tone={statusTone[row.original.status] ?? "neutral"}>{statusLabel(row.original.status)}</StatusBadge> },
       { id: "opening_cash", header: "Opening cash", accessorFn: (row) => money("", row.opening_cash) },
       { id: "counted_cash", header: "Counted cash", accessorFn: (row) => (row.counted_cash != null ? money("", row.counted_cash) : "—") },
       {
@@ -154,8 +141,8 @@ export function PosShiftsScreen() {
             "—"
           ),
       },
-      { id: "opened_at", header: "Opened", accessorFn: (row) => new Date(row.opened_at).toLocaleString() },
-      { id: "closed_at", header: "Closed", accessorFn: (row) => (row.closed_at ? new Date(row.closed_at).toLocaleString() : "—") },
+      { id: "opened_at", header: "Opened", accessorFn: (row) => dateTime(row.opened_at) },
+      { id: "closed_at", header: "Closed", accessorFn: (row) => (row.closed_at ? dateTime(row.closed_at) : "—") },
     ],
     [storeNameById, terminalNameById, cashierNameById],
   );
@@ -222,20 +209,8 @@ export function PosShiftsScreen() {
                   onSelectionChange={(key) => updateFilter("cashierUserId", key ? String(key) : undefined)}
                 />
               )}
-              <input
-                type="date"
-                aria-label="From date"
-                value={filters.dateFrom ?? ""}
-                onChange={(event) => updateFilter("dateFrom", event.target.value || undefined)}
-                className="rounded-[var(--radius-control)] border border-border bg-surface px-3 py-1.5 text-sm text-text"
-              />
-              <input
-                type="date"
-                aria-label="To date"
-                value={filters.dateTo ?? ""}
-                onChange={(event) => updateFilter("dateTo", event.target.value || undefined)}
-                className="rounded-[var(--radius-control)] border border-border bg-surface px-3 py-1.5 text-sm text-text"
-              />
+              <TextField aria-label="From date" type="date" size="compact" value={filters.dateFrom ?? ""} onChange={(value) => updateFilter("dateFrom", value || undefined)} />
+              <TextField aria-label="To date" type="date" size="compact" value={filters.dateTo ?? ""} onChange={(value) => updateFilter("dateTo", value || undefined)} />
             </>
           ),
         }}

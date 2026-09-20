@@ -15,6 +15,11 @@ test.describe("POS shifts, cash movement and safety", () => {
     const supervisor = await openPersonaSession(browser, world.supervisor);
     try {
       await supervisor.page.goto("/pos/cash-movement", { waitUntil: "domcontentloaded" });
+      // The record form is a dialog opened from the page header's primary
+      // action (same "New X" pattern as CRM's list screens). The header
+      // button and the dialog's submit share a name, so the submit is scoped
+      // to the dialog below.
+      await supervisor.page.getByRole("button", { name: "Record movement" }).click({ timeout: 60_000 });
       const amount = supervisor.page.getByRole("textbox", { name: "Amount" });
       await expect(amount).toBeVisible({ timeout: 60_000 });
       await amount.click();
@@ -23,7 +28,7 @@ test.describe("POS shifts, cash movement and safety", () => {
       await amount.blur();
       await supervisor.page.getByLabel("Reason").fill(reason);
 
-      const record = supervisor.page.getByRole("button", { name: "Record movement" });
+      const record = supervisor.page.getByRole("dialog").getByRole("button", { name: "Record movement" });
       await expect(record).toBeEnabled();
       await record.dblclick();
 

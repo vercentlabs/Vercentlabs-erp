@@ -3,14 +3,18 @@
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { ColumnDef } from "@tanstack/react-table";
-import { Plus, Power } from "lucide-react";
-import { AlertDialog, Button, Dialog, EnterpriseDataGrid, EnterpriseListPage, ErrorState, IconButton, PermissionState, Select, StatusBadge, TextField } from "@vercentlabs/design-system";
+import { CreditCard, Plus, Power } from "lucide-react";
+import { AlertDialog, Button, Dialog, EnterpriseDataGrid, EnterpriseListPage, ErrorState, IconButton, NoResultsState, PermissionState, SearchField, Select, StatusBadge, TextField, type ActiveFilter } from "@vercentlabs/design-system";
 import { POS_PERMISSIONS } from "@vercentlabs/permissions";
 
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import { PosApiError } from "@/features/pos/shared/http";
+import { statusLabel, statusTone } from "@/features/pos/shared/format";
+import { PosAlert } from "@/features/pos/shared/PosUi";
+import { StorePaymentDialog } from "@/features/pos/stores/components/StorePaymentDialog";
 import {
+  POS_ADMIN_LIST_LIMIT,
   createPosStore,
   getPosStoreSetupOptions,
   listPosStores,
@@ -36,10 +40,35 @@ export function PosStoresScreen() {
   const [createOpen, setCreateOpen] = useState(false);
   const [editing, setEditing] = useState<PosStore | null>(null);
   const [deactivateTarget, setDeactivateTarget] = useState<PosStore | null>(null);
+  const [paymentTarget, setPaymentTarget] = useState<PosStore | null>(null);
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState("");
 
   const storesQuery = useQuery({ queryKey: scopedQueryKey(workspace, "pos", "stores"), queryFn: listPosStores, enabled: canManage });
   const optionsQuery = useQuery({ queryKey: scopedQueryKey(workspace, "pos", "store-setup-options"), queryFn: getPosStoreSetupOptions, enabled: canManage });
-  const rows = storesQuery.data?.rows ?? [];
+  const allRows = storesQuery.data?.rows;
+  const rows = useMemo(() => {
+    const needle = search.trim().toLowerCase();
+    return (allRows ?? []).filter((store) => {
+      if (statusFilter === "active" && !store.active) return false;
+      if (statusFilter === "inactive" && store.active) return false;
+      if (!needle) return true;
+      return [store.name, store.code].some((value) => String(value ?? "").toLowerCase().includes(needle));
+    });
+  }, [allRows, search, statusFilter]);
+  const hitPageCeiling = (allRows?.length ?? 0) >= POS_ADMIN_LIST_LIMIT;
+  const hasFilters = Boolean(search.trim() || statusFilter);
+  const activeFilters: ActiveFilter[] = [];
+  if (statusFilter) activeFilters.push({ id: "status", label: `Status: ${statusLabel(statusFilter)}` });
+  if (search.trim()) activeFilters.push({ id: "search", label: `Search: ${search.trim()}` });
+  function removeFilter(id: string) {
+    if (id === "status") setStatusFilter("");
+    if (id === "search") setSearch("");
+  }
+  function clearFilters() {
+    setSearch("");
+    setStatusFilter("");
+  }
   const warehouseById = useMemo(() => new Map((optionsQuery.data?.warehouses ?? []).map((w) => [w.id, w.name])), [optionsQuery.data]);
   const branchById = useMemo(() => new Map((optionsQuery.data?.branches ?? []).map((b) => [b.id, b.name])), [optionsQuery.data]);
 
@@ -67,7 +96,7 @@ export function PosStoresScreen() {
       { id: "branch", header: "Branch", accessorFn: (row) => branchById.get(row.branch_id ?? "") ?? "—" },
       { id: "warehouse", header: "Warehouse", accessorFn: (row) => warehouseById.get(row.warehouse_id ?? row.warehouseId ?? "") ?? "—" },
       { id: "currency", header: "Currency", accessorFn: (row) => row.currency_code ?? row.currencyCode ?? "—" },
-      { id: "status", header: "Status", cell: ({ row }) => <StatusBadge tone={row.original.active ? "success" : "neutral"}>{row.original.active ? "active" : "inactive"}</StatusBadge> },
+      { id: "status", header: "Status", cell: ({ row }) => <StatusBadge tone={statusTone(row.original.active ? "active" : "inactive")}>{statusLabel(row.original.active ? "active" : "inactive")}</StatusBadge> },
     ],
     [branchById, warehouseById],
   );
@@ -76,11 +105,7 @@ export function PosStoresScreen() {
 
   return (
     <div className="flex flex-col gap-4">
-      {error && (
-        <p role="alert" className="rounded-[var(--radius-control)] border border-danger-emphasis/30 bg-danger-soft px-3 py-2 text-sm text-danger">
-          {error}
-        </p>
-      )}
+      {error && <PosAlert>{error}</PosAlert>}
 
       <EnterpriseListPage
         header={{
@@ -93,17 +118,42 @@ export function PosStoresScreen() {
             </Button>
           ),
         }}
+        actionBar={{
+          start: (
+            <>
+              <SearchField aria-label="Search stores" placeholder="Search name or code…" value={search} onChange={setSearch} className="min-w-[240px]" />
+              <Select
+                aria-label="Status"
+                size="compact"
+                options={[
+                  { value: "", label: "Any status" },
+                  { value: "active", label: "Active" },
+                  { value: "inactive", label: "Inactive" },
+                ]}
+                selectedKey={statusFilter}
+                onSelectionChange={(key) => setStatusFilter(String(key ?? ""))}
+              />
+            </>
+          ),
+        }}
+        filterBar={{ filters: activeFilters, onRemove: removeFilter, onClearAll: hasFilters ? clearFilters : undefined }}
       >
+        {hitPageCeiling && <PosAlert tone="warning">Showing the first {POS_ADMIN_LIST_LIMIT} stores — narrow the list with the filters above.</PosAlert>}
         <EnterpriseDataGrid<PosStore>
           aria-label="Stores"
           columns={columns}
           data={rows}
           getRowId={(row) => row.id}
-          state={storesQuery.isError ? "error" : storesQuery.isLoading ? "loading" : rows.length === 0 ? "empty" : "ready"}
+          state={storesQuery.isError ? "error" : storesQuery.isLoading ? "loading" : rows.length === 0 && hasFilters ? "no-results" : rows.length === 0 ? "empty" : "ready"}
+          emptyContent={<NoResultsState title="No stores yet" description="Create a store to start selling." />}
+          noResultsContent={<NoResultsState title="No stores match these filters" description="Try clearing a filter or broadening your search." action={{ label: "Clear filters", onPress: clearFilters }} />}
           errorContent={<ErrorState title="Could not load stores" description="Something went wrong fetching the store list." action={{ label: "Retry", onPress: () => storesQuery.refetch() }} />}
           onRowClick={(row) => setEditing(row)}
           rowActions={(row) => (
-            <span onClick={(event) => event.stopPropagation()}>
+            <span className="flex items-center gap-1" onClick={(event) => event.stopPropagation()}>
+              <IconButton aria-label={`Payment methods for ${row.name}`} size="compact" variant="ghost" onPress={() => setPaymentTarget(row)}>
+                <CreditCard className="size-4" aria-hidden="true" />
+              </IconButton>
               <IconButton
                 aria-label={row.active ? `Deactivate ${row.name}` : `Activate ${row.name}`}
                 size="compact"
@@ -127,6 +177,8 @@ export function PosStoresScreen() {
           onConfirm={() => deactivateTarget && toggleActiveMutation.mutate(deactivateTarget)}
         />
       </EnterpriseListPage>
+
+      {paymentTarget && <StorePaymentDialog store={paymentTarget} onClose={() => setPaymentTarget(null)} />}
 
       {optionsQuery.data && (
         <CreateStoreDialog

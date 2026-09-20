@@ -176,8 +176,16 @@ export async function listPointOfSaleResource(
     total = countResult.rows[0]?.total ?? 0;
   }
   values.push(Math.min(Number(limit) || 100, 200), Number(offset) || 0);
+  // A terminal is only meaningful next to its store, and the admin screens
+  // used to resolve that name client-side from a SEPARATE store list capped at
+  // the same page size -- so on any tenant with more stores than one page, most
+  // terminals showed no store at all. Resolve it in the query instead.
+  const extraColumns =
+    target === "pos_terminals"
+      ? `,(SELECT store.name FROM tenant.pos_stores store WHERE store.organization_id=tenant.pos_terminals.organization_id AND store.id=tenant.pos_terminals.store_id) AS store_name`
+      : "";
   const result = await client.query(
-    `SELECT * FROM tenant.${target}
+    `SELECT *${extraColumns} FROM tenant.${target}
      WHERE organization_id=$1 AND company_id=$2${filter}
      ORDER BY created_at DESC NULLS LAST,id DESC
      LIMIT $${values.length - 1} OFFSET $${values.length}`,

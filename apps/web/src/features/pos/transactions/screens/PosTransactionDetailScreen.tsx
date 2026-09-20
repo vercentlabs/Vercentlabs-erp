@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { AuditTimeline, Button, ErrorState, PermissionState, RecordHeader, RelatedRecords, StatusBadge } from "@vercentlabs/design-system";
@@ -9,7 +10,8 @@ import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext"
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import { PosApiError } from "@/features/pos/shared/http";
 import { getPosTransaction } from "@/features/pos/transactions/api/transactions-api";
-import { money } from "@/features/pos/shared/format";
+import { dateTime, money } from "@/features/pos/shared/format";
+import { PosBackLink, PosDataTable, PosLoading, PosPanel } from "@/features/pos/shared/PosUi";
 
 const statusTone: Record<string, "neutral" | "info" | "success" | "warning" | "danger"> = {
   draft: "neutral",
@@ -58,12 +60,12 @@ export function PosTransactionDetailScreen({ saleId }: { saleId: string }) {
       (query.data?.auditTrail ?? []).map((event) => ({
         id: event.id,
         title: `${event.actor_name ?? "System"} — ${event.event_type.replace(/^pos\./, "").replace(/[._]/g, " ")}`,
-        timestamp: new Date(event.occurred_at).toLocaleString(),
+        timestamp: dateTime(event.occurred_at),
       })),
     [query.data?.auditTrail],
   );
 
-  if (query.isLoading) return <p className="p-6 text-sm text-text-secondary">Loading transaction…</p>;
+  if (query.isLoading) return <PosLoading label="Loading transaction…" />;
 
   if (query.isError) {
     if (query.error instanceof PosApiError && query.error.status === 403) {
@@ -86,13 +88,9 @@ export function PosTransactionDetailScreen({ saleId }: { saleId: string }) {
   const currency = sale.currency_code;
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col gap-4">
+      <PosBackLink href="/pos/transactions">All transactions</PosBackLink>
       <RecordHeader
-        breadcrumbs={
-          <button type="button" className="text-sm text-text-secondary hover:underline" onClick={() => router.push("/pos/transactions")}>
-            ← All transactions
-          </button>
-        }
         title={sale.receipt_number}
         status={<StatusBadge tone={statusTone[sale.status] ?? "neutral"}>{sale.status.replace("_", " ")}</StatusBadge>}
         fields={[
@@ -100,7 +98,7 @@ export function PosTransactionDetailScreen({ saleId }: { saleId: string }) {
           { label: "Terminal", value: sale.terminal_name },
           { label: "Cashier", value: sale.cashier_name ?? "—" },
           { label: "Shift", value: sale.shift_number },
-          { label: "Date", value: new Date(sale.completed_at ?? sale.sale_date).toLocaleString() },
+          { label: "Date", value: dateTime(sale.completed_at ?? sale.sale_date) },
           { label: "Total", value: money(currency, sale.grand_total) },
         ]}
         primaryAction={
@@ -117,8 +115,7 @@ export function PosTransactionDetailScreen({ saleId }: { saleId: string }) {
         }
       />
 
-      <section className="rounded-[var(--radius-panel)] border border-border-strong bg-surface p-5">
-        <h2 className="mb-3 text-base font-semibold text-text">Customer</h2>
+      <PosPanel title="Customer">
         {sale.customer_id ? (
           <dl className="grid grid-cols-2 gap-4 sm:grid-cols-3">
             <div>
@@ -137,39 +134,31 @@ export function PosTransactionDetailScreen({ saleId }: { saleId: string }) {
         ) : (
           <p className="text-sm text-text-secondary">Walk-in customer — no party attached to this sale.</p>
         )}
-      </section>
+      </PosPanel>
 
-      <section className="rounded-[var(--radius-panel)] border border-border-strong bg-surface p-5">
-        <h2 className="mb-3 text-base font-semibold text-text">Line items</h2>
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="text-left text-xs text-text-muted">
-              <th className="pb-2">Item</th>
-              <th className="pb-2">Qty</th>
-              <th className="pb-2">Unit price</th>
-              <th className="pb-2">Discount</th>
-              <th className="pb-2">Tax</th>
-              <th className="pb-2">Returned</th>
-              <th className="pb-2 text-right">Line total</th>
-            </tr>
-          </thead>
-          <tbody>
-            {lines.map((line) => (
-              <tr key={line.id} className="border-t border-border">
-                <td className="py-2">
+      <PosPanel title="Line items">
+        <PosDataTable
+          caption="Line items"
+          rows={lines}
+          columns={[
+            {
+              key: "description",
+              header: "Item",
+              render: (line) => (
+                <>
                   {line.description}
                   {line.item_code && <span className="ml-1 text-xs text-text-muted">({line.item_code})</span>}
-                </td>
-                <td className="py-2">{Number(line.quantity)}</td>
-                <td className="py-2">{money(currency, line.unit_price)}</td>
-                <td className="py-2">{Number(line.discount_amount) > 0 ? money(currency, line.discount_amount) : "—"}</td>
-                <td className="py-2">{money(currency, line.tax_amount)}</td>
-                <td className="py-2">{Number(line.returned_quantity) > 0 ? Number(line.returned_quantity) : "—"}</td>
-                <td className="py-2 text-right tabular-nums">{money(currency, line.line_total)}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+                </>
+              ),
+            },
+            { key: "quantity", header: "Qty", render: (line) => Number(line.quantity) },
+            { key: "unit_price", header: "Unit price", render: (line) => money(currency, line.unit_price) },
+            { key: "discount_amount", header: "Discount", render: (line) => (Number(line.discount_amount) > 0 ? money(currency, line.discount_amount) : "—") },
+            { key: "tax_amount", header: "Tax", render: (line) => money(currency, line.tax_amount) },
+            { key: "returned_quantity", header: "Returned", render: (line) => (Number(line.returned_quantity) > 0 ? Number(line.returned_quantity) : "—") },
+            { key: "line_total", header: "Line total", numeric: true, render: (line) => money(currency, line.line_total) },
+          ]}
+        />
         {promotionEvidence.length > 0 && (
           <div className="mt-3 flex flex-col gap-1 border-t border-border pt-3 text-xs text-text-secondary">
             <p className="font-medium text-text">Promotions applied</p>
@@ -190,44 +179,37 @@ export function PosTransactionDetailScreen({ saleId }: { saleId: string }) {
           <TotalsRow label="Paid" value={money(currency, sale.paid_total)} />
           <TotalsRow label="Change" value={money(currency, sale.change_total)} />
         </div>
-      </section>
+      </PosPanel>
 
-      <section className="rounded-[var(--radius-panel)] border border-border-strong bg-surface p-5">
-        <h2 className="mb-3 text-base font-semibold text-text">Payments</h2>
-        {payments.length === 0 ? (
-          <p className="text-sm text-text-secondary">No payment legs recorded.</p>
-        ) : (
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="text-left text-xs text-text-muted">
-                <th className="pb-2">Method</th>
-                <th className="pb-2">Amount</th>
-                <th className="pb-2">Status</th>
-                <th className="pb-2">Provider reference</th>
-                <th className="pb-2">Settlement</th>
-              </tr>
-            </thead>
-            <tbody>
-              {payments.map((payment) => (
-                <tr key={payment.id} className="border-t border-border">
-                  <td className="py-2 capitalize">{payment.payment_method.replace("_", " ")}</td>
-                  <td className="py-2">{money(payment.currency_code ?? currency, payment.amount)}</td>
-                  <td className="py-2">
-                    <StatusBadge tone={payment.status === "captured" ? "success" : payment.status === "failed" ? "danger" : "warning"}>{payment.status}</StatusBadge>
-                  </td>
-                  <td className="py-2 text-text-secondary">{payment.provider_reference ?? "—"}</td>
-                  <td className="py-2 text-text-secondary">
-                    {payment.settlement_status === "not_applicable" ? "—" : `${payment.settlement_status}${Number(payment.settled_amount) > 0 ? ` (${money(payment.currency_code ?? currency, payment.settled_amount)})` : ""}`}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </section>
+      <PosPanel title="Payments">
+        <PosDataTable
+          caption="Payments"
+          rows={payments}
+          empty="No payment legs recorded."
+          columns={[
+            { key: "payment_method", header: "Method", render: (payment) => <span className="capitalize">{payment.payment_method.replace("_", " ")}</span> },
+            { key: "amount", header: "Amount", render: (payment) => money(payment.currency_code ?? currency, payment.amount) },
+            {
+              key: "status",
+              header: "Status",
+              render: (payment) => <StatusBadge tone={payment.status === "captured" ? "success" : payment.status === "failed" ? "danger" : "warning"}>{payment.status}</StatusBadge>,
+            },
+            { key: "provider_reference", header: "Provider reference", render: (payment) => <span className="text-text-secondary">{payment.provider_reference ?? "—"}</span> },
+            {
+              key: "settlement_status",
+              header: "Settlement",
+              render: (payment) => (
+                <span className="text-text-secondary">
+                  {payment.settlement_status === "not_applicable" ? "—" : `${payment.settlement_status}${Number(payment.settled_amount) > 0 ? ` (${money(payment.currency_code ?? currency, payment.settled_amount)})` : ""}`}
+                </span>
+              ),
+            },
+          ]}
+        />
+      </PosPanel>
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-        <section className="rounded-[var(--radius-panel)] border border-border-strong bg-surface p-5">
+        <PosPanel>
           <RelatedRecords
             title="Returns / refunds"
             emptyMessage="No returns have been filed against this sale."
@@ -243,58 +225,40 @@ export function PosTransactionDetailScreen({ saleId }: { saleId: string }) {
               ),
             }))}
           />
-        </section>
+        </PosPanel>
 
-        <section className="rounded-[var(--radius-panel)] border border-border-strong bg-surface p-5">
-          <h2 className="mb-3 text-sm font-semibold text-text">Accounting posting</h2>
+        <PosPanel title="Accounting posting">
           <p className="mb-2 text-sm text-text-secondary">
             Status: <StatusBadge tone={accountingTone[sale.accounting_posting_status] ?? "neutral"}>{sale.accounting_posting_status.replace("_", " ")}</StatusBadge>
           </p>
           {sale.journal_entry_id && <p className="text-xs text-text-muted">Journal entry {sale.journal_entry_id}</p>}
-          {sale.accounting_posted_at && <p className="text-xs text-text-muted">Posted {new Date(sale.accounting_posted_at).toLocaleString()}</p>}
+          {sale.accounting_posted_at && <p className="text-xs text-text-muted">Posted {dateTime(sale.accounting_posted_at)}</p>}
           {sale.accounting_posting_error && <p className="text-xs text-danger">{sale.accounting_posting_error}</p>}
-          <a href="/pos/accounting" className="mt-2 inline-block text-xs font-medium text-brand underline">
+          <Link href="/pos/accounting" className="text-xs font-medium text-brand hover:underline">
             View accounting posting queue
-          </a>
-        </section>
+          </Link>
+        </PosPanel>
       </div>
 
-      <section className="rounded-[var(--radius-panel)] border border-border-strong bg-surface p-5">
-        <h2 className="mb-3 text-base font-semibold text-text">Stock movement</h2>
-        {stockMovements.length === 0 ? (
-          <p className="text-sm text-text-secondary">No stock movement is linked to this sale&apos;s lines.</p>
-        ) : (
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="text-left text-xs text-text-muted">
-                <th className="pb-2">Movement #</th>
-                <th className="pb-2">Type</th>
-                <th className="pb-2">Item</th>
-                <th className="pb-2">Quantity</th>
-                <th className="pb-2">Unit cost</th>
-                <th className="pb-2">Occurred</th>
-              </tr>
-            </thead>
-            <tbody>
-              {stockMovements.map((movement) => (
-                <tr key={movement.id} className="border-t border-border">
-                  <td className="py-2">{movement.movement_number}</td>
-                  <td className="py-2 capitalize">{movement.movement_type}</td>
-                  <td className="py-2">{movement.description}</td>
-                  <td className="py-2">{Number(movement.quantity)}</td>
-                  <td className="py-2">{money(currency, movement.unit_cost)}</td>
-                  <td className="py-2 text-text-secondary">{new Date(movement.occurred_at).toLocaleString()}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </section>
+      <PosPanel title="Stock movement">
+        <PosDataTable
+          caption="Stock movement"
+          rows={stockMovements}
+          empty="No stock movement is linked to this sale's lines."
+          columns={[
+            { key: "movement_number", header: "Movement #" },
+            { key: "movement_type", header: "Type", render: (movement) => <span className="capitalize">{movement.movement_type}</span> },
+            { key: "description", header: "Item" },
+            { key: "quantity", header: "Quantity", render: (movement) => Number(movement.quantity) },
+            { key: "unit_cost", header: "Unit cost", render: (movement) => money(currency, movement.unit_cost) },
+            { key: "occurred_at", header: "Occurred", render: (movement) => <span className="text-text-secondary">{dateTime(movement.occurred_at)}</span> },
+          ]}
+        />
+      </PosPanel>
 
-      <section className="rounded-[var(--radius-panel)] border border-border-strong bg-surface p-5">
-        <h2 className="mb-3 text-base font-semibold text-text">Audit trail</h2>
+      <PosPanel title="Audit trail">
         <AuditTimeline entries={auditEntries} emptyMessage="No recorded events for this sale yet." />
-      </section>
+      </PosPanel>
     </div>
   );
 }

@@ -192,7 +192,7 @@ export function EnterpriseDataGrid<TRow>({
                         <button
                           type="button"
                           onClick={header.column.getToggleSortingHandler()}
-                          className="flex items-center gap-1 outline-none data-[focus-visible]:ring-2 data-[focus-visible]:ring-brand"
+                          className="flex items-center gap-1 uppercase outline-none data-[focus-visible]:ring-2 data-[focus-visible]:ring-brand"
                         >
                           {flexRender(header.column.columnDef.header, header.getContext())}
                           {sortDir === "asc" && <ArrowUp className="size-3" aria-hidden="true" />}

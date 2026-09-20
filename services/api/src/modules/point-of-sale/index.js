@@ -15,6 +15,15 @@ export { listPointOfSaleResource } from "./shared/resource-registry.js";
 export { listPosStoreSetupOptions, createStore, updatePosStore, setPosStoreActive } from "./store-terminal-and-cashier-control/store-operations.js";
 export { createTerminal, updatePosTerminal, setPosTerminalStatus } from "./store-terminal-and-cashier-control/terminal-operations.js";
 export { listPosEligibleCashiers, listPosStoreAccess, grantPosStoreAccess, revokePosStoreAccess } from "./store-terminal-and-cashier-control/cashier-access.js";
+// Company POS policy and per-store payment methods/providers -- the
+// configuration checkout, returns and tender already READ (POS-CAP-001 / -003).
+export {
+  getPosSettings,
+  updatePosSettings,
+  getPosStorePaymentConfig,
+  setPosStorePaymentConfig,
+  POS_SETTINGS_DEFAULTS,
+} from "./store-terminal-and-cashier-control/settings-and-payment-config.js";
 
 // POS-CAP-002 -- assortment, pricing, customer and cart (F272-F281).
 export { searchPointOfSalePosProducts, lookupPointOfSaleBarcode, searchPointOfSaleItemGroups } from "./assortment-pricing-customer-and-cart/assortment.js";
@@ -39,6 +48,7 @@ export {
   holdPosCart,
   resumePosCart,
   listHeldPosCarts,
+  listPosDiscountApprovals,
   cancelPosCart,
   redeemPosCartLoyaltyPoints,
   removePosCartLoyaltyRedemption,
@@ -52,6 +62,7 @@ export {
   getPosCustomerLoyaltyBalance,
   listPosCustomerLoyaltyLedger,
   adjustPosCustomerLoyaltyBalance,
+  expirePosLoyaltyPoints,
   // Exported publicly (not just used internally by sale-completion.js/
   // return-lifecycle.js) because it is also the intended entry point for
   // a future offline-sync replay path to commit loyalty effects for a

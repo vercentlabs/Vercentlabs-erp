@@ -14,7 +14,9 @@ import { getPosWorld, openPersonaSession, resetTerminalCarts, withPosDb } from "
 
 test("cashier finds a completed sale, requests a return, and a separate manager approves and completes the refund", async ({ browser }) => {
   const world = await getPosWorld();
-  test.setTimeout(60_000);
+  test.setTimeout(240_000);
+  // unique per run: earlier runs leave returns with the same reason in the shared fixture org, which made the row locator ambiguous
+  const returnReason = `E2E return journey -- customer changed their mind ${Date.now()}`;
   await resetTerminalCarts(world.terminalId);
 
   const cashierSession = await openPersonaSession(browser, world.cashier);
@@ -82,7 +84,7 @@ test("cashier finds a completed sale, requests a return, and a separate manager 
     // native label-for-input toggle instead.
     await cashierSession.page.getByText("Restock", { exact: true }).click();
     await expect(cashierSession.page.getByRole("checkbox", { name: "Restock" })).toBeChecked();
-    await cashierSession.page.getByLabel("Reason").fill("E2E return journey -- customer changed their mind");
+    await cashierSession.page.getByLabel("Reason").fill(returnReason);
 
     const [createReturnResponse] = await Promise.all([
       cashierSession.page.waitForResponse((res) => res.url().endsWith("/api/pos/returns") && res.request().method() === "POST"),
@@ -101,7 +103,7 @@ test("cashier finds a completed sale, requests a return, and a separate manager 
     // rows sitting in the same list. Scoping to this return's own row (by
     // its unique reason text) makes every status check unambiguous
     // regardless of how many other returns exist in the org.
-    const returnRowLocator = cashierSession.page.getByRole("row", { name: /E2E return journey -- customer changed their mind/ });
+    const returnRowLocator = cashierSession.page.getByRole("row", { name: new RegExp(returnReason) });
     await expect(returnRowLocator.getByText("pending approval")).toBeVisible();
   } finally {
     await cashierSession.context.close();
@@ -112,7 +114,7 @@ test("cashier finds a completed sale, requests a return, and a separate manager 
   const managerSession = await openPersonaSession(browser, world.manager);
   try {
     await managerSession.page.goto("/pos/returns", { waitUntil: "domcontentloaded" });
-    const managerRowLocator = managerSession.page.getByRole("row", { name: /E2E return journey -- customer changed their mind/ });
+    const managerRowLocator = managerSession.page.getByRole("row", { name: new RegExp(returnReason) });
     await expect(managerRowLocator.getByText("pending approval")).toBeVisible();
 
     const [approveResponse] = await Promise.all([
@@ -122,16 +124,19 @@ test("cashier finds a completed sale, requests a return, and a separate manager 
     const approveBody = await approveResponse.json();
     expect(approveResponse.status(), JSON.stringify(approveBody)).toBe(200);
     expect(approveBody.posReturn.status).toBe("approved");
-    await expect(managerRowLocator.getByText("approved", { exact: true })).toBeVisible();
+    await expect(managerRowLocator.getByText("Approved", { exact: true })).toBeVisible();
 
+    // Completing a refund is irreversible, so the screen asks for confirmation
+    // first: open it from the row, then confirm in the alert dialog.
+    await managerRowLocator.getByRole("button", { name: "Complete refund" }).click();
     const [completeReturnResponse] = await Promise.all([
       managerSession.page.waitForResponse((res) => res.url().includes(`/api/pos/returns/${returnId}/complete`)),
-      managerRowLocator.getByRole("button", { name: "Complete refund" }).click(),
+      managerSession.page.getByRole("alertdialog").getByRole("button", { name: "Complete refund" }).click(),
     ]);
     const completeBody = await completeReturnResponse.json();
     expect(completeReturnResponse.status(), JSON.stringify(completeBody)).toBe(200);
     expect(completeBody.posReturn.status).toBe("completed");
-    await expect(managerRowLocator.getByText("completed", { exact: true })).toBeVisible();
+    await expect(managerRowLocator.getByText("Completed", { exact: true })).toBeVisible();
 
     // Real Postgres facts: return completed, stock restored, sale status
     // reflects the return.

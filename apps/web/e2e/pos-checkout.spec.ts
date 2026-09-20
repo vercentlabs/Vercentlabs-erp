@@ -121,18 +121,19 @@ function runCoreCheckoutJourney(label: string, viewport: { width: number; height
 
         await page.getByRole("button", { name: /View \/ print receipt/i }).click();
         await expect(page).toHaveURL(new RegExp(`/pos/receipts/${sale.id}$`));
-        await expect(page.getByText(`Receipt ${sale.receipt_number}`)).toBeVisible({ timeout: 10_000 });
+        // heading role, not bare text: the receipt page header and the receipt paper both carry the number
+        await expect(page.getByRole("heading", { name: `Receipt ${sale.receipt_number}` })).toBeVisible({ timeout: 10_000 });
         // F289 gap closure: Original/Reprint is now server-derived from
         // tenant.pos_receipt_print_events, not a `?original=1` URL param --
         // before any print action, the badge is neutral ("Not yet
         // printed"). Clicking Print records a real print event and flips
-        // the badge to "Printed — original" (verified against real
+        // the badge to "Print attempted — original" (verified against real
         // Postgres, not just the UI's own claim).
         await expect(page.getByText("Not yet printed", { exact: true })).toBeVisible();
         await expect(page.getByText(world.itemName)).toBeVisible();
 
         await page.getByRole("button", { name: /^Print$/i }).click();
-        await expect(page.getByText("Printed — original", { exact: true })).toBeVisible({ timeout: 10_000 });
+        await expect(page.getByText("Print attempted — original", { exact: true })).toBeVisible({ timeout: 10_000 });
         const printEventRow = await withPosDb((client) =>
           client
             .query(`SELECT print_type, requested_by FROM tenant.pos_receipt_print_events WHERE organization_id=$1 AND company_id=$2 AND sale_id=$3`, [

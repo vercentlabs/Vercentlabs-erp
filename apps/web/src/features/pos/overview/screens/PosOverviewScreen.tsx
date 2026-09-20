@@ -3,7 +3,8 @@
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Button, ErrorState, NumberField, Select, TextField, type SelectOption } from "@vercentlabs/design-system";
+import { ShoppingCart } from "lucide-react";
+import { Button, ErrorState, MetricStrip, NumberField, PageHeader, PermissionState, Select, StatusBadge, TextField, type SelectOption } from "@vercentlabs/design-system";
 import { POS_PERMISSIONS } from "@vercentlabs/permissions";
 
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
@@ -20,6 +21,7 @@ import {
   recordPosCashMovement,
 } from "@/features/pos/overview/api/overview-api";
 import { money } from "@/features/pos/shared/format";
+import { PosAlert, PosFacts, PosLoading, PosPanel } from "@/features/pos/shared/PosUi";
 
 export function PosOverviewScreen() {
   const workspace = useWorkspaceContext();
@@ -109,48 +111,69 @@ export function PosOverviewScreen() {
     onError: (err) => setError(err instanceof PosApiError ? err.message : "The cash movement could not be recorded."),
   });
 
+  const shiftNumber = (myOpenShift as { shift_number?: string } | undefined)?.shift_number;
+  const openingCashValue = (myOpenShift as { opening_cash?: string } | undefined)?.opening_cash;
+
   return (
     <div className="flex flex-col gap-6">
-      <div>
-        <h1 className="text-2xl font-semibold text-text">Point of Sale</h1>
-        <p className="text-sm text-text-secondary">Open a shift to start ringing up sales, or resume checkout if a shift is already open.</p>
-      </div>
+      <PageHeader
+        title="Point of Sale"
+        description="Open a shift to start ringing up sales, or resume checkout if a shift is already open."
+        primaryAction={
+          myOpenShift ? (
+            <Button variant="primary" onPress={() => router.push("/pos/checkout")}>
+              <ShoppingCart className="size-4" aria-hidden="true" />
+              Go to checkout
+            </Button>
+          ) : undefined
+        }
+      />
 
-      {error && (
-        <p role="alert" className="rounded-[var(--radius-control)] border border-danger-emphasis/30 bg-danger-soft px-3 py-2 text-sm text-danger">
-          {error}
-        </p>
-      )}
+      {error && <PosAlert>{error}</PosAlert>}
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-4">
-        {[
+      <MetricStrip
+        metrics={[
           { label: "Sales today", value: dashboardQuery.data?.sales_today ?? "—" },
           { label: "Revenue today", value: dashboardQuery.data ? money("", dashboardQuery.data.revenue_today) : "—" },
           { label: "Open shifts", value: dashboardQuery.data?.open_shifts ?? "—" },
           { label: "Returns today", value: dashboardQuery.data?.returns_today ?? "—" },
-        ].map((stat) => (
-          <div key={stat.label} className="rounded-[var(--radius-panel)] border border-border-strong bg-surface p-4">
-            <p className="text-xs text-text-muted">{stat.label}</p>
-            <p className="mt-1 text-xl font-semibold text-text">{stat.value}</p>
-          </div>
-        ))}
-      </div>
+        ]}
+      />
 
-      {dashboardQuery.isError && <ErrorState title="Could not load the POS dashboard" description="Check your connection and try again." />}
+      {dashboardQuery.isError && <ErrorState title="Could not load the POS dashboard" description="Check your connection and try again." action={{ label: "Retry", onPress: () => dashboardQuery.refetch() }} />}
 
-      {myOpenShift ? (
-        <div className="flex flex-col gap-4 rounded-[var(--radius-panel)] border border-border-strong bg-surface p-5">
-          <div>
-            <h2 className="text-base font-semibold text-text">Shift open — {(myOpenShift as { shift_number?: string }).shift_number}</h2>
-            <p className="text-sm text-text-secondary">Opening cash: {money("", (myOpenShift as { opening_cash?: string }).opening_cash)}</p>
-          </div>
-          <Button variant="primary" onPress={() => router.push("/pos/checkout")}>
-            Go to checkout
-          </Button>
+      {shiftsQuery.isLoading ? (
+        <PosLoading label="Checking your shift…" />
+      ) : myOpenShift ? (
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+          <PosPanel
+            title="Current shift"
+            description="Your open shift on this terminal."
+            actions={<StatusBadge tone="info">Open</StatusBadge>}
+          >
+            <PosFacts
+              columns={2}
+              items={[
+                { label: "Shift number", value: shiftNumber ?? "—" },
+                { label: "Opening cash", value: money("", openingCashValue) },
+              ]}
+            />
+            {canCloseShift && (
+              <div className="flex flex-col gap-3 border-t border-border pt-4">
+                <p className="text-sm font-medium text-text">Close this shift</p>
+                <NumberField label="Counted cash" value={countedCash} onChange={setCountedCash} minValue={0} step={0.01} />
+                <div>
+                  <Button variant="secondary" onPress={() => closeMutation.mutate()} isLoading={closeMutation.isPending}>
+                    Close shift
+                  </Button>
+                </div>
+              </div>
+            )}
+          </PosPanel>
+
           {canAdjustCash && (
-            <div className="flex flex-col gap-2 border-t border-border pt-4">
-              <p className="text-sm font-medium text-text">Cash paid in / out</p>
-              <div className="flex items-end gap-2">
+            <PosPanel title="Cash paid in / out" description="Record cash added to or taken from the drawer during this shift.">
+              <div className="flex flex-wrap items-end gap-3">
                 <Select
                   label="Type"
                   size="compact"
@@ -164,18 +187,20 @@ export function PosOverviewScreen() {
                 <NumberField label="Amount" size="compact" value={movementAmount} onChange={setMovementAmount} minValue={0} step={0.01} />
               </div>
               <TextField label="Reason" value={movementReason} onChange={setMovementReason} />
-              <Button
-                variant="secondary"
-                onPress={() => cashMovementMutation.mutate()}
-                isLoading={cashMovementMutation.isPending}
-                isDisabled={movementAmount <= 0 || !movementReason.trim()}
-              >
-                Record movement
-              </Button>
+              <div>
+                <Button
+                  variant="secondary"
+                  onPress={() => cashMovementMutation.mutate()}
+                  isLoading={cashMovementMutation.isPending}
+                  isDisabled={movementAmount <= 0 || !movementReason.trim()}
+                >
+                  Record movement
+                </Button>
+              </div>
               {(cashMovementsQuery.data?.rows.length ?? 0) > 0 && (
-                <ul className="mt-1 flex flex-col divide-y divide-border rounded-[var(--radius-control)] border border-border text-xs">
+                <ul className="flex flex-col divide-y divide-border rounded-[var(--radius-control)] border border-border text-sm">
                   {cashMovementsQuery.data!.rows.map((movement) => (
-                    <li key={movement.id} className="flex items-center justify-between px-2 py-1.5">
+                    <li key={movement.id} className="flex items-center justify-between gap-3 px-3 py-2">
                       <span className="capitalize text-text-secondary">
                         {movement.movement_type.replace("_", " ")} — {movement.reason}
                       </span>
@@ -184,30 +209,40 @@ export function PosOverviewScreen() {
                   ))}
                 </ul>
               )}
-            </div>
-          )}
-          {canCloseShift && (
-            <div className="flex flex-col gap-2 border-t border-border pt-4">
-              <p className="text-sm font-medium text-text">Close this shift</p>
-              <NumberField label="Counted cash" value={countedCash} onChange={setCountedCash} minValue={0} step={0.01} />
-              <Button variant="secondary" onPress={() => closeMutation.mutate()} isLoading={closeMutation.isPending}>
-                Close shift
-              </Button>
-            </div>
+            </PosPanel>
           )}
         </div>
       ) : canOpenShift ? (
-        <div className="flex flex-col gap-4 rounded-[var(--radius-panel)] border border-border-strong bg-surface p-5">
-          <h2 className="text-base font-semibold text-text">Open a shift</h2>
-          <Select label="Store" options={storeOptions} value={storeId} onChange={(value) => { setStoreId(String(value ?? "")); setTerminalId(""); }} placeholder="Select a store" />
-          <Select label="Terminal" options={terminalOptions} value={terminalId} onChange={(value) => setTerminalId(String(value ?? ""))} placeholder="Select a terminal" isDisabled={!storeId} />
-          <NumberField label="Opening cash" value={openingCash} onChange={setOpeningCash} minValue={0} step={0.01} />
-          <Button variant="primary" onPress={() => openMutation.mutate()} isDisabled={!storeId || !terminalId} isLoading={openMutation.isPending}>
-            Open shift
-          </Button>
-        </div>
+        <PosPanel title="Open a shift" description="Choose the store and terminal you are selling from, and count the opening cash in the drawer." className="max-w-2xl">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <Select
+              label="Store"
+              options={storeOptions}
+              selectedKey={storeId || null}
+              onSelectionChange={(key) => {
+                setStoreId(String(key ?? ""));
+                setTerminalId("");
+              }}
+              placeholder="Select a store"
+            />
+            <Select
+              label="Terminal"
+              options={terminalOptions}
+              selectedKey={terminalId || null}
+              onSelectionChange={(key) => setTerminalId(String(key ?? ""))}
+              placeholder="Select a terminal"
+              isDisabled={!storeId}
+            />
+          </div>
+          <NumberField label="Opening cash" value={openingCash} onChange={setOpeningCash} minValue={0} step={0.01} className="sm:max-w-xs" />
+          <div>
+            <Button variant="primary" onPress={() => openMutation.mutate()} isDisabled={!storeId || !terminalId} isLoading={openMutation.isPending}>
+              Open shift
+            </Button>
+          </div>
+        </PosPanel>
       ) : (
-        <p className="text-sm text-text-secondary">No shift is currently open for you, and you are not authorized to open one. Ask a supervisor to open a shift.</p>
+        <PermissionState title="No shift is open for you" description="You are not authorized to open one. Ask a supervisor to open a shift." />
       )}
     </div>
   );

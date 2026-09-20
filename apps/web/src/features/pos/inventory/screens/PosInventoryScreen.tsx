@@ -22,25 +22,25 @@ import {
   EnterpriseDataGrid,
   ErrorState,
   NoResultsState,
+  PageHeader,
   PermissionState,
+  SearchField,
   Select,
   StatusBadge,
   Tab,
   TabList,
   TabPanel,
   Tabs,
-  TextField,
 } from "@vercentlabs/design-system";
 import { POS_PERMISSIONS } from "@vercentlabs/permissions";
 
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import { PosApiError } from "@/features/pos/shared/http";
+import { dateTime } from "@/features/pos/shared/format";
 import { listPosStores } from "@/features/pos/stores/api/stores-api";
 import { listPosStoreInventory, listPosStoreStockActivity, type PosStoreInventoryRow, type PosStoreStockActivityRow } from "@/features/pos/inventory/api/inventory-api";
 import { listPosOfflineSyncConflicts, POS_CONFLICT_TYPE_LABEL, type PosOfflineSyncConflict } from "@/features/pos/offline/api/offline-api";
-
-const dateTimeFormatter = new Intl.DateTimeFormat("en-IN", { dateStyle: "medium", timeStyle: "short" });
 
 function formatQty(value: string | null | undefined) {
   const n = Number(value ?? 0);
@@ -109,7 +109,7 @@ export function PosInventoryScreen() {
 
   const activityColumns: ColumnDef<PosStoreStockActivityRow, unknown>[] = useMemo(
     () => [
-      { id: "occurred_at", header: "When", accessorFn: (row) => dateTimeFormatter.format(new Date(row.occurred_at)) },
+      { id: "occurred_at", header: "When", accessorFn: (row) => dateTime(row.occurred_at) },
       { id: "movement_type", header: "Type", cell: ({ getValue }) => <StatusBadge tone={String(getValue()) === "issue" ? "warning" : "success"}>{String(getValue())}</StatusBadge>, accessorKey: "movement_type" },
       { id: "item_name", header: "Item", accessorKey: "item_name" },
       { id: "quantity", header: "Qty", accessorFn: (row) => formatQty(row.quantity) },
@@ -156,7 +156,7 @@ export function PosInventoryScreen() {
 
   const exceptionColumns: ColumnDef<PosOfflineSyncConflict, unknown>[] = useMemo(
     () => [
-      { id: "created_at", header: "Captured", accessorFn: (row) => dateTimeFormatter.format(new Date(row.created_at)) },
+      { id: "created_at", header: "Captured", accessorFn: (row) => dateTime(row.created_at) },
       { id: "conflict_type", header: "Reason", accessorFn: (row) => POS_CONFLICT_TYPE_LABEL[row.conflict_type] ?? row.conflict_type },
       { id: "detail", header: "Detail", accessorFn: (row) => row.detail || "—" },
       { id: "status", header: "Status", cell: ({ getValue }) => <StatusBadge tone="warning">{String(getValue())}</StatusBadge>, accessorKey: "status" },
@@ -186,29 +186,26 @@ export function PosInventoryScreen() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-semibold text-text">Inventory</h1>
-          <p className="text-sm text-text-secondary">
-            Real-time store availability, lot/batch and stock-sync activity from Stock&apos;s own ledger. POS never keeps its own copy of stock balances — every
-            figure here is read live from the Stock module.
-          </p>
-        </div>
-        <div className="flex items-end gap-2">
+      <PageHeader
+        title="Inventory"
+        description="Real-time store availability, lot/batch and stock-sync activity from Stock's own ledger. POS never keeps its own copy of stock balances — every figure here is read live from the Stock module."
+        secondaryActions={
           <Select
-            label="Store"
+            aria-label="Store"
             size="compact"
             options={storeOptions}
             selectedKey={activeStoreId}
             onSelectionChange={(key) => setStoreId(key ? String(key) : "")}
             isDisabled={storeOptions.length === 0}
           />
+        }
+        primaryAction={
           <Button variant="secondary" onPress={() => router.push("/inventory")}>
             <ExternalLink className="size-4" aria-hidden="true" />
             Open in Stock
           </Button>
-        </div>
-      </div>
+        }
+      />
 
       {!activeStoreId ? (
         <NoResultsState title="No POS store available" description="Create a store before viewing its inventory." />
@@ -222,7 +219,7 @@ export function PosInventoryScreen() {
 
           <TabPanel id="availability">
             <div className="flex flex-col gap-3 py-4">
-              <TextField label="Search item, code or barcode" value={search} onChange={setSearch} className="max-w-sm" />
+              <SearchField aria-label="Search inventory" placeholder="Search item, code or barcode…" value={search} onChange={setSearch} className="max-w-sm" />
               <EnterpriseDataGrid<PosStoreInventoryRow>
                 aria-label="Store inventory"
                 columns={inventoryColumns}

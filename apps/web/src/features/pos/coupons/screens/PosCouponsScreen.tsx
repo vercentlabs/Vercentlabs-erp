@@ -103,20 +103,22 @@ export function PosCouponsScreen() {
             </Button>
           ),
         }}
+        actionBar={{
+          start: (
+            <Select
+              aria-label="Filter by status"
+              size="compact"
+              options={[
+                { value: "all", label: "All statuses" },
+                { value: "active", label: "Active" },
+                { value: "inactive", label: "Inactive" },
+              ]}
+              selectedKey={statusFilter}
+              onSelectionChange={(key) => setStatusFilter(String(key ?? "all"))}
+            />
+          ),
+        }}
       >
-        <div className="mb-3 flex items-center gap-2">
-          <Select
-            aria-label="Filter by status"
-            size="compact"
-            options={[
-              { value: "all", label: "All statuses" },
-              { value: "active", label: "Active" },
-              { value: "inactive", label: "Inactive" },
-            ]}
-            selectedKey={statusFilter}
-            onSelectionChange={(key) => setStatusFilter(String(key ?? "all"))}
-          />
-        </div>
         <EnterpriseDataGrid<PosCoupon>
           aria-label="Coupons"
           columns={columns}

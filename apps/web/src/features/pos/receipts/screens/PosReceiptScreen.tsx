@@ -2,7 +2,8 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Printer } from "lucide-react";
-import { Button, ErrorState } from "@vercentlabs/design-system";
+import Link from "next/link";
+import { Button, ErrorState, PageHeader, StatusBadge } from "@vercentlabs/design-system";
 import { POS_PERMISSIONS } from "@vercentlabs/permissions";
 
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
@@ -17,7 +18,8 @@ import {
 } from "@/features/pos/receipts/api/receipts-api";
 import { getPosSaleInvoice, generatePosSaleInvoice } from "@/features/pos/invoices/api/invoices-api";
 import { PosApiError } from "@/features/pos/shared/http";
-import { money } from "@/features/pos/shared/format";
+import { dateTime, money, statusLabel, statusTone } from "@/features/pos/shared/format";
+import { PosAlert, PosBackLink, PosLoading, PosPanel } from "@/features/pos/shared/PosUi";
 
 // F289 -- a deterministic receipt built entirely from persisted sale facts
 // (getPosSaleReceipt / tenant.pos_sales+pos_sale_lines+pos_payments+
@@ -56,7 +58,7 @@ export function PosReceiptScreen({ saleId }: { saleId: string }) {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: scopedQueryKey(workspace, "pos", "invoice", saleId) }),
   });
 
-  if (query.isLoading) return <p className="p-8 text-center text-sm text-text-secondary">Loading receipt…</p>;
+  if (query.isLoading) return <PosLoading label="Loading receipt…" />;
   if (query.isError || !query.data) {
     if (query.error instanceof PosApiError && query.error.status === 404) {
       return <ErrorState title="Receipt not found" description="This receipt does not exist or you do not have access to its store." />;
@@ -72,7 +74,6 @@ export function PosReceiptScreen({ saleId }: { saleId: string }) {
 
   const { sale, lines, payments, returns, promotionEvidence, printEvents } = query.data;
   const currency = sale.currency_code as string;
-  const timestamp = new Date(sale.completed_at ?? sale.created_at);
   const hasCustomer = Boolean(sale.customer_display_name);
   const invoiceNotFound = invoiceQuery.isError && invoiceQuery.error instanceof PosApiError && invoiceQuery.error.status === 404;
   const lastPrint = printEvents[0] ?? null;
@@ -86,29 +87,36 @@ export function PosReceiptScreen({ saleId }: { saleId: string }) {
   // instead of a silent no-op.
   const printError = recordPrint.isError ? (recordPrint.error instanceof PosApiError ? recordPrint.error.message : "The print attempt could not be recorded.") : null;
 
-  return (
-    <div className="mx-auto flex max-w-md flex-col gap-4 p-4 print:max-w-full">
-      <div className="flex items-center justify-between print:hidden">
-        <span
-          className={`rounded-full px-2 py-0.5 text-xs font-medium ${
-            !lastPrint ? "bg-surface-muted text-text-secondary" : isReprint ? "bg-warning-soft text-warning" : "bg-success-soft text-success"
-          }`}
-          title="Reflects a recorded print request, not confirmation from the physical printer — the browser has no way to observe that."
-        >
-          {!lastPrint ? "Not yet printed" : isReprint ? `Reprint attempted (${printEvents.length}×)` : "Print attempted — original"}
-        </span>
-        <Button variant="secondary" size="compact" onPress={handlePrint} isLoading={recordPrint.isPending}>
-          <Printer className="size-4" aria-hidden="true" />
-          {printError ? "Retry print" : "Print"}
-        </Button>
-      </div>
-      {printError && (
-        <p role="alert" className="rounded-[var(--radius-control)] border border-danger-emphasis/30 bg-danger-soft px-3 py-2 text-sm text-danger print:hidden">
-          {printError} — click Retry print to try again.
-        </p>
-      )}
+  const printStatus = !lastPrint ? (
+    <span title="Reflects a recorded print request, not confirmation from the physical printer — the browser has no way to observe that.">
+      <StatusBadge tone="neutral">Not yet printed</StatusBadge>
+    </span>
+  ) : (
+    <span title="Reflects a recorded print request, not confirmation from the physical printer — the browser has no way to observe that.">
+      <StatusBadge tone={isReprint ? "warning" : "success"}>{isReprint ? `Reprint attempted (${printEvents.length}×)` : "Print attempted — original"}</StatusBadge>
+    </span>
+  );
 
-      <div className="flex flex-col gap-3 rounded-[var(--radius-panel)] border border-border-strong bg-surface p-6 font-mono text-sm print:border-0 print:p-0">
+  return (
+    <div className="flex flex-col gap-4 print:gap-0">
+      <div className="flex flex-col gap-4 print:hidden">
+        <PosBackLink href={`/pos/transactions/${saleId}`}>Back to transaction</PosBackLink>
+        <PageHeader
+          title={`Receipt ${sale.receipt_number}`}
+          description={`${sale.store_name} · ${dateTime(sale.completed_at ?? sale.created_at)}`}
+          secondaryActions={printStatus}
+          primaryAction={
+            <Button variant="primary" onPress={handlePrint} isLoading={recordPrint.isPending}>
+              <Printer className="size-4" aria-hidden="true" />
+              {printError ? "Retry print" : "Print"}
+            </Button>
+          }
+        />
+        {printError && <PosAlert>{printError} — click Retry print to try again.</PosAlert>}
+      </div>
+
+      <div className="mx-auto flex w-full max-w-md flex-col gap-4 print:max-w-full">
+      <div className="flex flex-col gap-3 rounded-[var(--radius-card)] border border-border bg-surface p-6 font-mono text-sm shadow-[var(--shadow-subtle)] print:border-0 print:p-0 print:shadow-none">
         {isReprint && <p className="text-center text-xs uppercase tracking-wide text-text-muted print:block">— Reprint —</p>}
         <div className="text-center">
           <p className="text-base font-semibold">{sale.store_name}</p>
@@ -116,7 +124,7 @@ export function PosReceiptScreen({ saleId }: { saleId: string }) {
         </div>
         <div className="flex justify-between text-xs text-text-secondary">
           <span>Receipt {sale.receipt_number}</span>
-          <span>{timestamp.toLocaleString()}</span>
+          <span>{dateTime(sale.completed_at ?? sale.created_at)}</span>
         </div>
         <div className="flex justify-between text-xs text-text-secondary">
           <span>Cashier: {sale.cashier_name ?? "—"}</span>
@@ -174,7 +182,7 @@ export function PosReceiptScreen({ saleId }: { saleId: string }) {
             <div className="flex flex-col gap-1 text-xs text-text-secondary">
               <p className="font-medium text-text">Returns against this sale</p>
               {returns.map((ret: PosReceiptReturn) => (
-                <Row key={ret.id} label={`${ret.return_number} (${ret.status})`} value={`−${money(currency, ret.refund_total)}`} muted />
+                <Row key={ret.id} label={`${ret.return_number} (${statusLabel(ret.status)})`} value={`−${money(currency, ret.refund_total)}`} muted />
               ))}
             </div>
           </>
@@ -184,27 +192,39 @@ export function PosReceiptScreen({ saleId }: { saleId: string }) {
       </div>
 
       {canGenerateInvoice && (
-        <div className="flex flex-col gap-2 rounded-[var(--radius-panel)] border border-border-strong bg-surface p-4 text-sm print:hidden">
+        <PosPanel
+          title="Tax invoice"
+          className="print:hidden"
+          actions={
+            <Link href="/pos/invoices" className="text-xs font-medium text-brand hover:underline">
+              All invoices
+            </Link>
+          }
+        >
           {invoiceQuery.data ? (
-            <div className="flex items-center justify-between">
-              <span>
-                Invoice <span className="font-medium text-text">{invoiceQuery.data.invoice.invoice_number}</span> ({invoiceQuery.data.invoice.status})
+            <div className="flex items-center justify-between gap-2 text-sm">
+              <span className="flex items-center gap-2">
+                <span className="font-medium text-text">{invoiceQuery.data.invoice.invoice_number}</span>
+                <StatusBadge tone={statusTone(invoiceQuery.data.invoice.status)}>{statusLabel(invoiceQuery.data.invoice.status)}</StatusBadge>
               </span>
               <span className="tabular-nums">{money(invoiceQuery.data.invoice.currency_code, invoiceQuery.data.invoice.grand_total)}</span>
             </div>
           ) : invoiceNotFound ? (
-            <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center justify-between gap-3 text-sm">
               <span className="text-text-secondary">{hasCustomer ? "No tax invoice generated yet." : "Attach a customer to this sale to generate a tax invoice."}</span>
               <Button variant="secondary" size="compact" onPress={() => generateInvoice.mutate()} isDisabled={!hasCustomer} isLoading={generateInvoice.isPending}>
                 Generate invoice
               </Button>
             </div>
-          ) : null}
-          {generateInvoice.isError && (
-            <p className="text-xs text-danger">{generateInvoice.error instanceof PosApiError ? generateInvoice.error.message : "The invoice could not be generated."}</p>
+          ) : (
+            <p className="text-sm text-text-muted">Checking for an invoice…</p>
           )}
-        </div>
+          {generateInvoice.isError && (
+            <PosAlert>{generateInvoice.error instanceof PosApiError ? generateInvoice.error.message : "The invoice could not be generated."}</PosAlert>
+          )}
+        </PosPanel>
       )}
+      </div>
     </div>
   );
 }

@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { ColumnDef } from "@tanstack/react-table";
 import { ArrowLeftRight, Check, Plus, RotateCcw } from "lucide-react";
-import { AlertDialog, Button, Checkbox, Dialog, EnterpriseDataGrid, EnterpriseListPage, ErrorState, NumberField, PermissionState, StatusBadge, TextField } from "@vercentlabs/design-system";
+import { AlertDialog, Button, Checkbox, Dialog, EnterpriseDataGrid, EnterpriseListPage, ErrorState, NoResultsState, NumberField, PermissionState, SearchField, Select, StatusBadge, TextField, type ActiveFilter } from "@vercentlabs/design-system";
 import { POS_PERMISSIONS } from "@vercentlabs/permissions";
 
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
@@ -21,7 +21,8 @@ import {
   type PosReturnSale,
   type PosReturnSaleLine,
 } from "@/features/pos/returns/api/returns-api";
-import { money } from "@/features/pos/shared/format";
+import { money, statusLabel } from "@/features/pos/shared/format";
+import { PosAlert } from "@/features/pos/shared/PosUi";
 
 const STATUS_TONE: Record<PosReturn["status"], "success" | "warning" | "neutral" | "danger"> = {
   pending_approval: "warning",
@@ -55,7 +56,29 @@ export function PosReturnsScreen() {
   const [completeTarget, setCompleteTarget] = useState<PosReturn | null>(null);
 
   const query = useQuery({ queryKey: scopedQueryKey(workspace, "pos", "returns"), queryFn: listPosReturns, enabled: canView });
-  const rows = query.data?.rows ?? [];
+  const allRows = query.data?.rows;
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState("");
+  const rows = useMemo(() => {
+    const needle = search.trim().toLowerCase();
+    return (allRows ?? []).filter((row) => {
+      if (statusFilter && row.status !== statusFilter) return false;
+      if (!needle) return true;
+      return [row.return_number, row.reason].some((value) => String(value ?? "").toLowerCase().includes(needle));
+    });
+  }, [allRows, search, statusFilter]);
+  const hasFilters = Boolean(search.trim() || statusFilter);
+  const activeFilters: ActiveFilter[] = [];
+  if (statusFilter) activeFilters.push({ id: "status", label: `Status: ${statusLabel(statusFilter)}` });
+  if (search.trim()) activeFilters.push({ id: "search", label: `Search: ${search.trim()}` });
+  function removeFilter(id: string) {
+    if (id === "status") setStatusFilter("");
+    if (id === "search") setSearch("");
+  }
+  function clearFilters() {
+    setSearch("");
+    setStatusFilter("");
+  }
 
   function invalidate() {
     queryClient.invalidateQueries({ queryKey: scopedQueryKey(workspace, "pos", "returns") });
@@ -99,7 +122,7 @@ export function PosReturnsScreen() {
       { id: "number", header: "Return #", accessorKey: "return_number", cell: ({ row }) => <span className="font-mono font-medium text-text">{row.original.return_number}</span> },
       { id: "reason", header: "Reason", accessorKey: "reason" },
       { id: "refund", header: "Refund", accessorFn: (row) => money("", row.refund_total) },
-      { id: "status", header: "Status", cell: ({ row }) => <StatusBadge tone={STATUS_TONE[row.original.status] ?? "neutral"}>{row.original.status.replace("_", " ")}</StatusBadge> },
+      { id: "status", header: "Status", cell: ({ row }) => <StatusBadge tone={STATUS_TONE[row.original.status] ?? "neutral"}>{statusLabel(row.original.status)}</StatusBadge> },
       {
         id: "actions",
         header: "",
@@ -138,11 +161,7 @@ export function PosReturnsScreen() {
 
   return (
     <div className="flex flex-col gap-4">
-      {error && (
-        <p role="alert" className="rounded-[var(--radius-control)] border border-danger-emphasis/30 bg-danger-soft px-3 py-2 text-sm text-danger">
-          {error}
-        </p>
-      )}
+      {error && <PosAlert>{error}</PosAlert>}
 
       <EnterpriseListPage
         header={{
@@ -155,13 +174,37 @@ export function PosReturnsScreen() {
             </Button>
           ) : undefined,
         }}
+        actionBar={{
+          start: (
+            <>
+              <SearchField aria-label="Search returns" placeholder="Search return number or reason…" value={search} onChange={setSearch} className="min-w-[280px]" />
+              <Select
+                aria-label="Status"
+                size="compact"
+                options={[
+                  { value: "", label: "Any status" },
+                  { value: "pending_approval", label: "Pending approval" },
+                  { value: "approved", label: "Approved" },
+                  { value: "completed", label: "Completed" },
+                  { value: "rejected", label: "Rejected" },
+                  { value: "cancelled", label: "Cancelled" },
+                ]}
+                selectedKey={statusFilter}
+                onSelectionChange={(key) => setStatusFilter(String(key ?? ""))}
+              />
+            </>
+          ),
+        }}
+        filterBar={{ filters: activeFilters, onRemove: removeFilter, onClearAll: hasFilters ? clearFilters : undefined }}
       >
         <EnterpriseDataGrid<PosReturn>
           aria-label="Returns"
           columns={columns}
           data={rows}
           getRowId={(row) => row.id}
-          state={query.isError ? "error" : query.isLoading ? "loading" : rows.length === 0 ? "empty" : "ready"}
+          state={query.isError ? "error" : query.isLoading ? "loading" : rows.length === 0 && hasFilters ? "no-results" : rows.length === 0 ? "empty" : "ready"}
+          emptyContent={<NoResultsState title="No returns yet" description="Returns filed against completed sales appear here." />}
+          noResultsContent={<NoResultsState title="No returns match these filters" description="Try clearing a filter or broadening your search." action={{ label: "Clear filters", onPress: clearFilters }} />}
           errorContent={<ErrorState title="Could not load returns" description="Something went wrong fetching the returns list." action={{ label: "Retry", onPress: () => query.refetch() }} />}
         />
       </EnterpriseListPage>
@@ -255,7 +298,7 @@ function NewReturnDialog({ onClose, onCreated, onError }: { onClose: () => void;
           </>
         ) : (
           <>
-            <div className="rounded-[var(--radius-control)] border border-border-strong p-3 text-sm">
+            <div className="rounded-[var(--radius-control)] border border-border p-3 text-sm">
               <p className="font-medium text-text">Receipt {found.sale.receipt_number}</p>
               <p className="text-text-secondary">Total: {money(found.sale.currency_code, found.sale.grand_total)}</p>
             </div>

@@ -3,8 +3,10 @@
 import { useCallback, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { ColumnDef } from "@tanstack/react-table";
+import { Plus } from "lucide-react";
 import {
   Button,
+  Dialog,
   EnterpriseDataGrid,
   EnterpriseListPage,
   ErrorState,
@@ -60,6 +62,7 @@ export function PosCashMovementsScreen() {
   const [movementReason, setMovementReason] = useState("");
   const [idempotencyKey, setIdempotencyKey] = useState(() => crypto.randomUUID());
   const [formError, setFormError] = useState<string | null>(null);
+  const [recordOpen, setRecordOpen] = useState(false);
 
   const storesQuery = useQuery({ queryKey: scopedQueryKey(workspace, "pos", "stores"), queryFn: listPosStores });
   const terminalsQuery = useQuery({ queryKey: scopedQueryKey(workspace, "pos", "terminals"), queryFn: listPosTerminals });
@@ -118,6 +121,7 @@ export function PosCashMovementsScreen() {
     mutationFn: () => recordPosCashMovement(myOpenShift!.id, { movementType, amount: movementAmount, reason: movementReason, idempotencyKey }),
     onSuccess: () => {
       setFormError(null);
+      setRecordOpen(false);
       setMovementAmount(0);
       setMovementReason("");
       setIdempotencyKey(crypto.randomUUID());
@@ -172,50 +176,19 @@ export function PosCashMovementsScreen() {
 
   return (
     <div className="flex flex-col gap-6">
-      {canAdjustCash && myOpenShift && (
-        <div className="flex flex-col gap-4 rounded-[var(--radius-panel)] border border-border-strong bg-surface p-5">
-          <div>
-            <h2 className="text-base font-semibold text-text">Current shift — {myOpenShift.shift_number}</h2>
-            <p className="text-sm text-text-secondary">
-              Paid in this shift: {money("", paidInTotal)} · Paid out this shift: {money("", paidOutTotal)}
-            </p>
-          </div>
-          {formError && (
-            <p role="alert" className="rounded-[var(--radius-control)] border border-danger-emphasis/30 bg-danger-soft px-3 py-2 text-sm text-danger">
-              {formError}
-            </p>
-          )}
-          <div className="flex flex-wrap items-end gap-2">
-            <Select
-              label="Type"
-              size="compact"
-              options={[
-                { value: "paid_in", label: "Paid in" },
-                { value: "paid_out", label: "Paid out" },
-              ]}
-              selectedKey={movementType}
-              onSelectionChange={(key) => setMovementType(key === "paid_in" ? "paid_in" : "paid_out")}
-            />
-            <NumberField label="Amount" size="compact" value={movementAmount} onChange={setMovementAmount} minValue={0} step={0.01} />
-            <TextField label="Reason" value={movementReason} onChange={setMovementReason} className="min-w-[220px] flex-1" />
-            <Button
-              variant="primary"
-              onPress={() => cashMovementMutation.mutate()}
-              isLoading={cashMovementMutation.isPending}
-              isDisabled={movementAmount <= 0 || !movementReason.trim()}
-            >
-              Record movement
-            </Button>
-          </div>
-        </div>
-      )}
-
       <EnterpriseListPage
         header={{
           title: "Cash movement",
           description: isManager
             ? "Every paid-in / paid-out cash movement across your accessible stores and terminals, with shift and cashier attribution."
             : "Your own paid-in / paid-out cash movement history.",
+          primaryAction:
+            canAdjustCash && myOpenShift ? (
+              <Button variant="primary" onPress={() => setRecordOpen(true)}>
+                <Plus className="size-4" aria-hidden="true" />
+                Record movement
+              </Button>
+            ) : undefined,
         }}
         actionBar={{
           start: (
@@ -255,20 +228,8 @@ export function PosCashMovementsScreen() {
                   onSelectionChange={(key) => updateFilter("cashierUserId", key ? String(key) : undefined)}
                 />
               )}
-              <input
-                type="date"
-                aria-label="From date"
-                value={filters.dateFrom ?? ""}
-                onChange={(event) => updateFilter("dateFrom", event.target.value || undefined)}
-                className="rounded-[var(--radius-control)] border border-border bg-surface px-3 py-1.5 text-sm text-text"
-              />
-              <input
-                type="date"
-                aria-label="To date"
-                value={filters.dateTo ?? ""}
-                onChange={(event) => updateFilter("dateTo", event.target.value || undefined)}
-                className="rounded-[var(--radius-control)] border border-border bg-surface px-3 py-1.5 text-sm text-text"
-              />
+              <TextField aria-label="From date" type="date" size="compact" value={filters.dateFrom ?? ""} onChange={(value) => updateFilter("dateFrom", value || undefined)} />
+              <TextField aria-label="To date" type="date" size="compact" value={filters.dateTo ?? ""} onChange={(value) => updateFilter("dateTo", value || undefined)} />
             </>
           ),
         }}
@@ -295,6 +256,42 @@ export function PosCashMovementsScreen() {
           onPageChange={(nextIndex) => setFilters((current) => ({ ...current, offset: nextIndex * PAGE_SIZE }))}
         />
       </EnterpriseListPage>
+
+      {recordOpen && myOpenShift && (
+        <Dialog isOpen onOpenChange={(open) => !open && setRecordOpen(false)} title={`Record cash movement — shift ${myOpenShift.shift_number}`}>
+          <div className="flex flex-col gap-4">
+            <p className="text-sm text-text-secondary">
+              This shift so far: paid in {money("", paidInTotal)} · paid out {money("", paidOutTotal)}.
+            </p>
+            {formError && (
+              <p role="alert" className="rounded-[var(--radius-control)] border border-danger-emphasis/30 bg-danger-soft px-3 py-2 text-sm text-danger">
+                {formError}
+              </p>
+            )}
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <Select
+                label="Type"
+                options={[
+                  { value: "paid_in", label: "Paid in" },
+                  { value: "paid_out", label: "Paid out" },
+                ]}
+                selectedKey={movementType}
+                onSelectionChange={(key) => setMovementType(key === "paid_in" ? "paid_in" : "paid_out")}
+              />
+              <NumberField label="Amount" value={movementAmount} onChange={setMovementAmount} minValue={0} step={0.01} />
+            </div>
+            <TextField label="Reason" isRequired value={movementReason} onChange={setMovementReason} />
+            <div className="flex justify-end gap-2">
+              <Button variant="secondary" onPress={() => setRecordOpen(false)}>
+                Cancel
+              </Button>
+              <Button variant="primary" onPress={() => cashMovementMutation.mutate()} isLoading={cashMovementMutation.isPending} isDisabled={movementAmount <= 0 || !movementReason.trim()}>
+                Record movement
+              </Button>
+            </div>
+          </div>
+        </Dialog>
+      )}
     </div>
   );
 }

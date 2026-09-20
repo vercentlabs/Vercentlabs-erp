@@ -292,3 +292,47 @@ Starting SHA `6e75b9197c70dfb32222688030a02d14b292a9cf` (Session 6's own ending 
 **Atomic register**: 8 PASS / 1 PARTIAL / 1,471 UNVERIFIED (was 4/1/1475 after Session 6) — see `POS_COMPLETION_PROMPT2_HANDOFF.md` §9 for the exact remaining-work list assigned to Prompt 3.
 
 Ending SHA: `43b37c6c` (pushed to `origin/main`).
+
+
+## Session 7 — design-standard convergence with CRM + gap closure (2026-09-19)
+
+**Trigger**: POS screens were "not maintaining the design standards" of CRM, and several documented workflows had no usable UI. The earlier `POS_FINAL_VISUAL_QA_REPORT.md` called the module visually clean; a fresh, real-browser pass found otherwise (details below), so treat that report as superseded for layout/consistency.
+
+### Design convergence (apps/web/src/features/pos)
+
+Root cause was systemic, not per-screen: ~13 screens hand-rolled their headers and stat boxes, and *every* POS panel used `radius-panel` / `border-strong` / `p-5` / `text-base` headings where CRM uses `radius-card` / `border` / `p-4` / `text-sm` headings.
+
+- New shared, presentation-only building blocks in `shared/PosUi.tsx` (`PosPanel`, `PosAlert`, `PosFacts`, `PosDataTable`, `PosBackLink`, `PosLoading`) composed from design-system primitives; `shared/PosCustomerPicker.tsx` (customer search-select); `shared/format.ts` gained `dateTime`, `statusTone`, `statusLabel` (one status vocabulary — Title-case everywhere).
+- Rebuilt on `PageHeader` / `MetricStrip` / `EnterpriseListPage` / `RecordHeader`: Overview, Analytics (tabs instead of a 14-section scroll), Invoices, Reports hub, Reconciliation, Accounting posting, Shift detail, Z-report detail, Customers, Loyalty, Cash movement, Receipt, Transaction detail, Checkout. Toolbars (search + filters + active-filter chips) added to Stores, Terminals, Cashiers, Returns, Offline conflicts, Promotions/Coupons.
+- `PosDataTable` is built on `EnterpriseDataGrid`; POS now contains **zero raw `<table>`** (`verify-experience` lists only 3 pre-existing CRM files).
+- **Design-system bug fixed at source** (`EnterpriseDataGrid`): sortable column headers lost their `uppercase` (Tailwind preflight resets `text-transform` on `<button>`), so headers rendered in mixed case. Affects every grid, CRM included.
+
+### Functional gaps found and closed
+
+| Gap | What was wrong | Fix | Evidence |
+|---|---|---|---|
+| F279 discount approval had no usable UI | Above-threshold discounts blocked completion, but managers could not *find* the request (generic `/approvals` inbox never lists it for a `pos.discount.approve` holder), and the cashier saw no pending state | `listPosDiscountApprovals` + `GET /api/pos/discount-approvals`; `/pos/discount-approvals` queue; cart payload carries current-version `discountApprovals`; checkout shows waiting/approved/rejected and polls | `pos-cart-tax-promotions-coupons-f277-f281.test.mjs` (extended) |
+| F279 line/cart discounts | `applyPosLineDiscount` existed in the API layer but no checkout control used it; cart discount was percent-only | Line + cart discount dialog (percent/amount, reason), remove controls | typecheck/lint + browser (see below) |
+| POS policy unreachable | `pos_settings` (discount limits/threshold, return rules, negative stock, price override, cart expiry, shift reconciliation) had no API or UI — fixed at migration defaults for every tenant | `getPosSettings`/`updatePosSettings` (validated, cross-field rule, audit event), `GET/PUT /api/pos/settings`, `/pos/settings` | `pos-settings-and-payment-config.test.mjs` |
+| Stores could only take cash | A store needs `allowed_payment_methods` **and** an active provider row for card/UPI; neither could be created | `getPosStorePaymentConfig`/`setPosStorePaymentConfig`, `PUT /api/pos/stores/[id]/payment-config`, store "Payment methods" dialog (registered providers only; credential field is an env-var *name*, values rejected) | same suite — proves a card payment succeeds end-to-end after configuring a previously cash-only store |
+| F306 points expiry was configuration without effect | `points_expiry_days` was stored and shown; nothing expired points | `expirePosLoyaltyPoints` (FIFO-conservative, idempotent, ledger-only) + `POST /api/pos/loyalty/expire` + "Run points expiry" | `pos-loyalty-earn-redeem-reverse-f306.test.mjs` (new expiry test) |
+| F304 import/correction | Import accepted one settlement entry; reconciliation detail + linked correction endpoints had no UI | Multi-entry import (+ paste-from-statement), detail dialog, correction action | typecheck/lint |
+| F307 drilldown | Analytics exposed only a store filter though the API supports terminal/cashier | Store/terminal/cashier filters | typecheck/lint |
+| Loyalty form saved wrong values | Form seeded 0.1/0.5 defaults instead of the saved program, so saving could silently overwrite real rates; customer lookup asked for a raw UUID | Form initialised from stored program; expiry field; customer search picker | typecheck/lint + screenshot |
+| Terminals showed no store | Store names were resolved client-side from a store list capped at 100 rows | Server-side `store_name` join; admin lists request the 200-row ceiling and say so when hit | screenshot before/after |
+
+### Verification run this session
+
+- `test:api` 1112/1112; `test:web` 21/21; POS real-Postgres integration **186/186 across 22 suites** (includes the new/extended ones above).
+- Browser E2E: **31/31** POS specs pass in a real browser (authorization, checkout desktop+tablet, checkout-safety, discount maker-checker, hold/resume, offline sync, returns, shifts/cash, transactions, and the axe accessibility sweep). Along the way the specs needed updating for pre-existing drift (refund confirmation dialog, receipt badge wording) and for my UI (dialog-based cash form, receipt heading); no product regression was found by them. A throwaway smoke test additionally exercised the new Settings save/persist, store payment-methods dialog and reconciliation import dialog, and caught two real bugs of mine (lost "saved" confirmation; "UPI" shown as "Upi"), both fixed.
+- `typecheck` (src + e2e) and `eslint` clean for POS + shell. Gates: route-security (199 routes, 0 gaps), billing-mutation gate (0 unaccounted), architecture, route smoke — pass.
+- Visual QA: all 22 POS routes re-shot at 1440px in a real browser as the owner and reviewed by eye; defects found were fixed. **Not re-shot this session**: tablet/mobile widths and print preview — the earlier 6-viewport sweep pre-dates these layouts.
+
+### Honest limits — NOT done, do not read as complete
+
+- **Atomic register**: 1,465+ of 1,480 rows remain `UNVERIFIED`. This session verified specific behaviours (see the table) and marked only the rows it could genuinely evidence; it did not re-audit the register.
+- **No real payment gateway** exists; only the sandbox adapter. Card/UPI are code-complete against it only (F283/F284 external blocker unchanged).
+- **F269 "peripheral configuration" and "session health"** (printer/scanner/cash-drawer settings, last-seen) have no data model or UI.
+- **Points expiry runs on demand** (button/API); no scheduled worker calls it.
+- Admin lists (stores/terminals) are capped at 200 rows with a visible notice, not paginated.
+- CRM's own raw-table violations (Dashboard, Forecast, Import/Export) predate this work and were not touched.
