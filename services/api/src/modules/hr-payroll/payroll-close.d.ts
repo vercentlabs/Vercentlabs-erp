@@ -1,0 +1,15 @@
+type C = Record<string, unknown>;
+type Q = unknown;
+type R = Record<string, any>;
+export declare function listFinalSettlements(client: Q, c: C, filters?: R): Promise<any[]>;
+export declare function getFinalSettlement(client: Q, c: C, id: string): Promise<any>;
+export declare function calculateFinalSettlement(client: Q, c: C, employeeId: string): Promise<any>;
+export declare function submitFinalSettlement(client: Q, c: C, id: string): Promise<any>;
+export declare function decideFinalSettlement(client: Q, c: C, id: string, input: { approve: boolean; note?: string }): Promise<any>;
+export declare function paySettlement(client: Q, c: C, id: string): Promise<any>;
+export declare function listBankFiles(client: Q, c: C, filters?: R): Promise<any[]>;
+export declare function getBankFile(client: Q, c: C, id: string): Promise<any>;
+export declare function generateBankFile(client: Q, c: C, runId: string): Promise<any>;
+export declare function acknowledgeBankFile(client: Q, c: C, id: string, utrReference: string): Promise<any>;
+export declare function postPayrollToAccounting(client: Q, c: C, runId: string): Promise<any>;
+export declare function getPayrollReconciliation(client: Q, c: C, runId: string): Promise<any>;

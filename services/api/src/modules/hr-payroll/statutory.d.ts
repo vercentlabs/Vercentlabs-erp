@@ -1,0 +1,14 @@
+type C = Record<string, unknown>;
+type Q = unknown;
+type R = Record<string, any>;
+export declare function listStatutoryComponents(client: Q, c: C, filters?: R): Promise<any[]>;
+export declare function getStatutoryComponent(client: Q, c: C, id: string): Promise<any>;
+export declare function saveStatutoryComponent(client: Q, c: C, input: R): Promise<any>;
+export declare function setStatutorySlab(client: Q, c: C, input: R): Promise<any>;
+export declare function removeStatutorySlab(client: Q, c: C, id: string): Promise<any>;
+export declare function deactivateStatutoryComponent(client: Q, c: C, id: string, reason: string): Promise<any>;
+export declare function estimateGratuity(client: Q, c: C, employeeId: string): Promise<any>;
+export declare function listGratuityRecords(client: Q, c: C, filters?: R): Promise<any[]>;
+export declare function gratuitySettlementLine(client: Q, c: C, employee: R, asOfDate: string): Promise<R | null>;
+export declare function getStatutoryReport(client: Q, c: C, runId: string): Promise<any>;
+export declare function getComplianceReport(client: Q, c: C, input?: { year?: number; month?: number }): Promise<any>;

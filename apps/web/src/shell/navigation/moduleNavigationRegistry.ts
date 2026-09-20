@@ -14,6 +14,7 @@ import {
   ListTodo,
   HelpCircle,
   Settings,
+  UserRound,
 } from "lucide-react";
 
 import { MODULE_NAVIGATION } from "./module-navigation-registry";
@@ -114,6 +115,15 @@ export const GLOBAL_NAV_BOTTOM: readonly GlobalNavEntry[] = [
     availability: "implemented",
     keywords: ["notifications", "alerts"],
     badgeSource: "unreadNotifications",
+  },
+  {
+    key: "my-hr",
+    label: "My HR",
+    href: "/hr/me",
+    icon: UserRound,
+    requiredPermission: null,
+    availability: "implemented",
+    keywords: ["my hr", "my profile", "my leave", "my attendance", "payslip", "self service"],
   },
   {
     key: "jobs",
