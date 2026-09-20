@@ -81,6 +81,29 @@ export async function listSalesPass1Operations(client, c, { kind = "advances", l
     "invoice-requests": `SELECT record.id,record.request_number,record.status,record.quantity_basis,record.retry_count,record.last_error,record.requested_at,record.completed_at,record.sales_order_id,orders.sales_order_number,orders.company_id,version.currency_code,version.grand_total,version.customer_snapshot->>'displayName' AS customer_name FROM tenant.sales_invoice_requests record`,
     returns: `SELECT record.id,record.request_number,record.status,record.reason,record.lines,record.requested_at,record.decided_at,record.decision_note,record.completed_at,record.sales_order_id,orders.sales_order_number,orders.company_id,version.customer_snapshot->>'displayName' AS customer_name FROM tenant.sales_return_requests record`,
   };
+  // F048 backorders: confirmed lines that have shipped something but still owe
+  // quantity. Derived from progress counters, so it can never disagree with the order.
+  if (kind === "backorders") {
+    const values = [c.organizationId];
+    const scope = companySql(c, values, "orders");
+    values.push(Math.min(Math.max(Number(limit) || 100, 1), 250));
+    const { rows } = await client.query(
+      `SELECT line.id,orders.id AS sales_order_id,orders.sales_order_number,orders.requested_delivery_date,
+              version.customer_snapshot->>'displayName' AS customer_name,
+              line.item_code_snapshot,line.item_name_snapshot,line.quantity,progress.fulfilled_quantity,
+              (line.quantity-progress.fulfilled_quantity-progress.cancelled_quantity) AS backordered_quantity
+         FROM tenant.sales_order_lines line
+         JOIN tenant.sales_order_line_progress progress ON progress.organization_id=line.organization_id AND progress.sales_order_line_id=line.id
+         JOIN tenant.sales_orders orders ON orders.organization_id=line.organization_id AND orders.current_version_id=line.sales_order_version_id
+         JOIN tenant.sales_order_versions version ON version.organization_id=orders.organization_id AND version.id=orders.current_version_id
+        WHERE line.organization_id=$1${scope} AND orders.lifecycle_status IN ('confirmed','on_hold')
+          AND progress.fulfilled_quantity>0
+          AND line.quantity-progress.fulfilled_quantity-progress.cancelled_quantity>0
+        ORDER BY orders.requested_delivery_date NULLS LAST,orders.sales_order_number LIMIT $${values.length}`,
+      values,
+    );
+    return rows;
+  }
   if (REGISTERS[kind]) {
     const values = [c.organizationId];
     const scope = companySql(c, values, "orders");

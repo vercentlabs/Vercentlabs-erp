@@ -174,6 +174,8 @@ export const MODULE_NAVIGATION: readonly ModuleNavigation[] = [
         label: "Selling",
         featureRange: "F031-F040",
         items: [
+          available("Customers", "/sales/customers"),
+          available("Products", "/sales/products"),
           available("Quotations", "/sales/quotations"),
           available("Sales Orders", "/sales/orders"),
           planned("Availability", "/sales/availability"),
@@ -184,8 +186,9 @@ export const MODULE_NAVIGATION: readonly ModuleNavigation[] = [
         label: "Fulfillment",
         featureRange: "F041-F046",
         items: [
-          planned("Deliveries", "/sales/deliveries"),
-          planned("Backorders", "/sales/backorders"),
+          available("Deliveries", "/sales/deliveries"),
+          available("Drop shipments", "/sales/drop-ships"),
+          available("Backorders", "/sales/backorders"),
         ],
       },
       {
@@ -193,16 +196,16 @@ export const MODULE_NAVIGATION: readonly ModuleNavigation[] = [
         label: "Billing",
         featureRange: "F047-F052",
         items: [
-          planned("Invoices", "/sales/invoices"),
-          planned("Advances", "/sales/advances"),
-          planned("Credit / Adjustments", "/sales/credit-adjustments"),
+          available("Invoices", "/sales/invoices"),
+          available("Advances", "/sales/advances"),
+          available("Credit / Adjustments", "/sales/credit-adjustments"),
         ],
       },
       {
         id: "returns",
         label: "Returns",
         featureRange: "F053-F054",
-        items: [planned("Returns", "/sales/returns")],
+        items: [available("Returns", "/sales/returns")],
       },
       {
         id: "commercial",
@@ -210,8 +213,9 @@ export const MODULE_NAVIGATION: readonly ModuleNavigation[] = [
         featureRange: "F055-F058",
         items: [
           available("Price Lists", "/sales/price-lists"),
-          planned("Discounts", "/sales/discounts"),
-          planned("Terms", "/sales/terms"),
+          available("Commissions", "/sales/commissions"),
+          available("Discounts", "/sales/discounts"),
+          available("Terms", "/sales/terms"),
         ],
       },
       {
@@ -219,10 +223,10 @@ export const MODULE_NAVIGATION: readonly ModuleNavigation[] = [
         label: "Insights",
         featureRange: "F059-F062",
         items: [
-          planned("Sales Analytics", "/sales/analytics"),
-          planned("Order Status", "/sales/order-status"),
-          planned("Profitability", "/sales/profitability"),
-          planned("Reports", "/sales/reports"),
+          available("Sales Analytics", "/sales/analytics"),
+          available("Order Status", "/sales/order-status"),
+          available("Profitability", "/sales/profitability"),
+          available("Reports", "/sales/reports"),
         ],
       },
     ],

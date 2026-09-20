@@ -20,6 +20,14 @@ export async function checkSalesOrderLineAvailability(client,salesContext,stockC
 }
 
 export async function reserveSalesOrderLineFromStock(client,salesContext,stockContext,input={}){
+  // A retry with the same key must replay, not re-validate: once the first attempt
+  // reserved the full remaining quantity, "unreserved quantity" is zero and the
+  // ordinary checks below would reject the very request that already succeeded.
+  const suppliedKey=String(input.idempotencyKey||"").trim().slice(0,200);
+  if(suppliedKey){
+    const prior=await client.query("SELECT response_payload FROM tenant.operation_idempotency WHERE organization_id=$1 AND company_id=$2 AND operation='stock.reservation.create' AND idempotency_key=$3 AND status='completed'",[stockContext.organizationId,stockContext.companyId,suppliedKey]);
+    if(prior.rows[0])return {replayed:true,reservation:{...prior.rows[0].response_payload,replayed:true}};
+  }
   const checked=await checkSalesOrderLineAvailability(client,salesContext,stockContext,input);
   if(!checked.availability.canPromise)throw new SalesError(409,"Available stock is lower than the requested Sales reservation quantity.","SALES_STOCK_INSUFFICIENT");
   const quantity=Number(checked.availability.requestedQuantity);

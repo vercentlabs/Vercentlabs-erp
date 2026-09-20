@@ -14,6 +14,7 @@ import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import { SalesApiError } from "@/features/sales/shared/http";
 import { calendarDate, dateTime, money, statusLabel, statusTone } from "@/features/sales/shared/format";
 import { SalesAlert, SalesFacts, SalesPanel } from "@/features/sales/shared/SalesUi";
+import { LineStockDialog } from "@/features/sales/orders/screens/LineStockDialog";
 import {
   approveSalesOrder,
   cancelSalesOrder,
@@ -59,6 +60,7 @@ export function SalesOrderDetailScreen({ orderId }: { orderId: string }) {
   const [reason, setReason] = useState("");
   const [holdType, setHoldType] = useState("other");
   const [basis, setBasis] = useState<"ordered" | "fulfilled">("ordered");
+  const [stockLine, setStockLine] = useState<SalesOrderLine | null>(null);
 
   const key = scopedQueryKey(workspace, "sales", "order", orderId);
   const query = useQuery({
@@ -272,7 +274,20 @@ export function SalesOrderDetailScreen({ orderId }: { orderId: string }) {
 
           <TabPanel id="overview" className="flex flex-col gap-4">
             <SalesPanel title="Items">
-              <EnterpriseDataGrid<SalesOrderLine> aria-label="Order items" columns={lineColumns} data={detail.lines} getRowId={(line) => line.id} density="compact" />
+              <EnterpriseDataGrid<SalesOrderLine>
+                aria-label="Order items"
+                columns={lineColumns}
+                data={detail.lines}
+                getRowId={(line) => line.id}
+                density="compact"
+                rowActions={(line) =>
+                  state === "confirmed" && line.warehouse_id && can(SALES_PERMISSIONS.fulfillmentRequest) ? (
+                    <Button variant="ghost" size="compact" onPress={() => setStockLine(line)}>
+                      Stock
+                    </Button>
+                  ) : null
+                }
+              />
             </SalesPanel>
             <SalesPanel title="Order details">
               <SalesFacts
@@ -403,6 +418,18 @@ export function SalesOrderDetailScreen({ orderId }: { orderId: string }) {
           <p className="text-sm text-text-secondary">Hold reason: {dialogue.release.reason}</p>
           <TextArea label="Release note (optional)" value={reason} onChange={setReason} />
         </ActionDialog>
+      )}
+      {stockLine && (
+        <LineStockDialog
+          orderId={orderId}
+          line={stockLine}
+          onClose={() => setStockLine(null)}
+          onReserved={() => {
+            setStockLine(null);
+            setNotice("Stock reserved.");
+            refresh();
+          }}
+        />
       )}
       {busy && <span className="sr-only" role="status">Working…</span>}
     </div>

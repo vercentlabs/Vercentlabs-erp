@@ -2,7 +2,7 @@ import { listSalesPass1Operations } from "@vercentlabs/api";
 
 import { salesRead } from "@/features/sales/shared/route-helpers";
 
-const KINDS = ["advances", "adjustments", "drop-ships", "commission-rules", "commissions", "fulfillment-requests", "invoice-requests", "returns"];
+const KINDS = ["advances", "adjustments", "drop-ships", "commission-rules", "commissions", "fulfillment-requests", "invoice-requests", "returns", "backorders", "pricing-rules"];
 
 // One read endpoint for the operational registers. The kind is checked against a
 // fixed list here as well as in the domain, so an arbitrary table name can never

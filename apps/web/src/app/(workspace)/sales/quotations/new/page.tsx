@@ -2,6 +2,7 @@ import { SalesQuotationFormScreen } from "@/features/sales/quotations/screens/Sa
 
 export const metadata = { title: "New quotation" };
 
-export default function Page() {
-  return <SalesQuotationFormScreen />;
+export default async function Page({ searchParams }: { searchParams: Promise<{ customer?: string }> }) {
+  const { customer } = await searchParams;
+  return <SalesQuotationFormScreen initialPartyId={customer} />;
 }

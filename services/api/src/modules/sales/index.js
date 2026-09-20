@@ -2363,7 +2363,7 @@ export async function getSalesOptions(
       [context.organizationId, ...companyParams],
     ),
     client.query(
-      `SELECT contact.id,contact.party_id,contact.first_name,contact.last_name,contact.email,contact.mobile,contact.is_primary
+      `SELECT contact.id,contact.party_id,contact.first_name,contact.last_name,contact.email,contact.mobile,contact.designation,contact.phone,contact.is_primary
          FROM tenant.contacts contact
          JOIN tenant.business_parties party ON party.organization_id=contact.organization_id AND party.id=contact.party_id
         WHERE contact.organization_id=$1 AND contact.status='active'${companyClause("party.company_id")}${partyFilterId ? ` AND contact.party_id=$${2 + companyParams.length}` : ""} ORDER BY contact.is_primary DESC,contact.first_name LIMIT 500`,
@@ -2372,7 +2372,7 @@ export async function getSalesOptions(
         : [context.organizationId, ...companyParams],
     ),
     client.query(
-      `SELECT address.id,address.party_id,address.address_type,address.line1,address.city,address.state,address.state_code,address.postal_code,address.is_primary
+      `SELECT address.id,address.party_id,address.address_type,address.line1,address.city,address.state,address.state_code,address.postal_code,address.line2,address.district,address.country_code,address.gstin,address.is_primary
          FROM tenant.addresses address
          JOIN tenant.business_parties party ON party.organization_id=address.organization_id AND party.id=address.party_id
         WHERE address.organization_id=$1 AND address.status='active'${companyClause("party.company_id")}${partyFilterId ? ` AND address.party_id=$${2 + companyParams.length}` : ""} ORDER BY address.is_primary DESC,address.city LIMIT 500`,

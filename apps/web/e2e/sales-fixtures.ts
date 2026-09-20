@@ -24,6 +24,9 @@ export type SalesWorld = {
   itemName: string;
   itemCode: string;
   unitPrice: number;
+  stockItemCode: string;
+  stockItemName: string;
+  warehouseCode: string;
 };
 
 let worldPromise: Promise<SalesWorld> | null = null;
@@ -83,6 +86,10 @@ async function buildSalesWorld(): Promise<SalesWorld> {
     const itemName = "Sales E2E Widget";
     const itemCode = `E2E-SALES-${suffix}`;
     const unitPrice = 400;
+    const stockItemCode = `E2E-STOCK-${suffix}`;
+    const stockItemName = "Sales E2E Stocked Widget";
+    const warehouseCode = `E2EWH-${suffix}`;
+    const { postStockMovement } = await import("../../../services/api/src/index.js");
     await tenantTx(client, organizationId, async () => {
       const uomId = (await client.query(`SELECT id FROM tenant.units_of_measure WHERE organization_id=$1 AND code='EA' AND status='active' LIMIT 1`, [organizationId])).rows[0].id;
       const taxCategoryId = crypto.randomUUID();
@@ -96,15 +103,33 @@ async function buildSalesWorld(): Promise<SalesWorld> {
       await client.query(`INSERT INTO tenant.items(id,organization_id,code,name,item_type,uom_id,tax_category_id,sales_price,standard_cost,status) VALUES ($1,$2,$3,$4,'product',$5,$6,$7,250,'active')`, [itemId, organizationId, itemCode, itemName, uomId, taxCategoryId, unitPrice]);
       await client.query(`INSERT INTO tenant.price_list_items(organization_id,price_list_id,item_id,minimum_quantity,rate,status) VALUES ($1,$2,$3,1,$4,'active')`, [organizationId, priceListId, itemId, unitPrice]);
       await client.query(`INSERT INTO tenant.business_parties(id,organization_id,company_id,code,party_type,display_name,status,created_by) VALUES ($1,$2,$3,$4,'customer',$5,'active',$6)`, [crypto.randomUUID(), organizationId, companyId, `SCUST-${suffix}`, customerName, ownerUserId]);
+      // A stock-tracked item with opening stock in its own warehouse, so delivery,
+      // reservation and backorder flows run against real balances.
+      const warehouseId = crypto.randomUUID();
+      const stockItemId = crypto.randomUUID();
+      await client.query(`INSERT INTO tenant.warehouses(id,organization_id,company_id,branch_id,code,name,status) VALUES ($1,$2,$3,$4,$5,'Sales E2E Warehouse','active')`, [warehouseId, organizationId, companyId, branchId, warehouseCode]);
+      await client.query(`INSERT INTO tenant.items(id,organization_id,code,name,item_type,uom_id,tax_category_id,sales_price,standard_cost,status,track_inventory) VALUES ($1,$2,$3,$4,'product',$5,$6,$7,250,'active',true)`, [stockItemId, organizationId, stockItemCode, stockItemName, uomId, taxCategoryId, unitPrice]);
+      await client.query(`INSERT INTO tenant.price_list_items(organization_id,price_list_id,item_id,minimum_quantity,rate,status) VALUES ($1,$2,$3,1,$4,'active')`, [organizationId, priceListId, stockItemId, unitPrice]);
+      await postStockMovement(client, { organizationId, companyId, userId: ownerUserId, roleSlugs: [], permissions: ["stock.receive", "stock.view"] }, { movementType: "receipt", itemId: stockItemId, warehouseId, quantity: 100, unitCost: 250, idempotencyKey: `e2e-open-${suffix}` });
     });
 
-    return { organizationId, rep, manager, manager2, customerName, itemName, itemCode, unitPrice };
+    return { organizationId, rep, manager, manager2, customerName, itemName, itemCode, unitPrice, stockItemCode, stockItemName, warehouseCode };
   } finally {
     await client.end();
   }
 }
 
+// The login endpoint is rate-limited (correctly: it answers 429 under a burst), and a
+// full Sales run opens many sessions. Each persona therefore signs in through the
+// real login form ONCE per process; later contexts reuse that session's cookies.
+const sessions = new Map<string, Awaited<ReturnType<BrowserContext["storageState"]>>>();
+
 export async function openSalesSession(browser: Browser, persona: SalesPersona): Promise<{ context: BrowserContext; page: Page }> {
+  const saved = sessions.get(persona.email);
+  if (saved) {
+    const context = await browser.newContext({ storageState: saved });
+    return { context, page: await context.newPage() };
+  }
   const context = await browser.newContext({ storageState: undefined });
   const page = await context.newPage();
   await page.goto("/login", { waitUntil: "load" });
@@ -112,5 +137,6 @@ export async function openSalesSession(browser: Browser, persona: SalesPersona):
   await page.getByLabel(/password/i).fill(persona.password);
   const [login] = await Promise.all([page.waitForResponse((res) => res.url().includes("/api/auth/login")), page.getByRole("button", { name: /sign in|log in/i }).click()]);
   expect(login.status(), "Sales persona login must succeed").toBe(200);
+  sessions.set(persona.email, await context.storageState());
   return { context, page };
 }

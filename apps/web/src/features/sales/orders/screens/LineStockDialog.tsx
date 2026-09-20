@@ -1,0 +1,54 @@
+"use client";
+
+import { useState } from "react";
+import { useMutation, useQuery } from "@tanstack/react-query";
+import { Button, Dialog, NumberField } from "@vercentlabs/design-system";
+
+import { SalesApiError } from "@/features/sales/shared/http";
+import { SalesAlert, SalesFacts } from "@/features/sales/shared/SalesUi";
+import { checkLineAvailability, reserveLineStock } from "@/features/sales/operations/api/operations-api";
+import type { SalesOrderLine } from "@/features/sales/orders/api/orders-api";
+
+// F045/F046 -- can this line be promised from stock, and if so reserve it. The
+// numbers are Stock's own (on hand, already reserved, available to promise); the
+// reservation is idempotent on its key, so a retried click never reserves twice.
+export function LineStockDialog({ orderId, line, onClose, onReserved }: { orderId: string; line: SalesOrderLine; onClose: () => void; onReserved: () => void }) {
+  const [quantity, setQuantity] = useState<number | null>(null);
+  const [idempotencyKey] = useState(() => crypto.randomUUID());
+  const check = useQuery({ queryKey: ["sales-line-availability", orderId, line.id, quantity], queryFn: () => checkLineAvailability(orderId, line.id, quantity ?? undefined).then((r) => r.availability), retry: false });
+  const reservable = check.data?.line.remainingReservableQuantity ?? 0;
+  const effective = quantity ?? reservable;
+  const reserve = useMutation({ mutationFn: () => reserveLineStock(orderId, line.id, effective, idempotencyKey), onSuccess: onReserved });
+  const error = check.error ?? reserve.error;
+  const message = error ? (error instanceof SalesApiError ? error.message : "Stock could not be checked.") : null;
+  const a = check.data?.availability;
+  return (
+    <Dialog isOpen onOpenChange={(open) => !open && onClose()} title={`Stock for ${line.item_name_snapshot}`}>
+      <div className="flex flex-col gap-4">
+        {message && <SalesAlert tone={reserve.error ? "danger" : "warning"}>{message}</SalesAlert>}
+        {a && (
+          <SalesFacts
+            columns={2}
+            items={[
+              { label: "On hand", value: Number(a.on_hand_quantity ?? 0) },
+              { label: "Already reserved (all orders)", value: Number(a.reserved_quantity ?? 0) },
+              { label: "Available to promise", value: Number(a.available_to_promise ?? 0) },
+              { label: "This line still to reserve", value: reservable },
+            ]}
+          />
+        )}
+        {a && <SalesAlert tone={a.canPromise ? "success" : "warning"}>{a.canPromise ? `${effective} can be promised from stock.` : `Stock cannot cover ${effective} right now.`}</SalesAlert>}
+        {reservable > 0 && <NumberField label="Quantity to reserve" value={effective} onChange={(value) => setQuantity(value)} minValue={0} maxValue={reservable} step={1} />}
+        {reservable === 0 && check.data && <p className="text-sm text-text-muted">This line is already fully reserved.</p>}
+        <div className="flex justify-end gap-2">
+          <Button variant="secondary" onPress={onClose}>
+            Close
+          </Button>
+          <Button variant="primary" onPress={() => reserve.mutate()} isLoading={reserve.isPending} isDisabled={!a?.canPromise || effective <= 0}>
+            Reserve stock
+          </Button>
+        </div>
+      </div>
+    </Dialog>
+  );
+}

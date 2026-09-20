@@ -1,7 +1,7 @@
-import { ModuleFoundationPage } from "@/shell/module-foundation/ModuleFoundationPage";
+import { SalesHomeScreen } from "@/features/sales/reports/screens/SalesInsightScreens";
 
 export const metadata = { title: "Sales" };
 
 export default function SalesPage() {
-  return <ModuleFoundationPage moduleKey="sales" moduleLabel="Sales" />;
+  return <SalesHomeScreen />;
 }

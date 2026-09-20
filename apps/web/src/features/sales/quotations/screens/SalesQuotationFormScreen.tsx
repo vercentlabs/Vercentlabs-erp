@@ -33,7 +33,7 @@ const isoInDays = (days: number) => new Date(Date.now() + days * 86400000).toISO
 // previewSalesDocument (the same pricing/tax/discount code that will run on
 // save), debounced -- the browser never computes a price, so what you see is
 // what is stored.
-export function SalesQuotationFormScreen({ quotationId }: { quotationId?: string }) {
+export function SalesQuotationFormScreen({ quotationId, initialPartyId }: { quotationId?: string; initialPartyId?: string }) {
   const workspace = useWorkspaceContext();
   const router = useRouter();
   const queryClient = useQueryClient();
@@ -56,6 +56,7 @@ export function SalesQuotationFormScreen({ quotationId }: { quotationId?: string
       options={optionsQuery.data}
       existing={existingQuery.data ?? null}
       quotationId={quotationId}
+      initialPartyId={initialPartyId}
       onDone={(id) => {
         queryClient.invalidateQueries({ queryKey: scopedQueryKey(workspace, "sales", "quotations") });
         queryClient.invalidateQueries({ queryKey: scopedQueryKey(workspace, "sales", "quotation", id) });
@@ -70,12 +71,14 @@ function FormBody({
   options,
   existing,
   quotationId,
+  initialPartyId,
   onDone,
   onCancel,
 }: {
   options: NonNullable<ReturnType<typeof getSalesOptions> extends Promise<infer R> ? (R extends { options: infer O } ? O : never) : never>;
   existing: SalesQuotationDetail | null;
   quotationId?: string;
+  initialPartyId?: string;
   onDone: (id: string) => void;
   onCancel: () => void;
 }) {
@@ -83,7 +86,7 @@ function FormBody({
   const revising = Boolean(quotationId);
   const baseCurrency = options.currencies.find((currency) => currency.is_base)?.code ?? options.currencies[0]?.code ?? "INR";
 
-  const [partyId, setPartyId] = useState(existing?.quotation.party_id ?? "");
+  const [partyId, setPartyId] = useState(existing?.quotation.party_id ?? (options.parties.some((p) => p.id === initialPartyId) ? (initialPartyId ?? "") : ""));
   const [currencyCode, setCurrencyCode] = useState(existing?.quotation.currency_code ?? baseCurrency);
   const [priceListId, setPriceListId] = useState(existing?.quotation.price_list_id ?? "");
   const [paymentTermId, setPaymentTermId] = useState(existing?.quotation.payment_term_id ?? "");
