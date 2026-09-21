@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button, ErrorState, NumberField, PageHeader, PermissionState, StatusBadge, TextField } from "@vercentlabs/design-system";
 
-import { BillingApiError, cancelSubscription, changeSeats, getOverview, saveProfile, startCheckout, verifyCheckout, type Checkout, type Overview, type Plan } from "../api/billing-api";
+import { BillingApiError, cancelSubscription, changeSeats, getOverview, saveProfile, startCheckout, syncNow, verifyCheckout, type Checkout, type Overview, type Plan } from "../api/billing-api";
 
 const QUERY_KEY = ["settings", "billing"];
 const inr = (paise: number | string | null | undefined) => `₹${(Number(paise || 0) / 100).toLocaleString("en-IN", { maximumFractionDigits: 0 })}`;
@@ -92,6 +92,8 @@ export function BillingScreen({ canManage, canCheckout }: { canManage: boolean; 
     setMessage(null);
   };
 
+  const refresh = useMutation({ mutationFn: syncNow, onSuccess: (r) => done(r.synced ? "Status refreshed from the payment provider." : "Nothing to refresh yet."), onError: failed });
+
   if (query.isLoading) return <p className="text-sm text-text-secondary">Loading…</p>;
   if (query.isError || !query.data) {
     if (query.error instanceof BillingApiError && query.error.status === 403) return <PermissionState title="You don't have access to Billing" description="Ask an administrator to grant billing.view." />;
@@ -105,6 +107,11 @@ export function BillingScreen({ canManage, canCheckout }: { canManage: boolean; 
       {error && <Notice tone="danger">{error}</Notice>}
       {message && <Notice tone="success">{message}</Notice>}
       <CurrentPlan o={o} />
+      {canManage && o.subscription.hasProviderSubscription && (
+        <div className="flex justify-end">
+          <Button variant="secondary" isLoading={refresh.isPending} onPress={() => refresh.mutate()}>Refresh status from Razorpay</Button>
+        </div>
+      )}
       <Panel title="Plans" description="Pick the plan that fits your team. You can change the number of users at any time.">
         <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
           {o.plans.map((plan) => (

@@ -21,7 +21,9 @@ api/auth/verify-email/route.ts,POST,false,true,false,Token-bearer authentication
 api/billing/cancel/route.ts,POST,true,true,true,
 api/billing/checkout/route.ts,POST,true,true,true,
 api/billing/profile/route.ts,PATCH,true,true,true,
+api/billing/retry/route.ts,POST,false,false,false,"Scheduler-only: there is no user session. Authenticated by the shared secret BILLING_CRON_SECRET (constant-time comparison; refused outright when the secret is unset). It only re-runs previously stored, previously signature-verified webhook events."
 api/billing/seats/route.ts,POST,true,true,true,
+api/billing/sync/route.ts,POST,true,true,true,
 api/billing/verify/route.ts,POST,true,true,true,
 api/billing/webhook/route.ts,POST,false,false,false,"Public by design: the payment provider's servers call it with no ERP session. Authenticated by the HMAC-SHA256 signature over the exact raw body (handleBillingWebhook verifies it before parsing, accepting the previous secret during rotation); events are stored once by provider event id, so replays are no-ops."
 api/crm/[resource]/[id]/route.ts,"PATCH,DELETE",true,true,true,

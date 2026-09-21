@@ -609,6 +609,24 @@ export async function handleBillingWebhook(client, { rawBody, signature, eventId
   return { duplicate: false, status };
 }
 
+const PROVIDER_EVENT_FOR_STATUS = {
+  authenticated: "subscription.authenticated", active: "subscription.activated", pending: "subscription.pending",
+  halted: "subscription.halted", cancelled: "subscription.cancelled", completed: "subscription.completed", expired: "subscription.expired",
+};
+
+// Pulls the subscription from the provider and applies it exactly as the matching webhook would. Used right after a
+// checkout (so the plan is right before the webhook arrives) and as a manual refresh if a webhook is delayed.
+export async function syncSubscriptionFromProvider(client, ctx, provider) {
+  const sub = await subscriptionRow(client, ctx.organizationId);
+  if (!sub?.provider_subscription_id) return { synced: false, reason: "no_provider_subscription" };
+  const remote = await provider.fetchSubscription(sub.provider_subscription_id);
+  const event = PROVIDER_EVENT_FOR_STATUS[remote.status];
+  if (!event) return { synced: false, reason: "status_not_actionable", providerStatus: remote.status };
+  const result = await tx(client, () => applyEvent(client, { event, created_at: Math.floor(Date.now() / 1000), payload: { subscription: { entity: remote } } }));
+  await audit(client, ctx.organizationId, ctx.userId || null, "billing.synced_from_provider", sub.id, { providerStatus: remote.status });
+  return { synced: true, providerStatus: remote.status, result: result.status };
+}
+
 export async function retryBillingWebhooks(client, { limit = 20 } = {}) {
   const due = (await client.query(`SELECT * FROM billing_webhook_events WHERE processing_status IN ('failed','received') AND COALESCE(next_attempt_at, now()) <= now() ORDER BY created_at LIMIT $1`, [limit])).rows;
   let processed = 0;

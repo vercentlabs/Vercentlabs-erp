@@ -2,9 +2,9 @@
 // tested against a fake provider with the same shape, and no secret ever leaves this file.
 import { createHmac, timingSafeEqual } from "node:crypto";
 
-import { BillingDomainError } from "./billing.js";
+import { BillingServiceError } from "./subscription-billing.js";
 
-const API = "https://api.razorpay.com/v1";
+const DEFAULT_API = "https://api.razorpay.com/v1";
 
 function safeEqualHex(expected, actual) {
   const a = Buffer.from(String(expected), "utf8");
@@ -33,6 +33,8 @@ export function razorpayConfig(env = process.env) {
     timeoutMs: Number(env.RAZORPAY_REQUEST_TIMEOUT_MS || 10000),
     checkoutEnabled: String(env.BILLING_CHECKOUT_ENABLED || "").toLowerCase() === "true",
     mode: env.RAZORPAY_MODE === "live" ? "live" : "test",
+    // Overridable only so tests and local smoke runs can point at a stand-in server; live keys refuse a custom base.
+    apiBase: env.RAZORPAY_MODE === "live" ? DEFAULT_API : env.RAZORPAY_API_BASE || DEFAULT_API,
   };
 }
 
@@ -41,12 +43,12 @@ export function createRazorpayProvider(env = process.env, fetchImpl = fetch) {
 
   async function call(method, path, body) {
     if (!config.keyId || !config.keySecret) {
-      throw new BillingDomainError("provider_not_configured", "The payment provider is not configured.");
+      throw new BillingServiceError(503, "The payment provider is not configured.", "BILLING_PROVIDER_NOT_CONFIGURED");
     }
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), config.timeoutMs);
     try {
-      const response = await fetchImpl(`${API}${path}`, {
+      const response = await fetchImpl(`${config.apiBase}${path}`, {
         method,
         headers: {
           "Content-Type": "application/json",
@@ -57,12 +59,12 @@ export function createRazorpayProvider(env = process.env, fetchImpl = fetch) {
       });
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) {
-        throw new BillingDomainError("provider_error", payload?.error?.description || `The payment provider refused the request (${response.status}).`);
+        throw new BillingServiceError(502, payload?.error?.description || `The payment provider refused the request (${response.status}).`, "BILLING_PROVIDER_ERROR");
       }
       return payload;
     } catch (error) {
-      if (error instanceof BillingDomainError) throw error;
-      throw new BillingDomainError("provider_unreachable", "The payment provider could not be reached. Nothing was charged; try again.");
+      if (error instanceof BillingServiceError) throw error;
+      throw new BillingServiceError(502, "The payment provider could not be reached. Nothing was charged; try again.", "BILLING_PROVIDER_UNREACHABLE");
     } finally {
       clearTimeout(timer);
     }

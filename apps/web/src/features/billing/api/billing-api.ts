@@ -54,3 +54,4 @@ export const verifyCheckout = (input: { checkoutSessionId: string; razorpay_paym
 export const changeSeats = (users: number) => post<{ effective: "now" | "cycle_end"; paidSeats: number; pendingPaidSeats?: number }>("seats", { users });
 export const cancelSubscription = (cancelAtCycleEnd: boolean) => post<{ effective: "now" | "cycle_end"; endsAt?: string }>("cancel", { cancelAtCycleEnd });
 export const saveProfile = (input: Record<string, string>) => post<{ message: string }>("profile", input, "PATCH");
+export const syncNow = () => post<{ synced: boolean; providerStatus?: string }>("sync", {});

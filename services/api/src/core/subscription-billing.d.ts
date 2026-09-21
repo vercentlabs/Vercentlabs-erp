@@ -42,3 +42,4 @@ export function revertToFree(client: Client, organizationId: string, reason: str
 export function cancelPaidSubscription(client: Client, ctx: BillingContext, input: { cancelAtCycleEnd?: boolean }, provider: BillingProvider): Promise<Record<string, any>>;
 export function handleBillingWebhook(client: Client, input: { rawBody: string; signature: string | null; eventId?: string | null }, provider: BillingProvider): Promise<{ duplicate: boolean; status: string }>;
 export function retryBillingWebhooks(client: Client, options?: { limit?: number }): Promise<{ processed: number; failed: number }>;
+export function syncSubscriptionFromProvider(client: Client, ctx: BillingContext, provider: BillingProvider): Promise<{ synced: boolean; reason?: string; providerStatus?: string; result?: string }>;

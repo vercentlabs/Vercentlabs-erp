@@ -48,10 +48,28 @@ and Standard (all modules); only the user allowance and price differ. **These li
 * **Live payments are untested against Razorpay.** No keys exist here; the provider is faked with the real signature
   maths. Before switching `BILLING_CHECKOUT_ENABLED=true`, run a test-mode subscription end to end and confirm Razorpay's
   behaviour for quantity updates (`schedule_change_at`) and the webhook event names in `.env.example`.
-* Webhook retry (`retryBillingWebhooks`) exists but nothing schedules it; failed events rely on Razorpay's own retries
-  until a job is wired.
+* Webhook retry: `POST /api/billing/retry` (secret `BILLING_CRON_SECRET`) re-runs failed events, but **nothing calls it
+  yet**; point a scheduler at it. Until then failed events rely on Razorpay's own retries.
 * The mobile billing screen still assumes the old flat-price catalogue and needs updating to the seat model.
 * No proration preview, no yearly billing, no GST invoice PDF generation of our own (Razorpay's invoice link is shown).
 * Enforcement defaults to `observe` outside production, so the Free 3-user limit only blocks when
   `BILLING_ENFORCEMENT_MODE=enforce` (production default). The browser 4th-invite refusal was not driven in an
   enforce-mode browser run; the domain test covers it.
+
+## Razorpay go-live checklist (added when Razorpay was confirmed as the provider)
+
+Built and verified without keys: the HTTP adapter (Basic auth, plan/subscription/update/cancel/fetch payloads, error
+mapping to 502/503), checkout signature and webhook signature checks, sync-from-provider (run automatically after a
+verified checkout, and via the "Refresh status from Razorpay" button), retry endpoint. `tests/integration/billing-razorpay-http.test.mjs`
+drives the real adapter against a local stand-in server.
+
+Still needs real test-mode keys, in this order:
+1. Put `RAZORPAY_KEY_ID` / `RAZORPAY_KEY_SECRET` in the server env and run `node scripts/qa/razorpay-smoke.mjs`; it reports
+   what Razorpay accepts for the exact plan and subscription payloads.
+2. In the Razorpay dashboard add webhook `{APP_URL}/api/billing/webhook`, copy its secret to `RAZORPAY_WEBHOOK_SECRET`, and
+   subscribe to the events listed in `.env.example`.
+3. Set `BILLING_CHECKOUT_ENABLED=true`, upgrade an organisation with a test card, and confirm: plan flips to Standard,
+   payment and invoice rows appear, adding a user charges a prorated amount, reducing schedules for renewal.
+4. Set `BILLING_CRON_SECRET` and schedule `POST /api/billing/retry` every few minutes.
+Payments in India via Razorpay Subscriptions may also require your account to have Subscriptions enabled and (for cards)
+e-mandate rules; that is an account setting only Razorpay can confirm.
