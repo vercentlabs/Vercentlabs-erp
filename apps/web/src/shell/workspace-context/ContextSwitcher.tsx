@@ -71,8 +71,8 @@ export function ContextSwitcher() {
       // Scope-safety: drop every query cached under the previous
       // organizationId+companyId before the server-resolved context
       // (re-fetched by router.refresh()) can render new data.
-      queryClient.removeQueries({ queryKey: [workspace.organizationId] });
-      queryClient.removeQueries({ queryKey: ["workspace-companies"] });
+      // clear() rather than prefix removal: a key that forgot the scope prefix can never survive a switch.
+      queryClient.clear();
       router.refresh();
     },
   });

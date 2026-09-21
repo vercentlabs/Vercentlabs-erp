@@ -1,6 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
+import { useQueryClient } from "@tanstack/react-query";
 import { useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import {
@@ -38,6 +39,8 @@ export function ProfileMenu({
   function hideTooltip() {
     setTooltipPosition(null);
   }
+
+  const queryClient = useQueryClient();
 
   async function handleSignOut() {
     setSigningOut(true);

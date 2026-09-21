@@ -1,6 +1,8 @@
 import type { Metadata, Viewport } from "next";
 import type { ReactNode } from "react";
 import { Inter } from "next/font/google";
+import { getSessionContext } from "@/core/session";
+import { resolveLocale } from "@/shared/providers/resolve-locale.ts";
 import { LocaleProvider } from "@/shared/providers/locale-provider.tsx";
 import "./globals.css";
 
@@ -22,17 +24,14 @@ export const viewport: Viewport = {
   themeColor: "#f5f6f8",
 };
 
-export default function RootLayout({ children }: { children: ReactNode }) {
+export default async function RootLayout({ children }: { children: ReactNode }) {
+  // The signed-in user's saved locale drives <html lang> and formatting; signed-out pages use the default.
+  const session = await getSessionContext().catch(() => null);
+  const locale = resolveLocale(session?.locale);
   return (
-    <html lang="en" className={inter.variable}>
+    <html lang={locale} className={inter.variable}>
       <body>
-        {/* Fixed locale, not ambient browser/OS detection: React Aria's
-            date/number formatting must render identically on the server
-            and the client, or hydration fails — a real issue found via
-            browser testing, not a style preference. Becomes tenant/user-
-            locale-driven once localization is wired to a real settings
-            source; until then, every viewer sees the same formatting. */}
-        <LocaleProvider locale="en-US">{children}</LocaleProvider>
+        <LocaleProvider locale={locale}>{children}</LocaleProvider>
       </body>
     </html>
   );

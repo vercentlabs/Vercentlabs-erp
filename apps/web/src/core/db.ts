@@ -1,6 +1,7 @@
 import "server-only";
 
 import { Pool, type PoolClient, type QueryResultRow } from "pg";
+import { resolveDbSsl } from "./db-ssl.ts";
 import { setTenantContext } from "@vercentlabs/database";
 
 // The one connection pool for the ERP web server process (Next.js Route
@@ -21,13 +22,7 @@ function getPool() {
     pool = new Pool({
       connectionString,
       max: Number(process.env.DATABASE_POOL_MAX || "10"),
-      ssl:
-        process.env.DATABASE_SSL === "true"
-          ? {
-              rejectUnauthorized: process.env.DATABASE_SSL_INSECURE !== "true",
-              ca: process.env.DATABASE_SSL_CA || undefined,
-            }
-          : undefined,
+      ssl: resolveDbSsl(process.env),
     });
   }
   return pool;
