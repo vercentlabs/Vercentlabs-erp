@@ -23,6 +23,10 @@ import { CRM_PERMISSIONS } from "@vercentlabs/permissions";
 
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
+import { LoadingState } from "@/features/crm/shared/ui/LoadingState";
+import { ViewToggle } from "@/features/crm/shared/ui/ViewToggle";
+import { Kanban, Table2 } from "lucide-react";
+import { dueState, formatMoney } from "@/features/crm/shared/human";
 import { getCrmOptions } from "@/features/crm/shared/crm-options-api";
 import { money } from "@/features/crm/shared/format";
 import { SavedViewsBar } from "@/features/crm/shared/SavedViewsBar";
@@ -167,25 +171,24 @@ export function OpportunityListScreen() {
   const columns: ColumnDef<Opportunity, unknown>[] = useMemo(
     () => [
       { id: "name", header: "Opportunity", accessorKey: "name", cell: ({ row }) => <span className="font-medium text-text">{row.original.name}</span> },
-      { id: "account", header: "Account", accessorFn: (row) => row.partyName || "—" },
-      { id: "stage", header: "Stage", accessorFn: (row) => row.stageName || "—" },
-      {
-        id: "status",
-        header: "Status",
-        accessorKey: "status",
-        cell: ({ getValue }) => <StatusBadge tone={statusTone[String(getValue())] ?? "neutral"}>{String(getValue())}</StatusBadge>,
-      },
+      { id: "account", header: "Account", accessorFn: (row) => row.partyName || "No account" },
+      { id: "stage", header: "Stage", accessorFn: (row) => row.stageName || "" },
       {
         id: "amount",
         header: "Amount",
-        accessorFn: (row) => (row.amount !== null ? money(row.currencyCode, row.amount) : "—"),
+        accessorFn: (row) => (row.amount !== null ? formatMoney(row.currencyCode, row.amount) : "Not set"),
       },
-      { id: "probability", header: "Probability", accessorFn: (row) => (row.probability !== null ? `${row.probability}%` : "—") },
+      { id: "probability", header: "Probability", accessorFn: (row) => (row.probability !== null ? `${Number(row.probability)}%` : "Not set") },
       { id: "owner", header: "Owner", accessorFn: (row) => row.ownerName || "Unassigned" },
       {
         id: "expectedCloseDate",
         header: "Expected close",
-        accessorFn: (row) => (row.expectedCloseDate ? dateFormatter.format(new Date(row.expectedCloseDate)) : "—"),
+        accessorFn: (row) => (row.expectedCloseDate ? dateFormatter.format(new Date(row.expectedCloseDate)) : "Not set"),
+        cell: ({ row }) => {
+          const d = row.original.expectedCloseDate;
+          if (!d) return <span className="text-text-muted">Not set</span>;
+          return row.original.status === "open" && dueState(d) === "overdue" ? <span className="font-medium text-danger">{`⚠ ${dateFormatter.format(new Date(d))} (overdue)`}</span> : <span>{dateFormatter.format(new Date(d))}</span>;
+        },
       },
     ],
     [],
@@ -243,7 +246,7 @@ export function OpportunityListScreen() {
         ),
         end: (
           <>
-            <Button variant="secondary" onPress={() => router.push("/crm/pipeline")}>Pipeline board</Button>
+            <ViewToggle options={[{ id: "table", label: "Table", icon: <Table2 className="size-3.5" aria-hidden="true" /> }, { id: "board", label: "Board", icon: <Kanban className="size-3.5" aria-hidden="true" /> }]} value="table" onChange={(id) => { if (id === "board") router.push("/crm/pipeline"); }} />
             <Button variant="secondary" onPress={() => updateFilter("search", searchInput || undefined)}>Search</Button>
           </>
         ),
@@ -291,7 +294,7 @@ export function OpportunityListScreen() {
         data={rows}
         getRowId={(row) => row.id}
         state={gridState}
-        loadingContent={<p className="px-4 py-8 text-sm text-text-secondary">Loading opportunities…</p>}
+        loadingContent={<LoadingState label="Loading opportunities" onRetry={() => query.refetch()} />}
         emptyContent={<NoResultsState title="No opportunities yet" action={canManage ? { label: "New opportunity", onPress: () => router.push("/crm/opportunities/new") } : undefined} />}
         noResultsContent={<NoResultsState title="No opportunities match these filters" action={{ label: "Clear filters", onPress: () => { setSearchInput(""); setFilters({ limit: PAGE_SIZE, offset: 0, status: "open" }); } }} />}
         errorContent={<ErrorState title="Could not load opportunities" action={{ label: "Retry", onPress: () => query.refetch() }} />}

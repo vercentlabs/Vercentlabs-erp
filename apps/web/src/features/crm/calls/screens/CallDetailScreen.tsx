@@ -6,6 +6,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Pencil } from "lucide-react";
 import { Button, Dialog, ErrorState, PermissionState, RecordDetailsPage, Select, StatusBadge, TextArea, TextField, type SelectOption } from "@vercentlabs/design-system";
 import { CRM_PERMISSIONS } from "@vercentlabs/permissions";
+import { LoadingState } from "@/features/crm/shared/ui/LoadingState";
 
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
@@ -40,7 +41,7 @@ export function CallDetailScreen({ callId }: { callId: string }) {
   const query = useQuery({ queryKey: scopedQueryKey(workspace, "crm", "calls", callId), queryFn: () => getCall(callId) });
   const call = query.data?.record;
 
-  if (query.isLoading) return <p className="px-4 py-8 text-sm text-text-secondary">Loading call…</p>;
+  if (query.isLoading) return <LoadingState label="Loading call" rows={3} />;
   if (query.isError) {
     if (query.error instanceof CallApiError && query.error.status === 403) return <PermissionState title="You don't have access to this call" />;
     return <ErrorState title="Call not found" action={{ label: "Back to Calls", onPress: () => router.push("/crm/calls") }} />;

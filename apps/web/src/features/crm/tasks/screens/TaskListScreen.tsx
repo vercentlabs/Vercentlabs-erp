@@ -24,6 +24,7 @@ import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext"
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import { cancelTask, claimTask, completeTask, listMyTaskTeams, listTasks, releaseTask, startTask, TaskApiError } from "../api/tasks-api";
 import type { Task, TaskListFilters } from "../types";
+import { LoadingState } from "@/features/crm/shared/ui/LoadingState";
 
 const PAGE_SIZE = 25;
 
@@ -198,7 +199,7 @@ export function TaskListScreen() {
         getRowId={(row) => row.id}
         onRowClick={(row) => router.push(`/crm/tasks/${row.id}`)}
         state={gridState}
-        loadingContent={<p className="px-4 py-8 text-sm text-text-secondary">Loading tasks…</p>}
+        loadingContent={<LoadingState label="Loading tasks" rows={3} />}
         emptyContent={<NoResultsState title="No tasks here" description="Nothing matches this scope right now." />}
         errorContent={<ErrorState title="Could not load tasks" action={{ label: "Retry", onPress: () => query.refetch() }} />}
         permissionDeniedContent={<PermissionState title="You don't have access to Tasks" />}

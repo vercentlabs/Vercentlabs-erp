@@ -22,6 +22,7 @@ import { CRM_PERMISSIONS } from "@vercentlabs/permissions";
 
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
+import { LoadingState } from "@/features/crm/shared/ui/LoadingState";
 import { ContactApiError, listContacts } from "../api/contacts-api";
 import type { Contact, ContactListFilters } from "../types";
 
@@ -148,7 +149,7 @@ export function ContactListScreen() {
         data={rows}
         getRowId={(row) => row.id}
         state={gridState}
-        loadingContent={<p className="px-4 py-8 text-sm text-text-secondary">Loading contacts…</p>}
+        loadingContent={<LoadingState label="Loading contacts" onRetry={() => query.refetch()} />}
         emptyContent={<NoResultsState title="No contacts yet" action={canManage ? { label: "New contact", onPress: () => router.push("/crm/contacts/new") } : undefined} />}
         noResultsContent={<NoResultsState title="No contacts match these filters" action={{ label: "Clear filters", onPress: () => { setSearchInput(""); setFilters({ limit: PAGE_SIZE, offset: 0 }); } }} />}
         errorContent={<ErrorState title="Could not load contacts" action={{ label: "Retry", onPress: () => query.refetch() }} />}

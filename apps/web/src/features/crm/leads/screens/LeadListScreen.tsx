@@ -26,6 +26,8 @@ import {
 
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
+import { LoadingState } from "@/features/crm/shared/ui/LoadingState";
+import { dueLabel, dueState, humanize, scoreLabel } from "@/features/crm/shared/human";
 import { SavedViewsBar } from "@/features/crm/shared/SavedViewsBar";
 import { CRM_PERMISSIONS } from "@vercentlabs/permissions";
 import { LeadKanbanBoard, type LeadStageOption } from "../components/LeadKanbanBoard";
@@ -300,7 +302,7 @@ export function LeadListScreen() {
       {
         id: "qualificationState",
         header: "Qualification",
-        accessorFn: (row) => row.qualificationState || "not_reviewed",
+        accessorFn: (row) => humanize(row.qualificationState || "not_reviewed"),
       },
       {
         id: "priority",
@@ -317,10 +319,7 @@ export function LeadListScreen() {
         id: "score",
         header: "Score",
         accessorKey: "score",
-        cell: ({ getValue }) => {
-          const value = getValue();
-          return <span className="tabular-nums">{value === null || value === undefined ? "—" : String(value)}</span>;
-        },
+        cell: ({ row }) => <span className="tabular-nums">{row.original.score === null || row.original.score === undefined ? "Not scored" : scoreLabel(row.original.score, 100, row.original.rating ? humanize(row.original.rating) : null)}</span>,
       },
       {
         id: "nextFollowUpAt",
@@ -328,7 +327,8 @@ export function LeadListScreen() {
         accessorKey: "nextFollowUpAt",
         cell: ({ getValue }) => {
           const value = getValue() as string | null;
-          return value ? dateFormatter.format(new Date(value)) : "—";
+          if (!value) return <span className="text-text-muted">None scheduled</span>;
+          return dueState(value) === "overdue" ? <span className="font-medium text-danger">{`⚠ ${dueLabel(value)}`}</span> : <span>{dateFormatter.format(new Date(value))}</span>;
         },
       },
       {
@@ -487,7 +487,7 @@ export function LeadListScreen() {
           data={rows}
           getRowId={(row) => row.id}
           state={gridState}
-          loadingContent={<p className="px-4 py-8 text-sm text-text-secondary">Loading leads…</p>}
+          loadingContent={<LoadingState label="Loading leads" onRetry={() => query.refetch()} />}
           emptyContent={
             <NoResultsState
               title="No leads yet"

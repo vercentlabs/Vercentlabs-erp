@@ -3,26 +3,27 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
-import { Button, ErrorState, MetricStrip, PageHeader, PermissionState, StatusBadge } from "@vercentlabs/design-system";
+import { Plus } from "lucide-react";
+import { Button, ErrorState, Menu, MenuItem, MenuTrigger, MetricStrip, PageHeader, PermissionState } from "@vercentlabs/design-system";
 
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import { getModuleNavigation } from "@/shell/navigation/module-navigation-registry";
-import { money } from "@/features/crm/shared/format";
+import { formatMoney } from "@/features/crm/shared/human";
+import { ActivityGroups, type ActivityRow } from "@/features/crm/shared/ui/ActivityGroups";
+import { LoadingState } from "@/features/crm/shared/ui/LoadingState";
 import { CrmDashboardApiError, getCrmDashboardData } from "@/features/crm/dashboard/api/dashboard-api";
 import type { CrmDashboardActivity } from "@/features/crm/dashboard/types";
 
-const dateTimeFormatter = new Intl.DateTimeFormat("en-IN", { dateStyle: "medium", timeStyle: "short" });
-
-const QUICK_CREATE_LINKS = [
-  { label: "New Lead", href: "/crm/leads/new" },
-  { label: "New Account", href: "/crm/accounts/new" },
-  { label: "New Contact", href: "/crm/contacts/new" },
-  { label: "New Opportunity", href: "/crm/opportunities/new" },
-  { label: "New Call", href: "/crm/calls/new" },
-  { label: "New Meeting", href: "/crm/meetings/new" },
-  { label: "New Follow-up", href: "/crm/follow-ups/new" },
-  { label: "New Task", href: "/crm/tasks/new" },
+const CREATE_LINKS = [
+  { label: "Lead", href: "/crm/leads/new" },
+  { label: "Account", href: "/crm/accounts/new" },
+  { label: "Contact", href: "/crm/contacts/new" },
+  { label: "Opportunity", href: "/crm/opportunities/new" },
+  { label: "Call", href: "/crm/calls/new" },
+  { label: "Meeting", href: "/crm/meetings/new" },
+  { label: "Follow-up", href: "/crm/follow-ups/new" },
+  { label: "Task", href: "/crm/tasks/new" },
 ];
 
 function activityHref(activity: CrmDashboardActivity): string | null {
@@ -42,7 +43,7 @@ export function CrmHomeScreen() {
     queryFn: getCrmDashboardData,
   });
 
-  if (query.isLoading) return <p className="px-4 py-8 text-sm text-text-secondary">Loading CRM…</p>;
+  if (query.isLoading) return <LoadingState label="Loading CRM" rows={4} onRetry={() => query.refetch()} />;
   if (query.isError) {
     if (query.error instanceof CrmDashboardApiError && query.error.status === 403) {
       return <PermissionState title="You don't have access to CRM" />;
@@ -53,7 +54,9 @@ export function CrmHomeScreen() {
   const dashboard = query.data?.dashboard;
   if (!dashboard) return null;
   const { metrics, activities } = dashboard;
-  const myActivities = activities.filter((activity) => activity.assignedTo === workspace.userId);
+  const myActivityRows: ActivityRow[] = activities
+    .filter((activity) => activity.assignedTo === workspace.userId)
+    .map((a) => ({ id: a.id, activityType: a.activityType, subject: a.subject, status: a.status, dueAt: a.dueAt, href: activityHref(a) }));
 
   const sections = (getModuleNavigation("crm")?.sections ?? [])
     .map((section) => ({
@@ -66,57 +69,36 @@ export function CrmHomeScreen() {
     <div className="flex flex-1 flex-col gap-6">
       <PageHeader
         title={`Welcome back, ${workspace.fullName.split(" ")[0] || workspace.fullName}`}
-        description="Your CRM command center — quick access to every workspace, today's work, and where the business stands."
+        description="Your work today, and where the business stands."
+        primaryAction={
+          <MenuTrigger>
+            <Button variant="primary">
+              <Plus className="size-4" aria-hidden="true" />
+              Create
+            </Button>
+            <Menu onAction={(key) => router.push(String(key))}>
+              {CREATE_LINKS.map((link) => (
+                <MenuItem key={link.href} id={link.href}>{link.label}</MenuItem>
+              ))}
+            </Menu>
+          </MenuTrigger>
+        }
       />
-
-      <div className="flex flex-wrap gap-2">
-        {QUICK_CREATE_LINKS.map((link) => (
-          <Button key={link.href} variant="secondary" size="compact" onPress={() => router.push(link.href)}>
-            {link.label}
-          </Button>
-        ))}
-      </div>
 
       <MetricStrip
         metrics={[
-          { label: "Open leads", value: metrics.openLeads.toLocaleString() },
-          { label: "Open opportunities", value: metrics.openOpportunities.toLocaleString() },
-          { label: "Pipeline value", value: money(metrics.currencyCode, metrics.pipelineValue) },
-          { label: "Overdue activities", value: metrics.overdueActivities.toLocaleString() },
-          { label: "Due today", value: metrics.dueToday.toLocaleString() },
+          { label: "Open leads", value: metrics.openLeads.toLocaleString("en-IN") },
+          { label: "Open opportunities", value: metrics.openOpportunities.toLocaleString("en-IN") },
+          { label: "Open pipeline", value: formatMoney(metrics.currencyCode, metrics.pipelineValue, { compact: true }) },
+          { label: "Overdue activities", value: metrics.overdueActivities.toLocaleString("en-IN"), change: metrics.overdueActivities > 0 ? { direction: "up", label: "Needs action", isPositive: false } : undefined },
+          { label: "Due today", value: metrics.dueToday.toLocaleString("en-IN") },
         ]}
       />
 
-      <div className="flex flex-col gap-2 rounded-[var(--radius-card)] border border-border bg-surface p-4">
-        <h2 className="text-sm font-semibold text-text">My work today</h2>
-        {myActivities.length === 0 ? (
-          <p className="text-sm text-text-muted">Nothing open is assigned to you right now.</p>
-        ) : (
-          <div className="flex flex-col divide-y divide-border">
-            {myActivities.map((activity) => {
-              const href = activityHref(activity);
-              return (
-                <button
-                  key={activity.id}
-                  type="button"
-                  disabled={!href}
-                  onClick={() => href && router.push(href)}
-                  className="flex items-center justify-between gap-3 py-2 text-left disabled:cursor-default"
-                >
-                  <div className="flex flex-col">
-                    <span className="text-sm text-text">{activity.subject || "(No subject)"}</span>
-                    <span className="text-xs text-text-muted">
-                      {activity.activityType}
-                      {activity.dueAt ? ` · Due ${dateTimeFormatter.format(new Date(activity.dueAt))}` : ""}
-                    </span>
-                  </div>
-                  <StatusBadge tone="neutral">{activity.status}</StatusBadge>
-                </button>
-              );
-            })}
-          </div>
-        )}
-      </div>
+      <section aria-label="My work today" className="flex flex-col gap-3 rounded-[var(--radius-card)] border border-border bg-surface p-4">
+        <h2 className="text-sm font-semibold text-text">My work</h2>
+        <ActivityGroups activities={myActivityRows} onOpen={(href) => router.push(href)} emptyText="Nothing open is assigned to you right now." />
+      </section>
 
       <div className="flex flex-col gap-4">
         {sections.map((section) => (

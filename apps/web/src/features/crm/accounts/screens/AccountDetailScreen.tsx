@@ -7,6 +7,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Pencil } from "lucide-react";
 import { Button, ConflictBanner, ErrorState, PermissionState, RecordDetailsPage, StatusBadge, Tab, TabList, TabPanel, Tabs } from "@vercentlabs/design-system";
 import { CRM_PERMISSIONS } from "@vercentlabs/permissions";
+import { LoadingState } from "@/features/crm/shared/ui/LoadingState";
 
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
@@ -74,7 +75,7 @@ export function AccountDetailScreen({ accountId }: { accountId: string }) {
     },
   });
 
-  if (accountQuery.isLoading) return <p className="px-4 py-8 text-sm text-text-secondary">Loading account…</p>;
+  if (accountQuery.isLoading) return <LoadingState label="Loading account" rows={3} />;
   if (accountQuery.isError) {
     if (accountQuery.error instanceof AccountApiError && accountQuery.error.status === 403) {
       return <PermissionState title="You don't have access to this Account" />;

@@ -23,6 +23,7 @@ import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext"
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import { cancelFollowUp, completeFollowUp, FollowUpApiError, listFollowUps, snoozeFollowUp } from "../api/follow-ups-api";
 import type { FollowUp, FollowUpListFilters } from "../types";
+import { LoadingState } from "@/features/crm/shared/ui/LoadingState";
 
 const PAGE_SIZE = 25;
 
@@ -176,7 +177,7 @@ export function FollowUpListScreen() {
         getRowId={(row) => row.id}
         onRowClick={(row) => router.push(`/crm/follow-ups/${row.id}`)}
         state={gridState}
-        loadingContent={<p className="px-4 py-8 text-sm text-text-secondary">Loading follow-ups…</p>}
+        loadingContent={<LoadingState label="Loading follow-ups" rows={3} />}
         emptyContent={<NoResultsState title="No follow-ups here" description="Nothing matches this scope right now." />}
         errorContent={<ErrorState title="Could not load follow-ups" action={{ label: "Retry", onPress: () => query.refetch() }} />}
         permissionDeniedContent={<PermissionState title="You don't have access to Follow-ups" />}

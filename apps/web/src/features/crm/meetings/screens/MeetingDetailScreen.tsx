@@ -6,6 +6,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Pencil } from "lucide-react";
 import { Button, Dialog, ErrorState, PermissionState, RecordDetailsPage, Select, StatusBadge, TextArea, TextField, type SelectOption } from "@vercentlabs/design-system";
 import { CRM_PERMISSIONS } from "@vercentlabs/permissions";
+import { LoadingState } from "@/features/crm/shared/ui/LoadingState";
 
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
@@ -38,7 +39,7 @@ export function MeetingDetailScreen({ meetingId }: { meetingId: string }) {
   const query = useQuery({ queryKey: scopedQueryKey(workspace, "crm", "meetings", meetingId), queryFn: () => getMeeting(meetingId) });
   const meeting = query.data?.record;
 
-  if (query.isLoading) return <p className="px-4 py-8 text-sm text-text-secondary">Loading meeting…</p>;
+  if (query.isLoading) return <LoadingState label="Loading meeting" rows={3} />;
   if (query.isError) {
     if (query.error instanceof MeetingApiError && query.error.status === 403) return <PermissionState title="You don't have access to this meeting" />;
     return <ErrorState title="Meeting not found" action={{ label: "Back to Meetings", onPress: () => router.push("/crm/meetings") }} />;

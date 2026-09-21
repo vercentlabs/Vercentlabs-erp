@@ -22,6 +22,8 @@ import { CRM_PERMISSIONS } from "@vercentlabs/permissions";
 
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
+import { LoadingState } from "@/features/crm/shared/ui/LoadingState";
+import { countryName } from "@/features/crm/shared/human";
 import { AccountApiError, listAccounts } from "../api/accounts-api";
 import type { Account, AccountListFilters } from "../types";
 
@@ -88,15 +90,18 @@ export function AccountListScreen() {
           </div>
         ),
       },
-      { id: "industry", header: "Industry", accessorFn: (row) => row.industry || "—" },
-      { id: "email", header: "Email", accessorFn: (row) => row.email || "—" },
-      { id: "phone", header: "Phone", accessorFn: (row) => row.phone || "—" },
-      { id: "city", header: "City", accessorFn: (row) => row.city || "—" },
+      { id: "industry", header: "Industry", accessorFn: (row) => row.industry || "Not set" },
+      {
+        id: "contact",
+        header: "Contact details",
+        accessorFn: (row) => [row.email, row.phone].filter(Boolean).join(" · ") || "Not provided",
+      },
+      { id: "location", header: "Location", accessorFn: (row) => [row.city, countryName(row.countryCode)].filter(Boolean).join(", ") || "Not provided" },
       {
         id: "status",
         header: "Status",
         accessorKey: "status",
-        cell: ({ getValue }) => <StatusBadge tone={getValue() === "active" ? "success" : "neutral"}>{String(getValue())}</StatusBadge>,
+        cell: ({ getValue }) => (getValue() === "active" ? <span className="text-xs text-text-muted">Active</span> : <StatusBadge tone="neutral">{String(getValue())}</StatusBadge>),
       },
     ],
     [],
@@ -162,7 +167,7 @@ export function AccountListScreen() {
         data={rows}
         getRowId={(row) => row.id}
         state={gridState}
-        loadingContent={<p className="px-4 py-8 text-sm text-text-secondary">Loading accounts…</p>}
+        loadingContent={<LoadingState label="Loading accounts" onRetry={() => query.refetch()} />}
         emptyContent={
           <NoResultsState title="No accounts yet" description="Accounts are created directly or via Lead conversion." action={canManage ? { label: "New account", onPress: () => router.push("/crm/accounts/new") } : undefined} />
         }

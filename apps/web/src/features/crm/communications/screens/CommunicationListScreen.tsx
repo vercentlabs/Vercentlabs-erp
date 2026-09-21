@@ -21,6 +21,7 @@ import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext"
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import { CommunicationApiError, listCommunications } from "../api/communications-api";
 import type { Communication, CommunicationListFilters } from "../types";
+import { LoadingState } from "@/features/crm/shared/ui/LoadingState";
 
 const PAGE_SIZE = 25;
 
@@ -140,7 +141,7 @@ export function CommunicationListScreen() {
         data={rows}
         getRowId={(row) => row.id}
         state={gridState}
-        loadingContent={<p className="px-4 py-8 text-sm text-text-secondary">Loading communications…</p>}
+        loadingContent={<LoadingState label="Loading communications" rows={3} />}
         emptyContent={<NoResultsState title="No communications yet" />}
         errorContent={<ErrorState title="Could not load communications" action={{ label: "Retry", onPress: () => query.refetch() }} />}
         permissionDeniedContent={<PermissionState title="You don't have access to Communications" />}

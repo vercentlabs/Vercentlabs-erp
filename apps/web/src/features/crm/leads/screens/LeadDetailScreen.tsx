@@ -35,7 +35,7 @@ import { CrmAttachmentPanel } from "@/features/crm/shared/CrmAttachmentPanel";
 import { CustomFieldsRuntimePanel } from "@/features/crm/shared/CustomFieldsRuntimePanel";
 import { LeadTagsPanel } from "@/features/crm/shared/LeadTagsPanel";
 import { money } from "@/features/crm/shared/format";
-import { countryName, dueLabel, dueState, formatDate, formatDateTime, humanize, scoreLabel } from "@/features/crm/shared/human";
+import { countryName, dueLabel, dueState, formatDate, humanize, scoreLabel } from "@/features/crm/shared/human";
 import { PropertyList } from "@/features/crm/shared/ui/PropertyList";
 import {
   assignLead,
@@ -57,6 +57,7 @@ import {
   recalculateLeadScore,
   transitionLeadStage,
 } from "../api/leads-api";
+import { LoadingState } from "@/features/crm/shared/ui/LoadingState";
 
 // F007: the five Lead pipeline stage codes (stable codes; human-facing
 // labels come from the live stage catalogue via stageNameByCode below).
@@ -334,7 +335,7 @@ export function LeadDetailScreen({ leadId }: { leadId: string }) {
     }));
   }, [timelineQuery.data]);
 
-  if (leadQuery.isLoading) return <p className="px-4 py-8 text-sm text-text-secondary">Loading lead…</p>;
+  if (leadQuery.isLoading) return <LoadingState label="Loading lead" rows={3} />;
   if (leadQuery.isError) {
     if (leadQuery.error instanceof LeadApiError && leadQuery.error.status === 403) {
       return <PermissionState title="You don't have access to this Lead" description="Ask an administrator to grant CRM lead access." />;

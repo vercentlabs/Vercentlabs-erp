@@ -3,6 +3,10 @@
 import { useState, type ReactNode } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
+import { installReadTimeout } from "./fetch-timeout";
+
+installReadTimeout();
+
 // The one QueryClient for the whole app shell (Phase 21) — no module may
 // create its own. Query-key scope safety convention every query in this
 // app must follow: [organizationId, companyId, ...rest]. On a company/

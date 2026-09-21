@@ -23,6 +23,7 @@ import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext"
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import { CallApiError, cancelCall, completeCall, listCalls, startCall } from "../api/calls-api";
 import type { Call, CallListFilters } from "../types";
+import { LoadingState } from "@/features/crm/shared/ui/LoadingState";
 
 const PAGE_SIZE = 25;
 
@@ -194,7 +195,7 @@ export function CallListScreen() {
         getRowId={(row) => row.id}
         onRowClick={(row) => router.push(`/crm/calls/${row.id}`)}
         state={gridState}
-        loadingContent={<p className="px-4 py-8 text-sm text-text-secondary">Loading calls…</p>}
+        loadingContent={<LoadingState label="Loading calls" rows={3} />}
         emptyContent={<NoResultsState title="No calls yet" action={canManage ? { label: "New call", onPress: () => router.push("/crm/calls/new") } : undefined} />}
         errorContent={<ErrorState title="Could not load calls" action={{ label: "Retry", onPress: () => query.refetch() }} />}
         permissionDeniedContent={<PermissionState title="You don't have access to Calls" />}

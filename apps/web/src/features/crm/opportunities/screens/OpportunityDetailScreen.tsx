@@ -36,6 +36,7 @@ import { NotesPanel } from "@/features/crm/shared/NotesPanel";
 import { CrmAttachmentPanel } from "@/features/crm/shared/CrmAttachmentPanel";
 import { CustomFieldsRuntimePanel } from "@/features/crm/shared/CustomFieldsRuntimePanel";
 import { archiveOpportunity, getOpportunity, getOpportunityTimeline, moveOpportunityStage, OpportunityApiError, updateOpportunityProbability } from "../api/opportunities-api";
+import { LoadingState } from "@/features/crm/shared/ui/LoadingState";
 
 const statusTone: Record<string, "neutral" | "info" | "success" | "warning" | "danger"> = {
   open: "info",
@@ -158,7 +159,7 @@ export function OpportunityDetailScreen({ opportunityId }: { opportunityId: stri
     }));
   }, [timelineQuery.data]);
 
-  if (opportunityQuery.isLoading) return <p className="px-4 py-8 text-sm text-text-secondary">Loading opportunity…</p>;
+  if (opportunityQuery.isLoading) return <LoadingState label="Loading opportunity" rows={3} />;
   if (opportunityQuery.isError) {
     if (opportunityQuery.error instanceof OpportunityApiError && opportunityQuery.error.status === 403) {
       return <PermissionState title="You don't have access to this Opportunity" />;

@@ -23,6 +23,7 @@ import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext"
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import { cancelMeeting, completeMeeting, listMeetings, MeetingApiError, startMeeting } from "../api/meetings-api";
 import type { Meeting, MeetingListFilters } from "../types";
+import { LoadingState } from "@/features/crm/shared/ui/LoadingState";
 
 const PAGE_SIZE = 25;
 
@@ -181,7 +182,7 @@ export function MeetingListScreen() {
         getRowId={(row) => row.id}
         onRowClick={(row) => router.push(`/crm/meetings/${row.id}`)}
         state={gridState}
-        loadingContent={<p className="px-4 py-8 text-sm text-text-secondary">Loading meetings…</p>}
+        loadingContent={<LoadingState label="Loading meetings" rows={3} />}
         emptyContent={<NoResultsState title="No meetings yet" action={canManage ? { label: "New meeting", onPress: () => router.push("/crm/meetings/new") } : undefined} />}
         errorContent={<ErrorState title="Could not load meetings" action={{ label: "Retry", onPress: () => query.refetch() }} />}
         permissionDeniedContent={<PermissionState title="You don't have access to Meetings" />}

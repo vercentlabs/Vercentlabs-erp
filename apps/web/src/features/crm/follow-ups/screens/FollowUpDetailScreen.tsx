@@ -6,6 +6,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Clock, Pencil } from "lucide-react";
 import { Button, Dialog, ErrorState, PermissionState, RecordDetailsPage, Select, StatusBadge, TextArea, TextField, type SelectOption } from "@vercentlabs/design-system";
 import { CRM_PERMISSIONS } from "@vercentlabs/permissions";
+import { LoadingState } from "@/features/crm/shared/ui/LoadingState";
 
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
@@ -73,7 +74,7 @@ export function FollowUpDetailScreen({ followUpId }: { followUpId: string }) {
     onError: (err: unknown) => setSnoozeError(err instanceof FollowUpApiError ? err.message : "This follow-up could not be snoozed."),
   });
 
-  if (query.isLoading) return <p className="px-4 py-8 text-sm text-text-secondary">Loading follow-up…</p>;
+  if (query.isLoading) return <LoadingState label="Loading follow-up" rows={3} />;
   if (query.isError) {
     if (query.error instanceof FollowUpApiError && query.error.status === 403) return <PermissionState title="You don't have access to this follow-up" />;
     return <ErrorState title="Follow-up not found" action={{ label: "Back to Follow-ups", onPress: () => router.push("/crm/follow-ups") }} />;

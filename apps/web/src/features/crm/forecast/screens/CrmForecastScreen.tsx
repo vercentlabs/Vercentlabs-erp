@@ -6,6 +6,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button, Dialog, ErrorState, IconButton, MetricStrip, PageHeader, PermissionState, Select, StatusBadge, TextArea, TextField, type SelectOption } from "@vercentlabs/design-system";
 import { RefreshCw } from "lucide-react";
 import { CRM_PERMISSIONS } from "@vercentlabs/permissions";
+import { LoadingState } from "@/features/crm/shared/ui/LoadingState";
 
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
@@ -54,7 +55,7 @@ export function CrmForecastScreen() {
     [rows],
   );
 
-  if (query.isLoading) return <p className="px-4 py-8 text-sm text-text-secondary">Loading forecast…</p>;
+  if (query.isLoading) return <LoadingState label="Loading forecast" rows={3} />;
   if (query.isError) {
     if (query.error instanceof CrmForecastApiError && query.error.status === 403) {
       return <PermissionState title="You don't have access to the CRM forecast" />;

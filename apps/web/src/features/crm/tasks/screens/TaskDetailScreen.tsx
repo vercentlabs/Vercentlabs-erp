@@ -6,6 +6,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Pencil, Plus, X } from "lucide-react";
 import { Button, Dialog, ErrorState, IconButton, PermissionState, RecordDetailsPage, Select, StatusBadge, TextArea, TextField, type SelectOption } from "@vercentlabs/design-system";
 import { CRM_PERMISSIONS } from "@vercentlabs/permissions";
+import { LoadingState } from "@/features/crm/shared/ui/LoadingState";
 
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
@@ -52,7 +53,7 @@ export function TaskDetailScreen({ taskId }: { taskId: string }) {
   const query = useQuery({ queryKey: scopedQueryKey(workspace, "crm", "tasks", taskId), queryFn: () => getTask(taskId) });
   const task = query.data?.record;
 
-  if (query.isLoading) return <p className="px-4 py-8 text-sm text-text-secondary">Loading task…</p>;
+  if (query.isLoading) return <LoadingState label="Loading task" rows={3} />;
   if (query.isError) {
     if (query.error instanceof TaskApiError && query.error.status === 403) return <PermissionState title="You don't have access to this task" />;
     return <ErrorState title="Task not found" action={{ label: "Back to Tasks", onPress: () => router.push("/crm/tasks") }} />;

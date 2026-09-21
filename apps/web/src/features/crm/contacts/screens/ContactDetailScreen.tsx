@@ -7,6 +7,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Pencil, RotateCcw } from "lucide-react";
 import { Button, ConflictBanner, ErrorState, PermissionState, RecordDetailsPage, StatusBadge, Tab, TabList, TabPanel, Tabs } from "@vercentlabs/design-system";
 import { CRM_PERMISSIONS } from "@vercentlabs/permissions";
+import { LoadingState } from "@/features/crm/shared/ui/LoadingState";
 
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
@@ -79,7 +80,7 @@ export function ContactDetailScreen({ contactId }: { contactId: string }) {
     onError: handleError,
   });
 
-  if (contactQuery.isLoading) return <p className="px-4 py-8 text-sm text-text-secondary">Loading contact…</p>;
+  if (contactQuery.isLoading) return <LoadingState label="Loading contact" rows={3} />;
   if (contactQuery.isError) {
     if (contactQuery.error instanceof ContactApiError && contactQuery.error.status === 403) {
       return <PermissionState title="You don't have access to this Contact" />;
