@@ -80,7 +80,7 @@ export const GLOBAL_NAV_TOP: readonly GlobalNavEntry[] = [
     href: "/work",
     icon: ListChecks,
     requiredPermission: null,
-    availability: "foundation",
+    availability: "implemented",
     keywords: ["my work", "tasks", "assigned"],
   },
   {
@@ -89,7 +89,7 @@ export const GLOBAL_NAV_TOP: readonly GlobalNavEntry[] = [
     href: "/search",
     icon: Search,
     requiredPermission: null,
-    availability: "foundation",
+    availability: "implemented",
     keywords: ["search", "find"],
     placement: "topbar",
   },
