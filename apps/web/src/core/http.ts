@@ -24,11 +24,27 @@ export function fail(
 
 export async function readJson(request: Request): Promise<unknown> {
   const maximumBytes = 100_000;
-  const length = Number(request.headers.get("content-length") || "0");
-  if (length > maximumBytes)
-    throw new HttpError(413, "The request is too large.");
+  const declared = Number(request.headers.get("content-length") || "0");
+  if (declared > maximumBytes) throw new HttpError(413, "The request is too large.");
+  // The header can be absent or wrong, so the bytes actually read are what is bounded.
+  const reader = request.body?.getReader();
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  if (reader) {
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      total += value.byteLength;
+      if (total > maximumBytes) {
+        await reader.cancel().catch(() => undefined);
+        throw new HttpError(413, "The request is too large.");
+      }
+      chunks.push(value);
+    }
+  }
+  const text = new TextDecoder().decode(Buffer.concat(chunks));
   try {
-    return await request.json();
+    return JSON.parse(text);
   } catch {
     throw new HttpError(400, "Invalid JSON request.");
   }

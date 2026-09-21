@@ -23,7 +23,10 @@ function getPool() {
       max: Number(process.env.DATABASE_POOL_MAX || "10"),
       ssl:
         process.env.DATABASE_SSL === "true"
-          ? { rejectUnauthorized: false }
+          ? {
+              rejectUnauthorized: process.env.DATABASE_SSL_INSECURE !== "true",
+              ca: process.env.DATABASE_SSL_CA || undefined,
+            }
           : undefined,
     });
   }

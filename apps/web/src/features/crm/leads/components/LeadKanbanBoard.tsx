@@ -211,7 +211,7 @@ export function LeadKanbanBoard({
   const [columnLimits, setColumnLimits] = useState<Record<string, number>>({});
 
   const transitionGraphQuery = useQuery({
-    queryKey: ["crm", "leads", "transition-graph"],
+    queryKey: scopedQueryKey(workspace, "crm", "leads", "transition-graph"),
     queryFn: getLeadTransitionGraph,
   });
   const transitions = transitionGraphQuery.data?.transitions ?? [];
