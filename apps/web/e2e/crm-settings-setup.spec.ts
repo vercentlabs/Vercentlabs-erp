@@ -45,3 +45,18 @@ test("custom fields and tags separates tags, record types and fields", async ({ 
   await expect(page.getByRole("heading", { name: "Fields on custom record types" })).toBeVisible();
   await expect(page.getByRole("link", { name: "Custom Record Fields" })).toHaveAttribute("href", "/crm/settings/record-fields");
 });
+
+test("forecast uses date controls, plain labels and validates the date range", async ({ page }) => {
+  test.setTimeout(240_000);
+  await page.goto("/crm/forecast", { waitUntil: "domcontentloaded", timeout: 120_000 });
+  await expect(page.getByRole("heading", { name: "Forecast", exact: true })).toBeVisible({ timeout: 90_000 });
+  await expect(page.getByLabel("Expected to close from")).toHaveAttribute("type", "date");
+  await expect(page.getByPlaceholder("YYYY-MM-DD")).toHaveCount(0);
+  await expect(page.getByText("Weighted by probability")).toBeVisible();
+  await page.getByLabel("Expected to close from").fill("2026-09-30");
+  await page.getByLabel("Expected to close until").fill("2026-09-01");
+  await expect(page.getByText("The end date is before the start date.")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Show these dates" })).toBeDisabled();
+  await page.getByLabel("Expected to close until").fill("2026-12-31");
+  await expect(page.getByRole("button", { name: "Show these dates" })).toBeEnabled();
+});

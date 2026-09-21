@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Button, Dialog, ErrorState, IconButton, MetricStrip, PageHeader, PermissionState, Select, StatusBadge, TextArea, TextField, type SelectOption } from "@vercentlabs/design-system";
+import { AlertDialog, Button, Dialog, ErrorState, IconButton, MetricStrip, PageHeader, PermissionState, Select, StatusBadge, TextArea, TextField, type SelectOption } from "@vercentlabs/design-system";
 import { RefreshCw } from "lucide-react";
 import { CRM_PERMISSIONS } from "@vercentlabs/permissions";
 import { LoadingState } from "@/features/crm/shared/ui/LoadingState";
@@ -11,7 +11,9 @@ import { LoadingState } from "@/features/crm/shared/ui/LoadingState";
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import { getCrmOptions } from "@/features/crm/shared/crm-options-api";
-import { money, toNumber } from "@/features/crm/shared/format";
+import { toNumber } from "@/features/crm/shared/format";
+import { formatDate, formatMoney, humanize } from "@/features/crm/shared/human";
+import { DateInput } from "@/features/crm/shared/ui/DateTimeInput";
 import {
   capturePredictiveSnapshot,
   createForecastPeriod,
@@ -24,6 +26,20 @@ import {
   updateForecastSubmission,
 } from "../api/forecast-api";
 import type { ForecastPeriod, ForecastSubmission, PredictiveForecastResult } from "../types";
+
+const STATUS_LABEL: Record<string, string> = {
+  draft: "Draft",
+  submitted: "Waiting for review",
+  approved: "Approved",
+  rejected: "Sent back",
+  superseded: "Replaced",
+  planned: "Not started",
+  open: "Open",
+  frozen: "Frozen",
+  closed: "Closed",
+};
+const statusLabel = (value: string) => STATUS_LABEL[value] ?? humanize(value);
+const rangeLabel = (start: string, end: string) => formatDate(start) + " to " + formatDate(end);
 
 export function CrmForecastScreen() {
   const router = useRouter();
@@ -41,6 +57,9 @@ export function CrmForecastScreen() {
   });
 
   const rows = useMemo(() => query.data?.report.rows ?? [], [query.data]);
+  const periodsForCurrency = useQuery({ queryKey: scopedQueryKey(workspace, "crm", "forecast-periods"), queryFn: listForecastPeriods });
+  const currency = useMemo(() => (periodsForCurrency.data?.rows ?? []).find((p) => p.currencyCode)?.currencyCode ?? null, [periodsForCurrency.data]);
+  const rangeInvalid = Boolean(from && to && to < from);
 
   const totals = useMemo(
     () =>
@@ -67,7 +86,7 @@ export function CrmForecastScreen() {
     <div className="flex flex-1 flex-col gap-6">
       <PageHeader
         title="Forecast"
-        description="Open pipeline, weighted pipeline and won revenue by owner. A sales manager sees their own deals plus their active team's — not the whole organization, unless they hold the broader records permission."
+        description="What is open, what it is likely to be worth, and what has been won, by owner. Managers see their own deals and their team's; wider access needs the broader records permission."
         primaryAction={
           canManageSettings ? (
             <Button variant="secondary" onPress={() => setPeriodsDialogOpen(true)}>
@@ -80,36 +99,53 @@ export function CrmForecastScreen() {
       <MySubmissionSection canSubmit={canManageOpportunities} />
 
       <div className="flex flex-wrap items-end gap-2">
-        <TextField aria-label="From date" label="From" placeholder="YYYY-MM-DD" value={from} onChange={setFrom} />
-        <TextField aria-label="To date" label="To" placeholder="YYYY-MM-DD" value={to} onChange={setTo} />
-        <Button variant="secondary" onPress={() => setAppliedFilters({ from: from || undefined, to: to || undefined })}>
-          Apply
+        <DateInput label="Expected to close from" value={from} onChange={setFrom} />
+        <DateInput label="Expected to close until" value={to} onChange={setTo} errorMessage={rangeInvalid ? "The end date is before the start date." : undefined} />
+        <Button variant="secondary" isDisabled={rangeInvalid} onPress={() => setAppliedFilters({ from: from || undefined, to: to || undefined })}>
+          Show these dates
         </Button>
+        {(appliedFilters.from || appliedFilters.to) && (
+          <Button variant="ghost" onPress={() => { setFrom(""); setTo(""); setAppliedFilters({}); }}>
+            Clear dates
+          </Button>
+        )}
       </div>
+      {(appliedFilters.from || appliedFilters.to) && (
+        <p role="status" className="text-sm text-text-secondary">
+          {"Showing deals expected to close " + (appliedFilters.from ? "from " + formatDate(appliedFilters.from) + " " : "") + (appliedFilters.to ? "until " + formatDate(appliedFilters.to) : "")}
+        </p>
+      )}
+      {currency && <p className="text-xs text-text-muted">{"All amounts are in " + currency + "."}</p>}
 
       <MetricStrip
         metrics={[
-          { label: "Total pipeline", value: money(null, totals.pipeline) },
-          { label: "Total weighted pipeline", value: money(null, totals.weighted) },
-          { label: "Total won", value: money(null, totals.won) },
+          { label: "Open pipeline", value: formatMoney(currency, totals.pipeline, { compact: true }) },
+          { label: "Weighted by probability", value: formatMoney(currency, totals.weighted, { compact: true }) },
+          { label: "Won", value: formatMoney(currency, totals.won, { compact: true }) },
         ]}
       />
 
       <div className="flex flex-col gap-2 rounded-[var(--radius-card)] border border-border bg-surface p-4">
         <h2 className="text-sm font-semibold text-text">By owner</h2>
+        <p className="text-xs text-text-muted">
+          Best case adds deals that could close. Commit is what the owner is confident will close. Weighted multiplies each open deal by its chance of winning.
+        </p>
         {rows.length === 0 ? (
-          <p className="text-sm text-text-muted">No open or won opportunities in scope.</p>
+          <p className="text-sm text-text-secondary">
+            {appliedFilters.from || appliedFilters.to ? "No open or won deals expected in these dates. Try a wider range." : "There are no open or won deals you can see yet. Deals appear here once they are created and given an expected close date."}
+          </p>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
+              <caption className="sr-only">Forecast amounts by deal owner</caption>
               <thead>
                 <tr className="border-b border-border text-left text-xs text-text-muted">
-                  <th className="py-1.5 font-medium">Owner</th>
-                  <th className="py-1.5 font-medium">Pipeline</th>
-                  <th className="py-1.5 font-medium">Best case</th>
-                  <th className="py-1.5 font-medium">Commit</th>
-                  <th className="py-1.5 font-medium">Weighted</th>
-                  <th className="py-1.5 font-medium">Won</th>
+                  <th scope="col" className="py-1.5 font-medium">Owner</th>
+                  <th scope="col" className="py-1.5 text-right font-medium">Open pipeline</th>
+                  <th scope="col" className="py-1.5 text-right font-medium">Best case</th>
+                  <th scope="col" className="py-1.5 text-right font-medium">Commit</th>
+                  <th scope="col" className="py-1.5 text-right font-medium">Weighted</th>
+                  <th scope="col" className="py-1.5 text-right font-medium">Won</th>
                 </tr>
               </thead>
               <tbody>
@@ -117,18 +153,18 @@ export function CrmForecastScreen() {
                   <tr key={row.owner} className="border-b border-border last:border-0">
                     <td className="py-1.5 text-text">
                       {row.ownerUserId ? (
-                        <button type="button" className="text-left hover:underline" onClick={() => router.push(`/crm/opportunities?ownerId=${row.ownerUserId}`)}>
+                        <button type="button" className="text-left text-brand underline-offset-2 hover:underline" title="See this owner's deals" onClick={() => router.push(`/crm/opportunities?ownerId=${row.ownerUserId}`)}>
                           {row.owner}
                         </button>
                       ) : (
                         row.owner
                       )}
                     </td>
-                    <td className="py-1.5 tabular-nums text-text-muted">{money(null, row.pipeline)}</td>
-                    <td className="py-1.5 tabular-nums text-text-muted">{money(null, row.bestCase)}</td>
-                    <td className="py-1.5 tabular-nums text-text-muted">{money(null, row.commitAmount)}</td>
-                    <td className="py-1.5 tabular-nums text-text-muted">{money(null, row.weighted)}</td>
-                    <td className="py-1.5 tabular-nums text-text-muted">{money(null, row.won)}</td>
+                    <td className="py-1.5 text-right tabular-nums text-text-secondary">{formatMoney(currency, row.pipeline)}</td>
+                    <td className="py-1.5 text-right tabular-nums text-text-secondary">{formatMoney(currency, row.bestCase)}</td>
+                    <td className="py-1.5 text-right tabular-nums text-text-secondary">{formatMoney(currency, row.commitAmount)}</td>
+                    <td className="py-1.5 text-right tabular-nums text-text-secondary">{formatMoney(currency, row.weighted)}</td>
+                    <td className="py-1.5 text-right tabular-nums text-text-secondary">{formatMoney(currency, row.won)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -138,12 +174,15 @@ export function CrmForecastScreen() {
       </div>
 
       <TeamReviewSection canReview={canManageOpportunities} />
-      <CalibrationSection canView={canManageOpportunities} />
+      <CalibrationSection canView={canManageOpportunities} currency={currency} />
 
       <PeriodsDialog isOpen={periodsDialogOpen} onOpenChange={setPeriodsDialogOpen} />
     </div>
   );
 }
+
+const amountError = (value: string) => (value.trim() !== "" && (!Number.isFinite(Number(value)) || Number(value) < 0) ? "Enter an amount of zero or more." : undefined);
+const confidenceError = (value: string) => (value.trim() !== "" && (!Number.isFinite(Number(value)) || Number(value) < 0 || Number(value) > 100) ? "Enter a number from 0 to 100." : undefined);
 
 function MySubmissionSection({ canSubmit }: { canSubmit: boolean }) {
   const workspace = useWorkspaceContext();
@@ -165,7 +204,7 @@ function MySubmissionSection({ canSubmit }: { canSubmit: boolean }) {
   // matches the same "still mutable" set resource-options.js's own
   // period picker already uses (excludes only 'closed').
   const periods = useMemo(() => (periodsQuery.data?.rows ?? []).filter((period) => ["planned", "open", "frozen"].includes(period.status)), [periodsQuery.data]);
-  const periodOptions: SelectOption[] = periods.map((period) => ({ value: period.id, label: `${period.name} (${period.periodStart} – ${period.periodEnd})${period.status === "frozen" ? " · frozen" : ""}` }));
+  const periodOptions: SelectOption[] = periods.map((period) => ({ value: period.id, label: period.name + " (" + rangeLabel(period.periodStart, period.periodEnd) + ")" + (period.status === "frozen" ? ", frozen" : "") }));
   const selectedPeriod = periods.find((period) => period.id === periodId);
 
   const [seededPeriods, setSeededPeriods] = useState<ForecastPeriod[] | undefined>(undefined);
@@ -234,7 +273,12 @@ function MySubmissionSection({ canSubmit }: { canSubmit: boolean }) {
 
   if (!canSubmit) return null;
   if (periodsQuery.isLoading) return null;
-  if (periods.length === 0) return <p className="text-sm text-text-muted">No open forecast period to submit against yet.</p>;
+  if (periods.length === 0)
+    return (
+      <p className="rounded-[var(--radius-card)] border border-border bg-surface p-4 text-sm text-text-secondary">
+        There is no forecast period open for your submission yet. A manager can add one with Manage forecast periods.
+      </p>
+    );
 
   const isClosed = selectedPeriod?.status === "closed";
   const isReadOnly = isClosed || (mine && !["draft", "rejected"].includes(mine.status));
@@ -244,32 +288,35 @@ function MySubmissionSection({ canSubmit }: { canSubmit: boolean }) {
     <div className="flex flex-col gap-3 rounded-[var(--radius-card)] border border-border bg-surface p-4">
       <div className="flex items-center justify-between">
         <h2 className="text-sm font-semibold text-text">My forecast submission</h2>
-        {mine && <StatusBadge tone={statusTone[mine.status] ?? "neutral"}>{mine.status}</StatusBadge>}
+        {mine && <StatusBadge tone={statusTone[mine.status] ?? "neutral"}>{statusLabel(mine.status)}</StatusBadge>}
       </div>
       {error && (
         <p role="alert" className="rounded-[var(--radius-control)] border border-danger-emphasis/30 bg-danger-soft px-3 py-2 text-sm text-danger">
           {error}
         </p>
       )}
-      {isClosed && <p className="text-sm text-text-muted">This forecast period is closed. Submissions are read-only.</p>}
+      <p className="text-xs text-text-muted">Tell your manager what you expect to close in this period. Save a draft as often as you like, then send it for review.</p>
+      {mine && mine.status === "rejected" && <p role="status" className="text-sm text-warning">Your manager sent this back. Update it and send it again.</p>}
+      {mine && mine.status === "submitted" && <p role="status" className="text-sm text-text-secondary">This is with your manager for review, so it cannot be changed now.</p>}
+      {isClosed && <p className="text-sm text-text-muted">This period is closed, so the submission can no longer be changed.</p>}
       <Select label="Period" options={periodOptions} selectedKey={periodId} onSelectionChange={(key) => setPeriodId(String(key ?? ""))} />
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-        <TextField label="Pipeline" value={pipelineAmount} onChange={setPipelineAmount} isDisabled={isReadOnly} />
-        <TextField label="Best case" value={bestCaseAmount} onChange={setBestCaseAmount} isDisabled={isReadOnly} />
-        <TextField label="Commit" value={commitAmount} onChange={setCommitAmount} isDisabled={isReadOnly} />
+        <TextField label="Open pipeline" description="Everything still open." inputMode="decimal" value={pipelineAmount} onChange={setPipelineAmount} isDisabled={isReadOnly} errorMessage={amountError(pipelineAmount)} />
+        <TextField label="Best case" description="Open deals that could close." inputMode="decimal" value={bestCaseAmount} onChange={setBestCaseAmount} isDisabled={isReadOnly} errorMessage={amountError(bestCaseAmount)} />
+        <TextField label="Commit" description="Deals you are confident will close." inputMode="decimal" value={commitAmount} onChange={setCommitAmount} isDisabled={isReadOnly} errorMessage={amountError(commitAmount)} />
       </div>
-      <TextField label="Confidence %" placeholder="Optional" value={confidencePercent} onChange={setConfidencePercent} isDisabled={isReadOnly} />
+      <TextField label="How confident are you (0 to 100)" description="Optional." inputMode="numeric" value={confidencePercent} onChange={setConfidencePercent} isDisabled={isReadOnly} errorMessage={confidenceError(confidencePercent)} />
       <TextArea label="Notes" value={notes} onChange={setNotes} isDisabled={isReadOnly} />
       {mine?.managerAdjustment != null && toNumber(mine.managerAdjustment) !== 0 && (
-        <p className="text-sm text-text-secondary">Manager adjustment on record: {money(mine.currencyCode, mine.managerAdjustment)}</p>
+        <p className="text-sm text-text-secondary">Your manager adjusted this by {formatMoney(mine.currencyCode ?? selectedPeriod?.currencyCode, mine.managerAdjustment)}.</p>
       )}
       <div className="flex gap-2">
-        <Button variant="primary" size="compact" onPress={() => submitMutation.mutate()} isLoading={submitMutation.isPending} isDisabled={isReadOnly}>
+        <Button variant="primary" size="compact" onPress={() => submitMutation.mutate()} isLoading={submitMutation.isPending} isDisabled={isReadOnly || Boolean(amountError(pipelineAmount) || amountError(bestCaseAmount) || amountError(commitAmount) || confidenceError(confidencePercent))}>
           {mine ? "Save draft" : "Save as draft"}
         </Button>
         {mine && ["draft", "rejected"].includes(mine.status) && !isClosed && (
           <Button variant="secondary" size="compact" onPress={() => submitForReviewMutation.mutate()} isLoading={submitForReviewMutation.isPending}>
-            Submit for review
+            Send for review
           </Button>
         )}
       </div>
@@ -284,6 +331,7 @@ function PeriodsDialog({ isOpen, onOpenChange }: { isOpen: boolean; onOpenChange
   const [periodType, setPeriodType] = useState("quarter");
   const [periodStart, setPeriodStart] = useState("");
   const [periodEnd, setPeriodEnd] = useState("");
+  const dateOrderError = periodStart && periodEnd && periodEnd < periodStart ? "The end must be on or after the start." : undefined;
   const [error, setError] = useState<string | null>(null);
 
   const query = useQuery({ queryKey: scopedQueryKey(workspace, "crm", "forecast-periods"), queryFn: listForecastPeriods, enabled: isOpen });
@@ -309,18 +357,24 @@ function PeriodsDialog({ isOpen, onOpenChange }: { isOpen: boolean; onOpenChange
             {error}
           </p>
         )}
+        {query.isLoading && <LoadingState label="Loading periods" rows={2} onRetry={() => query.refetch()} />}
+        {query.isError && <ErrorState title="Could not load periods" action={{ label: "Try again", onPress: () => void query.refetch() }} />}
+        {query.isSuccess && periods.length === 0 && <p className="text-sm text-text-secondary">No forecast periods yet. Add one below so your team can submit what they expect to close.</p>}
         <ul className="flex flex-col gap-1">
           {periods.map((period) => (
             <li key={period.id} className="flex items-center justify-between gap-2 rounded-[var(--radius-control)] border border-border-strong px-3 py-2 text-sm">
-              <span className="text-text">{period.name} ({period.periodStart} – {period.periodEnd})</span>
-              <StatusBadge tone={period.status === "open" ? "success" : period.status === "closed" ? "neutral" : "info"}>{period.status}</StatusBadge>
+              <span className="flex flex-col">
+                <span className="text-text">{period.name}</span>
+                <span className="text-xs text-text-muted">{rangeLabel(period.periodStart, period.periodEnd)}</span>
+              </span>
+              <StatusBadge tone={period.status === "open" ? "success" : period.status === "closed" ? "neutral" : "info"}>{statusLabel(period.status)}</StatusBadge>
             </li>
           ))}
         </ul>
         <div className="flex flex-col gap-3 border-t border-border-strong pt-3">
-          <TextField label="Name" isRequired value={name} onChange={setName} />
+          <TextField label="Period name" placeholder="For example, Q3 2026" value={name} onChange={setName} />
           <Select
-            label="Period type"
+            label="Length of period"
             options={[
               { value: "month", label: "Month" },
               { value: "quarter", label: "Quarter" },
@@ -329,12 +383,12 @@ function PeriodsDialog({ isOpen, onOpenChange }: { isOpen: boolean; onOpenChange
             selectedKey={periodType}
             onSelectionChange={(key) => setPeriodType(String(key ?? "quarter"))}
           />
-          <div className="flex gap-3">
-            <TextField label="Start" placeholder="YYYY-MM-DD" value={periodStart} onChange={setPeriodStart} />
-            <TextField label="End" placeholder="YYYY-MM-DD" value={periodEnd} onChange={setPeriodEnd} />
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <DateInput label="Starts on" value={periodStart} onChange={setPeriodStart} />
+            <DateInput label="Ends on" value={periodEnd} onChange={setPeriodEnd} errorMessage={dateOrderError} />
           </div>
-          <Button variant="secondary" size="compact" className="self-start" onPress={() => mutation.mutate()} isLoading={mutation.isPending} isDisabled={!name.trim() || !periodStart || !periodEnd}>
-            Create period
+          <Button variant="secondary" size="compact" className="self-start" onPress={() => mutation.mutate()} isLoading={mutation.isPending} isDisabled={!name.trim() || !periodStart || !periodEnd || Boolean(dateOrderError)}>
+            Add period
           </Button>
         </div>
         <div className="flex justify-end">
@@ -373,7 +427,8 @@ function TeamReviewSection({ canReview }: { canReview: boolean }) {
 
   const periodsQuery = useQuery({ queryKey: scopedQueryKey(workspace, "crm", "forecast-periods"), queryFn: listForecastPeriods });
   const periods = useMemo(() => periodsQuery.data?.rows ?? [], [periodsQuery.data]);
-  const periodOptions: SelectOption[] = periods.map((period) => ({ value: period.id, label: `${period.name} (${period.periodStart} – ${period.periodEnd})` }));
+  const periodOptions: SelectOption[] = periods.map((period) => ({ value: period.id, label: period.name + " (" + rangeLabel(period.periodStart, period.periodEnd) + ")" }));
+  const [rejecting, setRejecting] = useState<ForecastSubmission | null>(null);
 
   const [seededPeriods, setSeededPeriods] = useState<ForecastPeriod[] | undefined>(undefined);
   if (!periodId && periods.length > 0 && periods !== seededPeriods) {
@@ -428,7 +483,7 @@ function TeamReviewSection({ canReview }: { canReview: boolean }) {
   return (
     <div className="flex flex-col gap-3 rounded-[var(--radius-card)] border border-border bg-surface p-4">
       <div className="flex items-center justify-between">
-        <h2 className="text-sm font-semibold text-text">Team review</h2>
+        <h2 className="text-sm font-semibold text-text">Team forecasts to review</h2>
         <Select aria-label="Period" size="compact" options={periodOptions} selectedKey={periodId} onSelectionChange={(key) => setPeriodId(String(key ?? ""))} />
       </div>
       {error && (
@@ -437,27 +492,29 @@ function TeamReviewSection({ canReview }: { canReview: boolean }) {
         </p>
       )}
       {reviewable.length === 0 ? (
-        <p className="text-sm text-text-muted">No team submissions to review for this period.</p>
+        <p className="text-sm text-text-secondary">Nobody on your team has sent a forecast for this period yet.</p>
       ) : (
         <ul className="flex flex-col gap-2">
           {reviewable.map((row) => (
             <li key={row.id} className="flex flex-col gap-2 rounded-[var(--radius-control)] border border-border-strong px-3 py-2">
               <div className="flex items-center justify-between">
                 <span className="text-sm font-medium text-text">{userName(row.ownerUserId)}</span>
-                <StatusBadge tone={REVIEW_STATUS_TONE[row.status] ?? "neutral"}>{row.status}</StatusBadge>
+                <StatusBadge tone={REVIEW_STATUS_TONE[row.status] ?? "neutral"}>{statusLabel(row.status)}</StatusBadge>
               </div>
               <div className="flex flex-wrap gap-4 text-sm text-text-muted">
-                <span>Pipeline: {money(row.currencyCode, row.pipelineAmount ?? 0)}</span>
-                <span>Best case: {money(row.currencyCode, row.bestCaseAmount ?? 0)}</span>
-                <span>Commit: {money(row.currencyCode, row.commitAmount ?? 0)}</span>
-                {row.confidencePercent != null && <span>Confidence: {toNumber(row.confidencePercent)}%</span>}
+                <span>{"Open pipeline: " + formatMoney(row.currencyCode, row.pipelineAmount ?? 0)}</span>
+                <span>{"Best case: " + formatMoney(row.currencyCode, row.bestCaseAmount ?? 0)}</span>
+                <span>{"Commit: " + formatMoney(row.currencyCode, row.commitAmount ?? 0)}</span>
+                {row.confidencePercent != null && <span>{"Confidence: " + toNumber(row.confidencePercent) + "%"}</span>}
               </div>
               {row.notes && <p className="text-sm text-text-secondary">{row.notes}</p>}
               <div className="flex flex-wrap items-end gap-2">
                 <TextField
-                  label="Manager adjustment"
+                  label="Your adjustment"
+                  description="Add or subtract from their number."
+                  inputMode="decimal"
                   size="compact"
-                  className="w-40"
+                  className="w-48"
                   value={adjustments[row.id] ?? (row.managerAdjustment != null ? String(toNumber(row.managerAdjustment)) : "")}
                   onChange={(value) => setAdjustments((current) => ({ ...current, [row.id]: value }))}
                 />
@@ -474,8 +531,8 @@ function TeamReviewSection({ canReview }: { canReview: boolean }) {
                     <Button variant="primary" size="compact" onPress={() => reviewMutation.mutate({ row, status: "approved" })} isLoading={reviewMutation.isPending}>
                       Approve
                     </Button>
-                    <Button variant="danger" size="compact" onPress={() => reviewMutation.mutate({ row, status: "rejected" })} isLoading={reviewMutation.isPending}>
-                      Reject
+                    <Button variant="danger" size="compact" onPress={() => setRejecting(row)}>
+                      Send back
                     </Button>
                   </>
                 )}
@@ -484,6 +541,17 @@ function TeamReviewSection({ canReview }: { canReview: boolean }) {
           ))}
         </ul>
       )}
+      {rejecting && (
+        <AlertDialog
+          isOpen
+          onOpenChange={(open) => { if (!open) setRejecting(null); }}
+          title={"Send " + userName(rejecting.ownerUserId) + "'s forecast back?"}
+          description="They are told it needs changes and can update and send it again. Nothing is deleted."
+          confirmLabel="Send back"
+          isConfirming={reviewMutation.isPending}
+          onConfirm={() => reviewMutation.mutate({ row: rejecting, status: "rejected" }, { onSettled: () => setRejecting(null) })}
+        />
+      )}
     </div>
   );
 }
@@ -491,7 +559,7 @@ function TeamReviewSection({ canReview }: { canReview: boolean }) {
 // F025 Stage A2 §11 — accuracy/backtesting (getForecastCalibration) and
 // predictive confidence (capturePredictiveForecast) already existed,
 // fully built and tested, with zero frontend consumer.
-function CalibrationSection({ canView }: { canView: boolean }) {
+function CalibrationSection({ canView, currency }: { canView: boolean; currency: string | null }) {
   const workspace = useWorkspaceContext();
   const [error, setError] = useState<string | null>(null);
   const [latestPrediction, setLatestPrediction] = useState<PredictiveForecastResult | null>(null);
@@ -517,8 +585,8 @@ function CalibrationSection({ canView }: { canView: boolean }) {
   return (
     <div className="flex flex-col gap-3 rounded-[var(--radius-card)] border border-border bg-surface p-4">
       <div className="flex items-center justify-between">
-        <h2 className="text-sm font-semibold text-text">Forecast accuracy &amp; predictions</h2>
-        <IconButton aria-label="Capture a new predictive forecast" size="compact" variant="outline" onPress={() => captureMutation.mutate()} isDisabled={captureMutation.isPending}>
+        <h2 className="text-sm font-semibold text-text">How accurate past forecasts were</h2>
+        <IconButton aria-label="Refresh the predicted forecast now" size="compact" variant="outline" onPress={() => captureMutation.mutate()} isDisabled={captureMutation.isPending}>
           <RefreshCw className={`size-4 ${captureMutation.isPending ? "animate-spin" : ""}`} aria-hidden="true" />
         </IconButton>
       </div>
@@ -530,37 +598,36 @@ function CalibrationSection({ canView }: { canView: boolean }) {
       {latestPrediction && (
         <div className="rounded-[var(--radius-control)] border border-border-strong px-3 py-2 text-sm text-text">
           <p>
-            Predicted: <strong>{money(null, latestPrediction.forecast.predictedAmount)}</strong> from{" "}
-            {money(null, latestPrediction.forecast.pipelineAmount)} open pipeline · Confidence: {latestPrediction.forecast.confidence}% ·
-            Model {latestPrediction.forecast.modelVersion} ({latestPrediction.forecast.opportunityCount} open deals)
+            {"Predicted to close: "}<strong>{formatMoney(currency, latestPrediction.forecast.predictedAmount)}</strong>
+            {" out of " + formatMoney(currency, latestPrediction.forecast.pipelineAmount) + " open pipeline, across " + latestPrediction.forecast.opportunityCount + " open deals. Confidence " + latestPrediction.forecast.confidence + "%."}
           </p>
         </div>
       )}
-      <p className="text-xs text-text-muted">Backtesting: predicted amount vs. actual won revenue for each closed period.</p>
+      <p className="text-xs text-text-muted">For each closed period, what was predicted compared with what was actually won.</p>
       {rows.length === 0 ? (
-        <p className="text-sm text-text-muted">No closed periods with a captured prediction yet.</p>
+        <p className="text-sm text-text-secondary">Nothing to compare yet. A period needs to close, with a prediction saved during it, before its accuracy shows here.</p>
       ) : (
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-border text-left text-xs text-text-muted">
-                <th className="py-1.5 font-medium">Period</th>
-                <th className="py-1.5 font-medium">Predicted</th>
-                <th className="py-1.5 font-medium">Actual won</th>
-                <th className="py-1.5 font-medium">Error</th>
-                <th className="py-1.5 font-medium">Confidence</th>
+                <th scope="col" className="py-1.5 font-medium">Period</th>
+                <th scope="col" className="py-1.5 text-right font-medium">Predicted</th>
+                <th scope="col" className="py-1.5 text-right font-medium">Actually won</th>
+                <th scope="col" className="py-1.5 text-right font-medium">Difference</th>
+                <th scope="col" className="py-1.5 text-right font-medium">Confidence</th>
               </tr>
             </thead>
             <tbody>
               {rows.map((row) => (
                 <tr key={row.periodId} className="border-b border-border last:border-0">
                   <td className="py-1.5 text-text">{row.periodName}</td>
-                  <td className="py-1.5 tabular-nums text-text-muted">{money(null, row.predictedAmount)}</td>
-                  <td className="py-1.5 tabular-nums text-text-muted">{money(null, row.actualWonAmount)}</td>
-                  <td className={`py-1.5 tabular-nums ${toNumber(row.errorAmount) < 0 ? "text-danger" : "text-success"}`}>
-                    {money(null, row.errorAmount)} {row.errorPercent != null ? `(${toNumber(row.errorPercent)}%)` : ""}
+                  <td className="py-1.5 text-right tabular-nums text-text-secondary">{formatMoney(currency, row.predictedAmount)}</td>
+                  <td className="py-1.5 text-right tabular-nums text-text-secondary">{formatMoney(currency, row.actualWonAmount)}</td>
+                  <td className={`py-1.5 text-right tabular-nums ${toNumber(row.errorAmount) < 0 ? "text-danger" : "text-success"}`}>
+                    {(toNumber(row.errorAmount) < 0 ? "Under by " : "Over by ") + formatMoney(currency, Math.abs(toNumber(row.errorAmount)))} {row.errorPercent != null ? "(" + Math.abs(toNumber(row.errorPercent)) + "%)" : ""}
                   </td>
-                  <td className="py-1.5 tabular-nums text-text-muted">{toNumber(row.confidencePercent)}%</td>
+                  <td className="py-1.5 text-right tabular-nums text-text-secondary">{toNumber(row.confidencePercent)}%</td>
                 </tr>
               ))}
             </tbody>
