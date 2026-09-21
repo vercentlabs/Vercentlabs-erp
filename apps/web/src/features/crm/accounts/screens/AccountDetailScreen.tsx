@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Pencil } from "lucide-react";
-import { Button, ConflictBanner, ErrorState, PermissionState, RecordDetailsPage, StatusBadge, Tab, TabList, TabPanel, Tabs } from "@vercentlabs/design-system";
+import { Button, ConflictBanner, ErrorState, PermissionState, RecordDetailsPage, StatusBadge, Tab, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow, TabList, TabPanel, Tabs } from "@vercentlabs/design-system";
 import { CRM_PERMISSIONS } from "@vercentlabs/permissions";
 import { LoadingState } from "@/features/crm/shared/ui/LoadingState";
 
@@ -183,22 +183,22 @@ export function AccountDetailScreen({ accountId }: { accountId: string }) {
               {opportunitiesQuery.isSuccess && opportunities.length === 0 && <p className="text-sm text-text-secondary">No opportunities for this account yet.</p>}
               {opportunities.length > 0 && (
                 <div className="overflow-x-auto rounded-[var(--radius-card)] border border-border">
-                  <table className="w-full text-sm">
-                    <thead className="bg-canvas-strong text-left text-xs uppercase tracking-wide text-text-muted">
-                      <tr><th className="px-3 py-2">Opportunity</th><th className="px-3 py-2">Stage</th><th className="px-3 py-2 text-right">Amount</th><th className="px-3 py-2">Expected close</th><th className="px-3 py-2">Status</th></tr>
-                    </thead>
-                    <tbody>
+                  <Table className="w-full text-sm">
+                    <TableHead className="bg-canvas-strong text-left text-xs uppercase tracking-wide text-text-muted">
+                      <TableRow><TableHeaderCell className="px-3 py-2">Opportunity</TableHeaderCell><TableHeaderCell className="px-3 py-2">Stage</TableHeaderCell><TableHeaderCell className="px-3 py-2 text-right">Amount</TableHeaderCell><TableHeaderCell className="px-3 py-2">Expected close</TableHeaderCell><TableHeaderCell className="px-3 py-2">Status</TableHeaderCell></TableRow>
+                    </TableHead>
+                    <TableBody>
                       {opportunities.map((o) => (
-                        <tr key={o.id} className="border-t border-border">
-                          <td className="px-3 py-2"><Link className="font-medium text-brand hover:underline" href={`/crm/opportunities/${o.id}`}>{o.name}</Link></td>
-                          <td className="px-3 py-2">{o.stageName ?? ""}</td>
-                          <td className="px-3 py-2 text-right tabular-nums">{o.amount !== null ? formatMoney(o.currencyCode, o.amount) : ""}</td>
-                          <td className="px-3 py-2">{formatDate(o.expectedCloseDate)}</td>
-                          <td className="px-3 py-2"><StatusBadge tone={o.status === "won" ? "success" : o.status === "lost" ? "danger" : o.status === "open" ? "info" : "neutral"}>{humanize(o.status)}</StatusBadge></td>
-                        </tr>
+                        <TableRow key={o.id} className="border-t border-border">
+                          <TableCell className="px-3 py-2"><Link className="font-medium text-brand hover:underline" href={`/crm/opportunities/${o.id}`}>{o.name}</Link></TableCell>
+                          <TableCell className="px-3 py-2">{o.stageName ?? ""}</TableCell>
+                          <TableCell className="px-3 py-2 text-right tabular-nums">{o.amount !== null ? formatMoney(o.currencyCode, o.amount) : ""}</TableCell>
+                          <TableCell className="px-3 py-2">{formatDate(o.expectedCloseDate)}</TableCell>
+                          <TableCell className="px-3 py-2"><StatusBadge tone={o.status === "won" ? "success" : o.status === "lost" ? "danger" : o.status === "open" ? "info" : "neutral"}>{humanize(o.status)}</StatusBadge></TableCell>
+                        </TableRow>
                       ))}
-                    </tbody>
-                  </table>
+                    </TableBody>
+                  </Table>
                 </div>
               )}
             </div>

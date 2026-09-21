@@ -4,7 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Button, Dialog, MetricStrip, NumberField, PageHeader, PermissionState, Select, StatusBadge, TextArea, TextField } from "@vercentlabs/design-system";
+import { Button, Dialog, MetricStrip, NumberField, PageHeader, PermissionState, Select, StatusBadge, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow, TextArea, TextField } from "@vercentlabs/design-system";
 
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
@@ -184,21 +184,21 @@ export function BomDetailScreen({ id }: { id: string }) {
           <ComponentEditor lines={editing} setLines={setEditing} options={options.data} excludeItemId={bom.item_id} />
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-left text-sm" aria-label="Components">
-              <thead>
-                <tr className="border-b border-border text-xs uppercase text-text-muted">
-                  <th className="px-2 py-2">#</th><th className="px-2 py-2">Component</th><th className="px-2 py-2">Quantity</th><th className="px-2 py-2">Scrap %</th><th className="px-2 py-2">Issue</th><th className="px-2 py-2">Alternates</th>
-                </tr>
-              </thead>
-              <tbody>
+            <Table className="w-full text-left text-sm" aria-label="Components">
+              <TableHead>
+                <TableRow className="border-b border-border text-xs uppercase text-text-muted">
+                  <TableHeaderCell className="px-2 py-2">#</TableHeaderCell><TableHeaderCell className="px-2 py-2">Component</TableHeaderCell><TableHeaderCell className="px-2 py-2">Quantity</TableHeaderCell><TableHeaderCell className="px-2 py-2">Scrap %</TableHeaderCell><TableHeaderCell className="px-2 py-2">Issue</TableHeaderCell><TableHeaderCell className="px-2 py-2">Alternates</TableHeaderCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
                 {bom.components.map((c) => (
-                  <tr key={c.id} className="border-b border-border/60 align-top">
-                    <td className="px-2 py-2">{c.line_number}</td>
-                    <td className="px-2 py-2 font-medium text-text">{c.item_name} ({c.item_code}){c.has_sub_assembly && <span className="ml-2 text-xs font-normal text-text-muted">sub-assembly</span>}</td>
-                    <td className="px-2 py-2">{quantity(c.quantity)}</td>
-                    <td className="px-2 py-2">{quantity(c.scrap_percent)}</td>
-                    <td className="px-2 py-2">{label(c.issue_method)}</td>
-                    <td className="px-2 py-2">
+                  <TableRow key={c.id} className="border-b border-border/60 align-top">
+                    <TableCell className="px-2 py-2">{c.line_number}</TableCell>
+                    <TableCell className="px-2 py-2 font-medium text-text">{c.item_name} ({c.item_code}){c.has_sub_assembly && <span className="ml-2 text-xs font-normal text-text-muted">sub-assembly</span>}</TableCell>
+                    <TableCell className="px-2 py-2">{quantity(c.quantity)}</TableCell>
+                    <TableCell className="px-2 py-2">{quantity(c.scrap_percent)}</TableCell>
+                    <TableCell className="px-2 py-2">{label(c.issue_method)}</TableCell>
+                    <TableCell className="px-2 py-2">
                       {c.alternates.length === 0 && !(draft && canManage) && "—"}
                       {c.alternates.map((a) => (
                         <span key={a.id} className="mr-2 inline-flex items-center gap-1">
@@ -207,11 +207,11 @@ export function BomDetailScreen({ id }: { id: string }) {
                         </span>
                       ))}
                       {draft && canManage && <Button variant="ghost" size="compact" onPress={() => setAltFor(c.id)}>Add alternate</Button>}
-                    </td>
-                  </tr>
+                    </TableCell>
+                  </TableRow>
                 ))}
-              </tbody>
-            </table>
+              </TableBody>
+            </Table>
           </div>
         )}
       </MfgPanel>

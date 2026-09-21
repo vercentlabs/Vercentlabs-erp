@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Button, Dialog, MetricStrip, NumberField, PageHeader, PermissionState, StatusBadge, TextArea, TextField } from "@vercentlabs/design-system";
+import { Button, Dialog, MetricStrip, NumberField, PageHeader, PermissionState, StatusBadge, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow, TextArea, TextField } from "@vercentlabs/design-system";
 
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
@@ -102,49 +102,49 @@ export function CountDetailScreen({ id }: { id: string }) {
         }
       >
         <div className="overflow-x-auto">
-          <table className="w-full text-left text-sm">
-            <thead>
-              <tr className="border-b border-border text-xs uppercase text-text-muted">
-                <th className="px-2 py-2">Item</th>
-                <th className="px-2 py-2">Location</th>
-                <th className="px-2 py-2">Batch</th>
-                <th className="px-2 py-2">System</th>
-                <th className="px-2 py-2">Counted</th>
-                <th className="px-2 py-2">Variance</th>
-                <th className="px-2 py-2">Value</th>
-                <th className="px-2 py-2">Reason</th>
-              </tr>
-            </thead>
-            <tbody>
+          <Table className="w-full text-left text-sm">
+            <TableHead>
+              <TableRow className="border-b border-border text-xs uppercase text-text-muted">
+                <TableHeaderCell className="px-2 py-2">Item</TableHeaderCell>
+                <TableHeaderCell className="px-2 py-2">Location</TableHeaderCell>
+                <TableHeaderCell className="px-2 py-2">Batch</TableHeaderCell>
+                <TableHeaderCell className="px-2 py-2">System</TableHeaderCell>
+                <TableHeaderCell className="px-2 py-2">Counted</TableHeaderCell>
+                <TableHeaderCell className="px-2 py-2">Variance</TableHeaderCell>
+                <TableHeaderCell className="px-2 py-2">Value</TableHeaderCell>
+                <TableHeaderCell className="px-2 py-2">Reason</TableHeaderCell>
+              </TableRow>
+            </TableHead>
+            <TableBody>
               {count.lines.map((line) => {
                 const v = variance(line);
                 return (
-                  <tr key={line.id} className="border-b border-border/60 align-top">
-                    <td className="px-2 py-2 font-medium text-text">{line.item_name} ({line.item_code})</td>
-                    <td className="px-2 py-2">{line.location_code ?? "—"}</td>
-                    <td className="px-2 py-2">{line.batch_number ?? "—"}</td>
-                    <td className="px-2 py-2">{line.system_quantity === null ? "hidden" : quantity(line.system_quantity)}</td>
-                    <td className="px-2 py-2">
+                  <TableRow key={line.id} className="border-b border-border/60 align-top">
+                    <TableCell className="px-2 py-2 font-medium text-text">{line.item_name} ({line.item_code})</TableCell>
+                    <TableCell className="px-2 py-2">{line.location_code ?? "—"}</TableCell>
+                    <TableCell className="px-2 py-2">{line.batch_number ?? "—"}</TableCell>
+                    <TableCell className="px-2 py-2">{line.system_quantity === null ? "hidden" : quantity(line.system_quantity)}</TableCell>
+                    <TableCell className="px-2 py-2">
                       {counting && canCount ? (
                         <NumberField aria-label={`Counted ${line.item_code}`} value={value(line) === "" ? undefined : Number(value(line))} minValue={0} step={0.001} onChange={(n) => setEntries((current) => ({ ...current, [line.id]: { ...current[line.id], counted: Number.isNaN(n) ? "" : n } }))} />
                       ) : (
                         quantity(line.counted_quantity)
                       )}
-                    </td>
-                    <td className={v ? "px-2 py-2 font-medium text-danger" : "px-2 py-2"}>{v === null ? "—" : v > 0 ? `+${quantity(v)}` : quantity(v)}</td>
-                    <td className="px-2 py-2">{v !== null && line.unit_cost !== null ? amount(v * Number(line.unit_cost)) : "—"}</td>
-                    <td className="px-2 py-2">
+                    </TableCell>
+                    <TableCell className={v ? "px-2 py-2 font-medium text-danger" : "px-2 py-2"}>{v === null ? "—" : v > 0 ? `+${quantity(v)}` : quantity(v)}</TableCell>
+                    <TableCell className="px-2 py-2">{v !== null && line.unit_cost !== null ? amount(v * Number(line.unit_cost)) : "—"}</TableCell>
+                    <TableCell className="px-2 py-2">
                       {counting && canCount ? (
                         <TextField aria-label={`Reason ${line.item_code}`} value={reasonOf(line)} onChange={(text) => setEntries((current) => ({ ...current, [line.id]: { ...current[line.id], reason: text } }))} />
                       ) : (
                         line.variance_reason ?? "—"
                       )}
-                    </td>
-                  </tr>
+                    </TableCell>
+                  </TableRow>
                 );
               })}
-            </tbody>
-          </table>
+            </TableBody>
+          </Table>
           {count.lines.length === 0 && <p className="px-2 py-6 text-sm text-text-muted">This count has no lines. Add stock you found, or cancel it.</p>}
         </div>
       </InvPanel>

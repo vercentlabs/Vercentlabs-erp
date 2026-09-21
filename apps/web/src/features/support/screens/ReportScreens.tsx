@@ -1,7 +1,7 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { MetricStrip, PageHeader, PermissionState } from "@vercentlabs/design-system";
+import { MetricStrip, PageHeader, PermissionState, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow } from "@vercentlabs/design-system";
 
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
@@ -45,22 +45,22 @@ export function AgentPerformanceScreen() {
       <PageHeader title="Agent performance" description="Volume, response and resolution speed, SLA breaches, and satisfaction, per agent." />
       <SupportPanel>
         {rows.length === 0 ? <p className="text-sm text-text-muted">No assigned tickets yet.</p> : (
-          <table className="w-full text-sm">
-            <thead className="text-left text-text-muted"><tr><th className="py-1">Agent</th><th>Total</th><th>Resolved</th><th>Avg. first response</th><th>Avg. resolution</th><th>Breaches</th><th>CSAT</th></tr></thead>
-            <tbody>
+          <Table className="w-full text-sm">
+            <TableHead className="text-left text-text-muted"><TableRow><TableHeaderCell className="py-1">Agent</TableHeaderCell><TableHeaderCell>Total</TableHeaderCell><TableHeaderCell>Resolved</TableHeaderCell><TableHeaderCell>Avg. first response</TableHeaderCell><TableHeaderCell>Avg. resolution</TableHeaderCell><TableHeaderCell>Breaches</TableHeaderCell><TableHeaderCell>CSAT</TableHeaderCell></TableRow></TableHead>
+            <TableBody>
               {rows.map((a) => (
-                <tr key={String(a.assigned_user_id)} className="border-t border-border">
-                  <td className="py-1">{String(a.assigned_user_id)}</td>
-                  <td>{quantity(a.total_tickets)}</td>
-                  <td>{quantity(a.resolved_tickets)}</td>
-                  <td>{a.avg_first_response_minutes === null ? "—" : `${quantity(a.avg_first_response_minutes)} min`}</td>
-                  <td>{a.avg_resolution_minutes === null ? "—" : `${quantity(a.avg_resolution_minutes)} min`}</td>
-                  <td>{quantity(a.breached_resolutions)}</td>
-                  <td>{a.avg_csat === null ? "—" : quantity(a.avg_csat)}</td>
-                </tr>
+                <TableRow key={String(a.assigned_user_id)} className="border-t border-border">
+                  <TableCell className="py-1">{String(a.assigned_user_id)}</TableCell>
+                  <TableCell>{quantity(a.total_tickets)}</TableCell>
+                  <TableCell>{quantity(a.resolved_tickets)}</TableCell>
+                  <TableCell>{a.avg_first_response_minutes === null ? "—" : `${quantity(a.avg_first_response_minutes)} min`}</TableCell>
+                  <TableCell>{a.avg_resolution_minutes === null ? "—" : `${quantity(a.avg_resolution_minutes)} min`}</TableCell>
+                  <TableCell>{quantity(a.breached_resolutions)}</TableCell>
+                  <TableCell>{a.avg_csat === null ? "—" : quantity(a.avg_csat)}</TableCell>
+                </TableRow>
               ))}
-            </tbody>
-          </table>
+            </TableBody>
+          </Table>
         )}
       </SupportPanel>
     </div>
@@ -79,21 +79,21 @@ export function SlaReportScreen() {
       <PageHeader title="SLA report" description="First-response and resolution performance by priority, and what is currently at risk." />
       {r && <MetricStrip metrics={[{ label: "First-response at risk now", value: quantity(r.first_response_at_risk) }, { label: "Resolution at risk now", value: quantity(r.resolution_at_risk) }]} />}
       <SupportPanel title="By priority">
-        <table className="w-full text-sm">
-          <thead className="text-left text-text-muted"><tr><th className="py-1">Priority</th><th>Covered</th><th>First response met</th><th>First response breached</th><th>Resolution met</th><th>Resolution breached</th></tr></thead>
-          <tbody>
+        <Table className="w-full text-sm">
+          <TableHead className="text-left text-text-muted"><TableRow><TableHeaderCell className="py-1">Priority</TableHeaderCell><TableHeaderCell>Covered</TableHeaderCell><TableHeaderCell>First response met</TableHeaderCell><TableHeaderCell>First response breached</TableHeaderCell><TableHeaderCell>Resolution met</TableHeaderCell><TableHeaderCell>Resolution breached</TableHeaderCell></TableRow></TableHead>
+          <TableBody>
             {rows.map((p) => (
-              <tr key={String(p.priority)} className="border-t border-border">
-                <td className="py-1">{label(p.priority)}</td>
-                <td>{quantity(p.covered)}</td>
-                <td>{quantity(p.first_response_met)}</td>
-                <td>{quantity(p.first_response_breached)}</td>
-                <td>{quantity(p.resolution_met)}</td>
-                <td>{quantity(p.resolution_breached)}</td>
-              </tr>
+              <TableRow key={String(p.priority)} className="border-t border-border">
+                <TableCell className="py-1">{label(p.priority)}</TableCell>
+                <TableCell>{quantity(p.covered)}</TableCell>
+                <TableCell>{quantity(p.first_response_met)}</TableCell>
+                <TableCell>{quantity(p.first_response_breached)}</TableCell>
+                <TableCell>{quantity(p.resolution_met)}</TableCell>
+                <TableCell>{quantity(p.resolution_breached)}</TableCell>
+              </TableRow>
             ))}
-          </tbody>
-        </table>
+          </TableBody>
+        </Table>
       </SupportPanel>
     </div>
   );

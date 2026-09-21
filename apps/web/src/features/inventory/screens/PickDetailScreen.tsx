@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Button, Dialog, MetricStrip, NumberField, PageHeader, PermissionState, StatusBadge, TextArea, TextField } from "@vercentlabs/design-system";
+import { Button, Dialog, MetricStrip, NumberField, PageHeader, PermissionState, StatusBadge, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow, TextArea, TextField } from "@vercentlabs/design-system";
 
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
@@ -92,35 +92,35 @@ export function PickDetailScreen({ id }: { id: string }) {
         }
       >
         <div className="overflow-x-auto">
-          <table className="w-full text-left text-sm">
-            <thead>
-              <tr className="border-b border-border text-xs uppercase text-text-muted">
-                <th className="px-2 py-2">Item</th><th className="px-2 py-2">Location</th><th className="px-2 py-2">Batch</th><th className="px-2 py-2">Requested</th><th className="px-2 py-2">Picked</th><th className="px-2 py-2">Packed</th><th className="px-2 py-2">Short reason</th>{packing && <th className="px-2 py-2">Pack now</th>}
-              </tr>
-            </thead>
-            <tbody>
+          <Table className="w-full text-left text-sm">
+            <TableHead>
+              <TableRow className="border-b border-border text-xs uppercase text-text-muted">
+                <TableHeaderCell className="px-2 py-2">Item</TableHeaderCell><TableHeaderCell className="px-2 py-2">Location</TableHeaderCell><TableHeaderCell className="px-2 py-2">Batch</TableHeaderCell><TableHeaderCell className="px-2 py-2">Requested</TableHeaderCell><TableHeaderCell className="px-2 py-2">Picked</TableHeaderCell><TableHeaderCell className="px-2 py-2">Packed</TableHeaderCell><TableHeaderCell className="px-2 py-2">Short reason</TableHeaderCell>{packing && <TableHeaderCell className="px-2 py-2">Pack now</TableHeaderCell>}
+              </TableRow>
+            </TableHead>
+            <TableBody>
               {pick.lines.map((line) => (
-                <tr key={line.id} className="border-b border-border/60 align-top">
-                  <td className="px-2 py-2 font-medium text-text">{line.item_name} ({line.item_code})</td>
-                  <td className="px-2 py-2">{line.location_code ?? "—"}</td>
-                  <td className="px-2 py-2">{line.batch_number ?? "—"}</td>
-                  <td className="px-2 py-2">{quantity(line.requested_quantity)}</td>
-                  <td className="px-2 py-2">
+                <TableRow key={line.id} className="border-b border-border/60 align-top">
+                  <TableCell className="px-2 py-2 font-medium text-text">{line.item_name} ({line.item_code})</TableCell>
+                  <TableCell className="px-2 py-2">{line.location_code ?? "—"}</TableCell>
+                  <TableCell className="px-2 py-2">{line.batch_number ?? "—"}</TableCell>
+                  <TableCell className="px-2 py-2">{quantity(line.requested_quantity)}</TableCell>
+                  <TableCell className="px-2 py-2">
                     {picking && canAct ? <NumberField aria-label={`Picked ${line.item_code}`} value={picks[line.id]?.qty ?? Number(line.picked_quantity)} minValue={0} step={0.001} onChange={(n) => setPicks((c) => ({ ...c, [line.id]: { ...c[line.id], qty: Number.isNaN(n) ? 0 : n } }))} /> : quantity(line.picked_quantity)}
-                  </td>
-                  <td className="px-2 py-2">{quantity(line.packed_quantity)}</td>
-                  <td className="px-2 py-2">
+                  </TableCell>
+                  <TableCell className="px-2 py-2">{quantity(line.packed_quantity)}</TableCell>
+                  <TableCell className="px-2 py-2">
                     {picking && canAct ? <TextField aria-label={`Short reason ${line.item_code}`} value={picks[line.id]?.reason ?? line.short_reason ?? ""} onChange={(text) => setPicks((c) => ({ ...c, [line.id]: { ...c[line.id], reason: text } }))} /> : (line.short_reason ?? "—")}
-                  </td>
+                  </TableCell>
                   {packing && (
-                    <td className="px-2 py-2">
+                    <TableCell className="px-2 py-2">
                       {unpackedOf(line) > 0 && canAct ? <NumberField aria-label={`Pack ${line.item_code}`} value={packQty[line.id] ?? 0} minValue={0} maxValue={unpackedOf(line)} step={0.001} onChange={(n) => setPackQty((c) => ({ ...c, [line.id]: Number.isNaN(n) ? 0 : n }))} /> : "—"}
-                    </td>
+                    </TableCell>
                   )}
-                </tr>
+                </TableRow>
               ))}
-            </tbody>
-          </table>
+            </TableBody>
+          </Table>
         </div>
         {packing && canAct && (
           <div className="flex flex-wrap items-end gap-3">

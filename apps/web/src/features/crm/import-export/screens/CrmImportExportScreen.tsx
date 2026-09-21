@@ -2,7 +2,7 @@
 
 import { useMemo, useRef, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { AlertDialog, Button, PageHeader, Select, StatusBadge } from "@vercentlabs/design-system";
+import { AlertDialog, Button, PageHeader, Select, StatusBadge, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow } from "@vercentlabs/design-system";
 import { CRM_PERMISSIONS } from "@vercentlabs/permissions";
 
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
@@ -219,20 +219,20 @@ export function CrmImportExportScreen() {
             <div className="flex flex-col gap-4">
               <p className="text-sm text-text-secondary">{`${fileName}: ${records.length} row${records.length === 1 ? "" : "s"}. Match each lead field to a column in your file. First name is required.`}</p>
               <div className="overflow-x-auto rounded-[var(--radius-control)] border border-border">
-                <table className="w-full text-sm">
-                  <thead className="bg-canvas-strong text-left text-xs uppercase tracking-wide text-text-muted"><tr><th className="px-3 py-2">Lead field</th><th className="px-3 py-2">Column in your file</th><th className="px-3 py-2">Example from your file</th></tr></thead>
-                  <tbody>
+                <Table className="w-full text-sm">
+                  <TableHead className="bg-canvas-strong text-left text-xs uppercase tracking-wide text-text-muted"><TableRow><TableHeaderCell className="px-3 py-2">Lead field</TableHeaderCell><TableHeaderCell className="px-3 py-2">Column in your file</TableHeaderCell><TableHeaderCell className="px-3 py-2">Example from your file</TableHeaderCell></TableRow></TableHead>
+                  <TableBody>
                     {LEAD_IMPORT_FIELDS.map((field) => (
-                      <tr key={field.target} className="border-t border-border">
-                        <td className="px-3 py-2 font-medium text-text">{field.label}{field.required ? <span className="text-danger"> *</span> : null}</td>
-                        <td className="px-3 py-2">
+                      <TableRow key={field.target} className="border-t border-border">
+                        <TableCell className="px-3 py-2 font-medium text-text">{field.label}{field.required ? <span className="text-danger"> *</span> : null}</TableCell>
+                        <TableCell className="px-3 py-2">
                           <Select aria-label={`Column for ${field.label}`} size="compact" options={[{ value: "", label: "Do not import" }, ...headers.map((h) => ({ value: h, label: h }))]} selectedKey={mapping[field.target] ?? ""} onSelectionChange={(key) => setMapping((c) => ({ ...c, [field.target]: String(key ?? "") }))} />
-                        </td>
-                        <td className="max-w-xs truncate px-3 py-2 text-text-muted">{mapping[field.target] ? sampleFor(mapping[field.target]) : ""}</td>
-                      </tr>
+                        </TableCell>
+                        <TableCell className="max-w-xs truncate px-3 py-2 text-text-muted">{mapping[field.target] ? sampleFor(mapping[field.target]) : ""}</TableCell>
+                      </TableRow>
                     ))}
-                  </tbody>
-                </table>
+                  </TableBody>
+                </Table>
               </div>
               <div className="flex justify-between gap-2">
                 <Button variant="secondary" onPress={reset}>Start over</Button>
@@ -275,10 +275,10 @@ export function CrmImportExportScreen() {
                     <Button variant="ghost" size="compact" onPress={() => download("rows-to-fix.csv", ["Row,Problem", ...invalidRows.map((r) => `${r.rowNumber},${csvEscape(r.errors.map((e) => e.message).join("; "))}`)].join("\n"))}>Download this list</Button>
                   </div>
                   <div className="max-h-56 overflow-y-auto rounded-[var(--radius-control)] border border-border">
-                    <table className="w-full text-xs">
-                      <thead><tr className="border-b border-border text-left text-text-muted"><th className="px-2 py-1 font-medium">Row</th><th className="px-2 py-1 font-medium">What is wrong</th></tr></thead>
-                      <tbody>{invalidRows.map((row) => <tr key={row.rowNumber} className="border-b border-border last:border-0"><td className="px-2 py-1 tabular-nums">{row.rowNumber}</td><td className="px-2 py-1 text-danger">{row.errors.map((e) => e.message).join("; ")}</td></tr>)}</tbody>
-                    </table>
+                    <Table className="w-full text-xs">
+                      <TableHead><TableRow className="border-b border-border text-left text-text-muted"><TableHeaderCell className="px-2 py-1 font-medium">Row</TableHeaderCell><TableHeaderCell className="px-2 py-1 font-medium">What is wrong</TableHeaderCell></TableRow></TableHead>
+                      <TableBody>{invalidRows.map((row) => <TableRow key={row.rowNumber} className="border-b border-border last:border-0"><TableCell className="px-2 py-1 tabular-nums">{row.rowNumber}</TableCell><TableCell className="px-2 py-1 text-danger">{row.errors.map((e) => e.message).join("; ")}</TableCell></TableRow>)}</TableBody>
+                    </Table>
                   </div>
                 </div>
               )}

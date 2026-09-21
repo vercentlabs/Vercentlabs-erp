@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Button, PageHeader, Select, TextField } from "@vercentlabs/design-system";
+import { Button, PageHeader, Select, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow, TextField } from "@vercentlabs/design-system";
 
 import { act, ProjectsApiError, readView, useProjectsOptions } from "@/features/projects/shared/client";
 import { ProjectsAlert, ProjectsPanel, useCan } from "@/features/projects/shared/ProjectsUi";
@@ -38,22 +38,22 @@ const cell = (key: string, value: unknown) => {
   return /^\d{4}-\d{2}-\d{2}/.test(String(value)) ? calendarDate(value) : String(value).slice(0, 200);
 };
 
-function Table({ rows }: { rows: Rec[] }) {
+function RowsTable({ rows }: { rows: Rec[] }) {
   if (rows.length === 0) return <p className="text-sm text-text-muted">Nothing to show.</p>;
   const columns = Object.keys(rows[0]).filter((k) => !/(^id$|_id$|Id$)/.test(k) && typeof rows[0][k] !== "object");
   return (
     <div className="overflow-x-auto">
-      <table className="w-full text-sm">
-        <thead><tr className="border-b border-border text-left text-text-muted">{columns.map((c) => <th key={c} className="px-2 py-1 font-medium">{label(c)}</th>)}</tr></thead>
-        <tbody>{rows.map((row, i) => <tr key={i} className="border-b border-border/50">{columns.map((c) => <td key={c} className="px-2 py-1">{cell(c, row[c])}</td>)}</tr>)}</tbody>
-      </table>
+      <Table className="w-full text-sm">
+        <TableHead><TableRow className="border-b border-border text-left text-text-muted">{columns.map((c) => <TableHeaderCell key={c} className="px-2 py-1 font-medium">{label(c)}</TableHeaderCell>)}</TableRow></TableHead>
+        <TableBody>{rows.map((row, i) => <TableRow key={i} className="border-b border-border/50">{columns.map((c) => <TableCell key={c} className="px-2 py-1">{cell(c, row[c])}</TableCell>)}</TableRow>)}</TableBody>
+      </Table>
     </div>
   );
 }
 
 // Renders any analysis result: scalars become headline numbers, arrays become tables, nested objects recurse.
 function Generic({ data, title }: { data: unknown; title?: string }) {
-  if (Array.isArray(data)) return <ProjectsPanel title={title}><Table rows={data.filter(isRec)} /></ProjectsPanel>;
+  if (Array.isArray(data)) return <ProjectsPanel title={title}><RowsTable rows={data.filter(isRec)} /></ProjectsPanel>;
   if (!isRec(data)) return null;
   const scalars = Object.entries(data).filter(([, v]) => v === null || typeof v !== "object");
   const nested = Object.entries(data).filter(([, v]) => v !== null && typeof v === "object");

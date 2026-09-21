@@ -59,9 +59,11 @@ export function checkDesignSystemConvergence(root) {
     "packages/design-tokens/tokens/theme.json",
     "apps/web/src/app/tokens.css",
   ]);
-  // The one place a real <table> element is expected: the grid primitive.
+  // The places a real <table> element is expected: the grid primitive, and the design system's own Table primitive that
+  // owns the markup of small static tables. Screens use one of those two and never write the element themselves.
   const RAW_TABLE_EXEMPT_FILES = new Set([
     "packages/design-system/src/enterprise/data-grid/EnterpriseDataGrid.tsx",
+    "packages/design-system/src/data-display/Table.tsx",
   ]);
 
   const failures = [];
@@ -82,7 +84,7 @@ export function checkDesignSystemConvergence(root) {
     if (RAW_TABLE_EXEMPT_FILES.has(rel)) continue;
     const count = countRawTables(fs.readFileSync(file, "utf8"));
     if (count > 0) {
-      failures.push(`${rel}: ${count} raw <table> element(s); use packages/design-system's EnterpriseDataGrid instead`);
+      failures.push(`${rel}: ${count} raw <table> element(s); use packages/design-system's EnterpriseDataGrid (interactive lists) or Table (small static tables) instead`);
     }
   }
 

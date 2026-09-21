@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Button, PageHeader, Select, TextField } from "@vercentlabs/design-system";
+import { Button, PageHeader, Select, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow, TextField } from "@vercentlabs/design-system";
 
 import { act, AssetsApiError, readView, useAssetsOptions, type Row } from "@/features/assets/shared/client";
 import { AssetsAlert, AssetsPanel, useCan } from "@/features/assets/shared/AssetsUi";
@@ -90,17 +90,17 @@ export function VerificationScreen() {
           <AssetsPanel title="Lines">
             {status === "in_progress" && <TextField label="Resolution note (required to resolve a discrepancy)" value={note} onChange={setNote} />}
             <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead><tr className="border-b border-border text-left text-text-muted"><th className="px-2 py-1 font-medium">Asset</th><th className="px-2 py-1 font-medium">Expected in</th><th className="px-2 py-1 font-medium">Found in</th><th className="px-2 py-1 font-medium">Result</th><th className="px-2 py-1 font-medium">Resolution</th><th className="px-2 py-1" /></tr></thead>
-                <tbody>
+              <Table className="w-full text-sm">
+                <TableHead><TableRow className="border-b border-border text-left text-text-muted"><TableHeaderCell className="px-2 py-1 font-medium">Asset</TableHeaderCell><TableHeaderCell className="px-2 py-1 font-medium">Expected in</TableHeaderCell><TableHeaderCell className="px-2 py-1 font-medium">Found in</TableHeaderCell><TableHeaderCell className="px-2 py-1 font-medium">Result</TableHeaderCell><TableHeaderCell className="px-2 py-1 font-medium">Resolution</TableHeaderCell><TableHeaderCell className="px-2 py-1" /></TableRow></TableHead>
+                <TableBody>
                   {d.lines.map((l) => (
-                    <tr key={l.id} className="border-b border-border/50">
-                      <td className="px-2 py-1">{String(l.asset_number ?? l.scanned_tag ?? "Unknown tag")} {l.asset_name ? `· ${l.asset_name}` : ""}</td>
-                      <td className="px-2 py-1">{String(l.expected_location_name ?? "")}</td>
-                      <td className="px-2 py-1">{String(l.found_location_name ?? "")}</td>
-                      <td className="px-2 py-1"><StatusBadge tone={tone(l.result)}>{label(l.result)}</StatusBadge></td>
-                      <td className="px-2 py-1">{l.resolution_status === "open" ? "Open" : l.resolution_status === "resolved" ? String(l.resolution_note ?? "Resolved") : ""}</td>
-                      <td className="px-2 py-1">
+                    <TableRow key={l.id} className="border-b border-border/50">
+                      <TableCell className="px-2 py-1">{String(l.asset_number ?? l.scanned_tag ?? "Unknown tag")} {l.asset_name ? `· ${l.asset_name}` : ""}</TableCell>
+                      <TableCell className="px-2 py-1">{String(l.expected_location_name ?? "")}</TableCell>
+                      <TableCell className="px-2 py-1">{String(l.found_location_name ?? "")}</TableCell>
+                      <TableCell className="px-2 py-1"><StatusBadge tone={tone(l.result)}>{label(l.result)}</StatusBadge></TableCell>
+                      <TableCell className="px-2 py-1">{l.resolution_status === "open" ? "Open" : l.resolution_status === "resolved" ? String(l.resolution_note ?? "Resolved") : ""}</TableCell>
+                      <TableCell className="px-2 py-1">
                         {status === "in_progress" && l.resolution_status === "open" && (
                           <div className="flex flex-wrap gap-1">
                             {l.result === "moved" && can("assets.manage") && <Button variant="ghost" size="compact" isDisabled={!note.trim()} onPress={() => resolve.mutate({ id: l.id, action: "update_location" })}>Update location</Button>}
@@ -108,11 +108,11 @@ export function VerificationScreen() {
                             <Button variant="ghost" size="compact" isDisabled={!note.trim()} onPress={() => resolve.mutate({ id: l.id, action: "accept" })}>Accept</Button>
                           </div>
                         )}
-                      </td>
-                    </tr>
+                      </TableCell>
+                    </TableRow>
                   ))}
-                </tbody>
-              </table>
+                </TableBody>
+              </Table>
             </div>
           </AssetsPanel>
         </>

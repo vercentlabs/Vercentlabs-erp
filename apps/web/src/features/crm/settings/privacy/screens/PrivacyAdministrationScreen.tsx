@@ -2,20 +2,7 @@
 
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import {
-  Button,
-  Dialog,
-  PermissionState,
-  Select,
-  StatusBadge,
-  Tab,
-  TabList,
-  TabPanel,
-  Tabs,
-  TextArea,
-  TextField,
-  type SelectOption,
-} from "@vercentlabs/design-system";
+import { Button, Dialog, PermissionState, Select, StatusBadge, Tab, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow, TabList, TabPanel, Tabs, TextArea, TextField, type SelectOption } from "@vercentlabs/design-system";
 import { CORE_PERMISSIONS } from "@vercentlabs/permissions";
 
 import { formatDate, humanize } from "@/features/crm/shared/human";
@@ -176,19 +163,19 @@ export function PrivacyAdministrationScreen() {
               <p className="rounded-[var(--radius-control)] bg-canvas-strong px-4 py-6 text-sm text-text-secondary">No retention policies are set. Add one per kind of data, for example how many days closed leads are kept.</p>
             ) : (
               <div className="overflow-x-auto rounded-[var(--radius-control)] border border-border">
-                <table className="w-full text-sm">
-                  <thead className="bg-canvas-strong text-left text-xs uppercase tracking-wide text-text-muted"><tr><th className="px-3 py-2">Data</th><th className="px-3 py-2">Version</th><th className="px-3 py-2">Kept for</th><th className="px-3 py-2">In force</th></tr></thead>
-                  <tbody>
+                <Table className="w-full text-sm">
+                  <TableHead className="bg-canvas-strong text-left text-xs uppercase tracking-wide text-text-muted"><TableRow><TableHeaderCell className="px-3 py-2">Data</TableHeaderCell><TableHeaderCell className="px-3 py-2">Version</TableHeaderCell><TableHeaderCell className="px-3 py-2">Kept for</TableHeaderCell><TableHeaderCell className="px-3 py-2">In force</TableHeaderCell></TableRow></TableHead>
+                  <TableBody>
                     {policies.map((row) => (
-                      <tr key={row.id} className="border-t border-border">
-                        <td className="px-3 py-2 font-medium text-text">{humanize(row.data_class)}</td>
-                        <td className="px-3 py-2">{`Version ${row.version}`}</td>
-                        <td className="px-3 py-2">{`${row.retention_days.toLocaleString("en-IN")} days`}</td>
-                        <td className="px-3 py-2 text-text-secondary">{`${formatDate(row.effective_from)} ${row.effective_to ? "to " + formatDate(row.effective_to) : "onwards"}`}</td>
-                      </tr>
+                      <TableRow key={row.id} className="border-t border-border">
+                        <TableCell className="px-3 py-2 font-medium text-text">{humanize(row.data_class)}</TableCell>
+                        <TableCell className="px-3 py-2">{`Version ${row.version}`}</TableCell>
+                        <TableCell className="px-3 py-2">{`${row.retention_days.toLocaleString("en-IN")} days`}</TableCell>
+                        <TableCell className="px-3 py-2 text-text-secondary">{`${formatDate(row.effective_from)} ${row.effective_to ? "to " + formatDate(row.effective_to) : "onwards"}`}</TableCell>
+                      </TableRow>
                     ))}
-                  </tbody>
-                </table>
+                  </TableBody>
+                </Table>
               </div>
             )}
           </div>

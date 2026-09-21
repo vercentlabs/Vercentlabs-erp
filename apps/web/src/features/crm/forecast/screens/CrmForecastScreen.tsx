@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { AlertDialog, Button, Dialog, ErrorState, IconButton, MetricStrip, PageHeader, PermissionState, Select, StatusBadge, TextArea, TextField, type SelectOption } from "@vercentlabs/design-system";
+import { AlertDialog, Button, Dialog, ErrorState, IconButton, MetricStrip, PageHeader, PermissionState, Select, StatusBadge, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow, TextArea, TextField, type SelectOption } from "@vercentlabs/design-system";
 import { RefreshCw } from "lucide-react";
 import { CRM_PERMISSIONS } from "@vercentlabs/permissions";
 import { LoadingState } from "@/features/crm/shared/ui/LoadingState";
@@ -136,22 +136,22 @@ export function CrmForecastScreen() {
           </p>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-sm">
+            <Table className="w-full text-sm">
               <caption className="sr-only">Forecast amounts by deal owner</caption>
-              <thead>
-                <tr className="border-b border-border text-left text-xs text-text-muted">
-                  <th scope="col" className="py-1.5 font-medium">Owner</th>
-                  <th scope="col" className="py-1.5 text-right font-medium">Open pipeline</th>
-                  <th scope="col" className="py-1.5 text-right font-medium">Best case</th>
-                  <th scope="col" className="py-1.5 text-right font-medium">Commit</th>
-                  <th scope="col" className="py-1.5 text-right font-medium">Weighted</th>
-                  <th scope="col" className="py-1.5 text-right font-medium">Won</th>
-                </tr>
-              </thead>
-              <tbody>
+              <TableHead>
+                <TableRow className="border-b border-border text-left text-xs text-text-muted">
+                  <TableHeaderCell scope="col" className="py-1.5 font-medium">Owner</TableHeaderCell>
+                  <TableHeaderCell scope="col" className="py-1.5 text-right font-medium">Open pipeline</TableHeaderCell>
+                  <TableHeaderCell scope="col" className="py-1.5 text-right font-medium">Best case</TableHeaderCell>
+                  <TableHeaderCell scope="col" className="py-1.5 text-right font-medium">Commit</TableHeaderCell>
+                  <TableHeaderCell scope="col" className="py-1.5 text-right font-medium">Weighted</TableHeaderCell>
+                  <TableHeaderCell scope="col" className="py-1.5 text-right font-medium">Won</TableHeaderCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
                 {rows.map((row) => (
-                  <tr key={row.owner} className="border-b border-border last:border-0">
-                    <td className="py-1.5 text-text">
+                  <TableRow key={row.owner} className="border-b border-border last:border-0">
+                    <TableCell className="py-1.5 text-text">
                       {row.ownerUserId ? (
                         <button type="button" className="text-left text-brand underline-offset-2 hover:underline" title="See this owner's deals" onClick={() => router.push(`/crm/opportunities?ownerId=${row.ownerUserId}`)}>
                           {row.owner}
@@ -159,16 +159,16 @@ export function CrmForecastScreen() {
                       ) : (
                         row.owner
                       )}
-                    </td>
-                    <td className="py-1.5 text-right tabular-nums text-text-secondary">{formatMoney(currency, row.pipeline)}</td>
-                    <td className="py-1.5 text-right tabular-nums text-text-secondary">{formatMoney(currency, row.bestCase)}</td>
-                    <td className="py-1.5 text-right tabular-nums text-text-secondary">{formatMoney(currency, row.commitAmount)}</td>
-                    <td className="py-1.5 text-right tabular-nums text-text-secondary">{formatMoney(currency, row.weighted)}</td>
-                    <td className="py-1.5 text-right tabular-nums text-text-secondary">{formatMoney(currency, row.won)}</td>
-                  </tr>
+                    </TableCell>
+                    <TableCell className="py-1.5 text-right tabular-nums text-text-secondary">{formatMoney(currency, row.pipeline)}</TableCell>
+                    <TableCell className="py-1.5 text-right tabular-nums text-text-secondary">{formatMoney(currency, row.bestCase)}</TableCell>
+                    <TableCell className="py-1.5 text-right tabular-nums text-text-secondary">{formatMoney(currency, row.commitAmount)}</TableCell>
+                    <TableCell className="py-1.5 text-right tabular-nums text-text-secondary">{formatMoney(currency, row.weighted)}</TableCell>
+                    <TableCell className="py-1.5 text-right tabular-nums text-text-secondary">{formatMoney(currency, row.won)}</TableCell>
+                  </TableRow>
                 ))}
-              </tbody>
-            </table>
+              </TableBody>
+            </Table>
           </div>
         )}
       </div>
@@ -608,30 +608,30 @@ function CalibrationSection({ canView, currency }: { canView: boolean; currency:
         <p className="text-sm text-text-secondary">Nothing to compare yet. A period needs to close, with a prediction saved during it, before its accuracy shows here.</p>
       ) : (
         <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-border text-left text-xs text-text-muted">
-                <th scope="col" className="py-1.5 font-medium">Period</th>
-                <th scope="col" className="py-1.5 text-right font-medium">Predicted</th>
-                <th scope="col" className="py-1.5 text-right font-medium">Actually won</th>
-                <th scope="col" className="py-1.5 text-right font-medium">Difference</th>
-                <th scope="col" className="py-1.5 text-right font-medium">Confidence</th>
-              </tr>
-            </thead>
-            <tbody>
+          <Table className="w-full text-sm">
+            <TableHead>
+              <TableRow className="border-b border-border text-left text-xs text-text-muted">
+                <TableHeaderCell scope="col" className="py-1.5 font-medium">Period</TableHeaderCell>
+                <TableHeaderCell scope="col" className="py-1.5 text-right font-medium">Predicted</TableHeaderCell>
+                <TableHeaderCell scope="col" className="py-1.5 text-right font-medium">Actually won</TableHeaderCell>
+                <TableHeaderCell scope="col" className="py-1.5 text-right font-medium">Difference</TableHeaderCell>
+                <TableHeaderCell scope="col" className="py-1.5 text-right font-medium">Confidence</TableHeaderCell>
+              </TableRow>
+            </TableHead>
+            <TableBody>
               {rows.map((row) => (
-                <tr key={row.periodId} className="border-b border-border last:border-0">
-                  <td className="py-1.5 text-text">{row.periodName}</td>
-                  <td className="py-1.5 text-right tabular-nums text-text-secondary">{formatMoney(currency, row.predictedAmount)}</td>
-                  <td className="py-1.5 text-right tabular-nums text-text-secondary">{formatMoney(currency, row.actualWonAmount)}</td>
-                  <td className={`py-1.5 text-right tabular-nums ${toNumber(row.errorAmount) < 0 ? "text-danger" : "text-success"}`}>
+                <TableRow key={row.periodId} className="border-b border-border last:border-0">
+                  <TableCell className="py-1.5 text-text">{row.periodName}</TableCell>
+                  <TableCell className="py-1.5 text-right tabular-nums text-text-secondary">{formatMoney(currency, row.predictedAmount)}</TableCell>
+                  <TableCell className="py-1.5 text-right tabular-nums text-text-secondary">{formatMoney(currency, row.actualWonAmount)}</TableCell>
+                  <TableCell className={`py-1.5 text-right tabular-nums ${toNumber(row.errorAmount) < 0 ? "text-danger" : "text-success"}`}>
                     {(toNumber(row.errorAmount) < 0 ? "Under by " : "Over by ") + formatMoney(currency, Math.abs(toNumber(row.errorAmount)))} {row.errorPercent != null ? "(" + Math.abs(toNumber(row.errorPercent)) + "%)" : ""}
-                  </td>
-                  <td className="py-1.5 text-right tabular-nums text-text-secondary">{toNumber(row.confidencePercent)}%</td>
-                </tr>
+                  </TableCell>
+                  <TableCell className="py-1.5 text-right tabular-nums text-text-secondary">{toNumber(row.confidencePercent)}%</TableCell>
+                </TableRow>
               ))}
-            </tbody>
-          </table>
+            </TableBody>
+          </Table>
         </div>
       )}
     </div>

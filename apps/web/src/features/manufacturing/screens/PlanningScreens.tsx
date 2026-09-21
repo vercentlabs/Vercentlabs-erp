@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Button, MetricStrip, NumberField, PageHeader, PermissionState, Select, StatusBadge, TextField } from "@vercentlabs/design-system";
+import { Button, MetricStrip, NumberField, PageHeader, PermissionState, Select, StatusBadge, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow, TextField } from "@vercentlabs/design-system";
 
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
@@ -47,31 +47,31 @@ export function MrpRunScreen({ id }: { id: string }) {
         actions={can("manufacturing.work_order.manage") && <Button variant="primary" isDisabled={open === 0} isLoading={convert.isPending} onPress={() => convert.mutate()}>Create production orders ({open})</Button>}
       >
         <div className="overflow-x-auto">
-          <table className="w-full text-left text-sm" aria-label="Requirements">
-            <thead>
-              <tr className="border-b border-border text-xs uppercase text-text-muted">
-                <th className="px-2 py-2">Item</th><th className="px-2 py-2">Level</th><th className="px-2 py-2">Needed by</th><th className="px-2 py-2">Gross</th><th className="px-2 py-2">Usable stock</th><th className="px-2 py-2">On order</th><th className="px-2 py-2">Net</th><th className="px-2 py-2">Action</th><th className="px-2 py-2">Driven by</th>
-              </tr>
-            </thead>
-            <tbody>
+          <Table className="w-full text-left text-sm" aria-label="Requirements">
+            <TableHead>
+              <TableRow className="border-b border-border text-xs uppercase text-text-muted">
+                <TableHeaderCell className="px-2 py-2">Item</TableHeaderCell><TableHeaderCell className="px-2 py-2">Level</TableHeaderCell><TableHeaderCell className="px-2 py-2">Needed by</TableHeaderCell><TableHeaderCell className="px-2 py-2">Gross</TableHeaderCell><TableHeaderCell className="px-2 py-2">Usable stock</TableHeaderCell><TableHeaderCell className="px-2 py-2">On order</TableHeaderCell><TableHeaderCell className="px-2 py-2">Net</TableHeaderCell><TableHeaderCell className="px-2 py-2">Action</TableHeaderCell><TableHeaderCell className="px-2 py-2">Driven by</TableHeaderCell>
+              </TableRow>
+            </TableHead>
+            <TableBody>
               {run.requirements.map((r) => (
-                <tr key={r.id} className="border-b border-border/60 align-top">
-                  <td className="px-2 py-2 font-medium text-text">{r.item_name} ({r.item_code})</td>
-                  <td className="px-2 py-2">{r.level}</td>
-                  <td className="px-2 py-2">{calendarDate(r.required_date)}</td>
-                  <td className="px-2 py-2">{quantity(r.gross)}</td>
-                  <td className="px-2 py-2">{quantity(r.usable_stock)}</td>
-                  <td className="px-2 py-2">{quantity(r.incoming)}</td>
-                  <td className="px-2 py-2 font-medium">{quantity(r.net)}{Number(r.safety_shortfall) > 0 ? ` (${quantity(r.safety_shortfall)} safety)` : ""}</td>
-                  <td className="px-2 py-2">
+                <TableRow key={r.id} className="border-b border-border/60 align-top">
+                  <TableCell className="px-2 py-2 font-medium text-text">{r.item_name} ({r.item_code})</TableCell>
+                  <TableCell className="px-2 py-2">{r.level}</TableCell>
+                  <TableCell className="px-2 py-2">{calendarDate(r.required_date)}</TableCell>
+                  <TableCell className="px-2 py-2">{quantity(r.gross)}</TableCell>
+                  <TableCell className="px-2 py-2">{quantity(r.usable_stock)}</TableCell>
+                  <TableCell className="px-2 py-2">{quantity(r.incoming)}</TableCell>
+                  <TableCell className="px-2 py-2 font-medium">{quantity(r.net)}{Number(r.safety_shortfall) > 0 ? ` (${quantity(r.safety_shortfall)} safety)` : ""}</TableCell>
+                  <TableCell className="px-2 py-2">
                     <StatusBadge tone={ACTION_TONE[r.recommended_action] ?? "neutral"}>{label(r.recommended_action)}</StatusBadge>
                     {r.converted_order_number && <span className="ml-2 text-xs text-text-muted">→ {r.converted_order_number}</span>}
-                  </td>
-                  <td className="px-2 py-2 text-xs text-text-secondary">{r.pegging.length ? [...new Set(r.pegging.map((p) => label(p.type)))].join(", ") : "Safety stock"}</td>
-                </tr>
+                  </TableCell>
+                  <TableCell className="px-2 py-2 text-xs text-text-secondary">{r.pegging.length ? [...new Set(r.pegging.map((p) => label(p.type)))].join(", ") : "Safety stock"}</TableCell>
+                </TableRow>
               ))}
-            </tbody>
-          </table>
+            </TableBody>
+          </Table>
         </div>
       </MfgPanel>
     </div>
@@ -107,27 +107,27 @@ export function MaterialPlanningScreen() {
           </MfgAlert>
           <MfgPanel title="Materials">
             <div className="overflow-x-auto">
-              <table className="w-full text-left text-sm" aria-label="Material availability">
-                <thead>
-                  <tr className="border-b border-border text-xs uppercase text-text-muted">
-                    <th className="px-2 py-2">Material</th><th className="px-2 py-2">Required</th><th className="px-2 py-2">On hand</th><th className="px-2 py-2">Free</th><th className="px-2 py-2">On order</th><th className="px-2 py-2">Short now</th><th className="px-2 py-2">Short after orders</th><th className="px-2 py-2">Status</th>
-                  </tr>
-                </thead>
-                <tbody>
+              <Table className="w-full text-left text-sm" aria-label="Material availability">
+                <TableHead>
+                  <TableRow className="border-b border-border text-xs uppercase text-text-muted">
+                    <TableHeaderCell className="px-2 py-2">Material</TableHeaderCell><TableHeaderCell className="px-2 py-2">Required</TableHeaderCell><TableHeaderCell className="px-2 py-2">On hand</TableHeaderCell><TableHeaderCell className="px-2 py-2">Free</TableHeaderCell><TableHeaderCell className="px-2 py-2">On order</TableHeaderCell><TableHeaderCell className="px-2 py-2">Short now</TableHeaderCell><TableHeaderCell className="px-2 py-2">Short after orders</TableHeaderCell><TableHeaderCell className="px-2 py-2">Status</TableHeaderCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
                   {a.lines.map((l) => (
-                    <tr key={l.itemId} className="border-b border-border/60">
-                      <td className="px-2 py-2 font-medium text-text">{l.itemName} ({l.itemCode})</td>
-                      <td className="px-2 py-2">{quantity(l.requiredQuantity)}</td>
-                      <td className="px-2 py-2">{quantity(l.onHand)}</td>
-                      <td className="px-2 py-2">{quantity(l.freeQuantity)}</td>
-                      <td className="px-2 py-2">{quantity(l.incomingQuantity)}</td>
-                      <td className="px-2 py-2">{quantity(l.shortageNow)}</td>
-                      <td className="px-2 py-2">{quantity(l.shortageAfterIncoming)}</td>
-                      <td className="px-2 py-2"><StatusBadge tone={tone(l.status)}>{label(l.status)}</StatusBadge></td>
-                    </tr>
+                    <TableRow key={l.itemId} className="border-b border-border/60">
+                      <TableCell className="px-2 py-2 font-medium text-text">{l.itemName} ({l.itemCode})</TableCell>
+                      <TableCell className="px-2 py-2">{quantity(l.requiredQuantity)}</TableCell>
+                      <TableCell className="px-2 py-2">{quantity(l.onHand)}</TableCell>
+                      <TableCell className="px-2 py-2">{quantity(l.freeQuantity)}</TableCell>
+                      <TableCell className="px-2 py-2">{quantity(l.incomingQuantity)}</TableCell>
+                      <TableCell className="px-2 py-2">{quantity(l.shortageNow)}</TableCell>
+                      <TableCell className="px-2 py-2">{quantity(l.shortageAfterIncoming)}</TableCell>
+                      <TableCell className="px-2 py-2"><StatusBadge tone={tone(l.status)}>{label(l.status)}</StatusBadge></TableCell>
+                    </TableRow>
                   ))}
-                </tbody>
-              </table>
+                </TableBody>
+              </Table>
             </div>
           </MfgPanel>
         </>
@@ -164,26 +164,26 @@ export function SchedulingScreen() {
           <MfgAlert tone={result.applied ? "success" : "info"}>{result.applied ? "Schedule applied." : "Preview only — nothing has been saved."} {result.orders.length} order(s), {result.lateOrders} late, {result.blockedOrders} could not be scheduled.</MfgAlert>
           <MfgPanel title="Schedule">
             <div className="overflow-x-auto">
-              <table className="w-full text-left text-sm" aria-label="Schedule">
-                <thead>
-                  <tr className="border-b border-border text-xs uppercase text-text-muted">
-                    <th className="px-2 py-2">Order</th><th className="px-2 py-2">Priority</th><th className="px-2 py-2">Start</th><th className="px-2 py-2">Finish</th><th className="px-2 py-2">Due</th><th className="px-2 py-2">Operations</th><th className="px-2 py-2">Result</th>
-                  </tr>
-                </thead>
-                <tbody>
+              <Table className="w-full text-left text-sm" aria-label="Schedule">
+                <TableHead>
+                  <TableRow className="border-b border-border text-xs uppercase text-text-muted">
+                    <TableHeaderCell className="px-2 py-2">Order</TableHeaderCell><TableHeaderCell className="px-2 py-2">Priority</TableHeaderCell><TableHeaderCell className="px-2 py-2">Start</TableHeaderCell><TableHeaderCell className="px-2 py-2">Finish</TableHeaderCell><TableHeaderCell className="px-2 py-2">Due</TableHeaderCell><TableHeaderCell className="px-2 py-2">Operations</TableHeaderCell><TableHeaderCell className="px-2 py-2">Result</TableHeaderCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
                   {result.orders.map((o) => (
-                    <tr key={o.orderId} className="border-b border-border/60 align-top">
-                      <td className="px-2 py-2 font-medium text-text"><Link className="text-brand hover:underline" href={`/manufacturing/order/${o.orderId}`}>{o.orderNumber}</Link> · {o.itemCode}</td>
-                      <td className="px-2 py-2">{label(o.priority)}</td>
-                      <td className="px-2 py-2">{o.blocked ? "—" : calendarDate(o.start)}</td>
-                      <td className="px-2 py-2">{o.blocked ? "—" : calendarDate(o.end)}</td>
-                      <td className="px-2 py-2">{calendarDate(o.dueDate)}</td>
-                      <td className="px-2 py-2 text-xs">{o.operations.map((op) => `${op.sequence} ${op.name}: ${calendarDate(op.start)}${op.end !== op.start ? ` → ${calendarDate(op.end)}` : ""}`).join(" · ")}</td>
-                      <td className="px-2 py-2">{o.blocked ? <StatusBadge tone="danger">Blocked</StatusBadge> : o.late ? <StatusBadge tone="warning">Late</StatusBadge> : <StatusBadge tone="success">On time</StatusBadge>}{o.blocked && <div className="text-xs text-text-muted">{o.blocked}</div>}</td>
-                    </tr>
+                    <TableRow key={o.orderId} className="border-b border-border/60 align-top">
+                      <TableCell className="px-2 py-2 font-medium text-text"><Link className="text-brand hover:underline" href={`/manufacturing/order/${o.orderId}`}>{o.orderNumber}</Link> · {o.itemCode}</TableCell>
+                      <TableCell className="px-2 py-2">{label(o.priority)}</TableCell>
+                      <TableCell className="px-2 py-2">{o.blocked ? "—" : calendarDate(o.start)}</TableCell>
+                      <TableCell className="px-2 py-2">{o.blocked ? "—" : calendarDate(o.end)}</TableCell>
+                      <TableCell className="px-2 py-2">{calendarDate(o.dueDate)}</TableCell>
+                      <TableCell className="px-2 py-2 text-xs">{o.operations.map((op) => `${op.sequence} ${op.name}: ${calendarDate(op.start)}${op.end !== op.start ? ` → ${calendarDate(op.end)}` : ""}`).join(" · ")}</TableCell>
+                      <TableCell className="px-2 py-2">{o.blocked ? <StatusBadge tone="danger">Blocked</StatusBadge> : o.late ? <StatusBadge tone="warning">Late</StatusBadge> : <StatusBadge tone="success">On time</StatusBadge>}{o.blocked && <div className="text-xs text-text-muted">{o.blocked}</div>}</TableCell>
+                    </TableRow>
                   ))}
-                </tbody>
-              </table>
+                </TableBody>
+              </Table>
             </div>
           </MfgPanel>
         </>

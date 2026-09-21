@@ -4,7 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Button, Dialog, MetricStrip, NumberField, PageHeader, PermissionState, Select, StatusBadge, TextArea, TextField } from "@vercentlabs/design-system";
+import { Button, Dialog, MetricStrip, NumberField, PageHeader, PermissionState, Select, StatusBadge, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow, TextArea, TextField } from "@vercentlabs/design-system";
 
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
@@ -143,27 +143,27 @@ export function RoutingDetailScreen({ id }: { id: string }) {
           <OperationEditor rows={editing} setRows={setEditing} options={options.data} />
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-left text-sm" aria-label="Operations">
-              <thead>
-                <tr className="border-b border-border text-xs uppercase text-text-muted">
-                  <th className="px-2 py-2">Seq</th><th className="px-2 py-2">Operation</th><th className="px-2 py-2">Work center</th><th className="px-2 py-2">Setup</th><th className="px-2 py-2">Run / unit</th><th className="px-2 py-2">Queue</th><th className="px-2 py-2">Move</th><th className="px-2 py-2">Notes</th>
-                </tr>
-              </thead>
-              <tbody>
+            <Table className="w-full text-left text-sm" aria-label="Operations">
+              <TableHead>
+                <TableRow className="border-b border-border text-xs uppercase text-text-muted">
+                  <TableHeaderCell className="px-2 py-2">Seq</TableHeaderCell><TableHeaderCell className="px-2 py-2">Operation</TableHeaderCell><TableHeaderCell className="px-2 py-2">Work center</TableHeaderCell><TableHeaderCell className="px-2 py-2">Setup</TableHeaderCell><TableHeaderCell className="px-2 py-2">Run / unit</TableHeaderCell><TableHeaderCell className="px-2 py-2">Queue</TableHeaderCell><TableHeaderCell className="px-2 py-2">Move</TableHeaderCell><TableHeaderCell className="px-2 py-2">Notes</TableHeaderCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
                 {routing.operations.map((o) => (
-                  <tr key={o.id} className="border-b border-border/60">
-                    <td className="px-2 py-2">{o.sequence}</td>
-                    <td className="px-2 py-2 font-medium text-text">{o.name}</td>
-                    <td className="px-2 py-2">{o.subcontracted ? "Subcontracted" : o.work_center_name ? `${o.work_center_name} (${o.work_center_code})` : "—"}</td>
-                    <td className="px-2 py-2">{quantity(o.setup_minutes)}</td>
-                    <td className="px-2 py-2">{quantity(o.run_minutes_per_unit)}</td>
-                    <td className="px-2 py-2">{quantity(o.queue_minutes)}</td>
-                    <td className="px-2 py-2">{quantity(o.move_minutes)}</td>
-                    <td className="px-2 py-2">{o.inspection_required ? "Inspection required" : ""}</td>
-                  </tr>
+                  <TableRow key={o.id} className="border-b border-border/60">
+                    <TableCell className="px-2 py-2">{o.sequence}</TableCell>
+                    <TableCell className="px-2 py-2 font-medium text-text">{o.name}</TableCell>
+                    <TableCell className="px-2 py-2">{o.subcontracted ? "Subcontracted" : o.work_center_name ? `${o.work_center_name} (${o.work_center_code})` : "—"}</TableCell>
+                    <TableCell className="px-2 py-2">{quantity(o.setup_minutes)}</TableCell>
+                    <TableCell className="px-2 py-2">{quantity(o.run_minutes_per_unit)}</TableCell>
+                    <TableCell className="px-2 py-2">{quantity(o.queue_minutes)}</TableCell>
+                    <TableCell className="px-2 py-2">{quantity(o.move_minutes)}</TableCell>
+                    <TableCell className="px-2 py-2">{o.inspection_required ? "Inspection required" : ""}</TableCell>
+                  </TableRow>
                 ))}
-              </tbody>
-            </table>
+              </TableBody>
+            </Table>
           </div>
         )}
       </MfgPanel>
@@ -212,26 +212,26 @@ export function CapacityScreen() {
       </div>
       {!capacity ? <p className="text-sm text-text-muted">Loading…</p> : capacity.centers.length === 0 ? <MfgAlert tone="info">No active work centers. Add one under Work centers.</MfgAlert> : (
         <div className="overflow-x-auto">
-          <table className="w-full text-left text-sm" aria-label="Capacity by work center">
-            <thead>
-              <tr className="border-b border-border text-xs uppercase text-text-muted">
-                <th className="px-2 py-2">Work center</th><th className="px-2 py-2">Load</th><th className="px-2 py-2">Overloaded days</th>
-                {capacity.centers[0].days.map((d) => <th key={d.day} className="px-1 py-2 text-center">{d.day.slice(5)}</th>)}
-              </tr>
-            </thead>
-            <tbody>
+          <Table className="w-full text-left text-sm" aria-label="Capacity by work center">
+            <TableHead>
+              <TableRow className="border-b border-border text-xs uppercase text-text-muted">
+                <TableHeaderCell className="px-2 py-2">Work center</TableHeaderCell><TableHeaderCell className="px-2 py-2">Load</TableHeaderCell><TableHeaderCell className="px-2 py-2">Overloaded days</TableHeaderCell>
+                {capacity.centers[0].days.map((d) => <TableHeaderCell key={d.day} className="px-1 py-2 text-center">{d.day.slice(5)}</TableHeaderCell>)}
+              </TableRow>
+            </TableHead>
+            <TableBody>
               {capacity.centers.map((c) => (
-                <tr key={c.workCenterId} className="border-b border-border/60">
-                  <td className="px-2 py-2 font-medium text-text">{c.name} ({c.code}){c.status === "maintenance" ? " · maintenance" : ""}</td>
-                  <td className="px-2 py-2">{c.utilization === null ? "—" : `${c.utilization}%`}</td>
-                  <td className={c.overloadedDays ? "px-2 py-2 font-medium text-danger" : "px-2 py-2"}>{c.overloadedDays}</td>
+                <TableRow key={c.workCenterId} className="border-b border-border/60">
+                  <TableCell className="px-2 py-2 font-medium text-text">{c.name} ({c.code}){c.status === "maintenance" ? " · maintenance" : ""}</TableCell>
+                  <TableCell className="px-2 py-2">{c.utilization === null ? "—" : `${c.utilization}%`}</TableCell>
+                  <TableCell className={c.overloadedDays ? "px-2 py-2 font-medium text-danger" : "px-2 py-2"}>{c.overloadedDays}</TableCell>
                   {c.days.map((d) => (
-                    <td key={d.day} className={d.load > d.available ? "px-1 py-2 text-center text-danger" : "px-1 py-2 text-center"} title={`${d.load} of ${d.available} minutes`}>{d.available === 0 && d.load === 0 ? "–" : `${d.load}/${d.available}`}</td>
+                    <TableCell key={d.day} className={d.load > d.available ? "px-1 py-2 text-center text-danger" : "px-1 py-2 text-center"} title={`${d.load} of ${d.available} minutes`}>{d.available === 0 && d.load === 0 ? "–" : `${d.load}/${d.available}`}</TableCell>
                   ))}
-                </tr>
+                </TableRow>
               ))}
-            </tbody>
-          </table>
+            </TableBody>
+          </Table>
         </div>
       )}
     </div>

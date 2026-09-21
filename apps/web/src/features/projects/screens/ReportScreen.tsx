@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Button, PageHeader, Select, TextField } from "@vercentlabs/design-system";
+import { Button, PageHeader, Select, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow, TextField } from "@vercentlabs/design-system";
 
 import { ProjectsApiError, readView } from "@/features/projects/shared/client";
 import { ProjectsAlert, ProjectsPanel } from "@/features/projects/shared/ProjectsUi";
@@ -32,25 +32,25 @@ const cell = (key: string, value: unknown) => {
   return String(value).slice(0, 200);
 };
 
-function Table({ rows }: { rows: Array<Record<string, unknown>> }) {
+function RowsTable({ rows }: { rows: Array<Record<string, unknown>> }) {
   if (rows.length === 0) return <p className="text-sm text-text-muted">No data for this period.</p>;
   const columns = Object.keys(rows[0]).filter((k) => !/(^id$|_id$)/.test(k));
   return (
     <div className="overflow-x-auto">
-      <table className="w-full text-sm">
-        <thead>
-          <tr className="border-b border-border text-left text-text-muted">
-            {columns.map((c) => <th key={c} className="px-2 py-1 font-medium">{label(c)}</th>)}
-          </tr>
-        </thead>
-        <tbody>
+      <Table className="w-full text-sm">
+        <TableHead>
+          <TableRow className="border-b border-border text-left text-text-muted">
+            {columns.map((c) => <TableHeaderCell key={c} className="px-2 py-1 font-medium">{label(c)}</TableHeaderCell>)}
+          </TableRow>
+        </TableHead>
+        <TableBody>
           {rows.map((row, i) => (
-            <tr key={i} className="border-b border-border/50">
-              {columns.map((c) => <td key={c} className={`px-2 py-1 ${AMOUNTY.test(c) ? "text-right tabular-nums" : ""}`}>{cell(c, row[c])}</td>)}
-            </tr>
+            <TableRow key={i} className="border-b border-border/50">
+              {columns.map((c) => <TableCell key={c} className={`px-2 py-1 ${AMOUNTY.test(c) ? "text-right tabular-nums" : ""}`}>{cell(c, row[c])}</TableCell>)}
+            </TableRow>
           ))}
-        </tbody>
-      </table>
+        </TableBody>
+      </Table>
     </div>
   );
 }
@@ -100,7 +100,7 @@ export function ReportsScreen() {
       {query.isLoading && <p className="text-sm text-text-muted">Loading…</p>}
       {sections.map(([k, rows]) => (
         <ProjectsPanel key={k || "rows"} title={k ? label(k) : undefined}>
-          <Table rows={rows} />
+          <RowsTable rows={rows} />
         </ProjectsPanel>
       ))}
     </div>

@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Button, ErrorState, NumberField, PageHeader, PermissionState, StatusBadge, TextField } from "@vercentlabs/design-system";
+import { Button, ErrorState, NumberField, PageHeader, PermissionState, StatusBadge, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow, TextField } from "@vercentlabs/design-system";
 
 import { BillingApiError, cancelSubscription, changeSeats, getOverview, saveProfile, startCheckout, syncNow, verifyCheckout, type Checkout, type Overview, type Plan } from "../api/billing-api";
 
@@ -262,33 +262,33 @@ function History({ o }: { o: Overview }) {
         {o.invoices.length === 0 ? (
           <p className="text-sm text-text-muted">No invoices yet. Invoices appear after your first paid renewal.</p>
         ) : (
-          <table className="w-full text-sm">
-            <thead><tr className="border-b border-border text-left text-text-muted"><th className="px-2 py-1 font-medium">Invoice</th><th className="px-2 py-1 font-medium">Issued</th><th className="px-2 py-1 text-right font-medium">Amount</th><th className="px-2 py-1 font-medium">Status</th><th /></tr></thead>
-            <tbody>
+          <Table className="w-full text-sm">
+            <TableHead><TableRow className="border-b border-border text-left text-text-muted"><TableHeaderCell className="px-2 py-1 font-medium">Invoice</TableHeaderCell><TableHeaderCell className="px-2 py-1 font-medium">Issued</TableHeaderCell><TableHeaderCell className="px-2 py-1 text-right font-medium">Amount</TableHeaderCell><TableHeaderCell className="px-2 py-1 font-medium">Status</TableHeaderCell><TableHeaderCell /></TableRow></TableHead>
+            <TableBody>
               {o.invoices.map((i) => (
-                <tr key={i.id} className="border-b border-border/50">
-                  <td className="px-2 py-1">{i.provider_invoice_id}</td><td className="px-2 py-1">{date(i.issued_at)}</td><td className="px-2 py-1 text-right tabular-nums">{inr(i.amount_paise)}</td><td className="px-2 py-1">{label(i.status)}</td>
-                  <td className="px-2 py-1">{i.invoice_url && <a className="text-brand hover:underline" href={i.invoice_url} target="_blank" rel="noreferrer">View</a>}</td>
-                </tr>
+                <TableRow key={i.id} className="border-b border-border/50">
+                  <TableCell className="px-2 py-1">{i.provider_invoice_id}</TableCell><TableCell className="px-2 py-1">{date(i.issued_at)}</TableCell><TableCell className="px-2 py-1 text-right tabular-nums">{inr(i.amount_paise)}</TableCell><TableCell className="px-2 py-1">{label(i.status)}</TableCell>
+                  <TableCell className="px-2 py-1">{i.invoice_url && <a className="text-brand hover:underline" href={i.invoice_url} target="_blank" rel="noreferrer">View</a>}</TableCell>
+                </TableRow>
               ))}
-            </tbody>
-          </table>
+            </TableBody>
+          </Table>
         )}
       </Panel>
       <Panel title="Payments">
         {o.payments.length === 0 ? (
           <p className="text-sm text-text-muted">No payments yet.</p>
         ) : (
-          <table className="w-full text-sm">
-            <thead><tr className="border-b border-border text-left text-text-muted"><th className="px-2 py-1 font-medium">Payment</th><th className="px-2 py-1 font-medium">Date</th><th className="px-2 py-1 font-medium">Method</th><th className="px-2 py-1 text-right font-medium">Amount</th><th className="px-2 py-1 font-medium">Status</th></tr></thead>
-            <tbody>
+          <Table className="w-full text-sm">
+            <TableHead><TableRow className="border-b border-border text-left text-text-muted"><TableHeaderCell className="px-2 py-1 font-medium">Payment</TableHeaderCell><TableHeaderCell className="px-2 py-1 font-medium">Date</TableHeaderCell><TableHeaderCell className="px-2 py-1 font-medium">Method</TableHeaderCell><TableHeaderCell className="px-2 py-1 text-right font-medium">Amount</TableHeaderCell><TableHeaderCell className="px-2 py-1 font-medium">Status</TableHeaderCell></TableRow></TableHead>
+            <TableBody>
               {o.payments.map((p) => (
-                <tr key={p.id} className="border-b border-border/50">
-                  <td className="px-2 py-1">{p.provider_payment_id}</td><td className="px-2 py-1">{date(p.captured_at ?? p.created_at)}</td><td className="px-2 py-1">{p.method ? label(p.method) : "—"}</td><td className="px-2 py-1 text-right tabular-nums">{inr(p.amount_paise)}</td><td className="px-2 py-1">{label(p.status)}</td>
-                </tr>
+                <TableRow key={p.id} className="border-b border-border/50">
+                  <TableCell className="px-2 py-1">{p.provider_payment_id}</TableCell><TableCell className="px-2 py-1">{date(p.captured_at ?? p.created_at)}</TableCell><TableCell className="px-2 py-1">{p.method ? label(p.method) : "—"}</TableCell><TableCell className="px-2 py-1 text-right tabular-nums">{inr(p.amount_paise)}</TableCell><TableCell className="px-2 py-1">{label(p.status)}</TableCell>
+                </TableRow>
               ))}
-            </tbody>
-          </table>
+            </TableBody>
+          </Table>
         )}
       </Panel>
       {o.seatChanges.length > 0 && (

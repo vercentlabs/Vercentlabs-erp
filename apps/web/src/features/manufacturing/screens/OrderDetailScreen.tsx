@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Button, Dialog, MetricStrip, NumberField, PageHeader, PermissionState, Select, StatusBadge, TextArea, TextField } from "@vercentlabs/design-system";
+import { Button, Dialog, MetricStrip, NumberField, PageHeader, PermissionState, Select, StatusBadge, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow, TextArea, TextField } from "@vercentlabs/design-system";
 
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
@@ -120,55 +120,55 @@ export function OrderDetailScreen({ id }: { id: string }) {
         actions={active && canPost && <Button variant="primary" isDisabled={!issueLines.length} isLoading={run.isPending} onPress={() => post("material-issue", { orderId: order.id, lines: issueLines }, "Material issued.")}>Issue selected</Button>}
       >
         <div className="overflow-x-auto">
-          <table className="w-full text-left text-sm" aria-label="Materials">
-            <thead>
-              <tr className="border-b border-border text-xs uppercase text-text-muted">
-                <th className="px-2 py-2">Component</th><th className="px-2 py-2">Method</th><th className="px-2 py-2">Required</th><th className="px-2 py-2">Issued</th><th className="px-2 py-2">Returned</th><th className="px-2 py-2">Reserved</th><th className="px-2 py-2">Free</th>{order.costs && <th className="px-2 py-2">Cost</th>}{active && canPost && <th className="px-2 py-2">Issue now</th>}<th />
-              </tr>
-            </thead>
-            <tbody>
+          <Table className="w-full text-left text-sm" aria-label="Materials">
+            <TableHead>
+              <TableRow className="border-b border-border text-xs uppercase text-text-muted">
+                <TableHeaderCell className="px-2 py-2">Component</TableHeaderCell><TableHeaderCell className="px-2 py-2">Method</TableHeaderCell><TableHeaderCell className="px-2 py-2">Required</TableHeaderCell><TableHeaderCell className="px-2 py-2">Issued</TableHeaderCell><TableHeaderCell className="px-2 py-2">Returned</TableHeaderCell><TableHeaderCell className="px-2 py-2">Reserved</TableHeaderCell><TableHeaderCell className="px-2 py-2">Free</TableHeaderCell>{order.costs && <TableHeaderCell className="px-2 py-2">Cost</TableHeaderCell>}{active && canPost && <TableHeaderCell className="px-2 py-2">Issue now</TableHeaderCell>}<TableHeaderCell />
+              </TableRow>
+            </TableHead>
+            <TableBody>
               {order.materials.map((m) => (
-                <tr key={m.id} className="border-b border-border/60 align-top">
-                  <td className="px-2 py-2 font-medium text-text">{m.item_name} ({m.item_code})</td>
-                  <td className="px-2 py-2">{label(m.issue_method)}</td>
-                  <td className="px-2 py-2">{quantity(m.required_quantity)}</td>
-                  <td className="px-2 py-2">{quantity(m.issued_quantity)}</td>
-                  <td className="px-2 py-2">{quantity(m.returned_quantity)}</td>
-                  <td className="px-2 py-2">{quantity(m.reserved_quantity)}</td>
-                  <td className="px-2 py-2">{quantity(m.available_quantity)}</td>
-                  {order.costs && <td className="px-2 py-2">{amount(m.issued_cost)}</td>}
+                <TableRow key={m.id} className="border-b border-border/60 align-top">
+                  <TableCell className="px-2 py-2 font-medium text-text">{m.item_name} ({m.item_code})</TableCell>
+                  <TableCell className="px-2 py-2">{label(m.issue_method)}</TableCell>
+                  <TableCell className="px-2 py-2">{quantity(m.required_quantity)}</TableCell>
+                  <TableCell className="px-2 py-2">{quantity(m.issued_quantity)}</TableCell>
+                  <TableCell className="px-2 py-2">{quantity(m.returned_quantity)}</TableCell>
+                  <TableCell className="px-2 py-2">{quantity(m.reserved_quantity)}</TableCell>
+                  <TableCell className="px-2 py-2">{quantity(m.available_quantity)}</TableCell>
+                  {order.costs && <TableCell className="px-2 py-2">{amount(m.issued_cost)}</TableCell>}
                   {active && canPost && (
-                    <td className="px-2 py-2">
+                    <TableCell className="px-2 py-2">
                       <NumberField aria-label={`Issue ${m.item_code}`} value={issueQty[m.id] ?? 0} minValue={0} maxValue={remainingOf(m)} step={0.001} onChange={(n) => setIssueQty((c) => ({ ...c, [m.id]: Number.isNaN(n) ? 0 : n }))} />
-                    </td>
+                    </TableCell>
                   )}
-                  <td className="px-2 py-2">{(active || order.status === "on_hold") && canPost && Number(m.issued_quantity) - Number(m.returned_quantity) > 0 && <Button variant="ghost" size="compact" onPress={() => setDialog({ kind: "return", id: m.id, title: `Return ${m.item_code}` })}>Return</Button>}</td>
-                </tr>
+                  <TableCell className="px-2 py-2">{(active || order.status === "on_hold") && canPost && Number(m.issued_quantity) - Number(m.returned_quantity) > 0 && <Button variant="ghost" size="compact" onPress={() => setDialog({ kind: "return", id: m.id, title: `Return ${m.item_code}` })}>Return</Button>}</TableCell>
+                </TableRow>
               ))}
-            </tbody>
-          </table>
+            </TableBody>
+          </Table>
         </div>
       </MfgPanel>
 
       {order.operations.length > 0 && (
         <MfgPanel title="Operations" description="Work runs in sequence: an operation opens when the one before it is done.">
           <div className="overflow-x-auto">
-            <table className="w-full text-left text-sm" aria-label="Operations">
-              <thead>
-                <tr className="border-b border-border text-xs uppercase text-text-muted">
-                  <th className="px-2 py-2">Seq</th><th className="px-2 py-2">Operation</th><th className="px-2 py-2">Work center</th><th className="px-2 py-2">Status</th><th className="px-2 py-2">Planned min</th><th className="px-2 py-2">Actual min</th><th />
-                </tr>
-              </thead>
-              <tbody>
+            <Table className="w-full text-left text-sm" aria-label="Operations">
+              <TableHead>
+                <TableRow className="border-b border-border text-xs uppercase text-text-muted">
+                  <TableHeaderCell className="px-2 py-2">Seq</TableHeaderCell><TableHeaderCell className="px-2 py-2">Operation</TableHeaderCell><TableHeaderCell className="px-2 py-2">Work center</TableHeaderCell><TableHeaderCell className="px-2 py-2">Status</TableHeaderCell><TableHeaderCell className="px-2 py-2">Planned min</TableHeaderCell><TableHeaderCell className="px-2 py-2">Actual min</TableHeaderCell><TableHeaderCell />
+                </TableRow>
+              </TableHead>
+              <TableBody>
                 {order.operations.map((o) => (
-                  <tr key={o.id} className="border-b border-border/60">
-                    <td className="px-2 py-2">{o.sequence}</td>
-                    <td className="px-2 py-2 font-medium text-text">{o.name}{o.inspection_required ? " · inspection" : ""}</td>
-                    <td className="px-2 py-2">{o.work_center_name ?? "—"}</td>
-                    <td className="px-2 py-2"><StatusBadge tone={tone(o.status)}>{label(o.status)}</StatusBadge></td>
-                    <td className="px-2 py-2">{quantity(o.planned_minutes)}</td>
-                    <td className="px-2 py-2">{quantity(o.actual_minutes)}</td>
-                    <td className="px-2 py-2">
+                  <TableRow key={o.id} className="border-b border-border/60">
+                    <TableCell className="px-2 py-2">{o.sequence}</TableCell>
+                    <TableCell className="px-2 py-2 font-medium text-text">{o.name}{o.inspection_required ? " · inspection" : ""}</TableCell>
+                    <TableCell className="px-2 py-2">{o.work_center_name ?? "—"}</TableCell>
+                    <TableCell className="px-2 py-2"><StatusBadge tone={tone(o.status)}>{label(o.status)}</StatusBadge></TableCell>
+                    <TableCell className="px-2 py-2">{quantity(o.planned_minutes)}</TableCell>
+                    <TableCell className="px-2 py-2">{quantity(o.actual_minutes)}</TableCell>
+                    <TableCell className="px-2 py-2">
                       <div className="flex gap-1">
                         {o.status === "ready" && active && canPost && <Button variant="ghost" size="compact" onPress={() => run.mutate({ action: "operation-start", body: { id: o.id }, success: "Operation started." })}>Start</Button>}
                         {o.status === "in_progress" && canPost && <Button variant="ghost" size="compact" onPress={() => setDialog({ kind: "complete", id: o.id, title: `Complete operation ${o.sequence}` })}>Complete</Button>}
@@ -178,11 +178,11 @@ export function OrderDetailScreen({ id }: { id: string }) {
                         {o.subcontracted && o.status === "ready" && active && canPost && <Button variant="ghost" size="compact" onPress={() => setDialog({ kind: "send", id: o.id, title: `Send out operation ${o.sequence}` })}>Send out</Button>}
                         {o.subcontracted && o.status === "in_progress" && canPost && order.jobs.find((j) => j.operation_id === o.id && j.status === "sent") && <Button variant="ghost" size="compact" onPress={() => setDialog({ kind: "receive", id: order.jobs.find((j) => j.operation_id === o.id && j.status === "sent")!.id, title: `Receive operation ${o.sequence}` })}>Receive</Button>}
                       </div>
-                    </td>
-                  </tr>
+                    </TableCell>
+                  </TableRow>
                 ))}
-              </tbody>
-            </table>
+              </TableBody>
+            </Table>
           </div>
         </MfgPanel>
       )}
