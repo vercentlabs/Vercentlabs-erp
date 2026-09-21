@@ -95,7 +95,7 @@ export async function buildAccountingWorld(admin, roles, tag) {
       await admin.query("BEGIN");
       await admin.query("SET LOCAL session_replication_role = replica");
       await setTenantContext(admin, orgId);
-      const { rows } = await admin.query(`SELECT table_name FROM information_schema.columns WHERE table_schema='tenant' AND column_name='organization_id' AND (table_name LIKE 'accounting\\_%' OR table_name IN ('business_parties','fiscal_periods'))`);
+      const { rows } = await admin.query(`SELECT table_name FROM information_schema.columns WHERE table_schema='tenant' AND column_name='organization_id' AND (table_name LIKE 'accounting\\_%' OR table_name LIKE 'asset\\_%' OR table_name IN ('business_parties','fiscal_periods','assets','document_sequences'))`);
       for (const r of rows) await admin.query(`DELETE FROM tenant.${r.table_name} WHERE organization_id=$1`, [orgId]);
       await admin.query("COMMIT");
     } catch {

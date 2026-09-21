@@ -1,7 +1,7 @@
-import { ModuleFoundationPage } from "@/shell/module-foundation/ModuleFoundationPage";
+import { AssetsDashboardScreen } from "@/features/assets/AssetsPage";
 
 export const metadata = { title: "Assets" };
 
-export default function AssetsPage() {
-  return <ModuleFoundationPage moduleKey="assets" moduleLabel="Assets" />;
+export default function AssetsHomePage() {
+  return <AssetsDashboardScreen />;
 }

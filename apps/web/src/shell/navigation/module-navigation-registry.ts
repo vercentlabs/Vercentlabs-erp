@@ -643,8 +643,8 @@ export const MODULE_NAVIGATION: readonly ModuleNavigation[] = [
         label: "Assets",
         featureRange: "F231-F234",
         items: [
-          planned("Asset Register", "/assets/register"),
-          planned("Asset Categories", "/assets/categories"),
+          available("Asset Register", "/assets/register"),
+          available("Asset Categories", "/assets/categories"),
         ],
       },
       {
@@ -652,8 +652,8 @@ export const MODULE_NAVIGATION: readonly ModuleNavigation[] = [
         label: "Acquisition",
         featureRange: "F235-F237",
         items: [
-          planned("Acquisition", "/assets/acquisition"),
-          planned("Capitalization", "/assets/capitalization"),
+          available("Acquisition", "/assets/acquisition"),
+          available("Capitalization", "/assets/capitalization"),
         ],
       },
       {
@@ -661,9 +661,9 @@ export const MODULE_NAVIGATION: readonly ModuleNavigation[] = [
         label: "Custody",
         featureRange: "F238-F241",
         items: [
-          planned("Assignments", "/assets/assignments"),
-          planned("Transfers", "/assets/transfers"),
-          planned("Locations", "/assets/locations"),
+          available("Assignments", "/assets/assignments"),
+          available("Transfers", "/assets/transfers"),
+          available("Locations", "/assets/locations"),
         ],
       },
       {
@@ -671,9 +671,9 @@ export const MODULE_NAVIGATION: readonly ModuleNavigation[] = [
         label: "Value",
         featureRange: "F242-F245",
         items: [
-          planned("Depreciation", "/assets/depreciation"),
-          planned("Revaluation", "/assets/revaluation"),
-          planned("Impairment", "/assets/impairment"),
+          available("Depreciation", "/assets/depreciation"),
+          available("Revaluation", "/assets/revaluation"),
+          available("Impairment", "/assets/impairment"),
         ],
       },
       {
@@ -681,9 +681,10 @@ export const MODULE_NAVIGATION: readonly ModuleNavigation[] = [
         label: "Maintenance",
         featureRange: "F246-F250",
         items: [
-          planned("Maintenance Plans", "/assets/maintenance-plans"),
-          planned("Work Orders", "/assets/work-orders"),
-          planned("Downtime", "/assets/downtime"),
+          available("Maintenance Plans", "/assets/maintenance-plans"),
+          available("Work Orders", "/assets/work-orders"),
+          available("Downtime", "/assets/downtime"),
+          available("Warranties", "/assets/warranties"),
         ],
       },
       {
@@ -691,9 +692,9 @@ export const MODULE_NAVIGATION: readonly ModuleNavigation[] = [
         label: "Compliance",
         featureRange: "F251-F254",
         items: [
-          planned("Inspections", "/assets/inspections"),
-          planned("Calibration", "/assets/calibration"),
-          planned("Physical Verification", "/assets/physical-verification"),
+          available("Inspections", "/assets/inspections"),
+          available("Calibration", "/assets/calibration"),
+          available("Physical Verification", "/assets/physical-verification"),
         ],
       },
       {
@@ -701,8 +702,8 @@ export const MODULE_NAVIGATION: readonly ModuleNavigation[] = [
         label: "Disposal",
         featureRange: "F255-F257",
         items: [
-          planned("Retirement", "/assets/retirement"),
-          planned("Disposal / Sale", "/assets/disposal"),
+          available("Retirement", "/assets/retirement"),
+          available("Disposal / Sale", "/assets/disposal"),
         ],
       },
       {
@@ -710,8 +711,9 @@ export const MODULE_NAVIGATION: readonly ModuleNavigation[] = [
         label: "Insights",
         featureRange: "F258-F267",
         items: [
-          planned("Asset Analytics", "/assets/analytics"),
-          planned("Reports", "/assets/reports"),
+          available("Asset Analytics", "/assets/analytics"),
+          available("Reports", "/assets/reports"),
+          adminOnly("Asset Settings", "/assets/settings", "assets.settings.manage"),
         ],
       },
     ],

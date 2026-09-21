@@ -1,6 +1,7 @@
 route,mutation_methods,billing_gate,status,exclusion_reason,heuristic_category
 api/accounting/actions/[action]/route.ts,POST,none,out-of-scope,,"business-data mutation (default assumption, needs confirmation)"
 api/approvals/[id]/decide/route.ts,POST,none,out-of-scope,,"business-data mutation (default assumption, needs confirmation)"
+api/assets/actions/[action]/route.ts,POST,none,out-of-scope,,"business-data mutation (default assumption, needs confirmation)"
 api/auth/forgot-password/route.ts,POST,none,out-of-scope,,auth/security (likely must stay reachable regardless of billing)
 api/auth/invitations/[token]/accept/route.ts,POST,none,out-of-scope,,auth/security (likely must stay reachable regardless of billing)
 api/auth/invitations/manage/[id]/resend/route.ts,POST,none,out-of-scope,,auth/security (likely must stay reachable regardless of billing)

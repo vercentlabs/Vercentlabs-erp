@@ -1,6 +1,7 @@
 route,mutation_methods,has_auth,has_origin_check,has_authorization_check,documented_exception
 api/accounting/actions/[action]/route.ts,POST,true,true,true,
 api/approvals/[id]/decide/route.ts,POST,true,true,false,
+api/assets/actions/[action]/route.ts,POST,true,true,true,
 api/auth/forgot-password/route.ts,POST,false,true,false,"Public by design (account-enumeration-safe); assertSameOrigin applies, rate-limited, identical response regardless of registration state."
 api/auth/invitations/[token]/accept/route.ts,POST,false,true,false,Token-bearer for a new account; an existing account additionally requires a matching authenticated session (see acceptOrganizationInvitation's authenticatedUserId parameter). assertSameOrigin applies.
 api/auth/invitations/manage/[id]/resend/route.ts,POST,true,true,true,
