@@ -8,6 +8,11 @@ import { Button, MultiSelect, PermissionState, RecordFormPage, Select, TextArea,
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import { listContacts } from "@/features/crm/contacts/api/contacts-api";
+import { ChipInput } from "@/features/crm/shared/ui/ChipInput";
+import { DateTimeInput } from "@/features/crm/shared/ui/DateTimeInput";
+import { TimezoneSelect } from "@/features/crm/shared/ui/TimezoneSelect";
+import { browserTimezone } from "@/features/crm/shared/human";
+import { NO_RELATION, RelatedRecordPicker, type RelatedValue } from "@/features/crm/shared/ui/RelatedRecordPicker";
 import { createMeeting, MeetingApiError } from "../api/meetings-api";
 
 type FormValues = {
@@ -23,7 +28,8 @@ type FormValues = {
   durationMinutes: number | null;
   outcomeCode: string;
   contactAttendeeIds: string[];
-  attendeesText: string;
+  guestEmails: string[];
+  timezone: string;
 };
 
 const EMPTY: FormValues = {
@@ -39,8 +45,12 @@ const EMPTY: FormValues = {
   durationMinutes: null,
   outcomeCode: "held",
   contactAttendeeIds: [],
-  attendeesText: "",
+  guestEmails: [],
+  timezone: "",
 };
+
+const DURATIONS = [15, 30, 45, 60, 90, 120];
+const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 // F014 Stage A2 §5 closeout: replaces the prior plain-text-only attendee
 // entry with a real Contact picker (contactId per crm_activity_attendees
@@ -48,12 +58,8 @@ const EMPTY: FormValues = {
 // validates it). Free-text email entry is kept alongside it for external
 // guests who aren't a CRM Contact, not removed — both are real, distinct
 // attendee sources, not a fallback for one being unbuilt.
-function parseExternalAttendees(text: string) {
-  return text
-    .split("\n")
-    .map((line) => line.trim())
-    .filter(Boolean)
-    .map((email) => ({ email, name: email }));
+function toExternalAttendees(emails: string[]) {
+  return emails.map((email) => ({ email, name: email }));
 }
 
 export function MeetingFormScreen({ canManage = true }: { canManage?: boolean }) {
@@ -61,6 +67,7 @@ export function MeetingFormScreen({ canManage = true }: { canManage?: boolean })
   const queryClient = useQueryClient();
   const workspace = useWorkspaceContext();
   const [values, setValues] = useState<FormValues>(EMPTY);
+  const [related, setRelated] = useState<RelatedValue>(NO_RELATION);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [serverError, setServerError] = useState<string | null>(null);
 
@@ -84,9 +91,18 @@ export function MeetingFormScreen({ canManage = true }: { canManage?: boolean })
         setFieldErrors({ subject: "Subject is required." });
         throw new Error("Review the highlighted fields.");
       }
+      if (related.entityType !== "general" && !related.entityId) {
+        setFieldErrors({ related: "Choose the record this belongs to, or select Nothing." });
+        throw new Error("Choose the related record, or select Nothing.");
+      }
+      if (values.mode === "schedule" && !values.startAt) {
+        setFieldErrors({ startAt: "Choose when the meeting starts." });
+        throw new Error("Review the highlighted fields.");
+      }
       setFieldErrors({});
       const input: Record<string, unknown> = {
-        entityType: "general",
+        entityType: related.entityType,
+        entityId: related.entityId || null,
         mode: values.mode,
         subject: values.subject,
         description: values.description || null,
@@ -98,12 +114,13 @@ export function MeetingFormScreen({ canManage = true }: { canManage?: boolean })
             const contact = contactsById.get(contactId);
             return { contactId, name: contact ? [contact.firstName, contact.lastName].filter(Boolean).join(" ") : null };
           }),
-          ...parseExternalAttendees(values.attendeesText),
+          ...toExternalAttendees(values.guestEmails),
         ],
       };
       if (values.mode === "schedule") {
-        input.startAt = values.startAt || null;
-        input.endAt = values.endAt || null;
+        const minutes = values.durationMinutes ?? 30;
+        input.startAt = values.startAt;
+        input.endAt = new Date(new Date(values.startAt).getTime() + minutes * 60_000).toISOString();
       } else {
         input.occurredAt = values.occurredAt || new Date().toISOString();
         input.durationMinutes = values.durationMinutes ?? 30;
@@ -169,12 +186,15 @@ export function MeetingFormScreen({ canManage = true }: { canManage?: boolean })
         )}
         {values.mode === "schedule" ? (
           <>
-            <TextField label="Start at" placeholder="YYYY-MM-DDTHH:mm" value={values.startAt} onChange={(v) => set("startAt", v)} />
-            <TextField label="End at" placeholder="YYYY-MM-DDTHH:mm" value={values.endAt} onChange={(v) => set("endAt", v)} />
+            <DateTimeInput label="Starts" isRequired value={values.startAt} timeZone={values.timezone || undefined} onChange={(v) => set("startAt", v)} errorMessage={fieldErrors.startAt} hideZone />
+            <div className="grid grid-cols-1 gap-4">
+              <Select label="Duration" options={DURATIONS.map((m) => ({ value: String(m), label: m < 60 ? `${m} minutes` : m === 60 ? "1 hour" : m % 60 === 0 ? `${m / 60} hours` : `${m / 60} hours` }))} selectedKey={String(values.durationMinutes ?? 30)} onSelectionChange={(k) => set("durationMinutes", Number(k))} />
+            </div>
+            <TimezoneSelect value={values.timezone || browserTimezone()} onChange={(z) => set("timezone", z)} className="sm:col-span-2" />
           </>
         ) : (
           <>
-            <TextField label="Occurred at" placeholder="YYYY-MM-DDTHH:mm" value={values.occurredAt} onChange={(v) => set("occurredAt", v)} />
+            <DateTimeInput label="When it happened" value={values.occurredAt} onChange={(v) => set("occurredAt", v)} description="Leave empty to use the current time." />
             <Select
               label="Outcome"
               options={[
@@ -187,6 +207,7 @@ export function MeetingFormScreen({ canManage = true }: { canManage?: boolean })
           </>
         )}
       </div>
+      <RelatedRecordPicker value={related} onChange={setRelated} />
       <TextArea label="Description" value={values.description} onChange={(v) => set("description", v)} />
       <MultiSelect
         label="Contacts to invite"
@@ -194,12 +215,7 @@ export function MeetingFormScreen({ canManage = true }: { canManage?: boolean })
         value={values.contactAttendeeIds}
         onChange={(next) => set("contactAttendeeIds", next)}
       />
-      <TextArea
-        label="Other attendee emails (one per line)"
-        description="For guests who aren't a CRM Contact."
-        value={values.attendeesText}
-        onChange={(v) => set("attendeesText", v)}
-      />
+      <ChipInput label="Guest emails" values={values.guestEmails} onChange={(v) => set("guestEmails", v)} placeholder="Type an email and press Enter" description="For guests who are not a CRM contact." validate={(v) => (EMAIL.test(v) ? null : `${v} is not a valid email address.`)} />
     </RecordFormPage>
   );
 }

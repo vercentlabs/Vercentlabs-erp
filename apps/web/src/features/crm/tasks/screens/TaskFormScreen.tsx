@@ -8,6 +8,8 @@ import { Button, PermissionState, RecordFormPage, Select, TextArea, TextField, t
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import { getCrmOptions } from "@/features/crm/shared/crm-options-api";
+import { NO_RELATION, RelatedRecordPicker, type RelatedValue } from "@/features/crm/shared/ui/RelatedRecordPicker";
+import { DateTimeInput } from "@/features/crm/shared/ui/DateTimeInput";
 import { createTask, listMyTaskTeams, TaskApiError } from "../api/tasks-api";
 import { RecurrenceBuilder } from "../components/RecurrenceBuilder";
 import type { RecurrenceConfig } from "../types";
@@ -22,6 +24,7 @@ export function TaskFormScreen({ canManage = true }: { canManage?: boolean }) {
   const workspace = useWorkspaceContext();
   const [values, setValues] = useState<FormValues>(EMPTY);
   const [recurrenceConfig, setRecurrenceConfig] = useState<RecurrenceConfig | null>(null);
+  const [related, setRelated] = useState<RelatedValue>(NO_RELATION);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [serverError, setServerError] = useState<string | null>(null);
 
@@ -44,8 +47,12 @@ export function TaskFormScreen({ canManage = true }: { canManage?: boolean }) {
         setFieldErrors({ subject: "Subject is required." });
         throw new Error("Review the highlighted fields.");
       }
+      if (related.entityType !== "general" && !related.entityId) {
+        setFieldErrors({ related: "Choose the record this belongs to, or select Nothing." });
+        throw new Error("Choose the related record, or select Nothing.");
+      }
       setFieldErrors({});
-      const input: Record<string, unknown> = { entityType: "general", ...values, recurrenceConfig };
+      const input: Record<string, unknown> = { entityType: related.entityType, entityId: related.entityId || null, ...values, recurrenceConfig };
       for (const key of Object.keys(input)) if (input[key] === "") input[key] = null;
       return createTask(input);
     },
@@ -93,9 +100,10 @@ export function TaskFormScreen({ canManage = true }: { canManage?: boolean }) {
         <div />
         <Select label="Assignee" options={assigneeOptions} selectedKey={values.assignedTo} onSelectionChange={(key) => set("assignedTo", String(key ?? ""))} />
         <Select label="Team queue" options={teamOptions} selectedKey={values.teamId} onSelectionChange={(key) => set("teamId", String(key ?? ""))} />
-        <TextField label="Due at" placeholder="YYYY-MM-DDTHH:mm" value={values.dueAt} onChange={(v) => set("dueAt", v)} />
-        <TextField label="Reminder at" placeholder="YYYY-MM-DDTHH:mm" value={values.reminderAt} onChange={(v) => set("reminderAt", v)} />
+        <DateTimeInput label="Due" value={values.dueAt} onChange={(v) => set("dueAt", v)} />
+        <DateTimeInput label="Remind me at" value={values.reminderAt} onChange={(v) => set("reminderAt", v)} hideZone />
       </div>
+      <RelatedRecordPicker value={related} onChange={setRelated} />
       <TextArea label="Description" value={values.description} onChange={(v) => set("description", v)} />
       <RecurrenceBuilder value={recurrenceConfig} onChange={setRecurrenceConfig} />
     </RecordFormPage>

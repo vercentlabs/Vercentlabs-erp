@@ -8,6 +8,8 @@ import { Button, NumberField, PermissionState, RecordFormPage, Select, TextArea,
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import { getCrmOptions } from "@/features/crm/shared/crm-options-api";
+import { DateTimeInput } from "@/features/crm/shared/ui/DateTimeInput";
+import { NO_RELATION, RelatedRecordPicker, type RelatedValue } from "@/features/crm/shared/ui/RelatedRecordPicker";
 import { CallApiError, createCall } from "../api/calls-api";
 
 type FormValues = {
@@ -41,6 +43,7 @@ export function CallFormScreen({ canManage = true }: { canManage?: boolean }) {
   const queryClient = useQueryClient();
   const workspace = useWorkspaceContext();
   const [values, setValues] = useState<FormValues>(EMPTY);
+  const [related, setRelated] = useState<RelatedValue>(NO_RELATION);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [serverError, setServerError] = useState<string | null>(null);
 
@@ -60,9 +63,18 @@ export function CallFormScreen({ canManage = true }: { canManage?: boolean }) {
         setFieldErrors({ subject: "Subject is required." });
         throw new Error("Review the highlighted fields.");
       }
+      if (values.mode === "schedule" && !values.dueAt) {
+        setFieldErrors({ dueAt: "Choose when this call is scheduled." });
+        throw new Error("Review the highlighted fields.");
+      }
+      if (related.entityType !== "general" && !related.entityId) {
+        setFieldErrors({ related: "Choose the record this belongs to, or select Nothing." });
+        throw new Error("Choose the related record, or select Nothing.");
+      }
       setFieldErrors({});
       const input: Record<string, unknown> = {
-        entityType: "general",
+        entityType: related.entityType,
+        entityId: related.entityId || null,
         mode: values.mode,
         subject: values.subject,
         description: values.description || null,
@@ -132,15 +144,16 @@ export function CallFormScreen({ canManage = true }: { canManage?: boolean }) {
         <TextField label="Phone number" value={values.phoneNumber} onChange={(v) => set("phoneNumber", v)} />
         <Select label="Assignee" options={assigneeOptions} selectedKey={values.assignedTo} onSelectionChange={(key) => set("assignedTo", String(key ?? ""))} />
         {values.mode === "schedule" ? (
-          <TextField label="Due at" placeholder="YYYY-MM-DDTHH:mm" value={values.dueAt} onChange={(v) => set("dueAt", v)} />
+          <DateTimeInput label="Call time" isRequired value={values.dueAt} onChange={(v) => set("dueAt", v)} errorMessage={fieldErrors.dueAt} />
         ) : (
           <>
-            <TextField label="Occurred at" placeholder="YYYY-MM-DDTHH:mm" value={values.occurredAt} onChange={(v) => set("occurredAt", v)} />
-            <NumberField label="Duration (seconds)" value={values.durationSeconds ?? 0} onChange={(v) => set("durationSeconds", v)} minValue={0} maxValue={86400} />
+            <DateTimeInput label="When it happened" value={values.occurredAt} onChange={(v) => set("occurredAt", v)} description="Leave empty to use the current time." />
+            <NumberField label="Duration (minutes)" value={Math.round((values.durationSeconds ?? 0) / 60)} onChange={(v) => set("durationSeconds", Math.round((Number(v) || 0) * 60))} minValue={0} maxValue={1440} />
             <Select label="Outcome" options={OUTCOME_OPTIONS} selectedKey={values.outcomeCode} onSelectionChange={(key) => set("outcomeCode", String(key))} />
           </>
         )}
       </div>
+      <RelatedRecordPicker value={related} onChange={setRelated} />
       <TextArea label="Description" value={values.description} onChange={(v) => set("description", v)} />
     </RecordFormPage>
   );
