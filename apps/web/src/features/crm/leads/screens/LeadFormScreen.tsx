@@ -7,7 +7,7 @@ import {
   Button,
   Checkbox,
   ErrorState,
-  NumberField,
+  MoneyField,
   PermissionState,
   RecordFormPage,
   Select,
@@ -22,6 +22,9 @@ import { createLead, getCrmOptions, LeadApiError, updateLead } from "../api/lead
 import { leadFormDefaults, leadFormSchema, leadFormValuesToInput, type LeadFormValues } from "../schemas/lead-schema";
 import type { Lead } from "../types";
 import { toNumber } from "@/features/crm/shared/format";
+import { FormSection } from "@/features/crm/shared/ui/FormSection";
+import { CountrySelect } from "@/features/crm/shared/ui/CountrySelect";
+import { CurrencySelect } from "@/features/crm/shared/ui/CurrencySelect";
 
 const PRIORITY_OPTIONS: SelectOption[] = [
   { value: "low", label: "Low" },
@@ -140,7 +143,19 @@ export function LeadFormScreen({
     return <ErrorState title="Lead not found" description="This Lead may have been merged, converted, or removed." action={{ label: "Back to Leads", onPress: () => router.push("/crm/leads") }} />;
   }
   if (mode === "edit" && lead && (lead.recordStatus === "converted" || lead.recordStatus === "archived")) {
-    return <ErrorState title="This Lead can no longer be edited" description={`This Lead is ${lead.recordStatus} and is read-only.`} action={{ label: "Back to Lead", onPress: () => router.push(`/crm/leads/${lead.id}`) }} />;
+    const converted = lead.recordStatus === "converted";
+    return (
+      <div className="flex flex-col items-center gap-4 px-6 py-12 text-center">
+        <p className="text-base font-semibold text-text">{converted ? "This lead was converted" : "This lead is archived"}</p>
+        <p className="max-w-md text-sm text-text-secondary">{converted ? "It is now read-only. Continue the relationship from the records it created." : "An archived lead is read-only."}</p>
+        <div className="flex flex-wrap justify-center gap-2">
+          {converted && lead.convertedOpportunityId && <Button variant="primary" onPress={() => router.push(`/crm/opportunities/${lead.convertedOpportunityId}`)}>Open the opportunity</Button>}
+          {converted && lead.convertedPartyId && <Button variant="secondary" onPress={() => router.push(`/crm/accounts/${lead.convertedPartyId}`)}>Open the account</Button>}
+          {converted && lead.convertedContactId && <Button variant="secondary" onPress={() => router.push(`/crm/contacts/${lead.convertedContactId}`)}>Open the contact</Button>}
+          <Button variant="secondary" onPress={() => router.push(`/crm/leads/${lead.id}`)}>Back to the lead</Button>
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -169,53 +184,45 @@ export function LeadFormScreen({
         </>
       }
     >
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+      <FormSection title="Person">
         <TextField label="First name" isRequired value={values.firstName} onChange={(v) => set("firstName", v)} errorMessage={fieldErrors.firstName} />
         <TextField label="Last name" value={values.lastName} onChange={(v) => set("lastName", v)} errorMessage={fieldErrors.lastName} />
-        <TextField label="Email" value={values.email} onChange={(v) => set("email", v)} errorMessage={fieldErrors.email} />
-        <TextField label="Phone" value={values.phone} onChange={(v) => set("phone", v)} errorMessage={fieldErrors.phone} />
+        <TextField label="Email" type="email" value={values.email} onChange={(v) => set("email", v)} errorMessage={fieldErrors.email} />
         <TextField label="Mobile" value={values.mobile} onChange={(v) => set("mobile", v)} errorMessage={fieldErrors.mobile} />
+      </FormSection>
+      <FormSection title="Company">
         <TextField label="Company name" value={values.companyName} onChange={(v) => set("companyName", v)} errorMessage={fieldErrors.companyName} />
         <TextField label="Job title" value={values.jobTitle} onChange={(v) => set("jobTitle", v)} errorMessage={fieldErrors.jobTitle} />
-        <TextField label="Website" value={values.website} onChange={(v) => set("website", v)} errorMessage={fieldErrors.website} />
-        <TextField label="Industry" value={values.industry} onChange={(v) => set("industry", v)} errorMessage={fieldErrors.industry} />
-        <Select
-          label="Source"
-          options={sourceOptions}
-          selectedKey={values.sourceId || ""}
-          onSelectionChange={(key) => set("sourceId", String(key ?? ""))}
-        />
-        <Select
-          label="Priority"
-          options={PRIORITY_OPTIONS}
-          selectedKey={values.priority}
-          onSelectionChange={(key) => set("priority", String(key) as LeadFormValues["priority"])}
-        />
-        <Select
-          label="Rating"
-          options={RATING_OPTIONS}
-          selectedKey={values.rating || ""}
-          onSelectionChange={(key) => set("rating", String(key ?? "") as LeadFormValues["rating"])}
-        />
-        <NumberField
-          label="Estimated value"
-          value={values.estimatedValue ?? NaN}
-          onChange={(v) => set("estimatedValue", Number.isNaN(v) ? null : v)}
-          errorMessage={fieldErrors.estimatedValue}
-        />
-        <TextField label="Currency code" placeholder="INR" value={values.currencyCode} onChange={(v) => set("currencyCode", v.toUpperCase())} errorMessage={fieldErrors.currencyCode} />
-        <TextField label="City" value={values.city} onChange={(v) => set("city", v)} />
-        <TextField label="State" value={values.state} onChange={(v) => set("state", v)} />
-        <TextField label="Country code" placeholder="IN" value={values.countryCode} onChange={(v) => set("countryCode", v.toUpperCase())} />
+      </FormSection>
+      <FormSection title="Sales">
+        <Select label="Source" options={sourceOptions} selectedKey={values.sourceId || ""} onSelectionChange={(key) => set("sourceId", String(key ?? ""))} />
+        <Select label="Priority" options={PRIORITY_OPTIONS} selectedKey={values.priority} onSelectionChange={(key) => set("priority", String(key) as LeadFormValues["priority"])} />
+        <MoneyField label="Estimated value" currency={values.currencyCode || "INR"} value={values.estimatedValue ?? NaN} onChange={(v) => set("estimatedValue", Number.isNaN(v) ? null : v)} errorMessage={fieldErrors.estimatedValue} />
+        <CurrencySelect value={values.currencyCode || "INR"} onChange={(code) => set("currencyCode", code)} />
         <TextField label="Product interest" value={values.productInterest} onChange={(v) => set("productInterest", v)} className="sm:col-span-2" />
-      </div>
-      <div className="flex flex-col gap-2 border-t border-border pt-4">
-        <p className="text-sm font-medium text-text">Consent</p>
+      </FormSection>
+      <details className="rounded-[var(--radius-card)] border border-border px-4 py-3" open={mode === "edit" && Boolean(values.phone || values.website || values.industry || values.city || values.state || values.countryCode || values.rating)}>
+        <summary className="cursor-pointer text-sm font-medium text-text">More details (optional)</summary>
+        <div className="mt-4 flex flex-col gap-5">
+          <FormSection title="Additional contact and company details">
+            <TextField label="Phone" value={values.phone} onChange={(v) => set("phone", v)} errorMessage={fieldErrors.phone} />
+            <TextField label="Website" value={values.website} onChange={(v) => set("website", v)} errorMessage={fieldErrors.website} />
+            <TextField label="Industry" value={values.industry} onChange={(v) => set("industry", v)} errorMessage={fieldErrors.industry} />
+            <Select label="Rating" options={RATING_OPTIONS} selectedKey={values.rating || ""} onSelectionChange={(key) => set("rating", String(key ?? "") as LeadFormValues["rating"])} />
+          </FormSection>
+          <FormSection title="Location">
+            <TextField label="City" value={values.city} onChange={(v) => set("city", v)} />
+            <TextField label="State" value={values.state} onChange={(v) => set("state", v)} />
+            <CountrySelect value={values.countryCode ?? ""} onChange={(code) => set("countryCode", code)} />
+          </FormSection>
+        </div>
+      </details>
+      <FormSection title="Consent" description="Record what this person has agreed to. Do not contact overrides everything else." columns={1}>
         <Checkbox isSelected={values.consentEmail} onChange={(v) => set("consentEmail", v)}>Email consent given</Checkbox>
         <Checkbox isSelected={values.consentSms} onChange={(v) => set("consentSms", v)}>SMS consent given</Checkbox>
         <Checkbox isSelected={values.consentWhatsapp} onChange={(v) => set("consentWhatsapp", v)}>WhatsApp consent given</Checkbox>
         <Checkbox isSelected={values.doNotContact} onChange={(v) => set("doNotContact", v)}>Do not contact</Checkbox>
-      </div>
+      </FormSection>
     </RecordFormPage>
   );
 }

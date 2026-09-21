@@ -3,11 +3,14 @@
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Button, ConflictBanner, ErrorState, NumberField, PermissionState, RecordFormPage, Select, TextArea, TextField, type SelectOption } from "@vercentlabs/design-system";
+import { Button, ConflictBanner, ErrorState, MoneyField, PermissionState, RecordFormPage, Select, TextArea, TextField, type SelectOption } from "@vercentlabs/design-system";
 
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import { getCrmOptions } from "@/features/crm/shared/crm-options-api";
+import { FormSection } from "@/features/crm/shared/ui/FormSection";
+import { CurrencySelect } from "@/features/crm/shared/ui/CurrencySelect";
+import { DateInput } from "@/features/crm/shared/ui/DateTimeInput";
 import { createOpportunity, OpportunityApiError, updateOpportunity } from "../api/opportunities-api";
 import type { Opportunity } from "../types";
 import { toNumber } from "@/features/crm/shared/format";
@@ -136,18 +139,20 @@ export function OpportunityFormScreen({
         </>
       }
     >
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+      <FormSection title="Deal">
         <TextField label="Opportunity name" isRequired value={values.name} onChange={(v) => set("name", v)} errorMessage={fieldErrors.name} className="sm:col-span-2" />
-        {mode === "create" && (
-          <Select label="Pipeline" isRequired options={pipelineOptions} selectedKey={values.pipelineId} onSelectionChange={(key) => set("pipelineId", String(key ?? ""))} errorMessage={fieldErrors.pipelineId} />
-        )}
-        <Select label="Account" options={partyOptions} selectedKey={values.partyId} onSelectionChange={(key) => set("partyId", String(key ?? ""))} />
+        {mode === "create" && <Select label="Pipeline" isRequired options={pipelineOptions} selectedKey={values.pipelineId} onSelectionChange={(key) => set("pipelineId", String(key ?? ""))} errorMessage={fieldErrors.pipelineId} />}
+        <MoneyField label="Amount" currency={values.currencyCode || "INR"} value={values.amount ?? NaN} onChange={(v) => set("amount", Number.isNaN(v) ? null : v)} />
+        <CurrencySelect value={values.currencyCode || "INR"} onChange={(code) => set("currencyCode", code)} />
+        <TextField label="Next step" value={values.nextStep} onChange={(v) => set("nextStep", v)} className="sm:col-span-2" />
+      </FormSection>
+      <FormSection title="Customer" description="Who this deal is with.">
+        <Select label="Account" options={partyOptions} selectedKey={values.partyId} onSelectionChange={(key) => { setValues((c) => ({ ...c, partyId: String(key ?? ""), contactId: "" })); }} />
         <Select label="Contact" options={contactOptions} selectedKey={values.contactId} onSelectionChange={(key) => set("contactId", String(key ?? ""))} />
-        <NumberField label="Amount" value={values.amount ?? NaN} onChange={(v) => set("amount", Number.isNaN(v) ? null : v)} />
-        <TextField label="Currency code" placeholder="INR" value={values.currencyCode} onChange={(v) => set("currencyCode", v.toUpperCase())} />
-        <TextField label="Expected close date" placeholder="YYYY-MM-DD" value={values.expectedCloseDate} onChange={(v) => set("expectedCloseDate", v)} />
-      </div>
-      <TextField label="Next step" value={values.nextStep} onChange={(v) => set("nextStep", v)} />
+      </FormSection>
+      <FormSection title="Forecast">
+        <DateInput label="Expected close date" value={values.expectedCloseDate} onChange={(v) => set("expectedCloseDate", v)} />
+      </FormSection>
       <TextArea label="Description" value={values.description} onChange={(v) => set("description", v)} />
     </RecordFormPage>
   );

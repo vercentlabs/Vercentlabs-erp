@@ -7,6 +7,9 @@ import { Button, ConflictBanner, ErrorState, PermissionState, RecordFormPage, Te
 
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
+import { FormSection } from "@/features/crm/shared/ui/FormSection";
+import { CountrySelect } from "@/features/crm/shared/ui/CountrySelect";
+import { emailProblem, gstinPanMismatch, gstinProblem, panProblem } from "@/features/crm/shared/validators";
 import { AccountApiError, createAccount, updateAccount } from "../api/accounts-api";
 import type { Account } from "../types";
 
@@ -75,6 +78,14 @@ export function AccountFormScreen({
         setFieldErrors({ displayName: "Account name is required." });
         throw new Error("Review the highlighted fields.");
       }
+      const problems: Record<string, string> = {};
+      const email = emailProblem(values.email); if (email) problems.email = email;
+      const gst = gstinProblem(values.gstin) ?? gstinPanMismatch(values.gstin, values.pan); if (gst) problems.gstin = gst;
+      const pan = panProblem(values.pan); if (pan) problems.pan = pan;
+      if (Object.keys(problems).length) {
+        setFieldErrors(problems);
+        throw new Error("Review the highlighted fields.");
+      }
       setFieldErrors({});
       const input: Record<string, unknown> = {};
       for (const [key, value] of Object.entries(values)) input[key] = value === "" ? null : value;
@@ -119,21 +130,29 @@ export function AccountFormScreen({
         </>
       }
     >
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+      <FormSection title="Company">
         <TextField label="Account name" isRequired value={values.displayName} onChange={(v) => set("displayName", v)} errorMessage={fieldErrors.displayName} />
-        <TextField label="Legal name" value={values.legalName} onChange={(v) => set("legalName", v)} />
+        <TextField label="Legal name" description="As registered, if different from the account name." value={values.legalName} onChange={(v) => set("legalName", v)} />
+      </FormSection>
+      <FormSection title="Business">
         <TextField label="Industry" value={values.industry} onChange={(v) => set("industry", v)} />
-        <TextField label="Website" value={values.website} onChange={(v) => set("website", v)} />
+        <TextField label="Website" placeholder="www.company.com" value={values.website} onChange={(v) => set("website", v)} />
+      </FormSection>
+      <FormSection title="Contact details">
+        <TextField label="Email" type="email" value={values.email} onChange={(v) => set("email", v)} errorMessage={fieldErrors.email} />
         <TextField label="Phone" value={values.phone} onChange={(v) => set("phone", v)} />
-        <TextField label="Email" value={values.email} onChange={(v) => set("email", v)} />
-        <TextField label="GSTIN" value={values.gstin} onChange={(v) => set("gstin", v.toUpperCase())} />
-        <TextField label="PAN" value={values.pan} onChange={(v) => set("pan", v.toUpperCase())} />
-        <TextField label="Address" value={values.addressLine1} onChange={(v) => set("addressLine1", v)} className="sm:col-span-2" />
+      </FormSection>
+      <FormSection title="Address">
+        <TextField label="Street address" value={values.addressLine1} onChange={(v) => set("addressLine1", v)} className="sm:col-span-2" />
         <TextField label="City" value={values.city} onChange={(v) => set("city", v)} />
         <TextField label="State" value={values.state} onChange={(v) => set("state", v)} />
         <TextField label="Postal code" value={values.postalCode} onChange={(v) => set("postalCode", v)} />
-        <TextField label="Country code" placeholder="IN" value={values.countryCode} onChange={(v) => set("countryCode", v.toUpperCase())} />
-      </div>
+        <CountrySelect value={values.countryCode} onChange={(code) => set("countryCode", code)} />
+      </FormSection>
+      <FormSection title="Tax" description="Optional. Entered in capitals and checked for the correct shape.">
+        <TextField label="GSTIN" placeholder="27AAPFU0939F1ZV" value={values.gstin} onChange={(v) => set("gstin", v.toUpperCase().replace(/s/g, ""))} errorMessage={fieldErrors.gstin} />
+        <TextField label="PAN" placeholder="ABCDE1234F" value={values.pan} onChange={(v) => set("pan", v.toUpperCase().replace(/s/g, ""))} errorMessage={fieldErrors.pan} />
+      </FormSection>
     </RecordFormPage>
   );
 }
