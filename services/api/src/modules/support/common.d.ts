@@ -1,0 +1,34 @@
+export declare class SupportError extends Error {
+  status: number;
+  code: string;
+  constructor(status: number, message: string, code?: string);
+}
+type C = Record<string, unknown>;
+export declare const uuid: (value: unknown, label: string) => string;
+export declare const uuidOrNull: (value: unknown, label: string) => string | null;
+export declare const text: (value: unknown, max?: number) => string;
+export declare const textOrNull: (value: unknown, max?: number) => string | null;
+export declare const has: (c: C, p: string) => boolean;
+export declare const hasAny: (c: C, list: string[]) => boolean;
+export declare const need: (c: C, p: string) => void;
+export declare const needAny: (c: C, list: string[]) => void;
+export declare const positive: (value: unknown, label: string) => number;
+export declare const nonNegative: (value: unknown, label: string, fallback?: number) => number;
+export declare const dateOrNull: (value: unknown, label: string) => string | null;
+export declare const dateRequired: (value: unknown, label: string) => string;
+export declare const oneOf: <T extends string>(value: string, allowed: T[], label: string) => T;
+export declare const today: () => string;
+export declare const round2: (n: unknown) => number;
+export declare const emailOrNull: (value: unknown, label?: string) => string | null;
+export declare const PRIORITIES: string[];
+export declare const CHANNELS: string[];
+export declare function supportContext(session: Record<string, unknown>): C;
+export declare function recordEvent(client: unknown, c: C, ticketId: string | null, aggregateType: string, aggregateId: string, eventType: string, payload?: Record<string, unknown>): Promise<void>;
+export declare function ownPortalAccess(client: unknown, c: C): Promise<any>;
+export declare function requirePortalAccess(client: unknown, c: C): Promise<any>;
+export declare const canSeeSensitive: (c: C) => boolean;
+export declare function stripPrivate(rows: any, c: C, list?: boolean): any;
+export declare const ymd: (v: unknown) => unknown;
+export declare function qx(client: unknown, sql: string, params: unknown[]): Promise<any>;
+export declare function seq(thunks: Array<() => Promise<any>>): Promise<any[]>;
+export declare function resolveParty(client: unknown, c: C, partyId: string): Promise<any>;

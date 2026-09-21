@@ -1,7 +1,7 @@
-import { ModuleFoundationPage } from "@/shell/module-foundation/ModuleFoundationPage";
+import { SupportDashboardScreen } from "@/features/support/SupportPage";
 
 export const metadata = { title: "Support" };
 
-export default function SupportPage() {
-  return <ModuleFoundationPage moduleKey="support" moduleLabel="Support" />;
+export default function SupportHomePage() {
+  return <SupportDashboardScreen />;
 }

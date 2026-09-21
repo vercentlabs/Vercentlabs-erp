@@ -951,10 +951,11 @@ export const MODULE_NAVIGATION: readonly ModuleNavigation[] = [
         label: "Tickets",
         featureRange: "F343-F350",
         items: [
-          planned("My Tickets", "/support/my-tickets"),
-          planned("All Tickets", "/support/tickets"),
-          planned("Unassigned", "/support/unassigned"),
-          planned("Escalated", "/support/escalated"),
+          available("My Tickets", "/support/my-tickets"),
+          available("All Tickets", "/support/tickets"),
+          available("Unassigned", "/support/unassigned"),
+          available("Escalated", "/support/escalated"),
+          available("Categories", "/support/categories"),
         ],
       },
       {
@@ -962,24 +963,19 @@ export const MODULE_NAVIGATION: readonly ModuleNavigation[] = [
         label: "Queues",
         featureRange: "F351-F355",
         items: [
-          planned("Team Queues", "/support/queues"),
-          planned("Routing", "/support/routing"),
+          available("Team Queues", "/support/queues"),
+          available("Routing", "/support/routing-rules"),
         ],
-      },
-      {
-        id: "channels",
-        label: "Channels",
-        featureRange: "F356-F359",
-        items: [planned("Channels", "/support/channels")],
       },
       {
         id: "sla",
         label: "SLA",
         featureRange: "F360-F364",
         items: [
-          planned("SLA Policies", "/support/sla-policies"),
-          planned("Breaches", "/support/breaches"),
-          planned("Escalations", "/support/escalations"),
+          available("SLA Policies", "/support/sla-policies"),
+          available("Breaches", "/support/breaches"),
+          available("Escalations", "/support/escalation-policies"),
+          available("Escalation Log", "/support/escalations-admin"),
         ],
       },
       {
@@ -987,8 +983,8 @@ export const MODULE_NAVIGATION: readonly ModuleNavigation[] = [
         label: "Knowledge",
         featureRange: "F365-F369",
         items: [
-          planned("Articles", "/support/articles"),
-          planned("Guided Resolution", "/support/guided-resolution"),
+          available("Articles", "/support/knowledge-articles"),
+          available("Canned Responses", "/support/canned-responses"),
         ],
       },
       {
@@ -996,8 +992,17 @@ export const MODULE_NAVIGATION: readonly ModuleNavigation[] = [
         label: "Customers",
         featureRange: "F370-F374",
         items: [
-          planned("Service Context", "/support/service-context"),
-          planned("Portal Administration", "/support/portal-admin"),
+          available("Entitlements", "/support/entitlements"),
+          available("Portal Administration", "/support/portal-users"),
+        ],
+      },
+      {
+        id: "customer-portal",
+        label: "Customer Portal",
+        featureRange: "F371",
+        items: [
+          available("My Tickets", "/support/portal-tickets"),
+          available("Help Articles", "/support/portal-articles"),
         ],
       },
       {
@@ -1005,9 +1010,9 @@ export const MODULE_NAVIGATION: readonly ModuleNavigation[] = [
         label: "Insights",
         featureRange: "F375-F380",
         items: [
-          planned("CSAT", "/support/csat"),
-          planned("Agent Performance", "/support/agent-performance"),
-          planned("SLA Reports", "/support/sla-reports"),
+          available("CSAT", "/support/csat"),
+          available("Agent Performance", "/support/agent-performance"),
+          available("SLA Reports", "/support/sla-reports"),
         ],
       },
     ],

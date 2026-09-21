@@ -1,0 +1,15 @@
+type C = Record<string, unknown>;
+type Q = unknown;
+type R = Record<string, any>;
+export declare function getCustomerOrderHistory(client: Q, c: C, partyId: string): Promise<any[]>;
+export declare function getTicketLinkedRecords(client: Q, c: C, ticketId: string): Promise<any>;
+export declare function listEntitlements(client: Q, c: C, filters?: R): Promise<any[]>;
+export declare function saveEntitlement(client: Q, c: C, input: R): Promise<any>;
+export declare function setEntitlementStatus(client: Q, c: C, id: string, status: string): Promise<any>;
+export declare function getCsatReport(client: Q, c: C, filters?: R): Promise<any>;
+export declare function getAgentPerformance(client: Q, c: C, filters?: R): Promise<any[]>;
+export declare function getSlaReport(client: Q, c: C, filters?: R): Promise<any>;
+export declare function getSupportDeskDashboard(client: Q, c: C): Promise<any>;
+export declare function getAuditLog(client: Q, c: C, filters?: R): Promise<any[]>;
+export declare function listSupportOptions(client: Q, c: C): Promise<Record<string, Array<{ id: string; code: string; name: string }>>>;
+export declare function listCustomerContacts(client: Q, c: C, partyId: string): Promise<any[]>;

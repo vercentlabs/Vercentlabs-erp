@@ -1,0 +1,17 @@
+type C = Record<string, unknown>;
+type Q = unknown;
+type R = Record<string, any>;
+export declare function listPortalUsers(client: Q, c: C, partyId?: string): Promise<any[]>;
+export declare function invitePortalUser(client: Q, c: C, input: R): Promise<any>;
+export declare function setPortalUserStatus(client: Q, c: C, id: string, status: string): Promise<any>;
+export declare function getMyPortalAccess(client: Q, c: C): Promise<any>;
+export declare function listMyTickets(client: Q, c: C, filters?: R): Promise<any[]>;
+export declare function getMyTicket(client: Q, c: C, id: string): Promise<any>;
+export declare function createMyTicket(client: Q, c: C, input: R): Promise<any>;
+export declare function listMyCommunications(client: Q, c: C, ticketId: string): Promise<any[]>;
+export declare function replyToMyTicket(client: Q, c: C, ticketId: string, input: R): Promise<any>;
+export declare function listMyAttachments(client: Q, c: C, ticketId: string): Promise<any[]>;
+export declare function addMyAttachment(client: Q, c: C, ticketId: string, input: R): Promise<any>;
+export declare function submitMyCsat(client: Q, c: C, ticketId: string, input: R): Promise<any>;
+export declare function listMyKnowledgeArticles(client: Q, c: C, filters?: R): Promise<any[]>;
+export declare function getMyKnowledgeArticle(client: Q, c: C, id: string): Promise<any>;

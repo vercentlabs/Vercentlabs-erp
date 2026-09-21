@@ -246,5 +246,6 @@ api/settings/sessions/route.ts,DELETE,true,true,false,
 api/settings/users/[id]/access/route.ts,PUT,true,true,false,
 api/settings/users/[id]/roles/route.ts,PUT,true,true,false,
 api/settings/users/[id]/status/route.ts,PUT,true,true,false,
+api/support/actions/[action]/route.ts,POST,true,true,true,
 api/test-support/email-capture/route.ts,POST,false,false,false,"Dev/test-only capture adapter, hard-blocked by NODE_ENV and an explicit opt-in flag inside the route itself — never reachable in production regardless of any check here."
 api/workspace/context/route.ts,PATCH,true,true,false,

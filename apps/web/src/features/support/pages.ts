@@ -1,0 +1,23 @@
+// Plain data (no components) so a Server Component page can read it.
+export const SUPPORT_PAGES: Record<string, { title: string }> = {
+  tickets: { title: "All tickets" },
+  "my-tickets": { title: "My tickets" },
+  unassigned: { title: "Unassigned tickets" },
+  escalated: { title: "Escalated tickets" },
+  breaches: { title: "Breached SLAs" },
+  "escalations-admin": { title: "Escalations" },
+  categories: { title: "Categories" },
+  queues: { title: "Queues" },
+  "routing-rules": { title: "Routing rules" },
+  "sla-policies": { title: "SLA policies" },
+  "escalation-policies": { title: "Escalation policies" },
+  "knowledge-articles": { title: "Knowledge base" },
+  "canned-responses": { title: "Canned responses" },
+  entitlements: { title: "Entitlements" },
+  "portal-users": { title: "Portal access" },
+  csat: { title: "Customer satisfaction" },
+  "agent-performance": { title: "Agent performance" },
+  "sla-reports": { title: "SLA report" },
+  "portal-tickets": { title: "My tickets" },
+  "portal-articles": { title: "Help articles" },
+};

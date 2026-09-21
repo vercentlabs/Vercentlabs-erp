@@ -1,0 +1,16 @@
+type C = Record<string, unknown>;
+type Q = unknown;
+type R = Record<string, any>;
+export declare function listKnowledgeArticles(client: Q, c: C, filters?: R): Promise<any[]>;
+export declare function getKnowledgeArticle(client: Q, c: C, id: string, opts?: { portal?: boolean }): Promise<any>;
+export declare function saveKnowledgeArticle(client: Q, c: C, input: R): Promise<any>;
+export declare function submitKnowledgeArticle(client: Q, c: C, id: string): Promise<any>;
+export declare function publishKnowledgeArticle(client: Q, c: C, id: string, input?: R): Promise<any>;
+export declare function retireKnowledgeArticle(client: Q, c: C, id: string, reason: string): Promise<any>;
+export declare function reviseKnowledgeArticle(client: Q, c: C, id: string): Promise<any>;
+export declare function rateKnowledgeArticle(client: Q, c: C, id: string, helpful: boolean): Promise<any>;
+export declare function linkArticleToTicket(client: Q, c: C, input: R): Promise<any>;
+export declare function listTicketKnowledgeLinks(client: Q, c: C, ticketId: string): Promise<any[]>;
+export declare function listCannedResponses(client: Q, c: C, filters?: R): Promise<any[]>;
+export declare function saveCannedResponse(client: Q, c: C, input: R): Promise<any>;
+export declare function recordCannedResponseUsage(client: Q, c: C, id: string): Promise<any>;

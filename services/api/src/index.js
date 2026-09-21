@@ -106,6 +106,11 @@ export * from "./modules/assets/index.js";
 export * from "./modules/point-of-sale/index.js";
 export * from "./modules/quality/index.js";
 export * from "./modules/support/index.js";
+export { supportContext } from "./modules/support/common.js";
+export { getSupportSettings, saveSupportSettings, listCategories as listSupportCategories, saveCategory as saveSupportCategory, listQueues as listSupportQueues, saveQueue as saveSupportQueue, listQueueMembers, setQueueMember, removeQueueMember, listRoutingRules, saveRoutingRule, deactivateRoutingRule, listSlaPolicies, saveSlaPolicy, deactivateSlaPolicy, listEscalationPolicies, saveEscalationPolicy, createTicket, listTickets, getTicket, updateTicket, assignTicket, transitionTicket, mergeTickets, listCommunications, addCommunication, listAttachments, addAttachment, removeAttachment, listEscalations, escalateTicket, decideEscalation, checkSlaBreaches, getTicketHistory } from "./modules/support/tickets.js";
+export { listKnowledgeArticles, getKnowledgeArticle, saveKnowledgeArticle, submitKnowledgeArticle, publishKnowledgeArticle, retireKnowledgeArticle, reviseKnowledgeArticle, rateKnowledgeArticle, linkArticleToTicket, listTicketKnowledgeLinks, listCannedResponses, saveCannedResponse, recordCannedResponseUsage } from "./modules/support/knowledge.js";
+export { listPortalUsers, invitePortalUser, setPortalUserStatus, getMyPortalAccess, listMyTickets, getMyTicket, createMyTicket, listMyCommunications, replyToMyTicket, listMyAttachments, addMyAttachment, submitMyCsat, listMyKnowledgeArticles, getMyKnowledgeArticle } from "./modules/support/portal.js";
+export { getCustomerOrderHistory, getTicketLinkedRecords, listEntitlements, saveEntitlement, setEntitlementStatus, getCsatReport, getAgentPerformance, getSlaReport, getSupportDeskDashboard, getAuditLog as getSupportAuditLog, listSupportOptions, listCustomerContacts } from "./modules/support/service.js";
 export * from "./modules/hr-payroll/index.js";
 // task-operations.js is now also re-exported from ./modules/crm/index.js
 // (line 6's `export *` already covers it) — the direct re-export here was

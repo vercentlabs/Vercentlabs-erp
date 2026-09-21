@@ -246,5 +246,6 @@ api/settings/sessions/route.ts,DELETE,none,out-of-scope,,"platform administratio
 api/settings/users/[id]/access/route.ts,PUT,none,out-of-scope,,"platform administration (org/company/branch/role/billing settings, not tenant business data)"
 api/settings/users/[id]/roles/route.ts,PUT,none,out-of-scope,,"platform administration (org/company/branch/role/billing settings, not tenant business data)"
 api/settings/users/[id]/status/route.ts,PUT,none,out-of-scope,,"platform administration (org/company/branch/role/billing settings, not tenant business data)"
+api/support/actions/[action]/route.ts,POST,none,out-of-scope,,"business-data mutation (default assumption, needs confirmation)"
 api/test-support/email-capture/route.ts,POST,none,out-of-scope,,"business-data mutation (default assumption, needs confirmation)"
 api/workspace/context/route.ts,PATCH,none,out-of-scope,,"business-data mutation (default assumption, needs confirmation)"
