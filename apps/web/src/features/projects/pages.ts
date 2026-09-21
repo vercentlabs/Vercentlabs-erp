@@ -1,0 +1,23 @@
+// Plain data (no components) so a Server Component page can read it.
+export const PROJECTS_PAGES: Record<string, { title: string }> = {
+  all: { title: "All projects" },
+  templates: { title: "Project templates" },
+  tasks: { title: "Tasks" },
+  milestones: { title: "Milestones" },
+  workspace: { title: "Project workspace" },
+  "resource-allocation": { title: "Resource allocation" },
+  capacity: { title: "Capacity" },
+  time: { title: "Time entries" },
+  timesheets: { title: "Timesheets" },
+  expenses: { title: "Expenses" },
+  materials: { title: "Materials consumed" },
+  budgets: { title: "Project budgets" },
+  procurement: { title: "Project procurement" },
+  billing: { title: "Project billing" },
+  invoices: { title: "Project invoices" },
+  risks: { title: "Risks" },
+  issues: { title: "Issues" },
+  documents: { title: "Project documents" },
+  reports: { title: "Reports" },
+  settings: { title: "Project settings" },
+};

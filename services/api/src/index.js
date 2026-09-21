@@ -102,6 +102,7 @@ export * from "./modules/manufacturing/planning.js";
 export * from "./modules/manufacturing/execution.js";
 export * from "./modules/manufacturing/costing.js";
 export * from "./modules/projects/index.js";
+export * from "./modules/projects/desk.js";
 export * from "./modules/assets/index.js";
 export * from "./modules/assets/desk.js";
 export * from "./modules/point-of-sale/index.js";

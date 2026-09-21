@@ -552,8 +552,8 @@ export const MODULE_NAVIGATION: readonly ModuleNavigation[] = [
         label: "Projects",
         featureRange: "F193-F196",
         items: [
-          planned("All Projects", "/projects/all"),
-          planned("Templates", "/projects/templates"),
+          available("All Projects", "/projects/all"),
+          available("Templates", "/projects/templates"),
         ],
       },
       {
@@ -561,10 +561,9 @@ export const MODULE_NAVIGATION: readonly ModuleNavigation[] = [
         label: "Planning",
         featureRange: "F197-F203",
         items: [
-          planned("WBS", "/projects/wbs"),
-          planned("Tasks", "/projects/tasks"),
-          planned("Milestones", "/projects/milestones"),
-          planned("Schedule / Gantt", "/projects/schedule"),
+          available("Tasks", "/projects/tasks"),
+          available("Milestones", "/projects/milestones"),
+          available("Workspace (WBS, Gantt, Board)", "/projects/workspace"),
         ],
       },
       {
@@ -572,8 +571,8 @@ export const MODULE_NAVIGATION: readonly ModuleNavigation[] = [
         label: "Resources",
         featureRange: "F204-F206",
         items: [
-          planned("Resource Allocation", "/projects/resource-allocation"),
-          planned("Capacity", "/projects/capacity"),
+          available("Resource Allocation", "/projects/resource-allocation"),
+          available("Capacity", "/projects/capacity"),
         ],
       },
       {
@@ -581,8 +580,10 @@ export const MODULE_NAVIGATION: readonly ModuleNavigation[] = [
         label: "Time & Expense",
         featureRange: "F207-F210",
         items: [
-          planned("Timesheets", "/projects/timesheets"),
-          planned("Expenses", "/projects/expenses"),
+          available("Time Entries", "/projects/time"),
+          available("Timesheets", "/projects/timesheets"),
+          available("Expenses", "/projects/expenses"),
+          available("Materials", "/projects/materials"),
         ],
       },
       {
@@ -590,10 +591,8 @@ export const MODULE_NAVIGATION: readonly ModuleNavigation[] = [
         label: "Financials",
         featureRange: "F211-F215",
         items: [
-          planned("Budgets", "/projects/budgets"),
-          planned("Costs", "/projects/costs"),
-          planned("Commitments", "/projects/commitments"),
-          planned("Project Procurement", "/projects/procurement"),
+          available("Budgets", "/projects/budgets"),
+          available("Project Procurement", "/projects/procurement"),
         ],
       },
       {
@@ -601,8 +600,8 @@ export const MODULE_NAVIGATION: readonly ModuleNavigation[] = [
         label: "Billing",
         featureRange: "F216-F218",
         items: [
-          planned("Billing", "/projects/billing"),
-          planned("Project Invoices", "/projects/invoices"),
+          available("Billing", "/projects/billing"),
+          available("Project Invoices", "/projects/invoices"),
         ],
       },
       {
@@ -610,10 +609,9 @@ export const MODULE_NAVIGATION: readonly ModuleNavigation[] = [
         label: "Control",
         featureRange: "F219-F224",
         items: [
-          planned("Risks", "/projects/risks"),
-          planned("Issues", "/projects/issues"),
-          planned("Documents", "/projects/documents"),
-          planned("Progress", "/projects/progress"),
+          available("Risks", "/projects/risks"),
+          available("Issues", "/projects/issues"),
+          available("Documents", "/projects/documents"),
         ],
       },
       {
@@ -621,8 +619,8 @@ export const MODULE_NAVIGATION: readonly ModuleNavigation[] = [
         label: "Insights",
         featureRange: "F225-F230",
         items: [
-          planned("Profitability", "/projects/profitability"),
-          planned("Reports", "/projects/reports"),
+          available("Reports", "/projects/reports"),
+          available("Settings", "/projects/settings"),
         ],
       },
     ],

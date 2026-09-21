@@ -1,7 +1,7 @@
-import { ModuleFoundationPage } from "@/shell/module-foundation/ModuleFoundationPage";
+import { ProjectsDashboardScreen } from "@/features/projects/ProjectsPage";
 
 export const metadata = { title: "Projects" };
 
-export default function ProjectsPage() {
-  return <ModuleFoundationPage moduleKey="projects" moduleLabel="Projects" />;
+export default function ProjectsHomePage() {
+  return <ProjectsDashboardScreen />;
 }
