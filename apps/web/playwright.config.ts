@@ -23,6 +23,10 @@ export default defineConfig({
   timeout: 45_000,
   use: {
     baseURL: BASE_URL,
+    // An action that cannot find its target fails after a minute with the line that was waiting, instead of waiting for the
+    // whole test timeout (some specs allow fifteen minutes).
+    actionTimeout: 60_000,
+    navigationTimeout: 120_000,
     trace: "retain-on-failure",
     screenshot: "only-on-failure",
   },

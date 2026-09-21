@@ -48,18 +48,18 @@ export async function SettingsIndexScreen() {
                 );
               }
               const lockedReason =
-                item.status === "PLANNED" ? "Planned — not yet built" : "Requires additional permission";
+                item.status === "PLANNED" ? "Planned, not available yet" : "Needs additional permission";
               return (
                 <div
                   key={item.id}
-                  className="flex flex-col gap-1 rounded-[var(--radius-card)] border border-border bg-surface-muted p-4 opacity-60"
-                  title={lockedReason}
+                  className="flex flex-col gap-1 rounded-[var(--radius-card)] border border-dashed border-border-strong bg-surface-muted p-4"
                 >
                   <div className="flex items-center justify-between gap-2">
-                    <span className="text-sm font-medium text-text">{item.label}</span>
-                    <Lock aria-hidden="true" className="size-3.5 shrink-0 text-text-muted" />
+                    <span className="text-sm font-medium text-text-secondary">{item.label}</span>
+                    <Lock aria-hidden="true" className="size-3.5 shrink-0 text-text-secondary" />
                   </div>
-                  <span className="text-xs text-text-muted">{item.description}</span>
+                  <span className="text-xs text-text-secondary">{item.description}</span>
+                  <span className="text-xs font-medium text-text-secondary">{lockedReason}</span>
                 </div>
               );
             })}

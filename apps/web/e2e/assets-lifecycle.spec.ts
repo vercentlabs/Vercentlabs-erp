@@ -50,7 +50,11 @@ test("register, capitalize by someone else, depreciate, and report", async ({ br
 
     // --- F249: A prepares a depreciation run to the end of this month, B approves and posts it
     const end = new Date();
-    const cutoff = new Date(Date.UTC(end.getUTCFullYear(), end.getUTCMonth() + 1, 0)).toISOString().slice(0, 10);
+    // A run is unique per cut-off date and earlier runs leave theirs behind, so each run uses a day of its own between
+    // today and the end of the year, which is the open fiscal period the fixture provides (posting needs an open period).
+    const todayUtc = Date.UTC(end.getUTCFullYear(), end.getUTCMonth(), end.getUTCDate());
+    const daysLeft = Math.floor((Date.UTC(end.getUTCFullYear(), 11, 31) - todayUtc) / 86_400_000);
+    const cutoff = new Date(todayUtc + Math.floor(Math.random() * (daysLeft + 1)) * 86_400_000).toISOString().slice(0, 10);
     await open(pa, "/assets/depreciation", "Depreciation runs");
     await pa.getByRole("button", { name: "Prepare run" }).click();
     dlg = pa.getByRole("dialog");

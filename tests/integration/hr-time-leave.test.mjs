@@ -113,7 +113,9 @@ test("HR time and leave against real PostgreSQL", async (t) => {
       await denied("nobody", (c, x) => api.punch(c, x, { direction: "in" }), 404);
       // an employee punches at the server's time -- a supplied past time is ignored
       const now = await run("emp2", (c, x) => api.punch(c, x, { direction: "in", at: at(d1, "09:00") }));
-      assert.equal(now.attendance.attendance_date, today, "the punch landed on today, not the requested day");
+      // Attendance belongs to the organisation's calendar day (Asia/Kolkata for this world), which is a day ahead of UTC each night.
+      const orgToday = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kolkata" }).format(new Date());
+      assert.equal(now.attendance.attendance_date, orgToday, "the punch landed on today, not the requested day");
       const state = await run("emp2", (c, x) => api.getMyPunchState(c, x));
       assert.equal(state.checkedIn, true);
       await denied("emp2", (c, x) => api.punch(c, x, { direction: "in" }), 409, "HR_ALREADY_CHECKED_IN");

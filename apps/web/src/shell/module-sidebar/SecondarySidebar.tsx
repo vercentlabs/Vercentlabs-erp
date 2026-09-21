@@ -142,7 +142,7 @@ export function SecondarySidebar() {
                 return (
                   <span
                     key={item.id}
-                    className="flex items-center justify-between rounded-[var(--radius-control)] px-2 py-1.5 text-sm text-text-muted opacity-60"
+                    className="flex items-center justify-between rounded-[var(--radius-control)] px-2 py-1.5 text-sm text-text-secondary"
                     title={
                       permitted
                         ? "Planned — not yet built"

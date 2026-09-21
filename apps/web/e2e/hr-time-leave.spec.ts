@@ -19,7 +19,8 @@ test("check in and out, leave with manager approval, cancellation, attendance co
   const mgr = await openSession(browser, world.plain);
   try {
     const s = world.suffix;
-    const today = iso(new Date());
+    // Attendance days belong to the organisation's time zone, which is a day ahead of UTC for part of every night.
+    const today = new Intl.DateTimeFormat("en-CA", { timeZone: process.env.E2E_ORG_TIMEZONE ?? "Asia/Kolkata" }).format(new Date());
     const managerId = await insertEmployee(world, `TM-${s}`, "Team", `Manager${s}`, { userId: world.plain.userId });
     const employeeId = await insertEmployee(world, `TE-${s}`, "Team", `Member${s}`, { userId: world.ess.userId, managerId });
 
@@ -48,8 +49,8 @@ test("check in and out, leave with manager approval, cancellation, attendance co
     await e.getByRole("button", { name: "Apply for leave" }).click();
     let dlg = e.getByRole("dialog");
     await pick(e, dlg.getByRole("button", { name: /Select leave type/ }), new RegExp(`Annual ${s}`));
-    await dlg.getByLabel("From", { exact: true }).fill(monday);
-    await dlg.getByLabel("To", { exact: true }).fill(addD(monday, 1));
+    await dlg.getByLabel(/^From\*?$/).fill(monday);
+    await dlg.getByLabel(/^To\*?$/).fill(addD(monday, 1));
     await dlg.getByLabel("Reason").fill("Family function");
     await dlg.getByRole("button", { name: "Save" }).click();
     const submitted = e.getByRole("row", { name: new RegExp(`Annual ${s}.*Submitted`) });
@@ -60,8 +61,8 @@ test("check in and out, leave with manager approval, cancellation, attendance co
     await e.getByRole("button", { name: "Apply for leave" }).click();
     dlg = e.getByRole("dialog");
     await pick(e, dlg.getByRole("button", { name: /Select leave type/ }), new RegExp(`Annual ${s}`));
-    await dlg.getByLabel("From", { exact: true }).fill(monday);
-    await dlg.getByLabel("To", { exact: true }).fill(monday);
+    await dlg.getByLabel(/^From\*?$/).fill(monday);
+    await dlg.getByLabel(/^To\*?$/).fill(monday);
     await dlg.getByRole("button", { name: "Save" }).click();
     await expect(e.getByRole("alert").filter({ hasText: /already has leave in that period/i }).first()).toBeVisible({ timeout: 30_000 });
     await e.getByRole("dialog").getByRole("button", { name: "Close" }).last().click();

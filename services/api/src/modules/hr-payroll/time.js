@@ -344,8 +344,11 @@ export async function listAttendance(client, c, filters = {}) {
   const own = await ownEmployee(client, c);
   const params = [c.organizationId, c.companyId];
   let extra = "";
-  const from = dateOrNull(filters.from, "From") ?? addDays(today(), -30);
-  const to = dateOrNull(filters.to, "To") ?? today();
+  // "Today" is the organisation's calendar day: attendance is recorded against it, and for part of every day it is a day
+  // ahead of UTC, which would otherwise hide the record just made.
+  const orgToday = await localDate(client, await orgZone(client, c), new Date().toISOString());
+  const from = dateOrNull(filters.from, "From") ?? addDays(orgToday, -30);
+  const to = dateOrNull(filters.to, "To") ?? orgToday;
   params.push(from, to);
   extra += ` AND a.attendance_date BETWEEN $3 AND $4`;
   if (filters.mine === true || !hasAny(c, VIEW)) {

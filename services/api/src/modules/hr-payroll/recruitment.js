@@ -362,9 +362,13 @@ export async function createOffer(client, c, input) {
   if (validUntil < today()) throw new HrError(400, "The offer would already be expired.", "HR_OFFER_INVALID");
   if (joining < validUntil && joining < today()) throw new HrError(400, "The joining date is in the past.", "HR_OFFER_INVALID");
   let terms = textOrNull(input.terms, 3000);
-  const outside = (o.salary_min !== null && ctc < Number(o.salary_min)) || (o.salary_max !== null && ctc > Number(o.salary_max));
+  // The opening form starts its salary fields at 0, so a band left untouched is stored as 0 to 0. A bound of zero means
+  // "no bound was set", otherwise every offer for such an opening would need a justification.
+  const bandMin = o.salary_min !== null && Number(o.salary_min) > 0 ? Number(o.salary_min) : null;
+  const bandMax = o.salary_max !== null && Number(o.salary_max) > 0 ? Number(o.salary_max) : null;
+  const outside = (bandMin !== null && ctc < bandMin) || (bandMax !== null && ctc > bandMax);
   if (outside) {
-    if (!text(input.justification)) throw new HrError(409, `The offer is outside the approved range (${o.salary_min ?? "—"} to ${o.salary_max ?? "—"}). Give a justification to continue.`, "HR_OFFER_OUTSIDE_RANGE");
+    if (!text(input.justification)) throw new HrError(409, `The offer is outside the approved range (${bandMin ?? "no minimum"} to ${bandMax ?? "no maximum"}). Give a justification to continue.`, "HR_OFFER_OUTSIDE_RANGE");
     terms = `[Range exception: ${text(input.justification, 500)}] ${terms ?? ""}`.trim();
   }
   const departmentId = uuidOrNull(input.departmentId, "Department") ?? o.department_id;
