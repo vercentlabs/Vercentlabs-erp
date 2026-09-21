@@ -22,12 +22,23 @@ import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import { CommunicationApiError, listCommunications } from "../api/communications-api";
 import type { Communication, CommunicationListFilters } from "../types";
 import { LoadingState } from "@/features/crm/shared/ui/LoadingState";
+import { formatDateTime, humanize } from "@/features/crm/shared/human";
+import { ViewToggle } from "@/features/crm/shared/ui/ViewToggle";
 
 const PAGE_SIZE = 25;
 
 const channelIcon: Record<string, typeof Mail> = { email: Mail, whatsapp: MessageSquare, sms: MessageSquare, call_log: Phone };
 
-const dateTimeFormatter = new Intl.DateTimeFormat("en-IN", { dateStyle: "medium", timeStyle: "short" });
+
+const CHANNEL_TABS = [
+  { id: "all", label: "All" },
+  { id: "email", label: "Email" },
+  { id: "whatsapp", label: "WhatsApp" },
+  { id: "sms", label: "SMS" },
+  { id: "call_log", label: "Calls" },
+];
+
+const kindOf = (row: Communication) => (row.leadId ? "Lead" : row.opportunityId ? "Opportunity" : row.partyId ? "Account" : row.contactId ? "Contact" : "");
 
 export function CommunicationListScreen() {
   const router = useRouter();
@@ -48,7 +59,9 @@ export function CommunicationListScreen() {
 
   const activeFilters: ActiveFilter[] = useMemo(() => {
     const active: ActiveFilter[] = [];
-    if (filters.status) active.push({ id: "status", label: `Status: ${filters.status}` });
+    if (filters.status) active.push({ id: "status", label: `Status: ${humanize(filters.status)}` });
+    if (filters.direction) active.push({ id: "direction", label: `Direction: ${humanize(filters.direction)}` });
+    if (filters.channel) active.push({ id: "channel", label: `Channel: ${filters.channel === "call_log" ? "Calls" : humanize(filters.channel)}` });
     if (filters.search) active.push({ id: "search", label: `Search: ${filters.search}` });
     return active;
   }, [filters]);
@@ -67,35 +80,55 @@ export function CommunicationListScreen() {
         cell: ({ row }) => {
           const Icon = channelIcon[row.original.channel] ?? Mail;
           return (
-            <span className="flex items-center gap-1.5">
-              <Icon className="size-3.5 text-text-muted" aria-hidden="true" />
-              {row.original.channel}
+            <span className="flex flex-col">
+              <span className="flex items-center gap-1.5 font-medium text-text">
+                <Icon className="size-3.5 text-text-muted" aria-hidden="true" />
+                {row.original.channel === "call_log" ? "Call" : humanize(row.original.channel)}
+              </span>
+              {row.original.direction && <span className="text-xs text-text-muted">{humanize(row.original.direction)}</span>}
             </span>
           );
         },
       },
-      { id: "direction", header: "Direction", accessorFn: (row) => row.direction || "—" },
       {
         id: "subject",
-        header: "Subject",
+        header: "Message",
         accessorFn: (row) => (row.contentVisibility === "metadata" ? null : row.subject),
         cell: ({ row }) =>
           row.original.contentVisibility === "metadata" ? (
             <span className="flex items-center gap-1.5 text-text-muted">
               <Lock className="size-3.5" aria-hidden="true" />
-              Restricted — participant only
+              Restricted. Only the sender or an authorized reviewer can read it.
             </span>
           ) : (
-            <span className="text-text">{row.original.subject || "—"}</span>
+            <span className="flex flex-col">
+              <span className="text-text">{row.original.subject || "No subject"}</span>
+              {row.original.body && <span className="line-clamp-1 max-w-md text-xs text-text-muted">{row.original.body}</span>}
+            </span>
           ),
       },
+      {
+        id: "people",
+        header: "From and to",
+        accessorFn: (row) => row.fromAddress ?? "",
+        cell: ({ row }) =>
+          row.original.contentVisibility === "metadata" ? (
+            <span className="text-text-muted">Restricted</span>
+          ) : (
+            <span className="flex flex-col text-xs">
+              <span className="text-text">{row.original.fromAddress || "Unknown sender"}</span>
+              {row.original.toAddresses && row.original.toAddresses.length > 0 && <span className="text-text-muted">{`to ${row.original.toAddresses.slice(0, 2).join(", ")}${row.original.toAddresses.length > 2 ? ` +${row.original.toAddresses.length - 2}` : ""}`}</span>}
+            </span>
+          ),
+      },
+      { id: "related", header: "Related to", accessorFn: (row) => kindOf(row), cell: ({ row }) => (kindOf(row.original) ? <span className="text-brand">{kindOf(row.original)}</span> : <span className="text-text-muted">Not linked</span>) },
       {
         id: "status",
         header: "Status",
         accessorKey: "status",
         cell: ({ getValue }) => <StatusBadge tone="neutral">{String(getValue())}</StatusBadge>,
       },
-      { id: "occurredAt", header: "Occurred", accessorFn: (row) => dateTimeFormatter.format(new Date(row.occurredAt)) },
+      { id: "occurredAt", header: "When", accessorFn: (row) => formatDateTime(row.occurredAt) },
     ],
     [],
   );
@@ -114,10 +147,12 @@ export function CommunicationListScreen() {
     <EnterpriseListPage
       header={{
         title: "Communications",
-        description: "Email, WhatsApp, SMS and call-log history across your CRM records. Subject/body are only visible to the sender or an authorized reviewer, never to every record viewer.",
+        description: "Email, WhatsApp, SMS and calls across your CRM records. A message is readable only by its sender or an authorized reviewer.",
       }}
       actionBar={{
         start: (
+          <>
+          <ViewToggle label="Channel" options={CHANNEL_TABS} value={filters.channel ?? "all"} onChange={(id) => updateFilter("channel", id === "all" ? undefined : id)} />
           <SearchField
             aria-label="Search communications"
             placeholder="Search by subject…"
@@ -126,6 +161,7 @@ export function CommunicationListScreen() {
             onKeyDown={(event) => event.key === "Enter" && updateFilter("search", searchInput || undefined)}
             className="min-w-[240px]"
           />
+          </>
         ),
         end: <Button variant="secondary" onPress={() => updateFilter("search", searchInput || undefined)}>Search</Button>,
       }}
@@ -142,7 +178,7 @@ export function CommunicationListScreen() {
         getRowId={(row) => row.id}
         state={gridState}
         loadingContent={<LoadingState label="Loading communications" rows={3} />}
-        emptyContent={<NoResultsState title="No communications yet" />}
+        emptyContent={<NoResultsState title={filters.channel || filters.search ? "No messages match" : "No communications yet"} description={filters.channel || filters.search ? "Try another channel or clear the search." : "Messages appear here once a channel is connected in Settings, or when a call is logged."} />}
         errorContent={<ErrorState title="Could not load communications" action={{ label: "Retry", onPress: () => query.refetch() }} />}
         permissionDeniedContent={<PermissionState title="You don't have access to Communications" />}
         pageIndex={pageIndex}

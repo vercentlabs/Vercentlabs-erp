@@ -30,6 +30,8 @@ export type Communication = {
 export type CommunicationListFilters = {
   search?: string;
   status?: string;
+  channel?: string;
+  direction?: string;
   limit?: number;
   offset?: number;
 };

@@ -2,22 +2,22 @@
 
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Select, TextField, EnterpriseListPage, EmptyState, PermissionState } from "@vercentlabs/design-system";
+import { Select, TextField, EnterpriseListPage, PermissionState } from "@vercentlabs/design-system";
 import { CRM_PERMISSIONS } from "@vercentlabs/permissions";
 
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
-import { listLeads } from "@/features/crm/leads/api/leads-api";
+import { getLead, listLeads } from "@/features/crm/leads/api/leads-api";
 import type { Lead } from "@/features/crm/leads/types";
 import { LeadDuplicatesWorkspacePanel } from "@/features/crm/leads/components/LeadDuplicatesWorkspacePanel";
-import { listAccounts } from "@/features/crm/accounts/api/accounts-api";
+import { getAccount, listAccounts } from "@/features/crm/accounts/api/accounts-api";
 import type { Account } from "@/features/crm/accounts/types";
 import { AccountDuplicatesPanel } from "@/features/crm/accounts/components/AccountDuplicatesPanel";
-import { listContacts } from "@/features/crm/contacts/api/contacts-api";
+import { getContact, listContacts } from "@/features/crm/contacts/api/contacts-api";
 import type { Contact } from "@/features/crm/contacts/types";
 import { ContactDuplicatesPanel } from "@/features/crm/contacts/components/ContactDuplicatesPanel";
 
-type EntityType = "lead" | "account" | "contact";
+import { SuspectedDuplicates, type EntityType } from "./SuspectedDuplicates";
 
 // F008 Tranche G — a standalone duplicate-triage destination
 // (/crm/data/duplicates), not tied to already being on a specific
@@ -36,6 +36,7 @@ export function DuplicatesWorkspaceScreen() {
   const [entityType, setEntityType] = useState<EntityType>("lead");
   const [search, setSearch] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [reviewed, setReviewed] = useState<{ type: EntityType; id: string } | null>(null);
 
   const leadsQuery = useQuery({
     queryKey: scopedQueryKey(workspace, "crm", "duplicates-workspace", "lead", search),
@@ -53,6 +54,10 @@ export function DuplicatesWorkspaceScreen() {
     enabled: entityType === "contact" && search.trim().length >= 2,
   });
 
+  const reviewedLeadQuery = useQuery({ queryKey: scopedQueryKey(workspace, "crm", "duplicates-workspace", "reviewed", "lead", reviewed?.id ?? ""), queryFn: () => getLead(reviewed!.id), enabled: reviewed?.type === "lead" });
+  const reviewedAccountQuery = useQuery({ queryKey: scopedQueryKey(workspace, "crm", "duplicates-workspace", "reviewed", "account", reviewed?.id ?? ""), queryFn: () => getAccount(reviewed!.id), enabled: reviewed?.type === "account" });
+  const reviewedContactQuery = useQuery({ queryKey: scopedQueryKey(workspace, "crm", "duplicates-workspace", "reviewed", "contact", reviewed?.id ?? ""), queryFn: () => getContact(reviewed!.id), enabled: reviewed?.type === "contact" });
+
   if (!canView) return <PermissionState title="You don't have access to duplicate management" description="Ask an administrator to grant crm.leads.manage or crm.accounts.manage." />;
 
   const leadRows = leadsQuery.data?.rows ?? [];
@@ -60,9 +65,9 @@ export function DuplicatesWorkspaceScreen() {
   const contactRows = contactsQuery.data?.rows ?? [];
   const isSearching = entityType === "lead" ? leadsQuery.isFetching : entityType === "account" ? accountsQuery.isFetching : contactsQuery.isFetching;
 
-  const selectedLead: Lead | undefined = entityType === "lead" ? leadRows.find((row) => row.id === selectedId) : undefined;
-  const selectedAccount: Account | undefined = entityType === "account" ? accountRows.find((row) => row.id === selectedId) : undefined;
-  const selectedContact: Contact | undefined = entityType === "contact" ? contactRows.find((row) => row.id === selectedId) : undefined;
+  const selectedLead: Lead | undefined = entityType === "lead" ? (leadRows.find((row) => row.id === selectedId) ?? reviewedLeadQuery.data?.record) : undefined;
+  const selectedAccount: Account | undefined = entityType === "account" ? (accountRows.find((row) => row.id === selectedId) ?? reviewedAccountQuery.data?.record) : undefined;
+  const selectedContact: Contact | undefined = entityType === "contact" ? (contactRows.find((row) => row.id === selectedId) ?? reviewedContactQuery.data?.record) : undefined;
 
   function labelFor(type: EntityType, row: Lead | Account | Contact): string {
     if (type === "lead") {
@@ -80,7 +85,7 @@ export function DuplicatesWorkspaceScreen() {
     <EnterpriseListPage
       header={{
         title: "Duplicate management",
-        description: "Search for a Lead, Account or Contact to review possible duplicates and resolve them by dismissing or merging.",
+        description: "Suspected duplicates are listed with the reasons they matched. Review each one side by side, then dismiss it or merge deliberately.",
       }}
     >
       <div className="flex flex-col gap-4">
@@ -96,6 +101,7 @@ export function DuplicatesWorkspaceScreen() {
             onSelectionChange={(key) => {
               setEntityType(key === "account" ? "account" : key === "contact" ? "contact" : "lead");
               setSelectedId(null);
+              setReviewed(null);
             }}
           />
           <TextField
@@ -109,7 +115,8 @@ export function DuplicatesWorkspaceScreen() {
           />
         </div>
 
-        {search.trim().length < 2 && <EmptyState title="Search for a record" description="Type at least 2 characters to find a Lead, Account or Contact." />}
+        {!reviewed && search.trim().length < 2 && <SuspectedDuplicates type={entityType} onReview={(id) => { setReviewed({ type: entityType, id }); setSelectedId(id); }} />}
+        {search.trim().length < 2 && !reviewed && <p className="text-sm text-text-muted">Or search for any record to check it: type at least 2 characters.</p>}
         {search.trim().length >= 2 && !selectedId && (
           <ul className="flex flex-col gap-1">
             {isSearching && <li className="text-sm text-text-secondary">Searching…</li>}
@@ -132,8 +139,8 @@ export function DuplicatesWorkspaceScreen() {
         {selectedAccount && <AccountDuplicatesPanel account={selectedAccount} canManage={workspace.permissions.includes(CRM_PERMISSIONS.accountsManage)} />}
         {selectedContact && <ContactDuplicatesPanel contact={selectedContact} canManage={workspace.permissions.includes(CRM_PERMISSIONS.accountsManage)} />}
         {(selectedLead || selectedAccount || selectedContact) && (
-          <button type="button" className="w-fit text-sm text-brand hover:underline" onClick={() => setSelectedId(null)}>
-            Search another record
+          <button type="button" className="w-fit text-sm text-brand hover:underline" onClick={() => { setSelectedId(null); setReviewed(null); }}>
+            Back to the list
           </button>
         )}
       </div>
