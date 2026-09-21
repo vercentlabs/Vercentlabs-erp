@@ -60,8 +60,9 @@ test.describe("public booking", () => {
       await expect(page.getByText("Asia/Calcutta")).toHaveCount(0);
       await expect(page.getByText("Asia/Kolkata")).toHaveCount(0);
 
-      // Pick tomorrow from the calendar, then a time.
-      const tomorrow = new Date(Date.now() + 86_400_000);
+      // Earlier runs leave meetings behind that fill a host's mornings, so each run books a different day.
+      const bookOffset = 2 + Math.floor(Math.random() * 38);
+      const tomorrow = new Date(Date.now() + bookOffset * 86_400_000);
       const label = tomorrow.toLocaleDateString("en-IN", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
       const day = page.getByRole("button", { name: label });
       if (!(await day.isVisible().catch(() => false))) await page.getByRole("button", { name: "Next month" }).click();
@@ -96,7 +97,9 @@ test.describe("public booking", () => {
   test("manage a booking: add to calendar, reschedule with real slots, and a confirmed cancel", async ({ page, request }) => {
     test.setTimeout(300_000);
     await withLink(async (token, db) => {
-      const day = new Date(Date.now() + 2 * 86_400_000).toISOString().slice(0, 10);
+      // Earlier runs leave meetings behind that fill a host's mornings, so each run books a different day.
+      const bookOffset = 2 + Math.floor(Math.random() * 38);
+      const day = new Date(Date.now() + bookOffset * 86_400_000).toISOString().slice(0, 10);
       const availability = await (await request.get("/api/crm/public/meetings/links/" + token + "/availability?date=" + day)).json();
       const first = availability.slots[0];
       const booked = await request.post("/api/crm/public/meetings/links/" + token + "/book", {
@@ -117,7 +120,7 @@ test.describe("public booking", () => {
       await expect(page.getByRole("button", { name: /Add to calendar/ })).toBeVisible();
       await expect(page.getByRole("heading", { name: "Pick a new time" })).toBeVisible();
       await expect(page.getByRole("button", { name: "Cancel this meeting" })).toHaveCount(0);
-      const newDay = new Date(Date.now() + 3 * 86_400_000);
+      const newDay = new Date(Date.now() + (bookOffset + 1) * 86_400_000);
       const label = newDay.toLocaleDateString("en-IN", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
       const dayButton = page.getByRole("button", { name: label });
       if (!(await dayButton.isVisible().catch(() => false))) await page.getByRole("button", { name: "Next month" }).click();

@@ -1192,7 +1192,7 @@ export const MODULE_NAVIGATION: readonly ModuleNavigation[] = [
         items: [
           available("Bank Accounts", "/accounting/bank-accounts"),
           available("Bank Statements", "/accounting/bank-transactions"),
-          planned("Reconciliation", "/accounting/reconciliation"),
+          available("Reconciliation", "/accounting/reconciliation"),
         ],
       },
       {
@@ -1212,8 +1212,8 @@ export const MODULE_NAVIGATION: readonly ModuleNavigation[] = [
         items: [
           available("Budgets", "/accounting/budgets"),
           available("Accruals", "/accounting/accruals"),
-          planned("Prepayments", "/accounting/prepayments"),
-          planned("Revenue Schedules", "/accounting/revenue-schedules"),
+          available("Prepayments", "/accounting/prepayments"),
+          available("Revenue Schedules", "/accounting/revenue-schedules"),
           available("Budget vs Actual", "/accounting/budget-actual"),
           available("Fixed Assets", "/accounting/assets"),
         ],

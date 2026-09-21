@@ -118,7 +118,12 @@ export async function listAccrualSchedules(client, context, filters = {}) {
   }
   if (filters.status && filters.status !== "all") {
     values.push(text(filters.status, 30));
-    where += ` AND schedule.status=$${values.length}`;
+    where += ` AND schedule.status=${values.length}`;
+  }
+  // Only the three real schedule types can be asked for; anything else is ignored rather than passed to SQL.
+  if (["accrual", "deferred_expense", "deferred_revenue"].includes(filters.scheduleType)) {
+    values.push(filters.scheduleType);
+    where += ` AND schedule.schedule_type=${values.length}`;
   }
   const result = await client.query(
     `SELECT schedule.*,company.name AS company_name,source_account.code AS source_account_code,

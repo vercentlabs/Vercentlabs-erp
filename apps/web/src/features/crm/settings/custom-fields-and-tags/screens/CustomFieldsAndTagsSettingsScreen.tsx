@@ -195,6 +195,7 @@ export function CustomFieldsAndTagsSettingsScreen() {
         </p>
       )}
 
+      <h1 className="text-2xl font-semibold text-text">Custom fields and tags</h1>
       <p className="rounded-[var(--radius-control)] border border-border-strong bg-surface-muted px-3 py-2 text-sm text-text-secondary">
         This page has three separate tools. <strong>Tags</strong> are labels you stick on records to group them. <strong>Custom record types</strong> are whole new kinds of record you track next to leads and accounts.
         <strong> Fields on custom record types</strong> are the details each of those records holds. To add a detail to leads, accounts, contacts or opportunities themselves, use{" "}
@@ -203,6 +204,7 @@ export function CustomFieldsAndTagsSettingsScreen() {
 
       <EnterpriseListPage
         header={{
+          headingLevel: 2,
           title: "Tags",
           description: "Short labels anyone can put on CRM records to group and find them.",
           primaryAction: (
@@ -233,6 +235,7 @@ export function CustomFieldsAndTagsSettingsScreen() {
 
       <EnterpriseListPage
         header={{
+          headingLevel: 2,
           title: "Custom record types",
           description: "New kinds of record your business needs, kept apart from leads, accounts, contacts and opportunities.",
           primaryAction: (
@@ -263,6 +266,7 @@ export function CustomFieldsAndTagsSettingsScreen() {
 
       <EnterpriseListPage
         header={{
+          headingLevel: 2,
           title: "Fields on custom record types",
           description: "The details each custom record type holds, such as a visit date or a contract value. Add a record type first.",
           primaryAction: (

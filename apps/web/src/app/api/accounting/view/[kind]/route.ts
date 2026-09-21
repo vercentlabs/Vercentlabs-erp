@@ -69,7 +69,7 @@ export async function GET(request: Request, ctx: { params: Promise<{ kind: strin
       case "recurring":
         return { rows: await listRecurringTemplates(client, context) };
       case "accruals":
-        return { rows: await listAccrualSchedules(client, context) };
+        return { rows: await listAccrualSchedules(client, context, { status: get("status"), scheduleType: get("scheduleType") }) };
       case "revaluations":
         return { rows: await listRevaluationRuns(client, context) };
       case "intercompany-rules":

@@ -1,5 +1,5 @@
 {
-  "commit": "57003fda9df087bfbad4374fe5609ba8688505fd",
+  "commit": "7367e07cf692024ab282987fe3551151b43e1444",
   "generated_by": "scripts/ux/build-implementation-inventory.mjs",
   "registers": {
     "features": 510,
@@ -16,10 +16,10 @@
   },
   "routes": {
     "registry_entries": 360,
-    "AVAILABLE": 350,
-    "PLANNED": 8,
+    "AVAILABLE": 353,
+    "PLANNED": 5,
     "ADMIN_ONLY": 2,
-    "page_exists": 351,
+    "page_exists": 354,
     "findings": {}
   },
   "feature_status": {
@@ -96,5 +96,5 @@
     "AFFECTS_UI_STATE": 7614,
     "NO_DIRECT_UI": 5382
   },
-  "e2e_spec_files": 58
+  "e2e_spec_files": 60
 }

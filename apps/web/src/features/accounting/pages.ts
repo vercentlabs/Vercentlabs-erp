@@ -31,4 +31,7 @@ export const ACCOUNTING_PAGES: Record<string, { title: string }> = {
   "tax-reports": { title: "Tax summary" },
   "statutory-reports": { title: "Subledger reconciliation" },
   "budget-actual": { title: "Budget vs actual" },
+  reconciliation: { title: "Bank reconciliation" },
+  prepayments: { title: "Prepayments" },
+  "revenue-schedules": { title: "Revenue schedules" },
 };

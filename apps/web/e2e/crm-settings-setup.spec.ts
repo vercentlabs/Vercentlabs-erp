@@ -40,7 +40,7 @@ test("record fields explain where a field appears and build the internal name fr
 test("custom fields and tags separates tags, record types and fields", async ({ page }) => {
   test.setTimeout(240_000);
   await page.goto("/crm/settings/custom-fields-and-tags", { waitUntil: "domcontentloaded", timeout: 120_000 });
-  await expect(page.getByRole("heading", { name: "Tags", exact: true })).toBeVisible({ timeout: 90_000 });
+  await expect(page.getByRole("heading", { level: 2, name: "Tags", exact: true })).toBeVisible({ timeout: 90_000 });
   await expect(page.getByRole("heading", { name: "Custom record types", exact: true })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Fields on custom record types" })).toBeVisible();
   await expect(page.getByRole("link", { name: "Custom Record Fields" })).toHaveAttribute("href", "/crm/settings/record-fields");
