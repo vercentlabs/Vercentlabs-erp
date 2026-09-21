@@ -1,10 +1,11 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Archive, Pencil, Users } from "lucide-react";
-import { Button, ConflictBanner, ErrorState, PermissionState, RecordDetailsPage, StatusBadge } from "@vercentlabs/design-system";
+import { Pencil } from "lucide-react";
+import { Button, ConflictBanner, ErrorState, PermissionState, RecordDetailsPage, StatusBadge, Tab, TabList, TabPanel, Tabs } from "@vercentlabs/design-system";
 import { CRM_PERMISSIONS } from "@vercentlabs/permissions";
 
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
@@ -12,6 +13,11 @@ import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import { NotesPanel } from "@/features/crm/shared/NotesPanel";
 import { CrmAttachmentPanel } from "@/features/crm/shared/CrmAttachmentPanel";
 import { CustomFieldsRuntimePanel } from "@/features/crm/shared/CustomFieldsRuntimePanel";
+import { toNumber } from "@/features/crm/shared/format";
+import { countryName, currencyName, formatDate, formatMoney, humanize } from "@/features/crm/shared/human";
+import { MoreMenu } from "@/features/crm/shared/ui/MoreMenu";
+import { PropertyList } from "@/features/crm/shared/ui/PropertyList";
+import { listOpportunities } from "@/features/crm/opportunities/api/opportunities-api";
 import { AccountApiError, archiveAccount, getAccount } from "../api/accounts-api";
 import { AccountHierarchyPanel } from "../components/AccountHierarchyPanel";
 import { AccountDuplicatesPanel } from "../components/AccountDuplicatesPanel";
@@ -20,12 +26,12 @@ import { AccountContactRelationshipsPanel } from "../components/AccountContactRe
 import { AccountCommunicationsPanel } from "../components/AccountCommunicationsPanel";
 import { AccountPrivacyPanel } from "../components/AccountPrivacyPanel";
 
-function Field({ label, value }: { label: string; value: string | number | null | undefined }) {
+function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <div className="flex flex-col gap-0.5">
-      <span className="text-xs text-text-muted">{label}</span>
-      <span className="text-sm text-text">{value === null || value === undefined || value === "" ? "—" : value}</span>
-    </div>
+    <section className="flex flex-col gap-2">
+      <h3 className="text-sm font-semibold text-text">{title}</h3>
+      {children}
+    </section>
   );
 }
 
@@ -42,6 +48,16 @@ export function AccountDetailScreen({ accountId }: { accountId: string }) {
     queryFn: () => getAccount(accountId),
   });
   const account = accountQuery.data?.record;
+
+  const opportunitiesQuery = useQuery({
+    queryKey: scopedQueryKey(workspace, "crm", "accounts", accountId, "opportunities"),
+    queryFn: () => listOpportunities({ partyId: accountId, limit: 50 }),
+    enabled: Boolean(account),
+  });
+  const opportunities = opportunitiesQuery.data?.rows ?? [];
+  const open = opportunities.filter((o) => o.status === "open");
+  const pipelineValue = open.reduce((sum, o) => sum + toNumber(o.amount), 0);
+  const currency = open[0]?.currencyCode ?? account?.currencyCode ?? null;
 
   const archiveMutation = useMutation({
     mutationFn: () => archiveAccount(accountId, account!.updatedAt),
@@ -67,90 +83,165 @@ export function AccountDetailScreen({ accountId }: { accountId: string }) {
   }
   if (!account) return null;
 
+  const active = account.status === "active";
+  const contacts = account.relationships?.contacts ?? 0;
+
   return (
     <RecordDetailsPage
       header={{
         title: account.displayName,
-        status: <StatusBadge tone={account.status === "active" ? "success" : "neutral"}>{account.status}</StatusBadge>,
+        status: <StatusBadge tone={active ? "success" : "neutral"}>{account.status}</StatusBadge>,
         fields: [
-          { label: "Industry", value: account.industry || "—" },
-          { label: "Contacts", value: account.relationships?.contacts ?? 0 },
-          { label: "Opportunities", value: account.relationships?.opportunities ?? 0 },
+          { label: "Industry", value: account.industry || "Not set" },
+          { label: "Contacts", value: contacts },
+          { label: "Open opportunities", value: opportunitiesQuery.isSuccess ? open.length : "…" },
+          { label: "Open pipeline", value: opportunitiesQuery.isSuccess ? (open.length ? formatMoney(currency, pipelineValue) : "None") : "…" },
         ],
         primaryAction:
-          canManage && account.status === "active" ? (
+          canManage && active ? (
             <Button variant="secondary" onPress={() => router.push(`/crm/accounts/${accountId}/edit`)}>
               <Pencil className="size-4" aria-hidden="true" />
               Edit
             </Button>
           ) : undefined,
         secondaryActions:
-          canManage && account.status === "active" ? (
-            <Button variant="danger" onPress={() => archiveMutation.mutate()} isLoading={archiveMutation.isPending}>
-              <Archive className="size-4" aria-hidden="true" />
-              Archive
-            </Button>
+          canManage && active ? (
+            <MoreMenu
+              isBusy={archiveMutation.isPending}
+              items={[{ id: "archive", label: "Archive account", danger: true, onAction: () => archiveMutation.mutate(), confirm: { title: "Archive this account?", description: "It stops appearing in active lists and can no longer be edited. Its contacts, opportunities and history are kept.", confirmLabel: "Archive" } }]}
+            />
           ) : undefined,
       }}
+      tabs={
+        <Tabs>
+          <TabList aria-label="Account sections">
+            <Tab id="overview">Overview</Tab>
+            <Tab id="contacts">Contacts</Tab>
+            <Tab id="opportunities">Opportunities</Tab>
+            <Tab id="activity">Activity</Tab>
+            <Tab id="plan">Account plan</Tab>
+            <Tab id="notes">Notes</Tab>
+            <Tab id="files">Files</Tab>
+            <Tab id="more">More</Tab>
+          </TabList>
+
+          <TabPanel id="overview">
+            <div className="flex flex-col gap-4 py-4">
+              {conflictMessage && <ConflictBanner message={conflictMessage} onReload={() => router.refresh()} />}
+              {actionError && (
+                <p role="alert" className="rounded-[var(--radius-control)] border border-danger-emphasis/30 bg-danger-soft px-3 py-2 text-sm text-danger">
+                  {actionError}
+                </p>
+              )}
+              <AccountDuplicatesPanel account={account} canManage={canManage} />
+              <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+                <PropertyList title="Company" items={[
+                  { label: "Legal name", value: account.legalName },
+                  { label: "Industry", value: account.industry },
+                  { label: "Website", value: account.website ? <a className="text-brand hover:underline" href={account.website.startsWith("http") ? account.website : `https://${account.website}`} target="_blank" rel="noreferrer">{account.website}</a> : null },
+                  { label: "Currency", value: account.currencyCode ? `${currencyName(account.currencyCode)} (${account.currencyCode})` : null },
+                ]} />
+                <PropertyList title="Contact details" items={[
+                  { label: "Email", value: account.email },
+                  { label: "Phone", value: account.phone },
+                ]} />
+                <PropertyList title="Address" items={[
+                  { label: "Street", value: [account.addressLine1, account.addressLine2].filter(Boolean).join(", ") },
+                  { label: "City", value: account.city },
+                  { label: "State", value: account.state },
+                  { label: "Postal code", value: account.postalCode },
+                  { label: "Country", value: countryName(account.countryCode) },
+                ]} />
+                <PropertyList title="Tax" items={[
+                  { label: "GSTIN", value: account.gstin },
+                  { label: "PAN", value: account.pan },
+                  { label: "MSME number", value: account.msmeNumber },
+                ]} />
+              </div>
+              <p className="text-xs text-text-muted">{`Created ${formatDate(account.createdAt)} · Last updated ${formatDate(account.updatedAt)}`}</p>
+            </div>
+          </TabPanel>
+
+          <TabPanel id="contacts">
+            <div className="flex flex-col gap-4 py-4">
+              <div className="flex items-center justify-between gap-3">
+                <p className="text-sm text-text-secondary">{contacts === 0 ? "No contacts are linked to this account yet." : `${contacts} contact${contacts === 1 ? "" : "s"} at this account.`}</p>
+                <div className="flex gap-2">
+                  <Link href={`/crm/contacts?accountId=${accountId}`} className="text-sm font-medium text-brand hover:underline">View in Contacts</Link>
+                  {canManage && active && <Link href="/crm/contacts/new" className="text-sm font-medium text-brand hover:underline">Add contact</Link>}
+                </div>
+              </div>
+              <AccountContactRelationshipsPanel accountId={accountId} />
+            </div>
+          </TabPanel>
+
+          <TabPanel id="opportunities">
+            <div className="flex flex-col gap-3 py-4">
+              {opportunitiesQuery.isLoading && <p className="text-sm text-text-secondary">Loading opportunities…</p>}
+              {opportunitiesQuery.isError && <ErrorState title="Could not load opportunities" action={{ label: "Retry", onPress: () => opportunitiesQuery.refetch() }} />}
+              {opportunitiesQuery.isSuccess && opportunities.length === 0 && <p className="text-sm text-text-secondary">No opportunities for this account yet.</p>}
+              {opportunities.length > 0 && (
+                <div className="overflow-x-auto rounded-[var(--radius-card)] border border-border">
+                  <table className="w-full text-sm">
+                    <thead className="bg-canvas-strong text-left text-xs uppercase tracking-wide text-text-muted">
+                      <tr><th className="px-3 py-2">Opportunity</th><th className="px-3 py-2">Stage</th><th className="px-3 py-2 text-right">Amount</th><th className="px-3 py-2">Expected close</th><th className="px-3 py-2">Status</th></tr>
+                    </thead>
+                    <tbody>
+                      {opportunities.map((o) => (
+                        <tr key={o.id} className="border-t border-border">
+                          <td className="px-3 py-2"><Link className="font-medium text-brand hover:underline" href={`/crm/opportunities/${o.id}`}>{o.name}</Link></td>
+                          <td className="px-3 py-2">{o.stageName ?? ""}</td>
+                          <td className="px-3 py-2 text-right tabular-nums">{o.amount !== null ? formatMoney(o.currencyCode, o.amount) : ""}</td>
+                          <td className="px-3 py-2">{formatDate(o.expectedCloseDate)}</td>
+                          <td className="px-3 py-2"><StatusBadge tone={o.status === "won" ? "success" : o.status === "lost" ? "danger" : o.status === "open" ? "info" : "neutral"}>{humanize(o.status)}</StatusBadge></td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          </TabPanel>
+
+          <TabPanel id="activity">
+            <div className="py-4">
+              <AccountCommunicationsPanel accountId={accountId} />
+            </div>
+          </TabPanel>
+
+          <TabPanel id="plan">
+            <div className="py-4">
+              <AccountPlanPanel accountId={accountId} canManage={canManage} />
+            </div>
+          </TabPanel>
+
+          <TabPanel id="notes">
+            <div className="py-4">
+              <NotesPanel entityType="party" entityId={accountId} />
+            </div>
+          </TabPanel>
+
+          <TabPanel id="files">
+            <div className="py-4">
+              <CrmAttachmentPanel entityType="party" entityId={accountId} />
+            </div>
+          </TabPanel>
+
+          <TabPanel id="more">
+            <div className="flex flex-col gap-6 py-4">
+              <Section title="Hierarchy">
+                <AccountHierarchyPanel accountId={accountId} canManage={canManage} />
+              </Section>
+              <Section title="Custom fields">
+                <CustomFieldsRuntimePanel entityType="party" entityId={accountId} />
+              </Section>
+              <AccountPrivacyPanel accountId={accountId} accountName={account.displayName} />
+            </div>
+          </TabPanel>
+        </Tabs>
+      }
     >
-      <div className="flex flex-col gap-6 py-4">
-        {conflictMessage && <ConflictBanner message={conflictMessage} onReload={() => router.refresh()} />}
-        {actionError && (
-          <p role="alert" className="rounded-[var(--radius-control)] border border-danger-emphasis/30 bg-danger-soft px-3 py-2 text-sm text-danger">
-            {actionError}
-          </p>
-        )}
-        <AccountDuplicatesPanel account={account} canManage={canManage} />
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <Field label="Legal name" value={account.legalName} />
-          <Field label="Website" value={account.website} />
-          <Field label="Phone" value={account.phone} />
-          <Field label="Email" value={account.email} />
-          <Field label="GSTIN" value={account.gstin} />
-          <Field label="PAN" value={account.pan} />
-          <Field label="MSME number" value={account.msmeNumber} />
-          <Field label="Currency" value={account.currencyCode} />
-          <Field label="Address" value={account.addressLine1} />
-          <Field label="City" value={account.city} />
-          <Field label="State" value={account.state} />
-          <Field label="Country" value={account.countryCode} />
-        </div>
-        <div className="flex items-center gap-2 border-t border-border pt-4">
-          <Users className="size-4 text-text-muted" aria-hidden="true" />
-          <button type="button" className="text-sm text-brand hover:underline" onClick={() => router.push(`/crm/contacts?accountId=${accountId}`)}>
-            View {account.relationships?.contacts ?? 0} contact{account.relationships?.contacts === 1 ? "" : "s"} for this account
-          </button>
-        </div>
-        <div className="flex flex-col gap-2 border-t border-border pt-4">
-          <p className="text-sm font-semibold text-text">Contact relationships</p>
-          <AccountContactRelationshipsPanel accountId={accountId} />
-        </div>
-        <div className="flex flex-col gap-2 border-t border-border pt-4">
-          <p className="text-sm font-semibold text-text">Hierarchy</p>
-          <AccountHierarchyPanel accountId={accountId} canManage={canManage} />
-        </div>
-        <div className="flex flex-col gap-2 border-t border-border pt-4">
-          <p className="text-sm font-semibold text-text">Account plan</p>
-          <AccountPlanPanel accountId={accountId} canManage={canManage} />
-        </div>
-        <div className="flex flex-col gap-2 border-t border-border pt-4">
-          <p className="text-sm font-semibold text-text">Notes</p>
-          <NotesPanel entityType="party" entityId={accountId} />
-        </div>
-        <div className="flex flex-col gap-2 border-t border-border pt-4">
-          <p className="text-sm font-semibold text-text">Attachments</p>
-          <CrmAttachmentPanel entityType="party" entityId={accountId} />
-        </div>
-        <div className="flex flex-col gap-2 border-t border-border pt-4">
-          <p className="text-sm font-semibold text-text">Communications</p>
-          <AccountCommunicationsPanel accountId={accountId} />
-        </div>
-        <div className="flex flex-col gap-2 border-t border-border pt-4">
-          <p className="text-sm font-semibold text-text">Custom fields</p>
-          <CustomFieldsRuntimePanel entityType="party" entityId={accountId} />
-        </div>
-        <AccountPrivacyPanel accountId={accountId} accountName={account.displayName} />
-      </div>
+      <div />
     </RecordDetailsPage>
   );
 }

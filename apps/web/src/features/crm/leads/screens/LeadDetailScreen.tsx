@@ -35,6 +35,8 @@ import { CrmAttachmentPanel } from "@/features/crm/shared/CrmAttachmentPanel";
 import { CustomFieldsRuntimePanel } from "@/features/crm/shared/CustomFieldsRuntimePanel";
 import { LeadTagsPanel } from "@/features/crm/shared/LeadTagsPanel";
 import { money } from "@/features/crm/shared/format";
+import { countryName, dueLabel, dueState, formatDate, formatDateTime, humanize, scoreLabel } from "@/features/crm/shared/human";
+import { PropertyList } from "@/features/crm/shared/ui/PropertyList";
 import {
   assignLead,
   convertLead,
@@ -326,8 +328,8 @@ export function LeadDetailScreen({ leadId }: { leadId: string }) {
     return rows.map((row) => ({
       id: row.id,
       tone: timelineTone[row.kind] ?? "neutral",
-      title: `${row.kind}${row.subtype ? ` · ${row.subtype}` : ""}${row.title ? `: ${row.title}` : ""}`,
-      description: row.status ? `Status: ${row.status}` : undefined,
+      title: `${humanize(row.kind)}${row.subtype ? ` · ${humanize(row.subtype)}` : ""}${row.title ? `: ${row.title}` : ""}`,
+      description: row.status ? `Status: ${humanize(row.status)}` : undefined,
       timestamp: dateTimeFormatter.format(new Date(row.occurredAt)),
     }));
   }, [timelineQuery.data]);
@@ -397,9 +399,10 @@ export function LeadDetailScreen({ leadId }: { leadId: string }) {
         status: <StatusBadge tone={statusTone[lead.status] ?? "neutral"}>{stageNameByCode[lead.status] ?? lead.status}</StatusBadge>,
         fields: [
           { label: "Owner", value: lead.ownerName || "Unassigned" },
-          { label: "Priority", value: lead.priority },
-          { label: "Score", value: lead.score ?? "—" },
-          { label: "Qualification", value: lead.qualificationState || "not_reviewed" },
+          { label: "Priority", value: humanize(lead.priority) },
+          { label: "Score", value: lead.score !== null ? scoreLabel(lead.score, 100, lead.rating ? humanize(lead.rating) : null) : "Not scored" },
+          { label: "Qualification", value: humanize(lead.qualificationState || "not_reviewed") },
+          { label: "Next follow-up", value: lead.nextFollowUpAt ? `${formatDate(lead.nextFollowUpAt)}${dueState(lead.nextFollowUpAt) === "overdue" ? " (" + dueLabel(lead.nextFollowUpAt) + ")" : ""}` : "None scheduled" },
         ],
         primaryAction: canManageLeads && !isClosed ? (
           <Button variant="secondary" onPress={() => router.push(`/crm/leads/${leadId}/edit`)}>
@@ -482,24 +485,28 @@ export function LeadDetailScreen({ leadId }: { leadId: string }) {
                 </div>
               )}
 
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                <Field label="Email" value={lead.email} />
-                <Field label="Phone" value={lead.phone} />
-                <Field label="Mobile" value={lead.mobile} />
-                <Field label="Company" value={lead.companyName} />
-                <Field label="Job title" value={lead.jobTitle} />
-                <Field label="Industry" value={lead.industry} />
-                <Field label="Estimated value" value={lead.estimatedValue !== null ? money(lead.currencyCode, lead.estimatedValue) : null} />
-                <Field label="Product interest" value={lead.productInterest} />
-                <Field label="City" value={lead.city} />
-                <Field label="Country" value={lead.countryCode} />
+              <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+                <PropertyList title="Contact" items={[
+                  { label: "Email", value: lead.email },
+                  { label: "Phone", value: lead.phone },
+                  { label: "Mobile", value: lead.mobile },
+                  { label: "City", value: lead.city },
+                  { label: "Country", value: countryName(lead.countryCode) },
+                ]} />
+                <PropertyList title="Company and interest" items={[
+                  { label: "Company", value: lead.companyName },
+                  { label: "Job title", value: lead.jobTitle },
+                  { label: "Industry", value: lead.industry },
+                  { label: "Product interest", value: lead.productInterest },
+                  { label: "Estimated value", value: lead.estimatedValue !== null && Number(lead.estimatedValue) > 0 ? money(lead.currencyCode, lead.estimatedValue) : null },
+                ]} />
               </div>
 
               {!isClosed && canManageLeads && (
                 <div className="flex flex-col gap-3 border-t border-border pt-4">
                   <p className="text-sm font-semibold text-text">Assignment</p>
                   <p className="text-xs text-text-muted">
-                    Only Leads assignable to you and your reporting scope are shown here (F005 eligibility). Assigning outside the eligible list requires an override elsewhere in Setup and is not available from this panel.
+                    You can assign to people in your reporting scope who are eligible for this lead.
                   </p>
                   <div className="flex flex-wrap items-end gap-3">
                     <Select label="Owner" size="compact" options={ownerOptions} selectedKey={pendingOwnerId || lead.ownerUserId || ""} onSelectionChange={(key) => setPendingOwnerId(String(key ?? ""))} className="min-w-[220px]" />
@@ -534,7 +541,7 @@ export function LeadDetailScreen({ leadId }: { leadId: string }) {
                       </span>
                     )}
                   </div>
-                  {qualification.reasonCode && <Field label="Reason" value={`${qualification.reasonCode}${qualification.reasonText ? `: ${qualification.reasonText}` : ""}`} />}
+                  {qualification.reasonCode && <Field label="Reason" value={`${humanize(qualification.reasonCode)}${qualification.reasonText ? `: ${qualification.reasonText}` : ""}`} />}
                   {qualification.note && <Field label="Note" value={qualification.note} />}
 
                   <div className="flex flex-col gap-2">

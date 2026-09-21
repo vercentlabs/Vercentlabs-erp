@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { ComboBox, Select } from "@vercentlabs/design-system";
 
 import { listAccounts } from "@/features/crm/accounts/api/accounts-api";
@@ -39,25 +40,10 @@ async function search(type: string, text: string): Promise<Row[]> {
 // (entityType / entityId) are exactly what the activity APIs already take.
 export function RelatedRecordPicker({ value, onChange, label = "Related to" }: { value: RelatedValue; onChange: (v: RelatedValue) => void; label?: string }) {
   const [text, setText] = useState("");
-  const [rows, setRows] = useState<Row[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [failed, setFailed] = useState(false);
-
-  useEffect(() => {
-    if (value.entityType === "general") {
-      setRows([]);
-      return;
-    }
-    let cancelled = false;
-    setLoading(true);
-    const handle = setTimeout(() => {
-      search(value.entityType, text)
-        .then((r) => { if (!cancelled) { setRows(r); setFailed(false); } })
-        .catch(() => { if (!cancelled) setFailed(true); })
-        .finally(() => { if (!cancelled) setLoading(false); });
-    }, 250);
-    return () => { cancelled = true; clearTimeout(handle); };
-  }, [value.entityType, text]);
+  const query = useQuery({ queryKey: ["crm", "related-search", value.entityType, text], queryFn: () => search(value.entityType, text), enabled: value.entityType !== "general", staleTime: 15_000 });
+  const rows = query.data ?? [];
+  const loading = query.isFetching;
+  const failed = query.isError;
 
   return (
     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">

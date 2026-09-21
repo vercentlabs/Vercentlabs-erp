@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Archive, CheckCircle2, Pencil } from "lucide-react";
+import { CheckCircle2, Pencil } from "lucide-react";
 import {
   Button,
   ConflictBanner,
@@ -27,7 +27,11 @@ import { CRM_PERMISSIONS } from "@vercentlabs/permissions";
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import { getCrmOptions } from "@/features/crm/shared/crm-options-api";
-import { money, toNumber } from "@/features/crm/shared/format";
+import { toNumber } from "@/features/crm/shared/format";
+import { dueLabel, dueState, formatDate, formatMoney, humanize } from "@/features/crm/shared/human";
+import { MoreMenu } from "@/features/crm/shared/ui/MoreMenu";
+import { PropertyList } from "@/features/crm/shared/ui/PropertyList";
+import { StageProgress } from "@/features/crm/shared/ui/StageProgress";
 import { NotesPanel } from "@/features/crm/shared/NotesPanel";
 import { CrmAttachmentPanel } from "@/features/crm/shared/CrmAttachmentPanel";
 import { CustomFieldsRuntimePanel } from "@/features/crm/shared/CustomFieldsRuntimePanel";
@@ -42,15 +46,6 @@ const statusTone: Record<string, "neutral" | "info" | "success" | "warning" | "d
 
 const timelineTone: Record<string, TimelineEntry["tone"]> = { activity: "info", communication: "neutral", note: "neutral", attachment: "neutral" };
 const dateTimeFormatter = new Intl.DateTimeFormat("en-IN", { dateStyle: "medium", timeStyle: "short" });
-
-function Field({ label, value }: { label: string; value: string | number | null | undefined }) {
-  return (
-    <div className="flex flex-col gap-0.5">
-      <span className="text-xs text-text-muted">{label}</span>
-      <span className="text-sm text-text">{value === null || value === undefined || value === "" ? "—" : value}</span>
-    </div>
-  );
-}
 
 export function OpportunityDetailScreen({ opportunityId }: { opportunityId: string }) {
   const router = useRouter();
@@ -142,6 +137,11 @@ export function OpportunityDetailScreen({ opportunityId }: { opportunityId: stri
     return rows.filter((row) => row.pipelineId === opportunity.pipelineId).map((row) => ({ value: row.id, label: row.name }));
   }, [optionsQuery.data, opportunity]);
 
+  const stageProgress = useMemo(() => {
+    const rows = (optionsQuery.data?.options?.stages ?? []) as Array<{ id: string; name: string; pipelineId: string }>;
+    return opportunity ? rows.filter((row) => row.pipelineId === opportunity.pipelineId).map((row) => ({ id: row.id, name: row.name })) : [];
+  }, [optionsQuery.data, opportunity]);
+
   const lostReasonOptions: SelectOption[] = useMemo(() => {
     const rows = optionsQuery.data?.options?.lostReasons ?? [];
     return rows.map((row) => ({ value: String(row.id), label: String(row.name) }));
@@ -152,8 +152,8 @@ export function OpportunityDetailScreen({ opportunityId }: { opportunityId: stri
     return rows.map((row) => ({
       id: row.id,
       tone: timelineTone[row.kind] ?? "neutral",
-      title: `${row.kind}${row.subtype ? ` · ${row.subtype}` : ""}${row.title ? `: ${row.title}` : ""}`,
-      description: row.status ? `Status: ${row.status}` : undefined,
+      title: `${humanize(row.kind)}${row.subtype ? ` · ${humanize(row.subtype)}` : ""}${row.title ? `: ${row.title}` : ""}`,
+      description: row.status ? `Status: ${humanize(row.status)}` : undefined,
       timestamp: dateTimeFormatter.format(new Date(row.occurredAt)),
     }));
   }, [timelineQuery.data]);
@@ -175,11 +175,13 @@ export function OpportunityDetailScreen({ opportunityId }: { opportunityId: stri
         title: opportunity.name,
         status: <StatusBadge tone={statusTone[opportunity.status] ?? "neutral"}>{opportunity.status}</StatusBadge>,
         fields: [
-          { label: "Account", value: opportunity.partyName || "—" },
-          { label: "Stage", value: opportunity.stageName || "—" },
-          { label: "Amount", value: opportunity.amount !== null ? money(opportunity.currencyCode, opportunity.amount) : "—" },
+          { label: "Account", value: opportunity.partyName || "No account" },
+          { label: "Stage", value: opportunity.stageName || "" },
+          { label: "Amount", value: opportunity.amount !== null ? formatMoney(opportunity.currencyCode, opportunity.amount) : "" },
+          { label: "Probability", value: opportunity.probability !== null ? `${toNumber(opportunity.probability)}%` : "" },
+          { label: "Expected close", value: opportunity.expectedCloseDate ? formatDate(opportunity.expectedCloseDate) : "Not set" },
           { label: "Owner", value: opportunity.ownerName || "Unassigned" },
-        ],
+        ].filter((field) => field.value !== ""),
         primaryAction:
           canManage && !isClosed ? (
             <Button variant="secondary" onPress={() => router.push(`/crm/opportunities/${opportunityId}/edit`)}>
@@ -189,10 +191,10 @@ export function OpportunityDetailScreen({ opportunityId }: { opportunityId: stri
           ) : undefined,
         secondaryActions:
           canManage && !isClosed ? (
-            <Button variant="danger" onPress={() => archiveMutation.mutate()} isLoading={archiveMutation.isPending}>
-              <Archive className="size-4" aria-hidden="true" />
-              Archive
-            </Button>
+            <MoreMenu
+              isBusy={archiveMutation.isPending}
+              items={[{ id: "archive", label: "Archive opportunity", danger: true, onAction: () => archiveMutation.mutate(), confirm: { title: "Archive this opportunity?", description: "It leaves your open pipeline and becomes read-only. Its history is kept.", confirmLabel: "Archive" } }]}
+            />
           ) : undefined,
       }}
       tabs={
@@ -213,15 +215,27 @@ export function OpportunityDetailScreen({ opportunityId }: { opportunityId: stri
                   {actionError}
                 </p>
               )}
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                <Field label="Description" value={opportunity.description} />
-                <Field label="Next step" value={opportunity.nextStep} />
-                <Field label="Contact" value={opportunity.contactName} />
-                <Field label="Forecast category" value={opportunity.forecastCategory} />
-                <Field label="Expected revenue" value={opportunity.expectedRevenue !== null ? money(opportunity.currencyCode, opportunity.expectedRevenue) : "—"} />
-                <Field label="Expected close" value={opportunity.expectedCloseDate} />
-                {opportunity.status !== "open" && <Field label="Actual close" value={opportunity.actualCloseDate} />}
-                {opportunity.status === "lost" && <Field label="Loss notes" value={opportunity.lossNotes || opportunity.outcomeNotes} />}
+              <StageProgress stages={stageProgress} currentId={opportunity.stageId} />
+              {opportunity.expectedCloseDate && opportunity.status === "open" && dueState(opportunity.expectedCloseDate) === "overdue" && (
+                <p role="status" className="rounded-[var(--radius-control)] border border-warning-emphasis/30 bg-warning-soft px-3 py-2 text-sm text-warning">
+                  {`Expected close date passed: ${dueLabel(opportunity.expectedCloseDate)}. Update the date or move the deal.`}
+                </p>
+              )}
+              <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+                <PropertyList title="Deal" items={[
+                  { label: "Next step", value: opportunity.nextStep },
+                  { label: "Contact", value: opportunity.contactName },
+                  { label: "Forecast category", value: humanize(opportunity.forecastCategory) },
+                  { label: "Amount", value: opportunity.amount !== null ? formatMoney(opportunity.currencyCode, opportunity.amount) : null },
+                  { label: "Description", value: opportunity.description, wide: true },
+                ]} />
+                <PropertyList title="Forecast" items={[
+                  { label: "Probability", value: opportunity.probability !== null ? `${toNumber(opportunity.probability)}%` : null },
+                  { label: "Expected revenue", value: opportunity.expectedRevenue !== null ? formatMoney(opportunity.currencyCode, opportunity.expectedRevenue) : null },
+                  { label: "Expected close", value: formatDate(opportunity.expectedCloseDate) },
+                  { label: "Actual close", value: opportunity.status !== "open" ? formatDate(opportunity.actualCloseDate) : null },
+                  { label: "Loss notes", value: opportunity.status === "lost" ? opportunity.lossNotes || opportunity.outcomeNotes : null, wide: true },
+                ]} />
               </div>
             </div>
           </TabPanel>

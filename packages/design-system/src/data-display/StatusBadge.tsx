@@ -2,6 +2,7 @@ import { forwardRef } from "react";
 import { CheckCircle2, AlertCircle, AlertTriangle, Info, Circle } from "lucide-react";
 import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "../utilities/cn.ts";
+import { humanizeToken } from "../utilities/humanize-token.ts";
 
 const toneIcon = { neutral: Circle, info: Info, success: CheckCircle2, warning: AlertTriangle, danger: AlertCircle };
 
@@ -41,7 +42,7 @@ export const StatusBadge = forwardRef<HTMLSpanElement, StatusBadgeProps>(functio
   return (
     <span ref={ref} className={cn(statusBadgeVariants({ tone }), className)}>
       <Icon className="size-3" aria-hidden="true" />
-      {children}
+      {humanizeToken(children)}
     </span>
   );
 });
