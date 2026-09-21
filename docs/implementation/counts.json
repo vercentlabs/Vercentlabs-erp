@@ -1,0 +1,100 @@
+{
+  "commit": "57003fda9df087bfbad4374fe5609ba8688505fd",
+  "generated_by": "scripts/ux/build-implementation-inventory.mjs",
+  "registers": {
+    "features": 510,
+    "semantic_subcapabilities": 4080,
+    "requirements": 18870,
+    "flows": 5100,
+    "state_transitions": 2550,
+    "capabilities": 98,
+    "shared_platform_rows": 2088,
+    "ux_traceability_rows": 20958,
+    "duplicate_requirement_ids": 0,
+    "duplicate_feature_ids": 0,
+    "ux_rows_minus_requirements_and_shared": 0
+  },
+  "routes": {
+    "registry_entries": 360,
+    "AVAILABLE": 350,
+    "PLANNED": 8,
+    "ADMIN_ONLY": 2,
+    "page_exists": 351,
+    "findings": {}
+  },
+  "feature_status": {
+    "IMPLEMENTED_UNVERIFIED": 294,
+    "PARTIAL": 104,
+    "NOT_STARTED": 112
+  },
+  "feature_status_by_module": {
+    "CRM": {
+      "IMPLEMENTED_UNVERIFIED": 29,
+      "PARTIAL": 1
+    },
+    "Sales": {
+      "IMPLEMENTED_UNVERIFIED": 22,
+      "NOT_STARTED": 8,
+      "PARTIAL": 2
+    },
+    "Procurement": {
+      "IMPLEMENTED_UNVERIFIED": 24,
+      "NOT_STARTED": 9,
+      "PARTIAL": 1
+    },
+    "Stock / Inventory": {
+      "IMPLEMENTED_UNVERIFIED": 19,
+      "NOT_STARTED": 21,
+      "PARTIAL": 8
+    },
+    "Manufacturing": {
+      "IMPLEMENTED_UNVERIFIED": 20,
+      "NOT_STARTED": 3,
+      "PARTIAL": 25
+    },
+    "Projects": {
+      "IMPLEMENTED_UNVERIFIED": 24,
+      "NOT_STARTED": 2,
+      "PARTIAL": 12
+    },
+    "Assets": {
+      "IMPLEMENTED_UNVERIFIED": 22,
+      "NOT_STARTED": 7,
+      "PARTIAL": 8
+    },
+    "Point of Sale": {
+      "IMPLEMENTED_UNVERIFIED": 35,
+      "PARTIAL": 5
+    },
+    "Quality": {
+      "IMPLEMENTED_UNVERIFIED": 23,
+      "NOT_STARTED": 5,
+      "PARTIAL": 7
+    },
+    "Support / Customer Service": {
+      "IMPLEMENTED_UNVERIFIED": 21,
+      "NOT_STARTED": 9,
+      "PARTIAL": 8
+    },
+    "HR & Payroll": {
+      "IMPLEMENTED_UNVERIFIED": 35,
+      "NOT_STARTED": 10,
+      "PARTIAL": 27
+    },
+    "Accounting / Finance": {
+      "IMPLEMENTED_UNVERIFIED": 20,
+      "NOT_STARTED": 38
+    }
+  },
+  "requirement_status": {
+    "IMPLEMENTED_UNVERIFIED": 10878,
+    "PARTIAL": 3848,
+    "NOT_STARTED": 4144
+  },
+  "ux_relevance": {
+    "DIRECT_UI": 7962,
+    "AFFECTS_UI_STATE": 7614,
+    "NO_DIRECT_UI": 5382
+  },
+  "e2e_spec_files": 58
+}

@@ -92,6 +92,8 @@ function client({
         return { rows: [] };
       if (sql.startsWith("SELECT id,request_number,quantity_basis")) return { rows: [] };
       if (sql.startsWith("SELECT * FROM tenant.sales_document_events")) return { rows: [] };
+      if (sql.includes("AS q FROM tenant.stock_balances"))
+        return { rows: [{ q: sql.includes("sum(quantity-reserved_quantity)") ? "0" : "100" }] };
       if (sql.includes("FROM tenant.stock_balances") && sql.includes("FOR UPDATE"))
         return { rows: [{ quantity: "100", reserved_quantity: "0", average_cost: "10" }] };
       if (sql.startsWith("SELECT id,company_id,track_inventory") && sql.includes("FROM tenant.items"))

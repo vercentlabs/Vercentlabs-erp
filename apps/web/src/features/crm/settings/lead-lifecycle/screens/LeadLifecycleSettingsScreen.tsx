@@ -3,8 +3,11 @@
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Archive, Pencil, Plus, RotateCcw } from "lucide-react";
-import { Button, Checkbox, Dialog, PermissionState, Select, StatusBadge, TextField, type SelectOption } from "@vercentlabs/design-system";
+import { AlertDialog, Button, Checkbox, Dialog, ErrorState, PermissionState, Select, StatusBadge, TextField, type SelectOption } from "@vercentlabs/design-system";
 import { CRM_PERMISSIONS } from "@vercentlabs/permissions";
+
+import { formatMinutes, humanize } from "@/features/crm/shared/human";
+import { LoadingState } from "@/features/crm/shared/ui/LoadingState";
 
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
@@ -141,7 +144,7 @@ function RecommendedTemplateSection() {
                   <ul className="mt-1 flex flex-col gap-1 text-sm text-text-secondary">
                     {preview!.edgesToAdd.map((edge) => (
                       <li key={`${edge.fromCode}-${edge.toCode}`}>
-                        {edge.fromCode} → {edge.toCode}
+                        {humanize(edge.fromCode)} to {humanize(edge.toCode)}
                       </li>
                     ))}
                   </ul>
@@ -222,40 +225,50 @@ function StagesSection() {
           {error}
         </p>
       )}
-      {query.isLoading && <p className="text-sm text-text-secondary">Loading stages…</p>}
-      <div className="flex flex-col gap-2">
-        {stages.map((stage) => (
-          <div key={stage.id} className="flex items-center justify-between gap-2 rounded-[var(--radius-control)] border border-border-strong px-3 py-2">
-            <div className="flex flex-col text-sm">
-              <span className="font-medium text-text">
-                {stage.name} {stage.isInitial && <span className="text-text-muted">(initial)</span>}
-              </span>
-              <span className="text-text-secondary">
-                {stage.code} · order {stage.sortOrder} · {stage.leadCount} Lead{stage.leadCount === 1 ? "" : "s"}
-                {stage.dwellWarningHours ? ` · warn ${stage.dwellWarningHours}h` : ""}
-                {stage.dwellBreachHours ? ` · breach ${stage.dwellBreachHours}h` : ""}
-              </span>
+      {query.isLoading && <LoadingState label="Loading stages" rows={4} onRetry={() => query.refetch()} />}
+      {query.isError && <ErrorState title="Could not load stages" description="Check your connection and try again." action={{ label: "Try again", onPress: () => void query.refetch() }} />}
+      {query.isSuccess && stages.length === 0 && (
+        <p className="rounded-[var(--radius-control)] bg-canvas-strong px-4 py-6 text-sm text-text-secondary">
+          No stages yet. Stages describe how far a prospect has progressed, for example New, Contacted, Working. Use the recommended template above to start with a standard set, or add your own.
+        </p>
+      )}
+      <ol aria-label="Lead stages in order" className="flex flex-col gap-2">
+        {stages.map((stage, index) => (
+          <li key={stage.id} className="flex flex-wrap items-center justify-between gap-2 rounded-[var(--radius-control)] border border-border-strong px-3 py-2">
+            <div className="flex min-w-0 items-start gap-3">
+              <span aria-hidden="true" className="mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-full border border-border text-xs font-semibold text-text-muted">{index + 1}</span>
+              <div className="flex min-w-0 flex-col text-sm">
+                <span className="font-medium text-text">
+                  {stage.name} {stage.isInitial && <span className="font-normal text-text-muted">(where every new lead starts)</span>}
+                </span>
+                {stage.description && <span className="text-text-secondary">{stage.description}</span>}
+                <span className="text-xs text-text-muted">
+                  {`${stage.leadCount} lead${stage.leadCount === 1 ? "" : "s"} here now`}
+                  {stage.dwellWarningHours ? `. Flagged after ${formatMinutes(Number(stage.dwellWarningHours) * 60)}` : ""}
+                  {stage.dwellBreachHours ? `, overdue after ${formatMinutes(Number(stage.dwellBreachHours) * 60)}` : ""}
+                </span>
+              </div>
             </div>
             <div className="flex items-center gap-2">
-              <StatusBadge tone={stage.status === "active" ? "success" : "neutral"}>{stage.status}</StatusBadge>
-              <Button variant="outline" size="compact" onPress={() => setEditingStage(stage)}>
+              <StatusBadge tone={stage.status === "active" ? "success" : "neutral"}>{stage.status === "active" ? "In use" : "Retired"}</StatusBadge>
+              <Button variant="outline" size="compact" aria-label={`Edit ${stage.name}`} onPress={() => setEditingStage(stage)}>
                 <Pencil className="size-4" aria-hidden="true" />
               </Button>
               {stage.status === "active" ? (
                 !stage.isInitial && (
-                  <Button variant="danger" size="compact" onPress={() => setDeactivatingStage(stage)}>
+                  <Button variant="danger" size="compact" aria-label={`Retire ${stage.name}`} onPress={() => setDeactivatingStage(stage)}>
                     <Archive className="size-4" aria-hidden="true" />
                   </Button>
                 )
               ) : (
-                <Button variant="outline" size="compact" onPress={() => reactivateMutation.mutate(stage)} isLoading={reactivateMutation.isPending}>
+                <Button variant="outline" size="compact" aria-label={`Bring ${stage.name} back`} onPress={() => reactivateMutation.mutate(stage)} isLoading={reactivateMutation.isPending}>
                   <RotateCcw className="size-4" aria-hidden="true" />
                 </Button>
               )}
             </div>
-          </div>
+          </li>
         ))}
-      </div>
+      </ol>
 
       <StageDialog
         isOpen={createOpen || Boolean(editingStage)}
@@ -312,10 +325,10 @@ function StageDialog({ isOpen, onOpenChange, stage, onSaved, onError }: { isOpen
       <div className="flex flex-col gap-4">
         <TextField label="Name" isRequired value={name} onChange={setName} />
         <TextField label="Description" value={description} onChange={setDescription} />
-        <TextField label="Order" value={sortOrder} onChange={setSortOrder} />
+        <TextField label="Position in the list" description="Lower numbers come first. Leave as is to place it at the end." inputMode="numeric" value={sortOrder} onChange={setSortOrder} />
         <div className="grid grid-cols-2 gap-3">
-          <TextField label="Dwell warning (hours)" placeholder="Optional" value={dwellWarningHours} onChange={setDwellWarningHours} />
-          <TextField label="Dwell breach (hours)" placeholder="Optional" value={dwellBreachHours} onChange={setDwellBreachHours} />
+          <TextField label="Flag as slow after (hours)" description="Optional. Leads stuck this long are highlighted." inputMode="numeric" value={dwellWarningHours} onChange={setDwellWarningHours} />
+          <TextField label="Flag as overdue after (hours)" description="Optional. Must be longer than the slow flag." inputMode="numeric" value={dwellBreachHours} onChange={setDwellBreachHours} />
         </div>
         <div className="flex justify-end gap-2">
           <Button variant="secondary" onPress={() => onOpenChange(false)}>Cancel</Button>
@@ -338,7 +351,7 @@ function DeactivateStageDialog({ stage, allStages, onOpenChange, onDone, onError
     mutationFn: () => deactivateLeadStage(stage!.id, migrateToStageId || undefined),
     onSuccess: (result) => {
       if (!result.deactivated) {
-        setBlocked("Migration started — this stage will finish deactivating once existing Leads have moved.");
+        setBlocked("Leads are being moved. The stage retires as soon as the last one has moved.");
         return;
       }
       onDone();
@@ -356,19 +369,19 @@ function DeactivateStageDialog({ stage, allStages, onOpenChange, onDone, onError
   });
 
   return (
-    <Dialog isOpen={Boolean(stage)} onOpenChange={onOpenChange} title={stage ? `Deactivate ${stage.name}` : "Deactivate stage"}>
+    <Dialog isOpen={Boolean(stage)} onOpenChange={onOpenChange} title={stage ? `Retire ${stage.name}` : "Retire stage"}>
       <div className="flex flex-col gap-4">
         {blocked && (
           <p role="alert" className="rounded-[var(--radius-control)] border border-warning-emphasis/30 bg-warning-soft px-3 py-2 text-sm text-warning">
             {blocked}
           </p>
         )}
-        <p className="text-sm text-text-secondary">If Leads are still on this stage, choose a replacement stage to migrate them through the governed transition path.</p>
-        <Select label="Migrate active Leads to" options={[{ value: "", label: "No migration (fails if Leads remain)" }, ...otherStageOptions]} selectedKey={migrateToStageId} onSelectionChange={(key) => setMigrateToStageId(String(key ?? ""))} />
+        <p className="text-sm text-text-secondary">Retiring a stage removes it from the &quot;Move to stage&quot; options. If leads are still on it, choose the stage they should move to. Nothing is deleted, and you can bring the stage back later.</p>
+        <Select label="Migrate active Leads to" options={[{ value: "", label: "Do not move leads (blocked if any remain)" }, ...otherStageOptions]} selectedKey={migrateToStageId} onSelectionChange={(key) => setMigrateToStageId(String(key ?? ""))} />
         <div className="flex justify-end gap-2">
           <Button variant="secondary" onPress={() => onOpenChange(false)}>Cancel</Button>
           <Button variant="danger" onPress={() => mutation.mutate()} isLoading={mutation.isPending}>
-            Deactivate
+            Retire stage
           </Button>
         </div>
       </div>
@@ -384,7 +397,17 @@ function TransitionsSection() {
 
   const stagesQuery = useQuery({ queryKey: scopedQueryKey(workspace, "crm", "lead-stages"), queryFn: () => listLeadStages("active") });
   const transitionsQuery = useQuery({ queryKey: scopedQueryKey(workspace, "crm", "lead-stage-transitions"), queryFn: listLeadStageTransitions });
-  const transitions = transitionsQuery.data?.rows ?? [];
+  const transitions = useMemo(() => transitionsQuery.data?.rows ?? [], [transitionsQuery.data]);
+  const [removingEdge, setRemovingEdge] = useState<(typeof transitions)[number] | null>(null);
+  const groupedTransitions = useMemo(() => {
+    const groups = new Map<string, { fromName: string; edges: typeof transitions }>();
+    for (const edge of transitions) {
+      const group = groups.get(edge.fromStageId) ?? { fromName: edge.fromStageName, edges: [] };
+      group.edges.push(edge);
+      groups.set(edge.fromStageId, group);
+    }
+    return groups;
+  }, [transitions]);
   const stageOptions: SelectOption[] = (stagesQuery.data?.rows ?? []).map((row) => ({ value: row.id, label: row.name }));
 
   function invalidate() {
@@ -403,12 +426,12 @@ function TransitionsSection() {
     <section className="flex flex-col gap-3">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-base font-semibold text-text">Allowed transitions</h2>
-          <p className="text-sm text-text-secondary">Only these directed moves appear in a Lead&apos;s &quot;Move to stage&quot; picker.</p>
+          <h2 className="text-base font-semibold text-text">Allowed moves</h2>
+          <p className="text-sm text-text-secondary">For each stage, the stages a lead may move to. Only these appear in a lead&apos;s &quot;Move to stage&quot; picker.</p>
         </div>
         <Button variant="primary" onPress={() => setAddOpen(true)}>
           <Plus className="size-4" aria-hidden="true" />
-          Add transition
+          Add a move
         </Button>
       </div>
       {error && (
@@ -416,20 +439,43 @@ function TransitionsSection() {
           {error}
         </p>
       )}
-      {transitionsQuery.isLoading && <p className="text-sm text-text-secondary">Loading transitions…</p>}
-      {!transitionsQuery.isLoading && transitions.length === 0 && <p className="text-sm text-text-muted">No transitions configured.</p>}
-      <div className="flex flex-col gap-2">
-        {transitions.map((edge) => (
-          <div key={`${edge.fromStageId}-${edge.toStageId}`} className="flex items-center justify-between gap-2 rounded-[var(--radius-control)] border border-border-strong px-3 py-2 text-sm">
-            <span className="text-text">
-              {edge.fromStageName} → {edge.toStageName} {edge.reasonRequired && <span className="text-text-muted">(reason required)</span>}
-            </span>
-            <Button variant="ghost" size="compact" onPress={() => removeMutation.mutate(edge)} isLoading={removeMutation.isPending}>
-              Remove
-            </Button>
-          </div>
+      {transitionsQuery.isLoading && <LoadingState label="Loading transitions" rows={3} onRetry={() => transitionsQuery.refetch()} />}
+      {transitionsQuery.isError && <ErrorState title="Could not load transitions" description="Check your connection and try again." action={{ label: "Try again", onPress: () => void transitionsQuery.refetch() }} />}
+      {transitionsQuery.isSuccess && transitions.length === 0 && (
+        <p className="rounded-[var(--radius-control)] bg-canvas-strong px-4 py-6 text-sm text-text-secondary">
+          No moves are allowed yet, so sellers cannot change a lead&apos;s stage. Add a transition to say which stage a lead may move to from each stage.
+        </p>
+      )}
+      <ul aria-label="Allowed moves by stage" className="flex flex-col gap-2">
+        {[...groupedTransitions.entries()].map(([fromStageId, group]) => (
+          <li key={fromStageId} className="flex flex-col gap-2 rounded-[var(--radius-control)] border border-border-strong px-3 py-2 text-sm sm:flex-row sm:items-center">
+            <span className="w-44 shrink-0 font-medium text-text">{group.fromName}</span>
+            <span className="text-text-muted">can move to</span>
+            <ul className="flex flex-wrap gap-2">
+              {group.edges.map((edge) => (
+                <li key={edge.toStageId} className="flex items-center gap-1 rounded-full border border-border bg-surface-muted py-0.5 pl-3 pr-1">
+                  <span className="text-text">{edge.toStageName}</span>
+                  {edge.reasonRequired && <span className="text-xs text-text-muted">(needs a reason)</span>}
+                  <Button variant="ghost" size="compact" aria-label={"Stop allowing " + edge.fromStageName + " to " + edge.toStageName} onPress={() => setRemovingEdge(edge)}>
+                    <span aria-hidden="true">&times;</span>
+                  </Button>
+                </li>
+              ))}
+            </ul>
+          </li>
         ))}
-      </div>
+      </ul>
+      {removingEdge && (
+        <AlertDialog
+          isOpen
+          onOpenChange={(open) => { if (!open) setRemovingEdge(null); }}
+          title="Stop allowing this move?"
+          description={"Sellers will no longer be able to move a lead from " + removingEdge.fromStageName + " to " + removingEdge.toStageName + ". Leads already in either stage stay where they are."}
+          confirmLabel="Stop allowing"
+          isConfirming={removeMutation.isPending}
+          onConfirm={() => removeMutation.mutate(removingEdge, { onSettled: () => setRemovingEdge(null) })}
+        />
+      )}
       <AddTransitionDialog isOpen={addOpen} onOpenChange={setAddOpen} stageOptions={stageOptions} onSaved={invalidate} onError={handleError} />
     </section>
   );
@@ -453,17 +499,17 @@ function AddTransitionDialog({ isOpen, onOpenChange, stageOptions, onSaved, onEr
   });
 
   return (
-    <Dialog isOpen={isOpen} onOpenChange={onOpenChange} title="Add transition">
+    <Dialog isOpen={isOpen} onOpenChange={onOpenChange} title="Allow a stage change">
       <div className="flex flex-col gap-4">
         <Select label="From stage" options={stageOptions} selectedKey={fromStageId} onSelectionChange={(key) => setFromStageId(String(key ?? ""))} />
         <Select label="To stage" options={stageOptions} selectedKey={toStageId} onSelectionChange={(key) => setToStageId(String(key ?? ""))} />
         <Checkbox isSelected={reasonRequired} onChange={setReasonRequired}>
-          Require a reason for this transition
+          Ask the seller for a reason when they make this move
         </Checkbox>
         <div className="flex justify-end gap-2">
           <Button variant="secondary" onPress={() => onOpenChange(false)}>Cancel</Button>
           <Button variant="primary" onPress={() => mutation.mutate()} isLoading={mutation.isPending} isDisabled={!fromStageId || !toStageId || fromStageId === toStageId}>
-            Add transition
+            Allow this move
           </Button>
         </div>
       </div>
@@ -481,7 +527,7 @@ function ReasonsSection() {
   const reasonsQuery = useQuery({ queryKey: scopedQueryKey(workspace, "crm", "lead-stage-transition-reasons"), queryFn: listLeadStageTransitionReasons });
   const reasons = reasonsQuery.data?.rows ?? [];
   const stageOptions: SelectOption[] = (stagesQuery.data?.rows ?? []).map((row) => ({ value: row.id, label: row.name }));
-  const stageName = (id: string | null) => stageOptions.find((option) => option.value === id)?.label ?? "—";
+  const stageName = (id: string | null) => stageOptions.find((option) => option.value === id)?.label ?? "a stage that is no longer in use";
 
   function invalidate() {
     queryClient.invalidateQueries({ queryKey: scopedQueryKey(workspace, "crm", "lead-stage-transition-reasons") });
@@ -499,8 +545,8 @@ function ReasonsSection() {
     <section className="flex flex-col gap-3">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-base font-semibold text-text">Transition reasons</h2>
-          <p className="text-sm text-text-secondary">Shown when a transition marked &quot;reason required&quot; is used.</p>
+          <h2 className="text-base font-semibold text-text">Reasons for stage changes</h2>
+          <p className="text-sm text-text-secondary">Sellers choose from these when a move is set to ask for a reason.</p>
         </div>
         <Button variant="primary" onPress={() => setCreateOpen(true)}>
           <Plus className="size-4" aria-hidden="true" />
@@ -512,19 +558,21 @@ function ReasonsSection() {
           {error}
         </p>
       )}
-      {reasonsQuery.isLoading && <p className="text-sm text-text-secondary">Loading reasons…</p>}
+      {reasonsQuery.isLoading && <LoadingState label="Loading reasons" rows={3} onRetry={() => reasonsQuery.refetch()} />}
+      {reasonsQuery.isError && <ErrorState title="Could not load reasons" description="Check your connection and try again." action={{ label: "Try again", onPress: () => void reasonsQuery.refetch() }} />}
+      {reasonsQuery.isSuccess && reasons.length === 0 && <p className="rounded-[var(--radius-control)] bg-canvas-strong px-4 py-6 text-sm text-text-secondary">No reasons yet. When a move is set to ask for a reason, sellers pick from this list. Add reasons such as &quot;Not interested&quot; or &quot;Wrong contact&quot;.</p>}
       <div className="flex flex-col gap-2">
         {reasons.map((reason) => (
           <div key={reason.id} className="flex items-center justify-between gap-2 rounded-[var(--radius-control)] border border-border-strong px-3 py-2 text-sm">
             <span className="text-text">
               {reason.label} <span className="text-text-muted">
-                ({reason.scopeType === "transition" ? `${stageName(reason.fromStageId)} → ${stageName(reason.toStageId)}` : reason.scopeType === "destination" ? `any → ${stageName(reason.toStageId)}` : "any transition"})
+                ({reason.scopeType === "transition" ? `${stageName(reason.fromStageId)} to ${stageName(reason.toStageId)}` : reason.scopeType === "destination" ? `any move into ${stageName(reason.toStageId)}` : "any stage change"})
               </span>
             </span>
             <span className="flex items-center gap-2">
-              <StatusBadge tone={reason.status === "active" ? "success" : "neutral"}>{reason.status}</StatusBadge>
+              <StatusBadge tone={reason.status === "active" ? "success" : "neutral"}>{reason.status === "active" ? "Offered" : "Hidden"}</StatusBadge>
               <Button variant="ghost" size="compact" onPress={() => toggleMutation.mutate(reason)} isLoading={toggleMutation.isPending}>
-                {reason.status === "active" ? "Deactivate" : "Activate"}
+                {reason.status === "active" ? "Hide" : "Offer again"}
               </Button>
             </span>
           </div>
@@ -541,6 +589,7 @@ function ReasonDialog({ isOpen, onOpenChange, stageOptions, onSaved, onError }: 
   const [toStageId, setToStageId] = useState("");
   const [code, setCode] = useState("");
   const [label, setLabel] = useState("");
+  const [codeEdited, setCodeEdited] = useState(false);
 
   const mutation = useMutation({
     mutationFn: () =>
@@ -556,12 +605,13 @@ function ReasonDialog({ isOpen, onOpenChange, stageOptions, onSaved, onError }: 
       onOpenChange(false);
       setCode("");
       setLabel("");
+      setCodeEdited(false);
     },
     onError,
   });
 
   return (
-    <Dialog isOpen={isOpen} onOpenChange={onOpenChange} title="New transition reason">
+    <Dialog isOpen={isOpen} onOpenChange={onOpenChange} title="New reason">
       <div className="flex flex-col gap-4">
         <Select
           label="Applies to"
@@ -575,8 +625,8 @@ function ReasonDialog({ isOpen, onOpenChange, stageOptions, onSaved, onError }: 
         />
         {scopeType === "transition" && <Select label="From stage" options={stageOptions} selectedKey={fromStageId} onSelectionChange={(key) => setFromStageId(String(key ?? ""))} />}
         {scopeType !== "any" && <Select label="To stage" options={stageOptions} selectedKey={toStageId} onSelectionChange={(key) => setToStageId(String(key ?? ""))} />}
-        <TextField label="Code" description="Lowercase letters, numbers and underscores." isRequired value={code} onChange={(v) => setCode(v.toLowerCase())} />
-        <TextField label="Label" isRequired value={label} onChange={setLabel} />
+        <TextField label="Reason shown to sellers" value={label} onChange={(v) => { setLabel(v); if (!codeEdited) setCode(v.toLowerCase().trim().replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "")); }} />
+        <TextField label="Short internal code" description="Made from the reason. Lowercase letters, numbers and underscores. Used in reports." value={code} onChange={(v) => { setCodeEdited(true); setCode(v.toLowerCase()); }} />
         <div className="flex justify-end gap-2">
           <Button variant="secondary" onPress={() => onOpenChange(false)}>Cancel</Button>
           <Button variant="primary" onPress={() => mutation.mutate()} isLoading={mutation.isPending} isDisabled={!code.trim() || !label.trim()}>
