@@ -148,7 +148,7 @@ export async function operationInspectionSatisfied(client, c, operationId) {
   return latest?.result === "pass";
 }
 
-export async function listInspections(client, c, { limit = 250 } = {}) {
+export async function listManufacturingInspections(client, c, { limit = 250 } = {}) {
   need(c, "manufacturing.view");
   const { rows } = await client.query(
     `SELECT i.id,i.result,i.quantity_inspected::text AS quantity_inspected,i.quantity_rejected::text AS quantity_rejected,i.defect_code,i.notes,i.follow_up,i.created_at,wo.id AS work_order_id,wo.work_order_number,item.code AS item_code,op.sequence,op.name AS operation_name

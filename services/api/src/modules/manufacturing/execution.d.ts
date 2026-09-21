@@ -9,7 +9,7 @@ export declare function stopTimer(client: any, context: ManufacturingContext, en
 export declare function listTimeEntries(client: any, context: ManufacturingContext, options?: { workOrderId?: string | null; limit?: number }): Promise<Row[]>;
 export declare function recordInspection(client: any, context: ManufacturingContext, workOrderId: string, input?: Row): Promise<Row>;
 export declare function operationInspectionSatisfied(client: any, context: ManufacturingContext, operationId: string): Promise<boolean>;
-export declare function listInspections(client: any, context: ManufacturingContext, options?: { limit?: number }): Promise<Row[]>;
+export declare function listManufacturingInspections(client: any, context: ManufacturingContext, options?: { limit?: number }): Promise<Row[]>;
 export declare function startDowntime(client: any, context: ManufacturingContext, input?: Row): Promise<Row>;
 export declare function endDowntime(client: any, context: ManufacturingContext, id: string): Promise<Row>;
 export declare function listDowntime(client: any, context: ManufacturingContext, options?: { openOnly?: boolean }): Promise<Row[]>;

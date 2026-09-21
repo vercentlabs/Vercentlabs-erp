@@ -30,7 +30,7 @@ test("Manufacturing routing and capacity against real PostgreSQL", async (t) => 
     return;
   }
   const api = await import("../../services/api/src/index.js");
-  const { manufacturingContext, saveCalendar, addShift, removeShift, addCalendarException, removeCalendarException, listCalendars, listShifts, listCalendarExceptions, saveWorkCenter, listWorkCenters, createRouting, updateDraftRouting, activateRouting, reviseRouting, obsoleteRouting, listRoutings, getRouting, getCapacityPlan } = api;
+  const { manufacturingContext, saveCalendar, addShift, removeShift, addCalendarException, removeCalendarException, listCalendars, listManufacturingShifts, listCalendarExceptions, saveWorkCenter, listWorkCenters, createRouting, updateDraftRouting, activateRouting, reviseRouting, obsoleteRouting, listRoutings, getRouting, getCapacityPlan } = api;
   const { setTenantContext } = await import("../../packages/database/src/index.js");
 
   const orgId = randomUUID();
@@ -84,7 +84,7 @@ test("Manufacturing routing and capacity against real PostgreSQL", async (t) => 
       const second = await run("planner", (c, x) => addShift(c, x, { calendarId: calendar.id, name: "Evening", startTime: "16:00", endTime: "20:00" }));
       assert.equal((await run("viewer", (c, x) => listCalendars(c, x)))[0].daily_minutes, 7 * 60 + 4 * 60);
       await run("planner", (c, x) => removeShift(c, x, second.id));
-      assert.equal((await run("viewer", (c, x) => listShifts(c, x))).length, 1);
+      assert.equal((await run("viewer", (c, x) => listManufacturingShifts(c, x))).length, 1);
       const closure = await run("planner", (c, x) => addCalendarException(c, x, { calendarId: calendar.id, exceptionDate: addDays(monday, 1), name: "Founders day" }));
       await assert.rejects(() => run("planner", (c, x) => addCalendarException(c, x, { calendarId: calendar.id, exceptionDate: "", name: "x" })), (e) => e.code === "MFG_DATE_INVALID");
       assert.equal((await run("viewer", (c, x) => listCalendarExceptions(c, x))).length, 1);

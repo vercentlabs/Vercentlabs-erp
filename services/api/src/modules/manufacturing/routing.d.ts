@@ -6,7 +6,7 @@ export declare function removeShift(client: any, context: ManufacturingContext, 
 export declare function addCalendarException(client: any, context: ManufacturingContext, input?: Row): Promise<Row>;
 export declare function removeCalendarException(client: any, context: ManufacturingContext, exceptionId: string): Promise<Row>;
 export declare function listCalendars(client: any, context: ManufacturingContext): Promise<Row[]>;
-export declare function listShifts(client: any, context: ManufacturingContext): Promise<Row[]>;
+export declare function listManufacturingShifts(client: any, context: ManufacturingContext): Promise<Row[]>;
 export declare function listCalendarExceptions(client: any, context: ManufacturingContext): Promise<Row[]>;
 export declare function saveWorkCenter(client: any, context: ManufacturingContext, input?: Row): Promise<Row>;
 export declare function listWorkCenters(client: any, context: ManufacturingContext): Promise<Row[]>;

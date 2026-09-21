@@ -1,4 +1,4 @@
-import { explodeBom, getBom, getCapacityPlan, getEfficiencyReport, getProductionCostReport, getProductionDashboard, getProductionSummary, getStandardCost, getVarianceReport, getYieldReport, getDowntimeSummary, listDowntime, listInspections, listSubcontractJobs, listTimeEntries, getMaterialAvailability, getMrpRun, listMrpRuns, getManufacturingSettings, getProductionOrder, getRouting, getWipReport, listJobCards, listMaterialReservations, listProductionOrders, listProductionPostings, listScrapRecords, listBoms, listCalendarExceptions, listCalendars, listEngineeringChanges, listManufacturingOptions, listRoutings, listShifts, listWorkCenters, whereUsed } from "@vercentlabs/api";
+import { explodeBom, getBom, getCapacityPlan, getEfficiencyReport, getProductionCostReport, getProductionDashboard, getProductionSummary, getStandardCost, getVarianceReport, getYieldReport, getDowntimeSummary, listDowntime, listManufacturingInspections, listSubcontractJobs, listTimeEntries, getMaterialAvailability, getMrpRun, listMrpRuns, getManufacturingSettings, getProductionOrder, getRouting, getWipReport, listJobCards, listMaterialReservations, listProductionOrders, listProductionPostings, listScrapRecords, listBoms, listCalendarExceptions, listCalendars, listEngineeringChanges, listManufacturingOptions, listRoutings, listManufacturingShifts, listWorkCenters, whereUsed } from "@vercentlabs/api";
 
 import { HttpError } from "@/core/http";
 import { manufacturingRead } from "@/features/manufacturing/shared/route-helpers";
@@ -32,7 +32,7 @@ export async function GET(request: Request, ctx: { params: Promise<{ kind: strin
       case "calendars":
         return { rows: await listCalendars(client, context) };
       case "shifts":
-        return { rows: await listShifts(client, context) };
+        return { rows: await listManufacturingShifts(client, context) };
       case "calendar-exceptions":
         return { rows: await listCalendarExceptions(client, context) };
       case "routings":
@@ -66,7 +66,7 @@ export async function GET(request: Request, ctx: { params: Promise<{ kind: strin
       case "time-entries":
         return { rows: await listTimeEntries(client, context, { workOrderId: get("workOrderId") }) };
       case "inspections":
-        return { rows: await listInspections(client, context) };
+        return { rows: await listManufacturingInspections(client, context) };
       case "downtime":
         return { rows: await listDowntime(client, context, { openOnly: get("open") === "1" }), summary: await getDowntimeSummary(client, context, { days: get("days") ?? 30 }) };
       case "subcontract":

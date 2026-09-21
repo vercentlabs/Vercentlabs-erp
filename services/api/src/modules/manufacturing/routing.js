@@ -91,7 +91,7 @@ export async function listCalendars(client, c) {
   );
   return rows;
 }
-export async function listShifts(client, c) {
+export async function listManufacturingShifts(client, c) {
   need(c, "manufacturing.view");
   const { rows } = await client.query(
     `SELECT s.id,s.name,s.start_time::text AS start_time,s.end_time::text AS end_time,s.break_minutes,cal.code AS calendar_code,cal.name AS calendar_name,

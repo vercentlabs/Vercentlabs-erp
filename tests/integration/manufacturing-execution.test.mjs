@@ -32,7 +32,7 @@ test("Manufacturing execution controls against real PostgreSQL", async (t) => {
     return;
   }
   const api = await import("../../services/api/src/index.js");
-  const { manufacturingContext, stockContext, postStockMovement, createProductionOrder, releaseProductionOrder, getProductionOrder, startOperation, completeOperation, holdProductionOrder, resumeProductionOrder, issueMaterials, logTime, startTimer, stopTimer, listTimeEntries, recordInspection, listInspections, startDowntime, endDowntime, listDowntime, getDowntimeSummary, linkWorkCenterAsset, sendToSubcontractor, receiveFromSubcontractor, listSubcontractJobs, saveWorkCenter, reportProduction, updateManufacturingSettings } = api;
+  const { manufacturingContext, stockContext, postStockMovement, createProductionOrder, releaseProductionOrder, getProductionOrder, startOperation, completeOperation, holdProductionOrder, resumeProductionOrder, issueMaterials, logTime, startTimer, stopTimer, listTimeEntries, recordInspection, listManufacturingInspections, startDowntime, endDowntime, listDowntime, getDowntimeSummary, linkWorkCenterAsset, sendToSubcontractor, receiveFromSubcontractor, listSubcontractJobs, saveWorkCenter, reportProduction, updateManufacturingSettings } = api;
   const { setTenantContext } = await import("../../packages/database/src/index.js");
 
   const orgId = randomUUID();
@@ -148,7 +148,7 @@ test("Manufacturing execution controls against real PostgreSQL", async (t) => {
       assert.equal(done.status, "completed");
       close((await wo(order.id)).labor_cost, 150, "completion booked no second, estimated labour");
       close((await wo(order.id)).overhead_cost, 120, "nor overhead");
-      assert.equal((await run("viewer", (c, x) => listInspections(c, x))).length, 3);
+      assert.equal((await run("viewer", (c, x) => listManufacturingInspections(c, x))).length, 3);
     });
 
     await t.test("F180: a subcontracted operation is sent out with material and received back at a cost that joins the order's WIP", async () => {
