@@ -69,11 +69,14 @@ test.describe("Sales customers and products", () => {
       await expect(r.getByText("No customers match")).toBeVisible({ timeout: 30_000 });
 
       // catalogue: rep sees no cost column; manager does
+      // The catalogue has grown over many runs and lists only its first page, so find this run's item by its code.
       await r.goto("/sales/products", { waitUntil: "domcontentloaded" });
+      await r.getByRole("searchbox", { name: "Search products" }).fill(world.itemCode);
       await expect(r.getByRole("row", { name: new RegExp(world.itemCode) })).toBeVisible({ timeout: 120_000 });
       await expect(r.getByRole("columnheader", { name: /Standard cost/i })).toHaveCount(0);
       const m = manager.page;
       await m.goto("/sales/products", { waitUntil: "domcontentloaded" });
+      await m.getByRole("searchbox", { name: "Search products" }).fill(world.itemCode);
       await expect(m.getByRole("row", { name: new RegExp(world.itemCode) })).toBeVisible({ timeout: 120_000 });
       await expect(m.getByRole("columnheader", { name: /Standard cost/i })).toBeVisible();
     } finally {

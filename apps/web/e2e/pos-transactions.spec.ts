@@ -1,4 +1,7 @@
 import { test, expect, type Browser } from "@playwright/test";
+
+// Badges show the stored token in sentence case, so compare the whole text without regard to case.
+const wholeText = (text: string) => new RegExp(`^${text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`, "i");
 import { getPosWorld, openPersonaSession, resetTerminalCarts, withPosDb, type PosWorld } from "./pos-fixtures";
 
 // Transactions workspace journeys: a cashier rings a real cash sale, a
@@ -120,9 +123,9 @@ test.describe("POS transactions workspace", () => {
       // Payment leg matches the persisted pos_payments row.
       const dbPayment = dbState.payments[0];
       const paymentsSection = page.locator("section", { has: page.getByRole("heading", { name: "Payments" }) });
-      await expect(paymentsSection.getByText(dbPayment.payment_method.replace("_", " "), { exact: true })).toBeVisible();
+      await expect(paymentsSection.getByText(wholeText(dbPayment.payment_method.replace("_", " ")))).toBeVisible();
       await expect(paymentsSection.getByText(`${dbState.saleRow.currency_code} ${Number(dbPayment.amount).toFixed(2)}`)).toBeVisible();
-      await expect(paymentsSection.getByText(dbPayment.status, { exact: true })).toBeVisible();
+      await expect(paymentsSection.getByText(wholeText(dbPayment.status))).toBeVisible();
 
       // Stock movement reference matches the real stock_movements row.
       const stockSection = page.locator("section", { has: page.getByRole("heading", { name: "Stock movement" }) });
@@ -130,7 +133,7 @@ test.describe("POS transactions workspace", () => {
 
       // Accounting posting status matches the persisted column.
       const accountingSection = page.locator("section", { has: page.getByRole("heading", { name: "Accounting posting" }) });
-      await expect(accountingSection.getByText(dbState.saleRow.accounting_posting_status.replace("_", " "), { exact: true })).toBeVisible();
+      await expect(accountingSection.getByText(wholeText(dbState.saleRow.accounting_posting_status.replace("_", " ")))).toBeVisible();
 
       // Grand total shown is the persisted one, not recomputed.
       await expect(page.getByText(`${dbState.saleRow.currency_code} ${Number(dbState.saleRow.grand_total).toFixed(2)}`).first()).toBeVisible();
