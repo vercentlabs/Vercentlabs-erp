@@ -147,6 +147,20 @@ export function reminderLabel(minutes: number): string {
   return plural(minutes, "minute");
 }
 
+// 90 -> "1 hour 30 minutes", 1440 -> "1 day"
+export function formatMinutes(minutes: number | null | undefined): string {
+  if (minutes === null || minutes === undefined || !Number.isFinite(Number(minutes))) return "";
+  let left = Math.round(Number(minutes));
+  if (left === 0) return "0 minutes";
+  const parts: string[] = [];
+  for (const [size, unit] of [[1440, "day"], [60, "hour"], [1, "minute"]] as const) {
+    const n = Math.floor(left / size);
+    if (n > 0) parts.push(`${n} ${unit}${n === 1 ? "" : "s"}`);
+    left -= n * size;
+  }
+  return parts.join(" ");
+}
+
 export function reminderOffsetsLabel(offsets: number[] | null | undefined): string {
   if (!offsets || offsets.length === 0) return "No reminders";
   return [...offsets].sort((a, b) => b - a).map(reminderLabel).join(", ");

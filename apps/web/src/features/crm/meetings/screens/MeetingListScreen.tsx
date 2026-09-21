@@ -24,6 +24,7 @@ import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import { cancelMeeting, completeMeeting, listMeetings, MeetingApiError, startMeeting } from "../api/meetings-api";
 import type { Meeting, MeetingListFilters } from "../types";
 import { LoadingState } from "@/features/crm/shared/ui/LoadingState";
+import { DueCell } from "@/features/crm/shared/ui/DueCell";
 
 const PAGE_SIZE = 25;
 
@@ -35,7 +36,6 @@ const statusTone: Record<string, "neutral" | "info" | "success" | "warning" | "d
   cancelled: "neutral",
 };
 
-const dateTimeFormatter = new Intl.DateTimeFormat("en-IN", { dateStyle: "medium", timeStyle: "short" });
 
 export function MeetingListScreen() {
   const router = useRouter();
@@ -106,7 +106,7 @@ export function MeetingListScreen() {
           </span>
         ),
       },
-      { id: "startAt", header: "Starts", accessorFn: (row) => (row.startAt ? dateTimeFormatter.format(new Date(row.startAt)) : "—") },
+      { id: "startAt", header: "Starts", accessorFn: (row) => row.startAt ?? "", cell: ({ row }) => <DueCell value={row.original.startAt} done={["completed", "cancelled"].includes(row.original.status)} /> },
     ],
     [],
   );

@@ -7,6 +7,10 @@ import { Pencil, Plus, X } from "lucide-react";
 import { Button, Dialog, ErrorState, IconButton, PermissionState, RecordDetailsPage, Select, StatusBadge, TextArea, TextField, type SelectOption } from "@vercentlabs/design-system";
 import { CRM_PERMISSIONS } from "@vercentlabs/permissions";
 import { LoadingState } from "@/features/crm/shared/ui/LoadingState";
+import { dueLabel, dueState, formatDateTime, humanize } from "@/features/crm/shared/human";
+import { DateTimeInput } from "@/features/crm/shared/ui/DateTimeInput";
+import { PropertyList } from "@/features/crm/shared/ui/PropertyList";
+import { RelatedRecordCard } from "@/features/crm/shared/ui/RelatedRecordCard";
 
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
@@ -15,7 +19,6 @@ import { addTaskDependency, getTask, listTaskDependencies, listTasks, removeTask
 import { RecurrenceBuilder } from "../components/RecurrenceBuilder";
 import type { RecurrenceConfig, Task } from "../types";
 
-const dateFormatter = new Intl.DateTimeFormat("en-IN", { dateStyle: "medium", timeStyle: "short" });
 
 function describeRecurrence(config: RecurrenceConfig | null): string | null {
   if (!config) return null;
@@ -24,15 +27,6 @@ function describeRecurrence(config: RecurrenceConfig | null): string | null {
   if (config.count) text += `, ${config.count} times`;
   else if (config.until) text += `, until ${config.until.slice(0, 10)}`;
   return text;
-}
-
-function Field({ label, value }: { label: string; value: string | number | null | undefined }) {
-  return (
-    <div className="flex flex-col gap-0.5">
-      <span className="text-xs text-text-muted">{label}</span>
-      <span className="text-sm text-text">{value === null || value === undefined || value === "" ? "—" : value}</span>
-    </div>
-  );
 }
 
 // F015 Tranche J (Stage A) — dedicated Task detail view; getCrmTask/
@@ -66,7 +60,8 @@ export function TaskDetailScreen({ taskId }: { taskId: string }) {
         title: task.subject,
         status: <StatusBadge tone={task.status === "completed" ? "success" : task.status === "cancelled" ? "neutral" : "info"}>{task.status}</StatusBadge>,
         fields: [
-          { label: "Priority", value: task.priority },
+          { label: "Due", value: task.dueAt ? `${formatDateTime(task.dueAt)}${task.status !== "completed" && task.status !== "cancelled" && dueState(task.dueAt) === "overdue" ? " (" + dueLabel(task.dueAt) + ")" : ""}` : "No due date" },
+          { label: "Priority", value: humanize(task.priority) },
           { label: "Assignee", value: task.assignedName ?? "Unassigned" },
         ],
         // updateCrmTask rejects completed/cancelled (CRM_TASK_READ_ONLY) —
@@ -79,22 +74,18 @@ export function TaskDetailScreen({ taskId }: { taskId: string }) {
         ) : undefined,
       }}
     >
-      <div className="grid grid-cols-1 gap-4 py-4 sm:grid-cols-2">
-        <Field label="Team" value={task.teamName} />
-        <Field label="Start at" value={task.startAt ? dateFormatter.format(new Date(task.startAt)) : null} />
-        <Field label="Due at" value={task.dueAt ? dateFormatter.format(new Date(task.dueAt)) : null} />
-        <Field label="Reminder at" value={task.reminderAt ? dateFormatter.format(new Date(task.reminderAt)) : null} />
-        <Field label="Recurring rule" value={task.recurringRule} />
-        <Field label="Recurrence" value={describeRecurrence(task.recurrenceConfig as RecurrenceConfig | null)} />
-        <Field label="Completed at" value={task.completedAt ? dateFormatter.format(new Date(task.completedAt)) : null} />
-        <Field label="Outcome" value={task.outcome} />
+      <div className="flex flex-col gap-4 py-4">
+        <PropertyList title="Related record" columns={1} items={[{ label: "Belongs to", value: <RelatedRecordCard entityType={(task as { entityType?: string }).entityType} entityId={(task as { entityId?: string | null }).entityId} /> }]} />
+        <PropertyList title="Task" items={[
+          { label: "Description", value: task.description, wide: true },
+          { label: "Team queue", value: task.teamName },
+          { label: "Starts", value: task.startAt ? formatDateTime(task.startAt) : null },
+          { label: "Reminder", value: task.reminderAt ? formatDateTime(task.reminderAt) : null },
+          { label: "Repeats", value: describeRecurrence(task.recurrenceConfig as RecurrenceConfig | null) ?? (task.recurringRule ? humanize(task.recurringRule) : null) },
+          { label: "Completed", value: task.completedAt ? formatDateTime(task.completedAt) : null },
+          { label: "Outcome", value: task.outcome, wide: true },
+        ]} />
       </div>
-      {task.description && (
-        <div className="flex flex-col gap-1 border-t border-border pt-4">
-          <span className="text-xs text-text-muted">Description</span>
-          <p className="text-sm text-text">{task.description}</p>
-        </div>
-      )}
       <TaskDependenciesPanel task={task} canManage={canManage} />
       <EditTaskDialog isOpen={editOpen} onOpenChange={setEditOpen} task={task} />
     </RecordDetailsPage>
@@ -248,7 +239,7 @@ function EditTaskDialog({ isOpen, onOpenChange, task }: { isOpen: boolean; onOpe
           onSelectionChange={(key) => setPriority(String(key ?? "medium") as Task["priority"])}
         />
         <Select label="Assignee" options={assigneeOptions} selectedKey={assignedTo} onSelectionChange={(key) => setAssignedTo(String(key ?? ""))} />
-        <TextField label="Due at" placeholder="YYYY-MM-DDTHH:mm" value={dueAt} onChange={setDueAt} />
+        <DateTimeInput label="Due" value={dueAt} onChange={setDueAt} />
         <TextArea label="Description" value={description} onChange={setDescription} />
         <RecurrenceBuilder value={recurrenceConfig} onChange={setRecurrenceConfig} />
         <div className="flex justify-end gap-2">

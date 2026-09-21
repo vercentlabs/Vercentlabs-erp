@@ -11,19 +11,11 @@ import { LoadingState } from "@/features/crm/shared/ui/LoadingState";
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import { getCrmOptions } from "@/features/crm/shared/crm-options-api";
+import { dueLabel, dueState, formatDateTime, humanize } from "@/features/crm/shared/human";
+import { PropertyList } from "@/features/crm/shared/ui/PropertyList";
+import { RelatedRecordCard } from "@/features/crm/shared/ui/RelatedRecordCard";
 import { getMeeting, MeetingApiError, updateMeeting } from "../api/meetings-api";
 import type { Meeting } from "../types";
-
-const dateFormatter = new Intl.DateTimeFormat("en-IN", { dateStyle: "medium", timeStyle: "short" });
-
-function Field({ label, value }: { label: string; value: string | number | null | undefined }) {
-  return (
-    <div className="flex flex-col gap-0.5">
-      <span className="text-xs text-text-muted">{label}</span>
-      <span className="text-sm text-text">{value === null || value === undefined || value === "" ? "—" : value}</span>
-    </div>
-  );
-}
 
 // F014 Tranche J (Stage A) — dedicated Meeting detail view; getCrmMeeting/
 // updateCrmMeeting (meeting-operations.js) were already real, already
@@ -52,48 +44,63 @@ export function MeetingDetailScreen({ meetingId }: { meetingId: string }) {
         title: meeting.subject,
         status: <StatusBadge tone={meeting.status === "completed" ? "success" : meeting.status === "cancelled" ? "neutral" : "info"}>{meeting.status}</StatusBadge>,
         fields: [
-          { label: "Location type", value: meeting.locationType ?? "—" },
+          { label: "When", value: meeting.startAt ? `${formatDateTime(meeting.startAt)}${(meeting.status === "planned" || meeting.status === "overdue") && dueState(meeting.startAt) === "overdue" ? " (" + dueLabel(meeting.startAt) + ")" : ""}` : "" },
+          { label: "Where", value: meeting.locationType === "online" ? "Online" : meeting.locationType ? humanize(meeting.locationType) + (meeting.location ? ", " + meeting.location : "") : "" },
           { label: "Assignee", value: meeting.assignedName ?? "Unassigned" },
-        ],
+        ].filter((field) => field.value !== ""),
         // updateCrmMeeting rejects any status other than planned/overdue —
         // hiding Edit outside that window avoids offering a rejected action.
-        primaryAction: canManage && (meeting.status === "planned" || meeting.status === "overdue") ? (
-          <Button variant="secondary" onPress={() => setEditOpen(true)}>
-            <Pencil className="size-4" aria-hidden="true" />
-            Edit
-          </Button>
-        ) : undefined,
+        primaryAction:
+          meeting.meetingUrl && (meeting.status === "planned" || meeting.status === "overdue" || meeting.status === "in_progress") ? (
+            <a href={meeting.meetingUrl} target="_blank" rel="noreferrer" className="inline-flex h-[var(--control-height-standard)] items-center rounded-[var(--radius-control)] bg-brand px-4 text-sm font-medium text-text-inverse hover:bg-brand-hover">
+              Join meeting
+            </a>
+          ) : canManage && (meeting.status === "planned" || meeting.status === "overdue") ? (
+            <Button variant="secondary" onPress={() => setEditOpen(true)}>
+              <Pencil className="size-4" aria-hidden="true" />
+              Edit
+            </Button>
+          ) : undefined,
+        secondaryActions:
+          meeting.meetingUrl && canManage && (meeting.status === "planned" || meeting.status === "overdue") ? (
+            <Button variant="secondary" onPress={() => setEditOpen(true)}>
+              <Pencil className="size-4" aria-hidden="true" />
+              Edit
+            </Button>
+          ) : undefined,
       }}
     >
-      <div className="grid grid-cols-1 gap-4 py-4 sm:grid-cols-2">
-        <Field label="Start" value={meeting.startAt ? dateFormatter.format(new Date(meeting.startAt)) : null} />
-        <Field label="End" value={meeting.endAt ? dateFormatter.format(new Date(meeting.endAt)) : null} />
-        <Field label="Location" value={meeting.location} />
-        <Field label="Meeting URL" value={meeting.meetingUrl} />
-        <Field label="Priority" value={meeting.priority} />
-        <Field label="Attendees" value={meeting.attendeeCount ?? meeting.attendees?.length ?? 0} />
-        <Field label="Outcome" value={meeting.outcomeCode} />
-        <Field label="Outcome notes" value={meeting.outcome} />
-        <Field label="Completed at" value={meeting.completedAt ? dateFormatter.format(new Date(meeting.completedAt)) : null} />
+      <div className="flex flex-col gap-4 py-4">
+        <PropertyList title="Related record" columns={1} items={[{ label: "Belongs to", value: <RelatedRecordCard entityType={meeting.entityType} entityId={meeting.entityId} /> }]} />
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+          <PropertyList title="Details" items={[
+            { label: "Starts", value: meeting.startAt ? formatDateTime(meeting.startAt) : null },
+            { label: "Ends", value: meeting.endAt ? formatDateTime(meeting.endAt) : null },
+            { label: "Meeting link", value: meeting.meetingUrl ? <a className="break-all text-brand hover:underline" href={meeting.meetingUrl} target="_blank" rel="noreferrer">{meeting.meetingUrl}</a> : null, wide: true },
+            { label: "Location", value: meeting.location },
+            { label: "Priority", value: humanize(meeting.priority) },
+            { label: "Agenda", value: meeting.description, wide: true },
+          ]} />
+          <PropertyList title="Outcome" description={meeting.status === "planned" || meeting.status === "overdue" ? "Recorded after the meeting." : undefined} items={[
+            { label: "Result", value: humanize(meeting.outcomeCode) },
+            { label: "Notes", value: meeting.outcome, wide: true },
+            { label: "Completed", value: meeting.completedAt ? formatDateTime(meeting.completedAt) : null },
+          ]} />
+        </div>
+        {meeting.attendees && meeting.attendees.length > 0 && (
+          <section className="flex flex-col gap-2 rounded-[var(--radius-card)] border border-border bg-surface p-4">
+            <h3 className="text-sm font-semibold text-text">{`Attendees (${meeting.attendees.length})`}</h3>
+            <ul className="flex flex-col divide-y divide-border text-sm">
+              {meeting.attendees.map((attendee, i) => (
+                <li key={i} className="flex flex-wrap items-center justify-between gap-2 py-1.5">
+                  <span className="text-text">{attendee.name && attendee.name !== attendee.email ? attendee.name : attendee.email}{attendee.name && attendee.name !== attendee.email ? <span className="text-text-muted">{` · ${attendee.email}`}</span> : null}</span>
+                  {attendee.responseStatus && <StatusBadge tone={attendee.responseStatus === "accepted" ? "success" : attendee.responseStatus === "declined" ? "danger" : "neutral"}>{attendee.responseStatus}</StatusBadge>}
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
       </div>
-      {meeting.attendees && meeting.attendees.length > 0 && (
-        <div className="flex flex-col gap-1 border-t border-border pt-4">
-          <span className="text-xs text-text-muted">Attendees</span>
-          <ul className="text-sm text-text">
-            {meeting.attendees.map((attendee, i) => (
-              <li key={i}>
-                {attendee.name} ({attendee.email}) {attendee.responseStatus ? `· ${attendee.responseStatus}` : ""}
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
-      {meeting.description && (
-        <div className="flex flex-col gap-1 border-t border-border pt-4">
-          <span className="text-xs text-text-muted">Description</span>
-          <p className="text-sm text-text">{meeting.description}</p>
-        </div>
-      )}
       <EditMeetingDialog isOpen={editOpen} onOpenChange={setEditOpen} meeting={meeting} />
     </RecordDetailsPage>
   );

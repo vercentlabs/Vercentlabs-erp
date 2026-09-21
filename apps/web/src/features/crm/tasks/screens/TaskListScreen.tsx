@@ -25,6 +25,7 @@ import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import { cancelTask, claimTask, completeTask, listMyTaskTeams, listTasks, releaseTask, startTask, TaskApiError } from "../api/tasks-api";
 import type { Task, TaskListFilters } from "../types";
 import { LoadingState } from "@/features/crm/shared/ui/LoadingState";
+import { DueCell } from "@/features/crm/shared/ui/DueCell";
 
 const PAGE_SIZE = 25;
 
@@ -36,7 +37,6 @@ const statusTone: Record<string, "neutral" | "info" | "success" | "warning" | "d
   cancelled: "neutral",
 };
 
-const dateTimeFormatter = new Intl.DateTimeFormat("en-IN", { dateStyle: "medium", timeStyle: "short" });
 
 export function TaskListScreen() {
   const router = useRouter();
@@ -107,7 +107,7 @@ export function TaskListScreen() {
       },
       { id: "assignedName", header: "Assignee", accessorFn: (row) => row.assignedName || (row.teamId ? "Unclaimed (queue)" : "Unassigned") },
       { id: "teamName", header: "Team", accessorFn: (row) => row.teamName || "—" },
-      { id: "dueAt", header: "Due", accessorFn: (row) => (row.dueAt ? dateTimeFormatter.format(new Date(row.dueAt)) : "—") },
+      { id: "dueAt", header: "Due", accessorFn: (row) => row.dueAt ?? "", cell: ({ row }) => <DueCell value={row.original.dueAt} done={["completed", "cancelled"].includes(row.original.status)} /> },
     ],
     [],
   );

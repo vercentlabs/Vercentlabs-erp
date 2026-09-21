@@ -24,6 +24,7 @@ import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import { cancelFollowUp, completeFollowUp, FollowUpApiError, listFollowUps, snoozeFollowUp } from "../api/follow-ups-api";
 import type { FollowUp, FollowUpListFilters } from "../types";
 import { LoadingState } from "@/features/crm/shared/ui/LoadingState";
+import { DueCell } from "@/features/crm/shared/ui/DueCell";
 
 const PAGE_SIZE = 25;
 
@@ -35,7 +36,6 @@ const statusTone: Record<string, "neutral" | "info" | "success" | "warning" | "d
   cancelled: "neutral",
 };
 
-const dateTimeFormatter = new Intl.DateTimeFormat("en-IN", { dateStyle: "medium", timeStyle: "short" });
 
 export function FollowUpListScreen() {
   const router = useRouter();
@@ -100,7 +100,7 @@ export function FollowUpListScreen() {
         cell: ({ getValue }) => <StatusBadge tone={statusTone[String(getValue())] ?? "neutral"}>{String(getValue())}</StatusBadge>,
       },
       { id: "assignedName", header: "Assignee", accessorFn: (row) => row.assignedName || "Unassigned" },
-      { id: "dueAt", header: "Due", accessorFn: (row) => (row.dueAt ? dateTimeFormatter.format(new Date(row.dueAt)) : "—") },
+      { id: "dueAt", header: "Due", accessorFn: (row) => row.dueAt ?? "", cell: ({ row }) => <DueCell value={row.original.dueAt} done={["completed", "cancelled"].includes(row.original.status)} /> },
       { id: "followUpSnoozeCount", header: "Snoozed", accessorFn: (row) => row.followUpSnoozeCount ?? 0 },
     ],
     [],

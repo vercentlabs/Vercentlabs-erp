@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { canonicalTimezone, dueLabel, dueState, formatMoney, humanize, isoToLocalParts, localToIso, reminderLabel, reminderOffsetsLabel, timezoneLabel } from "./human.ts";
+import { canonicalTimezone, formatMinutes, dueLabel, dueState, formatMoney, humanize, isoToLocalParts, localToIso, reminderLabel, reminderOffsetsLabel, timezoneLabel } from "./human.ts";
 
 test("humanize turns stored tokens into product copy", () => {
   assert.equal(humanize("not_reviewed"), "Not reviewed");
@@ -54,4 +54,12 @@ test("overdue work is never presented as ordinary planned work", () => {
   assert.equal(dueState("2026-09-25T10:00:00Z", now), "upcoming");
   assert.equal(dueState(null, now), "none");
   assert.equal(dueLabel("2026-09-19T10:00:00Z", now), "Overdue by 2 days");
+});
+
+test("minutes read as a duration", () => {
+  assert.equal(formatMinutes(1440), "1 day");
+  assert.equal(formatMinutes(90), "1 hour 30 minutes");
+  assert.equal(formatMinutes(45), "45 minutes");
+  assert.equal(formatMinutes(2880 + 60), "2 days 1 hour");
+  assert.equal(formatMinutes(null), "");
 });

@@ -4,13 +4,17 @@ import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Clock, Pencil } from "lucide-react";
-import { Button, Dialog, ErrorState, PermissionState, RecordDetailsPage, Select, StatusBadge, TextArea, TextField, type SelectOption } from "@vercentlabs/design-system";
+import { Button, Dialog, ErrorState, PermissionState, RecordDetailsPage, Select, StatusBadge, TextArea, TextField, Timeline, type SelectOption } from "@vercentlabs/design-system";
 import { CRM_PERMISSIONS } from "@vercentlabs/permissions";
 import { LoadingState } from "@/features/crm/shared/ui/LoadingState";
 
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import { getCrmOptions } from "@/features/crm/shared/crm-options-api";
+import { dueLabel, dueState, formatDateTime, formatMinutes, humanize, reminderLabel } from "@/features/crm/shared/human";
+import { DateTimeInput } from "@/features/crm/shared/ui/DateTimeInput";
+import { PropertyList } from "@/features/crm/shared/ui/PropertyList";
+import { RelatedRecordCard } from "@/features/crm/shared/ui/RelatedRecordCard";
 import {
   acknowledgeFollowUpReminder,
   FollowUpApiError,
@@ -31,16 +35,6 @@ const REMINDER_STATUS_TONE: Record<string, "neutral" | "info" | "success" | "war
   cancelled: "neutral",
 };
 
-const dateFormatter = new Intl.DateTimeFormat("en-IN", { dateStyle: "medium", timeStyle: "short" });
-
-function Field({ label, value }: { label: string; value: string | number | null | undefined }) {
-  return (
-    <div className="flex flex-col gap-0.5">
-      <span className="text-xs text-text-muted">{label}</span>
-      <span className="text-sm text-text">{value === null || value === undefined || value === "" ? "—" : value}</span>
-    </div>
-  );
-}
 
 // F016 Tranche J (Stage A) — dedicated Follow-up detail view; getCrmFollowUp/
 // updateCrmFollowUp (follow-up-operations.js) were already real, already
@@ -89,9 +83,10 @@ export function FollowUpDetailScreen({ followUpId }: { followUpId: string }) {
         title: followUp.subject,
         status: <StatusBadge tone={followUp.status === "completed" ? "success" : followUp.status === "cancelled" ? "neutral" : "info"}>{followUp.status}</StatusBadge>,
         fields: [
-          { label: "Channel", value: followUp.followUpChannel ?? "—" },
+          { label: "Due", value: followUp.dueAt ? `${formatDateTime(followUp.dueAt)}${canAct && dueState(followUp.dueAt) === "overdue" ? " (" + dueLabel(followUp.dueAt) + ")" : ""}` : "" },
+          { label: "Channel", value: humanize(followUp.followUpChannel) },
           { label: "Assignee", value: followUp.assignedName ?? "Unassigned" },
-        ],
+        ].filter((field) => field.value !== ""),
         // updateCrmFollowUp rejects completed/cancelled (CRM_FOLLOW_UP_READ_ONLY)
         // — hiding Edit/Snooze in those states avoids offering a rejected action.
         primaryAction: canAct ? (
@@ -108,20 +103,17 @@ export function FollowUpDetailScreen({ followUpId }: { followUpId: string }) {
         ) : undefined,
       }}
     >
-      <div className="grid grid-cols-1 gap-4 py-4 sm:grid-cols-2">
-        <Field label="Due at" value={followUp.dueAt ? dateFormatter.format(new Date(followUp.dueAt)) : null} />
-        <Field label="Reason" value={followUp.followUpReason} />
-        <Field label="Snooze count" value={followUp.followUpSnoozeCount ?? 0} />
-        <Field label="Escalate after (minutes)" value={followUp.escalateAfterMinutes} />
-        <Field label="Escalated at" value={followUp.followUpEscalatedAt ? dateFormatter.format(new Date(followUp.followUpEscalatedAt)) : null} />
-        <Field label="Completed at" value={followUp.completedAt ? dateFormatter.format(new Date(followUp.completedAt)) : null} />
+      <div className="flex flex-col gap-4 py-4">
+        <PropertyList title="Related record" columns={1} items={[{ label: "Belongs to", value: <RelatedRecordCard entityType={followUp.entityType} entityId={followUp.entityId} /> }]} />
+        <PropertyList title="Follow-up" items={[
+          { label: "Reason", value: followUp.followUpReason },
+          { label: "Notes", value: followUp.description, wide: true },
+          { label: "Snoozed", value: followUp.followUpSnoozeCount ? `${followUp.followUpSnoozeCount} time${followUp.followUpSnoozeCount === 1 ? "" : "s"}` : null },
+          { label: "Escalates after", value: followUp.escalateAfterMinutes ? formatMinutes(followUp.escalateAfterMinutes) + " overdue" : null },
+          { label: "Escalated", value: followUp.followUpEscalatedAt ? formatDateTime(followUp.followUpEscalatedAt) : null },
+          { label: "Completed", value: followUp.completedAt ? formatDateTime(followUp.completedAt) : null },
+        ]} />
       </div>
-      {followUp.description && (
-        <div className="flex flex-col gap-1 border-t border-border pt-4">
-          <span className="text-xs text-text-muted">Description</span>
-          <p className="text-sm text-text">{followUp.description}</p>
-        </div>
-      )}
       <RemindersPanel followUpId={followUp.id} />
       <HistoryPanel followUpId={followUp.id} />
       <EditFollowUpDialog isOpen={editOpen} onOpenChange={setEditOpen} followUp={followUp} />
@@ -132,7 +124,7 @@ export function FollowUpDetailScreen({ followUpId }: { followUpId: string }) {
               {snoozeError}
             </p>
           )}
-          <TextField label="New due date/time" isRequired placeholder="YYYY-MM-DDTHH:mm" value={snoozeAt} onChange={setSnoozeAt} />
+          <DateTimeInput label="New due date and time" isRequired value={snoozeAt} onChange={setSnoozeAt} />
           <div className="flex justify-end gap-2">
             <Button variant="secondary" onPress={() => setSnoozeOpen(false)}>Cancel</Button>
             <Button variant="primary" onPress={() => snoozeMutation.mutate()} isLoading={snoozeMutation.isPending} isDisabled={!snoozeAt}>
@@ -161,11 +153,10 @@ function RemindersPanel({ followUpId }: { followUpId: string }) {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: scopedQueryKey(workspace, "crm", "follow-ups", followUpId, "reminders") }),
   });
   const reminders = remindersQuery.data?.rows ?? [];
-  const timeFormatter = new Intl.DateTimeFormat("en-IN", { dateStyle: "medium", timeStyle: "short" });
 
   return (
     <div className="flex flex-col gap-2 border-t border-border pt-4">
-      <span className="text-xs text-text-muted">Reminders</span>
+      <span className="text-sm font-semibold text-text">Reminders</span>
       {reminders.length === 0 ? (
         <p className="text-sm text-text-muted">No reminders scheduled.</p>
       ) : (
@@ -173,7 +164,7 @@ function RemindersPanel({ followUpId }: { followUpId: string }) {
           {reminders.map((reminder) => (
             <li key={reminder.id} className="flex items-center justify-between rounded-[var(--radius-control)] border border-border px-3 py-1.5">
               <span className="text-sm text-text">
-                {reminder.channel} · {timeFormatter.format(new Date(reminder.fireAt))}
+                {reminderLabel(reminder.offsetMinutes)} · {humanize(reminder.channel)} · {formatDateTime(reminder.fireAt)}
                 {reminder.failureReason ? <span className="text-danger"> — {reminder.failureReason}</span> : null}
               </span>
               <div className="flex items-center gap-2">
@@ -202,23 +193,14 @@ function HistoryPanel({ followUpId }: { followUpId: string }) {
     queryFn: () => listFollowUpHistory(followUpId),
   });
   const events = historyQuery.data?.rows ?? [];
-  const timeFormatter = new Intl.DateTimeFormat("en-IN", { dateStyle: "medium", timeStyle: "short" });
 
   return (
     <div className="flex flex-col gap-2 border-t border-border pt-4">
-      <span className="text-xs text-text-muted">History</span>
-      {events.length === 0 ? (
-        <p className="text-sm text-text-muted">No history yet.</p>
-      ) : (
-        <ul className="flex flex-col gap-1">
-          {events.map((event, index) => (
-            <li key={index} className="flex items-center justify-between text-sm">
-              <span className="text-text capitalize">{event.eventType.replace(/_/g, " ")}</span>
-              <span className="text-text-muted">{timeFormatter.format(new Date(event.occurredAt))}</span>
-            </li>
-          ))}
-        </ul>
-      )}
+      <span className="text-sm font-semibold text-text">History</span>
+      <Timeline
+        emptyMessage="No history yet."
+        entries={events.map((event, index) => ({ id: String(index), tone: event.eventType === "escalated" ? "warning" : event.eventType === "completed" ? "success" : "neutral", title: humanize(event.eventType), timestamp: formatDateTime(event.occurredAt) }))}
+      />
     </div>
   );
 }

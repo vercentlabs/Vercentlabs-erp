@@ -11,19 +11,13 @@ import { LoadingState } from "@/features/crm/shared/ui/LoadingState";
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import { getCrmOptions } from "@/features/crm/shared/crm-options-api";
+import { dueLabel, dueState, formatDateTime, humanize } from "@/features/crm/shared/human";
+import { PropertyList } from "@/features/crm/shared/ui/PropertyList";
+import { RelatedRecordCard } from "@/features/crm/shared/ui/RelatedRecordCard";
 import { CallApiError, getCall, updateCall } from "../api/calls-api";
 import type { Call } from "../types";
 
-const dateFormatter = new Intl.DateTimeFormat("en-IN", { dateStyle: "medium", timeStyle: "short" });
-
-function Field({ label, value }: { label: string; value: string | number | null | undefined }) {
-  return (
-    <div className="flex flex-col gap-0.5">
-      <span className="text-xs text-text-muted">{label}</span>
-      <span className="text-sm text-text">{value === null || value === undefined || value === "" ? "—" : value}</span>
-    </div>
-  );
-}
+const minutesText = (seconds: number) => (seconds < 60 ? `${seconds} seconds` : `${Math.round(seconds / 60)} minutes`);
 
 // F013 Tranche J (Stage A) — a dedicated Call detail view was missing;
 // getCrmCall/updateCrmCall (call-operations.js) were already real,
@@ -54,9 +48,10 @@ export function CallDetailScreen({ callId }: { callId: string }) {
         title: call.subject,
         status: <StatusBadge tone={call.status === "completed" ? "success" : call.status === "cancelled" ? "neutral" : "info"}>{call.status}</StatusBadge>,
         fields: [
-          { label: "Direction", value: call.direction ?? "—" },
+          { label: "Direction", value: call.direction ? humanize(call.direction) : "" },
           { label: "Assignee", value: call.assignedName ?? "Unassigned" },
-        ],
+          { label: "When", value: call.dueAt ? `${formatDateTime(call.dueAt)}${(call.status === "planned" || call.status === "overdue") && dueState(call.dueAt) === "overdue" ? " (" + dueLabel(call.dueAt) + ")" : ""}` : "" },
+        ].filter((field) => field.value !== ""),
         // updateCrmCall rejects any status other than planned/overdue
         // (CRM_CALL_READ_ONLY) — hiding Edit outside that window avoids
         // offering an action the backend will reject.
@@ -68,24 +63,25 @@ export function CallDetailScreen({ callId }: { callId: string }) {
         ) : undefined,
       }}
     >
-      <div className="grid grid-cols-1 gap-4 py-4 sm:grid-cols-2">
-        <Field label="Phone number" value={call.phoneNumber} />
-        <Field label="Priority" value={call.priority} />
-        <Field label="Due at" value={call.dueAt ? dateFormatter.format(new Date(call.dueAt)) : null} />
-        <Field label="Reminder at" value={call.reminderAt ? dateFormatter.format(new Date(call.reminderAt)) : null} />
-        <Field label="Started at" value={call.callStartedAt ? dateFormatter.format(new Date(call.callStartedAt)) : null} />
-        <Field label="Ended at" value={call.callEndedAt ? dateFormatter.format(new Date(call.callEndedAt)) : null} />
-        <Field label="Duration" value={call.callDurationSeconds != null ? `${call.callDurationSeconds}s` : null} />
-        <Field label="Outcome" value={call.outcomeCode} />
-        <Field label="Outcome notes" value={call.outcome} />
-        <Field label="Completed at" value={call.completedAt ? dateFormatter.format(new Date(call.completedAt)) : null} />
-      </div>
-      {call.description && (
-        <div className="flex flex-col gap-1 border-t border-border pt-4">
-          <span className="text-xs text-text-muted">Description</span>
-          <p className="text-sm text-text">{call.description}</p>
+      <div className="flex flex-col gap-4 py-4">
+        <PropertyList title="Related record" columns={1} items={[{ label: "Belongs to", value: <RelatedRecordCard entityType={call.entityType} entityId={call.entityId} /> }]} />
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+          <PropertyList title="The call" items={[
+            { label: "Phone number", value: call.phoneNumber },
+            { label: "Priority", value: humanize(call.priority) },
+            { label: "Reminder", value: call.reminderAt ? formatDateTime(call.reminderAt) : null },
+            { label: "Description", value: call.description, wide: true },
+          ]} />
+          <PropertyList title="What happened" description={call.status === "planned" || call.status === "overdue" ? "Nothing logged yet." : undefined} items={[
+            { label: "Started", value: call.callStartedAt ? formatDateTime(call.callStartedAt) : null },
+            { label: "Ended", value: call.callEndedAt ? formatDateTime(call.callEndedAt) : null },
+            { label: "Duration", value: call.callDurationSeconds != null ? minutesText(call.callDurationSeconds) : null },
+            { label: "Outcome", value: humanize(call.outcomeCode) },
+            { label: "Notes", value: call.outcome, wide: true },
+            { label: "Completed", value: call.completedAt ? formatDateTime(call.completedAt) : null },
+          ]} />
         </div>
-      )}
+      </div>
       <EditCallDialog isOpen={editOpen} onOpenChange={setEditOpen} call={call} />
     </RecordDetailsPage>
   );
