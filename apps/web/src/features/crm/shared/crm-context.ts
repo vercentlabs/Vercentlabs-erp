@@ -100,3 +100,25 @@ export function crmContext(session: WorkspaceSessionContext) {
 }
 
 export type CrmApiContext = ReturnType<typeof crmContext>;
+
+// Loads a record for an edit page inside the tenant-scoped transaction (row-level security needs
+// app.current_organization_id; a bare connection sees no rows, which is how every existing record used to
+// appear "not found" on its edit screen). Only a genuine 404 becomes notFound; any other failure (database
+// down, module disabled, billing) surfaces as an error instead of being disguised as a missing record.
+export async function loadRecordForEdit<T>(
+  session: WorkspaceSessionContext,
+  load: (client: import("pg").PoolClient) => Promise<T>,
+): Promise<{ record: T | null; notFound: boolean }> {
+  const { tenantTransaction } = await import("@/core/db");
+  try {
+    const record = await tenantTransaction(session.organizationId, async (client) => {
+      await requireCrmAccess(client, session);
+      return load(client);
+    });
+    return { record, notFound: false };
+  } catch (error) {
+    const status = (error as { status?: number } | null)?.status;
+    if (status === 404) return { record: null, notFound: true };
+    throw error;
+  }
+}

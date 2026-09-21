@@ -1,9 +1,8 @@
 import { getCrmRecord } from "@vercentlabs/api";
 import { CRM_PERMISSIONS } from "@vercentlabs/permissions";
 
-import { withClient } from "@/core/db";
 import { requireWorkspace } from "@/core/session";
-import { crmContext } from "@/features/crm/shared/crm-context";
+import { crmContext, loadRecordForEdit } from "@/features/crm/shared/crm-context";
 import { LeadFormScreen } from "@/features/crm/leads/screens/LeadFormScreen";
 import type { Lead } from "@/features/crm/leads/types";
 
@@ -16,14 +15,8 @@ export default async function EditLeadPage({ params }: { params: Promise<{ leadI
   const session = await requireWorkspace();
   const canManage = session.roleSlugs.includes("organization_owner") || session.permissions.includes(CRM_PERMISSIONS.leadsManage);
   const { leadId } = await params;
-  let lead: Lead | null = null;
-  let notFound = false;
-  if (canManage) {
-    try {
-      lead = await withClient((client) => getCrmRecord(client, crmContext(session), "leads", leadId));
-    } catch {
-      notFound = true;
-    }
-  }
+  const loaded = canManage ? await loadRecordForEdit(session, (client) => getCrmRecord(client, crmContext(session), "leads", leadId)) : { record: null, notFound: false };
+  const lead = loaded.record as Lead | null;
+  const notFound = loaded.notFound;
   return <LeadFormScreen mode="edit" lead={lead ?? undefined} canManage={canManage} notFound={notFound} />;
 }

@@ -1,9 +1,8 @@
 import { getCrmAccountForCaller } from "@vercentlabs/api";
 import { CRM_PERMISSIONS } from "@vercentlabs/permissions";
 
-import { withClient } from "@/core/db";
 import { requireWorkspace } from "@/core/session";
-import { crmContext } from "@/features/crm/shared/crm-context";
+import { crmContext, loadRecordForEdit } from "@/features/crm/shared/crm-context";
 import { AccountFormScreen } from "@/features/crm/accounts/screens/AccountFormScreen";
 import type { Account } from "@/features/crm/accounts/types";
 
@@ -13,14 +12,8 @@ export default async function EditAccountPage({ params }: { params: Promise<{ ac
   const session = await requireWorkspace();
   const canManage = session.roleSlugs.includes("organization_owner") || session.permissions.includes(CRM_PERMISSIONS.accountsManage);
   const { accountId } = await params;
-  let account: Account | null = null;
-  let notFound = false;
-  if (canManage) {
-    try {
-      account = (await withClient((client) => getCrmAccountForCaller(client, crmContext(session), accountId))) as Account;
-    } catch {
-      notFound = true;
-    }
-  }
+  const loaded = canManage ? await loadRecordForEdit(session, (client) => getCrmAccountForCaller(client, crmContext(session), accountId)) : { record: null, notFound: false };
+  const account = loaded.record as Account | null;
+  const notFound = loaded.notFound;
   return <AccountFormScreen mode="edit" account={account ?? undefined} canManage={canManage} notFound={notFound} />;
 }
