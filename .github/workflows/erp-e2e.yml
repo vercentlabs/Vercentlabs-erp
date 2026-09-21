@@ -47,7 +47,6 @@ jobs:
           --health-cmd "pg_isready -U vercentlabs -d vercentlabs_control"
           --health-interval 5s --health-timeout 5s --health-retries 20
     env:
-      NODE_ENV: production
       APP_URL: http://localhost:3001
       FORM_ALLOWED_ORIGINS: http://localhost:3001
       MIGRATION_DATABASE_URL: postgresql://vercentlabs:ci_owner_password@localhost:5433/vercentlabs_control
@@ -88,7 +87,8 @@ jobs:
 
       - name: Start the ERP web app
         run: |
-          nohup pnpm --filter @vercentlabs/web exec next start -p 3001 > web-server.log 2>&1 &
+          # NODE_ENV is set only here: in the job environment it would make pnpm skip the dev dependencies Playwright needs.
+          NODE_ENV=production nohup pnpm --filter @vercentlabs/web exec next start -p 3001 > web-server.log 2>&1 &
           for i in $(seq 1 60); do
             if curl -fsS http://localhost:3001/login > /dev/null; then exit 0; fi
             sleep 2
@@ -96,19 +96,20 @@ jobs:
           cat web-server.log
           exit 1
 
+      # One spec file at a time with the login rate limiter cleared before each: every spec signs in with fresh users
+      # from the same address, so a long run otherwise fails on the limiter rather than on the product.
       - name: Run the critical journeys
         if: ${{ github.event_name != 'schedule' && !inputs.full }}
-        working-directory: apps/web
         run: >-
-          pnpm exec playwright test
+          node scripts/qa/run-e2e-per-spec.mjs
           crm-regression.spec.ts crm-authorization.spec.ts crm-uiux.spec.ts crm-settings-setup.spec.ts
           crm-public-booking.spec.ts opportunity-stage-transition.spec.ts restricted-role-authorization.spec.ts
-          platform-security.spec.ts accounting-schedule-views.spec.ts billing-plans.spec.ts accessibility.spec.ts
+          platform-security.spec.ts platform-surfaces.spec.ts accounting-schedule-views.spec.ts billing-plans.spec.ts
+          accessibility.spec.ts responsive-layout.spec.ts
 
       - name: Run the full suite
         if: ${{ github.event_name == 'schedule' || inputs.full }}
-        working-directory: apps/web
-        run: pnpm exec playwright test
+        run: node scripts/qa/run-e2e-per-spec.mjs
 
       - name: Upload the report and server log
         if: always()
