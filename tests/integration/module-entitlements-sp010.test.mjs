@@ -47,7 +47,10 @@ test("SP010/SP011: the shared module-access gate against a real database", async
       [orgId, `sp010-org-${orgId}`, ownerId],
     );
     if (enableCrm) {
-      await admin.query(`INSERT INTO organization_modules(organization_id,module_key,name,status,enabled_at) VALUES ($1,'crm','CRM','enabled',now())`, [orgId]);
+      await admin.query(`INSERT INTO organization_modules(organization_id,module_key,name,status,enabled_at) VALUES ($1,'crm','CRM','enabled',now()) ON CONFLICT (organization_id,module_key) DO UPDATE SET status='enabled', enabled_at=now()`, [orgId]);
+    } else {
+      // The organisation trigger enables every module on creation; this case needs one an admin turned off.
+      await admin.query(`UPDATE organization_modules SET status='disabled', enabled_at=now() WHERE organization_id=$1`, [orgId]);
     }
     if (!subscription) {
       // migration 051's organizations_ensure_subscription trigger just
