@@ -1,7 +1,7 @@
-import { ModuleFoundationPage } from "@/shell/module-foundation/ModuleFoundationPage";
+import { QualityDashboardScreen } from "@/features/quality/QualityPage";
 
 export const metadata = { title: "Quality" };
 
-export default function QualityPage() {
-  return <ModuleFoundationPage moduleKey="quality" moduleLabel="Quality" />;
+export default function QualityHomePage() {
+  return <QualityDashboardScreen />;
 }

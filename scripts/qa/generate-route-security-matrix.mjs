@@ -107,6 +107,14 @@ const AUDITED_WRAPPERS = {
     file: "apps/web/src/features/support/shared/route-helpers.ts",
     provides: { auth: ["requireWorkspace"], origin: [], authorization: ["requireSupportAccess"] },
   },
+  qualityMutation: {
+    file: "apps/web/src/features/quality/shared/route-helpers.ts",
+    provides: { auth: ["requireWorkspace"], origin: ["assertSameOriginOrMobile"], authorization: ["requireQualityAccess"] },
+  },
+  qualityRead: {
+    file: "apps/web/src/features/quality/shared/route-helpers.ts",
+    provides: { auth: ["requireWorkspace"], origin: [], authorization: ["requireQualityAccess"] },
+  },
 };
 for (const [wrapper, spec] of Object.entries(AUDITED_WRAPPERS)) {
   const wrapperSource = readFile(spec.file);
