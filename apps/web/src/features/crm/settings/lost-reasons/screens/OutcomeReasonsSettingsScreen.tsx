@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { ColumnDef } from "@tanstack/react-table";
-import { Archive, Pencil, Plus } from "lucide-react";
+import { ArrowDown, ArrowUp, Pencil, Plus } from "lucide-react";
 import {
   Button,
   Dialog,
@@ -18,6 +18,9 @@ import {
 } from "@vercentlabs/design-system";
 import { CRM_PERMISSIONS } from "@vercentlabs/permissions";
 
+import { humanize } from "@/features/crm/shared/human";
+import { MoreMenu } from "@/features/crm/shared/ui/MoreMenu";
+import { gridStates } from "@/features/crm/shared/ui/gridStates";
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import { archiveOutcomeReason, createOutcomeReason, listOutcomeReasons, OutcomeReasonApiError, updateOutcomeReason } from "../api/lost-reasons-api";
@@ -58,14 +61,30 @@ export function OutcomeReasonsSettingsScreen() {
     if (err instanceof OutcomeReasonApiError && err.code === "CRM_STALE_WRITE") invalidate();
   }
 
+  // Order is changed with move up / move down. A swap is done in three writes through a temporary slot so the two rows never
+  // hold the same position at once.
+  const ordered = useMemo(() => [...rows].sort((a, b) => a.outcomeType.localeCompare(b.outcomeType) || a.sequence - b.sequence), [rows]);
+  const moveMutation = useMutation({
+    mutationFn: async ({ row, direction }: { row: CrmOutcomeReason; direction: -1 | 1 }) => {
+      const peers = ordered.filter((r) => r.outcomeType === row.outcomeType);
+      const at = peers.findIndex((r) => r.id === row.id);
+      const other = peers[at + direction];
+      if (!other) return;
+      const parked = await updateOutcomeReason(row.id, { sequence: 100000 + row.sequence }, row.updatedAt);
+      await updateOutcomeReason(other.id, { sequence: row.sequence }, other.updatedAt);
+      await updateOutcomeReason(row.id, { sequence: other.sequence }, parked.record.updatedAt);
+    },
+    onSuccess: () => { setError(null); invalidate(); },
+    onError: handleError,
+  });
+
   const archiveMutation = useMutation({ mutationFn: (row: CrmOutcomeReason) => archiveOutcomeReason(row.id, row.updatedAt), onSuccess: invalidate, onError: handleError });
 
   const columns: ColumnDef<CrmOutcomeReason, unknown>[] = useMemo(
     () => [
       { id: "name", header: "Name", accessorKey: "name", cell: ({ row }) => <span className="font-medium text-text">{row.original.name}</span> },
-      { id: "outcomeType", header: "Applies to", accessorFn: (row) => row.outcomeType },
-      { id: "category", header: "Category", accessorFn: (row) => row.category.replace(/_/g, " ") },
-      { id: "sequence", header: "Order", accessorKey: "sequence" },
+      { id: "outcomeType", header: "Applies to", accessorFn: (row) => humanize(row.outcomeType) },
+      { id: "category", header: "Category", accessorFn: (row) => humanize(row.category) },
       {
         id: "status",
         header: "Status",
@@ -90,7 +109,7 @@ export function OutcomeReasonsSettingsScreen() {
       <EnterpriseListPage
         header={{
           title: "Won / lost reasons",
-          description: "The reason catalogue captured when an Opportunity closes.",
+          description: "Why deals are won or lost. Use the arrows to set the order people see them in.",
           primaryAction: (
             <Button variant="primary" onPress={() => setCreateOpen(true)}>
               <Plus className="size-4" aria-hidden="true" />
@@ -102,19 +121,21 @@ export function OutcomeReasonsSettingsScreen() {
         <EnterpriseDataGrid<CrmOutcomeReason>
           aria-label="Won / lost reasons"
           columns={columns}
-          data={rows}
+          data={ordered}
           getRowId={(row) => row.id}
-          state={query.isLoading ? "loading" : rows.length === 0 ? "empty" : "ready"}
+          {...gridStates(query, rows.length, "reasons", { title: "No reasons yet", description: "Reasons explain why a deal was won or lost. Choosing one when closing a deal makes your win and loss reports meaningful." })}
           rowActions={(row) => (
             <span onClick={(event) => event.stopPropagation()} className="flex items-center gap-1">
+              <IconButton aria-label={`Move ${row.name} up`} size="compact" variant="outline" isDisabled={moveMutation.isPending || ordered.filter((r) => r.outcomeType === row.outcomeType)[0]?.id === row.id} onPress={() => moveMutation.mutate({ row, direction: -1 })}>
+                <ArrowUp className="size-4" aria-hidden="true" />
+              </IconButton>
+              <IconButton aria-label={`Move ${row.name} down`} size="compact" variant="outline" isDisabled={moveMutation.isPending || ordered.filter((r) => r.outcomeType === row.outcomeType).at(-1)?.id === row.id} onPress={() => moveMutation.mutate({ row, direction: 1 })}>
+                <ArrowDown className="size-4" aria-hidden="true" />
+              </IconButton>
               <IconButton aria-label={`Edit ${row.name}`} size="compact" variant="outline" onPress={() => setEditingReason(row)}>
                 <Pencil className="size-4" aria-hidden="true" />
               </IconButton>
-              {row.status === "active" && (
-                <IconButton aria-label={`Archive ${row.name}`} size="compact" variant="danger" onPress={() => archiveMutation.mutate(row)}>
-                  <Archive className="size-4" aria-hidden="true" />
-                </IconButton>
-              )}
+              {row.status === "active" && <MoreMenu label={`More actions for ${row.name}`} isBusy={archiveMutation.isPending} items={[{ id: "archive", label: "Archive reason", danger: true, onAction: () => archiveMutation.mutate(row), confirm: { title: `Archive ${row.name}?`, description: "It is no longer offered when closing a deal. Deals that already used it keep it.", confirmLabel: "Archive" } }]} />}
             </span>
           )}
         />

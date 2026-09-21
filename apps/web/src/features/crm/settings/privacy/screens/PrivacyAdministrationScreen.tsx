@@ -8,12 +8,17 @@ import {
   PermissionState,
   Select,
   StatusBadge,
+  Tab,
+  TabList,
+  TabPanel,
+  Tabs,
   TextArea,
   TextField,
   type SelectOption,
 } from "@vercentlabs/design-system";
 import { CORE_PERMISSIONS } from "@vercentlabs/permissions";
 
+import { formatDate, humanize } from "@/features/crm/shared/human";
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import {
@@ -56,7 +61,6 @@ const REQUEST_TYPE_OPTIONS: SelectOption[] = [
   { value: "consent_withdrawal", label: "Consent withdrawal" },
 ];
 
-const dateFormatter = new Intl.DateTimeFormat("en-IN", { dateStyle: "medium", timeStyle: "short" });
 
 // F002 Stage A2 §13. Surfaces the shared PLATFORM privacy authority
 // (core/privacy.js) — a real, already-built, org-scoped finite-state-
@@ -99,80 +103,97 @@ export function PrivacyAdministrationScreen() {
   const requests = requestsQuery.data?.rows ?? [];
   const policies = policiesQuery.data?.rows ?? [];
 
+  const open = requests.filter((r) => !["completed", "rejected", "cancelled"].includes(r.status));
+
   return (
-    <div className="flex flex-col gap-8">
+    <div className="flex flex-col gap-5">
+      <div>
+        <h1 className="text-xl font-semibold text-text">Privacy administration</h1>
+        <p className="text-sm text-text-secondary">Handle data requests from people, and set how long each kind of data is kept.</p>
+      </div>
       {error && (
         <p role="alert" className="rounded-[var(--radius-control)] border border-danger-emphasis/30 bg-danger-soft px-3 py-2 text-sm text-danger">
           {error}
         </p>
       )}
+      <dl className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <div className="rounded-[var(--radius-card)] border border-border bg-surface p-3"><dt className="text-xs text-text-muted">Open requests</dt><dd className="text-2xl font-semibold tabular-nums text-text">{requestsQuery.isLoading ? "…" : open.length}</dd></div>
+        <div className="rounded-[var(--radius-card)] border border-border bg-surface p-3"><dt className="text-xs text-text-muted">Completed</dt><dd className="text-2xl font-semibold tabular-nums text-text">{requestsQuery.isLoading ? "…" : requests.filter((r) => r.status === "completed").length}</dd></div>
+        <div className="rounded-[var(--radius-card)] border border-border bg-surface p-3"><dt className="text-xs text-text-muted">Retention policies</dt><dd className="text-2xl font-semibold tabular-nums text-text">{policiesQuery.isLoading ? "…" : policies.length}</dd></div>
+      </dl>
 
-      <div className="flex flex-col gap-2">
-        <div className="flex items-center justify-between">
-          <h2 className="text-sm font-semibold text-text">Privacy requests</h2>
-          <Button variant="primary" size="compact" onPress={() => setCreateOpen(true)}>
-            New request
-          </Button>
-        </div>
-        {requests.length === 0 ? (
-          <p className="text-sm text-text-muted">No privacy requests recorded.</p>
-        ) : (
-          <ul className="flex flex-col gap-2">
-            {requests.map((row) => (
-              <li key={row.id} className="flex flex-col gap-2 rounded-[var(--radius-control)] border border-border-strong px-3 py-2">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium text-text">
-                    {row.request_type} — {row.subject_reference}
-                  </span>
-                  <StatusBadge tone={STATUS_TONE[row.status] ?? "neutral"}>{row.status}</StatusBadge>
-                </div>
-                <span className="text-xs text-text-muted">Requested {dateFormatter.format(new Date(row.requested_at))}</span>
-                {(NEXT_STATUSES[row.status] ?? []).length > 0 && (
-                  <div className="flex gap-2">
-                    {NEXT_STATUSES[row.status].map((next) => (
-                      <Button
-                        key={next}
-                        variant={next === "rejected" || next === "cancelled" ? "danger" : "secondary"}
-                        size="compact"
-                        onPress={() => transitionMutation.mutate({ row, status: next })}
-                        isLoading={transitionMutation.isPending}
-                      >
-                        {next.replace("_", " ")}
-                      </Button>
+      <Tabs>
+        <TabList aria-label="Privacy sections">
+          <Tab id="requests">Requests</Tab>
+          <Tab id="retention">Retention</Tab>
+        </TabList>
+
+        <TabPanel id="requests">
+          <div className="flex flex-col gap-3 py-4">
+            <div className="flex items-center justify-between gap-3">
+              <p className="text-sm text-text-secondary">Access, correction and erasure requests move through received, verified, in progress and completed. Only the next valid step is offered.</p>
+              <Button variant="primary" size="compact" onPress={() => setCreateOpen(true)}>New request</Button>
+            </div>
+            {requestsQuery.isError ? (
+              <p role="alert" className="text-sm text-danger">The requests could not be loaded. <button type="button" className="underline" onClick={() => requestsQuery.refetch()}>Try again</button></p>
+            ) : requests.length === 0 ? (
+              <p className="rounded-[var(--radius-control)] bg-canvas-strong px-4 py-6 text-sm text-text-secondary">No privacy requests have been recorded. When someone asks to see, correct or delete their data, record it here so it is tracked to completion.</p>
+            ) : (
+              <ul className="flex flex-col gap-2">
+                {requests.map((row) => (
+                  <li key={row.id} className="flex flex-col gap-2 rounded-[var(--radius-control)] border border-border px-3 py-2.5">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <span className="text-sm font-medium text-text">{humanize(row.request_type)}<span className="font-normal text-text-secondary">{` for ${row.subject_reference}`}</span></span>
+                      <StatusBadge tone={STATUS_TONE[row.status] ?? "neutral"}>{row.status}</StatusBadge>
+                    </div>
+                    <span className="text-xs text-text-muted">{`Requested ${formatDate(row.requested_at)}`}</span>
+                    {(NEXT_STATUSES[row.status] ?? []).length > 0 && (
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="text-xs text-text-muted">Move to:</span>
+                        {NEXT_STATUSES[row.status].map((next) => (
+                          <Button key={next} variant={next === "rejected" || next === "cancelled" ? "secondary" : "primary"} size="compact" onPress={() => transitionMutation.mutate({ row, status: next })} isLoading={transitionMutation.isPending}>
+                            {humanize(next)}
+                          </Button>
+                        ))}
+                      </div>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </TabPanel>
+
+        <TabPanel id="retention">
+          <div className="flex flex-col gap-3 py-4">
+            <div className="flex items-center justify-between gap-3">
+              <p className="text-sm text-text-secondary">How long each kind of data is kept. A change is a new version; older versions stay for the record.</p>
+              <Button variant="secondary" size="compact" onPress={() => setPolicyOpen(true)}>New version</Button>
+            </div>
+            {policiesQuery.isError ? (
+              <p role="alert" className="text-sm text-danger">The policies could not be loaded. <button type="button" className="underline" onClick={() => policiesQuery.refetch()}>Try again</button></p>
+            ) : policies.length === 0 ? (
+              <p className="rounded-[var(--radius-control)] bg-canvas-strong px-4 py-6 text-sm text-text-secondary">No retention policies are set. Add one per kind of data, for example how many days closed leads are kept.</p>
+            ) : (
+              <div className="overflow-x-auto rounded-[var(--radius-control)] border border-border">
+                <table className="w-full text-sm">
+                  <thead className="bg-canvas-strong text-left text-xs uppercase tracking-wide text-text-muted"><tr><th className="px-3 py-2">Data</th><th className="px-3 py-2">Version</th><th className="px-3 py-2">Kept for</th><th className="px-3 py-2">In force</th></tr></thead>
+                  <tbody>
+                    {policies.map((row) => (
+                      <tr key={row.id} className="border-t border-border">
+                        <td className="px-3 py-2 font-medium text-text">{humanize(row.data_class)}</td>
+                        <td className="px-3 py-2">{`Version ${row.version}`}</td>
+                        <td className="px-3 py-2">{`${row.retention_days.toLocaleString("en-IN")} days`}</td>
+                        <td className="px-3 py-2 text-text-secondary">{`${formatDate(row.effective_from)} ${row.effective_to ? "to " + formatDate(row.effective_to) : "onwards"}`}</td>
+                      </tr>
                     ))}
-                  </div>
-                )}
-              </li>
-            ))}
-          </ul>
-        )}
-      </div>
-
-      <div className="flex flex-col gap-2">
-        <div className="flex items-center justify-between">
-          <h2 className="text-sm font-semibold text-text">Retention policies</h2>
-          <Button variant="secondary" size="compact" onPress={() => setPolicyOpen(true)}>
-            New version
-          </Button>
-        </div>
-        {policies.length === 0 ? (
-          <p className="text-sm text-text-muted">No retention policies configured.</p>
-        ) : (
-          <ul className="flex flex-col gap-1">
-            {policies.map((row) => (
-              <li key={row.id} className="flex items-center justify-between rounded-[var(--radius-control)] border border-border px-3 py-2 text-sm">
-                <span className="text-text">
-                  {row.data_class} · v{row.version} · {row.retention_days} days
-                </span>
-                <span className="text-xs text-text-muted">
-                  {row.effective_from.slice(0, 10)}
-                  {row.effective_to ? ` – ${row.effective_to.slice(0, 10)}` : " – open-ended"}
-                </span>
-              </li>
-            ))}
-          </ul>
-        )}
-      </div>
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        </TabPanel>
+      </Tabs>
 
       <CreatePrivacyRequestDialog isOpen={createOpen} onOpenChange={setCreateOpen} onCreated={invalidateRequests} onError={setError} />
       <NewRetentionPolicyDialog isOpen={policyOpen} onOpenChange={setPolicyOpen} onCreated={invalidatePolicies} onError={setError} />

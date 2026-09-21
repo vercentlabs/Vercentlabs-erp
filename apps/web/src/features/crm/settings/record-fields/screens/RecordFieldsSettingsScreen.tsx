@@ -19,6 +19,7 @@ import {
 } from "@vercentlabs/design-system";
 import { CRM_PERMISSIONS } from "@vercentlabs/permissions";
 
+import { gridStates } from "@/features/crm/shared/ui/gridStates";
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import {
@@ -129,7 +130,7 @@ export function RecordFieldsSettingsScreen() {
           columns={columns}
           data={rows}
           getRowId={(row) => row.id}
-          state={query.isLoading ? "loading" : rows.length === 0 ? "empty" : "ready"}
+          {...gridStates(query, rows.length, "record fields", { title: "No record fields yet", description: "A record field adds your own detail to a kind of record and appears on its forms and detail page." })}
           rowActions={(row) => (
             <span onClick={(event) => event.stopPropagation()}>
               <IconButton

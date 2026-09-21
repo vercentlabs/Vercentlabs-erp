@@ -15,6 +15,7 @@ import {
 } from "@vercentlabs/design-system";
 import { CRM_PERMISSIONS } from "@vercentlabs/permissions";
 
+import { humanize } from "@/features/crm/shared/human";
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import {
@@ -125,14 +126,14 @@ export function PipelineStagesSettingsScreen() {
           </Button>
         </div>
         {pipelines.length === 0 ? (
-          <p className="text-sm text-text-muted">No pipelines yet.</p>
+          <p className="text-sm text-text-muted">No pipelines yet. A pipeline is the set of stages a deal moves through, from first contact to won or lost. Create one to start.</p>
         ) : (
           <div className="flex flex-col divide-y divide-border">
             {pipelines.map((pipeline) => (
               <div key={pipeline.id} className="flex items-center justify-between gap-2 py-2">
                 <button type="button" onClick={() => setPipelineId(pipeline.id)} className={`text-left text-sm ${pipeline.id === activePipelineId ? "font-semibold text-brand" : "text-text"}`}>
                   {pipeline.name}
-                  {pipeline.isDefault && <span className="ml-1.5 text-xs text-text-muted">(default)</span>}
+                  {pipeline.isDefault && <StatusBadge tone="info">Default</StatusBadge>}
                 </button>
                 <div className="flex items-center gap-2">
                   <StatusBadge tone={pipeline.status === "active" ? "success" : "neutral"}>{pipeline.status}</StatusBadge>
@@ -151,26 +152,29 @@ export function PipelineStagesSettingsScreen() {
       {activePipelineId && (
         <div className="flex flex-col gap-2 rounded-[var(--radius-card)] border border-border bg-surface p-4">
           <div className="flex items-center justify-between">
-            <h2 className="text-sm font-semibold text-text">Stages — {pipelines.find((p) => p.id === activePipelineId)?.name}</h2>
+            <div><h2 className="text-sm font-semibold text-text">{`Stages in ${pipelines.find((p) => p.id === activePipelineId)?.name ?? "this pipeline"}`}</h2><p className="text-xs text-text-muted">Deals move left to right in this order. Use the arrows to reorder.</p></div>
             <Button variant="secondary" size="compact" onPress={() => setStageDialogOpen(true)}>
               <Plus className="size-4" aria-hidden="true" />
               New stage
             </Button>
           </div>
           {stages.length === 0 ? (
-            <p className="text-sm text-text-muted">No stages yet.</p>
+            <p className="text-sm text-text-muted">No stages yet. Add the steps a deal goes through, for example Qualification, Proposal, Negotiation, Won and Lost.</p>
           ) : (
             <div className="flex flex-col divide-y divide-border">
               {stages.map((stage) => {
                 const activeIndex = activeStages.findIndex((row) => row.id === stage.id);
                 return (
                   <div key={stage.id} className="flex items-center justify-between gap-2 py-2">
-                    <div className="flex flex-col">
+                    <div className="flex flex-col gap-1">
                       <span className="text-sm font-medium text-text">{stage.name}</span>
-                      <span className="text-xs text-text-muted">
-                        {stage.stageType} · {stage.probability}% · {stage.forecastCategory}
-                        {stage.staleAfterDays ? ` · stale after ${stage.staleAfterDays}d` : ""}
-                      </span>
+                      <dl className="flex flex-wrap gap-x-4 gap-y-0.5 text-xs text-text-secondary">
+                        <div className="flex gap-1"><dt className="text-text-muted">Type</dt><dd>{stage.stageType === "won" ? "Closed won" : stage.stageType === "lost" ? "Closed lost" : "Open"}</dd></div>
+                        <div className="flex gap-1"><dt className="text-text-muted">Win probability</dt><dd>{`${Math.round(Number(stage.probability))}%`}</dd></div>
+                        <div className="flex gap-1"><dt className="text-text-muted">Forecast as</dt><dd>{humanize(stage.forecastCategory)}</dd></div>
+                        <div className="flex gap-1"><dt className="text-text-muted">Flagged stale after</dt><dd>{stage.staleAfterDays ? `${stage.staleAfterDays} days` : "Never"}</dd></div>
+                        {typeof stage.openOpportunityCount === "number" && <div className="flex gap-1"><dt className="text-text-muted">Open deals</dt><dd>{stage.openOpportunityCount}</dd></div>}
+                      </dl>
                     </div>
                     <div className="flex items-center gap-1.5">
                       <StatusBadge tone={stage.status === "active" ? "success" : "neutral"}>{stage.status}</StatusBadge>

@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { ColumnDef } from "@tanstack/react-table";
-import { Archive, Copy, Plus } from "lucide-react";
+import { Copy, Plus } from "lucide-react";
 import {
   Button,
   Dialog,
@@ -19,6 +19,9 @@ import {
 } from "@vercentlabs/design-system";
 import { CRM_PERMISSIONS } from "@vercentlabs/permissions";
 
+import { timezoneLabel } from "@/features/crm/shared/human";
+import { MoreMenu } from "@/features/crm/shared/ui/MoreMenu";
+import { gridStates } from "@/features/crm/shared/ui/gridStates";
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import { getCrmOptions } from "@/features/crm/shared/crm-options-api";
@@ -38,6 +41,27 @@ const PROVIDER_OPTIONS: SelectOption[] = [
 // place its config gets a UI. Public booking (BookMeetingScreen) reads
 // exactly this row's availability/duration/buffers/provider — no separate
 // config surface.
+const DAY_NAMES = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"] as const;
+const DAY_SHORT: Record<string, string> = { monday: "Mon", tuesday: "Tue", wednesday: "Wed", thursday: "Thu", friday: "Fri", saturday: "Sat", sunday: "Sun" };
+
+// Days with identical hours are grouped: "Mon to Fri, 09:00 to 17:00".
+function summarizeAvailability(availability: MeetingLink["availability"]): string {
+  const byHours = new Map<string, string[]>();
+  for (const day of DAY_NAMES) {
+    const windows = availability?.[day] ?? [];
+    if (windows.length === 0) continue;
+    const key = windows.map((w) => `${w.start} to ${w.end}`).join(", ");
+    byHours.set(key, [...(byHours.get(key) ?? []), day]);
+  }
+  if (byHours.size === 0) return "No hours set";
+  return [...byHours.entries()]
+    .map(([hours, days]) => {
+      const contiguous = days.length > 2 && days.every((d, i) => i === 0 || DAY_NAMES.indexOf(d as (typeof DAY_NAMES)[number]) === DAY_NAMES.indexOf(days[i - 1] as (typeof DAY_NAMES)[number]) + 1);
+      return `${contiguous ? `${DAY_SHORT[days[0]]} to ${DAY_SHORT[days.at(-1)!]}` : days.map((d) => DAY_SHORT[d]).join(", ")}, ${hours}`;
+    })
+    .join("; ");
+}
+
 export function MeetingLinksSettingsScreen() {
   const workspace = useWorkspaceContext();
   const queryClient = useQueryClient();
@@ -76,15 +100,26 @@ export function MeetingLinksSettingsScreen() {
 
   const columns: ColumnDef<MeetingLink, unknown>[] = useMemo(
     () => [
-      { id: "name", header: "Name", accessorKey: "name", cell: ({ row }) => <span className="font-medium text-text">{row.original.name}</span> },
-      { id: "duration", header: "Duration", accessorFn: (row) => `${row.durationMinutes} min` },
-      { id: "provider", header: "Provider", accessorFn: (row) => PROVIDER_OPTIONS.find((option) => option.value === row.meetingProvider)?.label || row.meetingProvider },
-      { id: "timezone", header: "Timezone", accessorKey: "timezone" },
+      {
+        id: "name",
+        header: "Meeting",
+        accessorKey: "name",
+        cell: ({ row }) => (
+          <div className="flex flex-col">
+            <span className="font-medium text-text">{row.original.name}</span>
+            <span className="max-w-xs truncate text-xs text-text-muted">{`/book/${row.original.publicToken}`}</span>
+          </div>
+        ),
+      },
+      { id: "duration", header: "Length", accessorFn: (row) => (row.durationMinutes < 60 ? `${row.durationMinutes} minutes` : row.durationMinutes % 60 === 0 ? `${row.durationMinutes / 60} hour${row.durationMinutes === 60 ? "" : "s"}` : `${row.durationMinutes} minutes`) },
+      { id: "availability", header: "Available", accessorFn: (row) => summarizeAvailability(row.availability) },
+      { id: "timezone", header: "Time zone", accessorFn: (row) => timezoneLabel(row.timezone) },
+      { id: "provider", header: "Held on", accessorFn: (row) => PROVIDER_OPTIONS.find((option) => option.value === row.meetingProvider)?.label || row.meetingProvider },
       {
         id: "status",
-        header: "Status",
+        header: "State",
         accessorKey: "status",
-        cell: ({ getValue }) => <StatusBadge tone={getValue() === "active" ? "success" : "neutral"}>{String(getValue())}</StatusBadge>,
+        cell: ({ getValue }) => <StatusBadge tone={getValue() === "active" ? "success" : "neutral"}>{getValue() === "active" ? "Accepting bookings" : "Archived"}</StatusBadge>,
       },
     ],
     [],
@@ -103,7 +138,7 @@ export function MeetingLinksSettingsScreen() {
       <EnterpriseListPage
         header={{
           title: "Meeting links",
-          description: "Public booking pages guests use to self-schedule a meeting on a rep's availability.",
+          description: "Booking pages you share so customers can pick a time when you are free.",
           primaryAction: (
             <Button variant="primary" onPress={() => setDialogOpen(true)}>
               <Plus className="size-4" aria-hidden="true" />
@@ -117,18 +152,15 @@ export function MeetingLinksSettingsScreen() {
           columns={columns}
           data={links}
           getRowId={(row) => row.id}
-          state={linksQuery.isLoading ? "loading" : links.length === 0 ? "empty" : "ready"}
+          {...gridStates(linksQuery, links.length, "meeting links", { title: "No meeting links yet", description: "A meeting link is a page you share so customers can book time with you, showing only the hours you are free." })}
           rowActions={(row) => (
             <span onClick={(event) => event.stopPropagation()} className="flex items-center gap-1">
               <IconButton aria-label={`Copy booking link for ${row.name}`} size="compact" variant="outline" onPress={() => copyBookingLink(row)}>
                 <Copy className="size-4" aria-hidden="true" />
               </IconButton>
               {copiedId === row.id && <span className="text-xs text-success">Copied</span>}
-              {row.status === "active" && (
-                <IconButton aria-label={`Archive ${row.name}`} size="compact" variant="danger" onPress={() => archiveMutation.mutate(row)}>
-                  <Archive className="size-4" aria-hidden="true" />
-                </IconButton>
-              )}
+              <a aria-label={`Preview the booking page for ${row.name}`} href={`/book/${row.publicToken}`} target="_blank" rel="noreferrer" className="inline-flex h-[var(--control-height-compact)] items-center rounded-[var(--radius-control)] border border-border-strong px-2 text-xs font-medium text-text hover:bg-surface-muted">Preview</a>
+              {row.status === "active" && <MoreMenu label={`More actions for ${row.name}`} isBusy={archiveMutation.isPending} items={[{ id: "archive", label: "Turn off this link", danger: true, onAction: () => archiveMutation.mutate(row), confirm: { title: `Turn off ${row.name}?`, description: "Guests who open the link will see that it is unavailable. Meetings already booked are not affected.", confirmLabel: "Turn off" } }]} />}
             </span>
           )}
         />

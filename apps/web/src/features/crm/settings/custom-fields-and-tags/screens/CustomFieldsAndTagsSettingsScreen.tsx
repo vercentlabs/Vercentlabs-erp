@@ -19,6 +19,7 @@ import {
 } from "@vercentlabs/design-system";
 import { CRM_PERMISSIONS } from "@vercentlabs/permissions";
 
+import { gridStates } from "@/features/crm/shared/ui/gridStates";
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import {
@@ -187,7 +188,7 @@ export function CustomFieldsAndTagsSettingsScreen() {
           columns={tagColumns}
           data={tagsQuery.data?.rows ?? []}
           getRowId={(row) => row.id}
-          state={tagsQuery.isLoading ? "loading" : (tagsQuery.data?.rows.length ?? 0) === 0 ? "empty" : "ready"}
+          {...gridStates(tagsQuery, (tagsQuery.data?.rows.length ?? 0), "tags", { title: "No tags yet", description: "Tags are short labels you put on leads to group and find them, such as Event lead or Partner referral. Create one with New tag." })}
           rowActions={(row) =>
             row.status === "active" ? (
               <span onClick={(event) => event.stopPropagation()}>
@@ -217,7 +218,7 @@ export function CustomFieldsAndTagsSettingsScreen() {
           columns={objectColumns}
           data={objectsQuery.data?.rows ?? []}
           getRowId={(row) => row.id}
-          state={objectsQuery.isLoading ? "loading" : (objectsQuery.data?.rows.length ?? 0) === 0 ? "empty" : "ready"}
+          {...gridStates(objectsQuery, (objectsQuery.data?.rows.length ?? 0), "custom objects", { title: "No custom objects yet", description: "A custom object is a new kind of record you track alongside leads and accounts, for example Site visit or Contract." })}
           rowActions={(row) =>
             row.status === "active" ? (
               <span onClick={(event) => event.stopPropagation()}>
@@ -247,7 +248,7 @@ export function CustomFieldsAndTagsSettingsScreen() {
           columns={fieldColumns}
           data={fieldsQuery.data?.rows ?? []}
           getRowId={(row) => row.id}
-          state={fieldsQuery.isLoading ? "loading" : (fieldsQuery.data?.rows.length ?? 0) === 0 ? "empty" : "ready"}
+          {...gridStates(fieldsQuery, (fieldsQuery.data?.rows.length ?? 0), "custom fields", { title: "No custom fields yet", description: "A custom field adds your own detail to leads, accounts, contacts or opportunities, such as Preferred language or Contract end date." })}
           rowActions={(row) =>
             row.status === "active" ? (
               <span onClick={(event) => event.stopPropagation()}>

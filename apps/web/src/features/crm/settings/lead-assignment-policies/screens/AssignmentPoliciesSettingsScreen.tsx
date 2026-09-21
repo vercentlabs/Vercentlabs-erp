@@ -19,6 +19,7 @@ import {
 } from "@vercentlabs/design-system";
 import { CRM_PERMISSIONS } from "@vercentlabs/permissions";
 
+import { gridStates } from "@/features/crm/shared/ui/gridStates";
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import { getCrmOptions } from "@/features/crm/shared/crm-options-api";
@@ -135,7 +136,7 @@ export function AssignmentPoliciesSettingsScreen() {
           columns={columns}
           data={rows}
           getRowId={(row) => row.id}
-          state={query.isLoading ? "loading" : rows.length === 0 ? "empty" : "ready"}
+          {...gridStates(query, rows.length, "assignment rules", { title: "No assignment rules yet", description: "Rules decide who owns a new lead. They are checked from the top and the first active rule that matches assigns the lead. Example: leads from the website source go to the inside sales team, round robin. Create a rule with New rule." })}
           rowActions={(row) => (
             <span onClick={(event) => event.stopPropagation()} className="flex items-center gap-1">
               <IconButton aria-label={`Edit ${row.name}`} size="compact" variant="outline" onPress={() => setEditingPolicy(row)}>

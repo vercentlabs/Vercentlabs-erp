@@ -20,6 +20,7 @@ import {
 } from "@vercentlabs/design-system";
 import { CRM_PERMISSIONS } from "@vercentlabs/permissions";
 
+import { gridStates } from "@/features/crm/shared/ui/gridStates";
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import { getCrmOptions } from "@/features/crm/shared/crm-options-api";
@@ -214,10 +215,23 @@ export function SalesOrganizationSettingsScreen() {
     [teamNameById, territoryNameById, userOptionLabel],
   );
 
+  // Creating anything here needs the people and pipelines to choose from; until they have loaded, creation is off and the
+  // reason is stated, with a retry when the load failed.
+  const optionsReady = optionsQuery.isSuccess;
+  const optionsNotice = optionsQuery.isError ? (
+    <p role="alert" className="flex items-center gap-3 rounded-[var(--radius-control)] border border-danger-emphasis/30 bg-danger-soft px-3 py-2 text-sm text-danger">
+      The people and pipelines needed to create teams, territories and quotas could not be loaded.
+      <Button variant="secondary" size="compact" onPress={() => optionsQuery.refetch()}>Try again</Button>
+    </p>
+  ) : optionsQuery.isLoading ? (
+    <p role="status" className="text-sm text-text-muted">Loading the people and pipelines you can choose from. Creating is available in a moment.</p>
+  ) : null;
+
   if (!canManage) return <PermissionState title="You don't have access to CRM Setup" description="Ask an administrator to grant crm.settings.manage." />;
 
   return (
     <div className="flex flex-col gap-8">
+      {optionsNotice}
       {error && (
         <p role="alert" className="rounded-[var(--radius-control)] border border-danger-emphasis/30 bg-danger-soft px-3 py-2 text-sm text-danger">
           {error}
@@ -229,7 +243,7 @@ export function SalesOrganizationSettingsScreen() {
           title: "Sales teams",
           description: "Teams own quota, pipeline defaults, and Task/queue membership.",
           primaryAction: (
-            <Button variant="primary" onPress={() => setTeamDialogOpen(true)}>
+            <Button variant="primary" isDisabled={!optionsReady} onPress={() => setTeamDialogOpen(true)}>
               <Plus className="size-4" aria-hidden="true" />
               New team
             </Button>
@@ -241,7 +255,7 @@ export function SalesOrganizationSettingsScreen() {
           columns={teamColumns}
           data={teams}
           getRowId={(row) => row.id}
-          state={teamsQuery.isLoading ? "loading" : teams.length === 0 ? "empty" : "ready"}
+          {...gridStates(teamsQuery, teams.length, "sales teams", { title: "No sales teams yet", description: "A sales team groups sellers who work together, and owns the quotas and pipeline defaults for its members." })}
           rowActions={(row) => (
             <span onClick={(event) => event.stopPropagation()} className="flex items-center gap-1">
               <IconButton aria-label={`Edit ${row.name}`} size="compact" variant="outline" onPress={() => setEditingTeam(row)}>
@@ -265,7 +279,7 @@ export function SalesOrganizationSettingsScreen() {
           title: "Territories",
           description: "Coverage boundaries used for assignment routing.",
           primaryAction: (
-            <Button variant="primary" onPress={() => setTerritoryDialogOpen(true)}>
+            <Button variant="primary" isDisabled={!optionsReady} onPress={() => setTerritoryDialogOpen(true)}>
               <Plus className="size-4" aria-hidden="true" />
               New territory
             </Button>
@@ -277,7 +291,7 @@ export function SalesOrganizationSettingsScreen() {
           columns={territoryColumns}
           data={territories}
           getRowId={(row) => row.id}
-          state={territoriesQuery.isLoading ? "loading" : territories.length === 0 ? "empty" : "ready"}
+          {...gridStates(territoriesQuery, territories.length, "territories", { title: "No territories yet", description: "A territory is a coverage area, such as a region or industry, used to route leads to the right team." })}
           rowActions={(row) => (
             <span onClick={(event) => event.stopPropagation()} className="flex items-center gap-1">
               <IconButton aria-label={`Edit ${row.name}`} size="compact" variant="outline" onPress={() => setEditingTerritory(row)}>
@@ -301,7 +315,7 @@ export function SalesOrganizationSettingsScreen() {
           title: "Quota plans",
           description: "Revenue/bookings/margin targets assigned to a team, territory or individual for a period.",
           primaryAction: (
-            <Button variant="primary" onPress={() => setQuotaDialogOpen(true)}>
+            <Button variant="primary" isDisabled={!optionsReady} onPress={() => setQuotaDialogOpen(true)}>
               <Plus className="size-4" aria-hidden="true" />
               New quota plan
             </Button>
@@ -313,7 +327,7 @@ export function SalesOrganizationSettingsScreen() {
           columns={quotaColumns}
           data={quotaPlans}
           getRowId={(row) => row.id}
-          state={quotaPlansQuery.isLoading ? "loading" : quotaPlans.length === 0 ? "empty" : "ready"}
+          {...gridStates(quotaPlansQuery, quotaPlans.length, "quota plans", { title: "No quota plans yet", description: "A quota plan sets a revenue target for a team, territory or person over a period." })}
           rowActions={(row) =>
             row.status !== "cancelled" ? (
               <span onClick={(event) => event.stopPropagation()}>

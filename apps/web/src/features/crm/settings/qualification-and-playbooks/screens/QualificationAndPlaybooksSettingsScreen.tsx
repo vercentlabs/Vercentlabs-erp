@@ -20,6 +20,8 @@ import {
 } from "@vercentlabs/design-system";
 import { CRM_PERMISSIONS } from "@vercentlabs/permissions";
 
+import { humanize } from "@/features/crm/shared/human";
+import { gridStates } from "@/features/crm/shared/ui/gridStates";
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import {
@@ -43,7 +45,7 @@ import {
 
 const TIER_OPTIONS: SelectOption[] = QUALIFICATION_TIERS.map((value) => ({ value, label: value.replace(/^./, (c) => c.toUpperCase()) }));
 const CHECK_TYPE_OPTIONS: SelectOption[] = QUALIFICATION_CHECK_TYPES.map((value) => ({ value, label: value === "positive_number" ? "Positive number" : "Any field filled" }));
-const FIELD_KEY_OPTIONS = QUALIFICATION_FIELD_KEYS.map((value) => ({ value, label: value }));
+const FIELD_KEY_OPTIONS = QUALIFICATION_FIELD_KEYS.map((value) => ({ value, label: humanize(value) }));
 
 const dateFormatter = new Intl.DateTimeFormat("en-IN", { dateStyle: "medium" });
 
@@ -94,9 +96,9 @@ export function QualificationAndPlaybooksSettingsScreen() {
     () => [
       { id: "sequence", header: "Order", accessorKey: "sequence" },
       { id: "label", header: "Label", accessorKey: "label", cell: ({ row }) => <span className="font-medium text-text">{row.original.label}</span> },
-      { id: "tier", header: "Tier", accessorKey: "tier" },
+      { id: "tier", header: "Importance", accessorKey: "tier", cell: ({ row }) => <StatusBadge tone={row.original.tier === "required" ? "warning" : "neutral"}>{row.original.tier === "required" ? "Required" : "Recommended"}</StatusBadge> },
       { id: "checkType", header: "Check", accessorFn: (row) => (row.checkType === "positive_number" ? "Positive number" : "Any field filled") },
-      { id: "fieldKeys", header: "Fields", accessorFn: (row) => row.fieldKeys.join(", ") },
+      { id: "fieldKeys", header: "Looks at", accessorFn: (row) => row.fieldKeys.map((key) => humanize(key)).join(", ") },
       {
         id: "status",
         header: "Status",
@@ -110,7 +112,7 @@ export function QualificationAndPlaybooksSettingsScreen() {
   const playbookColumns: ColumnDef<CrmPlaybook, unknown>[] = useMemo(
     () => [
       { id: "name", header: "Name", accessorKey: "name", cell: ({ row }) => <span className="font-medium text-text">{row.original.name}</span> },
-      { id: "framework", header: "Framework", accessorFn: (row) => row.framework || "—" },
+      { id: "framework", header: "Method", accessorFn: (row) => (row.framework ? humanize(row.framework) : "General") },
       {
         id: "status",
         header: "Status",
@@ -135,7 +137,7 @@ export function QualificationAndPlaybooksSettingsScreen() {
       <EnterpriseListPage
         header={{
           title: "Lead qualification criteria",
-          description: "Required and recommended readiness checks shown on a Lead's Qualification tab.",
+          description: "The checks a lead is measured against on its Qualification tab. Required ones must pass before a lead counts as qualified; recommended ones are advice.",
           primaryAction: (
             <Button variant="primary" onPress={() => setCriterionDialogOpen(true)}>
               <Plus className="size-4" aria-hidden="true" />
@@ -149,7 +151,7 @@ export function QualificationAndPlaybooksSettingsScreen() {
           columns={criteriaColumns}
           data={criteria}
           getRowId={(row) => row.id}
-          state={criteriaQuery.isLoading ? "loading" : criteria.length === 0 ? "empty" : "ready"}
+          {...gridStates(criteriaQuery, criteria.length, "qualification criteria", { title: "No qualification criteria yet", description: "Criteria are the questions a lead must satisfy to count as qualified, for example has a budget or has a decision date." })}
           rowActions={(row) =>
             row.status === "active" ? (
               <span onClick={(event) => event.stopPropagation()}>
@@ -165,7 +167,7 @@ export function QualificationAndPlaybooksSettingsScreen() {
       <EnterpriseListPage
         header={{
           title: "Playbooks",
-          description: "Sales methodology guidance available on a pipeline's Opportunities.",
+          description: "Step-by-step selling guidance sellers can follow on a pipeline's deals. Separate from the qualification checks above.",
           primaryAction: (
             <Button variant="primary" onPress={() => setPlaybookDialogOpen(true)}>
               <Plus className="size-4" aria-hidden="true" />
@@ -179,7 +181,7 @@ export function QualificationAndPlaybooksSettingsScreen() {
           columns={playbookColumns}
           data={playbooks}
           getRowId={(row) => row.id}
-          state={playbooksQuery.isLoading ? "loading" : playbooks.length === 0 ? "empty" : "ready"}
+          {...gridStates(playbooksQuery, playbooks.length, "playbooks", { title: "No playbooks yet", description: "A playbook is a checklist of steps a seller follows for a type of lead, so every lead is worked the same way." })}
           rowActions={(row) =>
             row.status === "active" ? (
               <span onClick={(event) => event.stopPropagation()}>

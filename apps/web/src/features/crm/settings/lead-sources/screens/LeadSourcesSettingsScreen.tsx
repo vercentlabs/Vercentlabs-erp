@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { ColumnDef } from "@tanstack/react-table";
-import { Plus, Power, Star } from "lucide-react";
+import { Plus, Power } from "lucide-react";
 import {
   Button,
   Checkbox,
@@ -19,6 +19,9 @@ import {
 } from "@vercentlabs/design-system";
 import { CRM_PERMISSIONS } from "@vercentlabs/permissions";
 
+import { getCrmDashboardData } from "@/features/crm/dashboard/api/dashboard-api";
+import { humanize } from "@/features/crm/shared/human";
+import { gridStates } from "@/features/crm/shared/ui/gridStates";
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import {
@@ -29,7 +32,6 @@ import {
 } from "../api/lead-sources-api";
 import { LEAD_SOURCE_CHANNELS, type LeadSource } from "../types";
 
-const dateFormatter = new Intl.DateTimeFormat("en-IN", { dateStyle: "medium" });
 
 const CHANNEL_OPTIONS: SelectOption[] = LEAD_SOURCE_CHANNELS.map((value) => ({
   value,
@@ -69,30 +71,35 @@ export function LeadSourcesSettingsScreen() {
     onError: handleError,
   });
 
+  // How each source performs comes from the dashboard's own aggregation, matched by source name.
+  const statsQuery = useQuery({ queryKey: scopedQueryKey(workspace, "crm", "dashboard"), queryFn: getCrmDashboardData });
+  const statsByName = useMemo(() => new Map((statsQuery.data?.dashboard.sources ?? []).map((row) => [row.name, row])), [statsQuery.data]);
+
   const columns: ColumnDef<LeadSource, unknown>[] = useMemo(
     () => [
       {
         id: "name",
-        header: "Name",
+        header: "Source",
         accessorKey: "name",
         cell: ({ row }) => (
-          <span className="flex items-center gap-1.5 font-medium text-text">
-            {row.original.isDefault && <Star className="size-3.5 fill-warning text-warning" aria-label="Default" />}
+          <span className="flex items-center gap-2 font-medium text-text">
             {row.original.name}
+            {row.original.isDefault && <StatusBadge tone="info">Default</StatusBadge>}
           </span>
         ),
       },
-      { id: "channel", header: "Channel", accessorFn: (row) => (row.channel ? row.channel.replace(/_/g, " ") : "—") },
+      { id: "channel", header: "Channel", accessorFn: (row) => (row.channel ? humanize(row.channel) : "Not set") },
       { id: "leadCount", header: "Leads", accessorFn: (row) => row.leadCount },
+      { id: "converted", header: "Converted", accessorFn: (row) => statsByName.get(row.name)?.convertedCount ?? "", cell: ({ row }) => { const st = statsByName.get(row.original.name); return st ? <span className="tabular-nums">{st.convertedCount}</span> : <span className="text-text-muted">{statsQuery.isLoading ? "…" : "None yet"}</span>; } },
+      { id: "conversion", header: "Conversion", accessorFn: (row) => { const st = statsByName.get(row.name); return st && st.leadCount > 0 ? Math.round((st.convertedCount / st.leadCount) * 100) : ""; }, cell: ({ row }) => { const st = statsByName.get(row.original.name); return st && st.leadCount > 0 ? <span className="tabular-nums">{Math.round((st.convertedCount / st.leadCount) * 100)}%</span> : <span className="text-text-muted">No leads</span>; } },
       {
         id: "status",
-        header: "Status",
+        header: "State",
         accessorKey: "status",
-        cell: ({ getValue }) => <StatusBadge tone={getValue() === "active" ? "success" : "neutral"}>{String(getValue())}</StatusBadge>,
+        cell: ({ getValue }) => <StatusBadge tone={getValue() === "active" ? "success" : "neutral"}>{getValue() === "active" ? "Active" : "Inactive"}</StatusBadge>,
       },
-      { id: "updatedAt", header: "Updated", accessorFn: (row) => dateFormatter.format(new Date(row.updatedAt)) },
     ],
-    [],
+    [statsByName, statsQuery.isLoading],
   );
 
   if (!canManage) return <PermissionState title="You don't have access to CRM Setup" description="Ask an administrator to grant crm.settings.manage." />;
@@ -108,7 +115,7 @@ export function LeadSourcesSettingsScreen() {
       <EnterpriseListPage
         header={{
           title: "Lead sources",
-          description: "Where leads come from. The default source is used when none is specified.",
+          description: "Where leads come from and how well each source converts. The default source is used when a lead has none.",
           primaryAction: (
             <Button variant="primary" onPress={() => setCreateOpen(true)}>
               <Plus className="size-4" aria-hidden="true" />
@@ -122,7 +129,7 @@ export function LeadSourcesSettingsScreen() {
           columns={columns}
           data={rows}
           getRowId={(row) => row.id}
-          state={query.isLoading ? "loading" : rows.length === 0 ? "empty" : "ready"}
+          {...gridStates(query, rows.length, "lead sources", { title: "No lead sources yet", description: "A source says where a lead came from, such as Website, Referral or Trade show. Sources let you see which channels bring in customers." })}
           rowActions={(row) => (
             <span onClick={(event) => event.stopPropagation()}>
               <IconButton
