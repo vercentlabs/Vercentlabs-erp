@@ -21,7 +21,7 @@ export const RadioGroup = forwardRef<HTMLDivElement, RadioGroupProps>(function R
   ref,
 ) {
   return (
-    <AriaRadioGroup ref={ref} isRequired={isRequired} className={cn("group", className)} {...props}>
+    <AriaRadioGroup ref={ref} isRequired={isRequired} isInvalid={props.isInvalid ?? (errorMessage ? true : undefined)} className={cn("group", className)} {...props}>
       <FieldChrome label={label} description={description} errorMessage={errorMessage} isRequired={isRequired}>
         <div className={cn("flex gap-3", orientation === "vertical" ? "flex-col" : "flex-row flex-wrap")}>
           {children}

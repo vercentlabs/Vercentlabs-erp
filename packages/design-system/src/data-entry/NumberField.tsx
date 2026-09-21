@@ -35,7 +35,7 @@ export const NumberField = forwardRef<HTMLInputElement, NumberFieldProps>(functi
   ref,
 ) {
   return (
-    <AriaNumberField isRequired={isRequired} className={cn("group", className)} {...props}>
+    <AriaNumberField isRequired={isRequired} isInvalid={props.isInvalid ?? (errorMessage ? true : undefined)} className={cn("group", className)} {...props}>
       <FieldChrome label={label} description={description} errorMessage={errorMessage} isRequired={isRequired}>
         <Group className={cn(inputChrome({ size }), "flex items-center gap-1 px-0")}>
           {prefix && <span className="pl-3 text-text-muted">{prefix}</span>}

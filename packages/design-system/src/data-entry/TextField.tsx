@@ -22,7 +22,7 @@ export const TextField = forwardRef<HTMLInputElement, TextFieldProps>(function T
   ref,
 ) {
   return (
-    <AriaTextField isRequired={isRequired} className={cn("group", className)} {...props}>
+    <AriaTextField isRequired={isRequired} isInvalid={props.isInvalid ?? (errorMessage ? true : undefined)} className={cn("group", className)} {...props}>
       <FieldChrome label={label} description={description} errorMessage={errorMessage} isRequired={isRequired}>
         <div className={cn(inputChrome({ size }), "flex items-center gap-2 px-0")}>
           {prefix && <span className="pl-3 text-text-muted">{prefix}</span>}

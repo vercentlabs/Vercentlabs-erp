@@ -35,7 +35,7 @@ export function DatePicker<T extends DateValue>({
   ...props
 }: DatePickerProps<T>) {
   return (
-    <AriaDatePicker isRequired={isRequired} className={cn("group flex flex-col gap-1.5", className)} {...props}>
+    <AriaDatePicker isRequired={isRequired} isInvalid={props.isInvalid ?? (errorMessage ? true : undefined)} className={cn("group flex flex-col gap-1.5", className)} {...props}>
       <FieldChrome label={label} description={description} errorMessage={errorMessage} isRequired={isRequired}>
         <Group className={cn(inputChrome({ size }), "flex items-center gap-1 px-0")}>
           <DateInput className="flex min-w-0 flex-1 items-center gap-0.5 px-3">

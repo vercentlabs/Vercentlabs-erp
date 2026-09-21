@@ -6,6 +6,8 @@ import { CheckCircle2, Plus } from "lucide-react";
 import { Button, Dialog, PermissionState, Select, StatusBadge, TextField, type SelectOption } from "@vercentlabs/design-system";
 import { CRM_PERMISSIONS } from "@vercentlabs/permissions";
 
+import { humanize } from "@/features/crm/shared/human";
+import { LoadingState } from "@/features/crm/shared/ui/LoadingState";
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import {
@@ -28,6 +30,25 @@ const OPERATOR_OPTIONS: SelectOption[] = [
   { value: "greater_than", label: "Greater than" },
   { value: "less_than", label: "Less than" },
 ];
+
+// A rule's condition in words: "Industry is Manufacturing", "Email opened in the last 30 days".
+function describePredicate(predicate: Record<string, unknown>): string {
+  if (predicate.eventType) return `${humanize(predicate.eventType)} in the last ${Number(predicate.withinDays) || 30} days`;
+  const operator = OPERATOR_OPTIONS.find((o) => o.value === predicate.operator)?.label ?? humanize(predicate.operator);
+  return `${humanize(predicate.field)} ${String(operator).toLowerCase()} ${predicate.value === undefined || predicate.value === "" ? "" : String(predicate.value)}`.trim();
+}
+
+function ScoreBands({ model }: { model: LeadScoringModel }) {
+  const t = model.qualification_thresholds;
+  return (
+    <ul aria-label="Score bands" className="flex flex-wrap gap-2 text-xs">
+      <li className="rounded-full border border-border px-2.5 py-1">{`Cold: below ${t.warm}`}</li>
+      <li className="rounded-full border border-warning-emphasis/30 bg-warning-soft px-2.5 py-1 text-warning">{`Warm: ${t.warm} to ${t.hot - 1}`}</li>
+      <li className="rounded-full border border-danger-emphasis/30 bg-danger-soft px-2.5 py-1 text-danger">{`Hot: ${t.hot} and above`}</li>
+      <li className="rounded-full border border-success-emphasis/30 bg-success-soft px-2.5 py-1 text-success">{`Sales-qualified at ${t.qualified}`}</li>
+    </ul>
+  );
+}
 
 // F027 Tranche I (Stage A) — the REAL Lead scoring configuration surface.
 // scoring-engine.js's own header explicitly documents that this model
@@ -81,8 +102,9 @@ export function LeadScoringSettingsScreen() {
         </p>
       )}
 
-      {query.isLoading && <p className="text-sm text-text-secondary">Loading scoring models…</p>}
-      {!query.isLoading && models.length === 0 && <p className="text-sm text-text-muted">No scoring models configured yet.</p>}
+      {query.isLoading && <LoadingState label="Loading scoring models" rows={3} onRetry={() => query.refetch()} />}
+      {query.isError && <p role="alert" className="text-sm text-danger">The scoring models could not be loaded. <button type="button" className="underline" onClick={() => query.refetch()}>Try again</button></p>}
+      {query.isSuccess && models.length === 0 && <p className="rounded-[var(--radius-control)] bg-canvas-strong px-4 py-6 text-sm text-text-secondary">No scoring model yet. A model gives every lead a score from rules you choose, such as industry, country or recent email activity, so sellers know whom to call first. Create a model, add rules, then activate it.</p>}
 
       <div className="flex flex-col gap-4">
         {models.map((model) => (
@@ -90,14 +112,15 @@ export function LeadScoringSettingsScreen() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="font-medium text-text">
-                  {model.name} <span className="text-text-muted">v{model.version}</span>
+                  {model.name} <span className="text-text-muted">{`Version ${model.version}`}</span>
                 </p>
                 <p className="text-sm text-text-secondary">
-                  Base {model.base_score} · Range {model.score_floor} to {model.score_ceiling} · Decay {model.decay_half_life_days}d
+                  {`Starts at ${model.base_score}, stays between ${model.score_floor} and ${model.score_ceiling}. Activity signals fade with a half-life of ${model.decay_half_life_days} days.`}
                 </p>
+                <div className="mt-2"><ScoreBands model={model} /></div>
               </div>
               <div className="flex items-center gap-2">
-                <StatusBadge tone={model.status === "active" ? "success" : model.status === "draft" ? "neutral" : "warning"}>{model.status}</StatusBadge>
+                <StatusBadge tone={model.status === "active" ? "success" : model.status === "draft" ? "neutral" : "warning"}>{model.status === "active" ? "Live" : model.status === "draft" ? "Draft, not scoring yet" : "Retired"}</StatusBadge>
                 {model.status === "draft" && (
                   <Button variant="secondary" size="compact" onPress={() => activateMutation.mutate(model)} isLoading={activateMutation.isPending}>
                     <CheckCircle2 className="size-4" aria-hidden="true" />
@@ -127,12 +150,14 @@ function RuleList({ model, onManage, onError, onChanged }: { model: LeadScoringM
 
   return (
     <div className="flex flex-col gap-2 border-t border-border-strong pt-3">
-      {model.rules.length === 0 && <p className="text-sm text-text-muted">No rules yet.</p>}
+      {model.rules.length === 0 && <p className="text-sm text-text-muted">No rules yet. A model with no rules scores every lead at its starting value.</p>}
       {model.rules.map((rule) => (
         <div key={rule.id} className="flex items-center justify-between gap-2 text-sm">
-          <span className="text-text">
-            {rule.name} <span className="text-text-muted">({rule.signal_type}, {rule.points > 0 ? "+" : ""}{rule.points} pts)</span>
+          <span className="flex min-w-0 flex-col">
+            <span className="text-text">{rule.name}</span>
+            <span className="text-xs text-text-muted">{`${humanize(rule.signal_type)}: when ${describePredicate(rule.predicate)}`}</span>
           </span>
+          <span className={`shrink-0 font-semibold tabular-nums ${rule.points >= 0 ? "text-success" : "text-danger"}`}>{`${rule.points >= 0 ? "Adds" : "Removes"} ${Math.abs(rule.points)} point${Math.abs(rule.points) === 1 ? "" : "s"}`}</span>
           <span className="flex items-center gap-2">
             <StatusBadge tone={rule.status === "active" ? "success" : "neutral"}>{rule.status}</StatusBadge>
             {editable && (

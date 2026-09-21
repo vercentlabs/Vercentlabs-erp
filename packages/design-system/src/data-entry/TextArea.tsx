@@ -20,7 +20,7 @@ export const TextArea = forwardRef<HTMLTextAreaElement, TextAreaProps>(function 
   ref,
 ) {
   return (
-    <AriaTextField isRequired={isRequired} className={cn("group", className)} {...props}>
+    <AriaTextField isRequired={isRequired} isInvalid={props.isInvalid ?? (errorMessage ? true : undefined)} className={cn("group", className)} {...props}>
       <FieldChrome label={label} description={description} errorMessage={errorMessage} isRequired={isRequired}>
         <AriaTextAreaInput
           ref={ref}

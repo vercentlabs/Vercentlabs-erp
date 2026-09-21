@@ -25,7 +25,7 @@ export function TimeField<T extends TimeValue>({
   ...props
 }: TimeFieldProps<T>) {
   return (
-    <AriaTimeField isRequired={isRequired} className={cn("group flex flex-col gap-1.5", className)} {...props}>
+    <AriaTimeField isRequired={isRequired} isInvalid={props.isInvalid ?? (errorMessage ? true : undefined)} className={cn("group flex flex-col gap-1.5", className)} {...props}>
       <FieldChrome label={label} description={description} errorMessage={errorMessage} isRequired={isRequired}>
         <DateInput className={cn(inputChrome({ size }), "flex items-center gap-0.5")}>
           {(segment) => (

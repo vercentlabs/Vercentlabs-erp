@@ -40,7 +40,7 @@ export function Select<T extends string = string>({
   ...props
 }: SelectProps<T>) {
   return (
-    <AriaSelect isRequired={isRequired} className={cn("group flex flex-col gap-1.5", className)} {...props}>
+    <AriaSelect isRequired={isRequired} isInvalid={props.isInvalid ?? (errorMessage ? true : undefined)} className={cn("group flex flex-col gap-1.5", className)} {...props}>
       <FieldChrome label={label} description={description} errorMessage={errorMessage} isRequired={isRequired}>
         <Button className={cn(inputChrome({ size }), "flex items-center justify-between gap-2 text-left")}>
           <SelectValue className="truncate data-[placeholder]:text-text-muted">

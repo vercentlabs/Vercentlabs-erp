@@ -19,7 +19,7 @@ export const CheckboxGroup = forwardRef<HTMLDivElement, CheckboxGroupProps>(func
   ref,
 ) {
   return (
-    <AriaCheckboxGroup ref={ref} isRequired={isRequired} className={cn("group", className)} {...props}>
+    <AriaCheckboxGroup ref={ref} isRequired={isRequired} isInvalid={props.isInvalid ?? (errorMessage ? true : undefined)} className={cn("group", className)} {...props}>
       <FieldChrome label={label} description={description} errorMessage={errorMessage} isRequired={isRequired}>
         <div className={cn("flex gap-3", orientation === "vertical" ? "flex-col" : "flex-row flex-wrap")}>
           {children}

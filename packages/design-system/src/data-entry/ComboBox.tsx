@@ -50,7 +50,7 @@ export function ComboBox<T extends string = string>({
   ...props
 }: ComboBoxProps<T>) {
   return (
-    <AriaComboBox isRequired={isRequired} className={cn("group flex flex-col gap-1.5", className)} {...props}>
+    <AriaComboBox isRequired={isRequired} isInvalid={props.isInvalid ?? (errorMessage ? true : undefined)} className={cn("group flex flex-col gap-1.5", className)} {...props}>
       <FieldChrome label={label} description={description} errorMessage={errorMessage} isRequired={isRequired}>
         <div className={cn(inputChrome({ size }), "flex items-center gap-1 px-0")}>
           <Input placeholder={placeholder} className="h-full min-w-0 flex-1 bg-transparent px-3 outline-none placeholder:text-text-muted" />

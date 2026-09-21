@@ -118,6 +118,10 @@ export function buildFilters(
     // to a Contact rather than an Account (tenant.crm_communications has
     // both party_id and contact_id columns).
     ["contactId", "contact_id"],
+    // Communications by channel (email, whatsapp, sms, call_log) and direction. Applied only when the resource
+    // actually has that column (the includes() guard below), so no other resource is affected.
+    ["channel", "channel"],
+    ["direction", "direction"],
     // F025 Tranche K (Stage A) — forecast-submissions belongs to exactly
     // one forecast period; without this, a period's submission list
     // would return every period's rows across the organization.
