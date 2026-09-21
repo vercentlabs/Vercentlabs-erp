@@ -86,3 +86,8 @@ export async function reschedulePublicMeetingBooking(token: string, startsAt: st
   });
   return parseResponse(response);
 }
+
+export async function getRescheduleAvailability(token: string, date: string): Promise<{ slots: PublicMeetingSlot[] }> {
+  const response = await fetch(`/api/crm/public/meetings/bookings/${token}/availability?date=${date}`);
+  return parseResponse(response);
+}

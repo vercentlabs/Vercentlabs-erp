@@ -505,6 +505,34 @@ export function verifyCrmProviderWebhookSignature({
   );
 }
 
+// The instant at which a wall clock reads hour:minute on the given calendar date in an IANA time zone (DST-aware).
+export function zonedWallTimeToUtc(date, hour, minute, timeZone) {
+  const zone = text(timeZone) || "UTC";
+  const [y, m, d] = String(date).split("-").map(Number);
+  const wanted = Date.UTC(y, m - 1, d, hour, minute);
+  let guess = wanted;
+  try {
+    const format = new Intl.DateTimeFormat("en-US", { timeZone: zone, hourCycle: "h23", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" });
+    for (let i = 0; i < 3; i += 1) {
+      const parts = format.formatToParts(new Date(guess));
+      const get = (type) => Number(parts.find((part) => part.type === type)?.value);
+      guess += wanted - Date.UTC(get("year"), get("month") - 1, get("day"), get("hour"), get("minute"));
+    }
+  } catch {
+    return new Date(wanted);
+  }
+  return new Date(guess);
+}
+
+// The calendar date (YYYY-MM-DD) an instant falls on in an IANA time zone: the host day a slot belongs to.
+export function calendarDateInZone(instant, timeZone) {
+  try {
+    return new Intl.DateTimeFormat("en-CA", { timeZone: text(timeZone) || "UTC", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date(instant));
+  } catch {
+    return new Date(instant).toISOString().slice(0, 10);
+  }
+}
+
 export function calculateMeetingSlots({
   date,
   durationMinutes,
@@ -514,6 +542,7 @@ export function calculateMeetingSlots({
   busy = [],
   now = new Date(),
   minimumNoticeMinutes = 0,
+  timeZone = "UTC",
 }) {
   const day = new Date(`${date}T12:00:00.000Z`);
   if (Number.isNaN(day.getTime()))
@@ -542,12 +571,8 @@ export function calculateMeetingSlots({
   for (const window of windows) {
     const [startHour, startMinute] = text(window.start).split(":").map(Number);
     const [endHour, endMinute] = text(window.end).split(":").map(Number);
-    let cursor = new Date(
-      `${date}T${String(startHour).padStart(2, "0")}:${String(startMinute).padStart(2, "0")}:00.000Z`,
-    );
-    const windowEnd = new Date(
-      `${date}T${String(endHour).padStart(2, "0")}:${String(endMinute).padStart(2, "0")}:00.000Z`,
-    );
+    let cursor = zonedWallTimeToUtc(date, startHour, startMinute, timeZone);
+    const windowEnd = zonedWallTimeToUtc(date, endHour, endMinute, timeZone);
     while (cursor.getTime() + duration * 60000 <= windowEnd.getTime()) {
       const end = new Date(cursor.getTime() + duration * 60000);
       const protectedStart = new Date(
@@ -1403,8 +1428,9 @@ export async function getMeetingAvailability(
   );
   if (!link.rows[0])
     throw new CrmCommunicationsError(404, "Meeting link not found.");
-  const dayStart = `${date}T00:00:00.000Z`;
-  const dayEnd = `${date}T23:59:59.999Z`;
+  // The host day can start the previous UTC day and end the next, so look a day either side for conflicts.
+  const dayStart = new Date(new Date(`${date}T00:00:00.000Z`).getTime() - 86_400_000).toISOString();
+  const dayEnd = new Date(new Date(`${date}T23:59:59.999Z`).getTime() + 86_400_000).toISOString();
   const excludeBookingId = input.excludeBookingId
     ? assertId(input.excludeBookingId, "Meeting booking")
     : null;
@@ -1428,6 +1454,7 @@ export async function getMeetingAvailability(
     availability: link.rows[0].availability,
     busy: busy.rows,
     minimumNoticeMinutes: link.rows[0].minimum_notice_minutes,
+    timeZone: link.rows[0].timezone,
     now: input.now ? new Date(input.now) : new Date(),
   });
 }
@@ -1467,7 +1494,7 @@ export async function bookMeeting(client, context, meetingLinkId, input = {}) {
     client,
     context,
     meetingLinkId,
-    desiredStart.slice(0, 10),
+    calendarDateInZone(startsAt, link.rows[0].timezone),
     { now: input.now },
   );
   if (!slots.some((slot) => slot.startsAt === desiredStart))
@@ -2213,7 +2240,7 @@ export async function rescheduleMeetingBooking(
 ) {
   const id = assertId(bookingId, "Meeting booking");
   const current = await client.query(
-    `SELECT booking.*,link.duration_minutes
+    `SELECT booking.*,link.duration_minutes,link.timezone AS link_timezone
      FROM tenant.crm_meeting_bookings booking
      JOIN tenant.crm_meeting_links link
        ON link.organization_id=booking.organization_id AND link.id=booking.meeting_link_id
@@ -2248,7 +2275,7 @@ export async function rescheduleMeetingBooking(
     client,
     context,
     current.rows[0].meeting_link_id,
-    desiredStart.slice(0, 10),
+    calendarDateInZone(startsAt, current.rows[0].link_timezone),
     { now: input.now, excludeBookingId: id },
   );
   if (!slots.some((slot) => slot.startsAt === desiredStart)) {
