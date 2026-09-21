@@ -2,10 +2,11 @@ import { test, expect, type BrowserContext, type Locator, type Page } from "@pla
 
 import { getInventoryWorld } from "./inventory-fixtures";
 import { openSalesSession as openSession } from "./sales-fixtures";
+import { BASE_URL } from "./base-url";
 
 // Inventory foundations as real roles: item master, warehouses, receipts/issues/adjustments,
 // transfers, reservations, lots/expiry, reorder rules -- and what the narrower roles cannot do.
-const origin = () => new URL(process.env.QA_BASE_URL ?? "http://localhost:3000").origin;
+const origin = () => new URL(BASE_URL).origin;
 
 async function api<T>(context: BrowserContext, method: "GET" | "POST" | "PATCH", path: string, data?: unknown, expectOk = true): Promise<{ status: number; body: T }> {
   const response = await context.request.fetch(`${origin()}/api/inventory${path}`, { method, data, headers: { Origin: origin(), "Content-Type": "application/json" } });

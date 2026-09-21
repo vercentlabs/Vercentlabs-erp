@@ -81,7 +81,7 @@ test("journey #13: an expired subscription blocks a real CRM write but never blo
        ON CONFLICT (organization_id) DO UPDATE SET id=$3, plan_price_id=EXCLUDED.plan_price_id, status='expired', billing_period='monthly', modules_snapshot=EXCLUDED.modules_snapshot`,
       [orgId, priceId, subId],
     );
-    await db.query(`INSERT INTO organization_modules(organization_id,module_key,name,status,enabled_at) VALUES ($1,'crm','CRM','enabled',now())`, [orgId]);
+    await db.query(`INSERT INTO organization_modules(organization_id,module_key,name,status,enabled_at) VALUES ($1,'crm','CRM','enabled',now()) ON CONFLICT (organization_id,module_key) DO UPDATE SET status='enabled', enabled_at=now()`, [orgId]);
     // organization_owner role, same minimal setup as mfa-sp007.spec.ts.
     const roleId = randomUUID();
     await db.query(

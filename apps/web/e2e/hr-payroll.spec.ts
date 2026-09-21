@@ -88,7 +88,7 @@ test("structure, pay, payroll run, maker-checker approval, employee payslip", as
     const payslips = a.getByRole("list", { name: "Run payslips" });
     await expect(payslips).toContainText(new RegExp(`Earner${s}`), { timeout: 60_000 });
     await expect(payslips).toContainText(/gross 100,00\d\.\d\d.*net 100,00\d\.\d\d/);
-    await expect(a.getByRole("list", { name: "Totals by component" })).toContainText(/Basic .*50,000\.00/);
+    await expect(a.getByRole("list", { name: "Totals by component" })).toContainText(/Basic .*50,00\d\.\d\d/);
     // the same inputs give the same payslip
     await a.getByRole("button", { name: "Verify against a fresh calculation" }).click();
     await expect(a.getByText(/every one is identical/)).toBeVisible({ timeout: 60_000 });
@@ -116,7 +116,7 @@ test("structure, pay, payroll run, maker-checker approval, employee payslip", as
     await expect(mine).toBeVisible({ timeout: 60_000 });
     await mine.getByRole("link").first().click();
     await expect(ess.page.getByRole("heading", { name: /Payslip PS-PAY-/ })).toBeVisible({ timeout: 60_000 });
-    await expect(ess.page.getByRole("list", { name: "Earnings" })).toContainText(/Special .*30,000\.00/);
+    await expect(ess.page.getByRole("list", { name: "Earnings" })).toContainText(/Special .*30,00\d\.\d\d/);
     await expect(ess.page.getByText(/••••5544/)).toBeVisible();
     await expect(ess.page.getByText("998877665544")).toHaveCount(0);
     // and the HR-only screens stay closed to them

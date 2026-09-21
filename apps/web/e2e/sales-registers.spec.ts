@@ -1,6 +1,7 @@
 import { test, expect, type BrowserContext, type Locator, type Page } from "@playwright/test";
 
 import { getSalesWorld, openSalesSession } from "./sales-fixtures";
+import { BASE_URL } from "./base-url";
 
 // Operational registers (deliveries, invoices, advances, adjustments, returns).
 // The order is seeded through the real HTTP API as the real personas, then the
@@ -8,7 +9,7 @@ import { getSalesWorld, openSalesSession } from "./sales-fixtures";
 // a rep can record an advance but is not offered "New return" (that needs
 // sales.order.amend, which only managers hold).
 async function api<T>(context: BrowserContext, method: "GET" | "POST", path: string, data?: unknown): Promise<T> {
-  const origin = new URL(process.env.QA_BASE_URL ?? "http://localhost:3000").origin;
+  const origin = new URL(BASE_URL).origin;
   const response = await context.request.fetch(`${origin}/api/sales${path}`, { method, data, headers: { Origin: origin, "Content-Type": "application/json" } });
   const body = await response.json();
   expect(response.ok(), `${method} ${path}: ${JSON.stringify(body)}`).toBeTruthy();

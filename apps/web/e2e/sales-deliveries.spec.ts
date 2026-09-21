@@ -1,13 +1,14 @@
 import { test, expect, type BrowserContext, type Page } from "@playwright/test";
 
 import { getSalesWorld, openSalesSession } from "./sales-fixtures";
+import { BASE_URL } from "./base-url";
 
 // Stock-linked delivery journey: a stock-tracked line is reserved from real
 // balances, delivered in two parts (the first short), and the shortfall shows in
 // the backorder register until the second delivery clears it. The order is
 // seeded through the real API as the real personas.
 async function api<T>(context: BrowserContext, method: "GET" | "POST", path: string, data?: unknown): Promise<T> {
-  const origin = new URL(process.env.QA_BASE_URL ?? "http://localhost:3000").origin;
+  const origin = new URL(BASE_URL).origin;
   const response = await context.request.fetch(`${origin}/api/sales${path}`, { method, data, headers: { Origin: origin, "Content-Type": "application/json" } });
   const body = await response.json();
   expect(response.ok(), `${method} ${path}: ${JSON.stringify(body)}`).toBeTruthy();

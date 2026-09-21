@@ -2,9 +2,10 @@ import { test, expect, type BrowserContext, type Locator, type Page } from "@pla
 
 import { getInventoryWorld } from "./inventory-fixtures";
 import { openSalesSession as openSession } from "./sales-fixtures";
+import { BASE_URL } from "./base-url";
 
 // Outbound (pick -> pack -> ship), damaged stock, quarantined returns and batch genealogy as a real role.
-const origin = () => new URL(process.env.QA_BASE_URL ?? "http://localhost:3000").origin;
+const origin = () => new URL(BASE_URL).origin;
 async function api<T>(context: BrowserContext, method: "GET" | "POST", path: string, data?: unknown): Promise<T> {
   const response = await context.request.fetch(`${origin()}/api/inventory${path}`, { method, data, headers: { Origin: origin(), "Content-Type": "application/json" } });
   const body = (await response.json()) as T;

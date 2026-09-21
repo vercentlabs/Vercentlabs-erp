@@ -136,6 +136,11 @@ export async function registerOrganization(client, input) {
      VALUES ($1, $2, $3, $4, $5, $6, $7)`,
     [organizationId, organizationName, slug, countryCode, timezone, baseCurrency, userId],
   );
+  // A new organisation starts with working defaults. Without them the first "New account" failed: no numbering series
+  // (CRM_ACCOUNT_NUMBERING_UNAVAILABLE) and no base currency row for accounts to reference. Both functions only add
+  // what is missing, so they are safe to call again.
+  await client.query("SELECT ensure_default_numbering_series($1)", [organizationId]);
+  await client.query("SELECT tenant.ensure_organization_base_currency($1)", [organizationId]);
   // migrations 051/052's organizations_ensure_subscription trigger already
   // provisioned a real trial subscription for this organization at this
   // point -- nothing further to do for billing state here.

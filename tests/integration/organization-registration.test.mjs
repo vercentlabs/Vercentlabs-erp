@@ -118,6 +118,30 @@ test("SP004: self-serve organization registration against a real database", asyn
       assert.equal(sub.rows[0].included_users_snapshot, 3, "a self-serve signup starts on Free with 3 users");
     });
 
+    await t.test("a new organization can create its first account: numbering series and the base currency exist from the start", async () => {
+      const numbering = await admin.query(`SELECT entity_type FROM numbering_series WHERE organization_id=$1`, [firstOrgId]);
+      const types = new Set(numbering.rows.map((r) => r.entity_type));
+      for (const needed of ["business_party", "contact", "crm_lead", "crm_opportunity", "crm_activity", "customer_invoice", "journal_entry"]) {
+        assert.ok(types.has(needed), `numbering series for ${needed} must exist for a new organization`);
+      }
+      await admin.query("BEGIN");
+      try {
+        await admin.query(`SELECT set_config('app.current_organization_id', $1, true)`, [firstOrgId]);
+        const currencies = await admin.query(`SELECT code, is_base, status FROM tenant.currencies WHERE organization_id=$1`, [firstOrgId]);
+        assert.deepEqual(currencies.rows.map((r) => [r.code.trim(), r.is_base, r.status]), [["INR", true, "active"]]);
+        // The exact failure a new customer hit: an account carrying the organisation's own currency.
+        const party = await admin.query(
+          `INSERT INTO tenant.business_parties (organization_id, code, party_type, display_name, currency_code) VALUES ($1, 'PTY-CHECK', 'customer', 'First account', 'INR') RETURNING id`,
+          [firstOrgId],
+        );
+        assert.ok(party.rows[0].id);
+        await admin.query("ROLLBACK");
+      } catch (error) {
+        await admin.query("ROLLBACK");
+        throw error;
+      }
+    });
+
     await t.test("registering again with the SAME email is rejected, not silently creating a second account", async () => {
       await assert.rejects(
         () =>

@@ -3,12 +3,13 @@ import { test, expect, type BrowserContext, type Locator } from "@playwright/tes
 import { fixtures } from "./fixtures";
 import { getProcurementWorld } from "./procurement-fixtures";
 import { openSalesSession as openSession } from "./sales-fixtures";
+import { BASE_URL } from "./base-url";
 
 // The matching-tolerance policy: a buyer can read but not change it (the server
 // refuses the write, not just the UI); the owner saves it and it persists. Its
 // EFFECT on matching is proven in the domain integration test.
 async function call(context: BrowserContext, method: "GET" | "POST" | "PATCH", path: string, data?: unknown) {
-  const origin = new URL(process.env.QA_BASE_URL ?? "http://localhost:3000").origin;
+  const origin = new URL(BASE_URL).origin;
   const response = await context.request.fetch(`${origin}/api/procurement${path}`, { method, data, headers: { Origin: origin, "Content-Type": "application/json" } });
   return { status: response.status(), body: await response.json() };
 }

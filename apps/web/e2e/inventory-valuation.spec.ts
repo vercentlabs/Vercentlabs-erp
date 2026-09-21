@@ -2,10 +2,11 @@ import { test, expect, type BrowserContext, type Page } from "@playwright/test";
 
 import { getInventoryWorld } from "./inventory-fixtures";
 import { openSalesSession as openSession } from "./sales-fixtures";
+import { BASE_URL } from "./base-url";
 
 // Costing and reports as real roles: FIFO cost of an issue, valuation, aging, movement, CSV export,
 // and that the cost reports are closed to a view-only user.
-const origin = () => new URL(process.env.QA_BASE_URL ?? "http://localhost:3000").origin;
+const origin = () => new URL(BASE_URL).origin;
 async function api<T>(context: BrowserContext, method: "GET" | "POST", path: string, data?: unknown): Promise<T> {
   const response = await context.request.fetch(`${origin()}/api/inventory${path}`, { method, data, headers: { Origin: origin(), "Content-Type": "application/json" } });
   const body = (await response.json()) as T;

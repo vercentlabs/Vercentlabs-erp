@@ -4,10 +4,11 @@ import { Client } from "pg";
 import { getManufacturingWorld } from "./manufacturing-fixtures";
 import { MIGRATION_DATABASE_URL } from "./pos-fixtures";
 import { openSalesSession as openSession } from "./sales-fixtures";
+import { BASE_URL } from "./base-url";
 
 // Planning as real people: MRP recommends make/buy across levels and converts to orders; material
 // availability; finite-capacity scheduling (preview, then apply); view-only cannot run any of it.
-const origin = () => new URL(process.env.QA_BASE_URL ?? "http://localhost:3000").origin;
+const origin = () => new URL(BASE_URL).origin;
 async function api<T>(context: BrowserContext, method: "GET" | "POST", path: string, data?: unknown, expectOk = true): Promise<{ status: number; body: T }> {
   const response = await context.request.fetch(`${origin()}/api/manufacturing${path}`, { method, data, headers: { Origin: origin(), "Content-Type": "application/json" } });
   const body = (await response.json()) as T;

@@ -1,0 +1,121 @@
+name: ERP browser E2E
+
+# The critical browser journeys against a real database and a production build of the ERP web app. erp-ci.yml
+# proves the code compiles and the non-browser suites pass; this proves the signed-in product works in a browser.
+# Runs on every ERP pull request, nightly, and on demand. The full 130+ spec suite is slower and runs from the
+# "full" input (manual) or the nightly schedule.
+on:
+  pull_request:
+    paths:
+      - "apps/web/**"
+      - "services/api/**"
+      - "packages/**"
+      - "database/**"
+      - "scripts/qa/seed-e2e-fixture.mjs"
+      - ".github/workflows/erp-e2e.yml"
+  schedule:
+    - cron: "17 2 * * *"
+  workflow_dispatch:
+    inputs:
+      full:
+        description: "Run every Playwright spec instead of the critical set"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: erp-e2e-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  browser-e2e:
+    name: Critical browser journeys (Chromium)
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: vercentlabs
+          POSTGRES_PASSWORD: ci_owner_password
+          POSTGRES_DB: vercentlabs_control
+        ports:
+          - 5433:5432
+        options: >-
+          --health-cmd "pg_isready -U vercentlabs -d vercentlabs_control"
+          --health-interval 5s --health-timeout 5s --health-retries 20
+    env:
+      NODE_ENV: production
+      APP_URL: http://localhost:3001
+      FORM_ALLOWED_ORIGINS: http://localhost:3001
+      MIGRATION_DATABASE_URL: postgresql://vercentlabs:ci_owner_password@localhost:5433/vercentlabs_control
+      DATABASE_URL: postgresql://vercent_app:ci_app_password@localhost:5433/vercentlabs_control
+      ENFORCE_RESTRICTED_DB_ROLE: "true"
+      DATABASE_SSL: "false"
+      SESSION_COOKIE_NAME: vercent_session
+      INTEGRATION_TOKEN_ENCRYPTION_KEY: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+      BILLING_ENFORCEMENT_MODE: observe
+      BILLING_CHECKOUT_ENABLED: "false"
+      QA_PORT: "3001"
+      E2E_SEED_ALLOW_REMOTE: "1"
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Set up Node and pnpm
+        uses: pnpm/setup@v1
+        with:
+          version: 11.21.0
+          runtime: node@24
+          cache: true
+          install: false
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Apply migrations and provision the runtime role
+        run: pnpm db:setup
+
+      - name: Seed the E2E fixture
+        run: node scripts/qa/seed-e2e-fixture.mjs
+
+      - name: Install Chromium
+        run: pnpm --filter @vercentlabs/web exec playwright install --with-deps chromium
+
+      - name: Build the ERP web app
+        run: pnpm build:web
+
+      - name: Start the ERP web app
+        run: |
+          nohup pnpm --filter @vercentlabs/web exec next start -p 3001 > web-server.log 2>&1 &
+          for i in $(seq 1 60); do
+            if curl -fsS http://localhost:3001/login > /dev/null; then exit 0; fi
+            sleep 2
+          done
+          cat web-server.log
+          exit 1
+
+      - name: Run the critical journeys
+        if: ${{ github.event_name != 'schedule' && !inputs.full }}
+        working-directory: apps/web
+        run: >-
+          pnpm exec playwright test
+          crm-regression.spec.ts crm-authorization.spec.ts crm-uiux.spec.ts crm-settings-setup.spec.ts
+          crm-public-booking.spec.ts opportunity-stage-transition.spec.ts restricted-role-authorization.spec.ts
+          platform-security.spec.ts accounting-schedule-views.spec.ts billing-plans.spec.ts accessibility.spec.ts
+
+      - name: Run the full suite
+        if: ${{ github.event_name == 'schedule' || inputs.full }}
+        working-directory: apps/web
+        run: pnpm exec playwright test
+
+      - name: Upload the report and server log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: erp-e2e-report
+          path: |
+            apps/web/playwright-report/
+            apps/web/test-results/
+            web-server.log

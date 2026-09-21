@@ -2,13 +2,14 @@ import { test, expect, type BrowserContext } from "@playwright/test";
 
 import { fixtures } from "./fixtures";
 import { getSalesWorld, openSalesSession } from "./sales-fixtures";
+import { BASE_URL } from "./base-url";
 
 // Settings are a control surface: a rep may read them but not change them (the
 // SERVER refuses, not just the UI), the organisation owner can change a
 // threshold, and the change takes effect on the next order. The original value is
 // always restored so the shared fixture organisation is left as found.
 async function call(context: BrowserContext, method: "GET" | "POST" | "PUT", path: string, data?: unknown) {
-  const origin = new URL(process.env.QA_BASE_URL ?? "http://localhost:3000").origin;
+  const origin = new URL(BASE_URL).origin;
   const response = await context.request.fetch(`${origin}/api/sales${path}`, { method, data, headers: { Origin: origin, "Content-Type": "application/json" } });
   return { status: response.status(), body: await response.json() };
 }

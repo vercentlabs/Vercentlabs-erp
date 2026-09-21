@@ -2,13 +2,14 @@ import { test, expect, type BrowserContext, type Locator, type Page } from "@pla
 
 import { getProcurementWorld } from "./procurement-fixtures";
 import { openSalesSession as openSession } from "./sales-fixtures";
+import { BASE_URL } from "./base-url";
 
 // Sourcing to purchase order with real roles: buyer runs an RFQ, two suppliers
 // quote, the purchase manager (the only seeded role holding sourcing.award)
 // awards to the cheaper one, the PO is approved by a DIFFERENT person, dispatched
 // and amended -- the amendment approved by someone other than its requester.
 async function api<T>(context: BrowserContext, method: "GET" | "POST", path: string, data?: unknown): Promise<T> {
-  const origin = new URL(process.env.QA_BASE_URL ?? "http://localhost:3000").origin;
+  const origin = new URL(BASE_URL).origin;
   const response = await context.request.fetch(`${origin}/api/procurement${path}`, { method, data, headers: { Origin: origin, "Content-Type": "application/json" } });
   const body = await response.json();
   expect(response.ok(), `${method} ${path}: ${JSON.stringify(body)}`).toBeTruthy();

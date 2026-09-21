@@ -4,6 +4,7 @@ import { Client } from "pg";
 import { fixtures } from "./fixtures";
 import { MIGRATION_DATABASE_URL } from "./pos-fixtures";
 import type { SalesPersona } from "./sales-fixtures";
+import { BASE_URL } from "./base-url";
 
 // Deterministic HR & Payroll E2E world: separate users holding the REAL seeded roles -- hr_manager
 // x2 (so a second person can approve what the first prepared) and an ordinary `employee` who has no
@@ -80,10 +81,17 @@ export async function withDb<T>(world: HrWorld, fn: (q: (sql: string, params?: u
   }
 }
 
-const origin = () => new URL(process.env.QA_BASE_URL ?? "http://localhost:3000").origin;
+const origin = () => new URL(BASE_URL).origin;
 export async function api<T>(context: BrowserContext, method: "GET" | "POST", path: string, data?: unknown, expectOk = true): Promise<{ status: number; body: T }> {
   const response = await context.request.fetch(`${origin()}/api/hr${path}`, { method, data, headers: { Origin: origin(), "Content-Type": "application/json" } });
-  const body = (await response.json()) as T;
+  const text = await response.text();
+  let body: T;
+  try {
+    body = JSON.parse(text) as T;
+  } catch {
+    // A non-JSON reply is a server error page; say which call and what it said instead of a JSON syntax error.
+    throw new Error(`${method} ${path} answered ${response.status()} with a non-JSON body: ${text.replace(/<[^>]+>/g, " ").replace(/s+/g, " ").slice(0, 400)}`);
+  }
   if (expectOk) expect(response.ok(), `${method} ${path}: ${JSON.stringify(body)}`).toBeTruthy();
   return { status: response.status(), body };
 }

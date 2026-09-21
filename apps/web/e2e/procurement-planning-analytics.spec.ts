@@ -5,11 +5,12 @@ import { fixtures } from "./fixtures";
 import { getProcurementWorld } from "./procurement-fixtures";
 import { MIGRATION_DATABASE_URL } from "./pos-fixtures";
 import { openSalesSession as openSession } from "./sales-fixtures";
+import { BASE_URL } from "./base-url";
 
 // Planning (reorder -> draft PO priced from the supplier's price list), the price /
 // landed-cost registers, supplier performance, history and reports -- as real roles.
 async function api<T>(context: BrowserContext, method: "GET" | "POST", path: string, data?: unknown): Promise<T> {
-  const origin = new URL(process.env.QA_BASE_URL ?? "http://localhost:3000").origin;
+  const origin = new URL(BASE_URL).origin;
   const response = await context.request.fetch(`${origin}/api/procurement${path}`, { method, data, headers: { Origin: origin, "Content-Type": "application/json" } });
   const body = await response.json();
   expect(response.ok(), `${method} ${path}: ${JSON.stringify(body)}`).toBeTruthy();

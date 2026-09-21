@@ -5,6 +5,7 @@ import { fixtures } from "./fixtures";
 import { getProcurementWorld } from "./procurement-fixtures";
 import { MIGRATION_DATABASE_URL } from "./pos-fixtures";
 import { openSalesSession as openSession } from "./sales-fixtures";
+import { BASE_URL } from "./base-url";
 
 // Receive-to-pay with real roles and REAL stock: goods are received partly and one
 // unit rejected (only the accepted quantity enters stock), part is returned to the
@@ -13,7 +14,7 @@ import { openSalesSession as openSession } from "./sales-fixtures";
 // Stock quantities are read straight from the database so the assertion is about
 // the ledger, not about what the screen says.
 async function api<T>(context: BrowserContext, method: "GET" | "POST", path: string, data?: unknown): Promise<T> {
-  const origin = new URL(process.env.QA_BASE_URL ?? "http://localhost:3000").origin;
+  const origin = new URL(BASE_URL).origin;
   const response = await context.request.fetch(`${origin}/api/procurement${path}`, { method, data, headers: { Origin: origin, "Content-Type": "application/json" } });
   const body = await response.json();
   expect(response.ok(), `${method} ${path}: ${JSON.stringify(body)}`).toBeTruthy();
