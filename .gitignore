@@ -97,3 +97,5 @@ storybook-static/
 # The .mjs scripts themselves ARE committed (real QA tooling).
 scripts/qa/artifacts/
 apps/web/scripts/qa/artifacts/
+
+.next-build/

@@ -22,6 +22,8 @@ const contentSecurityPolicy = [
 ].join("; ");
 
 const nextConfig: NextConfig = {
+  // A verification build can write elsewhere (NEXT_DIST_DIR) so it never disturbs a running dev server.
+  distDir: process.env.NEXT_DIST_DIR || ".next",
   // infrastructure/docker/Dockerfile.web expects .next/standalone with
   // apps/web/server.js as the runnable entrypoint — do not change this
   // without updating that Dockerfile.
