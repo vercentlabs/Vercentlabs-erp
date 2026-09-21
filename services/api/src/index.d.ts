@@ -653,6 +653,8 @@ export * from "./core/access-control-runtime.js";
 export * from "./core/session.js";
 export * from "./core/access-administration.js";
 export * from "./core/entitlements.js";
+export * from "./core/razorpay.js";
+export * from "./core/subscription-billing.js";
 export * from "./core/module-entitlements.js";
 export * from "./core/audit-redaction.js";
 export * from "./core/security.js";

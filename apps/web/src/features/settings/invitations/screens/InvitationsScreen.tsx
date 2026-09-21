@@ -85,11 +85,13 @@ export function InvitationsScreen({ canManage }: { canManage: boolean }) {
   const branches = branchesQuery.data?.branches ?? [];
   const roleOptions = roles.filter((r) => r.assignable).map((r) => ({ value: r.id, label: r.name }));
 
+  const seats = query.data?.seats;
+  const seatLine = seats && seats.capacity !== null ? `${seats.used} of ${seats.capacity} users used on your plan (members and pending invitations). ${seats.available === 0 ? "To add more, upgrade in Settings > Billing." : ""}` : null;
   return (
     <div className="flex flex-1 flex-col gap-6">
       <PageHeader
         title="Invitations"
-        description="Pending invitations and their status."
+        description={seatLine ?? "Pending invitations and their status."}
         primaryAction={
           <Button variant="primary" onPress={() => setCreateOpen(true)}>
             Invite someone

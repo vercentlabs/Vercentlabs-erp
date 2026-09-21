@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import { assertSameOriginOrMobile, createOrganizationInvitation, listOrganizationInvitations, requireSessionPermission } from "@vercentlabs/api";
+import { assertSameOriginOrMobile, createOrganizationInvitation, getSeatStatus, listOrganizationInvitations, requireSessionPermission } from "@vercentlabs/api";
 import { CORE_PERMISSIONS } from "@vercentlabs/permissions";
 
 import { withClient } from "@/core/db";
@@ -41,8 +41,11 @@ export async function GET() {
   try {
     const session = await requireWorkspace();
     requireSessionPermission(session, CORE_PERMISSIONS.usersManage);
-    const invitations = await withClient((client) => listOrganizationInvitations(client, session.organizationId));
-    return ok({ invitations });
+    const { invitations, seats } = await withClient(async (client) => ({
+      invitations: await listOrganizationInvitations(client, session.organizationId),
+      seats: await getSeatStatus(client, session.organizationId),
+    }));
+    return ok({ invitations, seats: { used: seats.used, capacity: seats.capacity, available: seats.available } });
   } catch (error) {
     return errorResponse(error);
   }

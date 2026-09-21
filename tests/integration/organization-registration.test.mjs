@@ -112,10 +112,10 @@ test("SP004: self-serve organization registration against a real database", asyn
       // migrations 051/052's trigger must have fired: a REAL trial, never
       // Founder Preview, for a self-serve signup -- same regression guard
       // as organization-subscription-auto-provision.test.mjs.
-      const sub = await admin.query(`SELECT status, trial_ends_at FROM organization_subscriptions WHERE organization_id=$1`, [firstOrgId]);
-      assert.equal(sub.rows[0].status, "trialing");
+      const sub = await admin.query(`SELECT status, included_users_snapshot FROM organization_subscriptions WHERE organization_id=$1`, [firstOrgId]);
+      assert.equal(sub.rows[0].status, "active");
       assert.notEqual(sub.rows[0].status, "internal");
-      assert.ok(sub.rows[0].trial_ends_at);
+      assert.equal(sub.rows[0].included_users_snapshot, 3, "a self-serve signup starts on Free with 3 users");
     });
 
     await t.test("registering again with the SAME email is rejected, not silently creating a second account", async () => {

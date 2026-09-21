@@ -14,8 +14,9 @@ test("billing client creates same-origin subscription checkout", async () => {
       );
     },
   });
-  await client.createCheckout("price-id");
+  await client.createCheckout("price-id", 6);
   assert.equal(request.url, "/api/billing/checkout");
   assert.equal(request.options.method, "POST");
   assert.match(request.options.body, /price-id/);
+  assert.match(request.options.body, /"users":6/);
 });

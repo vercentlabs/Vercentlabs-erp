@@ -9,6 +9,7 @@
 import { randomUUID } from "node:crypto";
 
 import { requireSessionPermission } from "./access-control-runtime.js";
+import { assertSeatAvailable, reconcileSeatOverage, withSeatLock } from "./subscription-billing.js";
 
 export class OrganizationAdministrationError extends Error {
   constructor(status, message, code = "ORG_ADMIN_ERROR") {
@@ -299,10 +300,16 @@ export async function setMemberStatus(client, session, targetUserId, status) {
   requireSessionPermission(session, "users.manage");
   if (!["active", "disabled"].includes(status)) throw new OrganizationAdministrationError(422, "Status must be active or disabled.", "ORG_ADMIN_VALIDATION");
   if (targetUserId === session.userId) throw new OrganizationAdministrationError(422, "You cannot change your own membership status.", "ORG_ADMIN_SELF_TARGET");
-  const updated = await client.query(
-    `UPDATE organization_memberships SET status = $3 WHERE organization_id = $1 AND user_id = $2 RETURNING user_id`,
-    [session.organizationId, targetUserId, status],
-  );
+  const updated = await withSeatLock(client, session.organizationId, async () => {
+    if (status === "active") {
+      const current = (await client.query(`SELECT status FROM organization_memberships WHERE organization_id=$1 AND user_id=$2`, [session.organizationId, targetUserId])).rows[0];
+      if (current && current.status !== "active") await assertSeatAvailable(client, session.organizationId, { additional: 1 });
+    }
+    return client.query(
+      `UPDATE organization_memberships SET status = $3 WHERE organization_id = $1 AND user_id = $2 RETURNING user_id`,
+      [session.organizationId, targetUserId, status],
+    );
+  });
   if (!updated.rows[0]) throw new OrganizationAdministrationError(404, "Member not found.", "ORG_ADMIN_MEMBER_NOT_FOUND");
   if (status === "disabled") {
     // A disabled membership must not leave a live session usable — the
@@ -310,5 +317,6 @@ export async function setMemberStatus(client, session, targetUserId, status) {
     // resetPasswordWithToken/disableMfa already apply.
     await client.query(`UPDATE sessions SET revoked_at = now(), revoked_reason = 'membership_disabled' WHERE user_id = $1 AND revoked_at IS NULL`, [targetUserId]);
   }
+  await reconcileSeatOverage(client, session.organizationId);
   return { userId: targetUserId, status };
 }

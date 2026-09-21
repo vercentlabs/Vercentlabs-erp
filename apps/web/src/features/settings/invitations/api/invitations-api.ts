@@ -34,7 +34,9 @@ export type InvitationRow = {
   invited_by_name: string;
 };
 
-export async function listInvitations(): Promise<{ invitations: InvitationRow[] }> {
+export type SeatSummary = { used: number; capacity: number | null; available: number | null };
+
+export async function listInvitations(): Promise<{ invitations: InvitationRow[]; seats?: SeatSummary }> {
   const response = await fetch("/api/auth/invitations");
   return parseResponse(response);
 }

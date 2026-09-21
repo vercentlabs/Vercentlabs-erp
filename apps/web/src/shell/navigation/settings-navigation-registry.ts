@@ -56,7 +56,7 @@ export const SETTINGS_NAVIGATION: readonly SettingsNavSection[] = [
     id: "billing-integrations",
     label: "Billing and integrations",
     items: [
-      { id: "billing", label: "Billing and entitlements", route: "/settings/billing", status: "PLANNED", description: "Plan, usage, and entitlements." },
+      { id: "billing", label: "Billing and plans", route: "/settings/billing", status: "AVAILABLE", description: "Your plan, users, payments and invoices.", requiredPermission: "billing.view" },
       { id: "integrations", label: "Integrations", route: "/settings/integrations", status: "PLANNED", description: "Connected third-party services." },
       { id: "api-keys", label: "API keys", route: "/settings/api-keys", status: "PLANNED", description: "Keys for programmatic access." },
       { id: "oauth-connections", label: "OAuth connections", route: "/settings/oauth-connections", status: "PLANNED", description: "Authorized OAuth applications." },

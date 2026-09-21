@@ -44,7 +44,7 @@ test("migration 052: new organizations get a real trial, never an automatic Foun
   }
 
   try {
-    await t.test("inserting a new organization provisions a real 'trialing' subscription on the 'launch' plan, NOT Founder Preview", async () => {
+    await t.test("inserting a new organization provisions an active Free plan subscription (3 users), NOT Founder Preview", async () => {
       const orgId = randomUUID();
       const ownerId = randomUUID();
       try {
@@ -58,7 +58,7 @@ test("migration 052: new organizations get a real trial, never an automatic Foun
         );
 
         const sub = await admin.query(
-          `SELECT subscription.status, subscription.trial_ends_at, subscription.modules_snapshot, subscription.limits_snapshot,
+          `SELECT subscription.status, subscription.trial_ends_at, subscription.modules_snapshot, subscription.limits_snapshot, subscription.included_users_snapshot,
                   plan.code AS plan_code, plan.trial_days, subscription.metadata->>'source' AS source
              FROM organization_subscriptions subscription
              JOIN billing_plan_prices price ON price.id = subscription.plan_price_id
@@ -71,38 +71,14 @@ test("migration 052: new organizations get a real trial, never an automatic Foun
 
         assert.notEqual(row.status, "internal", "REGRESSION GUARD: a new organization must never automatically receive unconditional Founder Preview access");
         assert.notEqual(row.plan_code, "founder-preview", "REGRESSION GUARD: a new organization must never be silently signed up for the founder-preview plan");
-        assert.equal(row.status, "trialing");
-        assert.equal(row.plan_code, "launch");
+        assert.equal(row.status, "active", "the Free plan is active immediately; there is no trial to expire");
+        assert.equal(row.plan_code, "free");
         assert.equal(row.source, "organizations_ensure_subscription_trigger");
-
-        // The trial must be REAL: it has an actual expiry hasWriteAccess()
-        // will enforce, matching the plan's own real trial_days, and it
-        // must currently be within that window (a fresh org isn't already
-        // expired).
-        assert.ok(row.trial_ends_at, "a trial must have a real expiry, unlike the old unconditional 'internal' grant");
-        const daysRemaining = (new Date(row.trial_ends_at).getTime() - Date.now()) / (24 * 60 * 60 * 1000);
-        assert.ok(daysRemaining > 0 && daysRemaining <= row.trial_days + 1, `trial_ends_at must reflect the launch plan's own trial_days (${row.trial_days}), got ~${daysRemaining.toFixed(1)} days remaining`);
-        assert.equal(
-          hasWriteAccess({ status: row.status, trialEndsAt: row.trial_ends_at }, new Date()),
-          true,
-          "a freshly-created org's trial must currently grant write access",
-        );
-        assert.equal(
-          hasWriteAccess({ status: row.status, trialEndsAt: new Date(Date.now() - 1000) }, new Date()),
-          false,
-          "sanity check on the same status: once trial_ends_at is in the past, write access must be denied -- proving this is a real, enforced expiry, not a cosmetic field",
-        );
-
-        // The entitlement itself must be the 'launch' plan's own real,
-        // named module list -- not founder-preview's wildcard "*" (which
-        // silently grants every module, including ones the org never
-        // subscribed to). Not asserting an exact module list here since
-        // that legitimately evolves as more modules release; the
-        // meaningful, permanent distinction is "a real named list" vs
-        // "the wildcard that bypasses the whole entitlement system".
-        assert.ok(Array.isArray(row.modules_snapshot) && row.modules_snapshot.length > 0, "a trial must have a real, non-empty module list");
-        assert.ok(!row.modules_snapshot.includes("*"), "a trial must never grant the wildcard module entitlement founder-preview uses");
-        assert.notEqual(row.limits_snapshot.companies, 25, "a trial must use the base plan's real (narrower) limits, not founder-preview's generous ones");
+        assert.equal(row.trial_ends_at, null);
+        assert.equal(row.included_users_snapshot, 3, "Free includes 3 users");
+        assert.equal(hasWriteAccess({ status: row.status }, new Date()), true);
+        assert.ok(Array.isArray(row.modules_snapshot) && row.modules_snapshot.length > 0, "the plan carries a real module entitlement");
+        assert.notEqual(row.limits_snapshot.companies, 25, "Free uses its own limits, not founder-preview's generous ones");
       } finally {
         await admin.query(`DELETE FROM organization_subscriptions WHERE organization_id=$1`, [orgId]).catch(() => undefined);
         await admin.query(`DELETE FROM organizations WHERE id=$1`, [orgId]).catch(() => undefined);
@@ -166,7 +142,7 @@ test("migration 052: new organizations get a real trial, never an automatic Foun
           `SELECT status FROM organization_subscriptions WHERE organization_id=$1`,
           [orgId],
         );
-        assert.equal(auto.rows[0].status, "trialing", "before any explicit action, the org must only ever have the automatic trial, never internal status");
+        assert.equal(auto.rows[0].status, "active", "before any explicit action, the org must only ever have the automatic Free plan, never internal status");
 
         // An explicit, deliberate admin action CAN still grant Founder
         // Preview -- that capability is intentionally preserved, only the

@@ -13,17 +13,23 @@ export function createBillingClient({ baseUrl = "", fetchImpl = fetch } = {}) {
   return Object.freeze({
     listPlans: () => request("/api/billing/plans"),
     getSummary: () => request("/api/billing/summary"),
-    createCheckout: (planPriceId) =>
+    createCheckout: (planPriceId, users) =>
       request("/api/billing/checkout", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ planPriceId }),
+        body: JSON.stringify({ planPriceId, users }),
       }),
     verifyCheckout: (payload) =>
       request("/api/billing/verify", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
+      }),
+    changeSeats: (users) =>
+      request("/api/billing/seats", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ users }),
       }),
     cancelSubscription: (cancelAtCycleEnd = true) =>
       request("/api/billing/cancel", {

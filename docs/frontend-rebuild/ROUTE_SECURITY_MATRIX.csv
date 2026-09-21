@@ -18,6 +18,12 @@ api/auth/register/route.ts,POST,false,true,false,"Pre-authentication self-serve 
 api/auth/resend-verification/route.ts,POST,true,true,false,
 api/auth/reset-password/route.ts,POST,false,true,false,Token-bearer authentication; assertSameOrigin applies.
 api/auth/verify-email/route.ts,POST,false,true,false,Token-bearer authentication (proof of mailbox control IS the credential); assertSameOrigin applies.
+api/billing/cancel/route.ts,POST,true,true,true,
+api/billing/checkout/route.ts,POST,true,true,true,
+api/billing/profile/route.ts,PATCH,true,true,true,
+api/billing/seats/route.ts,POST,true,true,true,
+api/billing/verify/route.ts,POST,true,true,true,
+api/billing/webhook/route.ts,POST,false,false,false,"Public by design: the payment provider's servers call it with no ERP session. Authenticated by the HMAC-SHA256 signature over the exact raw body (handleBillingWebhook verifies it before parsing, accepting the previous secret during rotation); events are stored once by provider event id, so replays are no-ops."
 api/crm/[resource]/[id]/route.ts,"PATCH,DELETE",true,true,true,
 api/crm/[resource]/route.ts,POST,true,true,true,
 api/crm/accounts/[id]/hierarchy/route.ts,PATCH,true,true,true,

@@ -32,6 +32,8 @@ export class EntitlementError extends Error {
   }
 }
 
+const SEAT_OVERAGE_GRACE_DAYS = 14;
+
 const DEFAULT_LIMITS = Object.freeze({
   companies: 1,
   branches: 2,
@@ -70,7 +72,10 @@ export async function getBillingSummary(client, organizationId, env = process.en
         subscription.cancel_at_cycle_end,
         subscription.provider_subscription_id,
         subscription.modules_snapshot,
-        subscription.limits_snapshot
+        subscription.limits_snapshot,
+        subscription.paid_seats,
+        subscription.included_users_snapshot,
+        subscription.seat_overage_since
       FROM organization_subscriptions subscription
       JOIN billing_plan_prices price ON price.id = subscription.plan_price_id
       JOIN billing_plans plan ON plan.id = price.plan_id
@@ -115,6 +120,13 @@ export async function getBillingSummary(client, organizationId, env = process.en
     effectiveLimits[override.entitlement_key] = value;
   }
 
+  // A plan with a user allowance stays writable while the organisation holds more users than it pays for, but only
+  // for a grace period; after that the organisation is read-only until it adds seats or removes users.
+  const includedUsers = row.included_users_snapshot === null || row.included_users_snapshot === undefined ? null : Number(row.included_users_snapshot);
+  const overageSince = row.seat_overage_since ? new Date(row.seat_overage_since) : null;
+  const overageLockedAt = overageSince ? new Date(overageSince.getTime() + SEAT_OVERAGE_GRACE_DAYS * 86_400_000) : null;
+  const seatLocked = includedUsers !== null && overageLockedAt !== null && overageLockedAt.getTime() < Date.now();
+
   return {
     status: row.status,
     planCode: row.plan_code,
@@ -128,11 +140,15 @@ export async function getBillingSummary(client, organizationId, env = process.en
     limits: effectiveLimits,
     modules: effectiveModules,
     usage,
-    writeAccess: hasWriteAccess({
-      status: row.status,
-      trialEndsAt: row.trial_ends_at,
-      graceEndsAt: row.grace_ends_at,
-    }),
+    seats: { includedUsers, paidSeats: Number(row.paid_seats || 0), capacity: includedUsers === null ? null : includedUsers + Number(row.paid_seats || 0) },
+    seatOverage: seatLocked ? { since: iso(overageSince), lockedAt: iso(overageLockedAt) } : null,
+    writeAccess:
+      !seatLocked &&
+      hasWriteAccess({
+        status: row.status,
+        trialEndsAt: row.trial_ends_at,
+        graceEndsAt: row.grace_ends_at,
+      }),
     enforcementMode: billingEnforcementMode(env),
   };
 }
@@ -189,6 +205,13 @@ export async function requireBillingWriteAccess(client, organizationId, env = pr
       402,
       "Billing is not initialised for this organisation. Contact an account owner or support before continuing.",
       "ENTITLEMENT_SUBSCRIPTION_MISSING",
+    );
+  }
+  if (!summary.writeAccess && summary.enforcementMode === "enforce" && summary.seatOverage) {
+    throw new EntitlementError(
+      402,
+      "This organisation has more users than its plan covers. Add seats or remove users in Billing. Read and export access remains available.",
+      "ENTITLEMENT_SEAT_OVERAGE",
     );
   }
   if (!summary.writeAccess && summary.enforcementMode === "enforce") {

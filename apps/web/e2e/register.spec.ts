@@ -71,7 +71,7 @@ test("self-serve registration: create an account through the real UI, verify ema
     expect(roleCount.rows[0].n).toBeGreaterThanOrEqual(36);
 
     const subRow = await db.query(`SELECT status FROM organization_subscriptions WHERE organization_id = $1`, [organizationId]);
-    expect(subRow.rows[0].status).toBe("trialing");
+    expect(subRow.rows[0].status).toBe("active");
 
     // Logged in immediately (a real session cookie was set), but gated at
     // the real, existing /verify-email screen -- not full access yet.

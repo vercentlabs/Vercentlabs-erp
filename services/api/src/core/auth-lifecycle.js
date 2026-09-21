@@ -14,6 +14,7 @@ import { randomUUID } from "node:crypto";
 import { hashPassword, createOpaqueToken, tokenHash } from "./session.js";
 import { deliverAuthMessage } from "./auth-mailer.js";
 import { validateRoleSelection } from "./access-administration.js";
+import { assertSeatAvailable, withSeatLock } from "./subscription-billing.js";
 
 export class AuthLifecycleError extends Error {
   constructor(status, message, code) {
@@ -243,6 +244,8 @@ export async function createOrganizationInvitation(
   const token = createOpaqueToken();
   const hash = tokenHash(token);
   let invitationId;
+  await withSeatLock(client, organizationId, async () => {
+  await assertSeatAvailable(client, organizationId, { additional: pending ? 0 : 1, excludeInvitationId: pending?.id ?? null, env });
   if (pending) {
     invitationId = pending.id;
     await client.query(
@@ -261,6 +264,7 @@ export async function createOrganizationInvitation(
       [invitationId, organizationId, email, roleId, uniqueCompanyIds, uniqueBranchIds, hash, invitedByUserId],
     );
   }
+  });
 
   const delivered = await deliverAuthMessage(
     { type: "organization-invitation", email, url: pathTokenUrl(env, "/invitations", token), organizationName: organization.name },
@@ -365,12 +369,17 @@ export async function acceptOrganizationInvitation(client, token, { fullName, pa
 
   await client.query(`UPDATE users SET email_verified_at = COALESCE(email_verified_at, now()) WHERE id = $1`, [userId]);
 
-  await client.query(
-    `INSERT INTO organization_memberships (organization_id, user_id, role, status)
-     VALUES ($1, $2, 'member', 'active')
-     ON CONFLICT (organization_id, user_id) DO UPDATE SET status = 'active'`,
-    [invitation.organization_id, userId],
-  );
+  const alreadyActive = (await client.query(`SELECT 1 FROM organization_memberships WHERE organization_id=$1 AND user_id=$2 AND status='active'`, [invitation.organization_id, userId])).rows[0];
+  await withSeatLock(client, invitation.organization_id, async () => {
+    // The invitation itself already holds a seat, so it is excluded from the count.
+    await assertSeatAvailable(client, invitation.organization_id, { additional: alreadyActive ? 0 : 1, excludeInvitationId: invitation.id, env: process.env });
+    await client.query(
+      `INSERT INTO organization_memberships (organization_id, user_id, role, status)
+       VALUES ($1, $2, 'member', 'active')
+       ON CONFLICT (organization_id, user_id) DO UPDATE SET status = 'active'`,
+      [invitation.organization_id, userId],
+    );
+  });
   if (invitation.role_id) {
     // No separate id column — the primary key is the composite
     // (organization_id, user_id, role_id) itself (migration 002).

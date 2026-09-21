@@ -41,6 +41,7 @@ const DOCUMENTED_EXCEPTIONS = {
   "api/crm/public/meetings/bookings/[token]/route.ts": "Public by design (prospect managing their own booking) — same token-based model as the link-booking route above.",
   "api/sales/public/quotes/[token]/decision/route.ts": "Public by design (a customer accepting or declining the quotation link a salesperson sent them) -- access control is the opaque per-link token, never a session: 32 random bytes (base64url), only its SHA-256 stored, so the URL is the credential and cannot be derived from any id. The domain function (recordPublicQuoteDecision -> resolvePublicQuoteToken) refuses an expired or revoked link, a quotation revised since the link was sent, a lapsed valid-until, and any second decision; the body is Zod-validated and IP/user-agent are recorded as evidence. Same token-based model as the CRM public booking routes above.",
   "api/test-support/email-capture/route.ts": "Dev/test-only capture adapter, hard-blocked by NODE_ENV and an explicit opt-in flag inside the route itself — never reachable in production regardless of any check here.",
+  "api/billing/webhook/route.ts": "Public by design: the payment provider's servers call it with no ERP session. Authenticated by the HMAC-SHA256 signature over the exact raw body (handleBillingWebhook verifies it before parsing, accepting the previous secret during rotation); events are stored once by provider event id, so replays are no-ops.",
   "api/pos/payments/webhook/[provider]/route.ts": "Public by design — a payment provider's own servers call it directly with no ERP session to present. Authenticated by the provider's cryptographic HMAC signature instead (adapter.verifyWebhookSignature over the raw body, verified before the payload is parsed or trusted, and re-verified inside handlePosPaymentWebhook's transaction), the same 'unauthenticated but cryptographically verified' pattern already established for inbound-mail webhooks (services/api/src/core/inbound-mail.js's verifyInboundMailSignature).",
 };
 
@@ -134,6 +135,10 @@ const AUDITED_WRAPPERS = {
   projectsMutation: {
     file: "apps/web/src/features/projects/shared/route-helpers.ts",
     provides: { auth: ["requireWorkspace"], origin: ["assertSameOriginOrMobile"], authorization: ["requireProjectsAccess"] },
+  },
+  billingWrite: {
+    file: "apps/web/src/features/billing/server.ts",
+    provides: { auth: ["requireWorkspace"], origin: ["assertSameOriginOrMobile"], authorization: ["requireSessionPermission"] },
   },
   projectsRead: {
     file: "apps/web/src/features/projects/shared/route-helpers.ts",
