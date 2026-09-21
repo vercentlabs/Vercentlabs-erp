@@ -12,10 +12,13 @@
 // derivation and its threat model. Non-sensitive bookkeeping fields
 // (status, timestamps, ids) are kept in plaintext alongside the blob so
 // the UI can list/filter the queue without decrypting every row.
-import { deriveOfflineKey, decryptJson, encryptJson, type EncryptedBlob } from "./crypto";
+import { clearOfflineKeyCache, deriveOfflineKey, decryptJson, encryptJson, type EncryptedBlob } from "./crypto";
+import { persistSeed, recoverSeed, type MetaStore } from "./seed-vault.ts";
 import type { PosOfflineQueuedSale, PosOfflineSnapshot } from "./types";
 
-const DB_NAME = "vercentlabs-pos-offline";
+import { OFFLINE_DB_NAME, OFFLINE_SECRETS_CLEARED_EVENT } from "@/shared/offline/offline-store-names";
+
+const DB_NAME = OFFLINE_DB_NAME;
 const DB_VERSION = 1;
 const STORE_META = "meta";
 const STORE_SNAPSHOTS = "snapshots";
@@ -90,9 +93,35 @@ async function getOrCreateDeviceSalt(): Promise<Uint8Array> {
 
 let lastKnownSeed: string | null = null;
 
+// Sign-out and tenant switch drop the in-memory seed and derived key in this tab too, not just the persisted copy.
+if (typeof window !== "undefined") {
+  window.addEventListener(OFFLINE_SECRETS_CLEARED_EVENT, () => {
+    lastKnownSeed = null;
+    clearOfflineKeyCache();
+  });
+}
+
+const idbMetaStore: MetaStore = {
+  get: async (key) => (await withStore<{ key: string; value: unknown } | undefined>(STORE_META, "readonly", (store) => reqToPromise(store.get(key))))?.value,
+  put: (key, value) =>
+    withStore(STORE_META, "readwrite", (store) => {
+      store.put({ key, value });
+      return undefined;
+    }),
+  delete: (key) =>
+    withStore(STORE_META, "readwrite", (store) => {
+      store.delete(key);
+      return undefined;
+    }),
+};
+
+// A fresh seed from the server is persisted (wrapped) so a cold offline reload can recover it; with no seed in
+// memory the wrapped copy is used. Only when neither exists is the device genuinely unable to open its data.
 async function getKey(encryptionSeed?: string): Promise<CryptoKey> {
-  const seed = encryptionSeed ?? lastKnownSeed;
-  if (!seed) throw new Error("No offline encryption seed is available yet -- fetch a snapshot while online first.");
+  let seed = encryptionSeed ?? lastKnownSeed;
+  if (encryptionSeed && encryptionSeed !== lastKnownSeed) await persistSeed(idbMetaStore, encryptionSeed);
+  if (!seed) seed = await recoverSeed(idbMetaStore);
+  if (!seed) throw new Error("This device needs to go online once after signing in before it can open offline data.");
   lastKnownSeed = seed;
   const salt = await getOrCreateDeviceSalt();
   return deriveOfflineKey(seed, salt);

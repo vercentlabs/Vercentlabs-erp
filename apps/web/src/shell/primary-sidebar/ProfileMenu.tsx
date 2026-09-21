@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
+import { clearOfflineSecrets } from "@/shared/offline/clear-offline-secrets";
 import { useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import {
@@ -47,6 +48,8 @@ export function ProfileMenu({
     try {
       await fetch("/api/auth/logout", { method: "POST" });
     } finally {
+      queryClient.clear();
+      await clearOfflineSecrets();
       router.push("/login");
       router.refresh();
     }

@@ -1,6 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
+import { clearOfflineSecrets } from "@/shared/offline/clear-offline-secrets";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   MenuTrigger,
@@ -73,6 +74,7 @@ export function ContextSwitcher() {
       // (re-fetched by router.refresh()) can render new data.
       // clear() rather than prefix removal: a key that forgot the scope prefix can never survive a switch.
       queryClient.clear();
+      void clearOfflineSecrets();
       router.refresh();
     },
   });

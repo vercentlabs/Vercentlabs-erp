@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
+import { clearOfflineSecrets } from "@/shared/offline/clear-offline-secrets";
 import { LogOut, Menu as MenuIcon, Lock, User } from "lucide-react";
 import { Drawer, IconButton } from "@vercentlabs/design-system";
 import type { ModuleAccess } from "@vercentlabs/api";
@@ -153,6 +154,7 @@ export function MobileNav({
       await fetch("/api/auth/logout", { method: "POST" });
     } finally {
       queryClient.clear();
+      await clearOfflineSecrets();
       router.push("/login");
       router.refresh();
     }
