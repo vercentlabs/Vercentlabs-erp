@@ -77,7 +77,7 @@ test("SP008: role CRUD and role assignment against a real database", async (t) =
       [orgId, ownerId, memberId, restrictedAdminId],
     );
     await admin.query(
-      `INSERT INTO organization_modules(organization_id,module_key,name,status,enabled_at) VALUES ($1,'sales','Sales','enabled',now())`,
+      `INSERT INTO organization_modules(organization_id,module_key,name,status,enabled_at) VALUES ($1,'sales','Sales','enabled',now()) ON CONFLICT (organization_id,module_key) DO NOTHING`,
       [orgId],
     );
     await admin.query(

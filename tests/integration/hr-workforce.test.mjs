@@ -245,7 +245,7 @@ test("HR workforce against real PostgreSQL", async (t) => {
       assert.equal(attr.leavers, 1);
       assert.ok(attr.attritionPercent > 0);
       await denied("viewer", (c, x) => api.getAttritionReport(c, x, {}), 403);
-      const events = await sql(`SELECT count(*)::int AS n FROM tenant.hr_payroll_events WHERE event_type='hr.separation.completed'`);
+      const events = await sql(`SELECT count(*)::int AS n FROM tenant.hr_payroll_events WHERE organization_id=$1 AND event_type='hr.separation.completed'`, [w.orgId]);
       assert.equal(events[0].n, 1, "every lifecycle step is in the audit trail");
     });
 
