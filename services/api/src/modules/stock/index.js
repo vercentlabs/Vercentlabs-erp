@@ -783,3 +783,6 @@ export async function listStockOperationOptions(client,c){
   ]);
   return {items:items.rows,warehouses:warehouses.rows,locations:locations.rows,batches:batches.rows};
 }
+
+// Batch and serial registration, used by Manufacturing when production creates or receives tracked stock.
+export { createStockBatch, receiveSerializedStock } from "./master-operations.js";

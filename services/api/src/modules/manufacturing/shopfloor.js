@@ -2,8 +2,7 @@ import { randomUUID } from "node:crypto";
 
 import { nextDocumentNumber } from "../../core/document-numbering.js";
 import { beginIdempotentOperation, completeIdempotentOperation } from "../../core/idempotency.js";
-import { postStockMovement, releaseStockReservation, reserveStock } from "../stock/index.js";
-import { createStockBatch, receiveSerializedStock } from "../stock/master-operations.js";
+import { createStockBatch, postStockMovement, receiveSerializedStock, releaseStockReservation, reserveStock } from "../stock/index.js";
 import { MfgError, dateOrNull, has, need, positive, recordEvent, text, uuid } from "./common.js";
 import { resolveBomForItem } from "./engineering.js";
 import { operationInspectionSatisfied } from "./execution.js";

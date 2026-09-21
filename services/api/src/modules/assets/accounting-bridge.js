@@ -3,8 +3,8 @@
 // posted journal entry through Accounting's own internal path, so its balance check, fiscal-period lock
 // and audit apply. When the company has no Accounting foundation, or the category has no accounts
 // configured, the outcome is reported as 'not_configured' instead of failing the asset operation.
-import { getPrimaryLedger } from "../accounting/core.js";
-import { createJournalEntry, postJournalEntry, reverseJournalEntry } from "../accounting/journals.js";
+import { getPrimaryLedger } from "../accounting/index.js";
+import { createJournalEntry, postJournalEntry, reverseJournalEntry } from "../accounting/index.js";
 import { AssetError, fromCents } from "./common.js";
 
 function accountingContext(c, extra = []) {

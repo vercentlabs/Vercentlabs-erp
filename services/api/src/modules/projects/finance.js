@@ -2,7 +2,7 @@
 // and material, milestone) with an approval step and an idempotent handoff to a draft Accounting invoice,
 // and profitability with variance and estimate at completion. Actuals always come from source records
 // (approved time, approved expenses, issued materials, linked procurement), never from typed-in totals.
-import { createCustomerInvoice } from "../accounting/receivables.js";
+import { createCustomerInvoice } from "../accounting/index.js";
 import {
   assertOpen, canSeeFinance, dateOrNull, fromCents, has, loadProject, loadSettings, need, needAny, nextNumber, nonNegative, oneOf, positive, ProjectError, qx, recordEvent, requiredText, textOrNull,
   toCents, today, uuid, uuidOrNull,

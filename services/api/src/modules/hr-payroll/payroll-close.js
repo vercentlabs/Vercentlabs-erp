@@ -2,8 +2,8 @@
 // reconciliation.
 import { createHash } from "node:crypto";
 
-import { getPrimaryLedger, loadCompany } from "../accounting/core.js";
-import { createJournalEntry, postJournalEntry } from "../accounting/journals.js";
+import { getPrimaryLedger, loadCompany } from "../accounting/index.js";
+import { createJournalEntry, postJournalEntry } from "../accounting/index.js";
 import { nextDocumentNumber } from "../../core/document-numbering.js";
 import {
   HrError, addDays, dateOrNull, dateRequired, need, needAny, nonNegative, qx, recordEvent, round2, text, textOrNull, today, uuid, uuidOrNull,
