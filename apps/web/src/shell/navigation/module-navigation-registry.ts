@@ -1158,10 +1158,10 @@ export const MODULE_NAVIGATION: readonly ModuleNavigation[] = [
         label: "Ledger",
         featureRange: "F453-F458",
         items: [
-          planned("Chart of Accounts", "/accounting/chart-of-accounts"),
-          planned("Journals", "/accounting/journals"),
-          planned("General Ledger", "/accounting/general-ledger"),
-          planned("Fiscal Periods", "/accounting/fiscal-periods"),
+          available("Chart of Accounts", "/accounting/chart-of-accounts"),
+          available("Journals", "/accounting/journals"),
+          available("General Ledger", "/accounting/general-ledger"),
+          available("Fiscal Periods", "/accounting/fiscal-periods"),
         ],
       },
       {
@@ -1169,10 +1169,10 @@ export const MODULE_NAVIGATION: readonly ModuleNavigation[] = [
         label: "Receivables",
         featureRange: "F459-F464",
         items: [
-          planned("Customer Invoices", "/accounting/customer-invoices"),
-          planned("Receipts", "/accounting/receipts"),
+          available("Customer Invoices", "/accounting/customer-invoices"),
+          available("Receipts", "/accounting/receipts"),
           planned("Credit", "/accounting/credit"),
-          planned("AR Aging", "/accounting/ar-aging"),
+          available("AR Aging", "/accounting/ar-aging"),
         ],
       },
       {
@@ -1180,9 +1180,9 @@ export const MODULE_NAVIGATION: readonly ModuleNavigation[] = [
         label: "Payables",
         featureRange: "F465-F470",
         items: [
-          planned("Supplier Invoices", "/accounting/supplier-invoices"),
-          planned("Payments", "/accounting/payments"),
-          planned("AP Aging", "/accounting/ap-aging"),
+          available("Supplier Invoices", "/accounting/supplier-invoices"),
+          available("Payments", "/accounting/payments"),
+          available("AP Aging", "/accounting/ap-aging"),
         ],
       },
       {
@@ -1190,8 +1190,8 @@ export const MODULE_NAVIGATION: readonly ModuleNavigation[] = [
         label: "Banking",
         featureRange: "F471-F475",
         items: [
-          planned("Bank Accounts", "/accounting/bank-accounts"),
-          planned("Bank Transactions", "/accounting/bank-transactions"),
+          available("Bank Accounts", "/accounting/bank-accounts"),
+          available("Bank Statements", "/accounting/bank-transactions"),
           planned("Reconciliation", "/accounting/reconciliation"),
         ],
       },
@@ -1200,9 +1200,9 @@ export const MODULE_NAVIGATION: readonly ModuleNavigation[] = [
         label: "Tax",
         featureRange: "F476-F480",
         items: [
-          planned("GST", "/accounting/gst"),
+          available("GST", "/accounting/gst"),
           planned("TDS / TCS", "/accounting/tds-tcs"),
-          planned("Tax Reports", "/accounting/tax-reports"),
+          available("Tax Reports", "/accounting/tax-reports"),
         ],
       },
       {
@@ -1210,10 +1210,12 @@ export const MODULE_NAVIGATION: readonly ModuleNavigation[] = [
         label: "Planning",
         featureRange: "F481-F486",
         items: [
-          planned("Budgets", "/accounting/budgets"),
-          planned("Accruals", "/accounting/accruals"),
+          available("Budgets", "/accounting/budgets"),
+          available("Accruals", "/accounting/accruals"),
           planned("Prepayments", "/accounting/prepayments"),
           planned("Revenue Schedules", "/accounting/revenue-schedules"),
+          available("Budget vs Actual", "/accounting/budget-actual"),
+          available("Fixed Assets", "/accounting/assets"),
         ],
       },
       {
@@ -1221,9 +1223,9 @@ export const MODULE_NAVIGATION: readonly ModuleNavigation[] = [
         label: "Corporate",
         featureRange: "F487-F492",
         items: [
-          planned("Foreign Exchange", "/accounting/fx"),
-          planned("Intercompany", "/accounting/intercompany"),
-          planned("Consolidation", "/accounting/consolidation"),
+          available("Foreign Exchange", "/accounting/fx"),
+          available("Intercompany", "/accounting/intercompany"),
+          available("Consolidation", "/accounting/consolidation"),
         ],
       },
       {
@@ -1231,9 +1233,9 @@ export const MODULE_NAVIGATION: readonly ModuleNavigation[] = [
         label: "Close",
         featureRange: "F493-F497",
         items: [
-          planned("Close Checklist", "/accounting/close-checklist"),
-          planned("Period Close", "/accounting/period-close"),
-          planned("Trial Balance", "/accounting/trial-balance"),
+          available("Close Checklist", "/accounting/close-checklist"),
+          available("Period Close", "/accounting/period-close"),
+          available("Trial Balance", "/accounting/trial-balance"),
         ],
       },
       {
@@ -1241,10 +1243,10 @@ export const MODULE_NAVIGATION: readonly ModuleNavigation[] = [
         label: "Reports",
         featureRange: "F498-F505",
         items: [
-          planned("Profit & Loss", "/accounting/profit-loss"),
-          planned("Balance Sheet", "/accounting/balance-sheet"),
-          planned("Cash Flow", "/accounting/cash-flow"),
-          planned("Audit/Statutory Reports", "/accounting/statutory-reports"),
+          available("Profit & Loss", "/accounting/profit-loss"),
+          available("Balance Sheet", "/accounting/balance-sheet"),
+          available("Cash Flow", "/accounting/cash-flow"),
+          available("Audit/Statutory Reports", "/accounting/statutory-reports"),
         ],
       },
       {

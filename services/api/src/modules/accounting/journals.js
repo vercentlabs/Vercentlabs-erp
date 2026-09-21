@@ -284,36 +284,37 @@ export async function getJournalEntry(client, context, idValue) {
   const entry = result.rows[0];
   if (!entry) throw new AccountingError(404, "Journal entry not found.");
   if (!context.allowAllCompanies && context.activeCompanyId && entry.company_id !== context.activeCompanyId) throw new AccountingError(403, "Switch to the journal company to view it.");
-  const [lines, lineDimensions, events] = await Promise.all([
-    client.query(
-      `SELECT line.*,account.code AS account_code,account.name AS account_name,party.display_name AS party_name,
-              branch.name AS branch_name,department.name AS department_name,cost_center.name AS cost_center_name
-         FROM tenant.accounting_journal_lines line
-         JOIN tenant.accounting_accounts account ON account.id=line.account_id
-         LEFT JOIN tenant.business_parties party ON party.id=line.party_id
-         LEFT JOIN public.branches branch ON branch.id=line.branch_id
-         LEFT JOIN public.departments department ON department.id=line.department_id
-         LEFT JOIN public.cost_centers cost_center ON cost_center.id=line.cost_center_id
-        WHERE line.organization_id=$1 AND line.journal_entry_id=$2 ORDER BY line.sequence`,
-      [context.organizationId, id],
-    ),
-    client.query(
-      `SELECT allocation.journal_line_id,allocation.dimension_id,allocation.dimension_value_id,allocation.allocation_percent,
-              dimension.code AS dimension_code,dimension.name AS dimension_name,
-              value.code AS value_code,value.name AS value_name
-         FROM tenant.accounting_line_dimensions allocation
-         JOIN tenant.accounting_journal_lines line
-           ON line.organization_id=allocation.organization_id AND line.id=allocation.journal_line_id
-         JOIN tenant.accounting_dimensions dimension
-           ON dimension.organization_id=allocation.organization_id AND dimension.id=allocation.dimension_id
-         JOIN tenant.accounting_dimension_values value
-           ON value.organization_id=allocation.organization_id AND value.id=allocation.dimension_value_id
-        WHERE allocation.organization_id=$1 AND line.journal_entry_id=$2
-        ORDER BY line.sequence,dimension.code,value.code`,
-      [context.organizationId, id],
-    ),
-    client.query(`SELECT * FROM tenant.accounting_events WHERE organization_id=$1 AND entity_type='journal_entry' AND entity_id=$2 ORDER BY occurred_at DESC`, [context.organizationId, id]),
-  ]);
+  // Sequential, not Promise.all: a single pg client can only run one query at a time (concurrent
+  // queries on the same connection are deprecated and will error in pg@9) -- same fix applied
+  // to getCustomerInvoice/getVendorBill above.
+  const lines = await client.query(
+    `SELECT line.*,account.code AS account_code,account.name AS account_name,party.display_name AS party_name,
+            branch.name AS branch_name,department.name AS department_name,cost_center.name AS cost_center_name
+       FROM tenant.accounting_journal_lines line
+       JOIN tenant.accounting_accounts account ON account.id=line.account_id
+       LEFT JOIN tenant.business_parties party ON party.id=line.party_id
+       LEFT JOIN public.branches branch ON branch.id=line.branch_id
+       LEFT JOIN public.departments department ON department.id=line.department_id
+       LEFT JOIN public.cost_centers cost_center ON cost_center.id=line.cost_center_id
+      WHERE line.organization_id=$1 AND line.journal_entry_id=$2 ORDER BY line.sequence`,
+    [context.organizationId, id],
+  );
+  const lineDimensions = await client.query(
+    `SELECT allocation.journal_line_id,allocation.dimension_id,allocation.dimension_value_id,allocation.allocation_percent,
+            dimension.code AS dimension_code,dimension.name AS dimension_name,
+            value.code AS value_code,value.name AS value_name
+       FROM tenant.accounting_line_dimensions allocation
+       JOIN tenant.accounting_journal_lines line
+         ON line.organization_id=allocation.organization_id AND line.id=allocation.journal_line_id
+       JOIN tenant.accounting_dimensions dimension
+         ON dimension.organization_id=allocation.organization_id AND dimension.id=allocation.dimension_id
+       JOIN tenant.accounting_dimension_values value
+         ON value.organization_id=allocation.organization_id AND value.id=allocation.dimension_value_id
+      WHERE allocation.organization_id=$1 AND line.journal_entry_id=$2
+      ORDER BY line.sequence,dimension.code,value.code`,
+    [context.organizationId, id],
+  );
+  const events = await client.query(`SELECT * FROM tenant.accounting_events WHERE organization_id=$1 AND entity_type='journal_entry' AND entity_id=$2 ORDER BY occurred_at DESC`, [context.organizationId, id]);
   const dimensionsByLine = new Map();
   for (const allocation of lineDimensions.rows) {
     const current = dimensionsByLine.get(allocation.journal_line_id) || [];

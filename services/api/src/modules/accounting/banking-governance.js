@@ -602,42 +602,42 @@ export async function getBankStatementGovernanceTimeline(
   if (!statement.rows[0]) {
     throw new BankingGovernanceError(404, "Bank statement was not found.");
   }
-  const [events, snapshots, exceptions] = await Promise.all([
-    client.query(
-      `SELECT id,'event' AS timeline_type,event_type AS title,
-              metadata AS details,occurred_at AS occurred_at,actor_user_id
-         FROM tenant.accounting_events
-        WHERE organization_id=$1 AND entity_type='bank_statement'
-          AND entity_id=$2`,
-      [context.organizationId, id],
-    ),
-    client.query(
-      `SELECT id,'snapshot' AS timeline_type,
-              'Governance snapshot' AS title,
-              jsonb_build_object(
-                'readiness',readiness_status,
-                'blockers',blockers,
-                'warnings',warnings,
-                'capturedFor',captured_for
-              ) AS details,
-              captured_at AS occurred_at,captured_by AS actor_user_id
-         FROM tenant.accounting_banking_governance_snapshots
-        WHERE organization_id=$1 AND bank_statement_id=$2`,
-      [context.organizationId, id],
-    ),
-    client.query(
-      `SELECT id,'exception' AS timeline_type,
-              'Reconciliation exception '||status AS title,
-              jsonb_build_object(
-                'priority',priority,'reasonCode',reason_code,'note',note,
-                'ownerUserId',owner_user_id,'nextActionAt',next_action_at
-              ) AS details,
-              updated_at AS occurred_at,updated_by AS actor_user_id
-         FROM tenant.accounting_reconciliation_exception_cases
-        WHERE organization_id=$1 AND bank_statement_id=$2`,
-      [context.organizationId, id],
-    ),
-  ]);
+  // Sequential, not Promise.all: a single pg client can only run one query at a time (concurrent
+  // queries on the same connection are deprecated and will error in pg@9).
+  const events = await client.query(
+    `SELECT id,'event' AS timeline_type,event_type AS title,
+            metadata AS details,occurred_at AS occurred_at,actor_user_id
+       FROM tenant.accounting_events
+      WHERE organization_id=$1 AND entity_type='bank_statement'
+        AND entity_id=$2`,
+    [context.organizationId, id],
+  );
+  const snapshots = await client.query(
+    `SELECT id,'snapshot' AS timeline_type,
+            'Governance snapshot' AS title,
+            jsonb_build_object(
+              'readiness',readiness_status,
+              'blockers',blockers,
+              'warnings',warnings,
+              'capturedFor',captured_for
+            ) AS details,
+            captured_at AS occurred_at,captured_by AS actor_user_id
+       FROM tenant.accounting_banking_governance_snapshots
+      WHERE organization_id=$1 AND bank_statement_id=$2`,
+    [context.organizationId, id],
+  );
+  const exceptions = await client.query(
+    `SELECT id,'exception' AS timeline_type,
+            'Reconciliation exception '||status AS title,
+            jsonb_build_object(
+              'priority',priority,'reasonCode',reason_code,'note',note,
+              'ownerUserId',owner_user_id,'nextActionAt',next_action_at
+            ) AS details,
+            updated_at AS occurred_at,updated_by AS actor_user_id
+       FROM tenant.accounting_reconciliation_exception_cases
+      WHERE organization_id=$1 AND bank_statement_id=$2`,
+    [context.organizationId, id],
+  );
   return [...events.rows, ...snapshots.rows, ...exceptions.rows].sort(
     (left, right) =>
       new Date(right.occurred_at).getTime() -

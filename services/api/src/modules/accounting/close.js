@@ -112,7 +112,7 @@ export async function updateFiscalPeriodStatus(client, context, idValue, input) 
   if (["closed", "locked"].includes(period.status)) {
     throw new AccountingError(409, "A closed or locked period cannot be reopened through the ordinary period endpoint.");
   }
-  const updated = await client.query(`UPDATE tenant.fiscal_periods SET status=$3,soft_closed_at=CASE WHEN $3='soft_closed' THEN now() ELSE NULL END,soft_closed_by=CASE WHEN $3='soft_closed' THEN $4 ELSE NULL END,close_note=$5 WHERE organization_id=$1 AND id=$2 AND status=$6 RETURNING *`, [context.organizationId, id, status, context.userId, text(input.note, 1000) || null, period.status]);
+  const updated = await client.query(`UPDATE tenant.fiscal_periods SET status=$3,soft_closed_at=CASE WHEN $3='soft_closed' THEN now() ELSE NULL END,soft_closed_by=CASE WHEN $3='soft_closed' THEN $4::uuid ELSE NULL END,close_note=$5 WHERE organization_id=$1 AND id=$2 AND status=$6 RETURNING *`, [context.organizationId, id, status, context.userId, text(input.note, 1000) || null, period.status]);
   if (!updated.rows[0]) throw new AccountingError(409, "The fiscal period changed before the update was applied.");
   await event(client, context, "fiscal_period", id, "accounting.period.status_changed", period.status, status, { note: text(input.note, 1000) || null });
   return updated.rows[0];

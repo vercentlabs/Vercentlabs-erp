@@ -168,10 +168,10 @@ export async function suggestBankMatches(client, context, statementLineIdValue) 
   if (!line) throw new AccountingError(404, "Bank statement line not found.");
   const amount = decimal(line.debit_amount) > 0n ? line.debit_amount : line.credit_amount;
   const candidates = await client.query(`SELECT journal_line.id AS journal_line_id,entry.entry_number,entry.accounting_date,entry.reference,entry.description,journal_line.debit_amount,journal_line.credit_amount,journal_line.base_debit_amount,journal_line.base_credit_amount,party.display_name AS party_name,
-    CASE WHEN abs((CASE WHEN $5::boolean THEN journal_line.credit_amount ELSE journal_line.debit_amount END)-$4::numeric)<0.01 THEN 100 ELSE 70 END AS confidence
+    CASE WHEN abs((CASE WHEN $5::boolean THEN journal_line.debit_amount ELSE journal_line.credit_amount END)-$4::numeric)<0.01 THEN 100 ELSE 70 END AS confidence
     FROM tenant.accounting_journal_lines journal_line JOIN tenant.accounting_journal_entries entry ON entry.id=journal_line.journal_entry_id LEFT JOIN tenant.business_parties party ON party.id=journal_line.party_id
     WHERE journal_line.organization_id=$1 AND entry.company_id=$2 AND journal_line.account_id=$3 AND entry.status='posted'
-      AND abs((CASE WHEN $5::boolean THEN journal_line.credit_amount ELSE journal_line.debit_amount END)-$4::numeric)<=greatest(1,$4::numeric*0.01)
+      AND abs((CASE WHEN $5::boolean THEN journal_line.debit_amount ELSE journal_line.credit_amount END)-$4::numeric)<=greatest(1,$4::numeric*0.01)
       AND entry.accounting_date BETWEEN $6::date-INTERVAL '10 days' AND $6::date+INTERVAL '10 days'
       AND NOT EXISTS (SELECT 1 FROM tenant.accounting_reconciliation_matches match WHERE match.organization_id=$1 AND match.journal_line_id=journal_line.id)
     ORDER BY confidence DESC,abs(entry.accounting_date-$6::date),entry.created_at DESC LIMIT 20`, [context.organizationId, line.company_id, line.gl_account_id, amount, decimal(line.credit_amount) > 0n, line.transaction_date]);
@@ -229,7 +229,7 @@ export async function matchBankStatementLine(client, context, reconciliationIdVa
 export async function completeBankReconciliation(client, context, reconciliationIdValue) {
   requirePermission(context, ACCOUNTING_PERMISSIONS.bankReconcile);
   const id = uuid(reconciliationIdValue, "Reconciliation");
-  const result = await client.query(`SELECT reconciliation.*,statement.id AS statement_id FROM tenant.accounting_reconciliations reconciliation LEFT JOIN tenant.accounting_bank_statements statement ON statement.id=reconciliation.bank_statement_id WHERE reconciliation.organization_id=$1 AND reconciliation.id=$2 FOR UPDATE`, [context.organizationId, id]);
+  const result = await client.query(`SELECT reconciliation.*,statement.id AS statement_id FROM tenant.accounting_reconciliations reconciliation LEFT JOIN tenant.accounting_bank_statements statement ON statement.id=reconciliation.bank_statement_id WHERE reconciliation.organization_id=$1 AND reconciliation.id=$2 FOR UPDATE OF reconciliation`, [context.organizationId, id]);
   const reconciliation = result.rows[0];
   if (!reconciliation || !['in_progress','reopened'].includes(reconciliation.status)) throw new AccountingError(409, "Bank reconciliation is not open.");
   const unmatched = await client.query(`SELECT count(*)::int AS count FROM tenant.accounting_bank_statement_lines line WHERE line.organization_id=$1 AND line.bank_statement_id=$2 AND line.match_status NOT IN ('matched','ignored')`, [context.organizationId, reconciliation.statement_id]);

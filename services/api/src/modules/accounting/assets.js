@@ -183,11 +183,11 @@ export async function getAsset(client, context, assetIdValue) {
   if (!context.allowAllCompanies && context.activeCompanyId && asset.company_id !== context.activeCompanyId) {
     throw new AccountingError(403, "Switch to the asset company to view it.");
   }
-  const [schedule, transactions, events] = await Promise.all([
-    client.query(`SELECT * FROM tenant.accounting_asset_depreciation_schedule WHERE organization_id=$1 AND asset_id=$2 ORDER BY sequence`, [context.organizationId, assetId]),
-    client.query(`SELECT * FROM tenant.accounting_asset_transactions WHERE organization_id=$1 AND asset_id=$2 ORDER BY transaction_date DESC,created_at DESC`, [context.organizationId, assetId]),
-    client.query(`SELECT * FROM tenant.accounting_events WHERE organization_id=$1 AND entity_type='fixed_asset' AND entity_id=$2 ORDER BY occurred_at DESC`, [context.organizationId, assetId]),
-  ]);
+  // Sequential, not Promise.all: a single pg client can only run one query at a time (concurrent
+  // queries on the same connection are deprecated and will error in pg@9).
+  const schedule = await client.query(`SELECT * FROM tenant.accounting_asset_depreciation_schedule WHERE organization_id=$1 AND asset_id=$2 ORDER BY sequence`, [context.organizationId, assetId]);
+  const transactions = await client.query(`SELECT * FROM tenant.accounting_asset_transactions WHERE organization_id=$1 AND asset_id=$2 ORDER BY transaction_date DESC,created_at DESC`, [context.organizationId, assetId]);
+  const events = await client.query(`SELECT * FROM tenant.accounting_events WHERE organization_id=$1 AND entity_type='fixed_asset' AND entity_id=$2 ORDER BY occurred_at DESC`, [context.organizationId, assetId]);
   return { asset, schedule: schedule.rows, transactions: transactions.rows, events: events.rows };
 }
 

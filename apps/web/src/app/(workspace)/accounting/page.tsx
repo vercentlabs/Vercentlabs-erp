@@ -1,9 +1,7 @@
-import { ModuleFoundationPage } from "@/shell/module-foundation/ModuleFoundationPage";
+import { AccountingDashboardScreen } from "@/features/accounting/AccountingPage";
 
 export const metadata = { title: "Accounting" };
 
-export default function AccountingPage() {
-  return (
-    <ModuleFoundationPage moduleKey="accounting" moduleLabel="Accounting" />
-  );
+export default function AccountingHomePage() {
+  return <AccountingDashboardScreen />;
 }

@@ -167,7 +167,7 @@ export async function listVendorBills(client, context, filters = {}) {
   if (filters.status && filters.status !== "all") { values.push(text(filters.status, 30)); where += ` AND bill.status=$${values.length}`; }
   if (filters.partyId) { values.push(uuid(filters.partyId, "Supplier")); where += ` AND bill.party_id=$${values.length}`; }
   if (filters.search) { values.push(`%${text(filters.search, 100)}%`); where += ` AND (bill.bill_number ILIKE $${values.length} OR bill.supplier_invoice_number ILIKE $${values.length} OR party.display_name ILIKE $${values.length})`; }
-  const result = await client.query(`SELECT bill.id,bill.bill_number,bill.supplier_invoice_number,bill.bill_type,bill.bill_date,bill.due_date,bill.currency_code,bill.grand_total,bill.outstanding_amount,bill.matching_status,bill.status,party.display_name AS supplier_name,company.name AS company_name FROM tenant.accounting_vendor_bills bill JOIN tenant.business_parties party ON party.id=bill.party_id JOIN public.companies company ON company.id=bill.company_id WHERE bill.organization_id=$1${where} ORDER BY bill.bill_date DESC,bill.created_at DESC LIMIT 300`, values);
+  const result = await client.query(`SELECT bill.id,bill.party_id,bill.bill_number,bill.supplier_invoice_number,bill.bill_type,bill.bill_date,bill.due_date,bill.currency_code,bill.grand_total,bill.outstanding_amount,bill.matching_status,bill.status,party.display_name AS supplier_name,company.name AS company_name FROM tenant.accounting_vendor_bills bill JOIN tenant.business_parties party ON party.id=bill.party_id JOIN public.companies company ON company.id=bill.company_id WHERE bill.organization_id=$1${where} ORDER BY bill.bill_date DESC,bill.created_at DESC LIMIT 300`, values);
   return result.rows;
 }
 
@@ -178,26 +178,27 @@ export async function getVendorBill(client, context, idValue) {
   const bill = result.rows[0];
   if (!bill) throw new AccountingError(404, "Vendor bill not found.");
   if (!context.allowAllCompanies && context.activeCompanyId && bill.company_id !== context.activeCompanyId) throw new AccountingError(403, "Switch to the bill company to view it.");
-  const [lines, schedules, allocations, creditAllocations, creditCandidates, events] = await Promise.all([
-    client.query(`SELECT line.*,account.code AS expense_account_code,account.name AS expense_account_name FROM tenant.accounting_vendor_bill_lines line JOIN tenant.accounting_accounts account ON account.id=line.expense_account_id WHERE line.organization_id=$1 AND line.vendor_bill_id=$2 ORDER BY line.sequence`, [context.organizationId, id]),
-    client.query(`SELECT * FROM tenant.accounting_vendor_bill_schedules WHERE organization_id=$1 AND vendor_bill_id=$2 ORDER BY sequence`, [context.organizationId, id]),
-    client.query(`SELECT allocation.*,payment.payment_number,payment.payment_date FROM tenant.accounting_vendor_payment_allocations allocation JOIN tenant.accounting_vendor_payments payment ON payment.id=allocation.payment_id WHERE allocation.organization_id=$1 AND allocation.vendor_bill_id=$2 ORDER BY allocation.allocated_at DESC`, [context.organizationId, id]),
-    client.query(`SELECT allocation.*,credit.bill_number AS credit_note_number,target.bill_number AS target_bill_number
+  // Sequential, not Promise.all: a single pg client can only run one query at a time (concurrent
+  // queries on the same connection are deprecated and will error in pg@9) -- mirrors the identical
+  // fix already applied to getCustomerInvoice above.
+  const lines = await client.query(`SELECT line.*,account.code AS expense_account_code,account.name AS expense_account_name FROM tenant.accounting_vendor_bill_lines line JOIN tenant.accounting_accounts account ON account.id=line.expense_account_id WHERE line.organization_id=$1 AND line.vendor_bill_id=$2 ORDER BY line.sequence`, [context.organizationId, id]);
+  const schedules = await client.query(`SELECT * FROM tenant.accounting_vendor_bill_schedules WHERE organization_id=$1 AND vendor_bill_id=$2 ORDER BY sequence`, [context.organizationId, id]);
+  const allocations = await client.query(`SELECT allocation.*,payment.payment_number,payment.payment_date FROM tenant.accounting_vendor_payment_allocations allocation JOIN tenant.accounting_vendor_payments payment ON payment.id=allocation.payment_id WHERE allocation.organization_id=$1 AND allocation.vendor_bill_id=$2 ORDER BY allocation.allocated_at DESC`, [context.organizationId, id]);
+  const creditAllocations = await client.query(`SELECT allocation.*,credit.bill_number AS credit_note_number,target.bill_number AS target_bill_number
       FROM tenant.accounting_vendor_credit_allocations allocation
       JOIN tenant.accounting_vendor_bills credit ON credit.id=allocation.credit_note_id
       JOIN tenant.accounting_vendor_bills target ON target.id=allocation.vendor_bill_id
       WHERE allocation.organization_id=$1 AND (allocation.credit_note_id=$2 OR allocation.vendor_bill_id=$2)
-      ORDER BY allocation.allocated_at DESC`, [context.organizationId, id]),
-    bill.bill_type === "credit_note"
-      ? client.query(`SELECT id,bill_number,bill_date,due_date,currency_code,outstanding_amount
+      ORDER BY allocation.allocated_at DESC`, [context.organizationId, id]);
+  const creditCandidates = bill.bill_type === "credit_note"
+    ? await client.query(`SELECT id,bill_number,bill_date,due_date,currency_code,outstanding_amount
           FROM tenant.accounting_vendor_bills
           WHERE organization_id=$1 AND company_id=$2 AND ledger_id=$3 AND party_id=$4
             AND bill_type IN ('bill','debit_note','opening')
             AND status IN ('posted','partially_paid','overdue','disputed') AND outstanding_amount>0
           ORDER BY due_date,bill_date`, [context.organizationId, bill.company_id, bill.ledger_id, bill.party_id])
-      : Promise.resolve({ rows: [] }),
-    client.query(`SELECT * FROM tenant.accounting_events WHERE organization_id=$1 AND entity_type='vendor_bill' AND entity_id=$2 ORDER BY occurred_at DESC`, [context.organizationId, id]),
-  ]);
+    : { rows: [] };
+  const events = await client.query(`SELECT * FROM tenant.accounting_events WHERE organization_id=$1 AND entity_type='vendor_bill' AND entity_id=$2 ORDER BY occurred_at DESC`, [context.organizationId, id]);
   return { bill, lines: lines.rows, schedules: schedules.rows, allocations: allocations.rows,
     creditAllocations: creditAllocations.rows, creditCandidates: creditCandidates.rows, events: events.rows };
 }

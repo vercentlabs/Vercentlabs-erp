@@ -331,7 +331,7 @@ export async function listCustomerInvoices(client, context, filters = {}) {
   if (filters.partyId) { values.push(uuid(filters.partyId, "Customer")); where += ` AND invoice.party_id=$${values.length}`; }
   if (filters.search) { values.push(`%${text(filters.search, 100)}%`); where += ` AND (invoice.invoice_number ILIKE $${values.length} OR party.display_name ILIKE $${values.length})`; }
   const result = await client.query(
-    `SELECT invoice.id,invoice.invoice_number,invoice.invoice_type,invoice.invoice_date,invoice.due_date,invoice.currency_code,
+    `SELECT invoice.id,invoice.party_id,invoice.invoice_number,invoice.invoice_type,invoice.invoice_date,invoice.due_date,invoice.currency_code,
       invoice.grand_total,invoice.outstanding_amount,invoice.status,party.display_name AS customer_name,company.name AS company_name
       FROM tenant.accounting_customer_invoices invoice JOIN tenant.business_parties party ON party.id=invoice.party_id
       JOIN public.companies company ON company.id=invoice.company_id
