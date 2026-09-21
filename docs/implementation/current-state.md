@@ -19,9 +19,9 @@ UX relevance of the 20,958 rows: 7,962 direct UI, 7,614 affect UI state, 5,382 n
 
 ## Routes
 
-The navigation registry declares 360 entries (not the 294 in the spec snapshot): 350 AVAILABLE, 8 PLANNED, 2 admin-only.
-Every AVAILABLE entry resolves to a real page (351 resolve overall). Catch-all `[page]` routes were checked against their page tables, so a slug missing from the table counts as unresolved.
-The unresolved entries are the honest PLANNED ones: `/sales/availability`, `/manufacturing/resources`, `/hr/reports`, `/accounting/credit`, `/accounting/reconciliation`, `/accounting/tds-tcs`, `/accounting/prepayments`, `/accounting/revenue-schedules`, plus `/accounting/settings` (admin-only).
+The navigation registry declares 360 entries (not the 294 in the spec snapshot): 353 AVAILABLE, 5 PLANNED, 2 admin-only.
+Every AVAILABLE entry resolves to a real page. Catch-all `[page]` routes were checked against their page tables, so a slug missing from the table counts as unresolved.
+The unresolved entries are the honest PLANNED ones: `/sales/availability`, `/manufacturing/resources`, `/hr/reports`, `/accounting/credit` and `/accounting/tds-tcs`, plus `/accounting/settings` (admin-only). Bank reconciliation, prepayments and revenue schedules became real views in this program.
 
 The specification's claim that ten module roots are still foundation pages is out of date for this repository: Sales, Procurement, Inventory, Manufacturing, Projects, Assets, Quality, Support, HR and Accounting all have routed workspaces and Playwright specs (58 spec files).
 
