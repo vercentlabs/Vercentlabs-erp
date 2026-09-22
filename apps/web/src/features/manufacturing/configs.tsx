@@ -79,7 +79,7 @@ const engineeringChanges: RegisterConfig = {
     col("product", "Product", (r) => `${r.item_name} (${r.item_code})`),
     col("components", "Proposed lines", (r) => String(r.component_count)),
     col("effective", "Effective from", (r) => calendarDate(r.effective_from)),
-    col("result", "Result", (r) => "", ({ row }) => (row.original.resulting_bom_id ? <Link className="text-brand hover:underline" href={`/manufacturing/bom/${row.original.resulting_bom_id}`}>New version</Link> : <span>—</span>)),
+    col("result", "Result", () => "", ({ row }) => (row.original.resulting_bom_id ? <Link className="text-brand hover:underline" href={`/manufacturing/bom/${row.original.resulting_bom_id}`}>New version</Link> : <span>—</span>)),
   ],
   searchText: (r) => text(r, ["change_number", "title", "bom_code", "item_name", "status"]),
   rowActions: [
@@ -233,7 +233,6 @@ const routings: RegisterConfig = {
 // ---------------------------------------------------------------- shop floor
 const PRIORITIES = ["low", "normal", "high", "urgent"].map((value) => ({ value, label: label(value) }));
 const ORDER_STATUSES = ["planned", "released", "in_progress", "on_hold", "completed", "cancelled"].map((value) => ({ value, label: label(value) }));
-const orderLink = (r: Row) => `/manufacturing/order/${r.work_order_id ?? r.id}`;
 
 const productionOrders: RegisterConfig = {
   key: "production-orders",

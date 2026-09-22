@@ -12,7 +12,6 @@ import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import { act, HrApiError, readView, useHrOptions, type HrOptions, type Row } from "@/features/hr/shared/client";
 import { FieldInput, type FieldDef, type FieldValue } from "@/features/hr/shared/FieldInput";
 import { HrAlert, useCan } from "@/features/hr/shared/HrUi";
-import { label } from "@/features/hr/shared/format";
 
 export type RowAction = {
   label: string;

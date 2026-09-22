@@ -34,7 +34,9 @@ export function resolveOptions(field: FieldDef, options: HrOptions | undefined):
   return (options?.[source] ?? []).map((o) => ({ value: o.id, label: o.code && o.code !== o.name ? `${o.name} (${o.code})` : o.name }));
 }
 
-export function FieldInput({ field, value, onChange, options, values }: { field: FieldDef; value: FieldValue | undefined; onChange: (value: FieldValue) => void; options?: HrOptions; values: Record<string, FieldValue> }) {
+// `values` is part of the props contract every call site passes (kept identical to inventory's FieldInput, which
+// uses it to narrow a dependent picker's options), but no HR field currently declares `dependsOn`, so it is unread here.
+export function FieldInput({ field, value, onChange, options }: { field: FieldDef; value: FieldValue | undefined; onChange: (value: FieldValue) => void; options?: HrOptions; values: Record<string, FieldValue> }) {
   const label = field.label;
   switch (field.kind) {
     case "textarea":

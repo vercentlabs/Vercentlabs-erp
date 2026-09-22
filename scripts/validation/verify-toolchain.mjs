@@ -12,7 +12,7 @@ function parseMajor(v) {
   return m ? Number(m[1]) : NaN;
 }
 
-function runVersionCommand(command) {
+function runVersionCommand(command, env = process.env) {
   // On Windows, Corepack/pnpm are commonly .cmd shims. Running through the
   // platform shell is required for reliable resolution from Git Bash/Node.
   // Commands are fixed constants; no user-controlled text is interpolated.
@@ -20,6 +20,7 @@ function runVersionCommand(command) {
     encoding: "utf8",
     shell: true,
     windowsHide: true,
+    env,
   });
   const stdout = String(r.stdout || "").trim();
   const stderr = String(r.stderr || "").trim();
@@ -37,9 +38,16 @@ function getPnpmVersion() {
     return process.env.VERCENTLABS_TOOLCHAIN_TEST_PNPM_VERSION.trim();
   }
 
+  // package.json's packageManager is intentionally pinned to npm (Hostinger's own deploy step needs that), but this
+  // repo's actual dev/CI tool is pnpm 11.21.0 -- every script here invokes it as `npx --yes pnpm@11.21.0` for exactly
+  // this reason. Corepack's strict mode refuses to run ANY tool other than the one named in packageManager, so a bare
+  // `pnpm`/`corepack pnpm` in this directory fails not because pnpm is missing, but because of that unrelated pin.
+  // COREPACK_ENABLE_STRICT=0 lets Corepack resolve the pnpm shim to its prepared version instead of refusing outright;
+  // it does not skip or loosen the version check below, which still requires exactly REQUIRED_PNPM.
+  const relaxedEnv = { ...process.env, COREPACK_ENABLE_STRICT: "0" };
   const attempts = [];
-  for (const command of ["pnpm --version", "corepack pnpm --version"]) {
-    const result = runVersionCommand(command);
+  for (const [command, env] of [["pnpm --version", relaxedEnv], ["corepack pnpm --version", relaxedEnv], ["pnpm --version", process.env], ["corepack pnpm --version", process.env]]) {
+    const result = runVersionCommand(command, env);
     if (result.ok) return result.version;
     attempts.push(`${command}: ${result.detail || "command unavailable"}`);
   }

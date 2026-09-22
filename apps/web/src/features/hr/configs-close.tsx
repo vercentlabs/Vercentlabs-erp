@@ -2,7 +2,7 @@
 
 import { act } from "@/features/hr/shared/client";
 import type { RegisterConfig } from "@/features/hr/shared/Register";
-import { amount, badge, calendarDate, col, dateTime, label, link, opts, strong, text } from "@/features/hr/configs";
+import { amount, badge, calendarDate, col, dateTime, link, opts, strong, text } from "@/features/hr/configs";
 
 const settlements: RegisterConfig = {
   key: "final-settlements",

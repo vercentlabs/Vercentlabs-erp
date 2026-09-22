@@ -239,7 +239,7 @@ const offers: RegisterConfig = {
     col("ctc", "Annual CTC", (r) => inr(r.annual_ctc)),
     col("join", "Joining", (r) => calendarDate(r.joining_date)),
     col("valid", "Valid until", (r) => calendarDate(r.valid_until)),
-    link("emp", "Employee", (r) => String(r.employee_number ?? ""), (r) => `/hr/employees`),
+    link("emp", "Employee", (r) => String(r.employee_number ?? ""), () => `/hr/employees`),
   ],
   searchText: (r) => text(r, ["offer_number", "candidate_name", "opening_title", "status"]),
   rowActions: [

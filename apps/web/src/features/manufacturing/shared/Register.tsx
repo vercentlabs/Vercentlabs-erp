@@ -12,7 +12,6 @@ import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import { act, MfgApiError, readView, useMfgOptions, type MfgOptions, type Row } from "@/features/manufacturing/shared/client";
 import { FieldInput, type FieldDef, type FieldValue } from "@/features/manufacturing/shared/FieldInput";
 import { MfgAlert, useCan } from "@/features/manufacturing/shared/MfgUi";
-import { label } from "@/features/manufacturing/shared/format";
 
 export type RowAction = {
   label: string;
