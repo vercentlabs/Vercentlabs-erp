@@ -172,6 +172,7 @@ export function listBusinessDataRecords(
     status?: string;
     limit?: number;
     offset?: number;
+    partyTypes?: string[];
   },
 ): Promise<{
   rows: Array<Record<string, unknown>>;
@@ -179,6 +180,13 @@ export function listBusinessDataRecords(
   limit: number;
   offset: number;
 }>;
+
+export function getBusinessDataRecord(
+  client: QueryClient,
+  context: BusinessDataContext,
+  resource: BusinessDataResourceKey,
+  id: string,
+): Promise<Record<string, unknown>>;
 
 export function createBusinessDataRecord(
   client: QueryClient,
@@ -193,6 +201,7 @@ export function updateBusinessDataRecord(
   resource: BusinessDataResourceKey,
   id: string,
   input: Record<string, unknown>,
+  expectations?: { expectedUpdatedAt?: string },
 ): Promise<Record<string, unknown>>;
 
 export function archiveBusinessDataRecord(
@@ -200,6 +209,7 @@ export function archiveBusinessDataRecord(
   context: BusinessDataContext,
   resource: BusinessDataResourceKey,
   id: string,
+  expectations?: { expectedUpdatedAt?: string },
 ): Promise<Record<string, unknown>>;
 
 export function getBusinessDataOptions(

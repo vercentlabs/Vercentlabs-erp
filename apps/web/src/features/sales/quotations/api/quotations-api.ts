@@ -26,6 +26,8 @@ export type SalesQuotationLine = {
   id: string;
   sequence: number;
   item_id: string;
+  variant_id: string | null;
+  variant_sku_snapshot: string | null;
   uom_id: string | null;
   warehouse_id: string | null;
   item_code_snapshot: string;
@@ -58,6 +60,9 @@ export type SalesQuotationDetail = {
     valid_until: string | null;
     converted_order_id: string | null;
     party_id: string;
+    contact_id: string | null;
+    billing_address_id: string | null;
+    shipping_address_id: string | null;
     owner_user_id: string | null;
     currency_code: string;
     subtotal: string;
@@ -91,6 +96,8 @@ export type SalesOptions = {
   addresses: Array<{ id: string; party_id: string; address_type: string; line1: string; city: string | null; is_primary: boolean }>;
   items: Array<{ id: string; code: string; name: string; item_type: string; uom_id: string | null; sales_price: string | null; standard_cost?: string | null }>;
   uoms: Array<{ id: string; code: string; name: string }>;
+  itemUomConversions: Array<{ item_id: string; from_uom_id: string; to_uom_id: string; conversion_factor: string }>;
+  itemVariants: Array<{ id: string; item_id: string; sku: string; name: string; sales_price: string | null; standard_cost?: string | null }>;
   warehouses: Array<{ id: string; code: string; name: string }>;
   priceLists: Array<{ id: string; code: string; name: string; currency_code: string; tax_inclusive: boolean }>;
   paymentTerms: Array<{ id: string; code: string; name: string; default_due_days: number }>;
@@ -99,10 +106,12 @@ export type SalesOptions = {
   settings?: { default_quote_validity_days: number; allow_direct_orders: boolean };
 };
 
-export type SalesDocumentLineInput = { itemId: string; quantity: number; discountPercent?: number; unitPrice?: number; uomId?: string | null; warehouseId?: string | null; description?: string; requestedDeliveryDate?: string | null; manualPriceReason?: string };
+export type SalesDocumentLineInput = { itemId: string; variantId?: string | null; quantity: number; discountPercent?: number; unitPrice?: number; uomId?: string | null; warehouseId?: string | null; description?: string; requestedDeliveryDate?: string | null; manualPriceReason?: string };
 export type SalesDocumentInput = {
   partyId: string;
   contactId?: string | null;
+  billingAddressId?: string | null;
+  shippingAddressId?: string | null;
   currencyCode: string;
   priceListId?: string | null;
   paymentTermId?: string | null;
@@ -130,7 +139,7 @@ const qs = (params: Record<string, string | number | undefined>) => {
   return text ? `?${text}` : "";
 };
 
-export const listSalesQuotations = (filters: { status?: string; search?: string; limit?: number; offset?: number } = {}) =>
+export const listSalesQuotations = (filters: { status?: string; search?: string; partyId?: string; limit?: number; offset?: number } = {}) =>
   request<{ rows: SalesQuotationRow[] }>(`/quotations${qs(filters)}`);
 export const getSalesQuotation = (id: string) => request<{ quotation: SalesQuotationDetail }>(`/quotations/${id}`);
 export const createSalesQuotation = (input: SalesDocumentInput) => post<{ quotation: { id: string; quotation_number: string } }>("/quotations", input);

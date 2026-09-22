@@ -111,6 +111,8 @@ export function SalesCustomersScreen() {
   );
 }
 
+type DuplicateMatch = { id: string; display_name: string; legal_name: string | null; code: string; gstin: string | null; pan: string | null };
+
 // Create or edit. Shared with the detail page.
 export function CustomerDialog({ customer, onClose, onSaved }: { customer?: CustomerRecord; onClose: () => void; onSaved: (id: string) => void }) {
   const workspace = useWorkspaceContext();
@@ -125,6 +127,11 @@ export function CustomerDialog({ customer, onClose, onSaved }: { customer?: Cust
   const [currencyCode, setCurrencyCode] = useState(customer?.currencyCode ?? "");
   const [paymentTermId, setPaymentTermId] = useState(customer?.paymentTermId ?? "");
   const [creditLimit, setCreditLimit] = useState(Number(customer?.creditLimit ?? 0));
+  // Populated only after the server blocks on an exact duplicate (409
+  // SALES_PARTY_DUPLICATE_EXACT); once shown, the user must explain why
+  // before resubmitting.
+  const [duplicateMatches, setDuplicateMatches] = useState<DuplicateMatch[] | null>(null);
+  const [overrideReason, setOverrideReason] = useState("");
 
   const mutation = useMutation({
     mutationFn: async () => {
@@ -138,6 +145,8 @@ export function CustomerDialog({ customer, onClose, onSaved }: { customer?: Cust
         currencyCode: currencyCode || undefined,
         paymentTermId: paymentTermId || undefined,
         creditLimit,
+        ...(duplicateMatches ? { duplicateOverrideReason: overrideReason } : {}),
+        ...(customer ? { expectedUpdatedAt: customer.updatedAt } : {}),
       };
       const result = customer ? await updateRecord<CustomerRecord>("parties", customer.id, input) : await createRecord<CustomerRecord>("parties", input);
       return result.record.id;
@@ -146,12 +155,42 @@ export function CustomerDialog({ customer, onClose, onSaved }: { customer?: Cust
       queryClient.invalidateQueries({ queryKey: scopedQueryKey(workspace, "sales") });
       onSaved(id);
     },
+    onError: (err) => {
+      if (err instanceof SalesApiError && err.code === "SALES_PARTY_DUPLICATE_EXACT") {
+        setDuplicateMatches((err.payload?.matches as DuplicateMatch[]) ?? []);
+      }
+    },
   });
-  const message = mutation.error ? (mutation.error instanceof SalesApiError ? mutation.error.message : "The customer could not be saved.") : null;
+  const isStaleWrite = mutation.error instanceof SalesApiError && mutation.error.code === "STALE_WRITE";
+  const message = mutation.error && !isStaleWrite && !duplicateMatches ? (mutation.error instanceof SalesApiError ? mutation.error.message : "The customer could not be saved.") : null;
   return (
     <Dialog isOpen onOpenChange={(open) => !open && onClose()} title={customer ? "Edit customer" : "New customer"}>
       <div className="flex flex-col gap-4">
         {message && <SalesAlert>{message}</SalesAlert>}
+        {isStaleWrite && (
+          <SalesAlert>
+            This customer changed after you opened it.{" "}
+            <button type="button" className="underline" onClick={() => queryClient.invalidateQueries({ queryKey: scopedQueryKey(workspace, "sales", "customer", customer?.id) })}>
+              Refresh
+            </button>{" "}
+            and try again.
+          </SalesAlert>
+        )}
+        {duplicateMatches && (
+          <SalesAlert tone="warning">
+            <div className="flex flex-col gap-2">
+              <p>This looks like an exact duplicate of an existing customer:</p>
+              <ul className="list-disc pl-5">
+                {duplicateMatches.map((match) => (
+                  <li key={match.id}>
+                    {match.display_name} ({match.code}){match.gstin ? ` — GSTIN ${match.gstin}` : ""}
+                  </li>
+                ))}
+              </ul>
+              <TextField label="Why create this anyway?" value={overrideReason} onChange={setOverrideReason} placeholder="Explain in at least 10 characters" />
+            </div>
+          </SalesAlert>
+        )}
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <TextField label="Code" isRequired value={code} onChange={setCode} isDisabled={Boolean(customer)} />
           <Select label="Type" options={TYPE_OPTIONS} selectedKey={partyType} onSelectionChange={(key) => setPartyType(String(key ?? "customer"))} />
@@ -167,8 +206,13 @@ export function CustomerDialog({ customer, onClose, onSaved }: { customer?: Cust
           <Button variant="secondary" onPress={onClose}>
             Close
           </Button>
-          <Button variant="primary" onPress={() => mutation.mutate()} isLoading={mutation.isPending} isDisabled={!displayName.trim() || (!customer && !code.trim())}>
-            {customer ? "Save changes" : "Create customer"}
+          <Button
+            variant="primary"
+            onPress={() => mutation.mutate()}
+            isLoading={mutation.isPending}
+            isDisabled={!displayName.trim() || (!customer && !code.trim()) || Boolean(duplicateMatches && overrideReason.trim().length < 10)}
+          >
+            {duplicateMatches ? "Create anyway" : customer ? "Save changes" : "Create customer"}
           </Button>
         </div>
       </div>

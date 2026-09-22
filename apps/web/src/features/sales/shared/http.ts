@@ -5,6 +5,11 @@ export class SalesApiError extends Error {
     message: string,
     public readonly status: number,
     public readonly code?: string,
+    // The route layer's fail() spreads error details flat into the JSON body
+    // (not nested under a "details" key), so this is the raw response payload
+    // -- read extra fields (e.g. `matches` on a duplicate-block error) off it
+    // directly.
+    public readonly payload?: Record<string, unknown>,
   ) {
     super(message);
   }
@@ -13,7 +18,7 @@ export class SalesApiError extends Error {
 async function parseResponse<T>(response: Response): Promise<T> {
   const payload = await response.json().catch(() => ({}));
   if (!response.ok || payload.ok === false) {
-    throw new SalesApiError(payload.message || "The request could not be completed.", response.status, payload.code);
+    throw new SalesApiError(payload.message || "The request could not be completed.", response.status, payload.code, payload);
   }
   return payload;
 }

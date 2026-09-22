@@ -18,6 +18,15 @@ export function approveJournalEntry(client: QueryClient, context: AccountingCont
 export function rejectJournalApproval(client: QueryClient, context: AccountingContext, id: string): Promise<AccountingRecord>;
 export function postJournalEntry(client: QueryClient, context: AccountingContext, id: string, options?: AccountingRecord): Promise<AccountingRecord>;
 export function reverseJournalEntry(client: QueryClient, context: AccountingContext, id: string, input?: AccountingRecord): Promise<AccountingRecord>;
+export function getCustomerCreditSummary(client: QueryClient, context: AccountingContext, partyId: string): Promise<{
+  creditLimit: number;
+  arOutstanding: number;
+  unappliedAdvances: number;
+  netExposure: number;
+  availableCredit: number | null;
+  overLimit: boolean;
+  currencyCode: string | null;
+}>;
 export function listCustomerInvoices(client: QueryClient, context: AccountingContext, filters?: AccountingRecord): Promise<AccountingRecord[]>;
 export function getCustomerInvoice(client: QueryClient, context: AccountingContext, id: string): Promise<AccountingRecord>;
 export function createCustomerInvoice(client: QueryClient, context: AccountingContext, input: AccountingRecord, options?: AccountingRecord): Promise<AccountingRecord>;

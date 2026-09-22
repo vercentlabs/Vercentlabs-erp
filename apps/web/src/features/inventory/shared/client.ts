@@ -52,6 +52,7 @@ export type InvOptions = {
   batches: Array<{ id: string; code: string; name: string; item_id: string }>;
   uoms: Array<{ id: string; code: string; name: string }>;
   groups: Array<{ id: string; code: string; name: string }>;
+  taxCategories: Array<{ id: string; code: string; name: string }>;
 };
 
 // Names for pickers, and for the ids stored on documents.

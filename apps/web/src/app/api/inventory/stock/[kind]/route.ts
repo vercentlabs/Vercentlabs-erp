@@ -47,11 +47,12 @@ export async function GET(request: Request, ctx: { params: Promise<{ kind: strin
         return { settings: await getStockSettings(client, context) };
       case "options": {
         const base = await listStockOperationOptions(client, context);
-        const [uoms, groups] = await Promise.all([
+        const [uoms, groups, taxCategories] = await Promise.all([
           listBusinessDataRecords(client, context, "units-of-measure", { status: "active", limit: 500 }),
           listBusinessDataRecords(client, context, "item-groups", { status: "active", limit: 500 }),
+          listBusinessDataRecords(client, context, "tax-categories", { status: "active", limit: 500 }),
         ]);
-        return { options: { ...base, uoms: uoms.rows, groups: groups.rows } };
+        return { options: { ...base, uoms: uoms.rows, groups: groups.rows, taxCategories: taxCategories.rows } };
       }
       case "balances":
         return { rows: await listStockBalancesDetailed(client, context, { itemId: get("itemId"), warehouseId: get("warehouseId"), search: get("search") }) };

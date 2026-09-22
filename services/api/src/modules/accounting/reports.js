@@ -269,6 +269,51 @@ export function getSupplierStatement(client, context, filters = {}) {
   return getPartyStatement(client, context, filters, "payable");
 }
 
+// A rolled-up balance, not a document list: getCustomerStatement above
+// returns line-item detail, which is what Accounting's own statement view
+// needs, but neither Accounting nor Sales (the customer 360 credit tab) had
+// a cheap "where does this one customer stand right now" figure. Netting
+// unapplied advance receipts against outstanding AR matches how Sales'
+// order-confirmation credit gate now computes exposure (see
+// confirmSalesOrder in modules/sales/index.js) and how NetSuite's own
+// "available credit" already nets deposits/credit memos against balance.
+// No internal requirePermission call: this has two legitimate callers with
+// two different permission models (Accounting's own reports, gated on
+// reportsView; Sales' customer 360, gated on sales.view) -- authorization
+// stays the caller's job, same as the shared master-data engine's functions.
+export async function getCustomerCreditSummary(client, context, partyId) {
+  const id = uuid(partyId, "Customer");
+  const values = [context.organizationId, id];
+  const invoiceWhere = scopedCompanyWhere(context, {}, "invoice", values);
+  const result = await client.query(
+    `SELECT
+        COALESCE((SELECT sum(outstanding_amount) FROM tenant.accounting_customer_invoices invoice
+                   WHERE invoice.organization_id=$1 AND invoice.party_id=$2
+                     AND invoice.status NOT IN ('draft','void','paid')${invoiceWhere}), 0) AS ar_outstanding,
+        COALESCE((SELECT sum(unapplied_amount) FROM tenant.accounting_customer_receipts receipt
+                   WHERE receipt.organization_id=$1 AND receipt.party_id=$2
+                     AND receipt.status IN ('posted','partially_applied')), 0) AS unapplied_advances,
+        party.credit_limit, party.currency_code
+      FROM tenant.business_parties party
+      WHERE party.organization_id=$1 AND party.id=$2`,
+    values,
+  );
+  const row = result.rows[0];
+  const creditLimit = Number(row?.credit_limit || 0);
+  const arOutstanding = Number(row?.ar_outstanding || 0);
+  const unappliedAdvances = Number(row?.unapplied_advances || 0);
+  const netExposure = Math.max(0, arOutstanding - unappliedAdvances);
+  return {
+    creditLimit,
+    arOutstanding,
+    unappliedAdvances,
+    netExposure,
+    availableCredit: creditLimit > 0 ? creditLimit - netExposure : null,
+    overLimit: creditLimit > 0 && netExposure > creditLimit,
+    currencyCode: row?.currency_code ?? null,
+  };
+}
+
 export async function getTaxSummary(client, context, filters = {}) {
   requirePermission(context, ACCOUNTING_PERMISSIONS.reportsView);
   const values = [context.organizationId];

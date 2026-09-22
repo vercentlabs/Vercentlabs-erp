@@ -316,6 +316,19 @@ async function calculateLine(client, context, master, line, sequence, input) {
       409,
       `Line ${sequence} item is inactive or belongs to another company.`,
     );
+  let variant = null;
+  if (line.variantId) {
+    const variantResult = await client.query(
+      `SELECT id,sku,name,sales_price,standard_cost FROM tenant.item_variants WHERE organization_id=$1 AND id=$2 AND item_id=$3 AND status='active'`,
+      [context.organizationId, uuid(line.variantId, `Line ${sequence} variant`), itemId],
+    );
+    variant = variantResult.rows[0];
+    if (!variant)
+      throw new SalesError(
+        409,
+        `Line ${sequence} variant does not belong to this item.`,
+      );
+  }
   const uomId = line.uomId
     ? uuid(line.uomId, `Line ${sequence} UOM`)
     : item.uom_id;
@@ -341,8 +354,11 @@ async function calculateLine(client, context, master, line, sequence, input) {
       `Line ${sequence} quantity must be greater than zero.`,
     );
   const baseQuantity = mul(quantity, conversionFactor);
-  let listUnitPrice = decimal(item.sales_price || 0);
-  let priceSource = "item.sales_price";
+  // A variant's own price/cost (when set -- both columns are nullable,
+  // meaning "inherit from the item") override the item's, the same way a
+  // NetSuite/Odoo variant price supersedes its template's.
+  let listUnitPrice = decimal((variant?.sales_price ?? item.sales_price) || 0);
+  let priceSource = variant?.sales_price != null ? "variant.sales_price" : "item.sales_price";
   const appliedRules = [];
   if (master.priceList) {
     const priceResult = await client.query(
@@ -455,8 +471,9 @@ async function calculateLine(client, context, master, line, sequence, input) {
       ),
     ),
   }));
+  const effectiveStandardCost = decimal((variant?.standard_cost ?? item.standard_cost) || 0);
   const costAmount = roundMoney(
-    mul(baseQuantity, decimal(item.standard_cost || 0)),
+    mul(baseQuantity, effectiveStandardCost),
     master.currency.decimal_places,
   );
   const lineTotal = add(netAmount, taxAmount);
@@ -481,10 +498,12 @@ async function calculateLine(client, context, master, line, sequence, input) {
   return {
     sequence,
     itemId,
+    variantId: variant?.id || null,
+    variantSkuSnapshot: variant?.sku || null,
     uomId,
     warehouseId: line.warehouseId || null,
-    itemCodeSnapshot: item.code,
-    itemNameSnapshot: item.name,
+    itemCodeSnapshot: variant?.sku || item.code,
+    itemNameSnapshot: variant ? `${item.name} — ${variant.name}` : item.name,
     descriptionSnapshot: text(line.description, 4000) || item.description,
     hsnSacSnapshot: item.hsn_sac_code,
     uomSnapshot: uomCode,
@@ -498,7 +517,7 @@ async function calculateLine(client, context, master, line, sequence, input) {
     netAmount: asDatabaseDecimal(netAmount),
     taxAmount: asDatabaseDecimal(taxAmount),
     lineTotal: asDatabaseDecimal(lineTotal),
-    standardCost: asDatabaseDecimal(item.standard_cost || 0),
+    standardCost: asDatabaseDecimal(effectiveStandardCost),
     costAmount: asDatabaseDecimal(costAmount),
     marginAmount: asDatabaseDecimal(marginAmount),
     marginPercent: asDatabaseDecimal(marginPercent),
@@ -729,7 +748,7 @@ async function insertQuotationVersion(
   const versionId = version.rows[0].id;
   for (const line of preview.lines) {
     const inserted = await client.query(
-      `INSERT INTO tenant.sales_quotation_lines (organization_id,quotation_version_id,sequence,item_id,uom_id,warehouse_id,item_code_snapshot,item_name_snapshot,description_snapshot,hsn_sac_snapshot,uom_snapshot,quantity,base_quantity,conversion_factor,list_unit_price,unit_price,discount_percent,discount_amount,net_amount,tax_amount,line_total,standard_cost,cost_amount,margin_amount,margin_percent,tax_category_id,requested_delivery_date,manual_price_override,manual_price_reason,pricing_trace,tax_trace,created_by) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30::jsonb,$31::jsonb,$32) RETURNING id`,
+      `INSERT INTO tenant.sales_quotation_lines (organization_id,quotation_version_id,sequence,item_id,uom_id,warehouse_id,item_code_snapshot,item_name_snapshot,description_snapshot,hsn_sac_snapshot,uom_snapshot,quantity,base_quantity,conversion_factor,list_unit_price,unit_price,discount_percent,discount_amount,net_amount,tax_amount,line_total,standard_cost,cost_amount,margin_amount,margin_percent,tax_category_id,requested_delivery_date,manual_price_override,manual_price_reason,pricing_trace,tax_trace,variant_id,variant_sku_snapshot,created_by) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30::jsonb,$31::jsonb,$32,$33,$34) RETURNING id`,
       [
         context.organizationId,
         versionId,
@@ -762,6 +781,8 @@ async function insertQuotationVersion(
         line.manualPriceReason,
         JSON.stringify(line.pricingTrace),
         JSON.stringify(line.taxTrace),
+        line.variantId,
+        line.variantSkuSnapshot,
         context.userId,
       ],
     );
@@ -980,6 +1001,10 @@ export async function listQuotations(client, context, filters = {}) {
   if (filters.search) {
     values.push(`%${String(filters.search).trim()}%`);
     where += ` AND (quotation.quotation_number ILIKE $${values.length} OR version.customer_snapshot->>'displayName' ILIKE $${values.length})`;
+  }
+  if (filters.partyId) {
+    values.push(uuid(filters.partyId, "Customer"));
+    where += ` AND quotation.party_id=$${values.length}`;
   }
   if (!context.allowAllCompanies && context.activeCompanyId) {
     values.push(context.activeCompanyId);
@@ -1490,7 +1515,7 @@ async function insertOrderFromPreview(
   const version = versionResult.rows[0];
   for (const line of preview.lines) {
     const inserted = await client.query(
-      `INSERT INTO tenant.sales_order_lines (organization_id,sales_order_version_id,source_quotation_line_id,sequence,item_id,uom_id,warehouse_id,item_code_snapshot,item_name_snapshot,description_snapshot,hsn_sac_snapshot,uom_snapshot,quantity,base_quantity,conversion_factor,list_unit_price,unit_price,discount_percent,discount_amount,net_amount,tax_amount,line_total,standard_cost,cost_amount,margin_amount,margin_percent,tax_category_id,requested_delivery_date,promised_delivery_date,pricing_trace,tax_trace,created_by) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30::jsonb,$31::jsonb,$32) RETURNING id`,
+      `INSERT INTO tenant.sales_order_lines (organization_id,sales_order_version_id,source_quotation_line_id,sequence,item_id,uom_id,warehouse_id,item_code_snapshot,item_name_snapshot,description_snapshot,hsn_sac_snapshot,uom_snapshot,quantity,base_quantity,conversion_factor,list_unit_price,unit_price,discount_percent,discount_amount,net_amount,tax_amount,line_total,standard_cost,cost_amount,margin_amount,margin_percent,tax_category_id,requested_delivery_date,promised_delivery_date,pricing_trace,tax_trace,variant_id,variant_sku_snapshot,created_by) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30::jsonb,$31::jsonb,$32,$33,$34) RETURNING id`,
       [
         context.organizationId,
         version.id,
@@ -1523,6 +1548,8 @@ async function insertOrderFromPreview(
         line.requestedDeliveryDate,
         JSON.stringify(line.pricingTrace),
         JSON.stringify(line.taxTrace),
+        line.variantId,
+        line.variantSkuSnapshot,
         context.userId,
       ],
     );
@@ -1659,6 +1686,10 @@ export async function listSalesOrders(client, context, filters = {}) {
   if (filters.search) {
     values.push(`%${String(filters.search).trim()}%`);
     where += ` AND (sales_order.sales_order_number ILIKE $${values.length} OR version.customer_snapshot->>'displayName' ILIKE $${values.length})`;
+  }
+  if (filters.partyId) {
+    values.push(uuid(filters.partyId, "Customer"));
+    where += ` AND sales_order.party_id=$${values.length}`;
   }
   if (!context.allowAllCompanies && context.activeCompanyId) {
     values.push(context.activeCompanyId);
@@ -1913,9 +1944,30 @@ export async function confirmSalesOrder(client, context, id, options = {}) {
       [context.organizationId, order.party_id, id],
     )
   ).rows[0];
+  // Credit exposure previously only looked at other open sales orders, so a
+  // customer delinquent on invoices but with no other open orders sailed
+  // through the gate. Fold in unpaid/overdue AR, net of unapplied advance
+  // receipts (a customer's own advance payment reduces what they actually
+  // owe), same as this same query's business_parties lookup above -- one
+  // more inline read within the same transaction, not a cross-module call.
+  const arExposure = (
+    await client.query(
+      `SELECT
+          COALESCE((SELECT sum(outstanding_amount) FROM tenant.accounting_customer_invoices
+                     WHERE organization_id=$1 AND party_id=$2 AND status NOT IN ('draft','void','paid')), 0) AS ar_outstanding,
+          COALESCE((SELECT sum(unapplied_amount) FROM tenant.accounting_customer_receipts
+                     WHERE organization_id=$1 AND party_id=$2 AND status IN ('posted','partially_applied')), 0) AS unapplied_advances`,
+      [context.organizationId, order.party_id],
+    )
+  ).rows[0];
   const creditLimit = decimal(party.credit_limit || 0);
+  const netArExposure = max(
+    0,
+    sub(arExposure.ar_outstanding || 0, arExposure.unapplied_advances || 0),
+  );
   const totalExposure = add(
     exposure.exposure || 0,
+    netArExposure,
     version.base_currency_total || 0,
   );
   let creditStatus = "passed";
@@ -2349,6 +2401,8 @@ export async function getSalesOptions(
     addresses,
     items,
     uoms,
+    itemUomConversions,
+    itemVariants,
     warehouses,
     priceLists,
     paymentTerms,
@@ -2393,6 +2447,20 @@ export async function getSalesOptions(
     client.query(
       `SELECT id,code,name,decimal_places FROM tenant.units_of_measure WHERE organization_id=$1 AND status='active' ORDER BY category,name`,
       [context.organizationId],
+    ),
+    // A line can only be sold in a UOM the item is actually convertible to
+    // (calculateLine enforces this server-side too) -- this is what the line
+    // editor's per-item UOM picker filters against, instead of offering every
+    // UOM in the org regardless of whether a conversion exists.
+    client.query(
+      `SELECT item_id,from_uom_id,to_uom_id,conversion_factor FROM tenant.item_uom_conversions WHERE organization_id=$1 AND status='active' LIMIT 2000`,
+      [context.organizationId],
+    ),
+    // Sellable SKUs of an item (size/colour/pack) -- optional per line; when
+    // chosen, its own price/cost override the item's if set.
+    client.query(
+      `SELECT id,item_id,sku,name,sales_price,standard_cost FROM tenant.item_variants WHERE organization_id=$1 AND status='active'${companyClause()} ORDER BY name LIMIT 2000`,
+      [context.organizationId, ...companyParams],
     ),
     client.query(
       `SELECT id,company_id,branch_id,code,name FROM tenant.warehouses WHERE organization_id=$1 AND status='active'${companyClause()} ORDER BY name LIMIT 500`,
@@ -2442,6 +2510,8 @@ export async function getSalesOptions(
       addresses: addresses.rows,
       items: items.rows,
       uoms: uoms.rows,
+      itemUomConversions: itemUomConversions.rows,
+      itemVariants: itemVariants.rows,
       warehouses: warehouses.rows,
       priceLists: priceLists.rows,
       paymentTerms: paymentTerms.rows,
@@ -2577,8 +2647,8 @@ export async function amendSalesOrder(client, context, id, input) {
         item_code_snapshot,item_name_snapshot,description_snapshot,hsn_sac_snapshot,uom_snapshot,quantity,
         base_quantity,conversion_factor,list_unit_price,unit_price,discount_percent,discount_amount,net_amount,
         tax_amount,line_total,standard_cost,cost_amount,margin_amount,margin_percent,tax_category_id,
-        requested_delivery_date,promised_delivery_date,pricing_trace,tax_trace,created_by
-      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30::jsonb,$31::jsonb,$32) RETURNING id`,
+        requested_delivery_date,promised_delivery_date,pricing_trace,tax_trace,variant_id,variant_sku_snapshot,created_by
+      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30::jsonb,$31::jsonb,$32,$33,$34) RETURNING id`,
       [
         context.organizationId,
         version.id,
@@ -2611,6 +2681,8 @@ export async function amendSalesOrder(client, context, id, input) {
         line.requestedDeliveryDate,
         JSON.stringify(line.pricingTrace),
         JSON.stringify(line.taxTrace),
+        line.variantId,
+        line.variantSkuSnapshot,
         context.userId,
       ],
     );

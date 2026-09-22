@@ -66,13 +66,13 @@ export async function dismissAccountDuplicateMatch(client, context, partyId, mat
 // `operation` value differs. The referenced Account must already exist
 // (FK), so a create-time 'create' override is only ever recorded AFTER the
 // new Account row itself has been inserted, in the same transaction.
-export async function recordAccountDuplicateOverride(client, context, partyId, matchedPartyIds, operation, reason) {
+export async function recordAccountDuplicateOverride(client, context, partyId, matchedPartyIds, operation, reason, sourceModule = "crm") {
   const trimmedReason = String(reason || "").trim();
   const asOf = await activeRuleSetTimestamp(client, context, "account");
   const result = await client.query(
     `INSERT INTO tenant.crm_account_duplicate_overrides
-       (organization_id, party_id, matched_party_ids, operation, reason, signature, rules_snapshot_at, actor_user_id)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
+       (organization_id, party_id, matched_party_ids, operation, reason, signature, rules_snapshot_at, actor_user_id, source_module)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
      RETURNING id`,
     [
       context.organizationId,
@@ -83,6 +83,7 @@ export async function recordAccountDuplicateOverride(client, context, partyId, m
       signatureOf({ partyId, matchedPartyIds: [...matchedPartyIds].sort() }),
       asOf,
       context.userId,
+      sourceModule,
     ],
   );
   return { id: result.rows[0].id };

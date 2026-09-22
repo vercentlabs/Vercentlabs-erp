@@ -1,12 +1,17 @@
 import "server-only";
 
+import { findAccountDuplicates, recordAccountDuplicateOverride } from "@vercentlabs/api";
+
 import { HttpError } from "@/core/http";
+
+type DuplicateClient = { query(text: string, values?: unknown[]): Promise<{ rows: Array<Record<string, unknown>> }> };
+type DuplicateContext = { organizationId: string; userId: string; activeCompanyId: string | null; activeBranchId: string | null; allowAllCompanies?: boolean; permissions: string[] };
 
 // Sales maintains customers, their contacts and addresses, and browses the
 // product catalogue, through the shared business-data engine (the same tables
 // CRM accounts sit on). Only these resources are reachable from Sales; anything
 // else (suppliers' warehouses, currencies, ...) belongs to other modules' setup.
-export const SALES_READABLE = ["parties", "items"] as const;
+export const SALES_READABLE = ["parties", "items", "contacts", "addresses"] as const;
 export const SALES_WRITABLE = ["parties", "contacts", "addresses"] as const;
 const CUSTOMER_TYPES = ["customer", "prospect", "both"];
 
@@ -42,4 +47,53 @@ export function shapeCustomerInput(resource: string, input: Record<string, unkno
   if (next.partyType !== undefined && !CUSTOMER_TYPES.includes(String(next.partyType))) throw new HttpError(400, "Sales can only maintain customers and prospects.");
   return next;
 }
+// A rep can otherwise create the same customer twice: business_parties has
+// unique constraints on code/gstin, but nothing catches a differently-coded
+// duplicate of the same legal entity. Reuses the same governed
+// exact-match-blocks-unless-overridden policy CRM already applies to
+// Accounts (findAccountDuplicates/recordAccountDuplicateOverride are
+// package-root exports, not CRM-internal) -- gated on `parties.manage`
+// (what Sales party mutations already require) instead of CRM's
+// `crm.accounts.manage`, so Sales users need no CRM permission to override.
+export async function assertPartyDuplicatePolicy(
+  client: DuplicateClient,
+  context: DuplicateContext,
+  candidate: { displayName?: unknown; legalName?: unknown; gstin?: unknown; pan?: unknown },
+  overrideReason: unknown,
+  excludeId?: string,
+): Promise<{ matchedPartyIds: string[]; reason: string } | null> {
+  const matches = await findAccountDuplicates(client, context, {
+    name: candidate.displayName ?? candidate.legalName,
+    gstin: candidate.gstin,
+    pan: candidate.pan,
+    excludeId,
+  });
+  const exact = (matches as Array<{ classification: string; id: string }>).filter((row) => row.classification === "exact");
+  if (!exact.length) return null;
+  const canOverride = context.permissions.includes("parties.manage");
+  const reason = String(overrideReason ?? "").trim();
+  if (!canOverride || reason.length < 10) {
+    throw new HttpError(
+      409,
+      canOverride
+        ? "Explain in at least 10 characters why this exact duplicate must be created."
+        : "This looks like an exact duplicate of an existing customer.",
+      "SALES_PARTY_DUPLICATE_EXACT",
+      { matches: exact },
+    );
+  }
+  return { matchedPartyIds: exact.map((row) => row.id), reason };
+}
+
+export async function recordPartyDuplicateOverride(
+  client: DuplicateClient,
+  context: DuplicateContext,
+  partyId: string,
+  matchedPartyIds: string[],
+  operation: "create" | "update",
+  reason: string,
+) {
+  return recordAccountDuplicateOverride(client, context, partyId, matchedPartyIds, operation, reason, "sales");
+}
+
 export { CUSTOMER_TYPES };

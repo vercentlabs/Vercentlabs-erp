@@ -8,6 +8,7 @@ export async function GET(request: Request) {
   const filters = {
     status: url.searchParams.get("status") || undefined,
     search: url.searchParams.get("search") || undefined,
+    partyId: url.searchParams.get("partyId") || undefined,
     limit: url.searchParams.get("limit") || undefined,
     offset: url.searchParams.get("offset") || undefined,
   };

@@ -36,6 +36,7 @@ export function recordAccountDuplicateOverride(
   matchedPartyIds: string[],
   operation: "create" | "update" | "dismiss",
   reason: string,
+  sourceModule?: "crm" | "sales",
 ): Promise<{ id: string }>;
 export function recordContactDuplicateOverride(
   client: QueryClient,

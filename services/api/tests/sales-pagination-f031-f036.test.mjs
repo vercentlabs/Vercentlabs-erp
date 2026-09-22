@@ -82,3 +82,23 @@ test("F042: listSalesOrders supports limit/offset beyond the default 200", async
   assert.match(call.sql, /LIMIT \$\d+ OFFSET \$\d+/);
   assert.deepEqual(call.values.slice(-2), [25, 75]);
 });
+
+// F031: the customer 360 Orders/Quotations tabs used to match on the
+// customer's display-name text (ILIKE), which can both miss and over-match
+// across similarly-named customers. They now filter by the stable party_id
+// FK instead.
+test("F031: listSalesOrders filters by party_id when partyId is given", async () => {
+  const client = trackingClient();
+  await listSalesOrders(client, context(), { partyId });
+  const [call] = client.calls;
+  assert.match(call.sql, /sales_order\.party_id=\$\d+/);
+  assert.ok(call.values.includes(partyId));
+});
+
+test("F031: listQuotations filters by party_id when partyId is given", async () => {
+  const client = trackingClient();
+  await listQuotations(client, context(), { partyId });
+  const [call] = client.calls;
+  assert.match(call.sql, /quotation\.party_id=\$\d+/);
+  assert.ok(call.values.includes(partyId));
+});

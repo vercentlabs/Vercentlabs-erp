@@ -1,7 +1,7 @@
 "use client";
 
 import { REGISTERS } from "@/features/inventory/configs";
-import { InventoryReportsScreen, InventorySettingsScreen, ScanLookup } from "@/features/inventory/screens/InventoryScreens";
+import { GenerateVariantsPanel, InventoryReportsScreen, InventorySettingsScreen, ScanLookup } from "@/features/inventory/screens/InventoryScreens";
 import { GenealogyScreen, QuarantineScreen } from "@/features/inventory/screens/TraceScreens";
 import { Register } from "@/features/inventory/shared/Register";
 
@@ -18,6 +18,14 @@ export function InventoryPage({ name }: { name: string }) {
     return (
       <div className="flex flex-col gap-4">
         <ScanLookup />
+        <Register config={config} />
+      </div>
+    );
+  }
+  if (name === "variants") {
+    return (
+      <div className="flex flex-col gap-4">
+        <GenerateVariantsPanel />
         <Register config={config} />
       </div>
     );

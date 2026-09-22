@@ -27,6 +27,9 @@ export type SalesOrderLine = {
   id: string;
   sequence: number;
   item_id: string;
+  variant_id: string | null;
+  variant_sku_snapshot: string | null;
+  uom_id: string | null;
   warehouse_id: string | null;
   item_code_snapshot: string;
   item_name_snapshot: string;
@@ -65,6 +68,9 @@ export type SalesOrderDetail = {
     fulfillment_status: string;
     billing_status: string;
     party_id: string;
+    contact_id: string | null;
+    billing_address_id: string | null;
+    shipping_address_id: string | null;
     company_id: string;
     order_date: string | null;
     requested_delivery_date: string | null;
@@ -113,7 +119,7 @@ const qs = (params: Record<string, string | number | undefined>) => {
   return text ? `?${text}` : "";
 };
 
-export const listSalesOrders = (filters: { status?: string; search?: string; limit?: number; offset?: number } = {}) => request<{ rows: SalesOrderRow[] }>(`/orders${qs(filters)}`);
+export const listSalesOrders = (filters: { status?: string; search?: string; partyId?: string; limit?: number; offset?: number } = {}) => request<{ rows: SalesOrderRow[] }>(`/orders${qs(filters)}`);
 export const getSalesOrder = (id: string) => request<{ detail: SalesOrderDetail }>(`/orders/${id}`);
 export const createSalesOrder = (input: SalesOrderDocumentInput) => post<{ order: { id: string; sales_order_number: string } }>("/orders", input);
 export const amendSalesOrder = (id: string, input: SalesOrderDocumentInput) => post<{ detail: SalesOrderDetail }>(`/orders/${id}/amend`, input);

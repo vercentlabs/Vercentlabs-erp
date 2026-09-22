@@ -54,6 +54,8 @@ function accrualClient({ order = orderRow(), hasCommissionRule = true } = {}) {
         return { rows: [{ credit_limit: "0" }] };
       if (sql.includes("SELECT COALESCE(sum(version.base_currency_total)"))
         return { rows: [{ exposure: "0" }] };
+      if (sql.includes("FROM tenant.accounting_customer_invoices") && sql.includes("ar_outstanding"))
+        return { rows: [{ ar_outstanding: "0", unapplied_advances: "0" }] };
       if (sql.startsWith("UPDATE tenant.sales_orders") && sql.includes("lifecycle_status='confirmed'"))
         return { rows: [{ id: orderId }] };
       if (sql.startsWith("UPDATE tenant.sales_order_line_progress")) return { rows: [] };

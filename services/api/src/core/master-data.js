@@ -158,6 +158,7 @@ const resources = Object.freeze({
       sku: "sku",
       name: "name",
       barcode: "barcode",
+      attributes: "attributes",
       salesPrice: "sales_price",
       purchasePrice: "purchase_price",
       standardCost: "standard_cost",
@@ -459,6 +460,12 @@ function buildStatusClause(status, parameters, alias = "t") {
   return ` AND ${alias}.status = ${parameter}`;
 }
 
+function buildPartyTypeClause(definition, partyTypes, parameters, alias = "t") {
+  if (definition.table !== "tenant.business_parties" || !partyTypes?.length) return "";
+  const parameter = addParameter(parameters, partyTypes);
+  return ` AND ${alias}.party_type = ANY(${parameter}::text[])`;
+}
+
 function databaseError(error) {
   if (error instanceof BusinessDataError) return error;
   if (error && typeof error === "object") {
@@ -613,6 +620,33 @@ async function assertRelationScope(client, context, definition, input) {
   return scopedInput;
 }
 
+// contacts/addresses each have a DB-enforced "one active primary" rule
+// (contacts: per party; addresses: per party+address_type) -- without this,
+// setting a second record primary just hits that unique index and surfaces
+// as an opaque 409 DUPLICATE_RECORD instead of doing what every top-ERP
+// customer master does: promoting the new one demotes the old one
+// automatically, in the same transaction. Mirrors the currencies.isBase
+// special case already established in create/updateBusinessDataRecord.
+async function demotePreviousPrimary(client, context, resource, scopedInput, excludeId = null) {
+  if (resource === "contacts") {
+    const parameters = [context.organizationId, scopedInput.partyId, context.userId];
+    const excludeClause = excludeId ? ` AND id <> $${parameters.push(excludeId)}` : "";
+    await client.query(
+      `UPDATE tenant.contacts SET is_primary = false, updated_by = $3, updated_at = now()
+       WHERE organization_id = $1 AND party_id = $2 AND is_primary = true AND status = 'active'${excludeClause}`,
+      parameters,
+    );
+  } else if (resource === "addresses") {
+    const parameters = [context.organizationId, scopedInput.partyId, scopedInput.addressType, context.userId];
+    const excludeClause = excludeId ? ` AND id <> $${parameters.push(excludeId)}` : "";
+    await client.query(
+      `UPDATE tenant.addresses SET is_primary = false, updated_by = $4, updated_at = now()
+       WHERE organization_id = $1 AND party_id = $2 AND address_type = $3 AND is_primary = true AND status = 'active'${excludeClause}`,
+      parameters,
+    );
+  }
+}
+
 async function assertExistingRecord(client, context, resource, id) {
   const definition = definitionFor(resource);
   const parameters = [context.organizationId, id];
@@ -639,6 +673,11 @@ async function assertExistingRecord(client, context, resource, id) {
   return result.rows[0];
 }
 
+export async function getBusinessDataRecord(client, context, resource, id) {
+  const row = await assertExistingRecord(client, context, resource, id);
+  return camelizeRow(row);
+}
+
 export async function listBusinessDataRecords(
   client,
   context,
@@ -658,12 +697,19 @@ export async function listBusinessDataRecords(
     "t",
   );
   const statusClause = buildStatusClause(options.status, parameters, "t");
+  const partyTypeClause = buildPartyTypeClause(
+    definition,
+    options.partyTypes,
+    parameters,
+    "t",
+  );
 
   const where = `
     WHERE t.organization_id = $1
       ${scopeClause}
       ${searchClause}
       ${statusClause}
+      ${partyTypeClause}
   `;
 
   const countResult = await client.query(
@@ -719,6 +765,10 @@ export async function createBusinessDataRecord(
         `,
         [context.organizationId, context.userId],
       );
+    }
+
+    if ((resource === "contacts" || resource === "addresses") && scopedInput.isPrimary) {
+      await demotePreviousPrimary(client, context, resource, scopedInput);
     }
 
     const entries = Object.entries(definition.fields);
@@ -781,6 +831,7 @@ export async function updateBusinessDataRecord(
   resource,
   id,
   input,
+  expectations = {},
 ) {
   const definition = definitionFor(resource);
 
@@ -830,6 +881,14 @@ export async function updateBusinessDataRecord(
       );
     }
 
+    if (
+      (resource === "contacts" || resource === "addresses") &&
+      suppliedFields.includes("isPrimary") &&
+      scopedInput.isPrimary
+    ) {
+      await demotePreviousPrimary(client, context, resource, scopedInput, id);
+    }
+
     const parameters = [id, context.organizationId];
     const assignments = [];
     for (const field of suppliedFields) {
@@ -838,6 +897,9 @@ export async function updateBusinessDataRecord(
     }
     parameters.push(context.userId);
     const updatedByParameter = `$${parameters.length}`;
+    const versionGuard = expectations.expectedUpdatedAt
+      ? ` AND updated_at = ${addParameter(parameters, expectations.expectedUpdatedAt)}`
+      : "";
 
     const result = await client.query(
       `
@@ -848,12 +910,20 @@ export async function updateBusinessDataRecord(
           updated_at = now()
         WHERE id = $1
           AND organization_id = $2
+          ${versionGuard}
         RETURNING *
       `,
       parameters,
     );
 
     if (!result.rows[0]) {
+      if (versionGuard) {
+        throw new BusinessDataError(
+          409,
+          "This record changed after you loaded it. Refresh and try again.",
+          "STALE_WRITE",
+        );
+      }
       throw new BusinessDataError(404, "Record not found.");
     }
 
@@ -895,7 +965,13 @@ export async function updateBusinessDataRecord(
   }
 }
 
-export async function archiveBusinessDataRecord(client, context, resource, id) {
+export async function archiveBusinessDataRecord(
+  client,
+  context,
+  resource,
+  id,
+  expectations = {},
+) {
   const definition = definitionFor(resource);
 
   try {
@@ -905,15 +981,29 @@ export async function archiveBusinessDataRecord(client, context, resource, id) {
       throw new BusinessDataError(409, "The base currency cannot be archived.");
     }
 
+    const parameters = [id, context.organizationId, definition.archiveStatus, context.userId];
+    const versionGuard = expectations.expectedUpdatedAt
+      ? ` AND updated_at = ${addParameter(parameters, expectations.expectedUpdatedAt)}`
+      : "";
+
     const result = await client.query(
       `
         UPDATE ${definition.table}
         SET status = $3, updated_by = $4, updated_at = now()
         WHERE id = $1 AND organization_id = $2
+          ${versionGuard}
         RETURNING *
       `,
-      [id, context.organizationId, definition.archiveStatus, context.userId],
+      parameters,
     );
+
+    if (!result.rows[0] && versionGuard) {
+      throw new BusinessDataError(
+        409,
+        "This record changed after you loaded it. Refresh and try again.",
+        "STALE_WRITE",
+      );
+    }
 
     return camelizeRow(result.rows[0]);
   } catch (error) {

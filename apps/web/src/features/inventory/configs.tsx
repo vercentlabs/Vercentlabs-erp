@@ -50,6 +50,7 @@ const items: RegisterConfig = {
     { name: "uomId", label: "Unit of measure", kind: "select", required: true, options: "uoms" },
     { name: "barcode", label: "Barcode", kind: "text" },
     { name: "hsnSacCode", label: "HSN / SAC code", kind: "text" },
+    { name: "taxCategoryId", label: "Tax category", kind: "select", options: "taxCategories" },
     { name: "trackInventory", label: "Track inventory", kind: "bool", defaultValue: "true" },
     { name: "trackingType", label: "Tracking", kind: "select", defaultValue: "none", options: TRACKING, showIf: (v) => v.trackInventory !== "false" },
     { name: "valuationMethod", label: "Valuation method", kind: "select", defaultValue: "moving_average", options: [{ value: "moving_average", label: "Moving average" }, { value: "fifo", label: "FIFO" }, { value: "standard", label: "Standard cost" }] },
@@ -63,6 +64,7 @@ const items: RegisterConfig = {
     col("name", "Name", (r) => String(r.name)),
     col("group", "Category", (r) => name(o?.groups, r.groupId)),
     col("uom", "Unit", (r) => name(o?.uoms, r.uomId)),
+    col("taxCategory", "Tax category", (r) => name(o?.taxCategories, r.taxCategoryId)),
     col("tracking", "Tracking", (r) => (r.trackInventory === false ? "Not tracked" : label(r.trackingType))),
     col("valuation", "Valuation", (r) => label(r.valuationMethod)),
     col("barcode", "Barcode", (r) => String(r.barcode ?? "—")),
@@ -114,7 +116,15 @@ const variants: RegisterConfig = {
     { name: "purchasePrice", label: "Purchase price", kind: "number", step: 0.01 },
     { name: "standardCost", label: "Standard cost", kind: "number", step: 0.01 },
   ],
-  columns: (o) => [strong("sku", "SKU", (r) => String(r.sku)), col("name", "Variant", (r) => String(r.name)), col("item", "Item", (r) => itemName(o, r.itemId)), col("barcode", "Barcode", (r) => String(r.barcode ?? "—")), col("price", "Sales price", (r) => amount(r.salesPrice)), badge("status", "Status", (r) => r.status)],
+  columns: (o) => [
+    strong("sku", "SKU", (r) => String(r.sku)),
+    col("name", "Variant", (r) => String(r.name)),
+    col("item", "Item", (r) => itemName(o, r.itemId)),
+    col("attributes", "Attributes", (r) => (r.attributes && typeof r.attributes === "object" ? Object.entries(r.attributes as Record<string, string>).map(([k, v]) => `${k}: ${v}`).join(", ") : "—")),
+    col("barcode", "Barcode", (r) => String(r.barcode ?? "—")),
+    col("price", "Sales price", (r) => amount(r.salesPrice)),
+    badge("status", "Status", (r) => r.status),
+  ],
   searchText: (r) => text(r, ["sku", "name", "barcode"]),
 };
 

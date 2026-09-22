@@ -61,8 +61,11 @@ test.describe("Sales customers and products", () => {
       await r.getByRole("tab", { name: "Profile" }).click();
       await expect(r.getByText(`${name} Pvt Ltd`)).toBeVisible({ timeout: 30_000 });
 
-      // archive: banner appears, and it leaves the default (active) list
+      // archive: requires a second confirming click, then the banner appears and it leaves the default (active) list
       await r.getByRole("button", { name: "Archive" }).click();
+      const confirmArchive = r.getByRole("dialog", { name: "Archive this customer?" });
+      await expect(confirmArchive).toBeVisible({ timeout: 10_000 });
+      await confirmArchive.getByRole("button", { name: "Archive customer" }).click();
       await expect(r.getByText(/This customer is archived/)).toBeVisible({ timeout: 30_000 });
       await r.goto("/sales/customers", { waitUntil: "domcontentloaded" });
       await r.getByRole("searchbox", { name: "Search customers" }).fill(name);

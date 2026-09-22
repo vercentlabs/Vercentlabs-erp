@@ -14,9 +14,9 @@ import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import { SalesApiError } from "@/features/sales/shared/http";
 import { money, statusLabel, statusTone } from "@/features/sales/shared/format";
 import { SalesAlert, SalesFacts, SalesPanel } from "@/features/sales/shared/SalesUi";
-import { getSalesOptions, type SalesOptions } from "@/features/sales/quotations/api/quotations-api";
+import { getSalesOptions, listSalesQuotations, type SalesOptions, type SalesQuotationRow } from "@/features/sales/quotations/api/quotations-api";
 import { listSalesOrders, type SalesOrderRow } from "@/features/sales/orders/api/orders-api";
-import { archiveRecord, createRecord, listCustomers, updateRecord, type AddressInput, type ContactInput, type CustomerRecord } from "@/features/sales/master/api/master-api";
+import { archiveRecord, createRecord, getCustomer, getCustomerCredit, updateRecord, type AddressInput, type ContactInput, type CustomerRecord } from "@/features/sales/master/api/master-api";
 import { CustomerDialog } from "@/features/sales/master/screens/SalesCustomersScreen";
 
 type Contact = SalesOptions["contacts"][number] & { designation?: string | null; phone?: string | null; mobile?: string | null };
@@ -35,32 +35,38 @@ export function SalesCustomerDetailScreen({ customerId }: { customerId: string }
   const [contactDialog, setContactDialog] = useState<Contact | "new" | null>(null);
   const [addressDialog, setAddressDialog] = useState<Address | "new" | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [confirmingArchive, setConfirmingArchive] = useState(false);
 
-  // The list endpoint has no by-id read, so the customer is found through a search on its code/name.
   const customerQuery = useQuery({
     queryKey: scopedQueryKey(workspace, "sales", "customer", customerId),
-    queryFn: async () => {
-      const all = await listCustomers({ status: "all" });
-      const found = all.rows.find((row) => row.id === customerId);
-      if (!found) throw new SalesApiError("Customer not found.", 404);
-      return found;
-    },
+    queryFn: () => getCustomer(customerId).then((r) => r.record),
     retry: (count, error) => !(error instanceof SalesApiError && [403, 404].includes(error.status)) && count < 2,
   });
   const optionsQuery = useQuery({ queryKey: scopedQueryKey(workspace, "sales", "options", customerId), queryFn: () => getSalesOptions(customerId).then((r) => r.options) });
   const ordersQuery = useQuery({
     queryKey: scopedQueryKey(workspace, "sales", "orders", "customer", customerId),
     enabled: Boolean(customerQuery.data),
-    queryFn: () => listSalesOrders({ search: customerQuery.data?.displayName, limit: 100 }).then((r) => r.rows),
+    queryFn: () => listSalesOrders({ partyId: customerId, limit: 100 }).then((r) => r.rows),
+  });
+  const quotationsQuery = useQuery({
+    queryKey: scopedQueryKey(workspace, "sales", "quotations", "customer", customerId),
+    enabled: Boolean(customerQuery.data),
+    queryFn: () => listSalesQuotations({ partyId: customerId, limit: 100 }).then((r) => r.rows),
+  });
+  const creditQuery = useQuery({
+    queryKey: scopedQueryKey(workspace, "sales", "credit", customerId),
+    enabled: Boolean(customerQuery.data),
+    queryFn: () => getCustomerCredit(customerId).then((r) => r.credit),
   });
 
   function refresh() {
     queryClient.invalidateQueries({ queryKey: scopedQueryKey(workspace, "sales") });
   }
   const archive = useMutation({
-    mutationFn: () => archiveRecord("parties", customerId),
+    mutationFn: () => archiveRecord("parties", customerId, customerQuery.data?.updatedAt),
     onSuccess: () => {
       setActionError(null);
+      setConfirmingArchive(false);
       refresh();
     },
     onError: (err) => setActionError(err instanceof SalesApiError ? err.message : "Could not archive this customer."),
@@ -109,6 +115,11 @@ export function SalesCustomerDetailScreen({ customerId }: { customerId: string }
     { id: "status", header: "Status", cell: ({ row }) => <StatusBadge tone={statusTone(row.original.lifecycle_status)}>{statusLabel(row.original.lifecycle_status)}</StatusBadge> },
     { id: "total", header: "Total", accessorFn: (row) => money(row.currency_code, row.grand_total) },
   ];
+  const quotationColumns: ColumnDef<SalesQuotationRow, unknown>[] = [
+    { id: "number", header: "Quotation", cell: ({ row }) => <Link href={`/sales/quotations/${row.original.id}`} className="font-medium text-brand hover:underline">{row.original.quotation_number}</Link> },
+    { id: "status", header: "Status", cell: ({ row }) => <StatusBadge tone={statusTone(row.original.lifecycle_status)}>{statusLabel(row.original.lifecycle_status)}</StatusBadge> },
+    { id: "total", header: "Total", accessorFn: (row) => money(row.currency_code, row.grand_total) },
+  ];
   const rowActionsFor = (resource: "contacts" | "addresses", open: (record: never) => void) => function RowActions(record: { id: string }) {
     return canManage ? (
       <div className="flex gap-1">
@@ -150,7 +161,7 @@ export function SalesCustomerDetailScreen({ customerId }: { customerId: string }
                 Edit
               </Button>
               {customer.status === "active" ? (
-                <Button variant="secondary" onPress={() => archive.mutate()} isLoading={archive.isPending}>
+                <Button variant="secondary" onPress={() => setConfirmingArchive(true)} isLoading={archive.isPending}>
                   <Archive className="size-4" aria-hidden="true" />
                   Archive
                 </Button>
@@ -171,6 +182,8 @@ export function SalesCustomerDetailScreen({ customerId }: { customerId: string }
             <Tab id="contacts">Contacts ({contacts.length})</Tab>
             <Tab id="addresses">Addresses ({addresses.length})</Tab>
             <Tab id="orders">Orders</Tab>
+            <Tab id="quotations">Quotations</Tab>
+            <Tab id="credit">Credit &amp; Finance</Tab>
           </TabList>
           <TabPanel id="profile">
             <SalesPanel title="Commercial profile">
@@ -201,12 +214,55 @@ export function SalesCustomerDetailScreen({ customerId }: { customerId: string }
               <EnterpriseDataGrid<SalesOrderRow> aria-label="Customer orders" columns={orderColumns} data={ordersQuery.data ?? []} getRowId={(row) => row.id} density="compact" state={ordersQuery.isLoading ? "loading" : (ordersQuery.data?.length ?? 0) ? "ready" : "empty"} loadingContent={<p className="px-4 py-6 text-sm text-text-secondary">Loading…</p>} emptyContent={<p className="px-4 py-6 text-sm text-text-muted">No orders yet.</p>} />
             </SalesPanel>
           </TabPanel>
+          <TabPanel id="quotations">
+            <SalesPanel title="Quotations" description="Quotations raised for this customer.">
+              <EnterpriseDataGrid<SalesQuotationRow> aria-label="Customer quotations" columns={quotationColumns} data={quotationsQuery.data ?? []} getRowId={(row) => row.id} density="compact" state={quotationsQuery.isLoading ? "loading" : (quotationsQuery.data?.length ?? 0) ? "ready" : "empty"} loadingContent={<p className="px-4 py-6 text-sm text-text-secondary">Loading…</p>} emptyContent={<p className="px-4 py-6 text-sm text-text-muted">No quotations yet.</p>} />
+            </SalesPanel>
+          </TabPanel>
+          <TabPanel id="credit">
+            <SalesPanel title="Credit & Finance" description="Outstanding receivables and credit exposure for this customer.">
+              {creditQuery.isLoading ? (
+                <p className="px-4 py-6 text-sm text-text-secondary">Loading…</p>
+              ) : creditQuery.data ? (
+                <div className="flex flex-col gap-3">
+                  {creditQuery.data.overLimit && <SalesAlert tone="warning">This customer is over their credit limit.</SalesAlert>}
+                  <SalesFacts
+                    columns={3}
+                    items={[
+                      { label: "Credit limit", value: creditQuery.data.creditLimit > 0 ? money(creditQuery.data.currencyCode, creditQuery.data.creditLimit) : "No limit" },
+                      { label: "AR outstanding", value: money(creditQuery.data.currencyCode, creditQuery.data.arOutstanding) },
+                      { label: "Unapplied advances", value: money(creditQuery.data.currencyCode, creditQuery.data.unappliedAdvances) },
+                      { label: "Available credit", value: creditQuery.data.availableCredit === null ? "No limit" : money(creditQuery.data.currencyCode, creditQuery.data.availableCredit) },
+                    ]}
+                  />
+                </div>
+              ) : (
+                <p className="px-4 py-6 text-sm text-text-muted">Credit summary unavailable.</p>
+              )}
+            </SalesPanel>
+          </TabPanel>
         </Tabs>
       </RecordDetailsPage>
 
       {editing && <CustomerDialog customer={customer} onClose={() => setEditing(false)} onSaved={() => setEditing(false)} />}
       {contactDialog && <ContactDialog partyId={customerId} contact={contactDialog === "new" ? undefined : contactDialog} onClose={() => setContactDialog(null)} onSaved={() => { setContactDialog(null); refresh(); }} />}
       {addressDialog && <AddressDialog partyId={customerId} address={addressDialog === "new" ? undefined : addressDialog} onClose={() => setAddressDialog(null)} onSaved={() => { setAddressDialog(null); refresh(); }} />}
+      {confirmingArchive && (
+        <Dialog isOpen onOpenChange={(open) => !open && setConfirmingArchive(false)} title="Archive this customer?">
+          <div className="flex flex-col gap-4">
+            {actionError && <SalesAlert>{actionError}</SalesAlert>}
+            <p className="text-sm text-text-secondary">This will remove the customer from new quotations and orders. Existing documents are unaffected.</p>
+            <div className="flex justify-end gap-2">
+              <Button variant="secondary" onPress={() => setConfirmingArchive(false)}>
+                Cancel
+              </Button>
+              <Button variant="primary" onPress={() => archive.mutate()} isLoading={archive.isPending}>
+                Archive customer
+              </Button>
+            </div>
+          </div>
+        </Dialog>
+      )}
     </div>
   );
 }

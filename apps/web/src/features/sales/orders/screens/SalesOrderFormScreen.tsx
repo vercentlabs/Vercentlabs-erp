@@ -14,7 +14,7 @@ import { SalesAlert, SalesFacts, SalesPanel } from "@/features/sales/shared/Sale
 import { getSalesOptions, previewSalesDocument, type SalesDocumentInput } from "@/features/sales/quotations/api/quotations-api";
 import { amendSalesOrder, createSalesOrder, getSalesOrder, type SalesOrderDetail, type SalesOrderDocumentInput } from "@/features/sales/orders/api/orders-api";
 
-type LineDraft = { key: number; itemId: string; quantity: number; discountPercent: number; warehouseId: string };
+type LineDraft = { key: number; itemId: string; variantId: string; uomId: string; quantity: number; discountPercent: number; warehouseId: string };
 type ChargeDraft = { key: number; label: string; calculationType: "fixed" | "percentage"; value: number };
 
 let draftKey = 0;
@@ -77,6 +77,9 @@ function FormBody({
   const baseCurrency = options.currencies.find((currency) => currency.is_base)?.code ?? options.currencies[0]?.code ?? "INR";
 
   const [partyId, setPartyId] = useState(existing?.order.party_id ?? "");
+  const [contactId, setContactId] = useState(existing?.order.contact_id ?? "");
+  const [billingAddressId, setBillingAddressId] = useState(existing?.order.billing_address_id ?? "");
+  const [shippingAddressId, setShippingAddressId] = useState(existing?.order.shipping_address_id ?? "");
   const [currencyCode, setCurrencyCode] = useState(existing?.order.currency_code ?? baseCurrency);
   const [priceListId, setPriceListId] = useState(existing?.order.price_list_id ?? "");
   const [paymentTermId, setPaymentTermId] = useState(existing?.order.payment_term_id ?? "");
@@ -90,8 +93,8 @@ function FormBody({
   const [amendmentReason, setAmendmentReason] = useState("");
   const [lines, setLines] = useState<LineDraft[]>(() =>
     existing?.lines.length
-      ? existing.lines.map((line) => ({ key: nextKey(), itemId: line.item_id, quantity: Number(line.quantity), discountPercent: Number(line.discount_percent), warehouseId: line.warehouse_id ?? "" }))
-      : [{ key: nextKey(), itemId: "", quantity: 1, discountPercent: 0, warehouseId: "" }],
+      ? existing.lines.map((line) => ({ key: nextKey(), itemId: line.item_id, variantId: line.variant_id ?? "", uomId: line.uom_id ?? "", quantity: Number(line.quantity), discountPercent: Number(line.discount_percent), warehouseId: line.warehouse_id ?? "" }))
+      : [{ key: nextKey(), itemId: "", variantId: "", uomId: "", quantity: 1, discountPercent: 0, warehouseId: "" }],
   );
   const [charges, setCharges] = useState<ChargeDraft[]>(() =>
     existing && Number(existing.order.charge_total) > 0 ? [{ key: nextKey(), label: "Existing charges", calculationType: "fixed" as const, value: Number(existing.order.charge_total) }] : [],
@@ -100,7 +103,50 @@ function FormBody({
   const [idempotencyKey] = useState(() => crypto.randomUUID());
 
   const partyOptions: SelectOption[] = options.parties.map((party) => ({ value: party.id, label: `${party.display_name} (${party.code})` }));
+  // Every top-ERP customer-master comparison (SAP's partner functions,
+  // NetSuite's per-transaction ship-to/bill-to) resolves contact/address at
+  // the document level, independent of which one the customer has marked
+  // primary -- so these list every contact/address that belongs to the
+  // chosen customer, not just its primary ones.
+  const partyContacts = options.contacts.filter((contact) => contact.party_id === partyId);
+  const partyAddresses = options.addresses.filter((address) => address.party_id === partyId);
+  const contactOptions: SelectOption[] = [{ value: "", label: "None" }, ...partyContacts.map((contact) => ({ value: contact.id, label: `${contact.first_name} ${contact.last_name ?? ""}`.trim() + (contact.is_primary ? " (primary)" : "") }))];
+  // Any of the customer's addresses can serve as billing or shipping for
+  // THIS document, regardless of its own address_type label (the same
+  // per-transaction role resolution SAP's partner functions and NetSuite's
+  // ship-to/bill-to selectors provide) -- both pickers list every address.
+  const addressOptions: SelectOption[] = [
+    { value: "", label: "None" },
+    ...partyAddresses.map((address) => ({ value: address.id, label: `${address.address_type} — ${address.line1}${address.city ? `, ${address.city}` : ""}` + (address.is_primary ? " (primary)" : "") })),
+  ];
   const itemOptions: SelectOption[] = options.items.map((item) => ({ value: item.id, label: `${item.name} (${item.code})` }));
+  // F033: expose a line's UOM and variant/SKU context, not just the item --
+  // "sell 20 cartons of the Large/Brown box" needs both. The UOM list is
+  // scoped to what the item can actually convert to (the server enforces the
+  // same thing); the variant list is scoped to that item's own SKUs.
+  const uomById = new Map(options.uoms.map((uom) => [uom.id, uom]));
+  function uomOptionsFor(itemId: string): SelectOption[] {
+    const item = options.items.find((candidate) => candidate.id === itemId);
+    if (!item?.uom_id) return [];
+    const reachable = new Set([item.uom_id]);
+    for (const conversion of options.itemUomConversions) {
+      if (conversion.item_id !== itemId) continue;
+      reachable.add(conversion.from_uom_id);
+      reachable.add(conversion.to_uom_id);
+    }
+    return Array.from(reachable)
+      .map((id) => uomById.get(id))
+      .filter((uom): uom is NonNullable<typeof uom> => Boolean(uom))
+      .map((uom) => ({ value: uom.id, label: `${uom.name} (${uom.code})` }));
+  }
+  function variantOptionsFor(itemId: string): SelectOption[] {
+    const variants = options.itemVariants.filter((variant) => variant.item_id === itemId);
+    return [{ value: "", label: "Standard (no variant)" }, ...variants.map((variant) => ({ value: variant.id, label: `${variant.sku} — ${variant.name}` }))];
+  }
+  function selectLineItem(key: number, itemId: string) {
+    const item = options.items.find((candidate) => candidate.id === itemId);
+    updateLine(key, { itemId, variantId: "", uomId: item?.uom_id ?? "" });
+  }
   const warehouseOptions: SelectOption[] = [{ value: "", label: "No warehouse yet" }, ...options.warehouses.map((warehouse) => ({ value: warehouse.id, label: `${warehouse.name} (${warehouse.code})` }))];
   const currencyOptions: SelectOption[] = options.currencies.map((currency) => ({ value: currency.code, label: `${currency.code} — ${currency.name}` }));
   const priceListOptions: SelectOption[] = [{ value: "", label: "No price list (item list price)" }, ...options.priceLists.filter((list) => list.currency_code === currencyCode).map((list) => ({ value: list.id, label: list.name }))];
@@ -114,6 +160,14 @@ function FormBody({
     if (party?.currency_code) setCurrencyCode(party.currency_code);
     if (party?.payment_term_id) setPaymentTermId(party.payment_term_id);
     setPriceListId("");
+    // Default to the new customer's primary contact/billing/shipping address
+    // (still fully overridable below) -- the previous customer's selections
+    // don't carry over.
+    const contacts = options.contacts.filter((contact) => contact.party_id === id);
+    const addresses = options.addresses.filter((address) => address.party_id === id);
+    setContactId(contacts.find((contact) => contact.is_primary)?.id ?? "");
+    setBillingAddressId(addresses.find((address) => address.address_type === "billing" && address.is_primary)?.id ?? "");
+    setShippingAddressId(addresses.find((address) => address.address_type === "shipping" && address.is_primary)?.id ?? "");
   }
 
   const validLines = lines.filter((line) => line.itemId && line.quantity > 0);
@@ -121,6 +175,9 @@ function FormBody({
     if (!partyId || !currencyCode || validLines.length === 0) return null;
     return {
       partyId,
+      contactId: contactId || undefined,
+      billingAddressId: billingAddressId || undefined,
+      shippingAddressId: shippingAddressId || undefined,
       currencyCode,
       priceListId: priceListId || null,
       paymentTermId: paymentTermId || null,
@@ -132,10 +189,10 @@ function FormBody({
       internalNotes: internalNotes || undefined,
       termsAndConditions: terms || undefined,
       amendmentReason: amendmentReason || undefined,
-      lines: validLines.map((line) => ({ itemId: line.itemId, quantity: line.quantity, discountPercent: line.discountPercent || undefined, warehouseId: line.warehouseId || undefined })),
+      lines: validLines.map((line) => ({ itemId: line.itemId, variantId: line.variantId || undefined, uomId: line.uomId || undefined, quantity: line.quantity, discountPercent: line.discountPercent || undefined, warehouseId: line.warehouseId || undefined })),
       charges: charges.filter((charge) => charge.value > 0).map((charge) => ({ label: charge.label || "Charge", calculationType: charge.calculationType, value: charge.value })),
     };
-  }, [partyId, currencyCode, priceListId, paymentTermId, deliveryDate, poNumber, poDate, headerDiscount, customerNotes, internalNotes, terms, amendmentReason, validLines, charges]);
+  }, [partyId, contactId, billingAddressId, shippingAddressId, currencyCode, priceListId, paymentTermId, deliveryDate, poNumber, poDate, headerDiscount, customerNotes, internalNotes, terms, amendmentReason, validLines, charges]);
 
   // Debounce so typing a quantity doesn't fire a pricing request per keystroke.
   const inputJson = JSON.stringify(input);
@@ -199,6 +256,9 @@ function FormBody({
           <SalesPanel title="Customer & terms">
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <Select label="Customer" isRequired options={partyOptions} selectedKey={partyId || null} onSelectionChange={(key) => selectParty(String(key ?? ""))} placeholder="Select a customer" isDisabled={revising} />
+              <Select label="Contact" options={contactOptions} selectedKey={contactId} onSelectionChange={(key) => setContactId(String(key ?? ""))} isDisabled={!partyId} />
+              <Select label="Billing address" options={addressOptions} selectedKey={billingAddressId} onSelectionChange={(key) => setBillingAddressId(String(key ?? ""))} isDisabled={!partyId} />
+              <Select label="Shipping address" options={addressOptions} selectedKey={shippingAddressId} onSelectionChange={(key) => setShippingAddressId(String(key ?? ""))} isDisabled={!partyId} />
               <TextField label="Requested delivery date" type="date" value={deliveryDate} onChange={setDeliveryDate} />
               <TextField label="Customer PO number" value={poNumber} onChange={setPoNumber} />
               <TextField label="Customer PO date" type="date" value={poDate} onChange={setPoDate} />
@@ -212,7 +272,7 @@ function FormBody({
           <SalesPanel
             title="Items"
             actions={
-              <Button variant="secondary" size="compact" onPress={() => setLines((current) => [...current, { key: nextKey(), itemId: "", quantity: 1, discountPercent: 0, warehouseId: "" }])}>
+              <Button variant="secondary" size="compact" onPress={() => setLines((current) => [...current, { key: nextKey(), itemId: "", variantId: "", uomId: "", quantity: 1, discountPercent: 0, warehouseId: "" }])}>
                 <Plus className="size-3.5" aria-hidden="true" />
                 Add item
               </Button>
@@ -221,15 +281,33 @@ function FormBody({
             <div className="flex flex-col gap-3">
               {lines.map((line, index) => {
                 const priced = preview?.lines.find((candidate) => candidate.sequence === validLines.findIndex((v) => v.key === line.key) + 1);
+                const lineVariantOptions = variantOptionsFor(line.itemId);
+                const lineUomOptions = uomOptionsFor(line.itemId);
                 return (
-                  <div key={line.key} className="grid grid-cols-1 items-end gap-2 rounded-[var(--radius-control)] border border-border p-3 sm:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1.4fr)_auto]">
+                  <div key={line.key} className="grid grid-cols-1 items-end gap-2 rounded-[var(--radius-control)] border border-border p-3 sm:grid-cols-[minmax(0,1.5fr)_minmax(0,1.3fr)_minmax(0,0.8fr)_minmax(0,0.6fr)_minmax(0,0.6fr)_minmax(0,1.2fr)_auto]">
                     <Select
                       aria-label={`Item ${index + 1}`}
                       label={index === 0 ? "Item" : undefined}
                       options={itemOptions}
                       selectedKey={line.itemId || null}
-                      onSelectionChange={(key) => updateLine(line.key, { itemId: String(key ?? "") })}
+                      onSelectionChange={(key) => selectLineItem(line.key, String(key ?? ""))}
                       placeholder="Select an item"
+                    />
+                    <Select
+                      aria-label={`Variant ${index + 1}`}
+                      label={index === 0 ? "Variant" : undefined}
+                      options={lineVariantOptions}
+                      selectedKey={line.variantId}
+                      onSelectionChange={(key) => updateLine(line.key, { variantId: String(key ?? "") })}
+                      isDisabled={lineVariantOptions.length <= 1}
+                    />
+                    <Select
+                      aria-label={`UOM ${index + 1}`}
+                      label={index === 0 ? "UOM" : undefined}
+                      options={lineUomOptions}
+                      selectedKey={line.uomId || null}
+                      onSelectionChange={(key) => updateLine(line.key, { uomId: String(key ?? "") })}
+                      isDisabled={lineUomOptions.length <= 1}
                     />
                     <NumberField aria-label={`Quantity ${index + 1}`} label={index === 0 ? "Quantity" : undefined} value={line.quantity} onChange={(value) => updateLine(line.key, { quantity: value })} minValue={0} step={1} />
                     <NumberField aria-label={`Discount ${index + 1}`} label={index === 0 ? "Discount %" : undefined} value={line.discountPercent} onChange={(value) => updateLine(line.key, { discountPercent: value })} minValue={0} maxValue={100} step={1} />
@@ -238,7 +316,7 @@ function FormBody({
                       <Trash2 className="size-4" aria-hidden="true" />
                     </IconButton>
                     {priced && (
-                      <p className="text-xs text-text-muted sm:col-span-5">
+                      <p className="text-xs text-text-muted sm:col-span-7">
                         {money(currencyCode, priced.unitPrice)} each · net {money(currencyCode, priced.netAmount)} · tax {money(currencyCode, priced.taxAmount)} · line total <span className="font-medium text-text">{money(currencyCode, priced.lineTotal)}</span>
                       </p>
                     )}

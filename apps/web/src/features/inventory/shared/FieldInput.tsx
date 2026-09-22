@@ -4,7 +4,7 @@ import { NumberField, Select, TextArea, TextField, type SelectOption } from "@ve
 
 import type { InvOptions } from "@/features/inventory/shared/client";
 
-export type OptionSource = "items" | "warehouses" | "locations" | "batches" | "uoms" | "groups";
+export type OptionSource = "items" | "warehouses" | "locations" | "batches" | "uoms" | "groups" | "taxCategories";
 export type FieldValue = string | number;
 export type FieldDef = {
   name: string;
@@ -45,6 +45,8 @@ export function resolveOptions(field: FieldDef, options: InvOptions | undefined,
       return (options?.uoms ?? []).map((u) => ({ value: u.id, label: `${u.name} (${u.code})` }));
     case "groups":
       return (options?.groups ?? []).map((g) => ({ value: g.id, label: `${g.name} (${g.code})` }));
+    case "taxCategories":
+      return (options?.taxCategories ?? []).map((t) => ({ value: t.id, label: `${t.name} (${t.code})` }));
   }
 }
 
