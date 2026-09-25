@@ -15,6 +15,9 @@ on:
       - "apps/mobile/src/**/crm/**"
       - "services/api/src/modules/crm/**"
       - "services/api/tests/crm*"
+      - "services/api/src/modules/sales/index.js"
+      - "services/api/src/modules/accounting/receivables.js"
+      - "apps/web/src/app/api/notifications/**"
       - "services/worker/src/**crm**"
       - "database/**/migrations/**crm**"
       - "packages/permissions/**"
@@ -42,6 +45,27 @@ jobs:
     name: CRM backend/domain (architecture, DB structure, module contracts, CRM tests, full API suite)
     runs-on: ubuntu-latest
     timeout-minutes: 45
+    # The CRM RBAC access matrix (services/api/tests/crm-access-matrix-db.test.mjs)
+    # needs a real PostgreSQL: scope rules are SQL and mocks cannot prove them.
+    # CRM_ACCESS_DB_REQUIRED=1 makes a missing database a FAILURE, never a
+    # silent skip. The test seeds and rolls back its own organisation.
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: vercentlabs
+          POSTGRES_PASSWORD: ci_owner_password
+          POSTGRES_DB: vercentlabs_control
+        ports:
+          - 5433:5432
+        options: >-
+          --health-cmd "pg_isready -U vercentlabs -d vercentlabs_control"
+          --health-interval 5s --health-timeout 5s --health-retries 20
+    env:
+      MIGRATION_DATABASE_URL: postgresql://vercentlabs:ci_owner_password@localhost:5433/vercentlabs_control
+      DATABASE_URL: postgresql://vercent_app:ci_app_password@localhost:5433/vercentlabs_control
+      DATABASE_SSL: "false"
+      CRM_ACCESS_DB_REQUIRED: "1"
     steps:
       - uses: actions/checkout@v6
 
@@ -57,7 +81,9 @@ jobs:
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
-      - name: Verify CRM backend/domain
+      - name: Apply migrations and provision the runtime role
+        run: pnpm db:setup
+      - name: Verify CRM backend/domain (includes the real-database RBAC matrix)
         run: pnpm verify:crm
       - name: Dependency audit
         run: pnpm audit:dependencies
