@@ -21,7 +21,6 @@ export const CRM_RESOURCE_KEYS: readonly [
   "forecast-targets",
   "integrations",
   "webhook-subscriptions",
-  "saved-views",
   "sales-teams",
   "sales-team-members",
   "territories",

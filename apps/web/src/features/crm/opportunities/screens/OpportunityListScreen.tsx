@@ -29,7 +29,6 @@ import { Kanban, Table2 } from "lucide-react";
 import { dueState, formatMoney } from "@/features/crm/shared/human";
 import { getCrmOptions } from "@/features/crm/shared/crm-options-api";
 import { money } from "@/features/crm/shared/format";
-import { SavedViewsBar } from "@/features/crm/shared/SavedViewsBar";
 import { bulkUpdateOpportunitiesRequest, listOpportunities, OpportunityApiError, type OpportunityBulkSyncResult } from "../api/opportunities-api";
 import type { Opportunity, OpportunityListFilters } from "../types";
 
@@ -145,13 +144,6 @@ export function OpportunityListScreen() {
   const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE));
   const hasFilters = Boolean(filters.search || filters.stageId || (filters.status && filters.status !== "open"));
   const selectedIds = Object.keys(selection).filter((id) => selection[id]);
-  const hasExplicitFilters = searchParams.toString().length > 0;
-  const filtersWithoutPaging: OpportunityListFilters = useMemo(() => {
-    const rest = { ...filters };
-    delete rest.limit;
-    delete rest.offset;
-    return rest;
-  }, [filters]);
 
   // F029 — every row runs through the single-record rules; the summary
   // names what will not (or did not) change and why. Preview writes nothing.
@@ -305,13 +297,6 @@ export function OpportunityListScreen() {
         ),
       }}
     >
-      <SavedViewsBar
-        resource="opportunities"
-        baseFilters={{ limit: PAGE_SIZE, offset: 0, status: "open" } as OpportunityListFilters}
-        currentFilters={filtersWithoutPaging}
-        hasExplicitFilters={hasExplicitFilters}
-        onApply={(next) => setFilters(next)}
-      />
       {bulkResult && (
         <p role="status" className="rounded-[var(--radius-control)] border border-border bg-surface px-3 py-2 text-sm text-text">
           {bulkResult}

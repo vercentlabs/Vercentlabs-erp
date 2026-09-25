@@ -18,15 +18,8 @@ import { CRM_PERMISSIONS } from "@vercentlabs/permissions";
 // domain/SQL layer already enforces a stricter, per-user scope instead of
 // module access being the correct floor. Keep this list short and each
 // entry justified; it is a documented exception, not an escape hatch.
-export const SELF_SCOPED_CRM_RESOURCES = new Set<string>([
-  // tenant.crm_saved_views: record-policy.js's recordScope() hard-scopes
-  // every read/write to `record.user_id = context.userId`, and
-  // resource-mutation-service.js forces userId=context.userId on create and
-  // strips any client-supplied userId on update — inherently a personal
-  // resource, any CRM user manages only their own saved views, no
-  // organizational permission tier applies. See saved-views-api.ts.
-  "saved-views",
-]);
+// Currently empty: saved views (its only entry) were removed in migration 179.
+export const SELF_SCOPED_CRM_RESOURCES = new Set<string>([]);
 
 export const RESOURCE_MANAGE_PERMISSIONS: Partial<Record<string, string>> = {
   leads: CRM_PERMISSIONS.leadsManage,

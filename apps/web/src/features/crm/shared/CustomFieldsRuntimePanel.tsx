@@ -43,7 +43,7 @@ export function CustomFieldsRuntimePanel({ entityType, entityId }: { entityType:
   // Adjusting state while rendering (React's own sanctioned alternative
   // to an effect that would call setState synchronously) — seeded once
   // per fetch, guarded so the user's in-progress edits are never
-  // clobbered by a background refetch. Same pattern as SavedViewsBar's
+  // clobbered by a background refetch. Same pattern as the former SavedViewsBar's
   // default-view selection.
   const [seededFor, setSeededFor] = useState<unknown>(undefined);
   if (!dirty && query.data && query.data !== seededFor) {

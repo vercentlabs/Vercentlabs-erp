@@ -113,9 +113,6 @@ function communicationParentScopeSql(context, parameters, alias) {
 
 export function recordScope(definition, context, parameters, alias = "record") {
   let sql = "";
-  if (definition.table === "tenant.crm_saved_views") {
-    sql += ` AND ${alias}.user_id = ${addParameter(parameters, context.userId)}`;
-  }
   if (definition.table === "tenant.crm_communications") {
     // F018 final closeout — AUDIENCE ("may this caller know this
     // communication exists") and CONTENT ("may this caller read subject/

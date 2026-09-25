@@ -86,8 +86,8 @@ test("resource-permissions: an unmapped resource (e.g. communications) is denied
   assert.equal(resolveCrmMutationPermission("ai-feedback").kind, "denied");
 });
 
-test("resource-permissions: saved-views is the one documented self-scoped exemption (per-user SQL scope, not an org manage tier)", () => {
-  assert.equal(resolveCrmMutationPermission("saved-views").kind, "self-scoped");
+test("resource-permissions: saved-views was removed and is now refused like any unknown resource", () => {
+  assert.equal(resolveCrmMutationPermission("saved-views").kind, "denied");
 });
 
 test("resource-permissions: an entirely unknown resource key is denied, not allow-listed by accident", () => {

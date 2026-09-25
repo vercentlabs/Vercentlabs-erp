@@ -18,7 +18,6 @@ test("CRM exposes core governed resources", () => {
     "sources",
     "scoring-rules",
     "assignment-rules",
-    "saved-views",
     "sales-teams",
     "territories",
     "quota-plans",

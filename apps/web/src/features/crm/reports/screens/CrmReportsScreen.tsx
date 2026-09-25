@@ -9,7 +9,6 @@ import { Button, EnterpriseDataGrid, ErrorState, NoResultsState, PageHeader, Per
 
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
-import { SavedViewsBar } from "@/features/crm/shared/SavedViewsBar";
 import { formatDate, humanize } from "@/features/crm/shared/human";
 import { BarList } from "@/features/crm/shared/ui/BarList";
 import { DateInput } from "@/features/crm/shared/ui/DateTimeInput";
@@ -234,13 +233,6 @@ export function CrmReportsScreen() {
               <DateInput label="From" value={from} onChange={setFrom} />
               <DateInput label="To" value={to} onChange={setTo} />
               <Button variant="secondary" onPress={() => setApplied({ from: from || undefined, to: to || undefined })}>Apply period</Button>
-              <SavedViewsBar
-                resource={`report:${report}`}
-                baseFilters={{}}
-                currentFilters={applied}
-                hasExplicitFilters={false}
-                onApply={(filters) => { setFrom(filters.from ?? ""); setTo(filters.to ?? ""); setApplied(filters); }}
-              />
               <a href={exportHref} className="inline-flex min-h-9 items-center gap-1.5 rounded-[var(--radius-control)] border border-border px-3 text-sm font-medium text-text hover:bg-surface-muted">
                 <Download className="size-4" aria-hidden="true" />
                 Export CSV

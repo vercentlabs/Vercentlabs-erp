@@ -1274,21 +1274,6 @@ export const resources = Object.freeze({
       correctedValue: "corrected_value",
     },
   },
-  "saved-views": {
-    table: "tenant.crm_saved_views",
-    search: ["name", "resource"],
-    orderBy: "resource ASC, is_default DESC, name ASC",
-    companyScoped: false,
-    fields: {
-      userId: "user_id",
-      resource: "resource",
-      name: "name",
-      filters: "filters",
-      sort: "sort",
-      columns: "columns",
-      isDefault: "is_default",
-    },
-  },
 });
 
 

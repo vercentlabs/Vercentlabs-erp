@@ -66,7 +66,7 @@ function parseListFilters(url: URL) {
 // to @vercentlabs/api's resource-registry-driven listCrmRecords/
 // createCrmRecord — no CRM business logic (assignment, scoring, lifecycle
 // rules) lives here. Covers every CRM_RESOURCE_KEYS entry (leads,
-// opportunities, activities, sources, tags, saved-views, etc.), not just
+// opportunities, activities, sources, tags, etc.), not just
 // leads, so Accounts/Contacts-adjacent and future CRM screens reuse the
 // same boundary rather than each inventing their own.
 export async function GET(request: Request, context: { params: Promise<{ resource: string }> }) {

@@ -179,7 +179,6 @@ export async function createCrmRecord(client, context, resource, input) {
     if (Object.prototype.hasOwnProperty.call(prepared, "sourceId"))
       await assertLeadSourceAssignment(client, context, prepared.sourceId);
   }
-  if (resource === "saved-views") prepared.userId = context.userId;
   if (definition.codeEntity && !prepared[definition.codeField])
     prepared[definition.codeField] = await nextCode(
       client,
@@ -548,7 +547,6 @@ export async function updateCrmRecord(
   const requestedOwnerUserId = ownerChangeRequested
     ? input.ownerUserId || null
     : undefined;
-  if (resource === "saved-views") delete input.userId;
   if (
     resource === "opportunities" &&
     Object.prototype.hasOwnProperty.call(input || {}, "expectedRevenue")
@@ -947,15 +945,6 @@ export async function archiveCrmRecord(
       "Completed privacy requests cannot be archived.",
       "CRM_PRIVACY_REQUEST_CLOSED",
     );
-  }
-
-  if (resource === "saved-views") {
-    const result = await client.query(
-      `DELETE FROM ${definition.table} record WHERE record.organization_id = $1 AND record.id = $2${scope} RETURNING record.id`,
-      parameters,
-    );
-    if (!result.rows[0]) throw new CrmError(404, "CRM record not found.");
-    return { id, deleted: true };
   }
 
   if (resource === "leads") {
