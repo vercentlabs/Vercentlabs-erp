@@ -13,6 +13,7 @@
 // check the canonical Timeline already uses, not a re-derived equivalent
 // (the dossier's explicit "object-specific wrapper functions are
 // acceptable, separate security implementations are not").
+import { assertCanWriteCrmRecordContent, canOverridePrivateCrmContent } from "../../crm-data-operations-and-customization/crm-access-scope.js";
 import { CrmError } from "../../crm-data-operations-and-customization/errors.js";
 import { queueOutboxEvent } from "../../crm-data-operations-and-customization/outbox.js";
 import { resolveCrmEntityAccess } from "../timeline/timeline.js";
@@ -26,9 +27,6 @@ function dto(row) { return Object.fromEntries(Object.entries(row || {}).map(([ke
 function uuid(value, label) {
   if (!UUID.test(String(value || ""))) throw new CrmError(400, `${label} is invalid.`, "CRM_NOTE_REFERENCE_INVALID");
   return String(value);
-}
-function canViewAllCrmRecords(context) {
-  return Boolean(context.roleSlugs?.includes("organization_owner")) || Boolean(context.permissions?.includes("crm.records.view_all"));
 }
 
 async function assertParentAccess(client, context, entityType, entityId) {
@@ -56,7 +54,7 @@ function normalizeVisibility(value, fallback = "shared") {
 // list row even to an otherwise-authorized parent-record viewer.
 function visibilityPredicate(values, context, alias = "note") {
   const userIdParam = values.push(context.userId), userIdPlaceholder = `$${userIdParam}`;
-  const viewAllParam = values.push(canViewAllCrmRecords(context)), viewAllPlaceholder = `$${viewAllParam}`;
+  const viewAllParam = values.push(canOverridePrivateCrmContent(context)), viewAllPlaceholder = `$${viewAllParam}`;
   // ::boolean is required, not cosmetic — see communication-projection.js's
   // communicationVisibilitySql for the full explanation (found via
   // live-browser Prompt 3 QA against a real database): without it,
@@ -97,6 +95,7 @@ export async function getCrmNote(client, context, id) {
 }
 
 export async function createCrmNote(client, context, entityType, entityId, input = {}) {
+  assertCanWriteCrmRecordContent(context, entityType);
   await assertParentAccess(client, context, entityType, entityId);
   const body = normalizeBody(input.body);
   const visibility = normalizeVisibility(input.visibility);
@@ -126,9 +125,10 @@ export async function updateCrmNote(client, context, id, input = {}) {
   );
   if (!before.rows[0]) throw new CrmError(404, "Note not found.", "CRM_NOTE_NOT_FOUND");
   const existing = dto(before.rows[0]);
+  assertCanWriteCrmRecordContent(context, existing.entityType);
   await assertParentAccess(client, context, existing.entityType, existing.entityId);
   if (existing.archivedAt) throw new CrmError(409, "An archived Note cannot be edited.", "CRM_NOTE_ARCHIVED");
-  const canViewAll = canViewAllCrmRecords(context);
+  const canViewAll = canOverridePrivateCrmContent(context);
   if (existing.createdBy !== context.userId && !canViewAll)
     throw new CrmError(403, "Only the Note's author (or an organization-wide override) can edit it.", "CRM_NOTE_EDIT_FORBIDDEN");
   if (existing.visibility === "private" && existing.createdBy !== context.userId && !canViewAll)
@@ -174,8 +174,9 @@ export async function archiveCrmNote(client, context, id, input = {}) {
   const before = await client.query(`SELECT * FROM tenant.crm_notes WHERE organization_id=$1 AND id=$2 FOR UPDATE`, [context.organizationId, id]);
   if (!before.rows[0]) throw new CrmError(404, "Note not found.", "CRM_NOTE_NOT_FOUND");
   const existing = dto(before.rows[0]);
+  assertCanWriteCrmRecordContent(context, existing.entityType);
   await assertParentAccess(client, context, existing.entityType, existing.entityId);
-  const canViewAll = canViewAllCrmRecords(context);
+  const canViewAll = canOverridePrivateCrmContent(context);
   if (existing.createdBy !== context.userId && !canViewAll)
     throw new CrmError(403, "Only the Note's author (or an organization-wide override) can archive it.", "CRM_NOTE_EDIT_FORBIDDEN");
   if (existing.archivedAt) return existing;

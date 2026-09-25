@@ -22,6 +22,7 @@ export async function POST(request: Request) {
     const session = await requireWorkspace();
     const input = (await readJson(request)) as Record<string, unknown>;
     const result = await tenantTransaction(session.organizationId, async (client) => {
+      await requireCrmAccess(client, session, CRM_PERMISSIONS.import);
       await requireCrmAccess(client, session, CRM_PERMISSIONS.leadsManage);
       return previewLeadImport(client, crmContext(session), input);
     });

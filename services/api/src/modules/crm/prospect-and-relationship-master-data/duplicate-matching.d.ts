@@ -15,6 +15,11 @@ export function findLeadContactCrossMatches(
   context: CrmFoundationContext,
   input?: Record<string, unknown>,
 ): Promise<Array<Record<string, unknown>>>;
+export function projectDuplicateMatchesForCaller(
+  context: CrmFoundationContext,
+  kind: "account" | "contact",
+  rows: Array<Record<string, unknown>>,
+): Array<Record<string, unknown>>;
 export function dismissAccountDuplicateMatch(
   client: QueryClient,
   context: CrmFoundationContext,

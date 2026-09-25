@@ -65,7 +65,10 @@ function crmClient({ leadRow = ownedLead, table = "crm_leads", ownerColumn = "ow
     // Locate the exact $N placeholder recordScope() bound the owner-scope
     // value to, rather than assuming it is the last parameter — list
     // queries append further LIMIT/OFFSET parameters after it.
-    const match = sql.match(new RegExp(`${ownerColumn} = \\$(\\d+)\\)`));
+    // The owner predicate is now "(owner IS NULL OR owner = $n OR EXISTS
+    // (managed team …))" (crm-access-scope.js); these fixtures have no teams,
+    // so the team branch never matches and only the owner comparison decides.
+    const match = sql.match(new RegExp(`${ownerColumn} = \\$(\\d+)`));
     if (!match) return true;
     const requestingUserId = params[Number(match[1]) - 1];
     return leadRow[ownerColumn] == null || leadRow[ownerColumn] === requestingUserId;
@@ -78,6 +81,8 @@ function crmClient({ leadRow = ownedLead, table = "crm_leads", ownerColumn = "ow
       if (hasRecordWhere(sql, table)) {
         return { rows: visible(sql, params) ? [leadRow] : [] };
       }
+      // The caller's managed-team roster (none in these fixtures).
+      if (sql.includes("SELECT DISTINCT team_member.user_id")) return { rows: [] };
       // Stage A2 Prompt 3 live-browser QA fix: listCrmRecords/getCrmRecord
       // now batch-resolve stageName/partyName/contactName/ownerName for
       // "opportunities" (resource-query-service.js's
@@ -91,6 +96,8 @@ function crmClient({ leadRow = ownedLead, table = "crm_leads", ownerColumn = "ow
       ) {
         return { rows: [] };
       }
+      // The caller's managed-team roster (none in these fixtures).
+      if (sql.includes("SELECT DISTINCT team_member.user_id")) return { rows: [] };
       throw new Error(`Unexpected query: ${sql}`);
     },
   };
@@ -361,6 +368,8 @@ function companyAwareCrmClient({ leadRow = ownedLead } = {}) {
       if (sql.startsWith("SELECT id, full_name FROM public.users")) {
         return { rows: [] };
       }
+      // The caller's managed-team roster (none in these fixtures).
+      if (sql.includes("SELECT DISTINCT team_member.user_id")) return { rows: [] };
       throw new Error(`Unexpected query: ${sql}`);
     },
   };
@@ -587,6 +596,8 @@ test("CRM: duplicate integrity is organization-wide while inaccessible colleague
         );
         return { rows: [colleaguesLead] };
       }
+      // The caller's managed-team roster (none in these fixtures).
+      if (sql.includes("SELECT DISTINCT team_member.user_id")) return { rows: [] };
       throw new Error(`Unexpected query: ${sql}`);
     },
   };

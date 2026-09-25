@@ -63,7 +63,7 @@ test("F001 Pass 2B: enrichment review re-checks Lead record scope before applyin
   assert.match(queries[1].sql, /tenant\.crm_leads lead/);
   assert.match(queries[1].sql, /lead\.company_id IS NULL OR lead\.company_id=/);
   assert.match(queries[1].sql, /lead\.branch_id IS NULL OR lead\.branch_id=/);
-  assert.match(queries[1].sql, /lead\.owner_user_id IS NULL OR lead\.owner_user_id=/);
+  assert.match(queries[1].sql, /lead\.owner_user_id IS NULL OR lead\.owner_user_id = /);
   assert.match(queries[1].sql, /FOR UPDATE/);
 });
 

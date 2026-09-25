@@ -36,6 +36,11 @@ async function activePipelineIds(client, context) {
 // thereby produce an incomplete/misleading historical record.
 export async function capturePipelineSnapshots(client, context, options = {}) {
   const source = options.source === "manual" ? "manual" : "scheduled";
+  // A capture aggregates EVERY open Opportunity in the company into stored
+  // totals, so a person may only trigger one if they could read the result
+  // (same rule as listPipelineSnapshots). The scheduled worker is unaffected.
+  if (source === "manual" && !canViewAllCrmRecords(context))
+    throw new CrmError(403, "Capturing pipeline history covers company-wide totals and needs access to all CRM records.", "CRM_PIPELINE_SNAPSHOT_FORBIDDEN");
   const capturedBy = options.capturedBy ?? null;
   const snapshotDate = options.snapshotDate || new Date().toISOString().slice(0, 10);
   const pipelineIds = options.pipelineId
@@ -105,15 +110,18 @@ export async function capturePipelineSnapshots(client, context, options = {}) {
 }
 
 // Retrieval boundary (distinct from capture's deliberately org-wide scope):
-// requires manager-level Opportunity permission — an ordinary seller
-// (crm.view only) gets no access to aggregate pipeline history at all, not
-// just a company-filtered slice of it, matching the dossier's "manager
-// inspection" framing. A manager without org-wide visibility only sees
+// requires access to all CRM records (see below) — company-wide aggregates
+// must never reach a seller or team-scoped manager. A manager without org-wide visibility only sees
 // their own active company's rows (or company-unassigned/org-wide rows),
 // mirroring the live pipeline board's own companyVisible() boundary.
 export async function listPipelineSnapshots(client, context, options = {}) {
-  if (!context.permissions?.includes("crm.opportunities.manage") && !context.roleSlugs?.includes("organization_owner")) {
-    throw new CrmError(403, "You do not have permission to view pipeline history.", "CRM_PIPELINE_SNAPSHOT_FORBIDDEN");
+  // Snapshots are stored company-wide stage totals; they cannot be narrowed
+  // to one seller or team, so only callers who may already see every record
+  // (organisation owner, crm.records.view_all) may read them. A Sales
+  // Representative or team-scoped Sales Manager would otherwise learn the
+  // whole company's pipeline from the aggregates.
+  if (!canViewAllCrmRecords(context)) {
+    throw new CrmError(403, "Pipeline history shows company-wide totals and needs access to all CRM records.", "CRM_PIPELINE_SNAPSHOT_FORBIDDEN");
   }
   const pipelineId = options.pipelineId || null;
   const limit = Math.max(1, Math.min(200, Math.trunc(Number(options.limit) || 30)));
@@ -123,7 +131,10 @@ export async function listPipelineSnapshots(client, context, options = {}) {
     parameters.push(pipelineId);
     where += ` AND snap.pipeline_id=$${parameters.length}`;
   }
-  if (!canViewAllCrmRecords(context)) {
+  // Company boundary for everyone: "view all records" means every record
+  // in the caller's own company scope, never across companies. Only a
+  // cross-company role (allowAllCompanies) with no company selected sees all.
+  {
     if (context.activeCompanyId) {
       parameters.push(context.activeCompanyId);
       where += ` AND (snap.company_id IS NULL OR snap.company_id=$${parameters.length})`;

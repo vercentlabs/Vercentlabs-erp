@@ -10,6 +10,8 @@
 // is kept in sync with this table's is_primary=true row here, mirroring the
 // exact precedent contact-relationships.js set for Contact<->Account.
 import { CrmError, queueOutboxEvent, text, camelize, requireOpportunityInScope } from "./shared.js";
+import { crmChildScopes } from "../crm-data-operations-and-customization/record-policy.js";
+import { getCrmContact } from "../prospect-and-relationship-master-data/contact-operations.js";
 
 // Same vocabulary as tenant.crm_contact_account_relationships.stakeholder_role
 // and tenant.crm_account_stakeholders.stakeholder_role — a deliberate
@@ -264,15 +266,20 @@ export async function ensurePrimaryContactRoleFromLegacyField(client, context, o
 
 export async function listContactOpportunityRoles(client, context, contactId) {
   const id = text(contactId);
+  // The Contact must be visible to the caller (404 otherwise), and each deal
+  // keeps its own Opportunity scope — Contact access is not deal access.
+  await getCrmContact(client, context, id);
+  const parameters = [context.organizationId, id];
+  const scope = crmChildScopes(context, parameters);
   const result = await client.query(
     `SELECT ocr.*, opportunity.name AS opportunity_name, opportunity.status AS opportunity_status,
             opportunity.amount, opportunity.currency_code
        FROM tenant.crm_opportunity_contact_roles ocr
        JOIN tenant.crm_opportunities opportunity
          ON opportunity.organization_id=ocr.organization_id AND opportunity.id=ocr.opportunity_id
-      WHERE ocr.organization_id=$1 AND ocr.contact_id=$2 AND ocr.status='active'
+      WHERE ocr.organization_id=$1 AND ocr.contact_id=$2 AND ocr.status='active'${scope.opportunity()}
       ORDER BY ocr.is_primary DESC, opportunity.created_at DESC`,
-    [context.organizationId, id],
+    parameters,
   );
   return result.rows.map(camelize);
 }

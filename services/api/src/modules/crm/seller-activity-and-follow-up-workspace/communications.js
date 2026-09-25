@@ -4,6 +4,7 @@ import {
   randomBytes,
   timingSafeEqual,
 } from "node:crypto";
+import { canOverridePrivateCrmContent } from "../crm-data-operations-and-customization/crm-access-scope.js";
 import { canViewSensitiveLeadContent, leadScopeSql } from "../lead-lifecycle-qualification-and-prioritization/lead-security.js";
 import {
   communicationVisibilitySql,
@@ -19,9 +20,6 @@ import { createRemindersForActivity, cancelPendingRemindersForActivity } from ".
 // already carries locally (index.js's recordScope, timeline.js, task-
 // operations.js) — trivial enough that a shared import would be more
 // indirection than the duplication it avoids.
-function canViewAllCrmRecords(context) {
-  return Boolean(context.roleSlugs?.includes("organization_owner")) || Boolean(context.permissions?.includes("crm.records.view_all"));
-}
 
 const UUID =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -35,7 +33,7 @@ const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 // inbox merely by guessing a thread ID" was not actually enforced. This
 // is the ONE membership gate all three call.
 async function assertSharedInboxMember(client, context, inboxId) {
-  if (!inboxId || canViewAllCrmRecords(context)) return;
+  if (!inboxId || canOverridePrivateCrmContent(context)) return;
   const result = await client.query(
     `SELECT 1 FROM tenant.crm_shared_inbox_members WHERE organization_id=$1 AND inbox_id=$2 AND user_id=$3 LIMIT 1`,
     [context.organizationId, inboxId, context.userId],

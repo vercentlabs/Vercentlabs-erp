@@ -305,6 +305,7 @@ test("F002: list search and filters remain organization and active-company scope
   assert.deepEqual(result.filters, {
     industries: ["Manufacturing"],
     countries: ["IN"],
+    owners: [],
   });
   for (const call of calls) {
     assert.match(call.sql, /organization_id = \$1/);
@@ -401,7 +402,7 @@ test("F002: fabricated owner assignment is rejected server-side", async () => {
         ownerUserId: "55555555-5555-4555-8555-555555555555",
       }),
     (error) =>
-      error.code === "CRM_ACCOUNT_OWNER_FORBIDDEN" && error.status === 403,
+      error.code === "CRM_OWNER_ASSIGNMENT_FORBIDDEN" && error.status === 403,
   );
 });
 

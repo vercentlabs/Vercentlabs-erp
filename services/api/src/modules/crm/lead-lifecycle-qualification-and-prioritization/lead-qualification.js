@@ -1,3 +1,4 @@
+import { crmOwnerScopeSql } from "../crm-data-operations-and-customization/crm-access-scope.js";
 import { runCrmAutomation } from "../crm-data-operations-and-customization/resource-mutation-service.js";
 import { recalculateLeadScoreInternal } from "./scoring/scoring-engine.js";
 
@@ -100,10 +101,7 @@ function addScope(context, parameters, alias = "lead") {
   } else if (!context.allowAllCompanies) {
     return sql + " AND false";
   }
-  if (!canViewAll(context)) {
-    parameters.push(context.userId);
-    sql += ` AND (${alias}.owner_user_id IS NULL OR ${alias}.owner_user_id=$${parameters.length})`;
-  }
+  sql += crmOwnerScopeSql(context, (value) => { parameters.push(value); return `$${parameters.length}`; }, `${alias}.owner_user_id`, `${alias}.organization_id`, { resource: "leads", alias: alias });
   return sql;
 }
 

@@ -54,6 +54,7 @@ export {
   findAccountDuplicates,
   findContactDuplicates,
   findLeadContactCrossMatches,
+  projectDuplicateMatchesForCaller,
   dismissAccountDuplicateMatch,
   dismissContactDuplicateMatch,
   recordAccountDuplicateOverride,
@@ -84,6 +85,7 @@ export {
 } from "./modules/crm/lead-lifecycle-qualification-and-prioritization/scoring/index.js";
 export * from "./modules/crm/opportunity-and-pipeline-governance/opportunity-revenue-intelligence.js";
 export * from "./modules/crm/crm-data-operations-and-customization/offline-sync.js";
+export * from "./modules/crm/crm-data-operations-and-customization/notification-visibility.js";
 export * from "./modules/crm/opportunity-and-pipeline-governance/opportunity-commercial.js";
 export * from "./modules/crm/opportunity-and-pipeline-governance/opportunity-contacts.js";
 export * from "./modules/crm/opportunity-and-pipeline-governance/stage-migration.js";

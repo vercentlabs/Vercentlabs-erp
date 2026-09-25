@@ -44,7 +44,13 @@ function sanitizeFilters(input = {}) {
   return filters;
 }
 
+export function assertCrmExportAllowed(context) {
+  if ((context.roleSlugs || []).includes("organization_owner") || (context.permissions || []).includes("crm.export")) return;
+  throw new CrmError(403, "You do not have permission to export CRM data.", "CRM_EXPORT_FORBIDDEN");
+}
+
 export async function enqueueCrmLeadExportJob(client, context, input = {}) {
+  assertCrmExportAllowed(context);
   const filters = sanitizeFilters(input.filters);
   const payload = {
     requesterUserId: context.userId,
@@ -85,6 +91,9 @@ export async function getCrmLeadExportJob(client, context, jobId) {
 // never trusting the permissions the requester happened to have at
 // enqueue time, since a job may run well after that.
 export async function buildCrmLeadExportCsv(client, context, filters) {
+  // Bulk export is its own permission (crm.export), re-checked here against
+  // the worker's freshly resolved context, not only when the job was queued.
+  assertCrmExportAllowed(context);
   const rows = [];
   let offset = 0;
   for (;;) {

@@ -29,6 +29,7 @@
 import { CrmError } from "../../crm-data-operations-and-customization/errors.js";
 import { queueOutboxEvent } from "../../crm-data-operations-and-customization/outbox.js";
 import { resolveCrmEntityAccess } from "../timeline/timeline.js";
+import { assertCanWriteCrmRecordContent } from "../../crm-data-operations-and-customization/crm-access-scope.js";
 
 const ENTITY_TYPES = new Set(["lead", "opportunity", "party", "contact", "campaign"]);
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -87,6 +88,7 @@ export async function listCrmAttachmentVersions(client, context, entityType, ent
 }
 
 export async function createCrmAttachment(client, context, entityType, entityId, input) {
+  assertCanWriteCrmRecordContent(context, entityType);
   await assertParentAccess(client, context, entityType, entityId);
   const storageEntityType = crmAttachmentStorageEntityType(entityType);
   let logicalId = input.id;
@@ -152,6 +154,7 @@ export async function getCrmAttachmentContent(client, context, entityType, entit
 // leaving the logical file with no current version while older ones
 // still exist.
 export async function deleteCrmAttachment(client, context, entityType, entityId, attachmentId) {
+  assertCanWriteCrmRecordContent(context, entityType);
   await assertParentAccess(client, context, entityType, entityId);
   uuid(attachmentId, "Attachment");
   const result = await client.query(

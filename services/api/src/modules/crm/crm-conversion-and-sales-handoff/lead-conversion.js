@@ -7,6 +7,18 @@ import { nextCode } from "../crm-data-operations-and-customization/resource-quer
 import { resources } from "../crm-data-operations-and-customization/resource-registry.js";
 import { camelizeRow } from "../crm-data-operations-and-customization/record-utils.js";
 import { recordLeadTouchpoint } from "../prospect-and-relationship-master-data/lead-attribution.js";
+import { crmAccountVisibleSql, crmContactVisibleSql } from "../crm-data-operations-and-customization/crm-access-scope.js";
+async function assertConversionTargetVisible(client, context, kind, id) {
+  const parameters = [context.organizationId, id];
+  const bind = (value) => { parameters.push(value); return `$${parameters.length}`; };
+  const sql = kind === "account"
+    ? `SELECT account.id FROM tenant.business_parties account WHERE account.organization_id=$1 AND account.id=$2${crmAccountVisibleSql(context, bind, "account")}`
+    : `SELECT contact.id FROM tenant.contacts contact LEFT JOIN tenant.business_parties account ON account.organization_id=contact.organization_id AND account.id=contact.party_id WHERE contact.organization_id=$1 AND contact.id=$2${crmContactVisibleSql(context, bind, "contact", "account")}`;
+  const result = await client.query(sql, parameters);
+  if (!result.rows[0])
+    throw new CrmError(404, kind === "account" ? "Account not found." : "Contact not found.", kind === "account" ? "CRM_ACCOUNT_NOT_FOUND" : "CRM_CONTACT_NOT_FOUND");
+}
+
 
 
 
@@ -62,11 +74,16 @@ export async function convertCrmLead(client, context, leadId, input = {}) {
   // creating a new Account in that case (the caller can still pass an
   // explicit input.partyId to force reuse of a probable match).
   let partyId = input.partyId || null;
+  // An explicitly chosen Account/Contact must be one the caller can open
+  // (company boundary + ownership) — an id alone never grants reuse.
+  if (partyId) await assertConversionTargetVisible(client, context, "account", partyId);
   if (!partyId) {
     const candidates = await findAccountDuplicates(client, context, {
       name: lead.company_name || lead.full_name,
     });
-    partyId = candidates.find((row) => row.classification === "exact")?.id || null;
+    // Auto-reuse stays inside the caller's company boundary: an exact name
+    // match in another company is never silently attached.
+    partyId = candidates.find((row) => row.classification === "exact" && row.in_company_scope !== false)?.id || null;
   }
   if (!partyId) {
     const partyCode = await nextCode(
@@ -97,6 +114,7 @@ export async function convertCrmLead(client, context, leadId, input = {}) {
   // reused here and a new Contact is created under the resolved Account
   // instead).
   let contactId = input.contactId || null;
+  if (contactId) await assertConversionTargetVisible(client, context, "contact", contactId);
   if (!contactId && (lead.email || lead.mobile || lead.phone)) {
     const candidates = await findContactDuplicates(client, context, {
       email: lead.email,

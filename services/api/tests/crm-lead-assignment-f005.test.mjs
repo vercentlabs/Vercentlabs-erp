@@ -137,14 +137,23 @@ test("F005: inactive, removed, cross-org or CRM-ineligible assignees fail closed
   assert.equal(queries, 1);
 });
 
-test("F005: an unauthorized representative cannot assign and no query runs", async () => {
-  let queries = 0;
+test("F005: a representative who manages no team cannot assign a Lead to someone else; the Lead is never read", async () => {
+  const calls = [];
   await assert.rejects(
-    assignLeadOwner({ query: async () => (queries += 1) }, rep, leadId, ownerB),
+    assignLeadOwner({ query: async (sql) => { calls.push(sql); return { rows: [] }; } }, rep, leadId, ownerB),
     (error) =>
-      error.status === 403 && error.code === "CRM_LEAD_ASSIGNMENT_FORBIDDEN",
+      error.status === 403 && error.code === "CRM_OWNER_ASSIGNMENT_FORBIDDEN",
   );
-  assert.equal(queries, 0);
+  // Only the managed-team lookup ran — no Lead read, no write.
+  assert.equal(calls.length, 1);
+  assert.match(calls[0], /FROM tenant\.crm_sales_team_members/);
+});
+
+test("F005: a Sales Manager can assign a Lead only to an active member of a team they manage", async () => {
+  const teamClient = (members) => ({ query: async (sql) => (sql.includes("SELECT DISTINCT team_member.user_id") ? { rows: members.map((user_id) => ({ user_id })) } : { rows: [] }) });
+  await assert.rejects(assignLeadOwner(teamClient([]), rep, leadId, ownerB), (error) => error.code === "CRM_OWNER_ASSIGNMENT_FORBIDDEN");
+  // With ownerB on the manager's team the team gate passes and the flow moves on to loading the Lead (not found in this stub).
+  await assert.rejects(assignLeadOwner(teamClient([ownerB]), rep, leadId, ownerB), (error) => error.code === "CRM_LEAD_NOT_FOUND");
 });
 
 test("F005: malformed assignee identifiers fail before the database", async () => {
@@ -206,6 +215,8 @@ function assignmentClient({ currentOwner = ownerA } = {}) {
         writes.push({ kind: "notification", sql, values });
         return { rows: [] };
       }
+      // The caller's managed-team roster (none in these fixtures).
+      if (sql.includes("SELECT DISTINCT team_member.user_id")) return { rows: [] };
       throw new Error(`Unexpected query: ${sql}`);
     },
   };

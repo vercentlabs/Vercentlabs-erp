@@ -19,7 +19,7 @@ export async function GET(_request: Request, context: { params: Promise<{ jobId:
     const session = await requireWorkspace();
     const { jobId } = await context.params;
     const job = await tenantTransaction(session.organizationId, async (client) => {
-      await requireCrmAccess(client, session, CRM_PERMISSIONS.leadsManage);
+      await requireCrmAccess(client, session, CRM_PERMISSIONS.export);
       return getCrmLeadExportJob(client, crmContext(session), jobId);
     });
     if (job.status !== "completed") throw new HttpError(409, "This export is not ready yet.");

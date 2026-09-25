@@ -23,7 +23,9 @@ const accountA = "44444444-4444-4444-8444-444444444444";
 const accountB = "55555555-5555-4555-8555-555555555555";
 
 function context(overrides = {}) {
-  return { organizationId: org, userId: user, ...overrides };
+  // Relationship ends are access-checked (crm-access-scope.js); this suite
+  // exercises relationship rules, so it runs as a view-all, multi-company user.
+  return { organizationId: org, userId: user, allowAllCompanies: true, permissions: ["crm.records.view_all"], roleSlugs: [], ...overrides };
 }
 
 function norm(sql) {
@@ -44,10 +46,13 @@ function fakeClient({
       const sql = norm(rawSql);
       calls.push({ sql, params });
 
-      if (/^SELECT id, status FROM tenant\.contacts/.test(sql)) {
+      if (/^SELECT contact\.id, contact\.status FROM tenant\.contacts/.test(sql)) {
         return contactStatus ? { rows: [{ id: params[1], status: contactStatus }] } : { rows: [] };
       }
-      if (/^SELECT id, status FROM tenant\.business_parties/.test(sql)) {
+      if (/^SELECT account\.id FROM tenant\.business_parties account WHERE/.test(sql)) {
+        return accountStatus[params[1]] ? { rows: [{ id: params[1] }] } : { rows: [] };
+      }
+      if (/^SELECT account\.id, account\.status FROM tenant\.business_parties/.test(sql)) {
         const status = accountStatus[params[1]];
         return status ? { rows: [{ id: params[1], status }] } : { rows: [] };
       }

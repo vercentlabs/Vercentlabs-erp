@@ -16,6 +16,7 @@ export async function GET() {
   try {
     const session = await requireWorkspace();
     const batches = await tenantTransaction(session.organizationId, async (client) => {
+      await requireCrmAccess(client, session, CRM_PERMISSIONS.import);
       await requireCrmAccess(client, session, CRM_PERMISSIONS.leadsManage);
       return listCrmLeadImportBatches(client, crmContext(session));
     });

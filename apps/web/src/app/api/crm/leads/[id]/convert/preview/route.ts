@@ -1,4 +1,4 @@
-import { findAccountDuplicates, findContactDuplicates, getCrmRecord } from "@vercentlabs/api";
+import { findAccountDuplicates, findContactDuplicates, getCrmRecord, projectDuplicateMatchesForCaller } from "@vercentlabs/api";
 import { CRM_PERMISSIONS } from "@vercentlabs/permissions";
 
 import { tenantTransaction } from "@/core/db";
@@ -33,7 +33,11 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
           firstName: lead.firstName,
           lastName: lead.lastName,
         });
-      return { accountCandidates, contactCandidates };
+      // Candidates the caller cannot open are shown only as restricted.
+      return {
+        accountCandidates: projectDuplicateMatchesForCaller(crmContext(session), "account", accountCandidates),
+        contactCandidates: projectDuplicateMatchesForCaller(crmContext(session), "contact", contactCandidates),
+      };
     });
     return ok(result);
   } catch (error) {

@@ -15,7 +15,8 @@ const user = "22222222-2222-4222-8222-222222222222";
 const jobId = "33333333-3333-4333-8333-333333333333";
 
 function context(overrides = {}) {
-  return { organizationId: org, userId: user, permissions: [], roleSlugs: [], ...overrides };
+  // Full scans are org-wide data-quality tooling: view-all callers only.
+  return { organizationId: org, userId: user, allowAllCompanies: true, permissions: ["crm.records.view_all", "crm.data-quality.manage"], roleSlugs: [], ...overrides };
 }
 
 function norm(sql) {
@@ -184,7 +185,7 @@ test("F008 full scan: listDuplicateScanMatches resolves each record's CURRENT na
   };
   const db = makeDb([
     [/^SELECT \* FROM tenant\.crm_duplicate_scan_matches/, () => ({ rows: [matchRow] })],
-    [/^SELECT id,full_name AS label FROM tenant\.crm_leads/, () => ({
+    [/^SELECT lead\.id,lead\.full_name AS label FROM tenant\.crm_leads/, () => ({
       rows: [
         { id: "44444444-4444-4444-8444-444444444444", label: "Priya Shah (current)" },
         { id: "55555555-5555-4555-8555-555555555555", label: "Priya S" },

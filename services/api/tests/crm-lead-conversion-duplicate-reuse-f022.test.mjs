@@ -151,6 +151,8 @@ function makeClient({ accountBlocking, contactBlocking }) {
             },
           ],
         };
+      // Explicit partyId/contactId visibility check (organisation owner: visible).
+      if (/^SELECT (account|contact)\.id FROM tenant\.(business_parties account|contacts contact)/.test(sql)) return { rows: [{ id: values[1] }] };
       if (sql.includes("crm_campaign_members")) return { rows: [] };
       if (sql.includes("crm_marketing_touchpoints")) return { rows: [] };
       if (sql.includes("crm_outbox_events")) return { rows: [] };
@@ -190,6 +192,9 @@ test("F022: an explicit input.partyId/contactId always wins over duplicate-engin
   });
   assert.equal(result.partyId, existingPartyId);
   assert.equal(result.contactId, existingContactId);
-  assert.ok(!client.calls.some((sql) => sql.includes("FROM tenant.business_parties party")));
-  assert.ok(!client.calls.some((sql) => sql.includes("FROM tenant.contacts contact")));
+  // The duplicate engine never runs for explicit targets…
+  assert.ok(!client.calls.some((sql) => sql.includes("match_score")));
+  // …but each explicit target is access-checked (an id alone is not enough).
+  assert.ok(client.calls.some((sql) => /^SELECT account\.id FROM tenant\.business_parties account/.test(sql)));
+  assert.ok(client.calls.some((sql) => /^SELECT contact\.id FROM tenant\.contacts contact/.test(sql)));
 });

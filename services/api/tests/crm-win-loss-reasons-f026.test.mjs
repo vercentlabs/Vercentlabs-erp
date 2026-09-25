@@ -30,7 +30,8 @@ test("F026: the win-loss report groups closed deals by outcome and reason, dated
 
 test("F026: the report never aggregates deals the caller could not open (owner visibility applies)", async () => {
   const { sql, params } = await reportSql({});
-  assert.match(sql, /\(\$7::boolean OR opportunity\.owner_user_id IS NULL OR opportunity\.owner_user_id = \$8\)/);
+  // Own + unassigned + managed team (crm-access-scope.js), never company-wide for a restricted caller.
+  assert.match(sql, /\(\$7::boolean OR \(\(opportunity\.owner_user_id IS NULL OR opportunity\.owner_user_id = \$8 OR EXISTS \(SELECT 1 FROM tenant\.crm_sales_team_members[\s\S]*?managed_team\.manager_user_id=\$8\)\)\)\)/);
   assert.equal(params[6], false, "a caller without view-all keeps the narrow scope");
 });
 

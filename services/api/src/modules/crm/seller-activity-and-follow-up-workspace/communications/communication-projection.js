@@ -20,16 +20,9 @@
 // projection at all — without crm.leads.view_sensitive the whole
 // communication was invisible, never merely content-redacted. All three
 // (plus the shared inbox and mobile) now call into this module.
+import { canOverridePrivateCrmContent } from "../../crm-data-operations-and-customization/crm-access-scope.js";
 import { canViewSensitiveLeadContent } from "../../lead-lifecycle-qualification-and-prioritization/lead-security.js";
 
-// Local copy of the "organization_owner or crm.records.view_all" check —
-// communications.js, timeline.js and index.js each already carry their own
-// copy of this exact check by established convention in this codebase
-// (see communications.js's own top-of-file comment); this module follows
-// the same convention rather than introducing a fourth import path for it.
-export function canViewAllCrmRecords(context) {
-  return Boolean(context.roleSlugs?.includes("organization_owner")) || Boolean(context.permissions?.includes("crm.records.view_all"));
-}
 
 function addParam(values, value) {
   values.push(value);
@@ -54,7 +47,8 @@ export function communicationVisibilitySql(context, values, alias = "communicati
   // client.query, which never parses/type-checks SQL at all). Every other
   // boolean parameter in this codebase (e.g. getCrmDashboard's
   // allowAllCompanies) already casts explicitly for the same reason.
-  const viewAllParam = addParam(values, canViewAllCrmRecords(context));
+  // Private/participant communications: override is CRM administration.
+  const viewAllParam = addParam(values, canOverridePrivateCrmContent(context));
   const orgIdParam = addParam(values, context.organizationId);
   return `(${alias}.visibility='team' OR ${alias}.created_by=${userIdParam} OR ${viewAllParam}::boolean OR (${alias}.visibility='participant' AND EXISTS(
     SELECT 1 FROM tenant.crm_communication_participants participant

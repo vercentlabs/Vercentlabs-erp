@@ -1,5 +1,6 @@
 import { listEligibleLeadAssignees } from "../lead-lifecycle-qualification-and-prioritization/lead-governance.js";
 import { canViewAllCrmRecords } from "./record-policy.js";
+import { canViewAllCrmResource, crmAccountAccessSql, crmOwnerScopeSql, managedTeamMemberIds } from "./crm-access-scope.js";
 import { camelizeRow } from "./record-utils.js";
 
 
@@ -38,8 +39,16 @@ export async function getCrmOptions(client, context) {
     `($4::boolean OR ($2::uuid IS NOT NULL AND ${includeUnassigned ? `(${alias}.company_id IS NULL OR ${alias}.company_id = $2)` : `${alias}.company_id = $2`}))`;
   const branchVisible = (alias) =>
     `($4::boolean OR ($3::uuid IS NOT NULL AND (${alias}.branch_id IS NULL OR ${alias}.branch_id = $3)))`;
-  const ownerVisible = (alias, column = "owner_user_id") =>
-    `($6::boolean OR ${alias}.${column} IS NULL OR ${alias}.${column} = $5)`;
+  // Own + unassigned + owned by a member of a team the caller manages (the
+  // shared rule, crm-access-scope.js), with $5 = caller and $6 = view-all.
+  // Resource-aware (crm.leads.view_all widens only the Lead picker, partner
+  // and customer grants apply) via the one central rule. $5 stays referenced
+  // even when the caller may see every row of that resource, because every
+  // owner-scoped statement binds it.
+  const ownerVisible = (alias, resource, column = "owner_user_id") => {
+    const scope = crmOwnerScopeSql(context, () => "$5", `${alias}.${column}`, `${alias}.organization_id`, { resource, alias });
+    return `($6::boolean OR ${scope ? scope.replace(/^ AND /, "") : "($5::uuid IS NULL OR true)"})`;
+  };
 
   const queryOptions = (sql, values) =>
     client.query(
@@ -99,6 +108,13 @@ export async function getCrmOptions(client, context) {
     parameters,
   );
   const users = await listEligibleLeadAssignees(client, context, { limit: 50 });
+  // Whom the caller may make a record owner (assertCrmOwnerAssignable):
+  // null = anyone eligible (view-all); otherwise self + managed team members.
+  // Lead ownership follows the Lead rule (crm.leads.view_all may route any
+  // Lead); every other owner field follows the umbrella rule.
+  const teamIds = canViewAllCrmRecords(context) ? [] : [...(await managedTeamMemberIds(client, context))];
+  const assignableOwnerIds = canViewAllCrmResource(context, "opportunities") ? null : [String(context.userId), ...teamIds];
+  const assignableLeadOwnerIds = canViewAllCrmResource(context, "leads") ? null : [String(context.userId), ...teamIds];
   // Every active member of the organization — for naming and picking people
   // in sales-organization setup (teams, territories, quotas), which is not
   // limited to whoever is currently eligible for lead assignment.
@@ -106,13 +122,17 @@ export async function getCrmOptions(client, context) {
     `SELECT u.id, u.full_name AS name FROM public.users u JOIN public.organization_memberships membership ON membership.user_id = u.id WHERE membership.organization_id = $1 AND membership.status = 'active' ORDER BY u.full_name`,
     [context.organizationId],
   );
+  // Account/Contact pickers follow the Account ownership rule too
+  // (crm-access-scope.js); $5 = caller, bound only when the rule applies.
+  const accountAccess = crmAccountAccessSql(context, () => "$5", "party");
+  const accountParameters = accountAccess ? [...parameters, context.userId] : parameters;
   const parties = await queryOptions(
-    `SELECT party.id, party.display_name AS name FROM tenant.business_parties party WHERE party.organization_id = $1 AND party.status = 'active' AND ${companyVisible("party")} ORDER BY party.display_name`,
-    parameters,
+    `SELECT party.id, party.display_name AS name FROM tenant.business_parties party WHERE party.organization_id = $1 AND party.status = 'active' AND ${companyVisible("party")}${accountAccess} ORDER BY party.display_name`,
+    accountParameters,
   );
   const contacts = await queryOptions(
-    `SELECT contact.id, btrim(contact.first_name || ' ' || COALESCE(contact.last_name,'')) AS name, contact.party_id FROM tenant.contacts contact JOIN tenant.business_parties party ON party.id = contact.party_id AND party.organization_id = contact.organization_id WHERE contact.organization_id = $1 AND contact.status = 'active' AND ${companyVisible("party")} ORDER BY contact.first_name, contact.last_name`,
-    parameters,
+    `SELECT contact.id, btrim(contact.first_name || ' ' || COALESCE(contact.last_name,'')) AS name, contact.party_id FROM tenant.contacts contact JOIN tenant.business_parties party ON party.id = contact.party_id AND party.organization_id = contact.organization_id WHERE contact.organization_id = $1 AND contact.status = 'active' AND ${companyVisible("party")}${accountAccess} ORDER BY contact.first_name, contact.last_name`,
+    accountParameters,
   );
   const items = await queryOptions(
     `SELECT id, name, sales_price FROM tenant.items WHERE organization_id = $1 AND status = 'active' ORDER BY name`,
@@ -131,11 +151,11 @@ export async function getCrmOptions(client, context) {
     parameters,
   );
   const leads = await queryOptions(
-    `SELECT lead.id, btrim(lead.first_name || ' ' || COALESCE(lead.last_name,'')) AS name FROM tenant.crm_leads lead WHERE lead.organization_id = $1 AND lead.record_status='active' AND ${companyVisible("lead")} AND ${branchVisible("lead")} AND ${ownerVisible("lead")} ORDER BY lead.updated_at DESC LIMIT 500`,
+    `SELECT lead.id, btrim(lead.first_name || ' ' || COALESCE(lead.last_name,'')) AS name FROM tenant.crm_leads lead WHERE lead.organization_id = $1 AND lead.record_status='active' AND ${companyVisible("lead")} AND ${branchVisible("lead")} AND ${ownerVisible("lead", "leads")} ORDER BY lead.updated_at DESC LIMIT 500`,
     ownerScopedParameters,
   );
   const opportunities = await queryOptions(
-    `SELECT opportunity.id, opportunity.name FROM tenant.crm_opportunities opportunity WHERE opportunity.organization_id = $1 AND opportunity.status <> 'archived' AND ${companyVisible("opportunity")} AND ${branchVisible("opportunity")} AND ${ownerVisible("opportunity")} ORDER BY opportunity.updated_at DESC LIMIT 500`,
+    `SELECT opportunity.id, opportunity.name FROM tenant.crm_opportunities opportunity WHERE opportunity.organization_id = $1 AND opportunity.status <> 'archived' AND ${companyVisible("opportunity")} AND ${branchVisible("opportunity")} AND ${ownerVisible("opportunity", "opportunities")} ORDER BY opportunity.updated_at DESC LIMIT 500`,
     ownerScopedParameters,
   );
   const sequences = await queryOptions(
@@ -211,6 +231,8 @@ export async function getCrmOptions(client, context) {
     allSources: map(allSources),
     campaigns: map(campaigns),
     users: users.items.map(camelizeRow),
+    assignableOwnerIds,
+    assignableLeadOwnerIds,
     members: members.rows.map(camelizeRow),
     parties: map(parties),
     contacts: map(contacts),

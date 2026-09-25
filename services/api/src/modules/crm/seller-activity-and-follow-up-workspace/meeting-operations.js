@@ -1,3 +1,4 @@
+import { crmOwnerScopeSql } from "../crm-data-operations-and-customization/crm-access-scope.js";
 import { CrmError } from "../crm-data-operations-and-customization/errors.js";
 import { queueOutboxEvent } from "../crm-data-operations-and-customization/outbox.js";
 import { assertEligibleLeadAssignee } from "../lead-lifecycle-qualification-and-prioritization/lead-governance.js";
@@ -127,8 +128,8 @@ function scopeSql(context, values, alias = "activity") {
   else if (!context.allowAllCompanies) return " AND false";
   if (context.activeBranchId) sql += ` AND (${alias}.branch_id IS NULL OR ${alias}.branch_id=${add(values, context.activeBranchId)})`;
   else if (!context.allowAllCompanies) return " AND false";
-  const canViewAll = Boolean(context.roleSlugs?.includes("organization_owner")) || Boolean(context.permissions?.includes("crm.records.view_all"));
-  if (!canViewAll) sql += ` AND (${alias}.assigned_to IS NULL OR ${alias}.assigned_to=${add(values, context.userId)})`;
+  // Own + managed-team members + unassigned queue (crm-access-scope.js).
+  sql += crmOwnerScopeSql(context, (value) => add(values, value), `${alias}.assigned_to`, `${alias}.organization_id`, { resource: "activities", alias: alias });
   if (!canViewSensitiveLeadContent(context))
     sql += ` AND COALESCE(${alias}.entity_type,'general') <> 'lead'`;
   return sql;

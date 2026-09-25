@@ -1,3 +1,4 @@
+import { canViewAllCrmResource, managedTeamMemberSql, relationshipGrantSql } from "../crm-data-operations-and-customization/crm-access-scope.js";
 import { CrmError } from "../crm-data-operations-and-customization/errors.js";
 import { managedTeamMembersSql } from "../crm-data-operations-and-customization/record-utils.js";
 import { queueOutboxEvent } from "../crm-data-operations-and-customization/outbox.js";
@@ -275,20 +276,28 @@ function scopeSql(context, values, alias = "activity") {
   else if (!context.allowAllCompanies) return " AND false";
   if (context.activeBranchId) sql += ` AND (${alias}.branch_id IS NULL OR ${alias}.branch_id=${add(values, context.activeBranchId)})`;
   else if (!context.allowAllCompanies) return " AND false";
-  const canViewAll = Boolean(context.roleSlugs?.includes("organization_owner")) || Boolean(context.permissions?.includes("crm.records.view_all"));
-  if (!canViewAll) {
+  if (!canViewAllCrmResource(context, "activities")) {
     // Visible to a non-view-all caller: Tasks assigned to them; ordinary
     // unassigned (non-team) Tasks (the pre-existing, unrestricted-triage
     // behavior); and queued (unclaimed) team Tasks, but ONLY for a Team the
     // caller actually belongs to — an unclaimed queue item must not leak to
     // every seller in the organization just because it has no assignee yet.
+    // …plus Tasks assigned to active members of a Sales Team the caller
+    // manages (a Sales Manager's team — crm-access-scope.js).
     sql += ` AND (
       ${alias}.assigned_to=${add(values, context.userId)}
+      OR (${alias}.assigned_to IS NOT NULL AND ${managedTeamMemberSql((value) => add(values, value), context, `${alias}.assigned_to`, `${alias}.organization_id`)})
       OR (${alias}.assigned_to IS NULL AND ${alias}.team_id IS NULL)
-      OR (${alias}.team_id IS NOT NULL AND ${alias}.team_id IN (
+      OR (${alias}.assigned_to IS NULL AND ${alias}.team_id IS NOT NULL AND ${alias}.team_id IN (
         SELECT team_id FROM tenant.crm_sales_team_members
          WHERE organization_id=${add(values, context.organizationId)} AND user_id=${add(values, context.userId)} AND status='active'
-      ))
+        UNION
+        -- …and the unclaimed queue of a team the caller MANAGES (a manager
+        -- is crm_sales_teams.manager_user_id, not a member row).
+        SELECT managed_queue_team.id FROM tenant.crm_sales_teams managed_queue_team
+         WHERE managed_queue_team.organization_id=${add(values, context.organizationId)} AND managed_queue_team.manager_user_id=${add(values, context.userId)} AND managed_queue_team.status='active'
+      ))${relationshipGrantSql(context, "activities", alias, `${alias}.organization_id`).map((grant) => `
+      OR ${grant}`).join("")}
     )`;
   }
   if (!canViewSensitiveLeadContent(context))

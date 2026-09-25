@@ -71,10 +71,7 @@ export function leadScopeSql(context, values, alias = "lead") {
   } else if (!context.allowAllCompanies) {
     return sql + " AND false";
   }
-  if (!canViewAllLeadRecords(context)) {
-    values.push(context.userId);
-    sql += ` AND (${alias}.owner_user_id IS NULL OR ${alias}.owner_user_id=$${values.length})`;
-  }
+  sql += crmOwnerScopeSql(context, (value) => { values.push(value); return `$${values.length}`; }, `${alias}.owner_user_id`, `${alias}.organization_id`, { resource: "leads", alias: alias });
   return sql;
 }
 
@@ -82,4 +79,5 @@ export function leadSearchColumnsForContext(context, columns = []) {
   if (canViewSensitiveLeadContent(context)) return columns;
   const forbidden = new Set(["email", "phone", "mobile", "normalized_email", "normalized_mobile", "normalized_business_phone"]);
   return columns.filter((column) => !forbidden.has(column));
-}
+}import { crmOwnerScopeSql } from "../crm-data-operations-and-customization/crm-access-scope.js";
+

@@ -323,10 +323,20 @@ export async function createInvoiceFromSalesRequest(client, context, requestIdVa
   }
 }
 
+// Accounting's canonical receivables document visibility rule (customer
+// invoices and receipts): accounting.view, then the active company for a
+// company-scoped caller. Exported (via accounting/index.js) so CRM Account
+// 360 applies exactly this rule instead of re-deriving it.
+export function receivablesDocumentVisibilitySql(context, bind, alias) {
+  const allowed = context.roleSlugs?.includes("organization_owner") || context.permissions?.includes(ACCOUNTING_PERMISSIONS.view);
+  if (!allowed) return " AND false";
+  return !context.allowAllCompanies && context.activeCompanyId ? ` AND ${alias}.company_id=${bind(context.activeCompanyId)}` : "";
+}
+
 export async function listCustomerInvoices(client, context, filters = {}) {
   requirePermission(context, ACCOUNTING_PERMISSIONS.view);
   const values = [context.organizationId]; let where = "";
-  if (!context.allowAllCompanies && context.activeCompanyId) { values.push(context.activeCompanyId); where += ` AND invoice.company_id=$${values.length}`; }
+  where += receivablesDocumentVisibilitySql(context, (value) => { values.push(value); return `$${values.length}`; }, "invoice");
   if (filters.status && filters.status !== "all") { values.push(text(filters.status, 30)); where += ` AND invoice.status=$${values.length}`; }
   if (filters.partyId) { values.push(uuid(filters.partyId, "Customer")); where += ` AND invoice.party_id=$${values.length}`; }
   if (filters.search) { values.push(`%${text(filters.search, 100)}%`); where += ` AND (invoice.invoice_number ILIKE $${values.length} OR party.display_name ILIKE $${values.length})`; }

@@ -11,6 +11,9 @@ import { CrmError } from "../crm-data-operations-and-customization/errors.js";
 import { queueOutboxEvent } from "../crm-data-operations-and-customization/outbox.js";
 import { evaluateLeadDuplicateRisk } from "./lead-duplicates.js";
 import { findAccountDuplicates, findContactDuplicates } from "./duplicate-matching.js";
+import { canViewAllCrmRecords, crmAccountVisibleSql, crmContactVisibleSql } from "../crm-data-operations-and-customization/crm-access-scope.js";
+import { recordScope } from "../crm-data-operations-and-customization/record-policy.js";
+import { resources } from "../crm-data-operations-and-customization/resource-registry.js";
 
 export const DUPLICATE_FULL_SCAN_JOB_TYPE = "crm.duplicates.full_scan";
 export const DUPLICATE_FULL_SCAN_BATCH_SIZE = 100;
@@ -46,6 +49,7 @@ function jobProjection(row) {
 // never collides with the table's UNIQUE(organization_id, idempotency_key)
 // constraint), same as crm-lead-export.js's own enqueue.
 export async function enqueueDuplicateFullScan(client, context, entityType) {
+  assertScanAccess(context);
   const type = text(entityType);
   if (!ENTITY_TYPES.has(type))
     throw new CrmError(400, "Choose Lead, Account or Contact to scan.", "CRM_DUPLICATE_SCAN_ENTITY_INVALID");
@@ -93,27 +97,33 @@ export async function getLatestDuplicateFullScan(client, context, entityType) {
   return jobProjection(result.rows[0]);
 }
 
-async function labelsFor(client, organizationId, entityType, ids) {
+// Labels are resolved through each record's own visibility rule, so a
+// pair is only ever shown when the caller can open BOTH records (company
+// boundary included) — a scan match is never a way to discover a record.
+async function labelsFor(client, context, entityType, ids) {
   if (!ids.length) return new Map();
+  const parameters = [context.organizationId, ids];
+  const bind = (value) => { parameters.push(value); return `$${parameters.length}`; };
+  let sql;
   if (entityType === "lead") {
-    const result = await client.query(
-      `SELECT id,full_name AS label FROM tenant.crm_leads WHERE organization_id=$1 AND id=ANY($2::uuid[])`,
-      [organizationId, ids],
-    );
-    return new Map(result.rows.map((row) => [row.id, row.label]));
+    sql = `SELECT lead.id,lead.full_name AS label FROM tenant.crm_leads lead WHERE lead.organization_id=$1 AND lead.id=ANY($2::uuid[])${recordScope(resources.leads, context, parameters, "lead")}`;
+  } else if (entityType === "account") {
+    sql = `SELECT account.id,account.display_name AS label FROM tenant.business_parties account WHERE account.organization_id=$1 AND account.id=ANY($2::uuid[])${crmAccountVisibleSql(context, bind, "account")}`;
+  } else {
+    sql = `SELECT contact.id,btrim(contact.first_name || ' ' || COALESCE(contact.last_name,'')) AS label FROM tenant.contacts contact
+             LEFT JOIN tenant.business_parties account ON account.organization_id=contact.organization_id AND account.id=contact.party_id
+            WHERE contact.organization_id=$1 AND contact.id=ANY($2::uuid[])${crmContactVisibleSql(context, bind, "contact", "account")}`;
   }
-  if (entityType === "account") {
-    const result = await client.query(
-      `SELECT id,display_name AS label FROM tenant.business_parties WHERE organization_id=$1 AND id=ANY($2::uuid[])`,
-      [organizationId, ids],
-    );
-    return new Map(result.rows.map((row) => [row.id, row.label]));
-  }
-  const result = await client.query(
-    `SELECT id,btrim(first_name || ' ' || COALESCE(last_name,'')) AS label FROM tenant.contacts WHERE organization_id=$1 AND id=ANY($2::uuid[])`,
-    [organizationId, ids],
-  );
+  const result = await client.query(sql, parameters);
   return new Map(result.rows.map((row) => [row.id, row.label]));
+}
+
+// An organisation-wide duplicate scan is data-quality tooling for callers
+// who can see every CRM record (crm.data-quality.manage alone, e.g. on a
+// custom role, is not enough).
+function assertScanAccess(context) {
+  if (!canViewAllCrmRecords(context))
+    throw new CrmError(403, "Duplicate scans need access to all CRM records.", "CRM_DUPLICATE_SCAN_FORBIDDEN");
 }
 
 // Names are resolved separately (never embedded in the scan-time insert)
@@ -121,6 +131,7 @@ async function labelsFor(client, organizationId, entityType, ids) {
 // from whenever the scan ran — consistent with the table's own append-only,
 // resolution-free design (see migration 169's comment on this table).
 export async function listDuplicateScanMatches(client, context, jobId) {
+  assertScanAccess(context);
   const result = await client.query(
     `SELECT * FROM tenant.crm_duplicate_scan_matches
       WHERE organization_id=$1 AND job_id=$2
@@ -131,8 +142,8 @@ export async function listDuplicateScanMatches(client, context, jobId) {
   if (!result.rows.length) return [];
   const entityType = result.rows[0].entity_type;
   const ids = [...new Set(result.rows.flatMap((row) => [row.record_a_id, row.record_b_id]))];
-  const labels = await labelsFor(client, context.organizationId, entityType, ids);
-  return result.rows.map((row) => ({
+  const labels = await labelsFor(client, context, entityType, ids);
+  return result.rows.filter((row) => labels.has(row.record_a_id) && labels.has(row.record_b_id)).map((row) => ({
     id: row.id,
     entityType: row.entity_type,
     recordAId: row.record_a_id,

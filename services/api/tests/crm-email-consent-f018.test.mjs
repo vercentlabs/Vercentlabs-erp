@@ -99,11 +99,19 @@ test("F018: recordScope adds the canonical team/private/participant audience cla
 });
 
 test("F018: recordScope's audience predicate evaluates unconditionally true (via $viewAll) for a caller holding the organization-wide view-all override, rather than omitting the clause", () => {
-  const managerContext = { organizationId: org, userId: user, activeCompanyId: null, activeBranchId: null, allowAllCompanies: true, roleSlugs: [], permissions: ["crm.leads.view_sensitive", "crm.records.view_all"] };
+  const managerContext = { organizationId: org, userId: user, activeCompanyId: null, activeBranchId: null, allowAllCompanies: true, roleSlugs: [], permissions: ["crm.leads.view_sensitive", "crm.records.view_all", "crm.settings.manage"] };
   const values = [org];
   const clause = recordScope(resources.communications, managerContext, values, "record");
   const viewAllValueIndex = clause.match(/record\.created_by=\$(\d+) OR \$(\d+)/)?.[2];
   assert.equal(values[Number(viewAllValueIndex) - 1], true, "an organization-wide view-all override's $viewAll parameter must be true");
+});
+
+test("F018: read breadth alone (crm.records.view_all without CRM administration, e.g. Auditor/Read-only) does NOT override private/participant communications", () => {
+  const readerContext = { organizationId: org, userId: user, activeCompanyId: null, activeBranchId: null, allowAllCompanies: true, roleSlugs: [], permissions: ["crm.leads.view_sensitive", "crm.records.view_all"] };
+  const values = [org];
+  const clause = recordScope(resources.communications, readerContext, values, "record");
+  const overrideIndex = clause.match(/record\.created_by=\$(\d+) OR \$(\d+)/)?.[2];
+  assert.equal(values[Number(overrideIndex) - 1], false);
 });
 
 test("F018: queueOutboundEmail persists the caller's visibility choice (team/private/participant), defaulting to 'team' (today's real-world behavior) when not specified", () => {
@@ -137,7 +145,7 @@ test("F018 closeout: getCommunicationTimeline's audience predicate always evalua
       return { rows: [] };
     },
   };
-  const managerContext = { organizationId: org, userId: user, activeCompanyId: null, activeBranchId: null, allowAllCompanies: true, roleSlugs: [], permissions: ["crm.leads.view_sensitive", "crm.records.view_all"] };
+  const managerContext = { organizationId: org, userId: user, activeCompanyId: null, activeBranchId: null, allowAllCompanies: true, roleSlugs: [], permissions: ["crm.leads.view_sensitive", "crm.records.view_all", "crm.settings.manage"] };
   await getCommunicationTimeline(client, managerContext, { opportunityId: "55555555-5555-4555-8555-555555555555" });
   const select = calls.find(({ sql }) => sql.includes("FROM tenant.crm_communications communication"));
   const viewAllValueIndex = select.sql.match(/communication\.created_by=\$(\d+) OR \$(\d+)/)?.[2];

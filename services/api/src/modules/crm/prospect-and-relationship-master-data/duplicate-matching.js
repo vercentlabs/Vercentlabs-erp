@@ -11,6 +11,9 @@
 import { createHash } from "node:crypto";
 import { CrmError } from "../index.js";
 import { activeRuleSetTimestamp, getActiveDuplicateRules } from "./duplicate-rules.js";
+import { crmAccountCompanySql, crmAccountVisibleSql, crmContactVisibleSql } from "../crm-data-operations-and-customization/crm-access-scope.js";
+import { projectAccountForContext } from "./account-security.js";
+import { projectContactForContext } from "./contact-security.js";
 
 function signatureOf(parts) {
   return createHash("sha256").update(JSON.stringify(parts)).digest("hex");
@@ -244,7 +247,9 @@ export async function findAccountDuplicates(client, context, input = {}) {
   const excludeParam = p(excludeId);
   const result = await client.query(
     `SELECT party.id, party.code, party.display_name, party.legal_name, party.gstin, party.pan,
-            party.party_type, party.status,
+            party.party_type, party.status, party.company_id,
+            (true${crmAccountVisibleSql(context, p, "party")}) AS caller_can_access,
+            (true${crmAccountCompanySql(context, p, "party")}) AS in_company_scope,
             (${scoreTerms.join(" + ")})::int AS match_score,
             (${signalTerms.length > 1 ? signalTerms.join(" || ") : signalTerms[0]}) AS matched_signals
        FROM tenant.business_parties party
@@ -324,6 +329,7 @@ export async function findContactDuplicates(client, context, input = {}) {
     `SELECT contact.id, contact.party_id, contact.first_name, contact.last_name,
             contact.email, contact.mobile, contact.phone, contact.designation,
             party.display_name AS account_name,
+            (true${crmContactVisibleSql(context, p, "contact", "party")}) AS caller_can_access,
             (${scoreTerms.join(" + ")})::int AS match_score,
             (${signalTerms.length > 1 ? signalTerms.join(" || ") : signalTerms[0]}) AS matched_signals
        FROM tenant.contacts contact
@@ -396,6 +402,7 @@ export async function findLeadContactCrossMatches(client, context, input = {}) {
   const result = await client.query(
     `SELECT contact.id, contact.first_name, contact.last_name, contact.email, contact.mobile,
             contact.designation, party.display_name AS account_name,
+            (true${crmContactVisibleSql(context, p, "contact", "party")}) AS caller_can_access,
             (${scoreTerms.join(" + ")})::int AS match_score,
             (${signalTerms.length > 1 ? signalTerms.join(" || ") : signalTerms[0]}) AS matched_signals
        FROM tenant.contacts contact
@@ -408,5 +415,17 @@ export async function findLeadContactCrossMatches(client, context, input = {}) {
       LIMIT 10`,
     parameters,
   );
-  return result.rows;
+  return projectDuplicateMatchesForCaller(context, "contact", result.rows);
+}
+
+// Duplicate MATCHING is organisation-wide by design (so an exact duplicate
+// is caught even when a colleague owns it), but DISCLOSURE follows record
+// access: an Account/Contact the caller cannot open comes back only as
+// { restricted: true, classification } — no id, name, identifiers or score —
+// exactly like Lead duplicates (lead-duplicates.js). Visible matches keep the
+// separate sensitive-field projection (GSTIN/PAN, email/mobile).
+export function projectDuplicateMatchesForCaller(context, kind, rows) {
+  const project = kind === "account" ? projectAccountForContext : projectContactForContext;
+  return rows.map(({ caller_can_access: accessible, in_company_scope: _inCompany, ...row }) =>
+    accessible === false ? { restricted: true, classification: row.classification ?? null } : project(context, row));
 }

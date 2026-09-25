@@ -17,7 +17,9 @@ const attachment = "88888888-8888-4888-8888-888888888888";
 const attachmentV2 = "99999999-9999-4999-8999-999999999999";
 
 function baseContext() {
-  return { organizationId: org, userId: user, activeCompanyId: null, activeBranchId: null, allowAllCompanies: true, roleSlugs: [], permissions: ["crm.leads.view_sensitive"] };
+  // A seller who logs CRM work (crm.activities.manage): writing files needs a
+  // write permission, not just record visibility (assertCanWriteCrmRecordContent).
+  return { organizationId: org, userId: user, activeCompanyId: null, activeBranchId: null, allowAllCompanies: true, roleSlugs: [], permissions: ["crm.leads.view_sensitive", "crm.activities.manage"] };
 }
 
 function mockClient({ leadRow = { id: lead }, attachments = [], calls = [] } = {}) {
@@ -190,4 +192,13 @@ test("F017 §CRM-VNEXT-053: deleting a NON-current (already-superseded) version 
   const client = mockClient({ attachments: [{ id: attachment, logical_id: attachment, version: 1, is_current: false, file_name: "a-v1.pdf", mime_type: "application/pdf", size_bytes: 3 }] });
   await deleteCrmAttachment(client, baseContext(), "lead", lead, attachment);
   assert.ok(!client.calls.some(({ sql }) => sql.startsWith("UPDATE public.attachments SET is_current=true")));
+});
+
+test("F017: a caller who can SEE the record but cannot manage it (Auditor / Read-only) cannot upload or delete files — refused before any query", async () => {
+  const calls = [];
+  const client = { async query(sql) { calls.push(sql); return { rows: [] }; } };
+  const reader = { ...baseContext(), permissions: ["crm.view", "crm.records.view_all", "crm.leads.view_sensitive"] };
+  await assert.rejects(() => createCrmAttachment(client, reader, "lead", "33333333-3333-4333-8333-333333333333", { fileName: "a.txt", mimeType: "text/plain", content: Buffer.from("x") }), { code: "CRM_RECORD_CONTENT_WRITE_FORBIDDEN" });
+  await assert.rejects(() => deleteCrmAttachment(client, reader, "lead", "33333333-3333-4333-8333-333333333333", "44444444-4444-4444-8444-444444444444"), { code: "CRM_RECORD_CONTENT_WRITE_FORBIDDEN" });
+  assert.equal(calls.length, 0);
 });

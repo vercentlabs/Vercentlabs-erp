@@ -10,10 +10,14 @@ import {
   projectAccountForContext,
 } from "./account-security.js";
 import {
+  projectDuplicateMatchesForCaller,
   findAccountDuplicates,
   recordAccountDuplicateOverride,
 } from "./duplicate-matching.js";
 import { assertExpectedRecordVersion } from "./record-version.js";
+import { getEligibleLeadAssignee } from "../lead-lifecycle-qualification-and-prioritization/assignment/eligibility.js";
+import { assertCrmOwnerAssignable, crmAccountVisibleSql } from "../crm-data-operations-and-customization/crm-access-scope.js";
+import { crmChildScopes } from "../crm-data-operations-and-customization/record-policy.js";
 
 // F008 create-time governed duplicate check (CRM-VNEXT-081). Mirrors Lead's
 // established exact-classification-blocks-unless-overridden contract
@@ -37,13 +41,15 @@ async function assertAccountDuplicatePolicy(client, context, candidate, override
         ? "Explain in at least 10 characters why this exact duplicate must be created."
         : "This looks like an exact duplicate of an existing account. You do not have permission to create it anyway.",
       "CRM_ACCOUNT_DUPLICATE_EXACT",
-      { matches: exact },
+      { matches: projectDuplicateMatchesForCaller(context, "account", exact) },
     );
   }
   return { matchedPartyIds: exact.map((row) => row.id), reason };
 }
 
 const ACCOUNT_TYPES = ["customer", "both", "prospect"];
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
 const PARTY_FIELDS = Object.freeze({
   companyId: "company_id",
   partyType: "party_type",
@@ -57,6 +63,7 @@ const PARTY_FIELDS = Object.freeze({
   pan: "pan",
   msmeNumber: "msme_number",
   currencyCode: "currency_code",
+  ownerUserId: "owner_user_id",
 });
 const ADDRESS_FIELDS = Object.freeze({
   addressLine1: "line1",
@@ -95,11 +102,10 @@ function boundedInteger(value, fallback, maximum) {
     : fallback;
 }
 
+// Company boundary first, then Account ownership (crm-access-scope.js):
+// the same predicate for list, count, filters, get, update and archive.
 function accountScope(context, parameters, alias = "account") {
-  if (context.activeCompanyId) {
-    return ` AND (${alias}.company_id IS NULL OR ${alias}.company_id = ${addParameter(parameters, context.activeCompanyId)})`;
-  }
-  return context.allowAllCompanies ? "" : " AND false";
+  return crmAccountVisibleSql(context, (value) => addParameter(parameters, value), alias);
 }
 
 function assertWritableScope(context, companyId) {
@@ -198,11 +204,13 @@ function accountSelect() {
       address.state,
       address.postal_code,
       address.country_code,
-      company.name AS company_scope_name
+      company.name AS company_scope_name,
+      account_owner.full_name AS owner_name
     FROM tenant.business_parties account
     LEFT JOIN public.companies company
       ON company.organization_id = account.organization_id
      AND company.id = account.company_id
+    LEFT JOIN public.users account_owner ON account_owner.id = account.owner_user_id
     LEFT JOIN LATERAL (
       SELECT candidate.*
       FROM tenant.addresses candidate
@@ -257,6 +265,12 @@ export async function listCrmAccounts(client, context, options = {}) {
   if (["active", "inactive"].includes(status)) {
     where += ` AND account.status = ${addParameter(parameters, status)}`;
   }
+  // Owner filter only NARROWS the already-scoped set (accountScope above is
+  // always ANDed), so it can never reveal an Account the caller cannot see.
+  const owner = String(options.ownerId || "").trim();
+  if (owner === "me") where += ` AND account.owner_user_id = ${addParameter(parameters, context.userId)}`;
+  else if (owner === "none") where += " AND account.owner_user_id IS NULL";
+  else if (UUID_PATTERN.test(owner)) where += ` AND account.owner_user_id = ${addParameter(parameters, owner)}`;
   const industry = String(options.industry || "")
     .trim()
     .slice(0, 160);
@@ -290,21 +304,22 @@ export async function listCrmAccounts(client, context, options = {}) {
      LIMIT ${limitParameter} OFFSET ${offsetParameter}`,
     listParameters,
   );
+  const filterParameters = [context.organizationId, ACCOUNT_TYPES];
   const filters = await client.query(
     `SELECT
        array_remove(array_agg(DISTINCT industry ORDER BY industry), NULL) AS industries,
-       array_remove(array_agg(DISTINCT address.country_code ORDER BY address.country_code), NULL) AS countries
+       array_remove(array_agg(DISTINCT address.country_code ORDER BY address.country_code), NULL) AS countries,
+       COALESCE(jsonb_agg(DISTINCT jsonb_build_object('id', account_owner.id, 'name', account_owner.full_name)) FILTER (WHERE account_owner.id IS NOT NULL), '[]'::jsonb) AS owners
      FROM tenant.business_parties account
+     LEFT JOIN public.users account_owner ON account_owner.id = account.owner_user_id
      LEFT JOIN tenant.addresses address
        ON address.organization_id = account.organization_id
       AND address.party_id = account.id
       AND address.status = 'active'
      WHERE account.organization_id = $1
        AND account.party_type = ANY($2::text[])
-       ${accountScope(context, [context.organizationId, ACCOUNT_TYPES])}`,
-    context.activeCompanyId
-      ? [context.organizationId, ACCOUNT_TYPES, context.activeCompanyId]
-      : [context.organizationId, ACCOUNT_TYPES],
+       ${accountScope(context, filterParameters)}`,
+    filterParameters,
   );
 
   return {
@@ -315,6 +330,8 @@ export async function listCrmAccounts(client, context, options = {}) {
     filters: {
       industries: filters.rows[0]?.industries || [],
       countries: filters.rows[0]?.countries || [],
+      // Only owners of Accounts the caller can already see.
+      owners: filters.rows[0]?.owners || [],
     },
   };
 }
@@ -333,13 +350,17 @@ export async function getCrmAccount(client, context, id) {
   if (!result.rows[0]) {
     throw new CrmError(404, "Account not found.", "CRM_ACCOUNT_NOT_FOUND");
   }
+  // Contacts inherit the Account's access; Opportunities are counted with
+  // their own scope, so the badge matches the list the caller can open.
+  const countParameters = [context.organizationId, id];
+  const scope = crmChildScopes(context, countParameters);
   const relationshipCounts = await client.query(
     `SELECT
        (SELECT count(*)::int FROM tenant.contacts
         WHERE organization_id = $1 AND party_id = $2 AND status = 'active') AS contacts,
-       (SELECT count(*)::int FROM tenant.crm_opportunities
-        WHERE organization_id = $1 AND party_id = $2 AND status <> 'archived') AS opportunities`,
-    [context.organizationId, id],
+       (SELECT count(*)::int FROM tenant.crm_opportunities opportunity
+        WHERE opportunity.organization_id = $1 AND opportunity.party_id = $2 AND opportunity.status <> 'archived'${scope.opportunity()}) AS opportunities`,
+    countParameters,
   );
   return {
     ...camelizeRow(result.rows[0]),
@@ -446,15 +467,22 @@ async function upsertPrimaryAddress(client, context, accountId, input) {
   }
 }
 
+// Account owner (migration 180): optional; NULL = shared Account. The owner
+// must be an active CRM member with access to the Account's company, and the
+// caller may only choose themselves or their managed team unless they can
+// view all CRM records — the same rule as every other CRM owner field.
+async function resolveAccountOwner(client, context, input, companyId) {
+  if (!hasOwn(input, "ownerUserId")) return undefined;
+  const ownerUserId = input.ownerUserId ? String(input.ownerUserId) : null;
+  if (!ownerUserId) return null;
+  await assertCrmOwnerAssignable(client, context, ownerUserId, "You can only make yourself or a member of a team you manage the Account owner.");
+  if (!(await getEligibleLeadAssignee(client, context, ownerUserId, { companyId })))
+    throw new CrmError(409, "The selected owner is not an active CRM member for this company.", "CRM_ACCOUNT_OWNER_INVALID", { errors: { ownerUserId: ["Choose an active CRM member."] } });
+  return ownerUserId;
+}
+
 export async function createCrmAccount(client, context, input = {}) {
   try {
-    if (hasOwn(input, "ownerUserId")) {
-      throw new CrmError(
-        403,
-        "Account ownership is not available in the canonical Account model.",
-        "CRM_ACCOUNT_OWNER_FORBIDDEN",
-      );
-    }
     if (
       input.status &&
       String(input.status).trim().toLowerCase() !== "active"
@@ -481,14 +509,15 @@ export async function createCrmAccount(client, context, input = {}) {
       normalized,
       input.duplicateOverrideReason,
     );
+    const ownerUserId = (await resolveAccountOwner(client, context, input, normalized.companyId)) ?? null;
     const code = await nextAccountCode(client, context.organizationId);
     const result = await client.query(
       `INSERT INTO tenant.business_parties (
          organization_id, company_id, code, party_type, display_name,
          legal_name, industry, website, phone, email, gstin, pan, msme_number,
-         currency_code, status, created_by, updated_by
+         currency_code, status, created_by, updated_by, owner_user_id
        ) VALUES (
-         $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, 'active', $15, $15
+         $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, 'active', $15, $15, $16
        ) RETURNING *`,
       [
         context.organizationId,
@@ -506,6 +535,7 @@ export async function createCrmAccount(client, context, input = {}) {
         normalized.msmeNumber ?? null,
         normalized.currencyCode,
         context.userId,
+        ownerUserId,
       ],
     );
     await upsertPrimaryAddress(client, context, result.rows[0].id, normalized);
@@ -541,13 +571,6 @@ export async function updateCrmAccount(
   expectations = {},
 ) {
   try {
-    if (hasOwn(input, "ownerUserId")) {
-      throw new CrmError(
-        403,
-        "Account ownership is not available in the canonical Account model.",
-        "CRM_ACCOUNT_OWNER_FORBIDDEN",
-      );
-    }
     if (hasOwn(input, "status")) {
       throw new CrmError(
         409,
@@ -573,6 +596,10 @@ export async function updateCrmAccount(
     assertWritableScope(context, companyId);
     throwValidation(normalized, { existing, mode: "update" });
 
+    // An unchanged owner (forms resend every field) is not a reassignment.
+    const ownerChanged = hasOwn(input, "ownerUserId") && String(input.ownerUserId || "") !== String(existing.ownerUserId || "");
+    const ownerUserId = ownerChanged ? await resolveAccountOwner(client, context, input, companyId) : undefined;
+    if (ownerUserId !== undefined) normalized.ownerUserId = ownerUserId;
     const suppliedPartyFields = Object.keys(PARTY_FIELDS).filter((field) =>
       hasOwn(normalized, field),
     );

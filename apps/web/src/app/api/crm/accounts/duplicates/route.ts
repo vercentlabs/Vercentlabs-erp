@@ -1,4 +1,4 @@
-import { assertSameOriginOrMobile, findAccountDuplicates } from "@vercentlabs/api";
+import { assertSameOriginOrMobile, findAccountDuplicates, projectDuplicateMatchesForCaller } from "@vercentlabs/api";
 
 import { tenantTransaction } from "@/core/db";
 import { errorResponse, ok, readJson } from "@/core/http";
@@ -17,7 +17,8 @@ export async function POST(request: Request) {
     const body = (await readJson(request)) as { input?: Record<string, unknown> };
     const duplicates = await tenantTransaction(session.organizationId, async (client) => {
       await requireCrmAccess(client, session);
-      return findAccountDuplicates(client, crmContext(session), body.input ?? {});
+      const context = crmContext(session);
+      return projectDuplicateMatchesForCaller(context, "account", await findAccountDuplicates(client, context, body.input ?? {}));
     });
     return ok({ duplicates });
   } catch (error) {

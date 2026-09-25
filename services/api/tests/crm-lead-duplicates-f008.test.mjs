@@ -80,6 +80,8 @@ function client(rows = []) {
       if (/INSERT INTO tenant\.crm_lead_duplicate_overrides/.test(sql)) {
         return { rows: [{ id: "override-1", reason: params[3] }] };
       }
+      // The caller's managed-team roster (none in these fixtures).
+      if (sql.includes("SELECT DISTINCT team_member.user_id")) return { rows: [] };
       throw new Error(`Unexpected query: ${sql}`);
     },
   };
@@ -214,6 +216,8 @@ function dismissClient({ leadNorm = {}, candidateNorm = {} } = {}) {
       if (/INSERT INTO tenant\.crm_lead_duplicate_overrides/.test(sql)) {
         return { rows: [{ id: "dismiss-1", lead_id: params[0], matched_lead_ids: [params[1]], reason: params[2], operation: "dismiss" }] };
       }
+      // The caller's managed-team roster (none in these fixtures).
+      if (sql.includes("SELECT DISTINCT team_member.user_id")) return { rows: [] };
       throw new Error(`Unexpected query: ${sql}`);
     },
   };

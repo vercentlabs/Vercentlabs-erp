@@ -51,6 +51,14 @@ function hasPermission(context, permission) {
     context.roleSlugs?.includes("organization_owner")
   );
 }
+// The Sales module's canonical document visibility rule (quotations and
+// sales orders): sales.view, then the active company for a company-scoped
+// caller. Exported so other modules (e.g. CRM Account 360) apply exactly
+// this rule instead of re-deriving Sales authorization.
+export function salesDocumentVisibilitySql(context, bind, alias) {
+  if (!hasPermission(context, "sales.view")) return " AND false";
+  return !context.allowAllCompanies && context.activeCompanyId ? ` AND ${alias}.company_id=${bind(context.activeCompanyId)}` : "";
+}
 function requirePermission(context, permission) {
   if (!hasPermission(context, permission))
     throw new SalesError(
@@ -1137,10 +1145,7 @@ export async function listQuotations(client, context, filters = {}) {
     values.push(uuid(filters.opportunityId, "Opportunity"));
     where += ` AND quotation.source_opportunity_id=$${values.length}`;
   }
-  if (!context.allowAllCompanies && context.activeCompanyId) {
-    values.push(context.activeCompanyId);
-    where += ` AND quotation.company_id=$${values.length}`;
-  }
+  where += salesDocumentVisibilitySql(context, (value) => { values.push(value); return `$${values.length}`; }, "quotation");
   const limit = Math.min(
     500,
     Math.max(1, Number.parseInt(filters.limit, 10) || 200),
@@ -1832,10 +1837,7 @@ export async function listSalesOrders(client, context, filters = {}) {
     values.push(uuid(filters.partyId, "Customer"));
     where += ` AND sales_order.party_id=$${values.length}`;
   }
-  if (!context.allowAllCompanies && context.activeCompanyId) {
-    values.push(context.activeCompanyId);
-    where += ` AND sales_order.company_id=$${values.length}`;
-  }
+  where += salesDocumentVisibilitySql(context, (value) => { values.push(value); return `$${values.length}`; }, "sales_order");
   const limit = Math.min(
     500,
     Math.max(1, Number.parseInt(filters.limit, 10) || 200),

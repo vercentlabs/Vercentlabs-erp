@@ -489,6 +489,7 @@ export {
   findAccountDuplicates,
   findContactDuplicates,
   findLeadContactCrossMatches,
+  projectDuplicateMatchesForCaller,
   dismissAccountDuplicateMatch,
   dismissContactDuplicateMatch,
   recordAccountDuplicateOverride,
@@ -532,6 +533,7 @@ export function scanLeadStageDwellBreaches(client: QueryClient, context: any): P
 export * from "./modules/crm/opportunity-and-pipeline-governance/opportunity-revenue-intelligence.js";
 export * from "./modules/crm/opportunity-and-pipeline-governance/opportunity-contacts.js";
 export * from "./modules/crm/crm-data-operations-and-customization/offline-sync.js";
+export * from "./modules/crm/crm-data-operations-and-customization/notification-visibility.js";
 export * from "./modules/stock/index.js";
 export * from "./modules/stock/master-operations.js";
 export * from "./modules/stock/read-models.js";

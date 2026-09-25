@@ -34,7 +34,10 @@ test("F024: 'mine' restricts every owner-scoped figure to the caller, on top of 
   const client = capture();
   await getCrmDashboard(client, viewAll, { scope: "mine", from: "2026-09-01", to: "2026-09-30" });
   const metrics = client.calls[0];
-  assert.match(metrics.sql, /\(\$5::boolean OR lead\.owner_user_id IS NULL OR lead\.owner_user_id = \$6\) AND lead\.owner_user_id = \$6/);
+  // Permitted scope (own + unassigned + managed team, crm-access-scope.js), then narrowed to "mine".
+  // View-all caller: the permitted scope folds to the umbrella guard, then
+  // "mine" narrows it to the caller (the rep-scoped shape is tested below).
+  assert.match(metrics.sql, /\(\$5::boolean OR \(\$6::uuid IS NULL OR true\)\) AND lead\.owner_user_id = \$6/);
   assert.deepEqual(metrics.params.slice(6), ["2026-09-01", "2026-09-30", "2026-08-02", "2026-08-31"]);
   assert.match(metrics.sql, /AND false AND .*AS unassigned_leads/s, "org-wide signals are suppressed outside the 'all' scope");
 });
@@ -43,7 +46,7 @@ test("F024: 'team' adds members of sales teams the caller manages, still within 
   const client = capture();
   await getCrmDashboard(client, rep, { scope: "team" });
   const sql = client.calls[0].sql;
-  assert.match(sql, /\(\$5::boolean OR opportunity\.owner_user_id IS NULL OR opportunity\.owner_user_id = \$6\) AND \(opportunity\.owner_user_id = \$6 OR opportunity\.owner_user_id IN \(SELECT member\.user_id FROM tenant\.crm_sales_team_members member/);
+  assert.match(sql, /\(\$5::boolean OR \(\(opportunity\.owner_user_id IS NULL OR opportunity\.owner_user_id = \$6 OR EXISTS \(SELECT 1 FROM tenant\.crm_sales_team_members[\s\S]*?\)\)\)\) AND \(opportunity\.owner_user_id = \$6 OR opportunity\.owner_user_id IN \(SELECT member\.user_id FROM tenant\.crm_sales_team_members member/);
   assert.match(sql, /team\.manager_user_id = \$6/);
   assert.equal(client.calls[0].params[4], false, "a rep without view-all keeps the narrow permitted scope");
 });

@@ -131,7 +131,7 @@ export async function createCrmRecord(client, context, resource, input) {
     }
   }
   assertWritableScope(definition, context, input);
-  assertOwnerAssignmentAllowed(definition, context, input);
+  await assertOwnerAssignmentAllowed(client, definition, context, input);
   const ownerChangeRequested =
     resource === "leads" &&
     Object.prototype.hasOwnProperty.call(input, "ownerUserId");
@@ -540,7 +540,7 @@ export async function updateCrmRecord(
       "CRM_LEAD_ORIGINAL_SOURCE_IMMUTABLE",
     );
   assertWritableScope(definition, context, input);
-  assertOwnerAssignmentAllowed(definition, context, input);
+  await assertOwnerAssignmentAllowed(client, definition, context, input);
   const ownerChangeRequested =
     resource === "leads" &&
     Object.prototype.hasOwnProperty.call(input, "ownerUserId");
@@ -1095,6 +1095,9 @@ export async function archiveCrmRecord(
 
 
 
+// Automation entity type → CRM web route segment.
+const CRM_NOTIFICATION_ROUTE = Object.freeze({ lead: "leads", opportunity: "opportunities", party: "accounts", contact: "contacts", campaign: "campaigns", activity: "activities" });
+
 export async function runCrmAutomation(
   client,
   context,
@@ -1143,7 +1146,10 @@ export async function runCrmAutomation(
               action.userId,
               action.title || "CRM automation",
               action.message || "A CRM automation rule ran.",
-              action.href || `/crm/${entityType}s/${entityId}`,
+              // Always the triggering record's real route, so the link works and
+              // notification redaction (notification-visibility.js) can
+              // re-check access to it; a free-form href is not accepted.
+              `/crm/${CRM_NOTIFICATION_ROUTE[entityType] ?? `${entityType}s`}/${entityId}`,
             ],
           );
           output.push({ action: action.type });

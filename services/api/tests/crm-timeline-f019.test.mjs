@@ -36,9 +36,13 @@ function createClient({ leadRow, opportunityRow, partyRow, contactRow, campaignR
     async query(sql, values = []) {
       calls.push({ sql, values });
       if (sql.includes("FROM tenant.crm_leads lead")) return { rows: leadRow ? [leadRow] : [] };
-      if (sql.includes("FROM tenant.crm_opportunities WHERE")) return { rows: opportunityRow ? [opportunityRow] : [] };
-      if (sql.includes("FROM tenant.business_parties WHERE")) return { rows: partyRow ? [partyRow] : [] };
-      if (sql.includes("FROM tenant.contacts contact")) return { rows: contactRow ? [contactRow] : [] };
+      if (sql.includes("FROM tenant.crm_opportunities opportunity")) return { rows: opportunityRow ? [opportunityRow] : [] };
+      // Account/Contact access is now decided in SQL (company boundary +
+      // ownership, crm-access-scope.js); emulate the company predicate: the
+      // bound active company must match the row's company (NULL = shared).
+      const inCompany = (row) => !row.company_id || values.includes(row.company_id);
+      if (sql.includes("FROM tenant.business_parties account WHERE")) return { rows: partyRow && inCompany(partyRow) ? [partyRow] : [] };
+      if (sql.includes("FROM tenant.contacts contact")) return { rows: contactRow && inCompany(contactRow) ? [contactRow] : [] };
       if (sql.includes("FROM tenant.crm_campaigns WHERE")) return { rows: campaignRow ? [campaignRow] : [] };
       if (sql.includes("WITH combined AS")) return { rows: timelineRows };
       throw new Error(`Unexpected query: ${sql}`);
@@ -80,7 +84,7 @@ test("F019: Opportunity entities reuse the Lead sensitive-content permission (es
   const allowedClient = createClient({ opportunityRow: { id: opportunity, company_id: company, branch_id: branch }, timelineRows: [] });
   const allowed = await getCrmRecordTimelinePage(allowedClient, baseContext({ sensitive: ["crm.leads.view_sensitive"] }), "opportunity", opportunity, {});
   assert.deepEqual(allowed, { rows: [], hasMore: false, nextCursor: null });
-  assert.ok(allowedClient.calls.some(({ sql }) => sql.includes("FROM tenant.crm_opportunities WHERE")));
+  assert.ok(allowedClient.calls.some(({ sql }) => sql.includes("FROM tenant.crm_opportunities opportunity")));
 });
 
 test("F019: a caller from another company is denied even with the right Opportunity/Account/Contact permission", async () => {
@@ -104,14 +108,15 @@ test("F019: Account (party) entities use their own dedicated sensitive-content p
 
   const rightPermission = createClient({ partyRow: { id: party, company_id: company }, timelineRows: [] });
   await getCrmRecordTimelinePage(rightPermission, baseContext({ sensitive: ["crm.accounts.view_sensitive"] }), "party", party, {});
-  assert.ok(rightPermission.calls.some(({ sql }) => sql.includes("FROM tenant.business_parties WHERE")));
+  assert.ok(rightPermission.calls.some(({ sql }) => sql.includes("FROM tenant.business_parties account WHERE") && sql.includes("account.owner_user_id IS NULL")), "account ownership applies, not company alone");
 });
 
 test("F019: Contact entities join through business_parties for company scope and use their own sensitive permission", async () => {
   const client = createClient({ contactRow: { id: contact, company_id: company }, timelineRows: [] });
   await getCrmRecordTimelinePage(client, baseContext({ sensitive: ["crm.contacts.view_sensitive"] }), "contact", contact, {});
   const contactQuery = client.calls.find(({ sql }) => sql.includes("FROM tenant.contacts contact"));
-  assert.ok(contactQuery.sql.includes("JOIN tenant.business_parties party"));
+  assert.ok(contactQuery.sql.includes("LEFT JOIN tenant.business_parties party"), "standalone Contacts are reachable (creator rule), not dropped by an inner join");
+  assert.ok(contactQuery.sql.includes("contact.created_by ="), "Contact access rule applies");
   const combined = client.calls.find(({ sql }) => sql.includes("WITH combined AS"));
   // Contacts have no communication FK column mapping to itself in COMMUNICATION_COLUMN? verify it DOES (contact_id exists)
   assert.ok(combined.sql.includes("contact_id="));

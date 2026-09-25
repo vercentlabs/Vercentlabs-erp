@@ -57,7 +57,7 @@ test("F001 Pass 2A: Lead record scope composes company, branch and owner", () =>
   const sql = leadScopeSql(base, values, "lead");
   assert.match(sql, /lead\.company_id IS NULL OR lead\.company_id=\$2/);
   assert.match(sql, /lead\.branch_id IS NULL OR lead\.branch_id=\$3/);
-  assert.match(sql, /lead\.owner_user_id IS NULL OR lead\.owner_user_id=\$4/);
+  assert.match(sql, /lead\.owner_user_id IS NULL OR lead\.owner_user_id = \$4 OR EXISTS \(SELECT 1 FROM tenant\.crm_sales_team_members/);
   assert.deepEqual(values, [base.organizationId, base.activeCompanyId, base.activeBranchId, base.userId]);
 });
 

@@ -1,3 +1,4 @@
+import { crmOwnerScopeSql } from "../crm-data-operations-and-customization/crm-access-scope.js";
 import { updateCrmRecord } from "../crm-data-operations-and-customization/resource-mutation-service.js";
 import { createHash } from "node:crypto";
 import { resolveLeadOwner } from "./lead-governance.js";
@@ -38,13 +39,7 @@ function scopedLeadWhere(context, values, alias = "lead") {
   } else if (!context.allowAllCompanies) {
     sql += " AND false";
   }
-  const viewAll =
-    context.roleSlugs?.includes("organization_owner") ||
-    context.permissions?.includes("crm.records.view_all");
-  if (!viewAll) {
-    values.push(context.userId);
-    sql += ` AND (${alias}.owner_user_id IS NULL OR ${alias}.owner_user_id=$${values.length})`;
-  }
+  sql += crmOwnerScopeSql(context, (value) => { values.push(value); return `$${values.length}`; }, `${alias}.owner_user_id`, `${alias}.organization_id`, { resource: "leads", alias: alias });
   return sql;
 }
 export function evaluateLeadReadiness(lead, now = new Date(), options = {}) {
@@ -515,7 +510,9 @@ export async function retryFailedLeadBulkJobItems(client, context, jobId) {
   return bulkJobProjection(updated.rows[0]);
 }
 
-export async function resolveLeadBulkExecutionContext(client, organizationId, input) {
+// requiredPermission: what the job needs NOW (bulk update: crm.leads.manage;
+// export: crm.export) — re-checked when the job runs, not only at enqueue.
+export async function resolveLeadBulkExecutionContext(client, organizationId, input, { requiredPermission = "crm.leads.manage" } = {}) {
   const userId = text(input?.requesterUserId);
   if (!UUID_PATTERN.test(userId)) return null;
   const access = await client.query(
@@ -540,7 +537,7 @@ export async function resolveLeadBulkExecutionContext(client, organizationId, in
   const roleSlugs = row.role_slugs || [];
   const permissions = row.permissions || [];
   const allowAllCompanies = roleSlugs.includes("organization_owner") || roleSlugs.includes("system_administrator");
-  if (!allowAllCompanies && !permissions.includes("crm.leads.manage")) return null;
+  if (!roleSlugs.includes("organization_owner") && !permissions.includes(requiredPermission)) return null;
 
   const activeCompanyId = input.activeCompanyId || null;
   const activeBranchId = input.activeBranchId || null;

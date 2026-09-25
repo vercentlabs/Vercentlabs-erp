@@ -57,6 +57,8 @@ function survivorshipClient({
     inserted,
     async query(rawSql, params = []) {
       const sql = norm(rawSql);
+      // Merge scope guard (restricted caller): no out-of-scope children here.
+      if (/AS hidden$/.test(sql)) return { rows: [{ hidden: 0 }] };
       calls.push({ sql, params });
 
       if (/^SELECT id FROM tenant\.(business_parties|contacts) WHERE organization_id=\$1 AND id=ANY/.test(sql)) {

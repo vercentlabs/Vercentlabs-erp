@@ -1,3 +1,5 @@
+import { canViewAllCrmResource, managedTeamMemberIds } from "../crm-data-operations-and-customization/crm-access-scope.js";
+
 const DUPLICATE_FIELDS = Object.freeze([
   "firstName",
   "lastName",
@@ -19,11 +21,9 @@ export class LeadDuplicateError extends Error {
   }
 }
 
+// Lead-wide visibility (umbrella or crm.leads.view_all) — the central rule.
 function canViewAll(context) {
-  return (
-    Boolean(context.roleSlugs?.includes("organization_owner")) ||
-    Boolean(context.permissions?.includes("crm.records.view_all"))
-  );
+  return canViewAllCrmResource(context, "leads");
 }
 
 export function canOverrideLeadDuplicate(context) {
@@ -43,7 +43,10 @@ function canDisclose(context, row) {
     if (row.branch_id && row.branch_id !== context.activeBranchId) return false;
   } else if (!context.allowAllCompanies) return false;
 
-  return canViewAll(context) || !row.owner_user_id || row.owner_user_id === context.userId;
+  // Own, unassigned, or owned by a member of a team the caller manages
+  // (crm-access-scope.js) — the same rule as every Lead list.
+  return canViewAll(context) || !row.owner_user_id || row.owner_user_id === context.userId ||
+    Boolean(context.managedTeamMemberIds?.has(String(row.owner_user_id)));
 }
 
 function safeMatch(context, match) {
@@ -226,9 +229,13 @@ export async function evaluateLeadDuplicateRisk(
     : internalMatches.length
       ? "probable"
       : "none";
+  // Only look up the caller's managed team when there is something to disclose.
+  const disclosureContext = canViewAll(context) || !internalMatches.some((match) => match.row?.owner_user_id && match.row.owner_user_id !== context.userId)
+    ? context
+    : { ...context, managedTeamMemberIds: await managedTeamMemberIds(client, context) };
   return {
     classification,
-    matches: internalMatches.map((match) => safeMatch(context, match)),
+    matches: internalMatches.map((match) => safeMatch(disclosureContext, match)),
     internalMatches,
     canOverride: canOverrideLeadDuplicate(context),
   };

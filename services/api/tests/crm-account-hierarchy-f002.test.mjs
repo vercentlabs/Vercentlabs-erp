@@ -14,7 +14,7 @@ const accountB = "44444444-4444-4444-8444-444444444444";
 const accountC = "55555555-5555-4555-8555-555555555555";
 
 function context() {
-  return { organizationId: org, userId: user };
+  return { organizationId: org, userId: user, allowAllCompanies: true, permissions: ["crm.records.view_all"], roleSlugs: [] };
 }
 
 function norm(sql) {
@@ -56,7 +56,7 @@ function hierarchyClient({
         // default; tests that need real rows override query() directly.
         return { rows: [] };
       }
-      if (/^SELECT event\.\*,previous_parent\.display_name/.test(sql)) {
+      if (/^SELECT event\.\*,/.test(sql)) {
         return { rows: [] };
       }
       return { rows: [] };
@@ -134,18 +134,18 @@ test("F002 hierarchy: getAccountHierarchy returns ancestors, descendants and com
       if (/^SELECT party\.\*,parent\.display_name/.test(sql)) {
         return { rows: [{ id: accountA, display_name: "Acme India", status: "active" }] };
       }
-      if (/^WITH RECURSIVE tree AS[\s\S]*ORDER BY depth DESC/.test(sql)) {
-        return { rows: [{ id: accountB, display_name: "Acme Global", depth: 1 }] };
+      if (/^WITH RECURSIVE tree AS[\s\S]*ORDER BY tree\.depth DESC/.test(sql)) {
+        return { rows: [{ id: accountB, display_name: "Acme Global", depth: 1, caller_can_access: true }] };
       }
-      if (/^WITH RECURSIVE tree AS[\s\S]*ORDER BY depth,display_name/.test(sql)) {
+      if (/^WITH RECURSIVE tree AS[\s\S]*ORDER BY tree\.depth,tree\.display_name/.test(sql)) {
         return {
           rows: [
-            { id: accountC, display_name: "Acme India — West", depth: 1 },
-            { id: "66666666-6666-4666-8666-666666666666", display_name: "Acme India — West — Pune", depth: 2 },
+            { id: accountC, parent_party_id: accountA, display_name: "Acme India — West", depth: 1, caller_can_access: true },
+            { id: "66666666-6666-4666-8666-666666666666", parent_party_id: accountC, display_name: "Acme India — West — Pune", depth: 2, caller_can_access: true },
           ],
         };
       }
-      if (/^SELECT event\.\*,previous_parent\.display_name/.test(sql)) {
+      if (/^SELECT event\.\*,/.test(sql)) {
         return { rows: [] };
       }
       return { rows: [] };
@@ -157,4 +157,28 @@ test("F002 hierarchy: getAccountHierarchy returns ancestors, descendants and com
   assert.equal(result.metrics.ancestorCount, 1);
   assert.equal(result.metrics.descendantCount, 2);
   assert.equal(result.metrics.hierarchyDepth, 2);
+});
+
+test("F002 hierarchy: hidden Accounts are dropped and depth is rebased to the VISIBLE structure (no gap reveals hidden levels)", async () => {
+  const hidden = "77777777-7777-4777-8777-777777777777";
+  const client = {
+    async query(rawSql) {
+      const sql = norm(rawSql);
+      if (/^SELECT party\.\*,parent\.display_name/.test(sql)) return { rows: [{ id: accountA, display_name: "Root", status: "active", parent_visible: true }] };
+      if (/ORDER BY tree\.depth DESC/.test(sql)) return { rows: [] };
+      if (/ORDER BY tree\.depth,tree\.display_name/.test(sql))
+        return { rows: [
+          { id: hidden, parent_party_id: accountA, display_name: "Hidden", depth: 1, caller_can_access: false },
+          { id: accountC, parent_party_id: hidden, display_name: "Visible grandchild", depth: 2, caller_can_access: true },
+        ] };
+      return { rows: [] };
+    },
+  };
+  const result = await getAccountHierarchy(client, context(), accountA);
+  assert.deepEqual(result.descendants.map((row) => row.id), [accountC], "the hidden Account is never returned");
+  assert.equal(result.descendants[0].depth, 1, "depth counts only visible levels");
+  assert.equal(result.descendants[0].parent_party_id, null, "no link to (or id of) the hidden parent");
+  assert.equal(result.descendants[0].caller_can_access, undefined, "internal flag never leaves the server");
+  assert.equal(result.metrics.hierarchyDepth, 1);
+  assert.equal(result.metrics.descendantCount, 1);
 });

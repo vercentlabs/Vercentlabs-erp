@@ -588,7 +588,7 @@ export async function updateLeadNurtureItem(
 // the sensitive-intelligence permission the dashboard query itself requires.
 export async function listMyNurtureQueueItems(client, context, limit = 50) {
   assertSensitiveLeadIntelligenceAccess(context);
-  const scopedContext = { ...context, permissions: ["crm.leads.view_sensitive"], roleSlugs: [] };
+  const scopedContext = { ...context, permissions: ["crm.leads.view_sensitive"], roleSlugs: [], ownRecordsOnly: true };
   const values = [context.organizationId];
   const scope = scopedLeadWhere(scopedContext, values);
   const boundedLimit = Math.max(1, Math.min(200, Math.trunc(Number(limit) || 50)));

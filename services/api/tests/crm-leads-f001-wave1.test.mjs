@@ -31,7 +31,7 @@ test("F001 Wave 1: operations dashboard composes company, branch and owner recor
   assert.ok(query, "Lead dashboard query should execute");
   assert.match(query.sql, /lead\.company_id IS NULL OR lead\.company_id=\$2/);
   assert.match(query.sql, /lead\.branch_id IS NULL OR lead\.branch_id=\$3/);
-  assert.match(query.sql, /lead\.owner_user_id IS NULL OR lead\.owner_user_id=\$4/);
+  assert.match(query.sql, /lead\.owner_user_id IS NULL OR lead\.owner_user_id = \$4 OR EXISTS \(SELECT 1 FROM tenant\.crm_sales_team_members/);
   assert.deepEqual(query.values, [
     context.organizationId,
     context.activeCompanyId,

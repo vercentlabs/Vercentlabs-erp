@@ -48,7 +48,9 @@ test("F024: getCrmDashboard exposes stalled_opportunities using the SLA-policy-o
   // dashboard (open_opportunities, pipeline_value, weighted_pipeline).
   const stalledClause = capturedSql.slice(capturedSql.indexOf("AS stalled_opportunities") - 900, capturedSql.indexOf("AS stalled_opportunities"));
   assert.match(stalledClause, /company_id/);
-  assert.match(stalledClause, /owner_user_id/);
+  // Owner scope is still applied — for this view-all caller it folds to the
+  // umbrella guard ($5) rather than an owner_user_id predicate.
+  assert.match(stalledClause, /\$5::boolean OR/);
 });
 
 test("F024: an opportunity with no configured threshold (no SLA policy, no stale_after_days) is never counted as stalled", async () => {

@@ -10,14 +10,15 @@ import { crmContext, requireCrmAccess } from "@/features/crm/shared/crm-context"
 // job_type='crm.leads.export') instead of the prior client-side "fetch
 // every page then build CSV in the browser" approach — see
 // CrmImportExportScreen.tsx's own updated comment. Same crm.leads.manage
-// gate the rest of this import/export screen already uses.
+// gate the rest of this import/export screen already uses — plus the
+// dedicated crm.export permission (checked again in enqueue and worker).
 export async function POST(request: Request) {
   try {
     assertSameOriginOrMobile(request, process.env);
     const session = await requireWorkspace();
     const input = (await readJson(request)) as { filters?: Record<string, string> };
     const job = await tenantTransaction(session.organizationId, async (client) => {
-      await requireCrmAccess(client, session, CRM_PERMISSIONS.leadsManage);
+      await requireCrmAccess(client, session, CRM_PERMISSIONS.export);
       return enqueueCrmLeadExportJob(client, crmContext(session), { filters: input.filters || {} });
     });
     return ok({ job }, 202);

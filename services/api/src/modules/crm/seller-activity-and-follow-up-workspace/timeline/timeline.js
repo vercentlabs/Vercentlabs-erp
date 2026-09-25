@@ -46,6 +46,9 @@
 //    concurrent inserts (an OFFSET page shifts when a new row is inserted
 //    ahead of it) cannot happen here: a cursor value that already has a
 //    stable position never moves.
+import { canOverridePrivateCrmContent, crmAccountVisibleSql, crmContactVisibleSql, crmOwnerScopeSql } from "../../crm-data-operations-and-customization/crm-access-scope.js";
+import { recordScope } from "../../crm-data-operations-and-customization/record-policy.js";
+import { resources } from "../../crm-data-operations-and-customization/resource-registry.js";
 import { CrmError } from "../../crm-data-operations-and-customization/errors.js";
 import { canViewSensitiveLeadContent, leadScopeSql } from "../../lead-lifecycle-qualification-and-prioritization/lead-security.js";
 import { canViewSensitiveAccountContent } from "../../prospect-and-relationship-master-data/account-security.js";
@@ -61,9 +64,6 @@ const SOURCE_KINDS = new Set(["activity", "communication", "note", "attachment",
 const SINGLE_SOURCE_KINDS = new Set(["activity", "communication", "note", "attachment"]);
 const COMMUNICATION_COLUMN = { lead: "lead_id", opportunity: "opportunity_id", party: "party_id", contact: "contact_id", campaign: null };
 
-function canViewAllCrmRecords(context) {
-  return Boolean(context.roleSlugs?.includes("organization_owner")) || Boolean(context.permissions?.includes("crm.records.view_all"));
-}
 
 function camelize(key) { return key.replace(/_([a-z])/g, (_m, ch) => ch.toUpperCase()); }
 function dto(row) { return Object.fromEntries(Object.entries(row || {}).map(([key, value]) => [camelize(key), value])); }
@@ -97,10 +97,12 @@ export async function resolveCrmEntityAccess(client, context, entityType, entity
     // F028 — owner scope, matching recordScope() for opportunity lists: a
     // caller without view-all reaches only their own or unowned deals, so a
     // deal id they cannot list cannot be read or written through here.
+    const opportunityValues = [context.organizationId, entityId];
     const result = await client.query(
-      `SELECT id,company_id,branch_id FROM tenant.crm_opportunities WHERE organization_id=$1 AND id=$2 AND status <> 'archived'
-         AND ($3::boolean OR owner_user_id IS NULL OR owner_user_id=$4) LIMIT 1`,
-      [context.organizationId, entityId, canViewAllCrmRecords(context), context.userId ?? null],
+      `SELECT opportunity.id,opportunity.company_id,opportunity.branch_id FROM tenant.crm_opportunities opportunity
+        WHERE opportunity.organization_id=$1 AND opportunity.id=$2 AND opportunity.status <> 'archived'
+         ${crmOwnerScopeSql(context, (value) => { opportunityValues.push(value); return `$${opportunityValues.length}`; }, "opportunity.owner_user_id", "opportunity.organization_id", { resource: "opportunities", alias: "opportunity" })} LIMIT 1`,
+      opportunityValues,
     );
     const row = result.rows[0];
     if (!row) return false;
@@ -108,27 +110,25 @@ export async function resolveCrmEntityAccess(client, context, entityType, entity
     if (context.activeBranchId && row.branch_id && row.branch_id !== context.activeBranchId) return false;
     return true;
   }
+  // Account/Contact: the same company boundary + ownership rule as their
+  // own lists (crm-access-scope.js), not the company check alone.
   if (entityType === "party") {
     if (!canViewSensitiveAccountContent(context)) return false;
+    const values = [context.organizationId, entityId];
     const result = await client.query(
-      `SELECT id,company_id FROM tenant.business_parties WHERE organization_id=$1 AND id=$2 AND status='active' LIMIT 1`,
-      [context.organizationId, entityId],
+      `SELECT account.id FROM tenant.business_parties account WHERE account.organization_id=$1 AND account.id=$2 AND account.status='active'${crmAccountVisibleSql(context, (value) => add(values, value), "account")} LIMIT 1`,
+      values,
     );
-    const row = result.rows[0];
-    if (!row) return false;
-    if (context.activeCompanyId && row.company_id && row.company_id !== context.activeCompanyId) return false;
-    return true;
+    return Boolean(result.rows[0]);
   }
   if (entityType === "contact") {
     if (!canViewSensitiveContactContent(context)) return false;
+    const values = [context.organizationId, entityId];
     const result = await client.query(
-      `SELECT contact.id,party.company_id FROM tenant.contacts contact JOIN tenant.business_parties party ON party.organization_id=contact.organization_id AND party.id=contact.party_id WHERE contact.organization_id=$1 AND contact.id=$2 AND contact.status='active' AND party.status='active' LIMIT 1`,
-      [context.organizationId, entityId],
+      `SELECT contact.id FROM tenant.contacts contact LEFT JOIN tenant.business_parties party ON party.organization_id=contact.organization_id AND party.id=contact.party_id WHERE contact.organization_id=$1 AND contact.id=$2 AND contact.status='active' AND (party.id IS NULL OR party.status='active')${crmContactVisibleSql(context, (value) => add(values, value), "contact", "party")} LIMIT 1`,
+      values,
     );
-    const row = result.rows[0];
-    if (!row) return false;
-    if (context.activeCompanyId && row.company_id && row.company_id !== context.activeCompanyId) return false;
-    return true;
+    return Boolean(result.rows[0]);
   }
   // Campaigns carry no dedicated sensitive-content permission today (no
   // personal/contact data of their own) — ordinary crm.view plus company
@@ -158,7 +158,7 @@ function add(values, value) { values.push(value); return `$${values.length}`; }
 function visibilityPredicate(kind, context, values) {
   if (kind === "note") {
     const userIdParam = add(values, context.userId);
-    const viewAllParam = add(values, canViewAllCrmRecords(context));
+    const viewAllParam = add(values, canOverridePrivateCrmContent(context));
     // ::boolean is required, not cosmetic — see communication-projection.js's
     // communicationVisibilitySql for the full explanation (found via
     // live-browser Prompt 3 QA against a real database): without it,
@@ -184,8 +184,11 @@ function visibilityPredicate(kind, context, values) {
 function buildBranch(kind, entityType, entityId, context, values) {
   if (kind === "activity") {
     const entityIdParam = add(values, entityId);
-    return `SELECT id,'activity'::text AS kind,activity_type AS subtype,subject AS title,COALESCE(completed_at,due_at,created_at) AS occurred_at,status,assigned_to AS actor_user_id,created_by
-       FROM tenant.crm_activities WHERE organization_id=$1 AND entity_type='${entityType}' AND entity_id=${entityIdParam}`;
+    // Access to the parent record is not access to every activity on it:
+    // activities keep their own rule (assignee/team/unassigned, company,
+    // branch) exactly as in the Activities list — recordScope.
+    return `SELECT activity.id,'activity'::text AS kind,activity.activity_type AS subtype,activity.subject AS title,COALESCE(activity.completed_at,activity.due_at,activity.created_at) AS occurred_at,activity.status,activity.assigned_to AS actor_user_id,activity.created_by
+       FROM tenant.crm_activities activity WHERE activity.organization_id=$1 AND activity.entity_type='${entityType}' AND activity.entity_id=${entityIdParam}${recordScope(resources.activities, context, values, "activity")}`;
   }
   if (kind === "communication") {
     const communicationColumn = COMMUNICATION_COLUMN[entityType];
@@ -281,7 +284,7 @@ function buildSourceQuery(kind, entityType, entityId, context, values) {
     const entityIdParam = add(values, entityId);
     return `SELECT a.*,u.full_name AS assigned_name, COALESCE(a.completed_at,a.due_at,a.created_at) AS occurred_at
        FROM tenant.crm_activities a LEFT JOIN public.users u ON u.id=a.assigned_to
-       WHERE a.organization_id=$1 AND a.entity_type='${entityType}' AND a.entity_id=${entityIdParam}`;
+       WHERE a.organization_id=$1 AND a.entity_type='${entityType}' AND a.entity_id=${entityIdParam}${recordScope(resources.activities, context, values, "a")}`;
   }
   if (kind === "communication") {
     const communicationColumn = COMMUNICATION_COLUMN[entityType];

@@ -3,6 +3,7 @@
 // here (from the legacy flat lead-lifecycle.js) as part of CRM vNext
 // Prompt 4's directed-transition-graph rebuild; lead-lifecycle.js now
 // re-exports this capability directory's public surface for compatibility.
+import { crmOwnerScopeSql } from "../../crm-data-operations-and-customization/crm-access-scope.js";
 import { CrmError } from "../../crm-data-operations-and-customization/errors.js";
 import { queueOutboxEvent } from "../../crm-data-operations-and-customization/outbox.js";
 import { canViewSensitiveLeadContent, projectLeadForContext } from "../lead-security.js";
@@ -67,11 +68,7 @@ export function scopedLeadWhere(context, values) {
     values.push(context.activeBranchId);
     sql += ` AND (lead.branch_id IS NULL OR lead.branch_id=$${values.length})`;
   }
-  const viewAll = context.roleSlugs?.includes("organization_owner") || context.permissions?.includes("crm.records.view_all");
-  if (!viewAll) {
-    values.push(context.userId);
-    sql += ` AND (lead.owner_user_id IS NULL OR lead.owner_user_id=$${values.length})`;
-  }
+  sql += crmOwnerScopeSql(context, (value) => { values.push(value); return `$${values.length}`; }, "lead.owner_user_id", "lead.organization_id", { resource: "leads", alias: "lead" });
   return sql;
 }
 

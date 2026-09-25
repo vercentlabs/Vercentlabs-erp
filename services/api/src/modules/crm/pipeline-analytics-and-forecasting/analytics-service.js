@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { taskOverdueSql } from "../seller-activity-and-follow-up-workspace/task-operations.js";
 import { CrmError } from "../crm-data-operations-and-customization/errors.js";
 import { canViewAllCrmRecords } from "../crm-data-operations-and-customization/record-policy.js";
+import { canViewAllCrmResource, crmAccountAccessSql, crmOwnerScopeSql } from "../crm-data-operations-and-customization/crm-access-scope.js";
 import { camelizeRow, managedTeamMembersSql } from "../crm-data-operations-and-customization/record-utils.js";
 
 
@@ -27,6 +28,17 @@ export function resolveDashboardOptions(options = {}) {
   const previousTo = new Date(Date.parse(from) - 86400000).toISOString().slice(0, 10);
   const previousFrom = new Date(Date.parse(from) - days * 86400000).toISOString().slice(0, 10);
   return { scope, from, to, previousFrom, previousTo };
+}
+
+// Dashboard/report aliases → the CRM resource whose visibility rule applies.
+const ALIAS_RESOURCE = Object.freeze({ lead: "leads", scoped_lead: "leads", opportunity: "opportunities", scoped_opportunity: "opportunities", activity: "activities" });
+
+// The central owner/team/resource/relationship rule (crm-access-scope.js)
+// as a boolean SQL expression. `callerParam` stays referenced even when the
+// caller may see every row of that resource (all bound params must appear).
+function resourceVisibleSql(context, alias, column, callerParam) {
+  const scope = crmOwnerScopeSql(context, () => callerParam, `${alias}.${column}`, `${alias}.organization_id`, { resource: ALIAS_RESOURCE[alias] ?? null, alias });
+  return scope ? `(${scope.replace(/^ AND /, "")})` : `(${callerParam}::uuid IS NULL OR true)`;
 }
 
 export async function getCrmDashboard(client, context, options = {}) {
@@ -59,8 +71,9 @@ export async function getCrmDashboard(client, context, options = {}) {
   // reveal counts/sums that include records a restricted caller could not
   // otherwise list or open individually (docs/implementation/
   // ERP_SECURITY_HARDENING_003.md, Part 2, "CRM Analytics Security").
-  const permitted = (alias, column) =>
-    `($5::boolean OR ${alias}.${column} IS NULL OR ${alias}.${column} = $6)`;
+  // Own + unassigned + owned by a member of a team the caller manages — the
+  // shared rule (crm-access-scope.js); $5 = view-all, $6 = caller.
+  const permitted = (alias, column) => `($5::boolean OR ${resourceVisibleSql(context, alias, column, "$6")})`;
   const ownerVisible = (alias, column) =>
     period.scope === "mine"
       ? `(${permitted(alias, column)} AND ${alias}.${column} = $6)`
@@ -189,8 +202,9 @@ export async function getCrmReport(client, context, report, filters = {}) {
   // tables (campaigns, account plans, pipeline inspections, conversations,
   // buying committees, partner accounts, AI predictions) are unaffected —
   // none of those resources were given per-record ownership scope.
-  const ownerVisible = (alias, column) =>
-    `($7::boolean OR ${alias}.${column} IS NULL OR ${alias}.${column} = $8)`;
+  // The shared rule (crm-access-scope.js): every report now includes the
+  // managed-team tier, not only the forecast. $7 = view-all, $8 = caller.
+  const ownerVisible = (alias, column) => `($7::boolean OR ${resourceVisibleSql(context, alias, column, "$8")})`;
   // Checkpoint audit (Prompt 3 continuation, F025 re-audit explicitly
   // requested by the mega-prompt): the plain ownerVisible() above is
   // binary — either the caller's own records only, or (view-all) every
@@ -205,13 +219,33 @@ export async function getCrmReport(client, context, report, filters = {}) {
   // in the same pass, which would be a much larger, riskier change to
   // the shared ownerVisible() every other report/dashboard metric still
   // uses unchanged.
-  const ownerVisibleForForecast = (alias, column) =>
-    `($7::boolean OR ${alias}.${column} IS NULL OR ${alias}.${column} = $8 OR ${alias}.${column} IN (
-        SELECT member.user_id FROM tenant.crm_sales_team_members member
-          JOIN tenant.crm_sales_teams team ON team.id = member.team_id AND team.organization_id = member.organization_id
-         WHERE team.organization_id = $1 AND team.manager_user_id = $8 AND member.status = 'active'
-           AND member.effective_from <= now() AND (member.effective_to IS NULL OR member.effective_to >= now())
-      ))`;
+  const ownerVisibleForForecast = ownerVisible;
+  // Child-record tiers for reports built on tables without their own owner:
+  // a row counts only when the record it describes is visible to the caller
+  // under that record's own rule (crm-access-scope.js) — never company-only.
+  const opportunityVisible = (idExpr) =>
+    `EXISTS (SELECT 1 FROM tenant.crm_opportunities scoped_opportunity WHERE scoped_opportunity.organization_id=$1 AND scoped_opportunity.id=${idExpr} AND ${ownerVisible("scoped_opportunity", "owner_user_id")})`;
+  const leadVisible = (idExpr) =>
+    `EXISTS (SELECT 1 FROM tenant.crm_leads scoped_lead WHERE scoped_lead.organization_id=$1 AND scoped_lead.id=${idExpr} AND ${ownerVisible("scoped_lead", "owner_user_id")})`;
+  const accountVisible = (idExpr) =>
+    `EXISTS (SELECT 1 FROM tenant.business_parties scoped_account WHERE scoped_account.organization_id=$1 AND scoped_account.id=${idExpr}${crmAccountAccessSql(context, () => "$8", "scoped_account")})`;
+  // Organisation-wide operational rollups (every campaign member, touchpoint,
+  // partner deal, AI prediction or privacy request) cannot be narrowed to a
+  // caller's own records without changing what the report means, so they
+  // are only for callers who can see every CRM record.
+  // Who may see each organisation-wide rollup: Campaign/attribution figures
+  // aggregate campaign members and Lead touchpoints (Lead-wide visibility,
+  // e.g. Marketing) — revenue there is the touchpoint's recorded amount, not
+  // Opportunity records; partner pipeline needs the partner relationship.
+  const rollupAllowed = {
+    campaigns: () => canViewAllCrmResource(context, "leads"),
+    attribution: () => canViewAllCrmResource(context, "leads"),
+    "partner-pipeline": () => canViewAllCrmRecords(context) || Boolean(context.permissions?.includes("crm.partners.manage")),
+    "ai-governance": () => canViewAllCrmRecords(context),
+    privacy: () => canViewAllCrmRecords(context),
+  }[report];
+  if (rollupAllowed && !rollupAllowed())
+    throw new CrmError(403, "This report covers records outside your CRM access.", "CRM_REPORT_SCOPE_FORBIDDEN");
   let sql;
   if (report === "pipeline")
     // F030 Stage A2 §12 — added stage.id (previously name-only, not a
@@ -223,7 +257,7 @@ export async function getCrmReport(client, context, report, filters = {}) {
   else if (report === "sources")
     // F030 Stage A2 §12 — added source.id for the same reason as
     // pipeline's stage.id above.
-    sql = `SELECT source.id AS source_id, COALESCE(source.name,'Unspecified') AS source, count(lead.id)::int AS leads, count(lead.id) FILTER (WHERE lead.record_status='converted')::int AS converted, COALESCE(sum(opportunity.amount) FILTER (WHERE opportunity.status='won'),0)::numeric AS won_revenue FROM tenant.crm_leads lead LEFT JOIN tenant.crm_lead_sources source ON source.id=lead.source_id LEFT JOIN tenant.crm_opportunities opportunity ON opportunity.lead_id=lead.id AND opportunity.organization_id=lead.organization_id WHERE lead.organization_id=$1 ${dateClause("lead.created_at")} AND ${companyVisible("lead")} AND ${branchVisible("lead")} AND ${ownerVisible("lead", "owner_user_id")} GROUP BY source.id, source.name ORDER BY leads DESC`;
+    sql = `SELECT source.id AS source_id, COALESCE(source.name,'Unspecified') AS source, count(lead.id)::int AS leads, count(lead.id) FILTER (WHERE lead.record_status='converted')::int AS converted, COALESCE(sum(opportunity.amount) FILTER (WHERE opportunity.status='won'),0)::numeric AS won_revenue FROM tenant.crm_leads lead LEFT JOIN tenant.crm_lead_sources source ON source.id=lead.source_id LEFT JOIN tenant.crm_opportunities opportunity ON opportunity.lead_id=lead.id AND opportunity.organization_id=lead.organization_id AND ${ownerVisible("opportunity", "owner_user_id")} WHERE lead.organization_id=$1 ${dateClause("lead.created_at")} AND ${companyVisible("lead")} AND ${branchVisible("lead")} AND ${ownerVisible("lead", "owner_user_id")} GROUP BY source.id, source.name ORDER BY leads DESC`;
   else if (report === "activities")
     sql = `SELECT activity.activity_type, count(*)::int AS total, count(*) FILTER (WHERE activity.status='completed')::int AS completed, count(*) FILTER (WHERE ${taskOverdueSql("activity")})::int AS overdue FROM tenant.crm_activities activity WHERE activity.organization_id=$1 ${dateClause("activity.created_at")} AND ${companyVisible("activity")} AND ${branchVisible("activity")} AND ${ownerVisible("activity", "assigned_to")} GROUP BY activity.activity_type ORDER BY total DESC`;
   else if (report === "forecast")
@@ -325,15 +359,15 @@ export async function getCrmReport(client, context, report, filters = {}) {
     LEFT JOIN public.users user_account ON user_account.id = COALESCE(opportunity_rollup.owner_user_id, quota_rollup.user_id)
     ORDER BY won DESC, pipeline DESC`;
   else if (report === "account-health")
-    sql = `SELECT party.display_name AS account, plan.account_tier, plan.lifecycle_stage, plan.health_status, plan.health_score, plan.annual_revenue, plan.potential_revenue, plan.renewal_date, plan.next_review_at FROM tenant.crm_account_plans plan JOIN tenant.business_parties party ON party.id = plan.party_id AND party.organization_id = plan.organization_id WHERE plan.organization_id = $1 AND plan.status = 'active' AND ${companyVisible("plan")} ORDER BY CASE plan.health_status WHEN 'critical' THEN 1 WHEN 'at_risk' THEN 2 WHEN 'watch' THEN 3 WHEN 'healthy' THEN 4 ELSE 5 END, plan.next_review_at NULLS LAST`;
+    sql = `SELECT party.display_name AS account, plan.account_tier, plan.lifecycle_stage, plan.health_status, plan.health_score, plan.annual_revenue, plan.potential_revenue, plan.renewal_date, plan.next_review_at FROM tenant.crm_account_plans plan JOIN tenant.business_parties party ON party.id = plan.party_id AND party.organization_id = plan.organization_id WHERE plan.organization_id = $1 AND plan.status = 'active' AND ${companyVisible("plan")} AND ${accountVisible("plan.party_id")} ORDER BY CASE plan.health_status WHEN 'critical' THEN 1 WHEN 'at_risk' THEN 2 WHEN 'watch' THEN 3 WHEN 'healthy' THEN 4 ELSE 5 END, plan.next_review_at NULLS LAST`;
   else if (report === "privacy")
     sql = `SELECT request.request_type, request.status, count(*)::int AS requests, count(*) FILTER (WHERE request.due_at < now() AND request.status NOT IN ('completed','rejected','cancelled'))::int AS overdue FROM tenant.crm_privacy_requests request WHERE request.organization_id = $1 ${dateClause("request.created_at")} AND ${companyVisible("request")} GROUP BY request.request_type, request.status ORDER BY request.request_type, request.status`;
   else if (report === "pipeline-intelligence")
-    sql = `SELECT inspection.health_status, count(*)::int AS opportunities, round(avg(inspection.health_score),2) AS average_health_score, round(avg(inspection.stage_age_days),2) AS average_stage_age_days, round(avg(inspection.days_since_activity),2) AS average_days_since_activity, count(*) FILTER (WHERE inspection.close_date_slip_days > 0)::int AS slipped_close_dates FROM tenant.crm_pipeline_inspections inspection WHERE inspection.organization_id = $1 ${dateClause("inspection.inspected_at")} AND ${companyVisible("inspection")} GROUP BY inspection.health_status ORDER BY CASE inspection.health_status WHEN 'critical' THEN 1 WHEN 'at_risk' THEN 2 WHEN 'watch' THEN 3 ELSE 4 END`;
+    sql = `SELECT inspection.health_status, count(*)::int AS opportunities, round(avg(inspection.health_score),2) AS average_health_score, round(avg(inspection.stage_age_days),2) AS average_stage_age_days, round(avg(inspection.days_since_activity),2) AS average_days_since_activity, count(*) FILTER (WHERE inspection.close_date_slip_days > 0)::int AS slipped_close_dates FROM tenant.crm_pipeline_inspections inspection WHERE inspection.organization_id = $1 ${dateClause("inspection.inspected_at")} AND ${companyVisible("inspection")} AND ${opportunityVisible("inspection.opportunity_id")} GROUP BY inspection.health_status ORDER BY CASE inspection.health_status WHEN 'critical' THEN 1 WHEN 'at_risk' THEN 2 WHEN 'watch' THEN 3 ELSE 4 END`;
   else if (report === "engagement-intelligence")
-    sql = `SELECT conversation.channel, count(DISTINCT conversation.id)::int AS conversations, count(insight.id)::int AS insights, count(insight.id) FILTER (WHERE insight.insight_type = 'risk')::int AS risks, count(insight.id) FILTER (WHERE insight.insight_type = 'next_action')::int AS next_actions, count(insight.id) FILTER (WHERE insight.review_status = 'pending')::int AS pending_review FROM tenant.crm_conversations conversation LEFT JOIN tenant.crm_conversation_insights insight ON insight.organization_id = conversation.organization_id AND insight.conversation_id = conversation.id WHERE conversation.organization_id = $1 ${dateClause("conversation.started_at")} AND ${companyVisible("conversation")} GROUP BY conversation.channel ORDER BY conversations DESC`;
+    sql = `SELECT conversation.channel, count(DISTINCT conversation.id)::int AS conversations, count(insight.id)::int AS insights, count(insight.id) FILTER (WHERE insight.insight_type = 'risk')::int AS risks, count(insight.id) FILTER (WHERE insight.insight_type = 'next_action')::int AS next_actions, count(insight.id) FILTER (WHERE insight.review_status = 'pending')::int AS pending_review FROM tenant.crm_conversations conversation LEFT JOIN tenant.crm_conversation_insights insight ON insight.organization_id = conversation.organization_id AND insight.conversation_id = conversation.id WHERE conversation.organization_id = $1 ${dateClause("conversation.started_at")} AND ${companyVisible("conversation")} AND ($7::boolean OR (conversation.lead_id IS NOT NULL AND ${leadVisible("conversation.lead_id")}) OR (conversation.lead_id IS NULL AND conversation.opportunity_id IS NOT NULL AND ${opportunityVisible("conversation.opportunity_id")}) OR (conversation.lead_id IS NULL AND conversation.opportunity_id IS NULL AND conversation.party_id IS NOT NULL AND ${accountVisible("conversation.party_id")})) GROUP BY conversation.channel ORDER BY conversations DESC`;
   else if (report === "relationship-coverage")
-    sql = `SELECT committee.status, count(DISTINCT committee.id)::int AS committees, round(avg(committee.coverage_score),2) AS average_coverage_score, count(member.id)::int AS members, count(member.id) FILTER (WHERE member.member_role = 'economic_buyer')::int AS economic_buyers, count(member.id) FILTER (WHERE member.member_role = 'champion')::int AS champions, count(member.id) FILTER (WHERE member.sentiment IN ('detractor','strong_detractor'))::int AS detractors FROM tenant.crm_buying_committees committee LEFT JOIN tenant.crm_buying_committee_members member ON member.organization_id = committee.organization_id AND member.committee_id = committee.id AND member.status = 'active' WHERE committee.organization_id = $1 ${dateClause("committee.created_at")} AND ${companyVisible("committee")} GROUP BY committee.status ORDER BY committees DESC`;
+    sql = `SELECT committee.status, count(DISTINCT committee.id)::int AS committees, round(avg(committee.coverage_score),2) AS average_coverage_score, count(member.id)::int AS members, count(member.id) FILTER (WHERE member.member_role = 'economic_buyer')::int AS economic_buyers, count(member.id) FILTER (WHERE member.member_role = 'champion')::int AS champions, count(member.id) FILTER (WHERE member.sentiment IN ('detractor','strong_detractor'))::int AS detractors FROM tenant.crm_buying_committees committee LEFT JOIN tenant.crm_buying_committee_members member ON member.organization_id = committee.organization_id AND member.committee_id = committee.id AND member.status = 'active' WHERE committee.organization_id = $1 ${dateClause("committee.created_at")} AND ${companyVisible("committee")} AND (CASE WHEN committee.opportunity_id IS NOT NULL THEN ${opportunityVisible("committee.opportunity_id")} ELSE ${accountVisible("committee.party_id")} END) GROUP BY committee.status ORDER BY committees DESC`;
   else if (report === "partner-pipeline")
     sql = `SELECT partner.partner_type, partner.tier, count(deal.id)::int AS registered_deals, COALESCE(sum(deal.expected_value),0)::numeric AS expected_value, count(deal.id) FILTER (WHERE deal.status = 'won')::int AS won_deals, count(deal.id) FILTER (WHERE deal.status IN ('submitted','approved','active'))::int AS active_deals FROM tenant.crm_partner_accounts partner LEFT JOIN tenant.crm_partner_deals deal ON deal.organization_id = partner.organization_id AND deal.partner_account_id = partner.id ${dateClause("deal.registered_at")} WHERE partner.organization_id = $1 AND partner.status = 'active' AND ${companyVisible("partner")} GROUP BY partner.partner_type, partner.tier ORDER BY expected_value DESC`;
   else if (report === "ai-governance")

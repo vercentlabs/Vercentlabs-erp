@@ -1,4 +1,6 @@
 import { createHash } from "node:crypto";
+import { canViewAllCrmRecords, crmAccountVisibleSql, crmContactVisibleSql } from "../crm-data-operations-and-customization/crm-access-scope.js";
+import { crmChildScopes, crmHasPermission as hasPermission } from "../crm-data-operations-and-customization/record-policy.js";
 import {
   reconcileRelationshipsOnAccountMerge,
   reconcileRelationshipsOnContactMerge,
@@ -165,15 +167,25 @@ export function crmAccountIntelligenceHash(value) {
   return createHash("sha256").update(stable(value)).digest("hex");
 }
 
+// Same company boundary and ownership rule as the Account/Contact lists
+// (crm-access-scope.js): 360, hierarchy and merge could previously open any
+// Account or Contact in the organisation by id, across companies.
+function intelligenceScope(context, parameters, alias, kind) {
+  const bind = (value) => { parameters.push(value); return `$${parameters.length}`; };
+  return kind === "account" ? crmAccountVisibleSql(context, bind, alias) : crmContactVisibleSql(context, bind, alias, "party");
+}
+
 async function account(client, context, partyId, lock = false) {
   const id = assertId(partyId, "Account");
+  const parameters = [context.organizationId, id];
   const result = await client.query(
-    `SELECT party.*,parent.display_name AS parent_name
+    `SELECT party.*,parent.display_name AS parent_name,
+            (parent.id IS NULL OR (true${intelligenceScope(context, parameters, "parent", "account")})) AS parent_visible
      FROM tenant.business_parties party
      LEFT JOIN tenant.business_parties parent
        ON parent.organization_id=party.organization_id AND parent.id=party.parent_party_id
-     WHERE party.organization_id=$1 AND party.id=$2${lock ? " FOR UPDATE OF party" : ""}`,
-    [context.organizationId, id],
+     WHERE party.organization_id=$1 AND party.id=$2${intelligenceScope(context, parameters, "party", "account")}${lock ? " FOR UPDATE OF party" : ""}`,
+    parameters,
   );
   if (!result.rows[0]) {
     throw new CrmAccountIntelligenceError(
@@ -185,8 +197,19 @@ async function account(client, context, partyId, lock = false) {
   return result.rows[0];
 }
 
+// Internal callers (merge, hierarchy checks) need the real parent id; what
+// leaves the server hides a parent the caller cannot open.
+function redactHiddenParent(row) {
+  if (!row) return row;
+  const { parent_visible: parentVisible, ...rest } = row;
+  return parentVisible === false
+    ? { ...rest, parent_party_id: null, parent_name: "Restricted account", parent_restricted: true }
+    : { ...rest, parent_restricted: false };
+}
+
 async function contact(client, context, contactId, lock = false) {
   const id = assertId(contactId, "Contact");
+  const parameters = [context.organizationId, id];
   // LEFT JOIN, not JOIN: a standalone Contact (party_id IS NULL) is a
   // valid, supported record (see F003's "standalone Contact creation
   // persists without fabricating an Account"). An INNER JOIN here silently
@@ -198,8 +221,8 @@ async function contact(client, context, contactId, lock = false) {
      FROM tenant.contacts contact
      LEFT JOIN tenant.business_parties party
        ON party.organization_id=contact.organization_id AND party.id=contact.party_id
-     WHERE contact.organization_id=$1 AND contact.id=$2${lock ? " FOR UPDATE OF contact" : ""}`,
-    [context.organizationId, id],
+     WHERE contact.organization_id=$1 AND contact.id=$2${intelligenceScope(context, parameters, "contact", "contact")}${lock ? " FOR UPDATE OF contact" : ""}`,
+    parameters,
   );
   if (!result.rows[0]) {
     throw new CrmAccountIntelligenceError(
@@ -211,8 +234,45 @@ async function contact(client, context, contactId, lock = false) {
   return result.rows[0];
 }
 
+// The hierarchy walk sees the real structure; what leaves the server is the
+// VISIBLE structure only. Hidden Accounts are dropped, `depth` is rebased to
+// count visible Accounts between the root and the node (so a gap never
+// reveals how many hidden levels exist), and a parent link survives only
+// when the parent itself is visible.
+function rebaseVisibleHierarchy(rootId, rows, direction) {
+  const byId = new Map(rows.map((row) => [row.id, row]));
+  const visible = (id) => id === rootId || byId.get(id)?.caller_can_access === true;
+  const visibleDepth = (row) => {
+    // Count visible nodes on the path from this node toward the root.
+    let depth = 0;
+    if (direction === "descendants") {
+      for (let node = row; node && node.id !== rootId; node = byId.get(node.parent_party_id)) if (visible(node.id)) depth += 1;
+    } else {
+      // Ancestors come ordered farthest-first; nearer ancestors have lower real depth.
+      depth = rows.filter((other) => Number(other.depth) <= Number(row.depth) && visible(other.id)).length;
+    }
+    return depth;
+  };
+  return rows
+    .filter((row) => visible(row.id))
+    .map(({ caller_can_access: _access, ...row }) => ({
+      ...row,
+      depth: visibleDepth({ ...row, caller_can_access: true }),
+      parent_party_id: row.parent_party_id && visible(row.parent_party_id) ? row.parent_party_id : null,
+      // Existence only (no id, name or depth): the UI can say "parent
+      // restricted" instead of implying the node has no parent.
+      parent_restricted: Boolean(row.parent_party_id) && !visible(row.parent_party_id),
+    }));
+}
+
 export async function getAccountHierarchy(client, context, partyId) {
   const root = await account(client, context, partyId);
+  // The walk follows the real structure, but only Accounts the caller may
+  // open are returned (and counted): a parent/child id is never a way to
+  // discover an Account outside the caller's company or ownership scope.
+  const ancestorParameters = [context.organizationId, partyId];
+  const descendantParameters = [context.organizationId, partyId];
+  const historyParameters = [context.organizationId, partyId];
   const ancestors = await client.query(
     `WITH RECURSIVE tree AS (
        SELECT party.id,party.parent_party_id,party.display_name,party.legal_name,party.party_type,party.status,0 AS depth
@@ -224,8 +284,11 @@ export async function getAccountHierarchy(client, context, partyId) {
        JOIN tree ON tree.parent_party_id=parent.id
        WHERE parent.organization_id=$1 AND tree.depth<50
      )
-     SELECT * FROM tree WHERE depth>0 ORDER BY depth DESC`,
-    [context.organizationId, partyId],
+     SELECT tree.*, (true${intelligenceScope(context, ancestorParameters, "visible", "account")}) AS caller_can_access FROM tree
+       JOIN tenant.business_parties visible ON visible.organization_id=$1 AND visible.id=tree.id
+      WHERE tree.depth>0
+      ORDER BY tree.depth DESC`,
+    ancestorParameters,
   );
   const descendants = await client.query(
     `WITH RECURSIVE tree AS (
@@ -238,11 +301,17 @@ export async function getAccountHierarchy(client, context, partyId) {
        JOIN tree ON child.parent_party_id=tree.id
        WHERE child.organization_id=$1 AND tree.depth<50
      )
-     SELECT * FROM tree WHERE depth>0 ORDER BY depth,display_name`,
-    [context.organizationId, partyId],
+     SELECT tree.*, (true${intelligenceScope(context, descendantParameters, "visible", "account")}) AS caller_can_access FROM tree
+       JOIN tenant.business_parties visible ON visible.organization_id=$1 AND visible.id=tree.id
+      WHERE tree.depth>0
+      ORDER BY tree.depth,tree.display_name`,
+    descendantParameters,
   );
   const history = await client.query(
-    `SELECT event.*,previous_parent.display_name AS previous_parent_name,new_parent.display_name AS new_parent_name,
+    `SELECT event.*,
+            (previous_parent.id IS NULL OR (true${intelligenceScope(context, historyParameters, "previous_parent", "account")})) AS previous_parent_visible,
+            (new_parent.id IS NULL OR (true${intelligenceScope(context, historyParameters, "new_parent", "account")})) AS new_parent_visible,
+            previous_parent.display_name AS previous_parent_name,new_parent.display_name AS new_parent_name,
             actor.full_name AS changed_by_name
      FROM tenant.crm_account_hierarchy_events event
      LEFT JOIN tenant.business_parties previous_parent
@@ -252,20 +321,28 @@ export async function getAccountHierarchy(client, context, partyId) {
      LEFT JOIN public.users actor ON actor.id=event.changed_by
      WHERE event.organization_id=$1 AND event.party_id=$2
      ORDER BY event.changed_at DESC LIMIT 100`,
-    [context.organizationId, partyId],
+    historyParameters,
   );
+  const visibleAncestors = rebaseVisibleHierarchy(root.id, ancestors.rows, "ancestors");
+  const visibleDescendants = rebaseVisibleHierarchy(root.id, descendants.rows, "descendants");
   return {
-    account: root,
-    ancestors: ancestors.rows,
-    descendants: descendants.rows,
-    history: history.rows,
+    // Record access and field access are separate layers: GSTIN/PAN/MSME
+    // stay behind crm.accounts.view_sensitive here too.
+    account: projectAccountForContext(context, redactHiddenParent(root)),
+    ancestors: visibleAncestors,
+    descendants: visibleDescendants,
+    // A parent the caller cannot open is shown as restricted: no id, no name.
+    history: history.rows.map(({ previous_parent_visible: previousVisible, new_parent_visible: newVisible, ...event }) => ({
+      ...event,
+      previous_parent_party_id: previousVisible ? event.previous_parent_party_id : null,
+      previous_parent_name: previousVisible ? event.previous_parent_name : event.previous_parent_party_id ? "Restricted account" : null,
+      new_parent_party_id: newVisible ? event.new_parent_party_id : null,
+      new_parent_name: newVisible ? event.new_parent_name : event.new_parent_party_id ? "Restricted account" : null,
+    })),
     metrics: {
-      ancestorCount: ancestors.rows.length,
-      descendantCount: descendants.rows.length,
-      hierarchyDepth: Math.max(
-        0,
-        ...descendants.rows.map((row) => Number(row.depth || 0)),
-      ),
+      ancestorCount: visibleAncestors.length,
+      descendantCount: visibleDescendants.length,
+      hierarchyDepth: Math.max(0, ...visibleDescendants.map((row) => Number(row.depth || 0))),
     },
   };
 }
@@ -319,7 +396,7 @@ export async function setAccountParent(
       );
     }
   }
-  if ((child.parent_party_id || null) === nextParentId) return child;
+  if ((child.parent_party_id || null) === nextParentId) return projectAccountForContext(context, redactHiddenParent(child));
   const updated = await client.query(
     `UPDATE tenant.business_parties
      SET parent_party_id=$1,updated_by=$2,updated_at=now()
@@ -340,7 +417,7 @@ export async function setAccountParent(
       context.userId,
     ],
   );
-  return updated.rows[0];
+  return projectAccountForContext(context, updated.rows[0]);
 }
 
 async function foreignKeyReferences(client, referencedTable) {
@@ -412,6 +489,33 @@ async function repointReferences(
   return moved;
 }
 
+// Merge moves EVERY child record of the source to the survivor and the
+// preview counts them all, so a caller without crm.records.view_all may only
+// merge when every Opportunity and Activity on the source is inside their
+// own scope (own/team/unassigned). Otherwise it would re-parent — and reveal
+// the existence of — records they cannot see. Scoped count vs total, in SQL.
+async function assertMergeChildrenInScope(client, context, kind, sourceId) {
+  if (canViewAllCrmRecords(context)) return;
+  const opportunityColumn = kind === "account" ? "party_id" : "contact_id";
+  const entityType = kind === "account" ? "party" : "contact";
+  const parameters = [context.organizationId, sourceId, entityType];
+  const scope = crmChildScopes(context, parameters);
+  const result = await client.query(
+    `SELECT
+       (SELECT count(*)::int FROM tenant.crm_opportunities opportunity WHERE opportunity.organization_id=$1 AND opportunity.${opportunityColumn}=$2)
+     - (SELECT count(*)::int FROM tenant.crm_opportunities opportunity WHERE opportunity.organization_id=$1 AND opportunity.${opportunityColumn}=$2${scope.opportunity()})
+     + (SELECT count(*)::int FROM tenant.crm_activities activity WHERE activity.organization_id=$1 AND activity.entity_type=$3 AND activity.entity_id=$2)
+     - (SELECT count(*)::int FROM tenant.crm_activities activity WHERE activity.organization_id=$1 AND activity.entity_type=$3 AND activity.entity_id=$2${scope.activity()}) AS hidden`,
+    parameters,
+  );
+  if (Number(result.rows[0]?.hidden || 0) > 0)
+    throw new CrmAccountIntelligenceError(
+      403,
+      `This ${kind} has opportunities or activities outside your access. Ask someone who can see all CRM records to merge it.`,
+      "CRM_MERGE_OUT_OF_SCOPE",
+    );
+}
+
 export async function previewAccountMerge(
   client,
   context,
@@ -426,6 +530,7 @@ export async function previewAccountMerge(
       "Choose two different accounts.",
     );
   }
+  await assertMergeChildrenInScope(client, context, "account", source.id);
   const references = await foreignKeyReferences(client, "business_parties");
   const impact = [];
   for (const reference of references) {
@@ -497,6 +602,7 @@ export async function previewContactMerge(
       "Choose two different contacts.",
     );
   }
+  await assertMergeChildrenInScope(client, context, "contact", source.id);
   const references = await foreignKeyReferences(client, "contacts");
   const impact = [];
   for (const reference of references) {
@@ -985,20 +1091,26 @@ export async function recordCustomerServiceEvent(
 export async function getCustomer360(client, context, partyId) {
   const party = await account(client, context, partyId);
   const hierarchy = await getAccountHierarchy(client, context, partyId);
+  // Contacts inherit Account access, so every Contact of a visible Account
+  // is visible; sensitive fields are projected by getCustomer360ForCaller.
   const contacts = await client.query(
     `SELECT * FROM tenant.contacts WHERE organization_id=$1 AND party_id=$2 ORDER BY is_primary DESC,status,first_name,last_name`,
     [context.organizationId, partyId],
   );
+  const metricParameters = [context.organizationId, partyId];
+  const m = crmChildScopes(context, metricParameters);
   const metrics = await client.query(
     `SELECT
-       (SELECT count(*)::int FROM tenant.crm_opportunities WHERE organization_id=$1 AND party_id=$2) AS opportunities,
-       (SELECT count(*)::int FROM tenant.sales_quotations WHERE organization_id=$1 AND party_id=$2) AS quotations,
-       (SELECT count(*)::int FROM tenant.sales_orders WHERE organization_id=$1 AND party_id=$2) AS orders,
-       (SELECT count(*)::int FROM tenant.accounting_customer_invoices WHERE organization_id=$1 AND party_id=$2) AS invoices,
-       (SELECT COALESCE(sum(outstanding_amount),0) FROM tenant.accounting_customer_invoices WHERE organization_id=$1 AND party_id=$2 AND status NOT IN ('paid','cancelled','reversed')) AS outstanding,
-       (SELECT count(*)::int FROM tenant.crm_customer_service_events WHERE organization_id=$1 AND party_id=$2 AND status NOT IN ('resolved','closed')) AS open_service_cases`,
-    [context.organizationId, partyId],
+       (SELECT count(*)::int FROM tenant.crm_opportunities opportunity WHERE opportunity.organization_id=$1 AND opportunity.party_id=$2${m.opportunity()}) AS opportunities,
+       (SELECT count(*)::int FROM tenant.sales_quotations quotation WHERE quotation.organization_id=$1 AND quotation.party_id=$2${m.sales("quotation")}) AS quotations,
+       (SELECT count(*)::int FROM tenant.sales_orders sales_order WHERE sales_order.organization_id=$1 AND sales_order.party_id=$2${m.sales("sales_order")}) AS orders,
+       (SELECT count(*)::int FROM tenant.accounting_customer_invoices invoice WHERE invoice.organization_id=$1 AND invoice.party_id=$2${m.accounting("invoice")}) AS invoices,
+       (SELECT COALESCE(sum(invoice.outstanding_amount),0) FROM tenant.accounting_customer_invoices invoice WHERE invoice.organization_id=$1 AND invoice.party_id=$2 AND invoice.status NOT IN ('paid','cancelled','reversed')${m.accounting("invoice")}) AS outstanding,
+       (SELECT count(*)::int FROM tenant.crm_customer_service_events event WHERE event.organization_id=$1 AND event.party_id=$2 AND event.status NOT IN ('resolved','closed')${m.company("event")}) AS open_service_cases`,
+    metricParameters,
   );
+  const timelineParameters = [context.organizationId, partyId];
+  const t = crmChildScopes(context, timelineParameters);
   const timeline = await client.query(
     `SELECT * FROM (
        SELECT 'activity'::text AS entry_type,activity.id AS entry_id,
@@ -1009,67 +1121,62 @@ export async function getCustomer360(client, context, partyId) {
        WHERE activity.organization_id=$1 AND (
          (activity.entity_type='party' AND activity.entity_id=$2) OR
          (activity.entity_type='contact' AND activity.entity_id IN (SELECT id FROM tenant.contacts WHERE organization_id=$1 AND party_id=$2))
-       )
+       )${t.activity()}
        UNION ALL
        SELECT 'communication',communication.id,communication.occurred_at,
               COALESCE(communication.subject,initcap(communication.channel)),communication.status,NULL,NULL,
               jsonb_build_object('channel',communication.channel,'direction',communication.direction,'provider',communication.provider)
        FROM tenant.crm_communications communication
-       WHERE communication.organization_id=$1 AND (communication.party_id=$2 OR communication.contact_id IN (SELECT id FROM tenant.contacts WHERE organization_id=$1 AND party_id=$2))
+       WHERE communication.organization_id=$1 AND (communication.party_id=$2 OR communication.contact_id IN (SELECT id FROM tenant.contacts WHERE organization_id=$1 AND party_id=$2))${t.communication()}
        UNION ALL
        SELECT 'opportunity',opportunity.id,opportunity.created_at,opportunity.name,opportunity.status,opportunity.amount,opportunity.currency_code,
               jsonb_build_object('code',opportunity.code,'probability',opportunity.probability,'expectedCloseDate',opportunity.expected_close_date)
-       FROM tenant.crm_opportunities opportunity WHERE opportunity.organization_id=$1 AND opportunity.party_id=$2
+       FROM tenant.crm_opportunities opportunity WHERE opportunity.organization_id=$1 AND opportunity.party_id=$2${t.opportunity()}
        UNION ALL
        SELECT 'quotation',quotation.id,quotation.created_at,quotation.quotation_number,quotation.lifecycle_status,version.grand_total,version.currency_code,
               jsonb_build_object('validUntil',quotation.valid_until,'acceptanceStatus',quotation.acceptance_status)
        FROM tenant.sales_quotations quotation
        LEFT JOIN tenant.sales_quotation_versions version ON version.organization_id=quotation.organization_id AND version.id=quotation.current_version_id
-       WHERE quotation.organization_id=$1 AND quotation.party_id=$2
+       WHERE quotation.organization_id=$1 AND quotation.party_id=$2${t.sales("quotation")}
        UNION ALL
        SELECT 'sales_order',sales_order.id,sales_order.created_at,sales_order.sales_order_number,sales_order.lifecycle_status,version.grand_total,version.currency_code,
               jsonb_build_object('fulfillmentStatus',sales_order.fulfillment_status,'billingStatus',sales_order.billing_status)
        FROM tenant.sales_orders sales_order
        LEFT JOIN tenant.sales_order_versions version ON version.organization_id=sales_order.organization_id AND version.id=sales_order.current_version_id
-       WHERE sales_order.organization_id=$1 AND sales_order.party_id=$2
+       WHERE sales_order.organization_id=$1 AND sales_order.party_id=$2${t.sales("sales_order")}
        UNION ALL
        SELECT 'invoice',invoice.id,invoice.created_at,invoice.invoice_number,invoice.status,invoice.grand_total,invoice.currency_code,
               jsonb_build_object('invoiceDate',invoice.invoice_date,'dueDate',invoice.due_date,'outstandingAmount',invoice.outstanding_amount)
-       FROM tenant.accounting_customer_invoices invoice WHERE invoice.organization_id=$1 AND invoice.party_id=$2
+       FROM tenant.accounting_customer_invoices invoice WHERE invoice.organization_id=$1 AND invoice.party_id=$2${t.accounting("invoice")}
        UNION ALL
        SELECT 'receipt',receipt.id,receipt.created_at,receipt.receipt_number,receipt.status,receipt.amount,receipt.currency_code,
               jsonb_build_object('receiptDate',receipt.receipt_date,'unappliedAmount',receipt.unapplied_amount,'paymentMethod',receipt.payment_method)
-       FROM tenant.accounting_customer_receipts receipt WHERE receipt.organization_id=$1 AND receipt.party_id=$2
+       FROM tenant.accounting_customer_receipts receipt WHERE receipt.organization_id=$1 AND receipt.party_id=$2${t.accounting("receipt")}
        UNION ALL
        SELECT 'support',event.id,event.occurred_at,event.title,event.status,NULL,NULL,
               jsonb_build_object('eventType',event.event_type,'priority',event.priority,'externalSystem',event.external_system,'externalCaseId',event.external_case_id,'description',event.description)
-       FROM tenant.crm_customer_service_events event WHERE event.organization_id=$1 AND event.party_id=$2
+       FROM tenant.crm_customer_service_events event WHERE event.organization_id=$1 AND event.party_id=$2${t.company("event")}
      ) timeline
      ORDER BY occurred_at DESC,entry_type,entry_id LIMIT 500`,
-    [context.organizationId, partyId],
+    timelineParameters,
   );
   return {
-    account: party,
+    account: redactHiddenParent(party),
     hierarchy,
     contacts: contacts.rows,
     metrics: metrics.rows[0] || {},
     timeline: timeline.rows,
     sourceCoverage: {
       crm: true,
-      quotations: true,
-      orders: true,
-      invoices: true,
+      quotations: hasPermission(context, "sales.view"),
+      orders: hasPermission(context, "sales.view"),
+      invoices: hasPermission(context, "accounting.view"),
       support: true,
       supportMode: "governed service-event ingestion",
     },
   };
 }
 
-// The caller-safe read path — same reasoning as getCrmAccountForCaller and
-// previewAccountMergeForCaller: getCustomer360 itself stays raw/unprojected
-// (its `account`/`contacts` rows come straight off tenant.business_parties/
-// tenant.contacts with no redaction), so any API route exposing this to a
-// browser MUST call this wrapper, never getCustomer360 directly.
 export async function getCustomer360ForCaller(client, context, partyId) {
   const view = await getCustomer360(client, context, partyId);
   return {

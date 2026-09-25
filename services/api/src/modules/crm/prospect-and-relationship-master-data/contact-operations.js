@@ -15,10 +15,13 @@ import {
   clearPrimaryRelationshipFromLegacyFields,
 } from "./contact-relationships.js";
 import {
+  projectDuplicateMatchesForCaller,
   findContactDuplicates,
   recordContactDuplicateOverride,
 } from "./duplicate-matching.js";
 import { assertExpectedRecordVersion } from "./record-version.js";
+import { crmContactVisibleSql } from "../crm-data-operations-and-customization/crm-access-scope.js";
+import { crmChildScopes } from "../crm-data-operations-and-customization/record-policy.js";
 
 // F008 create-time governed duplicate check (CRM-VNEXT-081), mirroring
 // account-operations.js's assertAccountDuplicatePolicy and Lead's
@@ -41,7 +44,7 @@ async function assertContactDuplicatePolicy(client, context, candidate, override
         ? "Explain in at least 10 characters why this exact duplicate must be created."
         : "This looks like an exact duplicate of an existing contact. You do not have permission to create it anyway.",
       "CRM_CONTACT_DUPLICATE_EXACT",
-      { matches: exact },
+      { matches: projectDuplicateMatchesForCaller(context, "contact", exact) },
     );
   }
   return { matchedContactIds: exact.map((row) => row.id), reason };
@@ -103,11 +106,11 @@ function assertId(value, field = "Contact") {
   }
 }
 
+// Company boundary, then access inherited from the Account
+// (crm-access-scope.js). Standalone Contacts have no company, so outside
+// view-all they are limited to their creator and the creator's team manager.
 function contactScope(context, parameters, contact = "contact", account = "account") {
-  if (context.activeCompanyId) {
-    return ` AND (${contact}.party_id IS NULL OR ${account}.company_id IS NULL OR ${account}.company_id = ${addParameter(parameters, context.activeCompanyId)})`;
-  }
-  return context.allowAllCompanies ? "" : " AND false";
+  return crmContactVisibleSql(context, (value) => addParameter(parameters, value), contact, account);
 }
 
 function assertWritableScope(context) {
@@ -319,13 +322,17 @@ export async function getCrmContact(client, context, id) {
   if (!result.rows[0]) {
     throw new CrmError(404, "Contact not found.", "CRM_CONTACT_NOT_FOUND");
   }
+  // Each related record type keeps its own scope (record access to the
+  // Contact is not access to every deal or activity linked to it).
+  const countParameters = [context.organizationId, id];
+  const scope = crmChildScopes(context, countParameters);
   const relationships = await client.query(
     `SELECT
-       (SELECT count(*)::int FROM tenant.crm_opportunities
-        WHERE organization_id = $1 AND contact_id = $2 AND status <> 'archived') AS opportunities,
-       (SELECT count(*)::int FROM tenant.crm_activities
-        WHERE organization_id = $1 AND entity_type = 'contact' AND entity_id = $2) AS activities`,
-    [context.organizationId, id],
+       (SELECT count(*)::int FROM tenant.crm_opportunities opportunity
+        WHERE opportunity.organization_id = $1 AND opportunity.contact_id = $2 AND opportunity.status <> 'archived'${scope.opportunity()}) AS opportunities,
+       (SELECT count(*)::int FROM tenant.crm_activities activity
+        WHERE activity.organization_id = $1 AND activity.entity_type = 'contact' AND activity.entity_id = $2${scope.activity()}) AS activities`,
+    countParameters,
   );
   return {
     ...contactDto(result.rows[0]),

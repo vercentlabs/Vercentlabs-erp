@@ -24,6 +24,7 @@ export async function GET(request: Request) {
       status: validStatus,
       industry: url.searchParams.get("industry") || undefined,
       country: url.searchParams.get("country") || undefined,
+      ownerId: url.searchParams.get("ownerId") || undefined,
       limit: url.searchParams.get("limit") ? Number(url.searchParams.get("limit")) : undefined,
       offset: url.searchParams.get("offset") ? Number(url.searchParams.get("offset")) : undefined,
     };

@@ -17,7 +17,10 @@ const lead = "55555555-5555-4555-8555-555555555555";
 const note = "77777777-7777-4777-8777-777777777777";
 
 function baseContext(overrides = {}) {
-  return { organizationId: org, userId: user, activeCompanyId: null, activeBranchId: null, allowAllCompanies: true, roleSlugs: [], permissions: ["crm.leads.view_sensitive"], ...overrides };
+  // Always a note-writing seller (crm.activities.manage); these tests exercise
+  // authorship/override/versioning. The write gate itself is tested below.
+  const { permissions = ["crm.leads.view_sensitive"], ...rest } = overrides;
+  return { organizationId: org, userId: user, activeCompanyId: null, activeBranchId: null, allowAllCompanies: true, roleSlugs: [], ...rest, permissions: [...permissions, "crm.activities.manage"] };
 }
 
 function noteRow(overrides = {}) {
@@ -103,9 +106,9 @@ test("F017: updateCrmNote is author-only unless the caller holds an organization
   await assert.rejects(() => updateCrmNote(client, baseContext(), note, { body: "edit" }), (error) => error.code === "CRM_NOTE_EDIT_FORBIDDEN");
 });
 
-test("F017: updateCrmNote allows a view-all/org-owner override to edit someone else's Note", async () => {
+test("F017: updateCrmNote allows a CRM-administration override (view-all + CRM settings) to edit someone else's Note", async () => {
   const client = mockClient({ notes: [noteRow({ created_by: other })] });
-  const context = baseContext({ permissions: ["crm.leads.view_sensitive", "crm.records.view_all"] });
+  const context = baseContext({ permissions: ["crm.leads.view_sensitive", "crm.records.view_all", "crm.settings.manage"] });
   const result = await updateCrmNote(client, context, note, { body: "corrected" });
   assert.equal(result.body, "corrected");
 });
@@ -185,4 +188,14 @@ test("F017: updateCrmNote records the replaced visibility in the version ledger,
   assert.match(versionInsert.sql, /is_pinned,visibility,actor_user_id/);
   assert.equal(versionInsert.values[5], "private", "the ledger row must carry the visibility being replaced");
   assert.equal(versionInsert.values[6], user);
+});
+
+test("F017: a caller who can SEE the record but cannot manage it (Auditor / Read-only) cannot create, edit or archive notes — refused before any query", async () => {
+  const calls = [];
+  const client = { async query(sql) { calls.push(sql); return { rows: [noteRow({ created_by: user })] }; } };
+  const reader = { organizationId: org, userId: user, activeCompanyId: null, activeBranchId: null, allowAllCompanies: true, roleSlugs: [], permissions: ["crm.view", "crm.records.view_all", "crm.leads.view_sensitive"] };
+  await assert.rejects(() => createCrmNote(client, reader, "lead", "33333333-3333-4333-8333-333333333333", { body: "x" }), { code: "CRM_RECORD_CONTENT_WRITE_FORBIDDEN" });
+  assert.equal(calls.length, 0);
+  await assert.rejects(() => updateCrmNote(client, reader, note, { body: "y" }), { code: "CRM_RECORD_CONTENT_WRITE_FORBIDDEN" });
+  await assert.rejects(() => archiveCrmNote(client, reader, note, {}), { code: "CRM_RECORD_CONTENT_WRITE_FORBIDDEN" });
 });

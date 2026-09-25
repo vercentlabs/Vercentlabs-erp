@@ -5,6 +5,11 @@ import { comparable } from "../crm-conversion-and-sales-handoff/lead-conversion.
 import { getCrmRecord } from "./resource-query-service.js";
 import { resources } from "./resource-registry.js";
 import { addParameter } from "./record-utils.js";
+import { salesDocumentVisibilitySql } from "../../sales/index.js";
+import { receivablesDocumentVisibilitySql } from "../../accounting/index.js";
+import { assertCrmOwnerAssignable, canViewAllCrmRecords, canViewAllCrmResource, crmAccountAccessSql, crmOwnerScopeSql } from "./crm-access-scope.js";
+
+export { canViewAllCrmRecords };
 
 
 
@@ -17,12 +22,7 @@ import { addParameter } from "./record-utils.js";
 // lead awaiting assignment) remain visible to anyone who can otherwise see
 // the resource, mirroring the existing company_id/branch_id IS NULL
 // convention immediately below.
-export function canViewAllCrmRecords(context) {
-  return (
-    Boolean(context.roleSlugs?.includes("organization_owner")) ||
-    Boolean(context.permissions?.includes("crm.records.view_all"))
-  );
-}
+// (canViewAllCrmRecords now lives in crm-access-scope.js with the team rule.)
 
 
 
@@ -94,11 +94,15 @@ function communicationParentScopeSql(context, parameters, alias) {
   // time and rejects the whole query with "could not determine data type
   // of parameter $N", for every organization_owner/view_all caller (i.e.
   // most real usage) hitting the Communications resource.
-  const partyVisible = context.allowAllCompanies
+  const partyCompanyVisible = context.allowAllCompanies
     ? "true"
     : context.activeCompanyId
       ? `(party.company_id IS NULL OR party.company_id = ${addParameter(parameters, context.activeCompanyId)})`
       : "false";
+  // …and the Account ownership rule (crm-access-scope.js), so a
+  // communication logged against an Account is visible exactly when the
+  // Account is.
+  const partyVisible = `${partyCompanyVisible}${crmAccountAccessSql(context, (value) => addParameter(parameters, value), "party")}`;
   const standaloneVisible = context.allowAllCompanies ? "true" : "false";
   return ` AND (
     (${alias}.lead_id IS NOT NULL AND EXISTS (SELECT 1 FROM tenant.crm_leads lead WHERE lead.organization_id=${alias}.organization_id AND lead.id=${alias}.lead_id${leadScope}))
@@ -110,6 +114,12 @@ function communicationParentScopeSql(context, parameters, alias) {
 }
 
 
+
+// Registry key of a resource definition ("leads", "opportunities", …) —
+// what resource-specific view-all and relationship grants are keyed on.
+export function crmResourceName(definition) {
+  return Object.keys(resources).find((key) => resources[key] === definition) ?? null;
+}
 
 export function recordScope(definition, context, parameters, alias = "record") {
   let sql = "";
@@ -174,27 +184,12 @@ export function recordScope(definition, context, parameters, alias = "record") {
       return sql + " AND false";
     }
   }
-  if (definition.ownerField && !canViewAllCrmRecords(context)) {
+  if (definition.ownerField) {
+    // One rule for every owner-scoped resource (leads, opportunities,
+    // activities, forecast submissions): own + managed-team members +
+    // unassigned queue, unless the caller can view all — crm-access-scope.js.
     const column = definition.fields[definition.ownerField];
-    if (definition.table === "tenant.crm_forecast_submissions") {
-      // F025 Stage A2 §11 closeout — the dossier's own named "rep sees
-      // own -> manager sees team -> exec sees org" rollup (previously
-      // disclosed as "a separate, larger enhancement — not attempted").
-      // Reuses F020's own crm_sales_teams.manager_user_id/
-      // crm_sales_team_members verbatim — never a second, forecast-only
-      // hierarchy. A caller without crm.records.view_all sees: an
-      // ownerless (team-level) submission (unchanged prior behavior),
-      // their own submission, or a submission whose owner is an active
-      // member of a Sales Team this caller manages.
-      sql += ` AND (${alias}.${column} IS NULL OR ${alias}.${column} = ${addParameter(parameters, context.userId)} OR EXISTS (
-        SELECT 1 FROM tenant.crm_sales_team_members member
-          JOIN tenant.crm_sales_teams team ON team.organization_id=member.organization_id AND team.id=member.team_id
-         WHERE member.organization_id=${alias}.organization_id AND member.user_id=${alias}.${column}
-           AND member.status='active' AND team.manager_user_id=${addParameter(parameters, context.userId)}
-      ))`;
-    } else {
-      sql += ` AND (${alias}.${column} IS NULL OR ${alias}.${column} = ${addParameter(parameters, context.userId)})`;
-    }
+    sql += crmOwnerScopeSql(context, (value) => addParameter(parameters, value), `${alias}.${column}`, `${alias}.organization_id`, { resource: crmResourceName(definition), alias });
   }
   sql += directLeadLinkedScope(definition, context, parameters, alias);
   sql += aiFeedbackLeadScope(definition, context, parameters, alias);
@@ -247,26 +242,24 @@ export function assertWritableScope(definition, context, input) {
 // the RAW input (hasOwnProperty), not the merged/defaulted payload, so an
 // update that never mentions ownerField is unaffected. See Part 2 of
 // docs/implementation/ERP_SECURITY_HARDENING_003.md.
-export function assertOwnerAssignmentAllowed(definition, context, input) {
-  if (!definition.ownerField || canViewAllCrmRecords(context)) return;
+export async function assertOwnerAssignmentAllowed(client, definition, context, input) {
+  if (!definition.ownerField || canViewAllCrmResource(context, crmResourceName(definition))) return;
   if (!Object.prototype.hasOwnProperty.call(input, definition.ownerField))
     return;
-  const requested = input[definition.ownerField];
-  if (requested && requested !== context.userId) {
-    throw new CrmError(
-      403,
-      "You do not have permission to assign this record to another user.",
-    );
-  }
+  // Self, or an active member of a team the caller manages (Sales Manager).
+  await assertCrmOwnerAssignable(client, context, input[definition.ownerField], "You do not have permission to assign this record to another user.", { resource: crmResourceName(definition) });
 }
 
 
 
+// Who may use the Lead assignment action at all: Lead managers. WHOM they
+// may assign to is decided per target by assertCrmOwnerAssignable (self,
+// own team, or anyone for view-all holders), and which Leads they can reach
+// by recordScope.
 export function canAssignLeadOwners(context) {
   return (
     Boolean(context.roleSlugs?.includes("organization_owner")) ||
-    (Boolean(context.permissions?.includes("crm.records.view_all")) &&
-      Boolean(context.permissions?.includes("crm.leads.manage")))
+    Boolean(context.permissions?.includes("crm.leads.manage"))
   );
 }
 
@@ -575,4 +568,34 @@ export function assertLifecycleUpdate(resource, before, input, context = {}) {
   ) {
     throw new CrmError(409, "Use the governed activity completion action.");
   }
+}
+
+// Child-record scope for Account/Contact 360. Being allowed to open an
+// Account is NOT permission to see every record hanging off it: each child
+// applies its OWN canonical rule (recordScope — company/branch boundary,
+// then owner/team/unassigned/view-all), and every count, total and
+// timeline row is computed from those same scoped rows, so a rep who sees
+// 2 of 5 deals is told "2", never "5". Sales and Accounting documents are
+// shown only to callers who hold that module's view permission, inside the
+// active company. Customer-service events are Account-level (no owner) and
+// keep the company boundary. One parameter array per statement.
+export function crmHasPermission(context, key) {
+  return Boolean(context.roleSlugs?.includes("organization_owner")) || Boolean(context.permissions?.includes(key));
+}
+
+export function crmChildScopes(context, parameters) {
+  const bind = (value) => { parameters.push(value); return `$${parameters.length}`; };
+  const company = (alias) => context.activeCompanyId
+    ? ` AND (${alias}.company_id IS NULL OR ${alias}.company_id = ${bind(context.activeCompanyId)})`
+    : context.allowAllCompanies ? "" : " AND false";
+  return {
+    opportunity: (alias = "opportunity") => recordScope(resources.opportunities, context, parameters, alias),
+    activity: (alias = "activity") => recordScope(resources.activities, context, parameters, alias),
+    communication: (alias = "communication") => recordScope(resources.communications, context, parameters, alias),
+    // Sales/Accounting documents: those modules' OWN canonical rules — CRM
+    // never re-derives (or bypasses) another module's authorization.
+    sales: (alias) => salesDocumentVisibilitySql(context, bind, alias),
+    accounting: (alias) => receivablesDocumentVisibilitySql(context, bind, alias),
+    company,
+  };
 }

@@ -3,6 +3,7 @@ import { assertEligibleLeadAssignee } from "./lead-governance.js";
 import { CrmError } from "../crm-data-operations-and-customization/errors.js";
 import { queueOutboxEvent } from "../crm-data-operations-and-customization/outbox.js";
 import { canAssignLeadOwners, recordScope } from "../crm-data-operations-and-customization/record-policy.js";
+import { assertCrmOwnerAssignable, canViewAllCrmResource } from "../crm-data-operations-and-customization/crm-access-scope.js";
 import { resources } from "../crm-data-operations-and-customization/resource-registry.js";
 import { camelizeRow } from "../crm-data-operations-and-customization/record-utils.js";
 import { assertLeadExpectedVersion } from "../crm-data-operations-and-customization/resource-validation.js";
@@ -109,6 +110,9 @@ export async function assignLeadOwner(
       "Select a valid Lead owner.",
       "CRM_LEAD_ASSIGNEE_NOT_FOUND",
     );
+  // Self, own team (Sales Manager) or anyone (view-all) — never an arbitrary
+  // user. Checked before the Lead is even read.
+  await assertCrmOwnerAssignable(client, context, ownerUserId ? String(ownerUserId) : null, "You can only assign Leads to yourself or to members of a team you manage.", { resource: "leads" });
   const parameters = [context.organizationId, leadId];
   const scope = recordScope(resources.leads, context, parameters);
   const current = await client.query(
@@ -153,6 +157,8 @@ export async function assignLeadOwner(
       // does not block them, but they must say explicitly that they intend
       // an override and why, so a genuinely mistaken owner ID still fails
       // closed by default.
+      // The eligibility override stays an elevated (view-all) action.
+      if (!canViewAllCrmResource(context, "leads")) throw new CrmError(409, error.message, error.code);
       const overrideReason = String(options.overrideReason ?? "").trim();
       if (!options.override || !overrideReason)
         throw new CrmError(409, error.message, error.code);

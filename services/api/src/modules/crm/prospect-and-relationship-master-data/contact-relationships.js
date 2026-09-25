@@ -5,6 +5,7 @@
 // distinct from contacts.is_primary, no effective-dating).
 import { CrmError } from "../crm-data-operations-and-customization/errors.js";
 import { queueOutboxEvent } from "../crm-data-operations-and-customization/outbox.js";
+import { crmAccountVisibleSql, crmContactVisibleSql } from "../crm-data-operations-and-customization/crm-access-scope.js";
 
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -48,10 +49,14 @@ function dto(row) {
   );
 }
 
+// Both ends of a relationship must be visible to the caller (company
+// boundary + ownership, crm-access-scope.js) — an id alone is never enough.
 async function assertActiveAccount(client, context, partyId) {
+  const parameters = [context.organizationId, partyId];
+  const bind = (value) => { parameters.push(value); return `$${parameters.length}`; };
   const result = await client.query(
-    `SELECT id, status FROM tenant.business_parties WHERE organization_id=$1 AND id=$2`,
-    [context.organizationId, partyId],
+    `SELECT account.id, account.status FROM tenant.business_parties account WHERE account.organization_id=$1 AND account.id=$2${crmAccountVisibleSql(context, bind, "account")}`,
+    parameters,
   );
   if (!result.rows[0]) {
     throw new CrmError(404, "Account not found.", "CRM_ACCOUNT_NOT_FOUND");
@@ -65,10 +70,24 @@ async function assertActiveAccount(client, context, partyId) {
   }
 }
 
-async function assertActiveContact(client, context, contactId) {
+async function assertAccountVisible(client, context, partyId) {
+  const parameters = [context.organizationId, partyId];
+  const bind = (value) => { parameters.push(value); return `$${parameters.length}`; };
   const result = await client.query(
-    `SELECT id, status FROM tenant.contacts WHERE organization_id=$1 AND id=$2`,
-    [context.organizationId, contactId],
+    `SELECT account.id FROM tenant.business_parties account WHERE account.organization_id=$1 AND account.id=$2${crmAccountVisibleSql(context, bind, "account")}`,
+    parameters,
+  );
+  if (!result.rows[0]) throw new CrmError(404, "Account not found.", "CRM_ACCOUNT_NOT_FOUND");
+}
+
+async function assertActiveContact(client, context, contactId) {
+  const parameters = [context.organizationId, contactId];
+  const bind = (value) => { parameters.push(value); return `$${parameters.length}`; };
+  const result = await client.query(
+    `SELECT contact.id, contact.status FROM tenant.contacts contact
+       LEFT JOIN tenant.business_parties account ON account.organization_id=contact.organization_id AND account.id=contact.party_id
+      WHERE contact.organization_id=$1 AND contact.id=$2${crmContactVisibleSql(context, bind, "contact", "account")}`,
+    parameters,
   );
   if (!result.rows[0]) {
     throw new CrmError(404, "Contact not found.", "CRM_CONTACT_NOT_FOUND");
@@ -177,28 +196,35 @@ export async function clearPrimaryRelationshipFromLegacyFields(client, context, 
 export async function listContactAccountRelationships(client, context, contactId) {
   assertId(contactId, "Contact");
   await assertActiveContact(client, context, contactId);
+  const parameters = [context.organizationId, contactId];
+  const bind = (value) => { parameters.push(value); return `$${parameters.length}`; };
   const result = await client.query(
     `SELECT rel.*, party.display_name AS account_name, party.status AS account_status
      FROM tenant.crm_contact_account_relationships rel
      JOIN tenant.business_parties party
        ON party.organization_id = rel.organization_id AND party.id = rel.party_id
-     WHERE rel.organization_id=$1 AND rel.contact_id=$2 AND rel.status='active'
+     WHERE rel.organization_id=$1 AND rel.contact_id=$2 AND rel.status='active'${crmAccountVisibleSql(context, bind, "party")}
      ORDER BY rel.is_primary DESC, party.display_name`,
-    [context.organizationId, contactId],
+    parameters,
   );
   return result.rows.map(dto);
 }
 
 export async function listAccountContactRelationships(client, context, partyId) {
   assertId(partyId, "Account");
+  await assertAccountVisible(client, context, partyId);
+  const parameters = [context.organizationId, partyId];
+  const bind = (value) => { parameters.push(value); return `$${parameters.length}`; };
   const result = await client.query(
     `SELECT rel.*, contact.first_name, contact.last_name, contact.designation, contact.status AS contact_status
      FROM tenant.crm_contact_account_relationships rel
      JOIN tenant.contacts contact
        ON contact.organization_id = rel.organization_id AND contact.id = rel.contact_id
-     WHERE rel.organization_id=$1 AND rel.party_id=$2 AND rel.status='active'
+     LEFT JOIN tenant.business_parties home_account
+       ON home_account.organization_id = contact.organization_id AND home_account.id = contact.party_id
+     WHERE rel.organization_id=$1 AND rel.party_id=$2 AND rel.status='active'${crmContactVisibleSql(context, bind, "contact", "home_account")}
      ORDER BY rel.is_primary DESC, contact.first_name, contact.last_name`,
-    [context.organizationId, partyId],
+    parameters,
   );
   return result.rows.map(dto);
 }
@@ -314,6 +340,7 @@ export async function setPrimaryContactAccountRelationship(
 ) {
   assertId(contactId, "Contact");
   assertId(relationshipId, "Relationship");
+  await assertActiveContact(client, context, contactId);
   const target = await client.query(
     `SELECT id FROM tenant.crm_contact_account_relationships
      WHERE organization_id=$1 AND id=$2 AND contact_id=$3 AND status='active'`,
@@ -341,6 +368,7 @@ export async function removeContactAccountRelationship(
 ) {
   assertId(contactId, "Contact");
   assertId(relationshipId, "Relationship");
+  await assertActiveContact(client, context, contactId);
   const existing = await client.query(
     `SELECT * FROM tenant.crm_contact_account_relationships
      WHERE organization_id=$1 AND id=$2 AND contact_id=$3 AND status='active'`,

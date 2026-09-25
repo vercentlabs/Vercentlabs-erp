@@ -127,15 +127,28 @@ test("capturePipelineSnapshots: multiple currencies for the same stage are persi
 test("capturePipelineSnapshots: a manual capture on the same day as an existing scheduled snapshot is not deduplicated against it (deliberately separate identities)", async () => {
   const client = mockClient({ aggregatesByPipeline: { [pipelineA]: [aggregateRow()] } });
   const scheduled = await capturePipelineSnapshots(client, systemContext, { snapshotDate: "2026-09-09", source: "scheduled" });
-  const manual = await capturePipelineSnapshots(client, systemContext, { snapshotDate: "2026-09-09", source: "manual", capturedBy: "66666666-6666-4666-8666-666666666666" });
+  const salesHead = { ...systemContext, userId: "66666666-6666-4666-8666-666666666666", permissions: ["crm.view", "crm.opportunities.manage", "crm.records.view_all"] };
+  const manual = await capturePipelineSnapshots(client, salesHead, { snapshotDate: "2026-09-09", source: "manual", capturedBy: "66666666-6666-4666-8666-666666666666" });
   assert.equal(scheduled.rowsWritten, 1);
   assert.equal(manual.rowsWritten, 1, "a manual capture must not be silently absorbed by the scheduled day's dedupe key");
 });
 
-test("listPipelineSnapshots: an authorized manager (crm.opportunities.manage) can retrieve snapshot history", async () => {
+test("capturePipelineSnapshots: a team-scoped manager cannot trigger a manual capture — it aggregates company-wide deals they cannot see", async () => {
+  const client = mockClient({ aggregatesByPipeline: { [pipelineA]: [aggregateRow()] } });
+  const manager = { ...systemContext, userId: "66666666-6666-4666-8666-666666666666", allowAllCompanies: false, activeCompanyId: null, roleSlugs: [], permissions: ["crm.view", "crm.opportunities.manage"] };
+  await assert.rejects(capturePipelineSnapshots(client, manager, { source: "manual", pipelineId: pipelineA }), { code: "CRM_PIPELINE_SNAPSHOT_FORBIDDEN" });
+});
+
+test("listPipelineSnapshots: a caller who can view all CRM records (e.g. Sales Head) can retrieve snapshot history", async () => {
+  const client = mockClient();
+  const head = { ...systemContext, allowAllCompanies: false, roleSlugs: [], permissions: ["crm.view", "crm.opportunities.manage", "crm.records.view_all"] };
+  await assert.doesNotReject(listPipelineSnapshots(client, head, { pipelineId: pipelineA }));
+});
+
+test("listPipelineSnapshots: a team-scoped manager or seller with crm.opportunities.manage but not view-all is refused — company totals would leak", async () => {
   const client = mockClient();
   const manager = { ...systemContext, allowAllCompanies: false, roleSlugs: [], permissions: ["crm.view", "crm.opportunities.manage"] };
-  await assert.doesNotReject(listPipelineSnapshots(client, manager, { pipelineId: pipelineA }));
+  await assert.rejects(listPipelineSnapshots(client, manager, { pipelineId: pipelineA }), (error) => error.status === 403 && error.code === "CRM_PIPELINE_SNAPSHOT_FORBIDDEN");
 });
 
 test("listPipelineSnapshots: an unauthorized seller (crm.view only) cannot access pipeline history at all — 403, not a filtered/empty result", async () => {
@@ -151,7 +164,7 @@ test("listPipelineSnapshots: an unauthorized seller (crm.view only) cannot acces
   );
 });
 
-test("listPipelineSnapshots: a company-restricted manager's query is scoped to their own company (or company-unassigned rows), not org-wide", async () => {
+test("listPipelineSnapshots: a company-restricted view-all caller (Sales Head) is still scoped to their own company (or company-unassigned rows), not org-wide", async () => {
   const client = mockClient();
   const manager = {
     organizationId: org,
@@ -159,7 +172,7 @@ test("listPipelineSnapshots: a company-restricted manager's query is scoped to t
     activeCompanyId: companyA,
     activeBranchId: null,
     allowAllCompanies: false,
-    permissions: ["crm.view", "crm.opportunities.manage"],
+    permissions: ["crm.view", "crm.opportunities.manage", "crm.records.view_all"],
     roleSlugs: [],
   };
   await listPipelineSnapshots(client, manager, { pipelineId: pipelineA });

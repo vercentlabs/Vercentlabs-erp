@@ -27,14 +27,14 @@ export const payloadSchema = z
 // Re-resolves a fresh execution context (never trusting the requester's
 // permissions as they were at enqueue time) via the SAME resolver
 // crm.leads.bulk_update already uses — it already does exactly the
-// re-validation an export needs: crm.leads.manage still held, company/
+// re-validation an export needs: crm.export still held, company/
 // branch access still current. Row generation and CSV formatting are
 // entirely delegated to buildCrmLeadExportCsv, which itself calls
 // listCrmRecords("leads", ...) — the SAME governed, scoped read the
 // interactive Leads list uses. No parallel row-authorization logic here.
 export async function leadExportHandler(_client, _systemContext, payload, runtime) {
   await runtime.withTenantClient(runtime.pool, runtime.organizationId, async (client) => {
-    const context = await resolveLeadBulkExecutionContext(client, runtime.organizationId, payload);
+    const context = await resolveLeadBulkExecutionContext(client, runtime.organizationId, payload, { requiredPermission: "crm.export" });
     // A genuine failure (permissions revoked, company/branch access
     // changed since enqueue), not a valid empty export — throwing lets
     // the generic job runner's retry/dead-letter path handle it, rather
