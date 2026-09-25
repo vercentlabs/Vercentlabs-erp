@@ -14,6 +14,9 @@ function mockClient(expiredRows = []) {
       if (sql.startsWith("UPDATE tenant.sales_quotations") && sql.includes("lifecycle_status='expired'"))
         return { rows: expiredRows, rowCount: expiredRows.length };
       if (sql.includes("INSERT INTO tenant.sales_document_events")) return { rows: [] };
+      // Expiry also revokes the quotation's public share links (sales/index.js revokeQuoteLinks).
+      if (sql.startsWith("UPDATE tenant.sales_quote_share_links")) return { rows: [] };
+      if (sql.startsWith("UPDATE public.sales_public_quote_tokens")) return { rows: [] };
       throw new Error(`Unexpected query: ${sql}`);
     },
   };
@@ -50,4 +53,6 @@ test("detectExpiredQuotationsHandler: expiring quotations are counted and audite
   assert.deepEqual(result, { scanned: 2, expired: 2 });
   const events = client.queries.filter((q) => q.sql.includes("INSERT INTO tenant.sales_document_events"));
   assert.equal(events.length, 2);
+  const revocations = client.queries.filter((q) => q.sql.startsWith("UPDATE tenant.sales_quote_share_links"));
+  assert.deepEqual(revocations.map((q) => q.params[1]), ["quote-1", "quote-2"], "each expired quotation's share links are revoked");
 });
