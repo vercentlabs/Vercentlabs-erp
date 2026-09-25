@@ -2,13 +2,16 @@
 
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Button, ErrorState, NumberField, PageHeader, PermissionState, Select, Switch, TextField } from "@vercentlabs/design-system";
+import { Button, Dialog, EnterpriseDataGrid, ErrorState, NumberField, PageHeader, PermissionState, Select, Switch, TextField } from "@vercentlabs/design-system";
+import type { ColumnDef } from "@tanstack/react-table";
+import { getSalesOptions } from "@/features/sales/quotations/api/quotations-api";
 import { SALES_PERMISSIONS } from "@vercentlabs/permissions";
 
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import { request, SalesApiError } from "@/features/sales/shared/http";
 import { SalesAlert, SalesPanel } from "@/features/sales/shared/SalesUi";
+import { listSalesPriceLists } from "@/features/sales/price-lists/api/price-lists-api";
 
 type Settings = {
   seller_state_code: string | null;
@@ -19,6 +22,7 @@ type Settings = {
   order_approval_amount: string | number;
   allow_direct_orders: boolean;
   invoice_quantity_basis: "ordered" | "fulfilled";
+  default_price_list_id?: string | null;
 };
 
 // F041/F043 -- the thresholds that decide when a quotation or order needs a
@@ -33,7 +37,12 @@ export function SalesSettingsScreen() {
     if (query.error instanceof SalesApiError && query.error.status === 403) return <PermissionState title="You don't have access to Sales" description="Ask an administrator to grant sales.view." />;
     return <ErrorState title="Could not load Sales settings" action={{ label: "Retry", onPress: () => query.refetch() }} />;
   }
-  return <SettingsForm settings={query.data} />;
+  return (
+    <div className="flex flex-col gap-4">
+      <SettingsForm settings={query.data} />
+      <ApprovalDelegations />
+    </div>
+  );
 }
 
 function SettingsForm({ settings }: { settings: Settings }) {
@@ -48,13 +57,15 @@ function SettingsForm({ settings }: { settings: Settings }) {
   const [orderAmount, setOrderAmount] = useState(Number(settings.order_approval_amount));
   const [direct, setDirect] = useState(settings.allow_direct_orders);
   const [basis, setBasis] = useState<string>(settings.invoice_quantity_basis);
+  const [defaultPriceListId, setDefaultPriceListId] = useState(settings.default_price_list_id ?? "");
+  const priceLists = useQuery({ queryKey: scopedQueryKey(workspace, "sales", "price-lists"), queryFn: () => listSalesPriceLists().then((r) => r.rows) });
   const [saved, setSaved] = useState(false);
 
   const save = useMutation({
     mutationFn: () =>
       request<{ settings: Settings }>("/settings", {
         method: "PUT",
-        body: JSON.stringify({ sellerStateCode: state || null, defaultQuoteValidityDays: validity, quotationApprovalAmount: quoteAmount, quotationApprovalDiscount: quoteDiscount, minimumMarginPercent: margin, orderApprovalAmount: orderAmount, allowDirectOrders: direct, invoiceQuantityBasis: basis }),
+        body: JSON.stringify({ sellerStateCode: state || null, defaultQuoteValidityDays: validity, quotationApprovalAmount: quoteAmount, quotationApprovalDiscount: quoteDiscount, minimumMarginPercent: margin, orderApprovalAmount: orderAmount, allowDirectOrders: direct, invoiceQuantityBasis: basis, defaultPriceListId: defaultPriceListId || null }),
       }),
     onSuccess: () => {
       setSaved(true);
@@ -106,6 +117,13 @@ function SettingsForm({ settings }: { settings: Settings }) {
           <NumberField label="Quotation validity (days)" value={validity} onChange={touch(setValidity)} minValue={1} maxValue={365} step={1} isDisabled={!canManage} />
           <TextField label="Seller state code (GST place of supply)" value={state} onChange={touch(setState)} isDisabled={!canManage} />
           <Select
+            label="Default price list"
+            options={[{ value: "", label: "None (item list prices)" }, ...(priceLists.data ?? []).filter((list) => list.status === "active").map((list) => ({ value: list.id, label: `${list.name} (${list.currency_code})` }))]}
+            selectedKey={defaultPriceListId}
+            onSelectionChange={(key) => touch(setDefaultPriceListId)(String(key ?? ""))}
+            isDisabled={!canManage}
+          />
+          <Select
             label="Invoice quantities when not chosen"
             options={[
               { value: "ordered", label: "Ordered quantities" },
@@ -118,5 +136,80 @@ function SettingsForm({ settings }: { settings: Settings }) {
         </div>
       </SalesPanel>
     </div>
+  );
+}
+
+type Delegation = { id: string; delegator_name: string; delegate_name: string; starts_on: string; ends_on: string; reason: string; status: string; in_effect: boolean };
+
+// F041 -- while an approver is away, new approval requests assigned to them go
+// to their delegate for the dates given. Past decisions are never re-routed.
+function ApprovalDelegations() {
+  const workspace = useWorkspaceContext();
+  const queryClient = useQueryClient();
+  const key = scopedQueryKey(workspace, "sales", "approval-delegations");
+  const list = useQuery({ queryKey: key, queryFn: () => request<{ rows: Delegation[] }>("/approval-delegations").then((r) => r.rows) });
+  const options = useQuery({ queryKey: scopedQueryKey(workspace, "sales", "options"), queryFn: () => getSalesOptions().then((r) => r.options) });
+  const [adding, setAdding] = useState(false);
+  const [delegatorUserId, setDelegatorUserId] = useState(workspace.userId ?? "");
+  const [delegateUserId, setDelegateUserId] = useState("");
+  const [startsOn, setStartsOn] = useState("");
+  const [endsOn, setEndsOn] = useState("");
+  const [reason, setReason] = useState("");
+  const refresh = () => queryClient.invalidateQueries({ queryKey: key });
+  const create = useMutation({
+    mutationFn: () => request("/approval-delegations", { method: "POST", body: JSON.stringify({ delegatorUserId, delegateUserId, startsOn, endsOn, reason }) }),
+    onSuccess: () => { setAdding(false); setDelegateUserId(""); setReason(""); refresh(); },
+  });
+  const revoke = useMutation({ mutationFn: (id: string) => request(`/approval-delegations/${id}`, { method: "DELETE" }), onSuccess: refresh });
+  const users = (options.data?.users ?? []).map((user) => ({ value: user.id, label: user.full_name }));
+  const columns: ColumnDef<Delegation, unknown>[] = [
+    { id: "from", header: "Approver", accessorKey: "delegator_name" },
+    { id: "to", header: "Delegated to", accessorKey: "delegate_name" },
+    { id: "when", header: "Dates", accessorFn: (row) => `${row.starts_on} → ${row.ends_on}` },
+    { id: "reason", header: "Reason", accessorKey: "reason" },
+    { id: "status", header: "Status", accessorFn: (row) => (row.status === "revoked" ? "Revoked" : row.in_effect ? "In effect" : row.ends_on < new Date().toISOString().slice(0, 10) ? "Ended" : "Scheduled") },
+  ];
+  const error = create.error ?? revoke.error;
+  return (
+    <SalesPanel title="Approval delegation" description="While an approver is away, new quotation and order approvals assigned to them go to the person they delegate to. The routing is recorded on each document.">
+      {error && <SalesAlert>{error instanceof SalesApiError ? error.message : "The delegation could not be saved."}</SalesAlert>}
+      <EnterpriseDataGrid<Delegation>
+        aria-label="Approval delegations"
+        columns={columns}
+        data={list.data ?? []}
+        getRowId={(row) => row.id}
+        density="compact"
+        state={list.isLoading ? "loading" : list.data?.length ? "ready" : "empty"}
+        emptyContent={<p className="px-4 py-6 text-sm text-text-muted">No delegations yet.</p>}
+        rowActions={(row) => (row.status === "active" ? <Button variant="ghost" size="compact" onPress={() => revoke.mutate(row.id)}>Revoke</Button> : null)}
+      />
+      <div className="mt-3">
+        <Button variant="secondary" onPress={() => setAdding(true)}>
+          Delegate approvals
+        </Button>
+      </div>
+      {adding && (
+        <Dialog isOpen onOpenChange={(open) => !open && setAdding(false)} title="Delegate approvals">
+          <div className="flex flex-col gap-3">
+            {create.error && <SalesAlert>{create.error instanceof SalesApiError ? create.error.message : "The delegation could not be saved."}</SalesAlert>}
+            <Select label="Approver who is away" options={users} selectedKey={delegatorUserId || null} onSelectionChange={(k) => setDelegatorUserId(String(k ?? ""))} />
+            <Select label="Delegate to" options={users.filter((u) => u.value !== delegatorUserId)} selectedKey={delegateUserId || null} onSelectionChange={(k) => setDelegateUserId(String(k ?? ""))} />
+            <div className="grid grid-cols-2 gap-3">
+              <TextField label="From" type="date" isRequired value={startsOn} onChange={setStartsOn} />
+              <TextField label="Until" type="date" isRequired value={endsOn} onChange={setEndsOn} />
+            </div>
+            <TextField label="Reason" isRequired value={reason} onChange={setReason} placeholder="e.g. On leave for Diwali" />
+            <div className="flex justify-end gap-2">
+              <Button variant="secondary" onPress={() => setAdding(false)}>
+                Close
+              </Button>
+              <Button variant="primary" onPress={() => create.mutate()} isLoading={create.isPending} isDisabled={!delegatorUserId || !delegateUserId || !startsOn || !endsOn || reason.trim().length < 5}>
+                Save delegation
+              </Button>
+            </div>
+          </div>
+        </Dialog>
+      )}
+    </SalesPanel>
   );
 }

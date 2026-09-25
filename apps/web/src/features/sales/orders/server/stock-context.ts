@@ -9,7 +9,7 @@ export type StockAction = "availability" | "reserve" | "issue";
 const PERMISSIONS: Record<StockAction, string[]> = {
   availability: ["stock.view"],
   reserve: ["stock.view", "stock.reserve"],
-  issue: ["stock.view", "stock.issue"],
+  issue: ["stock.view", "stock.issue", "stock.reserve"],
 };
 
 export function stockContextFor(session: { organizationId: string; userId: string }, companyId: string, action: StockAction) {

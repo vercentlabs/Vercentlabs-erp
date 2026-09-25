@@ -14,11 +14,33 @@ export type CustomerRecord = {
   currencyCode: string | null;
   creditLimit: string | null;
   paymentTermId: string | null;
+  defaultPriceListId?: string | null;
+  taxTreatment?: string | null;
+  defaultShippingMethod?: string | null;
+  defaultDeliveryTerms?: string | null;
+  defaultIncoterm?: string | null;
+  salesBlock?: "none" | "orders" | "all";
+  salesBlockReason?: string | null;
   status: "active" | "inactive";
   updatedAt: string;
 };
+// F031 commercial defaults (labels shared by the dialog and the profile).
+export const TAX_TREATMENT_OPTIONS = [
+  { value: "registered_regular", label: "Registered business — regular" },
+  { value: "registered_composition", label: "Registered business — composition" },
+  { value: "unregistered", label: "Unregistered business" },
+  { value: "consumer", label: "Consumer" },
+  { value: "overseas", label: "Overseas" },
+  { value: "sez", label: "Special economic zone (SEZ)" },
+  { value: "deemed_export", label: "Deemed export" },
+];
+export const SALES_BLOCK_OPTIONS = [
+  { value: "none", label: "Not blocked" },
+  { value: "orders", label: "Block new orders" },
+  { value: "all", label: "Block new quotations and orders" },
+];
 export type ItemRecord = { id: string; code: string; name: string; description: string | null; itemType: string; hsnSacCode: string | null; barcode: string | null; salesPrice: string | null; standardCost?: string | null; trackInventory: boolean; status: string };
-export type CustomerInput = Partial<Pick<CustomerRecord, "code" | "partyType" | "displayName" | "legalName" | "gstin" | "pan" | "currencyCode" | "paymentTermId">> & { creditLimit?: number; expectedUpdatedAt?: string; duplicateOverrideReason?: string };
+export type CustomerInput = Partial<Pick<CustomerRecord, "code" | "partyType" | "displayName" | "legalName" | "gstin" | "pan" | "currencyCode" | "paymentTermId" | "defaultPriceListId" | "taxTreatment" | "defaultShippingMethod" | "defaultDeliveryTerms" | "defaultIncoterm" | "salesBlock" | "salesBlockReason">> & { creditLimit?: number; expectedUpdatedAt?: string; duplicateOverrideReason?: string };
 export type ContactInput = { partyId?: string; firstName: string; lastName?: string; designation?: string; email?: string; phone?: string; mobile?: string; isPrimary?: boolean };
 export type AddressInput = { partyId?: string; addressType: string; line1: string; line2?: string; city?: string; district?: string; state?: string; stateCode?: string; postalCode?: string; countryCode?: string; gstin?: string; isPrimary?: boolean };
 export type CustomerCreditSummary = {

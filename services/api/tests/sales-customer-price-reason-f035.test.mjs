@@ -55,7 +55,7 @@ function priceClient({ existingRule = null } = {}) {
         const row = {};
         for (let i = 0; i < columns.length; i += 1) {
           const part = parts[i];
-          const placeholderMatch = part.match(/^\$(\d+)$/);
+          const placeholderMatch = part.match(/^\$(\d+)(?:::[a-z]+)?$/);
           if (placeholderMatch) row[columns[i]] = values[Number(placeholderMatch[1]) - 1];
           else if (part.startsWith("'") && part.endsWith("'")) row[columns[i]] = part.slice(1, -1);
           else row[columns[i]] = part; // literal number or computed expression
@@ -96,7 +96,7 @@ test("F035: creating a customer-specific price with a reason persists every colu
   assert.equal(row.updated_by, user);
 });
 
-test("F035: updating an existing customer-specific price also requires and persists a reason", async () => {
+test("F035: changing an existing customer-specific price requires a reason and keeps the old price as history", async () => {
   const client = priceClient({
     existingRule: { id: "rule-1", code: "CUST-EXISTING" },
   });
@@ -107,8 +107,11 @@ test("F035: updating an existing customer-specific price also requires and persi
   const result = await upsertSalesCustomerPrice(client, context(), {
     partyId, itemId, fixedRate: 300, reason: "Renegotiated for renewal",
   });
-  const update = client.calls.find((c) => c.sql.startsWith("UPDATE tenant.sales_pricing_rules"));
-  assert.match(update.sql, /reason=\$8/);
-  assert.equal(update.values[7], "Renegotiated for renewal");
+  // The change is a new row carrying the new reason; the old row is retired
+  // and linked to it (history kept), never overwritten in place.
+  const insert = client.calls.find((c) => c.sql.includes("INSERT INTO tenant.sales_pricing_rules"));
+  assert.ok(insert.values.includes("Renegotiated for renewal"));
+  const retire = client.calls.find((c) => c.sql.includes("superseded_by_id=$3"));
+  assert.equal(retire.values[1], "rule-1");
   assert.equal(result.reason, "Renegotiated for renewal");
 });

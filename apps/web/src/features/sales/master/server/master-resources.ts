@@ -14,6 +14,8 @@ type DuplicateContext = { organizationId: string; userId: string; activeCompanyI
 export const SALES_READABLE = ["parties", "items", "contacts", "addresses"] as const;
 export const SALES_WRITABLE = ["parties", "contacts", "addresses"] as const;
 const CUSTOMER_TYPES = ["customer", "prospect", "both"];
+const TAX_TREATMENTS = ["registered_regular", "registered_composition", "unregistered", "consumer", "overseas", "sez", "deemed_export"];
+const SALES_BLOCKS = ["none", "orders", "all"];
 
 export function assertReadable(resource: string): asserts resource is (typeof SALES_READABLE)[number] {
   if (!(SALES_READABLE as readonly string[]).includes(resource)) throw new HttpError(404, "Unknown resource.");
@@ -45,6 +47,15 @@ export function shapeCustomerInput(resource: string, input: Record<string, unkno
   if (resource !== "parties") return next;
   if (creating && !next.partyType) next.partyType = "customer";
   if (next.partyType !== undefined && !CUSTOMER_TYPES.includes(String(next.partyType))) throw new HttpError(400, "Sales can only maintain customers and prospects.");
+  // F031 commercial defaults: clean 400s instead of constraint errors.
+  if (next.taxTreatment === "") next.taxTreatment = null;
+  if (next.taxTreatment != null && !TAX_TREATMENTS.includes(String(next.taxTreatment))) throw new HttpError(400, "Choose a valid GST treatment.");
+  if (next.defaultPriceListId === "") next.defaultPriceListId = null;
+  if (next.salesBlock !== undefined) {
+    if (!SALES_BLOCKS.includes(String(next.salesBlock))) throw new HttpError(400, "Choose a valid sales block.");
+    if (next.salesBlock === "none") next.salesBlockReason = null;
+    else if (String(next.salesBlockReason ?? "").trim().length < 5) throw new HttpError(400, "Explain in at least 5 characters why this customer is blocked.");
+  }
   return next;
 }
 // A rep can otherwise create the same customer twice: business_parties has

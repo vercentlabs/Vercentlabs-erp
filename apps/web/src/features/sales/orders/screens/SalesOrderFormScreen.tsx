@@ -9,10 +9,11 @@ import { Button, ErrorState, IconButton, NumberField, PageHeader, Select, TextAr
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import { SalesApiError } from "@/features/sales/shared/http";
-import { money } from "@/features/sales/shared/format";
+import { money, statusLabel } from "@/features/sales/shared/format";
+import { BILLING_ADDRESS_TYPES, defaultAddress, SHIPPING_ADDRESS_TYPES } from "@/features/sales/shared/document-defaults";
 import { SalesAlert, SalesFacts, SalesPanel } from "@/features/sales/shared/SalesUi";
 import { getSalesOptions, previewSalesDocument, type SalesDocumentInput } from "@/features/sales/quotations/api/quotations-api";
-import { amendSalesOrder, createSalesOrder, getSalesOrder, type SalesOrderDetail, type SalesOrderDocumentInput } from "@/features/sales/orders/api/orders-api";
+import { amendSalesOrder, createSalesOrder, getSalesOrder, previewAmendmentImpact, type SalesOrderDetail, type SalesOrderDocumentInput } from "@/features/sales/orders/api/orders-api";
 
 type LineDraft = { key: number; itemId: string; variantId: string; uomId: string; quantity: number; discountPercent: number; warehouseId: string };
 type ChargeDraft = { key: number; label: string; calculationType: "fixed" | "percentage"; value: number };
@@ -111,14 +112,12 @@ function FormBody({
   const partyContacts = options.contacts.filter((contact) => contact.party_id === partyId);
   const partyAddresses = options.addresses.filter((address) => address.party_id === partyId);
   const contactOptions: SelectOption[] = [{ value: "", label: "None" }, ...partyContacts.map((contact) => ({ value: contact.id, label: `${contact.first_name} ${contact.last_name ?? ""}`.trim() + (contact.is_primary ? " (primary)" : "") }))];
-  // Any of the customer's addresses can serve as billing or shipping for
-  // THIS document, regardless of its own address_type label (the same
-  // per-transaction role resolution SAP's partner functions and NetSuite's
-  // ship-to/bill-to selectors provide) -- both pickers list every address.
-  const addressOptions: SelectOption[] = [
+  const addressOptionsFor = (types: string[]): SelectOption[] => [
     { value: "", label: "None" },
-    ...partyAddresses.map((address) => ({ value: address.id, label: `${address.address_type} — ${address.line1}${address.city ? `, ${address.city}` : ""}` + (address.is_primary ? " (primary)" : "") })),
+    ...partyAddresses.filter((address) => types.includes(address.address_type)).map((address) => ({ value: address.id, label: `${statusLabel(address.address_type)} — ${address.line1}${address.city ? `, ${address.city}` : ""}` + (address.is_primary ? " (primary)" : "") })),
   ];
+  const billingAddressOptions = addressOptionsFor(BILLING_ADDRESS_TYPES);
+  const shippingAddressOptions = addressOptionsFor(SHIPPING_ADDRESS_TYPES);
   const itemOptions: SelectOption[] = options.items.map((item) => ({ value: item.id, label: `${item.name} (${item.code})` }));
   // F033: expose a line's UOM and variant/SKU context, not just the item --
   // "sell 20 cartons of the Large/Brown box" needs both. The UOM list is
@@ -159,15 +158,15 @@ function FormBody({
     // user can still change either, and the server validates the combination.
     if (party?.currency_code) setCurrencyCode(party.currency_code);
     if (party?.payment_term_id) setPaymentTermId(party.payment_term_id);
-    setPriceListId("");
+    setPriceListId(party?.default_price_list_id ?? "");
     // Default to the new customer's primary contact/billing/shipping address
     // (still fully overridable below) -- the previous customer's selections
     // don't carry over.
     const contacts = options.contacts.filter((contact) => contact.party_id === id);
     const addresses = options.addresses.filter((address) => address.party_id === id);
     setContactId(contacts.find((contact) => contact.is_primary)?.id ?? "");
-    setBillingAddressId(addresses.find((address) => address.address_type === "billing" && address.is_primary)?.id ?? "");
-    setShippingAddressId(addresses.find((address) => address.address_type === "shipping" && address.is_primary)?.id ?? "");
+    setBillingAddressId(defaultAddress(addresses, BILLING_ADDRESS_TYPES));
+    setShippingAddressId(defaultAddress(addresses, SHIPPING_ADDRESS_TYPES));
   }
 
   const validLines = lines.filter((line) => line.itemId && line.quantity > 0);
@@ -210,6 +209,15 @@ function FormBody({
     retry: false,
     placeholderData: (previous) => previous,
   });
+  // F044: before an amendment is submitted, show what it changes and what blocks it.
+  const impactQuery = useQuery({
+    queryKey: scopedQueryKey(workspace, "sales", "amendment-impact", orderId ?? "", debouncedJson),
+    queryFn: () => previewAmendmentImpact(orderId!, previewInput as SalesOrderDocumentInput).then((r) => r.impact),
+    enabled: Boolean(revising && orderId && previewInput),
+    retry: false,
+    placeholderData: (previous) => previous,
+  });
+  const impact = impactQuery.data;
 
   const saveMutation = useMutation({
     mutationFn: async () => {
@@ -243,7 +251,7 @@ function FormBody({
           </Button>
         }
         primaryAction={
-          <Button variant="primary" onPress={() => saveMutation.mutate()} isLoading={saveMutation.isPending} isDisabled={!input || Boolean(previewError) || (revising && !amendmentReason.trim())}>
+          <Button variant="primary" onPress={() => saveMutation.mutate()} isLoading={saveMutation.isPending} isDisabled={!input || Boolean(previewError) || (revising && (!amendmentReason.trim() || Boolean(impact?.blockers.length)))}>
             {revising ? "Submit amendment" : "Save order"}
           </Button>
         }
@@ -257,8 +265,8 @@ function FormBody({
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <Select label="Customer" isRequired options={partyOptions} selectedKey={partyId || null} onSelectionChange={(key) => selectParty(String(key ?? ""))} placeholder="Select a customer" isDisabled={revising} />
               <Select label="Contact" options={contactOptions} selectedKey={contactId} onSelectionChange={(key) => setContactId(String(key ?? ""))} isDisabled={!partyId} />
-              <Select label="Billing address" options={addressOptions} selectedKey={billingAddressId} onSelectionChange={(key) => setBillingAddressId(String(key ?? ""))} isDisabled={!partyId} />
-              <Select label="Shipping address" options={addressOptions} selectedKey={shippingAddressId} onSelectionChange={(key) => setShippingAddressId(String(key ?? ""))} isDisabled={!partyId} />
+              <Select label="Billing address" options={billingAddressOptions} selectedKey={billingAddressId} onSelectionChange={(key) => setBillingAddressId(String(key ?? ""))} isDisabled={!partyId} />
+              <Select label="Shipping address" options={shippingAddressOptions} selectedKey={shippingAddressId} onSelectionChange={(key) => setShippingAddressId(String(key ?? ""))} isDisabled={!partyId} />
               <TextField label="Requested delivery date" type="date" value={deliveryDate} onChange={setDeliveryDate} />
               <TextField label="Customer PO number" value={poNumber} onChange={setPoNumber} />
               <TextField label="Customer PO date" type="date" value={poDate} onChange={setPoDate} />
@@ -366,6 +374,29 @@ function FormBody({
         </div>
 
         <div className="flex flex-col gap-4 lg:sticky lg:top-4">
+          {revising && impact && (
+            <SalesPanel title="Impact of this amendment" description="Checked before the amendment goes for approval.">
+              <div className="flex flex-col gap-2 text-sm">
+                {impact.blockers.map((blocker) => (
+                  <SalesAlert key={blocker} tone="warning">{blocker}</SalesAlert>
+                ))}
+                <p>
+                  Total {money(existing?.order.currency_code ?? "", impact.totalBefore)} → {money(existing?.order.currency_code ?? "", impact.totalAfter)} ({impact.totalChange >= 0 ? "+" : ""}
+                  {money(existing?.order.currency_code ?? "", impact.totalChange)})
+                </p>
+                <ul className="list-disc pl-5 text-text-secondary">
+                  {impact.lines.filter((line) => line.change !== "unchanged").map((line) => (
+                    <li key={`${line.item}-${line.change}`}>
+                      {line.item}: {line.change === "added" ? `added, ${line.quantityAfter} ${line.unit ?? ""}` : line.change === "removed" ? "removed" : `${line.quantityBefore} → ${line.quantityAfter} ${line.unit ?? ""}`}
+                    </li>
+                  ))}
+                  {impact.lines.every((line) => line.change === "unchanged") && <li>No line changes.</li>}
+                </ul>
+                {impact.creditRecheck && <p className="text-text-secondary">The total goes up, so credit is checked again when the amended order is confirmed.</p>}
+                <p className="text-text-secondary">Needs approval by someone other than you.</p>
+              </div>
+            </SalesPanel>
+          )}
           <SalesPanel title="Totals" description="Calculated by the server.">
             {previewError ? (
               <SalesAlert tone="warning">{previewError}</SalesAlert>

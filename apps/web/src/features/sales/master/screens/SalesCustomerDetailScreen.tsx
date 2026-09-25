@@ -16,7 +16,7 @@ import { money, statusLabel, statusTone } from "@/features/sales/shared/format";
 import { SalesAlert, SalesFacts, SalesPanel } from "@/features/sales/shared/SalesUi";
 import { getSalesOptions, listSalesQuotations, type SalesOptions, type SalesQuotationRow } from "@/features/sales/quotations/api/quotations-api";
 import { listSalesOrders, type SalesOrderRow } from "@/features/sales/orders/api/orders-api";
-import { archiveRecord, createRecord, getCustomer, getCustomerCredit, updateRecord, type AddressInput, type ContactInput, type CustomerRecord } from "@/features/sales/master/api/master-api";
+import { archiveRecord, createRecord, getCustomer, getCustomerCredit, updateRecord, type AddressInput, type ContactInput, type CustomerRecord, TAX_TREATMENT_OPTIONS } from "@/features/sales/master/api/master-api";
 import { CustomerDialog } from "@/features/sales/master/screens/SalesCustomersScreen";
 
 type Contact = SalesOptions["contacts"][number] & { designation?: string | null; phone?: string | null; mobile?: string | null };
@@ -94,6 +94,7 @@ export function SalesCustomerDetailScreen({ customerId }: { customerId: string }
 
   const customer: CustomerRecord = customerQuery.data;
   const term = optionsQuery.data?.paymentTerms.find((t) => t.id === customer.paymentTermId);
+  const priceList = optionsQuery.data?.priceLists.find((p) => p.id === customer.defaultPriceListId);
   const contacts = (optionsQuery.data?.contacts ?? []) as Contact[];
   const addresses = (optionsQuery.data?.addresses ?? []) as Address[];
 
@@ -143,7 +144,7 @@ export function SalesCustomerDetailScreen({ customerId }: { customerId: string }
       <RecordDetailsPage
         header={{
           title: customer.displayName,
-          status: <StatusBadge tone={statusTone(customer.status === "active" ? "confirmed" : "cancelled")}>{customer.status === "active" ? "Active" : "Archived"}</StatusBadge>,
+          status: customer.status === "active" && customer.salesBlock && customer.salesBlock !== "none" ? <StatusBadge tone="warning">Blocked</StatusBadge> : <StatusBadge tone={statusTone(customer.status === "active" ? "confirmed" : "cancelled")}>{customer.status === "active" ? "Active" : "Archived"}</StatusBadge>,
           fields: [
             { label: "Code", value: customer.code },
             { label: "Type", value: statusLabel(customer.partyType) },
@@ -175,6 +176,11 @@ export function SalesCustomerDetailScreen({ customerId }: { customerId: string }
         }}
       >
         {actionError && <SalesAlert>{actionError}</SalesAlert>}
+        {customer.salesBlock && customer.salesBlock !== "none" && (
+          <SalesAlert tone="warning">
+            {customer.salesBlock === "all" ? "Blocked for new quotations and orders" : "Blocked for new orders"}: {customer.salesBlockReason}. Existing documents are unaffected.
+          </SalesAlert>
+        )}
         {customer.status !== "active" && <SalesAlert tone="warning">This customer is archived: it no longer appears when creating quotations or orders. Existing documents are unaffected.</SalesAlert>}
         <Tabs>
           <TabList aria-label="Customer sections">
@@ -195,6 +201,11 @@ export function SalesCustomerDetailScreen({ customerId }: { customerId: string }
                   { label: "PAN", value: customer.pan ?? "—" },
                   { label: "Payment terms", value: term ? `${term.name} (${term.default_due_days} days)` : "—" },
                   { label: "Credit limit", value: Number(customer.creditLimit) > 0 ? money(customer.currencyCode, customer.creditLimit) : "No limit" },
+                  { label: "Price list", value: priceList ? `${priceList.name} (${priceList.currency_code})` : "Company default" },
+                  { label: "GST treatment", value: TAX_TREATMENT_OPTIONS.find((o) => o.value === customer.taxTreatment)?.label ?? "Not set" },
+                  { label: "Shipping method", value: customer.defaultShippingMethod ?? "—" },
+                  { label: "Delivery terms", value: customer.defaultDeliveryTerms ?? "—" },
+                  { label: "Incoterm", value: customer.defaultIncoterm ?? "—" },
                 ]}
               />
             </SalesPanel>

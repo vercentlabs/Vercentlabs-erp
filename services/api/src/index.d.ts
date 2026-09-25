@@ -430,6 +430,9 @@ export function setLeadAssignmentPolicyStatus(
   status: "active" | "inactive",
   expectedUpdatedAt?: string,
 ): Promise<Record<string, unknown>>;
+export function matchLeadTerritory(client: QueryClient, context: any, lead: Record<string, unknown>): Promise<{ territoryId: string; code: string; name: string; matchedOn: string[]; alternatives: Array<{ territoryId: string; name: string; matchedOn: string[] }> } | null>;
+export function normalizeTerritoryCoverage(value: unknown): Record<string, string[]>;
+export const TERRITORY_TYPES: string[];
 export function getLeadAssignmentFallback(
   client: QueryClient,
   context: CrmFoundationContext,
@@ -659,6 +662,14 @@ export function createSalesDropShipWithSupplierValidation(client: QueryClient, s
 export function checkSalesOrderLineAvailability(client: QueryClient, salesContext: any, stockContext: any, input?: Record<string, unknown>): Promise<any>;
 export function reserveSalesOrderLineFromStock(client: QueryClient, salesContext: any, stockContext: any, input?: Record<string, unknown>): Promise<any>;
 export function completeFulfillmentRequestWithStockMovement(client: QueryClient, salesContext: any, stockContext: any, requestId: string, input?: Record<string, unknown>): Promise<any>;
+export function releaseSalesOrderStockReservations(client: QueryClient, salesContext: any, stockContext: any, orderId: string, reason: string): Promise<any>;
+export function previewSalesOrderAmendmentImpact(client: QueryClient, context: any, orderId: string, input?: Record<string, unknown>): Promise<any>;
+export function setSalesOrderLinePromise(client: QueryClient, context: any, input?: Record<string, unknown>): Promise<any>;
+export function recordFulfillmentShipment(client: QueryClient, context: any, requestId: string, input?: Record<string, unknown>): Promise<any>;
+export function recordFulfillmentDelivery(client: QueryClient, context: any, requestId: string, input?: Record<string, unknown>): Promise<any>;
+export function listSalesApprovalDelegations(client: QueryClient, context: any): Promise<any[]>;
+export function createSalesApprovalDelegation(client: QueryClient, context: any, input?: Record<string, unknown>): Promise<any>;
+export function revokeSalesApprovalDelegation(client: QueryClient, context: any, delegationId: string): Promise<any>;
 export function confirmSalesOrderWithCrmSync(client: QueryClient, salesContext: any, orderId: string, options?: Record<string, unknown>): Promise<any>;
 export function cancelSalesOrderWithCrmSync(client: QueryClient, salesContext: any, orderId: string, reason?: string): Promise<any>;
 

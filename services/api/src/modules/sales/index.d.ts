@@ -8,7 +8,7 @@ export function listQuotations(client: SalesQueryClient, context: SalesContext, 
 export function getQuotation(client: SalesQueryClient, context: SalesContext, id: string, publicView?: boolean): Promise<any>;
 export function submitQuotation(client: SalesQueryClient, context: SalesContext, id: string, assignedTo?: string | null): Promise<any>;
 export function approveQuotation(client: SalesQueryClient, context: SalesContext, quotationId: string, quotationVersionId: string): Promise<any>;
-export function rejectQuotationApproval(client: SalesQueryClient, context: SalesContext, quotationId: string): Promise<void>;
+export function rejectQuotationApproval(client: SalesQueryClient, context: SalesContext, quotationId: string, note?: string | null): Promise<void>;
 export function sendQuotation(client: SalesQueryClient, context: SalesContext, id: string, expiresInDays?: number): Promise<any>;
 export function resolvePublicQuoteToken(client: SalesQueryClient, context: SalesContext, tokenHash: string, trackView?: boolean): Promise<any>;
 export function recordPublicQuoteDecision(client: SalesQueryClient, context: SalesContext, tokenHash: string, input: Record<string, any>, metadata?: Record<string, any>): Promise<any>;
@@ -37,7 +37,7 @@ export function rejectSalesOrderAmendment(
 export function completeFulfillmentRequest(client: SalesQueryClient, context: SalesContext, requestId: string, input?: Record<string, any>): Promise<any>;
 export function submitSalesOrder(client: SalesQueryClient, context: SalesContext, id: string, assignedTo?: string | null): Promise<any>;
 export function approveSalesOrder(client: SalesQueryClient, context: SalesContext, orderId: string, orderVersionId: string): Promise<any>;
-export function rejectSalesOrderApproval(client: SalesQueryClient, context: SalesContext, orderId: string): Promise<void>;
+export function rejectSalesOrderApproval(client: SalesQueryClient, context: SalesContext, orderId: string, note?: string | null): Promise<void>;
 export function confirmSalesOrder(client: SalesQueryClient, context: SalesContext, id: string, options?: Record<string, any>): Promise<any>;
 export function placeOrderHold(client: SalesQueryClient, context: SalesContext, id: string, input: Record<string, any>): Promise<any>;
 export function releaseOrderHold(client: SalesQueryClient, context: SalesContext, id: string, input: Record<string, any>): Promise<any>;

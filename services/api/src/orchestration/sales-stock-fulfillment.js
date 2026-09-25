@@ -1,6 +1,7 @@
 import { SalesError } from "../modules/sales/index.js";
 import { completeFulfillmentRequest } from "../modules/sales/index.js";
 import { postStockMovement } from "../modules/stock/index.js";
+import { consumeSalesOrderReservation } from "./sales-stock-reservation.js";
 
 // F047 gap: completeFulfillmentRequest only ever updated Sales' own
 // sales_order_line_progress.fulfilled_quantity counters - it never issued
@@ -25,7 +26,7 @@ export async function completeFulfillmentRequestWithStockMovement(
   const lineContext = new Map();
   if (lineIds.length) {
     const found = await client.query(
-      `SELECT line.id, line.item_id, line.warehouse_id, sales_order.company_id
+      `SELECT line.id, line.item_id, line.warehouse_id, line.conversion_factor, sales_order.id AS order_id, sales_order.company_id
          FROM tenant.sales_order_lines line
          JOIN tenant.sales_order_versions version ON version.id = line.sales_order_version_id
          JOIN tenant.sales_orders sales_order ON sales_order.id = version.sales_order_id
@@ -54,11 +55,26 @@ export async function completeFulfillmentRequestWithStockMovement(
   for (const lineInput of lineInputs) {
     const line = lineContext.get(String(lineInput.salesOrderLineId));
     if (!line || !line.warehouse_id) continue; // not a stock-tracked line
+    // Shipped quantity is in the selling unit; Stock issues base units.
+    const baseQuantity = Number(lineInput.fulfilledQuantity) * (Number(line.conversion_factor) || 1);
+    const consumed = await consumeSalesOrderReservation(client, stockContext, {
+      orderId: line.order_id,
+      itemId: line.item_id,
+      warehouseId: line.warehouse_id,
+      baseQuantity,
+      requestId,
+    });
+    if (consumed > 0)
+      await client.query(
+        `UPDATE tenant.sales_order_line_progress SET reserved_quantity=greatest(reserved_quantity-$3,0),updated_at=now()
+          WHERE organization_id=$1 AND sales_order_line_id=$2`,
+        [salesContext.organizationId, line.id, consumed / (Number(line.conversion_factor) || 1)],
+      );
     await postStockMovement(client, stockContext, {
       movementType: "issue",
       itemId: line.item_id,
       warehouseId: line.warehouse_id,
-      quantity: lineInput.fulfilledQuantity,
+      quantity: baseQuantity,
       referenceType: "sales_fulfillment_request",
       referenceId: requestId,
       idempotencyKey: `sales-fulfillment:${requestId}:${lineInput.salesOrderLineId}`,

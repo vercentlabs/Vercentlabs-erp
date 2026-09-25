@@ -6,13 +6,14 @@ import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { ColumnDef } from "@tanstack/react-table";
 import { ArrowLeft, Check, Copy, Pencil, Send, ShoppingCart, X } from "lucide-react";
-import { Button, Dialog, EnterpriseDataGrid, ErrorState, MetricStrip, PermissionState, RecordDetailsPage, StatusBadge, Tab, TabList, TabPanel, Tabs } from "@vercentlabs/design-system";
+import { Button, Dialog, EnterpriseDataGrid, ErrorState, MetricStrip, PermissionState, RecordDetailsPage, StatusBadge, Tab, TabList, TabPanel, Tabs, TextArea } from "@vercentlabs/design-system";
 import { SALES_PERMISSIONS } from "@vercentlabs/permissions";
 
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import { SalesApiError } from "@/features/sales/shared/http";
 import { calendarDate, dateTime, money, statusLabel, statusTone } from "@/features/sales/shared/format";
+import { SUPPLY_TYPE_OPTIONS } from "@/features/sales/shared/document-defaults";
 import { SalesAlert, SalesFacts, SalesPanel } from "@/features/sales/shared/SalesUi";
 import {
   approveSalesQuotation,
@@ -44,6 +45,8 @@ export function SalesQuotationDetailScreen({ quotationId }: { quotationId: strin
 
   const [actionError, setActionError] = useState<string | null>(null);
   const [shareLink, setShareLink] = useState<{ url: string; expiresAt: string } | null>(null);
+  const [rejecting, setRejecting] = useState(false);
+  const [rejectReason, setRejectReason] = useState("");
   const [comparison, setComparison] = useState<Comparison | null>(null);
 
   const key = scopedQueryKey(workspace, "sales", "quotation", quotationId);
@@ -65,7 +68,7 @@ export function SalesQuotationDetailScreen({ quotationId }: { quotationId: strin
     onSuccess: () => { setActionError(null); refresh(); },
     onError,
   });
-  const rejectMutation = useMutation({ mutationFn: () => rejectSalesQuotationApproval(quotationId), onSuccess: () => { setActionError(null); refresh(); }, onError });
+  const rejectMutation = useMutation({ mutationFn: () => rejectSalesQuotationApproval(quotationId, rejectReason.trim()), onSuccess: () => { setActionError(null); setRejecting(false); setRejectReason(""); refresh(); }, onError });
   const sendMutation = useMutation({
     mutationFn: () => sendSalesQuotation(quotationId),
     onSuccess: ({ result }) => {
@@ -102,6 +105,16 @@ export function SalesQuotationDetailScreen({ quotationId }: { quotationId: strin
   const detail = query.data;
   const quote = detail.quotation;
   const currency = quote.currency_code;
+  // Header discount = document discount beyond the line discounts; tax is
+  // grouped by component (CGST/SGST within the state, IGST across states).
+  const headerDiscount = Number(quote.discount_total) - detail.lines.reduce((total, line) => total + Number(line.discount_amount ?? 0), 0);
+  const taxBreakdown = Object.values(
+    (quote.tax_trace ?? []).reduce<Record<string, { label: string; rate: string; amount: number }>>((groups, tax) => {
+      const key = `${tax.label}|${tax.rate}`;
+      groups[key] = { label: tax.label, rate: tax.rate, amount: (groups[key]?.amount ?? 0) + Number(tax.taxAmount) };
+      return groups;
+    }, {}),
+  );
   const state = quote.lifecycle_status;
   const showMargin = quote.margin_percent !== undefined;
 
@@ -172,7 +185,7 @@ export function SalesQuotationDetailScreen({ quotationId }: { quotationId: strin
           secondaryActions: (
             <div className="flex items-center gap-2">
               {state === "pending_approval" && can(SALES_PERMISSIONS.quotationApprove) && (
-                <Button variant="secondary" onPress={() => rejectMutation.mutate()} isLoading={rejectMutation.isPending}>
+                <Button variant="secondary" onPress={() => setRejecting(true)}>
                   <X className="size-4" aria-hidden="true" />
                   Send back to draft
                 </Button>
@@ -216,6 +229,19 @@ export function SalesQuotationDetailScreen({ quotationId }: { quotationId: strin
                 <SalesFacts columns={3} items={detail.charges.map((charge) => ({ label: charge.label, value: money(currency, charge.amount) }))} />
               </SalesPanel>
             )}
+            <SalesPanel title="Delivery & tax" description="Tax is worked out from the item tax category and the place of supply. The header discount is taken off before tax.">
+              <SalesFacts
+                columns={3}
+                items={[
+                  { label: "Shipping method", value: quote.shipping_method ?? "—" },
+                  { label: "Incoterm", value: quote.incoterm ?? "—" },
+                  { label: "Supply type", value: SUPPLY_TYPE_OPTIONS.find((o) => o.value === quote.supply_type)?.label ?? statusLabel(quote.supply_type) },
+                  { label: "Place of supply", value: quote.place_of_supply ?? quote.shipping_address_snapshot?.state ?? "—" },
+                  { label: "Header discount", value: headerDiscount > 0 ? money(currency, headerDiscount) : "None" },
+                  ...taxBreakdown.map((tax) => ({ label: `${tax.label} @ ${Number(tax.rate)}%`, value: money(currency, tax.amount) })),
+                ]}
+              />
+            </SalesPanel>
             <SalesPanel title="Terms">
               <SalesFacts
                 columns={2}
@@ -286,6 +312,23 @@ export function SalesQuotationDetailScreen({ quotationId }: { quotationId: strin
         </Tabs>
       </RecordDetailsPage>
 
+      {rejecting && (
+        <Dialog isOpen onOpenChange={(open) => !open && setRejecting(false)} title="Send back to draft">
+          <div className="flex flex-col gap-4">
+            {actionError && <SalesAlert>{actionError}</SalesAlert>}
+            <p className="text-sm text-text-secondary">The author sees your reason on the quotation.</p>
+            <TextArea label="Why is this rejected?" isRequired value={rejectReason} onChange={setRejectReason} />
+            <div className="flex justify-end gap-2">
+              <Button variant="secondary" onPress={() => setRejecting(false)}>
+                Close
+              </Button>
+              <Button variant="primary" onPress={() => rejectMutation.mutate()} isLoading={rejectMutation.isPending} isDisabled={rejectReason.trim().length < 5}>
+                Send back
+              </Button>
+            </div>
+          </div>
+        </Dialog>
+      )}
       {shareLink && (
         <Dialog isOpen onOpenChange={(open) => !open && setShareLink(null)} title="Quotation sent">
           <div className="flex flex-col gap-4">

@@ -9,7 +9,8 @@ import { Button, ErrorState, IconButton, NumberField, PageHeader, Select, TextAr
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import { SalesApiError } from "@/features/sales/shared/http";
-import { money } from "@/features/sales/shared/format";
+import { money, statusLabel } from "@/features/sales/shared/format";
+import { BILLING_ADDRESS_TYPES, defaultAddress, SHIPPING_ADDRESS_TYPES, SUPPLY_TYPE_OPTIONS, supplyTypeFor } from "@/features/sales/shared/document-defaults";
 import { SalesAlert, SalesFacts, SalesPanel } from "@/features/sales/shared/SalesUi";
 import {
   createSalesQuotation,
@@ -27,6 +28,7 @@ type ChargeDraft = { key: number; label: string; calculationType: "fixed" | "per
 let draftKey = 0;
 const nextKey = () => ++draftKey;
 const isoInDays = (days: number) => new Date(Date.now() + days * 86400000).toISOString().slice(0, 10);
+
 
 // F036/F037/F039/F040 -- create a quotation, or revise an existing one into a
 // new immutable version. The totals on the right come from the server's own
@@ -118,13 +120,13 @@ function FormBody({
     return options.contacts.find((c) => c.party_id === partyId && c.is_primary)?.id ?? "";
   });
   const [billingAddressId, setBillingAddressId] = useState(
-    existing?.quotation.billing_address_id ?? options.addresses.find((a) => a.party_id === partyId && a.address_type === "billing" && a.is_primary)?.id ?? "",
+    existing?.quotation.billing_address_id ?? defaultAddress(options.addresses.filter((a) => a.party_id === partyId), BILLING_ADDRESS_TYPES),
   );
   const [shippingAddressId, setShippingAddressId] = useState(
-    existing?.quotation.shipping_address_id ?? options.addresses.find((a) => a.party_id === partyId && a.address_type === "shipping" && a.is_primary)?.id ?? "",
+    existing?.quotation.shipping_address_id ?? defaultAddress(options.addresses.filter((a) => a.party_id === partyId), SHIPPING_ADDRESS_TYPES),
   );
   const [currencyCode, setCurrencyCode] = useState(existing?.quotation.currency_code ?? baseCurrency);
-  const [priceListId, setPriceListId] = useState(existing?.quotation.price_list_id ?? "");
+  const [priceListId, setPriceListId] = useState(existing?.quotation.price_list_id ?? options.parties.find((party) => party.id === partyId)?.default_price_list_id ?? "");
   const [paymentTermId, setPaymentTermId] = useState(existing?.quotation.payment_term_id ?? "");
   const [validUntil, setValidUntil] = useState(existing?.quotation.valid_until?.slice(0, 10) ?? isoInDays(options.settings?.default_quote_validity_days ?? 30));
   const [headerDiscount, setHeaderDiscount] = useState(0);
@@ -132,6 +134,11 @@ function FormBody({
   const [internalNotes, setInternalNotes] = useState(existing?.quotation.internal_notes ?? "");
   const [terms, setTerms] = useState(existing?.quotation.terms_and_conditions ?? "");
   const [revisionReason, setRevisionReason] = useState("");
+  const initialParty = options.parties.find((party) => party.id === partyId);
+  const [shippingMethod, setShippingMethod] = useState(existing?.quotation.shipping_method ?? initialParty?.default_shipping_method ?? "");
+  const [deliveryTerms, setDeliveryTerms] = useState(existing?.quotation.delivery_terms ?? initialParty?.default_delivery_terms ?? "");
+  const [incoterm, setIncoterm] = useState(existing?.quotation.incoterm ?? initialParty?.default_incoterm ?? "");
+  const [supplyType, setSupplyType] = useState(existing?.quotation.supply_type ?? supplyTypeFor(initialParty?.tax_treatment));
   const [lines, setLines] = useState<LineDraft[]>(() =>
     existing?.lines.length
       ? existing.lines.map((line) => ({ key: nextKey(), itemId: line.item_id, variantId: line.variant_id ?? "", uomId: line.uom_id ?? "", quantity: Number(line.quantity), discountPercent: Number(line.discount_percent) }))
@@ -152,14 +159,12 @@ function FormBody({
   const partyContacts = options.contacts.filter((contact) => contact.party_id === partyId);
   const partyAddresses = options.addresses.filter((address) => address.party_id === partyId);
   const contactOptions: SelectOption[] = [{ value: "", label: "None" }, ...partyContacts.map((contact) => ({ value: contact.id, label: `${contact.first_name} ${contact.last_name ?? ""}`.trim() + (contact.is_primary ? " (primary)" : "") }))];
-  // Any of the customer's addresses can serve as billing or shipping for
-  // THIS document, regardless of its own address_type label (the same
-  // per-transaction role resolution SAP's partner functions and NetSuite's
-  // ship-to/bill-to selectors provide) -- both pickers list every address.
-  const addressOptions: SelectOption[] = [
+  const addressOptionsFor = (types: string[]): SelectOption[] => [
     { value: "", label: "None" },
-    ...partyAddresses.map((address) => ({ value: address.id, label: `${address.address_type} — ${address.line1}${address.city ? `, ${address.city}` : ""}` + (address.is_primary ? " (primary)" : "") })),
+    ...partyAddresses.filter((address) => types.includes(address.address_type)).map((address) => ({ value: address.id, label: `${statusLabel(address.address_type)} — ${address.line1}${address.city ? `, ${address.city}` : ""}` + (address.is_primary ? " (primary)" : "") })),
   ];
+  const billingAddressOptions = addressOptionsFor(BILLING_ADDRESS_TYPES);
+  const shippingAddressOptions = addressOptionsFor(SHIPPING_ADDRESS_TYPES);
   const itemOptions: SelectOption[] = options.items.map((item) => ({ value: item.id, label: `${item.name} (${item.code})` }));
   // F033: expose a line's UOM and variant/SKU context, not just the item --
   // "sell 20 cartons of the Large/Brown box" needs both. The UOM list is
@@ -189,7 +194,7 @@ function FormBody({
     updateLine(key, { itemId, variantId: "", uomId: item?.uom_id ?? "" });
   }
   const currencyOptions: SelectOption[] = options.currencies.map((currency) => ({ value: currency.code, label: `${currency.code} — ${currency.name}` }));
-  const priceListOptions: SelectOption[] = [{ value: "", label: "No price list (item list price)" }, ...options.priceLists.filter((list) => list.currency_code === currencyCode).map((list) => ({ value: list.id, label: list.name }))];
+  const priceListOptions: SelectOption[] = [{ value: "", label: "Company default price list" }, ...options.priceLists.filter((list) => list.currency_code === currencyCode).map((list) => ({ value: list.id, label: list.name }))];
   const paymentTermOptions: SelectOption[] = [{ value: "", label: "Customer default" }, ...options.paymentTerms.map((term) => ({ value: term.id, label: `${term.name} (${term.default_due_days} days)` }))];
 
   function selectParty(id: string) {
@@ -199,15 +204,19 @@ function FormBody({
     // user can still change either, and the server validates the combination.
     if (party?.currency_code) setCurrencyCode(party.currency_code);
     if (party?.payment_term_id) setPaymentTermId(party.payment_term_id);
-    setPriceListId("");
+    setPriceListId(party?.default_price_list_id ?? "");
+    setShippingMethod(party?.default_shipping_method ?? "");
+    setDeliveryTerms(party?.default_delivery_terms ?? "");
+    setIncoterm(party?.default_incoterm ?? "");
+    setSupplyType(supplyTypeFor(party?.tax_treatment));
     // Default to the new customer's primary contact/billing/shipping address
     // (still fully overridable below) -- the previous customer's selections
     // don't carry over.
     const contacts = options.contacts.filter((contact) => contact.party_id === id);
     const addresses = options.addresses.filter((address) => address.party_id === id);
     setContactId(contacts.find((contact) => contact.is_primary)?.id ?? "");
-    setBillingAddressId(addresses.find((address) => address.address_type === "billing" && address.is_primary)?.id ?? "");
-    setShippingAddressId(addresses.find((address) => address.address_type === "shipping" && address.is_primary)?.id ?? "");
+    setBillingAddressId(defaultAddress(addresses, BILLING_ADDRESS_TYPES));
+    setShippingAddressId(defaultAddress(addresses, SHIPPING_ADDRESS_TYPES));
   }
 
   const validLines = lines.filter((line) => line.itemId && line.quantity > 0);
@@ -228,10 +237,14 @@ function FormBody({
       internalNotes: internalNotes || undefined,
       termsAndConditions: terms || undefined,
       revisionReason: revisionReason || undefined,
+      shippingMethod: shippingMethod || undefined,
+      deliveryTerms: deliveryTerms || undefined,
+      incoterm: incoterm || undefined,
+      supplyType,
       lines: validLines.map((line) => ({ itemId: line.itemId, variantId: line.variantId || undefined, uomId: line.uomId || undefined, quantity: line.quantity, discountPercent: line.discountPercent || undefined })),
       charges: charges.filter((charge) => charge.value > 0).map((charge) => ({ label: charge.label || "Charge", calculationType: charge.calculationType, value: charge.value })),
     };
-  }, [partyId, contactId, billingAddressId, shippingAddressId, currencyCode, priceListId, paymentTermId, validUntil, headerDiscount, customerNotes, internalNotes, terms, revisionReason, validLines, charges, revising, initialOpportunityId]);
+  }, [partyId, contactId, billingAddressId, shippingAddressId, currencyCode, priceListId, paymentTermId, validUntil, headerDiscount, customerNotes, internalNotes, terms, revisionReason, shippingMethod, deliveryTerms, incoterm, supplyType, validLines, charges, revising, initialOpportunityId]);
 
   // Debounce so typing a quantity doesn't fire a pricing request per keystroke.
   const inputJson = JSON.stringify(input);
@@ -302,13 +315,22 @@ function FormBody({
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <Select label="Customer" isRequired options={partyOptions} selectedKey={partyId || null} onSelectionChange={(key) => selectParty(String(key ?? ""))} placeholder="Select a customer" isDisabled={revising} />
               <Select label="Contact" options={contactOptions} selectedKey={contactId} onSelectionChange={(key) => setContactId(String(key ?? ""))} isDisabled={!partyId} />
-              <Select label="Billing address" options={addressOptions} selectedKey={billingAddressId} onSelectionChange={(key) => setBillingAddressId(String(key ?? ""))} isDisabled={!partyId} />
-              <Select label="Shipping address" options={addressOptions} selectedKey={shippingAddressId} onSelectionChange={(key) => setShippingAddressId(String(key ?? ""))} isDisabled={!partyId} />
+              <Select label="Billing address" options={billingAddressOptions} selectedKey={billingAddressId} onSelectionChange={(key) => setBillingAddressId(String(key ?? ""))} isDisabled={!partyId} />
+              <Select label="Shipping address" options={shippingAddressOptions} selectedKey={shippingAddressId} onSelectionChange={(key) => setShippingAddressId(String(key ?? ""))} isDisabled={!partyId} />
               <TextField label="Valid until" type="date" isRequired value={validUntil} onChange={setValidUntil} />
               <Select label="Currency" options={currencyOptions} selectedKey={currencyCode} onSelectionChange={(key) => { setCurrencyCode(String(key ?? baseCurrency)); setPriceListId(""); }} />
               <Select label="Price list" options={priceListOptions} selectedKey={priceListId} onSelectionChange={(key) => setPriceListId(String(key ?? ""))} />
               <Select label="Payment terms" options={paymentTermOptions} selectedKey={paymentTermId} onSelectionChange={(key) => setPaymentTermId(String(key ?? ""))} />
               {revising && <TextField label="Reason for this revision" isRequired value={revisionReason} onChange={setRevisionReason} />}
+            </div>
+          </SalesPanel>
+
+          <SalesPanel title="Delivery & tax">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <TextField label="Shipping method" value={shippingMethod} onChange={setShippingMethod} />
+              <TextField label="Delivery terms" value={deliveryTerms} onChange={setDeliveryTerms} />
+              <TextField label="Incoterm" value={incoterm} onChange={setIncoterm} />
+              <Select label="Supply type" options={SUPPLY_TYPE_OPTIONS} selectedKey={supplyType} onSelectionChange={(key) => setSupplyType(String(key ?? "domestic"))} />
             </div>
           </SalesPanel>
 

@@ -58,7 +58,7 @@ function syncClient({
       if (sql.includes("FROM tenant.sales_order_versions"))
         return { rows: [{ grand_total: "1000", base_currency_total: "1000" }] };
       if (sql.includes("FROM tenant.business_parties") && sql.includes("credit_limit"))
-        return { rows: [{ credit_limit: "0" }] };
+        return { rows: [{ credit_limit: "0", display_name: "Customer", status: "active", sales_block: "none" }] };
       if (sql.includes("SELECT COALESCE(sum(version.base_currency_total)"))
         return { rows: [{ exposure: "0" }] };
       if (sql.includes("FROM tenant.accounting_customer_invoices") && sql.includes("ar_outstanding"))

@@ -54,7 +54,7 @@ export type SalesOrderLine = {
 };
 
 export type SalesOrderHold = { id: string; hold_type: string; reason: string; status: string; placed_at: string; released_at: string | null; release_note: string | null };
-export type SalesHandoffRequest = { id: string; request_number: string; status: string; retry_count: number; last_error: string | null; requested_at: string; completed_at: string | null; quantity_basis?: string };
+export type SalesHandoffRequest = { id: string; request_number: string; status: string; retry_count: number; last_error: string | null; requested_at: string; completed_at: string | null; quantity_basis?: string; carrier?: string | null; tracking_number?: string | null; shipped_at?: string | null; delivered_at?: string | null; received_by?: string | null };
 export type SalesOrderVersionSummary = { id: string; version_number: number; amendment_reason: string | null; currency_code: string; grand_total: string; created_at: string; approval_request_id: string | null };
 
 export type SalesOrderDetail = {
@@ -125,7 +125,7 @@ export const createSalesOrder = (input: SalesOrderDocumentInput) => post<{ order
 export const amendSalesOrder = (id: string, input: SalesOrderDocumentInput) => post<{ detail: SalesOrderDetail }>(`/orders/${id}/amend`, input);
 export const submitSalesOrder = (id: string, assignedTo?: string | null) => post<{ result: { approvalRequired: boolean } }>(`/orders/${id}/submit`, { assignedTo });
 export const approveSalesOrder = (id: string, orderVersionId: string) => post<{ result: unknown }>(`/orders/${id}/approve`, { orderVersionId });
-export const rejectSalesOrderApproval = (id: string, orderVersionId: string) => post<{ result: unknown }>(`/orders/${id}/reject-approval`, { orderVersionId });
+export const rejectSalesOrderApproval = (id: string, orderVersionId: string, reason: string) => post<{ result: unknown }>(`/orders/${id}/reject-approval`, { orderVersionId, reason });
 export const confirmSalesOrder = (id: string, input: { overrideCredit?: boolean; creditOverrideReason?: string } = {}) => post<{ result: { status: string; creditStatus: string } }>(`/orders/${id}/confirm`, input);
 export const placeSalesOrderHold = (id: string, input: { holdType?: string; reason: string }) => post<{ hold: { id: string } }>(`/orders/${id}/hold`, input);
 export const releaseSalesOrderHold = (id: string, input: { holdId: string; note?: string }) => post<{ result: unknown }>(`/orders/${id}/hold/release`, input);
@@ -134,3 +134,15 @@ export const requestSalesFulfillment = (id: string, idempotencyKey: string) => p
 export const requestSalesInvoice = (id: string, idempotencyKey: string, quantityBasis?: "ordered" | "fulfilled") => post<{ request: SalesHandoffRequest }>(`/orders/${id}/invoice-request`, { idempotencyKey, quantityBasis });
 export const closeSalesOrder = (id: string) => post<{ result: unknown }>(`/orders/${id}/close`, {});
 export const getSalesOrderReadiness = (id: string) => request<{ readiness: SalesOrderReadiness }>(`/orders/${id}/readiness`);
+
+// F044: what an amendment would change and what blocks it.
+export type AmendmentImpact = {
+  totalBefore: number;
+  totalAfter: number;
+  totalChange: number;
+  creditRecheck: boolean;
+  lines: Array<{ item: string; unit: string | null; change: "added" | "removed" | "changed" | "unchanged"; quantityBefore: number; quantityAfter: number; unitPriceBefore: number | null; unitPriceAfter: number | null }>;
+  downstream: { active_reservations: number; open_fulfilment_requests: number; open_invoice_requests: number };
+  blockers: string[];
+};
+export const previewAmendmentImpact = (id: string, input: SalesOrderDocumentInput) => post<{ impact: AmendmentImpact }>(`/orders/${id}/amend/impact`, input);

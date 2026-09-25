@@ -13,7 +13,7 @@ import { decimal, div } from "./decimal.js";
 // Deliberately pure/side-effect-free beyond the one SELECT: callers own
 // the taxable-base computation (this only resolves WHICH rate/components
 // apply, not the amount) so POS's discount-before-tax base and Sales'
-// discount-before-tax-per-line-but-after-tax-at-header base can both use
+// discount-before-tax base (line and header discounts, F039) can both use
 // it without this function taking a position on that policy.
 export async function resolveTaxRateComponents(
   client,

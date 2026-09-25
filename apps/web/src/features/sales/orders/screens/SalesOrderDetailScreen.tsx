@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { ColumnDef } from "@tanstack/react-table";
 import { ArrowLeft, Ban, Check, FileText, Pause, Pencil, PlayCircle, Truck, X } from "lucide-react";
-import { Button, Dialog, EnterpriseDataGrid, ErrorState, MetricStrip, PermissionState, RecordDetailsPage, Select, StatusBadge, Tab, TabList, TabPanel, Tabs, TextArea } from "@vercentlabs/design-system";
+import { Button, Dialog, EnterpriseDataGrid, ErrorState, MetricStrip, PermissionState, RecordDetailsPage, Select, StatusBadge, Tab, TabList, TabPanel, Tabs, TextArea, TextField } from "@vercentlabs/design-system";
 import { SALES_PERMISSIONS } from "@vercentlabs/permissions";
 
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
@@ -14,7 +14,9 @@ import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import { SalesApiError } from "@/features/sales/shared/http";
 import { calendarDate, dateTime, money, statusLabel, statusTone } from "@/features/sales/shared/format";
 import { SalesAlert, SalesFacts, SalesPanel } from "@/features/sales/shared/SalesUi";
+import { getSalesOptions } from "@/features/sales/quotations/api/quotations-api";
 import { LineStockDialog } from "@/features/sales/orders/screens/LineStockDialog";
+import { recordDelivery, recordShipment, releaseOrderReservations } from "@/features/sales/operations/api/operations-api";
 import {
   approveSalesOrder,
   cancelSalesOrder,
@@ -34,7 +36,7 @@ import {
   type SalesOrderVersionSummary,
 } from "@/features/sales/orders/api/orders-api";
 
-type Dialogue = null | "hold" | "cancel" | "invoice" | "credit" | { release: SalesOrderHold };
+type Dialogue = null | "hold" | "cancel" | "invoice" | "credit" | "reject" | "releaseStock" | { release: SalesOrderHold } | { ship: SalesHandoffRequest } | { deliver: SalesHandoffRequest };
 
 const HOLD_TYPES = [
   { value: "credit", label: "Credit" },
@@ -68,6 +70,7 @@ export function SalesOrderDetailScreen({ orderId }: { orderId: string }) {
     queryFn: () => getSalesOrder(orderId).then((r) => r.detail),
     retry: (count, error) => !(error instanceof SalesApiError && [403, 404].includes(error.status)) && count < 2,
   });
+  const optionsQuery = useQuery({ queryKey: scopedQueryKey(workspace, "sales", "options"), queryFn: () => getSalesOptions().then((r) => r.options) });
   const readinessQuery = useQuery({
     queryKey: scopedQueryKey(workspace, "sales", "order", orderId, "readiness"),
     queryFn: () => getSalesOrderReadiness(orderId).then((r) => r.readiness),
@@ -82,6 +85,8 @@ export function SalesOrderDetailScreen({ orderId }: { orderId: string }) {
   function closeDialogue() {
     setDialogue(null);
     setReason("");
+    setCarrier("");
+    setTrackingNumber("");
     setHoldType("other");
   }
   const onSuccess = (message?: string) => () => {
@@ -104,7 +109,12 @@ export function SalesOrderDetailScreen({ orderId }: { orderId: string }) {
   const versionId = query.data?.order.current_version_id ?? "";
   const submitMutation = useMutation({ mutationFn: () => submitSalesOrder(orderId), onSuccess: (data) => onSuccess(data.result.approvalRequired ? "Submitted for approval." : "Approved automatically — ready to confirm.")(), onError });
   const approveMutation = useMutation({ mutationFn: () => approveSalesOrder(orderId, versionId), onSuccess: onSuccess("Approved."), onError });
-  const rejectMutation = useMutation({ mutationFn: () => rejectSalesOrderApproval(orderId, versionId), onSuccess: onSuccess("Sent back."), onError });
+  const rejectMutation = useMutation({ mutationFn: () => rejectSalesOrderApproval(orderId, versionId, reason.trim()), onSuccess: onSuccess("Sent back with your reason."), onError });
+  const releaseStockMutation = useMutation({ mutationFn: () => releaseOrderReservations(orderId, reason.trim()), onSuccess: onSuccess("Reserved stock released."), onError });
+  const [carrier, setCarrier] = useState("");
+  const [trackingNumber, setTrackingNumber] = useState("");
+  const shipMutation = useMutation({ mutationFn: (requestId: string) => recordShipment(requestId, { carrier: carrier.trim(), trackingNumber: trackingNumber.trim() || undefined }), onSuccess: onSuccess("Shipment recorded."), onError });
+  const deliverMutation = useMutation({ mutationFn: (requestId: string) => recordDelivery(requestId, { receivedBy: carrier.trim(), note: reason.trim() || undefined }), onSuccess: onSuccess("Delivery recorded."), onError });
   const confirmMutation = useMutation({
     mutationFn: (override?: string) => confirmSalesOrder(orderId, override ? { overrideCredit: true, creditOverrideReason: override } : {}),
     onSuccess: onSuccess("Order confirmed."),
@@ -148,6 +158,14 @@ export function SalesOrderDetailScreen({ orderId }: { orderId: string }) {
     { id: "when", header: "Requested", accessorFn: (request) => dateTime(request.requested_at) },
     { id: "error", header: "Last error", accessorFn: (request) => request.last_error ?? "—" },
   ];
+  // F049: what the customer can track — carrier, tracking number, proof of delivery.
+  const fulfilmentColumns: ColumnDef<SalesHandoffRequest, unknown>[] = [
+    ...requestColumns.filter((column) => column.id !== "error"),
+    { id: "shipment", header: "Shipment", accessorFn: (request) => (request.shipped_at ? `${request.carrier ?? ""}${request.tracking_number ? ` · ${request.tracking_number}` : ""} · ${dateTime(request.shipped_at)}` : "Not shipped") },
+    { id: "delivery", header: "Delivered", accessorFn: (request) => (request.delivered_at ? `${dateTime(request.delivered_at)} · received by ${request.received_by}` : "—") },
+  ];
+  const hasReservedStock = detail.lines.some((line) => Number(line.reserved_quantity) > 0);
+  const userName = (id: unknown) => optionsQuery.data?.users.find((user) => user.id === id)?.full_name ?? null;
   const holdColumns: ColumnDef<SalesOrderHold, unknown>[] = [
     { id: "type", header: "Type", accessorFn: (hold) => statusLabel(hold.hold_type) },
     { id: "reason", header: "Reason", accessorKey: "reason" },
@@ -205,7 +223,7 @@ export function SalesOrderDetailScreen({ orderId }: { orderId: string }) {
           secondaryActions: (
             <div className="flex flex-wrap items-center gap-2">
               {state === "pending_approval" && can(SALES_PERMISSIONS.orderApprove) && (
-                <Button variant="secondary" onPress={() => rejectMutation.mutate()} isLoading={rejectMutation.isPending}>
+                <Button variant="secondary" onPress={() => setDialogue("reject")}>
                   <X className="size-4" aria-hidden="true" />
                   {isAmendment ? "Reject amendment" : "Send back to draft"}
                 </Button>
@@ -220,6 +238,11 @@ export function SalesOrderDetailScreen({ orderId }: { orderId: string }) {
                 <Button variant="secondary" onPress={() => router.push(`/sales/orders/${orderId}/amend`)}>
                   <Pencil className="size-4" aria-hidden="true" />
                   Amend
+                </Button>
+              )}
+              {["confirmed", "on_hold"].includes(state) && hasReservedStock && can(SALES_PERMISSIONS.fulfillmentRequest) && (
+                <Button variant="secondary" onPress={() => setDialogue("releaseStock")}>
+                  Release reserved stock
                 </Button>
               )}
               {state === "confirmed" && can(SALES_PERMISSIONS.orderHold) && (
@@ -321,7 +344,26 @@ export function SalesOrderDetailScreen({ orderId }: { orderId: string }) {
 
           <TabPanel id="handoff" className="flex flex-col gap-4">
             <SalesPanel title="Fulfilment requests" description="Hand-offs to warehouse fulfilment. Repeating a request with the same key never creates a second one.">
-              <EnterpriseDataGrid<SalesHandoffRequest> aria-label="Fulfilment requests" columns={requestColumns} data={detail.fulfillmentRequests} getRowId={(request) => request.id} density="compact" state={detail.fulfillmentRequests.length ? "ready" : "empty"} emptyContent={<p className="px-4 py-6 text-sm text-text-muted">No fulfilment requested yet.</p>} />
+              <EnterpriseDataGrid<SalesHandoffRequest>
+                aria-label="Fulfilment requests"
+                columns={fulfilmentColumns}
+                data={detail.fulfillmentRequests}
+                getRowId={(request) => request.id}
+                density="compact"
+                state={detail.fulfillmentRequests.length ? "ready" : "empty"}
+                emptyContent={<p className="px-4 py-6 text-sm text-text-muted">No fulfilment requested yet.</p>}
+                rowActions={(request) =>
+                  !can(SALES_PERMISSIONS.fulfillmentRequest) ? null : request.status === "completed" && !request.shipped_at ? (
+                    <Button variant="ghost" size="compact" onPress={() => setDialogue({ ship: request })}>
+                      Record shipment
+                    </Button>
+                  ) : request.shipped_at && !request.delivered_at ? (
+                    <Button variant="ghost" size="compact" onPress={() => setDialogue({ deliver: request })}>
+                      Record delivery
+                    </Button>
+                  ) : null
+                }
+              />
             </SalesPanel>
             <SalesPanel title="Invoice requests">
               <EnterpriseDataGrid<SalesHandoffRequest> aria-label="Invoice requests" columns={requestColumns} data={detail.invoiceRequests} getRowId={(request) => request.id} density="compact" state={detail.invoiceRequests.length ? "ready" : "empty"} emptyContent={<p className="px-4 py-6 text-sm text-text-muted">No invoice requested yet.</p>} />
@@ -364,13 +406,17 @@ export function SalesOrderDetailScreen({ orderId }: { orderId: string }) {
                 <ul className="flex flex-col divide-y divide-border">
                   {detail.events.map((event, index) => {
                     const note = (event.metadata?.reason ?? event.metadata?.creditOverrideReason ?? event.metadata?.note) as string | undefined;
+                    const details = eventDetails(event.metadata ?? {}, userName);
                     return (
                       <li key={`${event.occurred_at}-${index}`} className="flex flex-col gap-0.5 py-2 text-sm">
                         <span className="font-medium text-text">{statusLabel(event.event_type.replace(/^sales_order\./, ""))}</span>
                         <span className="text-xs text-text-muted">
-                          {event.from_status && event.to_status ? `${statusLabel(event.from_status)} → ${statusLabel(event.to_status)} · ` : ""}
+                          {event.from_status && event.to_status && event.from_status !== event.to_status ? `${statusLabel(event.from_status)} → ${statusLabel(event.to_status)} · ` : ""}
                           {dateTime(event.occurred_at)}
                         </span>
+                        {details.map((detail) => (
+                          <span key={detail} className="text-xs text-text-secondary">{detail}</span>
+                        ))}
                         {note && <span className="text-xs text-text-secondary">“{note}”</span>}
                       </li>
                     );
@@ -414,7 +460,31 @@ export function SalesOrderDetailScreen({ orderId }: { orderId: string }) {
           />
         </ActionDialog>
       )}
-      {dialogue && typeof dialogue === "object" && (
+      {dialogue === "reject" && (
+        <ActionDialog title={isAmendment ? "Reject amendment" : "Send back to draft"} confirmLabel={isAmendment ? "Reject amendment" : "Send back"} pending={rejectMutation.isPending} disabled={reason.trim().length < 5} error={actionError} onClose={closeDialogue} onConfirm={() => rejectMutation.mutate()}>
+          <p className="text-sm text-text-secondary">The requester sees your reason on the order.</p>
+          <TextArea label="Why is this rejected?" isRequired value={reason} onChange={setReason} />
+        </ActionDialog>
+      )}
+      {dialogue === "releaseStock" && (
+        <ActionDialog title="Release reserved stock" confirmLabel="Release stock" pending={releaseStockMutation.isPending} disabled={reason.trim().length < 5} error={actionError} onClose={closeDialogue} onConfirm={() => releaseStockMutation.mutate()}>
+          <p className="text-sm text-text-secondary">Everything reserved for this order goes back to free stock. Reserve again from each line when needed.</p>
+          <TextArea label="Reason" isRequired value={reason} onChange={setReason} />
+        </ActionDialog>
+      )}
+      {dialogue && typeof dialogue === "object" && "ship" in dialogue && (
+        <ActionDialog title={`Record shipment for ${dialogue.ship.request_number}`} confirmLabel="Record shipment" pending={shipMutation.isPending} disabled={!carrier.trim()} error={actionError} onClose={closeDialogue} onConfirm={() => shipMutation.mutate(dialogue.ship.id)}>
+          <TextField label="Carrier" isRequired value={carrier} onChange={setCarrier} />
+          <TextField label="Tracking number" value={trackingNumber} onChange={setTrackingNumber} />
+        </ActionDialog>
+      )}
+      {dialogue && typeof dialogue === "object" && "deliver" in dialogue && (
+        <ActionDialog title={`Record delivery for ${dialogue.deliver.request_number}`} confirmLabel="Record delivery" pending={deliverMutation.isPending} disabled={!carrier.trim()} error={actionError} onClose={closeDialogue} onConfirm={() => deliverMutation.mutate(dialogue.deliver.id)}>
+          <TextField label="Received by" isRequired value={carrier} onChange={setCarrier} />
+          <TextArea label="Delivery note (optional)" value={reason} onChange={setReason} />
+        </ActionDialog>
+      )}
+      {dialogue && typeof dialogue === "object" && "release" in dialogue && (
         <ActionDialog title="Release hold" confirmLabel="Release hold" pending={releaseMutation.isPending} error={actionError} onClose={closeDialogue} onConfirm={() => releaseMutation.mutate(dialogue.release.id)}>
           <p className="text-sm text-text-secondary">Hold reason: {dialogue.release.reason}</p>
           <TextArea label="Release note (optional)" value={reason} onChange={setReason} />
@@ -472,4 +542,21 @@ function ActionDialog({
       </div>
     </Dialog>
   );
+}
+
+const TRIGGER_LABELS: Record<string, string> = { amount: "amount above the approval limit", discount: "discount above the approval limit", margin: "margin below the minimum" };
+// What an order event means beyond its title: why approval was needed, who it
+// was routed to, shipment and delivery evidence, promise dates.
+function eventDetails(metadata: Record<string, unknown>, userName: (id: unknown) => string | null) {
+  const details: string[] = [];
+  const triggers = Array.isArray(metadata.triggers) ? (metadata.triggers as string[]) : [];
+  if (triggers.length) details.push(`Needs approval: ${triggers.map((trigger) => TRIGGER_LABELS[trigger] ?? trigger).join(", ")}`);
+  if (metadata.delegatedFrom) details.push(`Routed to ${userName(metadata.assignedTo) ?? "the delegate"} while ${userName(metadata.delegatedFrom) ?? "the approver"} is away`);
+  else if (metadata.assignedTo) details.push(`Assigned to ${userName(metadata.assignedTo) ?? "an approver"}`);
+  if (metadata.carrier) details.push(`Carrier ${metadata.carrier}${metadata.trackingNumber ? `, tracking ${metadata.trackingNumber}` : ""}`);
+  if (metadata.receivedBy) details.push(`Received by ${metadata.receivedBy}`);
+  if (metadata.promisedDate) details.push(`Promised for ${String(metadata.promisedDate)} (${Number(metadata.openQuantity ?? 0)} still owed)`);
+  if (metadata.requestNumber) details.push(`Request ${metadata.requestNumber}${metadata.quantityBasis ? ` — ${String(metadata.quantityBasis)} quantities` : ""}`);
+  if (typeof metadata.released === "number") details.push(`${metadata.released} reservation(s) released`);
+  return details;
 }

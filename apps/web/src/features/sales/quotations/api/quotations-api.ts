@@ -79,6 +79,12 @@ export type SalesQuotationDetail = {
     internal_notes: string | null;
     terms_and_conditions: string | null;
     delivery_terms: string | null;
+    shipping_method?: string | null;
+    incoterm?: string | null;
+    supply_type?: string | null;
+    place_of_supply?: string | null;
+    shipping_address_snapshot?: { state?: string | null; state_code?: string | null; stateCode?: string | null } | null;
+    tax_trace?: Array<{ taxType: string; label: string; rate: string; taxAmount: string }> | null;
     price_list_id: string | null;
     payment_term_id: string | null;
     exchange_rate: string;
@@ -91,7 +97,7 @@ export type SalesQuotationDetail = {
 
 export type SalesOptions = {
   companies: Array<{ id: string; name: string; base_currency: string }>;
-  parties: Array<{ id: string; code: string; party_type: string; display_name: string; currency_code: string | null; payment_term_id: string | null; credit_limit: string | null }>;
+  parties: Array<{ id: string; code: string; party_type: string; display_name: string; currency_code: string | null; payment_term_id: string | null; credit_limit: string | null; default_price_list_id?: string | null; tax_treatment?: string | null; default_shipping_method?: string | null; default_delivery_terms?: string | null; default_incoterm?: string | null; sales_block?: string; sales_block_reason?: string | null }>;
   contacts: Array<{ id: string; party_id: string; first_name: string; last_name: string | null; email: string | null; is_primary: boolean }>;
   addresses: Array<{ id: string; party_id: string; address_type: string; line1: string; city: string | null; is_primary: boolean }>;
   items: Array<{ id: string; code: string; name: string; item_type: string; uom_id: string | null; sales_price: string | null; standard_cost?: string | null }>;
@@ -123,6 +129,10 @@ export type SalesDocumentInput = {
   termsAndConditions?: string;
   deliveryTerms?: string;
   revisionReason?: string;
+  shippingMethod?: string;
+  incoterm?: string;
+  supplyType?: string;
+  placeOfSupply?: string;
   idempotencyKey?: string;
   lines: SalesDocumentLineInput[];
   charges?: Array<{ label: string; calculationType: "fixed" | "percentage"; value: number; taxable?: boolean }>;
@@ -147,7 +157,7 @@ export const createSalesQuotation = (input: SalesDocumentInput) => post<{ quotat
 export const reviseSalesQuotation = (id: string, input: SalesDocumentInput) => post<{ version: { id: string; version_number: number } }>(`/quotations/${id}/revise`, input);
 export const submitSalesQuotation = (id: string, assignedTo?: string | null) => post<{ result: unknown }>(`/quotations/${id}/submit`, { assignedTo });
 export const approveSalesQuotation = (id: string, quotationVersionId: string) => post<{ result: unknown }>(`/quotations/${id}/approve`, { quotationVersionId });
-export const rejectSalesQuotationApproval = (id: string) => post<{ result: unknown }>(`/quotations/${id}/reject-approval`, {});
+export const rejectSalesQuotationApproval = (id: string, reason: string) => post<{ result: unknown }>(`/quotations/${id}/reject-approval`, { reason });
 export const sendSalesQuotation = (id: string, expiresInDays?: number) => post<{ result: { token: string; expiresAt: string; quotationNumber: string } }>(`/quotations/${id}/send`, { expiresInDays });
 export const convertSalesQuotation = (id: string) => post<{ result: { orderId: string; idempotent?: boolean } }>(`/quotations/${id}/convert`, {});
 export const compareSalesQuotationVersions = (id: string, left: string, right: string) => request<{ comparison: unknown }>(`/quotations/${id}/compare${qs({ left, right })}`);

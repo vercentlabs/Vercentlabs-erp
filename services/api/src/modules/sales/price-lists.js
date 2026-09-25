@@ -22,7 +22,7 @@ const clampOffset = (value) => Math.max(Number.isFinite(Number(value)) ? Number(
 export async function listSalesPriceLists(client, c) {
   need(c, "sales.view");
   const result = await client.query(
-    `SELECT list.id, list.code, list.name, list.currency_code, list.tax_inclusive, list.valid_from, list.valid_to, list.status,
+    `SELECT list.id, list.code, list.name, list.currency_code, list.tax_inclusive, list.valid_from::text AS valid_from, list.valid_to::text AS valid_to, list.status,
             (SELECT count(*)::int FROM tenant.price_list_items item
               WHERE item.organization_id=list.organization_id AND item.price_list_id=list.id AND item.status='active') AS item_count,
             (SELECT count(*)::int FROM tenant.pos_stores store
@@ -52,7 +52,7 @@ export async function createSalesPriceList(client, c, input = {}) {
   if (duplicate.rows[0]) throw new SalesError(409, `A price list with code ${code} already exists.`, "SALES_PRICE_LIST_CODE_DUPLICATE");
   const created = await client.query(
     `INSERT INTO tenant.price_lists(organization_id,code,name,price_list_type,currency_code,tax_inclusive,valid_from,valid_to,created_by,updated_by)
-     VALUES($1,$2,$3,'sales',$4,$5,$6,$7,$8,$8) RETURNING id,code,name,currency_code,tax_inclusive,valid_from,valid_to,status`,
+     VALUES($1,$2,$3,'sales',$4,$5,$6,$7,$8,$8) RETURNING id,code,name,currency_code,tax_inclusive,valid_from::text AS valid_from,valid_to::text AS valid_to,status`,
     [c.organizationId, code, name, currencyCode, Boolean(input.taxInclusive), validFrom, validTo, c.userId],
   );
   return created.rows[0];
@@ -68,7 +68,7 @@ export async function listSalesPriceListItems(client, c, priceListId, { limit, o
   if (!list.rows[0]) throw new SalesError(404, "Sales price list not found.", "SALES_PRICE_LIST_NOT_FOUND");
   const rows = await client.query(
     `SELECT price.id, price.item_id, item.code AS item_code, item.name AS item_name, price.variant_id, variant.sku AS variant_sku,
-            price.uom_id, price.minimum_quantity, price.rate, price.valid_from, price.valid_to, price.status,
+            price.uom_id, price.minimum_quantity, price.rate, price.valid_from::text AS valid_from, price.valid_to::text AS valid_to, price.status,
             count(*) OVER()::int AS total
        FROM tenant.price_list_items price
        JOIN tenant.items item ON item.organization_id=price.organization_id AND item.id=price.item_id
@@ -116,7 +116,7 @@ export async function listSalesCustomerPrices(client, c, { partyId, limit, offse
   values.push(clampLimit(limit, 100), clampOffset(offset));
   const rows = await client.query(
     `SELECT rule.id, rule.party_id, party.display_name AS party_name, rule.item_id, item.code AS item_code, item.name AS item_name,
-            rule.price_list_id, rule.minimum_quantity, rule.adjustment_value AS fixed_rate, rule.valid_from, rule.valid_to, rule.reason,
+            rule.price_list_id, rule.minimum_quantity, rule.adjustment_value AS fixed_rate, rule.valid_from::text AS valid_from, rule.valid_to::text AS valid_to, rule.reason,
             count(*) OVER()::int AS total
        FROM tenant.sales_pricing_rules rule
        JOIN tenant.business_parties party ON party.organization_id=rule.organization_id AND party.id=rule.party_id

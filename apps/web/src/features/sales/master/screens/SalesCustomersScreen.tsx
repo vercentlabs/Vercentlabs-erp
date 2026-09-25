@@ -14,7 +14,7 @@ import { SalesApiError } from "@/features/sales/shared/http";
 import { money, statusLabel, statusTone } from "@/features/sales/shared/format";
 import { SalesAlert } from "@/features/sales/shared/SalesUi";
 import { getSalesOptions } from "@/features/sales/quotations/api/quotations-api";
-import { createRecord, listCustomers, updateRecord, type CustomerInput, type CustomerRecord } from "@/features/sales/master/api/master-api";
+import { createRecord, listCustomers, updateRecord, type CustomerInput, type CustomerRecord, SALES_BLOCK_OPTIONS, TAX_TREATMENT_OPTIONS } from "@/features/sales/master/api/master-api";
 
 const STATUS_OPTIONS = [
   { value: "active", label: "Active" },
@@ -127,6 +127,13 @@ export function CustomerDialog({ customer, onClose, onSaved }: { customer?: Cust
   const [currencyCode, setCurrencyCode] = useState(customer?.currencyCode ?? "");
   const [paymentTermId, setPaymentTermId] = useState(customer?.paymentTermId ?? "");
   const [creditLimit, setCreditLimit] = useState(Number(customer?.creditLimit ?? 0));
+  const [defaultPriceListId, setDefaultPriceListId] = useState(customer?.defaultPriceListId ?? "");
+  const [taxTreatment, setTaxTreatment] = useState(customer?.taxTreatment ?? "");
+  const [defaultShippingMethod, setDefaultShippingMethod] = useState(customer?.defaultShippingMethod ?? "");
+  const [defaultDeliveryTerms, setDefaultDeliveryTerms] = useState(customer?.defaultDeliveryTerms ?? "");
+  const [defaultIncoterm, setDefaultIncoterm] = useState(customer?.defaultIncoterm ?? "");
+  const [salesBlock, setSalesBlock] = useState<string>(customer?.salesBlock ?? "none");
+  const [salesBlockReason, setSalesBlockReason] = useState(customer?.salesBlockReason ?? "");
   // Populated only after the server blocks on an exact duplicate (409
   // SALES_PARTY_DUPLICATE_EXACT); once shown, the user must explain why
   // before resubmitting.
@@ -145,6 +152,13 @@ export function CustomerDialog({ customer, onClose, onSaved }: { customer?: Cust
         currencyCode: currencyCode || undefined,
         paymentTermId: paymentTermId || undefined,
         creditLimit,
+        defaultPriceListId: defaultPriceListId || null,
+        taxTreatment: taxTreatment || null,
+        defaultShippingMethod: defaultShippingMethod || null,
+        defaultDeliveryTerms: defaultDeliveryTerms || null,
+        defaultIncoterm: defaultIncoterm || null,
+        salesBlock: salesBlock as CustomerRecord["salesBlock"],
+        salesBlockReason: salesBlock === "none" ? null : salesBlockReason,
         ...(duplicateMatches ? { duplicateOverrideReason: overrideReason } : {}),
         ...(customer ? { expectedUpdatedAt: customer.updatedAt } : {}),
       };
@@ -202,6 +216,18 @@ export function CustomerDialog({ customer, onClose, onSaved }: { customer?: Cust
           <Select label="Payment terms" options={[{ value: "", label: "None" }, ...(options.data?.paymentTerms ?? []).map((t) => ({ value: t.id, label: `${t.name} (${t.default_due_days} days)` }))]} selectedKey={paymentTermId} onSelectionChange={(key) => setPaymentTermId(String(key ?? ""))} />
           <NumberField label="Credit limit (0 = no limit)" value={creditLimit} onChange={setCreditLimit} minValue={0} step={0.01} />
         </div>
+        <p className="text-sm font-medium text-text">Defaults for quotations and orders</p>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <Select label="Price list" options={[{ value: "", label: "Company default" }, ...(options.data?.priceLists ?? []).map((p) => ({ value: p.id, label: `${p.name} (${p.currency_code})` }))]} selectedKey={defaultPriceListId} onSelectionChange={(key) => setDefaultPriceListId(String(key ?? ""))} />
+          <Select label="GST treatment" options={[{ value: "", label: "Not set" }, ...TAX_TREATMENT_OPTIONS]} selectedKey={taxTreatment} onSelectionChange={(key) => setTaxTreatment(String(key ?? ""))} />
+          <TextField label="Shipping method" value={defaultShippingMethod} onChange={setDefaultShippingMethod} placeholder="e.g. Road freight" />
+          <TextField label="Delivery terms" value={defaultDeliveryTerms} onChange={setDefaultDeliveryTerms} placeholder="e.g. Door delivery" />
+          <TextField label="Incoterm" value={defaultIncoterm} onChange={setDefaultIncoterm} placeholder="e.g. FOB" />
+        </div>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <Select label="Sales block" options={SALES_BLOCK_OPTIONS} selectedKey={salesBlock} onSelectionChange={(key) => setSalesBlock(String(key ?? "none"))} />
+          {salesBlock !== "none" && <TextField label="Why is this customer blocked?" isRequired value={salesBlockReason} onChange={setSalesBlockReason} placeholder="e.g. Payments overdue beyond 90 days" />}
+        </div>
         <div className="flex justify-end gap-2">
           <Button variant="secondary" onPress={onClose}>
             Close
@@ -210,7 +236,7 @@ export function CustomerDialog({ customer, onClose, onSaved }: { customer?: Cust
             variant="primary"
             onPress={() => mutation.mutate()}
             isLoading={mutation.isPending}
-            isDisabled={!displayName.trim() || (!customer && !code.trim()) || Boolean(duplicateMatches && overrideReason.trim().length < 10)}
+            isDisabled={!displayName.trim() || (!customer && !code.trim()) || (salesBlock !== "none" && salesBlockReason.trim().length < 5) || Boolean(duplicateMatches && overrideReason.trim().length < 10)}
           >
             {duplicateMatches ? "Create anyway" : customer ? "Save changes" : "Create customer"}
           </Button>

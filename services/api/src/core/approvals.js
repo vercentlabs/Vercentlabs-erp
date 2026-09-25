@@ -87,11 +87,11 @@ const COMMAND_DISPATCH = Object.freeze({
   },
   "sales.quotation.approve": {
     approve: (client, context, payload) => approveQuotation(client, context, payload.quotationId, payload.quotationVersionId),
-    reject: (client, context, payload) => rejectQuotationApproval(client, context, payload.quotationId),
+    reject: (client, context, payload) => rejectQuotationApproval(client, context, payload.quotationId, payload.note),
   },
   "sales.order.approve": {
     approve: (client, context, payload) => approveSalesOrder(client, context, payload.orderId, payload.orderVersionId),
-    reject: (client, context, payload) => rejectSalesOrderApproval(client, context, payload.orderId),
+    reject: (client, context, payload) => rejectSalesOrderApproval(client, context, payload.orderId, payload.note),
   },
   "sales.order.amendment.approve": {
     approve: (client, context, payload) =>
@@ -208,7 +208,7 @@ export async function decideApproval(client, session, approvalId, { decision, no
     outcome =
       validated.decision === "approved"
         ? await handler.approve(client, context, payload)
-        : await handler.reject(client, context, payload);
+        : await handler.reject(client, context, { ...payload, note: validated.note });
   }
 
   const updated = await client.query(

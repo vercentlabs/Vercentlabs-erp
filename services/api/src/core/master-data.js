@@ -28,8 +28,18 @@ const resources = Object.freeze({
       currencyCode: "currency_code",
       creditLimit: "credit_limit",
       paymentTermId: "payment_term_id",
+      defaultPriceListId: "default_price_list_id",
+      taxTreatment: "tax_treatment",
+      defaultShippingMethod: "default_shipping_method",
+      defaultDeliveryTerms: "default_delivery_terms",
+      defaultIncoterm: "default_incoterm",
+      salesBlock: "sales_block",
+      salesBlockReason: "sales_block_reason",
       status: "status",
     },
+    // Inserts write every mapped column, so NOT NULL columns with a database
+    // default need the same default here when a caller (e.g. CRM) omits them.
+    defaults: { salesBlock: "none" },
     scope: "company-nullable",
     companyField: "companyId",
     archiveStatus: "inactive",
@@ -775,7 +785,7 @@ export async function createBusinessDataRecord(
     const columns = entries.map(([, column]) => column);
     const parameters = [
       context.organizationId,
-      ...entries.map(([field]) => scopedInput[field] ?? null),
+      ...entries.map(([field]) => scopedInput[field] ?? definition.defaults?.[field] ?? null),
       context.userId,
       context.userId,
     ];

@@ -63,6 +63,10 @@ function FormError({ message }: { message: string | null }) {
 // pricing master. Every write goes through the existing Sales domain
 // functions (upsertSalesPriceListItem, upsertSalesCustomerPrice,
 // deactivate*), which own validation and effective-date rules.
+// Dates arrive as plain YYYY-MM-DD; show them as "1 Apr 2026".
+const dayLabel = (value: string) => new Date(`${value.slice(0, 10)}T00:00:00`).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
+const effectiveRange = (from?: string | null, to?: string | null) => (from || to ? `${from ? dayLabel(from) : "Any time"} → ${to ? dayLabel(to) : "open-ended"}` : "Always");
+
 export function SalesPriceListsScreen() {
   const workspace = useWorkspaceContext();
   const queryClient = useQueryClient();
@@ -114,7 +118,7 @@ export function SalesPriceListsScreen() {
       { id: "code", header: "Code", cell: ({ row }) => <span className="font-mono font-medium text-text">{row.original.code}</span> },
       { id: "name", header: "Name", accessorKey: "name" },
       { id: "currency", header: "Currency", accessorFn: (row) => `${row.currency_code}${row.tax_inclusive ? " (tax incl.)" : ""}` },
-      { id: "effective", header: "Effective", accessorFn: (row) => (row.valid_from || row.valid_to ? `${row.valid_from ?? "…"} → ${row.valid_to ?? "…"}` : "Always") },
+      { id: "effective", header: "Effective", accessorFn: (row) => effectiveRange(row.valid_from, row.valid_to) },
       { id: "items", header: "Active prices", accessorFn: (row) => row.item_count },
       { id: "stores", header: "POS stores", accessorFn: (row) => row.assigned_store_count },
       { id: "status", header: "Status", cell: ({ row }) => <StatusBadge tone={row.original.status === "active" ? "success" : "neutral"}>{row.original.status}</StatusBadge> },
@@ -137,7 +141,7 @@ export function SalesPriceListsScreen() {
       { id: "variant", header: "Variant", accessorFn: (row) => row.variant_sku ?? "All variants" },
       { id: "min", header: "Min qty", accessorFn: (row) => Number(row.minimum_quantity) },
       { id: "rate", header: "Rate", accessorFn: (row) => rate(row.rate) },
-      { id: "effective", header: "Effective", accessorFn: (row) => (row.valid_from || row.valid_to ? `${row.valid_from ?? "…"} → ${row.valid_to ?? "…"}` : "Always") },
+      { id: "effective", header: "Effective", accessorFn: (row) => effectiveRange(row.valid_from, row.valid_to) },
       {
         id: "actions",
         header: "",
@@ -158,7 +162,7 @@ export function SalesPriceListsScreen() {
       { id: "item", header: "Item", accessorFn: (row) => `${row.item_code} · ${row.item_name}` },
       { id: "min", header: "Min qty", accessorFn: (row) => Number(row.minimum_quantity) },
       { id: "rate", header: "Fixed rate", accessorFn: (row) => rate(row.fixed_rate) },
-      { id: "effective", header: "Effective", accessorFn: (row) => (row.valid_from || row.valid_to ? `${row.valid_from ?? "…"} → ${row.valid_to ?? "…"}` : "Always") },
+      { id: "effective", header: "Effective", accessorFn: (row) => effectiveRange(row.valid_from, row.valid_to) },
       { id: "reason", header: "Reason", accessorFn: (row) => row.reason ?? "" },
       {
         id: "actions",

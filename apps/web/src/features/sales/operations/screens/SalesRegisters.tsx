@@ -16,6 +16,7 @@ import type { SalesOptions } from "@/features/sales/quotations/api/quotations-ap
 import { dateTime, money, statusLabel, statusTone } from "@/features/sales/shared/format";
 import { SalesAlert } from "@/features/sales/shared/SalesUi";
 import {
+  promiseOrderLine,
   accrueCommission,
   createCommissionRule,
   createDropShip,
@@ -116,6 +117,8 @@ export function SalesDeliveriesScreen() {
       { id: "status", header: "Status", accessorKey: "status", cell: ({ row }) => badge(row.original.status) },
       { id: "requested", header: "Requested", accessorFn: (row) => dateTime(row.requested_at) },
       { id: "completed", header: "Completed", accessorFn: (row) => dateTime(row.completed_at) },
+      { id: "shipment", header: "Shipment", accessorFn: (row) => (row.shipped_at ? `${row.carrier ?? ""}${row.tracking_number ? ` · ${row.tracking_number}` : ""}` : "—") },
+      { id: "delivered", header: "Delivered", accessorFn: (row) => (row.delivered_at ? `${dateTime(row.delivered_at)} · ${row.received_by ?? ""}` : "—") },
       { id: "error", header: "Last error", accessorFn: (row) => row.last_error ?? "—" },
     ],
     [],
@@ -487,6 +490,7 @@ export type { CommissionRuleRow };
 // ---------------------------------------------------------------- backorders
 export function SalesBackordersScreen() {
   const router = useRouter();
+  const [promising, setPromising] = useState<{ row: BackorderRow; refresh: () => void } | null>(null);
   const columns: ColumnDef<BackorderRow, unknown>[] = useMemo(
     () => [
       { id: "order", header: "Order", accessorKey: "sales_order_number", cell: ({ row }) => <OrderLink id={row.original.sales_order_id} label={row.original.sales_order_number} /> },
@@ -494,12 +498,14 @@ export function SalesBackordersScreen() {
       { id: "item", header: "Item", accessorFn: (row) => `${row.item_name_snapshot} (${row.item_code_snapshot})` },
       { id: "ordered", header: "Ordered", accessorFn: (row) => Number(row.quantity) },
       { id: "shipped", header: "Shipped", accessorFn: (row) => Number(row.fulfilled_quantity) },
-      { id: "owed", header: "Still owed", accessorFn: (row) => Number(row.backordered_quantity) },
+      { id: "owed", header: "Still owed", accessorFn: (row) => `${Number(row.backordered_quantity)} ${row.uom_snapshot ?? ""}`.trim() },
       { id: "due", header: "Delivery by", accessorFn: (row) => (row.requested_delivery_date ? row.requested_delivery_date.slice(0, 10) : "—") },
+      { id: "promised", header: "Promised", accessorFn: (row) => (row.promised_date ? `${row.promised_date.slice(0, 10)}${row.promise_note ? ` — ${row.promise_note}` : ""}` : "Not promised") },
     ],
     [],
   );
   return (
+    <>
     <SalesRegisterPage<BackorderRow>
       config={{
         kind: "backorders",
@@ -509,10 +515,42 @@ export function SalesBackordersScreen() {
         columns,
         searchText: (row) => `${row.sales_order_number} ${row.customer_name ?? ""} ${row.item_name_snapshot} ${row.item_code_snapshot}`,
         emptyTitle: "No backorders",
-        emptyDescription: "Nothing is partly shipped and outstanding.",
+        emptyDescription: "Nothing is partly shipped or overdue.",
         onRowClick: (row) => router.push(`/sales/orders/${row.sales_order_id}`),
+        rowActions: (row, refresh) => (
+          <Button variant="ghost" size="compact" onPress={() => setPromising({ row, refresh })}>
+            Set promise date
+          </Button>
+        ),
       }}
     />
+    {promising && <PromiseDialog row={promising.row} onClose={() => setPromising(null)} onDone={() => { promising.refresh(); setPromising(null); }} />}
+    </>
+  );
+}
+
+// F048: a promise date on a backordered line, with what it rests on.
+function PromiseDialog({ row, onClose, onDone }: { row: BackorderRow; onClose: () => void; onDone: () => void }) {
+  const [date, setDate] = useState(row.promised_date?.slice(0, 10) ?? "");
+  const [note, setNote] = useState(row.promise_note ?? "");
+  const save = useMutation({ mutationFn: () => promiseOrderLine(row.id, date, note.trim()), onSuccess: onDone });
+  return (
+    <Dialog isOpen onOpenChange={(open) => !open && onClose()} title={`Promise ${row.item_name_snapshot} on ${row.sales_order_number}`}>
+      <div className="flex flex-col gap-4">
+        {save.error && <SalesAlert>{save.error instanceof SalesApiError ? save.error.message : "The promise could not be saved."}</SalesAlert>}
+        <p className="text-sm text-text-secondary">Still owed: {Number(row.backordered_quantity)} {row.uom_snapshot ?? ""}</p>
+        <TextField label="Promised date" type="date" isRequired value={date} onChange={setDate} />
+        <TextArea label="Based on" isRequired value={note} onChange={setNote} placeholder="e.g. PO-00012 from Sahyadri Farms arrives on the 3rd" />
+        <div className="flex justify-end gap-2">
+          <Button variant="secondary" onPress={onClose}>
+            Close
+          </Button>
+          <Button variant="primary" onPress={() => save.mutate()} isLoading={save.isPending} isDisabled={!date || note.trim().length < 5}>
+            Save promise
+          </Button>
+        </div>
+      </div>
+    </Dialog>
   );
 }
 

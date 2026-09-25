@@ -5,7 +5,8 @@ import { rejectSalesOrderAmendment, rejectSalesOrderApproval } from "@vercentlab
 import { salesMutation } from "@/features/sales/shared/route-helpers";
 import { amendmentLineage } from "@/features/sales/orders/server/amendment-lineage";
 
-const schema = z.object({ orderVersionId: z.string().uuid() });
+// F041: a rejection always says why; the reason is kept on the order.
+const schema = z.object({ orderVersionId: z.string().uuid(), reason: z.string().trim().min(5, "Say why the approval is rejected (at least 5 characters).").max(2000) });
 
 // The domain's reject functions do not check a permission themselves, so the
 // route's own gate (sales.order.approve) is the only thing between a user and
@@ -17,7 +18,7 @@ export async function POST(request: Request, ctx: { params: Promise<{ id: string
     if (amendment) {
       return { result: await rejectSalesOrderAmendment(client, context, id, input.orderVersionId, amendment.previousVersionId, amendment.resumeStatus) };
     }
-    await rejectSalesOrderApproval(client, context, id);
+    await rejectSalesOrderApproval(client, context, id, input.reason);
     return { result: { orderId: id, status: "draft" } };
   });
 }

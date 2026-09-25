@@ -155,7 +155,8 @@ async function loadDocumentContext(client, context, input, options = {}) {
   }
 
   const partyResult = await client.query(
-    `SELECT id,company_id,code,party_type,display_name,legal_name,gstin,pan,currency_code,credit_limit,payment_term_id,status
+    `SELECT id,company_id,code,party_type,display_name,legal_name,gstin,pan,currency_code,credit_limit,payment_term_id,status,
+            default_price_list_id,tax_treatment,sales_block,sales_block_reason
        FROM tenant.business_parties WHERE organization_id=$1 AND id=$2`,
     [context.organizationId, partyId],
   );
@@ -174,6 +175,14 @@ async function loadDocumentContext(client, context, input, options = {}) {
       options.order
         ? "Sales orders require an active customer."
         : "The selected party cannot receive a quotation.",
+    );
+  // F031: a sales block stops new documents (all = quotations and orders,
+  // orders = orders only), like SAP's order block or D365 "on hold".
+  if (party.sales_block === "all" || (party.sales_block === "orders" && options.order))
+    throw new SalesError(
+      409,
+      `${party.display_name} is blocked for ${party.sales_block === "all" ? "new quotations and orders" : "new orders"}: ${party.sales_block_reason}`,
+      "SALES_CUSTOMER_BLOCKED",
     );
   if (party.company_id && party.company_id !== companyId)
     throw new SalesError(
@@ -196,7 +205,7 @@ async function loadDocumentContext(client, context, input, options = {}) {
   let contact = null;
   if (input.contactId) {
     const result = await client.query(
-      `SELECT id,first_name,last_name,designation,email,phone,mobile FROM tenant.contacts WHERE organization_id=$1 AND party_id=$2 AND id=$3 AND status='active'`,
+      `SELECT id,first_name,last_name,designation,email,phone,mobile,privacy_status,archived_at FROM tenant.contacts WHERE organization_id=$1 AND party_id=$2 AND id=$3 AND status='active'`,
       [context.organizationId, partyId, uuid(input.contactId, "Contact")],
     );
     contact = result.rows[0];
@@ -205,7 +214,23 @@ async function loadDocumentContext(client, context, input, options = {}) {
         409,
         "The selected contact does not belong to the customer.",
       );
+    // F032: a contact whose data was anonymized, erased or restricted under a
+    // privacy request, or who was archived, cannot be copied onto a document.
+    if (contact.archived_at || (contact.privacy_status && contact.privacy_status !== "active"))
+      throw new SalesError(
+        409,
+        "The selected contact is archived or restricted by a privacy request and cannot be used on documents.",
+        "SALES_CONTACT_NOT_USABLE",
+      );
+    delete contact.privacy_status;
+    delete contact.archived_at;
   }
+  // F032: the bill-to must be an invoicing address and the ship-to a
+  // delivery address (D365 address purposes, Odoo invoice/delivery contacts).
+  const ADDRESS_PURPOSES = {
+    "Billing address": ["billing", "registered"],
+    "Shipping address": ["shipping", "plant", "office", "registered"],
+  };
   async function addressSnapshot(addressId, label) {
     if (!addressId) return { id: null, row: null };
     const result = await client.query(
@@ -216,6 +241,13 @@ async function loadDocumentContext(client, context, input, options = {}) {
       throw new SalesError(
         409,
         `The selected ${label.toLowerCase()} does not belong to the customer.`,
+      );
+    const allowed = ADDRESS_PURPOSES[label];
+    if (allowed && !allowed.includes(result.rows[0].address_type))
+      throw new SalesError(
+        409,
+        `A ${result.rows[0].address_type} address cannot be used as the ${label.toLowerCase()}. Use a ${allowed.join(", ")} address.`,
+        "SALES_ADDRESS_PURPOSE_MISMATCH",
       );
     return { id: addressId, row: result.rows[0] };
   }
@@ -252,6 +284,22 @@ async function loadDocumentContext(client, context, input, options = {}) {
   }
 
   let priceList = null;
+  if (!input.priceListId && !options.noDefaultPriceList) {
+    const settingsDefault = await client.query(
+      `SELECT default_price_list_id FROM tenant.sales_settings WHERE organization_id=$1`,
+      [context.organizationId],
+    );
+    const defaultId = party.default_price_list_id || settingsDefault.rows[0]?.default_price_list_id || null;
+    if (defaultId) {
+      const result = await client.query(
+        `SELECT id,code,name,currency_code,tax_inclusive FROM tenant.price_lists WHERE organization_id=$1 AND id=$2 AND price_list_type='sales' AND currency_code=$3 AND status='active' AND (valid_from IS NULL OR valid_from<=current_date) AND (valid_to IS NULL OR valid_to>=current_date)`,
+        [context.organizationId, defaultId, currencyCode],
+      );
+      // F031/F034: the default applies only when it fits this document
+      // (same currency, active, in date); otherwise list prices apply.
+      priceList = result.rows[0] ? { ...result.rows[0], defaulted: true } : null;
+    }
+  }
   if (input.priceListId) {
     const result = await client.query(
       `SELECT id,code,name,currency_code,tax_inclusive FROM tenant.price_lists WHERE organization_id=$1 AND id=$2 AND price_list_type='sales' AND currency_code=$3 AND status='active' AND (valid_from IS NULL OR valid_from<=current_date) AND (valid_to IS NULL OR valid_to>=current_date)`,
@@ -357,22 +405,28 @@ async function calculateLine(client, context, master, line, sequence, input) {
   // A variant's own price/cost (when set -- both columns are nullable,
   // meaning "inherit from the item") override the item's, the same way a
   // NetSuite/Odoo variant price supersedes its template's.
-  let listUnitPrice = decimal((variant?.sales_price ?? item.sales_price) || 0);
+  // item/variant prices are per BASE unit: selling 2 boxes of 12 must price
+  // 24 units, not 2 (F033). Unit-specific price-list rows are already per
+  // the selected unit and are not scaled.
+  let listUnitPrice = mul(decimal((variant?.sales_price ?? item.sales_price) || 0), conversionFactor);
   let priceSource = variant?.sales_price != null ? "variant.sales_price" : "item.sales_price";
   const appliedRules = [];
   if (master.priceList) {
     const priceResult = await client.query(
-      `SELECT rate,id FROM tenant.price_list_items WHERE organization_id=$1 AND price_list_id=$2 AND item_id=$3 AND (uom_id=$4 OR uom_id IS NULL) AND minimum_quantity<=$5 AND status='active' AND (valid_from IS NULL OR valid_from<=current_date) AND (valid_to IS NULL OR valid_to>=current_date) ORDER BY (uom_id=$4) DESC,minimum_quantity DESC,valid_from DESC NULLS LAST LIMIT 1`,
+      `SELECT rate,id,uom_id FROM tenant.price_list_items WHERE organization_id=$1 AND price_list_id=$2 AND item_id=$3 AND (uom_id=$4 OR uom_id IS NULL) AND (variant_id IS NULL OR variant_id IS NOT DISTINCT FROM $6::uuid) AND minimum_quantity<=$5 AND status='active' AND (valid_from IS NULL OR valid_from<=current_date) AND (valid_to IS NULL OR valid_to>=current_date) ORDER BY (variant_id IS NOT NULL) DESC,(uom_id IS NOT DISTINCT FROM $4) DESC,minimum_quantity DESC,valid_from DESC NULLS LAST LIMIT 1`,
       [
         context.organizationId,
         master.priceList.id,
         itemId,
         uomId,
         asDatabaseDecimal(quantity),
+        variant?.id || null,
       ],
     );
     if (priceResult.rows[0]) {
-      listUnitPrice = decimal(priceResult.rows[0].rate);
+      listUnitPrice = priceResult.rows[0].uom_id
+        ? decimal(priceResult.rows[0].rate)
+        : mul(decimal(priceResult.rows[0].rate), conversionFactor);
       priceSource = `price_list_item:${priceResult.rows[0].id}`;
     }
   }
@@ -396,9 +450,11 @@ async function calculateLine(client, context, master, line, sequence, input) {
         calculatedUnitPrice,
         percent(calculatedUnitPrice, value),
       );
+    // Fixed prices and amount discounts are per BASE unit (a customer price of
+    // 50 is per pouch), so they scale with the selected unit like list prices.
     if (rule.adjustment_type === "discount_amount")
-      calculatedUnitPrice = max(0, sub(calculatedUnitPrice, value));
-    if (rule.adjustment_type === "fixed_rate") calculatedUnitPrice = value;
+      calculatedUnitPrice = max(0, sub(calculatedUnitPrice, mul(value, conversionFactor)));
+    if (rule.adjustment_type === "fixed_rate") calculatedUnitPrice = mul(value, conversionFactor);
     appliedRules.push({
       id: rule.id,
       code: rule.code,
@@ -435,24 +491,44 @@ async function calculateLine(client, context, master, line, sequence, input) {
     master.currency.decimal_places,
   );
 
+  const sellerStateCode = String(master.settings.seller_state_code || "").trim();
+  const buyerStateCode = String(input.placeOfSupply || master.shipping.row?.state_code || master.billing.row?.state_code || "").trim();
   const { taxRate, components } = await resolveTaxRateComponents(client, {
     organizationId: context.organizationId,
     companyId: master.companyId,
     taxCategoryId: item.tax_category_id,
-    sellerStateCode: master.settings.seller_state_code,
-    buyerStateCode:
-      input.placeOfSupply || master.shipping.row?.state_code || master.billing.row?.state_code,
+    sellerStateCode,
+    buyerStateCode,
     exempt: isExemptSupplyType(input.supplyType),
   });
-  let taxableAmount = netAmount;
+  if (components.some((component) => ["igst", "cgst", "sgst"].includes(component.type)) && (!sellerStateCode || !buyerStateCode))
+    throw new SalesError(
+      422,
+      !sellerStateCode
+        ? "Set the seller's GST state in Sales settings before quoting taxable items."
+        : `Line ${sequence}: choose a billing or shipping address with a state, or set the place of supply, so GST can be calculated.`,
+      "SALES_PLACE_OF_SUPPLY_REQUIRED",
+    );
+  // F039: the header discount reduces each line's taxable value before tax
+  // (GST is charged on the discounted value), shared pro rata by line value.
+  const headerDiscountPercent = decimal(input.headerDiscountPercent || 0);
+  const headerDiscountGross = roundMoney(percent(netAmount, headerDiscountPercent), master.currency.decimal_places);
+  const discountedNet = sub(netAmount, headerDiscountGross);
+  let headerDiscountShare = headerDiscountGross;
+  let taxableAmount = discountedNet;
   let taxAmount = decimal(0);
   if (master.priceList?.tax_inclusive && taxRate > 0n) {
     taxableAmount = roundMoney(
+      div(mul(discountedNet, 100), add(100, taxRate)),
+      master.currency.decimal_places,
+    );
+    taxAmount = sub(discountedNet, taxableAmount);
+    const netExcludingTax = roundMoney(
       div(mul(netAmount, 100), add(100, taxRate)),
       master.currency.decimal_places,
     );
-    taxAmount = sub(netAmount, taxableAmount);
-    netAmount = taxableAmount;
+    headerDiscountShare = sub(netExcludingTax, taxableAmount);
+    netAmount = netExcludingTax;
   } else
     taxAmount = roundMoney(
       percent(taxableAmount, taxRate),
@@ -476,7 +552,7 @@ async function calculateLine(client, context, master, line, sequence, input) {
     mul(baseQuantity, effectiveStandardCost),
     master.currency.decimal_places,
   );
-  const lineTotal = add(netAmount, taxAmount);
+  const lineTotal = add(sub(netAmount, headerDiscountShare), taxAmount);
   const marginAmount = sub(netAmount, costAmount);
   const marginPercent =
     netAmount === 0n ? 0n : mul(div(marginAmount, netAmount), 100);
@@ -515,6 +591,7 @@ async function calculateLine(client, context, master, line, sequence, input) {
     discountPercent: asDatabaseDecimal(discountPercent),
     discountAmount: asDatabaseDecimal(discountAmount),
     netAmount: asDatabaseDecimal(netAmount),
+    headerDiscountShare: asDatabaseDecimal(headerDiscountShare),
     taxAmount: asDatabaseDecimal(taxAmount),
     lineTotal: asDatabaseDecimal(lineTotal),
     standardCost: asDatabaseDecimal(effectiveStandardCost),
@@ -554,6 +631,11 @@ export async function previewSalesDocument(
   if (input.lines.length > 500)
     throw new SalesError(400, "A document cannot contain more than 500 lines.");
   const master = await loadDocumentContext(client, context, input, options);
+  const headerDiscountPercent = decimal(input.headerDiscountPercent || 0);
+  if (headerDiscountPercent < 0n || headerDiscountPercent > decimal(100))
+    throw new SalesError(400, "Header discount must be between 0 and 100.");
+  if (headerDiscountPercent > 0n)
+    requirePermission(context, "sales.price.override");
   const lines = [];
   for (let i = 0; i < input.lines.length; i++)
     lines.push(
@@ -602,22 +684,13 @@ export async function previewSalesDocument(
       taxable: charge.taxable !== false,
     });
   }
-  // Header/document-level discount: a single reduction across the whole
-  // document total, distinct from per-line discounts. Applied after tax
-  // (tax was already computed on each line's own pre-header-discount
-  // taxable amount, so this never retroactively adjusts a tax line) -
-  // matches how the "charges" (freight/handling) layer already sits
-  // outside line-level calculation. Folded into discountTotal/
-  // maximumDiscount so it's visible in reporting and still caught by
-  // submitQuotation's discount-threshold approval gate.
-  const headerDiscountPercent = decimal(input.headerDiscountPercent || 0);
-  if (headerDiscountPercent < 0n || headerDiscountPercent > decimal(100))
-    throw new SalesError(400, "Header discount must be between 0 and 100.");
-  if (headerDiscountPercent > 0n)
-    requirePermission(context, "sales.price.override");
-  const headerDiscountAmount = roundMoney(
-    percent(subtotal, headerDiscountPercent),
-    master.currency.decimal_places,
+  // Header/document-level discount (F039): shared across the lines pro rata
+  // before tax in calculateLine, so tax is charged on the discounted value.
+  // Folded into discountTotal/maximumDiscount so it stays visible in
+  // reporting and is still caught by the discount-threshold approval gate.
+  const headerDiscountAmount = lines.reduce(
+    (total, line) => add(total, line.headerDiscountShare),
+    decimal(0),
   );
   discountTotal = add(discountTotal, headerDiscountAmount);
   maximumDiscount = max(maximumDiscount, headerDiscountPercent);
@@ -631,7 +704,7 @@ export async function previewSalesDocument(
     mul(grandTotal, master.exchangeRate),
     master.currency.decimal_places,
   );
-  const marginAmount = sub(subtotal, costTotal);
+  const marginAmount = sub(sub(subtotal, headerDiscountAmount), costTotal);
   const marginPercent =
     subtotal === 0n ? 0n : mul(div(marginAmount, subtotal), 100);
   const snapshots = {
@@ -850,6 +923,7 @@ async function insertQuotationVersion(
 // before; only a caller that supplies a key gets replay-safety.
 export async function createQuotation(client, context, input) {
   requirePermission(context, "sales.quotation.create");
+  assertValidUntilNotPast(input.validUntil);
   const preview = await previewSalesDocument(client, context, input);
   const idempotency = await beginIdempotentOperation(
     client,
@@ -924,7 +998,14 @@ export async function reviseQuotation(client, context, id, input) {
   const quote = await lockQuotation(client, context, id);
   if (["accepted", "converted", "cancelled"].includes(quote.lifecycle_status))
     throw new SalesError(409, "This quotation can no longer be revised.");
+  // F037: every revision is a new immutable version; say why it changed,
+  // and keep it an offer to the same customer (a new customer is a new quotation).
+  if (!text(input.revisionReason, 1000))
+    throw new SalesError(400, "Give a reason for this revision.", "SALES_QUOTATION_REVISION_REASON_REQUIRED");
+  assertValidUntilNotPast(input.validUntil);
   const preview = await previewSalesDocument(client, context, input);
+  if (preview.master.partyId !== quote.party_id)
+    throw new SalesError(409, "A revision cannot change the customer. Create a new quotation instead.", "SALES_QUOTATION_CUSTOMER_LOCKED");
   await client.query(
     `UPDATE public.approval_requests SET status='cancelled',decided_at=now(),decision_note='Quotation was revised.',updated_at=now() WHERE organization_id=$1 AND entity_type='sales_quotation' AND entity_id=$2 AND status='pending'`,
     [context.organizationId, id],
@@ -948,6 +1029,39 @@ export async function reviseQuotation(client, context, id, input) {
     { versionId: version.id, versionNumber: version.version_number },
   );
   return version;
+}
+
+// F036/F038: an offer cannot be created or revised with a validity date in the past.
+function assertValidUntilNotPast(validUntil) {
+  const value = String(validUntil || "").slice(0, 10);
+  const today = new Date().toISOString().slice(0, 10);
+  if (value && value < today)
+    throw new SalesError(422, "Valid until cannot be in the past.", "SALES_QUOTATION_VALIDITY_PAST");
+}
+// F041: an approver away on an active delegation has new requests routed to
+// their delegate; the original assignee is kept on the event trail.
+async function resolveApprover(client, context, assignedTo) {
+  if (!assignedTo) return { assignee: null, delegatedFrom: null };
+  const delegation = (
+    await client.query(
+      `SELECT delegate_user_id FROM tenant.sales_approval_delegations
+        WHERE organization_id=$1 AND delegator_user_id=$2 AND status='active' AND starts_on<=current_date AND ends_on>=current_date
+        ORDER BY created_at DESC LIMIT 1`,
+      [context.organizationId, assignedTo],
+    )
+  ).rows[0];
+  return delegation
+    ? { assignee: delegation.delegate_user_id, delegatedFrom: assignedTo }
+    : { assignee: assignedTo, delegatedFrom: null };
+}
+// Approving/rejecting straight from the quotation or order must also close
+// the matching inbox request, or it stays "pending" and fails when opened.
+async function closeApprovalRequest(client, context, entityType, entityId, status, note = null) {
+  await client.query(
+    `UPDATE public.approval_requests SET status=$4,decided_at=now(),decided_by=$5,decision_note=COALESCE($6,decision_note),updated_at=now()
+      WHERE organization_id=$1 AND entity_type=$2 AND entity_id=$3 AND status='pending'`,
+    [context.organizationId, entityType, entityId, status, context.userId || null, note],
+  );
 }
 
 async function lockQuotation(client, context, id) {
@@ -1148,6 +1262,7 @@ export async function submitQuotation(client, context, id, assignedTo = null) {
     return { approvalRequired: false };
   }
   const approvalId = cryptoRandomUuid();
+  const route = await resolveApprover(client, context, assignedTo);
   await client.query(
     `INSERT INTO public.approval_requests (id,organization_id,entity_type,entity_id,title,status,requested_by,assigned_to,command_key,command_payload) VALUES ($1,$2,'sales_quotation',$3,$4,'pending',$5,$6,'sales.quotation.approve',$7::jsonb)`,
     [
@@ -1156,7 +1271,7 @@ export async function submitQuotation(client, context, id, assignedTo = null) {
       id,
       `Approve quotation ${quote.quotation_number}`,
       context.userId,
-      assignedTo || null,
+      route.assignee,
       JSON.stringify({
         quotationId: id,
         quotationVersionId: quote.current_version_id,
@@ -1175,7 +1290,7 @@ export async function submitQuotation(client, context, id, assignedTo = null) {
     "quotation.submitted",
     "draft",
     "pending_approval",
-    { approvalId, versionId: quote.current_version_id },
+    { approvalId, versionId: quote.current_version_id, assignedTo: route.assignee, delegatedFrom: route.delegatedFrom },
   );
   return { approvalRequired: true, approvalId };
 }
@@ -1206,6 +1321,7 @@ export async function approveQuotation(
     `UPDATE tenant.sales_quotations SET lifecycle_status='approved',approval_status='approved',updated_by=$1,updated_at=now() WHERE organization_id=$2 AND id=$3`,
     [context.userId, context.organizationId, quotationId],
   );
+  await closeApprovalRequest(client, context, "sales_quotation", quotationId, "approved");
   await event(
     client,
     context,
@@ -1218,13 +1334,15 @@ export async function approveQuotation(
   );
   return { quotationId, quotationVersionId, status: "approved" };
 }
-export async function rejectQuotationApproval(client, context, quotationId) {
+export async function rejectQuotationApproval(client, context, quotationId, note = null) {
+  const reason = text(note, 2000);
   const quote = await lockQuotation(client, context, quotationId);
   if (quote.lifecycle_status === "pending_approval") {
     await client.query(
       `UPDATE tenant.sales_quotations SET lifecycle_status='draft',approval_status='rejected',updated_by=$1,updated_at=now() WHERE organization_id=$2 AND id=$3`,
       [context.userId, context.organizationId, quotationId],
     );
+    await closeApprovalRequest(client, context, "sales_quotation", quotationId, "rejected", reason);
     await event(
       client,
       context,
@@ -1233,6 +1351,7 @@ export async function rejectQuotationApproval(client, context, quotationId) {
       "quotation.approval_rejected",
       "pending_approval",
       "draft",
+      { reason },
     );
   }
 }
@@ -1242,13 +1361,17 @@ export async function sendQuotation(client, context, id, expiresInDays = 30) {
   const quote = await lockQuotation(client, context, id);
   if (quote.lifecycle_status !== "approved")
     throw new SalesError(409, "Only approved quotations can be sent.");
+  const validUntil = quote.valid_until ? new Date(quote.valid_until).toISOString().slice(0, 10) : null;
+  if (validUntil && validUntil < new Date().toISOString().slice(0, 10))
+    throw new SalesError(409, "This quotation's validity has passed. Revise it with a new valid-until date before sending.", "SALES_QUOTATION_EXPIRED");
   await revokeQuoteLinks(client, context, id);
   const token = randomBytes(32).toString("base64url"),
     tokenHash = sha256(token);
-  const expiresAt = new Date(
-    Date.now() +
-      Math.max(1, Math.min(90, Number(expiresInDays || 30))) * 86400000,
-  );
+  // F038: the customer's link ends with the offer (end of the valid-until day),
+  // never outliving or cutting short the quoted validity.
+  const expiresAt = validUntil
+    ? new Date(`${validUntil}T23:59:59.999Z`)
+    : new Date(Date.now() + Math.max(1, Math.min(90, Number(expiresInDays || 30))) * 86400000);
   await client.query(
     `INSERT INTO tenant.sales_quote_share_links (organization_id,quotation_id,quotation_version_id,token_hash,expires_at,created_by) VALUES ($1,$2,$3,$4,$5,$6)`,
     [
@@ -1421,13 +1544,14 @@ export async function scanExpiredQuotations(client, context) {
   requirePermission(context, "sales.settings.manage");
   const result = await client.query(
     `UPDATE tenant.sales_quotations
-        SET lifecycle_status='expired',updated_at=now()
+        SET lifecycle_status='expired',acceptance_status=CASE WHEN acceptance_status='pending' THEN 'expired' ELSE acceptance_status END,updated_at=now()
       WHERE organization_id=$1 AND lifecycle_status IN ('approved','sent','viewed')
         AND valid_until < current_date
       RETURNING id,current_version_id`,
     [context.organizationId],
   );
   for (const row of result.rows) {
+    await revokeQuoteLinks(client, context, row.id);
     await event(
       client,
       { ...context, userId: null },
@@ -1775,21 +1899,39 @@ export async function submitSalesOrder(client, context, id, assignedTo = null) {
     throw new SalesError(409, "Only draft orders can be submitted.");
   const version = (
     await client.query(
-      `SELECT grand_total FROM tenant.sales_order_versions WHERE organization_id=$1 AND id=$2`,
+      `SELECT version.grand_total,version.subtotal,version.discount_total,version.margin_percent,
+              COALESCE(max(line.discount_percent),0) AS max_line_discount,COALESCE(sum(line.discount_amount),0) AS line_discount_total
+         FROM tenant.sales_order_versions version
+         LEFT JOIN tenant.sales_order_lines line ON line.sales_order_version_id=version.id
+        WHERE version.organization_id=$1 AND version.id=$2
+        GROUP BY version.id`,
       [context.organizationId, order.current_version_id],
     )
   ).rows[0];
   const settings =
     (
       await client.query(
-        `SELECT order_approval_amount FROM tenant.sales_settings WHERE organization_id=$1`,
+        `SELECT order_approval_amount,quotation_approval_discount,minimum_margin_percent FROM tenant.sales_settings WHERE organization_id=$1`,
         [context.organizationId],
       )
     ).rows[0] || {};
-  const approvalRequired =
-    decimal(settings.order_approval_amount || 0) > 0n &&
-    decimal(version.grand_total || 0) >=
-      decimal(settings.order_approval_amount || 0);
+  // F041: an order keyed directly (not from an approved quotation) faces the
+  // same discount and margin gates a quotation does, not just the amount gate.
+  const triggers = [];
+  if (decimal(settings.order_approval_amount || 0) > 0n && decimal(version.grand_total || 0) >= decimal(settings.order_approval_amount || 0))
+    triggers.push("amount");
+  if (!order.source_quotation_id) {
+    const subtotal = decimal(version.subtotal || 0);
+    const headerDiscountPercent = subtotal > 0n
+      ? mul(div(sub(decimal(version.discount_total || 0), decimal(version.line_discount_total || 0)), subtotal), 100)
+      : decimal(0);
+    const maximumDiscount = max(decimal(version.max_line_discount || 0), headerDiscountPercent);
+    if (settings.quotation_approval_discount != null && maximumDiscount > decimal(settings.quotation_approval_discount))
+      triggers.push("discount");
+    if (settings.minimum_margin_percent != null && decimal(settings.minimum_margin_percent) > 0n && decimal(version.margin_percent || 0) < decimal(settings.minimum_margin_percent))
+      triggers.push("margin");
+  }
+  const approvalRequired = triggers.length > 0;
   if (!approvalRequired) {
     await client.query(
       `UPDATE tenant.sales_orders
@@ -1814,6 +1956,7 @@ export async function submitSalesOrder(client, context, id, assignedTo = null) {
     };
   }
   const approvalId = cryptoRandomUuid();
+  const route = await resolveApprover(client, context, assignedTo);
   await client.query(
     `INSERT INTO public.approval_requests
       (id,organization_id,entity_type,entity_id,title,status,requested_by,assigned_to,command_key,command_payload)
@@ -1824,7 +1967,7 @@ export async function submitSalesOrder(client, context, id, assignedTo = null) {
       id,
       `Approve sales order ${order.sales_order_number}`,
       context.userId,
-      assignedTo || null,
+      route.assignee,
       JSON.stringify({ orderId: id, orderVersionId: order.current_version_id }),
     ],
   );
@@ -1842,11 +1985,12 @@ export async function submitSalesOrder(client, context, id, assignedTo = null) {
     "sales_order.submitted",
     "draft",
     "pending_approval",
-    { approvalId, versionId: order.current_version_id },
+    { approvalId, versionId: order.current_version_id, triggers, assignedTo: route.assignee, delegatedFrom: route.delegatedFrom },
   );
   return {
     approvalRequired: true,
     approvalId,
+    triggers,
     orderId: id,
     orderVersionId: order.current_version_id,
   };
@@ -1874,6 +2018,7 @@ export async function approveSalesOrder(
       WHERE organization_id=$2 AND id=$3 AND lifecycle_status='pending_approval' AND current_version_id=$4`,
     [context.userId, context.organizationId, orderId, orderVersionId],
   );
+  await closeApprovalRequest(client, context, "sales_order", orderId, "approved");
   await event(
     client,
     context,
@@ -1887,7 +2032,8 @@ export async function approveSalesOrder(
   return { orderId, orderVersionId, status: "approved" };
 }
 
-export async function rejectSalesOrderApproval(client, context, orderId) {
+export async function rejectSalesOrderApproval(client, context, orderId, note = null) {
+  const reason = text(note, 2000);
   const order = await lockOrder(client, context, orderId);
   if (order.lifecycle_status !== "pending_approval") return;
   await client.query(
@@ -1896,6 +2042,7 @@ export async function rejectSalesOrderApproval(client, context, orderId) {
       WHERE organization_id=$2 AND id=$3 AND lifecycle_status='pending_approval'`,
     [context.userId, context.organizationId, orderId],
   );
+  await closeApprovalRequest(client, context, "sales_order", orderId, "rejected", reason);
   await event(
     client,
     context,
@@ -1904,13 +2051,23 @@ export async function rejectSalesOrderApproval(client, context, orderId) {
     "sales_order.approval_rejected",
     "pending_approval",
     "draft",
-    { versionId: order.current_version_id },
+    { versionId: order.current_version_id, reason },
   );
 }
 
 export async function confirmSalesOrder(client, context, id, options = {}) {
   requirePermission(context, "sales.order.confirm");
   let order = await lockOrder(client, context, id);
+  // Confirming twice (double click, retried request) returns the first
+  // confirmation instead of failing — the commitment happens exactly once.
+  if (order.lifecycle_status === "confirmed" && order.confirmed_at)
+    return {
+      orderId: id,
+      status: "confirmed",
+      creditStatus: order.credit_status,
+      sourceOpportunityId: order.source_opportunity_id || null,
+      replayed: true,
+    };
   if (order.lifecycle_status === "draft") {
     const submission = await submitSalesOrder(
       client,
@@ -1934,6 +2091,21 @@ export async function confirmSalesOrder(client, context, id, options = {}) {
     );
   if (order.lifecycle_status !== "approved")
     throw new SalesError(409, "Only an approved order can be confirmed.");
+  // The customer may have been archived or blocked after the order was keyed.
+  const customer = (
+    await client.query(
+      `SELECT display_name,status,sales_block,sales_block_reason,credit_limit FROM tenant.business_parties WHERE organization_id=$1 AND id=$2`,
+      [context.organizationId, order.party_id],
+    )
+  ).rows[0];
+  if (!customer || customer.status !== "active")
+    throw new SalesError(409, "The customer is no longer active, so this order cannot be confirmed.", "SALES_CUSTOMER_INACTIVE");
+  if (customer.sales_block && customer.sales_block !== "none")
+    throw new SalesError(
+      409,
+      `${customer.display_name} is blocked for new orders: ${customer.sales_block_reason}`,
+      "SALES_CUSTOMER_BLOCKED",
+    );
   await client.query(`SELECT pg_advisory_xact_lock(hashtextextended($1, 0))`, [
     `sales-credit:${context.organizationId}:${order.party_id}`,
   ]);
@@ -2171,14 +2343,25 @@ async function buildHandoffPayload(
   quantityBasis = "ordered",
 ) {
   const detail = await getSalesOrder(client, context, order.id);
+  const openRequests = await client.query(
+    `SELECT line->>'salesOrderLineId' AS line_id, sum((line->>'remainingQuantity')::numeric) AS quantity
+       FROM ${kind === "invoice" ? "tenant.sales_invoice_requests" : "tenant.sales_fulfillment_requests"} request,
+            jsonb_array_elements(request.payload->'lines') line
+      WHERE request.organization_id=$1 AND request.sales_order_id=$2 AND request.status IN ('pending','processing')
+      GROUP BY 1`,
+    [context.organizationId, order.id],
+  );
+  const inOpenRequests = new Map(openRequests.rows.map((row) => [row.line_id, decimal(row.quantity || 0)]));
   const lines = detail.lines
     .map((line) => {
       const ordered = decimal(line.quantity),
         fulfilled = decimal(line.fulfilled_quantity || 0),
         invoiced = decimal(line.invoiced_quantity || 0),
-        cancelled = decimal(line.cancelled_quantity || 0);
-      const eligible = quantityBasis === "fulfilled" ? fulfilled : ordered;
-      const remaining = max(0, sub(sub(eligible, invoiced), cancelled));
+        cancelled = decimal(line.cancelled_quantity || 0),
+        requested = inOpenRequests.get(line.id) || decimal(0);
+      const remaining = quantityBasis === "fulfilled"
+        ? max(0, sub(sub(fulfilled, invoiced), requested))
+        : max(0, sub(sub(sub(ordered, invoiced), cancelled), requested));
       return {
         salesOrderLineId: line.id,
         itemId: line.item_id,
@@ -2189,7 +2372,7 @@ async function buildHandoffPayload(
         remainingQuantity: asDatabaseDecimal(
           kind === "invoice"
             ? remaining
-            : max(0, sub(sub(ordered, fulfilled), cancelled)),
+            : max(0, sub(sub(sub(ordered, fulfilled), cancelled), requested)),
         ),
         unitPrice: line.unit_price,
         taxAmount: line.tax_amount,
@@ -2435,7 +2618,7 @@ export async function getSalesOptions(
       [context.organizationId],
     ),
     client.query(
-      `SELECT id,company_id,code,party_type,display_name,legal_name,currency_code,credit_limit,payment_term_id FROM tenant.business_parties WHERE organization_id=$1 AND status='active' AND party_type IN ('customer','prospect','both')${companyClause()} ORDER BY display_name LIMIT 500`,
+      `SELECT id,company_id,code,party_type,display_name,legal_name,currency_code,credit_limit,payment_term_id,default_price_list_id,tax_treatment,default_shipping_method,default_delivery_terms,default_incoterm,sales_block,sales_block_reason FROM tenant.business_parties WHERE organization_id=$1 AND status='active' AND party_type IN ('customer','prospect','both')${companyClause()} ORDER BY display_name LIMIT 500`,
       [context.organizationId, ...companyParams],
     ),
     client.query(
@@ -2565,6 +2748,19 @@ export async function amendSalesOrder(client, context, id, input) {
       "An order with fulfilment, invoicing or return activity cannot be commercially amended. Use a controlled cancellation or downstream adjustment.",
     );
   }
+  const inFlight = (
+    await client.query(
+      `SELECT
+         (SELECT count(*) FROM tenant.stock_reservations WHERE organization_id=$1 AND reference_type='sales_order' AND reference_id=$2 AND status='active')::int AS reservations,
+         (SELECT count(*) FROM tenant.sales_fulfillment_requests WHERE organization_id=$1 AND sales_order_id=$2 AND status IN ('pending','processing'))::int AS fulfilment,
+         (SELECT count(*) FROM tenant.sales_invoice_requests WHERE organization_id=$1 AND sales_order_id=$2 AND status IN ('pending','processing'))::int AS invoicing`,
+      [context.organizationId, order.id],
+    )
+  ).rows[0];
+  if (inFlight.reservations)
+    throw new SalesError(409, "Release the stock reserved for this order before amending it; reserve again after the amendment is approved.", "SALES_AMENDMENT_RESERVED");
+  if (inFlight.fulfilment || inFlight.invoicing)
+    throw new SalesError(409, "A fulfilment or invoice request is still open for this order. Finish or cancel it before amending.", "SALES_AMENDMENT_DOWNSTREAM_OPEN");
   const preview = await previewSalesDocument(client, context, input, {
     order: true,
   });
@@ -3044,3 +3240,4 @@ export async function completeFulfillmentRequest(
 // nothing could ever populate it outside a raw SQL insert.
 export * from "./pass1-operations.js";
 export * from "./price-lists.js";
+export * from "./order-execution.js";
