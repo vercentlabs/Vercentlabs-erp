@@ -25,6 +25,8 @@ export type Account = {
   postalCode: string | null;
   countryCode: string | null;
   companyScopeName: string | null;
+  ownerUserId?: string | null;
+  ownerName?: string | null;
   relationships?: { contacts: number; opportunities: number };
   createdAt: string;
   updatedAt: string;
@@ -35,6 +37,7 @@ export type AccountListFilters = {
   status?: "active" | "inactive" | "all";
   industry?: string;
   country?: string;
+  ownerId?: string;
   limit?: number;
   offset?: number;
 };
@@ -44,7 +47,7 @@ export type AccountListResponse = {
   total: number;
   limit: number;
   offset: number;
-  filters: { industries: string[]; countries: string[] };
+  filters: { industries: string[]; countries: string[]; owners?: Array<{ id: string; name: string }> };
 };
 
 // account-intelligence.js (getAccountHierarchy/previewAccountMergeForCaller)
@@ -60,6 +63,7 @@ export type AccountHierarchyNode = {
   party_type: string;
   status: string;
   depth: number;
+  parent_restricted?: boolean;
 };
 
 export type AccountHierarchyEvent = {
@@ -73,7 +77,7 @@ export type AccountHierarchyEvent = {
 };
 
 export type AccountHierarchy = {
-  account: Record<string, unknown> & { id: string; display_name: string; parent_party_id: string | null };
+  account: Record<string, unknown> & { id: string; display_name: string; parent_party_id: string | null; parent_restricted?: boolean };
   ancestors: AccountHierarchyNode[];
   descendants: AccountHierarchyNode[];
   history: AccountHierarchyEvent[];

@@ -72,11 +72,16 @@ export function AccountHierarchyPanel({ accountId, canManage }: { accountId: str
           {error}
         </p>
       )}
-      {hierarchy.ancestors.length > 0 && (
+      {(hierarchy.ancestors.length > 0 || hierarchy.account.parent_restricted) && (
         <div className="flex flex-wrap items-center gap-1 text-sm text-text-secondary">
           {hierarchy.ancestors.map((node) => (
-            <span key={node.id}><Link className="text-brand hover:underline" href={`/crm/accounts/${node.id}`}>{node.display_name}</Link> /</span>
+            <span key={node.id}>
+              {node.parent_restricted && <span className="text-text-muted">Restricted account / </span>}
+              <Link className="text-brand hover:underline" href={`/crm/accounts/${node.id}`}>{node.display_name}</Link> /
+            </span>
           ))}
+          {/* The direct parent exists but is outside the caller's access: say so, without identity. */}
+          {hierarchy.account.parent_restricted && <span className="text-text-muted">Parent account restricted /</span>}
           <span className="font-medium text-text">{hierarchy.account.display_name}</span>
         </div>
       )}
@@ -87,12 +92,13 @@ export function AccountHierarchyPanel({ accountId, canManage }: { accountId: str
             {hierarchy.descendants.map((node) => (
               <li key={node.id} className="text-sm text-text" style={{ paddingLeft: `${(node.depth - 1) * 16}px` }}>
                 <Link className="text-brand hover:underline" href={`/crm/accounts/${node.id}`}>{node.display_name}</Link>
+                {node.parent_restricted && <span className="text-xs text-text-muted"> (under a restricted account)</span>}
               </li>
             ))}
           </ul>
         </div>
       )}
-      {hierarchy.ancestors.length === 0 && hierarchy.descendants.length === 0 && <p className="text-sm text-text-muted">No parent or child accounts.</p>}
+      {hierarchy.ancestors.length === 0 && hierarchy.descendants.length === 0 && !hierarchy.account.parent_restricted && <p className="text-sm text-text-muted">No parent or child accounts.</p>}
 
       {canManage &&
         (pickerOpen ? (

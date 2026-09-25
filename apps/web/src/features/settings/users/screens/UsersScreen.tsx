@@ -7,6 +7,7 @@ import { AlertDialog, Badge, Button, Checkbox, Dialog, EmptyState, ErrorState, P
 import { listCompanies } from "@/features/settings/companies/api/companies-api";
 import { listBranches } from "@/features/settings/branches/api/branches-api";
 import { listRoles, RolesApiError, setUserRoles } from "@/features/settings/roles/api/roles-api";
+import { CRM_RECORD_SCOPE_LABEL, summarizeEffectiveAccess } from "@/features/settings/roles/effective-access";
 import { listMembers, MemberRow, setMemberAccess, setMemberStatus, UsersApiError } from "../api/users-api";
 
 const QUERY_KEY = ["settings", "users"];
@@ -213,13 +214,33 @@ export function UsersScreen({ canManage, currentUserId }: { canManage: boolean; 
               ))}
           </div>
           {selectedRoleIds.length > 1 && (
-            <Select
-              label="Primary role"
-              options={selectedRoleIds.map((id) => ({ value: id, label: rolesQuery.data?.roles.find((r) => r.id === id)?.name ?? id }))}
-              selectedKey={primaryRoleId}
-              onSelectionChange={(key) => setPrimaryRoleId(String(key))}
-            />
+            <div className="flex flex-col gap-1">
+              <Select
+                label="Primary role"
+                options={selectedRoleIds.map((id) => ({ value: id, label: rolesQuery.data?.roles.find((r) => r.id === id)?.name ?? id }))}
+                selectedKey={primaryRoleId}
+                onSelectionChange={(key) => setPrimaryRoleId(String(key))}
+              />
+              <p className="text-xs text-text-muted">Primary role is the user&apos;s main organisational role. Access is combined from all assigned roles.</p>
+            </div>
           )}
+          {selectedRoleIds.length > 0 && (() => {
+            const selectedRoles = (rolesQuery.data?.roles ?? []).filter((role) => selectedRoleIds.includes(role.id));
+            const access = summarizeEffectiveAccess(selectedRoles);
+            return (
+              <section aria-label="Effective access" className="flex flex-col gap-2 rounded-[var(--radius-control)] border border-border bg-surface-muted p-3">
+                <span className="text-xs font-semibold tracking-wide text-text-muted uppercase">Effective access</span>
+                <p className="text-sm text-text">{`${selectedRoles.length} role${selectedRoles.length === 1 ? "" : "s"} · ${access.permissionCount} permission${access.permissionCount === 1 ? "" : "s"} combined`}</p>
+                <p className="text-sm text-text-secondary">{`CRM records: ${CRM_RECORD_SCOPE_LABEL[access.crmRecordScope]}`}</p>
+                {access.wideAccess.length > 0 && <p className="text-sm text-text-secondary">{`Also: ${access.wideAccess.join("; ")}`}</p>}
+                {access.highRisk.length > 0 && (
+                  <div className="flex flex-wrap gap-1.5" aria-label="High-risk access">
+                    {access.highRisk.map((label) => <Badge key={label} tone="warning">{label}</Badge>)}
+                  </div>
+                )}
+              </section>
+            );
+          })()}
           {rolesError ? (
             <p role="alert" className="text-sm text-danger">
               {rolesError}

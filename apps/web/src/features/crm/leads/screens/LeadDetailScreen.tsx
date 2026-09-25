@@ -337,7 +337,10 @@ export function LeadDetailScreen({ leadId }: { leadId: string }) {
   const ownerOptions: SelectOption[] = useMemo(() => {
     // "unassigned" is a real option (an empty key reads as "nothing chosen"),
     // and the current owner is always listed even if outside the eligible list.
-    const rows = optionsQuery.data?.options?.users ?? [];
+    // Only people the server will accept (assignableOwnerIds: null = anyone
+    // eligible; otherwise yourself and your managed sales team).
+    const assignable = optionsQuery.data?.options?.assignableLeadOwnerIds as string[] | null | undefined;
+    const rows = (optionsQuery.data?.options?.users ?? []).filter((row) => assignable === null || (assignable ?? []).includes(String(row.id)));
     const options = [
       { value: "unassigned", label: "Unassigned" },
       ...rows.map((row) => ({ value: String(row.id), label: String(row.fullName || row.name || row.email || row.id) })),

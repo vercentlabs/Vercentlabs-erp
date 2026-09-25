@@ -69,10 +69,11 @@ export function AccountCustomer360Panel({ accountId }: { accountId: string }) {
     <div className="flex flex-col gap-6">
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
         <MetricTile label="Opportunities" value={view.metrics.opportunities} />
-        <MetricTile label="Quotations" value={view.metrics.quotations} />
-        <MetricTile label="Orders" value={view.metrics.orders} />
-        <MetricTile label="Invoices" value={view.metrics.invoices} />
-        <MetricTile label="Outstanding" value={formatMoney(null, view.metrics.outstanding) || "0"} />
+        {/* Sales/Accounting figures come back only for callers with that module's view permission. */}
+        {view.sourceCoverage.quotations && <MetricTile label="Quotations" value={view.metrics.quotations} />}
+        {view.sourceCoverage.orders && <MetricTile label="Orders" value={view.metrics.orders} />}
+        {view.sourceCoverage.invoices && <MetricTile label="Invoices" value={view.metrics.invoices} />}
+        {view.sourceCoverage.invoices && <MetricTile label="Outstanding" value={formatMoney(null, view.metrics.outstanding) || "0"} />}
         <MetricTile label="Open service cases" value={view.metrics.open_service_cases} />
       </div>
 

@@ -55,10 +55,13 @@ function download(name: string, text: string) {
 export function CrmImportExportScreen() {
   const workspace = useWorkspaceContext();
   const queryClient = useQueryClient();
-  const canManage = workspace.permissions.includes(CRM_PERMISSIONS.leadsManage);
+  // Mirrors the routes: import needs crm.import + crm.leads.manage, export needs crm.export.
+  const canImport = workspace.permissions.includes(CRM_PERMISSIONS.import) && workspace.permissions.includes(CRM_PERMISSIONS.leadsManage);
+  const canExport = workspace.permissions.includes(CRM_PERMISSIONS.export);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const [tab, setTab] = useState<"import" | "export">("import");
+  const [chosenTab, setTab] = useState<"import" | "export">("import");
+  const tab = canImport && canExport ? chosenTab : canImport ? "import" : "export";
   const [step, setStep] = useState<Step>("upload");
   const [fileName, setFileName] = useState("");
   const [headers, setHeaders] = useState<string[]>([]);
@@ -160,11 +163,11 @@ export function CrmImportExportScreen() {
   const exportFailure = exportJob?.status === "dead" ? exportJob.lastError || "The export failed." : null;
   const exportRunning = Boolean(exportJobId) && !(exportJob && ["completed", "dead", "cancelled"].includes(exportJob.status));
 
-  if (!canManage) {
+  if (!canImport && !canExport) {
     return (
       <div className="flex flex-col gap-4">
         <PageHeader title="Import and export" description="Bring leads in from a CSV file, or export what you can see." />
-        <p className="text-sm text-text-muted">You need permission to manage leads to use this page. Ask an administrator to grant it.</p>
+        <p className="text-sm text-text-muted">You need permission to import or export CRM data to use this page. Ask an administrator to grant it.</p>
       </div>
     );
   }
@@ -176,7 +179,7 @@ export function CrmImportExportScreen() {
       <PageHeader
         title="Import and export"
         description="Bring leads in from a CSV file in a few checked steps, or export the leads you can see."
-        secondaryActions={<ViewToggle label="Mode" options={[{ id: "import", label: "Import" }, { id: "export", label: "Export" }]} value={tab} onChange={(id) => setTab(id as "import" | "export")} />}
+        secondaryActions={canImport && canExport ? <ViewToggle label="Mode" options={[{ id: "import", label: "Import" }, { id: "export", label: "Export" }]} value={tab} onChange={(id) => setTab(id as "import" | "export")} /> : undefined}
       />
 
       {error && <p role="alert" className="rounded-[var(--radius-control)] border border-danger-emphasis/30 bg-danger-soft px-3 py-2 text-sm text-danger">{error}</p>}

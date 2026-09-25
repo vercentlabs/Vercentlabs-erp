@@ -1,13 +1,15 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Button, ConflictBanner, ErrorState, PermissionState, RecordFormPage, TextField } from "@vercentlabs/design-system";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Button, ConflictBanner, ErrorState, PermissionState, RecordFormPage, Select, TextField } from "@vercentlabs/design-system";
+import type { SelectOption } from "@vercentlabs/design-system";
 
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import { FormSection } from "@/features/crm/shared/ui/FormSection";
+import { getCrmOptions } from "@/features/crm/shared/crm-options-api";
 import { CountrySelect } from "@/features/crm/shared/ui/CountrySelect";
 import { emailProblem, gstinPanMismatch, gstinProblem, panProblem } from "@/features/crm/shared/validators";
 import { AccountApiError, createAccount, updateAccount } from "../api/accounts-api";
@@ -27,9 +29,10 @@ type FormValues = {
   state: string;
   postalCode: string;
   countryCode: string;
+  ownerUserId: string;
 };
 
-const EMPTY: FormValues = { displayName: "", legalName: "", industry: "", website: "", phone: "", email: "", gstin: "", pan: "", addressLine1: "", city: "", state: "", postalCode: "", countryCode: "" };
+const EMPTY: FormValues = { displayName: "", legalName: "", industry: "", website: "", phone: "", email: "", gstin: "", pan: "", addressLine1: "", city: "", state: "", postalCode: "", countryCode: "", ownerUserId: "" };
 
 function accountToForm(account: Account): FormValues {
   return {
@@ -46,6 +49,7 @@ function accountToForm(account: Account): FormValues {
     state: account.state ?? "",
     postalCode: account.postalCode ?? "",
     countryCode: account.countryCode ?? "",
+    ownerUserId: account.ownerUserId ?? "",
   };
 }
 
@@ -68,6 +72,20 @@ export function AccountFormScreen({
   const [conflict, setConflict] = useState(false);
   const [serverError, setServerError] = useState<string | null>(null);
 
+  // Account owner (optional; empty = shared with everyone who can see the
+  // company's Accounts). Offers only people the server accepts
+  // (assignableOwnerIds: null = anyone eligible, else self + managed team).
+  const optionsQuery = useQuery({ queryKey: scopedQueryKey(workspace, "crm", "options"), queryFn: getCrmOptions });
+  const ownerOptions: SelectOption[] = useMemo(() => {
+    const assignable = optionsQuery.data?.options?.assignableOwnerIds as string[] | null | undefined;
+    const rows = ((optionsQuery.data?.options?.users ?? []) as Array<{ id: string; fullName?: string; name?: string }>)
+      .filter((row) => assignable === null || (assignable ?? []).includes(String(row.id)));
+    const options = [{ value: "", label: "Shared (no owner)" }, ...rows.map((row) => ({ value: String(row.id), label: String(row.fullName || row.name || row.id) }))];
+    if (account?.ownerUserId && !options.some((option) => option.value === account.ownerUserId))
+      options.push({ value: account.ownerUserId, label: account.ownerName ?? "Current owner" });
+    return options;
+  }, [optionsQuery.data, account]);
+
   function set<K extends keyof FormValues>(key: K, value: FormValues[K]) {
     setValues((current) => ({ ...current, [key]: value }));
   }
@@ -89,6 +107,7 @@ export function AccountFormScreen({
       setFieldErrors({});
       const input: Record<string, unknown> = {};
       for (const [key, value] of Object.entries(values)) input[key] = value === "" ? null : value;
+      if (mode === "edit" && values.ownerUserId === (account?.ownerUserId ?? "")) delete input.ownerUserId;
       if (mode === "create") return createAccount(input);
       return updateAccount(account!.id, input, account!.updatedAt);
     },
@@ -136,6 +155,14 @@ export function AccountFormScreen({
       </FormSection>
       <FormSection title="Business">
         <TextField label="Industry" value={values.industry} onChange={(v) => set("industry", v)} />
+        <Select
+          label="Owner"
+          description="Who looks after this account. Shared accounts are visible to everyone who works with this company's accounts."
+          options={ownerOptions}
+          selectedKey={values.ownerUserId}
+          onSelectionChange={(key) => set("ownerUserId", String(key ?? ""))}
+          errorMessage={fieldErrors.ownerUserId}
+        />
         <TextField label="Website" placeholder="www.company.com" value={values.website} onChange={(v) => set("website", v)} />
       </FormSection>
       <FormSection title="Contact details">

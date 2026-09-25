@@ -33,6 +33,9 @@ export function PipelineBoardScreen() {
   const queryClient = useQueryClient();
   const workspace = useWorkspaceContext();
   const canManage = workspace.permissions.includes(CRM_PERMISSIONS.opportunitiesManage);
+  // Pipeline history is company-wide stage totals, so the server only serves
+  // it to callers who can see every CRM record (pipeline-snapshots.js).
+  const canViewHistory = workspace.roleSlugs.includes("organization_owner") || workspace.permissions.includes(CRM_PERMISSIONS.recordsViewAll);
   const [pipelineId, setPipelineId] = useState<string>("");
   const [actionError, setActionError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -142,10 +145,12 @@ export function PipelineBoardScreen() {
         description={canManage ? "Open opportunities by stage. Drag a card to another stage, or use its menu to move it with the keyboard." : "Open opportunities by stage. Ask a manager to change a deal's stage."}
         secondaryActions={
           <>
-            <Button variant="secondary" onPress={() => setHistoryOpen(true)}>
-              <History className="size-4" aria-hidden="true" />
-              History
-            </Button>
+            {canViewHistory && (
+              <Button variant="secondary" onPress={() => setHistoryOpen(true)}>
+                <History className="size-4" aria-hidden="true" />
+                History
+              </Button>
+            )}
             <ViewToggle
               options={[{ id: "table", label: "Table", icon: <Table2 className="size-3.5" aria-hidden="true" /> }, { id: "board", label: "Board", icon: <Kanban className="size-3.5" aria-hidden="true" /> }]}
               value="board"
@@ -265,7 +270,7 @@ export function PipelineBoardScreen() {
         </Dialog>
       )}
 
-      {historyOpen && (
+      {historyOpen && canViewHistory && (
         <PipelineHistoryDialog
           pipelineId={activePipelineId}
           stages={stages}

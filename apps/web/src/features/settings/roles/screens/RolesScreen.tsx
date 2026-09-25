@@ -187,11 +187,14 @@ export function RolesScreen({ canManage, canEdit }: { canManage: boolean; canEdi
                 <span className="text-xs text-text-muted">
                   Module: {role.module_key} · {role.permission_keys.length} permission(s) · {role.assigned_user_count} user(s) assigned
                 </span>
+                {role.is_system && canEdit ? (
+                  <span className="text-xs text-text-muted">Built-in role: its permissions are maintained by the system and cannot be edited. To grant different access, create a custom role.</span>
+                ) : null}
               </div>
               {canEdit && (
                 <div className="flex flex-wrap gap-2 sm:shrink-0">
                   <Button variant="secondary" size="compact" onPress={() => openEdit(role)} isDisabled={role.is_system}>
-                    {role.is_system ? "Reserved" : "Edit"}
+                    {role.is_system ? "Built-in" : "Edit"}
                   </Button>
                   {!role.is_system && (
                     <Button variant="secondary" size="compact" onPress={() => setArchiveTarget(role)}>

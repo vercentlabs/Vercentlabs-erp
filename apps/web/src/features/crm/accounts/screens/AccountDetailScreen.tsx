@@ -143,6 +143,7 @@ export function AccountDetailScreen({ accountId }: { accountId: string }) {
                 <PropertyList title="Company" items={[
                   { label: "Legal name", value: account.legalName },
                   { label: "Industry", value: account.industry },
+                  { label: "Owner", value: account.ownerName ?? "Shared (no owner)" },
                   { label: "Website", value: account.website ? <a className="text-brand hover:underline" href={account.website.startsWith("http") ? account.website : `https://${account.website}`} target="_blank" rel="noreferrer">{account.website}</a> : null },
                   { label: "Currency", value: account.currencyCode ? `${currencyName(account.currencyCode)} (${account.currencyCode})` : null },
                 ]} />

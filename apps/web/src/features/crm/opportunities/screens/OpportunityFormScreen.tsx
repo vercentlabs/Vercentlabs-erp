@@ -4,7 +4,6 @@ import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button, ConflictBanner, ErrorState, MoneyField, PermissionState, RecordFormPage, Select, TextArea, TextField, type SelectOption } from "@vercentlabs/design-system";
-import { CRM_PERMISSIONS } from "@vercentlabs/permissions";
 
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
@@ -95,16 +94,18 @@ export function OpportunityFormScreen({
   // silently assigned the creator, forcing a two-step create-then-reassign
   // workflow. Defaults to "creator" (empty selection), matching the
   // backend's own default when ownerUserId is omitted. The backend
-  // (assertOwnerAssignmentAllowed) rejects assigning to anyone but oneself
-  // without crm.records.view_all, so the picker only offers real choices
-  // to callers who could actually use them — otherwise it stays a fixed,
-  // disabled "Me" rather than promising a reassignment that would 403.
-  const canAssignOthers = workspace.roleSlugs.includes("organization_owner") || workspace.permissions.includes(CRM_PERMISSIONS.recordsViewAll);
+  // (assertCrmOwnerAssignable) allows oneself, members of a sales team the
+  // caller manages, or anyone for crm.records.view_all holders — the
+  // options endpoint returns exactly that set (assignableOwnerIds, null =
+  // anyone), so the picker never offers a choice that would 403.
+  const assignableOwnerIds = optionsQuery.data?.options?.assignableOwnerIds as string[] | null | undefined;
   const ownerOptions: SelectOption[] = useMemo(() => {
-    if (!canAssignOthers) return [{ value: "", label: "Me" }];
     const rows = (optionsQuery.data?.options?.users ?? []) as Array<{ id: string; fullName?: string; name?: string }>;
-    return [{ value: "", label: "Me (default)" }, ...rows.map((row) => ({ value: String(row.id), label: String(row.fullName || row.name || row.id) }))];
-  }, [optionsQuery.data, canAssignOthers]);
+    const allowed = assignableOwnerIds === null ? rows : rows.filter((row) => (assignableOwnerIds ?? []).includes(String(row.id)) && String(row.id) !== workspace.userId);
+    if (!allowed.length) return [{ value: "", label: "Me" }];
+    return [{ value: "", label: "Me (default)" }, ...allowed.map((row) => ({ value: String(row.id), label: String(row.fullName || row.name || row.id) }))];
+  }, [optionsQuery.data, assignableOwnerIds, workspace.userId]);
+  const canAssignOthers = ownerOptions.length > 1;
 
   function set<K extends keyof FormValues>(key: K, value: FormValues[K]) {
     setValues((current) => ({ ...current, [key]: value }));

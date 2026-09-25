@@ -9,6 +9,7 @@ import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext"
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import { getCrmOptions } from "./crm-options-api";
 import { archiveNote, createNote, listNotes, listNoteVersions, NoteApiError, updateNote, type CrmNote } from "./notes-api";
+import { canWriteCrmRecordContent } from "./record-content-permissions";
 
 const dateTimeFormatter = new Intl.DateTimeFormat("en-IN", { dateStyle: "medium", timeStyle: "short" });
 
@@ -27,7 +28,9 @@ export function NotesPanel({ entityType, entityId }: { entityType: string; entit
   const [draftPrivate, setDraftPrivate] = useState(false);
   const [editing, setEditing] = useState<CrmNote | null>(null);
   const [historyFor, setHistoryFor] = useState<CrmNote | null>(null);
-  const canOverride = workspace.permissions.includes("crm.records.view_all");
+  // Mirrors canOverridePrivateCrmContent (crm-access-scope.js).
+  const canWrite = canWriteCrmRecordContent(workspace, entityType);
+  const canOverride = workspace.roleSlugs.includes("organization_owner") || (workspace.permissions.includes("crm.records.view_all") && workspace.permissions.includes("crm.settings.manage"));
   const notesKey = scopedQueryKey(workspace, "crm", "notes", entityType, entityId);
 
   const notesQuery = useQuery({ queryKey: notesKey, queryFn: () => listNotes(entityType, entityId) });
@@ -77,6 +80,7 @@ export function NotesPanel({ entityType, entityId }: { entityType: string; entit
         </p>
       )}
 
+      {canWrite && (
       <div className="flex flex-col gap-2 rounded-[var(--radius-card)] border border-border bg-surface p-3">
         <TextArea label="Add a note" value={draft} onChange={setDraft} placeholder="Write a note about this record…" />
         <div className="flex flex-wrap items-center justify-between gap-2">
@@ -86,6 +90,7 @@ export function NotesPanel({ entityType, entityId }: { entityType: string; entit
           </Button>
         </div>
       </div>
+      )}
 
       {notes.length === 0 ? (
         <p className="text-sm text-text-muted">No notes yet.</p>
@@ -93,7 +98,7 @@ export function NotesPanel({ entityType, entityId }: { entityType: string; entit
         <ul className="flex flex-col divide-y divide-border rounded-[var(--radius-card)] border border-border bg-surface">
           {notes.map((note) => {
             const mine = note.createdBy === workspace.userId;
-            const canEdit = mine || canOverride;
+            const canEdit = canWrite && (mine || canOverride);
             const author = mine ? "You" : note.createdByName || userNames.get(note.createdBy) || "Someone";
             return (
               <li key={note.id} className="flex flex-col gap-2 p-3">

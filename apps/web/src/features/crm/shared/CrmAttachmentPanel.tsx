@@ -8,6 +8,7 @@ import { Button, Dialog, IconButton, IconLinkButton, PermissionState } from "@ve
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import { getCrmOptions } from "./crm-options-api";
+import { canWriteCrmRecordContent } from "./record-content-permissions";
 import {
   attachmentDownloadHref,
   AttachmentApiError,
@@ -33,6 +34,7 @@ const dateFormatter = new Intl.DateTimeFormat("en-IN", { dateStyle: "medium", ti
 // surfaces as an error and nothing is persisted.
 export function CrmAttachmentPanel({ entityType, entityId }: { entityType: CrmAttachmentEntityType; entityId: string }) {
   const workspace = useWorkspaceContext();
+  const canWrite = canWriteCrmRecordContent(workspace, entityType);
   const queryClient = useQueryClient();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [replaceTarget, setReplaceTarget] = useState<string | null>(null);
@@ -121,7 +123,7 @@ export function CrmAttachmentPanel({ entityType, entityId }: { entityType: CrmAt
               <IconButton aria-label={`Version history for ${row.fileName}`} variant="ghost" size="compact" onPress={() => setVersionsFor(row)}>
                 <History className="size-4" aria-hidden="true" />
               </IconButton>
-              <IconButton
+              {canWrite && <IconButton
                 aria-label={`Upload a new version of ${row.fileName}`}
                 variant="ghost"
                 size="compact"
@@ -131,19 +133,21 @@ export function CrmAttachmentPanel({ entityType, entityId }: { entityType: CrmAt
                 }}
               >
                 <RefreshCw className="size-4" aria-hidden="true" />
-              </IconButton>
+              </IconButton>}
               <IconLinkButton aria-label={`Download ${row.fileName}`} size="compact" href={attachmentDownloadHref(entityType, entityId, row.id)}>
                 <Download className="size-4" aria-hidden="true" />
               </IconLinkButton>
-              <IconButton aria-label={`Delete ${row.fileName}`} variant="danger" size="compact" onPress={() => deleteMutation.mutate(row)} isDisabled={deleteMutation.isPending}>
-                <Archive className="size-4" aria-hidden="true" />
-              </IconButton>
+              {canWrite && (
+                <IconButton aria-label={`Delete ${row.fileName}`} variant="danger" size="compact" onPress={() => deleteMutation.mutate(row)} isDisabled={deleteMutation.isPending}>
+                  <Archive className="size-4" aria-hidden="true" />
+                </IconButton>
+              )}
             </li>
           ))}
         </ul>
       )}
 
-      <Button
+      {canWrite && <Button
         variant="secondary"
         size="compact"
         className="self-start"
@@ -155,7 +159,7 @@ export function CrmAttachmentPanel({ entityType, entityId }: { entityType: CrmAt
       >
         <Upload className="size-4" aria-hidden="true" />
         Upload file
-      </Button>
+      </Button>}
 
       <VersionHistoryDialog
         entityType={entityType}

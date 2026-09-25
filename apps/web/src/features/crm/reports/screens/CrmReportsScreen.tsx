@@ -62,6 +62,15 @@ const LIBRARY: Array<{ group: string; reports: Array<{ key: string; title: strin
   },
 ];
 const ALL = LIBRARY.flatMap((g) => g.reports);
+// Organisation-wide rollups and who the server serves them to
+// (analytics-service.js rollupAllowed, CRM_REPORT_SCOPE_FORBIDDEN).
+const ROLLUP_REPORT_PERMISSIONS: Record<string, string[]> = {
+  campaigns: ["crm.records.view_all", "crm.leads.view_all"],
+  attribution: ["crm.records.view_all", "crm.leads.view_all"],
+  "partner-pipeline": ["crm.records.view_all", "crm.partners.manage"],
+  "ai-governance": ["crm.records.view_all"],
+  privacy: ["crm.records.view_all"],
+};
 
 // Real numeric columns come back as strings (SQL numeric), so a strict pattern decides what is a number.
 const NUMERIC_STRING = /^-?\d+(\.\d+)?$/;
@@ -136,6 +145,9 @@ const PRESETS = [
 export function CrmReportsScreen() {
   const router = useRouter();
   const workspace = useWorkspaceContext();
+  const isOwner = workspace.roleSlugs.includes("organization_owner");
+  const canOpen = (key: string) => isOwner || !ROLLUP_REPORT_PERMISSIONS[key] || ROLLUP_REPORT_PERMISSIONS[key].some((permission) => workspace.permissions.includes(permission));
+  const library = LIBRARY.map((group) => ({ ...group, reports: group.reports.filter((r) => canOpen(r.key)) })).filter((group) => group.reports.length > 0);
   const [report, setReport] = useState<string>(ALL[0].key);
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
@@ -205,7 +217,7 @@ export function CrmReportsScreen() {
       <PageHeader title="Reports" description="Live figures for everything you can see. Choose a report, set the period, and drill into the numbers." />
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-[260px_1fr]">
         <nav aria-label="Report library" className="flex flex-col gap-4 rounded-[var(--radius-card)] border border-border bg-surface p-3">
-          {LIBRARY.map((group) => (
+          {library.map((group) => (
             <div key={group.group} className="flex flex-col gap-1">
               <p className="px-2 text-xs font-semibold uppercase tracking-wide text-text-muted">{group.group}</p>
               {group.reports.map((r) => (

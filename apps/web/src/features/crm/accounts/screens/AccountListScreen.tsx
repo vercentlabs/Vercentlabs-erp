@@ -57,14 +57,27 @@ export function AccountListScreen() {
     return [{ value: "", label: "Any country" }, ...countries.map((country) => ({ value: country, label: country }))];
   }, [query.data]);
 
+  // Owners come from the scoped list response, so the filter never names
+  // anyone whose Accounts the caller cannot see.
+  const ownerOptions: SelectOption[] = useMemo(() => {
+    const owners = query.data?.filters.owners ?? [];
+    return [
+      { value: "", label: "Any owner" },
+      { value: "me", label: "My accounts" },
+      { value: "none", label: "Shared (no owner)" },
+      ...owners.filter((owner) => owner.id !== workspace.userId).map((owner) => ({ value: owner.id, label: owner.name })),
+    ];
+  }, [query.data, workspace.userId]);
+
   const activeFilters: ActiveFilter[] = useMemo(() => {
     const active: ActiveFilter[] = [];
+    if (filters.ownerId) active.push({ id: "ownerId", label: `Owner: ${ownerOptions.find((option) => option.value === filters.ownerId)?.label ?? "Selected"}` });
     if (filters.industry) active.push({ id: "industry", label: `Industry: ${filters.industry}` });
     if (filters.country) active.push({ id: "country", label: `Country: ${filters.country}` });
     if (filters.status && filters.status !== "active") active.push({ id: "status", label: `Status: ${filters.status}` });
     if (filters.search) active.push({ id: "search", label: `Search: ${filters.search}` });
     return active;
-  }, [filters]);
+  }, [filters, ownerOptions]);
 
   function removeFilter(id: string) {
     if (id === "search") setSearchInput("");
@@ -75,7 +88,7 @@ export function AccountListScreen() {
   const total = query.data?.total ?? 0;
   const pageIndex = Math.floor((filters.offset ?? 0) / PAGE_SIZE);
   const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE));
-  const hasFilters = Boolean(filters.search || filters.industry || filters.country || (filters.status && filters.status !== "active"));
+  const hasFilters = Boolean(filters.search || filters.ownerId || filters.industry || filters.country || (filters.status && filters.status !== "active"));
 
   const columns: ColumnDef<Account, unknown>[] = useMemo(
     () => [
@@ -90,6 +103,7 @@ export function AccountListScreen() {
           </div>
         ),
       },
+      { id: "owner", header: "Owner", accessorFn: (row) => row.ownerName || "Shared" },
       { id: "industry", header: "Industry", accessorFn: (row) => row.industry || "Not set" },
       {
         id: "contact",
@@ -142,6 +156,7 @@ export function AccountListScreen() {
               onKeyDown={(event) => event.key === "Enter" && updateFilter("search", searchInput || undefined)}
               className="min-w-[240px]"
             />
+            <Select aria-label="Owner" size="compact" options={ownerOptions} selectedKey={filters.ownerId ?? ""} onSelectionChange={(key) => updateFilter("ownerId", key ? String(key) : undefined)} />
             <Select aria-label="Industry" size="compact" options={industryOptions} selectedKey={filters.industry ?? ""} onSelectionChange={(key) => updateFilter("industry", key ? String(key) : undefined)} />
             <Select aria-label="Country" size="compact" options={countryOptions} selectedKey={filters.country ?? ""} onSelectionChange={(key) => updateFilter("country", key ? String(key) : undefined)} />
             <Select
