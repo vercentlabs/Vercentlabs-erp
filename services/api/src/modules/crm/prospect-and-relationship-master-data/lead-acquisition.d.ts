@@ -41,6 +41,11 @@ export function rollbackLeadImport(
   context: CrmFoundationContext,
   batchId: string,
 ): Promise<Record<string, unknown>>;
+export function listCrmLeadImportBatches(
+  client: QueryClient,
+  context: CrmFoundationContext,
+  options?: { limit?: number },
+): Promise<Array<Record<string, unknown>>>;
 export function saveLeadForm(
   client: QueryClient,
   context: CrmFoundationContext,

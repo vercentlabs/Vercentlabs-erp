@@ -86,7 +86,7 @@ export function SuspectedDuplicates({ type, onReview }: { type: EntityType; onRe
             <li key={s.key} className="flex flex-wrap items-center justify-between gap-3 rounded-[var(--radius-control)] border border-border px-3 py-2">
               <div className="flex min-w-0 flex-col">
                 <span className="text-sm font-medium text-text">{s.aName} <span className="text-text-muted">and</span> {s.bName}</span>
-                <span className="text-xs text-text-muted">{s.why.length ? `Matched on ${s.why.join(", ")}` : "Similar details"}</span>
+                <span className="text-xs text-text-muted">{s.why.length ? `Matched on ${s.why.filter((reason) => reason !== "exact").map((reason) => humanize(reason).toLowerCase()).join(", ")}` : "Similar details"}</span>
               </div>
               <div className="flex items-center gap-2">
                 <span className={`rounded-full border px-2 py-0.5 text-xs font-medium ${s.strength === "Very likely" ? "border-danger-emphasis/30 bg-danger-soft text-danger" : "border-warning-emphasis/30 bg-warning-soft text-warning"}`}>{s.strength}</span>

@@ -288,6 +288,44 @@ test("F009: repeated archive is idempotent and emits no second event", async () 
   assert.equal(mutatingCalls, 0, "idempotent archive must not issue an UPDATE/outbox on replay");
 });
 
+test("F009: archiving an open Opportunity wraps the UPDATE with the governed lifecycle session flag", async () => {
+  // Discovered live: tenant.crm_opportunity_lifecycle_write_guard (migration
+  // 098) blocks any UPDATE touching status unless
+  // app.crm_opportunity_lifecycle_transition='allowed' for that transaction,
+  // and node-postgres never resets custom GUCs on client.release() — so a
+  // pooled connection that had previously run a real stage/probability
+  // transition (which always resets the flag to '' when done) would then
+  // fail a plain archive with "Use the governed Opportunity stage/
+  // probability service". archiveCrmRecord must set the flag to 'allowed'
+  // immediately before its UPDATE and reset it to '' immediately after,
+  // exactly like moveOpportunityStage/updateOpportunityProbability/
+  // restoreOpportunity already do.
+  const queries = [];
+  const client = {
+    async query(sql, values = []) {
+      queries.push({ sql, values });
+      if (sql.startsWith("SELECT set_config('app.crm_opportunity_lifecycle_transition'")) return { rows: [] };
+      if (sql.includes("FROM tenant.crm_opportunities record WHERE")) return { rows: [currentOpportunity({ status: "open" })] };
+      const related = opportunityRelationMockResponse(sql);
+      if (related) return related;
+      if (sql.startsWith("UPDATE tenant.crm_opportunities")) return { rows: [currentOpportunity({ status: "archived" })] };
+      if (sql.startsWith("INSERT INTO tenant.crm_outbox_events")) return { rows: [] };
+      throw new Error(`Unexpected query: ${sql}`);
+    },
+  };
+  const result = await archiveCrmRecord(client, manager, "opportunities", opportunity);
+  assert.equal(result.status, "archived");
+
+  const allowIndex = queries.findIndex((q) => q.sql.startsWith("SELECT set_config('app.crm_opportunity_lifecycle_transition'") && q.sql.includes("'allowed'"));
+  const updateIndex = queries.findIndex((q) => q.sql.startsWith("UPDATE tenant.crm_opportunities"));
+  const resetIndex = queries.findIndex((q) => q.sql.startsWith("SELECT set_config('app.crm_opportunity_lifecycle_transition'") && q.sql.includes("','',true"));
+  assert.ok(allowIndex >= 0, "expected the flag to be set to 'allowed' before archiving");
+  assert.ok(updateIndex >= 0, "expected the archive UPDATE");
+  assert.ok(resetIndex >= 0, "expected the flag to be reset afterward");
+  assert.ok(allowIndex < updateIndex, "the flag must be set before the UPDATE runs");
+  assert.ok(updateIndex < resetIndex, "the flag must be reset only after the UPDATE runs");
+});
+
 test("F009: changing scope revalidates existing Account relationships", async () => {
   const otherCompany = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
   const client = {
@@ -346,6 +384,35 @@ test("F009: ordinary descriptive edits do not revalidate unchanged relationships
   const updated = await updateCrmRecord(client, manager, "opportunities", opportunity, { description: "Updated" });
   assert.equal(updated.description, "Updated");
   assert.equal(relationshipQueries, 0);
+});
+
+// F010 gap-closure fallout — found live via scripts/qa/seed-vercentlabs-
+// pipeline-f010-data.mjs reassigning a demo Opportunity's owner: getCrmRecord
+// never stringifies DATE columns (node-postgres returns them as real Date
+// instances), and this update path merges before+prepared into one
+// candidate for revalidation on EVERY update, even one that never touches
+// expectedCloseDate. That merge previously handed validateOpportunityRecord
+// a raw Date instance for a field it strictly regex-checks as YYYY-MM-DD,
+// so ANY update to ANY Opportunity that already had a close date set — the
+// overwhelming majority of real ones — failed with CRM_OPPORTUNITY_CLOSE_
+// DATE_INVALID, regardless of which field the caller actually changed. This
+// mirrors the identical class of bug already fixed client-side for
+// DateInput (DateTimeInput.tsx) — same root cause, different boundary.
+test("F010 fallout: updating an unrelated field on an Opportunity whose expectedCloseDate came back as a real Date instance (not a string) does not fail close-date validation", async () => {
+  const client = {
+    async query(sql) {
+      if (sql.includes("FROM tenant.crm_opportunities record WHERE"))
+        return { rows: [currentOpportunity({ expected_close_date: new Date("2026-11-23T00:00:00.000Z") })] };
+      const related = opportunityRelationMockResponse(sql);
+      if (related) return related;
+      if (sql.startsWith("UPDATE tenant.crm_opportunities record SET"))
+        return { rows: [currentOpportunity({ expected_close_date: new Date("2026-11-23T00:00:00.000Z"), next_step: "Call CFO" })] };
+      if (sql.includes("INSERT INTO tenant.crm_outbox_events")) return { rows: [] };
+      throw new Error(`Unexpected query: ${sql}`);
+    },
+  };
+  const updated = await updateCrmRecord(client, manager, "opportunities", opportunity, { nextStep: "Call CFO" });
+  assert.equal(updated.nextStep, "Call CFO");
 });
 
 test("Stage A2 Prompt 3: getCrmRecord/listCrmRecords resolve stageName/partyName/contactName/ownerName for opportunities, not just the raw *Id columns", async () => {

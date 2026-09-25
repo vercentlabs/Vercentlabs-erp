@@ -7,7 +7,7 @@ export { assignLeadOwner } from "./lead-lifecycle-qualification-and-prioritizati
 export { captureCrmLead } from "./prospect-and-relationship-master-data/lead-capture.js";
 export { convertCrmLead, mergeCrmLead } from "./crm-conversion-and-sales-handoff/lead-conversion.js";
 export { archiveCrmRecord, createCrmRecord, runCrmAutomation, updateCrmRecord } from "./crm-data-operations-and-customization/resource-mutation-service.js";
-export { moveOpportunityStage, updateOpportunityProbability } from "./opportunity-and-pipeline-governance/opportunity-transitions.js";
+export { moveOpportunityStage, updateOpportunityProbability, restoreOpportunity, listOpportunityProbabilityHistory, getOpportunityPredictiveProbability } from "./opportunity-and-pipeline-governance/opportunity-transitions.js";
 export { getCrmOptions } from "./crm-data-operations-and-customization/resource-options.js";
 export { leadOutboxChangedFields, queueOutboxEvent } from "./crm-data-operations-and-customization/outbox.js";
 export { canViewAllCrmRecords, recordScope } from "./crm-data-operations-and-customization/record-policy.js";
@@ -109,6 +109,7 @@ export {
 // turned out to already be reachable via this same file.
 export {
   createCustomFieldDefinition,
+  getCustomFieldValueHistory,
   getCustomFieldValues,
   listCustomFieldDefinitions,
   setCustomFieldDefinitionActive,

@@ -115,6 +115,11 @@ function filtersFromSearchParams(params: URLSearchParams): LeadListFilters {
   if (qualification) filters.qualification = qualification as LeadListFilters["qualification"];
   if (dwellBreached === "true") filters.dwellBreached = "true";
   if (highPriority === "true") filters.highPriority = "true";
+  for (const key of ["createdFrom", "createdTo", "convertedFrom", "convertedTo"] as const) {
+    const value = params.get(key);
+    if (value && /^\d{4}-\d{2}-\d{2}$/.test(value)) filters[key] = value;
+  }
+  if (params.get("includeConverted") === "true") filters.includeConverted = "true";
   if (offset) filters.offset = Number(offset) || 0;
   return filters;
 }
@@ -189,19 +194,24 @@ export function LeadListScreen() {
   const activeFilters: ActiveFilter[] = useMemo(() => {
     const active: ActiveFilter[] = [];
     if (filters.status) active.push({ id: "status", label: `Stage: ${stageNameByCode[filters.status] ?? filters.status}` });
-    if (filters.ownerId) active.push({ id: "ownerId", label: "Owner filter" });
+    if (filters.ownerId) active.push({ id: "ownerId", label: filters.ownerId === "me" ? "Owner: me" : filters.ownerId === "team" ? "Owner: my team" : filters.ownerId === "unassigned" ? "Owner: unassigned" : "Owner filter" });
     if (filters.priority) active.push({ id: "priority", label: `Priority: ${filters.priority}` });
     if (filters.rating) active.push({ id: "rating", label: `Rating: ${filters.rating}` });
     if (filters.followup) active.push({ id: "followup", label: `Follow-up: ${filters.followup}` });
     if (filters.qualification) active.push({ id: "qualification", label: `Qualification: ${filters.qualification}` });
     if (filters.dwellBreached) active.push({ id: "dwellBreached", label: "Dwell-breached" });
-    if (filters.highPriority) active.push({ id: "highPriority", label: "High priority" });
+    if (filters.highPriority) active.push({ id: "highPriority", label: "Hot or qualified grade" });
+    if (filters.createdFrom || filters.createdTo) active.push({ id: "created", label: `Created ${filters.createdFrom ?? "…"} – ${filters.createdTo ?? "…"}` });
+    if (filters.convertedFrom || filters.convertedTo) active.push({ id: "converted", label: `Converted ${filters.convertedFrom ?? "…"} – ${filters.convertedTo ?? "…"}` });
+    if (filters.includeConverted) active.push({ id: "includeConverted", label: "Including converted" });
     if (filters.search) active.push({ id: "search", label: `Search: ${filters.search}` });
     return active;
   }, [filters, stageNameByCode]);
 
   function removeFilter(id: string) {
     if (id === "search") setSearchInput("");
+    if (id === "created") return setFilters((current) => ({ ...current, createdFrom: undefined, createdTo: undefined, offset: 0 }));
+    if (id === "converted") return setFilters((current) => ({ ...current, convertedFrom: undefined, convertedTo: undefined, offset: 0 }));
     setFilters((current) => ({ ...current, [id]: undefined, offset: 0 }));
   }
 
@@ -222,7 +232,7 @@ export function LeadListScreen() {
   const secondaryFilterCount = [filters.qualification, filters.priority, filters.rating, filters.followup].filter(Boolean).length;
 
   const selectedIds = Object.keys(selection).filter((id) => selection[id]);
-  const hasFilters = Boolean(filters.search || filters.status || filters.ownerId || filters.priority || filters.rating || filters.followup || filters.qualification || filters.dwellBreached || filters.highPriority);
+  const hasFilters = Boolean(filters.search || filters.status || filters.ownerId || filters.priority || filters.rating || filters.followup || filters.qualification || filters.dwellBreached || filters.highPriority || filters.createdFrom || filters.createdTo || filters.convertedFrom || filters.convertedTo);
   const hasExplicitFilters = searchParams.toString().length > 0;
   const filtersWithoutPaging: LeadListFilters = useMemo(() => {
     const rest = { ...filters };
@@ -236,7 +246,8 @@ export function LeadListScreen() {
     return stageRows.filter((row) => row.status === "active").map((row) => ({ id: row.id, code: row.code, name: row.name }));
   }, [optionsQuery.data]);
 
-  async function runBulkUpdate() {
+  // F029 — Preview runs every row through the real rules and writes nothing.
+  async function runBulkUpdate(preview = false) {
     if (!bulkValue && bulkField !== "nextFollowUpAt") return;
     setBulkBusy(true);
     setBulkResult(null);
@@ -248,13 +259,14 @@ export function LeadListScreen() {
         { [bulkField]: bulkField === "nextFollowUpAt" ? bulkValue || null : bulkValue },
         expectedVersions,
         `web-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+        preview,
       );
       if (result.mode === "synchronous") {
-        const failures = result.items.filter((item) => item.status !== "applied");
-        setBulkResult({
-          summary: `${result.applied} of ${result.requested} leads updated. ${result.conflict} changed since selection, ${result.skipped} out of scope, ${result.failed} failed.`,
-          failures,
-        });
+        const failures = result.items.filter((item) => item.status !== "applied" && item.status !== "would_apply");
+        const done = result.preview ? `Preview: ${result.would_apply ?? 0} of ${result.requested} leads would be updated` : `${result.applied} of ${result.requested} leads updated`;
+        const parts = [result.conflict ? `${result.conflict} changed since you selected them` : "", result.skipped ? `${result.skipped} not available to you` : "", result.failed ? `${result.failed} refused` : ""].filter(Boolean);
+        setBulkResult({ summary: `${done}${parts.length ? `; ${parts.join(", ")}` : ""}.`, failures });
+        if (result.preview) return;
       } else {
         setBulkResult({ summary: `Large selection queued as background job ${result.job.id} (status: ${result.job.status}).`, failures: [] });
       }
@@ -262,9 +274,9 @@ export function LeadListScreen() {
       setBulkResult({ summary: error instanceof LeadApiError ? error.message : "The bulk update could not be completed.", failures: [] });
     } finally {
       setBulkBusy(false);
-      setSelection({});
-      queryClient.invalidateQueries({ queryKey: scopedQueryKey(workspace, "crm", "leads") });
     }
+    setSelection({});
+    queryClient.invalidateQueries({ queryKey: scopedQueryKey(workspace, "crm", "leads") });
   }
 
   async function archiveRow(lead: Lead) {
@@ -319,7 +331,7 @@ export function LeadListScreen() {
         id: "score",
         header: "Score",
         accessorKey: "score",
-        cell: ({ row }) => <span className="tabular-nums">{row.original.score === null || row.original.score === undefined ? "Not scored" : scoreLabel(row.original.score, 100, row.original.rating ? humanize(row.original.rating) : null)}</span>,
+        cell: ({ row }) => <span className="tabular-nums">{row.original.score === null || row.original.score === undefined ? "Not scored" : scoreLabel(row.original.score, 100, humanize(row.original.leadGrade ?? row.original.grade) || null)}</span>,
       },
       {
         id: "nextFollowUpAt",
@@ -443,7 +455,10 @@ export function LeadListScreen() {
             ) : (
               <TextField aria-label="New value" size="compact" placeholder={bulkField === "nextFollowUpAt" ? "YYYY-MM-DD" : "Source id"} value={bulkValue} onChange={setBulkValue} className="w-40" />
             )}
-            <Button variant="secondary" size="compact" onPress={runBulkUpdate} isLoading={bulkBusy} isDisabled={!canManageLeads}>
+            <Button variant="ghost" size="compact" onPress={() => runBulkUpdate(true)} isLoading={bulkBusy} isDisabled={!canManageLeads}>
+              Preview
+            </Button>
+            <Button variant="secondary" size="compact" onPress={() => runBulkUpdate(false)} isLoading={bulkBusy} isDisabled={!canManageLeads}>
               Apply to selected
             </Button>
           </>

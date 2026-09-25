@@ -12,6 +12,7 @@ import {
   resolveCallerParticipantCommunicationIds,
   resolveCommunicationParticipants,
 } from "./communications/communication-projection.js";
+import { resolveCrmEntityAccess } from "./timeline/timeline.js";
 import { createRemindersForActivity, cancelPendingRemindersForActivity } from "./follow-ups/follow-up-operations.js";
 
 // Same one-line check every other CRM domain module in this codebase
@@ -827,7 +828,7 @@ export async function ingestMailboxDelta(
     const thread = await client.query(
       `INSERT INTO tenant.crm_email_threads(organization_id,company_id,inbox_id,sync_account_id,provider,external_thread_id,subject,preview,participant_addresses,lead_id,opportunity_id,party_id,contact_id,first_response_due_at,last_message_at,unread_count,status,metadata,created_by,updated_by)
        VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,CASE WHEN $14='inbound' THEN now()+COALESCE((SELECT sla_minutes FROM tenant.crm_shared_inboxes WHERE organization_id=$1 AND id=$3),240)*interval '1 minute' END,$15,CASE WHEN $16 THEN 1 ELSE 0 END,'open',$17,$18,$18)
-       ON CONFLICT (organization_id,provider,external_thread_id) DO UPDATE SET subject=COALESCE(EXCLUDED.subject,tenant.crm_email_threads.subject),preview=EXCLUDED.preview,participant_addresses=EXCLUDED.participant_addresses,last_message_at=GREATEST(tenant.crm_email_threads.last_message_at,EXCLUDED.last_message_at),unread_count=tenant.crm_email_threads.unread_count+EXCLUDED.unread_count,updated_at=now()
+       ON CONFLICT (organization_id,provider,external_thread_id) DO UPDATE SET subject=COALESCE(EXCLUDED.subject,tenant.crm_email_threads.subject),preview=EXCLUDED.preview,participant_addresses=EXCLUDED.participant_addresses,last_message_at=GREATEST(tenant.crm_email_threads.last_message_at,EXCLUDED.last_message_at),first_responded_at=CASE WHEN $14='outbound' AND tenant.crm_email_threads.first_response_due_at IS NOT NULL THEN COALESCE(tenant.crm_email_threads.first_responded_at,EXCLUDED.last_message_at) ELSE tenant.crm_email_threads.first_responded_at END,unread_count=tenant.crm_email_threads.unread_count+EXCLUDED.unread_count,updated_at=now()
        RETURNING *`,
       [
         context.organizationId,
@@ -1087,7 +1088,7 @@ export async function listThreadMessages(client, context, threadId) {
        LEFT JOIN tenant.crm_communications communication ON communication.organization_id=message.organization_id AND communication.id=message.communication_id
       WHERE message.organization_id=$1 AND message.thread_id=$2
         AND (communication.id IS NULL OR ${audienceSql})
-      ORDER BY message.sent_at ASC NULLS LAST, message.received_at ASC NULLS LAST, message.created_at ASC`,
+      ORDER BY COALESCE(message.sent_at, message.received_at, message.created_at) ASC, message.created_at ASC`,
     parameters,
   );
   const communicationIds = messages.rows.map((row) => row.communication_id_resolved).filter(Boolean);
@@ -1319,7 +1320,7 @@ export async function queueOutboundEmail(client, context, input = {}) {
   const thread = await client.query(
     `INSERT INTO tenant.crm_email_threads(organization_id,company_id,inbox_id,sync_account_id,provider,external_thread_id,subject,participant_addresses,lead_id,opportunity_id,party_id,contact_id,last_message_at,status,created_by,updated_by)
      VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,now(),'open',$13,$13)
-     ON CONFLICT (organization_id,provider,external_thread_id) DO UPDATE SET last_message_at=now(),updated_at=now() RETURNING *`,
+     ON CONFLICT (organization_id,provider,external_thread_id) DO UPDATE SET last_message_at=now(),first_responded_at=CASE WHEN tenant.crm_email_threads.first_response_due_at IS NOT NULL THEN COALESCE(tenant.crm_email_threads.first_responded_at,now()) ELSE tenant.crm_email_threads.first_responded_at END,updated_at=now() RETURNING *`,
     [
       context.organizationId,
       input.companyId || context.activeCompanyId || null,
@@ -2368,7 +2369,7 @@ export async function getCommunicationTimeline(client, context, input = {}) {
   }
   clauses.push(communicationVisibilitySql(context, parameters, "communication"));
   const result = await client.query(
-    `SELECT communication.*,message.id AS email_message_id,message.status AS email_status,thread.id AS thread_id,thread.assigned_user_id,thread.first_response_due_at,
+    `SELECT communication.*,message.id AS email_message_id,message.status AS email_status,thread.id AS thread_id,thread.assigned_user_id,thread.first_response_due_at,thread.first_responded_at,
        COALESCE((SELECT jsonb_agg(jsonb_build_object('type',event.event_type,'occurredAt',event.occurred_at,'url',event.url) ORDER BY event.occurred_at) FROM tenant.crm_email_events event WHERE event.organization_id=communication.organization_id AND event.message_id=message.id),'[]'::jsonb) AS engagement_events
      FROM tenant.crm_communications communication
      LEFT JOIN tenant.crm_email_messages message ON message.organization_id=communication.organization_id AND message.communication_id=communication.id
@@ -2377,6 +2378,34 @@ export async function getCommunicationTimeline(client, context, input = {}) {
     parameters,
   );
   return projectCrmCommunications(client, context, result.rows);
+}
+
+function historyDto(row) {
+  return Object.fromEntries(Object.entries(row || {}).map(([key, value]) => [key.replace(/_([a-z])/g, (_m, ch) => ch.toUpperCase()), value]));
+}
+
+// F018 record-level Email History: the per-record reader the Lead/
+// Opportunity/Account/Contact 360s call. getCommunicationTimeline only
+// scope-checks Leads, so the other parents are gated here through the same
+// resolveCrmEntityAccess Timeline/Notes/Attachments use (no access = empty
+// history, indistinguishable from "no email", never a partial leak).
+const HISTORY_FIELD = { lead: "leadId", opportunity: "opportunityId", party: "partyId", contact: "contactId" };
+export async function getCrmEmailHistory(client, context, entityType, entityId) {
+  const field = HISTORY_FIELD[entityType];
+  if (!field) throw new CrmCommunicationsError(400, "Unsupported record type for email history.", "CRM_EMAIL_HISTORY_ENTITY_INVALID");
+  if (entityType !== "lead") {
+    const allowed = await resolveCrmEntityAccess(client, context, entityType, entityId);
+    if (!allowed) return [];
+  }
+  const rows = await getCommunicationTimeline(client, context, { [field]: entityId });
+  return rows.map(historyDto);
+}
+
+// F018 conversation view of one email thread (shared-inbox membership and
+// per-message content projection are listThreadMessages' own authority).
+export async function getCrmEmailThread(client, context, threadId) {
+  const { thread, messages } = await listThreadMessages(client, context, threadId);
+  return { thread: historyDto(thread), messages: messages.map(historyDto) };
 }
 
 export async function getCommunicationsDashboard(client, context) {

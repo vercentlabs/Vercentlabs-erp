@@ -9,6 +9,9 @@ export type CrmReportResult = {
   report: string;
   rows: CrmReportRow[];
   filters: { from: string | null; to: string | null };
+  // F030 — when it ran, and a fingerprint of report + filters + rows (same data, same fingerprint).
+  generatedAt?: string;
+  fingerprint?: string;
 };
 
 export type CrmReportFilters = { from?: string; to?: string };
@@ -21,7 +24,9 @@ export const CRM_REPORT_OPTIONS = [
   { value: "sources", label: "Lead sources" },
   { value: "activities", label: "Activity throughput" },
   { value: "forecast", label: "Forecast, by owner" },
+  { value: "win-loss", label: "Won and lost reasons" },
   { value: "campaigns", label: "Campaign performance" },
+  { value: "attribution", label: "Multi-touch attribution" },
   { value: "revenue-operations", label: "Revenue operations" },
   { value: "account-health", label: "Account health" },
   { value: "privacy", label: "Privacy requests" },

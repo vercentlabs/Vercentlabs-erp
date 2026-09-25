@@ -113,3 +113,38 @@ test("F016 worker: overdue-Follow-up escalation runs every tick and is reported 
   const result = await dispatchFollowUpRemindersHandler(null, null, {}, runtime);
   assert.equal(result.escalated, 2);
 });
+
+// F016 gap-closure — two defects found by reading the worker against the
+// feature's promise ("a useful link"; "retrying a failed delivery does not
+// create duplicate alerts"):
+//  1. the in-app reminder linked to /crm/activities, a page that does not exist;
+//  2. the notification INSERT and the "sent" mark were separate transactions,
+//     so a crash between them left a delivered alert behind a reminder that
+//     recovery would then deliver a second time.
+test("F016 worker: an in-app reminder links to the real Follow-up page and delivers + marks sent in ONE transaction", async () => {
+  const activities = new Map([[followUp, { id: followUp, subject: "Call the customer back", entity_type: "general", entity_id: null, due_at: "2026-09-20T10:00:00.000Z", assigned_to: user, assigned_name: "Seller", assigned_email: "seller@example.com" }]]);
+  const claimed = [{ id: "reminder-1", organization_id: org, activity_id: followUp, offset_minutes: 60, channel: "in_app", status: "dispatching" }];
+  const { runtime, calls } = fakeRuntime({ claimed, activities });
+  const scopeOf = new Map();
+  let scope = 0;
+  const originalWith = runtime.withTenantClient;
+  runtime.withTenantClient = async (pool, orgId, callback) => {
+    const id = ++scope;
+    return originalWith(pool, orgId, async (client) =>
+      callback({ query: async (sql, values) => { scopeOf.set(sql.includes("INSERT INTO notifications(") ? "notify" : sql.includes("SET status=$3,sent_at=CASE") ? "mark" : `other-${id}-${scopeOf.size}`, id); return client.query(sql, values); } }),
+    );
+  };
+  await dispatchFollowUpRemindersHandler(null, null, {}, runtime);
+  assert.equal(scopeOf.get("notify"), scopeOf.get("mark"), "notification insert and sent-mark must share one tenant transaction");
+  const notification = calls.find(({ sql }) => sql.includes("INSERT INTO notifications("));
+  assert.ok(notification.values.includes(`/crm/follow-ups/${followUp}`), "reminder must link to /crm/follow-ups/<id>");
+  assert.ok(!notification.values.some((v) => String(v).includes("/crm/activities")));
+});
+
+test("F016: no notification links to the nonexistent /crm/activities page", async () => {
+  const fs = await import("node:fs");
+  for (const file of ["services/api/src/modules/crm/seller-activity-and-follow-up-workspace/follow-ups/follow-up-operations.js", "services/worker/src/handlers/crm-follow-up-reminder-dispatch.js"]) {
+    const source = fs.readFileSync(new URL(`../../../${file}`, import.meta.url), "utf8");
+    assert.doesNotMatch(source, /\/crm\/activities\?/, `${file} still links to /crm/activities`);
+  }
+});

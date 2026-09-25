@@ -117,7 +117,9 @@ function recalcClient({ leadRow = { id: leadId, organization_id: org, score: 0, 
   return {
     writes,
     async query(sql, values = []) {
-      if (sql.includes("FROM tenant.crm_lead_scoring_models WHERE organization_id")) return { rows: activeModel ? [activeModel] : [] };
+      // One active model per type: answer only the type being asked for.
+      if (sql.includes("FROM tenant.crm_lead_scoring_models WHERE organization_id"))
+        return { rows: activeModel && (activeModel.model_type ?? "rule_based") === values[1] ? [activeModel] : [] };
       if (sql.includes("SELECT * FROM tenant.crm_leads WHERE organization_id")) return { rows: [leadRow] };
       if (sql.includes("FROM tenant.crm_lead_scoring_model_rules")) return { rows: rules };
       if (sql.includes("FROM tenant.crm_lead_behavior_events")) return { rows: events };
@@ -183,7 +185,7 @@ test("F027: model version is pinned into the explanation — a later model edit 
 test("F027 config: creating a rule on an active model is blocked — must create a new version instead", async () => {
   const client = {
     async query(sql) {
-      if (sql.includes("SELECT id,status FROM tenant.crm_lead_scoring_models")) return { rows: [{ id: modelId, status: "active" }] };
+      if (sql.includes("SELECT id,status,model_type FROM tenant.crm_lead_scoring_models")) return { rows: [{ id: modelId, status: "active", model_type: "rule_based" }] };
       throw new Error(`Unexpected query: ${sql}`);
     },
   };

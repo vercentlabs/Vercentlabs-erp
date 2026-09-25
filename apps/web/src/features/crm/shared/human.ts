@@ -2,7 +2,7 @@
 // timestamps, snake_case enums, integer reminder minutes, country and currency codes); this file only translates.
 
 const ACRONYMS: Record<string, string> = { crm: "CRM", sms: "SMS", url: "URL", id: "ID", pan: "PAN", gstin: "GSTIN", api: "API", ip: "IP", sla: "SLA", roi: "ROI", ai: "AI" };
-const SPECIAL: Record<string, string> = { in_app: "In app", whatsapp: "WhatsApp", not_reviewed: "Not reviewed", closed_won: "Closed won", closed_lost: "Closed lost" };
+const SPECIAL: Record<string, string> = { in_app: "In app", whatsapp: "WhatsApp", not_reviewed: "Not reviewed", closed_won: "Closed won", closed_lost: "Closed lost", sourceId: "Lead source", source_id: "Lead source", in_person: "In person", SEND_FAILED: "Could not be delivered" };
 
 // not_reviewed -> "Not reviewed", firstName -> "First name", in_app -> "In app"
 export function humanize(value: unknown): string {

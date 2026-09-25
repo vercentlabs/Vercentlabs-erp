@@ -54,7 +54,11 @@ import { communicationVisibilitySql, projectCrmCommunications } from "../communi
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const ENTITY_TYPES = new Set(["lead", "opportunity", "party", "contact", "campaign"]);
-const SOURCE_KINDS = new Set(["activity", "communication", "note", "attachment"]);
+const SOURCE_KINDS = new Set(["activity", "communication", "note", "attachment", "stage", "assignment", "qualification"]);
+// Kinds getCrmTimelinePageBySource can serve as full-row single-kind lists;
+// the audit-event kinds (stage/assignment/qualification) exist only in the
+// merged feed's narrow envelope.
+const SINGLE_SOURCE_KINDS = new Set(["activity", "communication", "note", "attachment"]);
 const COMMUNICATION_COLUMN = { lead: "lead_id", opportunity: "opportunity_id", party: "party_id", contact: "contact_id", campaign: null };
 
 function canViewAllCrmRecords(context) {
@@ -90,9 +94,13 @@ export async function resolveCrmEntityAccess(client, context, entityType, entity
   }
   if (entityType === "opportunity") {
     if (!canViewSensitiveLeadContent(context)) return false; // established reuse — see opportunity-detail-data.ts
+    // F028 — owner scope, matching recordScope() for opportunity lists: a
+    // caller without view-all reaches only their own or unowned deals, so a
+    // deal id they cannot list cannot be read or written through here.
     const result = await client.query(
-      `SELECT id,company_id,branch_id FROM tenant.crm_opportunities WHERE organization_id=$1 AND id=$2 AND status <> 'archived' LIMIT 1`,
-      [context.organizationId, entityId],
+      `SELECT id,company_id,branch_id FROM tenant.crm_opportunities WHERE organization_id=$1 AND id=$2 AND status <> 'archived'
+         AND ($3::boolean OR owner_user_id IS NULL OR owner_user_id=$4) LIMIT 1`,
+      [context.organizationId, entityId, canViewAllCrmRecords(context), context.userId ?? null],
     );
     const row = result.rows[0];
     if (!row) return false;
@@ -192,9 +200,56 @@ function buildBranch(kind, entityType, entityId, context, values) {
   }
   if (kind === "note") {
     const entityIdParam = add(values, entityId);
-    return `SELECT id,'note'::text AS kind,NULL::text AS subtype,NULL::text AS title,created_at AS occurred_at,NULL::text AS status,NULL::uuid AS actor_user_id,created_by
+    return `SELECT id,'note'::text AS kind,CASE WHEN visibility='private' THEN 'private' END AS subtype,LEFT(body,160) AS title,created_at AS occurred_at,NULL::text AS status,NULL::uuid AS actor_user_id,created_by
        FROM tenant.crm_notes WHERE organization_id=$1 AND entity_type='${entityType}' AND entity_id=${entityIdParam}
          AND ${visibilityPredicate("note", context, values)}`;
+  }
+  if (kind === "stage") {
+    if (entityType === "lead") {
+      const entityIdParam = add(values, entityId);
+      return `SELECT e.id,'stage'::text AS kind,CASE WHEN e.override_used THEN 'override' END AS subtype,
+           COALESCE(fs.name,e.from_stage_code,'Start') || ' → ' || COALESCE(ts.name,e.to_stage_code,'Unknown') || COALESCE(' — ' || e.reason_label,'') AS title,
+           e.created_at AS occurred_at,NULL::text AS status,e.changed_by_user_id AS actor_user_id,e.changed_by_user_id AS created_by
+         FROM tenant.crm_lead_stage_events e
+         LEFT JOIN tenant.crm_lead_stages fs ON fs.organization_id=e.organization_id AND fs.id=e.from_stage_id
+         LEFT JOIN tenant.crm_lead_stages ts ON ts.organization_id=e.organization_id AND ts.id=e.to_stage_id
+         WHERE e.organization_id=$1 AND e.lead_id=${entityIdParam}`;
+    }
+    if (entityType === "opportunity") {
+      const entityIdParam = add(values, entityId);
+      // F026 — the review context travels with the event: a close shows its
+      // reason label (snapshotted at the time) and notes; a reopen (leaving a
+      // won/lost stage) carries the "reopen" subtype with the reason the user gave.
+      return `SELECT h.id,'stage'::text AS kind,CASE WHEN fs.is_won OR fs.is_lost THEN 'reopen' END AS subtype,
+           COALESCE(fs.name,'Start') || ' → ' || COALESCE(ts.name,'Unknown') || COALESCE(' — ' || h.outcome_reason_label,'')
+             || COALESCE(' — "' || COALESCE(h.outcome_notes, CASE WHEN fs.is_won OR fs.is_lost THEN h.note END) || '"','') AS title,
+           h.changed_at AS occurred_at,h.status AS status,h.changed_by AS actor_user_id,h.changed_by AS created_by
+         FROM tenant.crm_opportunity_stage_history h
+         LEFT JOIN tenant.crm_pipeline_stages fs ON fs.organization_id=h.organization_id AND fs.id=h.from_stage_id
+         LEFT JOIN tenant.crm_pipeline_stages ts ON ts.organization_id=h.organization_id AND ts.id=h.to_stage_id
+         WHERE h.organization_id=$1 AND h.opportunity_id=${entityIdParam}`;
+    }
+    return null;
+  }
+  if (kind === "assignment") {
+    if (entityType !== "lead") return null;
+    const entityIdParam = add(values, entityId);
+    return `SELECT e.id,'assignment'::text AS kind,CASE WHEN e.is_override THEN 'override' END AS subtype,
+         'Owner: ' || COALESCE(pu.full_name,'Unassigned') || ' → ' || COALESCE(nu.full_name,'Unassigned') AS title,
+         e.created_at AS occurred_at,NULL::text AS status,e.created_by AS actor_user_id,e.created_by
+       FROM tenant.crm_lead_assignment_events e
+       LEFT JOIN public.users pu ON pu.id=e.previous_owner_user_id
+       LEFT JOIN public.users nu ON nu.id=e.new_owner_user_id
+       WHERE e.organization_id=$1 AND e.lead_id=${entityIdParam}`;
+  }
+  if (kind === "qualification") {
+    if (entityType !== "lead") return null;
+    const entityIdParam = add(values, entityId);
+    return `SELECT e.id,'qualification'::text AS kind,CASE WHEN e.override_used THEN 'override' END AS subtype,
+         COALESCE(e.previous_state,'new') || ' → ' || e.new_state || COALESCE(' — ' || e.reason_text,'') AS title,
+         e.created_at AS occurred_at,e.new_state AS status,e.decided_by_user_id AS actor_user_id,e.decided_by_user_id AS created_by
+       FROM tenant.crm_lead_qualification_events e
+       WHERE e.organization_id=$1 AND e.lead_id=${entityIdParam}`;
   }
   if (kind === "attachment") {
     const entityIdParam = add(values, entityId);
@@ -281,7 +336,8 @@ export async function getCrmTimelinePage(client, context, entityType, entityId, 
   const limitParam = add(values, boundedLimit + 1);
 
   const sql = `WITH combined AS (${branches.join(" UNION ALL ")})
-    SELECT combined.* FROM combined${cursorClause}
+    SELECT combined.*,actor.full_name AS actor_name FROM combined
+    LEFT JOIN public.users actor ON actor.id=COALESCE(combined.actor_user_id,combined.created_by)${cursorClause}
     ORDER BY combined.occurred_at DESC, combined.id DESC
     LIMIT ${limitParam}`;
 
@@ -306,7 +362,7 @@ export async function getCrmTimelinePage(client, context, entityType, entityId, 
 // Timeline's buildBranch uses — one authorization implementation per kind,
 // reused by both pagination styles, even though the SELECT list differs.
 export async function getCrmTimelinePageBySource(client, context, entityType, entityId, { source, offset = 0, limit = 50 } = {}) {
-  if (!SOURCE_KINDS.has(source)) throw new CrmError(400, "Unsupported timeline source.", "CRM_TIMELINE_SOURCE_INVALID");
+  if (!SINGLE_SOURCE_KINDS.has(source)) throw new CrmError(400, "Unsupported timeline source.", "CRM_TIMELINE_SOURCE_INVALID");
   const allowed = await resolveCrmEntityAccess(client, context, entityType, entityId);
   if (!allowed) return { rows: [], hasMore: false };
 

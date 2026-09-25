@@ -170,6 +170,23 @@ export function normalizeStorageInput(resource, input) {
       .map((key) => key.trim())
       .filter(Boolean);
   }
+  // objectives/risks/whiteSpace/successPlan are jsonb columns. The generic
+  // create/update paths bind every field's value as a plain query parameter
+  // with no ::jsonb cast (see createCrmRecord/updateCrmRecord), so an
+  // actual JS array/object sent from a real API caller (or AccountPlanPanel,
+  // once it's fixed to send one) would be handed to `pg` as-is — which
+  // serializes an array using Postgres's ARRAY wire format, not JSON, and
+  // fails to cast into a jsonb column. Every other write in this codebase
+  // that targets a jsonb column JSON.stringify()s first; this resource
+  // never got that treatment because crm_account_plans had zero rows
+  // anywhere until F002's Customer 360 seed data first populated one.
+  if (resource === "account-plans") {
+    for (const field of ["objectives", "risks", "whiteSpace", "successPlan"]) {
+      if (Object.prototype.hasOwnProperty.call(prepared, field) && typeof prepared[field] === "object" && prepared[field] !== null) {
+        prepared[field] = JSON.stringify(prepared[field]);
+      }
+    }
+  }
   return prepared;
 }
 
@@ -313,11 +330,21 @@ export function assertQualificationCriterionFieldsValid(prepared) {
         : "At least one field key is required.",
       "CRM_QUALIFICATION_CRITERION_FIELD_INVALID",
     );
-  if (prepared.checkType === "positive_number" && keys.length !== 1)
+  if ((prepared.checkType === "positive_number" || prepared.checkType === "minimum_threshold") && keys.length !== 1)
     throw new CrmError(
       400,
-      "A positive-number criterion must reference exactly one field.",
+      "A positive-number or minimum-threshold criterion must reference exactly one field.",
       "CRM_QUALIFICATION_CRITERION_FIELD_COUNT_INVALID",
+    );
+  if (
+    Object.prototype.hasOwnProperty.call(prepared, "checkType") &&
+    prepared.checkType === "minimum_threshold" &&
+    !Number.isFinite(Number(prepared.threshold))
+  )
+    throw new CrmError(
+      400,
+      "A minimum-threshold criterion requires a numeric threshold.",
+      "CRM_QUALIFICATION_CRITERION_THRESHOLD_INVALID",
     );
 }
 

@@ -1,6 +1,6 @@
 "use client";
 
-import type { LeadAssignmentPolicy } from "../types";
+import type { LeadAssigneeAvailability, LeadAssignmentFallback, LeadAssignmentPolicy } from "../types";
 
 export class AssignmentPolicyApiError extends Error {
   constructor(
@@ -48,5 +48,31 @@ export async function explainAssignmentPolicy(id: string, companyId?: string, br
   if (branchId) params.set("branchId", branchId);
   const query = params.toString();
   const response = await fetch(`/api/crm/lead-assignment-policies/${id}/explain${query ? `?${query}` : ""}`);
+  return parseResponse(response);
+}
+
+// F005 gap-closure — fallback owner (checked once, last, after every
+// active policy above has had its chance) and out-of-office availability
+// windows (consulted only for automatic assignment). Both backends already
+// existed and were already read by the live engine; this is the first
+// client surface for either.
+export async function getLeadAssignmentFallback(): Promise<{ record: LeadAssignmentFallback }> {
+  const response = await fetch("/api/crm/lead-assignment-fallback");
+  return parseResponse(response);
+}
+export async function setLeadAssignmentFallback(userId: string | null): Promise<{ record: LeadAssignmentFallback }> {
+  const response = await fetch("/api/crm/lead-assignment-fallback", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ userId }) });
+  return parseResponse(response);
+}
+export async function listLeadAssigneeAvailability(): Promise<{ rows: LeadAssigneeAvailability[] }> {
+  const response = await fetch("/api/crm/lead-assignee-availability");
+  return parseResponse(response);
+}
+export async function setLeadAssigneeAvailability(input: { userId: string; startsAt: string; endsAt: string; reason?: string }): Promise<{ record: LeadAssigneeAvailability }> {
+  const response = await fetch("/api/crm/lead-assignee-availability", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(input) });
+  return parseResponse(response);
+}
+export async function clearLeadAssigneeAvailability(id: string): Promise<{ id: string }> {
+  const response = await fetch(`/api/crm/lead-assignee-availability/${id}`, { method: "DELETE" });
   return parseResponse(response);
 }

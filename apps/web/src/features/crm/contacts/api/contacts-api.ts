@@ -1,5 +1,6 @@
 "use client";
 
+import type { ContactOpportunityRoleRow } from "@/features/crm/opportunities/api/opportunity-contact-roles-api";
 import type { Contact, ContactDuplicateMatch, ContactListFilters, ContactListResponse, ContactMergePreview } from "../types";
 
 export class ContactApiError extends Error {
@@ -86,6 +87,14 @@ export async function previewContactMerge(sourceId: string, survivorId: string):
   });
   return parseResponse(response);
 }
+// F003 gap-closure — the Contact-side reverse view of Opportunity Contact
+// Roles (opportunity-contacts.js), so a Contact's Deals tab shows every deal
+// they hold a role on, not only the one where they're the legacy primary.
+export async function listContactOpportunityRoles(contactId: string): Promise<{ rows: ContactOpportunityRoleRow[] }> {
+  const response = await fetch(`/api/crm/contacts/${contactId}/opportunity-roles`);
+  return parseResponse(response);
+}
+
 export async function mergeContacts(
   sourceId: string,
   survivorId: string,

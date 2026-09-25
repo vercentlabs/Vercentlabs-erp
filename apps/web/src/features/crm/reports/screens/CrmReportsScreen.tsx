@@ -25,6 +25,7 @@ const LIBRARY: Array<{ group: string; reports: Array<{ key: string; title: strin
     reports: [
       { key: "pipeline", title: "Pipeline by stage", answers: "How much open business sits in each stage." },
       { key: "forecast", title: "Forecast by owner", answers: "What each seller has committed, best case and won." },
+      { key: "win-loss", title: "Won and lost reasons", answers: "Why deals closed in the period were won or lost. Open a reason to see its deals." },
       { key: "pipeline-intelligence", title: "Pipeline intelligence", answers: "Deals at risk or stalled, and why." },
       { key: "revenue-operations", title: "Revenue operations", answers: "Quota, allocation and attainment." },
       { key: "partner-pipeline", title: "Partner pipeline", answers: "Deals brought in by partners." },
@@ -35,6 +36,7 @@ const LIBRARY: Array<{ group: string; reports: Array<{ key: string; title: strin
     reports: [
       { key: "conversion", title: "Lead conversion by month", answers: "How many leads were created and how many converted." },
       { key: "sources", title: "Lead sources", answers: "Which sources bring leads, and which convert." },
+      { key: "attribution", title: "Multi-touch attribution", answers: "Which campaigns actually touched a Lead before it converted, and how credit splits across them." },
     ],
   },
   {
@@ -67,9 +69,21 @@ const NUMERIC_STRING = /^-?\d+(\.\d+)?$/;
 const isNumeric = (v: unknown) => typeof v === "number" || (typeof v === "string" && NUMERIC_STRING.test(v));
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}(T[\d:.]+Z?)?$/;
 
+// Columns that carry a code rather than free text (outcome, status, type…) read as words.
+const ENUM_COLUMN = /(outcome|status|type|category|channel|tier|stage_type|model|method|state)$/i;
+// Internal ordering keys are never shown.
+const HIDDEN_COLUMN = /^(sequence)$/;
+const monthFormatter = new Intl.DateTimeFormat("en-IN", { month: "short", year: "numeric" });
+
+function columnHeader(key: string) {
+  return humanize(key).replace(/ percent$/i, " %");
+}
+
 function formatCell(key: string, value: string | number | null) {
   if (value === null || value === undefined || value === "") return "";
+  if (key === "period" && typeof value === "string" && ISO_DATE.test(value)) return monthFormatter.format(new Date(value));
   if (typeof value === "string" && ISO_DATE.test(value)) return formatDate(value);
+  if (typeof value === "string" && ENUM_COLUMN.test(key) && /^[a-z_]+$/.test(value)) return humanize(value);
   if (isNumeric(value)) {
     const numeric = Number(value);
     return /(rate|percent|ratio|probability)/i.test(key) ? `${Math.round(numeric * 10) / 10}%` : numeric.toLocaleString("en-IN");
@@ -77,11 +91,35 @@ function formatCell(key: string, value: string | number | null) {
   return typeof value === "string" ? (/^[a-z]+(_[a-z]+)+$/.test(value) ? humanize(value) : value) : String(value);
 }
 
-// Reconciliation discipline: a drill link is offered only where the target list can reproduce the exact population,
-// so only when no date range narrows the report.
-const DRILL_CONFIG: Record<string, { idKey: string; buildHref: (id: string) => string }> = {
-  pipeline: { idKey: "stageId", buildHref: (id) => `/crm/opportunities?stageId=${id}&status=open` },
-  sources: { idKey: "sourceId", buildHref: (id) => `/crm/leads?sourceId=${id}` },
+// Reconciliation discipline: a drill link is offered only where the target list can reproduce the exact population.
+// Undated drills (pipeline, sources) apply only when no date range narrows the report; a dated drill carries the
+// range into the list with the same predicate the report uses.
+type Range = { from?: string; to?: string };
+const DRILL_CONFIG: Record<string, { idKey: string; dated?: boolean; buildHref: (row: CrmReportRow, range: Range) => string | null }> = {
+  pipeline: { idKey: "stageId", buildHref: (row) => (row.stageId ? `/crm/opportunities?stageId=${row.stageId}&status=open` : null) },
+  sources: { idKey: "sourceId", buildHref: (row) => (row.sourceId ? `/crm/leads?sourceId=${row.sourceId}` : null) },
+  // F025/F030 — open pipeline per owner by expected close date (the forecast report's own predicate).
+  forecast: {
+    idKey: "ownerUserId",
+    dated: true,
+    buildHref: (row, range) => {
+      const params = new URLSearchParams({ status: "open", ownerId: row.ownerUserId ? String(row.ownerUserId) : "unassigned" });
+      if (range.from) params.set("expectedCloseFrom", range.from);
+      if (range.to) params.set("expectedCloseTo", range.to);
+      return `/crm/opportunities?${params.toString()}`;
+    },
+  },
+  // F026 — closed deals by actual close date, outcome and reason ("none" = no reason recorded).
+  "win-loss": {
+    idKey: "outcomeReasonId",
+    dated: true,
+    buildHref: (row, range) => {
+      const params = new URLSearchParams({ status: String(row.outcome), outcomeReasonId: row.outcomeReasonId ? String(row.outcomeReasonId) : "none" });
+      if (range.from) params.set("closedFrom", range.from);
+      if (range.to) params.set("closedTo", range.to);
+      return `/crm/opportunities?${params.toString()}`;
+    },
+  },
 };
 
 const iso = (d: Date) => d.toISOString().slice(0, 10);
@@ -111,33 +149,33 @@ export function CrmReportsScreen() {
   });
 
   const rows: CrmReportRow[] = useMemo(() => query.data?.report.rows ?? [], [query.data]);
-  const drillable = !applied.from && !applied.to ? DRILL_CONFIG[report] : undefined;
+  const drillable = DRILL_CONFIG[report]?.dated || (!applied.from && !applied.to) ? DRILL_CONFIG[report] : undefined;
 
   const columns: ColumnDef<CrmReportRow, unknown>[] = useMemo(() => {
     const first = rows[0];
     if (!first) return [];
-    const keys = Object.keys(first).filter((key) => !(drillable && key === drillable.idKey) && !/(^id$|Id$)/.test(key));
+    const keys = Object.keys(first).filter((key) => !(drillable && key === drillable.idKey) && !/(^id$|Id$)/.test(key) && !HIDDEN_COLUMN.test(key));
     return keys.map((key, index) => ({
       id: key,
-      header: humanize(key),
+      header: columnHeader(key),
       accessorFn: (row: CrmReportRow) => row[key],
       cell: ({ getValue, row }: { getValue: () => unknown; row: { original: CrmReportRow } }) => {
         const value = getValue() as string | number | null;
         const formatted = formatCell(key, value) || <span className="text-text-muted">None</span>;
-        const idValue = drillable ? row.original[drillable.idKey] : null;
-        if (drillable && idValue && index === 0) {
-          return <button type="button" className="text-left text-brand hover:underline" onClick={() => router.push(drillable.buildHref(String(idValue)))}>{formatted}</button>;
+        const href = drillable && index === 0 ? drillable.buildHref(row.original, applied) : null;
+        if (href) {
+          return <button type="button" className="text-left text-brand hover:underline" onClick={() => router.push(href)}>{formatted}</button>;
         }
         return isNumeric(value) ? <span className="tabular-nums">{formatted}</span> : formatted;
       },
     }));
-  }, [rows, drillable, router]);
+  }, [rows, drillable, router, applied]);
 
   // A chart only where the columns are unambiguous: a text label column plus the first numeric column.
   const chart = useMemo(() => {
     const first = rows[0];
     if (!first || rows.length < 2 || rows.length > 30) return null;
-    const keys = Object.keys(first).filter((k) => !/(^id$|Id$)/.test(k));
+    const keys = Object.keys(first).filter((k) => !/(^id$|Id$)/.test(k) && !HIDDEN_COLUMN.test(k));
     const labelKey = keys.find((k) => typeof first[k] === "string" && !isNumeric(first[k]) && !ISO_DATE.test(String(first[k])));
     const valueKey = keys.find((k) => k !== labelKey && isNumeric(first[k]) && !/(rate|percent|ratio|probability)/i.test(k));
     if (!labelKey || !valueKey) return null;
@@ -215,7 +253,13 @@ export function CrmReportsScreen() {
                 </button>
               ))}
             </div>
-            <p className="text-xs text-text-muted">{`Showing: ${context}. Figures are computed when you open the report.`}</p>
+            <p className="text-xs text-text-muted">
+              {`Showing: ${context}. Figures are computed when you open the report.`}
+              {query.data?.report.generatedAt && ` Generated ${new Date(query.data.report.generatedAt).toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" })}.`}
+              {query.data?.report.fingerprint && (
+                <span title="The same data, scope and period always give the same fingerprint; the CSV export carries it too.">{` Fingerprint ${query.data.report.fingerprint.slice(0, 12)}.`}</span>
+              )}
+            </p>
           </section>
 
           {chart && <BarList title={chart.title} items={chart.items} emptyText="No data" />}

@@ -11,6 +11,8 @@ import { LoadingState } from "@/features/crm/shared/ui/LoadingState";
 
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
+import { EmailHistoryPanel } from "@/features/crm/shared/EmailHistoryPanel";
+import { RecordTimelinePanel } from "@/features/crm/shared/RecordTimelinePanel";
 import { NotesPanel } from "@/features/crm/shared/NotesPanel";
 import { CrmAttachmentPanel } from "@/features/crm/shared/CrmAttachmentPanel";
 import { CustomFieldsRuntimePanel } from "@/features/crm/shared/CustomFieldsRuntimePanel";
@@ -19,9 +21,8 @@ import { MoreMenu } from "@/features/crm/shared/ui/MoreMenu";
 import { PropertyList } from "@/features/crm/shared/ui/PropertyList";
 import { getAccount } from "@/features/crm/accounts/api/accounts-api";
 import { listOpportunities } from "@/features/crm/opportunities/api/opportunities-api";
-import { archiveContact, ContactApiError, getContact, reactivateContact } from "../api/contacts-api";
+import { archiveContact, ContactApiError, getContact, listContactOpportunityRoles, reactivateContact } from "../api/contacts-api";
 import { ContactDuplicatesPanel } from "../components/ContactDuplicatesPanel";
-import { ContactCommunicationsPanel } from "../components/ContactCommunicationsPanel";
 import { ContactRelationshipsPanel } from "../components/ContactRelationshipsPanel";
 
 const LANGUAGES: Record<string, string> = { en: "English", hi: "Hindi", mr: "Marathi", ta: "Tamil", te: "Telugu", bn: "Bengali", gu: "Gujarati", kn: "Kannada", ml: "Malayalam", pa: "Punjabi", ur: "Urdu", fr: "French", de: "German", es: "Spanish", ar: "Arabic" };
@@ -53,6 +54,19 @@ export function ContactDetailScreen({ contactId }: { contactId: string }) {
     enabled: Boolean(contact),
   });
   const deals = dealsQuery.data?.rows ?? [];
+
+  // F003 gap-closure — dealsQuery above only ever matches deals where this
+  // Contact is crm_opportunities.contact_id (the legacy single-pointer
+  // field, kept in sync with whichever role is primary). This surfaces the
+  // other deals they hold a non-primary role on, per the new
+  // tenant.crm_opportunity_contact_roles model.
+  const dealRolesQuery = useQuery({
+    queryKey: scopedQueryKey(workspace, "crm", "contacts", contactId, "opportunity-roles"),
+    queryFn: () => listContactOpportunityRoles(contactId),
+    enabled: Boolean(contact),
+  });
+  const dealIds = new Set(deals.map((deal) => deal.id));
+  const otherDealRoles = (dealRolesQuery.data?.rows ?? []).filter((role) => !dealIds.has(role.opportunityId));
 
   function handleError(error: unknown) {
     if (error instanceof ContactApiError && error.code === "CRM_STALE_WRITE") {
@@ -99,7 +113,7 @@ export function ContactDetailScreen({ contactId }: { contactId: string }) {
           { label: "Role", value: contact.designation || "Not set" },
           { label: "Account", value: contact.accountId ? (accountName ?? "…") : "No account" },
           ...(contact.isPrimary ? [{ label: "Primary contact", value: "Yes" }] : []),
-          { label: "Open deals", value: dealsQuery.isSuccess ? deals.filter((d) => d.status === "open").length : "…" },
+          { label: "Open deals", value: dealsQuery.isSuccess ? new Set([...deals.filter((d) => d.status === "open").map((d) => d.id), ...otherDealRoles.filter((r) => (r as { status?: string }).status !== "won" && (r as { status?: string }).status !== "lost").map((r) => r.opportunityId)]).size : "…" },
         ],
         primaryAction:
           canManage && active ? (
@@ -128,6 +142,7 @@ export function ContactDetailScreen({ contactId }: { contactId: string }) {
             <Tab id="overview">Overview</Tab>
             <Tab id="activity">Activity</Tab>
             <Tab id="deals">Deals</Tab>
+            <Tab id="timeline">Timeline</Tab>
             <Tab id="notes">Notes</Tab>
             <Tab id="files">Files</Tab>
             <Tab id="more">More</Tab>
@@ -160,14 +175,15 @@ export function ContactDetailScreen({ contactId }: { contactId: string }) {
 
           <TabPanel id="activity">
             <div className="py-4">
-              <ContactCommunicationsPanel contactId={contactId} />
+              <EmailHistoryPanel entityType="contact" entityId={contactId} />
             </div>
           </TabPanel>
 
           <TabPanel id="deals">
             <div className="flex flex-col gap-4 py-4">
               {dealsQuery.isLoading && <p className="text-sm text-text-secondary">Loading deals…</p>}
-              {dealsQuery.isSuccess && deals.length === 0 && <p className="text-sm text-text-secondary">This contact is not linked to any opportunity yet.</p>}
+              {dealsQuery.isSuccess && deals.length === 0 && otherDealRoles.length === 0 && <p className="text-sm text-text-secondary">This contact is not linked to any opportunity yet.</p>}
+              {dealsQuery.isSuccess && deals.length === 0 && otherDealRoles.length > 0 && <p className="text-sm text-text-secondary">Not the main contact on any deal, but has a role on the deals below.</p>}
               {deals.length > 0 && (
                 <ul className="flex flex-col divide-y divide-border rounded-[var(--radius-card)] border border-border">
                   {deals.map((deal) => (
@@ -178,10 +194,29 @@ export function ContactDetailScreen({ contactId }: { contactId: string }) {
                   ))}
                 </ul>
               )}
+              {otherDealRoles.length > 0 && (
+                <div className="flex flex-col gap-1">
+                  <h3 className="text-sm font-semibold text-text">Also has a role on</h3>
+                  <ul className="flex flex-col divide-y divide-border rounded-[var(--radius-card)] border border-border">
+                    {otherDealRoles.map((role) => (
+                      <li key={role.id} className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 text-sm">
+                        <Link className="font-medium text-brand hover:underline" href={`/crm/opportunities/${role.opportunityId}`}>{role.opportunityName}</Link>
+                        <span className="text-text-secondary">{[role.role ? humanize(role.role) : null, role.amount !== null ? formatMoney(role.currencyCode, role.amount) : null].filter(Boolean).join(" · ")}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
               <div className="flex flex-col gap-2">
                 <h3 className="text-sm font-semibold text-text">Accounts this person is linked to</h3>
                 <ContactRelationshipsPanel contactId={contactId} canManage={canManage} />
               </div>
+            </div>
+          </TabPanel>
+
+          <TabPanel id="timeline">
+            <div className="py-4">
+              <RecordTimelinePanel entityType="contact" entityId={contactId} />
             </div>
           </TabPanel>
 

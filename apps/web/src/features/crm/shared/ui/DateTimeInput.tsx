@@ -39,6 +39,12 @@ export function DateTimeInput({
 }
 
 // A date only (no time of day): the stored value stays YYYY-MM-DD.
-export function DateInput({ label, value, onChange, isRequired, errorMessage, className }: { label: string; value: string; onChange: (date: string) => void; isRequired?: boolean; errorMessage?: string; className?: string }) {
-  return <TextField label={label} type="date" value={value ? value.slice(0, 10) : ""} onChange={onChange} isRequired={isRequired} errorMessage={errorMessage} className={className} />;
+// `value` is typed as string, but a server component that loads the record
+// straight from Postgres (rather than through a JSON fetch) hands a DATE
+// column across as a real Date instance — RSC serialization preserves it
+// as one, and JSON.stringify never runs to coerce it. Guard the same way
+// shared/human.ts's own toDate() already does for the identical reason.
+export function DateInput({ label, value, onChange, isRequired, errorMessage, className }: { label: string; value: string | Date; onChange: (date: string) => void; isRequired?: boolean; errorMessage?: string; className?: string }) {
+  const iso = value instanceof Date ? value.toISOString() : value;
+  return <TextField label={label} type="date" value={iso ? iso.slice(0, 10) : ""} onChange={onChange} isRequired={isRequired} errorMessage={errorMessage} className={className} />;
 }

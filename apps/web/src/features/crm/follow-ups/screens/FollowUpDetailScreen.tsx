@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Clock, Pencil } from "lucide-react";
+import { CheckCircle2, Clock, Pencil, X } from "lucide-react";
 import { Button, Dialog, ErrorState, PermissionState, RecordDetailsPage, Select, StatusBadge, TextArea, TextField, Timeline, type SelectOption } from "@vercentlabs/design-system";
 import { CRM_PERMISSIONS } from "@vercentlabs/permissions";
 import { LoadingState } from "@/features/crm/shared/ui/LoadingState";
@@ -17,6 +17,8 @@ import { PropertyList } from "@/features/crm/shared/ui/PropertyList";
 import { RelatedRecordCard } from "@/features/crm/shared/ui/RelatedRecordCard";
 import {
   acknowledgeFollowUpReminder,
+  cancelFollowUp,
+  completeFollowUp,
   FollowUpApiError,
   getFollowUp,
   listFollowUpHistory,
@@ -57,6 +59,21 @@ export function FollowUpDetailScreen({ followUpId }: { followUpId: string }) {
 
   const query = useQuery({ queryKey: scopedQueryKey(workspace, "crm", "follow-ups", followUpId), queryFn: () => getFollowUp(followUpId) });
   const followUp = query.data?.record;
+
+  const [actionError, setActionError] = useState<string | null>(null);
+  function invalidateAll() {
+    queryClient.invalidateQueries({ queryKey: scopedQueryKey(workspace, "crm", "follow-ups", followUpId) });
+    queryClient.invalidateQueries({ queryKey: scopedQueryKey(workspace, "crm", "follow-ups") });
+  }
+  function handleActionError(err: unknown) {
+    setActionError(err instanceof FollowUpApiError ? err.message : "This action could not be completed.");
+    if (err instanceof FollowUpApiError && err.code?.includes("STALE")) invalidateAll();
+  }
+  const onActionDone = () => { setActionError(null); invalidateAll(); };
+  // The list screen already offered Complete/Cancel as row actions; the
+  // detail page only had Snooze and Edit.
+  const completeMutation = useMutation({ mutationFn: () => completeFollowUp(followUpId, followUp?.updatedAt), onSuccess: onActionDone, onError: handleActionError });
+  const cancelMutation = useMutation({ mutationFn: () => cancelFollowUp(followUpId, followUp?.updatedAt), onSuccess: onActionDone, onError: handleActionError });
 
   const snoozeMutation = useMutation({
     mutationFn: () => snoozeFollowUp(followUpId, new Date(snoozeAt).toISOString(), followUp?.updatedAt),
@@ -101,9 +118,26 @@ export function FollowUpDetailScreen({ followUpId }: { followUpId: string }) {
             </Button>
           </div>
         ) : undefined,
+        secondaryActions: canAct ? (
+          <>
+            <Button variant="secondary" onPress={() => completeMutation.mutate()} isLoading={completeMutation.isPending}>
+              <CheckCircle2 className="size-4" aria-hidden="true" />
+              Complete
+            </Button>
+            <Button variant="danger" onPress={() => cancelMutation.mutate()} isLoading={cancelMutation.isPending}>
+              <X className="size-4" aria-hidden="true" />
+              Cancel
+            </Button>
+          </>
+        ) : undefined,
       }}
     >
       <div className="flex flex-col gap-4 py-4">
+        {actionError && (
+          <p role="alert" className="rounded-[var(--radius-control)] border border-danger-emphasis/30 bg-danger-soft px-3 py-2 text-sm text-danger">
+            {actionError}
+          </p>
+        )}
         <PropertyList title="Related record" columns={1} items={[{ label: "Belongs to", value: <RelatedRecordCard entityType={followUp.entityType} entityId={followUp.entityId} /> }]} />
         <PropertyList title="Follow-up" items={[
           { label: "Reason", value: followUp.followUpReason },
@@ -165,7 +199,7 @@ function RemindersPanel({ followUpId }: { followUpId: string }) {
             <li key={reminder.id} className="flex items-center justify-between rounded-[var(--radius-control)] border border-border px-3 py-1.5">
               <span className="text-sm text-text">
                 {reminderLabel(reminder.offsetMinutes)} · {humanize(reminder.channel)} · {formatDateTime(reminder.fireAt)}
-                {reminder.failureReason ? <span className="text-danger"> — {reminder.failureReason}</span> : null}
+                {reminder.failureReason ? <span className="text-danger"> — {humanize(reminder.failureReason)}</span> : null}
               </span>
               <div className="flex items-center gap-2">
                 <StatusBadge tone={REMINDER_STATUS_TONE[reminder.status] ?? "neutral"}>{reminder.status}</StatusBadge>
@@ -198,8 +232,8 @@ function HistoryPanel({ followUpId }: { followUpId: string }) {
     <div className="flex flex-col gap-2 border-t border-border pt-4">
       <span className="text-sm font-semibold text-text">History</span>
       <Timeline
-        emptyMessage="No history yet."
-        entries={events.map((event, index) => ({ id: String(index), tone: event.eventType === "escalated" ? "warning" : event.eventType === "completed" ? "success" : "neutral", title: humanize(event.eventType), timestamp: formatDateTime(event.occurredAt) }))}
+        emptyMessage={historyQuery.isLoading ? "Loading history…" : historyQuery.isError ? "History could not be loaded. Refresh to try again." : "No history yet."}
+        entries={events.map((event, index) => ({ id: String(index), tone: event.eventType === "escalated" ? "warning" : event.eventType === "completed" ? "success" : "neutral", title: humanize(event.eventType), description: event.eventType === "snoozed" && event.metadata?.previousDueAt ? `Was due ${formatDateTime(String(event.metadata.previousDueAt))}` : undefined, timestamp: formatDateTime(event.occurredAt) }))}
       />
     </div>
   );

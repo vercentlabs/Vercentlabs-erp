@@ -98,7 +98,10 @@ test("F008 accounts: gstin/pan are uppercased and name is normalized before bind
   });
   const call = db.dataCall();
   assert.ok(call, "the account matching query must run");
-  assert.ok(call.params.includes("acmemanufacturingpvtltd"));
+  // Must match tenant.crm_normalize_comparison_text exactly (lowercase,
+  // whitespace runs collapsed to one space, punctuation preserved) — the
+  // generated column this value is compared against on the SQL side.
+  assert.ok(call.params.includes("acme manufacturing pvt. ltd."));
   assert.ok(call.params.includes("27AABCU9603R1ZM"));
   assert.ok(call.params.includes("AABCU9603R"));
   assert.ok(call.params.includes(survivorAccountId));

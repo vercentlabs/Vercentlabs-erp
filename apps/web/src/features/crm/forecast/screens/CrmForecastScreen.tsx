@@ -41,6 +41,35 @@ const STATUS_LABEL: Record<string, string> = {
 const statusLabel = (value: string) => STATUS_LABEL[value] ?? humanize(value);
 const rangeLabel = (start: string, end: string) => formatDate(start) + " to " + formatDate(end);
 
+// F025 — every forecast amount opens the exact deals behind it: open
+// pipeline/weighted by expected close date, best case and commit by
+// forecast category, won by the date it was won. The list's total always
+// equals the figure (same owner, dates and category predicates).
+function forecastHref(ownerUserId: string | null, kind: "pipeline" | "best_case" | "committed" | "won", range: { from?: string; to?: string }) {
+  const params = new URLSearchParams();
+  params.set("ownerId", ownerUserId ?? "unassigned");
+  if (kind === "won") {
+    params.set("status", "won");
+    if (range.from) params.set("closedFrom", range.from);
+    if (range.to) params.set("closedTo", range.to);
+  } else {
+    params.set("status", "open");
+    if (range.from) params.set("expectedCloseFrom", range.from);
+    if (range.to) params.set("expectedCloseTo", range.to);
+    if (kind !== "pipeline") params.set("forecastCategory", kind);
+  }
+  return `/crm/opportunities?${params.toString()}`;
+}
+
+function AmountLink({ href, children, label }: { href: string; children: string; label: string }) {
+  const router = useRouter();
+  return (
+    <button type="button" className="tabular-nums text-text-secondary underline-offset-2 hover:text-brand hover:underline" aria-label={label} onClick={() => router.push(href)}>
+      {children}
+    </button>
+  );
+}
+
 export function CrmForecastScreen() {
   const router = useRouter();
   const workspace = useWorkspaceContext();
@@ -99,6 +128,7 @@ export function CrmForecastScreen() {
       <MySubmissionSection canSubmit={canManageOpportunities} />
 
       <div className="flex flex-wrap items-end gap-2">
+        <p className="basis-full text-xs text-text-muted">Open deals count by their expected close date; won deals by the date they were won.</p>
         <DateInput label="Expected to close from" value={from} onChange={setFrom} />
         <DateInput label="Expected to close until" value={to} onChange={setTo} errorMessage={rangeInvalid ? "The end date is before the start date." : undefined} />
         <Button variant="secondary" isDisabled={rangeInvalid} onPress={() => setAppliedFilters({ from: from || undefined, to: to || undefined })}>
@@ -153,18 +183,18 @@ export function CrmForecastScreen() {
                   <TableRow key={row.owner} className="border-b border-border last:border-0">
                     <TableCell className="py-1.5 text-text">
                       {row.ownerUserId ? (
-                        <button type="button" className="text-left text-brand underline-offset-2 hover:underline" title="See this owner's deals" onClick={() => router.push(`/crm/opportunities?ownerId=${row.ownerUserId}`)}>
+                        <button type="button" className="text-left text-brand underline-offset-2 hover:underline" title="See this owner's open deals in this range" onClick={() => router.push(forecastHref(row.ownerUserId, "pipeline", appliedFilters))}>
                           {row.owner}
                         </button>
                       ) : (
                         row.owner
                       )}
                     </TableCell>
-                    <TableCell className="py-1.5 text-right tabular-nums text-text-secondary">{formatMoney(currency, row.pipeline)}</TableCell>
-                    <TableCell className="py-1.5 text-right tabular-nums text-text-secondary">{formatMoney(currency, row.bestCase)}</TableCell>
-                    <TableCell className="py-1.5 text-right tabular-nums text-text-secondary">{formatMoney(currency, row.commitAmount)}</TableCell>
-                    <TableCell className="py-1.5 text-right tabular-nums text-text-secondary">{formatMoney(currency, row.weighted)}</TableCell>
-                    <TableCell className="py-1.5 text-right tabular-nums text-text-secondary">{formatMoney(currency, row.won)}</TableCell>
+                    <TableCell className="py-1.5 text-right"><AmountLink href={forecastHref(row.ownerUserId, "pipeline", appliedFilters)} label={`${row.owner} open pipeline`}>{formatMoney(currency, row.pipeline)}</AmountLink></TableCell>
+                    <TableCell className="py-1.5 text-right"><AmountLink href={forecastHref(row.ownerUserId, "best_case", appliedFilters)} label={`${row.owner} best case deals`}>{formatMoney(currency, row.bestCase)}</AmountLink></TableCell>
+                    <TableCell className="py-1.5 text-right"><AmountLink href={forecastHref(row.ownerUserId, "committed", appliedFilters)} label={`${row.owner} committed deals`}>{formatMoney(currency, row.commitAmount)}</AmountLink></TableCell>
+                    <TableCell className="py-1.5 text-right"><AmountLink href={forecastHref(row.ownerUserId, "pipeline", appliedFilters)} label={`${row.owner} weighted pipeline deals`}>{formatMoney(currency, row.weighted)}</AmountLink></TableCell>
+                    <TableCell className="py-1.5 text-right"><AmountLink href={forecastHref(row.ownerUserId, "won", appliedFilters)} label={`${row.owner} won deals`}>{formatMoney(currency, row.won)}</AmountLink></TableCell>
                   </TableRow>
                 ))}
               </TableBody>
@@ -241,6 +271,29 @@ function MySubmissionSection({ canSubmit }: { canSubmit: boolean }) {
     queryClient.invalidateQueries({ queryKey: scopedQueryKey(workspace, "crm", "forecast-submissions", periodId, "mine") });
   }
 
+  // F025 — the system's own numbers for this rep and period, computed from
+  // their deals exactly as the forecast table does, so a submission is a
+  // visible judgement on top of the pipeline rather than a blank guess.
+  const systemQuery = useQuery({
+    queryKey: scopedQueryKey(workspace, "crm", "forecast", "mine", selectedPeriod?.periodStart, selectedPeriod?.periodEnd),
+    queryFn: () => getCrmForecast({ from: selectedPeriod!.periodStart.slice(0, 10), to: selectedPeriod!.periodEnd.slice(0, 10) }),
+    enabled: Boolean(selectedPeriod),
+  });
+  const systemRow = systemQuery.data?.report.rows.find((row) => row.ownerUserId === workspace.userId);
+  const systemRange = selectedPeriod ? { from: selectedPeriod.periodStart.slice(0, 10), to: selectedPeriod.periodEnd.slice(0, 10) } : {};
+  const system = {
+    pipeline: toNumber(systemRow?.pipeline ?? 0),
+    bestCase: toNumber(systemRow?.bestCase ?? 0),
+    commit: toNumber(systemRow?.commitAmount ?? 0),
+    won: toNumber(systemRow?.won ?? 0),
+  };
+  function useSystemNumbers() {
+    setPipelineAmount(String(system.pipeline));
+    setBestCaseAmount(String(system.bestCase));
+    setCommitAmount(String(system.commit + system.won));
+  }
+  const commitGap = (Number(commitAmount) || 0) - (system.commit + system.won);
+
   const submitMutation = useMutation({
     mutationFn: () => {
       const input = {
@@ -300,6 +353,37 @@ function MySubmissionSection({ canSubmit }: { canSubmit: boolean }) {
       {mine && mine.status === "submitted" && <p role="status" className="text-sm text-text-secondary">This is with your manager for review, so it cannot be changed now.</p>}
       {isClosed && <p className="text-sm text-text-muted">This period is closed, so the submission can no longer be changed.</p>}
       <Select label="Period" options={periodOptions} selectedKey={periodId} onSelectionChange={(key) => setPeriodId(String(key ?? ""))} />
+      {selectedPeriod && (
+        <div className="flex flex-col gap-2 rounded-[var(--radius-control)] border border-border bg-surface-muted p-3" aria-label="From your deals in this period">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <span className="text-xs font-medium text-text-secondary">From your deals in this period</span>
+            {!isReadOnly && (
+              <Button variant="secondary" size="compact" onPress={useSystemNumbers} isDisabled={systemQuery.isLoading}>
+                Use these numbers
+              </Button>
+            )}
+          </div>
+          <dl className="grid grid-cols-2 gap-2 text-sm sm:grid-cols-4">
+            {([
+              ["Open pipeline", system.pipeline, forecastHref(workspace.userId, "pipeline", systemRange)],
+              ["Best case", system.bestCase, forecastHref(workspace.userId, "best_case", systemRange)],
+              ["Committed", system.commit, forecastHref(workspace.userId, "committed", systemRange)],
+              ["Already won", system.won, forecastHref(workspace.userId, "won", systemRange)],
+            ] as const).map(([label, value, href]) => (
+              <div key={label} className="flex flex-col">
+                <dt className="text-xs text-text-muted">{label}</dt>
+                <dd><AmountLink href={href} label={`My ${label.toLowerCase()} deals`}>{formatMoney(selectedPeriod.currencyCode, value)}</AmountLink></dd>
+              </div>
+            ))}
+          </dl>
+          <p className="text-xs text-text-muted">
+            {`"Use these numbers" puts committed plus already won into Commit. `}
+            {Number(commitAmount) > 0 && commitGap !== 0
+              ? `Your commit is ${formatMoney(selectedPeriod.currencyCode, Math.abs(commitGap))} ${commitGap > 0 ? "above" : "below"} what your deals show — say why in the notes.`
+              : ""}
+          </p>
+        </div>
+      )}
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
         <TextField label="Open pipeline" description="Everything still open." inputMode="decimal" value={pipelineAmount} onChange={setPipelineAmount} isDisabled={isReadOnly} errorMessage={amountError(pipelineAmount)} />
         <TextField label="Best case" description="Open deals that could close." inputMode="decimal" value={bestCaseAmount} onChange={setBestCaseAmount} isDisabled={isReadOnly} errorMessage={amountError(bestCaseAmount)} />
@@ -452,6 +536,22 @@ function TeamReviewSection({ canReview }: { canReview: boolean }) {
     [submissionsQuery.data, workspace.userId],
   );
 
+  // F025 — who owes a forecast: owners with deals in this period (the same
+  // report the forecast table uses, so the list respects what the reviewer
+  // may see) who have not sent one, or have only a draft.
+  const selectedPeriod = periods.find((period) => period.id === periodId);
+  const periodDealsQuery = useQuery({
+    queryKey: scopedQueryKey(workspace, "crm", "forecast", "review", selectedPeriod?.periodStart, selectedPeriod?.periodEnd),
+    queryFn: () => getCrmForecast({ from: selectedPeriod!.periodStart.slice(0, 10), to: selectedPeriod!.periodEnd.slice(0, 10) }),
+    enabled: Boolean(selectedPeriod) && canReview,
+  });
+  const notSent = useMemo(() => {
+    const sent = new Set((submissionsQuery.data?.rows ?? []).filter((row) => row.status !== "draft").map((row) => row.ownerUserId));
+    return (periodDealsQuery.data?.report.rows ?? [])
+      .filter((row) => row.ownerUserId && row.ownerUserId !== workspace.userId && !sent.has(row.ownerUserId))
+      .map((row) => row.owner);
+  }, [periodDealsQuery.data, submissionsQuery.data, workspace.userId]);
+
   function invalidate() {
     queryClient.invalidateQueries({ queryKey: scopedQueryKey(workspace, "crm", "forecast-submissions", periodId, "team") });
   }
@@ -491,6 +591,12 @@ function TeamReviewSection({ canReview }: { canReview: boolean }) {
           {error}
         </p>
       )}
+      {notSent.length > 0 && (
+        <p className="text-sm text-text-secondary" aria-label="Not sent yet">
+          <span className="font-medium text-text">{"Haven't sent a forecast yet: "}</span>
+          {notSent.join(", ")}
+        </p>
+      )}
       {reviewable.length === 0 ? (
         <p className="text-sm text-text-secondary">Nobody on your team has sent a forecast for this period yet.</p>
       ) : (
@@ -505,6 +611,9 @@ function TeamReviewSection({ canReview }: { canReview: boolean }) {
                 <span>{"Open pipeline: " + formatMoney(row.currencyCode, row.pipelineAmount ?? 0)}</span>
                 <span>{"Best case: " + formatMoney(row.currencyCode, row.bestCaseAmount ?? 0)}</span>
                 <span>{"Commit: " + formatMoney(row.currencyCode, row.commitAmount ?? 0)}</span>
+                {toNumber(row.managerAdjustment ?? 0) !== 0 && (
+                  <span className="font-medium text-text">{"After your adjustment: " + formatMoney(row.currencyCode, toNumber(row.commitAmount ?? 0) + toNumber(row.managerAdjustment ?? 0))}</span>
+                )}
                 {row.confidencePercent != null && <span>{"Confidence: " + toNumber(row.confidencePercent) + "%"}</span>}
               </div>
               {row.notes && <p className="text-sm text-text-secondary">{row.notes}</p>}
@@ -622,10 +731,11 @@ function CalibrationSection({ canView, currency }: { canView: boolean; currency:
               {rows.map((row) => (
                 <TableRow key={row.periodId} className="border-b border-border last:border-0">
                   <TableCell className="py-1.5 text-text">{row.periodName}</TableCell>
-                  <TableCell className="py-1.5 text-right tabular-nums text-text-secondary">{formatMoney(currency, row.predictedAmount)}</TableCell>
-                  <TableCell className="py-1.5 text-right tabular-nums text-text-secondary">{formatMoney(currency, row.actualWonAmount)}</TableCell>
+                  <TableCell className="py-1.5 text-right tabular-nums text-text-secondary">{formatMoney(currency, Math.round(toNumber(row.predictedAmount)))}</TableCell>
+                  <TableCell className="py-1.5 text-right tabular-nums text-text-secondary">{formatMoney(currency, Math.round(toNumber(row.actualWonAmount)))}</TableCell>
                   <TableCell className={`py-1.5 text-right tabular-nums ${toNumber(row.errorAmount) < 0 ? "text-danger" : "text-success"}`}>
-                    {(toNumber(row.errorAmount) < 0 ? "Under by " : "Over by ") + formatMoney(currency, Math.abs(toNumber(row.errorAmount)))} {row.errorPercent != null ? "(" + Math.abs(toNumber(row.errorPercent)) + "%)" : ""}
+                    {/* errorAmount = won − predicted: negative means the forecast was too high. */}
+                    {(toNumber(row.errorAmount) < 0 ? "Forecast too high by " : "Forecast too low by ") + formatMoney(currency, Math.round(Math.abs(toNumber(row.errorAmount))))} {row.errorPercent != null ? "(" + Math.abs(toNumber(row.errorPercent)) + "%)" : ""}
                   </TableCell>
                   <TableCell className="py-1.5 text-right tabular-nums text-text-secondary">{toNumber(row.confidencePercent)}%</TableCell>
                 </TableRow>

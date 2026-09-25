@@ -141,9 +141,9 @@ export async function updateCrmNote(client, context, id, input = {}) {
   const visibility = input.visibility !== undefined ? normalizeVisibility(input.visibility) : existing.visibility;
 
   await client.query(
-    `INSERT INTO tenant.crm_note_versions(organization_id,note_id,version,body,is_pinned,actor_user_id)
-     VALUES($1,$2,$3,$4,$5,$6)`,
-    [context.organizationId, id, existing.version, existing.body, existing.isPinned, context.userId],
+    `INSERT INTO tenant.crm_note_versions(organization_id,note_id,version,body,is_pinned,visibility,actor_user_id)
+     VALUES($1,$2,$3,$4,$5,$6,$7)`,
+    [context.organizationId, id, existing.version, existing.body, existing.isPinned, existing.visibility, context.userId],
   );
   const result = await client.query(
     `UPDATE tenant.crm_notes SET body=$3,is_pinned=$4,visibility=$5,version=version+1,updated_by=$6,updated_at=now()

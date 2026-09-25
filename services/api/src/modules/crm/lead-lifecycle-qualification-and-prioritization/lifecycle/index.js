@@ -30,6 +30,8 @@ export {
 
 export { transitionLeadStage } from "./transition-engine.js";
 
+export { isElevatedLifecycleActor } from "./shared.js";
+
 export {
   deactivateLeadStageWithMigration,
   enqueueLeadStageMigrationJob,

@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Pencil } from "lucide-react";
+import { CheckCircle2, Pencil, PhoneCall, X } from "lucide-react";
 import { Button, Dialog, ErrorState, PermissionState, RecordDetailsPage, Select, StatusBadge, TextArea, TextField, type SelectOption } from "@vercentlabs/design-system";
 import { CRM_PERMISSIONS } from "@vercentlabs/permissions";
 import { LoadingState } from "@/features/crm/shared/ui/LoadingState";
@@ -14,7 +14,8 @@ import { getCrmOptions } from "@/features/crm/shared/crm-options-api";
 import { dueLabel, dueState, formatDateTime, humanize } from "@/features/crm/shared/human";
 import { PropertyList } from "@/features/crm/shared/ui/PropertyList";
 import { RelatedRecordCard } from "@/features/crm/shared/ui/RelatedRecordCard";
-import { CallApiError, getCall, updateCall } from "../api/calls-api";
+import { CallApiError, cancelCall, getCall, listCallEvents, startCall, updateCall } from "../api/calls-api";
+import { CompleteCallDialog } from "../components/CompleteCallDialog";
 import type { Call } from "../types";
 
 const minutesText = (seconds: number) => (seconds < 60 ? `${seconds} seconds` : `${Math.round(seconds / 60)} minutes`);
@@ -28,12 +29,36 @@ const minutesText = (seconds: number) => (seconds < 60 ? `${seconds} seconds` : 
 // deliberately not a reuse of CallFormScreen.
 export function CallDetailScreen({ callId }: { callId: string }) {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const workspace = useWorkspaceContext();
   const canManage = workspace.permissions.includes(CRM_PERMISSIONS.activitiesManage);
   const [editOpen, setEditOpen] = useState(false);
+  const [completeOpen, setCompleteOpen] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
 
   const query = useQuery({ queryKey: scopedQueryKey(workspace, "crm", "calls", callId), queryFn: () => getCall(callId) });
   const call = query.data?.record;
+
+  // F013 gap-closure — listCrmCallEvents (the immutable crm_call_events
+  // ledger) existed, tested and routed with no frontend reader anywhere.
+  const eventsQuery = useQuery({
+    queryKey: scopedQueryKey(workspace, "crm", "calls", callId, "events"),
+    queryFn: () => listCallEvents(callId),
+    enabled: Boolean(call),
+  });
+
+  function invalidate() {
+    queryClient.invalidateQueries({ queryKey: scopedQueryKey(workspace, "crm", "calls", callId) });
+    queryClient.invalidateQueries({ queryKey: scopedQueryKey(workspace, "crm", "calls") });
+  }
+
+  function handleError(err: unknown) {
+    setActionError(err instanceof CallApiError ? err.message : "This action could not be completed.");
+    if (err instanceof CallApiError && (err.code === "CRM_STALE_WRITE" || err.code === "CRM_CALL_CONFLICT")) invalidate();
+  }
+
+  const startMutation = useMutation({ mutationFn: () => startCall(call!.id, call!.updatedAt), onSuccess: invalidate, onError: handleError });
+  const cancelMutation = useMutation({ mutationFn: () => cancelCall(call!.id, call!.updatedAt), onSuccess: invalidate, onError: handleError });
 
   if (query.isLoading) return <LoadingState label="Loading call" rows={3} />;
   if (query.isError) {
@@ -41,6 +66,8 @@ export function CallDetailScreen({ callId }: { callId: string }) {
     return <ErrorState title="Call not found" action={{ label: "Back to Calls", onPress: () => router.push("/crm/calls") }} />;
   }
   if (!call) return null;
+
+  const isTerminal = call.status === "completed" || call.status === "cancelled";
 
   return (
     <RecordDetailsPage
@@ -61,9 +88,33 @@ export function CallDetailScreen({ callId }: { callId: string }) {
             Edit
           </Button>
         ) : undefined,
+        secondaryActions:
+          canManage && !isTerminal ? (
+            <>
+              {call.status !== "in_progress" && (
+                <Button variant="secondary" onPress={() => startMutation.mutate()} isLoading={startMutation.isPending}>
+                  <PhoneCall className="size-4" aria-hidden="true" />
+                  Start
+                </Button>
+              )}
+              <Button variant="secondary" onPress={() => setCompleteOpen(true)}>
+                <CheckCircle2 className="size-4" aria-hidden="true" />
+                Complete
+              </Button>
+              <Button variant="danger" onPress={() => cancelMutation.mutate()} isLoading={cancelMutation.isPending}>
+                <X className="size-4" aria-hidden="true" />
+                Cancel
+              </Button>
+            </>
+          ) : undefined,
       }}
     >
       <div className="flex flex-col gap-4 py-4">
+        {actionError && (
+          <p role="alert" className="rounded-[var(--radius-control)] border border-danger-emphasis/30 bg-danger-soft px-3 py-2 text-sm text-danger">
+            {actionError}
+          </p>
+        )}
         <PropertyList title="Related record" columns={1} items={[{ label: "Belongs to", value: <RelatedRecordCard entityType={call.entityType} entityId={call.entityId} /> }]} />
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
           <PropertyList title="The call" items={[
@@ -81,8 +132,37 @@ export function CallDetailScreen({ callId }: { callId: string }) {
             { label: "Completed", value: call.completedAt ? formatDateTime(call.completedAt) : null },
           ]} />
         </div>
+        <div className="flex flex-col gap-2 rounded-[var(--radius-card)] border border-border bg-surface p-4">
+          <p className="text-sm font-semibold text-text">Call history</p>
+          {eventsQuery.isLoading ? (
+            <p className="text-sm text-text-secondary">Loading history…</p>
+          ) : (eventsQuery.data?.rows.length ?? 0) === 0 ? (
+            <p className="text-sm text-text-muted">No history recorded yet.</p>
+          ) : (
+            <ul className="flex flex-col divide-y divide-border">
+              {eventsQuery.data!.rows.map((event) => (
+                <li key={event.id} className="flex flex-col gap-0.5 py-2 text-sm">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <StatusBadge tone={event.eventType === "cancelled" ? "danger" : event.eventType === "completed" ? "success" : "neutral"}>{humanize(event.eventType)}</StatusBadge>
+                    {event.outcomeCode && <span className="text-text-secondary">{humanize(event.outcomeCode)}</span>}
+                    <span className="text-xs text-text-muted">{formatDateTime(event.changedAt)}</span>
+                  </div>
+                  <span className="text-xs text-text-secondary">{event.changedByName ? `By ${event.changedByName}` : "System"}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
       </div>
       <EditCallDialog isOpen={editOpen} onOpenChange={setEditOpen} call={call} />
+      {completeOpen && (
+        <CompleteCallDialog
+          call={call}
+          onOpenChange={setCompleteOpen}
+          onDone={invalidate}
+          onError={handleError}
+        />
+      )}
     </RecordDetailsPage>
   );
 }

@@ -92,6 +92,22 @@ export async function getCustomFieldValues(entityType: CrmCustomFieldEntityType,
   return parseResponse(response);
 }
 
+// F028 — append-only change history; labels are as they were at the time.
+export type CrmCustomFieldHistoryRow = {
+  id: string;
+  fieldKey: string;
+  fieldLabel: string;
+  previousValue: unknown;
+  newValue: unknown;
+  changedAt: string;
+  changedByName: string | null;
+};
+
+export async function getCustomFieldValueHistory(entityType: CrmCustomFieldEntityType, entityId: string): Promise<{ rows: CrmCustomFieldHistoryRow[] }> {
+  const response = await fetch(`/api/crm/custom-fields/values/${entityType}/${entityId}/history`);
+  return parseResponse(response);
+}
+
 export async function setCustomFieldValues(entityType: CrmCustomFieldEntityType, entityId: string, values: Record<string, unknown>): Promise<{ rows: CrmCustomFieldValueRow[] }> {
   const response = await fetch(`/api/crm/custom-fields/values/${entityType}/${entityId}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ values }) });
   return parseResponse(response);

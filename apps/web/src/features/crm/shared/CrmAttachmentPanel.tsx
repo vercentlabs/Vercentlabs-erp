@@ -114,7 +114,7 @@ export function CrmAttachmentPanel({ entityType, entityId }: { entityType: CrmAt
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm text-text">{row.fileName}</p>
                 <p className="text-xs text-text-muted">
-                  {formatFileSize(row.sizeBytes)} · {row.uploadedBy ? userNames.get(row.uploadedBy) || "Someone" : "Unknown"} · {dateFormatter.format(new Date(row.createdAt))}
+                  {[row.sizeBytes ? formatFileSize(row.sizeBytes) : null, row.uploadedBy ? userNames.get(row.uploadedBy) || "Someone" : "Unknown", dateFormatter.format(new Date(row.createdAt))].filter(Boolean).join(" · ")}
                   {row.version > 1 ? ` · v${row.version}` : ""}
                 </p>
               </div>
@@ -204,7 +204,7 @@ function VersionHistoryDialog({
                     {row.isCurrent ? " (current)" : ""}
                   </span>
                   <span className="text-xs text-text-muted">
-                    {formatFileSize(row.sizeBytes)} · {row.uploadedBy ? userNames.get(row.uploadedBy) || "Someone" : "Unknown"} · {dateFormatter.format(new Date(row.createdAt))}
+                    {[row.sizeBytes ? formatFileSize(row.sizeBytes) : null, row.uploadedBy ? userNames.get(row.uploadedBy) || "Someone" : "Unknown", dateFormatter.format(new Date(row.createdAt))].filter(Boolean).join(" · ")}
                   </span>
                 </div>
                 <IconLinkButton aria-label={`Download v${row.version}`} size="compact" href={attachmentDownloadHref(entityType, entityId, row.id)}>

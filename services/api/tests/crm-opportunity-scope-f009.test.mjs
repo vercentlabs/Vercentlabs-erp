@@ -46,29 +46,22 @@ test("F009 security fix: getOpportunityTimeline 404s for an opportunity outside 
   );
 });
 
-test("F009 security fix: bulkUpdateOpportunities cannot silently update an out-of-scope Opportunity", async () => {
-  let updateSql = null;
+test("F009/F029 security fix: bulkUpdateOpportunities never updates an out-of-scope Opportunity and reports it as skipped", async () => {
+  const statements = [];
   const client = {
-    async query(sql, values = []) {
-      if (sql.startsWith("UPDATE tenant.crm_opportunities")) {
-        updateSql = sql;
-        // The real scope predicate would exclude the row; simulate zero rows affected.
-        return { rowCount: 0, rows: [] };
-      }
-      // bulkUpdateOpportunities queues an outbox/audit event after the
-      // UPDATE regardless of how many rows it actually touched.
-      if (sql.startsWith("INSERT INTO tenant.crm_outbox_events")) {
-        return { rows: [] };
-      }
-      throw new Error(`Unexpected query: ${sql}`);
+    async query(sql) {
+      statements.push(sql);
+      // Every scoped read finds nothing (the scope predicate excludes the row).
+      return { rows: [], rowCount: 0 };
     },
   };
   const result = await bulkUpdateOpportunities(client, restrictedContext, {
     ids: [opportunityId],
     changes: { nextStep: "Follow up" },
   });
-  assert.match(updateSql, /record\.company_id/);
   assert.equal(result.updated, 0);
+  assert.equal(result.items[0].status, "skipped");
+  assert.ok(!statements.some((sql) => /^s*UPDATE tenant.crm_opportunities/.test(sql)), "no write reaches the out-of-scope row");
 });
 
 test("F009 security fix: captureForecastSnapshot 404s rather than snapshotting an out-of-scope Opportunity", async () => {

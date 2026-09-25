@@ -85,8 +85,9 @@ test("F011 migration makes expected revenue generated and history tenant-safe", 
 test("F011 reporting consumes canonical expected revenue and excludes closed deals from open forecast", () => {
   const service=read("services/api/src/modules/crm/pipeline-analytics-and-forecasting/analytics-service.js");
   assert.match(service,/sum\(opportunity\.expected_revenue\).*status = 'open'/s);
-  assert.match(service,/sum\(opportunity\.amount\) FILTER \(WHERE opportunity\.status='open'\)/);
-  assert.match(service,/sum\(opportunity\.expected_revenue\) FILTER \(WHERE opportunity\.status='open'\)/);
+  // F025 added an expected-close period predicate after the open-status guard.
+  assert.match(service,/sum\(opportunity\.amount\) FILTER \(WHERE opportunity\.status='open'[ )]/);
+  assert.match(service,/sum\(opportunity\.expected_revenue\) FILTER \(WHERE opportunity\.status='open'[ )]/);
 });
 
 test("F011 expected revenue is derived and cannot be forged through generic create/update", async () => {

@@ -18,16 +18,28 @@ export type LeadScoringModelRule = {
   status: "active" | "inactive";
 };
 
+// The predictive (Naive Bayes) model type trains on the org's own
+// crm_leads.qualification_state history instead of admin-authored rules —
+// see predictive-model.js. Its training variables are limited to this
+// allowlist (PREDICTIVE_TRAINING_FIELDS in predictive-model.js).
+export const PREDICTIVE_TRAINING_VARIABLES = ["sourceId", "industry", "countryCode", "rating", "priority"] as const;
+export type PredictiveTrainingVariable = (typeof PREDICTIVE_TRAINING_VARIABLES)[number];
+
 export type LeadScoringModel = {
   id: string;
   name: string;
   version: number;
   status: "draft" | "active" | "retired";
+  model_type: "rule_based" | "predictive";
   base_score: number;
   score_floor: number;
   score_ceiling: number;
   decay_half_life_days: number;
   qualification_thresholds: { warm: number; hot: number; qualified: number };
+  training_variables: PredictiveTrainingVariable[];
+  minimum_class_size: number;
+  trained_at: string | null;
+  training_summary: { qualifiedCount?: number; unqualifiedCount?: number; variables?: string[]; trainedAt?: string };
   activated_at: string | null;
   created_at: string;
   updated_at: string;

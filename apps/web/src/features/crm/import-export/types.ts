@@ -29,6 +29,7 @@ export type LeadImportRowResult = {
 
 export type LeadImportBatch = {
   id: string;
+  file_name: string;
   status: string;
   total_rows: number;
   valid_rows: number;
@@ -36,6 +37,7 @@ export type LeadImportBatch = {
   created_rows?: number;
   updated_rows?: number;
   skipped_rows?: number;
+  created_at: string;
 };
 
 export type LeadImportPreviewResult = { batch: LeadImportBatch; rows: LeadImportRowResult[]; idempotent: boolean };

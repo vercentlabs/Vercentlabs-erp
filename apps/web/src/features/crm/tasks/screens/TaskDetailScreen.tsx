@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Pencil, Plus, X } from "lucide-react";
+import { CheckCircle2, Pencil, Play, Plus, UserMinus, UserPlus, X } from "lucide-react";
 import { Button, Dialog, ErrorState, IconButton, PermissionState, RecordDetailsPage, Select, StatusBadge, TextArea, TextField, type SelectOption } from "@vercentlabs/design-system";
 import { CRM_PERMISSIONS } from "@vercentlabs/permissions";
 import { LoadingState } from "@/features/crm/shared/ui/LoadingState";
@@ -15,7 +15,7 @@ import { RelatedRecordCard } from "@/features/crm/shared/ui/RelatedRecordCard";
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import { getCrmOptions } from "@/features/crm/shared/crm-options-api";
-import { addTaskDependency, getTask, listTaskDependencies, listTasks, removeTaskDependency, TaskApiError, updateTask } from "../api/tasks-api";
+import { addTaskDependency, cancelTask, claimTask, completeTask, getTask, listTaskDependencies, listTaskHistory, listTasks, releaseTask, removeTaskDependency, startTask, TaskApiError, updateTask } from "../api/tasks-api";
 import { RecurrenceBuilder } from "../components/RecurrenceBuilder";
 import type { RecurrenceConfig, Task } from "../types";
 
@@ -40,12 +40,44 @@ function describeRecurrence(config: RecurrenceConfig | null): string | null {
 // now wired below, not invented.
 export function TaskDetailScreen({ taskId }: { taskId: string }) {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const workspace = useWorkspaceContext();
   const canManage = workspace.permissions.includes(CRM_PERMISSIONS.activitiesManage);
   const [editOpen, setEditOpen] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
 
   const query = useQuery({ queryKey: scopedQueryKey(workspace, "crm", "tasks", taskId), queryFn: () => getTask(taskId) });
   const task = query.data?.record;
+  // A task waiting on unfinished work cannot be completed (server rule
+  // CRM_TASK_DEPENDENCY_BLOCKED); say so up front instead of offering the action.
+  const blockingQuery = useQuery({
+    queryKey: scopedQueryKey(workspace, "crm", "tasks", taskId, "dependencies"),
+    queryFn: () => listTaskDependencies(taskId),
+  });
+  const blockedBy = (blockingQuery.data?.rows ?? []).filter((row) => row.dependsOnStatus !== "completed" && row.dependsOnStatus !== "cancelled");
+
+  // F015 gap-closure — listCrmTaskHistory (the crm_task_events ledger)
+  // existed with no route or frontend reader anywhere.
+  const historyQuery = useQuery({
+    queryKey: scopedQueryKey(workspace, "crm", "tasks", taskId, "history"),
+    queryFn: () => listTaskHistory(taskId),
+    enabled: Boolean(task),
+  });
+
+  function invalidate() {
+    queryClient.invalidateQueries({ queryKey: scopedQueryKey(workspace, "crm", "tasks", taskId) });
+    queryClient.invalidateQueries({ queryKey: scopedQueryKey(workspace, "crm", "tasks") });
+  }
+  function handleError(err: unknown) {
+    setActionError(err instanceof TaskApiError ? err.message : "This action could not be completed.");
+    if (err instanceof TaskApiError && (err.code === "CRM_TASK_STALE_WRITE" || err.code === "CRM_TASK_CONFLICT")) invalidate();
+  }
+  const onDone = () => { setActionError(null); invalidate(); };
+  const startMutation = useMutation({ mutationFn: () => startTask(task!.id, task!.updatedAt), onSuccess: onDone, onError: handleError });
+  const completeMutation = useMutation({ mutationFn: () => completeTask(task!.id, undefined, task!.updatedAt), onSuccess: onDone, onError: handleError });
+  const cancelMutation = useMutation({ mutationFn: () => cancelTask(task!.id, task!.updatedAt), onSuccess: onDone, onError: handleError });
+  const claimMutation = useMutation({ mutationFn: () => claimTask(task!.id, task!.updatedAt), onSuccess: onDone, onError: handleError });
+  const releaseMutation = useMutation({ mutationFn: () => releaseTask(task!.id, task!.updatedAt), onSuccess: onDone, onError: handleError });
 
   if (query.isLoading) return <LoadingState label="Loading task" rows={3} />;
   if (query.isError) {
@@ -54,11 +86,14 @@ export function TaskDetailScreen({ taskId }: { taskId: string }) {
   }
   if (!task) return null;
 
+  const isTerminal = task.status === "completed" || task.status === "cancelled";
+  const teamId = (task as { teamId?: string | null }).teamId ?? null;
+
   return (
     <RecordDetailsPage
       header={{
         title: task.subject,
-        status: <StatusBadge tone={task.status === "completed" ? "success" : task.status === "cancelled" ? "neutral" : "info"}>{task.status}</StatusBadge>,
+        status: <StatusBadge tone={task.status === "completed" ? "success" : task.status === "cancelled" ? "neutral" : "info"}>{humanize(task.status)}</StatusBadge>,
         fields: [
           { label: "Due", value: task.dueAt ? `${formatDateTime(task.dueAt)}${task.status !== "completed" && task.status !== "cancelled" && dueState(task.dueAt) === "overdue" ? " (" + dueLabel(task.dueAt) + ")" : ""}` : "No due date" },
           { label: "Priority", value: humanize(task.priority) },
@@ -72,9 +107,50 @@ export function TaskDetailScreen({ taskId }: { taskId: string }) {
             Edit
           </Button>
         ) : undefined,
+        secondaryActions:
+          canManage && !isTerminal ? (
+            <>
+              {teamId && !task.assignedTo && (
+                <Button variant="secondary" onPress={() => claimMutation.mutate()} isLoading={claimMutation.isPending}>
+                  <UserPlus className="size-4" aria-hidden="true" />
+                  Claim
+                </Button>
+              )}
+              {teamId && task.assignedTo && (
+                <Button variant="secondary" onPress={() => releaseMutation.mutate()} isLoading={releaseMutation.isPending}>
+                  <UserMinus className="size-4" aria-hidden="true" />
+                  Release
+                </Button>
+              )}
+              {task.status !== "in_progress" && (
+                <Button variant="secondary" onPress={() => startMutation.mutate()} isLoading={startMutation.isPending}>
+                  <Play className="size-4" aria-hidden="true" />
+                  Start
+                </Button>
+              )}
+              <Button variant="secondary" onPress={() => completeMutation.mutate()} isLoading={completeMutation.isPending} isDisabled={blockedBy.length > 0} aria-describedby={blockedBy.length > 0 ? "task-blocked-note" : undefined}>
+                <CheckCircle2 className="size-4" aria-hidden="true" />
+                Complete
+              </Button>
+              <Button variant="danger" onPress={() => cancelMutation.mutate()} isLoading={cancelMutation.isPending}>
+                <X className="size-4" aria-hidden="true" />
+                Cancel
+              </Button>
+            </>
+          ) : undefined,
       }}
     >
       <div className="flex flex-col gap-4 py-4">
+        {!isTerminal && blockedBy.length > 0 && (
+          <p id="task-blocked-note" role="status" className="rounded-[var(--radius-control)] border border-warning-emphasis/30 bg-warning-soft px-3 py-2 text-sm text-warning">
+            {`Waiting on ${blockedBy.map((row) => `"${row.dependsOnSubject}"`).join(", ")}. This task can be completed once ${blockedBy.length === 1 ? "that is" : "those are"} done.`}
+          </p>
+        )}
+        {actionError && (
+          <p role="alert" className="rounded-[var(--radius-control)] border border-danger-emphasis/30 bg-danger-soft px-3 py-2 text-sm text-danger">
+            {actionError}
+          </p>
+        )}
         <PropertyList title="Related record" columns={1} items={[{ label: "Belongs to", value: <RelatedRecordCard entityType={(task as { entityType?: string }).entityType} entityId={(task as { entityId?: string | null }).entityId} /> }]} />
         <PropertyList title="Task" items={[
           { label: "Description", value: task.description, wide: true },
@@ -85,6 +161,27 @@ export function TaskDetailScreen({ taskId }: { taskId: string }) {
           { label: "Completed", value: task.completedAt ? formatDateTime(task.completedAt) : null },
           { label: "Outcome", value: task.outcome, wide: true },
         ]} />
+      </div>
+      <div className="flex flex-col gap-2 rounded-[var(--radius-card)] border border-border bg-surface p-4">
+        <p className="text-sm font-semibold text-text">Task history</p>
+        {historyQuery.isLoading ? (
+          <p className="text-sm text-text-secondary">Loading history…</p>
+        ) : (historyQuery.data?.rows.length ?? 0) === 0 ? (
+          <p className="text-sm text-text-muted">No history recorded yet.</p>
+        ) : (
+          <ul className="flex flex-col divide-y divide-border">
+            {historyQuery.data!.rows.map((event) => (
+              <li key={event.id} className="flex flex-col gap-0.5 py-2 text-sm">
+                <div className="flex flex-wrap items-center gap-2">
+                  <StatusBadge tone={event.eventType === "cancelled" ? "danger" : event.eventType === "completed" ? "success" : "neutral"}>{humanize(event.eventType)}</StatusBadge>
+                  {event.fromStatus && event.toStatus && event.fromStatus !== event.toStatus && <span className="text-text-secondary">{`${humanize(event.fromStatus)} → ${humanize(event.toStatus)}`}</span>}
+                  <span className="text-xs text-text-muted">{formatDateTime(event.occurredAt)}</span>
+                </div>
+                <span className="text-xs text-text-secondary">{event.actorName ? `By ${event.actorName}` : "System"}</span>
+              </li>
+            ))}
+          </ul>
+        )}
       </div>
       <TaskDependenciesPanel task={task} canManage={canManage} />
       <EditTaskDialog isOpen={editOpen} onOpenChange={setEditOpen} task={task} />
@@ -171,7 +268,7 @@ function TaskDependenciesPanel({ task, canManage }: { task: Task; canManage: boo
             <li key={dependency.id} className="flex items-center justify-between rounded-[var(--radius-control)] border border-border px-3 py-1.5">
               <span className="text-sm text-text">{dependency.dependsOnSubject}</span>
               <div className="flex items-center gap-2">
-                <StatusBadge tone={dependency.dependsOnStatus === "completed" ? "success" : "warning"}>{dependency.dependsOnStatus}</StatusBadge>
+                <StatusBadge tone={dependency.dependsOnStatus === "completed" ? "success" : "warning"}>{humanize(dependency.dependsOnStatus)}</StatusBadge>
                 {canManage && (
                   <IconButton
                     aria-label={`Remove dependency on ${dependency.dependsOnSubject}`}

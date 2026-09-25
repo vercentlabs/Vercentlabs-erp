@@ -7,8 +7,8 @@
 // batching, adapted for Opportunities.
 import { CrmError } from "../crm-data-operations-and-customization/errors.js";
 import { queueOutboxEvent } from "../crm-data-operations-and-customization/outbox.js";
-import { text } from "./shared.js";
-import { moveOpportunityStage } from "../index.js";
+import { isElevatedSalesStageActor, text } from "./shared.js";
+import { getSalesStage, moveOpportunityStage, setSalesStageActive } from "../index.js";
 
 export const OPPORTUNITY_STAGE_MIGRATION_JOB_TYPE = "crm.opportunities.stage_migration";
 export const OPPORTUNITY_STAGE_MIGRATION_BATCH_SIZE = 100;
@@ -28,6 +28,43 @@ function migrationJobProjection(row) {
     updatedAt: row.updated_at,
     completedAt: row.completed_at,
   };
+}
+
+// F012 gap-closure (benchmark: "Sales stages configuration in top ERPs"
+// report) — the entry point the deactivate route/UI actually calls.
+// enqueueOpportunityStageMigrationJob and processOpportunityStageMigrationBatch
+// below have existed, tested, and wired to a real worker handler
+// (crm-opportunity-stage-migration.js) since this file was first written —
+// but nothing ever called this one, the actual trigger, leaving the whole
+// subsystem unreachable. Mirrors deactivateLeadStageWithMigration (F007
+// lead-lifecycle/lifecycle/stage-migration.js) exactly: if the stage has no
+// open Opportunities, delegate straight to the existing governed
+// setSalesStageActive (unchanged behavior); if it does and no
+// migrateToStageId is given, let setSalesStageActive's own existing
+// CRM_SALES_STAGE_OPEN_OPPORTUNITIES error surface the affected count; if a
+// replacement stage IS given, enqueue the migration job and return without
+// deactivating — the caller must retry deactivation once the job empties
+// the stage (its manifest will then show 0 open Opportunities).
+export async function deactivateSalesStageWithMigration(client, context, id, options = {}) {
+  const migrateToStageId = text(options.migrateToStageId);
+  if (!migrateToStageId) {
+    const stage = await setSalesStageActive(client, context, id, false, options.expectedUpdatedAt);
+    return { deactivated: true, stage };
+  }
+  const before = await getSalesStage(client, context, id);
+  if (before.status === "inactive") return { deactivated: true, stage: before };
+  if (!Number(before.openOpportunityCount || 0)) {
+    const stage = await setSalesStageActive(client, context, id, false, options.expectedUpdatedAt);
+    return { deactivated: true, stage };
+  }
+  if (!isElevatedSalesStageActor(context))
+    throw new CrmError(
+      403,
+      "Migrating open Opportunities off a stage requires elevated permission.",
+      "CRM_SALES_STAGE_MIGRATION_FORBIDDEN",
+    );
+  const job = await enqueueOpportunityStageMigrationJob(client, context, id, migrateToStageId);
+  return { deactivated: false, stage: before, migrationJob: job };
 }
 
 export async function enqueueOpportunityStageMigrationJob(client, context, fromStageId, toStageId) {

@@ -11,6 +11,7 @@ import { LoadingState } from "@/features/crm/shared/ui/LoadingState";
 
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
+import { RecordTimelinePanel } from "@/features/crm/shared/RecordTimelinePanel";
 import { NotesPanel } from "@/features/crm/shared/NotesPanel";
 import { CrmAttachmentPanel } from "@/features/crm/shared/CrmAttachmentPanel";
 import { CustomFieldsRuntimePanel } from "@/features/crm/shared/CustomFieldsRuntimePanel";
@@ -20,11 +21,12 @@ import { MoreMenu } from "@/features/crm/shared/ui/MoreMenu";
 import { PropertyList } from "@/features/crm/shared/ui/PropertyList";
 import { listOpportunities } from "@/features/crm/opportunities/api/opportunities-api";
 import { AccountApiError, archiveAccount, getAccount } from "../api/accounts-api";
+import { AccountCustomer360Panel } from "../components/AccountCustomer360Panel";
 import { AccountHierarchyPanel } from "../components/AccountHierarchyPanel";
 import { AccountDuplicatesPanel } from "../components/AccountDuplicatesPanel";
 import { AccountPlanPanel } from "../components/AccountPlanPanel";
 import { AccountContactRelationshipsPanel } from "../components/AccountContactRelationshipsPanel";
-import { AccountCommunicationsPanel } from "../components/AccountCommunicationsPanel";
+import { EmailHistoryPanel } from "@/features/crm/shared/EmailHistoryPanel";
 import { AccountPrivacyPanel } from "../components/AccountPrivacyPanel";
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
@@ -117,10 +119,12 @@ export function AccountDetailScreen({ accountId }: { accountId: string }) {
         <Tabs>
           <TabList aria-label="Account sections">
             <Tab id="overview">Overview</Tab>
+            <Tab id="360">360 view</Tab>
             <Tab id="contacts">Contacts</Tab>
             <Tab id="opportunities">Opportunities</Tab>
             <Tab id="activity">Activity</Tab>
             <Tab id="plan">Account plan</Tab>
+            <Tab id="timeline">Timeline</Tab>
             <Tab id="notes">Notes</Tab>
             <Tab id="files">Files</Tab>
             <Tab id="more">More</Tab>
@@ -160,6 +164,12 @@ export function AccountDetailScreen({ accountId }: { accountId: string }) {
                 ]} />
               </div>
               <p className="text-xs text-text-muted">{`Created ${formatDate(account.createdAt)} · Last updated ${formatDate(account.updatedAt)}`}</p>
+            </div>
+          </TabPanel>
+
+          <TabPanel id="360">
+            <div className="py-4">
+              <AccountCustomer360Panel accountId={accountId} />
             </div>
           </TabPanel>
 
@@ -206,13 +216,19 @@ export function AccountDetailScreen({ accountId }: { accountId: string }) {
 
           <TabPanel id="activity">
             <div className="py-4">
-              <AccountCommunicationsPanel accountId={accountId} />
+              <EmailHistoryPanel entityType="party" entityId={accountId} />
             </div>
           </TabPanel>
 
           <TabPanel id="plan">
             <div className="py-4">
               <AccountPlanPanel accountId={accountId} canManage={canManage} />
+            </div>
+          </TabPanel>
+
+          <TabPanel id="timeline">
+            <div className="py-4">
+              <RecordTimelinePanel entityType="party" entityId={accountId} />
             </div>
           </TabPanel>
 

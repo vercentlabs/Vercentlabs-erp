@@ -24,11 +24,28 @@ export function canViewSensitiveAccountContent(context) {
   );
 }
 
+function snakeCase(value) {
+  return value.replace(/[A-Z]/g, (letter) => `_${letter.toLowerCase()}`);
+}
+
+// Strips both the camelCase field name AND its snake_case column name.
+// account-intelligence.js's merge-preview/Customer-360 read paths pass this
+// function RAW Postgres rows (never camelizeRow()'d, unlike
+// getCrmAccount/getCrmAccountForCaller in account-operations.js) — a
+// camelCase-only delete list silently failed to strip msme_number/
+// normalized_pan from those raw rows, the exact class of leak
+// CRM-VNEXT-004/035 already fixed once for the camelized path. Deleting
+// both spellings makes this safe regardless of which shape the caller hands
+// in, rather than requiring every future raw-row call site to remember to
+// camelize first.
 export function projectAccountForContext(context, record) {
   if (!record || typeof record !== "object" || canViewSensitiveAccountContent(context))
     return record;
   const projected = { ...record };
-  for (const field of SENSITIVE_ACCOUNT_FIELDS) delete projected[field];
+  for (const field of SENSITIVE_ACCOUNT_FIELDS) {
+    delete projected[field];
+    delete projected[snakeCase(field)];
+  }
   projected.sensitiveDataRestricted = true;
   return projected;
 }

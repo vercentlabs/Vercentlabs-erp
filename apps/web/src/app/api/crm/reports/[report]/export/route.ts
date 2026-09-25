@@ -1,4 +1,4 @@
-import { getCrmReport, rowsToCsv } from "@vercentlabs/api";
+import { audit, getCrmReport, rowsToCsv } from "@vercentlabs/api";
 import { CRM_PERMISSIONS } from "@vercentlabs/permissions";
 
 import { tenantTransaction } from "@/core/db";
@@ -28,7 +28,20 @@ export async function GET(request: Request, context: { params: Promise<{ report:
     }
     const result = await tenantTransaction(session.organizationId, async (client) => {
       await requireCrmAccess(client, session, CRM_PERMISSIONS.reportsView);
-      return getCrmReport(client, crmContext(session), report, filters);
+      const report_ = await getCrmReport(client, crmContext(session), report, filters);
+      // F030 — governed export: every download is recorded (who, which
+      // report, which period, how many rows, and the data fingerprint).
+      await audit(client, {
+        organizationId: session.organizationId,
+        actorUserId: session.userId,
+        eventType: "crm.report.exported",
+        entityType: "crm_report",
+        entityId: null,
+        metadata: { report, filters: report_.filters, rowCount: report_.rows.length, fingerprint: report_.fingerprint },
+        request,
+        env: process.env,
+      });
+      return report_;
     });
     const rows = result.rows as Array<Record<string, unknown>>;
     if (!rows.length) return ok({ message: "No rows to export for this report and date range." }, 200);
@@ -41,6 +54,8 @@ export async function GET(request: Request, context: { params: Promise<{ report:
         "Content-Disposition": `attachment; filename="${report}-report.csv"`,
         "Cache-Control": "private, no-store",
         "X-Content-Type-Options": "nosniff",
+        "X-Report-Generated-At": String(result.generatedAt),
+        "X-Report-Fingerprint": String(result.fingerprint),
       },
     });
   } catch (error) {

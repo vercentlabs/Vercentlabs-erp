@@ -8,13 +8,6 @@ import {
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
-const BULK_FORECAST_CATEGORIES = new Set([
-  "omitted",
-  "pipeline",
-  "best_case",
-  "committed",
-  "closed",
-]);
 
 export class OpportunityOperationsError extends Error {
   constructor(status, message, code = "CRM_OPPORTUNITY_OPERATIONS_ERROR") {
@@ -92,9 +85,12 @@ export async function getOpportunityTimeline(client, context, opportunityId) {
     forecasts: forecasts.rows,
   };
 }
+// F029 — bulk may change only what a single-record edit may change.
+// forecastCategory is NOT here: the single-record policy (record-policy.js
+// controlledFields) derives it from the stage and refuses a direct edit, so a
+// bulk edit must not set it either.
 export const OPPORTUNITY_BULK_FIELDS = new Map([
   ["ownerUserId", "owner_user_id"],
-  ["forecastCategory", "forecast_category"],
   ["expectedCloseDate", "expected_close_date"],
   ["nextStep", "next_step"],
 ]);
@@ -124,17 +120,6 @@ export async function normalizeOpportunityBulkChanges(client, context, input) {
       `Unsupported bulk Opportunity fields: ${unsupported.join(", ")}.`,
       "CRM_OPPORTUNITY_BULK_FIELD_UNSUPPORTED",
     );
-  if (
-    Object.prototype.hasOwnProperty.call(changes, "forecastCategory") &&
-    changes.forecastCategory &&
-    !BULK_FORECAST_CATEGORIES.has(String(changes.forecastCategory))
-  ) {
-    throw new OpportunityOperationsError(
-      400,
-      "Select a valid forecast category.",
-      "CRM_OPPORTUNITY_BULK_FORECAST_CATEGORY_INVALID",
-    );
-  }
   if (
     Object.prototype.hasOwnProperty.call(changes, "expectedCloseDate") &&
     changes.expectedCloseDate &&
@@ -171,11 +156,29 @@ export async function normalizeOpportunityBulkChanges(client, context, input) {
   return changes;
 }
 
+function mapOpportunityBulkError(error) {
+  const status = Number(error?.status || 500);
+  const code = String(error?.code || "CRM_OPPORTUNITY_BULK_ITEM_FAILED");
+  if (status === 409 && (code.includes("STALE") || code.includes("VERSION") || code.includes("CONFLICT")))
+    return { status: "conflict", code, message: "Opportunity changed after selection. Refresh and retry this record." };
+  if (status === 403 || status === 404)
+    return { status: "skipped", code: "CRM_OPPORTUNITY_BULK_SCOPE_CHANGED", message: "Opportunity is no longer available in your permitted scope." };
+  return { status: "failed", code, message: status >= 500 ? "Opportunity update failed and can be retried." : String(error?.message || "Opportunity update failed.") };
+}
+
+// F029 — the synchronous bulk edit applies each row through the SAME
+// single-record command (updateCrmRecord: scope, field policy, closed-deal
+// rules, optimistic concurrency, per-record before/after audit event) inside
+// its own savepoint, and reports every row's outcome. It previously ran one
+// mass UPDATE that bypassed those rules, silently dropped rows it could not
+// touch, and wrote a single batch event. With `preview: true` every row runs
+// the real rules and is then rolled back, so the preview shows exactly what
+// would apply, conflict or be skipped — nothing is written.
 export async function bulkUpdateOpportunities(client, context, input) {
   const ids = Array.isArray(input.ids)
     ? [...new Set(input.ids.map(String))]
     : [];
-  if (!ids.length || ids.length > 200)
+  if (!ids.length || ids.length > 200 || ids.some((id) => !UUID_PATTERN.test(id)))
     throw new OpportunityOperationsError(
       400,
       "Select between 1 and 200 opportunities.",
@@ -186,30 +189,44 @@ export async function bulkUpdateOpportunities(client, context, input) {
     context,
     input.changes,
   );
-  const sets = [];
-  const values = [context.organizationId, ids];
-  for (const [key, column] of OPPORTUNITY_BULK_FIELDS)
-    if (Object.prototype.hasOwnProperty.call(changes, key)) {
-      values.push(changes[key] || null);
-      sets.push(`${column}=$${values.length}`);
+  const preview = input.preview === true;
+  const expectedVersions = input.expectedVersions && typeof input.expectedVersions === "object" ? input.expectedVersions : {};
+  const items = [];
+  for (const id of ids.sort()) {
+    await client.query("SAVEPOINT crm_opportunity_bulk_item");
+    try {
+      const before = (await client.query(
+        `SELECT name, owner_user_id, expected_close_date, next_step FROM tenant.crm_opportunities WHERE organization_id=$1 AND id=$2`,
+        [context.organizationId, id],
+      )).rows[0];
+      const row = await updateCrmRecord(client, context, "opportunities", id, changes, {
+        expectedUpdatedAt: expectedVersions[id],
+        requireVersion: Boolean(expectedVersions[id]),
+      });
+      await client.query(preview ? "ROLLBACK TO SAVEPOINT crm_opportunity_bulk_item" : "RELEASE SAVEPOINT crm_opportunity_bulk_item");
+      if (preview) await client.query("RELEASE SAVEPOINT crm_opportunity_bulk_item");
+      items.push({
+        id,
+        name: before?.name ?? null,
+        status: preview ? "would_apply" : "applied",
+        before: before ? { ownerUserId: before.owner_user_id, expectedCloseDate: before.expected_close_date, nextStep: before.next_step } : null,
+        updatedAt: preview ? null : row.updatedAt,
+      });
+    } catch (error) {
+      await client.query("ROLLBACK TO SAVEPOINT crm_opportunity_bulk_item");
+      await client.query("RELEASE SAVEPOINT crm_opportunity_bulk_item");
+      items.push({ id, ...mapOpportunityBulkError(error) });
     }
-  values.push(context.userId);
-  sets.push(`updated_by=$${values.length}`, "updated_at=now()");
-  const result = await client.query(
-    `UPDATE tenant.crm_opportunities AS record SET ${sets.join(",")} WHERE record.organization_id=$1 AND record.id=ANY($2::uuid[]) AND record.status='open'${recordScope(resources.opportunities, context, values)} RETURNING record.id,record.owner_user_id,record.forecast_category,record.expected_close_date,record.next_step,record.updated_at`,
-    values,
+  }
+  const counts = items.reduce(
+    (result, item) => ({ ...result, [item.status]: (result[item.status] || 0) + 1 }),
+    { applied: 0, would_apply: 0, conflict: 0, skipped: 0, failed: 0 },
   );
-  // Integrity closeout: this bulk path previously queued no audit/outbox
-  // event at all, unlike every other governed Opportunity mutation.
-  await queueOutboxEvent(
-    client,
-    context,
-    "crm.opportunities.bulk_updated",
-    "opportunities",
-    ids[0],
-    { requestedIds: ids, changedFields: Object.keys(changes), updatedCount: result.rowCount },
-  );
-  return { requested: ids.length, updated: result.rowCount, rows: result.rows };
+  if (!preview && counts.applied)
+    await queueOutboxEvent(client, context, "crm.opportunities.bulk_updated", "opportunities", ids[0], {
+      requestedIds: ids, changedFields: Object.keys(changes), updatedCount: counts.applied,
+    });
+  return { mode: "synchronous", preview, requested: ids.length, updated: counts.applied, ...counts, items };
 }
 
 // F029 (Bulk actions) — LAST PROMPT 1/3 closeout: async bulk-job path for

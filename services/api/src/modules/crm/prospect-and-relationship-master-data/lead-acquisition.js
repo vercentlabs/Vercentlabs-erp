@@ -6,6 +6,7 @@ import {
 import { resolveIngestionLeadSource } from "./lead-source-validation.js";
 import { evaluateLeadDuplicateRisk } from "./lead-duplicates.js";
 import { canViewSensitiveLeadContent, leadScopeSql } from "../lead-lifecycle-qualification-and-prioritization/lead-security.js";
+import { recordLeadTouchpoint } from "./lead-attribution.js";
 
 export const CRM_LEAD_ACQUISITION_CAPABILITY_IDS = Object.freeze([
   "CRM-054",
@@ -451,13 +452,13 @@ async function createLead(client, context, lead, options = {}) {
   const inserted = await client.query(
     `INSERT INTO tenant.crm_leads(
        organization_id,company_id,branch_id,code,first_name,last_name,email,phone,mobile,
-       company_name,job_title,website,industry,source_id,campaign_id,owner_user_id,
+       company_name,job_title,website,industry,source_id,original_source_id,campaign_id,owner_user_id,
        estimated_value,currency_code,city,state,country_code,product_interest,
        consent_email,consent_sms,consent_whatsapp,custom_data,created_by,updated_by
      ) VALUES(
        $1,$2,$3,'LEAD-'||upper(substr(replace(gen_random_uuid()::text,'-',''),1,10)),
-       $4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,
-       $22,$23,$24,$25::jsonb,$26,$26
+       $4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,
+       $23,$24,$25,$26::jsonb,$27,$27
      ) RETURNING id`,
     [
       context.organizationId,
@@ -472,6 +473,14 @@ async function createLead(client, context, lead, options = {}) {
       lead.jobTitle,
       lead.website,
       lead.industry,
+      sourceId,
+      // F004: original_source_id is fixed at creation and never changes
+      // again, mirroring the exact contract resource-mutation-service.js
+      // enforces for the generic createCrmRecord("leads", ...) path — see
+      // that file's own comment. Every capture channel routed through this
+      // shared helper (import, webhook, published form, chat) was silently
+      // leaving this column NULL forever because it was missing from this
+      // INSERT's column list entirely.
       sourceId,
       options.campaignId || lead.campaignId || null,
       ownerUserId,
@@ -518,7 +527,13 @@ async function createLead(client, context, lead, options = {}) {
       ],
     );
   }
-  return { leadId: inserted.rows[0].id, action: "create", ownerUserId };
+  // F004: callers (submitPublishedLeadForm, ingestLeadAcquisitionWebhook)
+  // write crm_lead_provenance.attribution from this result — returning the
+  // resolved sourceId (post resolveIngestionLeadSource fallback) rather
+  // than making them re-derive or fall back to the raw, possibly
+  // null/inactive value they originally requested keeps the audit trail
+  // consistent with what the Lead record actually got.
+  return { leadId: inserted.rows[0].id, action: "create", ownerUserId, sourceId };
 }
 
 export async function previewLeadImport(client, context, input = {}) {
@@ -682,6 +697,31 @@ export async function rollbackLeadImport(client, context, batchId) {
   };
 }
 
+// F021 gap-closure — previewLeadImport/commitLeadImport/rollbackLeadImport
+// were only reachable from whatever batch id the import screen still held
+// in local component state; once a user left that screen (or reopened the
+// app), a completed batch had no way back to it at all — not even to see
+// that the import happened, let alone roll it back. This is the missing
+// list: the requester's own recent batches, or every batch for an
+// org-wide view-all holder, newest first — the same authorization rule
+// getCrmLeadExportJob already applies to export jobs.
+export async function listCrmLeadImportBatches(client, context, { limit = 25 } = {}) {
+  const canViewAll = (context.roleSlugs || []).includes("organization_owner") ||
+    (context.permissions || []).includes("crm.records.view_all");
+  const values = [context.organizationId];
+  const clauses = ["organization_id=$1"];
+  if (!canViewAll) {
+    values.push(context.userId);
+    clauses.push(`created_by=$${values.length}`);
+  }
+  values.push(Math.max(1, Math.min(100, Math.trunc(Number(limit)) || 25)));
+  const result = await client.query(
+    `SELECT * FROM tenant.crm_lead_import_batches WHERE ${clauses.join(" AND ")} ORDER BY created_at DESC LIMIT $${values.length}`,
+    values,
+  );
+  return result.rows;
+}
+
 export async function saveLeadForm(client, context, input = {}) {
   const definition = buildLeadFormDefinition(input.definition || input);
   const id = input.id || null;
@@ -802,6 +842,29 @@ export async function submitPublishedLeadForm(
     campaignId: form.campaign_id,
     ownerUserId: form.owner_user_id,
   });
+  await recordLeadTouchpoint(client, context, result.leadId, {
+    eventType: "responded",
+    channel: "form",
+    campaignId: form.campaign_id,
+    occurredAt: new Date(),
+  });
+  // Structured, queryable evidence alongside the free-form consent_evidence
+  // jsonb blob below — only a granted (checked) box is worth a row; see
+  // lead-capture.js's identical convention for the public capture-form path.
+  for (const [field, channel] of [["consentEmail", "email"], ["consentSms", "sms"], ["consentWhatsapp", "whatsapp"]]) {
+    if (lead[field])
+      await client.query(
+        `INSERT INTO tenant.crm_consent_events(organization_id,company_id,lead_id,channel,purpose,action,lawful_basis,source,evidence,created_by)
+         VALUES($1,$2,$3,$4,'sales','granted','consent','form',$5::jsonb,$6)`,
+        [context.organizationId, form.company_id, result.leadId, channel, JSON.stringify({ formId }), context.userId],
+      );
+  }
+  if (input.consent)
+    await client.query(
+      `INSERT INTO tenant.crm_consent_events(organization_id,company_id,lead_id,channel,purpose,action,lawful_basis,source,evidence,created_by)
+       VALUES($1,$2,$3,'all','marketing','granted','consent','form',$4::jsonb,$5)`,
+      [context.organizationId, form.company_id, result.leadId, JSON.stringify({ formId, consentText: form.consent_text }), context.userId],
+    );
   await client.query(
     `INSERT INTO tenant.crm_lead_provenance(organization_id,lead_id,source_channel,source_record_id,provider,external_id,original_payload,attribution,consent_evidence,content_hash,created_by) VALUES($1,$2,'form',$3,'capture_form',$4,$5::jsonb,$6::jsonb,$7::jsonb,$8,$9) ON CONFLICT DO NOTHING`,
     [
@@ -812,7 +875,13 @@ export async function submitPublishedLeadForm(
       JSON.stringify(input),
       JSON.stringify({
         campaignId: form.campaign_id,
-        sourceId: form.source_id,
+        // F004: record what the Lead was actually assigned, not the form's
+        // raw configured value — result.sourceId (createLead()'s resolved
+        // value, post resolveIngestionLeadSource fallback) is only present
+        // when the outcome was action:"create"; a skip/update outcome
+        // never resolves a source at all, so fall back to the form's
+        // configured value rather than recording nothing.
+        sourceId: result.sourceId ?? form.source_id,
       }),
       JSON.stringify({
         consentText: form.consent_text,
@@ -934,6 +1003,12 @@ export async function ingestLeadAcquisitionWebhook(
       `UPDATE tenant.crm_lead_acquisition_events SET status='processed',lead_id=$3,processed_at=now() WHERE organization_id=$1 AND id=$2`,
       [context.organizationId, inserted.rows[0].id, result.leadId],
     );
+    await recordLeadTouchpoint(client, context, result.leadId, {
+      eventType: "responded",
+      channel: normalized.sourceChannel,
+      campaignId: normalized.attribution?.campaignId || configuration.campaignId || configuration.campaign_id || null,
+      occurredAt: new Date(),
+    });
     await client.query(
       `INSERT INTO tenant.crm_lead_provenance(organization_id,lead_id,source_channel,source_record_id,provider,external_id,original_payload,attribution,content_hash,created_by) VALUES($1,$2,$3,$4,$5,$6,$7::jsonb,$8::jsonb,$9,$10) ON CONFLICT DO NOTHING`,
       [

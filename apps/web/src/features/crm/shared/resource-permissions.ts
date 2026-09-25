@@ -66,6 +66,18 @@ export const RESOURCE_MANAGE_PERMISSIONS: Partial<Record<string, string>> = {
   // target amounts) is a settings-manage concern, same as territories
   // themselves.
   "quota-plans": CRM_PERMISSIONS.settingsManage,
+  // Consent/GDPR module — crm_consent_events (immutable evidence log) and
+  // crm_privacy_requests (the DSR queue) already have a full backend
+  // (account-intelligence.js's preview/executePrivacyRequest and friends)
+  // and record-policy.js already governs their write shape (consent
+  // events are create-only; a completed request can't be reopened), but
+  // both were missing from this map — meaning any mutation against them
+  // through the generic /api/crm/[resource] route silently resolved to
+  // "denied" until now. crm.privacy.manage is the same permission already
+  // seeded and already used to gate the "privacy" report and the Data
+  // Subject Requests settings screen.
+  "consent-events": CRM_PERMISSIONS.privacyManage,
+  "privacy-requests": CRM_PERMISSIONS.privacyManage,
 };
 
 export type CrmMutationPermissionResolution =

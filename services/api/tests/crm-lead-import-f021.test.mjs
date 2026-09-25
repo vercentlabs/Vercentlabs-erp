@@ -171,3 +171,34 @@ test("F021: rollbackLeadImport deletes only the leads this batch created (via pr
   const del = client.calls.find(({ sql }) => sql.includes("DELETE FROM tenant.crm_leads"));
   assert.ok(del.sql.includes("NOT EXISTS"), "rollback must exclude leads with recorded activity, not delete unconditionally");
 });
+
+// F021 gap-closure — previewLeadImport/commitLeadImport/rollbackLeadImport
+// had no way back to a batch once a caller left the screen that held its
+// id in local state; listCrmLeadImportBatches is the missing history read.
+import { listCrmLeadImportBatches } from "../src/modules/crm/prospect-and-relationship-master-data/lead-acquisition.js";
+
+test("listCrmLeadImportBatches scopes to the caller's own batches unless they hold an org-wide view-all permission", async () => {
+  const calls = [];
+  const client = { query: async (sql, values) => { calls.push({ sql, values }); return { rows: [{ id: batch }] }; } };
+  await listCrmLeadImportBatches(client, context);
+  const [{ sql, values }] = calls;
+  assert.match(sql, /created_by=\$2/);
+  assert.deepEqual(values, [org, user, 25]);
+});
+
+test("listCrmLeadImportBatches returns every batch, not just the caller's own, for a view-all holder", async () => {
+  const calls = [];
+  const client = { query: async (sql, values) => { calls.push({ sql, values }); return { rows: [] }; } };
+  await listCrmLeadImportBatches(client, { ...context, permissions: ["crm.leads.manage", "crm.records.view_all"] });
+  const [{ sql, values }] = calls;
+  assert.doesNotMatch(sql, /created_by=/);
+  assert.deepEqual(values, [org, 25]);
+});
+
+test("listCrmLeadImportBatches orders newest first and clamps a caller-supplied limit", async () => {
+  const calls = [];
+  const client = { query: async (sql, values) => { calls.push({ sql, values }); return { rows: [] }; } };
+  await listCrmLeadImportBatches(client, context, { limit: 999 });
+  assert.match(calls[0].sql, /ORDER BY created_at DESC/);
+  assert.equal(calls[0].values.at(-1), 100);
+});

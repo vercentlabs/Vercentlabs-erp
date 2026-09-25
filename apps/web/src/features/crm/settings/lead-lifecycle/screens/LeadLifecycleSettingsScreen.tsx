@@ -168,7 +168,7 @@ function RecommendedTemplateSection() {
           )}
           <div className="flex justify-end gap-2">
             <Button variant="secondary" onPress={() => setPreviewOpen(false)}>
-              {applied ? "Close" : "Cancel"}
+              {applied || !hasChanges ? "Close" : "Cancel"}
             </Button>
             {!applied && hasChanges && (
               <Button

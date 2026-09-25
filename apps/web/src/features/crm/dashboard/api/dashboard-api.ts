@@ -1,6 +1,6 @@
 "use client";
 
-import type { CrmDashboard } from "../types";
+import type { CrmDashboard, CrmDashboardScope } from "../types";
 
 export class CrmDashboardApiError extends Error {
   constructor(
@@ -20,7 +20,12 @@ async function parseResponse<T>(response: Response): Promise<T> {
   return payload;
 }
 
-export async function getCrmDashboardData(): Promise<{ dashboard: CrmDashboard }> {
-  const response = await fetch("/api/crm/dashboard");
+export async function getCrmDashboardData(options: { scope?: CrmDashboardScope; from?: string; to?: string } = {}): Promise<{ dashboard: CrmDashboard }> {
+  const params = new URLSearchParams();
+  if (options.scope) params.set("scope", options.scope);
+  if (options.from) params.set("from", options.from);
+  if (options.to) params.set("to", options.to);
+  const query = params.toString();
+  const response = await fetch(`/api/crm/dashboard${query ? `?${query}` : ""}`);
   return parseResponse(response);
 }

@@ -80,6 +80,11 @@ export function getCustomer360(
   context: CrmFoundationContext,
   partyId: string,
 ): Promise<Record<string, unknown>>;
+export function getCustomer360ForCaller(
+  client: QueryClient,
+  context: CrmFoundationContext,
+  partyId: string,
+): Promise<Record<string, unknown>>;
 export function previewPrivacyRequest(
   client: QueryClient,
   context: CrmFoundationContext,

@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { ColumnDef } from "@tanstack/react-table";
-import { Plus, Power } from "lucide-react";
+import { Pencil, Plus, Power } from "lucide-react";
 import {
   Button,
   Checkbox,
@@ -11,9 +11,11 @@ import {
   EnterpriseDataGrid,
   EnterpriseListPage,
   IconButton,
+  NumberField,
   PermissionState,
   Select,
   StatusBadge,
+  TextArea,
   TextField,
   type SelectOption,
 } from "@vercentlabs/design-system";
@@ -29,6 +31,7 @@ import {
   LeadSourceApiError,
   listLeadSources,
   setLeadSourceActive,
+  updateLeadSource,
 } from "../api/lead-sources-api";
 import { LEAD_SOURCE_CHANNELS, type LeadSource } from "../types";
 
@@ -49,6 +52,7 @@ export function LeadSourcesSettingsScreen() {
   const canManage = workspace.permissions.includes(CRM_PERMISSIONS.settingsManage);
 
   const [createOpen, setCreateOpen] = useState(false);
+  const [editingSource, setEditingSource] = useState<LeadSource | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const query = useQuery({ queryKey: scopedQueryKey(workspace, "crm", "lead-sources"), queryFn: listLeadSources });
@@ -72,7 +76,7 @@ export function LeadSourcesSettingsScreen() {
   });
 
   // How each source performs comes from the dashboard's own aggregation, matched by source name.
-  const statsQuery = useQuery({ queryKey: scopedQueryKey(workspace, "crm", "dashboard"), queryFn: getCrmDashboardData });
+  const statsQuery = useQuery({ queryKey: scopedQueryKey(workspace, "crm", "dashboard"), queryFn: () => getCrmDashboardData() });
   const statsByName = useMemo(() => new Map((statsQuery.data?.dashboard.sources ?? []).map((row) => [row.name, row])), [statsQuery.data]);
 
   const columns: ColumnDef<LeadSource, unknown>[] = useMemo(
@@ -131,7 +135,10 @@ export function LeadSourcesSettingsScreen() {
           getRowId={(row) => row.id}
           {...gridStates(query, rows.length, "lead sources", { title: "No lead sources yet", description: "A source says where a lead came from, such as Website, Referral or Trade show. Sources let you see which channels bring in customers." })}
           rowActions={(row) => (
-            <span onClick={(event) => event.stopPropagation()}>
+            <span className="flex items-center gap-1" onClick={(event) => event.stopPropagation()}>
+              <IconButton aria-label={`Edit ${row.name}`} size="compact" variant="ghost" onPress={() => setEditingSource(row)}>
+                <Pencil className="size-4" aria-hidden="true" />
+              </IconButton>
               <IconButton
                 aria-label={row.status === "active" ? `Deactivate ${row.name}` : `Activate ${row.name}`}
                 size="compact"
@@ -147,6 +154,7 @@ export function LeadSourcesSettingsScreen() {
       </EnterpriseListPage>
 
       <CreateLeadSourceDialog isOpen={createOpen} onOpenChange={setCreateOpen} onCreated={invalidate} onError={handleError} />
+      <EditLeadSourceDialog source={editingSource} onOpenChange={(open) => !open && setEditingSource(null)} onSaved={invalidate} />
     </div>
   );
 }
@@ -188,6 +196,80 @@ function CreateLeadSourceDialog({
           <Button variant="secondary" onPress={() => onOpenChange(false)}>Cancel</Button>
           <Button variant="primary" onPress={() => mutation.mutate()} isLoading={mutation.isPending} isDisabled={!name.trim()}>
             Create source
+          </Button>
+        </div>
+      </div>
+    </Dialog>
+  );
+}
+
+// F004 gap-closure — updateCrmLeadSource / the PATCH /api/crm/lead-sources/[id]
+// endpoint / updateLeadSource client function all already existed, fully
+// governed (optimistic concurrency, is_system/status/code left immutable
+// server-side) — this screen just never called any of it. Only Create and
+// Activate/Deactivate existed before this pass.
+function EditLeadSourceDialog({
+  source,
+  onOpenChange,
+  onSaved,
+}: {
+  source: LeadSource | null;
+  onOpenChange: (open: boolean) => void;
+  onSaved: () => void;
+}) {
+  const [name, setName] = useState("");
+  const [description, setDescription] = useState("");
+  const [channel, setChannel] = useState("");
+  const [sortOrder, setSortOrder] = useState(100);
+  const [isDefault, setIsDefault] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  // Seed the draft from whichever source was just opened for editing — the
+  // render-time "adjust state on prop change" pattern (not an effect), same
+  // convention AccountPlanPanel.tsx uses for the same reason: it can't
+  // cause a stale-then-correct flash the way a useEffect-driven update can.
+  const [seededFor, setSeededFor] = useState<LeadSource | null>(null);
+  if (source && source !== seededFor) {
+    setSeededFor(source);
+    setName(source.name);
+    setDescription(source.description ?? "");
+    setChannel(source.channel ?? "");
+    setSortOrder(source.sortOrder ?? 100);
+    setIsDefault(source.isDefault);
+    setError(null);
+  }
+
+  const mutation = useMutation({
+    mutationFn: () =>
+      updateLeadSource(
+        source!.id,
+        { name, description: description || null, channel: channel || undefined, sortOrder, isDefault },
+        source!.updatedAt,
+      ),
+    onSuccess: () => {
+      onSaved();
+      onOpenChange(false);
+    },
+    onError: (err: unknown) => setError(err instanceof LeadSourceApiError ? err.message : "This action could not be completed."),
+  });
+
+  return (
+    <Dialog isOpen={Boolean(source)} onOpenChange={onOpenChange} title={source ? `Edit ${source.name}` : "Edit source"}>
+      <div className="flex flex-col gap-4">
+        {error && (
+          <p role="alert" className="rounded-[var(--radius-control)] border border-danger-emphasis/30 bg-danger-soft px-3 py-2 text-sm text-danger">
+            {error}
+          </p>
+        )}
+        <TextField label="Name" isRequired value={name} onChange={setName} />
+        <TextArea label="Description" value={description} onChange={setDescription} />
+        <Select label="Channel" options={CHANNEL_OPTIONS} selectedKey={channel} onSelectionChange={(key) => setChannel(String(key ?? ""))} />
+        <NumberField label="Display order" value={sortOrder} onChange={setSortOrder} minValue={0} maxValue={10000} />
+        <Checkbox isSelected={isDefault} onChange={setIsDefault}>Make this the default source</Checkbox>
+        <div className="flex justify-end gap-2">
+          <Button variant="secondary" onPress={() => onOpenChange(false)}>Cancel</Button>
+          <Button variant="primary" onPress={() => mutation.mutate()} isLoading={mutation.isPending} isDisabled={!name.trim()}>
+            Save changes
           </Button>
         </div>
       </div>

@@ -44,6 +44,15 @@ export async function rollbackLeadImportRequest(batchId: string): Promise<LeadIm
   return parseResponse(response);
 }
 
+// F021 gap-closure — the only way back to a completed batch used to be
+// this screen's own local state, so leaving it stranded rollbackLeadImport
+// as unreachable. This lists the requester's (or, for a view-all holder,
+// every) recent batch so a past import stays visible and reversible.
+export async function listLeadImportBatchesRequest(): Promise<{ batches: LeadImportBatch[] }> {
+  const response = await fetch("/api/crm/leads/import/batches");
+  return parseResponse(response);
+}
+
 // F021 Stage A2 §9. Export is now a real async, server-side job
 // (tenant.background_jobs, job_type='crm.leads.export') — CSV generation,
 // formula-injection neutralization (rowsToCsv/csvCell,

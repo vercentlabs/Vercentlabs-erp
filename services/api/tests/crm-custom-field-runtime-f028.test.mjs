@@ -16,7 +16,7 @@ const definitionText = "66666666-6666-4666-8666-666666666666";
 const definitionSelect = "77777777-7777-4777-8777-777777777777";
 const definitionRequired = "88888888-8888-4888-8888-888888888888";
 
-const context = { organizationId: org, userId: user, activeCompanyId: null, activeBranchId: null, allowAllCompanies: true, roleSlugs: [], permissions: ["crm.leads.view_sensitive"] };
+const context = { organizationId: org, userId: user, activeCompanyId: null, activeBranchId: null, allowAllCompanies: true, roleSlugs: [], permissions: ["crm.leads.view_sensitive", "crm.leads.manage", "crm.opportunities.manage", "crm.accounts.manage"] };
 
 function createClient({ leadVisible = true, definitions = [], queries = {} } = {}) {
   const calls = [];
@@ -27,6 +27,9 @@ function createClient({ leadVisible = true, definitions = [], queries = {} } = {
       if (sql.includes("FROM tenant.crm_leads")) return leadVisible ? { rows: [{ id: lead }] } : { rows: [] };
       if (sql.includes("SELECT * FROM custom_field_definitions WHERE organization_id=$1 AND entity_type=$2 AND status='active'"))
         return { rows: definitions };
+      // Stored values (none) and the append-only history ledger.
+      if (sql.startsWith("SELECT definition_id, value FROM custom_field_values")) return { rows: [] };
+      if (sql.includes("INSERT INTO custom_field_value_history")) return { rows: [] };
       for (const [pattern, handler] of Object.entries(queries)) {
         if (sql.includes(pattern)) return handler(values);
       }

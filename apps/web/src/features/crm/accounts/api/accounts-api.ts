@@ -2,7 +2,6 @@
 
 import type {
   Account,
-  AccountCommunication,
   AccountDuplicateMatch,
   AccountHierarchy,
   AccountListFilters,
@@ -11,6 +10,7 @@ import type {
   AccountPlan,
   AccountStakeholder,
   CrmListResponse,
+  Customer360,
 } from "../types";
 
 export class AccountApiError extends Error {
@@ -144,7 +144,10 @@ export async function archiveAccountStakeholder(id: string, expectedUpdatedAt: s
   return parseResponse(response);
 }
 
-export async function listAccountCommunications(partyId: string): Promise<CrmListResponse<AccountCommunication>> {
-  const response = await fetch(`/api/crm/communications?partyId=${encodeURIComponent(partyId)}&limit=25`);
+// getCustomer360 (account-intelligence.js) already existed fully built —
+// unified Account + hierarchy + Contacts + cross-module timeline — but had
+// no route/frontend caller anywhere before this pass.
+export async function getCustomer360(id: string): Promise<{ view: Customer360 }> {
+  const response = await fetch(`/api/crm/accounts/${id}/customer-360`);
   return parseResponse(response);
 }

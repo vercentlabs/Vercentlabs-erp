@@ -14,6 +14,10 @@ import {
   setSalesStageActive,
   updateSalesStage,
 } from "../src/modules/crm/opportunity-and-pipeline-governance/sales-stage-operations.js";
+import {
+  deactivateSalesStageWithMigration,
+  enqueueOpportunityStageMigrationJob,
+} from "../src/modules/crm/opportunity-and-pipeline-governance/stage-migration.js";
 
 const root = path.resolve(import.meta.dirname, "../../..");
 const read = (file) => fs.readFileSync(path.join(root, file), "utf8");
@@ -236,4 +240,76 @@ test("F012: new stage allocation appends instead of taking the first low free se
   assert.match(create, /temporarySequence = nextAppendSequence\(existingActive\)/);
   assert.match(active, /reusableOrAppendSequence\(activeRows, before\.sequence\)/);
   assert.doesNotMatch(source, /function firstUnusedSequence\(/);
+});
+
+// F012 gap-closure — deactivateSalesStageWithMigration is the entry point
+// the deactivate route/UI actually calls; enqueueOpportunityStageMigrationJob
+// and processOpportunityStageMigrationBatch were already tested elsewhere
+// (crm-opportunity-lifecycle-f009/f010 suites) but had zero callers wiring
+// them to setSalesStageActive's own governed guards.
+const restrictedContext = { organizationId: org, userId: user, activeCompanyId: company, activeBranchId: null, allowAllCompanies: false, roleSlugs: ["sales_rep"], permissions: ["crm.view", "crm.settings.manage"] };
+
+test("F012 safe deactivation: a stage with zero open Opportunities deactivates immediately, ignoring any migrateToStageId", async () => {
+  const evidence = [];
+  const client = stageReader(stageRow({ open_opportunity_count: 0 }), async (sql) => {
+    if (sql.includes("SELECT count(*)::int AS count") && sql.includes("NOT is_won")) return { rows: [{ count: 1 }] };
+    if (sql.startsWith("UPDATE tenant.crm_pipeline_stages SET status=$3")) return { rows: [] };
+    if (sql.includes("INSERT INTO tenant.crm_sales_stage_configuration_history")) return { rows: [] };
+    if (sql.includes("INSERT INTO tenant.crm_outbox_events")) {
+      evidence.push("outbox");
+      return { rows: [] };
+    }
+    throw new Error(`Unexpected query: ${sql}`);
+  });
+  const result = await deactivateSalesStageWithMigration(client, context, stage, { migrateToStageId: "99999999-9999-4999-8999-999999999999", expectedUpdatedAt: "2026-08-27T00:00:00.000Z" });
+  assert.equal(result.deactivated, true);
+  assert.equal(evidence.length, 1);
+});
+
+test("F012 safe deactivation: blocked with the affected count when open Opportunities remain and no migration target is given", async () => {
+  const client = stageReader(stageRow({ open_opportunity_count: 4, opportunity_count: 4 }));
+  await assert.rejects(
+    deactivateSalesStageWithMigration(client, context, stage, { expectedUpdatedAt: "2026-08-27T00:00:00.000Z" }),
+    (error) => error.code === "CRM_SALES_STAGE_OPEN_OPPORTUNITIES" && error.details?.affectedCount === 4,
+  );
+});
+
+test("F012 safe deactivation: is idempotent when the stage is already inactive", async () => {
+  const client = stageReader(stageRow({ status: "inactive", open_opportunity_count: 4 }));
+  const result = await deactivateSalesStageWithMigration(client, context, stage, { migrateToStageId: "99999999-9999-4999-8999-999999999999" });
+  assert.equal(result.deactivated, true);
+  assert.equal(result.stage.status, "inactive");
+});
+
+test("F012 safe deactivation: migrating open Opportunities off a stage requires elevated permission", async () => {
+  const client = stageReader(stageRow({ open_opportunity_count: 2, opportunity_count: 2 }));
+  await assert.rejects(
+    deactivateSalesStageWithMigration(client, restrictedContext, stage, { migrateToStageId: "99999999-9999-4999-8999-999999999999" }),
+    (error) => error.code === "CRM_SALES_STAGE_MIGRATION_FORBIDDEN" && error.status === 403,
+  );
+});
+
+test("F012 safe deactivation: an elevated actor with a replacement stage enqueues a migration job instead of deactivating", async () => {
+  const toStage = "99999999-9999-4999-8999-999999999999";
+  const jobRow = { id: "jjjjjjjj-jjjj-4jjj-8jjj-jjjjjjjjjjjj", status: "pending", job_type: "crm.opportunities.stage_migration", progress: {}, result_manifest: {} };
+  const client = stageReader(stageRow({ open_opportunity_count: 2, opportunity_count: 2 }), async (sql, values) => {
+    if (sql.includes("SELECT id,pipeline_id,status FROM tenant.crm_pipeline_stages")) return { rows: [{ id: toStage, pipeline_id: pipeline, status: "active" }] };
+    if (sql.includes("SELECT id,pipeline_id FROM tenant.crm_pipeline_stages")) return { rows: [{ id: stage, pipeline_id: pipeline }] };
+    if (sql.includes("INSERT INTO tenant.background_jobs")) return { rows: [jobRow] };
+    if (sql.includes("INSERT INTO tenant.crm_opportunity_stage_migration_items")) return { rowCount: 2 };
+    if (sql.startsWith("UPDATE tenant.background_jobs")) return { rows: [{ ...jobRow, result_manifest: { requested: 2 }, progress: { requested: 2 } }] };
+    if (sql.includes("INSERT INTO tenant.crm_outbox_events")) return { rows: [] };
+    throw new Error(`Unexpected query: ${sql}`);
+  });
+  const result = await deactivateSalesStageWithMigration(client, context, stage, { migrateToStageId: toStage });
+  assert.equal(result.deactivated, false);
+  assert.equal(result.migrationJob.resultManifest.requested, 2);
+});
+
+test("F012 migration job: rejects migrating a stage into itself", async () => {
+  const client = { async query() { throw new Error("must reject before any query"); } };
+  await assert.rejects(
+    enqueueOpportunityStageMigrationJob(client, context, stage, stage),
+    (error) => error.code === "CRM_SALES_STAGE_MIGRATION_SAME_STAGE",
+  );
 });

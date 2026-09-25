@@ -33,7 +33,19 @@ const isoInDays = (days: number) => new Date(Date.now() + days * 86400000).toISO
 // previewSalesDocument (the same pricing/tax/discount code that will run on
 // save), debounced -- the browser never computes a price, so what you see is
 // what is stored.
-export function SalesQuotationFormScreen({ quotationId, initialPartyId }: { quotationId?: string; initialPartyId?: string }) {
+export function SalesQuotationFormScreen({
+  quotationId,
+  initialPartyId,
+  initialContactId,
+  initialOpportunityId,
+  initialOpportunityName,
+}: {
+  quotationId?: string;
+  initialPartyId?: string;
+  initialContactId?: string;
+  initialOpportunityId?: string;
+  initialOpportunityName?: string;
+}) {
   const workspace = useWorkspaceContext();
   const router = useRouter();
   const queryClient = useQueryClient();
@@ -57,6 +69,9 @@ export function SalesQuotationFormScreen({ quotationId, initialPartyId }: { quot
       existing={existingQuery.data ?? null}
       quotationId={quotationId}
       initialPartyId={initialPartyId}
+      initialContactId={initialContactId}
+      initialOpportunityId={initialOpportunityId}
+      initialOpportunityName={initialOpportunityName}
       onDone={(id) => {
         queryClient.invalidateQueries({ queryKey: scopedQueryKey(workspace, "sales", "quotations") });
         queryClient.invalidateQueries({ queryKey: scopedQueryKey(workspace, "sales", "quotation", id) });
@@ -72,6 +87,9 @@ function FormBody({
   existing,
   quotationId,
   initialPartyId,
+  initialContactId,
+  initialOpportunityId,
+  initialOpportunityName,
   onDone,
   onCancel,
 }: {
@@ -79,6 +97,9 @@ function FormBody({
   existing: SalesQuotationDetail | null;
   quotationId?: string;
   initialPartyId?: string;
+  initialContactId?: string;
+  initialOpportunityId?: string;
+  initialOpportunityName?: string;
   onDone: (id: string) => void;
   onCancel: () => void;
 }) {
@@ -91,9 +112,11 @@ function FormBody({
   // quotation" from that customer's detail page), partyId is seeded directly
   // above rather than through selectParty() below -- so the same
   // primary-contact/address defaulting has to run here too, not just there.
-  const [contactId, setContactId] = useState(
-    existing?.quotation.contact_id ?? options.contacts.find((c) => c.party_id === partyId && c.is_primary)?.id ?? "",
-  );
+  const [contactId, setContactId] = useState(() => {
+    if (existing) return existing.quotation.contact_id ?? "";
+    if (options.contacts.some((c) => c.id === initialContactId && c.party_id === partyId)) return initialContactId!;
+    return options.contacts.find((c) => c.party_id === partyId && c.is_primary)?.id ?? "";
+  });
   const [billingAddressId, setBillingAddressId] = useState(
     existing?.quotation.billing_address_id ?? options.addresses.find((a) => a.party_id === partyId && a.address_type === "billing" && a.is_primary)?.id ?? "",
   );
@@ -193,6 +216,7 @@ function FormBody({
     return {
       partyId,
       contactId: contactId || undefined,
+      opportunityId: !revising && initialOpportunityId ? initialOpportunityId : undefined,
       billingAddressId: billingAddressId || undefined,
       shippingAddressId: shippingAddressId || undefined,
       currencyCode,
@@ -207,7 +231,7 @@ function FormBody({
       lines: validLines.map((line) => ({ itemId: line.itemId, variantId: line.variantId || undefined, uomId: line.uomId || undefined, quantity: line.quantity, discountPercent: line.discountPercent || undefined })),
       charges: charges.filter((charge) => charge.value > 0).map((charge) => ({ label: charge.label || "Charge", calculationType: charge.calculationType, value: charge.value })),
     };
-  }, [partyId, contactId, billingAddressId, shippingAddressId, currencyCode, priceListId, paymentTermId, validUntil, headerDiscount, customerNotes, internalNotes, terms, revisionReason, validLines, charges]);
+  }, [partyId, contactId, billingAddressId, shippingAddressId, currencyCode, priceListId, paymentTermId, validUntil, headerDiscount, customerNotes, internalNotes, terms, revisionReason, validLines, charges, revising, initialOpportunityId]);
 
   // Debounce so typing a quantity doesn't fire a pricing request per keystroke.
   const inputJson = JSON.stringify(input);
@@ -265,6 +289,12 @@ function FormBody({
       />
 
       {error && <SalesAlert>{error}</SalesAlert>}
+
+      {!revising && initialOpportunityId && (
+        <p className="rounded-[var(--radius-control)] border border-info-emphasis/30 bg-info-soft px-3 py-2 text-sm text-info">
+          {`This quotation will be linked to the Opportunity${initialOpportunityName ? ` "${initialOpportunityName}"` : ""}.`}
+        </p>
+      )}
 
       <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-[minmax(0,1fr)_22rem]">
         <div className="flex min-w-0 flex-col gap-4">

@@ -1,5 +1,7 @@
 "use client";
 
+import { humanize } from "@/features/crm/shared/human";
+
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Archive, Plus } from "lucide-react";
@@ -24,6 +26,31 @@ const TIER_OPTIONS = [
   { value: "standard", label: "Standard" },
 ];
 
+// objectives/risks/whiteSpace are jsonb string arrays; successPlan is a
+// jsonb object. The draft state below is all-strings for plain <TextArea>
+// binding, so these convert at the read/write boundary. Textarea binding an
+// array/object value directly (the previous behaviour) rendered React's
+// implicit `String(value)` coercion — a comma-joined line for arrays
+// ("Expand footprint...,Migrate...") and the literal text "[object Object]"
+// for successPlan — never caught before because crm_account_plans had zero
+// rows anywhere until F002's Customer 360 seed data first populated one.
+function arrayToLines(value: unknown): string {
+  return Array.isArray(value) ? value.join("\n") : "";
+}
+function linesToArray(value: string): string[] {
+  return value.split("\n").map((line) => line.trim()).filter(Boolean);
+}
+function successPlanToText(value: unknown): string {
+  if (!value || typeof value !== "object") return "";
+  const notes = (value as Record<string, unknown>).notes;
+  if (typeof notes === "string") return notes;
+  return Object.keys(value as object).length ? JSON.stringify(value) : "";
+}
+function textToSuccessPlan(value: string): Record<string, unknown> {
+  const trimmed = value.trim();
+  return trimmed ? { notes: trimmed } : {};
+}
+
 // F002 Tranche E — crm_account_plans/crm_account_stakeholders already
 // existed (003_crm_enterprise_core.sql) as registered generic resources
 // with zero frontend wiring before this pass (confirmed by grep — no
@@ -47,10 +74,10 @@ export function AccountPlanPanel({ accountId, canManage }: { accountId: string; 
     setDraft({
       accountTier: plan?.accountTier ?? "",
       lifecycleStage: plan?.lifecycleStage ?? "",
-      objectives: plan?.objectives ?? "",
-      risks: plan?.risks ?? "",
-      whiteSpace: plan?.whiteSpace ?? "",
-      successPlan: plan?.successPlan ?? "",
+      objectives: arrayToLines(plan?.objectives),
+      risks: arrayToLines(plan?.risks),
+      whiteSpace: arrayToLines(plan?.whiteSpace),
+      successPlan: successPlanToText(plan?.successPlan),
     });
   }
 
@@ -60,8 +87,14 @@ export function AccountPlanPanel({ accountId, canManage }: { accountId: string; 
 
   const saveMutation = useMutation({
     mutationFn: () => {
-      const input = { partyId: accountId, ...draft };
-      return plan ? updateAccountPlan(plan.id, draft, plan.updatedAt) : createAccountPlan(input);
+      const payload = {
+        ...draft,
+        objectives: linesToArray(draft.objectives ?? ""),
+        risks: linesToArray(draft.risks ?? ""),
+        whiteSpace: linesToArray(draft.whiteSpace ?? ""),
+        successPlan: textToSuccessPlan(draft.successPlan ?? ""),
+      };
+      return plan ? updateAccountPlan(plan.id, payload, plan.updatedAt) : createAccountPlan({ partyId: accountId, ...payload });
     },
     onSuccess: () => {
       setError(null);
@@ -106,6 +139,7 @@ export function AccountPlanPanel({ accountId, canManage }: { accountId: string; 
           </div>
           <TextArea
             label="Objectives"
+            description="One objective per line."
             value={draft.objectives ?? ""}
             onChange={(value) => {
               setDirty(true);
@@ -115,6 +149,7 @@ export function AccountPlanPanel({ accountId, canManage }: { accountId: string; 
           />
           <TextArea
             label="Risks"
+            description="One risk per line."
             value={draft.risks ?? ""}
             onChange={(value) => {
               setDirty(true);
@@ -124,6 +159,7 @@ export function AccountPlanPanel({ accountId, canManage }: { accountId: string; 
           />
           <TextArea
             label="White space"
+            description="One opportunity per line."
             value={draft.whiteSpace ?? ""}
             onChange={(value) => {
               setDirty(true);
@@ -194,7 +230,7 @@ function AccountStakeholdersList({ accountPlanId, canManage }: { accountPlanId: 
           <div className="flex flex-col text-sm">
             <span className="font-medium text-text">{stakeholder.name}</span>
             <span className="text-text-secondary">
-              {stakeholder.title || "—"} {stakeholder.stakeholderRole ? `· ${stakeholder.stakeholderRole}` : ""}
+              {stakeholder.title || "—"} {stakeholder.stakeholderRole ? `· ${humanize(stakeholder.stakeholderRole)}` : ""}
             </span>
           </div>
           {canManage && (

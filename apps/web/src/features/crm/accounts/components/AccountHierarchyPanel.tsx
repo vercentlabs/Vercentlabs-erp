@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button, Select, type SelectOption } from "@vercentlabs/design-system";
 
@@ -74,7 +75,7 @@ export function AccountHierarchyPanel({ accountId, canManage }: { accountId: str
       {hierarchy.ancestors.length > 0 && (
         <div className="flex flex-wrap items-center gap-1 text-sm text-text-secondary">
           {hierarchy.ancestors.map((node) => (
-            <span key={node.id}>{node.display_name} /</span>
+            <span key={node.id}><Link className="text-brand hover:underline" href={`/crm/accounts/${node.id}`}>{node.display_name}</Link> /</span>
           ))}
           <span className="font-medium text-text">{hierarchy.account.display_name}</span>
         </div>
@@ -85,7 +86,7 @@ export function AccountHierarchyPanel({ accountId, canManage }: { accountId: str
           <ul className="flex flex-col gap-1">
             {hierarchy.descendants.map((node) => (
               <li key={node.id} className="text-sm text-text" style={{ paddingLeft: `${(node.depth - 1) * 16}px` }}>
-                {node.display_name}
+                <Link className="text-brand hover:underline" href={`/crm/accounts/${node.id}`}>{node.display_name}</Link>
               </li>
             ))}
           </ul>

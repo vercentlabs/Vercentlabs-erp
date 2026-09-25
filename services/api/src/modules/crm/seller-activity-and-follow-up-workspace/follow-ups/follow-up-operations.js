@@ -375,7 +375,7 @@ export async function escalateOverdueFollowUps(client, context) {
         category: "crm_follow_up_escalation",
         title: "Overdue Follow-up needs attention",
         message: `${followUp.subject || "A Follow-up"} is overdue and was escalated to you.`,
-        href: `/crm/activities?activityType=follow_up&id=${followUp.id}`,
+        href: `/crm/follow-ups/${followUp.id}`,
       });
     }
     escalated += 1;

@@ -3,6 +3,8 @@ import { resolveIngestionLeadSource } from "./lead-source-validation.js";
 import { getEligibleLeadAssignee } from "../lead-lifecycle-qualification-and-prioritization/lead-governance.js";
 import { CrmError } from "../crm-data-operations-and-customization/errors.js";
 import { createCrmRecord, runCrmAutomation } from "../crm-data-operations-and-customization/resource-mutation-service.js";
+import { recordLeadTouchpoint } from "./lead-attribution.js";
+import { crmLeadAcquisitionHash } from "./lead-acquisition.js";
 
 
 
@@ -88,6 +90,53 @@ export async function captureCrmLead(
     campaignId: form.campaign_id,
     ownerUserId: configuredCaptureOwner?.id || null,
   });
+  await recordLeadTouchpoint(client, context, lead.id, {
+    eventType: "responded",
+    channel: "form",
+    campaignId: form.campaign_id,
+    occurredAt: new Date(),
+  });
+  // F004: this legacy public capture-form path (tenant.crm_public_capture_form,
+  // singular/v1) was the one real intake channel that never wrote a
+  // crm_lead_provenance row at all — submitPublishedLeadForm (the newer v2
+  // form path) and ingestLeadAcquisitionWebhook both do. A distinct
+  // provider string ("legacy_capture_form") keeps it identifiable from v2
+  // form submissions in the audit trail. The idempotency key is a hash of
+  // the exact submission (form + fingerprint + input), since this path has
+  // no natural external event id — a genuine retry with identical data is
+  // suppressed by ON CONFLICT DO NOTHING; different data always gets its
+  // own row.
+  const provenanceKey = crmLeadAcquisitionHash({ formKey, fingerprint, input });
+  await client.query(
+    `INSERT INTO tenant.crm_lead_provenance(organization_id,lead_id,source_channel,source_record_id,provider,external_id,original_payload,attribution,consent_evidence,content_hash,created_by)
+     VALUES($1,$2,'form',$3,'legacy_capture_form',$4,$5::jsonb,$6::jsonb,$7::jsonb,$4,$8)
+     ON CONFLICT DO NOTHING`,
+    [
+      form.organization_id,
+      lead.id,
+      form.id,
+      provenanceKey,
+      JSON.stringify(input),
+      JSON.stringify({ campaignId: form.campaign_id, sourceId: resolvedSourceId }),
+      JSON.stringify({
+        consentEmail: Boolean(input.consentEmail),
+        consentSms: Boolean(input.consentSms),
+        consentWhatsapp: Boolean(input.consentWhatsapp),
+      }),
+      context.userId,
+    ],
+  );
+  // Only a checked (granted) box is worth an evidence row here — an
+  // unchecked field on a brand-new Lead never granted anything, so there
+  // is nothing to log as "withdrawn".
+  for (const [field, channel] of [["consentEmail", "email"], ["consentSms", "sms"], ["consentWhatsapp", "whatsapp"]]) {
+    if (input[field])
+      await client.query(
+        `INSERT INTO tenant.crm_consent_events(organization_id,company_id,lead_id,channel,purpose,action,lawful_basis,source,evidence,created_by)
+         VALUES($1,$2,$3,$4,'sales','granted','consent','form',$5::jsonb,$6)`,
+        [form.organization_id, form.company_id, lead.id, channel, JSON.stringify({ formId: formKey }), context.userId],
+      );
+  }
   if (form.campaign_id) {
     const membership = await client.query(
       `INSERT INTO tenant.crm_campaign_members (organization_id,campaign_id,lead_id,member_status,created_by) VALUES ($1,$2,$3,'responded',$4) ON CONFLICT DO NOTHING RETURNING id`,

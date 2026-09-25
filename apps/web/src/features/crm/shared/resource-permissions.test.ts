@@ -34,6 +34,8 @@ const RESOURCES_WITH_SHIPPED_UI = [
   "forecast-periods",
   "forecast-submissions",
   "quota-plans",
+  "consent-events",
+  "privacy-requests",
 ];
 
 test("resource-permissions: every generic resource with a shipped settings/record screen has a manage-permission entry", () => {

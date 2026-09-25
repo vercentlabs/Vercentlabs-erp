@@ -23,11 +23,23 @@ export function canViewSensitiveContactContent(context) {
   );
 }
 
+function snakeCase(value) {
+  return value.replace(/[A-Z]/g, (letter) => `_${letter.toLowerCase()}`);
+}
+
+// Strips both spellings — see account-security.js's projectAccountForContext
+// for why: account-intelligence.js's merge-preview/Customer-360 read paths
+// pass this RAW Postgres rows (never camelizeRow()'d), so a camelCase-only
+// delete list silently failed to strip normalized_email/normalized_mobile
+// from those rows.
 export function projectContactForContext(context, record) {
   if (!record || typeof record !== "object" || canViewSensitiveContactContent(context))
     return record;
   const projected = { ...record };
-  for (const field of SENSITIVE_CONTACT_FIELDS) delete projected[field];
+  for (const field of SENSITIVE_CONTACT_FIELDS) {
+    delete projected[field];
+    delete projected[snakeCase(field)];
+  }
   projected.sensitiveDataRestricted = true;
   return projected;
 }

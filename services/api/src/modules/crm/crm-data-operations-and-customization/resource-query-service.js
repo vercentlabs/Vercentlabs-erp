@@ -3,7 +3,7 @@ import { taskOverdueSql } from "../seller-activity-and-follow-up-workspace/task-
 import { CrmError } from "./errors.js";
 import { projectCrmRecord, projectCrmRecords, recordScope } from "./record-policy.js";
 import { definitionFor, resources } from "./resource-registry.js";
-import { addParameter, camelizeRow, limitValue } from "./record-utils.js";
+import { addParameter, camelizeRow, limitValue, managedTeamMembersSql } from "./record-utils.js";
 
 
 
@@ -61,6 +61,9 @@ function stableOrderBy(definition) {
 
 
 
+const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 export function buildFilters(
   definition,
   filters,
@@ -75,6 +78,9 @@ export function buildFilters(
       ["archived", "converted"].includes(String(filters.status))
     )
       sql += ` AND ${alias}.record_status = ${addParameter(parameters, filters.status)}`;
+    // F024 — "closed" = won + lost, the deals behind a win rate.
+    else if (definition.table === "tenant.crm_opportunities" && String(filters.status) === "closed")
+      sql += ` AND ${alias}.status IN ('won','lost')`;
     else
       sql += ` AND ${alias}.${definition.statusColumn} = ${addParameter(parameters, filters.status)}`;
   }
@@ -84,6 +90,13 @@ export function buildFilters(
       sql += ` AND ${alias}.owner_user_id = ${addParameter(parameters, context.userId)}`;
     else if (ownerFilter === "unassigned")
       sql += ` AND ${alias}.owner_user_id IS NULL`;
+    else if (ownerFilter === "team") {
+      // F024 — the dashboard's "my team" scope: the caller plus active
+      // members of sales teams the caller manages. Narrows within
+      // recordScope(), never widens it.
+      const me = addParameter(parameters, context.userId);
+      sql += ` AND (${alias}.owner_user_id = ${me} OR ${alias}.owner_user_id IN (${managedTeamMembersSql(addParameter(parameters, context.organizationId), me)}))`;
+    }
     else if (
       /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
         ownerFilter,
@@ -118,6 +131,10 @@ export function buildFilters(
     // to a Contact rather than an Account (tenant.crm_communications has
     // both party_id and contact_id columns).
     ["contactId", "contact_id"],
+    // Consent & data-subject-request module — consent-events belongs to
+    // exactly one Lead/Contact/Account; the Lead Detail consent panel
+    // filters to just its own Lead's events by this key.
+    ["leadId", "lead_id"],
     // Communications by channel (email, whatsapp, sms, call_log) and direction. Applied only when the resource
     // actually has that column (the includes() guard below), so no other resource is affected.
     ["channel", "channel"],
@@ -134,10 +151,21 @@ export function buildFilters(
     // Lifecycle stage is independent from conversion/archive record state.
     // Preserve the historical status=archived|converted query contract while
     // using record_status as the canonical retention boundary.
-    if (
+    // F024 — includeConverted=true widens the default active-only view to
+    // active + converted, matching the dashboard's "new leads in period".
+    if (String(filters.includeConverted) === "true" && !filters.status)
+      sql += ` AND ${alias}.record_status IN ('active','converted')`;
+    else if (
       !["archived", "converted"].includes(String(filters.status || ""))
     )
       sql += ` AND ${alias}.record_status = 'active'`;
+    for (const [fromKey, toKey, column] of [
+      ["createdFrom", "createdTo", "created_at"],
+      ["convertedFrom", "convertedTo", "converted_at"],
+    ]) {
+      if (ISO_DATE.test(String(filters[fromKey] || ""))) sql += ` AND ${alias}.${column} >= ${addParameter(parameters, filters[fromKey])}::date`;
+      if (ISO_DATE.test(String(filters[toKey] || ""))) sql += ` AND ${alias}.${column} < ${addParameter(parameters, filters[toKey])}::date + 1`;
+    }
     for (const [key, column] of [
       ["priority", "priority"],
       ["rating", "rating"],
@@ -178,6 +206,17 @@ export function buildFilters(
       sql += ` AND ${alias}.lead_grade IN ('hot','qualified')`;
   }
   if (definition.table === "tenant.crm_opportunities") {
+    // F024 — dashboard won/lost-in-period drill-down (actual_close_date).
+    if (ISO_DATE.test(String(filters.closedFrom || ""))) sql += ` AND ${alias}.actual_close_date >= ${addParameter(parameters, filters.closedFrom)}::date`;
+    if (ISO_DATE.test(String(filters.closedTo || ""))) sql += ` AND ${alias}.actual_close_date <= ${addParameter(parameters, filters.closedTo)}::date`;
+    // F025 — forecast drill-down: open deals by expected close date and category.
+    if (ISO_DATE.test(String(filters.expectedCloseFrom || ""))) sql += ` AND ${alias}.expected_close_date >= ${addParameter(parameters, filters.expectedCloseFrom)}::date`;
+    if (ISO_DATE.test(String(filters.expectedCloseTo || ""))) sql += ` AND ${alias}.expected_close_date <= ${addParameter(parameters, filters.expectedCloseTo)}::date`;
+    if (["omitted", "pipeline", "best_case", "committed", "closed"].includes(String(filters.forecastCategory || "")))
+      sql += ` AND ${alias}.forecast_category = ${addParameter(parameters, filters.forecastCategory)}`;
+    // F026 — won/lost reasons report drill-down ("none" = closed without a reason).
+    if (filters.outcomeReasonId === "none") sql += ` AND ${alias}.outcome_reason_id IS NULL`;
+    else if (UUID_PATTERN.test(String(filters.outcomeReasonId || ""))) sql += ` AND ${alias}.outcome_reason_id = ${addParameter(parameters, filters.outcomeReasonId)}::uuid`;
     // F024 Stage A2 §10 — same reasoning as the Lead filters above: reuses
     // getCrmDashboard's exact "stalled" predicate (per-stage SLA policy,
     // falling back to the stage's own stale_after_days) so the drilled
@@ -366,6 +405,31 @@ async function annotateOpportunityRelations(client, context, rows) {
   }));
 }
 
+// F005 live-browser QA discovery: apps/web's Lead type and every Lead
+// screen (list Owner column, Lead Detail's header summary line) read
+// `lead.ownerName` — but neither listCrmRecords nor getCrmRecord ever
+// annotated it for the "leads" resource (only "opportunities" got this
+// treatment, above). ownerUserId itself was always correct; only its
+// display name was silently missing, so every owned Lead rendered
+// "Unassigned" in the UI regardless of its real owner — confirmed against
+// a freshly-assigned Lead in a real browser, not caught earlier because no
+// prior QA pass in this codebase happened to view a Lead with a non-null
+// owner_user_id. Mirrors annotateOpportunityRelations's owner-resolution
+// half exactly, batch-resolved rather than joined into the base SELECT for
+// the same reason.
+async function annotateLeadRelations(client, context, rows) {
+  if (!rows.length) return rows;
+  const ownerIds = [...new Set(rows.map((row) => row.ownerUserId).filter(Boolean))];
+  const owners = ownerIds.length
+    ? await client.query(`SELECT id, full_name FROM public.users WHERE id = ANY($1::uuid[])`, [ownerIds])
+    : { rows: [] };
+  const ownerNames = new Map(owners.rows.map((row) => [row.id, row.full_name]));
+  return rows.map((row) => ({
+    ...row,
+    ownerName: row.ownerUserId ? (ownerNames.get(row.ownerUserId) ?? null) : null,
+  }));
+}
+
 export async function listCrmRecords(client, context, resource, filters = {}) {
   if (resource === "stages") return listSalesStageResourceRecords(client, context, filters);
   const definition = definitionFor(resource);
@@ -391,6 +455,7 @@ export async function listCrmRecords(client, context, resource, filters = {}) {
   let rows = result.rows.map((row) => camelizeRow(row));
   if (resource === "territories") rows = await annotateTerritoryCoverage(client, context, rows);
   if (resource === "opportunities") rows = await annotateOpportunityRelations(client, context, rows);
+  if (resource === "leads") rows = await annotateLeadRelations(client, context, rows);
   return {
     rows: await projectCrmRecords(client, context, resource, rows),
     total,
@@ -540,5 +605,6 @@ export async function getCrmRecord(client, context, resource, id) {
   if (!result.rows[0]) throw new CrmError(404, "CRM record not found.");
   let row = camelizeRow(result.rows[0]);
   if (resource === "opportunities") [row] = await annotateOpportunityRelations(client, context, [row]);
+  if (resource === "leads") [row] = await annotateLeadRelations(client, context, [row]);
   return projectCrmRecord(client, context, resource, row);
 }

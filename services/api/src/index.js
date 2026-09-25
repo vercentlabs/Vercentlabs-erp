@@ -24,6 +24,7 @@ export * from "./modules/crm/prospect-and-relationship-master-data/lead-source-o
 export * from "./modules/crm/lead-lifecycle-qualification-and-prioritization/lead-qualification.js";
 export * from "./modules/crm/lead-lifecycle-qualification-and-prioritization/lead-lifecycle.js";
 export * from "./modules/crm/prospect-and-relationship-master-data/lead-duplicates.js";
+export * from "./modules/crm/prospect-and-relationship-master-data/lead-attribution.js";
 
 export * from "./modules/crm/opportunity-and-pipeline-governance/opportunity-operations.js";
 export * from "./modules/crm/opportunity-and-pipeline-governance/sales-stage-operations.js";
@@ -58,6 +59,7 @@ export {
   recordAccountDuplicateOverride,
   recordContactDuplicateOverride,
 } from "./modules/crm/prospect-and-relationship-master-data/duplicate-matching.js";
+export * from "./modules/crm/prospect-and-relationship-master-data/duplicate-scan.js";
 
 export * from "./core/release/governance.js";
 
@@ -73,6 +75,7 @@ export {
   activateLeadScoringModel,
   createLeadScoringModelRule,
   setLeadScoringModelRuleStatus,
+  trainLeadScoringModel,
   enqueueLeadScoreRecalcJob,
   getLeadScoreRecalcJob,
   processLeadScoreRecalcBatch,
@@ -82,6 +85,7 @@ export {
 export * from "./modules/crm/opportunity-and-pipeline-governance/opportunity-revenue-intelligence.js";
 export * from "./modules/crm/crm-data-operations-and-customization/offline-sync.js";
 export * from "./modules/crm/opportunity-and-pipeline-governance/opportunity-commercial.js";
+export * from "./modules/crm/opportunity-and-pipeline-governance/opportunity-contacts.js";
 export * from "./modules/crm/opportunity-and-pipeline-governance/stage-migration.js";
 export * from "./modules/crm/opportunity-and-pipeline-governance/stage-aging.js";
 export * from "./modules/crm/opportunity-and-pipeline-governance/pipeline-snapshots.js";

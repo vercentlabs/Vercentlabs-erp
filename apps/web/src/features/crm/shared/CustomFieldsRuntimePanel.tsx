@@ -8,6 +8,7 @@ import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext"
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import {
   CustomFieldApiError,
+  getCustomFieldValueHistory,
   getCustomFieldValues,
   setCustomFieldValues,
   type CrmCustomFieldEntityType,
@@ -33,6 +34,11 @@ export function CustomFieldsRuntimePanel({ entityType, entityId }: { entityType:
     queryFn: () => getCustomFieldValues(entityType, entityId),
   });
   const rows = query.data?.rows ?? [];
+  const historyQuery = useQuery({
+    queryKey: scopedQueryKey(workspace, "crm", "custom-field-values", entityType, entityId, "history"),
+    queryFn: () => getCustomFieldValueHistory(entityType, entityId),
+  });
+  const history = historyQuery.data?.rows ?? [];
 
   // Adjusting state while rendering (React's own sanctioned alternative
   // to an effect that would call setState synchronously) — seeded once
@@ -78,8 +84,29 @@ export function CustomFieldsRuntimePanel({ entityType, entityId }: { entityType:
       <Button variant="secondary" size="compact" className="self-start" onPress={() => mutation.mutate()} isLoading={mutation.isPending} isDisabled={!dirty}>
         Save custom fields
       </Button>
+      {history.length > 0 && (
+        <div className="flex flex-col gap-2 border-t border-border pt-4" aria-label="Custom field history">
+          <p className="text-sm font-semibold text-text">Change history</p>
+          <ul className="flex flex-col gap-1">
+            {history.map((entry) => (
+              <li key={entry.id} className="text-sm text-text-secondary">
+                <span className="font-medium text-text">{entry.fieldLabel}</span>
+                {`: ${showValue(entry.previousValue)} → ${showValue(entry.newValue)}`}
+                <span className="text-xs text-text-muted">{` · ${entry.changedByName ?? "System"}, ${new Date(entry.changedAt).toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" })}`}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
     </div>
   );
+}
+
+function showValue(value: unknown): string {
+  if (value === null || value === undefined || value === "") return "(empty)";
+  if (Array.isArray(value)) return value.length ? value.join(", ") : "(empty)";
+  if (typeof value === "boolean") return value ? "Yes" : "No";
+  return String(value);
 }
 
 function CustomFieldInput({ row, value, onChange }: { row: CrmCustomFieldValueRow; value: unknown; onChange: (value: unknown) => void }) {

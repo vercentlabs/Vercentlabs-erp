@@ -14,6 +14,7 @@ import { dispatchFollowUpRemindersHandler, JOB_TYPE as FOLLOW_UP_REMINDER_DISPAT
 import { pushMeetingCalendarEventHandler, JOB_TYPE as MEETING_CALENDAR_PUSH_JOB_TYPE, payloadSchema as meetingCalendarPushPayloadSchema } from "./crm-meeting-calendar-push.js";
 import { dispatchNurtureQueueNotificationsHandler, JOB_TYPE as NURTURE_QUEUE_DISPATCH_JOB_TYPE, payloadSchema as nurtureQueueDispatchPayloadSchema } from "./crm-nurture-queue-dispatch.js";
 import { leadExportHandler, JOB_TYPE as LEAD_EXPORT_JOB_TYPE, payloadSchema as leadExportPayloadSchema } from "./crm-lead-export.js";
+import { duplicateFullScanHandler, JOB_TYPE as DUPLICATE_FULL_SCAN_JOB_TYPE, payloadSchema as duplicateFullScanPayloadSchema } from "./crm-duplicate-full-scan.js";
 
 // Registers every currently-wired job type. Called once at worker
 // startup (bin/start.mjs) and by tests that need a populated registry.
@@ -132,6 +133,18 @@ export function registerBuiltinHandlers() {
     // job row's own CSV/manifest — no side effect on any other data, so no
     // caller-supplied idempotency key is required (unlike bulk-update,
     // which mutates many other Leads).
+    idempotency: "NATURALLY_IDEMPOTENT",
+    maxAttempts: 3,
+    transactionMode: "managed",
+  });
+  registerJobHandler(DUPLICATE_FULL_SCAN_JOB_TYPE, {
+    schema: duplicateFullScanPayloadSchema,
+    handler: duplicateFullScanHandler,
+    backoff: internalJobBackoff,
+    // Re-running the same job id just re-pages from its own stored keyset
+    // position and ON CONFLICT-upserts the same match rows — no side
+    // effect on any other data, so no caller-supplied idempotency key is
+    // required (same reasoning as crm-lead-export.js's own job).
     idempotency: "NATURALLY_IDEMPOTENT",
     maxAttempts: 3,
     transactionMode: "managed",

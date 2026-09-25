@@ -52,3 +52,29 @@ test("F023: the reservation is completed (finalized) only after the quotation, i
   assert.ok(completeIdx > eventIdx && completeIdx > versionIdx, "completion must be the last step, after the version and event are both durable");
   assert.match(fnBody, /aggregateType: "sales_quotation"/);
 });
+
+// F023 gap-closure — the Opportunity 360 lists the quotations raised from it
+// (sales_quotations.source_opportunity_id); listQuotations gained the filter.
+test("F023: listQuotations filters by source opportunity when an opportunityId is given, and not otherwise", async () => {
+  const { listQuotations } = await import("../src/modules/sales/index.js");
+  const org = "11111111-1111-4111-8111-111111111111";
+  const opp = "22222222-2222-4222-8222-222222222222";
+  const context = { organizationId: org, userId: "33333333-3333-4333-8333-333333333333", permissions: ["sales.view"], roleSlugs: [], allowAllCompanies: true };
+  const calls = [];
+  const client = { query: async (sql, values) => { calls.push({ sql, values }); return { rows: [] }; } };
+  await listQuotations(client, context, { opportunityId: opp });
+  assert.match(calls[0].sql, /quotation\.source_opportunity_id=\$2/);
+  assert.equal(calls[0].values[1], opp);
+  await listQuotations(client, context, {});
+  assert.doesNotMatch(calls[1].sql, /source_opportunity_id/);
+});
+
+test("F023: a linked opportunity must exist in the organization and belong to the quotation's customer", () => {
+  const source = read("src/modules/sales/index.js");
+  const fnStart = source.indexOf("export async function createQuotation(");
+  const fnBody = source.slice(fnStart, source.indexOf("\nexport async function reviseQuotation", fnStart));
+  const checkIdx = fnBody.indexOf("FROM tenant.crm_opportunities WHERE organization_id=$1 AND id=$2");
+  const insertIdx = fnBody.indexOf("INSERT INTO tenant.sales_quotations");
+  assert.ok(checkIdx > 0 && checkIdx < insertIdx, "opportunity check must run before the INSERT");
+  assert.match(fnBody, /party_id !== preview\.master\.partyId/);
+});

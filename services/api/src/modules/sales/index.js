@@ -861,6 +861,18 @@ export async function createQuotation(client, context, input) {
     },
   );
   if (idempotency.replayed) return { ...idempotency.response, replayed: true };
+  // A quotation may only cite an Opportunity of this organization for the
+  // same customer — otherwise any id could be stamped as its source deal.
+  if (input.opportunityId) {
+    const opportunity = await client.query(
+      `SELECT party_id FROM tenant.crm_opportunities WHERE organization_id=$1 AND id=$2 AND status <> 'archived'`,
+      [context.organizationId, uuid(input.opportunityId, "Opportunity")],
+    );
+    if (!opportunity.rows[0])
+      throw new SalesError(404, "The linked opportunity was not found.");
+    if (opportunity.rows[0].party_id && opportunity.rows[0].party_id !== preview.master.partyId)
+      throw new SalesError(422, "The quotation customer must match the opportunity's account.");
+  }
   const number = await allocateNumber(
     client,
     context.organizationId,
@@ -1005,6 +1017,10 @@ export async function listQuotations(client, context, filters = {}) {
   if (filters.partyId) {
     values.push(uuid(filters.partyId, "Customer"));
     where += ` AND quotation.party_id=$${values.length}`;
+  }
+  if (filters.opportunityId) {
+    values.push(uuid(filters.opportunityId, "Opportunity"));
+    where += ` AND quotation.source_opportunity_id=$${values.length}`;
   }
   if (!context.allowAllCompanies && context.activeCompanyId) {
     values.push(context.activeCompanyId);

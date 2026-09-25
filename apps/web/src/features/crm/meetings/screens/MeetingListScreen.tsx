@@ -1,5 +1,7 @@
 "use client";
 
+import { humanize } from "@/features/crm/shared/human";
+
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -13,6 +15,7 @@ import {
   IconButton,
   NoResultsState,
   PermissionState,
+  SearchField,
   Select,
   StatusBadge,
   type ActiveFilter,
@@ -21,7 +24,8 @@ import { CRM_PERMISSIONS } from "@vercentlabs/permissions";
 
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
-import { cancelMeeting, completeMeeting, listMeetings, MeetingApiError, startMeeting } from "../api/meetings-api";
+import { cancelMeeting, listMeetings, MeetingApiError, startMeeting } from "../api/meetings-api";
+import { CompleteMeetingDialog } from "../components/CompleteMeetingDialog";
 import type { Meeting, MeetingListFilters } from "../types";
 import { LoadingState } from "@/features/crm/shared/ui/LoadingState";
 import { DueCell } from "@/features/crm/shared/ui/DueCell";
@@ -44,7 +48,9 @@ export function MeetingListScreen() {
   const canManage = workspace.permissions.includes(CRM_PERMISSIONS.activitiesManage);
 
   const [filters, setFilters] = useState<MeetingListFilters>({ limit: PAGE_SIZE, offset: 0 });
+  const [searchInput, setSearchInput] = useState("");
   const [actionError, setActionError] = useState<string | null>(null);
+  const [completeDialogMeeting, setCompleteDialogMeeting] = useState<Meeting | null>(null);
 
   const query = useQuery({
     queryKey: scopedQueryKey(workspace, "crm", "meetings", filters),
@@ -54,6 +60,10 @@ export function MeetingListScreen() {
 
   function updateFilter<K extends keyof MeetingListFilters>(key: K, value: MeetingListFilters[K]) {
     setFilters((current) => ({ ...current, [key]: value, offset: 0 }));
+  }
+
+  function submitSearch() {
+    updateFilter("search", searchInput || undefined);
   }
 
   function invalidate() {
@@ -69,7 +79,6 @@ export function MeetingListScreen() {
   }
 
   const startMutation = useMutation({ mutationFn: (meeting: Meeting) => startMeeting(meeting.id, meeting.updatedAt), onSuccess: invalidate, onError: handleError });
-  const completeMutation = useMutation({ mutationFn: (meeting: Meeting) => completeMeeting(meeting.id, "held", undefined, meeting.updatedAt), onSuccess: invalidate, onError: handleError });
   const cancelMutation = useMutation({ mutationFn: (meeting: Meeting) => cancelMeeting(meeting.id, meeting.updatedAt), onSuccess: invalidate, onError: handleError });
 
   const rows = query.data?.rows ?? [];
@@ -79,6 +88,7 @@ export function MeetingListScreen() {
 
   const activeFilters: ActiveFilter[] = useMemo(() => {
     const active: ActiveFilter[] = [];
+    if (filters.search) active.push({ id: "search", label: `Search: ${filters.search}` });
     if (filters.status) active.push({ id: "status", label: `Status: ${filters.status}` });
     if (filters.due && filters.due !== "all") active.push({ id: "due", label: `Due: ${filters.due}` });
     return active;
@@ -87,7 +97,7 @@ export function MeetingListScreen() {
   const columns: ColumnDef<Meeting, unknown>[] = useMemo(
     () => [
       { id: "subject", header: "Meeting", accessorKey: "subject", cell: ({ row }) => <span className="font-medium text-text">{row.original.subject}</span> },
-      { id: "locationType", header: "Location", accessorFn: (row) => row.locationType || "—" },
+      { id: "locationType", header: "Location", accessorFn: (row) => (row.locationType ? humanize(row.locationType) : "—") },
       {
         id: "status",
         header: "Status",
@@ -136,6 +146,14 @@ export function MeetingListScreen() {
       actionBar={{
         start: (
           <>
+            <SearchField
+              aria-label="Search meetings"
+              placeholder="Search by subject, agenda, location…"
+              value={searchInput}
+              onChange={setSearchInput}
+              onKeyDown={(event) => event.key === "Enter" && submitSearch()}
+              className="min-w-[240px]"
+            />
             <Select
               aria-label="Status"
               size="compact"
@@ -163,11 +181,21 @@ export function MeetingListScreen() {
             />
           </>
         ),
+        end: <Button variant="secondary" onPress={submitSearch}>Search</Button>,
       }}
       filterBar={{
         filters: activeFilters,
-        onRemove: (id) => setFilters((current) => ({ ...current, [id]: undefined, offset: 0 })),
-        onClearAll: activeFilters.length > 0 ? () => setFilters({ limit: PAGE_SIZE, offset: 0 }) : undefined,
+        onRemove: (id) => {
+          if (id === "search") setSearchInput("");
+          setFilters((current) => ({ ...current, [id]: undefined, offset: 0 }));
+        },
+        onClearAll:
+          activeFilters.length > 0
+            ? () => {
+                setSearchInput("");
+                setFilters({ limit: PAGE_SIZE, offset: 0 });
+              }
+            : undefined,
       }}
     >
       {actionError && (
@@ -200,7 +228,7 @@ export function MeetingListScreen() {
                   <Play className="size-4" aria-hidden="true" />
                 </IconButton>
               )}
-              <IconButton aria-label={`Complete ${row.subject}`} size="compact" variant="ghost" onPress={() => completeMutation.mutate(row)}>
+              <IconButton aria-label={`Complete ${row.subject}`} size="compact" variant="ghost" onPress={() => setCompleteDialogMeeting(row)}>
                 <CheckCircle2 className="size-4" aria-hidden="true" />
               </IconButton>
               <IconButton aria-label={`Cancel ${row.subject}`} size="compact" variant="danger" onPress={() => cancelMutation.mutate(row)}>
@@ -210,6 +238,14 @@ export function MeetingListScreen() {
           );
         }}
       />
+      {completeDialogMeeting && (
+        <CompleteMeetingDialog
+          meeting={completeDialogMeeting}
+          onOpenChange={(open) => { if (!open) setCompleteDialogMeeting(null); }}
+          onDone={invalidate}
+          onError={handleError}
+        />
+      )}
     </EnterpriseListPage>
   );
 }

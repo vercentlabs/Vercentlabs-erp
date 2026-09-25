@@ -154,6 +154,17 @@ export function getCommunicationTimeline(
   context: CrmFoundationContext,
   input?: Record<string, unknown>,
 ): Promise<Array<Record<string, unknown>>>;
+export function getCrmEmailHistory(
+  client: QueryClient,
+  context: CrmFoundationContext,
+  entityType: string,
+  entityId: string,
+): Promise<Array<Record<string, unknown>>>;
+export function getCrmEmailThread(
+  client: QueryClient,
+  context: CrmFoundationContext,
+  threadId: string,
+): Promise<{ thread: Record<string, unknown>; messages: Array<Record<string, unknown>> }>;
 export function getCommunicationsDashboard(
   client: QueryClient,
   context: CrmFoundationContext,

@@ -253,8 +253,18 @@ export async function updateCrmLeadSource(client, context, id, input = {}, expec
       `updated_by=${add(parameters, context.userId)}`,
       "updated_at=now()",
     );
+    // F004: crm_lead_sources.updated_at is timestamptz with genuine
+    // microsecond precision, but `expectations.expectedUpdatedAt` only ever
+    // carries millisecond precision (it round-tripped through a JS Date via
+    // JSON), so an exact `=` comparison here failed on every single edit —
+    // this bug was never caught because there was no frontend Edit action
+    // calling this function until this pass; a real browser check surfaced
+    // it as an immediate CRM_STALE_WRITE on the very first save attempt.
+    // Compares at millisecond precision on both sides, the same fix already
+    // applied to leads/opportunities/generic-versioned-resources in
+    // resource-mutation-service.js.
     const versionChecked = expectations.expectedUpdatedAt
-      ? ` AND updated_at=${add(parameters, new Date(expectations.expectedUpdatedAt))}`
+      ? ` AND date_trunc('milliseconds', updated_at) = date_trunc('milliseconds', ${add(parameters, new Date(expectations.expectedUpdatedAt))}::timestamptz)`
       : "";
     const write = await client.query(
       `UPDATE tenant.crm_lead_sources SET ${assignments.join(",")}
@@ -305,8 +315,16 @@ export async function setCrmLeadSourceActive(client, context, id, active, expect
         active ? null : new Date(),
         context.userId,
       ];
+      // F004: same millisecond-precision fix as updateCrmLeadSource above.
+      // This activate/deactivate action already shipped and its own route
+      // (apps/web/src/app/api/crm/lead-sources/[id]/active/route.ts) also
+      // sets requireVersion:true, so this exact-equality bug meant every
+      // single Activate/Deactivate click in production has been throwing
+      // CRM_STALE_WRITE unconditionally — confirmed directly against a real
+      // Postgres row (a stored updated_at of ...206119, i.e. microsecond
+      // precision) while verifying the Edit dialog this same pass added.
       const versionChecked = expectations.expectedUpdatedAt
-        ? ` AND updated_at=${add(parameters, new Date(expectations.expectedUpdatedAt))}`
+        ? ` AND date_trunc('milliseconds', updated_at) = date_trunc('milliseconds', ${add(parameters, new Date(expectations.expectedUpdatedAt))}::timestamptz)`
         : "";
       const write = await client.query(
         `UPDATE tenant.crm_lead_sources

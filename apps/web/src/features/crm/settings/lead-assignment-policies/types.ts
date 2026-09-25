@@ -30,3 +30,27 @@ export type LeadAssignmentPolicy = {
   created_at: string;
   updated_at: string;
 };
+
+// F005 gap-closure — the fallback owner row (assignment/availability.js's
+// getLeadAssignmentFallback/setLeadAssignmentFallback), checked once, last,
+// only when no active policy above produces an eligible owner.
+export type LeadAssignmentFallback = {
+  fallback_user_id: string | null;
+  fallback_user_name: string | null;
+  fallback_user_email: string | null;
+  updated_at: string | null;
+};
+
+// F005 gap-closure — an out-of-office date-range row (crm_lead_assignee_
+// availability). Consulted only for automatic assignment; never blocks a
+// manual override.
+export type LeadAssigneeAvailability = {
+  id: string;
+  user_id: string;
+  user_name: string;
+  user_email: string;
+  starts_at: string;
+  ends_at: string;
+  reason: string | null;
+  created_at: string;
+};

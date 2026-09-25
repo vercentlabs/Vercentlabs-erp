@@ -110,6 +110,7 @@ export type SalesDocumentLineInput = { itemId: string; variantId?: string | null
 export type SalesDocumentInput = {
   partyId: string;
   contactId?: string | null;
+  opportunityId?: string | null;
   billingAddressId?: string | null;
   shippingAddressId?: string | null;
   currencyCode: string;
@@ -139,7 +140,7 @@ const qs = (params: Record<string, string | number | undefined>) => {
   return text ? `?${text}` : "";
 };
 
-export const listSalesQuotations = (filters: { status?: string; search?: string; partyId?: string; limit?: number; offset?: number } = {}) =>
+export const listSalesQuotations = (filters: { status?: string; search?: string; partyId?: string; opportunityId?: string; limit?: number; offset?: number } = {}) =>
   request<{ rows: SalesQuotationRow[] }>(`/quotations${qs(filters)}`);
 export const getSalesQuotation = (id: string) => request<{ quotation: SalesQuotationDetail }>(`/quotations/${id}`);
 export const createSalesQuotation = (input: SalesDocumentInput) => post<{ quotation: { id: string; quotation_number: string } }>("/quotations", input);

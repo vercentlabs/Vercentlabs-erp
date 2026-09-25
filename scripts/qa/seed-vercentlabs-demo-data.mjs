@@ -35,7 +35,7 @@ if (!/localhost|127\.0\.0\.1/.test(connectionString)) {
   throw new Error("Refusing to run against a non-local database.");
 }
 
-const ORG_NAME = "VercentLabs";
+const ORG_NAME = process.env.SEED_ORG_NAME || "VercentLabs";
 
 function randomOf(list) {
   return list[Math.floor(Math.random() * list.length)];
@@ -212,9 +212,18 @@ async function main() {
   };
 
   const sourceRows = (await admin.query(`SELECT id, name FROM tenant.crm_lead_sources WHERE organization_id = $1 AND status = 'active'`, [organizationId])).rows;
-  const leadStageRows = (await admin.query(`SELECT id, code FROM tenant.crm_lead_stages WHERE organization_id = $1`, [organizationId])).rows;
+  // F007's directed transition graph may be the strictly-sequential 5-stage
+  // default (new -> attempting -> contacted -> working -> nurturing) rather
+  // than the legacy 3-stage new/contacted/working set with a direct
+  // new -> contacted edge, so this walks one hop at a time by sort_order
+  // instead of assuming any stage is directly reachable from "new".
+  const leadStageRows = (await admin.query(`SELECT id, code, sort_order FROM tenant.crm_lead_stages WHERE organization_id = $1 ORDER BY sort_order`, [organizationId])).rows;
   const contactedStage = leadStageRows.find((s) => s.code === "contacted");
   const workingStage = leadStageRows.find((s) => s.code === "working");
+  function stagesUpTo(targetStage) {
+    if (!targetStage) return [];
+    return leadStageRows.filter((s) => s.code !== "new" && s.sort_order <= targetStage.sort_order);
+  }
 
   async function withTx(fn) {
     await admin.query("BEGIN");
@@ -333,11 +342,9 @@ async function main() {
   for (let i = 0; i < leadRecords.length; i += 1) {
     if (!newlyCreatedLeadIds.has(leadRecords[i].id)) continue;
     const roll = Math.random();
-    if (roll < 0.35 && contactedStage) {
-      await withTx((client) => transitionLeadStage(client, context, leadRecords[i].id, { stageId: contactedStage.id }));
-    } else if (roll < 0.55 && contactedStage && workingStage) {
-      await withTx((client) => transitionLeadStage(client, context, leadRecords[i].id, { stageId: contactedStage.id }));
-      await withTx((client) => transitionLeadStage(client, context, leadRecords[i].id, { stageId: workingStage.id }));
+    const hops = roll < 0.35 ? stagesUpTo(contactedStage) : roll < 0.55 ? stagesUpTo(workingStage) : [];
+    for (const stage of hops) {
+      await withTx((client) => transitionLeadStage(client, context, leadRecords[i].id, { stageId: stage.id }));
     }
   }
   console.log("  moved a realistic subset of newly created leads to Contacted/Working");

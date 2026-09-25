@@ -246,3 +246,41 @@ test("F019 §16: getCrmTimelinePageBySource derives hasMore from one extra fetch
   assert.equal(result.rows.length, 2);
   assert.equal(result.hasMore, true);
 });
+
+// F019 gap-closure — audit events (stage/owner/qualification changes) join the
+// merged feed; the feed names the actor and previews note text.
+test("F019: a Lead feed includes stage, owner and qualification change events and resolves the actor name", async () => {
+  const client = createClient({ leadRow: { id: lead }, timelineRows: [{ ...activityRow("a1", "2026-09-01T10:00:00.000Z"), actor_name: "Atharva Chavan" }] });
+  const result = await getCrmRecordTimelinePage(client, baseContext({ sensitive: ["crm.leads.view_sensitive"] }), "lead", lead, {});
+  const combined = client.calls.find(({ sql }) => sql.includes("WITH combined AS")).sql;
+  assert.ok(combined.includes("FROM tenant.crm_lead_stage_events"));
+  assert.ok(combined.includes("FROM tenant.crm_lead_assignment_events"));
+  assert.ok(combined.includes("FROM tenant.crm_lead_qualification_events"));
+  assert.ok(combined.includes("LEFT JOIN public.users actor"));
+  assert.equal(result.rows[0].actorName, "Atharva Chavan");
+});
+
+test("F019: an Opportunity feed reads its stage history and carries no Lead-only audit branches", async () => {
+  const client = createClient({ opportunityRow: { id: opportunity, company_id: company, branch_id: branch }, timelineRows: [] });
+  await getCrmRecordTimelinePage(client, baseContext({ sensitive: ["crm.leads.view_sensitive"] }), "opportunity", opportunity, {});
+  const combined = client.calls.find(({ sql }) => sql.includes("WITH combined AS")).sql;
+  assert.ok(combined.includes("FROM tenant.crm_opportunity_stage_history"));
+  assert.ok(!combined.includes("crm_lead_stage_events"));
+  assert.ok(!combined.includes("crm_lead_assignment_events"));
+});
+
+test("F019: notes appear in the feed with a text preview, and a private note is labelled as such", async () => {
+  const client = createClient({ leadRow: { id: lead }, timelineRows: [] });
+  await getCrmRecordTimelinePage(client, baseContext({ sensitive: ["crm.leads.view_sensitive"] }), "lead", lead, {});
+  const combined = client.calls.find(({ sql }) => sql.includes("WITH combined AS")).sql;
+  assert.ok(combined.includes("LEFT(body,160) AS title"));
+  assert.ok(combined.includes("CASE WHEN visibility='private' THEN 'private' END AS subtype"));
+});
+
+test("F019: the audit-event kinds can be filtered on their own, and only the four full-row kinds are valid single-source lists", async () => {
+  const client = createClient({ leadRow: { id: lead }, timelineRows: [] });
+  await getCrmRecordTimelinePage(client, baseContext({ sensitive: ["crm.leads.view_sensitive"] }), "lead", lead, { kinds: ["stage"] });
+  const combined = client.calls.find(({ sql }) => sql.includes("WITH combined AS")).sql;
+  assert.ok(combined.includes("crm_lead_stage_events") && !combined.includes("FROM tenant.crm_activities"));
+  await assert.rejects(() => getCrmTimelinePageBySource(createClient(), baseContext({ sensitive: ["crm.leads.view_sensitive"] }), "lead", lead, { source: "stage" }), (e) => e.code === "CRM_TIMELINE_SOURCE_INVALID");
+});

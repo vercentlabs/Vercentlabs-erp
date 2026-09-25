@@ -10,6 +10,17 @@
 html,
 body {
   height: 100%;
+  /* AppShell.tsx locks the whole app to exactly one viewport (`h-dvh`) and
+     provides its own single scroll region (the `overflow-y-auto` content
+     pane). `height: 100%` alone only sets html/body's own box — it does not
+     clip a descendant that happens to compute even slightly taller (e.g. a
+     data grid's internal max-h-[70vh] scroll region measuring its full
+     unclipped content height before layout settles). Without this, the
+     window itself becomes independently scrollable on top of the intended
+     inner pane: scrolling revealed a frozen sliver of the sidebar/table
+     followed by a large empty canvas-colored gap, since that "extra" height
+     the browser scrolled to was never real, visible content. */
+  overflow: hidden;
 }
 
 body {

@@ -181,3 +181,31 @@ test("F014: scheduled/booked Meetings join the shared reminder engine on schedul
   assert.match(rescheduleBookingBlock, /await cancelPendingRemindersForActivity\(client, context, activity\.rows\[0\]\.id\);/);
   assert.match(rescheduleBookingBlock, /await createRemindersForActivity\(client, context, activity\.rows\[0\]\.id, desiredStart\);/);
 });
+
+// F014 gap-closure — listCrmMeetingEvents had zero callers, so nothing noticed
+// that mapping crm_meeting_events rows through dto() (built for crm_activities'
+// meeting_*-prefixed columns) silently nulled the event's own location_type,
+// outcome_code and duration_seconds. Wiring a route to it without this fix
+// would have shipped a history that always shows blank outcome/duration.
+test("F014: listCrmMeetingEvents preserves the event's own locationType/outcomeCode/durationSeconds instead of nulling them via crm_activities' dto()", async () => {
+  const { listCrmMeetingEvents } = await import("../src/modules/crm/seller-activity-and-follow-up-workspace/meeting-operations.js");
+  const org = "11111111-1111-4111-8111-111111111111";
+  const user = "44444444-4444-4444-8444-444444444444";
+  const meeting = "66666666-6666-4666-8666-666666666666";
+  const context = { organizationId: org, userId: user, activeCompanyId: null, activeBranchId: null, allowAllCompanies: true, roleSlugs: ["organization_owner"], permissions: ["crm.records.view_all"] };
+  const client = {
+    async query(sql) {
+      if (sql.includes("FROM tenant.crm_activities activity"))
+        return { rows: [{ id: meeting, organization_id: org, activity_type: "meeting", status: "completed" }] };
+      if (sql.includes("FROM tenant.crm_meeting_events event"))
+        return { rows: [{ id: "77777777-7777-4777-8777-777777777777", organization_id: org, activity_id: meeting, event_type: "completed", previous_status: "in_progress", next_status: "completed", location_type: "online", outcome_code: "no_show", duration_seconds: 1800, attendee_count: 3, changed_by: user, changed_at: "2026-08-27T10:05:00.000Z", changed_by_name: "Seller" }] };
+      throw new Error(`Unexpected query: ${sql}`);
+    },
+  };
+  const [event] = await listCrmMeetingEvents(client, context, meeting);
+  assert.equal(event.locationType, "online");
+  assert.equal(event.outcomeCode, "no_show");
+  assert.equal(event.durationSeconds, 1800);
+  assert.equal(event.attendeeCount, 3);
+  assert.equal(event.changedByName, "Seller");
+});

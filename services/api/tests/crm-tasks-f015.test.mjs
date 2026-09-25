@@ -541,3 +541,50 @@ test("F015: generic Activity create/update/archive/complete cannot bypass govern
     /if \(current\.activity_type === "task"\)\s*throw new CrmError\(410, "Use the governed Task completion action\.", "CRM_TASK_API_MOVED"\);/,
   );
 });
+
+// F015 gap-closure — listCrmTaskHistory had no route/UI caller; it now joins
+// the actor's name so a history entry can say who did it, not just a user id.
+test("F015: listCrmTaskHistory joins the actor's name and camelizes the ledger row", async () => {
+  const { listCrmTaskHistory } = await import("../src/modules/crm/seller-activity-and-follow-up-workspace/task-operations.js");
+  const org = "11111111-1111-4111-8111-111111111111";
+  const actor = "44444444-4444-4444-8444-444444444444";
+  const taskId = "66666666-6666-4666-8666-666666666666";
+  const ctx = { organizationId: org, userId: actor, activeCompanyId: null, activeBranchId: null, allowAllCompanies: true, roleSlugs: ["organization_owner"], permissions: ["crm.records.view_all"] };
+  let historySql = "";
+  const client = {
+    async query(sql) {
+      if (sql.includes("FROM tenant.crm_task_events")) {
+        historySql = sql;
+        return { rows: [{ id: "77777777-7777-4777-8777-777777777777", event_type: "completed", from_status: "in_progress", to_status: "completed", metadata: {}, actor_user_id: actor, occurred_at: "2026-08-27T10:05:00.000Z", actor_name: "Seller" }] };
+      }
+      if (sql.includes("FROM tenant.crm_activities")) return { rows: [{ id: taskId, organization_id: org, activity_type: "task", status: "completed", team_id: null }] };
+      throw new Error(`Unexpected query: ${sql}`);
+    },
+  };
+  const [event] = await listCrmTaskHistory(client, ctx, taskId);
+  assert.match(historySql, /LEFT JOIN public\.users/);
+  assert.equal(event.eventType, "completed");
+  assert.equal(event.fromStatus, "in_progress");
+  assert.equal(event.actorName, "Seller");
+});
+
+// Found by live verification: claim/release write 'claimed'/'released' event
+// types, but the original CHECK (migration 071) rejected them, so every real
+// claim failed. Guard: every event type the service writes must be allowed by
+// the newest constraint definition.
+test("F015: every crm_task_events event_type the service writes is permitted by the latest CHECK constraint", async () => {
+  const fs = await import("node:fs");
+  const path = await import("node:path");
+  const root = path.resolve(import.meta.dirname, "../../..");
+  const service = fs.readFileSync(path.join(root, "services/api/src/modules/crm/seller-activity-and-follow-up-workspace/task-operations.js"), "utf8");
+  const written = new Set([...service.matchAll(/event\(client, context, [\w.]+, "(\w+)"/g)].map((m) => m[1]));
+  const dir = path.join(root, "database/tenant/migrations");
+  let latest = "";
+  for (const file of fs.readdirSync(dir).sort()) {
+    const sql = fs.readFileSync(path.join(dir, file), "utf8");
+    const match = sql.match(/crm_task_events_event_type_check\s+CHECK \(event_type IN \(([^)]*)\)\)/) || sql.match(/event_type text NOT NULL CHECK \(event_type IN \(([^)]*)\)\)/);
+    if (match && sql.includes("crm_task_events")) latest = match[1];
+  }
+  const allowed = new Set([...latest.matchAll(/'(\w+)'/g)].map((m) => m[1]));
+  for (const type of written) assert.ok(allowed.has(type), `event type "${type}" is written but not allowed by the CHECK`);
+});

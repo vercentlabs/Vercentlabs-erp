@@ -20,6 +20,7 @@ export async function GET(request: Request) {
       status: url.searchParams.get("status") || undefined,
       due: url.searchParams.get("due") || undefined,
       mine: url.searchParams.get("mine") === "true" || undefined,
+      myTeam: url.searchParams.get("myTeam") === "true" || undefined,
       teamId: url.searchParams.get("teamId") || undefined,
       queueOnly: url.searchParams.get("queueOnly") === "true" || undefined,
       search: url.searchParams.get("search") || undefined,

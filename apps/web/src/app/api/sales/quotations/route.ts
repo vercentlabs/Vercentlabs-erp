@@ -9,6 +9,7 @@ export async function GET(request: Request) {
     status: url.searchParams.get("status") || undefined,
     search: url.searchParams.get("search") || undefined,
     partyId: url.searchParams.get("partyId") || undefined,
+    opportunityId: url.searchParams.get("opportunityId") || undefined,
     limit: url.searchParams.get("limit") || undefined,
     offset: url.searchParams.get("offset") || undefined,
   };

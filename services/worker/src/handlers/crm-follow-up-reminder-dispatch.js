@@ -64,19 +64,22 @@ export async function dispatchFollowUpRemindersHandler(_client, _systemContext, 
     }
     try {
       if (reminder.channel === "in_app") {
-        await runtime.withTenantClient(runtime.pool, runtime.organizationId, (client) =>
-          createInAppNotification(client, context, {
+        // The notification row and the "sent" mark commit together: this
+        // channel's only side effect is a database row, so making both one
+        // transaction means a crash cannot leave a delivered alert behind a
+        // reminder that is still 'dispatching' — which the recovery step
+        // would otherwise re-deliver as a duplicate.
+        await runtime.withTenantClient(runtime.pool, runtime.organizationId, async (client) => {
+          await createInAppNotification(client, context, {
             userId: activity.assignedTo,
             type: "crm_follow_up_reminder",
             category: "crm_follow_up_reminder",
             title: "Follow-up reminder",
             message: `${activity.subject || "A Follow-up"} is due ${new Date(activity.dueAt).toLocaleString()}.`,
-            href: `/crm/activities?activityType=follow_up&id=${activity.id}`,
-          }),
-        );
-        await runtime.withTenantClient(runtime.pool, runtime.organizationId, (client) =>
-          markReminderOutcome(client, context, reminder.id, { status: "sent" }),
-        );
+            href: `/crm/follow-ups/${activity.id}`,
+          });
+          await markReminderOutcome(client, context, reminder.id, { status: "sent" });
+        });
         sent += 1;
       } else if (reminder.channel === "email") {
         if (!activity.assignedEmail) {

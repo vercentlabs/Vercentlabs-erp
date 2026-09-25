@@ -46,8 +46,9 @@ test("F029: bulk mutation surface allows only the same fields/values the synchro
     (error) => error?.code === "CRM_OPPORTUNITY_BULK_FIELD_UNSUPPORTED",
   );
   await assert.rejects(
-    () => normalizeOpportunityBulkChanges(noQueryClient(), scopedContext, { forecastCategory: "sure_thing" }),
-    (error) => error?.code === "CRM_OPPORTUNITY_BULK_FORECAST_CATEGORY_INVALID",
+    () => normalizeOpportunityBulkChanges(noQueryClient(), scopedContext, { forecastCategory: "best_case" }),
+    // F029: forecast category is stage-governed; bulk may not set it (same as a single-record edit).
+    (error) => error?.code === "CRM_OPPORTUNITY_BULK_FIELD_UNSUPPORTED",
   );
   await assert.rejects(
     () => normalizeOpportunityBulkChanges(noQueryClient(), scopedContext, { expectedCloseDate: "not-a-date" }),
@@ -104,7 +105,7 @@ test("F029: a large filter-snapshot selection is snapshotted under record scope 
 
   const result = await enqueueOpportunityBulkUpdateJob(client, scopedContext, {
     selection: { type: "filter", filters: { ownerId: "me" } },
-    changes: { forecastCategory: "best_case" },
+    changes: { nextStep: "Re-engage" },
     idempotencyKey: "opportunity-bulk:test-f029-0001",
   });
 

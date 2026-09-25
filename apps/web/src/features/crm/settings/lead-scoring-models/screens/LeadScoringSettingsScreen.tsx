@@ -2,8 +2,8 @@
 
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { CheckCircle2, Plus } from "lucide-react";
-import { Button, Dialog, PermissionState, Select, StatusBadge, TextField, type SelectOption } from "@vercentlabs/design-system";
+import { CheckCircle2, Plus, Sparkles } from "lucide-react";
+import { Button, Checkbox, Dialog, PermissionState, Select, StatusBadge, TextField, type SelectOption } from "@vercentlabs/design-system";
 import { CRM_PERMISSIONS } from "@vercentlabs/permissions";
 
 import { humanize } from "@/features/crm/shared/human";
@@ -17,8 +17,17 @@ import {
   listLeadScoringModels,
   ScoringModelApiError,
   setLeadScoringModelRuleStatus,
+  trainLeadScoringModel,
 } from "../api/lead-scoring-models-api";
-import { SIGNAL_TYPES, type LeadScoringModel, type LeadScoringModelRule, type SignalType } from "../types";
+import { PREDICTIVE_TRAINING_VARIABLES, SIGNAL_TYPES, type LeadScoringModel, type LeadScoringModelRule, type PredictiveTrainingVariable, type SignalType } from "../types";
+
+const TRAINING_VARIABLE_LABELS: Record<PredictiveTrainingVariable, string> = {
+  sourceId: "Lead source",
+  industry: "Industry",
+  countryCode: "Country",
+  rating: "Rating",
+  priority: "Priority",
+};
 
 const SIGNAL_OPTIONS: SelectOption[] = SIGNAL_TYPES.map((value) => ({ value, label: value.replace(/^./, (c) => c.toUpperCase()) }));
 const OPERATOR_OPTIONS: SelectOption[] = [
@@ -88,7 +97,7 @@ export function LeadScoringSettingsScreen() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-lg font-semibold text-text">Lead scoring</h1>
-          <p className="text-sm text-text-secondary">Only one model may be active; activating a new version retires the previous one and re-scores existing Leads.</p>
+          <p className="text-sm text-text-secondary">The score comes from one active rules model: points you can read rule by rule. A predictive model can be active alongside it and adds a separate “likelihood to qualify” estimate. It never changes the score. Activating a new version retires the previous one of the same kind and recalculates existing Leads.</p>
         </div>
         <Button variant="primary" onPress={() => setCreateOpen(true)}>
           <Plus className="size-4" aria-hidden="true" />
@@ -111,25 +120,45 @@ export function LeadScoringSettingsScreen() {
           <div key={model.id} className="flex flex-col gap-3 rounded-[var(--radius-control)] border border-border-strong p-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="font-medium text-text">
+                <p className="flex items-center gap-2 font-medium text-text">
                   {model.name} <span className="text-text-muted">{`Version ${model.version}`}</span>
+                  {model.model_type === "predictive" && (
+                    <span className="inline-flex items-center gap-1 rounded-full border border-border-strong px-2 py-0.5 text-xs text-text-secondary">
+                      <Sparkles className="size-3" aria-hidden="true" /> Predictive
+                    </span>
+                  )}
                 </p>
                 <p className="text-sm text-text-secondary">
-                  {`Starts at ${model.base_score}, stays between ${model.score_floor} and ${model.score_ceiling}. Activity signals fade with a half-life of ${model.decay_half_life_days} days.`}
+                  {model.model_type === "predictive"
+                    ? "Estimates each Lead's likelihood to qualify from this org's own qualified vs unqualified history, using the training variables below. Shown beside the score, never added to it."
+                    : `Starts at ${model.base_score}, stays between ${model.score_floor} and ${model.score_ceiling}. Activity signals fade with a half-life of ${model.decay_half_life_days} days.`}
                 </p>
                 <div className="mt-2"><ScoreBands model={model} /></div>
               </div>
               <div className="flex items-center gap-2">
                 <StatusBadge tone={model.status === "active" ? "success" : model.status === "draft" ? "neutral" : "warning"}>{model.status === "active" ? "Live" : model.status === "draft" ? "Draft, not scoring yet" : "Retired"}</StatusBadge>
+                {model.status === "draft" && model.model_type === "predictive" && !model.trained_at && (
+                  <span className="text-xs text-text-muted">Train before activating</span>
+                )}
                 {model.status === "draft" && (
-                  <Button variant="secondary" size="compact" onPress={() => activateMutation.mutate(model)} isLoading={activateMutation.isPending}>
+                  <Button
+                    variant="secondary"
+                    size="compact"
+                    onPress={() => activateMutation.mutate(model)}
+                    isLoading={activateMutation.isPending}
+                    isDisabled={model.model_type === "predictive" && !model.trained_at}
+                  >
                     <CheckCircle2 className="size-4" aria-hidden="true" />
                     Activate
                   </Button>
                 )}
               </div>
             </div>
-            <RuleList model={model} onManage={() => setRuleModel(model)} onError={handleError} onChanged={invalidate} />
+            {model.model_type === "predictive" ? (
+              <PredictiveModelPanel model={model} onError={handleError} onChanged={invalidate} />
+            ) : (
+              <RuleList model={model} onManage={() => setRuleModel(model)} onError={handleError} onChanged={invalidate} />
+            )}
           </div>
         ))}
       </div>
@@ -179,8 +208,14 @@ function RuleList({ model, onManage, onError, onChanged }: { model: LeadScoringM
   );
 }
 
+const MODEL_TYPE_OPTIONS: SelectOption[] = [
+  { value: "rule_based", label: "Rule-based (points you configure)" },
+  { value: "predictive", label: "Predictive (trained on this org's own history)" },
+];
+
 function CreateModelDialog({ isOpen, onOpenChange, onCreated, onError }: { isOpen: boolean; onOpenChange: (open: boolean) => void; onCreated: () => void; onError: (error: unknown) => void }) {
   const [name, setName] = useState("");
+  const [modelType, setModelType] = useState<"rule_based" | "predictive">("rule_based");
   const [baseScore, setBaseScore] = useState("0");
   const [scoreFloor, setScoreFloor] = useState("-100");
   const [scoreCeiling, setScoreCeiling] = useState("100");
@@ -188,15 +223,19 @@ function CreateModelDialog({ isOpen, onOpenChange, onCreated, onError }: { isOpe
   const [warm, setWarm] = useState("30");
   const [hot, setHot] = useState("60");
   const [qualified, setQualified] = useState("75");
+  const [trainingVariables, setTrainingVariables] = useState<PredictiveTrainingVariable[]>(["sourceId", "industry"]);
+  const [minimumClassSize, setMinimumClassSize] = useState("40");
 
+  const isPredictive = modelType === "predictive";
   const mutation = useMutation({
     mutationFn: () =>
       createLeadScoringModel({
         name,
-        baseScore: Number(baseScore) || 0,
-        scoreFloor: Number(scoreFloor) || -100,
+        modelType,
+        ...(isPredictive
+          ? { trainingVariables, minimumClassSize: Number(minimumClassSize) || 40 }
+          : { baseScore: Number(baseScore) || 0, scoreFloor: Number(scoreFloor) || -100, decayHalfLifeDays: Number(decayHalfLifeDays) || 30 }),
         scoreCeiling: Number(scoreCeiling) || 100,
-        decayHalfLifeDays: Number(decayHalfLifeDays) || 30,
         qualificationThresholds: { warm: Number(warm) || 30, hot: Number(hot) || 60, qualified: Number(qualified) || 75 },
       }),
     onSuccess: () => {
@@ -207,16 +246,38 @@ function CreateModelDialog({ isOpen, onOpenChange, onCreated, onError }: { isOpe
     onError,
   });
 
+  function toggleVariable(variable: PredictiveTrainingVariable, checked: boolean) {
+    setTrainingVariables((current) => (checked ? [...new Set([...current, variable])] : current.filter((v) => v !== variable)));
+  }
+
   return (
     <Dialog isOpen={isOpen} onOpenChange={onOpenChange} title="New scoring model">
       <div className="flex flex-col gap-4">
         <TextField label="Name" isRequired value={name} onChange={setName} />
-        <div className="grid grid-cols-3 gap-3">
-          <TextField label="Base score" value={baseScore} onChange={setBaseScore} />
-          <TextField label="Floor" value={scoreFloor} onChange={setScoreFloor} />
-          <TextField label="Ceiling" value={scoreCeiling} onChange={setScoreCeiling} />
-        </div>
-        <TextField label="Decay half-life (days)" value={decayHalfLifeDays} onChange={setDecayHalfLifeDays} />
+        <Select label="Model type" options={MODEL_TYPE_OPTIONS} selectedKey={modelType} onSelectionChange={(key) => setModelType((key as "rule_based" | "predictive") ?? "rule_based")} />
+        {isPredictive ? (
+          <>
+            <fieldset className="flex flex-col gap-2">
+              <legend className="text-sm font-medium text-text">Training variables</legend>
+              <p className="text-xs text-text-muted">Which Lead attributes should the model learn from qualified vs unqualified history?</p>
+              {PREDICTIVE_TRAINING_VARIABLES.map((variable) => (
+                <Checkbox key={variable} isSelected={trainingVariables.includes(variable)} onChange={(checked) => toggleVariable(variable, checked)}>
+                  {TRAINING_VARIABLE_LABELS[variable]}
+                </Checkbox>
+              ))}
+            </fieldset>
+            <TextField label="Minimum qualified/unqualified Leads required to train" value={minimumClassSize} onChange={setMinimumClassSize} />
+          </>
+        ) : (
+          <>
+            <div className="grid grid-cols-3 gap-3">
+              <TextField label="Base score" value={baseScore} onChange={setBaseScore} />
+              <TextField label="Floor" value={scoreFloor} onChange={setScoreFloor} />
+              <TextField label="Ceiling" value={scoreCeiling} onChange={setScoreCeiling} />
+            </div>
+            <TextField label="Decay half-life (days)" value={decayHalfLifeDays} onChange={setDecayHalfLifeDays} />
+          </>
+        )}
         <div className="grid grid-cols-3 gap-3">
           <TextField label="Warm threshold" value={warm} onChange={setWarm} />
           <TextField label="Hot threshold" value={hot} onChange={setHot} />
@@ -224,12 +285,48 @@ function CreateModelDialog({ isOpen, onOpenChange, onCreated, onError }: { isOpe
         </div>
         <div className="flex justify-end gap-2">
           <Button variant="secondary" onPress={() => onOpenChange(false)}>Cancel</Button>
-          <Button variant="primary" onPress={() => mutation.mutate()} isLoading={mutation.isPending} isDisabled={!name.trim()}>
+          <Button variant="primary" onPress={() => mutation.mutate()} isLoading={mutation.isPending} isDisabled={!name.trim() || (isPredictive && trainingVariables.length === 0)}>
             Create model
           </Button>
         </div>
       </div>
     </Dialog>
+  );
+}
+
+function PredictiveModelPanel({ model, onError, onChanged }: { model: LeadScoringModel; onError: (error: unknown) => void; onChanged: () => void }) {
+  const trainMutation = useMutation({
+    mutationFn: () => trainLeadScoringModel(model.id),
+    onSuccess: onChanged,
+    onError,
+  });
+  const summary = model.training_summary || {};
+  const editable = model.status !== "active";
+
+  return (
+    <div className="flex flex-col gap-2 border-t border-border-strong pt-3">
+      <div className="flex flex-wrap gap-2 text-xs">
+        {(model.training_variables || []).map((variable) => (
+          <span key={variable} className="rounded-full border border-border px-2.5 py-1">{TRAINING_VARIABLE_LABELS[variable] ?? humanize(variable)}</span>
+        ))}
+      </div>
+      {model.trained_at ? (
+        <p className="text-sm text-text-secondary">
+          {`Trained on ${summary.qualifiedCount ?? 0} qualified and ${summary.unqualifiedCount ?? 0} unqualified Leads, last trained ${new Date(model.trained_at).toLocaleString()}.`}
+        </p>
+      ) : (
+        <p className="text-sm text-text-muted">
+          {`Not trained yet. Needs at least ${model.minimum_class_size} qualified and ${model.minimum_class_size} unqualified Leads.`}
+        </p>
+      )}
+      {editable && (
+        <Button variant="secondary" size="compact" className="self-start" onPress={() => trainMutation.mutate()} isLoading={trainMutation.isPending}>
+          <Sparkles className="size-4" aria-hidden="true" />
+          {model.trained_at ? "Retrain model" : "Train model"}
+        </Button>
+      )}
+      {!editable && <p className="text-xs text-text-muted">Create a new model version to retrain an active model.</p>}
+    </div>
   );
 }
 

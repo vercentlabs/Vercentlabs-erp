@@ -1,4 +1,5 @@
 import { CrmError } from "../crm-data-operations-and-customization/errors.js";
+import { managedTeamMembersSql } from "../crm-data-operations-and-customization/record-utils.js";
 import { queueOutboxEvent } from "../crm-data-operations-and-customization/outbox.js";
 import { assertEligibleLeadAssignee } from "../lead-lifecycle-qualification-and-prioritization/lead-governance.js";
 import { canViewSensitiveLeadContent, leadScopeSql } from "../lead-lifecycle-qualification-and-prioritization/lead-security.js";
@@ -449,6 +450,8 @@ export async function listCrmTasks(client, context, filters = {}) {
   // Tasks and the queues they actually belong to, so these filters narrow
   // within that same authorized set rather than granting new visibility.
   if (filters.mine) where += ` AND activity.assigned_to=${add(values, context.userId)}`;
+  // F024 — dashboard "my team" drill-down: the caller plus members of teams they manage.
+  if (filters.myTeam) { const me = add(values, context.userId); where += ` AND (activity.assigned_to=${me} OR activity.assigned_to IN (${managedTeamMembersSql("$1", me)}))`; }
   if (filters.teamId) where += ` AND activity.team_id=${add(values, uuid(filters.teamId, "Team"))}`;
   if (filters.queueOnly) where += ` AND activity.assigned_to IS NULL AND activity.team_id IS NOT NULL`;
   const search = text(filters.search).slice(0, 200);
@@ -540,7 +543,13 @@ export const cancelCrmTask = (client, context, id, input = {}) => transition(cli
 
 export async function listCrmTaskHistory(client, context, id) {
   await getCrmTask(client, context, id);
-  const { rows } = await client.query(`SELECT event_type,from_status,to_status,metadata,actor_user_id,occurred_at FROM tenant.crm_task_events WHERE organization_id=$1 AND activity_id=$2 ORDER BY occurred_at DESC,id DESC`, [context.organizationId, id]);
+  const { rows } = await client.query(
+    `SELECT event.id,event.event_type,event.from_status,event.to_status,event.metadata,event.actor_user_id,event.occurred_at,u.full_name AS actor_name
+       FROM tenant.crm_task_events event
+       LEFT JOIN public.users u ON u.id=event.actor_user_id
+      WHERE event.organization_id=$1 AND event.activity_id=$2 ORDER BY event.occurred_at DESC,event.id DESC`,
+    [context.organizationId, id],
+  );
   return rows.map(dto);
 }
 

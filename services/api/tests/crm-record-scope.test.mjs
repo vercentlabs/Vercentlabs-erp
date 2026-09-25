@@ -355,6 +355,12 @@ function companyAwareCrmClient({ leadRow = ownedLead } = {}) {
       if (hasRecordWhere(sql, "crm_leads")) {
         return { rows: visible(sql, params) ? [leadRow] : [] };
       }
+      // listCrmRecords batch-resolves ownerName for "leads" too now
+      // (resource-query-service.js's annotateLeadRelations) — same shared
+      // read-only lookup crmClient() above already anticipates.
+      if (sql.startsWith("SELECT id, full_name FROM public.users")) {
+        return { rows: [] };
+      }
       throw new Error(`Unexpected query: ${sql}`);
     },
   };

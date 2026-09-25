@@ -138,6 +138,43 @@ export function moveOpportunityStage(
     outcomeNotes?: string | null;
   },
 ): Promise<any>;
+export function restoreOpportunity(
+  client: QueryClient,
+  context: CrmContext,
+  opportunityId: string,
+  reason: string,
+  expectations?: { expectedUpdatedAt?: string },
+): Promise<any>;
+export type CrmOpportunityProbabilityHistoryEntry = Record<string, unknown> & {
+  id: string;
+  opportunityId: string;
+  fromProbability: number;
+  toProbability: number;
+  expectedRevenue: number;
+  note: string | null;
+  changedBy: string | null;
+  changedByName: string | null;
+  changedAt: string;
+  source: "manual_override" | "stage_default" | "terminal_won" | "terminal_lost" | "reopen" | "restored" | null;
+};
+export function listOpportunityProbabilityHistory(
+  client: QueryClient,
+  context: CrmContext,
+  opportunityId: string,
+  limit?: number,
+): Promise<CrmOpportunityProbabilityHistoryEntry[]>;
+export type CrmOpportunityPredictiveProbability = {
+  predictedProbability: number;
+  predictedAmount: number;
+  factors: Record<string, unknown> | null;
+  modelVersion: string;
+  capturedAt: string;
+};
+export function getOpportunityPredictiveProbability(
+  client: QueryClient,
+  context: CrmContext,
+  opportunityId: string,
+): Promise<CrmOpportunityPredictiveProbability | null>;
 export function completeCrmActivity(
   client: QueryClient,
   context: CrmContext,
@@ -152,6 +189,7 @@ export function getCrmOptions(
 export function getCrmDashboard(
   client: QueryClient,
   context: CrmContext,
+  options?: { scope?: string; from?: string; to?: string },
 ): Promise<any>;
 export function getCrmReport(
   client: QueryClient,

@@ -8,17 +8,12 @@ import { crmContext, requireCrmAccess } from "@/features/crm/shared/crm-context"
 
 // F029 governed Opportunity bulk edit. Only the fields opportunity-
 // operations.js's OPPORTUNITY_BULK_FIELDS allowlists (ownerUserId/
-// forecastCategory/expectedCloseDate/nextStep) can go through here —
-// stage/status/probability/outcome remain single-record governed actions
-// (moveOpportunityStage etc.) on purpose. bulkUpdateOpportunities' own
-// synchronous cap is 200 (hardcoded in that function, no exported
-// constant to import, unlike Lead's LEAD_BULK_SYNC_LIMIT); larger
-// selections are queued as a background job. Note a real, disclosed
-// difference from Lead's bulk: bulkUpdateOpportunities is a single mass
-// UPDATE with only an aggregate updated count, not Lead's per-record
-// applied/conflict/skipped/failed manifest — a row outside scope or
-// already non-open simply isn't included in the count, with no per-ID
-// reason surfaced.
+// expectedCloseDate/nextStep) can go through here — stage/status/
+// probability/forecast/outcome remain single-record governed actions.
+// Up to 200 records run synchronously, each through the single-record
+// command with a per-record result (applied/conflict/skipped/failed);
+// `preview: true` runs the same rules and rolls back. Larger selections are
+// queued as a background job with the same per-record manifest.
 const OPPORTUNITY_BULK_SYNC_LIMIT = 200;
 
 export async function POST(request: Request) {
@@ -29,6 +24,8 @@ export async function POST(request: Request) {
       ids?: string[];
       changes?: Record<string, unknown>;
       idempotencyKey?: string;
+      preview?: boolean;
+      expectedVersions?: Record<string, string>;
     };
     const ids = Array.isArray(input.ids) ? input.ids : [];
     if (!ids.length) throw new HttpError(400, "Select at least one Opportunity.");
@@ -36,11 +33,12 @@ export async function POST(request: Request) {
     if (ids.length <= OPPORTUNITY_BULK_SYNC_LIMIT) {
       const result = await tenantTransaction(session.organizationId, async (client) => {
         await requireCrmAccess(client, session, CRM_PERMISSIONS.opportunitiesManage, { mutation: true });
-        return bulkUpdateOpportunities(client, crmContext(session), { ids, changes: input.changes });
+        return bulkUpdateOpportunities(client, crmContext(session), { ids, changes: input.changes, preview: input.preview === true, expectedVersions: input.expectedVersions });
       });
       return ok({ mode: "synchronous", ...result });
     }
 
+    if (input.preview) throw new HttpError(400, "Preview is available for up to 200 Opportunities at a time.");
     if (!input.idempotencyKey) throw new HttpError(400, "A large Opportunity selection requires an idempotency key.");
     const result = await tenantTransaction(session.organizationId, async (client) => {
       await requireCrmAccess(client, session, CRM_PERMISSIONS.opportunitiesManage, { mutation: true });

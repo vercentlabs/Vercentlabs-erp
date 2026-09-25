@@ -39,6 +39,8 @@ export type Lead = {
   ownerName?: string | null;
   score: number | null;
   grade?: string | null;
+  // Score band from the scoring model (cold/warm/hot/qualified) — distinct from the manual rating.
+  leadGrade?: string | null;
   // numeric(18,2) — node-postgres returns this as a string at runtime;
   // typed honestly so call sites go through money()/toNumber() instead
   // of assuming a number (see shared/format.ts).
@@ -78,6 +80,12 @@ export type LeadListFilters = {
   // reconciles to the dashboard's own metric.
   dwellBreached?: "true";
   highPriority?: "true";
+  // F024 — dashboard period drill-down.
+  createdFrom?: string;
+  createdTo?: string;
+  convertedFrom?: string;
+  convertedTo?: string;
+  includeConverted?: "true";
   limit?: number;
   offset?: number;
 };

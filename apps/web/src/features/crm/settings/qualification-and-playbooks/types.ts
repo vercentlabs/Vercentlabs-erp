@@ -5,7 +5,12 @@
 // exact same columns registered in resource-registry.js.
 export const QUALIFICATION_TIERS = ["required", "recommended"] as const;
 export type QualificationTier = (typeof QUALIFICATION_TIERS)[number];
-export const QUALIFICATION_CHECK_TYPES = ["non_empty_any", "positive_number"] as const;
+// F006 gap-closure — "minimum_threshold" lets a criterion require a
+// numeric field (e.g. the predictive lead score) to reach a configurable
+// minimum, closing the one gap the "top ERPs" benchmark found: every rival
+// ships some ML/rule-based score as a qualification input, but Vercentlabs'
+// score→qualification relationship was previously one-directional.
+export const QUALIFICATION_CHECK_TYPES = ["non_empty_any", "positive_number", "minimum_threshold"] as const;
 export type QualificationCheckType = (typeof QUALIFICATION_CHECK_TYPES)[number];
 
 // The fixed allowlist a criterion's fieldKeys may reference
@@ -27,6 +32,7 @@ export const QUALIFICATION_FIELD_KEYS = [
   "city",
   "state",
   "countryCode",
+  "score",
 ] as const;
 
 export type QualificationCriterion = {
@@ -36,6 +42,8 @@ export type QualificationCriterion = {
   tier: QualificationTier;
   checkType: QualificationCheckType;
   fieldKeys: string[];
+  // Only set when checkType is "minimum_threshold".
+  threshold: number | null;
   sequence: number;
   status: "active" | "inactive";
   createdAt: string;

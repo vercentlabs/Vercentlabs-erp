@@ -18,7 +18,10 @@ export {
   activateLeadScoringModel,
   createLeadScoringModelRule,
   setLeadScoringModelRuleStatus,
+  trainLeadScoringModel,
 } from "./model-config.js";
+
+export { PREDICTIVE_TRAINING_FIELDS, calculatePredictiveScoreBreakdown } from "./predictive-model.js";
 
 export {
   enqueueLeadScoreRecalcJob,

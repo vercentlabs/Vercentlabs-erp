@@ -26,6 +26,15 @@ const ENTITY_TYPES = new Set(["lead", "opportunity", "party", "contact"]);
 const DATA_TYPES = new Set(["text", "textarea", "number", "currency", "percentage", "boolean", "date", "datetime", "select", "multi_select"]);
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
+// F028 — writing a value is editing the record: the caller needs that record
+// type's manage permission, not just CRM access (organization owners pass).
+const MANAGE_PERMISSION = { lead: "crm.leads.manage", opportunity: "crm.opportunities.manage", party: "crm.accounts.manage", contact: "crm.accounts.manage" };
+function assertCanEditValues(context, entityType) {
+  if (context.roleSlugs?.includes("organization_owner")) return;
+  if (!context.permissions?.includes(MANAGE_PERMISSION[entityType]))
+    throw new CrmError(403, "You do not have permission to edit this record's custom fields.", "CRM_CUSTOM_FIELD_EDIT_FORBIDDEN");
+}
+
 function camelize(key) { return key.replace(/_([a-z])/g, (_m, ch) => ch.toUpperCase()); }
 function dto(row) { return Object.fromEntries(Object.entries(row || {}).map(([key, value]) => [camelize(key), value])); }
 function text(value, max = 500) { return String(value ?? "").trim().slice(0, max); }
@@ -111,6 +120,13 @@ function coerceValue(definition, raw) {
       return value;
     }
     case "boolean":
+      // "false"/"0"/"no" are false — Boolean("false") would store true.
+      if (typeof raw === "string") {
+        const normalized = raw.trim().toLowerCase();
+        if (["true", "1", "yes"].includes(normalized)) return true;
+        if (["false", "0", "no"].includes(normalized)) return false;
+        throw new CrmError(400, `${definition.label} must be yes or no.`, "CRM_CUSTOM_FIELD_VALUE_INVALID", { fieldKey: definition.fieldKey });
+      }
       return Boolean(raw);
     case "date":
     case "datetime": {
@@ -154,6 +170,23 @@ export async function getCustomFieldValues(client, context, entityType, entityId
   return result.rows.map(dto);
 }
 
+// F028 — who changed which custom field, from what to what, newest first.
+// Same record-access rule as reading the values; labels are as they were.
+export async function getCustomFieldValueHistory(client, context, entityType, entityId) {
+  assertEntityType(entityType);
+  const allowed = await resolveCrmEntityAccess(client, context, entityType, entityId);
+  if (!allowed) return [];
+  const result = await client.query(
+    `SELECT history.id, history.field_key, history.field_label, history.previous_value, history.new_value, history.changed_at, account.full_name AS changed_by_name
+       FROM custom_field_value_history history
+       LEFT JOIN users account ON account.id=history.changed_by
+      WHERE history.organization_id=$1 AND history.entity_type=$2 AND history.entity_id=$3
+      ORDER BY history.changed_at DESC LIMIT 100`,
+    [context.organizationId, entityType, entityId],
+  );
+  return result.rows.map(dto);
+}
+
 // Write: every submitted value is validated against its OWN active
 // definition (type/required/options/length/range) before anything is
 // persisted — a partially-invalid submission writes nothing, not a
@@ -163,6 +196,7 @@ export async function getCustomFieldValues(client, context, entityType, entityId
 export async function setCustomFieldValues(client, context, entityType, entityId, values = {}) {
   assertEntityType(entityType);
   assertUuid(entityId, "Record");
+  assertCanEditValues(context, entityType);
   const allowed = await resolveCrmEntityAccess(client, context, entityType, entityId);
   if (!allowed) throw new CrmError(404, "The related CRM record is unavailable.", "CRM_CUSTOM_FIELD_RELATION_INVALID");
 
@@ -176,8 +210,15 @@ export async function setCustomFieldValues(client, context, entityType, entityId
   const unknown = submittedKeys.filter((key) => !definitionsByKey.has(key));
   if (unknown.length) throw new CrmError(400, `Unknown custom field(s): ${unknown.join(", ")}.`, "CRM_CUSTOM_FIELD_UNKNOWN", { fields: unknown });
 
+  // A required field is missing only if it is neither submitted nor already
+  // stored — saving one field must not demand re-sending every other one.
+  const storedResult = await client.query(
+    `SELECT definition_id, value FROM custom_field_values WHERE organization_id=$1 AND entity_id=$2`,
+    [context.organizationId, entityId],
+  );
+  const stored = new Map(storedResult.rows.map((row) => [row.definition_id, row.value]));
   const missingRequired = [...definitionsByKey.values()].filter(
-    (definition) => definition.required && !Object.prototype.hasOwnProperty.call(values, definition.fieldKey),
+    (definition) => definition.required && !Object.prototype.hasOwnProperty.call(values, definition.fieldKey) && (stored.get(definition.id) ?? null) === null,
   );
   if (missingRequired.length) throw new CrmError(400, `Missing required field(s): ${missingRequired.map((d) => d.label).join(", ")}.`, "CRM_CUSTOM_FIELD_VALUE_REQUIRED");
 
@@ -188,6 +229,16 @@ export async function setCustomFieldValues(client, context, entityType, entityId
   }
 
   for (const { definition, value } of coerced) {
+    // F028 — the prior value is kept in an append-only ledger, so a later
+    // change never erases what the record said before.
+    const previous = stored.has(definition.id) ? stored.get(definition.id) : null;
+    if (JSON.stringify(previous) !== JSON.stringify(value)) {
+      await client.query(
+        `INSERT INTO custom_field_value_history(organization_id,definition_id,entity_type,entity_id,field_key,field_label,previous_value,new_value,changed_by)
+         VALUES($1,$2,$3,$4,$5,$6,$7::jsonb,$8::jsonb,$9)`,
+        [context.organizationId, definition.id, entityType, entityId, definition.fieldKey, definition.label, JSON.stringify(previous), JSON.stringify(value), context.userId ?? null],
+      );
+    }
     await client.query(
       `INSERT INTO custom_field_values(organization_id,definition_id,entity_id,value,updated_at)
        VALUES($1,$2,$3,$4::jsonb,now())

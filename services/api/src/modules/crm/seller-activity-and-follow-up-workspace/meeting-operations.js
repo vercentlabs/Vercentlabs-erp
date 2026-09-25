@@ -39,6 +39,13 @@ function dto(row) {
   result.attendeeCount = Number(result.attendeeCount ?? 0);
   return result;
 }
+// crm_meeting_events rows already name their own columns (location_type,
+// outcome_code, duration_seconds) without the meeting_* prefix crm_activities
+// uses — reusing dto()'s meeting_*-derived overrides would read those as
+// absent and null out the very fields this ledger exists to preserve.
+function eventDto(row) {
+  return Object.fromEntries(Object.entries(row || {}).map(([key, value]) => [camelize(key), value]));
+}
 function add(values, value) {
   values.push(value);
   return `$${values.length}`;
@@ -449,7 +456,7 @@ export async function listCrmMeetingEvents(client, context, activityId, limit = 
       ORDER BY event.changed_at DESC,event.id DESC LIMIT $3`,
     [context.organizationId, activityId, Math.max(1, Math.min(100, Math.trunc(Number(limit) || 50)))],
   );
-  return result.rows.map(dto);
+  return result.rows.map(eventDto);
 }
 
 export async function createCrmMeeting(client, context, input = {}) {

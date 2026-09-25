@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button, ConflictBanner, ErrorState, MoneyField, PermissionState, RecordFormPage, Select, TextArea, TextField, type SelectOption } from "@vercentlabs/design-system";
+import { CRM_PERMISSIONS } from "@vercentlabs/permissions";
 
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
@@ -20,6 +21,7 @@ type FormValues = {
   partyId: string;
   contactId: string;
   pipelineId: string;
+  ownerUserId: string;
   amount: number | null;
   currencyCode: string;
   expectedCloseDate: string;
@@ -27,7 +29,7 @@ type FormValues = {
   description: string;
 };
 
-const EMPTY: FormValues = { name: "", partyId: "", contactId: "", pipelineId: "", amount: null, currencyCode: "", expectedCloseDate: "", nextStep: "", description: "" };
+const EMPTY: FormValues = { name: "", partyId: "", contactId: "", pipelineId: "", ownerUserId: "", amount: null, currencyCode: "", expectedCloseDate: "", nextStep: "", description: "" };
 
 function toForm(opportunity: Opportunity): FormValues {
   return {
@@ -35,6 +37,7 @@ function toForm(opportunity: Opportunity): FormValues {
     partyId: opportunity.partyId ?? "",
     contactId: opportunity.contactId ?? "",
     pipelineId: opportunity.pipelineId,
+    ownerUserId: opportunity.ownerUserId ?? "",
     // opportunity.amount is typed number but numeric(18,2) columns come
     // back from node-postgres as strings — NumberField would render the
     // raw string wrong. Coerce at the form boundary (same fix as Lead's
@@ -71,14 +74,37 @@ export function OpportunityFormScreen({
     const rows = optionsQuery.data?.options?.parties ?? [];
     return [{ value: "", label: "No account" }, ...rows.map((row) => ({ value: String(row.id), label: String(row.name || row.id) }))];
   }, [optionsQuery.data]);
+  // Filtered to the selected Account's own contacts once one is chosen —
+  // every Contact belongs to exactly one Account (party_id is required in
+  // the schema), so an unfiltered list previously let a rep pick a Contact
+  // from an unrelated Account (the backend still rejected the mismatch on
+  // save, but only after a wasted round trip). Left unfiltered with no
+  // Account selected, since picking a Contact first is also a valid flow —
+  // the Account is then auto-derived from that Contact server-side.
   const contactOptions: SelectOption[] = useMemo(() => {
-    const rows = optionsQuery.data?.options?.contacts ?? [];
-    return [{ value: "", label: "No contact" }, ...rows.map((row) => ({ value: String(row.id), label: String(row.name || row.id) }))];
-  }, [optionsQuery.data]);
+    const rows = (optionsQuery.data?.options?.contacts ?? []) as Array<{ id: string; name?: string; partyId?: string }>;
+    const scoped = values.partyId ? rows.filter((row) => row.partyId === values.partyId) : rows;
+    return [{ value: "", label: "No contact" }, ...scoped.map((row) => ({ value: String(row.id), label: String(row.name || row.id) }))];
+  }, [optionsQuery.data, values.partyId]);
   const pipelineOptions: SelectOption[] = useMemo(() => {
     const rows = optionsQuery.data?.options?.pipelines ?? [];
     return rows.map((row) => ({ value: String(row.id), label: String(row.name) }));
   }, [optionsQuery.data]);
+  // F009 gap-closure — every competitor in the benchmark report lets a rep
+  // choose a different owner at creation; Vercentlabs previously always
+  // silently assigned the creator, forcing a two-step create-then-reassign
+  // workflow. Defaults to "creator" (empty selection), matching the
+  // backend's own default when ownerUserId is omitted. The backend
+  // (assertOwnerAssignmentAllowed) rejects assigning to anyone but oneself
+  // without crm.records.view_all, so the picker only offers real choices
+  // to callers who could actually use them — otherwise it stays a fixed,
+  // disabled "Me" rather than promising a reassignment that would 403.
+  const canAssignOthers = workspace.roleSlugs.includes("organization_owner") || workspace.permissions.includes(CRM_PERMISSIONS.recordsViewAll);
+  const ownerOptions: SelectOption[] = useMemo(() => {
+    if (!canAssignOthers) return [{ value: "", label: "Me" }];
+    const rows = (optionsQuery.data?.options?.users ?? []) as Array<{ id: string; fullName?: string; name?: string }>;
+    return [{ value: "", label: "Me (default)" }, ...rows.map((row) => ({ value: String(row.id), label: String(row.fullName || row.name || row.id) }))];
+  }, [optionsQuery.data, canAssignOthers]);
 
   function set<K extends keyof FormValues>(key: K, value: FormValues[K]) {
     setValues((current) => ({ ...current, [key]: value }));
@@ -98,6 +124,12 @@ export function OpportunityFormScreen({
       const input: Record<string, unknown> = { ...values };
       for (const key of Object.keys(input)) if (input[key] === "") input[key] = null;
       if (mode === "edit") delete input.pipelineId;
+      // Only send ownerUserId on an actual change: the backend rejects a
+      // present-but-empty ownerUserId as "leave this unassigned" unless the
+      // caller holds broader records-visibility permission, so re-sending
+      // an unchanged null (an Opportunity that already has no owner) would
+      // wrongly fail an edit that never touched ownership at all.
+      if (mode === "edit" && input.ownerUserId === (opportunity!.ownerUserId ?? null)) delete input.ownerUserId;
       if (mode === "create") return createOpportunity(input);
       return updateOpportunity(opportunity!.id, input, opportunity!.updatedAt);
     },
@@ -145,6 +177,14 @@ export function OpportunityFormScreen({
         <MoneyField label="Amount" currency={values.currencyCode || "INR"} value={values.amount ?? NaN} onChange={(v) => set("amount", Number.isNaN(v) ? null : v)} />
         <CurrencySelect value={values.currencyCode || "INR"} onChange={(code) => set("currencyCode", code)} />
         <TextField label="Next step" value={values.nextStep} onChange={(v) => set("nextStep", v)} className="sm:col-span-2" />
+        <Select
+          label="Owner"
+          description={canAssignOthers ? "Who this deal belongs to." : "Assigned to you. Ask a manager to hand it to someone else."}
+          options={ownerOptions}
+          selectedKey={values.ownerUserId}
+          onSelectionChange={(key) => set("ownerUserId", String(key ?? ""))}
+          isDisabled={!canAssignOthers}
+        />
       </FormSection>
       <FormSection title="Customer" description="Who this deal is with.">
         <Select label="Account" options={partyOptions} selectedKey={values.partyId} onSelectionChange={(key) => { setValues((c) => ({ ...c, partyId: String(key ?? ""), contactId: "" })); }} />

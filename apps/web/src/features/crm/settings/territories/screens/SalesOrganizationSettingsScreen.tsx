@@ -25,6 +25,7 @@ import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext"
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import { getCrmOptions } from "@/features/crm/shared/crm-options-api";
 import { money } from "@/features/crm/shared/format";
+import { humanize } from "@/features/crm/shared/human";
 import {
   archiveQuotaPlan,
   archiveSalesTeam,
@@ -71,6 +72,14 @@ const ASSIGNMENT_ROLE_OPTIONS: SelectOption[] = [
 // assignment lists are server-scoped by teamId/territoryId (Tranche D —
 // buildFilters had no such key before this pass, which would otherwise
 // have leaked every team's/territory's rows into one dialog).
+// Revenue/bookings/margin quotas are money; new logos, quantity and activity
+// quotas are counts and must not carry a currency.
+const MONETARY_QUOTA_TYPES = new Set(["revenue", "bookings", "margin"]);
+function quotaValue(quotaType: string, currencyCode: string | null, value: string | number | null) {
+  if (MONETARY_QUOTA_TYPES.has(quotaType)) return money(currencyCode, value ?? 0);
+  return new Intl.NumberFormat("en-IN").format(Number(value ?? 0));
+}
+
 export function SalesOrganizationSettingsScreen() {
   const workspace = useWorkspaceContext();
   const queryClient = useQueryClient();
@@ -97,16 +106,16 @@ export function SalesOrganizationSettingsScreen() {
   const territoryNameById = useMemo(() => new Map(territories.map((territory) => [territory.id, territory.name])), [territories]);
 
   const managerOptions: SelectOption[] = useMemo(() => {
-    const rows = optionsQuery.data?.options?.users ?? [];
+    const rows = optionsQuery.data?.options?.members ?? optionsQuery.data?.options?.users ?? [];
     return [{ value: "", label: "No manager" }, ...rows.map((row) => ({ value: String(row.id), label: String(row.fullName || row.name || row.id) }))];
   }, [optionsQuery.data]);
   const userOptions: SelectOption[] = useMemo(() => {
-    const rows = optionsQuery.data?.options?.users ?? [];
+    const rows = optionsQuery.data?.options?.members ?? optionsQuery.data?.options?.users ?? [];
     return rows.map((row) => ({ value: String(row.id), label: String(row.fullName || row.name || row.id) }));
   }, [optionsQuery.data]);
   const userOptionLabel = useMemo(() => {
     const byId = new Map(userOptions.map((option) => [option.value, option.label]));
-    return (userId: string) => byId.get(userId) || userId;
+    return (userId: string) => byId.get(userId) || "a user outside your list";
   }, [userOptions]);
   const pipelineOptions: SelectOption[] = useMemo(() => {
     const rows = optionsQuery.data?.options?.pipelines ?? [];
@@ -162,7 +171,7 @@ export function SalesOrganizationSettingsScreen() {
     () => [
       { id: "code", header: "Code", accessorKey: "code" },
       { id: "name", header: "Name", accessorKey: "name", cell: ({ row }) => <span className="font-medium text-text">{row.original.name}</span> },
-      { id: "territoryType", header: "Type", accessorFn: (row) => row.territoryType || "—" },
+      { id: "territoryType", header: "Type", accessorFn: (row) => (row.territoryType ? humanize(row.territoryType) : "—") },
       { id: "parentTerritoryId", header: "Parent territory", accessorFn: (row) => (row.parentTerritoryId ? territoryNameById.get(row.parentTerritoryId) || "—" : "—") },
       {
         id: "status",
@@ -195,16 +204,20 @@ export function SalesOrganizationSettingsScreen() {
       {
         id: "assignee",
         header: "Assigned to",
-        accessorFn: (row) =>
-          row.teamId ? `Team: ${teamNameById.get(row.teamId) || row.teamId}`
-          : row.territoryId ? `Territory: ${territoryNameById.get(row.territoryId) || row.territoryId}`
-          : row.userId ? `User: ${userOptionLabel(row.userId)}`
+        // Names are resolved in `cell`, not `accessorFn`: TanStack caches
+        // accessor values per row until the data changes, so a name looked up
+        // before the people/teams lists loaded would otherwise stick.
+        accessorFn: (row) => row.teamId ?? row.territoryId ?? row.userId ?? "",
+        cell: ({ row }) =>
+          row.original.teamId ? `Team: ${teamNameById.get(row.original.teamId) || "…"}`
+          : row.original.territoryId ? `Territory: ${territoryNameById.get(row.original.territoryId) || "…"}`
+          : row.original.userId ? `User: ${userOptionLabel(row.original.userId)}`
           : "—",
       },
-      { id: "quotaType", header: "Type", accessorKey: "quotaType" },
+      { id: "quotaType", header: "Type", accessorFn: (row) => humanize(row.quotaType) },
       { id: "period", header: "Period", accessorFn: (row) => `${dateFormatter.format(new Date(row.periodStart))} – ${dateFormatter.format(new Date(row.periodEnd))}` },
-      { id: "targetAmount", header: "Target", accessorFn: (row) => money(row.currencyCode, row.targetAmount) },
-      { id: "stretchAmount", header: "Stretch", accessorFn: (row) => (row.stretchAmount === null ? "—" : money(row.currencyCode, row.stretchAmount)) },
+      { id: "targetAmount", header: "Target", accessorFn: (row) => quotaValue(row.quotaType, row.currencyCode, row.targetAmount) },
+      { id: "stretchAmount", header: "Stretch", accessorFn: (row) => (row.stretchAmount === null ? "—" : quotaValue(row.quotaType, row.currencyCode, row.stretchAmount)) },
       {
         id: "status",
         header: "Status",

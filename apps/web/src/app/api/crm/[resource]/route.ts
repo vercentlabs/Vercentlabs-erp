@@ -26,10 +26,25 @@ const LIST_FILTER_KEYS = [
   "partyId",
   "accountPlanId",
   "contactId",
+  "leadId",
   "periodId",
   "dwellBreached",
   "highPriority",
   "stalled",
+  // F024/F025 — dashboard and forecast drill-down. Without these the list
+  // silently dropped the date/category predicates and showed every record
+  // for the owner, so a figure and its list stopped reconciling.
+  "createdFrom",
+  "createdTo",
+  "convertedFrom",
+  "convertedTo",
+  "includeConverted",
+  "closedFrom",
+  "closedTo",
+  "expectedCloseFrom",
+  "expectedCloseTo",
+  "forecastCategory",
+  "outcomeReasonId",
 ] as const;
 
 function parseListFilters(url: URL) {

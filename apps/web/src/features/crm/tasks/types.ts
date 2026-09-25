@@ -29,6 +29,7 @@ export type TaskListFilters = {
   status?: string;
   due?: "all" | "overdue" | "today" | "upcoming";
   mine?: boolean;
+  myTeam?: boolean;
   teamId?: string;
   queueOnly?: boolean;
   search?: string;

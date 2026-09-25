@@ -58,6 +58,15 @@ export type OpportunityListFilters = {
   // predicate, so a drilled list's count always reconciles to the
   // dashboard's own metric.
   stalled?: "true";
+  // F024 — dashboard won/lost-in-period drill-down (actual close date).
+  closedFrom?: string;
+  closedTo?: string;
+  // F025 — forecast drill-down.
+  expectedCloseFrom?: string;
+  expectedCloseTo?: string;
+  forecastCategory?: string;
+  // F026 — won/lost reasons report drill-down ("none" = no reason recorded).
+  outcomeReasonId?: string;
   limit?: number;
   offset?: number;
 };

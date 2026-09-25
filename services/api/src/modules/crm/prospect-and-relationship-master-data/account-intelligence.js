@@ -1065,6 +1065,20 @@ export async function getCustomer360(client, context, partyId) {
   };
 }
 
+// The caller-safe read path — same reasoning as getCrmAccountForCaller and
+// previewAccountMergeForCaller: getCustomer360 itself stays raw/unprojected
+// (its `account`/`contacts` rows come straight off tenant.business_parties/
+// tenant.contacts with no redaction), so any API route exposing this to a
+// browser MUST call this wrapper, never getCustomer360 directly.
+export async function getCustomer360ForCaller(client, context, partyId) {
+  const view = await getCustomer360(client, context, partyId);
+  return {
+    ...view,
+    account: projectAccountForContext(context, view.account),
+    contacts: view.contacts.map((row) => projectContactForContext(context, row)),
+  };
+}
+
 async function privacyRequest(client, context, requestId, lock = false) {
   const id = assertId(requestId, "Privacy request");
   const result = await client.query(

@@ -146,6 +146,11 @@ export const MODULE_NAVIGATION: readonly ModuleNavigation[] = [
           { ...available("Assignment Rules", "/crm/settings/assignment"), requiredPermission: "crm.settings.manage" },
           { ...available("Lead Lifecycle Stages", "/crm/settings/lead-lifecycle"), requiredPermission: "crm.settings.manage" },
           { ...available("Lead Scoring", "/crm/settings/lead-scoring"), requiredPermission: "crm.settings.manage" },
+          // F008 gap-closure — gated by crm.data-quality.manage (the same
+          // permission the merge/override actions elsewhere in Duplicate
+          // Management already require), not the generic settings-manage
+          // permission every other Setup entry uses.
+          { ...available("Duplicate Rules", "/crm/settings/duplicate-rules"), requiredPermission: "crm.data-quality.manage" },
           { ...available("Pipeline Stages", "/crm/settings/pipeline-stages"), requiredPermission: "crm.settings.manage" },
           { ...available("Won / Lost Reasons", "/crm/settings/lost-reasons"), requiredPermission: "crm.settings.manage" },
           { ...available("Qualification / Playbooks", "/crm/settings/playbooks"), requiredPermission: "crm.settings.manage" },
@@ -154,6 +159,11 @@ export const MODULE_NAVIGATION: readonly ModuleNavigation[] = [
           // permission, not a crm.* one: an ordinary CRM settings manager
           // must not also gain privacy-administration authority.
           { ...available("Privacy Administration", "/crm/settings/privacy"), requiredPermission: "platform.privacy.manage" },
+          // Consent/GDPR gap-closure — the CRM-specific DSR queue (Leads/
+          // Contacts/Accounts), gated by crm.privacy.manage (already seeded,
+          // already used by the "privacy" report), distinct from the
+          // platform-wide screen above.
+          { ...available("Data Subject Requests", "/crm/settings/data-requests"), requiredPermission: "crm.privacy.manage" },
         ],
       },
     ],

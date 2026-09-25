@@ -265,6 +265,7 @@ export const resources = Object.freeze({
       tier: "tier",
       checkType: "check_type",
       fieldKeys: "field_keys",
+      threshold: "threshold",
       sequence: "sequence",
       status: "status",
     },

@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Pencil } from "lucide-react";
+import { CheckCircle2, Pencil, Play, X } from "lucide-react";
 import { Button, Dialog, ErrorState, PermissionState, RecordDetailsPage, Select, StatusBadge, TextArea, TextField, type SelectOption } from "@vercentlabs/design-system";
 import { CRM_PERMISSIONS } from "@vercentlabs/permissions";
 import { LoadingState } from "@/features/crm/shared/ui/LoadingState";
@@ -14,7 +14,8 @@ import { getCrmOptions } from "@/features/crm/shared/crm-options-api";
 import { dueLabel, dueState, formatDateTime, humanize } from "@/features/crm/shared/human";
 import { PropertyList } from "@/features/crm/shared/ui/PropertyList";
 import { RelatedRecordCard } from "@/features/crm/shared/ui/RelatedRecordCard";
-import { getMeeting, MeetingApiError, updateMeeting } from "../api/meetings-api";
+import { cancelMeeting, getMeeting, listMeetingEvents, MeetingApiError, startMeeting, updateMeeting } from "../api/meetings-api";
+import { CompleteMeetingDialog } from "../components/CompleteMeetingDialog";
 import type { Meeting } from "../types";
 
 // F014 Tranche J (Stage A) — dedicated Meeting detail view; getCrmMeeting/
@@ -24,12 +25,36 @@ import type { Meeting } from "../types";
 // rebuilt in this edit dialog).
 export function MeetingDetailScreen({ meetingId }: { meetingId: string }) {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const workspace = useWorkspaceContext();
   const canManage = workspace.permissions.includes(CRM_PERMISSIONS.activitiesManage);
   const [editOpen, setEditOpen] = useState(false);
+  const [completeOpen, setCompleteOpen] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
 
   const query = useQuery({ queryKey: scopedQueryKey(workspace, "crm", "meetings", meetingId), queryFn: () => getMeeting(meetingId) });
   const meeting = query.data?.record;
+
+  // F014 gap-closure — listCrmMeetingEvents (the immutable crm_meeting_events
+  // ledger) existed, tested and routed with no frontend reader anywhere.
+  const eventsQuery = useQuery({
+    queryKey: scopedQueryKey(workspace, "crm", "meetings", meetingId, "events"),
+    queryFn: () => listMeetingEvents(meetingId),
+    enabled: Boolean(meeting),
+  });
+
+  function invalidate() {
+    queryClient.invalidateQueries({ queryKey: scopedQueryKey(workspace, "crm", "meetings", meetingId) });
+    queryClient.invalidateQueries({ queryKey: scopedQueryKey(workspace, "crm", "meetings") });
+  }
+
+  function handleError(err: unknown) {
+    setActionError(err instanceof MeetingApiError ? err.message : "This action could not be completed.");
+    if (err instanceof MeetingApiError && (err.code === "CRM_MEETING_STALE_WRITE" || err.code === "CRM_MEETING_CONFLICT")) invalidate();
+  }
+
+  const startMutation = useMutation({ mutationFn: () => startMeeting(meeting!.id, meeting!.updatedAt), onSuccess: invalidate, onError: handleError });
+  const cancelMutation = useMutation({ mutationFn: () => cancelMeeting(meeting!.id, meeting!.updatedAt), onSuccess: invalidate, onError: handleError });
 
   if (query.isLoading) return <LoadingState label="Loading meeting" rows={3} />;
   if (query.isError) {
@@ -37,6 +62,12 @@ export function MeetingDetailScreen({ meetingId }: { meetingId: string }) {
     return <ErrorState title="Meeting not found" action={{ label: "Back to Meetings", onPress: () => router.push("/crm/meetings") }} />;
   }
   if (!meeting) return null;
+
+  const isTerminal = meeting.status === "completed" || meeting.status === "cancelled";
+  // updateCrmMeeting/cancelCrmMeeting reject a booked meeting
+  // (CRM_MEETING_BOOKING_MANAGED) — offering Edit/Cancel there would only
+  // surface the backend's rejection.
+  const isBooked = Boolean(meeting.bookingId);
 
   return (
     <RecordDetailsPage
@@ -55,22 +86,42 @@ export function MeetingDetailScreen({ meetingId }: { meetingId: string }) {
             <a href={meeting.meetingUrl} target="_blank" rel="noreferrer" className="inline-flex h-[var(--control-height-standard)] items-center rounded-[var(--radius-control)] bg-brand px-4 text-sm font-medium text-text-inverse hover:bg-brand-hover">
               Join meeting
             </a>
-          ) : canManage && (meeting.status === "planned" || meeting.status === "overdue") ? (
-            <Button variant="secondary" onPress={() => setEditOpen(true)}>
-              <Pencil className="size-4" aria-hidden="true" />
-              Edit
-            </Button>
           ) : undefined,
         secondaryActions:
-          meeting.meetingUrl && canManage && (meeting.status === "planned" || meeting.status === "overdue") ? (
-            <Button variant="secondary" onPress={() => setEditOpen(true)}>
-              <Pencil className="size-4" aria-hidden="true" />
-              Edit
-            </Button>
+          canManage && !isTerminal ? (
+            <>
+              {(meeting.status === "planned" || meeting.status === "overdue") && !isBooked && (
+                <Button variant="secondary" onPress={() => setEditOpen(true)}>
+                  <Pencil className="size-4" aria-hidden="true" />
+                  Edit
+                </Button>
+              )}
+              {meeting.status !== "in_progress" && (
+                <Button variant="secondary" onPress={() => startMutation.mutate()} isLoading={startMutation.isPending}>
+                  <Play className="size-4" aria-hidden="true" />
+                  Start
+                </Button>
+              )}
+              <Button variant="secondary" onPress={() => setCompleteOpen(true)}>
+                <CheckCircle2 className="size-4" aria-hidden="true" />
+                Complete
+              </Button>
+              {!isBooked && (
+                <Button variant="danger" onPress={() => cancelMutation.mutate()} isLoading={cancelMutation.isPending}>
+                  <X className="size-4" aria-hidden="true" />
+                  Cancel
+                </Button>
+              )}
+            </>
           ) : undefined,
       }}
     >
       <div className="flex flex-col gap-4 py-4">
+        {actionError && (
+          <p role="alert" className="rounded-[var(--radius-control)] border border-danger-emphasis/30 bg-danger-soft px-3 py-2 text-sm text-danger">
+            {actionError}
+          </p>
+        )}
         <PropertyList title="Related record" columns={1} items={[{ label: "Belongs to", value: <RelatedRecordCard entityType={meeting.entityType} entityId={meeting.entityId} /> }]} />
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
           <PropertyList title="Details" items={[
@@ -100,8 +151,37 @@ export function MeetingDetailScreen({ meetingId }: { meetingId: string }) {
             </ul>
           </section>
         )}
+        <div className="flex flex-col gap-2 rounded-[var(--radius-card)] border border-border bg-surface p-4">
+          <p className="text-sm font-semibold text-text">Meeting history</p>
+          {eventsQuery.isLoading ? (
+            <p className="text-sm text-text-secondary">Loading history…</p>
+          ) : (eventsQuery.data?.rows.length ?? 0) === 0 ? (
+            <p className="text-sm text-text-muted">No history recorded yet.</p>
+          ) : (
+            <ul className="flex flex-col divide-y divide-border">
+              {eventsQuery.data!.rows.map((event) => (
+                <li key={event.id} className="flex flex-col gap-0.5 py-2 text-sm">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <StatusBadge tone={event.eventType === "cancelled" ? "danger" : event.eventType === "completed" ? "success" : "neutral"}>{humanize(event.eventType)}</StatusBadge>
+                    {event.outcomeCode && <span className="text-text-secondary">{humanize(event.outcomeCode)}</span>}
+                    <span className="text-xs text-text-muted">{formatDateTime(event.changedAt)}</span>
+                  </div>
+                  <span className="text-xs text-text-secondary">{event.changedByName ? `By ${event.changedByName}` : "System"}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
       </div>
       <EditMeetingDialog isOpen={editOpen} onOpenChange={setEditOpen} meeting={meeting} />
+      {completeOpen && (
+        <CompleteMeetingDialog
+          meeting={meeting}
+          onOpenChange={setCompleteOpen}
+          onDone={invalidate}
+          onError={handleError}
+        />
+      )}
     </RecordDetailsPage>
   );
 }

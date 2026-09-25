@@ -1,5 +1,7 @@
 "use client";
 
+import { humanize } from "@/features/crm/shared/human";
+
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
@@ -78,8 +80,8 @@ export function ContactRelationshipsPanel({ contactId, canManage }: { contactId:
           <button type="button" className="flex flex-col text-left hover:underline" onClick={() => router.push(`/crm/accounts/${relationship.partyId}`)}>
             <span className="font-medium text-text">{relationship.accountName}</span>
             <span className="text-text-secondary">
-              {relationship.relationshipType}
-              {relationship.stakeholderRole ? ` · ${relationship.stakeholderRole.replace(/_/g, " ")}` : ""}
+              {humanize(relationship.relationshipType)}
+              {relationship.stakeholderRole ? ` · ${humanize(relationship.stakeholderRole)}` : ""}
             </span>
           </button>
           <div className="flex items-center gap-2">

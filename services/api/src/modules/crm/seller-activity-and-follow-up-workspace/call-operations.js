@@ -33,6 +33,13 @@ function dto(row) {
   result.durationSeconds = result.callDurationSeconds ?? null;
   return result;
 }
+// crm_call_events rows already name their own columns (direction,
+// outcome_code, duration_seconds) without the call_* prefix crm_activities
+// uses — reusing dto()'s call_*-derived overrides above would read those as
+// absent and null out the very fields this ledger exists to preserve.
+function eventDto(row) {
+  return Object.fromEntries(Object.entries(row || {}).map(([key, value]) => [camelize(key), value]));
+}
 function add(values, value) {
   values.push(value);
   return `$${values.length}`;
@@ -350,7 +357,7 @@ export async function listCrmCallEvents(client, context, activityId, limit = 50)
       ORDER BY event.changed_at DESC,event.id DESC LIMIT $3`,
     [context.organizationId, activityId, Math.max(1, Math.min(100, Math.trunc(Number(limit) || 50)))],
   );
-  return result.rows.map(dto);
+  return result.rows.map(eventDto);
 }
 
 export async function createCrmCall(client, context, input = {}) {

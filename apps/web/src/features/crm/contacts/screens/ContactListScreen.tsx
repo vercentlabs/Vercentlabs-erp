@@ -24,6 +24,7 @@ import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext"
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import { LoadingState } from "@/features/crm/shared/ui/LoadingState";
 import { ContactApiError, listContacts } from "../api/contacts-api";
+import { getCrmOptions } from "@/features/crm/shared/crm-options-api";
 import type { Contact, ContactListFilters } from "../types";
 
 const PAGE_SIZE = 25;
@@ -61,6 +62,10 @@ export function ContactListScreen() {
   const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE));
   const hasFilters = Boolean(filters.search || filters.accountId || (filters.status && filters.status !== "active"));
 
+  // Which company each person works for, by name (the account lookup the viewer can see).
+  const optionsQuery = useQuery({ queryKey: scopedQueryKey(workspace, "crm", "options"), queryFn: getCrmOptions });
+  const accountNames = useMemo(() => new Map((optionsQuery.data?.options?.parties ?? []).map((row) => [String(row.id), String(row.name ?? "")])), [optionsQuery.data]);
+
   const columns: ColumnDef<Contact, unknown>[] = useMemo(
     () => [
       {
@@ -74,6 +79,7 @@ export function ContactListScreen() {
           </div>
         ),
       },
+      { id: "account", header: "Account", accessorFn: (row) => row.accountId ?? "", cell: ({ row }) => (row.original.accountId ? accountNames.get(row.original.accountId) || "—" : "No account") },
       { id: "designation", header: "Designation", accessorFn: (row) => row.designation || "—" },
       { id: "email", header: "Email", accessorFn: (row) => row.email || "—" },
       { id: "mobile", header: "Mobile", accessorFn: (row) => row.mobile || row.phone || "—" },
@@ -84,7 +90,7 @@ export function ContactListScreen() {
         cell: ({ getValue }) => <StatusBadge tone={getValue() === "active" ? "success" : "neutral"}>{String(getValue())}</StatusBadge>,
       },
     ],
-    [],
+    [accountNames],
   );
 
   const gridState = query.isLoading

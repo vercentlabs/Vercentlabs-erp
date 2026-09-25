@@ -288,6 +288,9 @@ export async function bulkUpdateLeads(client, context, input) {
   const changes = normalizeLeadBulkChanges(input.changes);
   await validateBulkSource(client, context, changes);
   const expectedVersions = isPlainObject(input.expectedVersions) ? input.expectedVersions : {};
+  // F029 — preview runs every row through the real single-record command and
+  // rolls it back, so it reports exactly what would apply without writing.
+  const preview = input.preview === true;
   const items = [];
 
   for (const id of ids.sort()) {
@@ -297,8 +300,9 @@ export async function bulkUpdateLeads(client, context, input) {
         expectedUpdatedAt: expectedVersions[id],
         requireVersion: true,
       });
+      if (preview) await client.query("ROLLBACK TO SAVEPOINT crm_lead_bulk_item");
       await client.query("RELEASE SAVEPOINT crm_lead_bulk_item");
-      items.push({ id, status: "applied", updatedAt: row.updatedAt });
+      items.push(preview ? { id, status: "would_apply" } : { id, status: "applied", updatedAt: row.updatedAt });
     } catch (error) {
       await client.query("ROLLBACK TO SAVEPOINT crm_lead_bulk_item");
       await client.query("RELEASE SAVEPOINT crm_lead_bulk_item");
@@ -307,9 +311,9 @@ export async function bulkUpdateLeads(client, context, input) {
   }
   const counts = items.reduce(
     (result, item) => ({ ...result, [item.status]: (result[item.status] || 0) + 1 }),
-    { applied: 0, conflict: 0, skipped: 0, failed: 0 },
+    { applied: 0, would_apply: 0, conflict: 0, skipped: 0, failed: 0 },
   );
-  return { mode: "synchronous", requested: ids.length, updated: counts.applied, ...counts, items };
+  return { mode: "synchronous", preview, requested: ids.length, updated: counts.applied, ...counts, items };
 }
 
 function bulkJobProjection(row) {

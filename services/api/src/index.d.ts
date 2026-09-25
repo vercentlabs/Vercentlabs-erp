@@ -55,6 +55,27 @@ export function dismissLeadDuplicateMatch(
   reason: string,
 ): Promise<any>;
 
+export class LeadAttributionError extends Error {
+  readonly status: number;
+  readonly code: string;
+}
+export function recordLeadTouchpoint(
+  client: QueryClient,
+  context: any,
+  leadId: string,
+  input?: Record<string, unknown>,
+): Promise<any>;
+export function calculateAttributionWeights(
+  touchpoints: Array<{ event_at: string | Date }>,
+  model?: "first_touch" | "last_touch" | "linear" | "position_based" | "time_decay",
+): number[];
+export function getLeadAttributionTimeline(
+  client: QueryClient,
+  context: any,
+  leadId: string,
+  options?: { model?: string },
+): Promise<any>;
+
 export function listLeadStages(client: QueryClient, context: any, options?: { status?: string }): Promise<any>;
 export function classifyLeadStageCustomization(client: QueryClient, context: any, stages: any[]): Promise<"CUSTOMIZED" | "UNTOUCHED_STANDARD_3_STAGE">;
 export function previewLeadStageTemplateUpgrade(client: QueryClient, context: any): Promise<{
@@ -84,6 +105,7 @@ export function processLeadStageMigrationBatch(client: QueryClient, systemContex
 export const STAGE_MIGRATION_JOB_TYPE: string;
 export const STAGE_MIGRATION_BATCH_SIZE: number;
 export function transitionLeadStage(client: QueryClient, context: any, leadId: string, input?: Record<string, unknown>, options?: { skipTransitionGraphCheck?: boolean; source?: string }): Promise<any>;
+export function isElevatedLifecycleActor(context: any): boolean;
 export function listLeadStageHistory(client: QueryClient, context: any, leadId: string): Promise<any[]>;
 export function getLeadStageDwell(client: QueryClient, context: any, leadId: string): Promise<any>;
 export function listLeadStageTransitions(client: QueryClient, context: any): Promise<any[]>;
@@ -120,6 +142,7 @@ export const OPPORTUNITY_STAGE_MIGRATION_BATCH_SIZE: number;
 export function enqueueOpportunityStageMigrationJob(client: QueryClient, context: any, fromStageId: string, toStageId: string): Promise<any>;
 export function getOpportunityStageMigrationJob(client: QueryClient, context: any, jobId: string): Promise<any>;
 export function processOpportunityStageMigrationBatch(client: QueryClient, systemContext: any, jobId: string): Promise<any>;
+export function deactivateSalesStageWithMigration(client: QueryClient, context: any, id: string, options?: { migrateToStageId?: string; expectedUpdatedAt?: string }): Promise<{ deactivated: boolean; stage: any; migrationJob?: any }>;
 
 // F010/F012 stage-age computation (Prompt 5).
 export function computeStageAge(row: Record<string, unknown>, now?: Date): { enteredAt: string | null; ageDays: number | null; maximumDays: number | null; status: "unknown" | "ok" | "warning" | "breached" };
@@ -290,6 +313,13 @@ export function findContactDuplicates(
   context: CrmFoundationContext,
   input?: Record<string, unknown>,
 ): Promise<Array<Record<string, unknown>>>;
+export const DUPLICATE_FULL_SCAN_JOB_TYPE: string;
+export const DUPLICATE_FULL_SCAN_BATCH_SIZE: number;
+export function enqueueDuplicateFullScan(client: QueryClient, context: any, entityType: string): Promise<any>;
+export function getDuplicateFullScanJob(client: QueryClient, context: any, jobId: string): Promise<any>;
+export function getLatestDuplicateFullScan(client: QueryClient, context: any, entityType: string): Promise<any>;
+export function listDuplicateScanMatches(client: QueryClient, context: any, jobId: string): Promise<any[]>;
+export function processDuplicateFullScanBatch(client: QueryClient, systemContext: any, jobId: string): Promise<any>;
 export function mergeAccounts(
   client: QueryClient,
   context: CrmFoundationContext,
@@ -428,6 +458,8 @@ export * from "./modules/crm/lead-lifecycle-qualification-and-prioritization/lea
 
 export * from "./modules/crm/opportunity-and-pipeline-governance/opportunity-operations.js";
 export * from "./modules/crm/opportunity-and-pipeline-governance/sales-stage-operations.js";
+export * from "./modules/crm/opportunity-and-pipeline-governance/stage-aging.js";
+export * from "./modules/crm/opportunity-and-pipeline-governance/pipeline-snapshots.js";
 export * from "./modules/crm/seller-activity-and-follow-up-workspace/attachments/attachments-operations.js";
 
 export * from "./modules/sales/quotation-governance.js";
@@ -487,6 +519,7 @@ export function updateLeadScoringModel(client: QueryClient, context: any, id: st
 export function activateLeadScoringModel(client: QueryClient, context: any, id: string): Promise<any>;
 export function createLeadScoringModelRule(client: QueryClient, context: any, modelId: string, input?: Record<string, unknown>): Promise<any>;
 export function setLeadScoringModelRuleStatus(client: QueryClient, context: any, modelId: string, ruleId: string, status: string): Promise<any>;
+export function trainLeadScoringModel(client: QueryClient, context: any, modelId: string): Promise<any>;
 export function enqueueLeadScoreRecalcJob(client: QueryClient, context: any, modelId: string): Promise<any>;
 export function getLeadScoreRecalcJob(client: QueryClient, context: any, jobId: string): Promise<any>;
 export function processLeadScoreRecalcBatch(client: QueryClient, systemContext: any, jobId: string): Promise<any>;
@@ -494,6 +527,7 @@ export const SCORE_RECALC_JOB_TYPE: string;
 export const SCORE_RECALC_BATCH_SIZE: number;
 export function scanLeadStageDwellBreaches(client: QueryClient, context: any): Promise<{ scanned: number; notified: number }>;
 export * from "./modules/crm/opportunity-and-pipeline-governance/opportunity-revenue-intelligence.js";
+export * from "./modules/crm/opportunity-and-pipeline-governance/opportunity-contacts.js";
 export * from "./modules/crm/crm-data-operations-and-customization/offline-sync.js";
 export * from "./modules/stock/index.js";
 export * from "./modules/stock/master-operations.js";

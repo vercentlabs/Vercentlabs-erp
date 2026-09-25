@@ -57,6 +57,13 @@ export function setCustomFieldDefinitionActive(
   active: boolean,
 ): Promise<CrmCustomFieldDefinition>;
 
+export function getCustomFieldValueHistory(
+  client: QueryClient,
+  context: CrmContext,
+  entityType: CrmCustomFieldEntityType,
+  entityId: string,
+): Promise<Array<Record<string, unknown>>>;
+
 export function getCustomFieldValues(
   client: QueryClient,
   context: CrmContext,

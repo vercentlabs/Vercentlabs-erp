@@ -87,7 +87,7 @@ export type LeadStageTransitionResult = {
 // transition-engine.js's `text(input.stageId || input.stageCode || input.status)`.
 export async function transitionLeadStage(
   id: string,
-  input: { stageId: string; note?: string; reasonCode?: string; expectedUpdatedAt?: string; requireVersion?: boolean },
+  input: { stageId: string; note?: string; reasonCode?: string; expectedUpdatedAt?: string; requireVersion?: boolean; overrideUsed?: boolean; overrideReason?: string },
 ): Promise<LeadStageTransitionResult> {
   const response = await fetch(`/api/crm/leads/${id}/stage`, {
     method: "POST",
@@ -118,6 +118,7 @@ export type LeadConversionCandidate = {
   first_name?: string;
   last_name?: string;
   email?: string;
+  party_id?: string | null;
   match_score: number;
   matched_signals: string[];
   classification: "exact" | "probable" | "none";
@@ -179,36 +180,15 @@ export async function scheduleLeadFollowUp(
   return parseResponse<{ activity: unknown; lead: Lead }>(response);
 }
 
-// Envelope shape shared by every UNION branch in getCrmTimelinePage
-// (timeline.js's buildBranch) — id/kind/subtype/title/occurredAt/status/
-// actorUserId/createdBy, camelized. Not a full activity/note/communication
-// row; each source's full detail lives on its own dedicated tab.
-export type CrmTimelineEntry = {
-  id: string;
-  kind: "activity" | "communication" | "note" | "attachment";
-  subtype: string | null;
-  title: string | null;
-  occurredAt: string;
-  status: string | null;
-  actorUserId: string | null;
-  createdBy: string | null;
-};
-
-export async function getLeadTimeline(id: string, cursor?: string) {
-  const params = cursor ? `?cursor=${encodeURIComponent(cursor)}` : "";
-  const response = await fetch(`/api/crm/leads/${id}/timeline${params}`);
-  return parseResponse<{ page: { rows: CrmTimelineEntry[]; hasMore: boolean; nextCursor: string | null } }>(response);
-}
-
 // getCrmOptions moved to ../../shared/crm-options-api.ts — it's used by
 // every CRM feature area (Leads/Accounts/Contacts/...), not just Leads.
 export { getCrmOptions } from "../../shared/crm-options-api";
 
 // F007: dwell/SLA context + transition history for the current stage.
 export type LeadStageDwell = { enteredAt: string; elapsedHours: number; warningHours: number | null; breachHours: number | null; status: "ok" | "warning" | "breached" };
-export type LeadStageHistoryEntry = { id: string; fromStageName: string; toStageName: string; source: string; note?: string | null; reasonCode: string | null; reasonLabel: string | null; actorName: string | null; createdAt: string };
+export type LeadStageHistoryEntry = { id: string; fromStageName: string; toStageName: string; source: string; note?: string | null; reasonCode: string | null; reasonLabel: string | null; actorName: string | null; createdAt: string; overrideUsed?: boolean; overrideReason?: string | null };
 
-export async function getLeadStageDetail(id: string): Promise<{ dwell: LeadStageDwell; history: LeadStageHistoryEntry[] }> {
+export async function getLeadStageDetail(id: string): Promise<{ dwell: LeadStageDwell; history: LeadStageHistoryEntry[]; canOverride: boolean }> {
   const response = await fetch(`/api/crm/leads/${id}/stage`);
   return parseResponse(response);
 }
@@ -272,6 +252,11 @@ export type LeadScoreExplanation = {
   score_explanation: { model?: { id: string; name: string; version: number }; thresholds?: Record<string, number>; contributions?: string; reason?: string } | null;
   content_hash: string | null;
   snapshot_at: string | null;
+  // F027 — ML propensity, separate from the rule score.
+  propensity_score: number | null;
+  propensity_grade: string | null;
+  propensity_calculated_at: string | null;
+  propensity_explanation: { model?: { id: string; name: string; version: number }; contributions?: string } | null;
 };
 
 export async function getLeadScoreDetail(id: string): Promise<{ explanation: LeadScoreExplanation }> {
@@ -297,6 +282,31 @@ export async function recalculateLeadScore(id: string, reason?: string): Promise
   return parseResponse(response);
 }
 
+export type LeadAttributionTouchpoint = {
+  id: string;
+  campaign_id: string | null;
+  campaign_name: string | null;
+  channel: string;
+  event_type: string;
+  event_at: string;
+  revenue: number;
+  creditWeight: number;
+};
+
+export type LeadAttributionTimeline = {
+  leadId: string;
+  model: "first_touch" | "last_touch" | "linear" | "position_based" | "time_decay";
+  touchpoints: LeadAttributionTouchpoint[];
+  firstTouch: LeadAttributionTouchpoint | null;
+  lastTouch: LeadAttributionTouchpoint | null;
+  campaignCredit: Array<{ campaignId: string; campaignName: string | null; credit: number }>;
+};
+
+export async function getLeadAttribution(id: string): Promise<{ timeline: LeadAttributionTimeline }> {
+  const response = await fetch(`/api/crm/leads/${id}/attribution`);
+  return parseResponse(response);
+}
+
 export async function dismissLeadDuplicate(id: string, matchedLeadId: string, reason: string): Promise<{ result: unknown }> {
   const response = await fetch(`/api/crm/leads/${id}/duplicates/dismiss`, {
     method: "POST",
@@ -309,8 +319,8 @@ export async function dismissLeadDuplicate(id: string, matchedLeadId: string, re
 // F029 governed bulk edit — only sourceId/nextFollowUpAt/priority/rating
 // are supported (see lead-operations.js's normalizeLeadBulkChanges);
 // ownership/stage/qualification remain single-record governed actions.
-export type LeadBulkItemResult = { id: string; status: "applied" | "conflict" | "skipped" | "failed"; updatedAt?: string; code?: string; message?: string };
-export type LeadBulkSyncResult = { mode: "synchronous"; requested: number; updated: number; applied: number; conflict: number; skipped: number; failed: number; items: LeadBulkItemResult[] };
+export type LeadBulkItemResult = { id: string; status: "applied" | "would_apply" | "conflict" | "skipped" | "failed"; updatedAt?: string; code?: string; message?: string };
+export type LeadBulkSyncResult = { mode: "synchronous"; preview?: boolean; requested: number; updated: number; applied: number; would_apply?: number; conflict: number; skipped: number; failed: number; items: LeadBulkItemResult[] };
 export type LeadBulkJobResult = { mode: "asynchronous"; deduped: boolean; job: { id: string; status: string; progress: Record<string, unknown>; resultManifest: Record<string, unknown> } };
 
 export async function bulkUpdateLeads(
@@ -318,11 +328,12 @@ export async function bulkUpdateLeads(
   changes: Record<string, unknown>,
   expectedVersions: Record<string, string>,
   idempotencyKey?: string,
+  preview = false,
 ): Promise<LeadBulkSyncResult | LeadBulkJobResult> {
   const response = await fetch("/api/crm/leads/bulk", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ ids, changes, expectedVersions, idempotencyKey }),
+    body: JSON.stringify({ ids, changes, expectedVersions, idempotencyKey, preview }),
   });
   return parseResponse(response);
 }

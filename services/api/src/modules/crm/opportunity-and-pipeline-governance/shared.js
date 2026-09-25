@@ -27,6 +27,20 @@ export const camelize = (row) =>
 // competitors, stage migration) goes through this first — the child table
 // itself has no company_id/branch_id of its own to scope by, so the parent
 // Opportunity's scope is the only enforcement point.
+// F012 gap-closure (benchmark: "Sales stages configuration in top ERPs"
+// report) — mirrors lead-lifecycle's own isElevatedLifecycleActor exactly:
+// bulk-migrating every open Opportunity off a stage is a destructive,
+// wide-blast-radius action, so it requires the same elevated pairing
+// (organization owner or crm.records.view_all) as the analogous override
+// actions elsewhere, not just the ordinary settings-management permission
+// that suffices for routine, non-destructive stage catalogue edits.
+export function isElevatedSalesStageActor(context) {
+  return Boolean(
+    context.roleSlugs?.includes("organization_owner") ||
+      context.permissions?.includes("crm.records.view_all"),
+  );
+}
+
 export async function requireOpportunityInScope(client, context, opportunityId, { lock = true } = {}) {
   const id = text(opportunityId);
   if (!id) throw new CrmError(400, "Choose an Opportunity.", "CRM_OPPORTUNITY_ID_REQUIRED");

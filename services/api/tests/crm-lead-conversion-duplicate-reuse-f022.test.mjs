@@ -152,6 +152,7 @@ function makeClient({ accountBlocking, contactBlocking }) {
           ],
         };
       if (sql.includes("crm_campaign_members")) return { rows: [] };
+      if (sql.includes("crm_marketing_touchpoints")) return { rows: [] };
       if (sql.includes("crm_outbox_events")) return { rows: [] };
       throw new Error(`Unexpected query in test mock: ${sql.slice(0, 120)}`);
     },

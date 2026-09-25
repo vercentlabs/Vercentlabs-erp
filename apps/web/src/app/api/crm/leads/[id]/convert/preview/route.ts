@@ -22,17 +22,17 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
     const result = await tenantTransaction(session.organizationId, async (client) => {
       await requireCrmAccess(client, session, CRM_PERMISSIONS.leadsManage);
       const lead = (await getCrmRecord(client, crmContext(session), "leads", id)) as Record<string, unknown>;
-      const [accountCandidates, contactCandidates] = await Promise.all([
-        findAccountDuplicates(client, crmContext(session), {
+      // Sequential, not Promise.all: concurrent queries on one PoolClient can
+      // interleave protocol messages (Postgres 08P01).
+      const accountCandidates = await findAccountDuplicates(client, crmContext(session), {
           name: lead.companyName || lead.fullName || `${lead.firstName || ""} ${lead.lastName || ""}`.trim(),
-        }),
-        findContactDuplicates(client, crmContext(session), {
+        });
+      const contactCandidates = await findContactDuplicates(client, crmContext(session), {
           email: lead.email,
           mobile: lead.mobile || lead.phone,
           firstName: lead.firstName,
           lastName: lead.lastName,
-        }),
-      ]);
+        });
       return { accountCandidates, contactCandidates };
     });
     return ok(result);

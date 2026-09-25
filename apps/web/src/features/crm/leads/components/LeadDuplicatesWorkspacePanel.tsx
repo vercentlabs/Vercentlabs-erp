@@ -8,7 +8,13 @@ import { Merge } from "lucide-react";
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import type { Lead } from "../types";
-import { dismissLeadDuplicate, findLeadDuplicates, mergeLead } from "../api/leads-api";
+import { dismissLeadDuplicate, findLeadDuplicates, getLead, mergeLead } from "../api/leads-api";
+import { DuplicateComparison, type ComparisonField } from "@/features/crm/shared/ui/DuplicateComparison";
+
+const LEAD_FIELDS: ComparisonField[] = [
+  { label: "Name", key: "fullName" }, { label: "Company", key: "companyName" }, { label: "Email", key: "email" }, { label: "Mobile", key: "mobile" },
+  { label: "Phone", key: "phone" }, { label: "Job title", key: "jobTitle" }, { label: "City", key: "city" }, { label: "Owner", key: "ownerName" }, { label: "Created", key: "createdAt", format: "date" },
+];
 
 // F008 Tranche G — a standalone-workspace variant of the same duplicate
 // check/dismiss/merge already embedded in LeadDetailScreen.tsx. Built as
@@ -21,6 +27,7 @@ export function LeadDuplicatesWorkspacePanel({ lead, canManage }: { lead: Lead; 
   const workspace = useWorkspaceContext();
   const queryClient = useQueryClient();
   const [actionError, setActionError] = useState<string | null>(null);
+  const [comparingId, setComparingId] = useState<string | null>(null);
 
   const duplicatesQuery = useQuery({
     queryKey: scopedQueryKey(workspace, "crm", "leads", lead.id, "duplicates"),
@@ -66,8 +73,11 @@ export function LeadDuplicatesWorkspacePanel({ lead, canManage }: { lead: Lead; 
               <li key={match.id} className="flex flex-wrap items-center justify-between gap-2 rounded-[var(--radius-control)] border border-warning-emphasis/30 bg-warning-soft px-3 py-2 text-sm text-text-secondary">
                 <span className="flex items-center gap-1.5">
                   <Merge className="size-4 text-warning" aria-hidden="true" />
-                  {match.fullName} {match.companyName ? `· ${match.companyName}` : ""} — {match.classification} match
+                  {match.fullName} {match.companyName ? `· ${match.companyName}` : ""} — {match.classification === "exact" ? "exact match" : "probable match"}
                 </span>
+                <Button variant="ghost" size="compact" onPress={() => setComparingId(comparingId === match.id ? null : match.id)}>
+                  {comparingId === match.id ? "Hide comparison" : "Compare side by side"}
+                </Button>
                 {canManage && (
                   <span className="flex items-center gap-2">
                     <Button variant="ghost" size="compact" onPress={() => dismissMutation.mutate(match.id)} isLoading={dismissMutation.isPending} isDisabled={match.classification === "exact"}>
@@ -82,6 +92,11 @@ export function LeadDuplicatesWorkspacePanel({ lead, canManage }: { lead: Lead; 
             ),
           )}
         </ul>
+      )}
+      {comparingId && (
+        <div className="rounded-[var(--radius-control)] border border-border bg-surface p-3">
+          <DuplicateComparison entity="leads" current={{ ...lead, fullName: [lead.firstName, lead.lastName].filter(Boolean).join(" ") } as unknown as Record<string, unknown>} candidateId={comparingId} fields={LEAD_FIELDS} loadCandidate={getLead} currentTitle="This lead" candidateTitle="Possible duplicate" />
+        </div>
       )}
     </div>
   );

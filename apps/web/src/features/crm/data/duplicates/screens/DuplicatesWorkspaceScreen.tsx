@@ -18,6 +18,7 @@ import type { Contact } from "@/features/crm/contacts/types";
 import { ContactDuplicatesPanel } from "@/features/crm/contacts/components/ContactDuplicatesPanel";
 
 import { SuspectedDuplicates, type EntityType } from "./SuspectedDuplicates";
+import { FullDuplicateScan } from "../components/FullDuplicateScan";
 
 // F008 Tranche G — a standalone duplicate-triage destination
 // (/crm/data/duplicates), not tied to already being on a specific
@@ -72,11 +73,15 @@ export function DuplicatesWorkspaceScreen() {
   function labelFor(type: EntityType, row: Lead | Account | Contact): string {
     if (type === "lead") {
       const lead = row as Lead;
-      return `${lead.fullName || `${lead.firstName} ${lead.lastName || ""}`.trim()}${lead.companyName ? ` · ${lead.companyName}` : ""}`;
+      // Enough detail to tell same-named records apart.
+      return [lead.fullName || `${lead.firstName} ${lead.lastName || ""}`.trim(), lead.companyName, lead.email, lead.city].filter(Boolean).join(" · ");
     }
-    if (type === "account") return (row as Account).displayName;
+    if (type === "account") {
+      const account = row as Account;
+      return [account.displayName, account.city, account.gstin ? `GSTIN ${account.gstin}` : null, account.email].filter(Boolean).join(" · ");
+    }
     const contact = row as Contact;
-    return `${contact.firstName} ${contact.lastName || ""}`.trim();
+    return [`${contact.firstName} ${contact.lastName || ""}`.trim(), contact.designation, contact.email].filter(Boolean).join(" · ");
   }
 
   const rows: Array<Lead | Account | Contact> = entityType === "lead" ? leadRows : entityType === "account" ? accountRows : contactRows;
@@ -116,6 +121,9 @@ export function DuplicatesWorkspaceScreen() {
         </div>
 
         {!reviewed && search.trim().length < 2 && <SuspectedDuplicates type={entityType} onReview={(id) => { setReviewed({ type: entityType, id }); setSelectedId(id); }} />}
+        {!reviewed && search.trim().length < 2 && workspace.permissions.includes(CRM_PERMISSIONS.dataQualityManage) && (
+          <FullDuplicateScan type={entityType} onReview={(id) => { setReviewed({ type: entityType, id }); setSelectedId(id); }} />
+        )}
         {search.trim().length < 2 && !reviewed && <p className="text-sm text-text-muted">Or search for any record to check it: type at least 2 characters.</p>}
         {search.trim().length >= 2 && !selectedId && (
           <ul className="flex flex-col gap-1">

@@ -6,6 +6,7 @@ import { recordScope } from "../crm-data-operations-and-customization/record-pol
 import { nextCode } from "../crm-data-operations-and-customization/resource-query-service.js";
 import { resources } from "../crm-data-operations-and-customization/resource-registry.js";
 import { camelizeRow } from "../crm-data-operations-and-customization/record-utils.js";
+import { recordLeadTouchpoint } from "../prospect-and-relationship-master-data/lead-attribution.js";
 
 
 
@@ -179,6 +180,13 @@ export async function convertCrmLead(client, context, leadId, input = {}) {
     `UPDATE tenant.crm_campaign_members SET member_status = 'converted', converted_at = now() WHERE organization_id = $1 AND lead_id = $2`,
     [context.organizationId, leadId],
   );
+  await recordLeadTouchpoint(client, context, leadId, {
+    eventType: "converted",
+    channel: "conversion",
+    campaignId: lead.campaign_id,
+    revenue: lead.estimated_value,
+    occurredAt: new Date(),
+  });
   await queueOutboxEvent(
     client,
     context,

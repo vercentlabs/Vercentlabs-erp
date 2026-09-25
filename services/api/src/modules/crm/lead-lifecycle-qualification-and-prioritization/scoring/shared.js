@@ -31,6 +31,15 @@ export function assertSensitiveLeadIntelligenceAccess(context) {
   throw new CrmLeadIntelligenceError(403, "You do not have permission to view sensitive Lead intelligence.", "CRM_LEAD_SENSITIVE_CONTENT_FORBIDDEN");
 }
 
+// Shared by model-config.js (rule model/rule CRUD) and predictive-model.js
+// (predictive model training) — both are Settings-surface configuration
+// actions, not read paths, so they gate on crm.settings.manage rather than
+// the sensitive-content-view permission above.
+export function assertScoringConfigPermission(context) {
+  if (context.permissions?.includes("crm.settings.manage") || context.roleSlugs?.includes("organization_owner")) return;
+  throw new CrmLeadIntelligenceError(403, "You do not have permission to configure Lead scoring.", "CRM_LEAD_SCORING_CONFIG_FORBIDDEN");
+}
+
 export async function getScopedLead(client, context, leadId, { lock = false } = {}) {
   const values = [context.organizationId, leadId];
   const scope = leadScopeSql(context, values, "lead");

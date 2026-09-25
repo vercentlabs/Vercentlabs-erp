@@ -106,10 +106,12 @@ export type AccountPlan = {
   executiveSponsorUserId: string | null;
   accountTier: string | null;
   lifecycleStage: string | null;
-  objectives: string | null;
-  risks: string | null;
-  whiteSpace: string | null;
-  successPlan: string | null;
+  // jsonb columns — see AccountPlanPanel.tsx's arrayToLines/successPlanToText
+  // for why these are arrays/an object here, not strings.
+  objectives: string[];
+  risks: string[];
+  whiteSpace: string[];
+  successPlan: Record<string, unknown>;
   renewalDate: string | null;
   annualRevenue: number | string | null;
   potentialRevenue: number | string | null;
@@ -141,12 +143,35 @@ export type AccountStakeholder = {
 
 export type CrmListResponse<T> = { rows: T[]; total: number; limit: number; offset: number };
 
-export type AccountCommunication = {
-  id: string;
-  channel: string;
-  direction: string;
-  subject: string | null;
-  fromAddress: string | null;
-  occurredAt: string;
-  status: string;
+// getCustomer360ForCaller (account-intelligence.js) — RAW snake_case rows
+// for `account`/`contacts`/`timeline`, same convention as AccountHierarchy
+// above, since this reuses the same un-camelized account-intelligence.js
+// read paths. sensitiveDataRestricted appears on `account`/each contact only
+// when the caller lacks crm.accounts.view_sensitive / crm.contacts.view_sensitive.
+export type Customer360TimelineEntry = {
+  entry_type: "activity" | "communication" | "opportunity" | "quotation" | "sales_order" | "invoice" | "receipt" | "support";
+  entry_id: string;
+  occurred_at: string;
+  title: string | null;
+  status: string | null;
+  amount: number | string | null;
+  currency_code: string | null;
+  details: Record<string, unknown>;
 };
+
+export type Customer360 = {
+  account: Record<string, unknown> & { id: string; display_name: string; sensitiveDataRestricted?: boolean };
+  hierarchy: AccountHierarchy;
+  contacts: (Record<string, unknown> & { id: string; first_name: string; sensitiveDataRestricted?: boolean })[];
+  metrics: {
+    opportunities: number;
+    quotations: number;
+    orders: number;
+    invoices: number;
+    outstanding: number | string;
+    open_service_cases: number;
+  };
+  timeline: Customer360TimelineEntry[];
+  sourceCoverage: { crm: boolean; quotations: boolean; orders: boolean; invoices: boolean; support: boolean; supportMode: string };
+};
+

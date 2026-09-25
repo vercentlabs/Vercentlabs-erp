@@ -11,6 +11,7 @@ import {
   EnterpriseListPage,
   IconButton,
   MultiSelect,
+  NumberField,
   PermissionState,
   Select,
   StatusBadge,
@@ -44,7 +45,12 @@ import {
 } from "../types";
 
 const TIER_OPTIONS: SelectOption[] = QUALIFICATION_TIERS.map((value) => ({ value, label: value.replace(/^./, (c) => c.toUpperCase()) }));
-const CHECK_TYPE_OPTIONS: SelectOption[] = QUALIFICATION_CHECK_TYPES.map((value) => ({ value, label: value === "positive_number" ? "Positive number" : "Any field filled" }));
+const CHECK_TYPE_LABELS: Record<QualificationCheckType, string> = {
+  non_empty_any: "Any field filled",
+  positive_number: "Positive number",
+  minimum_threshold: "Reaches a minimum value",
+};
+const CHECK_TYPE_OPTIONS: SelectOption[] = QUALIFICATION_CHECK_TYPES.map((value) => ({ value, label: CHECK_TYPE_LABELS[value] }));
 const FIELD_KEY_OPTIONS = QUALIFICATION_FIELD_KEYS.map((value) => ({ value, label: humanize(value) }));
 
 const dateFormatter = new Intl.DateTimeFormat("en-IN", { dateStyle: "medium" });
@@ -97,7 +103,7 @@ export function QualificationAndPlaybooksSettingsScreen() {
       { id: "sequence", header: "Order", accessorKey: "sequence" },
       { id: "label", header: "Label", accessorKey: "label", cell: ({ row }) => <span className="font-medium text-text">{row.original.label}</span> },
       { id: "tier", header: "Importance", accessorKey: "tier", cell: ({ row }) => <StatusBadge tone={row.original.tier === "required" ? "warning" : "neutral"}>{row.original.tier === "required" ? "Required" : "Recommended"}</StatusBadge> },
-      { id: "checkType", header: "Check", accessorFn: (row) => (row.checkType === "positive_number" ? "Positive number" : "Any field filled") },
+      { id: "checkType", header: "Check", accessorFn: (row) => (row.checkType === "minimum_threshold" ? `At least ${row.threshold}` : CHECK_TYPE_LABELS[row.checkType]) },
       { id: "fieldKeys", header: "Looks at", accessorFn: (row) => row.fieldKeys.map((key) => humanize(key)).join(", ") },
       {
         id: "status",
@@ -206,15 +212,25 @@ function CriterionDialog({ isOpen, onOpenChange, onCreated, onError }: { isOpen:
   const [tier, setTier] = useState<QualificationTier>("required");
   const [checkType, setCheckType] = useState<QualificationCheckType>("non_empty_any");
   const [fieldKeys, setFieldKeys] = useState<string[]>([]);
+  const [threshold, setThreshold] = useState(60);
 
   const mutation = useMutation({
-    mutationFn: () => createQualificationCriterion({ criterionKey, label, tier, checkType, fieldKeys }),
+    mutationFn: () =>
+      createQualificationCriterion({
+        criterionKey,
+        label,
+        tier,
+        checkType,
+        fieldKeys,
+        ...(checkType === "minimum_threshold" ? { threshold } : {}),
+      }),
     onSuccess: () => {
       onCreated();
       onOpenChange(false);
       setCriterionKey("");
       setLabel("");
       setFieldKeys([]);
+      setThreshold(60);
     },
     onError,
   });
@@ -228,11 +244,14 @@ function CriterionDialog({ isOpen, onOpenChange, onCreated, onError }: { isOpen:
         <Select label="Check" options={CHECK_TYPE_OPTIONS} selectedKey={checkType} onSelectionChange={(key) => setCheckType((key as QualificationCheckType) ?? "non_empty_any")} />
         <MultiSelect
           label="Fields"
-          description={checkType === "positive_number" ? "Exactly one field for a positive-number check." : "Met if any selected field is filled."}
+          description={checkType === "positive_number" ? "Exactly one field for a positive-number check." : checkType === "minimum_threshold" ? "Exactly one numeric field, e.g. Score." : "Met if any selected field is filled."}
           options={FIELD_KEY_OPTIONS}
           value={fieldKeys}
           onChange={setFieldKeys}
         />
+        {checkType === "minimum_threshold" && (
+          <NumberField label="Minimum value" description="Met once the field's value reaches at least this number, e.g. 60 for a predictive lead score." value={threshold} onChange={setThreshold} minValue={0} />
+        )}
         <div className="flex justify-end gap-2">
           <Button variant="secondary" onPress={() => onOpenChange(false)}>Cancel</Button>
           <Button variant="primary" onPress={() => mutation.mutate()} isLoading={mutation.isPending} isDisabled={!criterionKey.trim() || !label.trim() || !fieldKeys.length}>

@@ -1,5 +1,7 @@
 "use client";
 
+import { humanize } from "@/features/crm/shared/human";
+
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -13,6 +15,7 @@ import {
   IconButton,
   NoResultsState,
   PermissionState,
+  SearchField,
   Select,
   StatusBadge,
   type ActiveFilter,
@@ -21,7 +24,8 @@ import { CRM_PERMISSIONS } from "@vercentlabs/permissions";
 
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
-import { CallApiError, cancelCall, completeCall, listCalls, startCall } from "../api/calls-api";
+import { CallApiError, cancelCall, listCalls, startCall } from "../api/calls-api";
+import { CompleteCallDialog } from "../components/CompleteCallDialog";
 import type { Call, CallListFilters } from "../types";
 import { LoadingState } from "@/features/crm/shared/ui/LoadingState";
 import { DueCell } from "@/features/crm/shared/ui/DueCell";
@@ -44,7 +48,9 @@ export function CallListScreen() {
   const canManage = workspace.permissions.includes(CRM_PERMISSIONS.activitiesManage);
 
   const [filters, setFilters] = useState<CallListFilters>({ limit: PAGE_SIZE, offset: 0 });
+  const [searchInput, setSearchInput] = useState("");
   const [actionError, setActionError] = useState<string | null>(null);
+  const [completeDialogCall, setCompleteDialogCall] = useState<Call | null>(null);
 
   const query = useQuery({
     queryKey: scopedQueryKey(workspace, "crm", "calls", filters),
@@ -54,6 +60,10 @@ export function CallListScreen() {
 
   function updateFilter<K extends keyof CallListFilters>(key: K, value: CallListFilters[K]) {
     setFilters((current) => ({ ...current, [key]: value, offset: 0 }));
+  }
+
+  function submitSearch() {
+    updateFilter("search", searchInput || undefined);
   }
 
   function invalidate() {
@@ -69,7 +79,6 @@ export function CallListScreen() {
   }
 
   const startMutation = useMutation({ mutationFn: (call: Call) => startCall(call.id, call.updatedAt), onSuccess: invalidate, onError: handleError });
-  const completeMutation = useMutation({ mutationFn: (call: Call) => completeCall(call.id, "connected", undefined, call.updatedAt), onSuccess: invalidate, onError: handleError });
   const cancelMutation = useMutation({ mutationFn: (call: Call) => cancelCall(call.id, call.updatedAt), onSuccess: invalidate, onError: handleError });
 
   const rows = query.data?.rows ?? [];
@@ -79,6 +88,7 @@ export function CallListScreen() {
 
   const activeFilters: ActiveFilter[] = useMemo(() => {
     const active: ActiveFilter[] = [];
+    if (filters.search) active.push({ id: "search", label: `Search: ${filters.search}` });
     if (filters.status) active.push({ id: "status", label: `Status: ${filters.status}` });
     if (filters.direction) active.push({ id: "direction", label: `Direction: ${filters.direction}` });
     if (filters.due && filters.due !== "all") active.push({ id: "due", label: `Due: ${filters.due}` });
@@ -91,7 +101,7 @@ export function CallListScreen() {
       {
         id: "direction",
         header: "Direction",
-        accessorFn: (row) => row.direction || "—",
+        accessorFn: (row) => (row.direction ? humanize(row.direction) : "—"),
         cell: ({ getValue }) => (
           <span className="flex items-center gap-1.5">
             {getValue() === "outbound" ? <PhoneCall className="size-3.5 text-text-muted" aria-hidden="true" /> : <Phone className="size-3.5 text-text-muted" aria-hidden="true" />}
@@ -108,7 +118,7 @@ export function CallListScreen() {
       },
       { id: "assignedName", header: "Assignee", accessorFn: (row) => row.assignedName || "Unassigned" },
       { id: "dueAt", header: "Due", accessorFn: (row) => row.dueAt ?? "", cell: ({ row }) => <DueCell value={row.original.dueAt} done={["completed", "cancelled"].includes(row.original.status)} /> },
-      { id: "outcome", header: "Outcome", accessorFn: (row) => row.outcomeCode || "—" },
+      { id: "outcome", header: "Outcome", accessorFn: (row) => (row.outcomeCode ? humanize(row.outcomeCode) : "—") },
     ],
     [],
   );
@@ -138,6 +148,14 @@ export function CallListScreen() {
       actionBar={{
         start: (
           <>
+            <SearchField
+              aria-label="Search calls"
+              placeholder="Search by subject, notes, phone…"
+              value={searchInput}
+              onChange={setSearchInput}
+              onKeyDown={(event) => event.key === "Enter" && submitSearch()}
+              className="min-w-[240px]"
+            />
             <Select
               aria-label="Status"
               size="compact"
@@ -176,11 +194,21 @@ export function CallListScreen() {
             />
           </>
         ),
+        end: <Button variant="secondary" onPress={submitSearch}>Search</Button>,
       }}
       filterBar={{
         filters: activeFilters,
-        onRemove: (id) => setFilters((current) => ({ ...current, [id]: undefined, offset: 0 })),
-        onClearAll: activeFilters.length > 0 ? () => setFilters({ limit: PAGE_SIZE, offset: 0 }) : undefined,
+        onRemove: (id) => {
+          if (id === "search") setSearchInput("");
+          setFilters((current) => ({ ...current, [id]: undefined, offset: 0 }));
+        },
+        onClearAll:
+          activeFilters.length > 0
+            ? () => {
+                setSearchInput("");
+                setFilters({ limit: PAGE_SIZE, offset: 0 });
+              }
+            : undefined,
       }}
     >
       {actionError && (
@@ -213,7 +241,7 @@ export function CallListScreen() {
                   <PhoneCall className="size-4" aria-hidden="true" />
                 </IconButton>
               )}
-              <IconButton aria-label={`Complete ${row.subject}`} size="compact" variant="ghost" onPress={() => completeMutation.mutate(row)}>
+              <IconButton aria-label={`Complete ${row.subject}`} size="compact" variant="ghost" onPress={() => setCompleteDialogCall(row)}>
                 <CheckCircle2 className="size-4" aria-hidden="true" />
               </IconButton>
               <IconButton aria-label={`Cancel ${row.subject}`} size="compact" variant="danger" onPress={() => cancelMutation.mutate(row)}>
@@ -223,6 +251,14 @@ export function CallListScreen() {
           );
         }}
       />
+      {completeDialogCall && (
+        <CompleteCallDialog
+          call={completeDialogCall}
+          onOpenChange={(open) => { if (!open) setCompleteDialogCall(null); }}
+          onDone={invalidate}
+          onError={handleError}
+        />
+      )}
     </EnterpriseListPage>
   );
 }

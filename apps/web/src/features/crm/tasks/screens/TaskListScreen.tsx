@@ -1,7 +1,9 @@
 "use client";
 
+import { humanize } from "@/features/crm/shared/human";
+
 import { useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { ColumnDef } from "@tanstack/react-table";
 import { CheckCircle2, Plus, Play, UserMinus, UserPlus, X } from "lucide-react";
@@ -13,6 +15,7 @@ import {
   IconButton,
   NoResultsState,
   PermissionState,
+  SearchField,
   Select,
   StatusBadge,
   type ActiveFilter,
@@ -44,7 +47,19 @@ export function TaskListScreen() {
   const workspace = useWorkspaceContext();
   const canManage = workspace.permissions.includes(CRM_PERMISSIONS.activitiesManage);
 
-  const [filters, setFilters] = useState<TaskListFilters>({ limit: PAGE_SIZE, offset: 0, mine: true });
+  // F024 — the dashboard drills in with ?due=overdue and a scope (mine=true,
+  // myTeam=true, or mine=false for everything visible); honour them so the
+  // list's count reconciles with the dashboard figure.
+  const searchParams = useSearchParams();
+  const [filters, setFilters] = useState<TaskListFilters>(() => {
+    const initial: TaskListFilters = { limit: PAGE_SIZE, offset: 0, mine: true };
+    const due = searchParams.get("due");
+    if (due === "overdue" || due === "today" || due === "upcoming") initial.due = due;
+    if (searchParams.get("myTeam") === "true") { initial.mine = undefined; initial.myTeam = true; }
+    else if (searchParams.get("mine") === "false") initial.mine = undefined;
+    return initial;
+  });
+  const [searchInput, setSearchInput] = useState("");
   const [actionError, setActionError] = useState<string | null>(null);
 
   const query = useQuery({
@@ -61,6 +76,10 @@ export function TaskListScreen() {
 
   function updateFilter<K extends keyof TaskListFilters>(key: K, value: TaskListFilters[K]) {
     setFilters((current) => ({ ...current, [key]: value, offset: 0 }));
+  }
+
+  function submitSearch() {
+    updateFilter("search", searchInput || undefined);
   }
 
   function invalidate() {
@@ -88,6 +107,7 @@ export function TaskListScreen() {
 
   const activeFilters: ActiveFilter[] = useMemo(() => {
     const active: ActiveFilter[] = [];
+    if (filters.search) active.push({ id: "search", label: `Search: ${filters.search}` });
     if (filters.status) active.push({ id: "status", label: `Status: ${filters.status}` });
     if (filters.due && filters.due !== "all") active.push({ id: "due", label: `Due: ${filters.due}` });
     if (filters.teamId) active.push({ id: "teamId", label: "Team filter" });
@@ -98,7 +118,7 @@ export function TaskListScreen() {
   const columns: ColumnDef<Task, unknown>[] = useMemo(
     () => [
       { id: "subject", header: "Task", accessorKey: "subject", cell: ({ row }) => <span className="font-medium text-text">{row.original.subject}</span> },
-      { id: "priority", header: "Priority", accessorKey: "priority" },
+      { id: "priority", header: "Priority", accessorKey: "priority", cell: ({ getValue }) => humanize(String(getValue() ?? "")) },
       {
         id: "status",
         header: "Status",
@@ -137,19 +157,29 @@ export function TaskListScreen() {
       actionBar={{
         start: (
           <>
+            <SearchField
+              aria-label="Search tasks"
+              placeholder="Search by subject or description…"
+              value={searchInput}
+              onChange={setSearchInput}
+              onKeyDown={(event) => event.key === "Enter" && submitSearch()}
+              className="min-w-[240px]"
+            />
             <Select
               aria-label="Scope"
               size="compact"
               options={[
                 { value: "mine", label: "My tasks" },
                 { value: "team", label: "Team queue" },
+                { value: "my_team", label: "My team's tasks" },
                 { value: "all", label: "All (managers)" },
               ]}
-              selectedKey={filters.queueOnly ? "team" : filters.mine ? "mine" : "all"}
+              selectedKey={filters.queueOnly ? "team" : filters.myTeam ? "my_team" : filters.mine ? "mine" : "all"}
               onSelectionChange={(key) => {
-                if (key === "mine") setFilters((current) => ({ ...current, mine: true, queueOnly: undefined, offset: 0 }));
-                else if (key === "team") setFilters((current) => ({ ...current, mine: undefined, queueOnly: true, offset: 0 }));
-                else setFilters((current) => ({ ...current, mine: undefined, queueOnly: undefined, offset: 0 }));
+                if (key === "mine") setFilters((current) => ({ ...current, mine: true, myTeam: undefined, queueOnly: undefined, offset: 0 }));
+                else if (key === "team") setFilters((current) => ({ ...current, mine: undefined, myTeam: undefined, queueOnly: true, offset: 0 }));
+                else if (key === "my_team") setFilters((current) => ({ ...current, mine: undefined, myTeam: true, queueOnly: undefined, offset: 0 }));
+                else setFilters((current) => ({ ...current, mine: undefined, myTeam: undefined, queueOnly: undefined, offset: 0 }));
               }}
             />
             <Select aria-label="Team" size="compact" options={teamOptions} selectedKey={filters.teamId ?? ""} onSelectionChange={(key) => updateFilter("teamId", key ? String(key) : undefined)} />
@@ -180,11 +210,21 @@ export function TaskListScreen() {
             />
           </>
         ),
+        end: <Button variant="secondary" onPress={submitSearch}>Search</Button>,
       }}
       filterBar={{
         filters: activeFilters,
-        onRemove: (id) => setFilters((current) => ({ ...current, [id]: undefined, offset: 0 })),
-        onClearAll: activeFilters.length > 0 ? () => setFilters({ limit: PAGE_SIZE, offset: 0, mine: true }) : undefined,
+        onRemove: (id) => {
+          if (id === "search") setSearchInput("");
+          setFilters((current) => ({ ...current, [id]: undefined, offset: 0 }));
+        },
+        onClearAll:
+          activeFilters.length > 0
+            ? () => {
+                setSearchInput("");
+                setFilters({ limit: PAGE_SIZE, offset: 0, mine: true });
+              }
+            : undefined,
       }}
     >
       {actionError && (

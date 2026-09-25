@@ -1,4 +1,4 @@
-import { assertSameOriginOrMobile, getLeadStageDwell, listLeadStageHistory, transitionLeadStage } from "@vercentlabs/api";
+import { assertSameOriginOrMobile, getLeadStageDwell, isElevatedLifecycleActor, listLeadStageHistory, transitionLeadStage } from "@vercentlabs/api";
 import { CRM_PERMISSIONS } from "@vercentlabs/permissions";
 
 import { tenantTransaction } from "@/core/db";
@@ -23,7 +23,10 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
       const history = await listLeadStageHistory(client, ctx, id);
       return { dwell, history };
     });
-    return ok({ dwell, history });
+    // F007 gap-closure — lets the Pipeline tab reveal the "move outside the
+    // normal path" override option only to callers isElevatedLifecycleActor
+    // would actually allow to use it, mirroring qualification's canOverride.
+    return ok({ dwell, history, canOverride: isElevatedLifecycleActor(ctx) });
   } catch (error) {
     return errorResponse(error);
   }

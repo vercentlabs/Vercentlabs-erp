@@ -65,3 +65,26 @@ export const startMeeting = (id: string, expectedUpdatedAt?: string) => action(i
 export const completeMeeting = (id: string, outcomeCode: string, outcome?: string, expectedUpdatedAt?: string) =>
   action(id, "complete", { outcomeCode, outcome, expectedUpdatedAt });
 export const cancelMeeting = (id: string, expectedUpdatedAt?: string) => action(id, "cancel", { expectedUpdatedAt });
+
+// F014 gap-closure — listCrmMeetingEvents (the immutable crm_meeting_events
+// lifecycle ledger) existed, tested and exported, but had no route or
+// frontend caller anywhere.
+export type MeetingEvent = {
+  id: string;
+  activityId: string;
+  eventType: "scheduled" | "logged" | "booked" | "updated" | "rescheduled" | "started" | "completed" | "cancelled";
+  previousStatus: string | null;
+  nextStatus: string | null;
+  locationType: "in_person" | "online" | "phone" | "other" | null;
+  outcomeCode: "held" | "no_show" | null;
+  durationSeconds: number | null;
+  attendeeCount: number;
+  changedBy: string | null;
+  changedByName: string | null;
+  changedAt: string;
+};
+
+export async function listMeetingEvents(id: string): Promise<{ rows: MeetingEvent[] }> {
+  const response = await fetch(`/api/crm/meetings/${id}/events`);
+  return parseResponse(response);
+}

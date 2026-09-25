@@ -36,6 +36,10 @@ export async function activateLeadScoringModel(id: string): Promise<{ model: Lea
   const response = await fetch(`/api/crm/lead-scoring-models/${id}/activate`, { method: "POST" });
   return parseResponse(response);
 }
+export async function trainLeadScoringModel(id: string): Promise<{ record: LeadScoringModel }> {
+  const response = await fetch(`/api/crm/lead-scoring-models/${id}/train`, { method: "POST" });
+  return parseResponse(response);
+}
 export async function createLeadScoringModelRule(modelId: string, input: Record<string, unknown>): Promise<{ record: LeadScoringModelRule }> {
   const response = await fetch(`/api/crm/lead-scoring-models/${modelId}/rules`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(input) });
   return parseResponse(response);

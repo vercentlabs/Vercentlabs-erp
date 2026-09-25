@@ -173,3 +173,16 @@ test("F017: listCrmNoteVersions returns the append-only history newest-first", a
   const query = client.calls.find(({ sql }) => sql.includes("crm_note_versions nv"));
   assert.match(query.sql, /ORDER BY nv\.version DESC/);
 });
+
+// F017 gap-closure — a visibility change (private -> shared exposes the text to
+// everyone who can see the parent) used to overwrite the column and leave no
+// trace. The archived version row now records the visibility in force for the
+// content it preserves.
+test("F017: updateCrmNote records the replaced visibility in the version ledger, so private -> shared leaves a trace", async () => {
+  const client = mockClient({ notes: [noteRow({ visibility: "private" })] });
+  await updateCrmNote(client, baseContext(), note, { visibility: "shared" });
+  const versionInsert = client.calls.find(({ sql }) => sql.includes("INSERT INTO tenant.crm_note_versions"));
+  assert.match(versionInsert.sql, /is_pinned,visibility,actor_user_id/);
+  assert.equal(versionInsert.values[5], "private", "the ledger row must carry the visibility being replaced");
+  assert.equal(versionInsert.values[6], user);
+});

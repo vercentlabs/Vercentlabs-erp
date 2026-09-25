@@ -1,5 +1,7 @@
 "use client";
 
+import { humanize } from "@/features/crm/shared/human";
+
 import { useQuery } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { StatusBadge } from "@vercentlabs/design-system";
@@ -31,8 +33,8 @@ export function AccountContactRelationshipsPanel({ accountId }: { accountId: str
               {relationship.firstName} {relationship.lastName || ""}
             </span>
             <span className="text-text-secondary">
-              {relationship.designation || relationship.relationshipType}
-              {relationship.stakeholderRole ? ` · ${relationship.stakeholderRole.replace(/_/g, " ")}` : ""}
+              {relationship.designation || humanize(relationship.relationshipType)}
+              {relationship.stakeholderRole ? ` · ${humanize(relationship.stakeholderRole)}` : ""}
             </span>
           </button>
           {relationship.isPrimary && <StatusBadge tone="success">Primary</StatusBadge>}

@@ -4,17 +4,17 @@
 // Lead scoring), replacing the legacy tenant.crm_scoring_rules generic CRUD
 // resource that was, until this prompt, silently governing the real
 // crm_leads.score column while this richer model sat unused for that
-// purpose. Only one model may be status='active' per org
-// (crm_lead_scoring_models_one_active_idx) — activating a new one
-// deactivates the previous and enqueues a bulk recalculation job so
-// existing Leads don't carry a stale score/model_id indefinitely.
-import { CrmLeadIntelligenceError, assertSensitiveLeadIntelligenceAccess, text, number } from "./shared.js";
+// purpose. One model of each type may be status='active' per org
+// (crm_lead_scoring_models_one_active_per_type_idx, F027): the rule model
+// owns the transparent score, the predictive model the separate propensity.
+// Activating a new one retires the previous of the same type and enqueues a
+// bulk recalculation job so existing Leads don't carry a stale value.
+import { CrmLeadIntelligenceError, assertSensitiveLeadIntelligenceAccess, assertScoringConfigPermission, text, number } from "./shared.js";
 import { enqueueLeadScoreRecalcJob } from "./bulk-recalc.js";
+import { validateTrainingVariables, trainPredictiveLeadScoringModel } from "./predictive-model.js";
 
-function assertConfigPermission(context) {
-  if (!context.permissions?.includes("crm.settings.manage") && !context.roleSlugs?.includes("organization_owner"))
-    throw new CrmLeadIntelligenceError(403, "You do not have permission to configure Lead scoring.", "CRM_LEAD_SCORING_CONFIG_FORBIDDEN");
-}
+const assertConfigPermission = assertScoringConfigPermission;
+export const trainLeadScoringModel = trainPredictiveLeadScoringModel;
 
 export async function listLeadScoringModels(client, context) {
   assertSensitiveLeadIntelligenceAccess(context);
@@ -32,7 +32,7 @@ export async function listLeadScoringModels(client, context) {
   }));
 }
 
-function normalizeModelInput(input, { create = false } = {}) {
+function normalizeModelInput(input, { create = false, modelType = "rule_based" } = {}) {
   const result = {};
   if (create || Object.prototype.hasOwnProperty.call(input, "name")) {
     const name = text(input.name);
@@ -40,7 +40,10 @@ function normalizeModelInput(input, { create = false } = {}) {
     result.name = name;
   }
   if (create || Object.prototype.hasOwnProperty.call(input, "baseScore")) result.baseScore = Math.trunc(number(input.baseScore, 0));
-  if (create || Object.prototype.hasOwnProperty.call(input, "scoreFloor")) result.scoreFloor = Math.trunc(number(input.scoreFloor, -100));
+  // A predictive model's score is a 0-100 probability, not an
+  // accumulated-points total, so its default band differs from the
+  // rule-based default (-100..100).
+  if (create || Object.prototype.hasOwnProperty.call(input, "scoreFloor")) result.scoreFloor = Math.trunc(number(input.scoreFloor, modelType === "predictive" ? 0 : -100));
   if (create || Object.prototype.hasOwnProperty.call(input, "scoreCeiling")) result.scoreCeiling = Math.trunc(number(input.scoreCeiling, 100));
   if (result.scoreFloor !== undefined && result.scoreCeiling !== undefined && result.scoreFloor >= result.scoreCeiling)
     throw new CrmLeadIntelligenceError(400, "Score floor must be less than score ceiling.", "CRM_LEAD_SCORING_MODEL_INVALID");
@@ -58,28 +61,39 @@ function normalizeModelInput(input, { create = false } = {}) {
       throw new CrmLeadIntelligenceError(400, "Segment thresholds must increase: warm < hot < qualified.", "CRM_LEAD_SCORING_MODEL_INVALID");
     result.qualificationThresholds = { warm, hot, qualified };
   }
+  if (modelType === "predictive" && (create || Object.prototype.hasOwnProperty.call(input, "trainingVariables")))
+    result.trainingVariables = validateTrainingVariables(input.trainingVariables);
+  if (modelType === "predictive" && Object.prototype.hasOwnProperty.call(input, "minimumClassSize")) {
+    const size = Math.trunc(number(input.minimumClassSize, 40));
+    if (size < 10 || size > 5000) throw new CrmLeadIntelligenceError(400, "Minimum class size must be between 10 and 5,000.", "CRM_LEAD_SCORING_MODEL_INVALID");
+    result.minimumClassSize = size;
+  }
   return result;
 }
 
 export async function createLeadScoringModel(client, context, input = {}) {
   assertConfigPermission(context);
-  const value = normalizeModelInput(input, { create: true });
+  const modelType = ["rule_based", "predictive"].includes(text(input.modelType)) ? text(input.modelType) : "rule_based";
+  const value = normalizeModelInput(input, { create: true, modelType });
   const nextVersion = await client.query(
     `SELECT COALESCE(max(version),0)+1 AS version FROM tenant.crm_lead_scoring_models WHERE organization_id=$1 AND name=$2`,
     [context.organizationId, value.name],
   );
   const result = await client.query(
-    `INSERT INTO tenant.crm_lead_scoring_models(organization_id,name,version,status,base_score,score_floor,score_ceiling,decay_half_life_days,qualification_thresholds,created_by,updated_by)
-     VALUES($1,$2,$3,'draft',$4,$5,$6,$7,$8::jsonb,$9,$9) RETURNING *`,
+    `INSERT INTO tenant.crm_lead_scoring_models(organization_id,name,version,status,model_type,base_score,score_floor,score_ceiling,decay_half_life_days,qualification_thresholds,training_variables,minimum_class_size,created_by,updated_by)
+     VALUES($1,$2,$3,'draft',$4,$5,$6,$7,$8,$9::jsonb,$10::jsonb,$11,$12,$12) RETURNING *`,
     [
       context.organizationId,
       value.name,
       nextVersion.rows[0].version,
+      modelType,
       value.baseScore,
       value.scoreFloor,
       value.scoreCeiling,
       value.decayHalfLifeDays,
       JSON.stringify(value.qualificationThresholds),
+      JSON.stringify(value.trainingVariables || []),
+      value.minimumClassSize ?? 40,
       context.userId,
     ],
   );
@@ -92,26 +106,33 @@ export async function updateLeadScoringModel(client, context, id, input = {}) {
   if (!existing.rows[0]) throw new CrmLeadIntelligenceError(404, "Scoring model not found.", "CRM_LEAD_SCORING_MODEL_NOT_FOUND");
   if (existing.rows[0].status === "active")
     throw new CrmLeadIntelligenceError(409, "An active model's rules would silently reinterpret historical scores — create a new version instead of editing it in place.", "CRM_LEAD_SCORING_MODEL_ACTIVE_IMMUTABLE");
-  const value = normalizeModelInput(input);
+  const modelType = existing.rows[0].model_type;
+  const value = normalizeModelInput(input, { modelType });
   const fields = Object.keys(value);
   if (!fields.length) throw new CrmLeadIntelligenceError(400, "Provide a model field to update.", "CRM_LEAD_SCORING_MODEL_EMPTY_PATCH");
-  const columns = { name: "name", baseScore: "base_score", scoreFloor: "score_floor", scoreCeiling: "score_ceiling", decayHalfLifeDays: "decay_half_life_days", qualificationThresholds: "qualification_thresholds" };
+  const columns = { name: "name", baseScore: "base_score", scoreFloor: "score_floor", scoreCeiling: "score_ceiling", decayHalfLifeDays: "decay_half_life_days", qualificationThresholds: "qualification_thresholds", trainingVariables: "training_variables", minimumClassSize: "minimum_class_size" };
+  const jsonFields = new Set(["qualificationThresholds", "trainingVariables"]);
   const values = [context.organizationId, id];
   const sets = fields.map((field) => {
-    values.push(field === "qualificationThresholds" ? JSON.stringify(value[field]) : value[field]);
-    return `${columns[field]}=$${values.length}${field === "qualificationThresholds" ? "::jsonb" : ""}`;
+    values.push(jsonFields.has(field) ? JSON.stringify(value[field]) : value[field]);
+    return `${columns[field]}=$${values.length}${jsonFields.has(field) ? "::jsonb" : ""}`;
   });
+  // Changing which variables a predictive model trains on invalidates any
+  // priors already computed for it — force a retrain before it can activate.
+  const clearsTraining = modelType === "predictive" && fields.includes("trainingVariables");
   values.push(context.userId);
   const result = await client.query(
-    `UPDATE tenant.crm_lead_scoring_models SET ${sets.join(",")},updated_by=$${values.length},updated_at=now() WHERE organization_id=$1 AND id=$2 RETURNING *`,
+    `UPDATE tenant.crm_lead_scoring_models SET ${sets.join(",")},updated_by=$${values.length},updated_at=now()${clearsTraining ? ",trained_at=NULL,class_priors='{}'::jsonb,training_summary='{}'::jsonb" : ""} WHERE organization_id=$1 AND id=$2 RETURNING *`,
     values,
   );
+  if (clearsTraining) await client.query(`DELETE FROM tenant.crm_lead_scoring_model_priors WHERE organization_id=$1 AND model_id=$2`, [context.organizationId, id]);
   return result.rows[0];
 }
 
-// Activating a new model version deactivates the previously active one
-// (never two active models — the DB's own partial unique index is the
-// backstop) and enqueues a bulk recalculation job so every existing active
+// Activating a new model version retires the previously active model OF
+// THE SAME TYPE (F027: a rule model and a predictive model may both be
+// active — one owns the score, the other the separate propensity; the DB's
+// per-type partial unique index is the backstop) and enqueues a bulk recalculation job so every existing active
 // Lead is re-scored under the new model rather than carrying a stale
 // score/model_id until it happens to be touched by an unrelated trigger.
 export async function activateLeadScoringModel(client, context, id) {
@@ -119,10 +140,15 @@ export async function activateLeadScoringModel(client, context, id) {
   const model = await client.query(`SELECT * FROM tenant.crm_lead_scoring_models WHERE organization_id=$1 AND id=$2`, [context.organizationId, id]);
   if (!model.rows[0]) throw new CrmLeadIntelligenceError(404, "Scoring model not found.", "CRM_LEAD_SCORING_MODEL_NOT_FOUND");
   if (model.rows[0].status === "active") return { model: model.rows[0], recalcJob: null };
-  const ruleCount = await client.query(`SELECT count(*)::int AS count FROM tenant.crm_lead_scoring_model_rules WHERE organization_id=$1 AND model_id=$2 AND status='active'`, [context.organizationId, id]);
-  if (!Number(ruleCount.rows[0]?.count))
-    throw new CrmLeadIntelligenceError(409, "A scoring model needs at least one active rule before it can be activated.", "CRM_LEAD_SCORING_MODEL_NO_RULES");
-  await client.query(`UPDATE tenant.crm_lead_scoring_models SET status='retired',updated_by=$3,updated_at=now() WHERE organization_id=$1 AND status='active' AND id<>$2`, [context.organizationId, id, context.userId]);
+  if (model.rows[0].model_type === "predictive") {
+    if (!model.rows[0].trained_at)
+      throw new CrmLeadIntelligenceError(409, "Train this predictive model before it can be activated.", "CRM_LEAD_SCORING_MODEL_NOT_TRAINED");
+  } else {
+    const ruleCount = await client.query(`SELECT count(*)::int AS count FROM tenant.crm_lead_scoring_model_rules WHERE organization_id=$1 AND model_id=$2 AND status='active'`, [context.organizationId, id]);
+    if (!Number(ruleCount.rows[0]?.count))
+      throw new CrmLeadIntelligenceError(409, "A scoring model needs at least one active rule before it can be activated.", "CRM_LEAD_SCORING_MODEL_NO_RULES");
+  }
+  await client.query(`UPDATE tenant.crm_lead_scoring_models SET status='retired',updated_by=$3,updated_at=now() WHERE organization_id=$1 AND status='active' AND id<>$2 AND model_type=$4`, [context.organizationId, id, context.userId, model.rows[0].model_type]);
   const activated = await client.query(
     `UPDATE tenant.crm_lead_scoring_models SET status='active',activated_at=now(),updated_by=$3,updated_at=now() WHERE organization_id=$1 AND id=$2 RETURNING *`,
     [context.organizationId, id, context.userId],
@@ -166,8 +192,10 @@ function normalizeRuleInput(input, { create = false } = {}) {
 
 export async function createLeadScoringModelRule(client, context, modelId, input = {}) {
   assertConfigPermission(context);
-  const model = await client.query(`SELECT id,status FROM tenant.crm_lead_scoring_models WHERE organization_id=$1 AND id=$2`, [context.organizationId, modelId]);
+  const model = await client.query(`SELECT id,status,model_type FROM tenant.crm_lead_scoring_models WHERE organization_id=$1 AND id=$2`, [context.organizationId, modelId]);
   if (!model.rows[0]) throw new CrmLeadIntelligenceError(404, "Scoring model not found.", "CRM_LEAD_SCORING_MODEL_NOT_FOUND");
+  if (model.rows[0].model_type !== "rule_based")
+    throw new CrmLeadIntelligenceError(409, "A predictive model is trained, not configured with rules.", "CRM_LEAD_SCORING_MODEL_NOT_RULE_BASED");
   if (model.rows[0].status === "active")
     throw new CrmLeadIntelligenceError(409, "Create a new model version to change rules instead of editing an active model.", "CRM_LEAD_SCORING_MODEL_ACTIVE_IMMUTABLE");
   const value = normalizeRuleInput(input, { create: true });

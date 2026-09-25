@@ -13,6 +13,7 @@ import {
   IconButton,
   NoResultsState,
   PermissionState,
+  SearchField,
   Select,
   StatusBadge,
   type ActiveFilter,
@@ -44,6 +45,7 @@ export function FollowUpListScreen() {
   const canManage = workspace.permissions.includes(CRM_PERMISSIONS.activitiesManage);
 
   const [filters, setFilters] = useState<FollowUpListFilters>({ limit: PAGE_SIZE, offset: 0, due: "overdue" });
+  const [searchInput, setSearchInput] = useState("");
   const [actionError, setActionError] = useState<string | null>(null);
 
   const query = useQuery({
@@ -54,6 +56,10 @@ export function FollowUpListScreen() {
 
   function updateFilter<K extends keyof FollowUpListFilters>(key: K, value: FollowUpListFilters[K]) {
     setFilters((current) => ({ ...current, [key]: value, offset: 0 }));
+  }
+
+  function submitSearch() {
+    updateFilter("search", searchInput || undefined);
   }
 
   function invalidate() {
@@ -83,6 +89,7 @@ export function FollowUpListScreen() {
 
   const activeFilters: ActiveFilter[] = useMemo(() => {
     const active: ActiveFilter[] = [];
+    if (filters.search) active.push({ id: "search", label: `Search: ${filters.search}` });
     if (filters.status) active.push({ id: "status", label: `Status: ${filters.status}` });
     if (filters.due && filters.due !== "all") active.push({ id: "due", label: `Due: ${filters.due}` });
     return active;
@@ -131,6 +138,14 @@ export function FollowUpListScreen() {
       actionBar={{
         start: (
           <>
+            <SearchField
+              aria-label="Search follow-ups"
+              placeholder="Search by subject, reason, notes…"
+              value={searchInput}
+              onChange={setSearchInput}
+              onKeyDown={(event) => event.key === "Enter" && submitSearch()}
+              className="min-w-[240px]"
+            />
             <Select
               aria-label="Due"
               size="compact"
@@ -158,11 +173,21 @@ export function FollowUpListScreen() {
             />
           </>
         ),
+        end: <Button variant="secondary" onPress={submitSearch}>Search</Button>,
       }}
       filterBar={{
         filters: activeFilters,
-        onRemove: (id) => setFilters((current) => ({ ...current, [id]: undefined, offset: 0 })),
-        onClearAll: activeFilters.length > 0 ? () => setFilters({ limit: PAGE_SIZE, offset: 0, due: "overdue" }) : undefined,
+        onRemove: (id) => {
+          if (id === "search") setSearchInput("");
+          setFilters((current) => ({ ...current, [id]: undefined, offset: 0 }));
+        },
+        onClearAll:
+          activeFilters.length > 0
+            ? () => {
+                setSearchInput("");
+                setFilters({ limit: PAGE_SIZE, offset: 0, due: "overdue" });
+              }
+            : undefined,
       }}
     >
       {actionError && (

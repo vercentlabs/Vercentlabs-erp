@@ -4,7 +4,7 @@ import path from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 
-import { createCrmCall } from "../src/modules/crm/seller-activity-and-follow-up-workspace/call-operations.js";
+import { createCrmCall, listCrmCallEvents } from "../src/modules/crm/seller-activity-and-follow-up-workspace/call-operations.js";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
 const read = (relative) => fs.readFileSync(path.join(root, relative), "utf8");
@@ -134,4 +134,33 @@ test("F013 lifecycle is concurrency/replay governed and parent touch is completi
   assert.match(source, /before\.status === "completed"[\s\S]{0,240}replayed: true/);
   assert.match(source, /before\.status === "cancelled"[\s\S]{0,120}replayed: true/);
   assert.match(source, /touchParentOnCompletion/);
+});
+
+// F013 gap-closure — listCrmCallEvents had zero callers anywhere, so nothing
+// ever noticed that mapping crm_call_events rows through dto() (built for
+// crm_activities' call_*-prefixed columns) silently nulled out the event's
+// own direction/outcome_code/duration_seconds columns, since dto() derives
+// those fields from nonexistent call_direction/call_outcome_code/
+// call_duration_seconds keys on an events row. Wiring up a route to this
+// function without fixing the projection would have shipped an event
+// history that always shows blank direction/outcome/duration.
+test("F013: listCrmCallEvents preserves the event's own direction/outcome/duration instead of nulling them via crm_activities' dto()", async () => {
+  const client = {
+    async query(sql) {
+      if (sql.includes("FROM tenant.crm_activities activity"))
+        return { rows: [{ id: call, organization_id: org, activity_type: "call", status: "completed" }] };
+      if (sql.includes("FROM tenant.crm_call_events event"))
+        return {
+          rows: [
+            { id: "77777777-7777-4777-8777-777777777777", organization_id: org, activity_id: call, event_type: "completed", previous_status: "in_progress", next_status: "completed", direction: "outbound", outcome_code: "connected", duration_seconds: 245, changed_by: user, changed_at: "2026-08-27T10:05:00.000Z", changed_by_name: "Seller" },
+          ],
+        };
+      throw new Error(`Unexpected query: ${sql}`);
+    },
+  };
+  const [event] = await listCrmCallEvents(client, context, call);
+  assert.equal(event.direction, "outbound");
+  assert.equal(event.outcomeCode, "connected");
+  assert.equal(event.durationSeconds, 245);
+  assert.equal(event.changedByName, "Seller");
 });

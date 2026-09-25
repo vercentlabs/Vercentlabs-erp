@@ -152,6 +152,14 @@ export const READINESS_FIELD_COLUMNS = Object.freeze({
   city: "city",
   state: "state",
   countryCode: "country_code",
+  // F006 gap-closure — every top ERP benchmarked ships some ML/rule-based
+  // lead score as a qualification input; Vercentlabs' scoring relationship
+  // was one-directional (qualification could feed score, never the
+  // reverse). Exposing the score column here, paired with the new
+  // 'minimum_threshold' check_type below, lets an admin define a criterion
+  // like "predictive score is at least 60" without touching the scoring
+  // engine at all.
+  score: "score",
 });
 
 function readinessFieldValue(lead, fieldKey) {
@@ -162,12 +170,14 @@ function readinessFieldValue(lead, fieldKey) {
 function criterionMet(lead, criterion) {
   if (criterion.check_type === "positive_number")
     return Number(readinessFieldValue(lead, criterion.field_keys[0]) ?? 0) > 0;
+  if (criterion.check_type === "minimum_threshold")
+    return Number(readinessFieldValue(lead, criterion.field_keys[0]) ?? 0) >= Number(criterion.threshold ?? 0);
   return criterion.field_keys.some((key) => text(readinessFieldValue(lead, key)));
 }
 
 export async function evaluateLeadQualificationReadiness(client, context, lead = {}) {
   const result = await client.query(
-    `SELECT criterion_key, label, tier, check_type, field_keys
+    `SELECT criterion_key, label, tier, check_type, field_keys, threshold
        FROM tenant.crm_lead_qualification_criteria
       WHERE organization_id=$1 AND status='active'
       ORDER BY sequence, criterion_key`,
@@ -183,7 +193,9 @@ export async function evaluateLeadQualificationReadiness(client, context, lead =
       met,
       help: met
         ? `${criterion.label} is available.`
-        : `Add ${criterion.label.toLowerCase()}.`,
+        : criterion.check_type === "minimum_threshold"
+          ? `${criterion.label} must reach at least ${criterion.threshold}.`
+          : `Add ${criterion.label.toLowerCase()}.`,
     };
     (criterion.tier === "required" ? required : recommended).push(entry);
   }

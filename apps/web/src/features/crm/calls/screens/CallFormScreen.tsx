@@ -11,6 +11,7 @@ import { getCrmOptions } from "@/features/crm/shared/crm-options-api";
 import { DateTimeInput } from "@/features/crm/shared/ui/DateTimeInput";
 import { NO_RELATION, RelatedRecordPicker, type RelatedValue } from "@/features/crm/shared/ui/RelatedRecordPicker";
 import { CallApiError, createCall } from "../api/calls-api";
+import { OUTCOME_OPTIONS } from "../constants";
 
 type FormValues = {
   mode: "schedule" | "log";
@@ -25,16 +26,6 @@ type FormValues = {
   outcomeCode: string;
   outcome: string;
 };
-
-const OUTCOME_OPTIONS: SelectOption[] = [
-  { value: "connected", label: "Connected" },
-  { value: "no_answer", label: "No answer" },
-  { value: "busy", label: "Busy" },
-  { value: "voicemail", label: "Voicemail" },
-  { value: "callback_requested", label: "Callback requested" },
-  { value: "wrong_number", label: "Wrong number" },
-  { value: "failed", label: "Failed" },
-];
 
 const EMPTY: FormValues = { mode: "schedule", subject: "", description: "", direction: "outbound", phoneNumber: "", assignedTo: "", dueAt: "", occurredAt: "", durationSeconds: null, outcomeCode: "connected", outcome: "" };
 

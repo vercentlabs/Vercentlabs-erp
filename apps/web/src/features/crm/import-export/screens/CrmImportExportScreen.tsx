@@ -1,8 +1,9 @@
 "use client";
 
 import { useMemo, useRef, useState } from "react";
-import { useMutation, useQuery } from "@tanstack/react-query";
-import { AlertDialog, Button, PageHeader, Select, StatusBadge, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow } from "@vercentlabs/design-system";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { AlertDialog, Button, IconButton, PageHeader, Select, StatusBadge, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow } from "@vercentlabs/design-system";
+import { RotateCcw } from "lucide-react";
 import { CRM_PERMISSIONS } from "@vercentlabs/permissions";
 
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
@@ -16,11 +17,14 @@ import {
   getLeadExportJobRequest,
   ImportExportApiError,
   leadExportDownloadUrl,
+  listLeadImportBatchesRequest,
   previewLeadImportRequest,
   rollbackLeadImportRequest,
   startLeadExportRequest,
 } from "../api/import-export-api";
-import { LEAD_IMPORT_FIELDS, type LeadImportPreviewResult } from "../types";
+import { LEAD_IMPORT_FIELDS, type LeadImportBatch, type LeadImportPreviewResult } from "../types";
+
+const ROLLBACKABLE_STATUSES = new Set(["completed", "completed_with_errors"]);
 
 const STRATEGIES = [
   { value: "skip", label: "Skip duplicates", help: "A row that matches an existing lead is left out. Safest choice." },
@@ -50,6 +54,7 @@ function download(name: string, text: string) {
 // back. Export is a background job on the server. The steps below only present that; the rules stay server-side.
 export function CrmImportExportScreen() {
   const workspace = useWorkspaceContext();
+  const queryClient = useQueryClient();
   const canManage = workspace.permissions.includes(CRM_PERMISSIONS.leadsManage);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -114,7 +119,7 @@ export function CrmImportExportScreen() {
 
   const commitMutation = useMutation({
     mutationFn: () => commitLeadImportRequest(preview!.batch.id),
-    onSuccess: ({ batch }) => { setPreview((c) => (c ? { ...c, batch } : c)); setStep("results"); setError(null); },
+    onSuccess: ({ batch }) => { setPreview((c) => (c ? { ...c, batch } : c)); setStep("results"); setError(null); queryClient.invalidateQueries({ queryKey: scopedQueryKey(workspace, "crm", "leads", "import-batches") }); },
     onError: (err) => setError(err instanceof ImportExportApiError ? err.message : "The import could not be completed. Nothing further was changed."),
   });
 
@@ -122,6 +127,19 @@ export function CrmImportExportScreen() {
     mutationFn: () => rollbackLeadImportRequest(preview!.batch.id),
     onSuccess: (result) => { setRollbackResult(result); setConfirmRollback(false); setError(null); },
     onError: (err) => { setConfirmRollback(false); setError(err instanceof ImportExportApiError ? err.message : "The import could not be rolled back."); },
+  });
+
+  // F021 gap-closure — a completed batch used to be reachable only through
+  // this component's own state; History lists every past batch (via
+  // listCrmLeadImportBatches) so an import from an earlier visit can still
+  // be found and, if still rollbackable, undone.
+  const historyKey = scopedQueryKey(workspace, "crm", "leads", "import-batches");
+  const historyQuery = useQuery({ queryKey: historyKey, queryFn: listLeadImportBatchesRequest, enabled: tab === "import" });
+  const [historyRollbackTarget, setHistoryRollbackTarget] = useState<LeadImportBatch | null>(null);
+  const historyRollbackMutation = useMutation({
+    mutationFn: (batchId: string) => rollbackLeadImportRequest(batchId),
+    onSuccess: () => { setHistoryRollbackTarget(null); queryClient.invalidateQueries({ queryKey: historyKey }); },
+    onError: (err) => { setHistoryRollbackTarget(null); setError(err instanceof ImportExportApiError ? err.message : "The import could not be rolled back."); },
   });
 
   const invalidRows = useMemo(() => preview?.rows.filter((row) => !row.valid) ?? [], [preview]);
@@ -211,6 +229,46 @@ export function CrmImportExportScreen() {
               <div className="flex flex-wrap items-center gap-2 text-sm text-text-secondary">
                 <span>Not sure of the layout?</span>
                 <Button variant="ghost" size="compact" onPress={() => download("lead-import-template.csv", LEAD_IMPORT_FIELDS.map((f) => csvEscape(f.label)).join(",") + "\n")}>Download a blank template</Button>
+              </div>
+
+              <div className="flex flex-col gap-2 border-t border-border pt-4">
+                <h3 className="text-sm font-semibold text-text">Import history</h3>
+                {historyQuery.isLoading ? (
+                  <p className="text-sm text-text-secondary">Loading past imports…</p>
+                ) : (historyQuery.data?.batches.length ?? 0) === 0 ? (
+                  <p className="text-sm text-text-muted">No imports yet. Once you import a file, it appears here so you can find and undo it later.</p>
+                ) : (
+                  <div className="overflow-x-auto rounded-[var(--radius-control)] border border-border">
+                    <Table className="w-full text-sm">
+                      <TableHead className="bg-canvas-strong text-left text-xs uppercase tracking-wide text-text-muted">
+                        <TableRow>
+                          <TableHeaderCell className="px-3 py-2">File</TableHeaderCell>
+                          <TableHeaderCell className="px-3 py-2">When</TableHeaderCell>
+                          <TableHeaderCell className="px-3 py-2">Status</TableHeaderCell>
+                          <TableHeaderCell className="px-3 py-2">Created</TableHeaderCell>
+                          <TableHeaderCell className="px-3 py-2" />
+                        </TableRow>
+                      </TableHead>
+                      <TableBody>
+                        {(historyQuery.data?.batches ?? []).map((batch) => (
+                          <TableRow key={batch.id} className="border-t border-border">
+                            <TableCell className="px-3 py-2 text-text">{batch.file_name}</TableCell>
+                            <TableCell className="px-3 py-2 text-text-secondary">{formatDateTime(batch.created_at)}</TableCell>
+                            <TableCell className="px-3 py-2"><StatusBadge tone={batch.status === "completed" ? "success" : batch.status === "rolled_back" ? "neutral" : "warning"}>{humanize(batch.status)}</StatusBadge></TableCell>
+                            <TableCell className="px-3 py-2 tabular-nums text-text-secondary">{batch.created_rows ?? 0}</TableCell>
+                            <TableCell className="px-3 py-2 text-right">
+                              {ROLLBACKABLE_STATUSES.has(batch.status) && (
+                                <IconButton aria-label={`Undo import of ${batch.file_name}`} size="compact" variant="outline" onPress={() => setHistoryRollbackTarget(batch)}>
+                                  <RotateCcw className="size-4" aria-hidden="true" />
+                                </IconButton>
+                              )}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                )}
               </div>
             </div>
           )}
@@ -314,6 +372,18 @@ export function CrmImportExportScreen() {
 
       {confirmRollback && (
         <AlertDialog isOpen onOpenChange={(open) => { if (!open) setConfirmRollback(false); }} title="Undo this import?" description="The leads it created are removed. Any lead that already has calls, meetings or other activity stays, so nothing you have worked on is lost." confirmLabel="Undo import" isConfirming={rollbackMutation.isPending} onConfirm={() => rollbackMutation.mutate()} />
+      )}
+
+      {historyRollbackTarget && (
+        <AlertDialog
+          isOpen
+          onOpenChange={(open) => { if (!open) setHistoryRollbackTarget(null); }}
+          title={`Undo "${historyRollbackTarget.file_name}"?`}
+          description="The leads it created are removed. Any lead that already has calls, meetings or other activity stays, so nothing you have worked on is lost."
+          confirmLabel="Undo import"
+          isConfirming={historyRollbackMutation.isPending}
+          onConfirm={() => historyRollbackMutation.mutate(historyRollbackTarget.id)}
+        />
       )}
     </div>
   );

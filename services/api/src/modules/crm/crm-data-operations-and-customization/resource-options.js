@@ -99,6 +99,13 @@ export async function getCrmOptions(client, context) {
     parameters,
   );
   const users = await listEligibleLeadAssignees(client, context, { limit: 50 });
+  // Every active member of the organization — for naming and picking people
+  // in sales-organization setup (teams, territories, quotas), which is not
+  // limited to whoever is currently eligible for lead assignment.
+  const members = await client.query(
+    `SELECT u.id, u.full_name AS name FROM public.users u JOIN public.organization_memberships membership ON membership.user_id = u.id WHERE membership.organization_id = $1 AND membership.status = 'active' ORDER BY u.full_name`,
+    [context.organizationId],
+  );
   const parties = await queryOptions(
     `SELECT party.id, party.display_name AS name FROM tenant.business_parties party WHERE party.organization_id = $1 AND party.status = 'active' AND ${companyVisible("party")} ORDER BY party.display_name`,
     parameters,
@@ -204,6 +211,7 @@ export async function getCrmOptions(client, context) {
     allSources: map(allSources),
     campaigns: map(campaigns),
     users: users.items.map(camelizeRow),
+    members: members.rows.map(camelizeRow),
     parties: map(parties),
     contacts: map(contacts),
     items: map(items),

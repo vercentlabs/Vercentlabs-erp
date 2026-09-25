@@ -26,6 +26,7 @@ export async function POST(request: Request) {
       changes?: Record<string, unknown>;
       expectedVersions?: Record<string, string>;
       idempotencyKey?: string;
+      preview?: boolean;
     };
     const ids = Array.isArray(input.ids) ? input.ids : [];
     if (!ids.length) throw new HttpError(400, "Select at least one Lead.");
@@ -37,11 +38,13 @@ export async function POST(request: Request) {
           ids,
           changes: input.changes,
           expectedVersions: input.expectedVersions,
+          preview: input.preview === true,
         });
       });
       return ok(result);
     }
 
+    if (input.preview) throw new HttpError(400, `Preview is available for up to ${LEAD_BULK_SYNC_LIMIT} Leads at a time.`);
     if (!input.idempotencyKey) throw new HttpError(400, "A large Lead selection requires an idempotency key.");
     const result = await tenantTransaction(session.organizationId, async (client) => {
       await requireCrmAccess(client, session, CRM_PERMISSIONS.leadsManage, { mutation: true });

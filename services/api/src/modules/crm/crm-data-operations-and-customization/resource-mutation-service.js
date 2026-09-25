@@ -2,6 +2,7 @@ import { assertNoQualificationMutation } from "../lead-lifecycle-qualification-a
 import { ensureDefaultLeadStages } from "../lead-lifecycle-qualification-and-prioritization/lifecycle/stage-catalog.js";
 import { normalizeLeadRecordInput, validateLeadRecord } from "../lead-lifecycle-qualification-and-prioritization/lead-record-validation.js";
 import { normalizeOpportunityRecordInput, opportunityChangedFields, validateOpportunityRecord } from "../opportunity-and-pipeline-governance/opportunity-record-validation.js";
+import { ensurePrimaryContactRoleFromLegacyField } from "../opportunity-and-pipeline-governance/opportunity-contacts.js";
 import { assertLeadDuplicatePolicy, hasLeadDuplicateIdentityChange, recordLeadDuplicateOverride } from "../prospect-and-relationship-master-data/lead-duplicates.js";
 import { assertEligibleLeadAssignee, resolveLeadAssignment } from "../lead-lifecycle-qualification-and-prioritization/lead-governance.js";
 import { recalculateLeadScoreInternal } from "../lead-lifecycle-qualification-and-prioritization/scoring/scoring-engine.js";
@@ -339,6 +340,12 @@ export async function createCrmRecord(client, context, resource, input) {
         context.userId,
       ],
     );
+    // F003 gap-closure: keep tenant.crm_opportunity_contact_roles in sync
+    // with the classic single contactId field regardless of entry point —
+    // see ensurePrimaryContactRoleFromLegacyField's own comment.
+    if (created.contactId) {
+      await ensurePrimaryContactRoleFromLegacyField(client, context, created.id, created.contactId);
+    }
     await runCrmAutomation(
       client,
       context,
@@ -369,7 +376,41 @@ export async function createCrmRecord(client, context, resource, input) {
   return projectCrmRecord(client, context, resource, created);
 }
 
-
+// Turns a manual consent-checkbox toggle on the Lead edit form into a
+// permanent tenant.crm_consent_events row per changed channel, instead of
+// leaving consent as a mutable boolean with no evidence trail — the same
+// gap Zoho's GDPR Compliance module closes with its "Data Processing
+// Basis" log. doNotContact is recorded on the "all" channel since it
+// suppresses every channel at once. record-policy.js already makes
+// consent-events create-only/immutable once written.
+const CONSENT_CHANNEL_FIELDS = Object.freeze({
+  consentEmail: "email",
+  consentSms: "sms",
+  consentWhatsapp: "whatsapp",
+});
+async function logLeadConsentChanges(client, context, leadId, before, after) {
+  const events = [];
+  for (const [field, channel] of Object.entries(CONSENT_CHANNEL_FIELDS)) {
+    if (before[field] !== after[field] && after[field] !== undefined)
+      events.push({ channel, action: after[field] ? "granted" : "withdrawn" });
+  }
+  if (before.doNotContact !== after.doNotContact && after.doNotContact !== undefined)
+    events.push({ channel: "all", action: after.doNotContact ? "suppressed" : "resubscribed" });
+  for (const event of events)
+    await client.query(
+      `INSERT INTO tenant.crm_consent_events(organization_id,company_id,lead_id,channel,purpose,action,lawful_basis,source,evidence,created_by)
+       VALUES($1,$2,$3,$4,'sales',$5,'consent','manual',$6::jsonb,$7)`,
+      [
+        context.organizationId,
+        after.companyId || null,
+        leadId,
+        event.channel,
+        event.action,
+        JSON.stringify({ changedVia: "lead_edit_form" }),
+        context.userId,
+      ],
+    );
+}
 
 export async function updateCrmRecord(
   client,
@@ -556,7 +597,19 @@ export async function updateCrmRecord(
     leadScoreRecalcNeeded = Object.keys(prepared).some((field) => LEAD_SCORE_RECALC_TRIGGER_FIELDS.has(field));
   }
   if (resource === "opportunities") {
-    const candidate = { ...before, ...prepared };
+    // before.expectedCloseDate comes straight from getCrmRecord, which
+    // never stringifies DATE columns — node-postgres returns them as real
+    // Date instances. Every update merges before+prepared into one
+    // candidate for revalidation (even one that never touches this field),
+    // so without this normalization, validateOpportunityRecord's strict
+    // YYYY-MM-DD regex check rejected a Date instance on literally every
+    // update to an Opportunity that already had a close date set — the
+    // same class of bug already fixed on the client side for DateInput
+    // (apps/web/.../DateTimeInput.tsx), now closed at the server boundary too.
+    const normalizedBefore = before.expectedCloseDate instanceof Date
+      ? { ...before, expectedCloseDate: before.expectedCloseDate.toISOString().slice(0, 10) }
+      : before;
+    const candidate = { ...normalizedBefore, ...prepared };
     throwOpportunityValidation(validateOpportunityRecord(candidate, { mode: "update" }));
     const relationshipFields = new Set(["companyId", "branchId", "leadId", "partyId", "contactId", "ownerUserId"]);
     if (Object.keys(prepared).some((field) => relationshipFields.has(field)))
@@ -736,6 +789,10 @@ export async function updateCrmRecord(
       throw new CrmError(404, "CRM record not found.");
     }
     updated = camelizeRow(result.rows[0]);
+    if (resource === "leads") await logLeadConsentChanges(client, context, id, before, updated);
+    if (resource === "opportunities" && Object.prototype.hasOwnProperty.call(input, "contactId")) {
+      await ensurePrimaryContactRoleFromLegacyField(client, context, id, updated.contactId);
+    }
   }
   if (ownerChangeRequested) {
     const assignment = await assignLeadOwner(
@@ -988,10 +1045,32 @@ export async function archiveCrmRecord(
   const archiveVersionGuard = archiveVersionChecked
     ? ` AND date_trunc('milliseconds', record.updated_at) = date_trunc('milliseconds', ${addParameter(parameters, before.updatedAt)}::timestamptz)`
     : "";
-  const result = await client.query(
-    `UPDATE ${definition.table} record SET ${definition.statusColumn} = ${statusParameter}, updated_by = ${userParameter}, updated_at = now() WHERE record.organization_id = $1 AND record.id = $2${scope}${archiveVersionGuard} RETURNING record.*`,
-    parameters,
-  );
+  // Opportunities specifically: this UPDATE touches `status`, one of the
+  // columns tenant.crm_opportunity_lifecycle_write_guard (migration 098)
+  // watches, and that trigger only allows the change while the governed
+  // session flag reads 'allowed'. Discovered live (not theoretical): a
+  // pooled connection that had ever run a real stage/probability
+  // transition left the flag at '' (node-postgres never resets custom GUCs
+  // on client.release()), so archiving an Opportunity would then fail with
+  // "Use the governed Opportunity stage/probability service" — while a
+  // connection that had never touched the flag (current_setting(...,true)
+  // returns NULL there, and `NULL <> 'allowed'` is NULL, which PL/pgSQL's
+  // IF treats as false) let it through. Same set-then-reset pattern
+  // moveOpportunityStage/updateOpportunityProbability/restoreOpportunity
+  // already use, so archiving behaves consistently regardless of which
+  // pooled connection happens to service the request.
+  if (resource === "opportunities")
+    await client.query("SELECT set_config('app.crm_opportunity_lifecycle_transition','allowed',true)");
+  let result;
+  try {
+    result = await client.query(
+      `UPDATE ${definition.table} record SET ${definition.statusColumn} = ${statusParameter}, updated_by = ${userParameter}, updated_at = now() WHERE record.organization_id = $1 AND record.id = $2${scope}${archiveVersionGuard} RETURNING record.*`,
+      parameters,
+    );
+  } finally {
+    if (resource === "opportunities")
+      await client.query("SELECT set_config('app.crm_opportunity_lifecycle_transition','',true)");
+  }
   if (!result.rows[0]) {
     if (archiveVersionChecked)
       throw new CrmError(

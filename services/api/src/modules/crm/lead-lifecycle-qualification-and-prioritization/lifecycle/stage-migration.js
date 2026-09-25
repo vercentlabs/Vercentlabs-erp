@@ -5,7 +5,7 @@
 // (mirrors crm-lead-bulk-update.js's batching/idempotency pattern) that
 // remaps each Lead through the canonical transitionLeadStage command
 // before the stage can be deactivated.
-import { CrmError, queueOutboxEvent, dto, lifecycleError, text, getLeadStage } from "./shared.js";
+import { CrmError, queueOutboxEvent, dto, lifecycleError, text, getLeadStage, isElevatedLifecycleActor } from "./shared.js";
 import { transitionLeadStage } from "./transition-engine.js";
 
 export const STAGE_MIGRATION_JOB_TYPE = "crm.leads.stage_migration";
@@ -60,6 +60,18 @@ export async function deactivateLeadStageWithMigration(client, context, id, opti
           `${affected} active Lead(s) are on this stage. Choose a replacement stage to migrate them, or leave them and cancel.`,
           "CRM_LEAD_STAGE_HAS_ACTIVE_LEADS",
           { affectedCount: affected },
+        );
+      // F007 gap-closure — bulk-migrating every active Lead off a stage is
+      // a destructive, wide-blast-radius action; it now requires the same
+      // elevated pairing (organization owner or crm.records.view_all) as
+      // the analogous override actions in F005/F006, not just the ordinary
+      // settings-management permission that suffices for routine,
+      // non-destructive catalogue/graph edits.
+      if (!isElevatedLifecycleActor(context))
+        throw new CrmError(
+          403,
+          "Migrating active Leads off a stage requires elevated permission.",
+          "CRM_LEAD_STAGE_MIGRATION_FORBIDDEN",
         );
       const job = await enqueueLeadStageMigrationJob(client, context, id, migrateToStageId);
       return { deactivated: false, stage: before, migrationJob: job };

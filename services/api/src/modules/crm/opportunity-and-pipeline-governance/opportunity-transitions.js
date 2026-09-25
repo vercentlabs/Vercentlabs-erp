@@ -390,3 +390,220 @@ export async function moveOpportunityStage(
   }
   return updated;
 }
+
+// F009 gap-closure (benchmark: "Opportunity management in top ERPs" report)
+// — every one of the 7 competitors reviewed treats a closed deal as
+// reversible; Archived was Vercentlabs's one true dead end (the generic
+// archive/soft-delete action sets status='archived' with no stage
+// involved, so moveOpportunityStage's own reopen path — which only ever
+// operates on won/lost stages — can never reach it). Mirrors
+// moveOpportunityStage's reopen contract exactly: a reason is required,
+// the prior state is preserved in stage/probability history rather than
+// silently overwritten, and the same governed session-flag/DB-trigger
+// mechanism (migration 098) is reused rather than a parallel write path.
+export async function restoreOpportunity(
+  client,
+  context,
+  opportunityId,
+  reason,
+  expectations = {},
+) {
+  const restoreReason = String(reason || "").trim();
+  if (!restoreReason) {
+    throw new CrmError(
+      400,
+      "Provide a reason before restoring this opportunity.",
+      "CRM_OPPORTUNITY_RESTORE_REASON_REQUIRED",
+    );
+  }
+  const opportunityParameters = [context.organizationId, opportunityId];
+  const opportunityResult = await client.query(
+    `SELECT record.* FROM tenant.crm_opportunities record WHERE record.organization_id = $1 AND record.id = $2${recordScope(resources.opportunities, context, opportunityParameters)} FOR UPDATE`,
+    opportunityParameters,
+  );
+  const opportunity = opportunityResult.rows[0];
+  if (!opportunity) throw new CrmError(404, "Opportunity not found.");
+  if (String(opportunity.status) !== "archived") {
+    throw new CrmError(
+      409,
+      "Only an archived opportunity can be restored.",
+      "CRM_OPPORTUNITY_NOT_ARCHIVED",
+    );
+  }
+  if (
+    expectations.expectedUpdatedAt &&
+    new Date(opportunity.updated_at).toISOString() !==
+      new Date(expectations.expectedUpdatedAt).toISOString()
+  ) {
+    throw new CrmError(
+      409,
+      "This opportunity changed while it was offline. Refresh it before restoring.",
+      "CRM_STALE_WRITE",
+    );
+  }
+
+  // Prefer the stage it was archived from, if that stage is still an
+  // active, non-terminal stage of the same pipeline — otherwise fall back
+  // to the pipeline's own default entry stage (the same resolution
+  // resolveOpportunityInitialStage uses for a brand-new Opportunity).
+  const currentStageResult = await client.query(
+    `SELECT * FROM tenant.crm_pipeline_stages WHERE organization_id=$1 AND id=$2 AND pipeline_id=$3 AND status='active' AND NOT is_won AND NOT is_lost`,
+    [context.organizationId, opportunity.stage_id, opportunity.pipeline_id],
+  );
+  let stage = currentStageResult.rows[0] || null;
+  if (!stage) {
+    const fallbackResult = await client.query(
+      `SELECT * FROM tenant.crm_pipeline_stages WHERE organization_id=$1 AND pipeline_id=$2 AND status='active' AND NOT is_won AND NOT is_lost ORDER BY sequence,id LIMIT 1`,
+      [context.organizationId, opportunity.pipeline_id],
+    );
+    stage = fallbackResult.rows[0] || null;
+  }
+  if (!stage) {
+    throw new CrmError(
+      409,
+      "This opportunity's pipeline has no active open stage to restore it into. Configure one first.",
+      "CRM_OPPORTUNITY_RESTORE_STAGE_UNAVAILABLE",
+    );
+  }
+
+  await client.query("SELECT set_config('app.crm_opportunity_lifecycle_transition','allowed',true)");
+  let result;
+  try {
+    result = await client.query(
+      `UPDATE tenant.crm_opportunities
+         SET stage_id = $1, probability = $2, forecast_category = $3, status = 'open',
+             stage_entered_at = now(), actual_close_date = NULL,
+             outcome_reason_id = NULL, outcome_notes = NULL,
+             lost_reason_id = NULL, loss_notes = NULL,
+             updated_by = $4, updated_at = now()
+       WHERE organization_id = $5 AND id = $6 RETURNING *`,
+      [
+        stage.id,
+        stage.probability,
+        stage.forecast_category,
+        context.userId,
+        context.organizationId,
+        opportunityId,
+      ],
+    );
+  } finally {
+    await client.query("SELECT set_config('app.crm_opportunity_lifecycle_transition','',true)");
+  }
+  const updated = camelizeRow(result.rows[0]);
+
+  await client.query(
+    `INSERT INTO tenant.crm_opportunity_stage_history
+       (organization_id, opportunity_id, from_stage_id, to_stage_id, probability, changed_by, note, status)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, 'open')`,
+    [
+      context.organizationId,
+      opportunityId,
+      opportunity.stage_id,
+      stage.id,
+      stage.probability,
+      context.userId,
+      `Restored from archive: ${restoreReason}`,
+    ],
+  );
+
+  const fromProbability = Number(opportunity.probability || 0);
+  const toProbability = Number(updated.probability || 0);
+  if (fromProbability !== toProbability) {
+    await client.query(
+      `INSERT INTO tenant.crm_opportunity_probability_history
+        (organization_id,opportunity_id,from_probability,to_probability,expected_revenue,note,changed_by,source)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,'restored')`,
+      [
+        context.organizationId,
+        opportunityId,
+        fromProbability,
+        toProbability,
+        Number(updated.expectedRevenue || 0),
+        restoreReason,
+        context.userId,
+      ],
+    );
+  }
+
+  await runCrmAutomation(
+    client,
+    context,
+    "opportunity.restored",
+    "opportunity",
+    opportunityId,
+    updated,
+  );
+  await queueOutboxEvent(client, context, "crm.opportunity.restored", "opportunity", opportunityId, {
+    toStageId: stage.id,
+    restoreReason,
+  });
+  return updated;
+}
+
+// F011 gap-closure (benchmark: "Probability and expected revenue in top
+// ERPs" report) — crm_opportunity_probability_history has been an
+// immutable, fully-populated, provenance-tagged ledger since migration 066/
+// 099, but a repository-wide grep found zero readers anywhere outside its
+// own write sites above and its own test file: no route, no timeline entry,
+// no UI. Every one of the 7 reference ERPs in the benchmark at least logs
+// *a* generic change-history a user can go look at; Vercentlabs' own ledger
+// is more rigorous than any of them (an explicit, CHECK-constrained source
+// column, not just old/new value) yet was the only one of the 8 systems
+// where that history was completely unreachable. This is the read side.
+async function assertOpportunityInScope(client, context, opportunityId) {
+  const parameters = [context.organizationId, opportunityId];
+  const result = await client.query(
+    `SELECT record.id FROM tenant.crm_opportunities record WHERE record.organization_id = $1 AND record.id = $2${recordScope(resources.opportunities, context, parameters)}`,
+    parameters,
+  );
+  if (!result.rows[0]) throw new CrmError(404, "Opportunity not found.", "CRM_OPPORTUNITY_NOT_FOUND");
+}
+
+export async function listOpportunityProbabilityHistory(client, context, opportunityId, limit = 50) {
+  await assertOpportunityInScope(client, context, opportunityId);
+  const boundedLimit = Math.max(1, Math.min(200, Math.trunc(Number(limit) || 50)));
+  const result = await client.query(
+    `SELECT history.*, user_account.full_name AS changed_by_name
+       FROM tenant.crm_opportunity_probability_history history
+       LEFT JOIN public.users user_account ON user_account.id = history.changed_by
+      WHERE history.organization_id = $1 AND history.opportunity_id = $2
+      ORDER BY history.changed_at DESC
+      LIMIT $3`,
+    [context.organizationId, opportunityId, boundedLimit],
+  );
+  return result.rows.map(camelizeRow);
+}
+
+// F011 gap-closure — calculatePredictiveForecast/capturePredictiveForecast
+// (opportunity-revenue-intelligence.js) already compute a real per-
+// Opportunity predictedProbability every time a snapshot is captured, but
+// that number was buried inside crm_predictive_forecast_snapshots.explanation
+// (a JSON blob of the FULL forecast, including every open Opportunity's own
+// row) with no accessor ever pulling one Opportunity's own entry back out —
+// the aggregate Forecast screen was the only place any of it surfaced. This
+// extracts one Opportunity's own predicted row from the latest snapshot, so
+// it can sit next to the manual override control as an actual reference
+// point, not just an org-wide number with no connection to the deal at hand.
+export async function getOpportunityPredictiveProbability(client, context, opportunityId) {
+  await assertOpportunityInScope(client, context, opportunityId);
+  const result = await client.query(
+    `SELECT snapshot.captured_at, snapshot.model_version, row_data.value AS row
+       FROM tenant.crm_predictive_forecast_snapshots snapshot,
+            LATERAL jsonb_array_elements(snapshot.explanation->'rows') AS row_data(value)
+      WHERE snapshot.organization_id = $1
+        AND row_data.value->>'opportunityId' = $2
+      ORDER BY snapshot.captured_at DESC
+      LIMIT 1`,
+    [context.organizationId, opportunityId],
+  );
+  const row = result.rows[0];
+  if (!row) return null;
+  const data = row.row;
+  return {
+    predictedProbability: Number(data.predictedProbability ?? 0),
+    predictedAmount: Number(data.predictedAmount ?? 0),
+    factors: data.factors ?? null,
+    modelVersion: row.model_version,
+    capturedAt: row.captured_at,
+  };
+}

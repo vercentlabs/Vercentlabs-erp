@@ -45,6 +45,13 @@ async function filterDismissed(client, context, entityType, sourceId, rows, idKe
   return rows.filter((row) => !suppressed.has(row[idKey]));
 }
 
+const GENERIC_COMPANY_WORDS = [
+  "pvt", "private", "ltd", "limited", "llp", "inc", "co", "company", "corp", "corporation", "group", "and",
+  "industries", "solutions", "systems", "services", "technologies", "tech", "enterprises", "international", "india",
+  "analytics", "distributors", "exports", "realty", "foods", "pharma", "packaging", "data", "digital", "logistics",
+  "engineering", "manufacturing", "healthcare", "wellness", "textiles", "chemicals", "energy", "infra", "projects",
+].join("|");
+
 export async function dismissAccountDuplicateMatch(client, context, partyId, matchedPartyIds, reason) {
   if (!Array.isArray(matchedPartyIds) || !matchedPartyIds.length) {
     throw new CrmError(400, "Choose at least one candidate to dismiss.", "CRM_DUPLICATE_DISMISS_EMPTY");
@@ -126,11 +133,22 @@ export async function recordContactDuplicateOverride(client, context, contactId,
   return { id: result.rows[0].id };
 }
 
+// Must match tenant.crm_normalize_comparison_text(value) exactly — that
+// generated-column function (business_parties.normalized_legal_name,
+// contacts.normalized_name) only lowercases and collapses whitespace runs
+// to a single space; it never strips punctuation. This function used to
+// also strip every non-alphanumeric character (including spaces), so a
+// "legal_name"/"name" normalized-method rule — no matter how it's
+// configured, including as the exact/blocking signal — could never
+// actually equal the SQL-side value for any multi-word name and silently
+// never matched. Two real business_parties rows sharing the identical
+// normalized legal name only ever got caught by the separate fuzzy rule
+// (if one was configured), never by the intended exact match.
 function normalizeText(value) {
   return String(value || "")
     .trim()
     .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "");
+    .replace(/\s+/g, " ");
 }
 function normalizePhone(value) {
   return String(value || "")
@@ -209,16 +227,17 @@ export async function findAccountDuplicates(client, context, input = {}) {
     signalTerms.push(`(CASE WHEN party.normalized_legal_name = ${bind} THEN ARRAY['legal_name'] ELSE ARRAY[]::text[] END)`);
   }
   if (legalFuzzyRule && name) {
+    // Compare the distinctive part of the name: legal suffixes and common
+    // business words ("Pvt Ltd", "Analytics", "Industries"...) alone must not
+    // make two different companies look alike.
     const bind = p(name);
     const weight = p(legalFuzzyRule.weight);
     const threshold = p(Number(legalFuzzyRule.fuzzyThreshold || 0.55));
-    orClauses.push(`similarity(coalesce(party.normalized_legal_name,''), ${bind}) >= ${threshold}`);
-    scoreTerms.push(
-      `(CASE WHEN similarity(coalesce(party.normalized_legal_name,''), ${bind}) >= ${threshold} THEN round(${weight}::numeric * similarity(coalesce(party.normalized_legal_name,''), ${bind}))::int ELSE 0 END)`,
-    );
-    signalTerms.push(
-      `(CASE WHEN similarity(coalesce(party.normalized_legal_name,''), ${bind}) >= ${threshold} THEN ARRAY['legal_name_similarity'] ELSE ARRAY[]::text[] END)`,
-    );
+    const core = (expr) => `btrim(regexp_replace(regexp_replace(lower(coalesce(${expr},'')), '\\m(${GENERIC_COMPANY_WORDS})\\M', ' ', 'g'), '\\s+', ' ', 'g'))`;
+    const similar = `(${core("party.normalized_legal_name")} <> '' AND ${core(bind)} <> '' AND similarity(${core("party.normalized_legal_name")}, ${core(bind)}) >= ${threshold})`;
+    orClauses.push(similar);
+    scoreTerms.push(`(CASE WHEN ${similar} THEN round(${weight}::numeric * similarity(${core("party.normalized_legal_name")}, ${core(bind)}))::int ELSE 0 END)`);
+    signalTerms.push(`(CASE WHEN ${similar} THEN ARRAY['legal_name_similarity'] ELSE ARRAY[]::text[] END)`);
   }
   if (!orClauses.length) return [];
 

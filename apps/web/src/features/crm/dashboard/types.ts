@@ -14,8 +14,18 @@ export type CrmDashboardMetrics = {
   weightedPipeline: number | string;
   overdueActivities: number;
   dueToday: number;
-  leadsThisMonth: number;
-  conversionsThisMonth: number;
+  overdueTasks: number;
+  // Period figures for the selected range, and the same-length range just before it.
+  leadsInPeriod: number;
+  leadsPreviousPeriod: number;
+  conversionsInPeriod: number;
+  conversionsPreviousPeriod: number;
+  wonInPeriod: number;
+  wonPreviousPeriod: number;
+  wonAmountInPeriod: number | string;
+  wonAmountPreviousPeriod: number | string;
+  lostInPeriod: number;
+  lostPreviousPeriod: number;
   unassignedLeads: number;
   dwellBreachedLeads: number;
   stalledOpportunities: number;
@@ -54,7 +64,12 @@ export type CrmDashboardActivity = {
   entityId: string | null;
 };
 
+export type CrmDashboardScope = "mine" | "team" | "all";
+
 export type CrmDashboard = {
+  scope: CrmDashboardScope;
+  period: { from: string; to: string; previousFrom: string; previousTo: string };
+  canViewAll: boolean;
   metrics: CrmDashboardMetrics;
   stages: CrmDashboardStage[];
   sources: CrmDashboardSource[];

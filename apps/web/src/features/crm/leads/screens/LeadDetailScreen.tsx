@@ -24,12 +24,13 @@ import {
   Timeline,
   type BusinessFlowNode,
   type SelectOption,
-  type TimelineEntry,
 } from "@vercentlabs/design-system";
 import { CRM_PERMISSIONS } from "@vercentlabs/permissions";
 
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
+import { EmailHistoryPanel } from "@/features/crm/shared/EmailHistoryPanel";
+import { RecordTimelinePanel } from "@/features/crm/shared/RecordTimelinePanel";
 import { NotesPanel } from "@/features/crm/shared/NotesPanel";
 import { CrmAttachmentPanel } from "@/features/crm/shared/CrmAttachmentPanel";
 import { CustomFieldsRuntimePanel } from "@/features/crm/shared/CustomFieldsRuntimePanel";
@@ -45,12 +46,13 @@ import {
   findLeadDuplicates,
   getCrmOptions,
   getLead,
+  getLeadAttribution,
   getLeadConversionPreview,
   getLeadQualificationDetail,
   getLeadScoreDetail,
+  type LeadScoreContribution,
   getLeadStageDetail,
   getLeadStageReasons,
-  getLeadTimeline,
   getLeadTransitionGraph,
   LeadApiError,
   mergeLead,
@@ -58,6 +60,7 @@ import {
   transitionLeadStage,
 } from "../api/leads-api";
 import { LoadingState } from "@/features/crm/shared/ui/LoadingState";
+import { createPrivacyRequest, listConsentEvents, PrivacyApiError } from "@/features/crm/settings/privacy-requests/api/privacy-requests-api";
 
 // F007: the five Lead pipeline stage codes (stable codes; human-facing
 // labels come from the live stage catalogue via stageNameByCode below).
@@ -69,14 +72,19 @@ const statusTone: Record<string, "neutral" | "info" | "success" | "warning" | "d
   nurturing: "neutral",
 };
 
-const timelineTone: Record<string, TimelineEntry["tone"]> = {
-  activity: "info",
-  communication: "neutral",
-  note: "neutral",
-  attachment: "neutral",
-};
-
 const dateTimeFormatter = new Intl.DateTimeFormat("en-IN", { dateStyle: "medium", timeStyle: "short" });
+
+// The explanation stores contributions as a JSON string (see scoring-engine.js).
+function parseContributions(value: unknown): LeadScoreContribution[] {
+  if (Array.isArray(value)) return value as LeadScoreContribution[];
+  if (typeof value !== "string") return [];
+  try {
+    const parsed = JSON.parse(value);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
 
 function Field({ label, value }: { label: string; value: string | number | null | undefined }) {
   return (
@@ -111,6 +119,8 @@ export function LeadDetailScreen({ leadId }: { leadId: string }) {
   const [pendingStageId, setPendingStageId] = useState<string>("");
   const [pendingReasonCode, setPendingReasonCode] = useState<string>("");
   const [pendingNote, setPendingNote] = useState<string>("");
+  const [stageOverrideMode, setStageOverrideMode] = useState(false);
+  const [stageOverrideReason, setStageOverrideReason] = useState<string>("");
   const [pendingOwnerId, setPendingOwnerId] = useState<string>("");
   const [assignReason, setAssignReason] = useState<string>("");
   const [qualDecision, setQualDecision] = useState<"qualified" | "unqualified" | "">("");
@@ -131,11 +141,6 @@ export function LeadDetailScreen({ leadId }: { leadId: string }) {
     queryFn: getCrmOptions,
   });
 
-  const timelineQuery = useQuery({
-    queryKey: scopedQueryKey(workspace, "crm", "leads", leadId, "timeline"),
-    queryFn: () => getLeadTimeline(leadId),
-    enabled: Boolean(lead),
-  });
 
   const duplicatesQuery = useQuery({
     queryKey: scopedQueryKey(workspace, "crm", "leads", leadId, "duplicates"),
@@ -176,6 +181,18 @@ export function LeadDetailScreen({ leadId }: { leadId: string }) {
     enabled: Boolean(lead),
   });
 
+  const attributionQuery = useQuery({
+    queryKey: scopedQueryKey(workspace, "crm", "leads", leadId, "attribution"),
+    queryFn: () => getLeadAttribution(leadId),
+    enabled: Boolean(lead),
+  });
+
+  const consentQuery = useQuery({
+    queryKey: scopedQueryKey(workspace, "crm", "leads", leadId, "consent-events"),
+    queryFn: () => listConsentEvents(leadId),
+    enabled: Boolean(lead),
+  });
+
   function invalidateLead() {
     queryClient.invalidateQueries({ queryKey: scopedQueryKey(workspace, "crm", "leads", leadId) });
     queryClient.invalidateQueries({ queryKey: scopedQueryKey(workspace, "crm", "leads") });
@@ -190,7 +207,7 @@ export function LeadDetailScreen({ leadId }: { leadId: string }) {
   }
 
   const assignMutation = useMutation({
-    mutationFn: () => assignLead(leadId, { ownerUserId: pendingOwnerId || null, reason: assignReason || undefined, expectedUpdatedAt: lead!.updatedAt }),
+    mutationFn: () => assignLead(leadId, { ownerUserId: pendingOwnerId && pendingOwnerId !== "unassigned" ? pendingOwnerId : null, reason: assignReason || undefined, expectedUpdatedAt: lead!.updatedAt }),
     onSuccess: () => {
       setActionError(null);
       invalidateLead();
@@ -205,12 +222,19 @@ export function LeadDetailScreen({ leadId }: { leadId: string }) {
         reasonCode: pendingReasonCode || undefined,
         note: pendingNote || undefined,
         expectedUpdatedAt: lead!.updatedAt,
+        // F007 gap-closure — sending overrideUsed unconditionally while
+        // override mode is on is safe: the server only actually records an
+        // override when the transition genuinely has no graph edge or an
+        // unmet reason gate; a legal move is unaffected either way.
+        ...(stageOverrideMode ? { overrideUsed: true, overrideReason: stageOverrideReason } : {}),
       }),
     onSuccess: () => {
       setActionError(null);
       setPendingStageId("");
       setPendingReasonCode("");
       setPendingNote("");
+      setStageOverrideMode(false);
+      setStageOverrideReason("");
       invalidateLead();
       queryClient.invalidateQueries({ queryKey: scopedQueryKey(workspace, "crm", "leads", leadId, "stage-detail") });
     },
@@ -293,13 +317,37 @@ export function LeadDetailScreen({ leadId }: { leadId: string }) {
     onError: handleActionError,
   });
 
+  const [privacyRequestOpen, setPrivacyRequestOpen] = useState(false);
+  const [privacyRequestType, setPrivacyRequestType] = useState("export");
+  const privacyRequestMutation = useMutation({
+    mutationFn: () =>
+      createPrivacyRequest({
+        requestType: privacyRequestType,
+        subjectType: "lead",
+        subjectId: leadId,
+        dueAt: new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10),
+      }),
+    onSuccess: () => {
+      setActionError(null);
+      setPrivacyRequestOpen(false);
+    },
+    onError: (error: unknown) => setActionError(error instanceof PrivacyApiError ? error.message : "This privacy request could not be created."),
+  });
+
   const ownerOptions: SelectOption[] = useMemo(() => {
+    // "unassigned" is a real option (an empty key reads as "nothing chosen"),
+    // and the current owner is always listed even if outside the eligible list.
     const rows = optionsQuery.data?.options?.users ?? [];
-    return [
-      { value: "", label: "Unassigned" },
+    const options = [
+      { value: "unassigned", label: "Unassigned" },
       ...rows.map((row) => ({ value: String(row.id), label: String(row.fullName || row.name || row.email || row.id) })),
     ];
-  }, [optionsQuery.data]);
+    const currentOwnerId = lead?.ownerUserId ?? null;
+    const currentOwnerName = lead?.ownerName ?? null;
+    if (currentOwnerId && !options.some((option) => option.value === currentOwnerId))
+      options.push({ value: currentOwnerId, label: `${currentOwnerName ?? "Current owner"} (current)` });
+    return options;
+  }, [optionsQuery.data, lead?.ownerUserId, lead?.ownerName]);
 
   // F007: the primary status badge must show the configured human-facing
   // stage label ("Attempting Contact"), never the raw stable code.
@@ -324,16 +372,14 @@ export function LeadDetailScreen({ leadId }: { leadId: string }) {
     return Boolean(edges.find((edge) => edge.toStageId === pendingStageId && edge.fromStageCode === lead?.status)?.reasonRequired);
   }, [transitionGraphQuery.data, pendingStageId, lead]);
 
-  const timelineEntries: TimelineEntry[] = useMemo(() => {
-    const rows = timelineQuery.data?.page.rows ?? [];
-    return rows.map((row) => ({
-      id: row.id,
-      tone: timelineTone[row.kind] ?? "neutral",
-      title: `${humanize(row.kind)}${row.subtype ? ` · ${humanize(row.subtype)}` : ""}${row.title ? `: ${row.title}` : ""}`,
-      description: row.status ? `Status: ${humanize(row.status)}` : undefined,
-      timestamp: dateTimeFormatter.format(new Date(row.occurredAt)),
-    }));
-  }, [timelineQuery.data]);
+  // F007 gap-closure — every active stage, used only while override mode is
+  // on so an elevated user can reach a destination the normal transition
+  // graph doesn't allow. Never the default option set.
+  const allActiveStageOptions: SelectOption[] = useMemo(() => {
+    const rows = (optionsQuery.data?.options?.leadStages ?? []) as Array<{ id: string; code: string; name: string; status: string }>;
+    return rows.filter((row) => row.status === "active" && row.code !== lead?.status).map((row) => ({ value: row.id, label: row.name }));
+  }, [optionsQuery.data, lead]);
+  const destinationStageOptions = stageOverrideMode ? allActiveStageOptions : legalStageOptions;
 
   if (leadQuery.isLoading) return <LoadingState label="Loading lead" rows={3} />;
   if (leadQuery.isError) {
@@ -351,31 +397,50 @@ export function LeadDetailScreen({ leadId }: { leadId: string }) {
   const qualification = qualificationQuery.data?.qualification;
   const explanation = scoreQuery.data?.explanation;
   const contributions = recalculateMutation.data?.contributions;
+  // F027 — the stored explanation already carries the rule-by-rule
+  // breakdown; show it without requiring a recalculation first.
+  const scoreRules: LeadScoreContribution[] = contributions ?? parseContributions(explanation?.score_explanation?.contributions);
+  const propensityFactors = parseContributions(explanation?.propensity_explanation?.contributions);
+  // Factor names are "feature: value"; show the value in words (a source id becomes its name).
+  const describeFactor = (name: string) => {
+    const [feature, ...rest] = name.split(":");
+    const raw = rest.join(":").trim();
+    const sources = (optionsQuery.data?.options?.allSources ?? optionsQuery.data?.options?.sources ?? []) as Array<{ id: string; name?: string }>;
+    const value = feature === "sourceId"
+      ? String(sources.find((row) => String(row.id) === raw)?.name ?? (raw === "unknown" ? "None" : "Another source"))
+      : feature === "countryCode" && raw.length === 2 ? countryName(raw) : humanize(raw);
+    return `${humanize(feature)}: ${value}`;
+  };
 
+  // Name each record the lead became, so the flow reads as the real account/contact/deal.
+  const optionName = (key: "parties" | "contacts" | "opportunities", id: string | null | undefined) =>
+    id ? String(((optionsQuery.data?.options?.[key] ?? []) as Array<{ id: string; name?: string }>).find((row) => String(row.id) === id)?.name ?? "View record") : undefined;
   const conversionFlow: BusinessFlowNode[] | null =
     lead.recordStatus === "converted"
       ? [
           { id: "lead", label: "Lead", state: "completed", meta: lead.code },
-          { id: "account", label: "Account", state: lead.convertedPartyId ? "completed" : "future", href: lead.convertedPartyId ? `/crm/accounts/${lead.convertedPartyId}` : undefined },
-          { id: "contact", label: "Contact", state: lead.convertedContactId ? "completed" : "future", href: lead.convertedContactId ? `/crm/contacts/${lead.convertedContactId}` : undefined },
-          { id: "opportunity", label: "Opportunity", state: lead.convertedOpportunityId ? "completed" : "future", href: lead.convertedOpportunityId ? `/crm/opportunities/${lead.convertedOpportunityId}` : undefined },
+          { id: "account", label: "Account", state: lead.convertedPartyId ? "completed" : "future", href: lead.convertedPartyId ? `/crm/accounts/${lead.convertedPartyId}` : undefined, meta: optionName("parties", lead.convertedPartyId) },
+          { id: "contact", label: "Contact", state: lead.convertedContactId ? "completed" : "future", href: lead.convertedContactId ? `/crm/contacts/${lead.convertedContactId}` : undefined, meta: optionName("contacts", lead.convertedContactId) },
+          { id: "opportunity", label: "Opportunity", state: lead.convertedOpportunityId ? "completed" : "future", href: lead.convertedOpportunityId ? `/crm/opportunities/${lead.convertedOpportunityId}` : undefined, meta: optionName("opportunities", lead.convertedOpportunityId) },
         ]
       : null;
 
   const accountCandidates = convertPreviewQuery.data?.accountCandidates ?? [];
   const contactCandidates = convertPreviewQuery.data?.contactCandidates ?? [];
 
-  // Pre-select an exact match once, matching convertCrmLead's own default
-  // (auto-reuse only an "exact" match) — adjusting state during render
-  // (guarded to run once per preview open) rather than an effect, same
-  // pattern as SavedViewsBar's default-view selection.
+  // Pre-select exact matches once, mirroring convertCrmLead's own default:
+  // an exact Account is reused, and an exact Contact only when it sits under
+  // that same Account (the server rejects a Contact from another Account).
+  // Adjusting state during render, guarded to run once per preview open.
   if (!convertAutoSelected && convertPreviewOpen && convertPreviewQuery.isSuccess) {
     setConvertAutoSelected(true);
     const exactAccount = accountCandidates.find((row) => row.classification === "exact");
-    const exactContact = contactCandidates.find((row) => row.classification === "exact");
+    const exactContact = exactAccount ? contactCandidates.find((row) => row.classification === "exact" && row.party_id === exactAccount.id) : undefined;
     if (exactAccount) setConvertPartyId(exactAccount.id);
     if (exactContact) setConvertContactId(exactContact.id);
   }
+  // A Contact can only be reused under the Account being converted into.
+  const eligibleContactCandidates = convertPartyId ? contactCandidates.filter((row) => row.party_id === convertPartyId) : [];
 
   const accountChoiceOptions: SelectOption[] = [
     { value: "", label: "Create a new Account" },
@@ -386,7 +451,7 @@ export function LeadDetailScreen({ leadId }: { leadId: string }) {
   ];
   const contactChoiceOptions: SelectOption[] = [
     { value: "", label: "Create a new Contact" },
-    ...contactCandidates.map((row) => ({
+    ...eligibleContactCandidates.map((row) => ({
       value: row.id,
       label: `${row.first_name || ""} ${row.last_name || ""}`.trim() + (row.email ? ` · ${row.email}` : "") + (row.classification === "exact" ? " (exact match)" : " (possible match)"),
     })),
@@ -397,11 +462,12 @@ export function LeadDetailScreen({ leadId }: { leadId: string }) {
     <RecordDetailsPage
       header={{
         title: lead.fullName || `${lead.firstName} ${lead.lastName || ""}`.trim(),
-        status: <StatusBadge tone={statusTone[lead.status] ?? "neutral"}>{stageNameByCode[lead.status] ?? lead.status}</StatusBadge>,
+        // A converted or archived lead is described by that outcome, not by the stage it last sat in.
+        status: lead.recordStatus === "converted" ? <StatusBadge tone="success">Converted</StatusBadge> : lead.recordStatus === "archived" ? <StatusBadge tone="neutral">Archived</StatusBadge> : <StatusBadge tone={statusTone[lead.status] ?? "neutral"}>{stageNameByCode[lead.status] ?? humanize(lead.status)}</StatusBadge>,
         fields: [
           { label: "Owner", value: lead.ownerName || "Unassigned" },
           { label: "Priority", value: humanize(lead.priority) },
-          { label: "Score", value: lead.score !== null ? scoreLabel(lead.score, 100, lead.rating ? humanize(lead.rating) : null) : "Not scored" },
+          { label: "Score", value: lead.score !== null ? scoreLabel(lead.score, 100, humanize(lead.leadGrade ?? lead.grade) || null) : "Not scored" },
           { label: "Qualification", value: humanize(lead.qualificationState || "not_reviewed") },
           { label: "Next follow-up", value: lead.nextFollowUpAt ? `${formatDate(lead.nextFollowUpAt)}${dueState(lead.nextFollowUpAt) === "overdue" ? " (" + dueLabel(lead.nextFollowUpAt) + ")" : ""}` : "None scheduled" },
         ],
@@ -426,7 +492,9 @@ export function LeadDetailScreen({ leadId }: { leadId: string }) {
             <Tab id="qualification">Qualification</Tab>
             <Tab id="pipeline">Pipeline</Tab>
             <Tab id="intelligence">Intelligence</Tab>
+            <Tab id="privacy">Privacy</Tab>
             <Tab id="activity">Activity</Tab>
+            <Tab id="communications">Communications</Tab>
             <Tab id="notes">Notes</Tab>
             <Tab id="attachments">Attachments</Tab>
             <Tab id="custom-fields">Custom Fields</Tab>
@@ -510,7 +578,7 @@ export function LeadDetailScreen({ leadId }: { leadId: string }) {
                     You can assign to people in your reporting scope who are eligible for this lead.
                   </p>
                   <div className="flex flex-wrap items-end gap-3">
-                    <Select label="Owner" size="compact" options={ownerOptions} selectedKey={pendingOwnerId || lead.ownerUserId || ""} onSelectionChange={(key) => setPendingOwnerId(String(key ?? ""))} className="min-w-[220px]" />
+                    <Select label="Owner" size="compact" options={ownerOptions} selectedKey={pendingOwnerId || lead.ownerUserId || "unassigned"} onSelectionChange={(key) => setPendingOwnerId(String(key ?? ""))} className="min-w-[220px]" />
                     <TextField label="Reason (optional)" size="compact" value={assignReason} onChange={setAssignReason} className="min-w-[220px]" />
                     <Button variant="secondary" size="compact" onPress={() => assignMutation.mutate()} isLoading={assignMutation.isPending}>
                       <UserPlus className="size-4" aria-hidden="true" />
@@ -535,7 +603,10 @@ export function LeadDetailScreen({ leadId }: { leadId: string }) {
               ) : qualification ? (
                 <>
                   <div className="flex flex-wrap items-center gap-3">
-                    <StatusBadge tone={qualification.state === "qualified" ? "success" : qualification.state === "unqualified" ? "danger" : "neutral"}>{qualification.state}</StatusBadge>
+                    <StatusBadge tone={qualification.state === "qualified" ? "success" : qualification.state === "unqualified" ? "danger" : "neutral"}>{humanize(qualification.state)}</StatusBadge>
+                    {qualification.history[0]?.overrideUsed && qualification.decidedAt && (
+                      <StatusBadge tone="warning">Decided with an override</StatusBadge>
+                    )}
                     {qualification.decidedAt && (
                       <span className="text-xs text-text-muted">
                         Decided by {qualification.decidedByName || "—"} on {dateTimeFormatter.format(new Date(qualification.decidedAt))}
@@ -623,7 +694,7 @@ export function LeadDetailScreen({ leadId }: { leadId: string }) {
                         entries={qualification.history.map((event) => ({
                           id: event.id,
                           tone: event.newState === "qualified" ? "success" : event.newState === "unqualified" ? "danger" : "neutral",
-                          title: `${event.decidedByName || "Someone"} set qualification to ${event.newState}${event.overrideUsed ? " (override)" : ""}`,
+                          title: `${event.decidedByName || "Someone"} set qualification to ${humanize(event.newState).toLowerCase()}${event.overrideUsed ? " (override)" : ""}`,
                           description: event.reasonText || event.reasonCode || event.note || undefined,
                           timestamp: dateTimeFormatter.format(new Date(event.createdAt)),
                         }))}
@@ -655,18 +726,24 @@ export function LeadDetailScreen({ leadId }: { leadId: string }) {
                     <Select
                       label="Destination stage"
                       size="compact"
-                      options={legalStageOptions}
+                      options={destinationStageOptions}
                       selectedKey={pendingStageId}
                       onSelectionChange={(key) => setPendingStageId(String(key ?? ""))}
                       className="min-w-[220px]"
-                      placeholder={legalStageOptions.length ? "Choose a stage" : "No legal transitions configured"}
+                      placeholder={destinationStageOptions.length ? "Choose a stage" : "No legal transitions configured"}
                     />
-                    <Button variant="secondary" size="compact" onPress={() => stageMutation.mutate()} isLoading={stageMutation.isPending} isDisabled={!pendingStageId || (reasonRequired && !pendingReasonCode)}>
+                    <Button
+                      variant="secondary"
+                      size="compact"
+                      onPress={() => stageMutation.mutate()}
+                      isLoading={stageMutation.isPending}
+                      isDisabled={!pendingStageId || (reasonRequired && !pendingReasonCode && !stageOverrideMode) || (stageOverrideMode && stageOverrideReason.trim().length < 3)}
+                    >
                       <CheckCircle2 className="size-4" aria-hidden="true" />
                       Move
                     </Button>
                   </div>
-                  {pendingStageId && reasonRequired && (
+                  {pendingStageId && reasonRequired && !stageOverrideMode && (
                     <Select
                       label="Reason (required for this transition)"
                       size="compact"
@@ -678,6 +755,27 @@ export function LeadDetailScreen({ leadId }: { leadId: string }) {
                     />
                   )}
                   {pendingStageId && <TextArea label="Note (optional)" value={pendingNote} onChange={setPendingNote} />}
+                  {stageDetailQuery.data?.canOverride && (
+                    <Checkbox
+                      isSelected={stageOverrideMode}
+                      onChange={(checked) => {
+                        setStageOverrideMode(checked);
+                        setPendingStageId("");
+                        setPendingReasonCode("");
+                        setStageOverrideReason("");
+                      }}
+                    >
+                      Move to a different stage (advanced) — outside the normal lifecycle path
+                    </Checkbox>
+                  )}
+                  {stageOverrideMode && (
+                    <TextArea
+                      label="Override reason"
+                      description="Explain why this Lead is moving outside its normal lifecycle path. Recorded permanently on the stage history."
+                      value={stageOverrideReason}
+                      onChange={setStageOverrideReason}
+                    />
+                  )}
                 </div>
               )}
 
@@ -687,8 +785,8 @@ export function LeadDetailScreen({ leadId }: { leadId: string }) {
                   <Timeline
                     entries={stageDetailQuery.data.history.map((event) => ({
                       id: event.id,
-                      title: `${event.actorName || "Someone"} moved ${event.fromStageName} → ${event.toStageName}`,
-                      description: event.reasonLabel || event.note || undefined,
+                      title: `${event.actorName || "Someone"} moved ${event.fromStageName} → ${event.toStageName}${event.overrideUsed ? " (override)" : ""}`,
+                      description: event.overrideReason || event.reasonLabel || event.note || undefined,
                       timestamp: dateTimeFormatter.format(new Date(event.createdAt)),
                     }))}
                   />
@@ -702,7 +800,7 @@ export function LeadDetailScreen({ leadId }: { leadId: string }) {
               <p className="text-xs text-text-muted">Score is intelligence, not authority — it never changes stage, qualification, or record status on its own.</p>
               <div className="flex flex-wrap items-center gap-4">
                 <Field label="Score" value={explanation?.score ?? lead.score ?? "—"} />
-                <Field label="Grade" value={explanation?.lead_grade ?? lead.grade ?? "—"} />
+                <Field label="Grade" value={humanize(explanation?.lead_grade ?? lead.grade) || "—"} />
                 <Field label="Last calculated" value={explanation?.score_calculated_at ? dateTimeFormatter.format(new Date(explanation.score_calculated_at)) : "Never"} />
               </div>
               {canManageLeads && (
@@ -711,35 +809,111 @@ export function LeadDetailScreen({ leadId }: { leadId: string }) {
                   Recalculate now
                 </Button>
               )}
-              {contributions && contributions.length > 0 && (
-                <div className="flex flex-col gap-2 border-t border-border pt-4">
-                  <p className="text-sm font-semibold text-text">Breakdown (latest recalculation)</p>
+              {scoreRules.length > 0 && (
+                <div className="flex flex-col gap-2 border-t border-border pt-4" aria-label="How the score adds up">
+                  <p className="text-sm font-semibold text-text">How the score adds up</p>
                   <ul className="flex flex-col gap-1">
-                    {contributions.map((contribution, i) => (
+                    {scoreRules.map((contribution, i) => (
                       <li key={i} className="flex justify-between text-sm text-text-secondary">
-                        <span>{contribution.name}</span>
+                        <span>{contribution.occurrences > 1 ? `${contribution.name} (×${contribution.occurrences})` : contribution.name}</span>
                         <span className="tabular-nums">{contribution.points > 0 ? `+${contribution.points}` : contribution.points}</span>
                       </li>
                     ))}
                   </ul>
+                  <p className="text-xs text-text-muted">Only rules that matched are listed. The same inputs always give the same score.</p>
                 </div>
               )}
               {explanation?.score_explanation?.model && (
-                <p className="text-xs text-text-muted">Model: {explanation.score_explanation.model.name} (v{explanation.score_explanation.model.version})</p>
+                <p className="text-xs text-text-muted">Rules: {explanation.score_explanation.model.name} (v{explanation.score_explanation.model.version})</p>
               )}
               {!explanation?.score_calculated_at && !contributions && (
                 <p className="text-sm text-text-secondary">No scoring model has evaluated this Lead yet.</p>
               )}
+              {/* F027 — the ML propensity is separate from the rule score: its own number, its own explanation, never mixed into the score above. */}
+              {explanation?.propensity_score != null && (
+                <div className="flex flex-col gap-2 border-t border-border pt-4" aria-label="Likelihood to qualify">
+                  <p className="text-sm font-semibold text-text">Likelihood to qualify (model estimate)</p>
+                  <p className="text-xs text-text-muted">
+                    {"Learned from past qualified and unqualified leads. It is shown next to the score, not added to it."}
+                  </p>
+                  <div className="flex flex-wrap items-center gap-4">
+                    <Field label="Likelihood" value={`${explanation.propensity_score}%`} />
+                    <Field label="Band" value={explanation.propensity_grade ? humanize(explanation.propensity_grade) : "—"} />
+                    <Field label="Last calculated" value={explanation.propensity_calculated_at ? dateTimeFormatter.format(new Date(explanation.propensity_calculated_at)) : "Never"} />
+                  </div>
+                  {propensityFactors.length > 0 && (
+                    <ul className="flex flex-col gap-1">
+                      {propensityFactors.slice(0, 5).map((factor, i) => (
+                        <li key={i} className="flex justify-between text-sm text-text-secondary">
+                          <span>{describeFactor(factor.name)}</span>
+                          <span>{factor.points > 0 ? "Raises the likelihood" : factor.points < 0 ? "Lowers the likelihood" : "No effect"}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                  {explanation.propensity_explanation?.model && (
+                    <p className="text-xs text-text-muted">Model: {explanation.propensity_explanation.model.name} (v{explanation.propensity_explanation.model.version})</p>
+                  )}
+                </div>
+              )}
+              <div className="flex flex-col gap-2 border-t border-border pt-4">
+                <p className="text-sm font-semibold text-text">Attribution</p>
+                {attributionQuery.isLoading && <p className="text-sm text-text-secondary">Loading touchpoints…</p>}
+                {attributionQuery.isSuccess && (attributionQuery.data.timeline.touchpoints.length === 0 ? (
+                  <p className="text-sm text-text-secondary">No marketing touchpoints recorded for this Lead yet.</p>
+                ) : (
+                  <>
+                    <p className="text-xs text-text-muted">{`Credit model: ${humanize(attributionQuery.data.timeline.model)}`}</p>
+                    <ul className="flex flex-col gap-1">
+                      {attributionQuery.data.timeline.touchpoints.map((touchpoint) => (
+                        <li key={touchpoint.id} className="flex items-center justify-between gap-2 text-sm text-text-secondary">
+                          <span>{`${humanize(touchpoint.event_type)} · ${humanize(touchpoint.channel)}${touchpoint.campaign_name ? ` · ${touchpoint.campaign_name}` : ""}`}</span>
+                          <span className="shrink-0 text-xs tabular-nums">{`${formatDate(touchpoint.event_at)} · ${Math.round(touchpoint.creditWeight * 100)}% credit`}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </>
+                ))}
+              </div>
+            </div>
+          </TabPanel>
+
+          <TabPanel id="privacy">
+            <div className="flex flex-col gap-4 py-4">
+              <div className="flex items-center justify-between gap-3">
+                <p className="text-sm text-text-secondary">Consent evidence and data-subject requests recorded for this Lead. See CRM Settings &rsaquo; Data Subject Requests to review and execute a request.</p>
+                {canManageLeads && (
+                  <Button variant="secondary" size="compact" onPress={() => setPrivacyRequestOpen(true)}>
+                    <ShieldAlert className="size-4" aria-hidden="true" />
+                    New privacy request
+                  </Button>
+                )}
+              </div>
+              {consentQuery.isLoading && <p className="text-sm text-text-secondary">Loading consent history…</p>}
+              {consentQuery.isSuccess && (consentQuery.data.rows.length === 0 ? (
+                <p className="text-sm text-text-secondary">No consent events recorded for this Lead yet.</p>
+              ) : (
+                <ul className="flex flex-col gap-1">
+                  {consentQuery.data.rows.map((event) => (
+                    <li key={event.id} className="flex items-center justify-between gap-2 text-sm text-text-secondary">
+                      <span>{`${humanize(event.channel)} ${event.action} (${humanize(event.source)})`}</span>
+                      <span className="shrink-0 text-xs tabular-nums">{formatDate(event.occurredAt)}</span>
+                    </li>
+                  ))}
+                </ul>
+              ))}
             </div>
           </TabPanel>
 
           <TabPanel id="activity">
             <div className="py-4">
-              {timelineQuery.isLoading ? (
-                <p className="text-sm text-text-secondary">Loading activity…</p>
-              ) : (
-                <Timeline entries={timelineEntries} emptyMessage="No activity recorded for this Lead yet." />
-              )}
+              <RecordTimelinePanel entityType="lead" entityId={leadId} />
+            </div>
+          </TabPanel>
+
+          <TabPanel id="communications">
+            <div className="py-4">
+              <EmailHistoryPanel entityType="lead" entityId={leadId} />
             </div>
           </TabPanel>
 
@@ -774,8 +948,20 @@ export function LeadDetailScreen({ leadId }: { leadId: string }) {
             <p className="text-sm text-text-secondary">
               Review any existing Account/Contact this Lead might match before converting. An exact match is pre-selected; choose &ldquo;Create a new&hellip;&rdquo; to make a new record instead.
             </p>
-            <Select label="Account" options={accountChoiceOptions} selectedKey={convertPartyId} onSelectionChange={(key) => setConvertPartyId(String(key ?? ""))} />
+            <Select
+              label="Account"
+              options={accountChoiceOptions}
+              selectedKey={convertPartyId}
+              onSelectionChange={(key) => {
+                const nextPartyId = String(key ?? "");
+                setConvertPartyId(nextPartyId);
+                if (!contactCandidates.some((row) => row.id === convertContactId && row.party_id === nextPartyId)) setConvertContactId("");
+              }}
+            />
             <Select label="Contact" options={contactChoiceOptions} selectedKey={convertContactId} onSelectionChange={(key) => setConvertContactId(String(key ?? ""))} />
+            {!convertPartyId && contactCandidates.length > 0 && (
+              <p className="text-xs text-text-muted">{`${contactCandidates.length} similar contact${contactCandidates.length === 1 ? " exists" : "s exist"} under other accounts; a new Contact is created under the new Account.`}</p>
+            )}
           </>
         )}
         {actionError && (
@@ -785,6 +971,31 @@ export function LeadDetailScreen({ leadId }: { leadId: string }) {
           <Button variant="secondary" onPress={() => handleConvertPreviewOpenChange(false)}>Cancel</Button>
           <Button variant="primary" onPress={() => convertMutation.mutate()} isLoading={convertMutation.isPending} isDisabled={convertPreviewQuery.isLoading}>
             Convert
+          </Button>
+        </div>
+      </div>
+    </Dialog>
+    <Dialog isOpen={privacyRequestOpen} onOpenChange={setPrivacyRequestOpen} title="New privacy request for this Lead">
+      <div className="flex flex-col gap-4">
+        <Select
+          label="Request type"
+          options={[
+            { value: "access", label: "Access" },
+            { value: "export", label: "Export" },
+            { value: "correction", label: "Correction" },
+            { value: "deletion", label: "Deletion" },
+            { value: "restriction", label: "Restriction" },
+            { value: "consent_withdrawal", label: "Consent withdrawal" },
+          ]}
+          selectedKey={privacyRequestType}
+          onSelectionChange={(key) => setPrivacyRequestType(String(key ?? "export"))}
+        />
+        <p className="text-xs text-text-muted">Review, verify identity and execute the request from CRM Settings &rsaquo; Data Subject Requests.</p>
+        {actionError && <p role="alert" className="text-sm text-danger">{actionError}</p>}
+        <div className="flex justify-end gap-2">
+          <Button variant="secondary" onPress={() => setPrivacyRequestOpen(false)}>Cancel</Button>
+          <Button variant="primary" onPress={() => privacyRequestMutation.mutate()} isLoading={privacyRequestMutation.isPending}>
+            Create request
           </Button>
         </div>
       </div>

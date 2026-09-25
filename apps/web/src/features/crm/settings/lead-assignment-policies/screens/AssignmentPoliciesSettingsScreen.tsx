@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { ColumnDef } from "@tanstack/react-table";
-import { HelpCircle, Pencil, Plus, Power } from "lucide-react";
+import { HelpCircle, Pencil, Plus, Power, Trash2, UserCog } from "lucide-react";
 import {
   Button,
   Dialog,
@@ -14,24 +14,31 @@ import {
   PermissionState,
   Select,
   StatusBadge,
+  TextArea,
   TextField,
   type SelectOption,
 } from "@vercentlabs/design-system";
 import { CRM_PERMISSIONS } from "@vercentlabs/permissions";
 
+import { DateTimeInput } from "@/features/crm/shared/ui/DateTimeInput";
 import { gridStates } from "@/features/crm/shared/ui/gridStates";
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import { getCrmOptions } from "@/features/crm/shared/crm-options-api";
 import {
   AssignmentPolicyApiError,
+  clearLeadAssigneeAvailability,
   createLeadAssignmentPolicy,
   explainAssignmentPolicy,
+  getLeadAssignmentFallback,
+  listLeadAssigneeAvailability,
   listLeadAssignmentPolicies,
+  setLeadAssigneeAvailability,
+  setLeadAssignmentFallback,
   setLeadAssignmentPolicyStatus,
   updateLeadAssignmentPolicy,
 } from "../api/lead-assignment-policies-api";
-import type { AssignmentMode, LeadAssignmentPolicy } from "../types";
+import type { AssignmentMode, LeadAssigneeAvailability, LeadAssignmentPolicy } from "../types";
 
 const MODE_OPTIONS: SelectOption[] = [
   { value: "fixed", label: "Fixed owner" },
@@ -160,6 +167,9 @@ export function AssignmentPoliciesSettingsScreen() {
           )}
         />
       </EnterpriseListPage>
+
+      <FallbackOwnerPanel userOptions={userOptions} onError={handleError} />
+      <OutOfOfficePanel userOptions={userOptions} onError={handleError} />
 
       <ExplainDialog policy={explainingPolicy} onOpenChange={(open) => !open && setExplainingPolicy(null)} />
 
@@ -315,6 +325,168 @@ function ExplainDialog({ policy, onOpenChange }: { policy: LeadAssignmentPolicy 
         </ul>
         <div className="flex justify-end">
           <Button variant="secondary" onPress={() => onOpenChange(false)}>Close</Button>
+        </div>
+      </div>
+    </Dialog>
+  );
+}
+
+// F005 gap-closure — getLeadAssignmentFallback/setLeadAssignmentFallback
+// already existed and were already the row resolveLeadAssignment checks
+// once, last, only after every active rule above has failed to produce an
+// eligible owner. There was previously no screen to set it; an admin's
+// only option was writing SQL directly against the tenant database.
+function FallbackOwnerPanel({ userOptions, onError }: { userOptions: SelectOption[]; onError: (error: unknown) => void }) {
+  const workspace = useWorkspaceContext();
+  const queryClient = useQueryClient();
+  const query = useQuery({ queryKey: scopedQueryKey(workspace, "crm", "lead-assignment-fallback"), queryFn: getLeadAssignmentFallback });
+  const fallback = query.data?.record;
+
+  const [selected, setSelected] = useState("");
+  const [seededFor, setSeededFor] = useState<string | null | undefined>(undefined);
+  if (fallback && fallback.fallback_user_id !== seededFor) {
+    setSeededFor(fallback.fallback_user_id);
+    setSelected(fallback.fallback_user_id ?? "");
+  }
+
+  const mutation = useMutation({
+    mutationFn: () => setLeadAssignmentFallback(selected || null),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: scopedQueryKey(workspace, "crm", "lead-assignment-fallback") }),
+    onError,
+  });
+
+  const options: SelectOption[] = [{ value: "", label: "No fallback owner" }, ...userOptions];
+  const dirty = selected !== (fallback?.fallback_user_id ?? "");
+
+  return (
+    <section className="flex flex-col gap-3 rounded-[var(--radius-panel)] border border-border-strong bg-surface p-4">
+      <div className="flex items-center gap-2">
+        <UserCog className="size-4 text-text-secondary" aria-hidden="true" />
+        <h2 className="text-base font-semibold text-text">Fallback owner</h2>
+      </div>
+      <p className="text-sm text-text-secondary">
+        Checked last, only when none of the rules above produce an eligible owner. Leaves a Lead unassigned if nobody is set.
+      </p>
+      <div className="flex flex-wrap items-end gap-3">
+        <Select label="Fallback owner" size="compact" options={options} selectedKey={selected} onSelectionChange={(key) => setSelected(String(key ?? ""))} className="min-w-[240px]" />
+        <Button variant="secondary" size="compact" onPress={() => mutation.mutate()} isLoading={mutation.isPending} isDisabled={!dirty}>
+          Save
+        </Button>
+      </div>
+      {fallback?.updated_at && (
+        <p className="text-xs text-text-muted">
+          Currently {fallback.fallback_user_name ? `set to ${fallback.fallback_user_name}` : "not set"}.
+        </p>
+      )}
+    </section>
+  );
+}
+
+// F005 gap-closure — listLeadAssigneeAvailability/setLeadAssigneeAvailability/
+// clearLeadAssigneeAvailability already existed and were already consulted
+// by the engine for automatic assignment only (a manual override always
+// ignores this). There was previously no screen exposing any of it.
+function OutOfOfficePanel({ userOptions, onError }: { userOptions: SelectOption[]; onError: (error: unknown) => void }) {
+  const workspace = useWorkspaceContext();
+  const queryClient = useQueryClient();
+  const [addOpen, setAddOpen] = useState(false);
+  const query = useQuery({ queryKey: scopedQueryKey(workspace, "crm", "lead-assignee-availability"), queryFn: listLeadAssigneeAvailability });
+  const rows = useMemo(() => [...(query.data?.rows ?? [])].sort((a, b) => a.starts_at.localeCompare(b.starts_at)), [query.data]);
+
+  function invalidate() {
+    queryClient.invalidateQueries({ queryKey: scopedQueryKey(workspace, "crm", "lead-assignee-availability") });
+  }
+
+  const removeMutation = useMutation({
+    mutationFn: (id: string) => clearLeadAssigneeAvailability(id),
+    onSuccess: invalidate,
+    onError,
+  });
+
+  const dateFormatter = new Intl.DateTimeFormat("en-IN", { dateStyle: "medium", timeStyle: "short" });
+
+  return (
+    <section className="flex flex-col gap-3 rounded-[var(--radius-panel)] border border-border-strong bg-surface p-4">
+      <div className="flex items-center justify-between gap-4">
+        <div>
+          <h2 className="text-base font-semibold text-text">Out of office</h2>
+          <p className="text-sm text-text-secondary">
+            While a window is active, automatic assignment skips that person. A manual assignment can still choose them.
+          </p>
+        </div>
+        <Button variant="secondary" size="compact" onPress={() => setAddOpen(true)}>
+          <Plus className="size-4" aria-hidden="true" />
+          Add window
+        </Button>
+      </div>
+      {query.isLoading && <p className="text-sm text-text-secondary">Loading…</p>}
+      {!query.isLoading && rows.length === 0 && <p className="text-sm text-text-muted">Nobody is currently marked out of office.</p>}
+      {rows.length > 0 && (
+        <ul className="flex flex-col gap-2">
+          {rows.map((row: LeadAssigneeAvailability) => (
+            <li key={row.id} className="flex items-center justify-between gap-2 rounded-[var(--radius-control)] border border-border-strong px-3 py-2 text-sm">
+              <span className="flex flex-col">
+                <span className="font-medium text-text">{row.user_name}</span>
+                <span className="text-xs text-text-muted">
+                  {dateFormatter.format(new Date(row.starts_at))} – {dateFormatter.format(new Date(row.ends_at))}
+                  {row.reason ? ` · ${row.reason}` : ""}
+                </span>
+              </span>
+              <IconButton aria-label={`Remove out-of-office window for ${row.user_name}`} size="compact" variant="ghost" onPress={() => removeMutation.mutate(row.id)} isDisabled={removeMutation.isPending}>
+                <Trash2 className="size-4" aria-hidden="true" />
+              </IconButton>
+            </li>
+          ))}
+        </ul>
+      )}
+      <AddAvailabilityDialog isOpen={addOpen} onOpenChange={setAddOpen} userOptions={userOptions} onSaved={invalidate} onError={onError} />
+    </section>
+  );
+}
+
+function AddAvailabilityDialog({
+  isOpen,
+  onOpenChange,
+  userOptions,
+  onSaved,
+  onError,
+}: {
+  isOpen: boolean;
+  onOpenChange: (open: boolean) => void;
+  userOptions: SelectOption[];
+  onSaved: () => void;
+  onError: (error: unknown) => void;
+}) {
+  const [userId, setUserId] = useState("");
+  const [startsAt, setStartsAt] = useState("");
+  const [endsAt, setEndsAt] = useState("");
+  const [reason, setReason] = useState("");
+
+  const mutation = useMutation({
+    mutationFn: () => setLeadAssigneeAvailability({ userId, startsAt, endsAt, reason: reason || undefined }),
+    onSuccess: () => {
+      onSaved();
+      onOpenChange(false);
+      setUserId("");
+      setStartsAt("");
+      setEndsAt("");
+      setReason("");
+    },
+    onError,
+  });
+
+  return (
+    <Dialog isOpen={isOpen} onOpenChange={onOpenChange} title="Mark someone out of office">
+      <div className="flex flex-col gap-4">
+        <Select label="Team member" options={userOptions} selectedKey={userId} onSelectionChange={(key) => setUserId(String(key ?? ""))} />
+        <DateTimeInput label="From" value={startsAt} onChange={setStartsAt} isRequired />
+        <DateTimeInput label="Until" value={endsAt} onChange={setEndsAt} isRequired />
+        <TextArea label="Reason (optional)" value={reason} onChange={setReason} />
+        <div className="flex justify-end gap-2">
+          <Button variant="secondary" onPress={() => onOpenChange(false)}>Cancel</Button>
+          <Button variant="primary" onPress={() => mutation.mutate()} isLoading={mutation.isPending} isDisabled={!userId || !startsAt || !endsAt}>
+            Add window
+          </Button>
         </div>
       </div>
     </Dialog>

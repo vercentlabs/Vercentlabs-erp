@@ -30,7 +30,7 @@ import { dueState, formatMoney } from "@/features/crm/shared/human";
 import { getCrmOptions } from "@/features/crm/shared/crm-options-api";
 import { money } from "@/features/crm/shared/format";
 import { SavedViewsBar } from "@/features/crm/shared/SavedViewsBar";
-import { bulkUpdateOpportunitiesRequest, listOpportunities, OpportunityApiError } from "../api/opportunities-api";
+import { bulkUpdateOpportunitiesRequest, listOpportunities, OpportunityApiError, type OpportunityBulkSyncResult } from "../api/opportunities-api";
 import type { Opportunity, OpportunityListFilters } from "../types";
 
 const PAGE_SIZE = 25;
@@ -46,23 +46,24 @@ function filtersFromSearchParams(params: URLSearchParams): OpportunityListFilter
   if (stageId) filters.stageId = stageId;
   if (status) filters.status = status;
   if (stalled === "true") filters.stalled = "true";
+  const ownerId = params.get("ownerId");
+  if (ownerId) filters.ownerId = ownerId;
+  const forecastCategory = params.get("forecastCategory");
+  if (forecastCategory) filters.forecastCategory = forecastCategory;
+  const outcomeReasonId = params.get("outcomeReasonId");
+  if (outcomeReasonId) filters.outcomeReasonId = outcomeReasonId;
+  for (const key of ["closedFrom", "closedTo", "expectedCloseFrom", "expectedCloseTo"] as const) {
+    const value = params.get(key);
+    if (value && /^\d{4}-\d{2}-\d{2}$/.test(value)) filters[key] = value;
+  }
   if (offset) filters.offset = Number(offset) || 0;
   return filters;
 }
 
 const BULK_FIELD_OPTIONS: SelectOption[] = [
   { value: "ownerUserId", label: "Owner" },
-  { value: "forecastCategory", label: "Forecast category" },
   { value: "expectedCloseDate", label: "Expected close date" },
   { value: "nextStep", label: "Next step" },
-];
-
-const FORECAST_CATEGORY_OPTIONS: SelectOption[] = [
-  { value: "omitted", label: "Omitted" },
-  { value: "pipeline", label: "Pipeline" },
-  { value: "best_case", label: "Best case" },
-  { value: "committed", label: "Committed" },
-  { value: "closed", label: "Closed" },
 ];
 
 const statusTone: Record<string, "neutral" | "info" | "success" | "warning" | "danger"> = {
@@ -123,12 +124,20 @@ export function OpportunityListScreen() {
 
   const activeFilters: ActiveFilter[] = useMemo(() => {
     const active: ActiveFilter[] = [];
-    if (filters.status && filters.status !== "open") active.push({ id: "status", label: `Status: ${filters.status}` });
+    if (filters.status && filters.status !== "open") active.push({ id: "status", label: filters.status === "closed" ? "Status: won or lost" : `Status: ${filters.status}` });
+    if (filters.ownerId) active.push({ id: "ownerId", label: filters.ownerId === "me" ? "Owner: me" : filters.ownerId === "team" ? "Owner: my team" : filters.ownerId === "unassigned" ? "Owner: unassigned" : `Owner: ${ownerOptions.find((option) => option.value === filters.ownerId)?.label ?? "someone outside your list"}` });
+    if (filters.closedFrom || filters.closedTo) active.push({ id: "closed", label: `Closed ${filters.closedFrom ?? "…"} – ${filters.closedTo ?? "…"}` });
+    if (filters.expectedCloseFrom || filters.expectedCloseTo) active.push({ id: "expectedClose", label: `Expected to close ${filters.expectedCloseFrom ?? "…"} – ${filters.expectedCloseTo ?? "…"}` });
+    if (filters.forecastCategory) active.push({ id: "forecastCategory", label: `Forecast: ${filters.forecastCategory.replace("_", " ")}` });
+    if (filters.outcomeReasonId) {
+      const reason = ((optionsQuery.data?.options?.lostReasons ?? []) as Array<{ id: string; name: string }>).find((row) => String(row.id) === filters.outcomeReasonId);
+      active.push({ id: "outcomeReasonId", label: filters.outcomeReasonId === "none" ? "Reason: none recorded" : `Reason: ${reason?.name ?? "a retired reason"}` });
+    }
     if (filters.stageId) active.push({ id: "stageId", label: "Stage filter" });
     if (filters.stalled) active.push({ id: "stalled", label: "Stalled" });
     if (filters.search) active.push({ id: "search", label: `Search: ${filters.search}` });
     return active;
-  }, [filters]);
+  }, [filters, ownerOptions, optionsQuery.data]);
 
   const rows = query.data?.rows ?? [];
   const total = query.data?.total ?? 0;
@@ -144,7 +153,23 @@ export function OpportunityListScreen() {
     return rest;
   }, [filters]);
 
-  async function runBulkUpdate() {
+  // F029 — every row runs through the single-record rules; the summary
+  // names what will not (or did not) change and why. Preview writes nothing.
+  function describeBulk(result: OpportunityBulkSyncResult) {
+    const done = result.preview ? `${result.would_apply} of ${result.requested} would be updated` : `${result.applied} of ${result.requested} updated`;
+    const parts = [
+      result.conflict ? `${result.conflict} changed since you selected them` : "",
+      result.skipped ? `${result.skipped} not available to you` : "",
+      result.failed ? `${result.failed} refused` : "",
+    ].filter(Boolean);
+    const problems = result.items
+      .filter((item) => item.status !== "applied" && item.status !== "would_apply")
+      .slice(0, 5)
+      .map((item) => `${item.name ?? item.id.slice(0, 8)}: ${item.message ?? item.status}`);
+    return [`${result.preview ? "Preview: " : ""}${done}${parts.length ? `; ${parts.join(", ")}` : ""}.`, ...problems].join(" ");
+  }
+
+  async function runBulkUpdate(preview = false) {
     if (!bulkValue) return;
     setBulkBusy(true);
     setBulkResult(null);
@@ -153,9 +178,11 @@ export function OpportunityListScreen() {
         selectedIds,
         { [bulkField]: bulkValue },
         `web-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+        preview,
       );
       if (result.mode === "synchronous") {
-        setBulkResult(`${result.updated} of ${result.requested} opportunities updated (open opportunities only; a row outside your scope or already closed is silently not included).`);
+        setBulkResult(describeBulk(result));
+        if (result.preview) return;
       } else {
         setBulkResult(`Large selection queued as background job ${result.job.id} (status: ${result.job.status}).`);
       }
@@ -163,9 +190,9 @@ export function OpportunityListScreen() {
       setBulkResult(error instanceof OpportunityApiError ? error.message : "The bulk update could not be completed.");
     } finally {
       setBulkBusy(false);
-      setSelection({});
-      queryClient.invalidateQueries({ queryKey: scopedQueryKey(workspace, "crm", "opportunities") });
     }
+    setSelection({});
+    queryClient.invalidateQueries({ queryKey: scopedQueryKey(workspace, "crm", "opportunities") });
   }
 
   const columns: ColumnDef<Opportunity, unknown>[] = useMemo(
@@ -237,6 +264,7 @@ export function OpportunityListScreen() {
                 { value: "open", label: "Open" },
                 { value: "won", label: "Won" },
                 { value: "lost", label: "Lost" },
+                { value: "closed", label: "Won or lost" },
                 { value: "all", label: "All" },
               ]}
               selectedKey={filters.status ?? "open"}
@@ -253,7 +281,7 @@ export function OpportunityListScreen() {
       }}
       filterBar={{
         filters: activeFilters,
-        onRemove: (id) => setFilters((current) => ({ ...current, [id]: undefined, offset: 0 })),
+        onRemove: (id) => setFilters((current) => (id === "closed" ? { ...current, closedFrom: undefined, closedTo: undefined, offset: 0 } : id === "expectedClose" ? { ...current, expectedCloseFrom: undefined, expectedCloseTo: undefined, offset: 0 } : { ...current, [id]: undefined, offset: 0 })),
         onClearAll: activeFilters.length > 0 ? () => { setSearchInput(""); setFilters({ limit: PAGE_SIZE, offset: 0, status: "open" }); } : undefined,
       }}
       bulkActionBar={{
@@ -264,12 +292,13 @@ export function OpportunityListScreen() {
             <Select aria-label="Bulk field" size="compact" options={BULK_FIELD_OPTIONS} selectedKey={bulkField} onSelectionChange={(key) => { setBulkField(String(key)); setBulkValue(""); }} />
             {bulkField === "ownerUserId" ? (
               <Select aria-label="New owner" size="compact" options={ownerOptions} selectedKey={bulkValue} onSelectionChange={(key) => setBulkValue(String(key))} placeholder="Choose…" />
-            ) : bulkField === "forecastCategory" ? (
-              <Select aria-label="New forecast category" size="compact" options={FORECAST_CATEGORY_OPTIONS} selectedKey={bulkValue} onSelectionChange={(key) => setBulkValue(String(key))} placeholder="Choose…" />
             ) : (
               <TextField aria-label="New value" size="compact" placeholder={bulkField === "expectedCloseDate" ? "YYYY-MM-DD" : "Next step"} value={bulkValue} onChange={setBulkValue} className="w-40" />
             )}
-            <Button variant="secondary" size="compact" onPress={runBulkUpdate} isLoading={bulkBusy} isDisabled={!canManage || !bulkValue}>
+            <Button variant="ghost" size="compact" onPress={() => runBulkUpdate(true)} isLoading={bulkBusy} isDisabled={!canManage || !bulkValue || selectedIds.length > 200}>
+              Preview
+            </Button>
+            <Button variant="secondary" size="compact" onPress={() => runBulkUpdate(false)} isLoading={bulkBusy} isDisabled={!canManage || !bulkValue}>
               Apply to selected
             </Button>
           </>
@@ -284,7 +313,7 @@ export function OpportunityListScreen() {
         onApply={(next) => setFilters(next)}
       />
       {bulkResult && (
-        <p role="status" className="rounded-[var(--radius-control)] border border-warning-emphasis/30 bg-warning-soft px-3 py-2 text-sm text-warning">
+        <p role="status" className="rounded-[var(--radius-control)] border border-border bg-surface px-3 py-2 text-sm text-text">
           {bulkResult}
         </p>
       )}

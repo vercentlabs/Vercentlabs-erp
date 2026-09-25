@@ -40,7 +40,7 @@ export function CrmHomeScreen() {
 
   const query = useQuery({
     queryKey: scopedQueryKey(workspace, "crm", "dashboard"),
-    queryFn: getCrmDashboardData,
+    queryFn: () => getCrmDashboardData(),
   });
 
   if (query.isLoading) return <LoadingState label="Loading CRM" rows={4} onRetry={() => query.refetch()} />;

@@ -88,3 +88,21 @@ export async function removeTaskDependency(taskId: string, dependsOnTaskId: stri
   const response = await fetch(`/api/crm/tasks/${taskId}/dependencies/${dependsOnTaskId}`, { method: "DELETE" });
   return parseResponse(response);
 }
+
+// F015 gap-closure — listCrmTaskHistory (the crm_task_events ledger) existed
+// with no route or frontend caller anywhere.
+export type TaskEvent = {
+  id: string;
+  eventType: "created" | "updated" | "started" | "completed" | "cancelled";
+  fromStatus: string | null;
+  toStatus: string | null;
+  metadata: Record<string, unknown>;
+  actorUserId: string | null;
+  actorName: string | null;
+  occurredAt: string;
+};
+
+export async function listTaskHistory(taskId: string): Promise<{ rows: TaskEvent[] }> {
+  const response = await fetch(`/api/crm/tasks/${taskId}/history`);
+  return parseResponse(response);
+}

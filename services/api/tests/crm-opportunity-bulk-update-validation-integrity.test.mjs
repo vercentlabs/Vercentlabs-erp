@@ -38,19 +38,20 @@ function mockClient({ membershipRows = [] } = {}) {
   };
 }
 
-test("bulkUpdateOpportunities: an invalid forecastCategory is rejected before touching the database", async () => {
+test("bulkUpdateOpportunities: forecastCategory is refused before touching the database (stage-governed, as in a single-record edit)", async () => {
   const client = mockClient();
   await assert.rejects(
     bulkUpdateOpportunities(client, context, { ids: [opportunityId], changes: { forecastCategory: "not-a-real-category" } }),
-    (error) => error.status === 400 && error.code === "CRM_OPPORTUNITY_BULK_FORECAST_CATEGORY_INVALID",
+    (error) => error.status === 400 && error.code === "CRM_OPPORTUNITY_BULK_FIELD_UNSUPPORTED",
   );
   assert.equal(client.queries.filter((q) => /^\s*UPDATE/i.test(q.sql)).length, 0, "no UPDATE should run for an invalid category");
 });
 
-test("bulkUpdateOpportunities: a valid forecastCategory is accepted", async () => {
+test("bulkUpdateOpportunities: even a valid forecastCategory is refused — bulk reuses the single-record rule", async () => {
   const client = mockClient();
-  await assert.doesNotReject(
+  await assert.rejects(
     bulkUpdateOpportunities(client, context, { ids: [opportunityId], changes: { forecastCategory: "best_case" } }),
+    (error) => error.code === "CRM_OPPORTUNITY_BULK_FIELD_UNSUPPORTED",
   );
 });
 

@@ -14,12 +14,13 @@ import { crmContext, requireCrmAccess } from "@/features/crm/shared/crm-context"
 const FILTER_KEYS = ["from", "to"] as const;
 
 // F030. Row/field scope, aggregation security and time basis are
-// getCrmReport's own authority for each of its ~14 report kinds (pipeline,
-// conversion, sources, activities, forecast, campaigns, revenue-
-// operations, account-health, privacy, pipeline-intelligence, engagement-
-// intelligence, relationship-coverage, partner-pipeline, ai-governance) —
-// this route only forwards the report key and filters. getCrmReport does
-// not check crm.reports.view internally, so this route enforces it.
+// getCrmReport's own authority for each of its ~15 report kinds (pipeline,
+// conversion, sources, activities, forecast, campaigns, attribution,
+// revenue-operations, account-health, privacy, pipeline-intelligence,
+// engagement-intelligence, relationship-coverage, partner-pipeline,
+// ai-governance) — this route only forwards the report key and filters.
+// getCrmReport does not check crm.reports.view internally, so this route
+// enforces it.
 export async function GET(request: Request, context: { params: Promise<{ report: string }> }) {
   try {
     const session = await requireWorkspace();
