@@ -1,6 +1,6 @@
 import pg from "pg";
 import { validateRuntimeEnvironment } from "@vercentlabs/config";
-import { setTenantContext } from "@vercentlabs/database";
+import { runTenantTransaction } from "@vercentlabs/database";
 import { createLogger } from "@vercentlabs/observability";
 
 const { Pool } = pg;
@@ -147,14 +147,7 @@ export async function listActiveOrganizationIds(runtimePool) {
 export async function withTenantClient(runtimePool, organizationId, work) {
   const client = await runtimePool.connect();
   try {
-    await client.query("BEGIN");
-    await setTenantContext(client, organizationId);
-    const result = await work(client);
-    await client.query("COMMIT");
-    return result;
-  } catch (error) {
-    await client.query("ROLLBACK").catch(() => {});
-    throw error;
+    return await runTenantTransaction(client, organizationId, work);
   } finally {
     client.release();
   }

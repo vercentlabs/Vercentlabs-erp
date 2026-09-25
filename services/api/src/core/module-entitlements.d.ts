@@ -17,7 +17,14 @@ export declare function getEnabledModuleKeys(client: any, organizationId: string
 export declare function isModuleEnabledForTenant(moduleId: string, enabledModuleKeys: ReadonlySet<string>): boolean;
 export declare function isModuleEntitled(client: any, organizationId: string, moduleId: string, env?: any): Promise<{ entitled: boolean; enforced: boolean }>;
 export declare function isModulePermitted(session: any, moduleId: string): boolean;
-export declare function resolveModuleAccess(client: any, session: any, moduleId: string, options?: { enabledModuleKeys?: ReadonlySet<string> }, env?: any): Promise<ModuleAccess>;
+export declare function entitlementFromBillingSummary(billingSummary: { modules?: readonly string[]; enforcementMode?: string } | null, moduleId: string): { entitled: boolean; enforced: boolean };
+export declare function evaluateModuleAccess(input: {
+  moduleId: string;
+  enabledModuleKeys: ReadonlySet<string> | null;
+  billingSummary: { modules?: readonly string[]; enforcementMode?: string } | null;
+  permitted: boolean;
+}): ModuleAccess;
+export declare function resolveModuleAccess(client: any, session: any, moduleId: string, options?: { enabledModuleKeys?: ReadonlySet<string>; billingSummary?: any }, env?: any): Promise<ModuleAccess>;
 export declare function canUserAccessModule(client: any, session: any, moduleId: string, env?: any): Promise<boolean>;
 export declare class ModuleAccessError extends Error {
   status: number;

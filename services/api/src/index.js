@@ -148,6 +148,8 @@ export * from "./orchestration/sales-stock-fulfillment.js";
 // recovered-platform-code and re-reviewed for the current security
 // standard; none of the ACTIVE code re-exported here reads from that
 // parked directory at runtime.
+// Shared Access public boundary (see core/access/index.js).
+export * from "./core/access/index.js";
 export * from "./core/access-control-runtime.js";
 export * from "./core/session.js";
 export * from "./core/access-administration.js";

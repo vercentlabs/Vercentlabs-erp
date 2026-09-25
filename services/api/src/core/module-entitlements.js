@@ -1,8 +1,7 @@
-// Ported from docs/frontend-rebuild/recovered-platform-code/apps/web/src/
-// core/module-access.ts. The single composed authority for "can this user
-// reach module X right now" — Phase 7's navigation registry (and any
-// server-side guard) must call resolveModuleAccess()/assertModuleAccessible()
-// rather than re-implement any part of this pipeline:
+// The single composed authority for "can this user reach module X right
+// now". The Shared Access boundary (./access/) builds its request-scoped
+// WorkspaceAccessSnapshot on the same pure evaluator below, so the legacy
+// per-module calls and the snapshot can never disagree:
 //
 //   PRODUCT MODULE (ERP_MODULE_CATALOG.availability === "released")
 //         v
@@ -10,31 +9,18 @@
 //         v
 //   PLAN / ENTITLEMENT (billing plan's modules list, enforcementMode-aware)
 //         v
-//   ROLE + PERMISSION (session.permissions includes the module's base view permission)
+//   ROLE + PERMISSION (the module's base view permission, from
+//                      @vercentlabs/permissions MODULE_ACCESS_PERMISSIONS)
 //         v
 //   -> accessible
 //
 // Fails closed at every stage: any lookup error is treated as
 // "not accessible", never granting access on a system failure.
+import { moduleAccessPermission } from "@vercentlabs/permissions";
 import { ERP_MODULE_CATALOG } from "@vercentlabs/shared-types";
 
 import { hasSessionPermission, PERMISSIONS } from "./access-control-runtime.js";
 import { getBillingSummary } from "./entitlements.js";
-
-const MODULE_VIEW_PERMISSIONS = Object.freeze({
-  crm: "crm.view",
-  sales: "sales.view",
-  accounting: "accounting.view",
-  procurement: "procurement.view",
-  stock: "stock.view",
-  manufacturing: "manufacturing.view",
-  projects: "projects.view",
-  assets: "assets.view",
-  "point-of-sale": "pos.view",
-  quality: "quality.view",
-  support: "support.view",
-  "hr-payroll": "hr_payroll.view",
-});
 
 export function getModuleDefinition(moduleId) {
   return ERP_MODULE_CATALOG.find((module) => module.key === moduleId) ?? null;
@@ -56,16 +42,44 @@ export function isModuleEnabledForTenant(moduleId, enabledModuleKeys) {
   return enabledModuleKeys.has(moduleId);
 }
 
+// billingSummary === null means the lookup failed: not entitled, enforced.
+export function entitlementFromBillingSummary(billingSummary, moduleId) {
+  if (!billingSummary) return { entitled: false, enforced: true };
+  const modules = Array.isArray(billingSummary.modules) ? billingSummary.modules : [];
+  return {
+    entitled: modules.includes("*") || modules.includes(moduleId),
+    enforced: billingSummary.enforcementMode === "enforce",
+  };
+}
+
 export async function isModuleEntitled(client, organizationId, moduleId, env = process.env) {
-  const summary = await getBillingSummary(client, organizationId, env);
-  const allowed = summary.modules.includes("*") || summary.modules.includes(moduleId);
-  return { entitled: allowed, enforced: summary.enforcementMode === "enforce" };
+  return entitlementFromBillingSummary(await getBillingSummary(client, organizationId, env), moduleId);
 }
 
 export function isModulePermitted(session, moduleId) {
-  const permission = MODULE_VIEW_PERMISSIONS[moduleId];
+  const permission = moduleAccessPermission(moduleId);
   if (!permission) return false;
   return hasSessionPermission(session, permission);
+}
+
+// Pure decision: no I/O. enabledModuleKeys === null means the enablement
+// lookup failed (treated as disabled); billingSummary === null means the
+// billing lookup failed (treated as not entitled, enforced).
+export function evaluateModuleAccess({ moduleId, enabledModuleKeys, billingSummary, permitted }) {
+  const definition = getModuleDefinition(moduleId);
+  const name = definition?.name ?? moduleId;
+  if (!definition || definition.availability !== "released") {
+    return { moduleId, name, released: false, enabled: false, entitled: false, permitted: false, accessible: false, reason: "not_released" };
+  }
+  const enabled = Boolean(enabledModuleKeys && isModuleEnabledForTenant(moduleId, enabledModuleKeys));
+  const { entitled, enforced } = entitlementFromBillingSummary(billingSummary, moduleId);
+  const entitlementBlocks = !entitled && enforced;
+  const accessible = enabled && !entitlementBlocks && permitted;
+  let reason;
+  if (!enabled) reason = "disabled";
+  else if (entitlementBlocks) reason = "not_entitled";
+  else if (!permitted) reason = "not_permitted";
+  return { moduleId, name, released: true, enabled, entitled, permitted, accessible, reason };
 }
 
 const REASON_CODES = Object.freeze({
@@ -75,41 +89,33 @@ const REASON_CODES = Object.freeze({
   not_permitted: "MODULE_NOT_PERMITTED",
 });
 
-export async function resolveModuleAccess(client, session, moduleId, { enabledModuleKeys } = {}, env = process.env) {
-  const definition = getModuleDefinition(moduleId);
-  const name = definition?.name ?? moduleId;
-
-  if (!definition || definition.availability !== "released") {
-    return { moduleId, name, released: false, enabled: false, entitled: false, permitted: false, accessible: false, reason: "not_released" };
+export async function resolveModuleAccess(client, session, moduleId, { enabledModuleKeys, billingSummary } = {}, env = process.env) {
+  if (!isModuleReleased(moduleId)) {
+    return evaluateModuleAccess({ moduleId, enabledModuleKeys: null, billingSummary: null, permitted: false });
   }
 
   let resolvedEnabledKeys = enabledModuleKeys;
-  let enabled;
   try {
     resolvedEnabledKeys ??= await getEnabledModuleKeys(client, session.organizationId);
-    enabled = isModuleEnabledForTenant(moduleId, resolvedEnabledKeys);
   } catch {
-    enabled = false;
+    resolvedEnabledKeys = null;
   }
 
-  let entitled = false;
-  let enforced = true;
-  try {
-    ({ entitled, enforced } = await isModuleEntitled(client, session.organizationId, moduleId, env));
-  } catch {
-    entitled = false;
-    enforced = true;
+  let resolvedBilling = billingSummary;
+  if (resolvedBilling === undefined) {
+    try {
+      resolvedBilling = await getBillingSummary(client, session.organizationId, env);
+    } catch {
+      resolvedBilling = null;
+    }
   }
-  const entitlementBlocks = !entitled && enforced;
 
-  const permitted = isModulePermitted(session, moduleId);
-  const accessible = enabled && !entitlementBlocks && permitted;
-  let reason;
-  if (!enabled) reason = "disabled";
-  else if (entitlementBlocks) reason = "not_entitled";
-  else if (!permitted) reason = "not_permitted";
-
-  return { moduleId, name, released: true, enabled, entitled, permitted, accessible, reason };
+  return evaluateModuleAccess({
+    moduleId,
+    enabledModuleKeys: resolvedEnabledKeys,
+    billingSummary: resolvedBilling,
+    permitted: isModulePermitted(session, moduleId),
+  });
 }
 
 export async function canUserAccessModule(client, session, moduleId, env = process.env) {
@@ -134,26 +140,30 @@ export async function assertModuleAccessible(client, session, moduleId, env = pr
 }
 
 export async function getAccessibleModules(client, session, env = process.env) {
+  // Sequential, never Promise.all: a single pg client runs one query at a
+  // time. Enablement and billing are each read ONCE for all 12 modules
+  // (previously the billing summary was re-read per module); the per-module
+  // decision itself is the pure evaluateModuleAccess().
   let enabledModuleKeys;
   try {
     enabledModuleKeys = await getEnabledModuleKeys(client, session.organizationId);
   } catch {
-    enabledModuleKeys = new Set();
+    enabledModuleKeys = null;
   }
-  // Sequential, not Promise.all: resolveModuleAccess issues real queries
-  // on this same client/connection (via isModuleEntitled -> getBillingSummary),
-  // and a single pg client can only run one query at a time -- running all
-  // 12 modules concurrently here is exactly what surfaced as a real
-  // "client.query() when the client is already executing a query"
-  // deprecation warning in the workspace shell (every authenticated page
-  // calls this to build its navigation). The module catalog is small
-  // (12 entries), so sequential resolution is not a meaningful latency
-  // cost.
-  const results = [];
-  for (const module of ERP_MODULE_CATALOG) {
-    results.push(await resolveModuleAccess(client, session, module.key, { enabledModuleKeys }, env));
+  let billingSummary;
+  try {
+    billingSummary = await getBillingSummary(client, session.organizationId, env);
+  } catch {
+    billingSummary = null;
   }
-  return results;
+  return ERP_MODULE_CATALOG.map((module) =>
+    evaluateModuleAccess({
+      moduleId: module.key,
+      enabledModuleKeys,
+      billingSummary,
+      permitted: isModulePermitted(session, module.key),
+    }),
+  );
 }
 
 export { PERMISSIONS };

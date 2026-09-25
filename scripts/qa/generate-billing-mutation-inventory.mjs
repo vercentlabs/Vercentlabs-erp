@@ -18,7 +18,11 @@ function readFile(filePath) {
 }
 
 function detectMethods(source) {
-  return HTTP_METHODS.filter((method) => new RegExp(`export\\s+(async\\s+)?function\\s+${method}\\s*\\(`).test(source));
+  return HTTP_METHODS.filter(
+    (method) =>
+      new RegExp(`export\\s+(async\\s+)?function\\s+${method}\\s*\\(`).test(source) ||
+      new RegExp(`export\\s+const\\s+${method}\\s*=`).test(source),
+  );
 }
 
 function walk(dir, files = []) {
@@ -38,6 +42,8 @@ function detectBillingGate(source) {
   if (/\brequireBillingWriteAccess\s*\(/.test(source)) return "direct";
   if (/\brequireCrmMutationAccess\s*\(/.test(source)) return "via-requireCrmMutationAccess";
   if (/\brequire(Crm|Pos)Access\s*\([^)]*\{\s*mutation:\s*true\s*\}/s.test(source)) return "via-mutation-option";
+  // Shared Access route composition with its explicit billing write gate.
+  if (/\bworkspaceRoute\s*\(/.test(source) && /\bbillingWrite:\s*true\b/.test(source)) return "via-workspaceRoute";
   return "none";
 }
 

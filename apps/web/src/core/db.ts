@@ -2,7 +2,7 @@ import "server-only";
 
 import { Pool, type PoolClient, type QueryResultRow } from "pg";
 import { resolveDbSsl } from "./db-ssl.ts";
-import { setTenantContext } from "@vercentlabs/database";
+import { runTenantTransaction } from "@vercentlabs/database";
 
 // The one connection pool for the ERP web server process (Next.js Route
 // Handlers / Server Components — never imported by a Client Component,
@@ -54,16 +54,31 @@ export async function transaction<T>(
 }
 
 // Row-level-security-scoped variant — every handler touching tenant data
-// through a request must use this, not the bare `transaction()` above, so
-// Postgres RLS policies keyed on app.current_organization_id apply.
+// through a request must use this (or workspaceTransaction below), not the
+// bare `transaction()` above, so Postgres RLS policies keyed on
+// app.current_organization_id apply. The BEGIN/context/COMMIT/ROLLBACK
+// sequence is @vercentlabs/database's runTenantTransaction — the same one the
+// worker uses.
 export async function tenantTransaction<T>(
   organizationId: string,
   handler: (client: PoolClient) => Promise<T>,
 ): Promise<T> {
-  return transaction(async (client) => {
-    await setTenantContext(client, organizationId);
-    return handler(client);
-  });
+  const client = await getPool().connect();
+  try {
+    return await runTenantTransaction(client, organizationId, handler);
+  } finally {
+    client.release();
+  }
+}
+
+// Preferred form for new code: the tenant comes from the authenticated
+// principal/session object itself, so a caller cannot pass a
+// browser-supplied organizationId by mistake.
+export async function workspaceTransaction<T>(
+  principal: { readonly organizationId: string },
+  handler: (client: PoolClient) => Promise<T>,
+): Promise<T> {
+  return tenantTransaction(principal.organizationId, handler);
 }
 
 export async function withClient<T>(

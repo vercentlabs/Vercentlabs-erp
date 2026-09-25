@@ -55,7 +55,9 @@ test("every mutating CRM API handler is permission-gated (route-level or a named
       const body = source.slice(match.index, next < 0 ? source.length : next);
       const routeGated =
         /requireCrmAccess\(client, session, [^)]*(CRM_PERMISSIONS|PERMISSIONS|permission|RESOURCE_MANAGE)/.test(body) ||
-        /requireCrmMutationAccess|resolveCrmMutationPermission|requireSessionPermission|requirePermission\(/.test(body);
+        /requireCrmMutationAccess|resolveCrmMutationPermission|requireSessionPermission|requirePermission\(/.test(body) ||
+        // Shared Access route composition with an explicit permission option.
+        /workspaceRoute\([\s\S]*?\{[^}]*\bpermissions?:\s*(CRM_PERMISSIONS|PERMISSIONS|\[|["'])/.test(body);
       const key = `${match[1]} ${path.relative(root, file).split(path.sep).join("/")}`;
       if (!routeGated && !DOMAIN_GATED[key]) ungated.push(key);
     }

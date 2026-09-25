@@ -714,6 +714,8 @@ export * from "./core/references.js";
 
 // Platform reactivation port (Prompt 2 of 15) — see
 // docs/frontend-rebuild/PLATFORM_PORT_REGISTER.csv.
+// Shared Access public boundary (see core/access/index.js).
+export * from "./core/access/index.js";
 export * from "./core/access-control-runtime.js";
 export * from "./core/session.js";
 export * from "./core/access-administration.js";

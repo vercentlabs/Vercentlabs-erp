@@ -4,6 +4,8 @@ import { ERP_MODULE_CATALOG } from "../../packages/shared-types/src/modules.js";
 import fs from "node:fs";
 import path from "node:path";
 
+import { checkApiCoreLayout, checkCrossFeatureImports, checkWebRetiredAliases, checkWebTopLevel } from "./architecture-rules.mjs";
+
 const root = process.cwd();
 const modules = ERP_MODULE_CATALOG.map((module) => module.key);
 const trackedPaths = execFileSync(
@@ -20,18 +22,22 @@ let failures = 0;
 const fail = (message) => { failures += 1; console.error(`FAIL  ${message}`); };
 const ok = (message) => console.log(`OK    ${message}`);
 
-// apps/web/src/{core,modules,shared} were required here against the old
-// frontend architecture (deleted wholesale in the clean-slate rebuild —
-// see docs/frontend-rebuild/README.md). The new apps/web uses
-// src/{app,features,shell,platform,shared,server} per the rebuild brief,
-// but no per-module feature directory exists yet (nothing beyond the
-// bootstrap placeholder has been built). Re-add the new equivalents here
-// once a real module lands, rather than guessing the convention now.
+// Canonical structure: docs/01-standards/PROJECT_STRUCTURE_CONSTITUTION.md
+// and SHARED_PLATFORM_ARCHITECTURE.md. apps/web/src is exactly
+// {app, core, features, shell, shared}; business modules live in
+// apps/web/src/features/<module> (NOT apps/web/src/modules).
 const required = [
   "README.md",
   "docs/01-standards/PROJECT_STRUCTURE_CONSTITUTION.md",
   "apps/web/src/app",
+  "apps/web/src/core",
+  "apps/web/src/features",
+  "apps/web/src/features/settings",
+  "apps/web/src/shell",
+  "apps/web/src/shared",
+  "docs/01-standards/SHARED_PLATFORM_ARCHITECTURE.md",
   "services/api/src/core",
+  "services/api/src/core/access/index.js",
   "services/api/src/modules",
   "services/api/src/orchestration",
   "database/platform/migrations",
@@ -44,6 +50,8 @@ const required = [
 const forbidden = [
   "apps/web/src/lib",
   "apps/web/src/components",
+  "apps/web/src/modules",
+  "scripts/validation/verify-web-boundaries.mjs",
   "database/control-plane",
   "packages/erp-registry",
   "scripts/validation/.generated",
@@ -60,11 +68,11 @@ for (const item of forbidden) {
     fail(`retired path remains: ${item}`);
   }
 }
-// Web-side per-module boundary (apps/web/src/modules/${module} +
-// (app)/${module}/layout.tsx) is deferred for the same reason as the
-// `required` list above — no new-architecture module directory convention
-// exists yet. services/api's boundary is real and unaffected by the
-// frontend rebuild, so it's still enforced.
+// Frontend top level and retired aliases; backend core domain layout.
+for (const problem of checkWebTopLevel(fs.readdirSync(path.join(root, "apps/web/src")))) fail(problem);
+for (const problem of checkApiCoreLayout(
+  fs.readdirSync(path.join(root, "services/api/src/core"), { withFileTypes: true }).map((entry) => ({ name: entry.name, isDirectory: entry.isDirectory() })),
+)) fail(problem);
 for (const module of modules) {
   for (const item of [`services/api/src/modules/${module}`]) {
     if (!fs.existsSync(path.join(root, item))) fail(`module boundary missing: ${item}`);
@@ -102,11 +110,11 @@ function resolveLocal(file, specifier) {
 }
 
 const webFiles = walk(path.join(root, "apps/web/src"), [".ts", ".tsx"]);
+const webRecords = webFiles.map((file) => ({ path: path.relative(root, file).split(path.sep).join("/"), source: fs.readFileSync(file, "utf8") }));
+for (const problem of checkWebRetiredAliases(webRecords)) fail(problem);
+for (const problem of checkCrossFeatureImports(webRecords)) fail(problem);
 for (const file of webFiles) {
   const source = fs.readFileSync(file, "utf8");
-  if (/from\s+["']@\/lib\//.test(source) || /from\s+["']@\/components\//.test(source)) {
-    fail(`${path.relative(root, file)} imports a retired web alias`);
-  }
   for (const match of source.matchAll(importPattern)) {
     const resolved = resolveLocal(file, match[1]);
     if (resolved === false) fail(`${path.relative(root, file)} has unresolved local import: ${match[1]}`);
@@ -215,10 +223,8 @@ function checkCrmCapabilityArchitecture(crmRoot, publicBoundary, label, addition
   ok(`${label} CRM capability architecture (0 legacy files; ${capabilityFileCount} capability-owned files)`);
 }
 
-// Web-side CRM capability architecture is deferred until the CRM golden
-// reference is rebuilt on the new stack (see docs/ux/UI_REWRITE_TRACKER.md)
-// — apps/web/src/modules/crm doesn't exist yet, by design, not as debt.
-// The backend capability architecture is real and unaffected.
+// Backend CRM capability architecture (the web CRM feature follows the
+// features/crm convention and is checked by the frontend rules above).
 checkCrmCapabilityArchitecture(
   path.join(root, "services/api/src/modules/crm"),
   CRM_API_PUBLIC_BOUNDARY,
@@ -230,6 +236,9 @@ if (failures) {
   process.exit(1);
 }
 ok("modular ERP directory boundaries");
+ok("frontend structure: apps/web/src/{app,core,features,shell,shared}");
+ok("backend core domains: services/api/src/core/{access,auth,organization,billing,platform,security}");
+ok("cross-feature imports go through public feature boundaries");
 ok("all 12 backend module roots (services/api)");
 ok("local import resolution");
 ok("public cross-module API contracts");

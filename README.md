@@ -152,5 +152,5 @@ Do not recreate `apps/web/src/lib`, `apps/web/src/components`, `database/control
 <!-- AI_CONTINUATION_ENTRY_POINT:START -->
 ## AI continuation entry point
 
-When continuing ERP implementation in a new chat, read `docs/README.md` and `docs/PRODUCTION_TRACKER.md` for the current module-by-module status, then audit the relevant module's existing code in `apps/web/src/modules/*` and `services/api/src/modules/*` against its dossiers in `docs/03-modules/*/features/` before writing anything new.
+When continuing ERP implementation in a new chat, read `docs/README.md` and `docs/PRODUCTION_TRACKER.md` for the current module-by-module status, then audit the relevant module's existing code in `apps/web/src/features/*` and `services/api/src/modules/*` against its dossiers in `docs/03-modules/*/features/` before writing anything new.
 <!-- AI_CONTINUATION_ENTRY_POINT:END -->

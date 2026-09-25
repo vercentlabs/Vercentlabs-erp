@@ -4,16 +4,28 @@ Status: `FROZEN_FOR_IMPLEMENTATION`
 
 ## Permanent boundaries
 
-`apps/web/src/` is organized as:
+`apps/web/src/` is organized as (canonical since the Shared Platform
+rebuild; enforced by `pnpm verify:architecture`):
 
 ```text
-app/      Next.js routing/composition only
-core/     ERP web-platform capabilities: auth/access/context/shell/navigation/search/approvals/etc.
-modules/  12 business modules organized by real capability groups
-shared/   governed design system plus generic hooks/http/formatting/types/utilities
+app/       Next.js routing and thin transport composition only
+core/      protected web runtime: session, db/tenant transactions, http, workspace-route (secure route composition), access snapshot
+features/  product capabilities and the 12 business modules (features/crm, features/sales, …); features/settings = Shared Platform administration UX
+shell/     workspace shell: navigation registry, sidebars, workspace context
+shared/    genuinely generic frontend utilities and reusable UI adapters (the design system itself is @vercentlabs/design-system)
 ```
 
+Security in the web layer: pages and client components only decide what
+to *show* (UX). Every protected route handler composes access through
+`workspaceRoute()` (`core/workspace-route.ts`) or a documented legacy
+`require<Module>Access` helper; the domain layer in `@vercentlabs/api`
+remains authoritative. See
+[SHARED_PLATFORM_ARCHITECTURE.md](SHARED_PLATFORM_ARCHITECTURE.md).
+
 ## Business organization
+
+The capability groups below are the organizing units *inside*
+`features/<module>/` (and `services/api/src/modules/<module>/`).
 
 The web does **not** create F001-F510 source folders. The 510 features map into the 98 approved capability groups below. F-IDs remain traceability metadata in manifests/tests/docs.
 

@@ -1,42 +1,34 @@
-import { assertSameOriginOrMobile, createCrmLeadSource, listCrmLeadSources } from "@vercentlabs/api";
+import { createCrmLeadSource, listCrmLeadSources } from "@vercentlabs/api";
 import { CRM_PERMISSIONS } from "@vercentlabs/permissions";
 
-import { tenantTransaction } from "@/core/db";
-import { errorResponse, ok, readJson } from "@/core/http";
-import { requireWorkspace } from "@/core/session";
-import { crmContext, requireCrmAccess } from "@/features/crm/shared/crm-context";
+import { ok, readJson } from "@/core/http";
+import { workspaceRoute } from "@/core/workspace-route";
+import { crmContext } from "@/features/crm/shared/crm-context";
 
 // F004 Lead Sources — the dedicated governed module (lead-source-
 // operations.js), not the generic /api/crm/[resource] boundary. That
 // boundary already redirects "sources" create/update/archive to
 // CRM_LEAD_SOURCE_API_MOVED (410) precisely so this richer module
 // (default-source uniqueness, lead-count projection, sort order) stays
-// the one real mutation path — verified by reading resource-mutation-
-// service.js before building this, not assumed.
-export async function GET() {
-  try {
-    const session = await requireWorkspace();
-    const result = await tenantTransaction(session.organizationId, async (client) => {
-      await requireCrmAccess(client, session);
-      return listCrmLeadSources(client, crmContext(session), { status: "all", limit: 200 });
-    });
-    return ok(result);
-  } catch (error) {
-    return errorResponse(error);
-  }
+// the one real mutation path.
+//
+// Reference adoption of the Shared Access route composition for a business
+// module: tenant-RLS transaction, CRM module access (released/enabled/
+// entitled/crm.view) from the request's WorkspaceAccessSnapshot, the
+// settings permission and the billing write gate for the mutation.
+export async function GET(request: Request) {
+  return workspaceRoute(request, { module: "crm", action: "crm.lead_source.list" }, async ({ client, session }) =>
+    ok(await listCrmLeadSources(client, crmContext(session), { status: "all", limit: 200 })),
+  );
 }
 
 export async function POST(request: Request) {
-  try {
-    assertSameOriginOrMobile(request, process.env);
-    const session = await requireWorkspace();
-    const input = (await readJson(request)) as Record<string, unknown>;
-    const record = await tenantTransaction(session.organizationId, async (client) => {
-      await requireCrmAccess(client, session, CRM_PERMISSIONS.settingsManage, { mutation: true });
-      return createCrmLeadSource(client, crmContext(session), input);
-    });
-    return ok({ record }, 201);
-  } catch (error) {
-    return errorResponse(error);
-  }
+  return workspaceRoute(
+    request,
+    { module: "crm", permission: CRM_PERMISSIONS.settingsManage, billingWrite: true, action: "crm.lead_source.create" },
+    async ({ client, session }) => {
+      const input = (await readJson(request)) as Record<string, unknown>;
+      return ok({ record: await createCrmLeadSource(client, crmContext(session), input) }, 201);
+    },
+  );
 }

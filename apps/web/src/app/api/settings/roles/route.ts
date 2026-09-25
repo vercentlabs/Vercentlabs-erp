@@ -1,19 +1,20 @@
 import { z } from "zod";
 
-import { assertSameOriginOrMobile, createRole, listOrganizationRolesDetailed } from "@vercentlabs/api";
+import { createRole, listOrganizationRolesDetailed } from "@vercentlabs/api";
 
-import { transaction, withClient } from "@/core/db";
-import { errorResponse, ok, readJson } from "@/core/http";
-import { requireApiWorkspace } from "@/core/session";
+import { ok, readJson } from "@/core/http";
+import { workspaceRoute } from "@/core/workspace-route";
 
-export async function GET() {
-  try {
-    const session = await requireApiWorkspace();
-    const roles = await withClient((client) => listOrganizationRolesDetailed(client, session));
-    return ok({ roles });
-  } catch (error) {
-    return errorResponse(error);
-  }
+// Role catalogue administration. roles.manage, the grant ceiling, SoD and
+// reserved-role protection are enforced inside createRole/
+// listOrganizationRolesDetailed (the domain is authoritative); the route
+// composes origin, session and the platform transaction.
+export async function GET(request: Request) {
+  return workspaceRoute(
+    request,
+    { action: "settings.roles.list", transaction: "none" },
+    async ({ client, session }) => ok({ roles: await listOrganizationRolesDetailed(client, session) }),
+  );
 }
 
 const postSchema = z.object({
@@ -26,13 +27,12 @@ const postSchema = z.object({
 });
 
 export async function POST(request: Request) {
-  try {
-    assertSameOriginOrMobile(request, process.env);
-    const session = await requireApiWorkspace();
-    const body = postSchema.parse(await readJson(request));
-    const role = await transaction((client) => createRole(client, session, body));
-    return ok({ role }, 201);
-  } catch (error) {
-    return errorResponse(error);
-  }
+  return workspaceRoute(
+    request,
+    { action: "settings.roles.create", transaction: "platform" },
+    async ({ client, session }) => {
+      const body = postSchema.parse(await readJson(request));
+      return ok({ role: await createRole(client, session, body) }, 201);
+    },
+  );
 }

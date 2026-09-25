@@ -1,0 +1,80 @@
+#!/usr/bin/env node
+// `pnpm test:access:db` — the real-PostgreSQL Shared Access / tenant-isolation
+// suite. Unlike the general integration run, this command FAILS when the
+// database is unreachable and FAILS if any test in the suite is skipped, so a
+// green result always means the invariants ran against PostgreSQL.
+//
+// Requires MIGRATION_DATABASE_URL (migration/owner role) and DATABASE_URL (the
+// restricted runtime role provisioned by `pnpm db:provision:runtime-role`).
+import { spawnSync } from "node:child_process";
+import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+
+import { config as loadDotEnv } from "dotenv";
+import pg from "pg";
+
+const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
+for (const file of [path.join(root, "apps/web/.env.local"), path.join(root, ".env")]) {
+  if (fs.existsSync(file)) loadDotEnv({ path: file, override: false, quiet: true });
+}
+
+// Every suite here must talk to PostgreSQL; add new access/RLS DB tests here.
+export const ACCESS_DB_TEST_FILES = Object.freeze([
+  "tests/integration/access/shared-access-db.test.mjs",
+  "tests/integration/cross-organization-isolation-sp009.test.mjs",
+  "tests/integration/crm-tenant-rls-context.test.mjs",
+  "tests/integration/access-administration-sp008.test.mjs",
+  "tests/integration/module-entitlements-sp010.test.mjs",
+  "tests/integration/organization-administration-sp001-sp003.test.mjs",
+  "tests/integration/session-revocation-inactive-approver.test.mjs",
+  "tests/integration/mfa-sp007.test.mjs",
+  "tests/integration/billing-entitlement-sp011.test.mjs",
+  "services/api/tests/crm-access-matrix-db.test.mjs",
+]);
+
+async function assertReachable(name) {
+  const connectionString = String(process.env[name] || "").trim();
+  if (!connectionString) throw new Error(`${name} is not set. Run \`pnpm infra:up && pnpm db:setup\` (or configure CI) first.`);
+  const client = new pg.Client({ connectionString, application_name: "vercentlabs-access-db-preflight" });
+  try {
+    await client.connect();
+    await client.query("SELECT 1");
+  } catch (error) {
+    throw new Error(`${name} is unreachable: ${error.message || error.code || error}`);
+  } finally {
+    await client.end().catch(() => undefined);
+  }
+}
+
+async function main() {
+  await assertReachable("MIGRATION_DATABASE_URL");
+  await assertReachable("DATABASE_URL");
+  for (const file of ACCESS_DB_TEST_FILES) {
+    if (!fs.existsSync(path.join(root, file))) throw new Error(`missing access DB test file: ${file}`);
+  }
+
+  const result = spawnSync(process.execPath, ["--test", "--test-concurrency=1", "--test-reporter=tap", ...ACCESS_DB_TEST_FILES], {
+    cwd: root,
+    env: { ...process.env, CRM_ACCESS_DB_REQUIRED: "1" },
+    encoding: "utf8",
+    maxBuffer: 64 * 1024 * 1024,
+  });
+  process.stdout.write(result.stdout || "");
+  process.stderr.write(result.stderr || "");
+
+  const count = (label) => Number((result.stdout || "").match(new RegExp(`^# ${label} (\\d+)$`, "m"))?.[1] ?? NaN);
+  const skipped = count("skipped");
+  const todo = count("todo");
+  const passed = count("pass");
+  if (result.status !== 0) throw new Error(`access DB suite failed (exit ${result.status}).`);
+  if (!Number.isFinite(passed) || passed === 0) throw new Error("access DB suite reported no passing tests.");
+  if (!Number.isFinite(skipped) || !Number.isFinite(todo)) throw new Error("could not read the TAP summary (skipped/todo counts).");
+  if (skipped !== 0 || todo !== 0) throw new Error(`access DB suite skipped ${skipped} and left ${todo} todo test(s) — every access DB test must run against PostgreSQL.`);
+  console.log(`\nAccess DB suite: ${passed} passed, 0 skipped, against a real PostgreSQL.`);
+}
+
+main().catch((error) => {
+  console.error(`\nFAIL  ${error.message}`);
+  process.exit(1);
+});

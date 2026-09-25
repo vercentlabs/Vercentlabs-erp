@@ -1,15 +1,16 @@
 import { listPermissionCatalog } from "@vercentlabs/api";
+import { CORE_PERMISSIONS } from "@vercentlabs/permissions";
 
-import { withClient } from "@/core/db";
-import { errorResponse, ok } from "@/core/http";
-import { requireApiWorkspace } from "@/core/session";
+import { ok } from "@/core/http";
+import { workspaceRoute } from "@/core/workspace-route";
 
-export async function GET() {
-  try {
-    const session = await requireApiWorkspace();
-    const permissions = await withClient((client) => listPermissionCatalog(client, session));
-    return ok({ permissions });
-  } catch (error) {
-    return errorResponse(error);
-  }
+// Platform read: the permission catalogue lives in public tables, so a
+// single pooled client (no tenant transaction) is enough. listPermissionCatalog
+// re-checks roles.manage itself — the route check is not the only gate.
+export async function GET(request: Request) {
+  return workspaceRoute(
+    request,
+    { permission: CORE_PERMISSIONS.rolesManage, action: "settings.permissions.list", transaction: "none" },
+    async ({ client, session }) => ok({ permissions: await listPermissionCatalog(client, session) }),
+  );
 }

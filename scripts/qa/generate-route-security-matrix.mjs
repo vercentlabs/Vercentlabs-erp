@@ -61,6 +61,12 @@ function hasPrimitive(source, name) {
 // wrapper's own source, so this trust cannot outlive the wrapper being changed
 // to drop a check (the scan then fails loudly instead of quietly passing).
 const AUDITED_WRAPPERS = {
+  // The Shared Access route composition (apps/web/src/core/secure-route.ts
+  // enforces the order; workspace-route.ts wires the real primitives).
+  workspaceRoute: {
+    file: "apps/web/src/core/workspace-route.ts",
+    provides: { auth: ["requireApiWorkspace"], origin: ["assertSameOriginOrMobile"], authorization: ["authorize"] },
+  },
   salesMutation: {
     file: "apps/web/src/features/sales/shared/route-helpers.ts",
     provides: { auth: ["requireWorkspace"], origin: ["assertSameOriginOrMobile"], authorization: ["requireSalesAccess"] },
@@ -161,8 +167,14 @@ function viaWrapper(source, kind) {
   return Object.entries(AUDITED_WRAPPERS).some(([name, spec]) => spec.provides[kind].length > 0 && hasPrimitive(source, name));
 }
 
+// Both `export async function POST(` and `export const POST =` count, so a
+// handler written in either style can never fall outside this matrix.
 function detectMethods(source) {
-  return HTTP_METHODS.filter((method) => new RegExp(`export\\s+(async\\s+)?function\\s+${method}\\s*\\(`).test(source));
+  return HTTP_METHODS.filter(
+    (method) =>
+      new RegExp(`export\\s+(async\\s+)?function\\s+${method}\\s*\\(`).test(source) ||
+      new RegExp(`export\\s+const\\s+${method}\\s*=`).test(source),
+  );
 }
 
 function walk(dir, files = []) {

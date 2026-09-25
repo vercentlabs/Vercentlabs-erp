@@ -16,6 +16,7 @@ import { randomUUID } from "node:crypto";
 
 import {
   ALL_PERMISSIONS,
+  CURRENT_MODULE_KEYS,
   analyzePermissionConflicts,
   permissionsOutsideGrantCeiling,
 } from "@vercentlabs/permissions";
@@ -420,11 +421,8 @@ export async function recordRoleSnapshot(client, { organizationId, roleId, actor
 // through the application. These functions are that missing entry point.
 // ---------------------------------------------------------------------
 
-const ROLE_MODULE_KEYS = Object.freeze([
-  "platform", "crm", "sales", "accounting", "procurement",
-  "stock", "manufacturing", "projects", "assets", "point-of-sale",
-  "quality", "support", "hr-payroll",
-]);
+// Canonical list from @vercentlabs/permissions — never a local copy.
+const ROLE_MODULE_KEYS = CURRENT_MODULE_KEYS;
 const ROLE_RISK_LEVELS = Object.freeze(["standard", "sensitive", "privileged"]);
 const VALID_PERMISSION_KEYS = new Set(ALL_PERMISSIONS);
 

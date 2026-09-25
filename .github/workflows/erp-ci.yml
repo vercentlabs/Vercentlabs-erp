@@ -88,6 +88,9 @@ jobs:
       - name: Architecture + documentation link verification
         run: pnpm verify:architecture
 
+      - name: Shared Access verification (static rules, catalogue integrity, access unit tests, route security)
+        run: pnpm verify:access
+
       - name: Database structure verification
         run: pnpm verify:db
 
@@ -132,3 +135,53 @@ jobs:
 
       - name: Dependency audit
         run: pnpm audit:dependencies
+
+  # Real-PostgreSQL Shared Access / tenant-isolation suite. The general job
+  # above has no database, so its integration tests skip their DB cases;
+  # this job provisions PostgreSQL 16 with SEPARATE migration and restricted
+  # runtime roles and runs `pnpm test:access:db`, which fails if the database
+  # is unreachable or if any access test is skipped. Deliberately focused:
+  # no Playwright, no full integration suite.
+  shared-access-db:
+    name: Shared Access + tenant isolation (real PostgreSQL 16)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: vercentlabs
+          POSTGRES_PASSWORD: ci_owner_password
+          POSTGRES_DB: vercentlabs_control
+        ports:
+          - 5433:5432
+        options: >-
+          --health-cmd "pg_isready -U vercentlabs -d vercentlabs_control"
+          --health-interval 5s --health-timeout 5s --health-retries 20
+    env:
+      MIGRATION_DATABASE_URL: postgresql://vercentlabs:ci_owner_password@localhost:5433/vercentlabs_control
+      DATABASE_URL: postgresql://vercent_app:ci_app_password@localhost:5433/vercentlabs_control
+      DATABASE_SSL: "false"
+      CRM_ACCESS_DB_REQUIRED: "1"
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Set up Node and pnpm
+        uses: pnpm/setup@v1
+        with:
+          version: 11.21.0
+          runtime: node@24
+          cache: true
+          install: false
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Apply platform + tenant migrations and provision the restricted runtime role
+        run: pnpm db:setup
+
+      - name: Shared Access verification (static)
+        run: pnpm verify:access
+
+      - name: Shared Access + RLS/tenant-isolation tests against PostgreSQL (zero skips allowed)
+        run: pnpm test:access:db

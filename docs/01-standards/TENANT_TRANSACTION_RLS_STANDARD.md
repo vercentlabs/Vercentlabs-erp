@@ -7,6 +7,8 @@ Every tenant-scoped database operation MUST execute inside one request/job-scope
 
 Canonical sequence: `BEGIN -> set_config('app.current_organization_id', ..., true) / SET LOCAL tenant context -> all tenant queries on the same client -> COMMIT or ROLLBACK`.
 
+Canonical implementation: `runTenantTransaction(client, organizationId, work)` in `@vercentlabs/database`, wrapped by `tenantTransaction` / `workspaceTransaction(principal, …)` in `apps/web/src/core/db.ts` and `withTenantClient` in the worker. `organizationId` always comes from authenticated server context (session principal or durable job record), never from request input. Setting `app.current_organization_id` anywhere else is rejected by `pnpm verify:access`.
+
 A tenant context established on one pooled connection MUST NEVER be assumed to apply to another connection. No tenant query may escape the transaction after context is set. Database RLS is defense-in-depth in addition to server-side authorization, never a substitute for it.
 
 ## Required negative tests

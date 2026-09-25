@@ -1,0 +1,294 @@
+// Deterministic architecture + Shared Access rules, as pure functions over
+// `{ path, source }` records so each rule is unit-tested
+// (architecture-rules.test.mjs) and the drivers (verify-architecture.mjs,
+// verify-access-architecture.mjs) stay thin.
+//
+// Every rule exists to stop a specific kind of drift coding agents have
+// introduced before. Exceptions are explicit, named and carry a reason;
+// shrinking an exception list is always welcome, growing one needs review.
+// See docs/01-standards/SHARED_PLATFORM_ARCHITECTURE.md.
+
+// ---------------------------------------------------------------- frontend
+
+export const WEB_SRC_ENTRIES = Object.freeze(["app", "core", "features", "shell", "shared"]);
+const RETIRED_WEB_ENTRIES = Object.freeze({
+  components: "reusable UI belongs in @vercentlabs/design-system or apps/web/src/shared",
+  lib: "helpers belong in apps/web/src/core (protected runtime) or apps/web/src/shared (generic)",
+  modules: "business modules live in apps/web/src/features/<module>",
+  server: "server helpers live in apps/web/src/core or features/<module>/server",
+  platform: "Shared Platform UX lives in apps/web/src/features/settings (and features/platform)",
+  orchestration: "cross-module business logic belongs in services/api/src/orchestration",
+});
+
+export function checkWebTopLevel(entries) {
+  const problems = [];
+  for (const entry of entries) {
+    if (WEB_SRC_ENTRIES.includes(entry)) continue;
+    const hint = RETIRED_WEB_ENTRIES[entry];
+    problems.push(`apps/web/src/${entry} is not part of the frontend architecture${hint ? ` — ${hint}` : ` (allowed: ${WEB_SRC_ENTRIES.join(", ")})`}`);
+  }
+  for (const required of WEB_SRC_ENTRIES) if (!entries.includes(required)) problems.push(`apps/web/src/${required} is missing`);
+  return problems;
+}
+
+export function checkWebRetiredAliases(files) {
+  const problems = [];
+  for (const { path, source } of files) {
+    const match = source.match(/from\s+["']@\/(lib|components|modules|server|platform|orchestration)\//);
+    if (match) problems.push(`${path} imports retired alias @/${match[1]}/`);
+  }
+  return problems;
+}
+
+// Private cross-feature imports that predate the boundary rule. A feature
+// may import another feature only through its public index
+// ("@/features/<name>") — never its internals.
+export const CROSS_FEATURE_IMPORT_EXCEPTIONS = Object.freeze({
+  "crm->sales/quotations/api/quotations-api": "CRM quotation handoff UI reuses the Sales quotation client (Prompt 6 cleanup).",
+  "platform->crm/follow-ups/api/follow-ups-api": "Global search/activity surfaces reuse CRM clients (Prompt 6 cleanup).",
+  "platform->crm/tasks/api/tasks-api": "Global search/activity surfaces reuse CRM clients (Prompt 6 cleanup).",
+  "platform->crm/accounts/api/accounts-api": "Global search/activity surfaces reuse CRM clients (Prompt 6 cleanup).",
+  "platform->crm/contacts/api/contacts-api": "Global search/activity surfaces reuse CRM clients (Prompt 6 cleanup).",
+  "platform->crm/leads/api/leads-api": "Global search/activity surfaces reuse CRM clients (Prompt 6 cleanup).",
+  "platform->crm/opportunities/api/opportunities-api": "Global search/activity surfaces reuse CRM clients (Prompt 6 cleanup).",
+  "platform->sales/master/api/master-api": "Global search reuses the Sales master-data client (Prompt 6 cleanup).",
+  "platform->crm/shared/human": "Shared formatting helper still owned by CRM (Prompt 6: move to apps/web/src/shared).",
+  "platform->crm/shared/ui/LoadingState": "Shared loading state still owned by CRM (Prompt 6: move to apps/web/src/shared).",
+});
+
+export function checkCrossFeatureImports(files) {
+  const problems = [];
+  for (const { path, source } of files) {
+    const own = path.match(/^apps\/web\/src\/features\/([^/]+)\//)?.[1];
+    if (!own) continue;
+    for (const match of source.matchAll(/from\s+["']@\/features\/([^/"']+)(\/[^"']*)?["']/g)) {
+      const [, target, rest] = match;
+      if (target === own || !rest) continue;
+      const key = `${own}->${target}${rest}`;
+      if (!CROSS_FEATURE_IMPORT_EXCEPTIONS[key]) problems.push(`${path} imports private ${target} code (@/features/${target}${rest}); import the feature's public index instead`);
+    }
+  }
+  return problems;
+}
+
+// ------------------------------------------------------------- api layout
+
+export const API_CORE_DOMAINS = Object.freeze(["access", "auth", "organization", "billing", "platform", "security", "release"]);
+
+// Flat files that predate the domain boundaries. They stay importable (the
+// domain index.js files re-export them) and move behind their boundary
+// incrementally. New core code must be created inside a domain directory.
+export const LEGACY_FLAT_CORE_FILES = Object.freeze([
+  "access-administration", "access-control-runtime", "ai-governance", "api-keys", "approvals", "attachment-security",
+  "audit-redaction", "auth-lifecycle", "auth-mailer", "background-jobs", "billing", "configuration", "decimal",
+  "document-numbering", "entitlements", "field-visibility", "idempotency", "inbound-mail", "inventory-lock",
+  "master-data", "mfa", "module-entitlements", "notification-preferences", "notifications", "oauth",
+  "organization-administration", "organization-registration", "password-policy", "privacy", "razorpay",
+  "references", "security", "session", "subscription-billing", "tags", "tax-engine",
+]);
+
+export function checkApiCoreLayout(entries) {
+  const problems = [];
+  for (const { name, isDirectory } of entries) {
+    if (isDirectory) {
+      if (!API_CORE_DOMAINS.includes(name)) problems.push(`services/api/src/core/${name}/ is not a Shared Platform domain (${API_CORE_DOMAINS.join(", ")})`);
+      continue;
+    }
+    const base = name.replace(/\.d\.ts$/, "").replace(/\.(m?js|ts)$/, "");
+    if (!LEGACY_FLAT_CORE_FILES.includes(base)) {
+      problems.push(`services/api/src/core/${name}: new core code must live inside a domain directory (${API_CORE_DOMAINS.join(", ")}), not as a flat file`);
+    }
+  }
+  for (const domain of API_CORE_DOMAINS.filter((entry) => entry !== "release")) {
+    if (!entries.some((entry) => entry.isDirectory && entry.name === domain)) problems.push(`services/api/src/core/${domain}/ boundary is missing`);
+  }
+  return problems;
+}
+
+// ------------------------------------------------------------ Shared Access
+
+// Security primitives with exactly one definition in the repository.
+export const CANONICAL_DEFINITIONS = Object.freeze({
+  resolveSessionContext: "services/api/src/core/session.js",
+  tokenHash: "services/api/src/core/session.js",
+  hashPassword: "services/api/src/core/session.js",
+  verifyPassword: "services/api/src/core/session.js",
+  hasSessionPermission: "services/api/src/core/access-control-runtime.js",
+  requireSessionPermission: "services/api/src/core/access-control-runtime.js",
+  createAccessPrincipal: "services/api/src/core/access/principal.js",
+  principalHasPermission: "services/api/src/core/access/principal.js",
+  buildWorkspaceAccessSnapshot: "services/api/src/core/access/access-snapshot.js",
+  authorize: "services/api/src/core/access/authorization.js",
+  setTenantContext: "packages/database/src/index.js",
+  runTenantTransaction: "packages/database/src/index.js",
+  tenantTransaction: "apps/web/src/core/db.ts",
+  workspaceTransaction: "apps/web/src/core/db.ts",
+  getSessionContext: "apps/web/src/core/session.ts",
+  requireWorkspace: "apps/web/src/core/session.ts",
+  requireApiWorkspace: "apps/web/src/core/session.ts",
+  requireApiUser: "apps/web/src/core/session.ts",
+  workspaceRoute: "apps/web/src/core/workspace-route.ts",
+  // Canonical registries: exactly one role/permission/module catalogue.
+  ROLE_TEMPLATES: "packages/permissions/src/roles.js",
+  ALL_PERMISSIONS: "packages/permissions/src/catalog.js",
+  SOD_CONFLICTS: "packages/permissions/src/roles.js",
+  CURRENT_MODULE_KEYS: "packages/permissions/src/roles.js",
+  MODULE_ACCESS_PERMISSIONS: "packages/permissions/src/module-access.js",
+  MODULE_VIEW_PERMISSIONS: "packages/permissions/src/module-access.js",
+  ERP_MODULE_CATALOG: "packages/shared-types/src/modules.js",
+});
+
+export function checkCanonicalDefinitions(files) {
+  const problems = [];
+  for (const { path, source } of files) {
+    if (path.endsWith(".d.ts") || /\.test\.|\/tests?\//.test(path)) continue;
+    for (const [name, owner] of Object.entries(CANONICAL_DEFINITIONS)) {
+      // Module-scope declarations only (no indentation): a local variable
+      // that happens to share a name is not a second implementation.
+      const pattern = new RegExp(`(?:^|\\n)(?:export\\s+)?(?:async\\s+)?(?:function\\s+${name}\\b|(?:const|let|var)\\s+${name}\\s*=)`);
+      if (pattern.test(source) && path !== owner) problems.push(`${path} defines ${name}; the one canonical definition is ${owner} — import it instead`);
+    }
+  }
+  return problems;
+}
+
+export const TENANT_CONTEXT_EXCEPTIONS = Object.freeze({
+  "services/api/src/modules/crm/prospect-and-relationship-master-data/lead-capture.js":
+    "Public web-to-lead capture resolves the tenant from a verified capture-form token (no session exists); sets the same transaction-local parameterized context.",
+});
+
+export function checkTenantContextSetters(files) {
+  const problems = [];
+  for (const { path, source } of files) {
+    if (/\/tests?\/|\.test\./.test(path) || path.startsWith("database/")) continue;
+    if (!/set_config\(\s*'app\.current_organization_id'/.test(source)) continue;
+    if (path === "packages/database/src/index.js" || TENANT_CONTEXT_EXCEPTIONS[path]) continue;
+    problems.push(`${path} sets app.current_organization_id directly; use runTenantTransaction/setTenantContext from @vercentlabs/database`);
+  }
+  return problems;
+}
+
+// Web files that still issue SQL directly (predating the rule that SQL lives
+// in @vercentlabs/api domain services). New web code must not add SQL.
+export const WEB_RAW_SQL_EXCEPTIONS = Object.freeze([
+  "apps/web/src/app/api/accounting/actions/[action]/route.ts",
+  "apps/web/src/app/api/auth/login/route.ts",
+  "apps/web/src/app/api/procurement/match/route.ts",
+  "apps/web/src/app/api/procurement/[resource]/[id]/[action]/route.ts",
+  "apps/web/src/app/api/sales/returns/[id]/receive/route.ts",
+  "apps/web/src/app/api/settings/organization/security/route.ts",
+  "apps/web/src/features/inventory/server/master.ts",
+  "apps/web/src/features/sales/orders/server/amendment-lineage.ts",
+  "apps/web/src/features/sales/orders/server/stock-context.ts",
+  // Public token-authenticated routes: resolve the tenant from a hashed
+  // public token in a public table before any tenant transaction exists.
+  "apps/web/src/app/api/crm/public/meetings/bookings/[token]/availability/route.ts",
+  "apps/web/src/app/api/crm/public/meetings/bookings/[token]/route.ts",
+  "apps/web/src/app/api/crm/public/meetings/links/[token]/availability/route.ts",
+  "apps/web/src/app/api/crm/public/meetings/links/[token]/book/route.ts",
+  "apps/web/src/app/api/crm/public/meetings/links/[token]/route.ts",
+  "apps/web/src/app/api/sales/public/quotes/[token]/decision/route.ts",
+  "apps/web/src/app/api/sales/public/quotes/[token]/route.ts",
+]);
+
+export function checkWebDatabaseAccess(files) {
+  const problems = [];
+  for (const { path, source } of files) {
+    if (!path.startsWith("apps/web/src/") || /\.test\.tsx?$/.test(path)) continue;
+    if (path === "apps/web/src/core/db.ts") continue;
+    if (/import\s+(?!type\b)[^;]*from\s+["']pg["']/.test(source)) problems.push(`${path} imports pg; only apps/web/src/core/db.ts owns database connections`);
+    const rawSql = /\.query\s*\(/.test(source) || /import\s*\{[^}]*\bquery\b[^}]*\}\s*from\s*["']@\/core\/db["']/.test(source);
+    if (rawSql && !WEB_RAW_SQL_EXCEPTIONS.includes(path)) {
+      problems.push(`${path} issues SQL directly; put queries in an @vercentlabs/api domain service and call it inside workspaceRoute/tenantTransaction`);
+    }
+  }
+  return problems;
+}
+
+const PERMISSION_LITERAL =
+  /\b(?:requireSessionPermission|hasSessionPermission|principalHasPermission|requirePermission|assertPermission|require[A-Z]\w*Access)\s*\([^()]*?["'`]([a-z][a-z0-9_]*(?:\.[a-z0-9_-]+)+)["'`]|\bpermissions?:\s*["']([a-z][a-z0-9_]*(?:\.[a-z0-9_-]+)+)["']|\bpermissions?\.includes\(\s*["']([a-z][a-z0-9_]*(?:\.[a-z0-9_-]+)+)["']/g;
+
+export function checkPermissionLiterals(files, knownPermissions) {
+  const known = new Set(knownPermissions);
+  const problems = [];
+  for (const { path, source } of files) {
+    if (/\.test\.|\/tests?\//.test(path)) continue;
+    for (const match of source.matchAll(PERMISSION_LITERAL)) {
+      const key = match[1] || match[2] || match[3];
+      if (!known.has(key)) problems.push(`${path} checks unregistered permission "${key}" — add it to @vercentlabs/permissions (and a platform migration) first`);
+    }
+  }
+  return problems;
+}
+
+const CLIENT_TENANT_READ =
+  /\b(?:body|input|payload|json|data|parsed|params|query|values|form)\??\.(?:organizationId|organization_id|orgId|tenantId|tenant_id)\b|searchParams\.get\(\s*["'](?:organizationId|organization_id|orgId|tenantId|tenant_id)["']\s*\)|\b(?:organizationId|organization_id|orgId|tenantId|tenant_id)\s*:\s*z\./;
+
+export function checkClientTenantIdentity(files) {
+  const problems = [];
+  for (const { path, source } of files) {
+    if (!/^apps\/web\/src\/(app\/api|features\/[^/]+\/server|core)\//.test(path) || /\.test\./.test(path)) continue;
+    if (/\[(organizationId|orgId|tenantId)\]/.test(path)) problems.push(`${path}: tenant identity must never be a URL segment`);
+    if (CLIENT_TENANT_READ.test(source)) problems.push(`${path} reads a tenant identity from request input; organizationId comes only from the authenticated session/principal`);
+  }
+  return problems;
+}
+
+// Only these legacy per-module context helpers may call the module-access
+// primitives directly; new server code uses workspaceRoute() or the
+// request's WorkspaceAccessSnapshot (apps/web/src/core/access.ts).
+export const MODULE_ACCESS_PRIMITIVE_EXCEPTIONS = Object.freeze([
+  "apps/web/src/features/accounting/shared/accounting-context.ts",
+  "apps/web/src/features/assets/shared/assets-context.ts",
+  "apps/web/src/features/crm/shared/crm-context.ts",
+  "apps/web/src/features/hr/shared/hr-context.ts",
+  "apps/web/src/features/inventory/shared/inventory-context.ts",
+  "apps/web/src/features/manufacturing/shared/manufacturing-context.ts",
+  "apps/web/src/features/pos/shared/pos-context.ts",
+  "apps/web/src/features/procurement/shared/procurement-context.ts",
+  "apps/web/src/features/projects/shared/projects-context.ts",
+  "apps/web/src/features/quality/shared/quality-context.ts",
+  "apps/web/src/features/sales/shared/sales-context.ts",
+  "apps/web/src/features/support/shared/support-context.ts",
+]);
+
+export function checkAccessBoundaryUse(files) {
+  const problems = [];
+  for (const { path, source } of files) {
+    if (/\.test\./.test(path)) continue;
+    if (/from\s+["']@vercentlabs\/api\/(?!access["'])[^"']+["']/.test(source)) problems.push(`${path} deep-imports @vercentlabs/api internals; use "@vercentlabs/api" or "@vercentlabs/api/access"`);
+    if (path.startsWith("apps/") && /from\s+["'](?:\.\.\/)+services\/api\//.test(source)) problems.push(`${path} imports services/api by relative path; use the package boundary`);
+    if (
+      path.startsWith("services/api/src/") &&
+      !path.startsWith("services/api/src/core/access/") &&
+      /from\s+["'][./]*core\/access\/(?!index\.js)[^"']+["']|from\s+["']\.\/access\/(?!index\.js)[^"']+["']|from\s+["']\.\.\/access\/(?!index\.js)[^"']+["']/.test(source)
+    ) {
+      problems.push(`${path} imports a private Shared Access file; import core/access/index.js`);
+    }
+    if (path.startsWith("apps/web/src/") && /\b(?:assertModuleAccessible|resolveModuleAccess|getAccessibleModules)\s*\(/.test(source) && !MODULE_ACCESS_PRIMITIVE_EXCEPTIONS.includes(path)) {
+      problems.push(`${path} calls a module-access primitive directly; use workspaceRoute({ module }) or getWorkspaceAccessSnapshot()`);
+    }
+  }
+  return problems;
+}
+
+// Files allowed to hold a literal list of (nearly) every ERP module key.
+export const MODULE_LIST_EXCEPTIONS = Object.freeze({
+  "packages/shared-types/src/modules.js": "the module catalogue itself",
+  "packages/permissions/src/roles.js": "CURRENT_MODULE_KEYS + per-module role templates",
+  "packages/permissions/src/roles.d.ts": "types for CURRENT_MODULE_KEYS",
+  "packages/permissions/src/module-access.js": "canonical module → view permission map",
+  "apps/web/src/shell/navigation/module-navigation-registry.ts": "per-module navigation config keyed by the catalogue (UI, not a catalogue)",
+  "apps/web/src/features/settings/roles/screens/RolesScreen.tsx": "role-module filter labels (Prompt 2: derive from the catalogue)",
+});
+
+export function checkModuleCatalogueCopies(files, moduleKeys) {
+  const problems = [];
+  const threshold = Math.max(6, moduleKeys.length - 3);
+  for (const { path, source } of files) {
+    if (/\.test\.|\/tests?\/|^packages\/landing-content\/|^apps\/landing\//.test(path) || MODULE_LIST_EXCEPTIONS[path]) continue;
+    const hits = moduleKeys.filter((key) => new RegExp(`["'\`]${key.replace(/[-]/g, "\\-")}["'\`]`).test(source)).length;
+    if (hits >= threshold) problems.push(`${path} hard-codes ${hits} module keys — derive from ERP_MODULE_CATALOG (@vercentlabs/shared-types) instead of creating another module catalogue`);
+  }
+  return problems;
+}
