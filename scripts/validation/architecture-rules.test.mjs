@@ -97,3 +97,38 @@ test("the Shared Access boundary cannot be bypassed", () => {
   assert.equal(checkAccessBoundaryUse([file("apps/web/src/app/api/new/route.ts", "await assertModuleAccessible(client, session, 'crm');")]).length, 1);
   assert.deepEqual(checkAccessBoundaryUse([file("apps/web/src/app/api/new/route.ts", 'import { authorize } from "@vercentlabs/api/access";')]), []);
 });
+
+test("Shared Access administration guardrails", async () => {
+  const {
+    checkAccessStateWriters,
+    checkAdminRoutesUseWorkspaceRoute,
+    checkCompanyAdministratorTemplate,
+    checkInvitationWrites,
+    checkRetiredDefinitions,
+  } = await import("./architecture-rules.mjs");
+
+  // One canonical writer per access-state table.
+  assert.equal(checkAccessStateWriters([file("services/api/src/modules/crm/x.js", "UPDATE organization_modules SET status = 'disabled'")]).length, 1);
+  assert.equal(checkAccessStateWriters([file("apps/web/src/app/api/x/route.ts", "INSERT INTO membership_company_access VALUES ($1)")]).length, 1);
+  assert.deepEqual(checkAccessStateWriters([file("services/api/src/core/platform/module-administration.js", "INSERT INTO organization_modules")]), []);
+
+  // New invitation code cannot write only the deprecated legacy shape.
+  assert.equal(checkInvitationWrites([file("services/api/src/core/x.js", "INSERT INTO organization_invitations (id, role_id, company_ids)")]).length, 1);
+  assert.deepEqual(checkInvitationWrites([file("services/api/src/core/x.js", "INSERT INTO organization_invitations ...; INSERT INTO organization_invitation_roles ...")]), []);
+
+  // Retired split mutations stay retired.
+  assert.equal(checkRetiredDefinitions([file("services/api/src/core/x.js", "export async function setUserCompanyAccess() {}")]).length, 1);
+
+  // Administration routes compose through workspaceRoute.
+  assert.equal(checkAdminRoutesUseWorkspaceRoute([file("apps/web/src/app/api/settings/users/route.ts", "export async function GET() { const s = await requireApiWorkspace(); }")]).length, 2);
+  assert.deepEqual(checkAdminRoutesUseWorkspaceRoute([file("apps/web/src/app/api/settings/users/route.ts", "return workspaceRoute(request, {}, h)")]), []);
+  assert.deepEqual(checkAdminRoutesUseWorkspaceRoute([file("apps/web/src/app/api/settings/sessions/route.ts", "requireApiUser()")]), [], "documented self-service exception");
+
+  // Company Administrator cannot regain business permissions via template construction.
+  const good = 'export const COMPANY_ADMINISTRATOR_PERMISSIONS = Object.freeze(["users.manage"]);\n  {\n    slug: "company_administrator",\n    permissions: COMPANY_ADMINISTRATOR_PERMISSIONS,\n  },';
+  assert.deepEqual(checkCompanyAdministratorTemplate(good), []);
+  const subtractive = good.replace("permissions: COMPANY_ADMINISTRATOR_PERMISSIONS", "permissions: ALL_PERMISSIONS.filter((key) => key !== \"billing.manage\")");
+  assert.equal(checkCompanyAdministratorTemplate(subtractive).length, 1);
+  const derived = good.replace('Object.freeze(["users.manage"])', "Object.freeze([...ALL_PERMISSIONS])");
+  assert.equal(checkCompanyAdministratorTemplate(derived).length, 1);
+});

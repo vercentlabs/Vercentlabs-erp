@@ -17,6 +17,8 @@ async function parseResponse<T>(response: Response): Promise<T> {
   return payload;
 }
 
+// Access is returned as ids AND names by the server; ids are identity, names
+// are display only.
 export type MemberRow = {
   user_id: string;
   email: string;
@@ -28,7 +30,10 @@ export type MemberRow = {
   role_names: string[];
   role_ids: string[];
   primary_role_id: string | null;
+  primary_role_name: string | null;
+  company_ids: string[];
   company_names: string[];
+  branch_ids: string[];
   branch_names: string[];
 };
 
@@ -42,15 +47,6 @@ export async function setMemberStatus(userId: string, status: "active" | "disabl
     method: "PUT",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ status }),
-  });
-  return parseResponse(response);
-}
-
-export async function setMemberAccess(userId: string, companyIds: string[], branchIds: string[]): Promise<{ companyIds: string[]; branchIds: string[] }> {
-  const response = await fetch(`/api/settings/users/${userId}/access`, {
-    method: "PUT",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ companyIds, branchIds }),
   });
   return parseResponse(response);
 }

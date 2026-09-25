@@ -18,11 +18,10 @@ import {
   listOrganizationBranches,
   createBranch,
   updateBranch,
-  setUserCompanyAccess,
-  setUserBranchAccess,
   listOrganizationMembers,
   setMemberStatus,
 } from "../../services/api/src/core/organization-administration.js";
+import { AccessAdministrationError, setUserAccessScope } from "../../services/api/src/core/access-administration.js";
 import { PermissionDeniedError } from "../../services/api/src/core/access-control-runtime.js";
 
 const adminConnectionString = process.env.MIGRATION_DATABASE_URL || "";
@@ -179,26 +178,28 @@ test("SP001/SP002/SP003: organization/company/branch administration against a re
       assert.equal(renamed.name, "Head Office");
     });
 
-    await t.test("setUserCompanyAccess / setUserBranchAccess: the missing grant-management surface", async () => {
-      await assert.rejects(() => setUserCompanyAccess(admin, unprivileged, memberId, [companyId]), (e) => e instanceof PermissionDeniedError);
+    await t.test("setUserAccessScope: one atomic company + branch grant mutation", async () => {
+      await assert.rejects(() => setUserAccessScope(admin, unprivileged, memberId, { companyIds: [companyId], branchIds: [] }), (e) => e instanceof PermissionDeniedError);
 
-      await setUserCompanyAccess(admin, owner, memberId, [companyId, secondCompanyId]);
+      await setUserAccessScope(admin, owner, memberId, { companyIds: [companyId, secondCompanyId], branchIds: [] });
       const companyGrants = await admin.query(`SELECT company_id FROM membership_company_access WHERE organization_id=$1 AND user_id=$2`, [orgId, memberId]);
       assert.equal(companyGrants.rows.length, 2);
 
       // Re-setting to a SMALLER set must remove the dropped grant, not just add.
-      await setUserCompanyAccess(admin, owner, memberId, [companyId]);
-      const companyGrantsAfter = await admin.query(`SELECT company_id FROM membership_company_access WHERE organization_id=$1 AND user_id=$2`, [orgId, memberId]);
-      assert.equal(companyGrantsAfter.rows.length, 1);
-      assert.equal(companyGrantsAfter.rows[0].company_id, companyId);
-
-      await setUserBranchAccess(admin, owner, memberId, [branchId]);
+      const narrowed = await setUserAccessScope(admin, owner, memberId, { companyIds: [companyId], branchIds: [branchId] });
+      assert.deepEqual(narrowed.companyIds, [companyId]);
+      assert.deepEqual(narrowed.branchIds, [branchId]);
       const branchGrants = await admin.query(`SELECT branch_id FROM membership_branch_access WHERE organization_id=$1 AND user_id=$2`, [orgId, memberId]);
       assert.equal(branchGrants.rows.length, 1);
 
+      // A branch whose company is not selected is refused; so is a foreign company.
       await assert.rejects(
-        () => setUserCompanyAccess(admin, owner, memberId, [randomUUID()]),
-        (e) => e instanceof OrganizationAdministrationError && e.code === "ORG_ADMIN_COMPANY_INVALID",
+        () => setUserAccessScope(admin, owner, memberId, { companyIds: [secondCompanyId], branchIds: [branchId] }),
+        (e) => e instanceof AccessAdministrationError && e.code === "ACCESS_ADMIN_BRANCH_OUTSIDE_COMPANY",
+      );
+      await assert.rejects(
+        () => setUserAccessScope(admin, owner, memberId, { companyIds: [randomUUID()], branchIds: [] }),
+        (e) => e instanceof AccessAdministrationError && e.code === "ACCESS_ADMIN_COMPANY_INVALID",
       );
     });
 
@@ -208,6 +209,8 @@ test("SP001/SP002/SP003: organization/company/branch administration against a re
       assert.ok(memberRow);
       assert.ok(memberRow.company_names.includes("Primary Co Renamed"));
       assert.ok(memberRow.branch_names.includes("Head Office"));
+      assert.deepEqual(memberRow.company_ids, [companyId], "identity is returned as ids, not reconstructed from names");
+      assert.deepEqual(memberRow.branch_ids, [branchId]);
     });
 
     await t.test("setMemberStatus: disabling revokes live sessions and blocks self-targeting", async () => {

@@ -20,10 +20,13 @@ async function parseResponse<T>(response: Response): Promise<T> {
 export type InvitationRow = {
   id: string;
   email: string;
-  role_id: string | null;
-  role_name: string | null;
+  roles: Array<{ id: string; name: string; isPrimary: boolean }>;
+  primary_role_id: string | null;
+  primary_role_name: string | null;
   company_ids: string[];
+  company_names: string[];
   branch_ids: string[];
+  branch_names: string[];
   status: "pending" | "accepted" | "revoked" | "expired";
   expires_at: string;
   accepted_at: string | null;
@@ -41,7 +44,15 @@ export async function listInvitations(): Promise<{ invitations: InvitationRow[];
   return parseResponse(response);
 }
 
-export async function createInvitation(input: { email: string; roleId: string; companyIds: string[]; branchIds: string[] }): Promise<{ invitationId: string; delivered: boolean }> {
+export type InvitationInput = {
+  email: string;
+  roleIds: string[];
+  primaryRoleId: string;
+  companyIds: string[];
+  branchIds: string[];
+};
+
+export async function createInvitation(input: InvitationInput): Promise<{ invitationId: string; delivered: boolean }> {
   const response = await fetch("/api/auth/invitations", {
     method: "POST",
     headers: { "Content-Type": "application/json" },

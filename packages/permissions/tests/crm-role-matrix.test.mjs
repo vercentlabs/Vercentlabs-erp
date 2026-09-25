@@ -1,26 +1,33 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
+import path from "node:path";
 import test from "node:test";
 
-import { ROLE_TEMPLATE_BY_SLUG, COMPANY_ADMINISTRATOR_CRM_PERMISSIONS } from "../src/index.js";
-import { buildMigration, MIGRATION_PATH } from "../../../scripts/database/generate-crm-canonical-role-migration.mjs";
+import { ROLE_TEMPLATE_BY_SLUG } from "../src/index.js";
+import { buildMigration, listSyncMigrations, MIGRATIONS_DIR } from "../../../scripts/database/generate-canonical-role-sync-migration.mjs";
 
 // CRM role hierarchy: the built-in role templates are the single source of
-// truth, and platform migration 058 reconciles existing tenants to them.
+// truth. Migration 058 (historical, CRM-only) and the general canonical role
+// sync migrations (scripts/database/generate-canonical-role-sync-migration.mjs)
+// reconcile existing tenants to them.
 
 const crm = (slug) => new Set(ROLE_TEMPLATE_BY_SLUG.get(slug).permissions.filter((key) => key.startsWith("crm.")));
 
-test("migration 058 is exactly what the generator produces from the current templates (no drift)", () => {
-  assert.equal(readFileSync(MIGRATION_PATH, "utf8").replace(/\r\n/g, "\n"), buildMigration(),
-    "roles.js changed: run node scripts/database/generate-crm-canonical-role-migration.mjs and add a new migration");
+test("the latest canonical role sync migration is exactly what the generator produces (no drift)", () => {
+  const latest = listSyncMigrations().at(-1);
+  assert.ok(latest, "a canonical role sync migration must exist");
+  assert.equal(readFileSync(path.join(MIGRATIONS_DIR, latest), "utf8").replace(/\r\n/g, "\n"), buildMigration(),
+    "roles.js changed: run node scripts/database/generate-canonical-role-sync-migration.mjs --write and re-lock");
 });
 
-test("migration 058 only touches crm.* keys on built-in roles and is idempotent in shape", () => {
-  const sql = buildMigration();
-  assert.match(sql, /role\.is_system = true[\s\S]*permission_key LIKE 'crm\.%'/);
-  assert.match(sql, /ON CONFLICT DO NOTHING/);
-  assert.match(sql, /JOIN permissions permission ON permission\.key = canonical\.permission_key/, "never grants a key missing from the catalog");
-  assert.doesNotMatch(sql, /UPDATE roles|DELETE FROM roles|is_system = false/, "custom roles and role rows are never modified");
+test("the sync migration only reconciles built-in roles and never rewrites assignments or evidence", () => {
+  const sql = buildMigration().split("\n").filter((line) => !line.trimStart().startsWith("--")).join("\n");
+  assert.match(sql, /WHERE role\.is_system = true/);
+  assert.match(sql, /ON CONFLICT \(organization_id, slug\) DO NOTHING/,"a custom role owning a built-in slug is left alone");
+  assert.doesNotMatch(sql, /user_role_assignments/, "assignments are never touched");
+  assert.doesNotMatch(sql, /(UPDATE|DELETE FROM) role_version_snapshots/, "historical role versions are immutable");
+  assert.doesNotMatch(sql, /DELETE FROM roles|is_system = false/, "role rows are never deleted and custom roles are never modified");
+  assert.match(sql, /RAISE EXCEPTION 'canonical role sync: permission key missing/, "never silently grants less than the template");
 });
 
 test("Sales Manager is team-scoped, Sales Head sees all CRM records", () => {
@@ -29,10 +36,9 @@ test("Sales Manager is team-scoped, Sales Head sees all CRM records", () => {
   assert.ok(!crm("sales_representative").has("crm.records.view_all"));
 });
 
-test("Company Administrator keeps only CRM module access and reports", () => {
-  assert.deepEqual([...crm("company_administrator")].sort(), [...COMPANY_ADMINISTRATOR_CRM_PERMISSIONS].sort());
-  assert.ok(ROLE_TEMPLATE_BY_SLUG.get("company_administrator").permissions.some((key) => key.startsWith("users.") || key.startsWith("organization.") || key.startsWith("companies.")),
-    "non-CRM administration is unaffected");
+test("Company Administrator carries no CRM permission at all (compose CRM Administrator instead)", () => {
+  assert.deepEqual([...crm("company_administrator")], []);
+  assert.ok(ROLE_TEMPLATE_BY_SLUG.get("company_administrator").permissions.includes("users.manage"), "user administration is kept");
 });
 
 test("sensitive contact/account access is consistent across the sales roles", () => {

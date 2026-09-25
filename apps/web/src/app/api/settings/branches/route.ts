@@ -1,20 +1,22 @@
 import { z } from "zod";
 
-import { assertSameOriginOrMobile, audit, createBranch, listOrganizationBranches } from "@vercentlabs/api";
+import { audit, createBranch, listOrganizationBranches } from "@vercentlabs/api";
+import { CORE_PERMISSIONS } from "@vercentlabs/permissions";
 
-import { transaction, withClient } from "@/core/db";
-import { errorResponse, ok, readJson } from "@/core/http";
-import { requireApiWorkspace } from "@/core/session";
+import { ok, readJson } from "@/core/http";
+import { workspaceRoute } from "@/core/workspace-route";
+
+const companyFilter = z.string().uuid().nullable();
 
 export async function GET(request: Request) {
-  try {
-    const session = await requireApiWorkspace();
-    const companyId = new URL(request.url).searchParams.get("companyId");
-    const branches = await withClient((client) => listOrganizationBranches(client, session, companyId));
-    return ok({ branches });
-  } catch (error) {
-    return errorResponse(error);
-  }
+  return workspaceRoute(
+    request,
+    { permission: CORE_PERMISSIONS.branchManage, action: "settings.branches.list", transaction: "none" },
+    async ({ client, session }) => {
+      const companyId = companyFilter.parse(new URL(request.url).searchParams.get("companyId"));
+      return ok({ branches: await listOrganizationBranches(client, session, companyId) });
+    },
+  );
 }
 
 const postSchema = z.object({
@@ -25,26 +27,26 @@ const postSchema = z.object({
   isPrimary: z.boolean().optional(),
 });
 
+// Delegated administrators may only open branches under a company they
+// administer; the new branch is granted to them in the same transaction.
 export async function POST(request: Request) {
-  try {
-    assertSameOriginOrMobile(request, process.env);
-    const session = await requireApiWorkspace();
-    const body = postSchema.parse(await readJson(request));
-    const branch = await transaction(async (client) => {
-      const created = await createBranch(client, session, body);
+  return workspaceRoute(
+    request,
+    { permission: CORE_PERMISSIONS.branchManage, action: "settings.branches.create", transaction: "platform", auditDenial: true },
+    async ({ client, session }) => {
+      const body = postSchema.parse(await readJson(request));
+      const branch = await createBranch(client, session, body);
       await audit(client, {
         organizationId: session.organizationId,
         actorUserId: session.userId,
         eventType: "branch.created",
         entityType: "branch",
-        entityId: created.id,
+        entityId: branch.id,
+        afterData: { name: branch.name, code: branch.code, companyId: branch.company_id },
         request,
         env: process.env,
       });
-      return created;
-    });
-    return ok({ branch }, 201);
-  } catch (error) {
-    return errorResponse(error);
-  }
+      return ok({ branch }, 201);
+    },
+  );
 }

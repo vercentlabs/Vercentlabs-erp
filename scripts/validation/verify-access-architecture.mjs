@@ -12,6 +12,11 @@ import { ERP_MODULE_CATALOG } from "../../packages/shared-types/src/modules.js";
 import { verifyLock } from "../access/role-template-lock.mjs";
 import {
   checkAccessBoundaryUse,
+  checkAccessStateWriters,
+  checkAdminRoutesUseWorkspaceRoute,
+  checkCompanyAdministratorTemplate,
+  checkInvitationWrites,
+  checkRetiredDefinitions,
   checkCanonicalDefinitions,
   checkClientTenantIdentity,
   checkModuleCatalogueCopies,
@@ -42,6 +47,11 @@ const sections = [
   ["Shared Access is consumed through its public boundary", checkAccessBoundaryUse(files)],
   ["no second module catalogue", checkModuleCatalogueCopies(files, ERP_MODULE_CATALOG.map((module) => module.key))],
   ["built-in role templates match their synchronization lock", verifyLock()],
+  ["Company Administrator is an explicit least-privilege allow-list", checkCompanyAdministratorTemplate(fs.readFileSync(path.join(root, "packages/permissions/src/roles.js"), "utf8"))],
+  ["access state (modules, user scope, invitations) has one canonical writer each", checkAccessStateWriters(files)],
+  ["invitations are written through the normalized canonical tables", checkInvitationWrites(files)],
+  ["superseded access mutations stay retired", checkRetiredDefinitions(files)],
+  ["Shared Access administration routes use workspaceRoute()", checkAdminRoutesUseWorkspaceRoute(files)],
 ];
 
 let failures = 0;

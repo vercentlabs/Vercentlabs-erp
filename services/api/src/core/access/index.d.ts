@@ -220,3 +220,22 @@ export declare function recordAccessDenial(
     entityId?: string | null;
   },
 ): Promise<void>;
+
+export declare const ACCESS_EVIDENCE_EVENTS: Readonly<{
+  ROLES_CHANGED: "roles_changed";
+  SCOPE_CHANGED: "access_scope_changed";
+  MEMBER_ENABLED: "member_enabled";
+  MEMBER_DISABLED: "member_disabled";
+  INVITATION_ACCEPTED: "invitation_accepted";
+}>;
+export declare function recordAccessAssignmentEvent(
+  client: { query(text: string, values?: unknown[]): Promise<unknown> },
+  input: {
+    organizationId: string;
+    userId: string;
+    actorUserId?: string | null;
+    eventType: string;
+    beforeState?: unknown;
+    afterState?: unknown;
+  },
+): Promise<void>;

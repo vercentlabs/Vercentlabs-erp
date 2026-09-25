@@ -22,6 +22,9 @@ for (const file of [path.join(root, "apps/web/.env.local"), path.join(root, ".en
 // Every suite here must talk to PostgreSQL; add new access/RLS DB tests here.
 export const ACCESS_DB_TEST_FILES = Object.freeze([
   "tests/integration/access/shared-access-db.test.mjs",
+  "tests/integration/access/administration-db.test.mjs",
+  "tests/integration/auth-lifecycle.test.mjs",
+  "tests/integration/billing-seats.test.mjs",
   "tests/integration/cross-organization-isolation-sp009.test.mjs",
   "tests/integration/crm-tenant-rls-context.test.mjs",
   "tests/integration/access-administration-sp008.test.mjs",

@@ -1,18 +1,18 @@
 import { z } from "zod";
 
 import { createRole, listOrganizationRolesDetailed } from "@vercentlabs/api";
+import { CORE_PERMISSIONS } from "@vercentlabs/permissions";
 
 import { ok, readJson } from "@/core/http";
 import { workspaceRoute } from "@/core/workspace-route";
 
-// Role catalogue administration. roles.manage, the grant ceiling, SoD and
-// reserved-role protection are enforced inside createRole/
-// listOrganizationRolesDetailed (the domain is authoritative); the route
-// composes origin, session and the platform transaction.
+// Role catalogue administration. Role definitions are organization-global
+// (roles.manage: Owner / System Administrator); the grant ceiling, SoD and
+// reserved-role protection are enforced again inside createRole.
 export async function GET(request: Request) {
   return workspaceRoute(
     request,
-    { action: "settings.roles.list", transaction: "none" },
+    { permission: CORE_PERMISSIONS.rolesView, action: "settings.roles.list", transaction: "none" },
     async ({ client, session }) => ok({ roles: await listOrganizationRolesDetailed(client, session) }),
   );
 }
@@ -29,7 +29,7 @@ const postSchema = z.object({
 export async function POST(request: Request) {
   return workspaceRoute(
     request,
-    { action: "settings.roles.create", transaction: "platform" },
+    { permission: CORE_PERMISSIONS.rolesManage, action: "settings.roles.create", transaction: "platform", auditDenial: true },
     async ({ client, session }) => {
       const body = postSchema.parse(await readJson(request));
       return ok({ role: await createRole(client, session, body) }, 201);

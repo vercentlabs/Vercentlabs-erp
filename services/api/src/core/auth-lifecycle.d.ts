@@ -32,10 +32,14 @@ export declare function createOrganizationInvitation(
     organizationId: string;
     invitedByUserId: string;
     email: string;
-    roleId: string;
+    /** @deprecated single-role form; prefer roleIds + primaryRoleId */
+    roleId?: string;
+    roleIds?: string[];
+    primaryRoleId?: string;
     companyIds?: string[];
     branchIds?: string[];
     inviter: { roleSlugs: string[]; permissions: string[] };
+    acknowledgeWarningConflicts?: boolean;
   },
   env?: any,
 ): Promise<{ invitationId: string; delivered: boolean }>;
@@ -67,15 +71,16 @@ export declare function listPendingInvitationsForEmail(
   email: string,
 ): Promise<Array<{ id: string; organization_name: string; expires_at: string }>>;
 
-export declare function listOrganizationInvitations(client: any, organizationId: string): Promise<any[]>;
+export type InvitationAdministrator = { userId: string; roleSlugs: string[] };
+export declare function listOrganizationInvitations(client: any, organizationId: string, actor: InvitationAdministrator): Promise<any[]>;
 
 export declare function revokeOrganizationInvitation(
   client: any,
-  input: { organizationId: string; invitationId: string },
+  input: { organizationId: string; invitationId: string; actor: InvitationAdministrator },
 ): Promise<{ revoked: true }>;
 
 export declare function resendOrganizationInvitation(
   client: any,
-  input: { organizationId: string; invitationId: string },
+  input: { organizationId: string; invitationId: string; actor: InvitationAdministrator },
   env?: any,
 ): Promise<{ delivered: boolean }>;

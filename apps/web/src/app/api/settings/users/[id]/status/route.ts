@@ -1,34 +1,34 @@
 import { z } from "zod";
 
-import { assertSameOriginOrMobile, audit, setMemberStatus } from "@vercentlabs/api";
+import { audit, setMemberStatus } from "@vercentlabs/api";
+import { CORE_PERMISSIONS } from "@vercentlabs/permissions";
 
-import { transaction } from "@/core/db";
-import { errorResponse, ok, readJson } from "@/core/http";
-import { requireApiWorkspace } from "@/core/session";
+import { ok, readJson } from "@/core/http";
+import { workspaceRoute } from "@/core/workspace-route";
 
 const putSchema = z.object({ status: z.enum(["active", "disabled"]) });
 
+// setMemberStatus enforces target scope, self-target prohibition, seat
+// limits and session revocation, and writes access evidence.
 export async function PUT(request: Request, context: { params: Promise<{ id: string }> }) {
-  try {
-    assertSameOriginOrMobile(request, process.env);
-    const session = await requireApiWorkspace();
-    const { id } = await context.params;
-    const body = putSchema.parse(await readJson(request));
-    const result = await transaction(async (client) => {
-      const updated = await setMemberStatus(client, session, id, body.status);
+  return workspaceRoute(
+    request,
+    { permission: CORE_PERMISSIONS.usersManage, action: "settings.user_status.update", transaction: "platform", auditDenial: true },
+    async ({ client, session }) => {
+      const { id } = await context.params;
+      const body = putSchema.parse(await readJson(request));
+      const result = await setMemberStatus(client, session, id, body.status);
       await audit(client, {
         organizationId: session.organizationId,
         actorUserId: session.userId,
         eventType: "user.membership_status_changed",
         entityType: "organization_membership",
         entityId: id,
+        afterData: { status: body.status },
         request,
         env: process.env,
       });
-      return updated;
-    });
-    return ok(result);
-  } catch (error) {
-    return errorResponse(error);
-  }
+      return ok(result);
+    },
+  );
 }

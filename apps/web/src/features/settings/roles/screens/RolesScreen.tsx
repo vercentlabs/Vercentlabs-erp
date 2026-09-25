@@ -16,6 +16,8 @@ import {
   TextField,
 } from "@vercentlabs/design-system";
 
+import { ERP_MODULE_CATALOG } from "@vercentlabs/shared-types";
+
 import {
   createRole,
   archiveRole,
@@ -42,21 +44,10 @@ const RISK_OPTIONS = [
   { value: "privileged", label: "Privileged" },
 ];
 
-const MODULE_OPTIONS = [
-  { value: "platform", label: "Platform" },
-  { value: "crm", label: "CRM" },
-  { value: "sales", label: "Sales" },
-  { value: "accounting", label: "Accounting" },
-  { value: "procurement", label: "Procurement" },
-  { value: "stock", label: "Stock" },
-  { value: "manufacturing", label: "Manufacturing" },
-  { value: "projects", label: "Projects" },
-  { value: "assets", label: "Assets" },
-  { value: "point-of-sale", label: "Point of Sale" },
-  { value: "quality", label: "Quality" },
-  { value: "support", label: "Support" },
-  { value: "hr-payroll", label: "HR & Payroll" },
-];
+// Derived from the one module catalogue (@vercentlabs/shared-types) — never a local list.
+const MODULE_OPTIONS = [{ value: "platform", label: "Platform" }, ...ERP_MODULE_CATALOG.map((module) => ({ value: module.key, label: module.name }))];
+const MODULE_LABEL = new Map(MODULE_OPTIONS.map((option) => [option.value, option.label]));
+const RISK_LABEL = new Map(RISK_OPTIONS.map((option) => [option.value, option.label]));
 
 type EditorState = { mode: "create" } | { mode: "edit"; role: RoleRow };
 
@@ -145,7 +136,7 @@ export function RolesScreen({ canManage, canEdit }: { canManage: boolean; canEdi
   if (!canManage) {
     return (
       <div className="flex flex-1 flex-col gap-6">
-        <PermissionState title="You don't have access to Roles and permissions" description="Ask an administrator to grant roles.view." />
+        <PermissionState title="You don't have access to Roles and permissions" description="Ask an administrator for access to view roles." />
       </div>
     );
   }
@@ -156,7 +147,7 @@ export function RolesScreen({ canManage, canEdit }: { canManage: boolean; canEdi
     <div className="flex flex-1 flex-col gap-6">
       <PageHeader
         title="Roles and permissions"
-        description="Create custom roles, edit their permission grants, and assign roles to users."
+        description={canEdit ? "Built-in roles and your custom roles. Role definitions apply to the whole organization." : "The roles in your organization. Only organization owners and system administrators can change role definitions."}
         primaryAction={
           canEdit && (
             <Button variant="primary" onPress={openCreate}>
@@ -179,13 +170,13 @@ export function RolesScreen({ canManage, canEdit }: { canManage: boolean; canEdi
               <div className="flex min-w-0 flex-col gap-1">
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="text-sm font-medium text-text">{role.name}</span>
-                  <Badge tone={RISK_TONE[role.risk_level] ?? "success"}>{role.risk_level}</Badge>
-                  {role.is_system && <Badge tone="neutral">System role</Badge>}
+                  <Badge tone={RISK_TONE[role.risk_level] ?? "success"}>{RISK_LABEL.get(role.risk_level) ?? "Standard"}</Badge>
+                  {role.is_system && <Badge tone="neutral">Built-in</Badge>}
                   {!role.assignable && <Badge tone="neutral">Not directly assignable</Badge>}
                 </div>
                 {role.description ? <span className="text-xs text-text-muted">{role.description}</span> : null}
                 <span className="text-xs text-text-muted">
-                  Module: {role.module_key} · {role.permission_keys.length} permission(s) · {role.assigned_user_count} user(s) assigned
+                  {MODULE_LABEL.get(role.module_key) ?? "Platform"} · {role.permission_keys.length} permission{role.permission_keys.length === 1 ? "" : "s"} · {role.assigned_user_count} user{role.assigned_user_count === 1 ? "" : "s"} assigned
                 </span>
                 {role.is_system && canEdit ? (
                   <span className="text-xs text-text-muted">Built-in role: its permissions are maintained by the system and cannot be edited. To grant different access, create a custom role.</span>

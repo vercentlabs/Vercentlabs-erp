@@ -1,15 +1,15 @@
 import { listOrganizationMembers } from "@vercentlabs/api";
+import { CORE_PERMISSIONS } from "@vercentlabs/permissions";
 
-import { withClient } from "@/core/db";
-import { errorResponse, ok } from "@/core/http";
-import { requireApiWorkspace } from "@/core/session";
+import { ok } from "@/core/http";
+import { workspaceRoute } from "@/core/workspace-route";
 
-export async function GET() {
-  try {
-    const session = await requireApiWorkspace();
-    const members = await withClient((client) => listOrganizationMembers(client, session));
-    return ok({ members });
-  } catch (error) {
-    return errorResponse(error);
-  }
+// Delegated administrators receive only members entirely inside their scope
+// (filtered in PostgreSQL by listOrganizationMembers).
+export async function GET(request: Request) {
+  return workspaceRoute(
+    request,
+    { permission: CORE_PERMISSIONS.usersView, action: "settings.users.list", transaction: "none" },
+    async ({ client, session }) => ok({ members: await listOrganizationMembers(client, session) }),
+  );
 }

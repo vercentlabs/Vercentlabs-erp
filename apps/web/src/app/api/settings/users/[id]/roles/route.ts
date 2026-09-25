@@ -1,10 +1,10 @@
 import { z } from "zod";
 
-import { assertSameOriginOrMobile, setUserRoles } from "@vercentlabs/api";
+import { setUserRoles } from "@vercentlabs/api";
+import { CORE_PERMISSIONS } from "@vercentlabs/permissions";
 
-import { transaction } from "@/core/db";
-import { errorResponse, ok, readJson } from "@/core/http";
-import { requireApiWorkspace } from "@/core/session";
+import { ok, readJson } from "@/core/http";
+import { workspaceRoute } from "@/core/workspace-route";
 
 const putSchema = z.object({
   roleIds: z.array(z.string().uuid()).min(1).max(50),
@@ -12,17 +12,22 @@ const putSchema = z.object({
   acknowledgeWarningConflicts: z.boolean().optional(),
 });
 
+// setUserRoles enforces target scope, grant ceiling, SoD and the owner-role
+// prohibition, and writes access evidence.
 export async function PUT(request: Request, context: { params: Promise<{ id: string }> }) {
-  try {
-    assertSameOriginOrMobile(request, process.env);
-    const session = await requireApiWorkspace();
-    const { id } = await context.params;
-    const body = putSchema.parse(await readJson(request));
-    const access = await transaction((client) =>
-      setUserRoles(client, session, { targetUserId: id, roleIds: body.roleIds, primaryRoleId: body.primaryRoleId, acknowledgeWarningConflicts: body.acknowledgeWarningConflicts }),
-    );
-    return ok({ access });
-  } catch (error) {
-    return errorResponse(error);
-  }
+  return workspaceRoute(
+    request,
+    { permission: CORE_PERMISSIONS.rolesAssign, action: "settings.user_roles.update", transaction: "platform", auditDenial: true },
+    async ({ client, session }) => {
+      const { id } = await context.params;
+      const body = putSchema.parse(await readJson(request));
+      const access = await setUserRoles(client, session, {
+        targetUserId: id,
+        roleIds: body.roleIds,
+        primaryRoleId: body.primaryRoleId,
+        acknowledgeWarningConflicts: body.acknowledgeWarningConflicts,
+      });
+      return ok({ access });
+    },
+  );
 }

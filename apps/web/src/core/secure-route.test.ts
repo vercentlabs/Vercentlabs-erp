@@ -161,3 +161,50 @@ test("billingWrite on a read is a programming error, surfaced as an error respon
   assert.equal(response.status, 500);
   assert.deepEqual(calls, ["error:500:ERROR"]);
 });
+
+test("auditDenial: an authenticated domain denial is logged and durably recorded; a broken recorder never turns 403 into 500", async () => {
+  const recorded: string[] = [];
+  const logged: string[] = [];
+  const denial = () => Object.assign(new Error("outside your scope"), { status: 403, code: "ACCESS_ADMIN_OUT_OF_SCOPE" });
+  const { route } = harness({
+    recordDeniedAccess: async (event) => {
+      recorded.push(`${event.status}:${event.code}:${event.action}`);
+    },
+    logDeniedAccess: (event) => {
+      logged.push(String(event.code));
+    },
+  });
+  const response = await route(post(), { action: "settings.user_access.update", transaction: "platform", auditDenial: true }, async () => {
+    throw denial();
+  });
+  assert.equal(response.status, 403);
+  assert.deepEqual(recorded, ["403:ACCESS_ADMIN_OUT_OF_SCOPE:settings.user_access.update"]);
+  assert.deepEqual(logged, ["ACCESS_ADMIN_OUT_OF_SCOPE"]);
+
+  const failing = harness({
+    recordDeniedAccess: async () => {
+      throw new Error("audit database unavailable");
+    },
+  });
+  const stillForbidden = await failing.route(post(), { auditDenial: true, transaction: "platform" }, async () => {
+    throw denial();
+  });
+  assert.equal(stillForbidden.status, 403);
+});
+
+test("auditDenial is opt-in and never records unauthenticated requests", async () => {
+  const recorded: unknown[] = [];
+  const optedOut = harness({ recordDeniedAccess: async (event) => void recorded.push(event) });
+  await optedOut.route(post(), { transaction: "platform" }, async () => {
+    throw Object.assign(new Error("no"), { status: 403, code: "PERMISSION_DENIED" });
+  });
+  const anonymous = harness({
+    requireSession: async () => {
+      throw Object.assign(new Error("Authentication is required."), { status: 401, code: "AUTH_REQUIRED" });
+    },
+    recordDeniedAccess: async (event) => void recorded.push(event),
+  });
+  const response = await anonymous.route(post(), { auditDenial: true }, async () => new Response("ok"));
+  assert.equal(response.status, 401);
+  assert.deepEqual(recorded, []);
+});

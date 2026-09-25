@@ -9,6 +9,8 @@
 import { randomUUID } from "node:crypto";
 
 import { requireSessionPermission } from "./access-control-runtime.js";
+import { assertUserWithinAdministrationScope, hasUnrestrictedAccessAdministration, memberWithinAdministrationScopeSql } from "./access-administration.js";
+import { ACCESS_EVIDENCE_EVENTS, recordAccessAssignmentEvent } from "./access/index.js";
 import { assertSeatAvailable, reconcileSeatOverage, withSeatLock } from "./subscription-billing.js";
 
 export class OrganizationAdministrationError extends Error {
@@ -70,27 +72,63 @@ export async function updateOrganizationProfile(client, session, updates) {
 }
 
 // ---------------------------------------------------------------------
+// Delegated administration
+//
+// organization_owner / system_administrator administer the whole
+// organization. Everyone else (e.g. Company Administrator) administers ONLY
+// the companies/branches they are explicitly granted — reads included, even
+// inside the same organization. Out-of-scope ids answer "not found" so a
+// guessed id never proves a record exists.
+// ---------------------------------------------------------------------
+function isUnrestricted(session) {
+  return hasUnrestrictedAccessAdministration(session.roleSlugs || []);
+}
+
+async function assertCompanyAdministrable(client, session, companyId) {
+  if (isUnrestricted(session)) return;
+  const granted = await client.query(
+    `SELECT 1 FROM membership_company_access WHERE organization_id = $1 AND user_id = $2 AND company_id = $3`,
+    [session.organizationId, session.userId, companyId],
+  );
+  if (!granted.rows[0]) throw new OrganizationAdministrationError(404, "Company not found.", "ORG_ADMIN_COMPANY_NOT_FOUND");
+}
+
+async function assertBranchAdministrable(client, session, branchId) {
+  if (isUnrestricted(session)) return;
+  const granted = await client.query(
+    `SELECT 1 FROM membership_branch_access WHERE organization_id = $1 AND user_id = $2 AND branch_id = $3`,
+    [session.organizationId, session.userId, branchId],
+  );
+  if (!granted.rows[0]) throw new OrganizationAdministrationError(404, "Branch not found.", "ORG_ADMIN_BRANCH_NOT_FOUND");
+}
+
+// ---------------------------------------------------------------------
 // Companies
 // ---------------------------------------------------------------------
 
-// Admin management view: EVERY company in the organization regardless of
-// status (an admin managing companies needs to see and reactivate an
-// inactive one) — a different audience/semantic than session.js's
-// listAccessibleCompanies (self-service "which can I currently work in",
-// active-only, access-scoped).
+// Admin management view, regardless of status (an admin needs to see and
+// reactivate an inactive company) — a different semantic than session.js's
+// listAccessibleCompanies (self-service context switching, active only).
 export async function listOrganizationCompanies(client, session) {
   requireSessionPermission(session, "company.manage");
   const rows = await client.query(
     `SELECT id, name, legal_name, code, country_code, base_currency, tax_id, is_primary, status, created_at, updated_at
-       FROM companies WHERE organization_id = $1
-       ORDER BY is_primary DESC, created_at ASC`,
-    [session.organizationId],
+       FROM companies company
+      WHERE company.organization_id = $1
+        AND ($3::boolean OR EXISTS (
+          SELECT 1 FROM membership_company_access access
+           WHERE access.organization_id = company.organization_id AND access.user_id = $2 AND access.company_id = company.id))
+      ORDER BY is_primary DESC, created_at ASC`,
+    [session.organizationId, session.userId, isUnrestricted(session)],
   );
   return rows.rows;
 }
 
+// A new legal entity is an organization-level decision: company.manage alone
+// (delegated administration of EXISTING companies) is not enough.
 export async function createCompany(client, session, input) {
   requireSessionPermission(session, "company.manage");
+  if (!isUnrestricted(session)) requireSessionPermission(session, "organization.manage");
   const name = text(input.name, "Company name", 200);
   const legalName = text(input.legalName, "Legal name", 200);
   const code = text(input.code, "Company code", 30).toUpperCase();
@@ -113,6 +151,7 @@ export async function createCompany(client, session, input) {
 
 export async function updateCompany(client, session, companyId, updates) {
   requireSessionPermission(session, "company.manage");
+  await assertCompanyAdministrable(client, session, companyId);
   const fields = [];
   const values = [companyId, session.organizationId];
   if (updates.name !== undefined) {
@@ -148,10 +187,14 @@ export async function updateCompany(client, session, companyId, updates) {
 export async function listOrganizationBranches(client, session, companyId = null) {
   requireSessionPermission(session, "branch.manage");
   const rows = await client.query(
-    companyId
-      ? `SELECT * FROM branches WHERE organization_id = $1 AND company_id = $2 ORDER BY is_primary DESC, created_at ASC`
-      : `SELECT * FROM branches WHERE organization_id = $1 ORDER BY is_primary DESC, created_at ASC`,
-    companyId ? [session.organizationId, companyId] : [session.organizationId],
+    `SELECT * FROM branches branch
+      WHERE branch.organization_id = $1
+        AND ($3::uuid IS NULL OR branch.company_id = $3::uuid)
+        AND ($4::boolean OR EXISTS (
+          SELECT 1 FROM membership_branch_access access
+           WHERE access.organization_id = branch.organization_id AND access.user_id = $2 AND access.branch_id = branch.id))
+      ORDER BY is_primary DESC, created_at ASC`,
+    [session.organizationId, session.userId, companyId, isUnrestricted(session)],
   );
   return rows.rows;
 }
@@ -165,6 +208,8 @@ export async function createBranch(client, session, input) {
 
   const company = await client.query(`SELECT id FROM companies WHERE id = $1 AND organization_id = $2`, [companyId, session.organizationId]);
   if (!company.rows[0]) throw new OrganizationAdministrationError(422, "That company does not belong to this organization.", "ORG_ADMIN_COMPANY_INVALID");
+  // A delegated administrator may only open branches under a company they administer.
+  await assertCompanyAdministrable(client, session, companyId);
 
   const duplicate = await client.query(`SELECT 1 FROM branches WHERE organization_id = $1 AND upper(code) = $2`, [session.organizationId, code]);
   if (duplicate.rows[0]) throw new OrganizationAdministrationError(409, `A branch with code "${code}" already exists.`, "ORG_ADMIN_DUPLICATE_CODE");
@@ -175,11 +220,20 @@ export async function createBranch(client, session, input) {
      VALUES ($1, $2, $3, $4, $5, $6, $7, 'active')`,
     [id, session.organizationId, companyId, name, code, timezone, Boolean(input.isPrimary)],
   );
+  if (!isUnrestricted(session)) {
+    // Same transaction: the delegated creator can administer what they just
+    // created. Nobody else's scope is widened.
+    await client.query(
+      `INSERT INTO membership_branch_access (organization_id, user_id, branch_id) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING`,
+      [session.organizationId, session.userId, id],
+    );
+  }
   return (await client.query(`SELECT * FROM branches WHERE id = $1`, [id])).rows[0];
 }
 
 export async function updateBranch(client, session, branchId, updates) {
   requireSessionPermission(session, "branch.manage");
+  await assertBranchAdministrable(client, session, branchId);
   const fields = [];
   const values = [branchId, session.organizationId];
   if (updates.name !== undefined) {
@@ -205,42 +259,12 @@ export async function updateBranch(client, session, branchId, updates) {
   return (await client.query(`SELECT * FROM branches WHERE id = $1`, [branchId])).rows[0];
 }
 
-// ---------------------------------------------------------------------
-// Company/branch access grants (Settings > People > company/branch
-// assignment for an EXISTING member — the invitation-time grant path is
-// auth-lifecycle.js's createOrganizationInvitation/acceptOrganizationInvitation).
-// ---------------------------------------------------------------------
-export async function setUserCompanyAccess(client, session, targetUserId, companyIds) {
-  requireSessionPermission(session, "users.manage");
-  const unique = [...new Set(companyIds)];
-  if (unique.length) {
-    const found = await client.query(`SELECT id FROM companies WHERE organization_id = $1 AND id = ANY($2::uuid[])`, [session.organizationId, unique]);
-    if (found.rows.length !== unique.length) throw new OrganizationAdministrationError(422, "One or more companies do not belong to this organization.", "ORG_ADMIN_COMPANY_INVALID");
-  }
-  await client.query(`DELETE FROM membership_company_access WHERE organization_id = $1 AND user_id = $2`, [session.organizationId, targetUserId]);
-  for (const companyId of unique) {
-    await client.query(`INSERT INTO membership_company_access (organization_id, user_id, company_id) VALUES ($1, $2, $3)`, [session.organizationId, targetUserId, companyId]);
-  }
-  return { companyIds: unique };
-}
-
-export async function setUserBranchAccess(client, session, targetUserId, branchIds) {
-  requireSessionPermission(session, "users.manage");
-  const unique = [...new Set(branchIds)];
-  if (unique.length) {
-    const found = await client.query(`SELECT id FROM branches WHERE organization_id = $1 AND id = ANY($2::uuid[])`, [session.organizationId, unique]);
-    if (found.rows.length !== unique.length) throw new OrganizationAdministrationError(422, "One or more branches do not belong to this organization.", "ORG_ADMIN_BRANCH_INVALID");
-  }
-  await client.query(`DELETE FROM membership_branch_access WHERE organization_id = $1 AND user_id = $2`, [session.organizationId, targetUserId]);
-  for (const branchId of unique) {
-    await client.query(`INSERT INTO membership_branch_access (organization_id, user_id, branch_id) VALUES ($1, $2, $3)`, [session.organizationId, targetUserId, branchId]);
-  }
-  return { branchIds: unique };
-}
+// User company/branch grants: see access-administration.js setUserAccessScope
+// (the one atomic scope mutation). Invitation-time grants: auth-lifecycle.js.
 
 // ---------------------------------------------------------------------
-// Roles (for the invitation form / users screen's role picker — role
-// CREATE/EDIT itself is validateRoleSelection's territory, access-administration.js)
+// Roles (read-only list; role definitions and grantability live in
+// access-administration.js)
 // ---------------------------------------------------------------------
 export async function listOrganizationRoles(client, session) {
   requireSessionPermission(session, "roles.view");
@@ -254,10 +278,16 @@ export async function listOrganizationRoles(client, session) {
 }
 
 // ---------------------------------------------------------------------
-// Organization members (Settings > People > Users)
+// Organization members (Settings > Users)
+//
+// Scoped administrators see only members entirely inside their scope; the
+// filter is the same SQL predicate every mutation asserts
+// (memberWithinAdministrationScopeSql), evaluated in PostgreSQL. Access is
+// returned as ids AND names — the UI never derives identity from a name.
 // ---------------------------------------------------------------------
 export async function listOrganizationMembers(client, session) {
   requireSessionPermission(session, "users.view");
+  const scope = memberWithinAdministrationScopeSql({ organizationId: "$1", actorUserId: "$2", targetUserId: "membership.user_id" });
   const rows = await client.query(
     `SELECT
         membership.user_id, app_user.email, app_user.full_name, app_user.status AS user_status,
@@ -265,33 +295,38 @@ export async function listOrganizationMembers(client, session) {
         COALESCE(role_agg.role_names, ARRAY[]::text[]) AS role_names,
         COALESCE(role_agg.role_ids, ARRAY[]::uuid[]) AS role_ids,
         role_agg.primary_role_id,
+        role_agg.primary_role_name,
+        COALESCE(company_agg.company_ids, ARRAY[]::uuid[]) AS company_ids,
         COALESCE(company_agg.company_names, ARRAY[]::text[]) AS company_names,
+        COALESCE(branch_agg.branch_ids, ARRAY[]::uuid[]) AS branch_ids,
         COALESCE(branch_agg.branch_names, ARRAY[]::text[]) AS branch_names
       FROM organization_memberships AS membership
       JOIN users AS app_user ON app_user.id = membership.user_id
       LEFT JOIN LATERAL (
-        SELECT array_agg(DISTINCT role.name) AS role_names,
-               array_agg(DISTINCT role.id) AS role_ids,
-               (array_agg(role.id ORDER BY assignment.is_primary DESC))[1] AS primary_role_id
+        SELECT array_agg(role.name ORDER BY assignment.is_primary DESC, role.name) AS role_names,
+               array_agg(role.id ORDER BY assignment.is_primary DESC, role.name) AS role_ids,
+               (array_agg(role.id ORDER BY assignment.is_primary DESC))[1] AS primary_role_id,
+               (array_agg(role.name ORDER BY assignment.is_primary DESC))[1] AS primary_role_name
         FROM user_role_assignments assignment
         JOIN roles role ON role.id = assignment.role_id AND role.organization_id = membership.organization_id
         WHERE assignment.organization_id = membership.organization_id AND assignment.user_id = membership.user_id AND assignment.status = 'active'
       ) AS role_agg ON true
       LEFT JOIN LATERAL (
-        SELECT array_agg(company.name) AS company_names
+        SELECT array_agg(company.id ORDER BY company.name) AS company_ids, array_agg(company.name ORDER BY company.name) AS company_names
         FROM membership_company_access access
         JOIN companies company ON company.id = access.company_id
         WHERE access.organization_id = membership.organization_id AND access.user_id = membership.user_id
       ) AS company_agg ON true
       LEFT JOIN LATERAL (
-        SELECT array_agg(branch.name) AS branch_names
+        SELECT array_agg(branch.id ORDER BY branch.name) AS branch_ids, array_agg(branch.name ORDER BY branch.name) AS branch_names
         FROM membership_branch_access access
         JOIN branches branch ON branch.id = access.branch_id
         WHERE access.organization_id = membership.organization_id AND access.user_id = membership.user_id
       ) AS branch_agg ON true
       WHERE membership.organization_id = $1
+        AND ($3::boolean OR ${scope})
       ORDER BY membership.created_at ASC`,
-    [session.organizationId],
+    [session.organizationId, session.userId, isUnrestricted(session)],
   );
   return rows.rows;
 }
@@ -300,11 +335,17 @@ export async function setMemberStatus(client, session, targetUserId, status) {
   requireSessionPermission(session, "users.manage");
   if (!["active", "disabled"].includes(status)) throw new OrganizationAdministrationError(422, "Status must be active or disabled.", "ORG_ADMIN_VALIDATION");
   if (targetUserId === session.userId) throw new OrganizationAdministrationError(422, "You cannot change your own membership status.", "ORG_ADMIN_SELF_TARGET");
+  await assertUserWithinAdministrationScope(client, {
+    organizationId: session.organizationId,
+    actorUserId: session.userId,
+    actorRoleSlugs: session.roleSlugs || [],
+    targetUserId,
+  });
+  let previousStatus = null;
   const updated = await withSeatLock(client, session.organizationId, async () => {
-    if (status === "active") {
-      const current = (await client.query(`SELECT status FROM organization_memberships WHERE organization_id=$1 AND user_id=$2`, [session.organizationId, targetUserId])).rows[0];
-      if (current && current.status !== "active") await assertSeatAvailable(client, session.organizationId, { additional: 1 });
-    }
+    const current = (await client.query(`SELECT status FROM organization_memberships WHERE organization_id=$1 AND user_id=$2`, [session.organizationId, targetUserId])).rows[0];
+    previousStatus = current?.status ?? null;
+    if (status === "active" && current && current.status !== "active") await assertSeatAvailable(client, session.organizationId, { additional: 1 });
     return client.query(
       `UPDATE organization_memberships SET status = $3 WHERE organization_id = $1 AND user_id = $2 RETURNING user_id`,
       [session.organizationId, targetUserId, status],
@@ -318,5 +359,15 @@ export async function setMemberStatus(client, session, targetUserId, status) {
     await client.query(`UPDATE sessions SET revoked_at = now(), revoked_reason = 'membership_disabled' WHERE user_id = $1 AND revoked_at IS NULL`, [targetUserId]);
   }
   await reconcileSeatOverage(client, session.organizationId);
+  if (previousStatus !== status) {
+    await recordAccessAssignmentEvent(client, {
+      organizationId: session.organizationId,
+      userId: targetUserId,
+      actorUserId: session.userId,
+      eventType: status === "active" ? ACCESS_EVIDENCE_EVENTS.MEMBER_ENABLED : ACCESS_EVIDENCE_EVENTS.MEMBER_DISABLED,
+      beforeState: { status: previousStatus },
+      afterState: { status },
+    });
+  }
   return { userId: targetUserId, status };
 }

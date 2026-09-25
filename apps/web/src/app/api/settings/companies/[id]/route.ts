@@ -1,10 +1,10 @@
 import { z } from "zod";
 
-import { assertSameOriginOrMobile, audit, updateCompany } from "@vercentlabs/api";
+import { audit, updateCompany } from "@vercentlabs/api";
+import { CORE_PERMISSIONS } from "@vercentlabs/permissions";
 
-import { transaction } from "@/core/db";
-import { errorResponse, ok, readJson } from "@/core/http";
-import { requireApiWorkspace } from "@/core/session";
+import { ok, readJson } from "@/core/http";
+import { workspaceRoute } from "@/core/workspace-route";
 
 const putSchema = z.object({
   name: z.string().trim().min(1).max(200).optional(),
@@ -13,27 +13,27 @@ const putSchema = z.object({
   status: z.enum(["active", "inactive"]).optional(),
 });
 
+// Delegated administrators may update only companies they are granted;
+// anything else answers "not found" (updateCompany).
 export async function PUT(request: Request, context: { params: Promise<{ id: string }> }) {
-  try {
-    assertSameOriginOrMobile(request, process.env);
-    const session = await requireApiWorkspace();
-    const { id } = await context.params;
-    const body = putSchema.parse(await readJson(request));
-    const company = await transaction(async (client) => {
-      const updated = await updateCompany(client, session, id, body);
+  return workspaceRoute(
+    request,
+    { permission: CORE_PERMISSIONS.companyManage, action: "settings.companies.update", transaction: "platform", auditDenial: true },
+    async ({ client, session }) => {
+      const { id } = await context.params;
+      const body = putSchema.parse(await readJson(request));
+      const company = await updateCompany(client, session, id, body);
       await audit(client, {
         organizationId: session.organizationId,
         actorUserId: session.userId,
         eventType: "company.updated",
         entityType: "company",
         entityId: id,
+        afterData: body,
         request,
         env: process.env,
       });
-      return updated;
-    });
-    return ok({ company });
-  } catch (error) {
-    return errorResponse(error);
-  }
+      return ok({ company });
+    },
+  );
 }

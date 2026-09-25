@@ -48,3 +48,29 @@ export function logAccessDenial(decision, principal, ids = {}, logger = accessLo
   if (!decision || decision.allowed) return null;
   return logger.warn("access.denied", accessLogFields(decision, principal, ids));
 }
+
+// Immutable access-assignment evidence (access_assignment_events, protected
+// by an UPDATE/DELETE-blocking trigger). One row per effective change to a
+// user's access: roles, company/branch scope, membership status, invitation
+// acceptance. States are small id-level snapshots, never secrets. Written in
+// the SAME transaction as the change, so evidence exists iff the change
+// committed. Organization-level changes (module enablement, role
+// definitions) use the general audit_events log instead.
+export const ACCESS_EVIDENCE_EVENTS = Object.freeze({
+  ROLES_CHANGED: "roles_changed",
+  SCOPE_CHANGED: "access_scope_changed",
+  MEMBER_ENABLED: "member_enabled",
+  MEMBER_DISABLED: "member_disabled",
+  INVITATION_ACCEPTED: "invitation_accepted",
+});
+
+export async function recordAccessAssignmentEvent(client, { organizationId, userId, actorUserId, eventType, beforeState = null, afterState = null }) {
+  if (!Object.values(ACCESS_EVIDENCE_EVENTS).includes(eventType)) {
+    throw new TypeError(`Unknown access evidence event: ${eventType}`);
+  }
+  await client.query(
+    `INSERT INTO access_assignment_events (organization_id, user_id, actor_user_id, event_type, before_state, after_state)
+     VALUES ($1, $2, $3, $4, $5::jsonb, $6::jsonb)`,
+    [organizationId, userId, actorUserId ?? null, eventType, beforeState === null ? null : JSON.stringify(beforeState), afterState === null ? null : JSON.stringify(afterState)],
+  );
+}

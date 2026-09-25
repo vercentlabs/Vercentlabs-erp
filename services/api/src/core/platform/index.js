@@ -15,3 +15,4 @@ export * from "../tags.js";
 export * from "../inbound-mail.js";
 export * from "../ai-governance.js";
 export * from "../references.js";
+export * from "./module-administration.js";

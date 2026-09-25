@@ -41,8 +41,31 @@ function unique(values) {
   return [...new Set(values)];
 }
 
-// The only CRM permissions Company Administrator keeps (see its template).
-export const COMPANY_ADMINISTRATOR_CRM_PERMISSIONS = Object.freeze(["crm.view", "crm.reports.view"]);
+// Company Administrator is a delegated ADMINISTRATION role, not a business
+// superuser: an explicit least-privilege allow-list (never ALL_PERMISSIONS
+// minus a deny-list, which silently inherits every future business
+// permission). It administers companies, branches and users inside the
+// companies/branches it is explicitly granted, and may assign only roles
+// whose permissions fit its own authority (grant ceiling). Business authority
+// is composed by assigning the matching module role as well (e.g. Sales Head,
+// CRM Administrator). It deliberately lacks organization.manage (new legal
+// entities), roles.manage (organisation-global role definitions),
+// modules.manage (organisation-global module enablement), SoD override, audit
+// and billing. packages/permissions/tests/catalog-integrity.test.mjs pins this.
+export const COMPANY_ADMINISTRATOR_PERMISSIONS = Object.freeze([
+  "workspace.view",
+  "notifications.view",
+  "profile.manage",
+  "company.manage",
+  "branch.manage",
+  "department.manage",
+  "cost_center.manage",
+  "team.manage",
+  "users.view",
+  "users.manage",
+  "roles.view",
+  "roles.assign",
+]);
 
 export const ROLE_TEMPLATES = Object.freeze([
   {
@@ -68,32 +91,11 @@ export const ROLE_TEMPLATES = Object.freeze([
     name: "Company Administrator",
     slug: "company_administrator",
     description:
-      "Company, branch, department, user and module administration without organisation ownership or billing control.",
+      "Delegated company, branch and user administration inside explicitly granted companies and branches. No business-module, module-enablement, role-definition or billing authority.",
     moduleKey: "platform",
     riskLevel: "privileged",
     assignable: true,
-    // CRM: module access and reports only. CRM records, sensitive customer
-    // fields, CRM configuration, import/export and privacy operations belong
-    // to CRM Administrator and the sales roles (least privilege); a company
-    // administrator who also runs CRM gets the CRM Administrator role too.
-    permissions: ALL_PERMISSIONS.filter(
-      (key) =>
-        key !== "organization.manage" &&
-        (!key.startsWith("crm.") || COMPANY_ADMINISTRATOR_CRM_PERMISSIONS.includes(key)) &&
-        ![
-          "billing.manage",
-          "billing.checkout",
-          "billing.audit",
-          "integrations.manage",
-          "platform.configuration.manage",
-          "platform.extensibility.manage",
-          "platform.privacy.manage",
-          "platform.reports.manage",
-          "platform.ai.manage",
-          "platform.workflows.manage",
-          "platform.security.manage",
-        ].includes(key),
-    ),
+    permissions: COMPANY_ADMINISTRATOR_PERMISSIONS,
   },
   {
     name: "Employee",

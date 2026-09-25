@@ -104,13 +104,63 @@ export async function POST(request: Request) {
 satisfied workspace session → transaction (`tenant` default, `platform` for
 public tables, `none` for single-client reads) → snapshot/principal →
 `authorize` → billing write gate → handler (validation, domain call, audit).
-The route-security and billing matrices audit it. Reference adoptions:
-`api/settings/roles`, `api/settings/roles/permissions`,
-`api/settings/users/[id]/access`, `api/crm/lead-sources`. Remaining routes use
-the per-module `require<Module>Access` helpers (documented exceptions) and
-migrate in later prompts.
+The route-security and billing matrices audit it. Every Shared Access
+administration route (`api/settings/**`, `api/auth/invitations`, invitation
+resend/revoke) uses it (validator-enforced; organisation profile/security and
+self-service sessions are listed exceptions), plus `api/crm/lead-sources` as
+the business-module reference. Business-module routes still use the
+per-module `require<Module>Access` helpers and migrate in later prompts.
+Administration routes run in `transaction: "platform"` (public tables, no
+tenant RLS context) and set `auditDenial: true`: every denial is logged; for
+these routes an authenticated denial is also written to `audit_events` on a
+separate connection (best-effort, never turning a 403 into a 500). Routine
+business denials are not persisted, so a client cannot flood the audit log.
 
-## 5. Public/platform vs tenant data
+## 5. Administration model
+
+| Role | Administration authority |
+|---|---|
+| Organisation Owner | Unrestricted final authority (all permissions; unassignable; ownership moves only through the controlled transfer flow). |
+| System Administrator | Unrestricted organisation-wide administration (all permissions). |
+| Company Administrator | Delegated administration of companies, branches and users **only inside explicitly granted companies/branches**. Explicit allow-list: `workspace.view, notifications.view, profile.manage, company.manage, branch.manage, department.manage, cost_center.manage, team.manage, users.view, users.manage, roles.view, roles.assign`. No business-module, `organization.manage`, `roles.manage`, `modules.manage`, SoD-override, audit or billing authority. |
+
+- **Roles compose.** Access is the union of a person's roles; a Company
+  Administrator who also runs Sales additionally holds a Sales role. Nobody
+  grants what they do not hold (grant ceiling); there is no assign-anything
+  bypass. `listGrantableRolesForActor` tells the UI exactly what an actor may
+  grant.
+- **Role definitions are organisation-global** (`roles.manage`: Owner/System
+  Administrator). Built-in roles are read-only and reconciled for every tenant
+  by generated canonical sync migrations
+  (`scripts/database/generate-canonical-role-sync-migration.mjs`; the role lock
+  points at the latest one).
+- **Module enablement is organisation-global** (`modules.manage`, Settings >
+  Modules). It is independent of the plan: enabled + not entitled, or entitled
+  + disabled, are both unavailable. Disabling deletes nothing.
+- **Company and branch access are per-user security grants.** The active
+  company/branch is only context for the session, never authorization. A
+  delegated administrator only lists and changes users, invitations, companies
+  and branches entirely inside their own grants (one SQL predicate,
+  `memberWithinAdministrationScopeSql` / `invitationWithinAdministrationScopeSql`,
+  used for listing and every mutation); out-of-scope ids answer "not found" or
+  403. Creating a new company needs `organization.manage`; a branch created by
+  a delegated administrator is granted to them in the same transaction.
+  Department/team grants remain foundations (preserved, not yet productized).
+- **One user scope mutation**: `setUserAccessScope` (target-in-scope check,
+  scope grant ceiling, branch-under-company validation, diff apply, evidence,
+  audit). Status and role changes are scoped the same way.
+- **Invitations mirror user access** in the normalized tables
+  (`organization_invitation_roles` with exactly one primary role,
+  `organization_invitation_company_access`, `_branch_access`); migration 060
+  backfilled the legacy `role_id/company_ids/branch_ids` columns, which remain
+  only as deprecated rollout mirrors. Acceptance re-validates roles and applies
+  membership, every role, the primary role and scope atomically.
+- **Evidence**: roles changed, scope changed, member enabled/disabled and
+  invitation accepted are written to the immutable `access_assignment_events`
+  in the same transaction; organisation-level changes (modules, role
+  definitions) go to `audit_events`.
+
+## 6. Public/platform vs tenant data
 
 | Public / platform schema (no RLS today) | Tenant schema (`tenant.*`, FORCE RLS) |
 |---|---|
@@ -124,7 +174,7 @@ hardening phase** that first requires classifying each table (global vs
 per-organization vs authentication-critical); do not enable RLS on
 authentication tables piecemeal.
 
-## 6. Rules for new modules
+## 7. Rules for new modules
 
 - Register permissions in `@vercentlabs/permissions` (+ a platform migration
   inserting them into `permissions`); add at least one module role; add the
@@ -136,11 +186,13 @@ authentication tables piecemeal.
   contract; record policies live in the module; cross-module work goes through
   `services/api/src/orchestration`.
 - Tenant tables go in `database/tenant/migrations` with FORCE RLS.
-- Changing a built-in role template requires a NEW platform migration that
-  reconciles existing tenants plus `pnpm access:role-lock --write
-  --synchronized-by <migration>` (never edit shipped migrations).
+- Changing a built-in role template: run
+  `node scripts/database/generate-canonical-role-sync-migration.mjs --write`
+  (a NEW migration reconciling every tenant), then
+  `pnpm access:role-lock --write --synchronized-by <that migration>`. Never
+  edit a shipped migration.
 
-## 7. Rules for agents / code generation (validator-enforced)
+## 8. Rules for agents / code generation (validator-enforced)
 
 - Frontend checks are UX only; route checks are not enough; domain
   authorization is authoritative; tenant RLS is the final isolation defence.
@@ -156,11 +208,15 @@ authentication tables piecemeal.
   `core/db.ts`; no private cross-module or cross-feature imports; no new flat
   `services/api/src/core/*.js` files; tenant context only via
   `@vercentlabs/database`.
+- Company Administrator stays an explicit allow-list; each access-state table
+  (module enablement, user scope, invitations) has one canonical writer;
+  invitations are always written through the normalized tables; Shared Access
+  administration routes use `workspaceRoute()`.
 - Exceptions are explicit, named lists with reasons in
   `scripts/validation/architecture-rules.mjs`; shrink them, never grow them
   silently.
 
-## 8. Tests
+## 9. Tests
 
 | Suite | Location | Command |
 |---|---|---|
@@ -168,7 +224,8 @@ authentication tables piecemeal.
 | Catalogue integrity + role lock | `packages/permissions/tests/` | `pnpm verify:access` |
 | Route composition | `apps/web/src/core/secure-route.test.ts` | `pnpm verify:access` |
 | Architecture rules | `scripts/validation/architecture-rules.test.mjs` | `pnpm verify:access` |
-| Real PostgreSQL access/RLS | `tests/integration/access/` + listed isolation suites | `pnpm test:access:db` (fails on skip) |
+| Real PostgreSQL access/RLS, delegated admin matrix, invitations, modules, role sync | `tests/integration/access/` + listed isolation suites | `pnpm test:access:db` (fails on skip) |
+| Settings access UX | `apps/web/e2e/settings-shared-access.spec.ts` | `pnpm --filter @vercentlabs/web exec playwright test settings-shared-access.spec.ts` |
 | Adversarial tenant/security | `tests/security/` | `pnpm test:security` |
 | Browser behaviour | `apps/web/e2e/` | `pnpm test:e2e:erp` |
 
@@ -176,16 +233,12 @@ CI: `erp-ci.yml` runs `verify:access` in the main job and a dedicated
 `shared-access-db` job (PostgreSQL 16, migrations, restricted runtime role,
 `test:access:db`).
 
-## 9. Known gaps (closed in later prompts)
+## 10. Known gaps (closed in later prompts)
 
-1. Delegated-administrator company/branch containment is not wired into every
-   Settings path (e.g. `settings/users/[id]/access`).
-2. Module enable/disable exists at runtime; its administration UI/API is incomplete.
-3. Department/team access exists in foundations but is not universally wired.
-4. Record access stays domain-specific by design; field security is uneven across modules.
-5. Organization-scoped public/platform tables lack an RLS safety net (§5).
-6. Access audit evidence is not uniformly written (`recordAccessDenial` exists; adoption pending).
-7. Built-in role grants in older tenants may predate the role lock baseline; only CRM grants were reconciled (migration 058).
-8. Some client-side action visibility is coarser than server permission granularity.
-9. Most routes still use per-module `require<Module>Access` helpers instead of `workspaceRoute`.
-10. `docs/frontend-rebuild/recovered-platform-code` is still read by `verify:t01` for two unported slices (reporting dataset permissions, workflow-run engine).
+1. Department/team access exists in foundations but is not productized or universally wired (needs the HR/organisation-structure ownership decision).
+2. Record access stays domain-specific by design; field security is uneven across modules.
+3. Organization-scoped public/platform tables lack an RLS safety net (§6).
+4. Business-module routes still use per-module `require<Module>Access` helpers instead of `workspaceRoute`; organisation profile/security settings routes are listed exceptions.
+5. Deprecated invitation columns (`role_id`, `company_ids`, `branch_ids`) are still mirrored for the rollout window; drop them once no older instance can run.
+6. `docs/frontend-rebuild/recovered-platform-code` is still read by `verify:t01` for two unported slices (reporting dataset permissions, workflow-run engine).
+7. Billing/plan administration and seat purchase flows are unchanged here (next prompt).

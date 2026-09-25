@@ -1,10 +1,10 @@
 import { z } from "zod";
 
-import { archiveRole, assertSameOriginOrMobile, updateRole } from "@vercentlabs/api";
+import { archiveRole, updateRole } from "@vercentlabs/api";
+import { CORE_PERMISSIONS } from "@vercentlabs/permissions";
 
-import { transaction } from "@/core/db";
-import { errorResponse, ok, readJson } from "@/core/http";
-import { requireApiWorkspace } from "@/core/session";
+import { ok, readJson } from "@/core/http";
+import { workspaceRoute } from "@/core/workspace-route";
 
 const putSchema = z.object({
   name: z.string().trim().min(1).max(100).optional(),
@@ -14,27 +14,28 @@ const putSchema = z.object({
   acknowledgeWarningConflicts: z.boolean().optional(),
 });
 
+// Role definitions are organization-global: roles.manage (Owner / System
+// Administrator). Built-in roles stay read-only (enforced in updateRole).
 export async function PUT(request: Request, context: { params: Promise<{ id: string }> }) {
-  try {
-    assertSameOriginOrMobile(request, process.env);
-    const session = await requireApiWorkspace();
-    const { id } = await context.params;
-    const body = putSchema.parse(await readJson(request));
-    const role = await transaction((client) => updateRole(client, session, id, body));
-    return ok({ role });
-  } catch (error) {
-    return errorResponse(error);
-  }
+  return workspaceRoute(
+    request,
+    { permission: CORE_PERMISSIONS.rolesManage, action: "settings.roles.update", transaction: "platform", auditDenial: true },
+    async ({ client, session }) => {
+      const { id } = await context.params;
+      const body = putSchema.parse(await readJson(request));
+      return ok({ role: await updateRole(client, session, id, body) });
+    },
+  );
 }
 
 export async function DELETE(request: Request, context: { params: Promise<{ id: string }> }) {
-  try {
-    assertSameOriginOrMobile(request, process.env);
-    const session = await requireApiWorkspace();
-    const { id } = await context.params;
-    await transaction((client) => archiveRole(client, session, id));
-    return ok({ archived: true });
-  } catch (error) {
-    return errorResponse(error);
-  }
+  return workspaceRoute(
+    request,
+    { permission: CORE_PERMISSIONS.rolesManage, action: "settings.roles.archive", transaction: "platform", auditDenial: true },
+    async ({ client, session }) => {
+      const { id } = await context.params;
+      await archiveRole(client, session, id);
+      return ok({ archived: true });
+    },
+  );
 }

@@ -5,8 +5,15 @@ import test from "node:test";
 
 import { ERP_MODULE_CATALOG } from "../../shared-types/src/modules.js";
 import {
+  ACCOUNTING_PERMISSIONS,
   ALL_PERMISSIONS,
+  BILLING_PERMISSIONS,
+  COMPANY_ADMINISTRATOR_PERMISSIONS,
+  CORE_PERMISSIONS,
+  CRM_PERMISSIONS,
   CURRENT_MODULE_KEYS,
+  PROCUREMENT_PERMISSIONS,
+  SALES_PERMISSIONS,
   MODULE_ACCESS_PERMISSIONS,
   PERMISSION_BYPASS_ROLE_SLUGS,
   ROLE_TEMPLATES,
@@ -84,15 +91,58 @@ test("built-in role templates match their synchronization lock", () => {
 test("changing a template without a synchronizing migration is rejected", () => {
   const fingerprints = currentFingerprints();
   const [slug] = Object.keys(fingerprints);
-  const lock = { roles: Object.fromEntries(Object.entries(fingerprints).map(([key, fingerprint]) => [key, { fingerprint, synchronizedBy: "baseline" }])) };
+  const sync = "database/platform/migrations/999_canonical_system_role_sync.sql";
+  const everySlug = Object.keys(fingerprints).map((key) => `'${key}'`).join(",");
+  const lock = { roles: Object.fromEntries(Object.entries(fingerprints).map(([key, fingerprint]) => [key, { fingerprint, synchronizedBy: sync }])) };
   lock.roles[slug].fingerprint = "stale";
-  const problems = compareLock(lock, fingerprints, { migrationExists: () => true, migrationSource: () => "" });
+  const problems = compareLock(lock, fingerprints, { migrationExists: () => true, migrationSource: () => everySlug });
   assert.equal(problems.length, 1);
   assert.match(problems[0], /template changed/);
 
-  lock.roles[slug] = { fingerprint: fingerprints[slug], synchronizedBy: "database/platform/migrations/999_sync.sql" };
+  lock.roles[slug] = { fingerprint: fingerprints[slug], synchronizedBy: sync };
   const unrelated = compareLock(lock, fingerprints, { migrationExists: () => true, migrationSource: () => "-- touches nothing" });
   assert.match(unrelated[0], /never mentions this role slug/);
-  const synced = compareLock(lock, fingerprints, { migrationExists: () => true, migrationSource: () => `WHERE slug = '${slug}'` });
-  assert.deepEqual(synced, []);
+  assert.deepEqual(compareLock(lock, fingerprints, { migrationExists: () => true, migrationSource: () => everySlug }), []);
+});
+
+test("an unverified baseline is no longer an acceptable lock state", () => {
+  const fingerprints = currentFingerprints();
+  const lock = { roles: Object.fromEntries(Object.entries(fingerprints).map(([key, fingerprint]) => [key, { fingerprint, synchronizedBy: "baseline" }])) };
+  const problems = compareLock(lock, fingerprints, { migrationExists: () => true, migrationSource: () => "" });
+  assert.equal(problems.length, Object.keys(fingerprints).length);
+  assert.match(problems[0], /unverified baseline/);
+});
+
+test("Company Administrator is least-privilege administration with no business, module, role-definition or billing authority", () => {
+  const admin = ROLE_TEMPLATES.find((role) => role.slug === "company_administrator");
+  assert.deepEqual([...admin.permissions].sort(), [...COMPANY_ADMINISTRATOR_PERMISSIONS].sort());
+  for (const key of [CORE_PERMISSIONS.companyManage, CORE_PERMISSIONS.branchManage, CORE_PERMISSIONS.usersManage, CORE_PERMISSIONS.rolesAssign]) {
+    assert.ok(admin.permissions.includes(key), `must keep ${key}`);
+  }
+  const forbidden = [
+    CRM_PERMISSIONS.leadsManage,
+    SALES_PERMISSIONS.orderCreate,
+    ACCOUNTING_PERMISSIONS.journalCreate,
+    PROCUREMENT_PERMISSIONS.poCreate,
+    CORE_PERMISSIONS.modulesManage,
+    CORE_PERMISSIONS.rolesManage,
+    CORE_PERMISSIONS.organizationManage,
+    CORE_PERMISSIONS.accessSodOverride,
+    CORE_PERMISSIONS.auditView,
+    ...Object.values(BILLING_PERMISSIONS),
+  ];
+  for (const key of forbidden) {
+    assert.ok(key, "forbidden key constant must exist");
+    assert.ok(!admin.permissions.includes(key), `must not include ${key}`);
+  }
+  // No permission belonging to any business module at all.
+  const businessPrefixes = ["crm.", "sales.", "accounting.", "procurement.", "stock.", "manufacturing.", "projects.", "assets.", "pos.", "quality.", "support.", "hr_payroll.", "business_data.", "parties.", "items.", "billing."];
+  assert.deepEqual(admin.permissions.filter((key) => businessPrefixes.some((prefix) => key.startsWith(prefix))), []);
+});
+
+test("Organization Owner and System Administrator keep full authority; owner alone is unassignable", () => {
+  for (const slug of ["organization_owner", "system_administrator"]) {
+    assert.deepEqual([...ROLE_TEMPLATES.find((role) => role.slug === slug).permissions].sort(), [...ALL_PERMISSIONS].sort(), slug);
+  }
+  assert.equal(ROLE_TEMPLATES.find((role) => role.slug === "organization_owner").assignable, false);
 });

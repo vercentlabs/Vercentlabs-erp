@@ -1,18 +1,22 @@
-import { assertSameOriginOrMobile, audit, resendOrganizationInvitation, requireSessionPermission } from "@vercentlabs/api";
+import { audit, resendOrganizationInvitation } from "@vercentlabs/api";
 import { CORE_PERMISSIONS } from "@vercentlabs/permissions";
 
-import { transaction } from "@/core/db";
-import { errorResponse, ok } from "@/core/http";
-import { requireWorkspace } from "@/core/session";
+import { ok } from "@/core/http";
+import { workspaceRoute } from "@/core/workspace-route";
 
+// Delegated administrators may resend only invitations inside their scope
+// (asserted in resendOrganizationInvitation).
 export async function POST(request: Request, context: { params: Promise<{ id: string }> }) {
-  try {
-    assertSameOriginOrMobile(request, process.env);
-    const session = await requireWorkspace();
-    requireSessionPermission(session, CORE_PERMISSIONS.usersManage);
-    const { id } = await context.params;
-    const result = await transaction(async (client) => {
-      const resent = await resendOrganizationInvitation(client, { organizationId: session.organizationId, invitationId: id }, process.env);
+  return workspaceRoute(
+    request,
+    { permission: CORE_PERMISSIONS.usersManage, action: "settings.invitations.resend", transaction: "platform", auditDenial: true },
+    async ({ client, session }) => {
+      const { id } = await context.params;
+      const result = await resendOrganizationInvitation(
+        client,
+        { organizationId: session.organizationId, invitationId: id, actor: { userId: session.userId, roleSlugs: session.roleSlugs } },
+        process.env,
+      );
       await audit(client, {
         organizationId: session.organizationId,
         actorUserId: session.userId,
@@ -22,10 +26,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
         request,
         env: process.env,
       });
-      return resent;
-    });
-    return ok(result);
-  } catch (error) {
-    return errorResponse(error);
-  }
+      return ok(result);
+    },
+  );
 }

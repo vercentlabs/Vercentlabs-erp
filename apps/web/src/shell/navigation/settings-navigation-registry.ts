@@ -41,13 +41,14 @@ export const SETTINGS_NAVIGATION: readonly SettingsNavSection[] = [
       { id: "organization-details", label: "Organization", route: "/settings/organization", status: "AVAILABLE", description: "Name, timezone, and fiscal year start.", requiredPermission: "organization.manage" },
       { id: "companies", label: "Companies", route: "/settings/companies", status: "AVAILABLE", description: "Legal entities within your organization.", requiredPermission: "company.manage" },
       { id: "branches", label: "Branches", route: "/settings/branches", status: "AVAILABLE", description: "Locations within each company.", requiredPermission: "branch.manage" },
+      { id: "modules", label: "Modules", route: "/settings/modules", status: "AVAILABLE", description: "Turn business modules on or off for the whole organization.", requiredPermission: "modules.manage" },
     ],
   },
   {
     id: "people",
     label: "People and access",
     items: [
-      { id: "users", label: "Users", route: "/settings/users", status: "AVAILABLE", description: "Active members, status, and assigned roles.", requiredPermission: "users.manage" },
+      { id: "users", label: "Users", route: "/settings/users", status: "AVAILABLE", description: "Members, their roles, and company and branch access.", requiredPermission: "users.view" },
       { id: "invitations", label: "Invitations", route: "/settings/invitations", status: "AVAILABLE", description: "Pending invitations and their status.", requiredPermission: "users.manage" },
       { id: "roles", label: "Roles and permissions", route: "/settings/roles", status: "AVAILABLE", description: "Create custom roles, edit permission grants, and assign roles to users.", requiredPermission: "roles.view" },
     ],

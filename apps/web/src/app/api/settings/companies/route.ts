@@ -1,19 +1,20 @@
 import { z } from "zod";
 
-import { assertSameOriginOrMobile, audit, createCompany, listOrganizationCompanies } from "@vercentlabs/api";
+import { audit, createCompany, listOrganizationCompanies } from "@vercentlabs/api";
+import { CORE_PERMISSIONS } from "@vercentlabs/permissions";
 
-import { transaction, withClient } from "@/core/db";
-import { errorResponse, ok, readJson } from "@/core/http";
-import { requireApiWorkspace } from "@/core/session";
+import { ok, readJson } from "@/core/http";
+import { workspaceRoute } from "@/core/workspace-route";
 
-export async function GET() {
-  try {
-    const session = await requireApiWorkspace();
-    const companies = await withClient((client) => listOrganizationCompanies(client, session));
-    return ok({ companies });
-  } catch (error) {
-    return errorResponse(error);
-  }
+// Companies visible/manageable by the caller: all of them for unrestricted
+// administrators, only explicitly granted ones for delegated administrators
+// (enforced in listOrganizationCompanies).
+export async function GET(request: Request) {
+  return workspaceRoute(
+    request,
+    { permission: CORE_PERMISSIONS.companyManage, action: "settings.companies.list", transaction: "none" },
+    async ({ client, session }) => ok({ companies: await listOrganizationCompanies(client, session) }),
+  );
 }
 
 const postSchema = z.object({
@@ -26,26 +27,26 @@ const postSchema = z.object({
   isPrimary: z.boolean().optional(),
 });
 
+// A new legal entity is organization-level: createCompany additionally
+// requires organization.manage (or unrestricted administration).
 export async function POST(request: Request) {
-  try {
-    assertSameOriginOrMobile(request, process.env);
-    const session = await requireApiWorkspace();
-    const body = postSchema.parse(await readJson(request));
-    const company = await transaction(async (client) => {
-      const created = await createCompany(client, session, body);
+  return workspaceRoute(
+    request,
+    { permission: CORE_PERMISSIONS.companyManage, action: "settings.companies.create", transaction: "platform", auditDenial: true },
+    async ({ client, session }) => {
+      const body = postSchema.parse(await readJson(request));
+      const company = await createCompany(client, session, body);
       await audit(client, {
         organizationId: session.organizationId,
         actorUserId: session.userId,
         eventType: "company.created",
         entityType: "company",
-        entityId: created.id,
+        entityId: company.id,
+        afterData: { name: company.name, code: company.code },
         request,
         env: process.env,
       });
-      return created;
-    });
-    return ok({ company }, 201);
-  } catch (error) {
-    return errorResponse(error);
-  }
+      return ok({ company }, 201);
+    },
+  );
 }

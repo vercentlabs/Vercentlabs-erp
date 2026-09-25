@@ -180,6 +180,7 @@ export * from "./core/ai-governance.js";
 export * from "./core/approvals.js";
 export * from "./core/notifications.js";
 export * from "./core/background-jobs.js";
+export * from "./core/platform/module-administration.js";
 
 export * from "./orchestration/sales-crm-opportunity-sync.js";
 export { hrContext, HrError } from "./modules/hr-payroll/common.js";

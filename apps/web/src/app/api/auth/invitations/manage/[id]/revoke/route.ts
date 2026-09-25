@@ -1,18 +1,22 @@
-import { assertSameOriginOrMobile, audit, revokeOrganizationInvitation, requireSessionPermission } from "@vercentlabs/api";
+import { audit, revokeOrganizationInvitation } from "@vercentlabs/api";
 import { CORE_PERMISSIONS } from "@vercentlabs/permissions";
 
-import { transaction } from "@/core/db";
-import { errorResponse, ok } from "@/core/http";
-import { requireWorkspace } from "@/core/session";
+import { ok } from "@/core/http";
+import { workspaceRoute } from "@/core/workspace-route";
 
+// Delegated administrators may revoke only invitations inside their scope
+// (asserted in revokeOrganizationInvitation).
 export async function POST(request: Request, context: { params: Promise<{ id: string }> }) {
-  try {
-    assertSameOriginOrMobile(request, process.env);
-    const session = await requireWorkspace();
-    requireSessionPermission(session, CORE_PERMISSIONS.usersManage);
-    const { id } = await context.params;
-    const result = await transaction(async (client) => {
-      const revoked = await revokeOrganizationInvitation(client, { organizationId: session.organizationId, invitationId: id });
+  return workspaceRoute(
+    request,
+    { permission: CORE_PERMISSIONS.usersManage, action: "settings.invitations.revoke", transaction: "platform", auditDenial: true },
+    async ({ client, session }) => {
+      const { id } = await context.params;
+      const result = await revokeOrganizationInvitation(client, {
+        organizationId: session.organizationId,
+        invitationId: id,
+        actor: { userId: session.userId, roleSlugs: session.roleSlugs },
+      });
       await audit(client, {
         organizationId: session.organizationId,
         actorUserId: session.userId,
@@ -22,10 +26,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
         request,
         env: process.env,
       });
-      return revoked;
-    });
-    return ok(result);
-  } catch (error) {
-    return errorResponse(error);
-  }
+      return ok(result);
+    },
+  );
 }

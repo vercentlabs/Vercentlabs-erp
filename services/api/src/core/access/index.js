@@ -44,4 +44,4 @@ export {
 export { assertWritableFields, hiddenFieldsFor, projectFields } from "./field-access.js";
 export { authorize, requireAuthorization } from "./authorization.js";
 export { assertNoBlockingSodConflict } from "./administration.js";
-export { accessLogFields, logAccessDenial, recordAccessDenial } from "./audit.js";
+export { ACCESS_EVIDENCE_EVENTS, accessLogFields, logAccessDenial, recordAccessAssignmentEvent, recordAccessDenial } from "./audit.js";

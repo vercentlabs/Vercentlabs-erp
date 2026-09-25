@@ -7,6 +7,7 @@ import {
   createAccessPrincipal,
   denialToError,
   logAccessDenial,
+  recordAccessDenial,
   requireBillingWriteAccess,
 } from "@vercentlabs/api";
 import type { PoolClient } from "pg";
@@ -15,7 +16,24 @@ import { tenantTransaction, transaction, withClient } from "@/core/db";
 import { errorResponse } from "@/core/http";
 import { requireApiWorkspace, type WorkspaceSessionContext } from "@/core/session";
 
-import { createSecureRoute, type SecureRouteContext, type SecureRouteOptions } from "./secure-route.ts";
+import { createSecureRoute, type DeniedAccessEvent, type SecureRouteContext, type SecureRouteOptions } from "./secure-route.ts";
+
+function requestIds(request: Request) {
+  return { requestId: request.headers.get("x-request-id"), correlationId: request.headers.get("x-correlation-id") };
+}
+
+function denialDecision(event: DeniedAccessEvent) {
+  return {
+    allowed: false as const,
+    code: (event.code ?? "PERMISSION_DENIED") as "PERMISSION_DENIED",
+    status: event.status,
+    module: event.module,
+    permission: event.permission,
+    action: event.action,
+    reason: null,
+    conceal: event.status === 404,
+  };
+}
 
 export type WorkspaceRouteContext = SecureRouteContext<WorkspaceSessionContext, PoolClient>;
 export type { SecureRouteOptions as WorkspaceRouteOptions };
@@ -52,6 +70,24 @@ export async function workspaceRoute(
         correlationId: incoming.headers.get("x-correlation-id"),
       }),
     requireBillingWrite: (client, organizationId) => requireBillingWriteAccess(client, organizationId, process.env),
+    logDeniedAccess: (event) => logAccessDenial(denialDecision(event), event.principal, requestIds(event.request)),
+    // Separate pooled connection, no transaction: the request transaction
+    // has already rolled back, and this evidence must survive it.
+    recordDeniedAccess: async (event) => {
+      try {
+        await withClient((client) =>
+          recordAccessDenial(client, {
+            decision: denialDecision(event),
+            principal: event.principal,
+            request: event.request,
+            env: process.env,
+            ...requestIds(event.request),
+          }),
+        );
+      } catch (error) {
+        console.error("access_denial_audit_failed", { code: event.code, action: event.action, error: error instanceof Error ? error.message : "unknown" });
+      }
+    },
     toErrorResponse: (error) => errorResponse(error),
   });
   return secureRoute(request, options, handler);

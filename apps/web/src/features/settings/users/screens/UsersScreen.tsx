@@ -2,78 +2,120 @@
 
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { AlertDialog, Badge, Button, Checkbox, Dialog, EmptyState, ErrorState, PageHeader, PermissionState, Select } from "@vercentlabs/design-system";
+import { AlertDialog, Badge, Button, Dialog, EmptyState, ErrorState, PageHeader, PermissionState } from "@vercentlabs/design-system";
 
-import { listCompanies } from "@/features/settings/companies/api/companies-api";
-import { listBranches } from "@/features/settings/branches/api/branches-api";
-import { listRoles, RolesApiError, setUserRoles } from "@/features/settings/roles/api/roles-api";
-import { CRM_RECORD_SCOPE_LABEL, summarizeEffectiveAccess } from "@/features/settings/roles/effective-access";
-import { listMembers, MemberRow, setMemberAccess, setMemberStatus, UsersApiError } from "../api/users-api";
+import { AccessApiError, getAccessOptions, saveUserAccessScope } from "@/features/settings/access/api/access-api";
+import { EffectiveAccessSummary } from "@/features/settings/access/EffectiveAccessSummary";
+import { RoleSelector } from "@/features/settings/access/RoleSelector";
+import { ScopeSelector } from "@/features/settings/access/ScopeSelector";
+import { RolesApiError, setUserRoles } from "@/features/settings/roles/api/roles-api";
+import { listMembers, MemberRow, setMemberStatus, UsersApiError } from "../api/users-api";
 
 const QUERY_KEY = ["settings", "users"];
+const OPTIONS_KEY = ["settings", "access", "options"];
 
-export function UsersScreen({ canManage, currentUserId }: { canManage: boolean; currentUserId: string }) {
+export type UsersAbilities = {
+  canView: boolean;
+  canManageUsers: boolean;
+  canAssignRoles: boolean;
+};
+
+function errorMessage(error: unknown, fallback: string) {
+  return error instanceof UsersApiError || error instanceof RolesApiError || error instanceof AccessApiError ? error.message : fallback;
+}
+
+function Scope({ names, empty }: { names: string[]; empty: string }) {
+  return <span>{names.length ? names.join(", ") : empty}</span>;
+}
+
+export function UsersScreen({ abilities, currentUserId }: { abilities: UsersAbilities; currentUserId: string }) {
   const queryClient = useQueryClient();
-  const query = useQuery({ queryKey: QUERY_KEY, queryFn: listMembers });
-  const companiesQuery = useQuery({ queryKey: ["settings", "companies"], queryFn: listCompanies });
-  const branchesQuery = useQuery({ queryKey: ["settings", "branches"], queryFn: listBranches });
-  const rolesQuery = useQuery({ queryKey: ["settings", "roles"], queryFn: listRoles });
+  const query = useQuery({ queryKey: QUERY_KEY, queryFn: listMembers, enabled: abilities.canView });
+  const optionsQuery = useQuery({ queryKey: OPTIONS_KEY, queryFn: getAccessOptions, enabled: abilities.canManageUsers || abilities.canAssignRoles });
 
   const [statusTarget, setStatusTarget] = useState<MemberRow | null>(null);
   const [accessTarget, setAccessTarget] = useState<MemberRow | null>(null);
-  const [selectedCompanyIds, setSelectedCompanyIds] = useState<string[]>([]);
-  const [selectedBranchIds, setSelectedBranchIds] = useState<string[]>([]);
+  const [scope, setScope] = useState<{ companyIds: string[]; branchIds: string[] }>({ companyIds: [], branchIds: [] });
   const [rolesTarget, setRolesTarget] = useState<MemberRow | null>(null);
-  const [selectedRoleIds, setSelectedRoleIds] = useState<string[]>([]);
-  const [primaryRoleId, setPrimaryRoleId] = useState<string>("");
-  const [rolesError, setRolesError] = useState<string | null>(null);
+  const [roleSelection, setRoleSelection] = useState<{ roleIds: string[]; primaryRoleId: string }>({ roleIds: [], primaryRoleId: "" });
+  const [dialogError, setDialogError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
+
+  const refresh = () => queryClient.invalidateQueries({ queryKey: QUERY_KEY });
 
   const statusMutation = useMutation({
     mutationFn: (member: MemberRow) => setMemberStatus(member.user_id, member.membership_status === "active" ? "disabled" : "active"),
     onSuccess: () => {
       setActionError(null);
       setStatusTarget(null);
-      queryClient.invalidateQueries({ queryKey: QUERY_KEY });
+      refresh();
     },
-    onError: (error: unknown) => setActionError(error instanceof UsersApiError ? error.message : "The member's status could not be changed."),
+    onError: (error: unknown) => {
+      setStatusTarget(null);
+      setActionError(errorMessage(error, "The member's status could not be changed."));
+    },
   });
 
   const accessMutation = useMutation({
-    mutationFn: () => setMemberAccess(accessTarget!.user_id, selectedCompanyIds, selectedBranchIds),
+    mutationFn: () => saveUserAccessScope(accessTarget!.user_id, scope.companyIds, scope.branchIds),
     onSuccess: () => {
-      setActionError(null);
+      setDialogError(null);
       setAccessTarget(null);
-      queryClient.invalidateQueries({ queryKey: QUERY_KEY });
+      refresh();
     },
-    onError: (error: unknown) => setActionError(error instanceof UsersApiError ? error.message : "Access could not be updated."),
+    onError: (error: unknown) => setDialogError(errorMessage(error, "Access could not be updated.")),
   });
 
   const rolesMutation = useMutation({
-    mutationFn: () => setUserRoles(rolesTarget!.user_id, selectedRoleIds, primaryRoleId),
+    mutationFn: () => setUserRoles(rolesTarget!.user_id, roleSelection.roleIds, roleSelection.primaryRoleId),
     onSuccess: () => {
-      setRolesError(null);
+      setDialogError(null);
       setRolesTarget(null);
-      queryClient.invalidateQueries({ queryKey: QUERY_KEY });
+      refresh();
     },
-    onError: (error: unknown) => setRolesError(error instanceof RolesApiError ? error.message : "Roles could not be updated."),
+    onError: (error: unknown) => setDialogError(errorMessage(error, "Roles could not be updated.")),
   });
 
-  if (!canManage) {
+  if (!abilities.canView) {
     return (
       <div className="flex flex-1 flex-col gap-6">
-        <PermissionState title="You don't have access to Users" description="Ask an administrator to grant users.manage." />
+        <PermissionState title="You don't have access to Users" description="Ask an administrator for access to view users." />
       </div>
     );
   }
 
   const members = query.data?.members ?? [];
-  const companies = companiesQuery.data?.companies ?? [];
-  const branches = branchesQuery.data?.branches ?? [];
+  const options = optionsQuery.data;
+  const grantableCompanies = options?.scope?.companies ?? [];
+  const roles = options?.roles ?? [];
+  const selectedRoles = roles.filter((role) => roleSelection.roleIds.includes(role.id));
+  // Roles this person already holds that the current administrator could not
+  // grant: shown, never silently dropped, and saving is blocked (the server
+  // would refuse it anyway).
+  const lockedRoles = selectedRoles.filter((role) => !role.grantable);
+
+  const openAccess = (member: MemberRow) => {
+    // Ids come straight from the server — never reconstructed from names.
+    setScope({ companyIds: member.company_ids, branchIds: member.branch_ids });
+    setDialogError(null);
+    setAccessTarget(member);
+  };
+  const openRoles = (member: MemberRow) => {
+    setRoleSelection({ roleIds: member.role_ids, primaryRoleId: member.primary_role_id ?? member.role_ids[0] ?? "" });
+    setDialogError(null);
+    setRolesTarget(member);
+  };
 
   return (
     <div className="flex flex-1 flex-col gap-6">
-      <PageHeader title="Users" description="Active members, status, roles, and company/branch access." />
+      <PageHeader
+        title="Users"
+        description={
+          options?.scope && !options.scope.unrestricted
+            ? "Members in the companies and branches you administer."
+            : "Members of your organization, their roles and their company and branch access."
+        }
+      />
 
       {actionError ? (
         <p role="alert" className="rounded-[var(--radius-control)] border border-danger-emphasis/30 bg-danger-soft px-3 py-2 text-sm text-danger">
@@ -84,66 +126,66 @@ export function UsersScreen({ canManage, currentUserId }: { canManage: boolean; 
       {query.isLoading ? (
         <p className="text-sm text-text-secondary">Loading…</p>
       ) : query.isError ? (
-        <ErrorState title="Could not load members" description="Something went wrong." action={{ label: "Retry", onPress: () => query.refetch() }} />
+        <ErrorState title="Could not load users" description="Something went wrong." action={{ label: "Retry", onPress: () => query.refetch() }} />
       ) : members.length === 0 ? (
-        <EmptyState title="No members yet" />
+        <EmptyState title="No users to show" description="Users appear here once they have access inside your administration scope." />
       ) : (
-        <ul className="flex max-w-[860px] flex-col gap-2">
-          {members.map((member) => (
-            <li key={member.user_id} className="flex flex-col gap-3 rounded-[var(--radius-card)] border border-border bg-surface p-4 sm:flex-row sm:items-center sm:justify-between">
-              <div className="flex min-w-0 flex-col gap-0.5">
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="text-sm font-medium text-text">{member.full_name}</span>
-                  <Badge tone={member.membership_status === "active" ? "success" : "neutral"}>{member.membership_status}</Badge>
-                  {member.user_id === currentUserId && <Badge tone="info">You</Badge>}
+        <ul className="flex max-w-[960px] flex-col gap-2" aria-label="Users">
+          {members.map((member) => {
+            const additional = member.role_names.filter((name) => name !== member.primary_role_name);
+            const isSelf = member.user_id === currentUserId;
+            return (
+              <li key={member.user_id} className="flex flex-col gap-3 rounded-[var(--radius-card)] border border-border bg-surface p-4 sm:flex-row sm:items-start sm:justify-between">
+                <div className="flex min-w-0 flex-col gap-1">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="text-sm font-medium text-text">{member.full_name}</span>
+                    <Badge tone={member.membership_status === "active" ? "success" : "neutral"}>{member.membership_status === "active" ? "Active" : "Disabled"}</Badge>
+                    {isSelf && <Badge tone="info">You</Badge>}
+                  </div>
+                  <span className="text-xs break-all text-text-muted">{member.email}</span>
+                  <dl className="grid grid-cols-[5.5rem_1fr] gap-x-2 gap-y-0.5 text-xs text-text-secondary">
+                    <dt className="text-text-muted">Role</dt>
+                    <dd>
+                      {member.primary_role_name ?? "No role assigned"}
+                      {additional.length > 0 && <span className="text-text-muted">{` + ${additional.join(", ")}`}</span>}
+                    </dd>
+                    <dt className="text-text-muted">Companies</dt>
+                    <dd>
+                      <Scope names={member.company_names} empty="No company access" />
+                    </dd>
+                    <dt className="text-text-muted">Branches</dt>
+                    <dd>
+                      <Scope names={member.branch_names} empty="No branch access" />
+                    </dd>
+                  </dl>
                 </div>
-                <span className="text-xs text-text-muted break-all">{member.email}</span>
-                <span className="text-xs text-text-muted">
-                  {member.role_names.length ? member.role_names.join(", ") : "No role assigned"}
-                  {" · "}
-                  {member.company_names.length ? `Companies: ${member.company_names.join(", ")}` : "No company access"}
-                  {member.branch_names.length ? ` · Branches: ${member.branch_names.join(", ")}` : ""}
-                </span>
-              </div>
-              <div className="flex flex-wrap gap-2">
-                <Button
-                  variant="secondary"
-                  size="compact"
-                  onPress={() => {
-                    setRolesTarget(member);
-                    setSelectedRoleIds(member.role_ids);
-                    setPrimaryRoleId(member.primary_role_id ?? member.role_ids[0] ?? "");
-                    setRolesError(null);
-                  }}
-                >
-                  Manage roles
-                </Button>
-                <Button
-                  variant="secondary"
-                  size="compact"
-                  onPress={() => {
-                    setAccessTarget(member);
-                    setSelectedCompanyIds(companies.filter((c) => member.company_names.includes(c.name)).map((c) => c.id));
-                    setSelectedBranchIds(branches.filter((b) => member.branch_names.includes(b.name)).map((b) => b.id));
-                  }}
-                >
-                  Manage access
-                </Button>
-                {member.user_id !== currentUserId && (
-                  <Button variant="secondary" size="compact" onPress={() => setStatusTarget(member)}>
-                    {member.membership_status === "active" ? "Disable" : "Enable"}
-                  </Button>
-                )}
-              </div>
-            </li>
-          ))}
+                <div className="flex flex-wrap gap-2">
+                  {abilities.canAssignRoles && (
+                    <Button variant="secondary" size="compact" onPress={() => openRoles(member)}>
+                      Manage roles
+                    </Button>
+                  )}
+                  {abilities.canManageUsers && (
+                    <Button variant="secondary" size="compact" onPress={() => openAccess(member)}>
+                      Manage access
+                    </Button>
+                  )}
+                  {abilities.canManageUsers && !isSelf && (
+                    <Button variant="secondary" size="compact" onPress={() => setStatusTarget(member)}>
+                      {member.membership_status === "active" ? "Disable" : "Enable"}
+                    </Button>
+                  )}
+                </div>
+              </li>
+            );
+          })}
         </ul>
       )}
 
       <AlertDialog
         isOpen={Boolean(statusTarget)}
         onOpenChange={(open) => !open && setStatusTarget(null)}
-        title={statusTarget?.membership_status === "active" ? "Disable this member?" : "Enable this member?"}
+        title={statusTarget?.membership_status === "active" ? "Disable this user?" : "Enable this user?"}
         description={
           statusTarget?.membership_status === "active"
             ? `${statusTarget?.full_name} will lose access immediately and be signed out of every active session.`
@@ -156,34 +198,17 @@ export function UsersScreen({ canManage, currentUserId }: { canManage: boolean; 
 
       <Dialog isOpen={Boolean(accessTarget)} onOpenChange={(open) => !open && setAccessTarget(null)} title={`Manage access — ${accessTarget?.full_name ?? ""}`}>
         <div className="flex flex-col gap-4">
-          <div className="flex flex-col gap-2">
-            <span className="text-xs font-semibold tracking-wide text-text-muted uppercase">Companies</span>
-            {companies.map((company) => (
-              <Checkbox
-                key={company.id}
-                isSelected={selectedCompanyIds.includes(company.id)}
-                onChange={(isSelected) =>
-                  setSelectedCompanyIds((current) => (isSelected ? [...current, company.id] : current.filter((id) => id !== company.id)))
-                }
-              >
-                {company.name}
-              </Checkbox>
-            ))}
-          </div>
-          <div className="flex flex-col gap-2">
-            <span className="text-xs font-semibold tracking-wide text-text-muted uppercase">Branches</span>
-            {branches.map((branch) => (
-              <Checkbox
-                key={branch.id}
-                isSelected={selectedBranchIds.includes(branch.id)}
-                onChange={(isSelected) =>
-                  setSelectedBranchIds((current) => (isSelected ? [...current, branch.id] : current.filter((id) => id !== branch.id)))
-                }
-              >
-                {branch.name}
-              </Checkbox>
-            ))}
-          </div>
+          <p className="text-sm text-text-secondary">Choose the companies and branches this person can work in.</p>
+          {optionsQuery.isLoading ? (
+            <p className="text-sm text-text-secondary">Loading…</p>
+          ) : (
+            <ScopeSelector companies={grantableCompanies} companyIds={scope.companyIds} branchIds={scope.branchIds} onChange={setScope} />
+          )}
+          {dialogError && accessTarget ? (
+            <p role="alert" className="text-sm text-danger">
+              {dialogError}
+            </p>
+          ) : null}
           <Button variant="primary" isLoading={accessMutation.isPending} onPress={() => accessMutation.mutate()}>
             Save access
           </Button>
@@ -192,64 +217,26 @@ export function UsersScreen({ canManage, currentUserId }: { canManage: boolean; 
 
       <Dialog isOpen={Boolean(rolesTarget)} onOpenChange={(open) => !open && setRolesTarget(null)} title={`Manage roles — ${rolesTarget?.full_name ?? ""}`}>
         <div className="flex flex-col gap-4">
-          <div className="flex flex-col gap-2">
-            <span className="text-xs font-semibold tracking-wide text-text-muted uppercase">Roles</span>
-            {(rolesQuery.data?.roles ?? [])
-              .filter((role) => role.assignable)
-              .map((role) => (
-                <Checkbox
-                  key={role.id}
-                  isSelected={selectedRoleIds.includes(role.id)}
-                  onChange={(isSelected) => {
-                    setSelectedRoleIds((current) => {
-                      const next = isSelected ? [...current, role.id] : current.filter((id) => id !== role.id);
-                      if (isSelected && !primaryRoleId) setPrimaryRoleId(role.id);
-                      if (!isSelected && primaryRoleId === role.id) setPrimaryRoleId(next[0] ?? "");
-                      return next;
-                    });
-                  }}
-                >
-                  {role.name}
-                </Checkbox>
-              ))}
-          </div>
-          {selectedRoleIds.length > 1 && (
-            <div className="flex flex-col gap-1">
-              <Select
-                label="Primary role"
-                options={selectedRoleIds.map((id) => ({ value: id, label: rolesQuery.data?.roles.find((r) => r.id === id)?.name ?? id }))}
-                selectedKey={primaryRoleId}
-                onSelectionChange={(key) => setPrimaryRoleId(String(key))}
-              />
-              <p className="text-xs text-text-muted">Primary role is the user&apos;s main organisational role. Access is combined from all assigned roles.</p>
-            </div>
+          {optionsQuery.isLoading ? (
+            <p className="text-sm text-text-secondary">Loading…</p>
+          ) : (
+            <RoleSelector roles={roles} roleIds={roleSelection.roleIds} primaryRoleId={roleSelection.primaryRoleId} onChange={setRoleSelection} />
           )}
-          {selectedRoleIds.length > 0 && (() => {
-            const selectedRoles = (rolesQuery.data?.roles ?? []).filter((role) => selectedRoleIds.includes(role.id));
-            const access = summarizeEffectiveAccess(selectedRoles);
-            return (
-              <section aria-label="Effective access" className="flex flex-col gap-2 rounded-[var(--radius-control)] border border-border bg-surface-muted p-3">
-                <span className="text-xs font-semibold tracking-wide text-text-muted uppercase">Effective access</span>
-                <p className="text-sm text-text">{`${selectedRoles.length} role${selectedRoles.length === 1 ? "" : "s"} · ${access.permissionCount} permission${access.permissionCount === 1 ? "" : "s"} combined`}</p>
-                <p className="text-sm text-text-secondary">{`CRM records: ${CRM_RECORD_SCOPE_LABEL[access.crmRecordScope]}`}</p>
-                {access.wideAccess.length > 0 && <p className="text-sm text-text-secondary">{`Also: ${access.wideAccess.join("; ")}`}</p>}
-                {access.highRisk.length > 0 && (
-                  <div className="flex flex-wrap gap-1.5" aria-label="High-risk access">
-                    {access.highRisk.map((label) => <Badge key={label} tone="warning">{label}</Badge>)}
-                  </div>
-                )}
-              </section>
-            );
-          })()}
-          {rolesError ? (
+          {lockedRoles.length > 0 && (
+            <p role="note" className="rounded-[var(--radius-control)] border border-warning-emphasis/30 bg-warning-soft px-3 py-2 text-sm text-warning">
+              {`${lockedRoles.map((role) => role.name).join(", ")} can only be changed by an administrator who holds that access.`}
+            </p>
+          )}
+          <EffectiveAccessSummary roles={selectedRoles} />
+          {dialogError && rolesTarget ? (
             <p role="alert" className="text-sm text-danger">
-              {rolesError}
+              {dialogError}
             </p>
           ) : null}
           <Button
             variant="primary"
             isLoading={rolesMutation.isPending}
-            isDisabled={selectedRoleIds.length === 0 || !primaryRoleId}
+            isDisabled={roleSelection.roleIds.length === 0 || !roleSelection.primaryRoleId || lockedRoles.length > 0}
             onPress={() => rolesMutation.mutate()}
           >
             Save roles

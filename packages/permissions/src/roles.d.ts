@@ -28,6 +28,7 @@ export type RoleTemplate = {
   permissions: readonly string[];
 };
 
+export const COMPANY_ADMINISTRATOR_PERMISSIONS: readonly string[];
 export const ROLE_TEMPLATES: readonly RoleTemplate[];
 export const ROLE_TEMPLATE_BY_SLUG: ReadonlyMap<string, RoleTemplate>;
 

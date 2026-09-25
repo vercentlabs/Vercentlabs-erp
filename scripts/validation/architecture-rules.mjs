@@ -128,6 +128,13 @@ export const CANONICAL_DEFINITIONS = Object.freeze({
   requireApiWorkspace: "apps/web/src/core/session.ts",
   requireApiUser: "apps/web/src/core/session.ts",
   workspaceRoute: "apps/web/src/core/workspace-route.ts",
+  // Shared Access administration: one implementation each.
+  setUserAccessScope: "services/api/src/core/access-administration.js",
+  listGrantableRolesForActor: "services/api/src/core/access-administration.js",
+  listGrantableScope: "services/api/src/core/access-administration.js",
+  setOrganizationModuleEnabled: "services/api/src/core/platform/module-administration.js",
+  recordAccessAssignmentEvent: "services/api/src/core/access/audit.js",
+  COMPANY_ADMINISTRATOR_PERMISSIONS: "packages/permissions/src/roles.js",
   // Canonical registries: exactly one role/permission/module catalogue.
   ROLE_TEMPLATES: "packages/permissions/src/roles.js",
   ALL_PERMISSIONS: "packages/permissions/src/catalog.js",
@@ -279,7 +286,6 @@ export const MODULE_LIST_EXCEPTIONS = Object.freeze({
   "packages/permissions/src/roles.d.ts": "types for CURRENT_MODULE_KEYS",
   "packages/permissions/src/module-access.js": "canonical module → view permission map",
   "apps/web/src/shell/navigation/module-navigation-registry.ts": "per-module navigation config keyed by the catalogue (UI, not a catalogue)",
-  "apps/web/src/features/settings/roles/screens/RolesScreen.tsx": "role-module filter labels (Prompt 2: derive from the catalogue)",
 });
 
 export function checkModuleCatalogueCopies(files, moduleKeys) {
@@ -290,5 +296,108 @@ export function checkModuleCatalogueCopies(files, moduleKeys) {
     const hits = moduleKeys.filter((key) => new RegExp(`["'\`]${key.replace(/[-]/g, "\\-")}["'\`]`).test(source)).length;
     if (hits >= threshold) problems.push(`${path} hard-codes ${hits} module keys — derive from ERP_MODULE_CATALOG (@vercentlabs/shared-types) instead of creating another module catalogue`);
   }
+  return problems;
+}
+
+// ------------------------------------------------- Shared Access administration
+
+// Functions that were superseded and must not come back under the same name.
+export const RETIRED_DEFINITIONS = Object.freeze({
+  setUserCompanyAccess: "use setUserAccessScope (one atomic company + branch mutation)",
+  setUserBranchAccess: "use setUserAccessScope (one atomic company + branch mutation)",
+});
+
+export function checkRetiredDefinitions(files) {
+  const problems = [];
+  for (const { path, source } of files) {
+    for (const [name, replacement] of Object.entries(RETIRED_DEFINITIONS)) {
+      if (new RegExp(String.raw`(?:^|\n)(?:export\s+)?(?:async\s+)?(?:function\s+${name}\b|(?:const|let)\s+${name}\s*=)`).test(source)) {
+        problems.push(`${path} reintroduces ${name}: ${replacement}`);
+      }
+    }
+  }
+  return problems;
+}
+
+// Tables holding access state, and the ONLY files allowed to write them.
+// (services/api/src/core/access-administration.js also writes the
+// membership_* tables through setUserAccessScope's table map.)
+export const ACCESS_STATE_WRITERS = Object.freeze({
+  organization_modules: ["services/api/src/core/platform/module-administration.js"],
+  membership_company_access: ["services/api/src/core/access-administration.js", "services/api/src/core/auth-lifecycle.js"],
+  membership_branch_access: [
+    "services/api/src/core/access-administration.js",
+    "services/api/src/core/auth-lifecycle.js",
+    // createBranch grants the delegated creator the branch it just created.
+    "services/api/src/core/organization-administration.js",
+  ],
+  organization_invitations: ["services/api/src/core/auth-lifecycle.js"],
+  organization_invitation_roles: ["services/api/src/core/auth-lifecycle.js"],
+  organization_invitation_company_access: ["services/api/src/core/auth-lifecycle.js"],
+  organization_invitation_branch_access: ["services/api/src/core/auth-lifecycle.js"],
+});
+
+export function checkAccessStateWriters(files) {
+  const problems = [];
+  for (const { path, source } of files) {
+    if (/\.test\.|\/tests?\//.test(path) || path.endsWith(".d.ts")) continue;
+    for (const [table, owners] of Object.entries(ACCESS_STATE_WRITERS)) {
+      const writes = new RegExp(String.raw`(INSERT\s+INTO|UPDATE|DELETE\s+FROM)\s+(public\.)?${table}\b`, "i").test(source);
+      if (writes && !owners.includes(path)) problems.push(`${path} writes ${table}; only ${owners.join(", ")} may (one canonical implementation)`);
+    }
+  }
+  return problems;
+}
+
+// Normalized invitation access is canonical: any code that creates an
+// invitation must write organization_invitation_roles too, never only the
+// deprecated organization_invitations.role_id/company_ids/branch_ids columns.
+export function checkInvitationWrites(files) {
+  const problems = [];
+  for (const { path, source } of files) {
+    if (/\.test\.|\/tests?\//.test(path)) continue;
+    if (/INSERT\s+INTO\s+(public\.)?organization_invitations\b/i.test(source) && !/INSERT\s+INTO\s+(public\.)?organization_invitation_roles\b/i.test(source)) {
+      problems.push(`${path} creates invitations without writing the canonical organization_invitation_roles`);
+    }
+  }
+  return problems;
+}
+
+// Shared Access administration routes must use the workspaceRoute
+// composition. Self-service account routes and organisation profile/security
+// are listed explicitly until they migrate.
+export const ADMIN_ROUTE_PREFIXES = Object.freeze(["apps/web/src/app/api/settings/", "apps/web/src/app/api/auth/invitations/manage/"]);
+export const ADMIN_ROUTE_FILES = Object.freeze(["apps/web/src/app/api/auth/invitations/route.ts"]);
+export const ADMIN_ROUTE_EXCEPTIONS = Object.freeze({
+  "apps/web/src/app/api/settings/sessions/route.ts": "Self-service: the caller's own sessions (Auth), not administration.",
+  "apps/web/src/app/api/settings/sessions/[id]/route.ts": "Self-service: the caller's own sessions (Auth), not administration.",
+  "apps/web/src/app/api/settings/organization/profile/route.ts": "Organisation profile (organization.manage); migrates with organisation settings.",
+  "apps/web/src/app/api/settings/organization/security/route.ts": "Organisation security policy (platform.security.manage); migrates with organisation settings.",
+});
+
+export function checkAdminRoutesUseWorkspaceRoute(files) {
+  const problems = [];
+  for (const { path, source } of files) {
+    if (!path.endsWith("/route.ts")) continue;
+    const isAdmin = ADMIN_ROUTE_FILES.includes(path) || ADMIN_ROUTE_PREFIXES.some((prefix) => path.startsWith(prefix));
+    if (!isAdmin || ADMIN_ROUTE_EXCEPTIONS[path]) continue;
+    if (!/\bworkspaceRoute\s*\(/.test(source)) problems.push(`${path} is a Shared Access administration route but does not use workspaceRoute()`);
+    if (/\brequire(Api)?Workspace\s*\(/.test(source)) problems.push(`${path} resolves the session itself; let workspaceRoute() do it`);
+  }
+  return problems;
+}
+
+// Company Administrator must stay an explicit least-privilege allow-list.
+export function checkCompanyAdministratorTemplate(rolesSource) {
+  const start = rolesSource.indexOf('slug: "company_administrator"');
+  if (start === -1) return ["packages/permissions/src/roles.js: company_administrator template not found"];
+  const block = rolesSource.slice(start, rolesSource.indexOf("\n  },", start));
+  const problems = [];
+  if (!/permissions:\s*COMPANY_ADMINISTRATOR_PERMISSIONS\b/.test(block)) {
+    problems.push("company_administrator must use the explicit COMPANY_ADMINISTRATOR_PERMISSIONS allow-list");
+  }
+  const listStart = rolesSource.indexOf("export const COMPANY_ADMINISTRATOR_PERMISSIONS");
+  const list = rolesSource.slice(listStart, rolesSource.indexOf("]);", listStart));
+  if (/ALL_PERMISSIONS|\.filter\(|\.\.\./.test(list)) problems.push("COMPANY_ADMINISTRATOR_PERMISSIONS must be literal keys, not derived from ALL_PERMISSIONS");
   return problems;
 }

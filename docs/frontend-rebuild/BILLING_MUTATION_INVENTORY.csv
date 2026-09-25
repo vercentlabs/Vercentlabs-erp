@@ -279,6 +279,7 @@ api/settings/branches/[id]/route.ts,PUT,none,out-of-scope,,"platform administrat
 api/settings/branches/route.ts,POST,none,out-of-scope,,"platform administration (org/company/branch/role/billing settings, not tenant business data)"
 api/settings/companies/[id]/route.ts,PUT,none,out-of-scope,,"platform administration (org/company/branch/role/billing settings, not tenant business data)"
 api/settings/companies/route.ts,POST,none,out-of-scope,,"platform administration (org/company/branch/role/billing settings, not tenant business data)"
+api/settings/modules/[key]/route.ts,PUT,none,out-of-scope,,"platform administration (org/company/branch/role/billing settings, not tenant business data)"
 api/settings/organization/profile/route.ts,PUT,none,out-of-scope,,"platform administration (org/company/branch/role/billing settings, not tenant business data)"
 api/settings/organization/security/route.ts,PUT,none,out-of-scope,,"platform administration (org/company/branch/role/billing settings, not tenant business data)"
 api/settings/roles/[id]/route.ts,"PUT,DELETE",none,out-of-scope,,"platform administration (org/company/branch/role/billing settings, not tenant business data)"

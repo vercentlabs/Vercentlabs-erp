@@ -331,6 +331,8 @@ test("auth-lifecycle: email verification, password reset, and organization invit
     // grant-ceiling/SoD check as role assignment (validateRoleSelection),
     // and refuses to run at all without this context.
     const inviterActor = { roleSlugs: ["organization_owner"], permissions: [] };
+    // Invitation administration (list/revoke/resend) is scoped to the acting administrator.
+    const adminActor = { userId: inviterUserId, roleSlugs: ["organization_owner"] };
     const { invitationId } = await createOrganizationInvitation(admin, {
       organizationId: orgId,
       invitedByUserId: inviterUserId,
@@ -425,7 +427,7 @@ test("auth-lifecycle: email verification, password reset, and organization invit
     assert.equal(pendingAfterAccept.length, 0, "an accepted invitation no longer shows as pending");
 
     // --- Admin invitation management: list/revoke/resend ---
-    const adminList = await listOrganizationInvitations(admin, orgId);
+    const adminList = await listOrganizationInvitations(admin, orgId, adminActor);
     const acceptedRow = adminList.find((row) => row.id === invitationId);
     assert.ok(acceptedRow, "the admin list includes every invitation ever issued, not just pending ones");
     assert.equal(acceptedRow.status, "accepted");
@@ -433,7 +435,7 @@ test("auth-lifecycle: email verification, password reset, and organization invit
     assert.deepEqual(acceptedRow.branch_ids, [branchId]);
 
     await assert.rejects(
-      () => revokeOrganizationInvitation(admin, { organizationId: orgId, invitationId }),
+      () => revokeOrganizationInvitation(admin, { organizationId: orgId, invitationId, actor: adminActor }),
       (error) => error instanceof AuthLifecycleError && error.code === "AUTH_INVITATION_NOT_REVOCABLE",
       "an already-accepted invitation cannot be revoked",
     );
@@ -447,24 +449,24 @@ test("auth-lifecycle: email verification, password reset, and organization invit
     });
     resendInvitationId = resendInvitationIdCreated;
     const beforeResend = await admin.query(`SELECT token_hash, send_count FROM organization_invitations WHERE id=$1`, [resendInvitationId]);
-    const resendResult = await resendOrganizationInvitation(admin, { organizationId: orgId, invitationId: resendInvitationId });
+    const resendResult = await resendOrganizationInvitation(admin, { organizationId: orgId, invitationId: resendInvitationId, actor: adminActor });
     assert.equal(typeof resendResult.delivered, "boolean");
     const afterResend = await admin.query(`SELECT token_hash, send_count FROM organization_invitations WHERE id=$1`, [resendInvitationId]);
     assert.notEqual(afterResend.rows[0].token_hash, beforeResend.rows[0].token_hash, "resending issues a fresh token — the old link must stop working");
     assert.equal(afterResend.rows[0].send_count, beforeResend.rows[0].send_count + 1);
 
-    const revokeResult = await revokeOrganizationInvitation(admin, { organizationId: orgId, invitationId: resendInvitationId });
+    const revokeResult = await revokeOrganizationInvitation(admin, { organizationId: orgId, invitationId: resendInvitationId, actor: adminActor });
     assert.equal(revokeResult.revoked, true);
-    const revokedList = await listOrganizationInvitations(admin, orgId);
+    const revokedList = await listOrganizationInvitations(admin, orgId, adminActor);
     assert.equal(revokedList.find((row) => row.id === resendInvitationId).status, "revoked");
 
     await assert.rejects(
-      () => resendOrganizationInvitation(admin, { organizationId: orgId, invitationId: resendInvitationId }),
+      () => resendOrganizationInvitation(admin, { organizationId: orgId, invitationId: resendInvitationId, actor: adminActor }),
       (error) => error instanceof AuthLifecycleError && error.code === "AUTH_INVITATION_NOT_RESENDABLE",
       "a revoked invitation cannot be resent",
     );
     await assert.rejects(
-      () => revokeOrganizationInvitation(admin, { organizationId: orgId, invitationId: resendInvitationId }),
+      () => revokeOrganizationInvitation(admin, { organizationId: orgId, invitationId: resendInvitationId, actor: adminActor }),
       (error) => error instanceof AuthLifecycleError && error.code === "AUTH_INVITATION_NOT_REVOCABLE",
       "an already-revoked invitation cannot be revoked again",
     );
@@ -482,12 +484,12 @@ test("auth-lifecycle: email verification, password reset, and organization invit
     });
     const wrongOrgId = randomUUID();
     await assert.rejects(
-      () => revokeOrganizationInvitation(admin, { organizationId: wrongOrgId, invitationId: crossOrgCheckInvitationId }),
+      () => revokeOrganizationInvitation(admin, { organizationId: wrongOrgId, invitationId: crossOrgCheckInvitationId, actor: adminActor }),
       (error) => error instanceof AuthLifecycleError && error.code === "AUTH_INVITATION_NOT_REVOCABLE",
     );
     const stillPending = await admin.query(`SELECT revoked_at FROM organization_invitations WHERE id=$1`, [crossOrgCheckInvitationId]);
     assert.equal(stillPending.rows[0].revoked_at, null, "the wrong-organization revoke attempt must have had zero effect");
-    await revokeOrganizationInvitation(admin, { organizationId: orgId, invitationId: crossOrgCheckInvitationId });
+    await revokeOrganizationInvitation(admin, { organizationId: orgId, invitationId: crossOrgCheckInvitationId, actor: adminActor });
 
     // --- Existing-account invitation acceptance (2D) ---
     // Regression guard: acceptOrganizationInvitation used to grant a live
@@ -571,6 +573,10 @@ test("auth-lifecycle: email verification, password reset, and organization invit
       (error) => error instanceof AuthLifecycleError && error.code === "AUTH_INVITER_CONTEXT_MISSING",
     );
 
+    // A delegated (non-unrestricted) inviter must carry company scope: grant
+    // it here so the grant-ceiling assertions below test the ROLE ceiling.
+    await admin.query(`INSERT INTO membership_company_access (organization_id, user_id, company_id) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING`, [orgId, inviterUserId, companyId]);
+
     // SP008 grant-ceiling: an inviter who doesn't hold crm.leads.manage
     // themselves (and isn't organization_owner) cannot invite someone into
     // a role that carries it — proves this is enforced, not just present
@@ -581,6 +587,7 @@ test("auth-lifecycle: email verification, password reset, and organization invit
         invitedByUserId: inviterUserId,
         email: `ceiling-test-${randomUUID()}@test.invalid`,
         roleId: privilegedRoleId,
+        companyIds: [companyId],
         inviter: { roleSlugs: ["member"], permissions: [] },
       }),
       (error) => error instanceof AccessAdministrationError && error.status === 403,
@@ -595,6 +602,7 @@ test("auth-lifecycle: email verification, password reset, and organization invit
       invitedByUserId: inviterUserId,
       email: privilegedInviteEmail,
       roleId: privilegedRoleId,
+      companyIds: [companyId],
       inviter: { roleSlugs: ["member"], permissions: ["crm.leads.manage"] },
     });
     assert.ok(privilegedInvite.invitationId, "an inviter who holds the permission themselves can grant it");

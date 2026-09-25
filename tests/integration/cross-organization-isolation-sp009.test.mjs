@@ -27,6 +27,7 @@ import {
   updateRole,
   archiveRole,
   setUserRoles,
+  setUserAccessScope,
   AccessAdministrationError,
 } from "../../services/api/src/core/access-administration.js";
 import {
@@ -35,7 +36,6 @@ import {
   createBranch,
   updateBranch,
   setMemberStatus,
-  setUserCompanyAccess,
   OrganizationAdministrationError,
 } from "../../services/api/src/core/organization-administration.js";
 import { ALL_PERMISSIONS } from "../../packages/permissions/src/catalog.js";
@@ -166,8 +166,8 @@ test("SP009 adversarial: cross-organization isolation for role/company/branch/me
 
     await t.test("CROSS-ORG: org A's owner cannot grant an org A user access to org B's company (scope-outside-tenant rejection, not silent success)", async () => {
       await assert.rejects(
-        () => setUserCompanyAccess(admin, orgA.session, orgA.ownerId, [orgBCompanyId]),
-        (error) => error instanceof OrganizationAdministrationError,
+        () => setUserAccessScope(admin, orgA.session, orgA.ownerId, { companyIds: [orgBCompanyId], branchIds: [] }),
+        (error) => error instanceof AccessAdministrationError && error.code === "ACCESS_ADMIN_COMPANY_INVALID",
         "granting access to a company id that does not belong to the caller's own organization must be rejected, never silently create a cross-tenant membership_company_access row",
       );
       const leaked = await admin.query(`SELECT 1 FROM membership_company_access WHERE user_id=$1 AND company_id=$2`, [orgA.ownerId, orgBCompanyId]);

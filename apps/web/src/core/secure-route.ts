@@ -46,7 +46,36 @@ export type SecureRouteOptions = {
   transaction?: SecureRouteTransaction;
   /** Build the full WorkspaceAccessSnapshot even without a module check. */
   snapshot?: boolean;
+  /**
+   * Also record a durable audit event when an AUTHENTICATED caller is denied
+   * (403, or a concealed 404). Only for high-value administration routes:
+   * every denial is already logged; persisting all of them would let a
+   * client flood the audit table.
+   */
+  auditDenial?: boolean;
 };
+
+export type DeniedAccessEvent = {
+  principal: AccessPrincipal;
+  request: Request;
+  status: number;
+  code: string | null;
+  module: string | null;
+  action: string | null;
+  permission: string | null;
+};
+
+type ErrorShape = { status?: unknown; code?: unknown; deniedCode?: unknown; permission?: unknown };
+
+function deniedStatus(error: unknown): { status: number; code: string | null; permission: string | null } | null {
+  if (typeof error !== "object" || error === null) return null;
+  const shape = error as ErrorShape;
+  const status = typeof shape.status === "number" ? shape.status : null;
+  const code = typeof shape.deniedCode === "string" ? shape.deniedCode : typeof shape.code === "string" ? shape.code : null;
+  const concealed = status === 404 && typeof shape.deniedCode === "string";
+  if (status !== 403 && !concealed) return null;
+  return { status, code, permission: typeof shape.permission === "string" ? shape.permission : null };
+}
 
 export type SecureRouteContext<Session, Client> = {
   request: Request;
@@ -71,6 +100,10 @@ export type SecureRouteDeps<Session extends { organizationId: string }, Client> 
   onDenied?(decision: Denial, principal: AccessPrincipal, request: Request): void;
   requireBillingWrite(client: Client, organizationId: string): Promise<unknown>;
   toErrorResponse(error: unknown): Response;
+  /** Durable audit for auditDenial routes; must use its own connection (the request transaction has rolled back). */
+  recordDeniedAccess?(event: DeniedAccessEvent): Promise<void>;
+  /** Structured log for a denial raised by the handler/domain (authorize() denials use onDenied). */
+  logDeniedAccess?(event: DeniedAccessEvent): void;
 };
 
 export function isMutationRequest(request: Request) {
@@ -85,6 +118,7 @@ export function createSecureRoute<Session extends { organizationId: string }, Cl
     options: SecureRouteOptions,
     handler: (context: SecureRouteContext<Session, Client>) => Promise<Response>,
   ): Promise<Response> {
+    let principal: AccessPrincipal | null = null;
     try {
       const mutation = isMutationRequest(request);
       if (mutation) deps.assertOrigin(request);
@@ -103,7 +137,7 @@ export function createSecureRoute<Session extends { organizationId: string }, Cl
 
       return await run(async (client) => {
         const snapshot = options.module || options.snapshot ? await deps.buildSnapshot(client, session) : null;
-        const principal = snapshot?.principal ?? deps.createPrincipal(session);
+        principal = snapshot?.principal ?? deps.createPrincipal(session);
         const decision = deps.authorize({
           principal,
           snapshot,
@@ -113,13 +147,35 @@ export function createSecureRoute<Session extends { organizationId: string }, Cl
           action: options.action,
         });
         if (!decision.allowed) {
-          deps.onDenied?.(decision, principal, request);
+          deps.onDenied?.(decision, principal!, request);
           throw deps.denialToError(decision);
         }
-        if (options.billingWrite) await deps.requireBillingWrite(client, principal.organizationId);
-        return handler({ request, session, principal, snapshot, client });
+        if (options.billingWrite) await deps.requireBillingWrite(client, principal!.organizationId);
+        return handler({ request, session, principal: principal!, snapshot, client });
       });
     } catch (error) {
+      const denial = principal ? deniedStatus(error) : null;
+      if (denial && principal) {
+        const event: DeniedAccessEvent = {
+          principal,
+          request,
+          status: denial.status,
+          code: denial.code,
+          module: options.module ?? null,
+          action: options.action ?? null,
+          permission: denial.permission ?? options.permission ?? null,
+        };
+        if (!(error instanceof Error && error.name === "AccessDeniedError")) deps.logDeniedAccess?.(event);
+        if (options.auditDenial && deps.recordDeniedAccess) {
+          // Best-effort: failing to write evidence must never turn the
+          // intended 403/404 into an unrelated 500.
+          try {
+            await deps.recordDeniedAccess(event);
+          } catch {
+            // recordDeniedAccess implementations log their own failures.
+          }
+        }
+      }
       return deps.toErrorResponse(error);
     }
   };

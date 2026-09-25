@@ -18,8 +18,6 @@ export declare function createBranch(
   input: { name: string; code: string; timezone: string; companyId: string; isPrimary?: boolean },
 ): Promise<any>;
 export declare function updateBranch(client: any, session: any, branchId: string, updates: { name?: string; timezone?: string; status?: string }): Promise<any>;
-export declare function setUserCompanyAccess(client: any, session: any, targetUserId: string, companyIds: string[]): Promise<{ companyIds: string[] }>;
-export declare function setUserBranchAccess(client: any, session: any, targetUserId: string, branchIds: string[]): Promise<{ branchIds: string[] }>;
 export declare function listOrganizationRoles(client: any, session: any): Promise<any[]>;
 export declare function listOrganizationMembers(client: any, session: any): Promise<any[]>;
 export declare function setMemberStatus(client: any, session: any, targetUserId: string, status: "active" | "disabled"): Promise<{ userId: string; status: string }>;

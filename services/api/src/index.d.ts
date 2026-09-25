@@ -743,6 +743,7 @@ export * from "./core/ai-governance.js";
 export * from "./core/approvals.js";
 export * from "./core/notifications.js";
 export * from "./core/background-jobs.js";
+export * from "./core/platform/module-administration.js";
 export { hrContext, HrError } from "./modules/hr-payroll/common.js";
 export * from "./modules/hr-payroll/options.js";
 export * from "./modules/hr-payroll/workforce.js";
