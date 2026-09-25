@@ -41,6 +41,9 @@ function unique(values) {
   return [...new Set(values)];
 }
 
+// The only CRM permissions Company Administrator keeps (see its template).
+export const COMPANY_ADMINISTRATOR_CRM_PERMISSIONS = Object.freeze(["crm.view", "crm.reports.view"]);
+
 export const ROLE_TEMPLATES = Object.freeze([
   {
     name: "Organisation Owner",
@@ -69,10 +72,14 @@ export const ROLE_TEMPLATES = Object.freeze([
     moduleKey: "platform",
     riskLevel: "privileged",
     assignable: true,
+    // CRM: module access and reports only. CRM records, sensitive customer
+    // fields, CRM configuration, import/export and privacy operations belong
+    // to CRM Administrator and the sales roles (least privilege); a company
+    // administrator who also runs CRM gets the CRM Administrator role too.
     permissions: ALL_PERMISSIONS.filter(
       (key) =>
         key !== "organization.manage" &&
-        key !== "crm.ai.manage" &&
+        (!key.startsWith("crm.") || COMPANY_ADMINISTRATOR_CRM_PERMISSIONS.includes(key)) &&
         ![
           "billing.manage",
           "billing.checkout",
@@ -108,6 +115,9 @@ export const ROLE_TEMPLATES = Object.freeze([
     assignable: true,
     permissions: unique([
       ...base,
+      // Company-wide CRM READ visibility for auditing (no manage, import,
+      // settings or sensitive-field permission); export = this read scope.
+      "crm.records.view_all",
       "users.view",
       "roles.view",
       "audit.view",
@@ -143,6 +153,9 @@ export const ROLE_TEMPLATES = Object.freeze([
     assignable: true,
     permissions: unique([
       ...base,
+      // "Read-only access to the released business modules": company-wide CRM
+      // read visibility, no mutation, import, export or settings.
+      "crm.records.view_all",
       "business_data.view",
       "crm.view",
       "crm.reports.view",
@@ -165,6 +178,10 @@ export const ROLE_TEMPLATES = Object.freeze([
     assignable: true,
     permissions: unique([
       ...crmReader,
+      "crm.leads.view_all",
+      "crm.customers.view_all",
+      "crm.contacts.view_sensitive",
+      "crm.accounts.view_sensitive",
       "crm.records.view_all",
       "parties.manage",
       "crm.leads.manage",
@@ -204,6 +221,8 @@ export const ROLE_TEMPLATES = Object.freeze([
     permissions: unique([
       ...crmReader,
       ...salesReader,
+      "crm.contacts.view_sensitive",
+      "crm.accounts.view_sensitive",
       "crm.records.view_all",
       "approvals.manage",
       "parties.manage",
@@ -244,7 +263,8 @@ export const ROLE_TEMPLATES = Object.freeze([
     permissions: unique([
       ...crmReader,
       ...salesReader,
-      "crm.records.view_all",
+      "crm.contacts.view_sensitive",
+      "crm.accounts.view_sensitive",
       "approvals.manage",
       "parties.manage",
       "crm.leads.manage",
@@ -280,6 +300,8 @@ export const ROLE_TEMPLATES = Object.freeze([
     permissions: unique([
       ...crmReader,
       ...salesReader,
+      "crm.contacts.view_sensitive",
+      "crm.accounts.view_sensitive",
       "parties.manage",
       "crm.leads.manage",
       "crm.leads.view_sensitive",
@@ -307,6 +329,8 @@ export const ROLE_TEMPLATES = Object.freeze([
     permissions: unique([
       ...crmReader,
       ...salesReader,
+      "crm.contacts.view_sensitive",
+      "crm.accounts.view_sensitive",
       "crm.records.view_all",
       "parties.manage",
       "crm.leads.manage",
@@ -334,7 +358,10 @@ export const ROLE_TEMPLATES = Object.freeze([
     assignable: true,
     permissions: unique([
       ...crmReader,
-      "crm.records.view_all",
+      // Every Lead (campaigns, capture, import/export, attribution) — not every
+      // Opportunity, Account or sales Activity (crm.records.view_all removed).
+      "crm.leads.view_all",
+      "crm.contacts.view_sensitive",
       "parties.manage",
       "crm.leads.manage",
       "crm.leads.view_sensitive",
@@ -360,7 +387,10 @@ export const ROLE_TEMPLATES = Object.freeze([
     assignable: true,
     permissions: unique([
       ...crmReader,
-      "crm.records.view_all",
+      // Every customer Account, its Contacts and customer Activities — not
+      // Leads, prospects or the sales pipeline (crm.records.view_all removed).
+      "crm.customers.view_all",
+      "crm.contacts.view_sensitive",
       "parties.manage",
       "crm.accounts.manage",
       "crm.activities.manage",
@@ -380,7 +410,6 @@ export const ROLE_TEMPLATES = Object.freeze([
     assignable: true,
     permissions: unique([
       ...crmReader,
-      "crm.records.view_all",
       "parties.manage",
       "crm.opportunities.manage",
       "crm.activities.manage",

@@ -1,6 +1,8 @@
 export const CRM_PERMISSIONS: Readonly<{
   view: "crm.view";
   recordsViewAll: "crm.records.view_all";
+  leadsViewAll: "crm.leads.view_all";
+  customersViewAll: "crm.customers.view_all";
   leadsViewSensitive: "crm.leads.view_sensitive";
   contactsViewSensitive: "crm.contacts.view_sensitive";
   accountsViewSensitive: "crm.accounts.view_sensitive";

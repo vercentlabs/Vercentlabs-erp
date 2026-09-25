@@ -1,6 +1,10 @@
 export const CRM_PERMISSIONS = Object.freeze({
   view: "crm.view",
   recordsViewAll: "crm.records.view_all",
+  // Resource-specific visibility (crm-access-scope.js): every Lead only;
+  // every customer Account (+ its Contacts and customer Activities) only.
+  leadsViewAll: "crm.leads.view_all",
+  customersViewAll: "crm.customers.view_all",
   leadsViewSensitive: "crm.leads.view_sensitive",
   contactsViewSensitive: "crm.contacts.view_sensitive",
   accountsViewSensitive: "crm.accounts.view_sensitive",
