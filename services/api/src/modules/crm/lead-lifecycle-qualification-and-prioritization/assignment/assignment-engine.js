@@ -8,6 +8,7 @@
 // symmetrically, why every other candidate did not — is reconstructible
 // for support/audit rather than a single opaque policy-mode label.
 import { LeadGovernanceError, text, UUID, matches } from "./shared.js";
+import { matchLeadTerritory } from "../../sales-organization-and-coverage/territory-coverage.js";
 import {
   assertEligibleLeadAssignee,
   getEligibleLeadAssignee,
@@ -91,11 +92,15 @@ async function ownerForLeadPolicyWithTrace(client, context, policy, input) {
     return { owner, candidates: explained };
   }
   if (policy.mode === "territory") {
-    const territoryMembers = await activeTerritoryUserIds(client, context, policy.territory_id);
+    const matched = policy.territory_id ? null : await matchLeadTerritory(client, context, input);
+    const territoryId = policy.territory_id || matched?.territoryId;
+    if (!territoryId) return { owner: null, candidates: [], territory: null };
+    const territoryMembers = await activeTerritoryUserIds(client, context, territoryId);
     const owner = await leastLoadedLeadOwner(client, context, territoryMembers);
     return {
       owner,
       candidates: territoryMembers.map((userId) => ({ userId, name: null, eligible: userId === owner, reasons: userId === owner ? [] : ["Not least-loaded in territory"] })),
+      territory: matched ? { territoryId: matched.territoryId, name: matched.name, matchedOn: matched.matchedOn } : { territoryId: String(territoryId), matchedOn: [] },
     };
   }
   return { owner: null, candidates: [] };
@@ -129,13 +134,13 @@ export async function resolveLeadAssignment(client, context, input) {
     const matched = matches(policy.criteria, input);
     evaluatedPolicies.push({ policyId: String(policy.id), mode: policy.mode, matched });
     if (!matched) continue;
-    const { owner, candidates } = await ownerForLeadPolicyWithTrace(client, context, policy, input);
+    const { owner, candidates, territory } = await ownerForLeadPolicyWithTrace(client, context, policy, input);
     if (owner)
       return {
         ownerUserId: String(owner),
         policyId: String(policy.id),
         reason: `policy:${policy.mode}`,
-        trace: { evaluatedPolicies, candidates, fallbackUsed: false },
+        trace: { evaluatedPolicies, candidates, fallbackUsed: false, ...(territory ? { territory } : {}) },
       };
   }
   // F005: every active policy either didn't match or couldn't produce an
@@ -209,8 +214,6 @@ export async function saveLeadAssignmentPolicy(client, context, input = {}) {
     throw new LeadGovernanceError(400, "Fixed assignment requires an assignee.", "CRM_ASSIGNMENT_RULE_INVALID");
   if ((mode === "round_robin" || mode === "workload") && !memberUserIds.length)
     throw new LeadGovernanceError(400, `${mode === "round_robin" ? "Round-robin" : "Workload-based"} assignment requires at least one member.`, "CRM_ASSIGNMENT_RULE_INVALID");
-  if (mode === "territory" && !territoryId)
-    throw new LeadGovernanceError(400, "Territory-based assignment requires a territory.", "CRM_ASSIGNMENT_RULE_INVALID");
   if (!["active", "inactive"].includes(status))
     throw new LeadGovernanceError(400, "Assignment-rule status is invalid.", "CRM_ASSIGNMENT_RULE_INVALID");
   // Stage A2 §14 concurrency audit: this is the REAL, actively-used
@@ -242,7 +245,9 @@ export async function saveLeadAssignmentPolicy(client, context, input = {}) {
     );
     if (!source.rows[0]) throw new LeadGovernanceError(409, "Select an active Lead Source for this rule.", "CRM_ASSIGNMENT_RULE_INVALID");
   }
-  if (mode === "territory") {
+  // No territory on a territory rule means "the lead's own territory, matched
+  // from each territory's coverage" (F020); a named one routes every lead there.
+  if (mode === "territory" && territoryId) {
     const territory = await client.query(
       `SELECT id FROM tenant.crm_territories WHERE organization_id=$1 AND id=$2 AND status='active'`,
       [context.organizationId, territoryId],

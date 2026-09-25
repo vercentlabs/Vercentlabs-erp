@@ -59,7 +59,7 @@ function modeLabel(mode: AssignmentMode) {
 }
 function targetSummary(row: LeadAssignmentPolicy) {
   if (row.mode === "fixed") return row.assignee_name || "—";
-  if (row.mode === "territory") return row.territory_name || "—";
+  if (row.mode === "territory") return row.territory_name || "Lead's own territory (by coverage)";
   return row.members.length ? row.members.map((m) => m.name).join(", ") : "—";
 }
 
@@ -270,7 +270,15 @@ function PolicyDialog({
         {(mode === "round_robin" || mode === "workload") && (
           <MultiSelect label="Members" options={userOptions} value={memberUserIds} onChange={setMemberUserIds} />
         )}
-        {mode === "territory" && <Select label="Territory" options={territoryOptions} selectedKey={territoryId} onSelectionChange={(key) => setTerritoryId(String(key ?? ""))} />}
+        {mode === "territory" && (
+          <Select
+            label="Territory"
+            description="Match each lead to its territory by the territory's coverage (country, state, city, industry), or send every lead to one named territory."
+            options={[{ value: "", label: "Lead's own territory (by coverage)" }, ...territoryOptions]}
+            selectedKey={territoryId}
+            onSelectionChange={(key) => setTerritoryId(String(key ?? ""))}
+          />
+        )}
 
         <p className="text-sm font-medium text-text">Conditions (optional — matches any Lead if left blank)</p>
         <Select label="Source" options={sourceOptions} selectedKey={sourceId} onSelectionChange={(key) => setSourceId(String(key ?? ""))} />

@@ -15,6 +15,12 @@ export type SalesTeam = {
   updatedAt: string;
 };
 
+// F020: which leads a territory covers. Every filled dimension must match a
+// lead; values within one dimension are alternatives. Empty = no automatic
+// coverage (the territory is used only where a rule names it).
+export type TerritoryCoverage = { countryCodes?: string[]; states?: string[]; cities?: string[]; industries?: string[]; sourceIds?: string[] };
+export const TERRITORY_TYPES = ["geographic", "industry", "account", "product", "channel", "named", "hybrid"] as const;
+
 export type Territory = {
   id: string;
   companyId: string | null;
@@ -23,7 +29,7 @@ export type Territory = {
   name: string;
   territoryType: string | null;
   managerUserId: string | null;
-  assignmentRules: Record<string, unknown> | null;
+  assignmentRules: TerritoryCoverage | null;
   status: "active" | "archived";
   // F020 Stage A2 §8 — computed by the generic list route (never by client
   // aggregation), the exact same predicate the CRM dashboard's

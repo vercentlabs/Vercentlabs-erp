@@ -362,9 +362,12 @@ test("F005: round robin initializes and row-locks canonical state before advanci
 
 test("F005: rule writes reject unsafe modes/conditions and serialize duplicate names", async () => {
   await assert.rejects(
+    // A territory rule without a territory is valid since F020 coverage
+    // matching (it routes each lead to its own territory); an unknown mode
+    // is still refused before anything is written.
     saveLeadAssignmentPolicy({ query: async () => assert.fail() }, manager, {
-      name: "Territory",
-      mode: "territory",
+      name: "Nearest office",
+      mode: "nearest_office",
       assigneeUserId: ownerA,
     }),
     (error) => error.code === "CRM_ASSIGNMENT_RULE_INVALID",

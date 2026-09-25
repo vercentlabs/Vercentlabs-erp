@@ -19,8 +19,14 @@ body {
      window itself becomes independently scrollable on top of the intended
      inner pane: scrolling revealed a frozen sliver of the sidebar/table
      followed by a large empty canvas-colored gap, since that "extra" height
-     the browser scrolled to was never real, visible content. */
+     the browser scrolled to was never real, visible content.
+     `clip` (not just `hidden`): a hidden-overflow box can still be scrolled
+     by the browser itself — focusing an element positioned outside it, such
+     as a checkbox's visually-hidden input far down a form, scrolled the whole
+     document up, leaving a blank band and no way to scroll back. `clip`
+     cannot be scrolled at all; `hidden` stays as the fallback. */
   overflow: hidden;
+  overflow: clip;
 }
 
 body {

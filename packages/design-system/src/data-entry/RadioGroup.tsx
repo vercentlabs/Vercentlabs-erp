@@ -40,7 +40,7 @@ export const Radio = forwardRef<HTMLLabelElement, RadioProps>(function Radio({ c
   return (
     <AriaRadio
       ref={ref}
-      className={cn("group flex items-center gap-2 text-sm text-text data-[disabled]:opacity-50", className)}
+      className={cn("group relative flex items-center gap-2 text-sm text-text data-[disabled]:opacity-50", className)}
       {...props}
     >
       <div

@@ -292,14 +292,26 @@ export async function createCrmRecord(client, context, resource, input) {
     "created_by",
     "updated_by",
   ];
-  const values = [
+  const rawValues = [
     context.organizationId,
     ...entries.map(([, value]) => value),
     context.userId,
     context.userId,
   ];
+  // A field sent as null on create means "no value": write DEFAULT, not NULL.
+  // For a nullable column without a default that is still NULL; for a NOT
+  // NULL column with a default (a Lead's rating, a territory's coverage) it
+  // is the default instead of a constraint error that failed the whole save
+  // with a 500. No CRM table has a nullable column with a default, so no
+  // explicit null is ever turned into a different value.
+  const values = [];
+  const placeholders = rawValues.map((value) => {
+    if (value === null) return "DEFAULT";
+    values.push(value);
+    return `$${values.length}`;
+  });
   const result = await client.query(
-    `INSERT INTO ${definition.table} (${columns.join(", ")}) VALUES (${values.map((_value, index) => `$${index + 1}`).join(", ")}) RETURNING *`,
+    `INSERT INTO ${definition.table} (${columns.join(", ")}) VALUES (${placeholders.join(", ")}) RETURNING *`,
     values,
   );
   let created = camelizeRow(result.rows[0]);

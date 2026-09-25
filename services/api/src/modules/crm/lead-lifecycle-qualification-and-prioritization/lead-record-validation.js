@@ -53,6 +53,14 @@ export function normalizeLeadRecordInput(input = {}) {
     const value = text(normalized[field]).toUpperCase();
     normalized[field] = value || null;
   }
+  // rating/priority are NOT NULL with database defaults (warm/medium), and
+  // validateLeadRecord already treats "not chosen" as that default. The form
+  // sends null for an untouched optional Select, which used to reach the
+  // INSERT and fail the whole save with a 500. Dropping the key lets a new
+  // Lead take the default and leaves an edited Lead's current value alone.
+  for (const field of ["rating", "priority"]) {
+    if (hasOwn(normalized, field) && !text(normalized[field])) delete normalized[field];
+  }
   if (hasOwn(normalized, "estimatedValue")) {
     normalized.estimatedValue =
       normalized.estimatedValue === null || text(normalized.estimatedValue) === ""

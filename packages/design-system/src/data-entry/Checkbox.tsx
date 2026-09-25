@@ -15,7 +15,7 @@ export const Checkbox = forwardRef<HTMLLabelElement, CheckboxProps>(function Che
   return (
     <AriaCheckbox
       ref={ref}
-      className={cn("group flex items-center gap-2 text-sm text-text data-[disabled]:opacity-50", className)}
+      className={cn("group relative flex items-center gap-2 text-sm text-text data-[disabled]:opacity-50", className)}
       {...props}
     >
       {({ isSelected, isIndeterminate }) => (

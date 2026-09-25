@@ -152,3 +152,11 @@ export {
   getCrmTimelinePage as getCrmRecordTimelinePage,
   getCrmTimelinePageBySource,
 } from "./seller-activity-and-follow-up-workspace/timeline/timeline.js";
+
+// F020 territory coverage: validation and the lead → territory match used by
+// territory-mode assignment rules (and the "check a lead" tool on the screen).
+export {
+  matchLeadTerritory,
+  normalizeTerritoryCoverage,
+  TERRITORY_TYPES,
+} from "./sales-organization-and-coverage/territory-coverage.js";

@@ -14,7 +14,6 @@ import {
   PermissionState,
   Select,
   StatusBadge,
-  TextArea,
   TextField,
   type SelectOption,
 } from "@vercentlabs/design-system";
@@ -45,8 +44,9 @@ import {
   SettingsApiError,
   updateSalesTeam,
   updateTerritory,
+  checkTerritoryMatch,
 } from "../api/territories-api";
-import type { QuotaPlan, SalesTeam, SalesTeamMember, Territory, TerritoryAssignment } from "../types";
+import { TERRITORY_TYPES, type QuotaPlan, type SalesTeam, type SalesTeamMember, type Territory, type TerritoryAssignment, type TerritoryCoverage } from "../types";
 
 const dateFormatter = new Intl.DateTimeFormat("en-IN", { dateStyle: "medium" });
 
@@ -183,6 +183,7 @@ export function SalesOrganizationSettingsScreen() {
       // now visible per-row (previously only an aggregate count on the CRM
       // dashboard). A non-active territory intentionally shows no badge —
       // coverage only matters for territories currently in use.
+      { id: "covers", header: "Covers", accessorFn: (row) => describeCoverage(row.assignmentRules) },
       {
         id: "coverage",
         header: "Coverage",
@@ -290,7 +291,7 @@ export function SalesOrganizationSettingsScreen() {
       <EnterpriseListPage
         header={{
           title: "Territories",
-          description: "Coverage boundaries used for assignment routing.",
+          description: "Coverage areas. A territory assignment rule sends each lead to the territory whose coverage it matches, and that territory's team gets it.",
           primaryAction: (
             <Button variant="primary" isDisabled={!optionsReady} onPress={() => setTerritoryDialogOpen(true)}>
               <Plus className="size-4" aria-hidden="true" />
@@ -321,6 +322,7 @@ export function SalesOrganizationSettingsScreen() {
             </span>
           )}
         />
+        <TerritoryMatchCheck />
       </EnterpriseListPage>
 
       <EnterpriseListPage
@@ -504,8 +506,7 @@ function TerritoryDialog({
   const [territoryType, setTerritoryType] = useState(territory?.territoryType ?? "");
   const [managerUserId, setManagerUserId] = useState(territory?.managerUserId ?? "");
   const [parentTerritoryId, setParentTerritoryId] = useState(territory?.parentTerritoryId ?? "");
-  const [assignmentRulesText, setAssignmentRulesText] = useState(territory?.assignmentRules ? JSON.stringify(territory.assignmentRules, null, 2) : "");
-  const [rulesError, setRulesError] = useState<string | null>(null);
+  const [coverage, setCoverage] = useState(() => coverageText(territory?.assignmentRules));
 
   const [seededFor, setSeededFor] = useState<Territory | null | undefined>(undefined);
   if (isOpen && territory !== seededFor) {
@@ -515,24 +516,16 @@ function TerritoryDialog({
     setTerritoryType(territory?.territoryType ?? "");
     setManagerUserId(territory?.managerUserId ?? "");
     setParentTerritoryId(territory?.parentTerritoryId ?? "");
-    setAssignmentRulesText(territory?.assignmentRules ? JSON.stringify(territory.assignmentRules, null, 2) : "");
-    setRulesError(null);
+    setCoverage(coverageText(territory?.assignmentRules));
   }
 
   const mutation = useMutation({
     mutationFn: () => {
-      let assignmentRules: Record<string, unknown> | null = null;
-      if (assignmentRulesText.trim()) {
-        try {
-          assignmentRules = JSON.parse(assignmentRulesText);
-        } catch {
-          throw new Error("Assignment rules must be valid JSON.");
-        }
-      }
+      const assignmentRules = coverageFromText(coverage);
       const input = {
         code,
         name,
-        territoryType: territoryType || null,
+        territoryType: territoryType || "geographic",
         managerUserId: managerUserId || null,
         parentTerritoryId: parentTerritoryId || null,
         assignmentRules,
@@ -543,13 +536,7 @@ function TerritoryDialog({
       onSaved();
       onOpenChange(false);
     },
-    onError: (err: unknown) => {
-      if (err instanceof Error && err.message === "Assignment rules must be valid JSON.") {
-        setRulesError(err.message);
-        return;
-      }
-      onError(err);
-    },
+    onError,
   });
 
   return (
@@ -557,19 +544,21 @@ function TerritoryDialog({
       <div className="flex flex-col gap-4">
         <TextField label="Code" isRequired value={code} onChange={setCode} />
         <TextField label="Name" isRequired value={name} onChange={setName} />
-        <TextField label="Type" placeholder="e.g. geography, industry" value={territoryType} onChange={setTerritoryType} />
+        <Select label="Type" options={TERRITORY_TYPE_OPTIONS} selectedKey={territoryType || "geographic"} onSelectionChange={(key) => setTerritoryType(String(key ?? "geographic"))} />
         <Select label="Parent territory" options={parentTerritoryOptions} selectedKey={parentTerritoryId} onSelectionChange={(key) => setParentTerritoryId(String(key ?? ""))} />
         <Select label="Manager" options={managerOptions} selectedKey={managerUserId} onSelectionChange={(key) => setManagerUserId(String(key ?? ""))} />
-        <TextArea
-          label="Assignment rules (JSON)"
-          description="Stored as opaque coverage-routing data; no automated matching engine reads this yet."
-          value={assignmentRulesText}
-          onChange={(value) => {
-            setAssignmentRulesText(value);
-            setRulesError(null);
-          }}
-          errorMessage={rulesError ?? undefined}
-        />
+        <div className="flex flex-col gap-3 rounded-md border border-border p-3">
+          <div>
+            <p className="text-sm font-medium text-text">Which leads this territory covers</p>
+            <p className="text-xs text-text-muted">
+              Optional. Separate values with commas. A lead belongs here when every filled line matches it; leave all empty to use this territory only where an assignment rule names it. The most specific match wins, so a city territory beats its state.
+            </p>
+          </div>
+          <TextField label="Countries (two-letter codes)" placeholder="IN" value={coverage.countryCodes} onChange={(value) => setCoverage((current) => ({ ...current, countryCodes: value }))} />
+          <TextField label="States" placeholder="Maharashtra" value={coverage.states} onChange={(value) => setCoverage((current) => ({ ...current, states: value }))} />
+          <TextField label="Cities" placeholder="Ahilyanagar, Shirdi" value={coverage.cities} onChange={(value) => setCoverage((current) => ({ ...current, cities: value }))} />
+          <TextField label="Industries" placeholder="Dairy, Food processing" value={coverage.industries} onChange={(value) => setCoverage((current) => ({ ...current, industries: value }))} />
+        </div>
         <div className="flex justify-end gap-2">
           <Button variant="secondary" onPress={() => onOpenChange(false)}>Cancel</Button>
           <Button variant="primary" onPress={() => mutation.mutate()} isLoading={mutation.isPending} isDisabled={!code.trim() || !name.trim()}>
@@ -925,5 +914,69 @@ function QuotaPlanDialog({
         </div>
       </div>
     </Dialog>
+  );
+}
+
+const TERRITORY_TYPE_OPTIONS = TERRITORY_TYPES.map((value) => ({ value, label: humanize(value) }));
+const COVERAGE_FIELDS = ["countryCodes", "states", "cities", "industries"] as const;
+type CoverageText = Record<(typeof COVERAGE_FIELDS)[number], string> & { sourceIds: string[] };
+
+function coverageText(rules: TerritoryCoverage | null | undefined): CoverageText {
+  return {
+    countryCodes: (rules?.countryCodes ?? []).join(", "),
+    states: (rules?.states ?? []).join(", "),
+    cities: (rules?.cities ?? []).join(", "),
+    industries: (rules?.industries ?? []).join(", "),
+    sourceIds: rules?.sourceIds ?? [],
+  };
+}
+function coverageFromText(text: CoverageText): TerritoryCoverage {
+  const rules: TerritoryCoverage = {};
+  for (const field of COVERAGE_FIELDS) {
+    const values = text[field].split(",").map((value) => value.trim()).filter(Boolean);
+    if (values.length) rules[field] = values;
+  }
+  if (text.sourceIds.length) rules.sourceIds = text.sourceIds;
+  return rules;
+}
+function describeCoverage(rules: TerritoryCoverage | null | undefined) {
+  const parts = [...(rules?.cities ?? []), ...(rules?.states ?? []), ...(rules?.industries ?? [])];
+  if (!parts.length && rules?.countryCodes?.length) parts.push(...rules.countryCodes);
+  if (rules?.sourceIds?.length) parts.push(`${rules.sourceIds.length} lead source(s)`);
+  return parts.length ? parts.join(", ") : "Named in rules only";
+}
+
+// F020: try a lead's details against every territory's coverage (the same
+// match territory assignment rules use) before any lead arrives.
+function TerritoryMatchCheck() {
+  const [lead, setLead] = useState({ countryCode: "IN", state: "", city: "", industry: "" });
+  const check = useMutation({ mutationFn: () => checkTerritoryMatch(lead) });
+  const result = check.data?.match;
+  return (
+    <div className="mt-4 flex flex-col gap-3 rounded-md border border-border p-4">
+      <div>
+        <p className="text-sm font-medium text-text">Check a lead&apos;s territory</p>
+        <p className="text-xs text-text-muted">Enter a lead&apos;s details to see which territory it would be routed to.</p>
+      </div>
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-4">
+        <TextField label="Country code" value={lead.countryCode} onChange={(value) => setLead((current) => ({ ...current, countryCode: value }))} />
+        <TextField label="State" value={lead.state} onChange={(value) => setLead((current) => ({ ...current, state: value }))} />
+        <TextField label="City" value={lead.city} onChange={(value) => setLead((current) => ({ ...current, city: value }))} />
+        <TextField label="Industry" value={lead.industry} onChange={(value) => setLead((current) => ({ ...current, industry: value }))} />
+      </div>
+      <div>
+        <Button variant="secondary" onPress={() => check.mutate()} isLoading={check.isPending}>
+          Check territory
+        </Button>
+      </div>
+      {check.isError && <p className="text-sm text-danger">{check.error instanceof SettingsApiError ? check.error.message : "The check could not be run."}</p>}
+      {check.isSuccess && (
+        <p className="text-sm text-text" role="status">
+          {result
+            ? `Routed to ${result.name} (matched on ${result.matchedOn.join(", ")}).${result.alternatives.length ? ` Also covered by ${result.alternatives.map((alt) => alt.name).join(", ")}, which ${result.alternatives.length === 1 ? "is" : "are"} less specific.` : ""}`
+            : "No territory covers this lead. A territory rule skips it, and the next rule or the fallback owner takes it."}
+        </p>
+      )}
+    </div>
   );
 }

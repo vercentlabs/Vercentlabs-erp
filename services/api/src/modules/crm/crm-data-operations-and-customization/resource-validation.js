@@ -1,5 +1,6 @@
 import { READINESS_FIELD_COLUMNS } from "../lead-lifecycle-qualification-and-prioritization/lead-qualification.js";
 import { CrmError } from "./errors.js";
+import { normalizeTerritoryCoverage, normalizeTerritoryType } from "../sales-organization-and-coverage/territory-coverage.js";
 import { LEAD_LINKED_GENERIC_RESOURCES, canViewCustomField, recordScope } from "./record-policy.js";
 import { resources } from "./resource-registry.js";
 import { camelizeRow } from "./record-utils.js";
@@ -180,6 +181,15 @@ export function normalizeStorageInput(resource, input) {
   // that targets a jsonb column JSON.stringify()s first; this resource
   // never got that treatment because crm_account_plans had zero rows
   // anywhere until F002's Customer 360 seed data first populated one.
+  // F020: territory coverage is structured and validated (empty = {} — the
+  // column is NOT NULL, so null used to fail the save), and the type must be
+  // one the database accepts instead of free text.
+  if (resource === "territories") {
+    if (Object.prototype.hasOwnProperty.call(prepared, "assignmentRules"))
+      prepared.assignmentRules = JSON.stringify(normalizeTerritoryCoverage(prepared.assignmentRules));
+    if (Object.prototype.hasOwnProperty.call(prepared, "territoryType"))
+      prepared.territoryType = normalizeTerritoryType(prepared.territoryType);
+  }
   if (resource === "account-plans") {
     for (const field of ["objectives", "risks", "whiteSpace", "successPlan"]) {
       if (Object.prototype.hasOwnProperty.call(prepared, field) && typeof prepared[field] === "object" && prepared[field] !== null) {

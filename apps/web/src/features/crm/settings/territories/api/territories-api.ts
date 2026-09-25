@@ -115,3 +115,11 @@ export async function archiveQuotaPlan(id: string, expectedUpdatedAt: string): P
   const response = await fetch(`/api/crm/quota-plans/${id}?expectedUpdatedAt=${encodeURIComponent(expectedUpdatedAt)}`, { method: "DELETE" });
   return parseResponse(response);
 }
+
+// F020: which territory a lead with these details would fall in.
+export type TerritoryMatch = { territoryId: string; code: string; name: string; matchedOn: string[]; alternatives: Array<{ territoryId: string; name: string; matchedOn: string[] }> } | null;
+export async function checkTerritoryMatch(lead: { countryCode?: string; state?: string; city?: string; industry?: string }): Promise<{ match: TerritoryMatch }> {
+  const params = new URLSearchParams(Object.entries(lead).filter(([, value]) => value && value.trim()) as Array<[string, string]>);
+  const response = await fetch(`/api/crm/territory-match?${params.toString()}`);
+  return parseResponse(response);
+}

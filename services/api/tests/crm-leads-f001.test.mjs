@@ -87,6 +87,13 @@ test("F001: normalized lead input trims text and canonicalizes email/currency/co
   );
 });
 
+test("F001: a Rating or Priority left unchosen is dropped so the database default applies (not a NOT NULL 500)", () => {
+  const blank = normalizeLeadRecordInput({ firstName: "Atharva", rating: null, priority: "" });
+  assert.equal(Object.prototype.hasOwnProperty.call(blank, "rating"), false);
+  assert.equal(Object.prototype.hasOwnProperty.call(blank, "priority"), false);
+  assert.equal(normalizeLeadRecordInput({ rating: "hot", priority: "high" }).rating, "hot");
+});
+
 test("F001: a blank optional estimated value uses the database-safe zero default", () => {
   assert.equal(normalizeLeadRecordInput({ estimatedValue: null }).estimatedValue, 0);
   assert.equal(normalizeLeadRecordInput({ estimatedValue: "" }).estimatedValue, 0);
