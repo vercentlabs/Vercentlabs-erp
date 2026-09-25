@@ -47,6 +47,7 @@ export type CustomerCreditSummary = {
   creditLimit: number;
   arOutstanding: number;
   unappliedAdvances: number;
+  openOrderValue?: number;
   netExposure: number;
   availableCredit: number | null;
   overLimit: boolean;

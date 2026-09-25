@@ -5,11 +5,12 @@ import { HttpError } from "@/core/http";
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type QueryClient = { query(text: string, values?: unknown[]): Promise<{ rows: any[] }> };
 
-export type StockAction = "availability" | "reserve" | "issue";
+export type StockAction = "availability" | "reserve" | "issue" | "receive";
 const PERMISSIONS: Record<StockAction, string[]> = {
   availability: ["stock.view"],
   reserve: ["stock.view", "stock.reserve"],
   issue: ["stock.view", "stock.issue", "stock.reserve"],
+  receive: ["stock.view", "stock.receive"],
 };
 
 export function stockContextFor(session: { organizationId: string; userId: string }, companyId: string, action: StockAction) {

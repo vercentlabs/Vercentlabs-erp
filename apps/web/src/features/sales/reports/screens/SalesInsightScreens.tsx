@@ -67,20 +67,51 @@ const ISO_TIMESTAMP = /^\d{4}-\d{2}-\d{2}T/;
 const SIX_DECIMALS = /^-?\d+\.\d{6}$/;
 function cell(key: string, value: unknown): string {
   if (value === null || value === undefined || value === "") return "—";
-  if (typeof value === "string" && ISO_TIMESTAMP.test(value)) return /(period|_at)$/.test(key) ? (key === "period" ? value.slice(0, 7) : dateTime(value)) : calendarDate(value);
+  // Plain dates arrive as a UTC timestamp of local midnight; read them in local
+  // time, or 25 Sept shows as 24 Sept.
+  if (typeof value === "string" && ISO_TIMESTAMP.test(value)) return /(period|_at)$/.test(key) ? (key === "period" ? localDay(value).slice(0, 7) : dateTime(value)) : calendarDate(localDay(value));
   if (typeof value === "string" && SIX_DECIMALS.test(value)) return /percent/.test(key) ? `${Number(value).toFixed(1)}%` : money("", value);
   if (typeof value === "string" && /^[a-z]+(_[a-z]+)+$/.test(value)) return statusLabel(value);
   if (typeof value === "string" && /^[a-z_]+$/.test(value) && /status|type/.test(key)) return statusLabel(value);
   return String(value);
 }
 
+const localDay = (value: string) => {
+  const day = new Date(value);
+  return `${day.getFullYear()}-${String(day.getMonth() + 1).padStart(2, "0")}-${String(day.getDate()).padStart(2, "0")}`;
+};
+// F060: every figure leads back to its source record.
+const LINKS: Record<string, { idKey: string; href: (id: string) => string }> = {
+  sales_order_number: { idKey: "sales_order_id", href: (id) => `/sales/orders/${id}` },
+  quotation_number: { idKey: "id", href: (id) => `/sales/quotations/${id}` },
+};
+
 function ReportTable({ reportKey }: { reportKey: string }) {
   const workspace = useWorkspaceContext();
   const query = useQuery({ queryKey: scopedQueryKey(workspace, "sales", "report", reportKey), queryFn: () => request<{ rows: Array<Record<string, unknown>> }>(`/reports/${reportKey}`).then((r) => r.rows.map((row, index) => ({ ...row, _row: index }) as ReportRow)) });
   const rows = useMemo(() => query.data ?? [], [query.data]);
   const columns: ColumnDef<ReportRow, unknown>[] = useMemo(() => {
-    const keys = Object.keys(rows[0] ?? {}).filter((key) => key !== "_row" && key !== "id");
-    return keys.map((key) => ({ id: key, header: statusLabel(key), accessorFn: (row) => cell(key, row[key]) }));
+    const keys = Object.keys(rows[0] ?? {}).filter((key) => key !== "_row" && key !== "id" && !key.endsWith("_id"));
+    return keys.map((key) => {
+      const link = LINKS[key];
+      return {
+        id: key,
+        header: statusLabel(key.replace(/_pct$/, "_percent")),
+        accessorFn: (row: ReportRow) => (key.endsWith("_pct") && row[key] != null ? `${row[key]}%` : cell(key, row[key])),
+        ...(link
+          ? {
+              cell: ({ row }: { row: { original: ReportRow } }) =>
+                row.original[link.idKey] ? (
+                  <Link href={link.href(String(row.original[link.idKey]))} className="font-medium text-brand hover:underline">
+                    {String(row.original[key])}
+                  </Link>
+                ) : (
+                  String(row.original[key] ?? "—")
+                ),
+            }
+          : {}),
+      };
+    });
   }, [rows]);
   if (query.isError) {
     if (query.error instanceof SalesApiError && query.error.status === 403) return <PermissionState title="You don't have access to this report" description="It needs an additional permission." />;
@@ -129,13 +160,15 @@ export const ANALYTICS_REPORTS: ReportSpec[] = [
   { key: "quotation-conversion", label: "Quotation conversion", description: "Quotations created per month and how many were accepted." },
   { key: "order-intake", label: "Order intake", description: "Orders confirmed per month and their value in base currency." },
   { key: "customer-performance", label: "Customer performance", description: "Orders and value per customer." },
+  { key: "order-to-cash", label: "Order to cash", description: "Each order through deliveries, invoices, payments, advances and credits, and why it does not reconcile yet." },
 ];
 export const STATUS_REPORTS: ReportSpec[] = [
+  { key: "order-status", label: "Order status", description: "One stage per order across reservation, delivery, invoicing and payment, with the exceptions that need attention. Select an order to open it." },
   { key: "fulfillment", label: "Fulfilment status", description: "Open orders and how far fulfilment has got." },
   { key: "active-holds", label: "Active holds", description: "Orders currently blocked, and why." },
   { key: "billing-readiness", label: "Billing readiness", description: "Orders ready, partly or blocked from invoicing." },
   { key: "pending-approvals", label: "Pending approvals", description: "Quotations waiting for an approver." },
   { key: "expiring-quotations", label: "Expiring quotations", description: "Sent quotations about to lapse." },
 ];
-export const PROFITABILITY_REPORTS: ReportSpec[] = [{ key: "margin", label: "Order margin", description: "Cost, margin and margin percent per order. Requires margin visibility." }];
+export const PROFITABILITY_REPORTS: ReportSpec[] = [{ key: "margin", label: "Order margin", description: "Cost, margin and margin percent per order, with the cost at today's standard cost — a large change means the price was set on a stale cost. Requires margin visibility." }];
 export const ALL_REPORTS: ReportSpec[] = [...ANALYTICS_REPORTS, ...STATUS_REPORTS, ...PROFITABILITY_REPORTS];

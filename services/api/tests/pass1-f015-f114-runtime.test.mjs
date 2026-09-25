@@ -50,6 +50,8 @@ test("Pass1 drop-ship validates supplier through Procurement public contract bef
     if (/FROM tenant\.procurement_supplier_(?:sites|qualifications|certifications|scorecards)/.test(sql)) return { rows: [] };
     if (/FROM tenant\.sales_orders record/.test(sql)) return { rows: [orderRow] };
     if (/FROM tenant\.sales_order_lines line/.test(sql)) return { rows: [{ id: lineId, quantity: "5" }] };
+    // F056: the open quantity on the line (after deliveries and other drop-ships).
+    if (/FROM tenant\.sales_order_line_progress progress/.test(sql)) return { rows: [{ fulfilled_quantity: "0", cancelled_quantity: "0", drop_shipping: "0" }] };
     if (/INSERT INTO tenant\.sales_drop_ship_requests/.test(sql)) return { rows: [{ id: "drop-1", supplier_id: params[4], sales_order_id: params[2] }] };
     throw new Error(`Unexpected query: ${sql}`);
   }};

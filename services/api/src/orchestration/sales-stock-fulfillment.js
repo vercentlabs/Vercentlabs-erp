@@ -1,5 +1,5 @@
 import { SalesError } from "../modules/sales/index.js";
-import { completeFulfillmentRequest } from "../modules/sales/index.js";
+import { completeFulfillmentRequest, completeSalesReturnRequest } from "../modules/sales/index.js";
 import { postStockMovement } from "../modules/stock/index.js";
 import { consumeSalesOrderReservation } from "./sales-stock-reservation.js";
 
@@ -81,5 +81,25 @@ export async function completeFulfillmentRequestWithStockMovement(
     });
   }
 
+  return result;
+}
+
+// F054: receiving a return. Sales records the returned quantity and each
+// line's disposition; restocked lines go back into their warehouse through a
+// Stock receipt (base units), scrapped lines do not touch stock. One
+// transaction, so a Stock failure rolls the whole receipt back.
+export async function completeSalesReturnWithStock(client, salesContext, stockContext, returnId, input = {}) {
+  const result = await completeSalesReturnRequest(client, salesContext, returnId, input);
+  for (const line of result.restock || []) {
+    await postStockMovement(client, stockContext, {
+      movementType: "receipt",
+      itemId: line.itemId,
+      warehouseId: line.warehouseId,
+      quantity: line.baseQuantity,
+      referenceType: "sales_return_request",
+      referenceId: returnId,
+      idempotencyKey: `sales-return:${returnId}:${line.salesOrderLineId}`,
+    });
+  }
   return result;
 }

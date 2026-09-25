@@ -12,6 +12,12 @@ export async function checkSalesOrderLineAvailability(client,salesContext,stockC
   const line=await getSalesOrderLineReservationContext(client,salesContext,input);
   if(salesContext.organizationId!==stockContext.organizationId)throw new SalesError(403,"Sales and Stock organization context must match.","SALES_STOCK_CONTEXT_INVALID");
   if(line.companyId!==stockContext.companyId)throw new SalesError(409,"Sales and Stock active-company context must match.","SALES_STOCK_COMPANY_MISMATCH");
+  // Nothing left to reserve on this line and no quantity asked for: show the
+  // stock position instead of failing with "quantity must be greater than zero".
+  if((input.quantity==null||input.quantity==="")&&line.remainingReservableQuantity<=0){
+    const availability=await getStockAvailability(client,stockContext,{itemId:line.itemId,warehouseId:line.warehouseId});
+    return {line,availability,requestedQuantity:0,requestedBaseQuantity:0,promise:{basis:"reserved",promisedDate:null,unit:line.unit,conversionFactor:line.conversionFactor,availableBase:Number(availability.availableToPromise),requestedBase:0,incoming:[],supplierLeadTimeDays:null,explanation:"Everything still to deliver on this line is already reserved in this warehouse."}};
+  }
   const requested=input.quantity==null||input.quantity===""?line.remainingReservableQuantity:Number(input.quantity);
   if(!Number.isFinite(requested)||requested<=0)throw new SalesError(400,"Reservation quantity must be greater than zero.","SALES_RESERVATION_QUANTITY_INVALID");
   if(requested>line.remainingReservableQuantity+1e-9)throw new SalesError(409,"Reservation quantity exceeds the unreserved confirmed Sales quantity.","SALES_RESERVATION_EXCEEDS_CONFIRMED");

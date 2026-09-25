@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { ColumnDef } from "@tanstack/react-table";
 import { ArrowLeft, Ban, Check, FileText, Pause, Pencil, PlayCircle, Truck, X } from "lucide-react";
-import { Button, Dialog, EnterpriseDataGrid, ErrorState, MetricStrip, PermissionState, RecordDetailsPage, Select, StatusBadge, Tab, TabList, TabPanel, Tabs, TextArea, TextField } from "@vercentlabs/design-system";
+import { Button, Dialog, EnterpriseDataGrid, ErrorState, MetricStrip, PermissionState, RecordDetailsPage, Select, StatusBadge, Tab, TabList, TabPanel, Tabs, TextArea, TextField, NumberField } from "@vercentlabs/design-system";
 import { SALES_PERMISSIONS } from "@vercentlabs/permissions";
 
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
@@ -62,6 +62,8 @@ export function SalesOrderDetailScreen({ orderId }: { orderId: string }) {
   const [reason, setReason] = useState("");
   const [holdType, setHoldType] = useState("other");
   const [basis, setBasis] = useState<"default" | "ordered" | "fulfilled">("default");
+  // F051: quantities to bill now per line (empty = everything that remains).
+  const [invoiceQuantities, setInvoiceQuantities] = useState<Record<string, number>>({});
   const [stockLine, setStockLine] = useState<SalesOrderLine | null>(null);
 
   const key = scopedQueryKey(workspace, "sales", "order", orderId);
@@ -87,6 +89,7 @@ export function SalesOrderDetailScreen({ orderId }: { orderId: string }) {
     setReason("");
     setCarrier("");
     setTrackingNumber("");
+    setInvoiceQuantities({});
     setHoldType("other");
   }
   const onSuccess = (message?: string) => () => {
@@ -125,7 +128,10 @@ export function SalesOrderDetailScreen({ orderId }: { orderId: string }) {
   const cancelMutation = useMutation({ mutationFn: () => cancelSalesOrder(orderId, reason), onSuccess: onSuccess("Order cancelled."), onError });
   const closeMutation = useMutation({ mutationFn: () => closeSalesOrder(orderId), onSuccess: onSuccess("Order closed."), onError });
   const fulfilMutation = useMutation({ mutationFn: () => requestSalesFulfillment(orderId, crypto.randomUUID()), onSuccess: onSuccess("Fulfilment requested."), onError });
-  const invoiceMutation = useMutation({ mutationFn: () => requestSalesInvoice(orderId, crypto.randomUUID(), basis === "default" ? undefined : basis), onSuccess: onSuccess("Invoice requested."), onError });
+  const invoiceMutation = useMutation({ mutationFn: () => {
+      const chosen = Object.entries(invoiceQuantities).filter(([, quantity]) => quantity > 0).map(([salesOrderLineId, quantity]) => ({ salesOrderLineId, quantity }));
+      return requestSalesInvoice(orderId, crypto.randomUUID(), basis === "default" ? undefined : basis, chosen.length ? chosen : undefined);
+    }, onSuccess: onSuccess("Invoice requested."), onError });
 
   if (query.isLoading) return <p className="px-4 py-8 text-sm text-text-secondary">Loading sales order…</p>;
   if (query.isError || !query.data) {
@@ -458,6 +464,20 @@ export function SalesOrderDetailScreen({ orderId }: { orderId: string }) {
             selectedKey={basis}
             onSelectionChange={(key) => setBasis(key === "fulfilled" ? "fulfilled" : key === "ordered" ? "ordered" : "default")}
           />
+          <div className="flex flex-col gap-2">
+            <p className="text-sm font-medium text-text">Quantities to invoice now</p>
+            <p className="text-xs text-text-muted">Leave a line at 0 to skip it, or leave every line at 0 to invoice everything that remains. You can never invoice more than remains.</p>
+            {detail.lines.filter((line) => Number(line.remaining_to_invoice) > 0).map((line) => (
+              <NumberField
+                key={line.id}
+                label={`${line.item_name_snapshot} — ${Number(line.remaining_to_invoice)} ${line.uom_snapshot ?? ""} remaining`}
+                value={invoiceQuantities[line.id] ?? 0}
+                onChange={(value) => setInvoiceQuantities((current) => ({ ...current, [line.id]: Number.isFinite(value) ? value : 0 }))}
+                minValue={0}
+                maxValue={Number(line.remaining_to_invoice)}
+              />
+            ))}
+          </div>
         </ActionDialog>
       )}
       {dialogue === "reject" && (

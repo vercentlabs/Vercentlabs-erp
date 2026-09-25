@@ -16,6 +16,12 @@ import type { SalesOptions } from "@/features/sales/quotations/api/quotations-ap
 import { dateTime, money, statusLabel, statusTone } from "@/features/sales/shared/format";
 import { SalesAlert } from "@/features/sales/shared/SalesUi";
 import {
+  approveCommission,
+  cancelAdvance,
+  decideAdjustment,
+  decideReturn,
+  receiveReturn,
+  updateDropShip,
   promiseOrderLine,
   accrueCommission,
   createCommissionRule,
@@ -63,6 +69,40 @@ const OrderLink = ({ id, label }: { id: string; label: string }) => (
 
 // Shared shell for the create dialogs: one place for the error banner, the
 // pending state and the button row, so every dialog behaves the same way.
+// F052–F057: one prompt for every after-sales decision — the fields it
+// needs, then the call. Errors from the server (caps, self-approval, wrong
+// state) show in the dialog.
+type PromptField = { key: string; label: string; required?: boolean; multiline?: boolean; options?: Array<{ value: string; label: string }> };
+type Prompt = { title: string; confirmLabel: string; fields: PromptField[]; intro?: string; submit: (values: Record<string, string>) => Promise<unknown>; refresh: () => void };
+function PromptDialog({ prompt, onClose }: { prompt: Prompt; onClose: () => void }) {
+  const [values, setValues] = useState<Record<string, string>>(() => Object.fromEntries(prompt.fields.map((field) => [field.key, field.options?.[0]?.value ?? ""])));
+  const mutation = useMutation({ mutationFn: () => prompt.submit(values), onSuccess: () => { prompt.refresh(); onClose(); } });
+  const missing = prompt.fields.some((field) => field.required && (values[field.key] ?? "").trim().length < (field.multiline ? 5 : 1));
+  return (
+    <OperationDialog title={prompt.title} confirmLabel={prompt.confirmLabel} disabled={missing} mutation={mutation} onClose={onClose}>
+      {prompt.intro && <p className="text-sm text-text-secondary">{prompt.intro}</p>}
+      {prompt.fields.map((field) =>
+        field.options ? (
+          <Select key={field.key} label={field.label} options={field.options} selectedKey={values[field.key]} onSelectionChange={(key) => setValues((current) => ({ ...current, [field.key]: String(key ?? "") }))} />
+        ) : field.multiline ? (
+          <TextArea key={field.key} label={field.label} isRequired={field.required} value={values[field.key]} onChange={(value) => setValues((current) => ({ ...current, [field.key]: value }))} />
+        ) : (
+          <TextField key={field.key} label={field.label} isRequired={field.required} value={values[field.key]} onChange={(value) => setValues((current) => ({ ...current, [field.key]: value }))} />
+        ),
+      )}
+    </OperationDialog>
+  );
+}
+function usePrompt() {
+  const [prompt, setPrompt] = useState<Prompt | null>(null);
+  return { open: setPrompt, dialog: prompt ? <PromptDialog prompt={prompt} onClose={() => setPrompt(null)} /> : null };
+}
+const actionButton = (label: string, onPress: () => void) => (
+  <Button key={label} variant="ghost" size="compact" onPress={onPress}>
+    {label}
+  </Button>
+);
+
 function OperationDialog({ title, confirmLabel, disabled, mutation, onClose, children }: { title: string; confirmLabel: string; disabled?: boolean; mutation: { isPending: boolean; error: unknown; mutate: () => void }; onClose: () => void; children: ReactNode }) {
   const message = mutation.error ? (mutation.error instanceof SalesApiError ? mutation.error.message : "This could not be saved.") : null;
   return (
@@ -201,6 +241,7 @@ function AdvanceDialog({ onClose, onDone }: { onClose: () => void; onDone: () =>
 
 export function SalesAdvancesScreen() {
   const { orderNumber } = useOperationOptions();
+  const prompt = usePrompt();
   const columns: ColumnDef<AdvanceRow, unknown>[] = useMemo(
     () => [
       { id: "order", header: "Order", cell: ({ row }) => <OrderLink id={row.original.sales_order_id} label={orderNumber(row.original.sales_order_id)} /> },
@@ -208,11 +249,13 @@ export function SalesAdvancesScreen() {
       { id: "reference", header: "Reference", accessorKey: "payment_reference" },
       { id: "received", header: "Received", accessorFn: (row) => dateTime(row.received_at) },
       { id: "status", header: "Status", accessorKey: "status", cell: ({ row }) => badge(row.original.status) },
-      { id: "note", header: "Note", accessorFn: (row) => row.note ?? "—" },
+      { id: "note", header: "Note", accessorFn: (row) => row.status_reason ?? row.note ?? (row.status === "applied" ? "Deducted on the invoice request" : "—") },
     ],
     [orderNumber],
   );
   return (
+    <>
+    {prompt.dialog}
     <SalesRegisterPage<AdvanceRow>
       config={{
         kind: "advances",
@@ -226,8 +269,25 @@ export function SalesAdvancesScreen() {
         emptyTitle: "No advance payments yet",
         emptyDescription: "Record a payment received against an order.",
         renderCreate: (props) => <AdvanceDialog {...props} />,
+        rowActions: (row, refresh) =>
+          row.status === "recorded"
+            ? actionButton("Cancel or refund", () =>
+                prompt.open({
+                  title: `Advance ${row.payment_reference}`,
+                  confirmLabel: "Save",
+                  intro: "Only an advance not yet deducted on an invoice can be cancelled or refunded.",
+                  fields: [
+                    { key: "outcome", label: "What happened", options: [{ value: "refunded", label: "Refunded to the customer" }, { value: "cancelled", label: "Recorded in error — cancel" }] },
+                    { key: "reason", label: "Reason", required: true, multiline: true },
+                  ],
+                  submit: (values) => cancelAdvance(row.id, values.reason, values.outcome === "refunded"),
+                  refresh,
+                }),
+              )
+            : null,
       }}
     />
+    </>
   );
 }
 
@@ -259,6 +319,7 @@ function AdjustmentDialog({ onClose, onDone }: { onClose: () => void; onDone: ()
 
 export function SalesAdjustmentsScreen() {
   const { orderNumber } = useOperationOptions();
+  const prompt = usePrompt();
   const columns: ColumnDef<AdjustmentRow, unknown>[] = useMemo(
     () => [
       { id: "order", header: "Order", cell: ({ row }) => <OrderLink id={row.original.sales_order_id} label={orderNumber(row.original.sales_order_id)} /> },
@@ -267,15 +328,18 @@ export function SalesAdjustmentsScreen() {
       { id: "reason", header: "Reason", accessorKey: "reason" },
       { id: "status", header: "Status", accessorKey: "status", cell: ({ row }) => badge(row.original.status) },
       { id: "created", header: "Requested", accessorFn: (row) => dateTime(row.created_at) },
+      { id: "decision", header: "Decision note", accessorFn: (row) => row.decision_note ?? "—" },
     ],
     [orderNumber],
   );
   return (
+    <>
+    {prompt.dialog}
     <SalesRegisterPage<AdjustmentRow>
       config={{
         kind: "adjustments",
         title: "Credit / Adjustments",
-        description: "Credit notes and refunds requested against orders, pending Accounting.",
+        description: "Credit notes (at most what was invoiced) and refunds (at most what was paid) requested against orders. Someone other than the requester approves; Accounting then posts them.",
         searchLabel: "Search adjustments",
         createLabel: "Request adjustment",
         createPermission: SALES_PERMISSIONS.invoiceRequest,
@@ -284,8 +348,16 @@ export function SalesAdjustmentsScreen() {
         emptyTitle: "No adjustments requested",
         emptyDescription: "Request a credit note or refund against an order.",
         renderCreate: (props) => <AdjustmentDialog {...props} />,
+        rowActions: (row, refresh) =>
+          row.status === "pending" ? (
+            <span className="flex gap-1">
+              {actionButton("Approve", () => prompt.open({ title: `Approve ${statusLabel(row.adjustment_type).toLowerCase()} of ${money(row.currency_code, row.amount)}`, confirmLabel: "Approve", fields: [{ key: "note", label: "Note (optional)" }], submit: (values) => decideAdjustment(row.id, "approved", values.note), refresh }))}
+              {actionButton("Reject", () => prompt.open({ title: `Reject ${statusLabel(row.adjustment_type).toLowerCase()}`, confirmLabel: "Reject", fields: [{ key: "note", label: "Why is it rejected?", required: true, multiline: true }], submit: (values) => decideAdjustment(row.id, "rejected", values.note), refresh }))}
+            </span>
+          ) : null,
       }}
     />
+    </>
   );
 }
 
@@ -313,6 +385,7 @@ function ReturnDialog({ onClose, onDone }: { onClose: () => void; onDone: () => 
 
 export function SalesReturnsScreen() {
   const router = useRouter();
+  const prompt = usePrompt();
   const columns: ColumnDef<ReturnRow, unknown>[] = useMemo(
     () => [
       { id: "request", header: "Return", accessorKey: "request_number", cell: ({ row }) => <span className="font-medium text-text">{row.original.request_number}</span> },
@@ -322,10 +395,13 @@ export function SalesReturnsScreen() {
       { id: "reason", header: "Reason", accessorKey: "reason" },
       { id: "status", header: "Status", accessorKey: "status", cell: ({ row }) => badge(row.original.status) },
       { id: "requested", header: "Requested", accessorFn: (row) => dateTime(row.requested_at) },
+      { id: "decision", header: "Decision", accessorFn: (row) => row.decision_note ?? (row.decided_at ? dateTime(row.decided_at) : "—") },
     ],
     [],
   );
   return (
+    <>
+    {prompt.dialog}
     <SalesRegisterPage<ReturnRow>
       config={{
         kind: "returns",
@@ -340,8 +416,27 @@ export function SalesReturnsScreen() {
         emptyDescription: "Create a return for goods a customer sends back.",
         onRowClick: (row) => router.push(`/sales/orders/${row.sales_order_id}`),
         renderCreate: (props) => <ReturnDialog {...props} />,
+        rowActions: (row, refresh) =>
+          row.status === "pending" ? (
+            <span className="flex gap-1">
+              {actionButton("Approve", () => prompt.open({ title: `Approve return ${row.request_number}`, confirmLabel: "Approve", fields: [{ key: "note", label: "Note (optional)" }], submit: (values) => decideReturn(row.id, "approved", values.note), refresh }))}
+              {actionButton("Reject", () => prompt.open({ title: `Reject return ${row.request_number}`, confirmLabel: "Reject", fields: [{ key: "note", label: "Why is it rejected?", required: true, multiline: true }], submit: (values) => decideReturn(row.id, "rejected", values.note), refresh }))}
+            </span>
+          ) : row.status === "approved" ? (
+            actionButton("Receive goods", () =>
+              prompt.open({
+                title: `Receive return ${row.request_number}`,
+                confirmLabel: "Receive",
+                intro: "Restocked goods go back into the line's warehouse; scrapped goods do not. The returned quantity is recorded on the order.",
+                fields: [{ key: "disposition", label: "What happens to the goods", options: [{ value: "restock", label: "Restock — saleable" }, { value: "scrap", label: "Scrap — damaged or expired" }] }],
+                submit: (values) => receiveReturn(row.id, row.lines.map((line) => ({ salesOrderLineId: line.salesOrderLineId, quantity: Number(line.quantity), disposition: values.disposition as "restock" | "scrap" }))),
+                refresh,
+              }),
+            )
+          ) : null,
       }}
     />
+    </>
   );
 }
 
@@ -369,18 +464,34 @@ function DropShipDialog({ onClose, onDone }: { onClose: () => void; onDone: () =
 
 export function SalesDropShipsScreen() {
   const { options, orderNumber } = useOperationOptions();
+  const prompt = usePrompt();
   const columns: ColumnDef<DropShipRow, unknown>[] = useMemo(
     () => [
       { id: "order", header: "Order", cell: ({ row }) => <OrderLink id={row.original.sales_order_id} label={orderNumber(row.original.sales_order_id)} /> },
       { id: "supplier", header: "Supplier", accessorFn: (row) => options?.suppliers.find((supplier) => supplier.id === row.supplier_id)?.display_name ?? "—" },
       { id: "quantity", header: "Quantity", accessorFn: (row) => Number(row.quantity) },
       { id: "status", header: "Status", accessorKey: "status", cell: ({ row }) => badge(row.original.status) },
-      { id: "reference", header: "Procurement ref", accessorFn: (row) => row.procurement_reference ?? "—" },
+      { id: "reference", header: "Supplier PO", accessorFn: (row) => row.procurement_reference ?? "—" },
+      { id: "shipment", header: "Shipment", accessorFn: (row) => (row.carrier ? `${row.carrier}${row.tracking_number ? ` · ${row.tracking_number}` : ""}` : "—") },
       { id: "created", header: "Created", accessorFn: (row) => dateTime(row.created_at) },
     ],
     [orderNumber, options],
   );
+  const next = (row: DropShipRow, refresh: () => void) => {
+    if (row.status === "requested")
+      return [
+        actionButton("Mark ordered", () => prompt.open({ title: "Supplier purchase order placed", confirmLabel: "Mark ordered", fields: [{ key: "procurementReference", label: "Supplier PO reference", required: true }], submit: (values) => updateDropShip(row.id, { status: "ordered", procurementReference: values.procurementReference }), refresh })),
+        actionButton("Cancel", () => prompt.open({ title: "Cancel drop-ship", confirmLabel: "Cancel drop-ship", fields: [{ key: "note", label: "Reason", required: true, multiline: true }], submit: (values) => updateDropShip(row.id, { status: "cancelled", note: values.note }), refresh })),
+      ];
+    if (row.status === "ordered" || row.status === "acknowledged")
+      return [actionButton("Mark shipped", () => prompt.open({ title: "Supplier shipped to the customer", confirmLabel: "Mark shipped", fields: [{ key: "carrier", label: "Carrier", required: true }, { key: "trackingNumber", label: "Tracking number" }], submit: (values) => updateDropShip(row.id, { status: "shipped", carrier: values.carrier, trackingNumber: values.trackingNumber }), refresh }))];
+    if (row.status === "shipped")
+      return [actionButton("Mark delivered", () => prompt.open({ title: "Customer received the goods", confirmLabel: "Mark delivered", intro: "The quantity counts as delivered on the order line. No stock moves: the goods never passed through our warehouse.", fields: [{ key: "note", label: "Note (optional)" }], submit: (values) => updateDropShip(row.id, { status: "delivered", note: values.note }), refresh }))];
+    return null;
+  };
   return (
+    <>
+    {prompt.dialog}
     <SalesRegisterPage<DropShipRow>
       config={{
         kind: "drop-ships",
@@ -394,8 +505,13 @@ export function SalesDropShipsScreen() {
         emptyTitle: "No drop shipments",
         emptyDescription: "Create one for an order line a supplier ships directly.",
         renderCreate: (props) => <DropShipDialog {...props} />,
+        rowActions: (row, refresh) => {
+          const actions = next(row, refresh);
+          return actions ? <span className="flex gap-1">{actions}</span> : null;
+        },
       }}
     />
+    </>
   );
 }
 
@@ -449,6 +565,7 @@ export function SalesCommissionsScreen() {
       { id: "rate", header: "Rate", accessorFn: (row) => `${Number(row.rate_percent)}%` },
       { id: "commission", header: "Commission", accessorFn: (row) => Number(row.commission_amount).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) },
       { id: "status", header: "Status", accessorKey: "status", cell: ({ row }) => badge(row.original.status) },
+      { id: "how", header: "How it was worked out", accessorFn: (row) => (row.status === "reversed" ? `Reversed — ${row.reversal_reason ?? ""}` : row.explanation?.formula ? `${row.explanation.basisLabel}: ${row.explanation.formula}` : "—") },
     ],
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [orderNumber, options],
@@ -471,6 +588,7 @@ export function SalesCommissionsScreen() {
           emptyTitle: "No commission accrued",
           emptyDescription: "Commission accrues automatically when an order is confirmed and a rule applies, or accrue one here.",
           renderCreate: (props) => <AccrueDialog {...props} />,
+          rowActions: (row, refresh) => (row.status === "accrued" && canManage ? <CommissionApprove id={row.id} onDone={refresh} /> : null),
         }}
       />
       {canManage && (
@@ -627,5 +745,17 @@ export function SalesTermsScreen() {
         errorContent={<ErrorState title="Could not load payment terms" action={{ label: "Retry", onPress: () => options.refetch() }} />}
       />
     </div>
+  );
+}
+
+function CommissionApprove({ id, onDone }: { id: string; onDone: () => void }) {
+  const mutation = useMutation({ mutationFn: () => approveCommission(id), onSuccess: onDone });
+  return (
+    <span className="flex items-center gap-2">
+      <Button variant="ghost" size="compact" onPress={() => mutation.mutate()} isLoading={mutation.isPending}>
+        Approve
+      </Button>
+      {mutation.error ? <span className="text-xs text-danger">{mutation.error instanceof SalesApiError ? mutation.error.message : "Not approved."}</span> : null}
+    </span>
   );
 }

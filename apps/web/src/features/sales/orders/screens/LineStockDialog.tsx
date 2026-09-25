@@ -36,12 +36,12 @@ export function LineStockDialog({ orderId, line, onClose, onReserved }: { orderI
               { label: "Already reserved (all orders)", value: `${Number(a.reservedQuantity)} units` },
               { label: "Free to promise", value: `${Number(a.availableToPromise)} units` },
               { label: "This line still to reserve", value: `${reservable} ${p.unit ?? ""} (${reservable * p.conversionFactor} units)`.trim() },
-              { label: "Promise date", value: p.promisedDate ?? "Cannot promise yet" },
+              { label: "Promise date", value: p.basis === "reserved" ? "Already reserved" : (p.promisedDate ?? "Cannot promise yet") },
               { label: "Supplier lead time", value: p.supplierLeadTimeDays != null ? `${p.supplierLeadTimeDays} days` : "—" },
             ]}
           />
         )}
-        {p && <SalesAlert tone={p.basis === "in_stock" ? "success" : p.basis === "no_supply" ? "danger" : "warning"}>{p.explanation}</SalesAlert>}
+        {p && <SalesAlert tone={p.basis === "in_stock" || p.basis === "reserved" ? "success" : p.basis === "no_supply" ? "danger" : "warning"}>{p.explanation}</SalesAlert>}
         {p && p.incoming.length > 0 && (
           <div className="text-sm text-text-secondary">
             <p className="font-medium text-text">Incoming supply</p>

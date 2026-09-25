@@ -670,6 +670,14 @@ export function recordFulfillmentDelivery(client: QueryClient, context: any, req
 export function listSalesApprovalDelegations(client: QueryClient, context: any): Promise<any[]>;
 export function createSalesApprovalDelegation(client: QueryClient, context: any, input?: Record<string, unknown>): Promise<any>;
 export function revokeSalesApprovalDelegation(client: QueryClient, context: any, delegationId: string): Promise<any>;
+export function getSalesCustomerCreditExposure(client: QueryClient, context: any, partyId: string): Promise<any>;
+export function cancelSalesAdvancePayment(client: QueryClient, context: any, advanceId: string, input?: Record<string, unknown>): Promise<any>;
+export function decideSalesReturnRequest(client: QueryClient, context: any, returnId: string, input?: Record<string, unknown>): Promise<any>;
+export function completeSalesReturnRequest(client: QueryClient, context: any, returnId: string, input?: Record<string, unknown>): Promise<any>;
+export function completeSalesReturnWithStock(client: QueryClient, salesContext: any, stockContext: any, returnId: string, input?: Record<string, unknown>): Promise<any>;
+export function decideSalesCreditAdjustment(client: QueryClient, context: any, adjustmentId: string, input?: Record<string, unknown>): Promise<any>;
+export function updateSalesDropShipStatus(client: QueryClient, context: any, dropShipId: string, input?: Record<string, unknown>): Promise<any>;
+export function approveSalesCommission(client: QueryClient, context: any, entryId: string): Promise<any>;
 export function confirmSalesOrderWithCrmSync(client: QueryClient, salesContext: any, orderId: string, options?: Record<string, unknown>): Promise<any>;
 export function cancelSalesOrderWithCrmSync(client: QueryClient, salesContext: any, orderId: string, reason?: string): Promise<any>;
 

@@ -47,7 +47,7 @@ function creditClient({ creditLimit = "0", openOrdersExposure = "0", arOutstandi
         return { rows: [{ grand_total: "500", base_currency_total: "500" }] };
       if (sql.includes("FROM tenant.business_parties") && sql.includes("credit_limit"))
         return { rows: [{ credit_limit: creditLimit, display_name: "Customer", status: "active", sales_block: "none" }] };
-      if (sql.includes("SELECT COALESCE(sum(version.base_currency_total)"))
+      if (sql.includes("AS exposure"))
         return { rows: [{ exposure: openOrdersExposure }] };
       if (sql.includes("FROM tenant.accounting_customer_invoices") && sql.includes("ar_outstanding"))
         return { rows: [{ ar_outstanding: arOutstanding, unapplied_advances: unappliedAdvances }] };

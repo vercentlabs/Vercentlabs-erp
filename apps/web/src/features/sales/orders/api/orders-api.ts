@@ -131,7 +131,8 @@ export const placeSalesOrderHold = (id: string, input: { holdType?: string; reas
 export const releaseSalesOrderHold = (id: string, input: { holdId: string; note?: string }) => post<{ result: unknown }>(`/orders/${id}/hold/release`, input);
 export const cancelSalesOrder = (id: string, reason: string) => post<{ result: unknown }>(`/orders/${id}/cancel`, { reason });
 export const requestSalesFulfillment = (id: string, idempotencyKey: string) => post<{ request: SalesHandoffRequest }>(`/orders/${id}/fulfillment-request`, { idempotencyKey });
-export const requestSalesInvoice = (id: string, idempotencyKey: string, quantityBasis?: "ordered" | "fulfilled") => post<{ request: SalesHandoffRequest }>(`/orders/${id}/invoice-request`, { idempotencyKey, quantityBasis });
+export const requestSalesInvoice = (id: string, idempotencyKey: string, quantityBasis?: "ordered" | "fulfilled", lines?: Array<{ salesOrderLineId: string; quantity: number }>) =>
+  post<{ request: SalesHandoffRequest }>(`/orders/${id}/invoice-request`, { idempotencyKey, quantityBasis, lines });
 export const closeSalesOrder = (id: string) => post<{ result: unknown }>(`/orders/${id}/close`, {});
 export const getSalesOrderReadiness = (id: string) => request<{ readiness: SalesOrderReadiness }>(`/orders/${id}/readiness`);
 

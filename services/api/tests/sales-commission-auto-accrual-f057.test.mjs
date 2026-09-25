@@ -52,7 +52,7 @@ function accrualClient({ order = orderRow(), hasCommissionRule = true } = {}) {
         return { rows: [{ grand_total: "1000", base_currency_total: "1000" }] };
       if (sql.includes("FROM tenant.business_parties") && sql.includes("credit_limit"))
         return { rows: [{ credit_limit: "0", display_name: "Customer", status: "active", sales_block: "none" }] };
-      if (sql.includes("SELECT COALESCE(sum(version.base_currency_total)"))
+      if (sql.includes("AS exposure"))
         return { rows: [{ exposure: "0" }] };
       if (sql.includes("FROM tenant.accounting_customer_invoices") && sql.includes("ar_outstanding"))
         return { rows: [{ ar_outstanding: "0", unapplied_advances: "0" }] };
@@ -62,7 +62,7 @@ function accrualClient({ order = orderRow(), hasCommissionRule = true } = {}) {
       if (sql.includes("INSERT INTO tenant.sales_document_events")) return { rows: [] };
       // accrueSalesCommission's own order() lookup (joins the version for subtotal/margin_amount)
       if (sql.includes("FROM tenant.sales_orders record") && sql.includes("version.margin_amount,version.subtotal"))
-        return { rows: [order] };
+        return { rows: [{ ...order, lifecycle_status: "confirmed" }] }; // accrual runs after the confirm UPDATE
       if (sql.includes("FROM public.organization_memberships membership") && sql.includes("users.id"))
         return { rows: [{ id: ownerUserId, full_name: "Owner" }] };
       if (sql.includes("FROM tenant.sales_commission_rules"))

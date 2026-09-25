@@ -1,4 +1,5 @@
 import { SalesError } from "./index.js";
+import { assertSalesCreditAdjustmentAllowed } from "./after-sales.js";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const money = (value, label = "Amount") => {
@@ -137,6 +138,8 @@ export async function recordSalesAdvancePayment(client, c, input = {}) {
     throw new SalesError(409, "Advance payments cannot exceed the Sales order total.", "SALES_ADVANCE_EXCEEDS_ORDER");
   const reference = text(input.paymentReference, 200);
   if (!reference) throw new SalesError(400, "Payment reference is required.", "SALES_ADVANCE_REFERENCE_REQUIRED");
+  const duplicate = await client.query(`SELECT 1 FROM tenant.sales_advance_payments WHERE organization_id=$1 AND sales_order_id=$2 AND lower(payment_reference)=lower($3) AND status<>'cancelled' LIMIT 1`, [c.organizationId, target.id, reference]);
+  if (duplicate.rows[0]) throw new SalesError(409, `Payment reference ${reference} is already recorded on this order.`, "SALES_ADVANCE_DUPLICATE_REFERENCE");
   const result = await client.query(`INSERT INTO tenant.sales_advance_payments(organization_id,company_id,sales_order_id,amount,currency_code,payment_reference,received_at,note,created_by,updated_by) VALUES($1,$2,$3,$4,$5,$6,COALESCE($7::timestamptz,now()),$8,$9,$9) RETURNING *`, [c.organizationId,target.company_id,target.id,amount,target.currency_code,reference,input.receivedAt || null,text(input.note,2000)||null,c.userId]);
   return result.rows[0];
 }
@@ -150,6 +153,7 @@ export async function requestSalesCreditAdjustment(client, c, input = {}) {
   if (amount > Number(target.grand_total) + 0.000001) throw new SalesError(409, "Adjustment cannot exceed the Sales order total.", "SALES_ADJUSTMENT_EXCEEDS_ORDER");
   const reason = text(input.reason, 2000);
   if (!reason) throw new SalesError(400, "Adjustment reason is required.", "SALES_ADJUSTMENT_REASON_REQUIRED");
+  await assertSalesCreditAdjustmentAllowed(client, c, target, { type, amount, returnRequestId: input.returnRequestId ? uuid(input.returnRequestId, "Return request") : null });
   const result = await client.query(`INSERT INTO tenant.sales_credit_adjustment_requests(organization_id,company_id,sales_order_id,return_request_id,adjustment_type,amount,currency_code,reason,created_by,updated_by) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$9) RETURNING *`, [c.organizationId,target.company_id,target.id,input.returnRequestId ? uuid(input.returnRequestId,"Return request") : null,type,amount,target.currency_code,reason,c.userId]);
   return result.rows[0];
 }
@@ -162,8 +166,21 @@ export async function createSalesDropShipRequest(client, c, input = {}) {
   const line = await client.query(`SELECT line.* FROM tenant.sales_order_lines line WHERE line.organization_id=$1 AND line.sales_order_version_id=$2 AND line.id=$3`, [c.organizationId,target.current_version_id,lineId]);
   if (!line.rows[0]) throw new SalesError(409, "Sales order line does not belong to the current order version.", "SALES_DROP_SHIP_LINE_INVALID");
   const quantity = money(input.quantity, "Quantity");
-  if (quantity > Number(line.rows[0].quantity) + 0.000001) throw new SalesError(409, "Drop-ship quantity exceeds the order line quantity.", "SALES_DROP_SHIP_QUANTITY_INVALID");
+  const open = await client.query(
+    `SELECT progress.fulfilled_quantity,progress.cancelled_quantity,
+            COALESCE((SELECT sum(quantity) FROM tenant.sales_drop_ship_requests WHERE organization_id=$1 AND sales_order_line_id=$2 AND status IN ('requested','ordered','acknowledged','shipped')),0) AS drop_shipping
+       FROM tenant.sales_order_line_progress progress WHERE progress.organization_id=$1 AND progress.sales_order_line_id=$2`,
+    [c.organizationId, lineId],
+  );
+  const openQuantity = Number(line.rows[0].quantity) - Number(open.rows[0]?.fulfilled_quantity || 0) - Number(open.rows[0]?.cancelled_quantity || 0) - Number(open.rows[0]?.drop_shipping || 0);
+  if (quantity > openQuantity + 0.000001) throw new SalesError(409, `Only ${Math.max(0, openQuantity)} is still open on this line (after deliveries and other drop-ships).`, "SALES_DROP_SHIP_QUANTITY_INVALID");
   const supplierId = uuid(input.supplierId, "Supplier");
+  // The supplier itself is validated through Procurement's public contract by
+  // createSalesDropShipWithSupplierValidation (orchestration), not here.
+  if (input.shipToAddressId) {
+    const shipTo = await client.query(`SELECT 1 FROM tenant.addresses WHERE organization_id=$1 AND id=$2 AND party_id=$3 AND status='active'`, [c.organizationId, uuid(input.shipToAddressId, "Ship-to address"), target.party_id]);
+    if (!shipTo.rows[0]) throw new SalesError(409, "The ship-to address must be one of this customer's addresses.", "SALES_DROP_SHIP_ADDRESS_INVALID");
+  }
   const key = text(input.idempotencyKey, 200) || null;
   if (key) {
     const replay = await client.query(`SELECT * FROM tenant.sales_drop_ship_requests WHERE organization_id=$1 AND idempotency_key=$2`, [c.organizationId,key]);
@@ -190,6 +207,8 @@ export async function createSalesCommissionRule(client, c, input = {}) {
 export async function accrueSalesCommission(client, c, input = {}) {
   need(c, "sales.settings.manage");
   const target = await order(client, c, input.salesOrderId);
+  if (!["confirmed", "closed"].includes(target.lifecycle_status))
+    throw new SalesError(409, "Commission accrues only on confirmed orders.", "SALES_COMMISSION_ORDER_NOT_CONFIRMED");
   const ownerUserId = input.ownerUserId
     ? (await organizationUser(client, c, input.ownerUserId)).id
     : target.owner_user_id
@@ -203,7 +222,18 @@ export async function accrueSalesCommission(client, c, input = {}) {
   const rule = found.rows[0]; if (!rule) throw new SalesError(409, "No active commission rule applies to this order.", "SALES_COMMISSION_RULE_REQUIRED");
   const basisAmount = rule.basis === "gross_margin" ? Number(target.margin_amount) : Number(target.subtotal);
   const commission = Math.round((basisAmount * Number(rule.rate_percent) / 100) * 1e6) / 1e6;
-  const result = await client.query(`INSERT INTO tenant.sales_commission_entries(organization_id,company_id,sales_order_id,rule_id,owner_user_id,basis_amount,rate_percent,commission_amount,created_by,updated_by) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$9) ON CONFLICT(organization_id,sales_order_id,owner_user_id,rule_id) DO UPDATE SET basis_amount=EXCLUDED.basis_amount,rate_percent=EXCLUDED.rate_percent,commission_amount=EXCLUDED.commission_amount,updated_by=EXCLUDED.updated_by,updated_at=now() RETURNING *`, [c.organizationId,target.company_id,target.id,rule.id,ownerUserId,basisAmount,rule.rate_percent,commission,c.userId]);
+  const explanation = {
+    orderNumber: target.sales_order_number,
+    rule: rule.name,
+    basis: rule.basis,
+    basisLabel: rule.basis === "gross_margin" ? "order margin" : "order net sales (before tax)",
+    basisAmount,
+    ratePercent: Number(rule.rate_percent),
+    commission,
+    formula: `${basisAmount} × ${Number(rule.rate_percent)}% = ${commission}`,
+  };
+  const result = await client.query(`INSERT INTO tenant.sales_commission_entries(organization_id,company_id,sales_order_id,rule_id,owner_user_id,basis_amount,rate_percent,commission_amount,explanation,created_by,updated_by) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$10::jsonb,$9,$9) ON CONFLICT(organization_id,sales_order_id,owner_user_id,rule_id) DO UPDATE SET basis_amount=EXCLUDED.basis_amount,rate_percent=EXCLUDED.rate_percent,commission_amount=EXCLUDED.commission_amount,explanation=EXCLUDED.explanation,updated_by=EXCLUDED.updated_by,updated_at=now() WHERE tenant.sales_commission_entries.status='accrued' RETURNING *`, [c.organizationId,target.company_id,target.id,rule.id,ownerUserId,basisAmount,rule.rate_percent,commission,c.userId,JSON.stringify(explanation)]);
+  if (!result.rows[0]) throw new SalesError(409, "This commission is already approved, paid or reversed and can't be recalculated.", "SALES_COMMISSION_LOCKED");
   return result.rows[0];
 }
 
@@ -424,10 +454,11 @@ export async function getSalesOrderLineReservationContext(client,c,input={}){
   const target=await order(client,c,input.salesOrderId);
   if(target.lifecycle_status!=="confirmed")throw new SalesError(409,"Only confirmed Sales orders can reserve stock.","SALES_ORDER_RESERVATION_STATE_INVALID");
   const lineId=uuid(input.salesOrderLineId,"Sales order line");
-  const result=await client.query(`SELECT line.id,line.item_id,line.warehouse_id,line.quantity,line.conversion_factor,line.uom_snapshot,line.item_name_snapshot,progress.reserved_quantity,progress.fulfilled_quantity,progress.cancelled_quantity,progress.confirmed_quantity FROM tenant.sales_order_lines line JOIN tenant.sales_order_line_progress progress ON progress.organization_id=line.organization_id AND progress.sales_order_line_id=line.id WHERE line.organization_id=$1 AND line.sales_order_version_id=$2 AND line.id=$3`,[c.organizationId,target.current_version_id,lineId]);
+  const result=await client.query(`SELECT line.id,line.item_id,line.warehouse_id,line.quantity,line.conversion_factor,line.uom_snapshot,line.item_name_snapshot,progress.reserved_quantity,progress.fulfilled_quantity,progress.cancelled_quantity,progress.confirmed_quantity,COALESCE((SELECT sum(drop_ship.quantity) FROM tenant.sales_drop_ship_requests drop_ship WHERE drop_ship.organization_id=line.organization_id AND drop_ship.sales_order_line_id=line.id AND drop_ship.status IN ('requested','ordered','acknowledged','shipped')),0) AS drop_shipping FROM tenant.sales_order_lines line JOIN tenant.sales_order_line_progress progress ON progress.organization_id=line.organization_id AND progress.sales_order_line_id=line.id WHERE line.organization_id=$1 AND line.sales_order_version_id=$2 AND line.id=$3`,[c.organizationId,target.current_version_id,lineId]);
   const line=result.rows[0];if(!line)throw new SalesError(404,"Sales order line was not found in the current order version.");
   if(!line.warehouse_id)throw new SalesError(409,"Select a warehouse on the Sales order line before checking or reserving stock.","SALES_ORDER_WAREHOUSE_REQUIRED");
-  const remaining=Number(line.confirmed_quantity)-Number(line.fulfilled_quantity)-Number(line.cancelled_quantity)-Number(line.reserved_quantity);
+  // Quantity a supplier is drop-shipping never comes from our stock (F056).
+  const remaining=Number(line.confirmed_quantity)-Number(line.fulfilled_quantity)-Number(line.cancelled_quantity)-Number(line.reserved_quantity)-Number(line.drop_shipping||0);
   return {orderId:target.id,companyId:target.company_id,lineId:line.id,itemId:line.item_id,warehouseId:line.warehouse_id,lineQuantity:Number(line.quantity),reservedQuantity:Number(line.reserved_quantity),remainingReservableQuantity:Math.max(0,remaining),
     // Sales quantities are in the line's selling unit (e.g. cartons); Stock counts base units.
     conversionFactor:Number(line.conversion_factor)||1,unit:line.uom_snapshot,itemName:line.item_name_snapshot};

@@ -1163,7 +1163,11 @@ export async function createSalesReturnRequest(
     }
     const result = await client.query(
       `SELECT line.id,line.item_id,line.item_code_snapshot,
-              progress.fulfilled_quantity,progress.returned_quantity
+              progress.fulfilled_quantity,progress.returned_quantity,
+              COALESCE((SELECT sum((request_line->>'quantity')::numeric)
+                          FROM tenant.sales_return_requests request, jsonb_array_elements(request.lines) request_line
+                         WHERE request.organization_id=line.organization_id AND request.status IN ('pending','approved')
+                           AND request_line->>'salesOrderLineId'=line.id::text),0) AS in_open_returns
          FROM tenant.sales_order_lines line
          JOIN tenant.sales_order_line_progress progress
            ON progress.organization_id=line.organization_id
@@ -1180,9 +1184,11 @@ export async function createSalesReturnRequest(
         "SALES_RETURN_LINE_NOT_FOUND",
       );
     }
+    // F054: quantity already in a pending or approved return is not offered
+    // again, so two requests can never return the same delivered units.
     const available = sub(
-      decimal(line.fulfilled_quantity),
-      decimal(line.returned_quantity),
+      sub(decimal(line.fulfilled_quantity), decimal(line.returned_quantity)),
+      decimal(line.in_open_returns || 0),
     );
     if (quantity > available) {
       throw new SalesOrderGovernanceError(

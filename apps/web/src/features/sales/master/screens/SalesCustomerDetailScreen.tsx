@@ -242,6 +242,8 @@ export function SalesCustomerDetailScreen({ customerId }: { customerId: string }
                     items={[
                       { label: "Credit limit", value: creditQuery.data.creditLimit > 0 ? money(creditQuery.data.currencyCode, creditQuery.data.creditLimit) : "No limit" },
                       { label: "AR outstanding", value: money(creditQuery.data.currencyCode, creditQuery.data.arOutstanding) },
+                      { label: "Open orders not yet invoiced", value: money(creditQuery.data.currencyCode, creditQuery.data.openOrderValue ?? 0) },
+                      { label: "Total exposure", value: money(creditQuery.data.currencyCode, creditQuery.data.netExposure) },
                       { label: "Unapplied advances", value: money(creditQuery.data.currencyCode, creditQuery.data.unappliedAdvances) },
                       { label: "Available credit", value: creditQuery.data.availableCredit === null ? "No limit" : money(creditQuery.data.currencyCode, creditQuery.data.availableCredit) },
                     ]}
