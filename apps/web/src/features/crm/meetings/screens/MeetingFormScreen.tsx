@@ -11,7 +11,7 @@ import { listContacts } from "@/features/crm/contacts/api/contacts-api";
 import { ChipInput } from "@/features/crm/shared/ui/ChipInput";
 import { DateTimeInput } from "@/features/crm/shared/ui/DateTimeInput";
 import { TimezoneSelect } from "@/features/crm/shared/ui/TimezoneSelect";
-import { browserTimezone } from "@/features/crm/shared/human";
+import { browserTimezone } from "@/shared/format/human";
 import { NO_RELATION, RelatedRecordPicker, type RelatedValue } from "@/features/crm/shared/ui/RelatedRecordPicker";
 import { createMeeting, MeetingApiError } from "../api/meetings-api";
 

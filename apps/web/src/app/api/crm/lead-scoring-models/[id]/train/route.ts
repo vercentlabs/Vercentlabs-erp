@@ -1,9 +1,8 @@
-import { assertSameOriginOrMobile, trainLeadScoringModel } from "@vercentlabs/api";
+import { trainLeadScoringModel } from "@vercentlabs/api";
 
-import { tenantTransaction } from "@/core/db";
-import { errorResponse, ok } from "@/core/http";
-import { requireWorkspace } from "@/core/session";
-import { crmContext, requireCrmAccess } from "@/features/crm/shared/crm-context";
+import { ok } from "@/core/http";
+import { crmContext } from "@/features/crm/shared/crm-context";
+import { workspaceRoute } from "@/core/workspace-route";
 
 type RouteContext = { params: Promise<{ id: string }> };
 
@@ -13,16 +12,9 @@ type RouteContext = { params: Promise<{ id: string }> };
 // afterwards (the existing [id]/activate/route.ts) requires trained_at to
 // be set.
 export async function POST(request: Request, context: RouteContext) {
-  try {
-    assertSameOriginOrMobile(request, process.env);
-    const session = await requireWorkspace();
+  return workspaceRoute(request, { module: "crm", billingWrite: true }, async ({ client, session }) => {
     const { id } = await context.params;
-    const record = await tenantTransaction(session.organizationId, async (client) => {
-      await requireCrmAccess(client, session, undefined, { mutation: true });
-      return trainLeadScoringModel(client, crmContext(session), id);
-    });
+    const record = await trainLeadScoringModel(client, crmContext(session), id);
     return ok({ record });
-  } catch (error) {
-    return errorResponse(error);
-  }
+  });
 }

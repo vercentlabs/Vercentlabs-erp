@@ -1,6 +1,6 @@
 "use client";
 
-import { humanize } from "@/features/crm/shared/human";
+import { humanize } from "@/shared/format/human";
 
 import { useQuery } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";

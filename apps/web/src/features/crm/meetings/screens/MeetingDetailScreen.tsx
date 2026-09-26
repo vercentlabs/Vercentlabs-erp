@@ -6,12 +6,12 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { CheckCircle2, Pencil, Play, X } from "lucide-react";
 import { Button, Dialog, ErrorState, PermissionState, RecordDetailsPage, Select, StatusBadge, TextArea, TextField, type SelectOption } from "@vercentlabs/design-system";
 import { CRM_PERMISSIONS } from "@vercentlabs/permissions";
-import { LoadingState } from "@/features/crm/shared/ui/LoadingState";
+import { LoadingState } from "@/shared/ui/LoadingState";
 
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import { getCrmOptions } from "@/features/crm/shared/crm-options-api";
-import { dueLabel, dueState, formatDateTime, humanize } from "@/features/crm/shared/human";
+import { dueLabel, dueState, formatDateTime, humanize } from "@/shared/format/human";
 import { PropertyList } from "@/features/crm/shared/ui/PropertyList";
 import { RelatedRecordCard } from "@/features/crm/shared/ui/RelatedRecordCard";
 import { cancelMeeting, getMeeting, listMeetingEvents, MeetingApiError, startMeeting, updateMeeting } from "../api/meetings-api";

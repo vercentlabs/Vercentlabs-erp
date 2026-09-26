@@ -1,74 +1,31 @@
-// Phase 8 validator: re-derives the route security matrix fresh (never
-// trusts a possibly-stale committed CSV) and fails the process if any
-// mutation-capable route lacks BOTH authentication and an origin check,
-// unless it appears in generate-route-security-matrix.mjs's
-// DOCUMENTED_EXCEPTIONS with a real, specific reason. A route with
-// authorization but no plain "authentication" primitive (e.g. one that
-// only calls requireCrmAccess, which itself requires a session) is not
-// flagged — this checks for the presence of SOME real gate, not that
-// every route spells its check identically.
-import { execSync } from "node:child_process";
+// Re-derives the route security matrix from source (never trusts the
+// committed CSV), writes it, and fails when:
+//   - any handler is UNKNOWN (unclassified, or its class's evidence is gone);
+//   - a SELF_SERVICE mutation has no origin check;
+//   - a PUBLIC_AUTH mutation has no origin check;
+//   - an explicit registry entry no longer matches a route file (stale).
 import fs from "node:fs";
 
-execSync("node scripts/qa/generate-route-security-matrix.mjs", { stdio: "inherit" });
+import { buildMatrix, EXPLICIT_ROUTES, OUTPUT, PLATFORM_DOMAIN_AUTHORIZATION, writeMatrix } from "./generate-route-security-matrix.mjs";
 
-const csv = fs.readFileSync("docs/frontend-rebuild/ROUTE_SECURITY_MATRIX.csv", "utf8");
-const [headerLine, ...lines] = csv.trim().split("\n");
-const header = headerLine.split(",");
-
-function parseCsvLine(line) {
-  // Minimal parser matching this file's own csvField() escaping — good
-  // enough for this specific generated file, not a general CSV parser.
-  const values = [];
-  let current = "";
-  let inQuotes = false;
-  for (let i = 0; i < line.length; i += 1) {
-    const char = line[i];
-    if (inQuotes) {
-      if (char === '"' && line[i + 1] === '"') {
-        current += '"';
-        i += 1;
-      } else if (char === '"') {
-        inQuotes = false;
-      } else {
-        current += char;
-      }
-    } else if (char === '"') {
-      inQuotes = true;
-    } else if (char === ",") {
-      values.push(current);
-      current = "";
-    } else {
-      current += char;
-    }
-  }
-  values.push(current);
-  return values;
-}
-
-const rows = lines.map((line) => {
-  const values = parseCsvLine(line);
-  return Object.fromEntries(header.map((key, index) => [key, values[index]]));
-});
+const rows = buildMatrix();
+writeMatrix(rows);
 
 const failures = [];
+const mutation = (row) => row.method !== "GET";
 for (const row of rows) {
-  const hasAuth = row.has_auth === "true";
-  const hasOrigin = row.has_origin_check === "true";
-  const exempt = Boolean(row.documented_exception);
-  if (exempt) continue;
-  if (!hasAuth || !hasOrigin) {
-    failures.push(
-      `${row.route} [${row.mutation_methods}] — missing ${!hasAuth ? "authentication" : ""}${!hasAuth && !hasOrigin ? " and " : ""}${!hasOrigin ? "an origin check" : ""}, and is not in DOCUMENTED_EXCEPTIONS`,
-    );
-  }
+  const at = `${row.route} ${row.method}`;
+  if (row.class === "UNKNOWN") failures.push(`${at}: unclassified${row.protection ? ` (${row.protection})` : ""} — use workspaceRoute()/apiKeyRoute(), or add an EXPLICIT_ROUTES entry naming the real protection`);
+  if ((row.class === "SELF_SERVICE" || row.class === "PUBLIC_AUTH") && mutation(row) && !row.originCheck) failures.push(`${at}: ${row.class} mutation without a same-origin check`);
+}
+for (const route of [...Object.keys(EXPLICIT_ROUTES), ...Object.keys(PLATFORM_DOMAIN_AUTHORIZATION)]) {
+  if (!fs.existsSync(`apps/web/src/app/${route}`)) failures.push(`registry entry ${route} has no route file (stale)`);
 }
 
-if (failures.length > 0) {
-  console.error(`\nROUTE SECURITY VALIDATION FAILED — ${failures.length} route(s) with an unprotected mutation and no documented reason:\n`);
+if (failures.length) {
+  console.error(`\nROUTE SECURITY VALIDATION FAILED — ${failures.length} problem(s):\n`);
   for (const failure of failures) console.error(`  - ${failure}`);
-  console.error("\nEither add the missing check, or add a DOCUMENTED_EXCEPTIONS entry in scripts/qa/generate-route-security-matrix.mjs naming the actual alternative protection.\n");
   process.exit(1);
 }
-
-console.log(`Route security validation passed — ${rows.length} mutation-capable routes checked, 0 unexplained gaps.`);
+const counts = rows.reduce((acc, row) => ({ ...acc, [row.class]: (acc[row.class] ?? 0) + 1 }), {});
+console.log(`Route security validation passed — ${rows.length} handlers classified (${Object.entries(counts).map(([k, v]) => `${k} ${v}`).join(", ")}), 0 UNKNOWN. Matrix: ${OUTPUT}`);

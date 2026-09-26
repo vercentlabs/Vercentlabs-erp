@@ -90,7 +90,8 @@ test("F001 Pass 2B: specialized enrichment service and route enforce both record
   assert.match(service, /canViewSensitiveLeadContent/);
   assert.match(service, /leadScopeSql\(context/);
   assert.match(service, /CRM_LEAD_SENSITIVE_CONTENT_FORBIDDEN/);
-  assert.match(route, /assertSameOrigin\(request/);
+  // workspaceRoute enforces the same-origin check for every mutation.
+  assert.match(route, /workspaceRoute\(request, \{[^}]*billingWrite: true/);
   assert.match(route, /CRM_PERMISSIONS\.leadsViewSensitive/);
   assert.match(route, /readJson\(request\)/);
 });

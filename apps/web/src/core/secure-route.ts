@@ -37,6 +37,12 @@ export type SecureRouteOptions = {
   action?: string;
   /** Require an active, writable subscription (business-data mutations only). */
   billingWrite?: boolean;
+  /**
+   * Own-records self-service (HR employee self-service, Support portal): the
+   * module must be released, enabled and entitled, but its view permission is
+   * waived. The domain function must scope everything to the caller.
+   */
+  selfService?: boolean;
   /** Build the full WorkspaceAccessSnapshot even without a module check. */
   snapshot?: boolean;
   /**
@@ -131,6 +137,7 @@ export function createSecureRoute<Session extends { organizationId: string }, Cl
           permission: options.permission,
           permissions: options.permissions,
           action: options.action,
+          selfService: options.selfService,
         });
         if (!decision.allowed) {
           deps.onDenied?.(decision, principal!, request);

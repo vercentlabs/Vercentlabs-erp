@@ -1,10 +1,9 @@
-import { assertSameOriginOrMobile, deactivateLeadStageWithMigration } from "@vercentlabs/api";
+import { deactivateLeadStageWithMigration } from "@vercentlabs/api";
 import { CRM_PERMISSIONS } from "@vercentlabs/permissions";
 
-import { tenantTransaction } from "@/core/db";
-import { errorResponse, ok, readJson } from "@/core/http";
-import { requireWorkspace } from "@/core/session";
-import { crmContext, requireCrmAccess } from "@/features/crm/shared/crm-context";
+import { ok, readJson } from "@/core/http";
+import { crmContext } from "@/features/crm/shared/crm-context";
+import { workspaceRoute } from "@/core/workspace-route";
 
 type RouteContext = { params: Promise<{ id: string }> };
 
@@ -13,17 +12,10 @@ type RouteContext = { params: Promise<{ id: string }> };
 // the UI must surface that count and let the operator choose a
 // replacement stage rather than silently stranding those Leads.
 export async function POST(request: Request, context: RouteContext) {
-  try {
-    assertSameOriginOrMobile(request, process.env);
-    const session = await requireWorkspace();
+  return workspaceRoute(request, { module: "crm", permission: CRM_PERMISSIONS.settingsManage, billingWrite: true }, async ({ client, session }) => {
     const { id } = await context.params;
     const body = (await readJson(request)) as { migrateToStageId?: string };
-    const result = await tenantTransaction(session.organizationId, async (client) => {
-      await requireCrmAccess(client, session, CRM_PERMISSIONS.settingsManage, { mutation: true });
-      return deactivateLeadStageWithMigration(client, crmContext(session), id, { migrateToStageId: body.migrateToStageId });
-    });
+    const result = await deactivateLeadStageWithMigration(client, crmContext(session), id, { migrateToStageId: body.migrateToStageId });
     return ok(result);
-  } catch (error) {
-    return errorResponse(error);
-  }
+  });
 }

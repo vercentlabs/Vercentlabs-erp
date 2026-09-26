@@ -6,8 +6,8 @@ import { CheckCircle2, Plus, Sparkles } from "lucide-react";
 import { Button, Checkbox, Dialog, PermissionState, Select, StatusBadge, TextField, type SelectOption } from "@vercentlabs/design-system";
 import { CRM_PERMISSIONS } from "@vercentlabs/permissions";
 
-import { humanize } from "@/features/crm/shared/human";
-import { LoadingState } from "@/features/crm/shared/ui/LoadingState";
+import { humanize } from "@/shared/format/human";
+import { LoadingState } from "@/shared/ui/LoadingState";
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import {

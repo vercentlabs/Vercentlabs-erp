@@ -1,9 +1,8 @@
-import { assertSameOriginOrMobile, createLeadScoringModel, listLeadScoringModels } from "@vercentlabs/api";
+import { createLeadScoringModel, listLeadScoringModels } from "@vercentlabs/api";
 
-import { tenantTransaction } from "@/core/db";
-import { errorResponse, ok, readJson } from "@/core/http";
-import { requireWorkspace } from "@/core/session";
-import { crmContext, requireCrmAccess } from "@/features/crm/shared/crm-context";
+import { ok, readJson } from "@/core/http";
+import { crmContext } from "@/features/crm/shared/crm-context";
+import { workspaceRoute } from "@/core/workspace-route";
 
 // F027 Tranche I (Stage A). listLeadScoringModels/createLeadScoringModel/
 // etc (model-config.js) already governed the real scoring engine
@@ -15,30 +14,17 @@ import { crmContext, requireCrmAccess } from "@/features/crm/shared/crm-context"
 // so as not to build a setup screen for a dead system. Module-access-only
 // at the route: assertSensitiveLeadIntelligenceAccess/assertConfigPermission
 // gate reads/writes internally.
-export async function GET() {
-  try {
-    const session = await requireWorkspace();
-    const rows = await tenantTransaction(session.organizationId, async (client) => {
-      await requireCrmAccess(client, session);
-      return listLeadScoringModels(client, crmContext(session));
-    });
+export async function GET(request: Request) {
+  return workspaceRoute(request, { module: "crm" }, async ({ client, session }) => {
+    const rows = await listLeadScoringModels(client, crmContext(session));
     return ok({ rows });
-  } catch (error) {
-    return errorResponse(error);
-  }
+  });
 }
 
 export async function POST(request: Request) {
-  try {
-    assertSameOriginOrMobile(request, process.env);
-    const session = await requireWorkspace();
+  return workspaceRoute(request, { module: "crm", billingWrite: true }, async ({ client, session }) => {
     const input = (await readJson(request)) as Record<string, unknown>;
-    const record = await tenantTransaction(session.organizationId, async (client) => {
-      await requireCrmAccess(client, session, undefined, { mutation: true });
-      return createLeadScoringModel(client, crmContext(session), input);
-    });
+    const record = await createLeadScoringModel(client, crmContext(session), input);
     return ok({ record }, 201);
-  } catch (error) {
-    return errorResponse(error);
-  }
+  });
 }

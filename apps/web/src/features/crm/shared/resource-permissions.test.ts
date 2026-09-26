@@ -48,7 +48,7 @@ test("resource-permissions: every generic resource with a shipped settings/recor
 });
 
 // Regression guard for SEC-CRM-001 (ERP completion gap audit): before this
-// fix, requireCrmAccess(client, session, RESOURCE_MANAGE_PERMISSIONS[resource])
+// fix, the old per-module helper given RESOURCE_MANAGE_PERMISSIONS[resource]
 // skipped the permission check entirely whenever that lookup was
 // `undefined` — i.e. for every one of CRM_RESOURCE_KEYS's ~40 unmapped
 // entries, leaving only the crm.view module-access floor. A CRM member
@@ -56,7 +56,7 @@ test("resource-permissions: every generic resource with a shipped settings/recor
 // custom-records, dashboards, ai-feedback, ...) by calling
 // POST/PATCH/DELETE /api/crm/{resource} directly, UI or no UI.
 // resolveCrmMutationPermission is what crm-context.ts's
-// requireCrmMutationAccess (used by both generic mutation routes) calls
+// assertCrmResourceMutationPermission (used by both generic mutation routes) calls
 // instead — this test proves, for the entire real resource universe (not
 // a hand-picked sample), that "no mapping" now means "denied", not
 // "allowed at the view floor".

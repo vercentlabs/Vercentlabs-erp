@@ -8,7 +8,7 @@ import { CRM_PERMISSIONS } from "@vercentlabs/permissions";
 
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
-import { formatDateTime, humanize } from "@/features/crm/shared/human";
+import { formatDateTime, humanize } from "@/shared/format/human";
 import { ImportStepper } from "@/features/crm/shared/ui/ImportStepper";
 import { ViewToggle } from "@/features/crm/shared/ui/ViewToggle";
 import {

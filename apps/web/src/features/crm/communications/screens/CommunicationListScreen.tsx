@@ -21,8 +21,8 @@ import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext"
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import { CommunicationApiError, listCommunications } from "../api/communications-api";
 import type { Communication, CommunicationListFilters } from "../types";
-import { LoadingState } from "@/features/crm/shared/ui/LoadingState";
-import { formatDateTime, humanize } from "@/features/crm/shared/human";
+import { LoadingState } from "@/shared/ui/LoadingState";
+import { formatDateTime, humanize } from "@/shared/format/human";
 import { ViewToggle } from "@/features/crm/shared/ui/ViewToggle";
 
 const PAGE_SIZE = 25;

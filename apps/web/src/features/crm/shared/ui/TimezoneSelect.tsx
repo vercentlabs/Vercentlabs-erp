@@ -3,7 +3,7 @@
 import { useMemo } from "react";
 import { Select } from "@vercentlabs/design-system";
 
-import { browserTimezone, timezoneLabel } from "../human";
+import { browserTimezone, timezoneLabel } from "@/shared/format/human";
 
 const COMMON_ZONES = [
   "Asia/Kolkata", "Asia/Dubai", "Asia/Singapore", "Asia/Tokyo", "Asia/Hong_Kong", "Asia/Riyadh", "Australia/Sydney", "Pacific/Auckland",

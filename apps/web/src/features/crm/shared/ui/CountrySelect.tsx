@@ -3,7 +3,7 @@
 import { useMemo } from "react";
 import { ComboBox } from "@vercentlabs/design-system";
 
-import { COUNTRY_CODES, countryName } from "../human";
+import { COUNTRY_CODES, countryName } from "@/shared/format/human";
 
 // Countries and currencies by name; the two-letter code is what is stored.
 export function CountrySelect({ label = "Country", value, onChange, className, isRequired }: { label?: string; value: string; onChange: (code: string) => void; className?: string; isRequired?: boolean }) {

@@ -12,6 +12,7 @@ import path from "node:path";
 const API_DIR = "apps/web/src/app/api";
 const HTTP_METHODS = ["GET", "POST", "PUT", "PATCH", "DELETE"];
 const MUTATION_METHODS = new Set(["POST", "PUT", "PATCH", "DELETE"]);
+const BUSINESS_MODULE_PREFIXES = ["crm", "pos", "sales", "accounting", "assets", "hr", "inventory", "manufacturing", "procurement", "projects", "quality", "support"].map((key) => `api/${key}/`);
 
 function readFile(filePath) {
   return fs.readFileSync(filePath, "utf8");
@@ -34,24 +35,23 @@ function walk(dir, files = []) {
   return files;
 }
 
-// Direct billing-gate detection: the route file itself calls
-// requireBillingWriteAccess, OR it calls requireCrmMutationAccess (always
-// billing-gated per crm-context.ts), OR it calls requireCrmAccess/
-// requirePosAccess with an explicit { mutation: true } option.
+// Billing-gate detection: the route file itself calls
+// requireBillingWriteAccess, or composes workspaceRoute() with its explicit
+// billingWrite gate (the only route composition since Prompt 6).
 function detectBillingGate(source) {
   if (/\brequireBillingWriteAccess\s*\(/.test(source)) return "direct";
-  if (/\brequireCrmMutationAccess\s*\(/.test(source)) return "via-requireCrmMutationAccess";
-  if (/\brequire(Crm|Pos)Access\s*\([^)]*\{\s*mutation:\s*true\s*\}/s.test(source)) return "via-mutation-option";
-  // Shared Access route composition with its explicit billing write gate.
   if (/\bworkspaceRoute\s*\(/.test(source) && /\bbillingWrite:\s*true\b/.test(source)) return "via-workspaceRoute";
+  // A module mutation helper (features/<module>/shared/route-helpers.ts), each
+  // audited by generate-route-security-matrix.mjs to set billingWrite.
+  if (/from "@\/features\/[a-z-]+\/shared\/route-helpers"/.test(source) && /\b[a-z]+Mutation\s*\(/.test(source)) return "via-module-mutation-helper";
   return "none";
 }
 
-// Every CRM/POS mutation-capable route that is deliberately NOT
+// Every business-module mutation-capable route that is deliberately NOT
 // billing-write-gated, with the specific, reviewed reason -- mirrors
 // generate-route-security-matrix.mjs's DOCUMENTED_EXCEPTIONS pattern so a
 // future route can never silently join this list; validate-billing-
-// mutation-gate.mjs fails the build for any CRM/POS mutation route that is
+// mutation-gate.mjs fails the build for any business-module mutation route that is
 // neither gated nor named here.
 export const DOCUMENTED_EXCLUSIONS = Object.freeze({
   "api/crm/accounts/duplicates/route.ts": "Read-only duplicate search (findAccountDuplicates) -- no record is created or changed.",
@@ -64,6 +64,7 @@ export const DOCUMENTED_EXCLUSIONS = Object.freeze({
   "api/crm/leads/export/route.ts": "Authorized data export -- exports must remain available regardless of subscription-write state, per this pass's explicit policy.",
   "api/crm/public/meetings/bookings/[token]/route.ts": "Public, token-authenticated prospect self-service -- no ERP session/subscription context applies (see ROUTE_SECURITY_MATRIX's own documented exception for the same route).",
   "api/crm/public/meetings/links/[token]/book/route.ts": "Public, token-authenticated prospect self-service -- same as above.",
+  "api/sales/public/quotes/[token]/decision/route.ts": "Public, token-authenticated customer response (accept/decline) to a quotation the organisation already sent -- recording the customer's answer is not a write initiated by the organisation; same model as the CRM public booking routes.",
   "api/pos/payments/webhook/[provider]/route.ts": "Payment-provider webhook, authenticated by cryptographic signature, not a session -- must remain reachable to record what the provider says happened regardless of the org's own subscription state (payment callbacks/reconciliation, not a business write initiated by the org).",
   "api/pos/reconciliations/[id]/correction/route.ts": "Financial record-keeping: correcting a reconciliation to reflect what already happened, not creating new business activity. A business must be able to correctly close its books regardless of subscription state.",
   "api/pos/reconciliations/[id]/resolve/route.ts": "Financial record-keeping -- same rationale as reconciliations/correction.",
@@ -102,16 +103,16 @@ for (const filePath of routeFiles) {
 
   const relativePath = filePath.replaceAll("\\", "/").replace(/^apps\/web\/src\/app\//, "");
   const billingGate = detectBillingGate(source);
-  const isCrmOrPos = relativePath.startsWith("api/crm/") || relativePath.startsWith("api/pos/");
+  const isBusinessModule = BUSINESS_MODULE_PREFIXES.some((prefix) => relativePath.startsWith(prefix));
   const exclusionReason = DOCUMENTED_EXCLUSIONS[relativePath] ?? "";
   rows.push({
     route: relativePath,
     mutationMethods: mutationMethods.join(","),
     billingGate,
-    // Only CRM/POS routes are in scope for this specific gate today (the
-    // other 10 modules have no route layer at all -- see the tracker's
-    // Section 9 finding); everything else is out of scope, not a gap.
-    status: !isCrmOrPos ? "out-of-scope" : billingGate !== "none" ? "gated" : exclusionReason ? "excluded" : "UNACCOUNTED",
+    // Every business-module route is in scope; Shared Platform routes
+    // (settings, billing, auth, access, reports, ...) are administration or
+    // security operations that must stay reachable, so they are out of scope.
+    status: !isBusinessModule ? "out-of-scope" : billingGate !== "none" ? "gated" : exclusionReason ? "excluded" : "UNACCOUNTED",
     exclusionReason,
     heuristicCategory: heuristicCategory(relativePath),
   });
@@ -136,7 +137,7 @@ const gated = inScope.filter((r) => r.status === "gated").length;
 const excluded = inScope.filter((r) => r.status === "excluded").length;
 const unaccounted = inScope.filter((r) => r.status === "UNACCOUNTED");
 console.log(
-  `Wrote ${rows.length} mutation-capable routes to ${outPath}. In scope (CRM/POS): ${inScope.length} -- ${gated} gated, ${excluded} documented-excluded, ${unaccounted.length} UNACCOUNTED.`,
+  `Wrote ${rows.length} mutation-capable routes to ${outPath}. In scope (12 business modules): ${inScope.length} -- ${gated} gated, ${excluded} documented-excluded, ${unaccounted.length} UNACCOUNTED.`,
 );
 if (unaccounted.length) {
   console.log("UNACCOUNTED routes (neither gated nor documented as excluded):");

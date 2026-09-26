@@ -1,21 +1,13 @@
-import { assertSameOriginOrMobile, deleteCrmAttachment } from "@vercentlabs/api";
+import { deleteCrmAttachment } from "@vercentlabs/api";
 
-import { tenantTransaction } from "@/core/db";
-import { errorResponse, ok } from "@/core/http";
-import { requireWorkspace } from "@/core/session";
-import { crmContext, requireCrmAccess } from "@/features/crm/shared/crm-context";
+import { ok } from "@/core/http";
+import { crmContext } from "@/features/crm/shared/crm-context";
+import { workspaceRoute } from "@/core/workspace-route";
 
 export async function DELETE(request: Request, context: { params: Promise<{ entityType: string; entityId: string; id: string }> }) {
-  try {
-    assertSameOriginOrMobile(request, process.env);
-    const session = await requireWorkspace();
+  return workspaceRoute(request, { module: "crm", billingWrite: true }, async ({ client, session }) => {
     const { entityType, entityId, id } = await context.params;
-    const record = await tenantTransaction(session.organizationId, async (client) => {
-      await requireCrmAccess(client, session, undefined, { mutation: true });
-      return deleteCrmAttachment(client, crmContext(session), entityType as never, entityId, id);
-    });
+    const record = await deleteCrmAttachment(client, crmContext(session), entityType as never, entityId, id);
     return ok({ record });
-  } catch (error) {
-    return errorResponse(error);
-  }
+  });
 }

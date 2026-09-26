@@ -24,8 +24,8 @@ import {
 } from "@vercentlabs/design-system";
 import { CRM_PERMISSIONS } from "@vercentlabs/permissions";
 
-import { formatDate, humanize } from "@/features/crm/shared/human";
-import { LoadingState } from "@/features/crm/shared/ui/LoadingState";
+import { formatDate, humanize } from "@/shared/format/human";
+import { LoadingState } from "@/shared/ui/LoadingState";
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 import { getCrmOptions } from "@/features/crm/shared/crm-options-api";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";

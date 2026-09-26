@@ -1,10 +1,10 @@
 import { CRM_PERMISSIONS } from "@vercentlabs/permissions";
 
 // Shared by both generic /api/crm/[resource] route files, via
-// requireCrmMutationAccess() (crm-context.ts) — NOT read directly by the
+// assertCrmResourceMutationPermission() (crm-context.ts) — NOT read directly by the
 // routes any more. A resource with an entry here requires that permission
 // to mutate; a resource with none is denied by default (see
-// requireCrmMutationAccess and SELF_SCOPED_CRM_RESOURCES below) rather
+// assertCrmResourceMutationPermission and SELF_SCOPED_CRM_RESOURCES below) rather
 // than silently falling back to module-access-only, which was a real,
 // closed gap (ERP_COMPLETION_GAP_REGISTER.csv, SEC-CRM-001): any CRM
 // member with only crm.view could mutate any of the ~40 CRM_RESOURCE_KEYS
@@ -79,8 +79,8 @@ export type CrmMutationPermissionResolution =
   | { kind: "denied" };
 
 // Pure decision logic (no DB, no server-only import) so it's directly
-// unit-testable — crm-context.ts's requireCrmMutationAccess() is a thin
-// wrapper that also runs the module-access DB check and throws for
+// unit-testable — crm-context.ts's assertCrmResourceMutationPermission() is a thin
+// wrapper (workspaceRoute has already run the module-access check) that throws for
 // "denied", but that wrapper can't itself be imported by a plain
 // `node --test` file (it starts with `import "server-only"`, which throws
 // unconditionally outside Next's server runtime). This function is the one

@@ -23,10 +23,10 @@ import { CRM_PERMISSIONS } from "@vercentlabs/permissions";
 
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
-import { LoadingState } from "@/features/crm/shared/ui/LoadingState";
+import { LoadingState } from "@/shared/ui/LoadingState";
 import { ViewToggle } from "@/features/crm/shared/ui/ViewToggle";
 import { Kanban, Table2 } from "lucide-react";
-import { dueState, formatMoney } from "@/features/crm/shared/human";
+import { dueState, formatMoney } from "@/shared/format/human";
 import { getCrmOptions } from "@/features/crm/shared/crm-options-api";
 import { money } from "@/features/crm/shared/format";
 import { bulkUpdateOpportunitiesRequest, listOpportunities, OpportunityApiError, type OpportunityBulkSyncResult } from "../api/opportunities-api";

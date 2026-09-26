@@ -22,8 +22,8 @@ import { CRM_PERMISSIONS } from "@vercentlabs/permissions";
 
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
-import { LoadingState } from "@/features/crm/shared/ui/LoadingState";
-import { countryName } from "@/features/crm/shared/human";
+import { LoadingState } from "@/shared/ui/LoadingState";
+import { countryName } from "@/shared/format/human";
 import { AccountApiError, listAccounts } from "../api/accounts-api";
 import type { Account, AccountListFilters } from "../types";
 

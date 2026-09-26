@@ -6,7 +6,7 @@ import { ErrorState, Timeline, type TimelineEntry } from "@vercentlabs/design-sy
 
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
-import { formatDateTime, formatMoney, humanize } from "@/features/crm/shared/human";
+import { formatDateTime, formatMoney, humanize } from "@/shared/format/human";
 import { AccountApiError, getCustomer360 } from "../api/accounts-api";
 import type { Customer360TimelineEntry } from "../types";
 

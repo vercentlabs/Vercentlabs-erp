@@ -1,11 +1,10 @@
 import { z } from "zod";
 
-import { assertSameOriginOrMobile, createSalesPriceList, listSalesPriceLists } from "@vercentlabs/api";
+import { createSalesPriceList, listSalesPriceLists } from "@vercentlabs/api";
 
-import { tenantTransaction } from "@/core/db";
-import { errorResponse, ok, readJson } from "@/core/http";
-import { requireWorkspace } from "@/core/session";
-import { requireSalesAccess, salesContext } from "@/features/sales/shared/sales-context";
+import { ok, readJson } from "@/core/http";
+import { salesContext } from "@/features/sales/shared/sales-context";
+import { workspaceRoute } from "@/core/workspace-route";
 
 const createSchema = z.object({
   code: z.string().trim().min(1).max(40),
@@ -16,30 +15,17 @@ const createSchema = z.object({
   validTo: z.string().date().optional().nullable(),
 });
 
-export async function GET() {
-  try {
-    const session = await requireWorkspace();
-    const result = await tenantTransaction(session.organizationId, async (client) => {
-      await requireSalesAccess(client, session, "sales.view");
-      return listSalesPriceLists(client, salesContext(session));
-    });
+export async function GET(request: Request) {
+  return workspaceRoute(request, { module: "sales", permission: "sales.view" }, async ({ client, session }) => {
+    const result = await listSalesPriceLists(client, salesContext(session));
     return ok(result);
-  } catch (error) {
-    return errorResponse(error);
-  }
+  });
 }
 
 export async function POST(request: Request) {
-  try {
-    assertSameOriginOrMobile(request, process.env);
-    const session = await requireWorkspace();
+  return workspaceRoute(request, { module: "sales", permission: "sales.settings.manage", billingWrite: true }, async ({ client, session }) => {
     const input = createSchema.parse(await readJson(request));
-    const priceList = await tenantTransaction(session.organizationId, async (client) => {
-      await requireSalesAccess(client, session, "sales.settings.manage", { mutation: true });
-      return createSalesPriceList(client, salesContext(session), input);
-    });
+    const priceList = await createSalesPriceList(client, salesContext(session), input);
     return ok({ priceList }, 201);
-  } catch (error) {
-    return errorResponse(error);
-  }
+  });
 }

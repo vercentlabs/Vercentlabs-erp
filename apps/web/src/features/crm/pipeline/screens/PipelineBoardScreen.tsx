@@ -20,8 +20,8 @@ import {
 } from "@/features/crm/opportunities/api/opportunities-api";
 import type { CrmListResponse, Opportunity } from "@/features/crm/opportunities/types";
 import { toNumber } from "@/features/crm/shared/format";
-import { dueState, formatDate, formatMoney } from "@/features/crm/shared/human";
-import { LoadingState } from "@/features/crm/shared/ui/LoadingState";
+import { dueState, formatDate, formatMoney } from "@/shared/format/human";
+import { LoadingState } from "@/shared/ui/LoadingState";
 import { ViewToggle } from "@/features/crm/shared/ui/ViewToggle";
 
 type Stage = { id: string; name: string; sequence: number; pipelineId: string; probability: number; isWon: boolean; isLost: boolean };

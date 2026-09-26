@@ -1,10 +1,9 @@
-import { assertSameOriginOrMobile, enqueueCrmLeadExportJob } from "@vercentlabs/api";
+import { enqueueCrmLeadExportJob } from "@vercentlabs/api";
 import { CRM_PERMISSIONS } from "@vercentlabs/permissions";
 
-import { tenantTransaction } from "@/core/db";
-import { errorResponse, ok, readJson } from "@/core/http";
-import { requireWorkspace } from "@/core/session";
-import { crmContext, requireCrmAccess } from "@/features/crm/shared/crm-context";
+import { ok, readJson } from "@/core/http";
+import { crmContext } from "@/features/crm/shared/crm-context";
+import { workspaceRoute } from "@/core/workspace-route";
 
 // F021 Stage A2 §9. Enqueues a real async export job (tenant.background_jobs,
 // job_type='crm.leads.export') instead of the prior client-side "fetch
@@ -13,16 +12,9 @@ import { crmContext, requireCrmAccess } from "@/features/crm/shared/crm-context"
 // gate the rest of this import/export screen already uses — plus the
 // dedicated crm.export permission (checked again in enqueue and worker).
 export async function POST(request: Request) {
-  try {
-    assertSameOriginOrMobile(request, process.env);
-    const session = await requireWorkspace();
+  return workspaceRoute(request, { module: "crm", permission: CRM_PERMISSIONS.export }, async ({ client, session }) => {
     const input = (await readJson(request)) as { filters?: Record<string, string> };
-    const job = await tenantTransaction(session.organizationId, async (client) => {
-      await requireCrmAccess(client, session, CRM_PERMISSIONS.export);
-      return enqueueCrmLeadExportJob(client, crmContext(session), { filters: input.filters || {} });
-    });
+    const job = await enqueueCrmLeadExportJob(client, crmContext(session), { filters: input.filters || {} });
     return ok({ job }, 202);
-  } catch (error) {
-    return errorResponse(error);
-  }
+  });
 }

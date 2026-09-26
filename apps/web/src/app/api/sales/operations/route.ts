@@ -11,7 +11,7 @@ export async function GET(request: Request) {
   const url = new URL(request.url);
   const kind = url.searchParams.get("kind") ?? "";
   const limit = Number(url.searchParams.get("limit") ?? 100);
-  return salesRead("sales.view", async (client, context) => {
+  return salesRead(request, "sales.view", async (client, context) => {
     if (!KINDS.includes(kind)) return { rows: [], error: "Unknown register." };
     return { rows: await listSalesPass1Operations(client, context, { kind, limit }) };
   });

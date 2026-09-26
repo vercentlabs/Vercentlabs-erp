@@ -1,10 +1,9 @@
-import { assertSameOriginOrMobile, createLeadStage, listLeadStages } from "@vercentlabs/api";
+import { createLeadStage, listLeadStages } from "@vercentlabs/api";
 import { CRM_PERMISSIONS } from "@vercentlabs/permissions";
 
-import { tenantTransaction } from "@/core/db";
-import { errorResponse, ok, readJson } from "@/core/http";
-import { requireWorkspace } from "@/core/session";
-import { crmContext, requireCrmAccess } from "@/features/crm/shared/crm-context";
+import { ok, readJson } from "@/core/http";
+import { crmContext } from "@/features/crm/shared/crm-context";
+import { workspaceRoute } from "@/core/workspace-route";
 
 // F007 Tranche I (Stage A). listLeadStages/createLeadStage/updateLeadStage/
 // reactivateLeadStage/deactivateLeadStageWithMigration (stage-catalog.js /
@@ -15,31 +14,18 @@ import { crmContext, requireCrmAccess } from "@/features/crm/shared/crm-context"
 // model-config.js's assertConfigPermission) — gated explicitly here,
 // matching the F005 assignment-policy route convention.
 export async function GET(request: Request) {
-  try {
-    const session = await requireWorkspace();
+  return workspaceRoute(request, { module: "crm" }, async ({ client, session }) => {
     const url = new URL(request.url);
     const status = url.searchParams.get("status") ?? undefined;
-    const result = await tenantTransaction(session.organizationId, async (client) => {
-      await requireCrmAccess(client, session);
-      return listLeadStages(client, crmContext(session), { status });
-    });
+    const result = await listLeadStages(client, crmContext(session), { status });
     return ok(result);
-  } catch (error) {
-    return errorResponse(error);
-  }
+  });
 }
 
 export async function POST(request: Request) {
-  try {
-    assertSameOriginOrMobile(request, process.env);
-    const session = await requireWorkspace();
+  return workspaceRoute(request, { module: "crm", permission: CRM_PERMISSIONS.settingsManage, billingWrite: true }, async ({ client, session }) => {
     const input = (await readJson(request)) as Record<string, unknown>;
-    const record = await tenantTransaction(session.organizationId, async (client) => {
-      await requireCrmAccess(client, session, CRM_PERMISSIONS.settingsManage, { mutation: true });
-      return createLeadStage(client, crmContext(session), input);
-    });
+    const record = await createLeadStage(client, crmContext(session), input);
     return ok({ record }, 201);
-  } catch (error) {
-    return errorResponse(error);
-  }
+  });
 }

@@ -3,8 +3,7 @@
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 
-import { listFollowUps } from "@/features/crm/follow-ups/api/follow-ups-api";
-import { listTasks } from "@/features/crm/tasks/api/tasks-api";
+import { listFollowUps, listTasks } from "@/features/crm";
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 

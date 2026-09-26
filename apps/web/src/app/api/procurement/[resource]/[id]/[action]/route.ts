@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import { transitionProcurementReceiptWithStockMovement, transitionProcurementRecord, transitionProcurementReturnWithStockMovement } from "@vercentlabs/api";
+import { procurementRecordCompanyId, transitionProcurementReceiptWithStockMovement, transitionProcurementRecord, transitionProcurementReturnWithStockMovement } from "@vercentlabs/api";
 
 import { stockContextForReceiving } from "@/features/procurement/shared/cross-module-contexts";
 import { procurementMutation } from "@/features/procurement/shared/route-helpers";
@@ -16,13 +16,11 @@ export async function POST(request: Request, ctx: { params: Promise<{ resource: 
   const { resource, id, action } = await ctx.params;
   return procurementMutation(request, schema, async (client, context, input, session) => {
     if (resource === "receipts" && (action === "approve" || action === "reverse")) {
-      const receipt = await client.query("SELECT company_id FROM tenant.procurement_receipts WHERE organization_id=$1 AND id=$2", [context.organizationId, id]);
-      const companyId = receipt.rows[0]?.company_id as string | undefined;
+      const companyId = await procurementRecordCompanyId(client, context.organizationId, "receipts", id);
       if (companyId) return { record: await transitionProcurementReceiptWithStockMovement(client, context, stockContextForReceiving(session, companyId), id, action, input) };
     }
     if (resource === "returns" && action === "dispatch") {
-      const row = await client.query("SELECT company_id FROM tenant.procurement_returns WHERE organization_id=$1 AND id=$2", [context.organizationId, id]);
-      const companyId = row.rows[0]?.company_id as string | undefined;
+      const companyId = await procurementRecordCompanyId(client, context.organizationId, "returns", id);
       if (companyId) return { record: await transitionProcurementReturnWithStockMovement(client, context, stockContextForReceiving(session, companyId), id, action, input) };
     }
     return { record: await transitionProcurementRecord(client, context, resource, id, action, input) };

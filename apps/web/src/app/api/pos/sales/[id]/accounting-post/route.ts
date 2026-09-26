@@ -1,21 +1,13 @@
-import { assertSameOriginOrMobile, postPosSaleToAccounting } from "@vercentlabs/api";
+import { postPosSaleToAccounting } from "@vercentlabs/api";
 
-import { tenantTransaction } from "@/core/db";
-import { errorResponse, ok } from "@/core/http";
-import { requireWorkspace } from "@/core/session";
-import { posContext, requirePosAccess } from "@/features/pos/shared/pos-context";
+import { ok } from "@/core/http";
+import { posContext } from "@/features/pos/shared/pos-context";
+import { workspaceRoute } from "@/core/workspace-route";
 
 export async function POST(request: Request, context: { params: Promise<{ id: string }> }) {
-  try {
-    assertSameOriginOrMobile(request, process.env);
-    const session = await requireWorkspace();
+  return workspaceRoute(request, { module: "point-of-sale", permission: "pos.accounting.post" }, async ({ client, session }) => {
     const { id } = await context.params;
-    const result = await tenantTransaction(session.organizationId, async (client) => {
-      await requirePosAccess(client, session, "pos.accounting.post");
-      return postPosSaleToAccounting(client, posContext(session), id);
-    });
+    const result = await postPosSaleToAccounting(client, posContext(session), id);
     return ok(result);
-  } catch (error) {
-    return errorResponse(error);
-  }
+  });
 }

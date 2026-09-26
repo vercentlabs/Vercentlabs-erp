@@ -27,7 +27,7 @@ import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext"
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import { getCrmOptions } from "@/features/crm/shared/crm-options-api";
 import { toNumber } from "@/features/crm/shared/format";
-import { dueLabel, dueState, formatDate, formatMoney, humanize } from "@/features/crm/shared/human";
+import { dueLabel, dueState, formatDate, formatMoney, humanize } from "@/shared/format/human";
 import { MoreMenu } from "@/features/crm/shared/ui/MoreMenu";
 import { PropertyList } from "@/features/crm/shared/ui/PropertyList";
 import { StageProgress } from "@/features/crm/shared/ui/StageProgress";
@@ -46,7 +46,7 @@ import {
   restoreOpportunity,
   updateOpportunityProbability,
 } from "../api/opportunities-api";
-import { LoadingState } from "@/features/crm/shared/ui/LoadingState";
+import { LoadingState } from "@/shared/ui/LoadingState";
 import { OpportunityContactRolesPanel } from "../components/OpportunityContactRolesPanel";
 import { OpportunityQuotationsPanel } from "../components/OpportunityQuotationsPanel";
 

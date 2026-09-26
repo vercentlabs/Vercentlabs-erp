@@ -1,6 +1,6 @@
 "use client";
 
-import { humanize } from "@/features/crm/shared/human";
+import { humanize } from "@/shared/format/human";
 
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";

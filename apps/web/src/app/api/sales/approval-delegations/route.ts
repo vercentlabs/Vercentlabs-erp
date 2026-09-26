@@ -13,8 +13,8 @@ const schema = z.object({
 });
 
 // F041: approval delegation while an approver is away.
-export async function GET() {
-  return salesRead("sales.view", async (client, context) => ({ rows: await listSalesApprovalDelegations(client, context) }));
+export async function GET(request: Request) {
+  return salesRead(request, "sales.view", async (client, context) => ({ rows: await listSalesApprovalDelegations(client, context) }));
 }
 export async function POST(request: Request) {
   return salesMutation(request, "sales.view", schema, async (client, context, input) => ({ delegation: await createSalesApprovalDelegation(client, context, input) }), 201);

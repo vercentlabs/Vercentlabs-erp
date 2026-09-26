@@ -12,7 +12,7 @@ export async function GET(request: Request) {
     limit: url.searchParams.get("limit") || undefined,
     offset: url.searchParams.get("offset") || undefined,
   };
-  return salesRead("sales.view", async (client, context) => ({ rows: await listSalesOrders(client, context, filters) }));
+  return salesRead(request, "sales.view", async (client, context) => ({ rows: await listSalesOrders(client, context, filters) }));
 }
 
 export async function POST(request: Request) {

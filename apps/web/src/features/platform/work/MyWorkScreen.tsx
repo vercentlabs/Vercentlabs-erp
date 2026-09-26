@@ -4,10 +4,9 @@ import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import { EmptyState, ErrorState, PageHeader } from "@vercentlabs/design-system";
 
-import { listFollowUps } from "@/features/crm/follow-ups/api/follow-ups-api";
-import { listTasks } from "@/features/crm/tasks/api/tasks-api";
-import { dueLabel, formatDateTime } from "@/features/crm/shared/human";
-import { LoadingState } from "@/features/crm/shared/ui/LoadingState";
+import { listFollowUps, listTasks } from "@/features/crm";
+import { dueLabel, formatDateTime } from "@/shared/format/human";
+import { LoadingState } from "@/shared/ui/LoadingState";
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 

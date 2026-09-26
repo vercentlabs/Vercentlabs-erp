@@ -1,10 +1,9 @@
-import { assertSameOriginOrMobile, listDuplicateRules, upsertDuplicateRule } from "@vercentlabs/api";
+import { listDuplicateRules, upsertDuplicateRule } from "@vercentlabs/api";
 import { CRM_PERMISSIONS } from "@vercentlabs/permissions";
 
-import { tenantTransaction } from "@/core/db";
-import { errorResponse, ok, readJson } from "@/core/http";
-import { requireWorkspace } from "@/core/session";
-import { crmContext, requireCrmAccess } from "@/features/crm/shared/crm-context";
+import { ok, readJson } from "@/core/http";
+import { crmContext } from "@/features/crm/shared/crm-context";
+import { workspaceRoute } from "@/core/workspace-route";
 
 // F008 gap-closure — duplicate-rules.js (upsertDuplicateRule/
 // listDuplicateRules/setDuplicateRuleEnabled) checks no permission
@@ -12,30 +11,17 @@ import { crmContext, requireCrmAccess } from "@/features/crm/shared/crm-context"
 // enforces crm.data-quality.manage itself, matching the same permission
 // the merge/override actions elsewhere in F008 already require.
 export async function GET(request: Request) {
-  try {
-    const session = await requireWorkspace();
+  return workspaceRoute(request, { module: "crm", permission: CRM_PERMISSIONS.dataQualityManage }, async ({ client, session }) => {
     const entityType = new URL(request.url).searchParams.get("entityType");
-    const rows = await tenantTransaction(session.organizationId, async (client) => {
-      await requireCrmAccess(client, session, CRM_PERMISSIONS.dataQualityManage);
-      return listDuplicateRules(client, crmContext(session), entityType || null);
-    });
+    const rows = await listDuplicateRules(client, crmContext(session), entityType || null);
     return ok({ rows });
-  } catch (error) {
-    return errorResponse(error);
-  }
+  });
 }
 
 export async function POST(request: Request) {
-  try {
-    assertSameOriginOrMobile(request, process.env);
-    const session = await requireWorkspace();
+  return workspaceRoute(request, { module: "crm", permission: CRM_PERMISSIONS.dataQualityManage, billingWrite: true }, async ({ client, session }) => {
     const input = (await readJson(request)) as Record<string, unknown>;
-    const record = await tenantTransaction(session.organizationId, async (client) => {
-      await requireCrmAccess(client, session, CRM_PERMISSIONS.dataQualityManage, { mutation: true });
-      return upsertDuplicateRule(client, crmContext(session), input);
-    });
+    const record = await upsertDuplicateRule(client, crmContext(session), input);
     return ok({ record }, 201);
-  } catch (error) {
-    return errorResponse(error);
-  }
+  });
 }

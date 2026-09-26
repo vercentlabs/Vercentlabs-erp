@@ -1,10 +1,9 @@
-import { addContactAccountRelationship, assertSameOriginOrMobile, listContactAccountRelationships } from "@vercentlabs/api";
+import { addContactAccountRelationship, listContactAccountRelationships } from "@vercentlabs/api";
 import { CRM_PERMISSIONS } from "@vercentlabs/permissions";
 
-import { tenantTransaction } from "@/core/db";
-import { errorResponse, ok, readJson } from "@/core/http";
-import { requireWorkspace } from "@/core/session";
-import { crmContext, requireCrmAccess } from "@/features/crm/shared/crm-context";
+import { ok, readJson } from "@/core/http";
+import { crmContext } from "@/features/crm/shared/crm-context";
+import { workspaceRoute } from "@/core/workspace-route";
 
 type RouteContext = { params: Promise<{ id: string }> };
 
@@ -15,32 +14,19 @@ type RouteContext = { params: Promise<{ id: string }> };
 // semantics, audit, merge reconciliation — already tested
 // (crm-contact-account-relationships-f003.test.mjs) with zero frontend
 // consumer before this pass. Not a new migration; a wiring gap.
-export async function GET(_request: Request, context: RouteContext) {
-  try {
-    const session = await requireWorkspace();
+export async function GET(request: Request, context: RouteContext) {
+  return workspaceRoute(request, { module: "crm" }, async ({ client, session }) => {
     const { id } = await context.params;
-    const rows = await tenantTransaction(session.organizationId, async (client) => {
-      await requireCrmAccess(client, session);
-      return listContactAccountRelationships(client, crmContext(session), id);
-    });
+    const rows = await listContactAccountRelationships(client, crmContext(session), id);
     return ok({ rows });
-  } catch (error) {
-    return errorResponse(error);
-  }
+  });
 }
 
 export async function POST(request: Request, context: RouteContext) {
-  try {
-    assertSameOriginOrMobile(request, process.env);
-    const session = await requireWorkspace();
+  return workspaceRoute(request, { module: "crm", permission: CRM_PERMISSIONS.accountsManage, billingWrite: true }, async ({ client, session }) => {
     const { id } = await context.params;
     const input = (await readJson(request)) as Record<string, unknown>;
-    const rows = await tenantTransaction(session.organizationId, async (client) => {
-      await requireCrmAccess(client, session, CRM_PERMISSIONS.accountsManage, { mutation: true });
-      return addContactAccountRelationship(client, crmContext(session), id, input);
-    });
+    const rows = await addContactAccountRelationship(client, crmContext(session), id, input);
     return ok({ rows }, 201);
-  } catch (error) {
-    return errorResponse(error);
-  }
+  });
 }

@@ -1,11 +1,10 @@
 import { z } from "zod";
 
-import { assertSameOriginOrMobile, listSalesCustomerPrices, upsertSalesCustomerPrice } from "@vercentlabs/api";
+import { listSalesCustomerPrices, upsertSalesCustomerPrice } from "@vercentlabs/api";
 
-import { tenantTransaction } from "@/core/db";
-import { errorResponse, ok, readJson } from "@/core/http";
-import { requireWorkspace } from "@/core/session";
-import { requireSalesAccess, salesContext } from "@/features/sales/shared/sales-context";
+import { ok, readJson } from "@/core/http";
+import { salesContext } from "@/features/sales/shared/sales-context";
+import { workspaceRoute } from "@/core/workspace-route";
 
 const upsertSchema = z.object({
   partyId: z.string().uuid(),
@@ -19,34 +18,21 @@ const upsertSchema = z.object({
 });
 
 export async function GET(request: Request) {
-  try {
-    const session = await requireWorkspace();
+  return workspaceRoute(request, { module: "sales", permission: "sales.view" }, async ({ client, session }) => {
     const params = new URL(request.url).searchParams;
-    const result = await tenantTransaction(session.organizationId, async (client) => {
-      await requireSalesAccess(client, session, "sales.view");
-      return listSalesCustomerPrices(client, salesContext(session), {
-        partyId: params.get("partyId") || undefined,
-        limit: params.get("limit") ? Number(params.get("limit")) : undefined,
-        offset: params.get("offset") ? Number(params.get("offset")) : undefined,
-      });
+    const result = await listSalesCustomerPrices(client, salesContext(session), {
+      partyId: params.get("partyId") || undefined,
+      limit: params.get("limit") ? Number(params.get("limit")) : undefined,
+      offset: params.get("offset") ? Number(params.get("offset")) : undefined,
     });
     return ok(result);
-  } catch (error) {
-    return errorResponse(error);
-  }
+  });
 }
 
 export async function POST(request: Request) {
-  try {
-    assertSameOriginOrMobile(request, process.env);
-    const session = await requireWorkspace();
+  return workspaceRoute(request, { module: "sales", permission: "sales.settings.manage", billingWrite: true }, async ({ client, session }) => {
     const input = upsertSchema.parse(await readJson(request));
-    const rule = await tenantTransaction(session.organizationId, async (client) => {
-      await requireSalesAccess(client, session, "sales.settings.manage", { mutation: true });
-      return upsertSalesCustomerPrice(client, salesContext(session), input);
-    });
+    const rule = await upsertSalesCustomerPrice(client, salesContext(session), input);
     return ok({ rule }, 201);
-  } catch (error) {
-    return errorResponse(error);
-  }
+  });
 }

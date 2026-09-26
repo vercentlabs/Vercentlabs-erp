@@ -22,7 +22,7 @@ import { CRM_PERMISSIONS } from "@vercentlabs/permissions";
 
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
-import { LoadingState } from "@/features/crm/shared/ui/LoadingState";
+import { LoadingState } from "@/shared/ui/LoadingState";
 import { ContactApiError, listContacts } from "../api/contacts-api";
 import { getCrmOptions } from "@/features/crm/shared/crm-options-api";
 import type { Contact, ContactListFilters } from "../types";

@@ -1,11 +1,10 @@
 import { z } from "zod";
 
-import { assertSameOriginOrMobile, completePosExchange } from "@vercentlabs/api";
+import { completePosExchange } from "@vercentlabs/api";
 
-import { tenantTransaction } from "@/core/db";
-import { errorResponse, ok, readJson } from "@/core/http";
-import { requireWorkspace } from "@/core/session";
-import { posContext, requirePosAccess } from "@/features/pos/shared/pos-context";
+import { ok, readJson } from "@/core/http";
+import { posContext } from "@/features/pos/shared/pos-context";
+import { workspaceRoute } from "@/core/workspace-route";
 
 const exchangeSchema = z.object({
   cartId: z.string().uuid(),
@@ -21,17 +20,10 @@ const exchangeSchema = z.object({
 // pos.sale.create since that is the narrower of the two floors a caller
 // must pass to even reach the domain function's own approved-status check.
 export async function POST(request: Request, context: { params: Promise<{ id: string }> }) {
-  try {
-    assertSameOriginOrMobile(request, process.env);
-    const session = await requireWorkspace();
+  return workspaceRoute(request, { module: "point-of-sale", permission: "pos.sale.create", billingWrite: true }, async ({ client, session }) => {
     const { id } = await context.params;
     const input = exchangeSchema.parse(await readJson(request));
-    const result = await tenantTransaction(session.organizationId, async (client) => {
-      await requirePosAccess(client, session, "pos.sale.create", { mutation: true });
-      return completePosExchange(client, posContext(session), { ...input, returnId: id });
-    });
+    const result = await completePosExchange(client, posContext(session), { ...input, returnId: id });
     return ok(result);
-  } catch (error) {
-    return errorResponse(error);
-  }
+  });
 }

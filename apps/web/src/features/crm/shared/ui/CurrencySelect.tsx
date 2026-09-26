@@ -3,7 +3,7 @@
 import { useMemo } from "react";
 import { Select } from "@vercentlabs/design-system";
 
-import { CURRENCY_CODES, currencyName } from "../human";
+import { CURRENCY_CODES, currencyName } from "@/shared/format/human";
 
 export function CurrencySelect({ label = "Currency", value, onChange, className }: { label?: string; value: string; onChange: (code: string) => void; className?: string }) {
   const options = useMemo(() => {

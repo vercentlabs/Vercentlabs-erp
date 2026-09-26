@@ -9,10 +9,10 @@ import { Button, EnterpriseDataGrid, ErrorState, NoResultsState, PageHeader, Per
 
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
-import { formatDate, humanize } from "@/features/crm/shared/human";
+import { formatDate, humanize } from "@/shared/format/human";
 import { BarList } from "@/features/crm/shared/ui/BarList";
 import { DateInput } from "@/features/crm/shared/ui/DateTimeInput";
-import { LoadingState } from "@/features/crm/shared/ui/LoadingState";
+import { LoadingState } from "@/shared/ui/LoadingState";
 import { CrmReportApiError, getCrmReportData } from "../api/reports-api";
 import type { CrmReportRow } from "../types";
 

@@ -1,10 +1,9 @@
 import { findAccountDuplicates, findContactDuplicates, getCrmRecord, projectDuplicateMatchesForCaller } from "@vercentlabs/api";
 import { CRM_PERMISSIONS } from "@vercentlabs/permissions";
 
-import { tenantTransaction } from "@/core/db";
-import { errorResponse, ok } from "@/core/http";
-import { requireWorkspace } from "@/core/session";
-import { crmContext, requireCrmAccess } from "@/features/crm/shared/crm-context";
+import { ok } from "@/core/http";
+import { crmContext } from "@/features/crm/shared/crm-context";
+import { workspaceRoute } from "@/core/workspace-route";
 
 // F022 pre-conversion review. Read-only: runs the exact same governed
 // duplicate engine (findAccountDuplicates/findContactDuplicates) that
@@ -15,32 +14,26 @@ import { crmContext, requireCrmAccess } from "@/features/crm/shared/crm-context"
 // POST .../convert with an explicit partyId/contactId to force reuse of
 // a shown candidate, or omits them to accept convertCrmLead's own
 // default (auto-reuse only an "exact" match, otherwise create new).
-export async function GET(_request: Request, context: { params: Promise<{ id: string }> }) {
-  try {
-    const session = await requireWorkspace();
+export async function GET(request: Request, context: { params: Promise<{ id: string }> }) {
+  return workspaceRoute(request, { module: "crm", permission: CRM_PERMISSIONS.leadsManage }, async ({ client, session }) => {
     const { id } = await context.params;
-    const result = await tenantTransaction(session.organizationId, async (client) => {
-      await requireCrmAccess(client, session, CRM_PERMISSIONS.leadsManage);
-      const lead = (await getCrmRecord(client, crmContext(session), "leads", id)) as Record<string, unknown>;
-      // Sequential, not Promise.all: concurrent queries on one PoolClient can
-      // interleave protocol messages (Postgres 08P01).
-      const accountCandidates = await findAccountDuplicates(client, crmContext(session), {
-          name: lead.companyName || lead.fullName || `${lead.firstName || ""} ${lead.lastName || ""}`.trim(),
-        });
-      const contactCandidates = await findContactDuplicates(client, crmContext(session), {
-          email: lead.email,
-          mobile: lead.mobile || lead.phone,
-          firstName: lead.firstName,
-          lastName: lead.lastName,
-        });
-      // Candidates the caller cannot open are shown only as restricted.
-      return {
-        accountCandidates: projectDuplicateMatchesForCaller(crmContext(session), "account", accountCandidates),
-        contactCandidates: projectDuplicateMatchesForCaller(crmContext(session), "contact", contactCandidates),
-      };
-    });
+    const lead = (await getCrmRecord(client, crmContext(session), "leads", id)) as Record<string, unknown>;
+    // Sequential, not Promise.all: concurrent queries on one PoolClient can
+    // interleave protocol messages (Postgres 08P01).
+    const accountCandidates = await findAccountDuplicates(client, crmContext(session), {
+        name: lead.companyName || lead.fullName || `${lead.firstName || ""} ${lead.lastName || ""}`.trim(),
+      });
+    const contactCandidates = await findContactDuplicates(client, crmContext(session), {
+        email: lead.email,
+        mobile: lead.mobile || lead.phone,
+        firstName: lead.firstName,
+        lastName: lead.lastName,
+      });
+    // Candidates the caller cannot open are shown only as restricted.
+    const result = await {
+      accountCandidates: projectDuplicateMatchesForCaller(crmContext(session), "account", accountCandidates),
+      contactCandidates: projectDuplicateMatchesForCaller(crmContext(session), "contact", contactCandidates),
+    };
     return ok(result);
-  } catch (error) {
-    return errorResponse(error);
-  }
+  });
 }

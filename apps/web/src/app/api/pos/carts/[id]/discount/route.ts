@@ -1,11 +1,10 @@
 import { z } from "zod";
 
-import { assertSameOriginOrMobile, setPosCartDiscount } from "@vercentlabs/api";
+import { setPosCartDiscount } from "@vercentlabs/api";
 
-import { tenantTransaction } from "@/core/db";
-import { errorResponse, ok, readJson } from "@/core/http";
-import { requireWorkspace } from "@/core/session";
-import { posContext, requirePosAccess } from "@/features/pos/shared/pos-context";
+import { ok, readJson } from "@/core/http";
+import { posContext } from "@/features/pos/shared/pos-context";
+import { workspaceRoute } from "@/core/workspace-route";
 
 // A null type clears the cart-level discount; the domain layer accepts
 // this in a single POST rather than a separate DELETE since removing a
@@ -20,17 +19,10 @@ const discountSchema = z.object({
 });
 
 export async function POST(request: Request, context: { params: Promise<{ id: string }> }) {
-  try {
-    assertSameOriginOrMobile(request, process.env);
-    const session = await requireWorkspace();
+  return workspaceRoute(request, { module: "point-of-sale", permission: "pos.discount.apply", billingWrite: true }, async ({ client, session }) => {
     const { id } = await context.params;
     const input = discountSchema.parse(await readJson(request));
-    const result = await tenantTransaction(session.organizationId, async (client) => {
-      await requirePosAccess(client, session, "pos.discount.apply", { mutation: true });
-      return setPosCartDiscount(client, posContext(session), id, input);
-    });
+    const result = await setPosCartDiscount(client, posContext(session), id, input);
     return ok({ cart: result });
-  } catch (error) {
-    return errorResponse(error);
-  }
+  });
 }

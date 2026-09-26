@@ -2,7 +2,7 @@
 
 import { StatusBadge } from "@vercentlabs/design-system";
 
-import { dueLabel, dueState, formatDateTime, humanize } from "../human";
+import { dueLabel, dueState, formatDateTime, humanize } from "@/shared/format/human";
 
 export type ActivityRow = { id: string; activityType: string; subject: string | null; status: string; dueAt: string | null; assignedName?: string | null; href: string | null };
 

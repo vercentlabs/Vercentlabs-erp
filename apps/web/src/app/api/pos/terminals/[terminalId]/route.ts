@@ -1,11 +1,10 @@
 import { z } from "zod";
 
-import { assertSameOriginOrMobile, updatePosTerminal } from "@vercentlabs/api";
+import { updatePosTerminal } from "@vercentlabs/api";
 
-import { tenantTransaction } from "@/core/db";
-import { errorResponse, ok, readJson } from "@/core/http";
-import { requireWorkspace } from "@/core/session";
-import { posContext, requirePosAccess } from "@/features/pos/shared/pos-context";
+import { ok, readJson } from "@/core/http";
+import { posContext } from "@/features/pos/shared/pos-context";
+import { workspaceRoute } from "@/core/workspace-route";
 
 const updateTerminalSchema = z.object({
   name: z.string().trim().min(1).max(200).optional(),
@@ -14,17 +13,10 @@ const updateTerminalSchema = z.object({
 });
 
 export async function PATCH(request: Request, context: { params: Promise<{ terminalId: string }> }) {
-  try {
-    assertSameOriginOrMobile(request, process.env);
-    const session = await requireWorkspace();
+  return workspaceRoute(request, { module: "point-of-sale", permission: "pos.terminal.manage", billingWrite: true }, async ({ client, session }) => {
     const { terminalId } = await context.params;
     const input = updateTerminalSchema.parse(await readJson(request));
-    const result = await tenantTransaction(session.organizationId, async (client) => {
-      await requirePosAccess(client, session, "pos.terminal.manage", { mutation: true });
-      return updatePosTerminal(client, posContext(session), terminalId, input);
-    });
+    const result = await updatePosTerminal(client, posContext(session), terminalId, input);
     return ok({ terminal: result });
-  } catch (error) {
-    return errorResponse(error);
-  }
+  });
 }

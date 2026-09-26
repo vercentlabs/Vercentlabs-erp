@@ -5,7 +5,7 @@ import { Button } from "@vercentlabs/design-system";
 
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
-import { humanize } from "@/features/crm/shared/human";
+import { humanize } from "@/shared/format/human";
 
 import {
   DuplicateScanApiError,

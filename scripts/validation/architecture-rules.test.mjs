@@ -73,7 +73,7 @@ test("unregistered permission strings are rejected", () => {
   const known = ["crm.view", "crm.leads.manage"];
   assert.equal(checkPermissionLiterals([file("services/api/src/modules/crm/x.js", 'requireSessionPermission(session, "crm.leads.delete_everything");')], known).length, 1);
   assert.equal(checkPermissionLiterals([file("apps/web/src/app/api/x/route.ts", 'workspaceRoute(request, { permission: "crm.nope" }, h)')], known).length, 1);
-  assert.deepEqual(checkPermissionLiterals([file("apps/web/src/app/api/x/route.ts", 'await requireCrmAccess(client, session, "crm.leads.manage");')], known), []);
+  assert.deepEqual(checkPermissionLiterals([file("apps/web/src/app/api/x/route.ts", 'requireSessionPermission(session, "crm.leads.manage");')], known), []);
 });
 
 test("organizationId from JSON, query, path or schema is rejected", () => {

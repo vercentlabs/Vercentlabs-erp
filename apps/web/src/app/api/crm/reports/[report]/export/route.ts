@@ -1,10 +1,9 @@
 import { audit, getCrmReport, rowsToCsv } from "@vercentlabs/api";
 import { CRM_PERMISSIONS } from "@vercentlabs/permissions";
 
-import { tenantTransaction } from "@/core/db";
-import { errorResponse, ok } from "@/core/http";
-import { requireWorkspace } from "@/core/session";
-import { crmContext, requireCrmAccess } from "@/features/crm/shared/crm-context";
+import { ok } from "@/core/http";
+import { crmContext } from "@/features/crm/shared/crm-context";
+import { workspaceRoute } from "@/core/workspace-route";
 
 const FILTER_KEYS = ["from", "to"] as const;
 
@@ -17,8 +16,7 @@ const FILTER_KEYS = ["from", "to"] as const;
 // CrmReportsScreen.tsx's own column-derivation logic exactly, so the
 // exported CSV always matches what the screen renders.
 export async function GET(request: Request, context: { params: Promise<{ report: string }> }) {
-  try {
-    const session = await requireWorkspace();
+  return workspaceRoute(request, { module: "crm", permission: CRM_PERMISSIONS.reportsView }, async ({ client, session }) => {
     const { report } = await context.params;
     const url = new URL(request.url);
     const filters: Record<string, string> = {};
@@ -26,23 +24,20 @@ export async function GET(request: Request, context: { params: Promise<{ report:
       const value = url.searchParams.get(key);
       if (value) filters[key] = value;
     }
-    const result = await tenantTransaction(session.organizationId, async (client) => {
-      await requireCrmAccess(client, session, CRM_PERMISSIONS.reportsView);
-      const report_ = await getCrmReport(client, crmContext(session), report, filters);
-      // F030 — governed export: every download is recorded (who, which
-      // report, which period, how many rows, and the data fingerprint).
-      await audit(client, {
-        organizationId: session.organizationId,
-        actorUserId: session.userId,
-        eventType: "crm.report.exported",
-        entityType: "crm_report",
-        entityId: null,
-        metadata: { report, filters: report_.filters, rowCount: report_.rows.length, fingerprint: report_.fingerprint },
-        request,
-        env: process.env,
-      });
-      return report_;
+    const report_ = await getCrmReport(client, crmContext(session), report, filters);
+    // F030 — governed export: every download is recorded (who, which
+    // report, which period, how many rows, and the data fingerprint).
+    await audit(client, {
+      organizationId: session.organizationId,
+      actorUserId: session.userId,
+      eventType: "crm.report.exported",
+      entityType: "crm_report",
+      entityId: null,
+      metadata: { report, filters: report_.filters, rowCount: report_.rows.length, fingerprint: report_.fingerprint },
+      request,
+      env: process.env,
     });
+    const result = await report_;
     const rows = result.rows as Array<Record<string, unknown>>;
     if (!rows.length) return ok({ message: "No rows to export for this report and date range." }, 200);
     const columns = Object.keys(rows[0]).map((key) => ({ key, label: key }));
@@ -58,7 +53,5 @@ export async function GET(request: Request, context: { params: Promise<{ report:
         "X-Report-Fingerprint": String(result.fingerprint),
       },
     });
-  } catch (error) {
-    return errorResponse(error);
-  }
+  });
 }

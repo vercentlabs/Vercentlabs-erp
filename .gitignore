@@ -99,3 +99,13 @@ scripts/qa/artifacts/
 apps/web/scripts/qa/artifacts/
 
 .next-build/
+
+# Terraform: never commit state, plans or provider caches
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfplan
+tfplan*
+crash.log
+*.tfvars
+!*.tfvars.example

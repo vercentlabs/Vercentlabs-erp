@@ -42,21 +42,8 @@ export function checkWebRetiredAliases(files) {
   return problems;
 }
 
-// Private cross-feature imports that predate the boundary rule. A feature
-// may import another feature only through its public index
-// ("@/features/<name>") — never its internals.
-export const CROSS_FEATURE_IMPORT_EXCEPTIONS = Object.freeze({
-  "crm->sales/quotations/api/quotations-api": "CRM quotation handoff UI reuses the Sales quotation client (Prompt 6 cleanup).",
-  "platform->crm/follow-ups/api/follow-ups-api": "Global search/activity surfaces reuse CRM clients (Prompt 6 cleanup).",
-  "platform->crm/tasks/api/tasks-api": "Global search/activity surfaces reuse CRM clients (Prompt 6 cleanup).",
-  "platform->crm/accounts/api/accounts-api": "Global search/activity surfaces reuse CRM clients (Prompt 6 cleanup).",
-  "platform->crm/contacts/api/contacts-api": "Global search/activity surfaces reuse CRM clients (Prompt 6 cleanup).",
-  "platform->crm/leads/api/leads-api": "Global search/activity surfaces reuse CRM clients (Prompt 6 cleanup).",
-  "platform->crm/opportunities/api/opportunities-api": "Global search/activity surfaces reuse CRM clients (Prompt 6 cleanup).",
-  "platform->sales/master/api/master-api": "Global search reuses the Sales master-data client (Prompt 6 cleanup).",
-  "platform->crm/shared/human": "Shared formatting helper still owned by CRM (Prompt 6: move to apps/web/src/shared).",
-  "platform->crm/shared/ui/LoadingState": "Shared loading state still owned by CRM (Prompt 6: move to apps/web/src/shared).",
-});
+// A feature may import another feature only through its public index
+// ("@/features/<name>") — never its internals. No exceptions.
 
 export function checkCrossFeatureImports(files) {
   const problems = [];
@@ -66,8 +53,7 @@ export function checkCrossFeatureImports(files) {
     for (const match of source.matchAll(/from\s+["']@\/features\/([^/"']+)(\/[^"']*)?["']/g)) {
       const [, target, rest] = match;
       if (target === own || !rest) continue;
-      const key = `${own}->${target}${rest}`;
-      if (!CROSS_FEATURE_IMPORT_EXCEPTIONS[key]) problems.push(`${path} imports private ${target} code (@/features/${target}${rest}); import the feature's public index instead`);
+      problems.push(`${path} imports private ${target} code (@/features/${target}${rest}); import the feature's public index instead`);
     }
   }
   return problems;
@@ -202,29 +188,6 @@ export function checkTenantContextSetters(files) {
   return problems;
 }
 
-// Web files that still issue SQL directly (predating the rule that SQL lives
-// in @vercentlabs/api domain services). New web code must not add SQL.
-export const WEB_RAW_SQL_EXCEPTIONS = Object.freeze([
-  "apps/web/src/app/api/accounting/actions/[action]/route.ts",
-  "apps/web/src/app/api/auth/login/route.ts",
-  "apps/web/src/app/api/procurement/match/route.ts",
-  "apps/web/src/app/api/procurement/[resource]/[id]/[action]/route.ts",
-  "apps/web/src/app/api/sales/returns/[id]/receive/route.ts",
-  "apps/web/src/app/api/settings/organization/security/route.ts",
-  "apps/web/src/features/inventory/server/master.ts",
-  "apps/web/src/features/sales/orders/server/amendment-lineage.ts",
-  "apps/web/src/features/sales/orders/server/stock-context.ts",
-  // Public token-authenticated routes: resolve the tenant from a hashed
-  // public token in a public table before any tenant transaction exists.
-  "apps/web/src/app/api/crm/public/meetings/bookings/[token]/availability/route.ts",
-  "apps/web/src/app/api/crm/public/meetings/bookings/[token]/route.ts",
-  "apps/web/src/app/api/crm/public/meetings/links/[token]/availability/route.ts",
-  "apps/web/src/app/api/crm/public/meetings/links/[token]/book/route.ts",
-  "apps/web/src/app/api/crm/public/meetings/links/[token]/route.ts",
-  "apps/web/src/app/api/sales/public/quotes/[token]/decision/route.ts",
-  "apps/web/src/app/api/sales/public/quotes/[token]/route.ts",
-]);
-
 export function checkWebDatabaseAccess(files) {
   const problems = [];
   for (const { path, source } of files) {
@@ -232,7 +195,7 @@ export function checkWebDatabaseAccess(files) {
     if (path === "apps/web/src/core/db.ts") continue;
     if (/import\s+(?!type\b)[^;]*from\s+["']pg["']/.test(source)) problems.push(`${path} imports pg; only apps/web/src/core/db.ts owns database connections`);
     const rawSql = /\.query\s*\(/.test(source) || /import\s*\{[^}]*\bquery\b[^}]*\}\s*from\s*["']@\/core\/db["']/.test(source);
-    if (rawSql && !WEB_RAW_SQL_EXCEPTIONS.includes(path)) {
+    if (rawSql) {
       problems.push(`${path} issues SQL directly; put queries in an @vercentlabs/api domain service and call it inside workspaceRoute/tenantTransaction`);
     }
   }
@@ -271,21 +234,6 @@ export function checkClientTenantIdentity(files) {
 // Only these legacy per-module context helpers may call the module-access
 // primitives directly; new server code uses workspaceRoute() or the
 // request's WorkspaceAccessSnapshot (apps/web/src/core/access.ts).
-export const MODULE_ACCESS_PRIMITIVE_EXCEPTIONS = Object.freeze([
-  "apps/web/src/features/accounting/shared/accounting-context.ts",
-  "apps/web/src/features/assets/shared/assets-context.ts",
-  "apps/web/src/features/crm/shared/crm-context.ts",
-  "apps/web/src/features/hr/shared/hr-context.ts",
-  "apps/web/src/features/inventory/shared/inventory-context.ts",
-  "apps/web/src/features/manufacturing/shared/manufacturing-context.ts",
-  "apps/web/src/features/pos/shared/pos-context.ts",
-  "apps/web/src/features/procurement/shared/procurement-context.ts",
-  "apps/web/src/features/projects/shared/projects-context.ts",
-  "apps/web/src/features/quality/shared/quality-context.ts",
-  "apps/web/src/features/sales/shared/sales-context.ts",
-  "apps/web/src/features/support/shared/support-context.ts",
-]);
-
 export function checkAccessBoundaryUse(files) {
   const problems = [];
   for (const { path, source } of files) {
@@ -299,7 +247,7 @@ export function checkAccessBoundaryUse(files) {
     ) {
       problems.push(`${path} imports a private Shared Access file; import core/access/index.js`);
     }
-    if (path.startsWith("apps/web/src/") && /\b(?:assertModuleAccessible|resolveModuleAccess|getAccessibleModules)\s*\(/.test(source) && !MODULE_ACCESS_PRIMITIVE_EXCEPTIONS.includes(path)) {
+    if (path.startsWith("apps/web/src/") && /\b(?:assertModuleAccessible|resolveModuleAccess|getAccessibleModules)\s*\(/.test(source)) {
       problems.push(`${path} calls a module-access primitive directly; use workspaceRoute({ module }) or getWorkspaceAccessSnapshot()`);
     }
   }
@@ -393,15 +341,13 @@ export function checkInvitationWrites(files) {
 }
 
 // Shared Access administration routes must use the workspaceRoute
-// composition. Self-service account routes and organisation profile/security
-// are listed explicitly until they migrate.
+// composition. The caller's own sessions are self-service (Auth), not
+// administration, and are listed explicitly.
 export const ADMIN_ROUTE_PREFIXES = Object.freeze(["apps/web/src/app/api/settings/", "apps/web/src/app/api/auth/invitations/manage/"]);
 export const ADMIN_ROUTE_FILES = Object.freeze(["apps/web/src/app/api/auth/invitations/route.ts"]);
 export const ADMIN_ROUTE_EXCEPTIONS = Object.freeze({
   "apps/web/src/app/api/settings/sessions/route.ts": "Self-service: the caller's own sessions (Auth), not administration.",
   "apps/web/src/app/api/settings/sessions/[id]/route.ts": "Self-service: the caller's own sessions (Auth), not administration.",
-  "apps/web/src/app/api/settings/organization/profile/route.ts": "Organisation profile (organization.manage); migrates with organisation settings.",
-  "apps/web/src/app/api/settings/organization/security/route.ts": "Organisation security policy (platform.security.manage); migrates with organisation settings.",
 });
 
 export function checkAdminRoutesUseWorkspaceRoute(files) {

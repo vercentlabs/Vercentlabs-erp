@@ -1,10 +1,9 @@
-import { assertSameOriginOrMobile, listLeadAssignmentPolicies, saveLeadAssignmentPolicy } from "@vercentlabs/api";
+import { listLeadAssignmentPolicies, saveLeadAssignmentPolicy } from "@vercentlabs/api";
 import { CRM_PERMISSIONS } from "@vercentlabs/permissions";
 
-import { tenantTransaction } from "@/core/db";
-import { errorResponse, ok, readJson } from "@/core/http";
-import { requireWorkspace } from "@/core/session";
-import { crmContext, requireCrmAccess } from "@/features/crm/shared/crm-context";
+import { ok, readJson } from "@/core/http";
+import { crmContext } from "@/features/crm/shared/crm-context";
+import { workspaceRoute } from "@/core/workspace-route";
 
 // F005 Tranche I (Stage A). listLeadAssignmentPolicies/saveLeadAssignment-
 // Policy (assignment-engine.js) already existed, already governed the
@@ -14,30 +13,17 @@ import { crmContext, requireCrmAccess } from "@/features/crm/shared/crm-context"
 // (tenant.crm_assignment_rules) — that table is a different, unused
 // table the real engine never reads; confirmed by grep before wiring
 // anything, so as not to build a setup screen for a dead system.
-export async function GET() {
-  try {
-    const session = await requireWorkspace();
-    const rows = await tenantTransaction(session.organizationId, async (client) => {
-      await requireCrmAccess(client, session, CRM_PERMISSIONS.settingsManage);
-      return listLeadAssignmentPolicies(client, crmContext(session));
-    });
+export async function GET(request: Request) {
+  return workspaceRoute(request, { module: "crm", permission: CRM_PERMISSIONS.settingsManage }, async ({ client, session }) => {
+    const rows = await listLeadAssignmentPolicies(client, crmContext(session));
     return ok({ rows });
-  } catch (error) {
-    return errorResponse(error);
-  }
+  });
 }
 
 export async function POST(request: Request) {
-  try {
-    assertSameOriginOrMobile(request, process.env);
-    const session = await requireWorkspace();
+  return workspaceRoute(request, { module: "crm", permission: CRM_PERMISSIONS.settingsManage, billingWrite: true }, async ({ client, session }) => {
     const input = (await readJson(request)) as Record<string, unknown>;
-    const record = await tenantTransaction(session.organizationId, async (client) => {
-      await requireCrmAccess(client, session, CRM_PERMISSIONS.settingsManage, { mutation: true });
-      return saveLeadAssignmentPolicy(client, crmContext(session), input);
-    });
+    const record = await saveLeadAssignmentPolicy(client, crmContext(session), input);
     return ok({ record }, 201);
-  } catch (error) {
-    return errorResponse(error);
-  }
+  });
 }

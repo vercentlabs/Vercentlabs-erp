@@ -1,10 +1,9 @@
-import { assertSameOriginOrMobile, createSalesStage, listSalesStages } from "@vercentlabs/api";
+import { createSalesStage, listSalesStages } from "@vercentlabs/api";
 import { CRM_PERMISSIONS } from "@vercentlabs/permissions";
 
-import { tenantTransaction } from "@/core/db";
-import { errorResponse, HttpError, ok, readJson } from "@/core/http";
-import { requireWorkspace } from "@/core/session";
-import { crmContext, requireCrmAccess } from "@/features/crm/shared/crm-context";
+import { HttpError, ok, readJson } from "@/core/http";
+import { crmContext } from "@/features/crm/shared/crm-context";
+import { workspaceRoute } from "@/core/workspace-route";
 
 // F012 Sales Stages — the dedicated governed module (sales-stage-
 // operations.js), not the generic /api/crm/[resource] boundary, which
@@ -13,32 +12,19 @@ import { crmContext, requireCrmAccess } from "@/features/crm/shared/crm-context"
 // CRM_RESOURCE_KEYS resource with no such redirect — reuse
 // /api/crm/pipelines for pipeline CRUD, this only covers stages.
 export async function GET(request: Request) {
-  try {
-    const session = await requireWorkspace();
+  return workspaceRoute(request, { module: "crm" }, async ({ client, session }) => {
     const url = new URL(request.url);
     const pipelineId = url.searchParams.get("pipelineId");
     if (!pipelineId) throw new HttpError(400, "A pipeline is required.");
-    const result = await tenantTransaction(session.organizationId, async (client) => {
-      await requireCrmAccess(client, session);
-      return listSalesStages(client, crmContext(session), { pipelineId, status: "all" });
-    });
+    const result = await listSalesStages(client, crmContext(session), { pipelineId, status: "all" });
     return ok(result);
-  } catch (error) {
-    return errorResponse(error);
-  }
+  });
 }
 
 export async function POST(request: Request) {
-  try {
-    assertSameOriginOrMobile(request, process.env);
-    const session = await requireWorkspace();
+  return workspaceRoute(request, { module: "crm", permission: CRM_PERMISSIONS.settingsManage, billingWrite: true }, async ({ client, session }) => {
     const input = (await readJson(request)) as Record<string, unknown>;
-    const record = await tenantTransaction(session.organizationId, async (client) => {
-      await requireCrmAccess(client, session, CRM_PERMISSIONS.settingsManage, { mutation: true });
-      return createSalesStage(client, crmContext(session), input);
-    });
+    const record = await createSalesStage(client, crmContext(session), input);
     return ok({ record }, 201);
-  } catch (error) {
-    return errorResponse(error);
-  }
+  });
 }

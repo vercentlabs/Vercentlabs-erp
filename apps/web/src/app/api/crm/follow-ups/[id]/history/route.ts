@@ -1,25 +1,18 @@
 import { listCrmFollowUpHistory } from "@vercentlabs/api";
 import { CRM_PERMISSIONS } from "@vercentlabs/permissions";
 
-import { tenantTransaction } from "@/core/db";
-import { errorResponse, ok } from "@/core/http";
-import { requireWorkspace } from "@/core/session";
-import { crmContext, requireCrmAccess } from "@/features/crm/shared/crm-context";
+import { ok } from "@/core/http";
+import { crmContext } from "@/features/crm/shared/crm-context";
+import { workspaceRoute } from "@/core/workspace-route";
 
 // F016 Stage A2 §7. listCrmFollowUpHistory already existed with no
 // frontend consumer — covers "escalation history" (escalateOverdueFollowUps
 // writes an 'escalated' event into the same ledger) alongside the rest of
 // the Follow-up's lifecycle events.
-export async function GET(_request: Request, context: { params: Promise<{ id: string }> }) {
-  try {
-    const session = await requireWorkspace();
+export async function GET(request: Request, context: { params: Promise<{ id: string }> }) {
+  return workspaceRoute(request, { module: "crm", permission: CRM_PERMISSIONS.activitiesManage }, async ({ client, session }) => {
     const { id } = await context.params;
-    const rows = await tenantTransaction(session.organizationId, async (client) => {
-      await requireCrmAccess(client, session, CRM_PERMISSIONS.activitiesManage);
-      return listCrmFollowUpHistory(client, crmContext(session), id);
-    });
+    const rows = await listCrmFollowUpHistory(client, crmContext(session), id);
     return ok({ rows });
-  } catch (error) {
-    return errorResponse(error);
-  }
+  });
 }

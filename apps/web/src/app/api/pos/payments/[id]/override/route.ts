@@ -1,11 +1,10 @@
 import { z } from "zod";
 
-import { assertSameOriginOrMobile, requestPosPaymentOverride } from "@vercentlabs/api";
+import { requestPosPaymentOverride } from "@vercentlabs/api";
 
-import { tenantTransaction } from "@/core/db";
-import { errorResponse, ok, readJson } from "@/core/http";
-import { requireWorkspace } from "@/core/session";
-import { posContext, requirePosAccess } from "@/features/pos/shared/pos-context";
+import { ok, readJson } from "@/core/http";
+import { posContext } from "@/features/pos/shared/pos-context";
+import { workspaceRoute } from "@/core/workspace-route";
 
 // Requests a manual force-capture override for a payment a provider could
 // not confirm (e.g. a terminal that went offline). This never itself
@@ -17,17 +16,10 @@ const overrideSchema = z.object({
 });
 
 export async function POST(request: Request, context: { params: Promise<{ id: string }> }) {
-  try {
-    assertSameOriginOrMobile(request, process.env);
-    const session = await requireWorkspace();
+  return workspaceRoute(request, { module: "point-of-sale", permission: "pos.payment.override", billingWrite: true }, async ({ client, session }) => {
     const { id } = await context.params;
     const input = overrideSchema.parse(await readJson(request));
-    const result = await tenantTransaction(session.organizationId, async (client) => {
-      await requirePosAccess(client, session, "pos.payment.override", { mutation: true });
-      return requestPosPaymentOverride(client, posContext(session), { paymentId: id, reason: input.reason });
-    });
+    const result = await requestPosPaymentOverride(client, posContext(session), { paymentId: id, reason: input.reason });
     return ok(result, 201);
-  } catch (error) {
-    return errorResponse(error);
-  }
+  });
 }

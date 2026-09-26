@@ -1,35 +1,21 @@
-import { addLeadStageTransition, assertSameOriginOrMobile, listLeadStageTransitions } from "@vercentlabs/api";
+import { addLeadStageTransition, listLeadStageTransitions } from "@vercentlabs/api";
 import { CRM_PERMISSIONS } from "@vercentlabs/permissions";
 
-import { tenantTransaction } from "@/core/db";
-import { errorResponse, ok, readJson } from "@/core/http";
-import { requireWorkspace } from "@/core/session";
-import { crmContext, requireCrmAccess } from "@/features/crm/shared/crm-context";
+import { ok, readJson } from "@/core/http";
+import { crmContext } from "@/features/crm/shared/crm-context";
+import { workspaceRoute } from "@/core/workspace-route";
 
-export async function GET() {
-  try {
-    const session = await requireWorkspace();
-    const rows = await tenantTransaction(session.organizationId, async (client) => {
-      await requireCrmAccess(client, session);
-      return listLeadStageTransitions(client, crmContext(session));
-    });
+export async function GET(request: Request) {
+  return workspaceRoute(request, { module: "crm" }, async ({ client, session }) => {
+    const rows = await listLeadStageTransitions(client, crmContext(session));
     return ok({ rows });
-  } catch (error) {
-    return errorResponse(error);
-  }
+  });
 }
 
 export async function POST(request: Request) {
-  try {
-    assertSameOriginOrMobile(request, process.env);
-    const session = await requireWorkspace();
+  return workspaceRoute(request, { module: "crm", permission: CRM_PERMISSIONS.settingsManage, billingWrite: true }, async ({ client, session }) => {
     const body = (await readJson(request)) as { fromStageId?: string; toStageId?: string; reasonRequired?: boolean };
-    const record = await tenantTransaction(session.organizationId, async (client) => {
-      await requireCrmAccess(client, session, CRM_PERMISSIONS.settingsManage, { mutation: true });
-      return addLeadStageTransition(client, crmContext(session), body.fromStageId ?? "", body.toStageId ?? "", { reasonRequired: body.reasonRequired });
-    });
+    const record = await addLeadStageTransition(client, crmContext(session), body.fromStageId ?? "", body.toStageId ?? "", { reasonRequired: body.reasonRequired });
     return ok({ record }, 201);
-  } catch (error) {
-    return errorResponse(error);
-  }
+  });
 }

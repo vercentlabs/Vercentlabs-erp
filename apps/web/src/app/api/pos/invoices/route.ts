@@ -1,25 +1,18 @@
 import { listPosInvoices } from "@vercentlabs/api";
 
-import { tenantTransaction } from "@/core/db";
-import { errorResponse, ok } from "@/core/http";
-import { requireWorkspace } from "@/core/session";
-import { posContext, requirePosAccess } from "@/features/pos/shared/pos-context";
+import { ok } from "@/core/http";
+import { posContext } from "@/features/pos/shared/pos-context";
+import { workspaceRoute } from "@/core/workspace-route";
 
 export async function GET(request: Request) {
-  try {
-    const session = await requireWorkspace();
+  return workspaceRoute(request, { module: "point-of-sale", permission: "pos.invoice.view" }, async ({ client, session }) => {
     const url = new URL(request.url);
-    const rows = await tenantTransaction(session.organizationId, async (client) => {
-      await requirePosAccess(client, session, "pos.invoice.view");
-      return listPosInvoices(client, posContext(session), {
-        storeId: url.searchParams.get("storeId") || undefined,
-        customerId: url.searchParams.get("customerId") || undefined,
-        limit: url.searchParams.get("limit") ? Number(url.searchParams.get("limit")) : undefined,
-        offset: url.searchParams.get("offset") ? Number(url.searchParams.get("offset")) : undefined,
-      });
+    const rows = await listPosInvoices(client, posContext(session), {
+      storeId: url.searchParams.get("storeId") || undefined,
+      customerId: url.searchParams.get("customerId") || undefined,
+      limit: url.searchParams.get("limit") ? Number(url.searchParams.get("limit")) : undefined,
+      offset: url.searchParams.get("offset") ? Number(url.searchParams.get("offset")) : undefined,
     });
     return ok({ rows });
-  } catch (error) {
-    return errorResponse(error);
-  }
+  });
 }

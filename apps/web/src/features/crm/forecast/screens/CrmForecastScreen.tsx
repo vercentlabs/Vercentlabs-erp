@@ -6,13 +6,13 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AlertDialog, Button, Dialog, ErrorState, IconButton, MetricStrip, PageHeader, PermissionState, Select, StatusBadge, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow, TextArea, TextField, type SelectOption } from "@vercentlabs/design-system";
 import { RefreshCw } from "lucide-react";
 import { CRM_PERMISSIONS } from "@vercentlabs/permissions";
-import { LoadingState } from "@/features/crm/shared/ui/LoadingState";
+import { LoadingState } from "@/shared/ui/LoadingState";
 
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import { getCrmOptions } from "@/features/crm/shared/crm-options-api";
 import { toNumber } from "@/features/crm/shared/format";
-import { formatDate, formatMoney, humanize } from "@/features/crm/shared/human";
+import { formatDate, formatMoney, humanize } from "@/shared/format/human";
 import { DateInput } from "@/features/crm/shared/ui/DateTimeInput";
 import {
   capturePredictiveSnapshot,

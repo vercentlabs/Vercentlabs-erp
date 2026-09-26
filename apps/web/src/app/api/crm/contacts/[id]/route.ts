@@ -1,56 +1,35 @@
-import { archiveCrmContact, assertSameOriginOrMobile, getCrmContactForCaller, updateCrmContact } from "@vercentlabs/api";
+import { archiveCrmContact, getCrmContactForCaller, updateCrmContact } from "@vercentlabs/api";
 import { CRM_PERMISSIONS } from "@vercentlabs/permissions";
 
-import { tenantTransaction } from "@/core/db";
-import { errorResponse, ok, readJson } from "@/core/http";
-import { requireWorkspace } from "@/core/session";
-import { crmContext, requireCrmAccess } from "@/features/crm/shared/crm-context";
+import { ok, readJson } from "@/core/http";
+import { crmContext } from "@/features/crm/shared/crm-context";
+import { workspaceRoute } from "@/core/workspace-route";
 
 type RouteContext = { params: Promise<{ id: string }> };
 
-export async function GET(_request: Request, context: RouteContext) {
-  try {
-    const session = await requireWorkspace();
+export async function GET(request: Request, context: RouteContext) {
+  return workspaceRoute(request, { module: "crm" }, async ({ client, session }) => {
     const { id } = await context.params;
-    const record = await tenantTransaction(session.organizationId, async (client) => {
-      await requireCrmAccess(client, session);
-      return getCrmContactForCaller(client, crmContext(session), id);
-    });
+    const record = await getCrmContactForCaller(client, crmContext(session), id);
     return ok({ record });
-  } catch (error) {
-    return errorResponse(error);
-  }
+  });
 }
 
 export async function PATCH(request: Request, context: RouteContext) {
-  try {
-    assertSameOriginOrMobile(request, process.env);
-    const session = await requireWorkspace();
+  return workspaceRoute(request, { module: "crm", permission: CRM_PERMISSIONS.accountsManage, billingWrite: true }, async ({ client, session }) => {
     const { id } = await context.params;
     const body = (await readJson(request)) as { input?: Record<string, unknown>; expectedUpdatedAt?: string };
-    const record = await tenantTransaction(session.organizationId, async (client) => {
-      await requireCrmAccess(client, session, CRM_PERMISSIONS.accountsManage, { mutation: true });
-      return updateCrmContact(client, crmContext(session), id, body.input ?? {}, { expectedUpdatedAt: body.expectedUpdatedAt, requireVersion: true });
-    });
+    const record = await updateCrmContact(client, crmContext(session), id, body.input ?? {}, { expectedUpdatedAt: body.expectedUpdatedAt, requireVersion: true });
     return ok({ record });
-  } catch (error) {
-    return errorResponse(error);
-  }
+  });
 }
 
 export async function DELETE(request: Request, context: RouteContext) {
-  try {
-    assertSameOriginOrMobile(request, process.env);
-    const session = await requireWorkspace();
+  return workspaceRoute(request, { module: "crm", permission: CRM_PERMISSIONS.accountsManage, billingWrite: true }, async ({ client, session }) => {
     const { id } = await context.params;
     const url = new URL(request.url);
     const expectedUpdatedAt = url.searchParams.get("expectedUpdatedAt") ?? undefined;
-    const record = await tenantTransaction(session.organizationId, async (client) => {
-      await requireCrmAccess(client, session, CRM_PERMISSIONS.accountsManage, { mutation: true });
-      return archiveCrmContact(client, crmContext(session), id, { expectedUpdatedAt, requireVersion: true });
-    });
+    const record = await archiveCrmContact(client, crmContext(session), id, { expectedUpdatedAt, requireVersion: true });
     return ok({ record });
-  } catch (error) {
-    return errorResponse(error);
-  }
+  });
 }

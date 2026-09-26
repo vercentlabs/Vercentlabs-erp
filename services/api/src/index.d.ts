@@ -549,6 +549,9 @@ export * from "./modules/crm/crm-data-operations-and-customization/offline-sync.
 export * from "./modules/crm/crm-data-operations-and-customization/notification-visibility.js";
 export * from "./modules/stock/index.js";
 export * from "./modules/stock/master-operations.js";
+export * from "./modules/sales/record-lookups.js";
+export * from "./modules/procurement/record-lookups.js";
+export * from "./modules/accounting/record-lookups.js";
 export * from "./modules/stock/read-models.js";
 export * from "./modules/stock/counts.js";
 export * from "./modules/stock/valuation.js";

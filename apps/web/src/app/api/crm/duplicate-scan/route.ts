@@ -1,40 +1,26 @@
-import { assertSameOriginOrMobile, enqueueDuplicateFullScan, getLatestDuplicateFullScan } from "@vercentlabs/api";
+import { enqueueDuplicateFullScan, getLatestDuplicateFullScan } from "@vercentlabs/api";
 import { CRM_PERMISSIONS } from "@vercentlabs/permissions";
 
-import { tenantTransaction } from "@/core/db";
-import { errorResponse, ok, readJson } from "@/core/http";
-import { requireWorkspace } from "@/core/session";
-import { crmContext, requireCrmAccess } from "@/features/crm/shared/crm-context";
+import { ok, readJson } from "@/core/http";
+import { crmContext } from "@/features/crm/shared/crm-context";
+import { workspaceRoute } from "@/core/workspace-route";
 
 // F008 gap-closure — a genuine full-dataset duplicate scan (background
 // job), distinct from the honestly-scoped 40-most-recent-records
 // "Suspected duplicates" workspace check. Gated by crm.data-quality.manage,
 // the same permission the merge/override actions elsewhere in F008 require.
 export async function GET(request: Request) {
-  try {
-    const session = await requireWorkspace();
+  return workspaceRoute(request, { module: "crm", permission: CRM_PERMISSIONS.dataQualityManage }, async ({ client, session }) => {
     const entityType = new URL(request.url).searchParams.get("entityType") || "";
-    const job = await tenantTransaction(session.organizationId, async (client) => {
-      await requireCrmAccess(client, session, CRM_PERMISSIONS.dataQualityManage);
-      return getLatestDuplicateFullScan(client, crmContext(session), entityType);
-    });
+    const job = await getLatestDuplicateFullScan(client, crmContext(session), entityType);
     return ok({ job });
-  } catch (error) {
-    return errorResponse(error);
-  }
+  });
 }
 
 export async function POST(request: Request) {
-  try {
-    assertSameOriginOrMobile(request, process.env);
-    const session = await requireWorkspace();
+  return workspaceRoute(request, { module: "crm", permission: CRM_PERMISSIONS.dataQualityManage, billingWrite: true }, async ({ client, session }) => {
     const input = (await readJson(request)) as { entityType?: string };
-    const job = await tenantTransaction(session.organizationId, async (client) => {
-      await requireCrmAccess(client, session, CRM_PERMISSIONS.dataQualityManage, { mutation: true });
-      return enqueueDuplicateFullScan(client, crmContext(session), input.entityType || "");
-    });
+    const job = await enqueueDuplicateFullScan(client, crmContext(session), input.entityType || "");
     return ok({ job }, 202);
-  } catch (error) {
-    return errorResponse(error);
-  }
+  });
 }

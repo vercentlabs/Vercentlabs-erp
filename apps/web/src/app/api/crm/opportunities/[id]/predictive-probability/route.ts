@@ -1,9 +1,8 @@
 import { getOpportunityPredictiveProbability } from "@vercentlabs/api";
 
-import { tenantTransaction } from "@/core/db";
-import { errorResponse, ok } from "@/core/http";
-import { requireWorkspace } from "@/core/session";
-import { crmContext, requireCrmAccess } from "@/features/crm/shared/crm-context";
+import { ok } from "@/core/http";
+import { crmContext } from "@/features/crm/shared/crm-context";
+import { workspaceRoute } from "@/core/workspace-route";
 
 // F011 gap-closure — the predictive-forecast model already computes a real
 // per-Opportunity predicted probability on every snapshot capture, but it
@@ -12,15 +11,9 @@ import { crmContext, requireCrmAccess } from "@/features/crm/shared/crm-context"
 // (not a 404) when no snapshot has ever included this Opportunity yet — an
 // absent prediction, not an error.
 export async function GET(request: Request, context: { params: Promise<{ id: string }> }) {
-  try {
-    const session = await requireWorkspace();
+  return workspaceRoute(request, { module: "crm" }, async ({ client, session }) => {
     const { id } = await context.params;
-    const prediction = await tenantTransaction(session.organizationId, async (client) => {
-      await requireCrmAccess(client, session);
-      return getOpportunityPredictiveProbability(client, crmContext(session), id);
-    });
+    const prediction = await getOpportunityPredictiveProbability(client, crmContext(session), id);
     return ok({ prediction });
-  } catch (error) {
-    return errorResponse(error);
-  }
+  });
 }

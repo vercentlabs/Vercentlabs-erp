@@ -26,8 +26,8 @@ import {
 
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
-import { LoadingState } from "@/features/crm/shared/ui/LoadingState";
-import { dueLabel, dueState, humanize, scoreLabel } from "@/features/crm/shared/human";
+import { LoadingState } from "@/shared/ui/LoadingState";
+import { dueLabel, dueState, humanize, scoreLabel } from "@/shared/format/human";
 import { CRM_PERMISSIONS } from "@vercentlabs/permissions";
 import { LeadKanbanBoard, type LeadStageOption } from "../components/LeadKanbanBoard";
 import {

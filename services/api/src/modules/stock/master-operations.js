@@ -255,3 +255,18 @@ export async function listStockReorderRulesDetailed(client, c) {
   );
   return rows;
 }
+
+// Changing what an item IS after it has stock would silently re-mean history: tracked -> untracked
+// strands balances, batch -> serial breaks the lot register, a new unit of measure re-scales every
+// quantity. Refuse those changes once the item has stock or movements; everything else stays editable.
+const ITEM_IDENTITY_COLUMNS = Object.freeze({ trackInventory: "track_inventory", trackingType: "tracking_type", uomId: "uom_id", valuationMethod: "valuation_method" });
+export async function guardStockItemIdentity(client, organizationId, itemId, input = {}) {
+  const touching = Object.keys(ITEM_IDENTITY_COLUMNS).filter((field) => input[field] !== undefined);
+  if (!touching.length) return;
+  const current = (await client.query(`SELECT track_inventory,tracking_type,uom_id,valuation_method FROM tenant.items WHERE organization_id=$1 AND id=$2`, [organizationId, itemId])).rows[0];
+  if (!current) return; // the engine reports not-found
+  const changed = touching.some((field) => String(current[ITEM_IDENTITY_COLUMNS[field]]) !== String(input[field]));
+  if (!changed) return;
+  const used = (await client.query(`SELECT 1 FROM tenant.stock_movements WHERE organization_id=$1 AND item_id=$2 LIMIT 1`, [organizationId, itemId])).rows[0];
+  if (used) throw new StockError(409, "This item already has stock movements, so its tracking, unit of measure and valuation method can no longer change. Create a new item instead.", "STOCK_ITEM_IDENTITY_LOCKED");
+}

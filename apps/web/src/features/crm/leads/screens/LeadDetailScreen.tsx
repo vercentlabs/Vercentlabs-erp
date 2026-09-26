@@ -36,7 +36,7 @@ import { CrmAttachmentPanel } from "@/features/crm/shared/CrmAttachmentPanel";
 import { CustomFieldsRuntimePanel } from "@/features/crm/shared/CustomFieldsRuntimePanel";
 import { LeadTagsPanel } from "@/features/crm/shared/LeadTagsPanel";
 import { money } from "@/features/crm/shared/format";
-import { countryName, dueLabel, dueState, formatDate, humanize, scoreLabel } from "@/features/crm/shared/human";
+import { countryName, dueLabel, dueState, formatDate, humanize, scoreLabel } from "@/shared/format/human";
 import { PropertyList } from "@/features/crm/shared/ui/PropertyList";
 import {
   assignLead,
@@ -59,7 +59,7 @@ import {
   recalculateLeadScore,
   transitionLeadStage,
 } from "../api/leads-api";
-import { LoadingState } from "@/features/crm/shared/ui/LoadingState";
+import { LoadingState } from "@/shared/ui/LoadingState";
 import { createPrivacyRequest, listConsentEvents, PrivacyApiError } from "@/features/crm/settings/privacy-requests/api/privacy-requests-api";
 
 // F007: the five Lead pipeline stage codes (stable codes; human-facing

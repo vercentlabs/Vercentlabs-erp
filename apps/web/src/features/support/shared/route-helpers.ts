@@ -2,31 +2,26 @@ import "server-only";
 
 import type { ZodType } from "zod";
 
-import { assertSameOriginOrMobile } from "@vercentlabs/api";
-
-import { tenantTransaction } from "@/core/db";
-import { errorResponse, ok, readJson } from "@/core/http";
-import { requireWorkspace, type WorkspaceSessionContext } from "@/core/session";
+import { ok, readJson } from "@/core/http";
+import type { WorkspaceSessionContext } from "@/core/session";
+import { workspaceRoute } from "@/core/workspace-route";
+import { supportContext } from "@/features/support/shared/support-context";
 import { toWire } from "@/core/wire";
-import { requireSupportAccess, supportContext } from "@/features/support/shared/support-context";
 
+// Structural, with `any` rows, so one transaction client satisfies both the
+// domain functions and the orchestration wrappers.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Client = { query(text: string, values?: unknown[]): Promise<{ rows: any[]; rowCount?: number | null }> };
 type Context = ReturnType<typeof supportContext>;
 
-// Every Support route: workspace session -> module entitlement + permission (+ billing write access
-// for a mutation) -> ONE tenant transaction -> domain function -> uniform error mapping.
-export async function supportRead<T>(run: (client: Client, context: Context, session: WorkspaceSessionContext) => Promise<T>, permission: string = "support.view") {
-  try {
-    const session = await requireWorkspace();
-    const result = await tenantTransaction(session.organizationId, async (client) => {
-      await requireSupportAccess(client, session, permission);
-      return run(client as Client, supportContext(session), session);
-    });
-    return ok(toWire(result) as Record<string, unknown>);
-  } catch (error) {
-    return errorResponse(error);
-  }
+// Every Support route: workspaceRoute (session -> organisation context ->
+// access snapshot -> module "support" -> permission (or own-records self-service when the permission is "") -> billing write
+// gate for a mutation) -> ONE transaction -> the domain function -> the wire
+// format. Written once so the shape cannot drift between routes.
+export async function supportRead<T>(request: Request, run: (client: Client, context: Context, session: WorkspaceSessionContext) => Promise<T>, permission: string = "support.view") {
+  return workspaceRoute(request, permission ? { module: "support", permission } : { module: "support", selfService: true }, async ({ client, session }) =>
+    ok(toWire(await run(client as Client, supportContext(session), session)) as Record<string, unknown>),
+  );
 }
 
 export async function supportMutation<I, T>(
@@ -34,19 +29,10 @@ export async function supportMutation<I, T>(
   schema: ZodType<I>,
   run: (client: Client, context: Context, input: I, session: WorkspaceSessionContext) => Promise<T>,
   status = 200,
-  permission = "support.view",
+  permission: string = "support.view",
 ) {
-  try {
-    assertSameOriginOrMobile(request, process.env);
-    const session = await requireWorkspace();
-    const raw = await readJson(request).catch(() => ({}));
-    const input = schema.parse(raw);
-    const result = await tenantTransaction(session.organizationId, async (client) => {
-      await requireSupportAccess(client, session, permission, { mutation: true });
-      return run(client as Client, supportContext(session), input, session);
-    });
-    return ok(toWire(result) as Record<string, unknown>, status);
-  } catch (error) {
-    return errorResponse(error);
-  }
+  return workspaceRoute(request, permission ? { module: "support", permission, billingWrite: true } : { module: "support", selfService: true, billingWrite: true }, async ({ client, session }) => {
+    const input = schema.parse(await readJson(request).catch(() => ({})));
+    return ok(toWire(await run(client as Client, supportContext(session), input, session)) as Record<string, unknown>, status);
+  });
 }

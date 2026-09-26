@@ -1,11 +1,10 @@
 import { z } from "zod";
 
-import { assertSameOriginOrMobile, listPosCoupons, createPosCoupon } from "@vercentlabs/api";
+import { listPosCoupons, createPosCoupon } from "@vercentlabs/api";
 
-import { tenantTransaction } from "@/core/db";
-import { errorResponse, ok, readJson } from "@/core/http";
-import { requireWorkspace } from "@/core/session";
-import { posContext, requirePosAccess } from "@/features/pos/shared/pos-context";
+import { ok, readJson } from "@/core/http";
+import { posContext } from "@/features/pos/shared/pos-context";
+import { workspaceRoute } from "@/core/workspace-route";
 
 const createSchema = z.object({
   code: z.string().trim().min(1).max(40),
@@ -25,30 +24,17 @@ const createSchema = z.object({
 });
 
 export async function GET(request: Request) {
-  try {
-    const session = await requireWorkspace();
+  return workspaceRoute(request, { module: "point-of-sale" }, async ({ client, session }) => {
     const url = new URL(request.url);
-    const rows = await tenantTransaction(session.organizationId, async (client) => {
-      await requirePosAccess(client, session);
-      return listPosCoupons(client, posContext(session), { status: url.searchParams.get("status") || undefined });
-    });
+    const rows = await listPosCoupons(client, posContext(session), { status: url.searchParams.get("status") || undefined });
     return ok({ rows });
-  } catch (error) {
-    return errorResponse(error);
-  }
+  });
 }
 
 export async function POST(request: Request) {
-  try {
-    assertSameOriginOrMobile(request, process.env);
-    const session = await requireWorkspace();
+  return workspaceRoute(request, { module: "point-of-sale", permission: "pos.settings.manage", billingWrite: true }, async ({ client, session }) => {
     const input = createSchema.parse(await readJson(request));
-    const result = await tenantTransaction(session.organizationId, async (client) => {
-      await requirePosAccess(client, session, "pos.settings.manage", { mutation: true });
-      return createPosCoupon(client, posContext(session), input);
-    });
+    const result = await createPosCoupon(client, posContext(session), input);
     return ok({ record: result }, 201);
-  } catch (error) {
-    return errorResponse(error);
-  }
+  });
 }

@@ -1,11 +1,10 @@
 import { z } from "zod";
 
-import { assertSameOriginOrMobile, updatePosStore } from "@vercentlabs/api";
+import { updatePosStore } from "@vercentlabs/api";
 
-import { tenantTransaction } from "@/core/db";
-import { errorResponse, ok, readJson } from "@/core/http";
-import { requireWorkspace } from "@/core/session";
-import { posContext, requirePosAccess } from "@/features/pos/shared/pos-context";
+import { ok, readJson } from "@/core/http";
+import { posContext } from "@/features/pos/shared/pos-context";
+import { workspaceRoute } from "@/core/workspace-route";
 
 const updateStoreSchema = z.object({
   name: z.string().trim().min(1).max(200).optional(),
@@ -17,17 +16,10 @@ const updateStoreSchema = z.object({
 });
 
 export async function PATCH(request: Request, context: { params: Promise<{ storeId: string }> }) {
-  try {
-    assertSameOriginOrMobile(request, process.env);
-    const session = await requireWorkspace();
+  return workspaceRoute(request, { module: "point-of-sale", permission: "pos.store.manage", billingWrite: true }, async ({ client, session }) => {
     const { storeId } = await context.params;
     const input = updateStoreSchema.parse(await readJson(request));
-    const result = await tenantTransaction(session.organizationId, async (client) => {
-      await requirePosAccess(client, session, "pos.store.manage", { mutation: true });
-      return updatePosStore(client, posContext(session), storeId, input);
-    });
+    const result = await updatePosStore(client, posContext(session), storeId, input);
     return ok({ store: result });
-  } catch (error) {
-    return errorResponse(error);
-  }
+  });
 }

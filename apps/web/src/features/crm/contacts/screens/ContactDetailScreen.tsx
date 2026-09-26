@@ -7,7 +7,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Pencil, RotateCcw } from "lucide-react";
 import { Button, ConflictBanner, ErrorState, PermissionState, RecordDetailsPage, StatusBadge, Tab, TabList, TabPanel, Tabs } from "@vercentlabs/design-system";
 import { CRM_PERMISSIONS } from "@vercentlabs/permissions";
-import { LoadingState } from "@/features/crm/shared/ui/LoadingState";
+import { LoadingState } from "@/shared/ui/LoadingState";
 
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
@@ -16,7 +16,7 @@ import { RecordTimelinePanel } from "@/features/crm/shared/RecordTimelinePanel";
 import { NotesPanel } from "@/features/crm/shared/NotesPanel";
 import { CrmAttachmentPanel } from "@/features/crm/shared/CrmAttachmentPanel";
 import { CustomFieldsRuntimePanel } from "@/features/crm/shared/CustomFieldsRuntimePanel";
-import { formatDate, formatMoney, humanize, timezoneLabel } from "@/features/crm/shared/human";
+import { formatDate, formatMoney, humanize, timezoneLabel } from "@/shared/format/human";
 import { MoreMenu } from "@/features/crm/shared/ui/MoreMenu";
 import { PropertyList } from "@/features/crm/shared/ui/PropertyList";
 import { getAccount } from "@/features/crm/accounts/api/accounts-api";

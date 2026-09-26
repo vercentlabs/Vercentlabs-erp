@@ -1,10 +1,9 @@
-import { addTaskDependency, assertSameOriginOrMobile, listTaskDependencies } from "@vercentlabs/api";
+import { addTaskDependency, listTaskDependencies } from "@vercentlabs/api";
 import { CRM_PERMISSIONS } from "@vercentlabs/permissions";
 
-import { tenantTransaction } from "@/core/db";
-import { errorResponse, HttpError, ok, readJson } from "@/core/http";
-import { requireWorkspace } from "@/core/session";
-import { crmContext, requireCrmAccess } from "@/features/crm/shared/crm-context";
+import { HttpError, ok, readJson } from "@/core/http";
+import { crmContext } from "@/features/crm/shared/crm-context";
+import { workspaceRoute } from "@/core/workspace-route";
 
 type RouteContext = { params: Promise<{ id: string }> };
 
@@ -13,34 +12,21 @@ type RouteContext = { params: Promise<{ id: string }> };
 // prevention, self-dependency rejection and completion-while-blocked
 // rejection server-side — this route (and its sibling [dependsOnTaskId]
 // route) is the first UI consumer, not a new authorization surface.
-export async function GET(_request: Request, context: RouteContext) {
-  try {
-    const session = await requireWorkspace();
+export async function GET(request: Request, context: RouteContext) {
+  return workspaceRoute(request, { module: "crm", permission: CRM_PERMISSIONS.activitiesManage }, async ({ client, session }) => {
     const { id } = await context.params;
-    const rows = await tenantTransaction(session.organizationId, async (client) => {
-      await requireCrmAccess(client, session, CRM_PERMISSIONS.activitiesManage);
-      return listTaskDependencies(client, crmContext(session), id);
-    });
+    const rows = await listTaskDependencies(client, crmContext(session), id);
     return ok({ rows });
-  } catch (error) {
-    return errorResponse(error);
-  }
+  });
 }
 
 export async function POST(request: Request, context: RouteContext) {
-  try {
-    assertSameOriginOrMobile(request, process.env);
-    const session = await requireWorkspace();
+  return workspaceRoute(request, { module: "crm", permission: CRM_PERMISSIONS.activitiesManage, billingWrite: true }, async ({ client, session }) => {
     const { id } = await context.params;
     const input = (await readJson(request)) as Record<string, unknown>;
     const dependsOnTaskId = String(input.dependsOnTaskId || "");
     if (!dependsOnTaskId) throw new HttpError(400, "A dependency Task id is required.");
-    const record = await tenantTransaction(session.organizationId, async (client) => {
-      await requireCrmAccess(client, session, CRM_PERMISSIONS.activitiesManage, { mutation: true });
-      return addTaskDependency(client, crmContext(session), id, dependsOnTaskId);
-    });
+    const record = await addTaskDependency(client, crmContext(session), id, dependsOnTaskId);
     return ok({ record }, 201);
-  } catch (error) {
-    return errorResponse(error);
-  }
+  });
 }

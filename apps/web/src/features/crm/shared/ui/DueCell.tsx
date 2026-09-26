@@ -1,6 +1,6 @@
 "use client";
 
-import { dueLabel, dueState, formatDateTime } from "../human";
+import { dueLabel, dueState, formatDateTime } from "@/shared/format/human";
 
 // A due date with its urgency stated: overdue work is marked in words and an icon, in red, and never reads as ordinary
 // planned work. Finished work shows the date only.

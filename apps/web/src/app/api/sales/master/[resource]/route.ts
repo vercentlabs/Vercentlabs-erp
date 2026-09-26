@@ -8,7 +8,7 @@ import { salesMutation, salesRead } from "@/features/sales/shared/route-helpers"
 export async function GET(request: Request, ctx: { params: Promise<{ resource: string }> }) {
   const { resource } = await ctx.params;
   const url = new URL(request.url);
-  return salesRead("sales.view", async (client, context) => {
+  return salesRead(request, "sales.view", async (client, context) => {
     assertReadable(resource);
     const status = url.searchParams.get("status");
     const result = await listBusinessDataRecords(client, context, resource, {

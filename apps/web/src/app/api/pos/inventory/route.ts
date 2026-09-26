@@ -2,10 +2,9 @@ import { z } from "zod";
 
 import { listPosStoreInventory } from "@vercentlabs/api";
 
-import { tenantTransaction } from "@/core/db";
-import { errorResponse, ok } from "@/core/http";
-import { requireWorkspace } from "@/core/session";
-import { posContext, requirePosAccess } from "@/features/pos/shared/pos-context";
+import { ok } from "@/core/http";
+import { posContext } from "@/features/pos/shared/pos-context";
+import { workspaceRoute } from "@/core/workspace-route";
 
 const querySchema = z.object({
   storeId: z.string().uuid(),
@@ -15,8 +14,7 @@ const querySchema = z.object({
 });
 
 export async function GET(request: Request) {
-  try {
-    const session = await requireWorkspace();
+  return workspaceRoute(request, { module: "point-of-sale", permission: "pos.view" }, async ({ client, session }) => {
     const { searchParams } = new URL(request.url);
     const input = querySchema.parse({
       storeId: searchParams.get("storeId") || undefined,
@@ -24,12 +22,7 @@ export async function GET(request: Request) {
       limit: searchParams.get("limit") || undefined,
       offset: searchParams.get("offset") || undefined,
     });
-    const result = await tenantTransaction(session.organizationId, async (client) => {
-      await requirePosAccess(client, session, "pos.view");
-      return listPosStoreInventory(client, posContext(session), input);
-    });
+    const result = await listPosStoreInventory(client, posContext(session), input);
     return ok(result);
-  } catch (error) {
-    return errorResponse(error);
-  }
+  });
 }

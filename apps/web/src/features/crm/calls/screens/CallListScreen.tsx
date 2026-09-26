@@ -1,6 +1,6 @@
 "use client";
 
-import { humanize } from "@/features/crm/shared/human";
+import { humanize } from "@/shared/format/human";
 
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -27,7 +27,7 @@ import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import { CallApiError, cancelCall, listCalls, startCall } from "../api/calls-api";
 import { CompleteCallDialog } from "../components/CompleteCallDialog";
 import type { Call, CallListFilters } from "../types";
-import { LoadingState } from "@/features/crm/shared/ui/LoadingState";
+import { LoadingState } from "@/shared/ui/LoadingState";
 import { DueCell } from "@/features/crm/shared/ui/DueCell";
 
 const PAGE_SIZE = 25;

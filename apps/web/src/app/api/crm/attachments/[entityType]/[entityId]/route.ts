@@ -1,9 +1,8 @@
-import { assertSameOriginOrMobile, createCrmAttachment, listCrmAttachments, prepareFileUpload } from "@vercentlabs/api";
+import { createCrmAttachment, listCrmAttachments, prepareFileUpload } from "@vercentlabs/api";
 
-import { tenantTransaction } from "@/core/db";
-import { errorResponse, HttpError, ok } from "@/core/http";
-import { requireWorkspace } from "@/core/session";
-import { crmContext, requireCrmAccess } from "@/features/crm/shared/crm-context";
+import { HttpError, ok } from "@/core/http";
+import { crmContext } from "@/features/crm/shared/crm-context";
+import { workspaceRoute } from "@/core/workspace-route";
 
 // F017 Attachments. attachments-operations.js (the ONE canonical CRM
 // attachment domain service, covering parent-record authorization,
@@ -18,24 +17,16 @@ import { crmContext, requireCrmAccess } from "@/features/crm/shared/crm-context"
 // transaction; createCrmAttachment then stores the bytes in object storage
 // and records metadata. Size is capped by validateAttachment (10MB), never
 // trusted from the browser's declared Content-Length.
-export async function GET(_request: Request, context: { params: Promise<{ entityType: string; entityId: string }> }) {
-  try {
-    const session = await requireWorkspace();
+export async function GET(request: Request, context: { params: Promise<{ entityType: string; entityId: string }> }) {
+  return workspaceRoute(request, { module: "crm" }, async ({ client, session }) => {
     const { entityType, entityId } = await context.params;
-    const rows = await tenantTransaction(session.organizationId, async (client) => {
-      await requireCrmAccess(client, session);
-      return listCrmAttachments(client, crmContext(session), entityType as never, entityId);
-    });
+    const rows = await listCrmAttachments(client, crmContext(session), entityType as never, entityId);
     return ok({ rows });
-  } catch (error) {
-    return errorResponse(error);
-  }
+  });
 }
 
 export async function POST(request: Request, context: { params: Promise<{ entityType: string; entityId: string }> }) {
-  try {
-    assertSameOriginOrMobile(request, process.env);
-    const session = await requireWorkspace();
+  return workspaceRoute(request, { module: "crm", billingWrite: true }, async ({ client, session }) => {
     const { entityType, entityId } = await context.params;
 
     const form = await request.formData().catch(() => {
@@ -47,15 +38,10 @@ export async function POST(request: Request, context: { params: Promise<{ entity
 
     const prepared = await prepareFileUpload({ fileName: file.name, mimeType: file.type, bytes: Buffer.from(await file.arrayBuffer()) }, process.env);
 
-    const record = await tenantTransaction(session.organizationId, async (client) => {
-      await requireCrmAccess(client, session, undefined, { mutation: true });
-      return createCrmAttachment(client, crmContext(session), entityType as never, entityId, {
-        prepared,
-        replacesLogicalId: typeof replacesLogicalId === "string" && replacesLogicalId ? replacesLogicalId : undefined,
-      });
+    const record = await createCrmAttachment(client, crmContext(session), entityType as never, entityId, {
+      prepared,
+      replacesLogicalId: typeof replacesLogicalId === "string" && replacesLogicalId ? replacesLogicalId : undefined,
     });
     return ok({ record }, 201);
-  } catch (error) {
-    return errorResponse(error);
-  }
+  });
 }

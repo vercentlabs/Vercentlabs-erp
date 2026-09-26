@@ -10,7 +10,7 @@ export async function GET(request: Request) {
   const url = new URL(request.url);
   const kind = url.searchParams.get("kind") ?? "";
   const limit = Number(url.searchParams.get("limit") ?? 100);
-  return procurementRead(async (client, context) => {
+  return procurementRead(request, async (client, context) => {
     if (!KINDS.includes(kind)) return { rows: [], error: "Unknown register." };
     return { rows: await listProcurementPass1Operations(client, context, { kind, limit }) };
   });

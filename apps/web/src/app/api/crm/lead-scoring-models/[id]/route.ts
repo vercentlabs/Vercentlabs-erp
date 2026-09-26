@@ -1,24 +1,16 @@
-import { assertSameOriginOrMobile, updateLeadScoringModel } from "@vercentlabs/api";
+import { updateLeadScoringModel } from "@vercentlabs/api";
 
-import { tenantTransaction } from "@/core/db";
-import { errorResponse, ok, readJson } from "@/core/http";
-import { requireWorkspace } from "@/core/session";
-import { crmContext, requireCrmAccess } from "@/features/crm/shared/crm-context";
+import { ok, readJson } from "@/core/http";
+import { crmContext } from "@/features/crm/shared/crm-context";
+import { workspaceRoute } from "@/core/workspace-route";
 
 type RouteContext = { params: Promise<{ id: string }> };
 
 export async function PATCH(request: Request, context: RouteContext) {
-  try {
-    assertSameOriginOrMobile(request, process.env);
-    const session = await requireWorkspace();
+  return workspaceRoute(request, { module: "crm", billingWrite: true }, async ({ client, session }) => {
     const { id } = await context.params;
     const input = (await readJson(request)) as Record<string, unknown>;
-    const record = await tenantTransaction(session.organizationId, async (client) => {
-      await requireCrmAccess(client, session, undefined, { mutation: true });
-      return updateLeadScoringModel(client, crmContext(session), id, input);
-    });
+    const record = await updateLeadScoringModel(client, crmContext(session), id, input);
     return ok({ record });
-  } catch (error) {
-    return errorResponse(error);
-  }
+  });
 }

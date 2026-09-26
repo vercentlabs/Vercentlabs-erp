@@ -6,8 +6,8 @@ import { Archive, Pencil, Plus, RotateCcw } from "lucide-react";
 import { AlertDialog, Button, Checkbox, Dialog, ErrorState, PermissionState, Select, StatusBadge, TextField, type SelectOption } from "@vercentlabs/design-system";
 import { CRM_PERMISSIONS } from "@vercentlabs/permissions";
 
-import { formatMinutes, humanize } from "@/features/crm/shared/human";
-import { LoadingState } from "@/features/crm/shared/ui/LoadingState";
+import { formatMinutes, humanize } from "@/shared/format/human";
+import { LoadingState } from "@/shared/ui/LoadingState";
 
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";

@@ -1,11 +1,10 @@
 import { z } from "zod";
 
-import { assertSameOriginOrMobile, applyPosCartLineDiscount, removePosCartLineDiscount } from "@vercentlabs/api";
+import { applyPosCartLineDiscount, removePosCartLineDiscount } from "@vercentlabs/api";
 
-import { tenantTransaction } from "@/core/db";
-import { errorResponse, ok, readJson } from "@/core/http";
-import { requireWorkspace } from "@/core/session";
-import { posContext, requirePosAccess } from "@/features/pos/shared/pos-context";
+import { ok, readJson } from "@/core/http";
+import { posContext } from "@/features/pos/shared/pos-context";
+import { workspaceRoute } from "@/core/workspace-route";
 
 // F279 (POS Session 3): `approvedBy` is deliberately not accepted here --
 // a caller can never assert who approved a discount. Above the configured
@@ -21,36 +20,22 @@ const discountSchema = z.object({
 });
 
 export async function POST(request: Request, context: { params: Promise<{ id: string; lineId: string }> }) {
-  try {
-    assertSameOriginOrMobile(request, process.env);
-    const session = await requireWorkspace();
+  return workspaceRoute(request, { module: "point-of-sale", permission: "pos.discount.apply", billingWrite: true }, async ({ client, session }) => {
     const { id, lineId } = await context.params;
     const input = discountSchema.parse(await readJson(request));
-    const result = await tenantTransaction(session.organizationId, async (client) => {
-      await requirePosAccess(client, session, "pos.discount.apply", { mutation: true });
-      return applyPosCartLineDiscount(client, posContext(session), id, lineId, input);
-    });
+    const result = await applyPosCartLineDiscount(client, posContext(session), id, lineId, input);
     return ok({ cart: result });
-  } catch (error) {
-    return errorResponse(error);
-  }
+  });
 }
 
 export async function DELETE(request: Request, context: { params: Promise<{ id: string; lineId: string }> }) {
-  try {
-    assertSameOriginOrMobile(request, process.env);
-    const session = await requireWorkspace();
+  return workspaceRoute(request, { module: "point-of-sale", permission: "pos.discount.apply", billingWrite: true }, async ({ client, session }) => {
     const { id, lineId } = await context.params;
     const url = new URL(request.url);
     const expectedVersion = url.searchParams.get("expectedVersion");
-    const result = await tenantTransaction(session.organizationId, async (client) => {
-      await requirePosAccess(client, session, "pos.discount.apply", { mutation: true });
-      return removePosCartLineDiscount(client, posContext(session), id, lineId, {
-        expectedVersion: expectedVersion ? Number(expectedVersion) : undefined,
-      });
+    const result = await removePosCartLineDiscount(client, posContext(session), id, lineId, {
+      expectedVersion: expectedVersion ? Number(expectedVersion) : undefined,
     });
     return ok({ cart: result });
-  } catch (error) {
-    return errorResponse(error);
-  }
+  });
 }

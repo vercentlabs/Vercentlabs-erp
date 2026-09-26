@@ -1,11 +1,10 @@
 import { z } from "zod";
 
-import { assertSameOriginOrMobile, importPosSettlementBatch } from "@vercentlabs/api";
+import { importPosSettlementBatch } from "@vercentlabs/api";
 
-import { tenantTransaction } from "@/core/db";
-import { errorResponse, ok, readJson } from "@/core/http";
-import { requireWorkspace } from "@/core/session";
-import { posContext, requirePosAccess } from "@/features/pos/shared/pos-context";
+import { ok, readJson } from "@/core/http";
+import { posContext } from "@/features/pos/shared/pos-context";
+import { workspaceRoute } from "@/core/workspace-route";
 
 const importSchema = z.object({
   storeId: z.string().uuid().optional().nullable(),
@@ -26,16 +25,9 @@ const importSchema = z.object({
 });
 
 export async function POST(request: Request) {
-  try {
-    assertSameOriginOrMobile(request, process.env);
-    const session = await requireWorkspace();
+  return workspaceRoute(request, { module: "point-of-sale", permission: "pos.reconciliation.manage" }, async ({ client, session }) => {
     const input = importSchema.parse(await readJson(request));
-    const result = await tenantTransaction(session.organizationId, async (client) => {
-      await requirePosAccess(client, session, "pos.reconciliation.manage");
-      return importPosSettlementBatch(client, posContext(session), input);
-    });
+    const result = await importPosSettlementBatch(client, posContext(session), input);
     return ok(result, 201);
-  } catch (error) {
-    return errorResponse(error);
-  }
+  });
 }

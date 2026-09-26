@@ -24,7 +24,7 @@ import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext"
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import { getCrmOptions } from "@/features/crm/shared/crm-options-api";
 import { money } from "@/features/crm/shared/format";
-import { humanize } from "@/features/crm/shared/human";
+import { humanize } from "@/shared/format/human";
 import {
   archiveQuotaPlan,
   archiveSalesTeam,

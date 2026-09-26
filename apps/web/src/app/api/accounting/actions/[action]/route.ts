@@ -8,7 +8,7 @@ import {
   matchBankStatementLine, postAssetDepreciation, postCustomerInvoice, postCustomerReceipt, postJournalEntry, postRevaluation, postVendorBill, postVendorPayment,
   rejectBudgetApproval, rejectCustomerInvoiceApproval, rejectJournalApproval, rejectVendorBillApproval, rejectVendorPaymentApproval, reverseJournalEntry,
   runDueAccruals, runDueRecurringTemplates, startBankReconciliation, submitBudget, submitCustomerInvoice, submitJournalEntry, submitVendorBill, submitVendorPayment,
-  updateAccountingSettings, updateCloseTask, updateFiscalPeriodStatus, updateTaxReturnStatus,
+  updateAccountingSettings, updateCloseTask, updateFiscalPeriodStatus, updateTaxReturnStatus, accountingDocumentContentHash, primaryAccountingLedgerId,
 } from "@vercentlabs/api";
 
 import { HttpError } from "@/core/http";
@@ -17,8 +17,8 @@ import { accountingMutation } from "@/features/accounting/shared/route-helpers";
 const body = z.record(z.string(), z.unknown());
 const str = (input: Record<string, unknown>, key: string) => String(input[key] ?? "");
 // An approver acts on a specific row in the list, not on a hash they typed in: the current stored content hash is
-// looked up here, and the domain function still refuses it if the document's content no longer matches that hash.
-const HASH_TABLES: Record<string, string> = { "journal-approve": "accounting_journal_entries", "invoice-approve": "accounting_customer_invoices", "bill-approve": "accounting_vendor_bills", "payment-approve": "accounting_vendor_payments" };
+// looked up server-side, and the domain function still refuses it if the document's content no longer matches that hash.
+const APPROVAL_DOCUMENTS: Record<string, "journal" | "invoice" | "bill" | "payment"> = { "journal-approve": "journal", "invoice-approve": "invoice", "bill-approve": "bill", "payment-approve": "payment" };
 const idOf = (input: Record<string, unknown>) => {
   const id = str(input, "id");
   if (!id) throw new HttpError(400, "A record id is required.");
@@ -35,17 +35,16 @@ export async function POST(request: Request, ctx: { params: Promise<{ action: st
     async (client, context, rawInput) => {
       // Every document is created in the session's active company; a company id in the body is never trusted.
       const input: Record<string, unknown> = { ...rawInput, companyId: context.activeCompanyId };
-      if (HASH_TABLES[action] && !input.contentHash) {
-        const found = await client.query(`SELECT content_hash FROM tenant.${HASH_TABLES[action]} WHERE organization_id=$1 AND id=$2`, [context.organizationId, idOf(input)]);
-        input.contentHash = found.rows[0]?.content_hash ?? "";
+      if (APPROVAL_DOCUMENTS[action] && !input.contentHash) {
+        input.contentHash = await accountingDocumentContentHash(client, context.organizationId, APPROVAL_DOCUMENTS[action], idOf(input));
       }
       switch (action) {
         case "settings-save":
           return { record: await updateAccountingSettings(client, context, input) };
         case "account-create": {
-          const ledger = await client.query(`SELECT id FROM tenant.accounting_ledgers WHERE organization_id=$1 AND company_id=$2 AND ledger_type='primary' AND status='active' LIMIT 1`, [context.organizationId, context.activeCompanyId]);
-          if (!ledger.rows[0]) throw new HttpError(409, "This company has no active primary ledger.");
-          return { record: await createAccountingAccount(client, context, { ledgerId: ledger.rows[0].id, ...input }) };
+          const ledgerId = await primaryAccountingLedgerId(client, context.organizationId, context.activeCompanyId);
+          if (!ledgerId) throw new HttpError(409, "This company has no active primary ledger.");
+          return { record: await createAccountingAccount(client, context, { ledgerId, ...input }) };
         }
         case "journal-create":
           return { record: await createJournalEntry(client, context, input) };

@@ -6,8 +6,8 @@ import { StatusBadge } from "@vercentlabs/design-system";
 
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
-import { listSalesQuotations } from "@/features/sales/quotations/api/quotations-api";
-import { formatDate, formatMoney, humanize } from "@/features/crm/shared/human";
+import { listSalesQuotations } from "@/features/sales";
+import { formatDate, formatMoney, humanize } from "@/shared/format/human";
 
 // F023 — the quotations raised from this Opportunity (sales_quotations.
 // source_opportunity_id), so the deal shows its commercial follow-through

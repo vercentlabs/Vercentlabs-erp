@@ -19,7 +19,7 @@ import {
 } from "@vercentlabs/design-system";
 import { CRM_PERMISSIONS } from "@vercentlabs/permissions";
 
-import { timezoneLabel } from "@/features/crm/shared/human";
+import { timezoneLabel } from "@/shared/format/human";
 import { MoreMenu } from "@/features/crm/shared/ui/MoreMenu";
 import { gridStates } from "@/features/crm/shared/ui/gridStates";
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";

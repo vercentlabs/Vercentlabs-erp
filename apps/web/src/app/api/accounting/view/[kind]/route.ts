@@ -18,7 +18,7 @@ export async function GET(request: Request, ctx: { params: Promise<{ kind: strin
   const { kind } = await ctx.params;
   const q = new URL(request.url).searchParams;
   const get = (name: string) => q.get(name) || undefined;
-  return accountingRead(async (client, context) => {
+  return accountingRead(request, async (client, context) => {
     switch (kind) {
       case "options": {
         const o = (await getAccountingOptions(client, context, context.activeCompanyId)) as unknown as Record<string, Rec[]>;

@@ -1,321 +1,554 @@
-route,mutation_methods,has_auth,has_origin_check,has_authorization_check,documented_exception
-api/accounting/actions/[action]/route.ts,POST,true,true,true,
-api/approvals/[id]/decide/route.ts,POST,true,true,true,
-api/assets/actions/[action]/route.ts,POST,true,true,true,
-api/auth/forgot-password/route.ts,POST,false,true,false,"Public by design (account-enumeration-safe); assertSameOrigin applies, rate-limited, identical response regardless of registration state."
-api/auth/invitations/[token]/accept/route.ts,POST,false,true,false,Token-bearer for a new account; an existing account additionally requires a matching authenticated session (see acceptOrganizationInvitation's authenticatedUserId parameter). assertSameOrigin applies.
-api/auth/invitations/manage/[id]/resend/route.ts,POST,true,true,true,
-api/auth/invitations/manage/[id]/revoke/route.ts,POST,true,true,true,
-api/auth/invitations/route.ts,POST,true,true,true,
-api/auth/login/route.ts,POST,false,true,false,Pre-authentication: there is no session yet to protect; assertSameOrigin still applies to the login POST itself.
-api/auth/logout/route.ts,POST,false,true,false,"Deliberately reads the session cookie directly rather than calling requireUser()/requireWorkspace() — logout must work even for an unverified or org-less session, which those helpers would redirect away from instead of processing. Idempotent/safe with no cookie at all. assertSameOriginOrMobile still applies."
-api/auth/mfa/disable/route.ts,POST,true,true,false,
-api/auth/mfa/enroll/confirm/route.ts,POST,true,true,false,
-api/auth/mfa/enroll/start/route.ts,POST,true,true,false,
-api/auth/mfa/recovery-codes/regenerate/route.ts,POST,true,true,false,
-api/auth/mfa/verify/route.ts,POST,true,true,false,
-api/auth/register/route.ts,POST,false,true,false,"Pre-authentication self-serve account creation: there is no session yet to protect (this route creates the first one); assertSameOrigin applies, and enforceRateLimit(client, `register:${ip}`, 5, 600) bounds abuse the same way login/accept-invitation are bounded."
-api/auth/resend-verification/route.ts,POST,true,true,false,
-api/auth/reset-password/route.ts,POST,false,true,false,Token-bearer authentication; assertSameOrigin applies.
-api/auth/verify-email/route.ts,POST,false,true,false,Token-bearer authentication (proof of mailbox control IS the credential); assertSameOrigin applies.
-api/billing/cancel/route.ts,POST,true,true,true,
-api/billing/checkout/route.ts,POST,true,true,true,
-api/billing/profile/route.ts,PATCH,true,true,true,
-api/billing/seats/route.ts,POST,true,true,true,
-api/billing/sync/route.ts,POST,true,true,true,
-api/billing/verify/route.ts,POST,true,true,true,
-api/billing/webhook/route.ts,POST,false,false,false,"Public by design: the payment provider's servers call it with no ERP session. Authenticated by the HMAC-SHA256 signature over the exact raw body (ingestBillingWebhook verifies it before parsing, accepting the previous secret during rotation) with a body-size limit; it only stores the event (deduplicated by provider event id) and the worker applies it."
-api/crm/[resource]/[id]/route.ts,"PATCH,DELETE",true,true,true,
-api/crm/[resource]/route.ts,POST,true,true,true,
-api/crm/accounts/[id]/hierarchy/route.ts,PATCH,true,true,true,
-api/crm/accounts/[id]/route.ts,"PATCH,DELETE",true,true,true,
-api/crm/accounts/duplicates/route.ts,POST,true,true,true,
-api/crm/accounts/merge/preview/route.ts,POST,true,true,true,
-api/crm/accounts/merge/route.ts,POST,true,true,true,
-api/crm/accounts/route.ts,POST,true,true,true,
-api/crm/attachments/[entityType]/[entityId]/[id]/route.ts,DELETE,true,true,true,
-api/crm/attachments/[entityType]/[entityId]/route.ts,POST,true,true,true,
-api/crm/calls/[id]/cancel/route.ts,POST,true,true,true,
-api/crm/calls/[id]/complete/route.ts,POST,true,true,true,
-api/crm/calls/[id]/route.ts,PATCH,true,true,true,
-api/crm/calls/[id]/start/route.ts,POST,true,true,true,
-api/crm/calls/route.ts,POST,true,true,true,
-api/crm/contacts/[id]/reactivate/route.ts,POST,true,true,true,
-api/crm/contacts/[id]/relationships/[relationshipId]/primary/route.ts,POST,true,true,true,
-api/crm/contacts/[id]/relationships/[relationshipId]/route.ts,"PATCH,DELETE",true,true,true,
-api/crm/contacts/[id]/relationships/route.ts,POST,true,true,true,
-api/crm/contacts/[id]/route.ts,"PATCH,DELETE",true,true,true,
-api/crm/contacts/duplicates/route.ts,POST,true,true,true,
-api/crm/contacts/merge/preview/route.ts,POST,true,true,true,
-api/crm/contacts/merge/route.ts,POST,true,true,true,
-api/crm/contacts/route.ts,POST,true,true,true,
-api/crm/custom-fields/definitions/[entityType]/route.ts,POST,true,true,true,
-api/crm/custom-fields/definitions/by-id/[id]/active/route.ts,POST,true,true,true,
-api/crm/custom-fields/values/[entityType]/[entityId]/route.ts,PATCH,true,true,true,
-api/crm/duplicate-rules/[id]/status/route.ts,POST,true,true,true,
-api/crm/duplicate-rules/route.ts,POST,true,true,true,
-api/crm/duplicate-scan/route.ts,POST,true,true,true,
-api/crm/follow-ups/[id]/cancel/route.ts,POST,true,true,true,
-api/crm/follow-ups/[id]/complete/route.ts,POST,true,true,true,
-api/crm/follow-ups/[id]/reminders/[reminderId]/acknowledge/route.ts,POST,true,true,true,
-api/crm/follow-ups/[id]/route.ts,PATCH,true,true,true,
-api/crm/follow-ups/[id]/snooze/route.ts,POST,true,true,true,
-api/crm/follow-ups/route.ts,POST,true,true,true,
-api/crm/forecast/predictive-snapshot/route.ts,POST,true,true,true,
-api/crm/lead-assignee-availability/[id]/route.ts,DELETE,true,true,true,
-api/crm/lead-assignee-availability/route.ts,POST,true,true,true,
-api/crm/lead-assignment-fallback/route.ts,POST,true,true,true,
-api/crm/lead-assignment-policies/[id]/route.ts,"POST,PATCH,DELETE",true,true,true,
-api/crm/lead-assignment-policies/route.ts,POST,true,true,true,
-api/crm/lead-scoring-models/[id]/activate/route.ts,POST,true,true,true,
-api/crm/lead-scoring-models/[id]/route.ts,PATCH,true,true,true,
-api/crm/lead-scoring-models/[id]/rules/[ruleId]/status/route.ts,POST,true,true,true,
-api/crm/lead-scoring-models/[id]/rules/route.ts,POST,true,true,true,
-api/crm/lead-scoring-models/[id]/train/route.ts,POST,true,true,true,
-api/crm/lead-scoring-models/route.ts,POST,true,true,true,
-api/crm/lead-sources/[id]/active/route.ts,POST,true,true,true,
-api/crm/lead-sources/[id]/route.ts,PATCH,true,true,true,
-api/crm/lead-sources/route.ts,POST,true,true,true,
-api/crm/lead-stage-transition-reasons/[id]/active/route.ts,POST,true,true,true,
-api/crm/lead-stage-transition-reasons/route.ts,POST,true,true,true,
-api/crm/lead-stage-transitions/[fromId]/[toId]/route.ts,DELETE,true,true,true,
-api/crm/lead-stage-transitions/route.ts,POST,true,true,true,
-api/crm/lead-stages/[id]/deactivate/route.ts,POST,true,true,true,
-api/crm/lead-stages/[id]/reactivate/route.ts,POST,true,true,true,
-api/crm/lead-stages/[id]/route.ts,PATCH,true,true,true,
-api/crm/lead-stages/recommended-template/route.ts,POST,true,true,true,
-api/crm/lead-stages/route.ts,POST,true,true,true,
-api/crm/leads/[id]/assign/route.ts,POST,true,true,true,
-api/crm/leads/[id]/convert/route.ts,POST,true,true,true,
-api/crm/leads/[id]/duplicates/dismiss/route.ts,POST,true,true,true,
-api/crm/leads/[id]/follow-up/route.ts,POST,true,true,true,
-api/crm/leads/[id]/merge/route.ts,POST,true,true,true,
-api/crm/leads/[id]/qualification/route.ts,POST,true,true,true,
-api/crm/leads/[id]/score/route.ts,POST,true,true,true,
-api/crm/leads/[id]/stage/route.ts,POST,true,true,true,
-api/crm/leads/[id]/tags/[tagId]/route.ts,DELETE,true,true,true,
-api/crm/leads/[id]/tags/route.ts,POST,true,true,true,
-api/crm/leads/bulk/route.ts,POST,true,true,true,
-api/crm/leads/duplicates/route.ts,POST,true,true,true,
-api/crm/leads/enrichment/route.ts,POST,true,true,true,
-api/crm/leads/export/route.ts,POST,true,true,true,
-api/crm/leads/import/[batchId]/commit/route.ts,POST,true,true,true,
-api/crm/leads/import/[batchId]/rollback/route.ts,POST,true,true,true,
-api/crm/leads/import/analyze/route.ts,POST,true,true,true,
-api/crm/leads/import/preview/route.ts,POST,true,true,true,
-api/crm/leads/sla/route.ts,POST,true,true,true,
-api/crm/meetings/[id]/cancel/route.ts,POST,true,true,true,
-api/crm/meetings/[id]/complete/route.ts,POST,true,true,true,
-api/crm/meetings/[id]/route.ts,PATCH,true,true,true,
-api/crm/meetings/[id]/start/route.ts,POST,true,true,true,
-api/crm/meetings/route.ts,POST,true,true,true,
-api/crm/notes/[id]/route.ts,"PATCH,DELETE",true,true,true,
-api/crm/notes/route.ts,POST,true,true,true,
-api/crm/offline-sync/route.ts,POST,true,true,true,
-api/crm/opportunities/[id]/contact-roles/[roleId]/primary/route.ts,POST,true,true,true,
-api/crm/opportunities/[id]/contact-roles/[roleId]/route.ts,"PATCH,DELETE",true,true,true,
-api/crm/opportunities/[id]/contact-roles/route.ts,POST,true,true,true,
-api/crm/opportunities/[id]/probability/route.ts,POST,true,true,true,
-api/crm/opportunities/[id]/restore/route.ts,POST,true,true,true,
-api/crm/opportunities/[id]/stage/route.ts,POST,true,true,true,
-api/crm/opportunities/bulk/route.ts,POST,true,true,true,
-api/crm/pipeline-stages/[id]/active/route.ts,POST,true,true,true,
-api/crm/pipeline-stages/[id]/deactivate/route.ts,POST,true,true,true,
-api/crm/pipeline-stages/[id]/route.ts,PATCH,true,true,true,
-api/crm/pipeline-stages/[id]/sla-policy/route.ts,PUT,true,true,true,
-api/crm/pipeline-stages/reorder/route.ts,POST,true,true,true,
-api/crm/pipeline-stages/route.ts,POST,true,true,true,
-api/crm/pipeline/snapshots/route.ts,POST,true,true,true,
-api/crm/privacy-requests/[id]/execute/route.ts,POST,true,true,true,
-api/crm/privacy/retention/[id]/route.ts,PATCH,true,true,true,
-api/crm/privacy/retention/run/route.ts,POST,true,true,true,
-api/crm/public/meetings/bookings/[token]/route.ts,PATCH,false,false,false,Public by design (prospect managing their own booking) — same token-based model as the link-booking route above.
-api/crm/public/meetings/links/[token]/book/route.ts,POST,false,false,false,"Public by design (prospect booking a slot) — access control is the opaque per-link token, never a session cookie, so same-origin/session checks don't apply."
-api/crm/tasks/[id]/cancel/route.ts,POST,true,true,true,
-api/crm/tasks/[id]/claim/route.ts,POST,true,true,true,
-api/crm/tasks/[id]/complete/route.ts,POST,true,true,true,
-api/crm/tasks/[id]/dependencies/[dependsOnTaskId]/route.ts,DELETE,true,true,true,
-api/crm/tasks/[id]/dependencies/route.ts,POST,true,true,true,
-api/crm/tasks/[id]/release/route.ts,POST,true,true,true,
-api/crm/tasks/[id]/route.ts,PATCH,true,true,true,
-api/crm/tasks/[id]/start/route.ts,POST,true,true,true,
-api/crm/tasks/route.ts,POST,true,true,true,
-api/hr/actions/[action]/route.ts,POST,true,true,true,
-api/inventory/actions/[action]/route.ts,POST,true,true,true,
-api/inventory/master/[resource]/[id]/route.ts,PATCH,true,true,true,
-api/inventory/master/[resource]/route.ts,POST,true,true,true,
-api/manufacturing/actions/[action]/route.ts,POST,true,true,true,
-api/notifications/[id]/read/route.ts,PATCH,true,true,true,
-api/notifications/route.ts,PATCH,true,true,true,
-api/platform/mail/inbound/[routeKey]/route.ts,POST,false,false,false,"Public by design: the mail provider's servers call it with no ERP session. Authenticated twice: the opaque route key (48 random bytes, only its SHA-256 stored) resolves the organisation, target and company server-side, and an HMAC-SHA256 of the exact raw body with that route's own encrypted signing secret is verified before the payload is parsed. Organisation ids in the body are ignored; receipt is idempotent per provider message id; body size is capped."
-api/pos/accounting/mappings/route.ts,POST,true,true,true,
-api/pos/carts/[id]/cancel/route.ts,POST,true,true,true,
-api/pos/carts/[id]/complete/route.ts,POST,true,true,true,
-api/pos/carts/[id]/coupon/route.ts,"POST,DELETE",true,true,true,
-api/pos/carts/[id]/customer/route.ts,POST,true,true,true,
-api/pos/carts/[id]/discount/route.ts,POST,true,true,true,
-api/pos/carts/[id]/hold/route.ts,POST,true,true,true,
-api/pos/carts/[id]/lines/[lineId]/discount/route.ts,"POST,DELETE",true,true,true,
-api/pos/carts/[id]/lines/[lineId]/route.ts,"PATCH,DELETE",true,true,true,
-api/pos/carts/[id]/lines/[lineId]/tracking/route.ts,POST,true,true,true,
-api/pos/carts/[id]/lines/route.ts,POST,true,true,true,
-api/pos/carts/[id]/loyalty/route.ts,"POST,DELETE",true,true,true,
-api/pos/carts/[id]/resume/route.ts,POST,true,true,true,
-api/pos/carts/route.ts,POST,true,true,true,
-api/pos/coupons/[id]/active/route.ts,POST,true,true,true,
-api/pos/coupons/[id]/route.ts,PATCH,true,true,true,
-api/pos/coupons/route.ts,POST,true,true,true,
-api/pos/loyalty/customers/[customerId]/adjust/route.ts,POST,true,true,true,
-api/pos/loyalty/expire/route.ts,POST,true,true,true,
-api/pos/loyalty/program/active/route.ts,POST,true,true,true,
-api/pos/loyalty/program/route.ts,POST,true,true,true,
-api/pos/offline/conflicts/[id]/resolve/route.ts,POST,true,true,true,
-api/pos/offline/sync/route.ts,POST,true,true,true,
-api/pos/payments/[id]/override/route.ts,POST,true,true,true,
-api/pos/payments/[id]/refund/route.ts,POST,true,true,true,
-api/pos/payments/initiate/route.ts,POST,true,true,true,
-api/pos/payments/webhook/[provider]/route.ts,POST,false,false,false,"Public by design — a payment provider's own servers call it directly with no ERP session to present. Authenticated by the provider's cryptographic HMAC signature instead (adapter.verifyWebhookSignature over the raw body, verified before the payload is parsed or trusted, and re-verified inside handlePosPaymentWebhook's transaction), the same 'unauthenticated but cryptographically verified' pattern already established for inbound-mail webhooks (core/platform/integrations/inbound-mail's verifyInboundMailSignature)."
-api/pos/promotions/[id]/active/route.ts,POST,true,true,true,
-api/pos/promotions/[id]/route.ts,PATCH,true,true,true,
-api/pos/promotions/route.ts,POST,true,true,true,
-api/pos/reconciliations/[id]/correction/route.ts,POST,true,true,true,
-api/pos/reconciliations/[id]/resolve/route.ts,POST,true,true,true,
-api/pos/reports/day-end/[id]/accounting-post/route.ts,POST,true,true,true,
-api/pos/reports/day-end/[id]/finalize/route.ts,POST,true,true,true,
-api/pos/reports/day-end/[id]/reconciliation/route.ts,POST,true,true,true,
-api/pos/reports/day-end/[id]/review/route.ts,POST,true,true,true,
-api/pos/reports/day-end/[id]/variance/route.ts,POST,true,true,true,
-api/pos/reports/day-end/route.ts,POST,true,true,true,
-api/pos/returns/[id]/accounting-post/route.ts,POST,true,true,true,
-api/pos/returns/[id]/approve/route.ts,POST,true,true,true,
-api/pos/returns/[id]/complete/route.ts,POST,true,true,true,
-api/pos/returns/[id]/exchange/route.ts,POST,true,true,true,
-api/pos/returns/route.ts,POST,true,true,true,
-api/pos/sales/[id]/accounting-post/route.ts,POST,true,true,true,
-api/pos/sales/[id]/invoice/route.ts,POST,true,true,true,
-api/pos/sales/[id]/receipt/print/route.ts,POST,true,true,true,
-api/pos/sales/route.ts,POST,true,true,true,
-api/pos/settings/route.ts,PUT,true,true,true,
-api/pos/settlements/route.ts,POST,true,true,true,
-api/pos/shifts/[id]/cash-movements/route.ts,POST,true,true,true,
-api/pos/shifts/[id]/close/route.ts,POST,true,true,true,
-api/pos/shifts/route.ts,POST,true,true,true,
-api/pos/store-access/route.ts,"POST,DELETE",true,true,true,
-api/pos/stores/[storeId]/active/route.ts,POST,true,true,true,
-api/pos/stores/[storeId]/payment-config/route.ts,PUT,true,true,true,
-api/pos/stores/[storeId]/route.ts,PATCH,true,true,true,
-api/pos/stores/route.ts,POST,true,true,true,
-api/pos/terminals/[terminalId]/route.ts,PATCH,true,true,true,
-api/pos/terminals/[terminalId]/status/route.ts,POST,true,true,true,
-api/pos/terminals/route.ts,POST,true,true,true,
-api/privacy/requests/[id]/transition/route.ts,POST,true,true,true,
-api/privacy/requests/route.ts,POST,true,true,true,
-api/privacy/retention-policies/route.ts,POST,true,true,true,
-api/procurement/[resource]/[id]/[action]/route.ts,POST,true,true,true,
-api/procurement/[resource]/[id]/route.ts,PATCH,true,true,true,
-api/procurement/[resource]/route.ts,POST,true,true,true,
-api/procurement/match/route.ts,POST,true,true,true,
-api/procurement/operations/landed-costs/route.ts,POST,true,true,true,
-api/procurement/operations/lead-times/route.ts,POST,true,true,true,
-api/procurement/operations/reorder-requests/[id]/convert/route.ts,POST,true,true,true,
-api/procurement/operations/reorder-requests/route.ts,POST,true,true,true,
-api/procurement/operations/subcontract-orders/route.ts,POST,true,true,true,
-api/procurement/operations/supplier-accounting-link/route.ts,POST,true,true,true,
-api/procurement/operations/supplier-prices/route.ts,POST,true,true,true,
-api/projects/actions/[action]/route.ts,POST,true,true,true,
-api/quality/actions/[action]/route.ts,POST,true,true,true,
-api/reports/definitions/[id]/status/route.ts,POST,true,true,true,
-api/reports/definitions/route.ts,POST,true,true,true,
-api/reports/runs/route.ts,POST,true,true,true,
-api/sales/approval-delegations/[id]/route.ts,DELETE,true,true,true,
-api/sales/approval-delegations/route.ts,POST,true,true,true,
-api/sales/customer-prices/[id]/route.ts,DELETE,true,true,false,
-api/sales/customer-prices/route.ts,POST,true,true,false,
-api/sales/documents/preview/route.ts,POST,true,true,true,
-api/sales/fulfillment-requests/[id]/complete/route.ts,POST,true,true,true,
-api/sales/fulfillment-requests/[id]/deliver/route.ts,POST,true,true,true,
-api/sales/fulfillment-requests/[id]/ship/route.ts,POST,true,true,true,
-api/sales/master/[resource]/[id]/route.ts,"PATCH,DELETE",true,true,true,
-api/sales/master/[resource]/route.ts,POST,true,true,true,
-api/sales/operations/adjustments/[id]/decide/route.ts,POST,true,true,true,
-api/sales/operations/adjustments/route.ts,POST,true,true,true,
-api/sales/operations/advances/[id]/cancel/route.ts,POST,true,true,true,
-api/sales/operations/advances/route.ts,POST,true,true,true,
-api/sales/operations/commission-rules/route.ts,POST,true,true,true,
-api/sales/operations/commissions/[id]/approve/route.ts,POST,true,true,true,
-api/sales/operations/commissions/route.ts,POST,true,true,true,
-api/sales/operations/drop-ships/[id]/status/route.ts,POST,true,true,true,
-api/sales/operations/drop-ships/route.ts,POST,true,true,true,
-api/sales/order-lines/[lineId]/promise/route.ts,POST,true,true,true,
-api/sales/orders/[id]/amend/impact/route.ts,POST,true,true,true,
-api/sales/orders/[id]/amend/route.ts,POST,true,true,true,
-api/sales/orders/[id]/approve/route.ts,POST,true,true,true,
-api/sales/orders/[id]/availability/route.ts,POST,true,true,true,
-api/sales/orders/[id]/cancel/route.ts,POST,true,true,true,
-api/sales/orders/[id]/close/route.ts,POST,true,true,true,
-api/sales/orders/[id]/confirm/route.ts,POST,true,true,true,
-api/sales/orders/[id]/fulfillment-request/route.ts,POST,true,true,true,
-api/sales/orders/[id]/hold/release/route.ts,POST,true,true,true,
-api/sales/orders/[id]/hold/route.ts,POST,true,true,true,
-api/sales/orders/[id]/invoice-request/route.ts,POST,true,true,true,
-api/sales/orders/[id]/reject-approval/route.ts,POST,true,true,true,
-api/sales/orders/[id]/reservations/release/route.ts,POST,true,true,true,
-api/sales/orders/[id]/reserve/route.ts,POST,true,true,true,
-api/sales/orders/[id]/returns/route.ts,POST,true,true,true,
-api/sales/orders/[id]/submit/route.ts,POST,true,true,true,
-api/sales/orders/route.ts,POST,true,true,true,
-api/sales/price-list-items/[id]/route.ts,DELETE,true,true,false,
-api/sales/price-lists/[id]/items/route.ts,POST,true,true,false,
-api/sales/price-lists/route.ts,POST,true,true,false,
-api/sales/public/quotes/[token]/decision/route.ts,POST,false,false,false,"Public by design (a customer accepting or declining the quotation link a salesperson sent them) -- access control is the opaque per-link token, never a session: 32 random bytes (base64url), only its SHA-256 stored, so the URL is the credential and cannot be derived from any id. The domain function (recordPublicQuoteDecision -> resolvePublicQuoteToken) refuses an expired or revoked link, a quotation revised since the link was sent, a lapsed valid-until, and any second decision; the body is Zod-validated and IP/user-agent are recorded as evidence. Same token-based model as the CRM public booking routes above."
-api/sales/quotations/[id]/approve/route.ts,POST,true,true,true,
-api/sales/quotations/[id]/convert/route.ts,POST,true,true,true,
-api/sales/quotations/[id]/reject-approval/route.ts,POST,true,true,true,
-api/sales/quotations/[id]/revise/route.ts,POST,true,true,true,
-api/sales/quotations/[id]/send/route.ts,POST,true,true,true,
-api/sales/quotations/[id]/submit/route.ts,POST,true,true,true,
-api/sales/quotations/route.ts,POST,true,true,true,
-api/sales/quotations/scan-expired/route.ts,POST,true,true,true,
-api/sales/returns/[id]/decide/route.ts,POST,true,true,true,
-api/sales/returns/[id]/receive/route.ts,POST,true,true,true,
-api/sales/settings/route.ts,PUT,true,true,true,
-api/settings/ai-governance/route.ts,PUT,true,true,true,
-api/settings/automations/[id]/route.ts,PATCH,true,true,true,
-api/settings/automations/[id]/status/route.ts,POST,true,true,true,
-api/settings/automations/route.ts,POST,true,true,true,
-api/settings/branches/[id]/route.ts,PUT,true,true,true,
-api/settings/branches/route.ts,POST,true,true,true,
-api/settings/companies/[id]/route.ts,PUT,true,true,true,
-api/settings/companies/route.ts,POST,true,true,true,
-api/settings/feature-configuration/cancel/route.ts,POST,true,true,true,
-api/settings/feature-configuration/route.ts,PUT,true,true,true,
-api/settings/integrations/api-keys/[id]/revoke/route.ts,POST,true,true,true,
-api/settings/integrations/developer-apps/[id]/keys/route.ts,POST,true,true,true,
-api/settings/integrations/developer-apps/[id]/revoke/route.ts,POST,true,true,true,
-api/settings/integrations/developer-apps/[id]/route.ts,PATCH,true,true,true,
-api/settings/integrations/developer-apps/route.ts,POST,true,true,true,
-api/settings/integrations/inbound-mail/[id]/status/route.ts,POST,true,true,true,
-api/settings/integrations/inbound-mail/route.ts,POST,true,true,true,
-api/settings/integrations/oauth/[id]/revoke/route.ts,POST,true,true,true,
-api/settings/integrations/oauth/connect/route.ts,POST,true,true,true,
-api/settings/integrations/webhook-deliveries/[id]/redeliver/route.ts,POST,true,true,true,
-api/settings/integrations/webhooks/[id]/rotate-secret/route.ts,POST,true,true,true,
-api/settings/integrations/webhooks/[id]/route.ts,PATCH,true,true,true,
-api/settings/integrations/webhooks/route.ts,POST,true,true,true,
-api/settings/modules/[key]/route.ts,PUT,true,true,true,
-api/settings/notification-preferences/route.ts,PUT,true,true,true,
-api/settings/numbering/advance/route.ts,POST,true,true,true,
-api/settings/numbering/route.ts,PUT,true,true,true,
-api/settings/organization/profile/route.ts,PUT,true,true,true,
-api/settings/organization/security/route.ts,PUT,true,true,true,
-api/settings/roles/[id]/route.ts,"PUT,DELETE",true,true,true,
-api/settings/roles/route.ts,POST,true,true,true,
-api/settings/sessions/[id]/route.ts,DELETE,true,true,false,
-api/settings/sessions/route.ts,DELETE,true,true,false,
-api/settings/users/[id]/access/route.ts,PUT,true,true,true,
-api/settings/users/[id]/roles/route.ts,PUT,true,true,true,
-api/settings/users/[id]/status/route.ts,PUT,true,true,true,
-api/support/actions/[action]/route.ts,POST,true,true,true,
-api/support/tickets/[ticketId]/attachments/route.ts,POST,true,true,false,
-api/test-support/email-capture/route.ts,POST,false,false,false,"Dev/test-only capture adapter, hard-blocked by NODE_ENV and an explicit opt-in flag inside the route itself — never reachable in production regardless of any check here."
-api/workspace/context/route.ts,PATCH,true,true,true,
+route,method,class,via,module,permission,billing_write,self_service,origin_check,protection
+api/accounting/actions/[action]/route.ts,POST,WORKSPACE_MODULE,accountingMutation,accounting,accounting.view (helper default; route may narrow),true,false,true,session + organisation context + Shared Access authorize()
+api/accounting/view/[kind]/route.ts,GET,WORKSPACE_MODULE,accountingRead,accounting,accounting.view (helper default; route may narrow),false,false,false,session + organisation context + Shared Access authorize()
+api/approvals/[id]/decide/route.ts,POST,WORKSPACE_PLATFORM,workspaceRoute,,,false,false,true,Only an assigned approver of an accessible module; segregation of duties in decideApproval; denials audited.
+api/approvals/route.ts,GET,WORKSPACE_PLATFORM,workspaceRoute,,,false,false,false,Approval inbox limited to steps assigned to the caller in accessible modules.
+api/assets/actions/[action]/route.ts,POST,WORKSPACE_MODULE,assetsMutation,assets,assets.view (helper default; route may narrow),true,false,true,session + organisation context + Shared Access authorize()
+api/assets/view/[kind]/route.ts,GET,WORKSPACE_MODULE,assetsRead,assets,assets.view (helper default; route may narrow),false,false,false,session + organisation context + Shared Access authorize()
+api/auth/forgot-password/route.ts,POST,PUBLIC_AUTH,explicit,,,false,false,true,Account-enumeration-safe identical response; same-origin; rate limited.
+api/auth/invitations/[token]/accept/route.ts,POST,PUBLIC_AUTH,explicit,,,false,false,true,Hashed invitation token; an existing account must also hold a matching session; same-origin.
+api/auth/invitations/[token]/route.ts,GET,PUBLIC_AUTH,explicit,,,false,false,false,Read-only lookup by hashed invitation token through a narrow definer function.
+api/auth/invitations/manage/[id]/resend/route.ts,POST,WORKSPACE_PLATFORM,workspaceRoute,,CORE_PERMISSIONS.usersManage,false,false,true,session + organisation context + Shared Access authorize()
+api/auth/invitations/manage/[id]/revoke/route.ts,POST,WORKSPACE_PLATFORM,workspaceRoute,,CORE_PERMISSIONS.usersManage,false,false,true,session + organisation context + Shared Access authorize()
+api/auth/invitations/route.ts,GET,WORKSPACE_PLATFORM,workspaceRoute,,CORE_PERMISSIONS.usersManage,false,false,false,session + organisation context + Shared Access authorize()
+api/auth/invitations/route.ts,POST,WORKSPACE_PLATFORM,workspaceRoute,,CORE_PERMISSIONS.usersManage,false,false,true,session + organisation context + Shared Access authorize()
+api/auth/login/route.ts,POST,PUBLIC_AUTH,explicit,,,false,false,true,"Credentials are the authentication; same-origin, rate limited per IP and account, lockout, MFA challenge before a full session."
+api/auth/logout/route.ts,POST,PUBLIC_AUTH,explicit,,,false,false,true,Reads the session cookie directly so logout works for any session state; idempotent; same-origin.
+api/auth/mfa/disable/route.ts,POST,SELF_SERVICE,requireApiUser + sessionTransaction,,,false,false,true,the caller's own account; user + organisation context from the session
+api/auth/mfa/enroll/confirm/route.ts,POST,SELF_SERVICE,requireApiUser + sessionTransaction,,,false,false,true,the caller's own account; user + organisation context from the session
+api/auth/mfa/enroll/start/route.ts,POST,SELF_SERVICE,requireApiUser + sessionTransaction,,,false,false,true,the caller's own account; user + organisation context from the session
+api/auth/mfa/recovery-codes/regenerate/route.ts,POST,SELF_SERVICE,requireApiUser + sessionTransaction,,,false,false,true,the caller's own account; user + organisation context from the session
+api/auth/mfa/verify/route.ts,POST,SELF_SERVICE,requireApiUser + sessionTransaction,,,false,false,true,the caller's own account; user + organisation context from the session
+api/auth/register/route.ts,POST,PUBLIC_AUTH,explicit,,,false,false,true,"Self-serve account creation; same-origin, rate limited per IP, no session exists yet."
+api/auth/resend-verification/route.ts,POST,PUBLIC_AUTH,explicit,,,false,false,true,Signed-in but unverified user; same-origin; rate limited.
+api/auth/reset-password/route.ts,POST,PUBLIC_AUTH,explicit,,,false,false,true,Single-use hashed reset token is the credential; same-origin.
+api/auth/verify-email/route.ts,POST,PUBLIC_AUTH,explicit,,,false,false,true,Single-use hashed verification token (mailbox control) is the credential; same-origin.
+api/billing/cancel/route.ts,POST,WORKSPACE_PLATFORM,workspaceRoute,,BILLING_PERMISSIONS.manage,false,false,true,session + organisation context + Shared Access authorize()
+api/billing/checkout/route.ts,POST,WORKSPACE_PLATFORM,workspaceRoute,,BILLING_PERMISSIONS.checkout,false,false,true,session + organisation context + Shared Access authorize()
+api/billing/health/route.ts,GET,WORKSPACE_PLATFORM,workspaceRoute,,BILLING_PERMISSIONS.audit,false,false,false,session + organisation context + Shared Access authorize()
+api/billing/plans/route.ts,GET,WORKSPACE_PLATFORM,workspaceRoute,,BILLING_PERMISSIONS.view,false,false,false,session + organisation context + Shared Access authorize()
+api/billing/profile/route.ts,PATCH,WORKSPACE_PLATFORM,workspaceRoute,,BILLING_PERMISSIONS.manage,false,false,true,session + organisation context + Shared Access authorize()
+api/billing/seats/route.ts,POST,WORKSPACE_PLATFORM,workspaceRoute,,BILLING_PERMISSIONS.manage,false,false,true,session + organisation context + Shared Access authorize()
+api/billing/summary/route.ts,GET,WORKSPACE_PLATFORM,workspaceRoute,,BILLING_PERMISSIONS.view,false,false,false,session + organisation context + Shared Access authorize()
+api/billing/sync/route.ts,POST,WORKSPACE_PLATFORM,workspaceRoute,,BILLING_PERMISSIONS.manage,false,false,true,session + organisation context + Shared Access authorize()
+api/billing/verify/route.ts,POST,WORKSPACE_PLATFORM,workspaceRoute,,BILLING_PERMISSIONS.checkout,false,false,true,session + organisation context + Shared Access authorize()
+api/billing/webhook/route.ts,POST,WEBHOOK,explicit,,,false,false,false,"HMAC-SHA256 over the exact raw body (previous secret accepted during rotation), size-limited; stores the event, the worker applies it."
+api/crm/[resource]/[id]/route.ts,GET,WORKSPACE_MODULE,workspaceRoute,crm,(module view permission),false,false,false,session + organisation context + Shared Access authorize()
+api/crm/[resource]/[id]/route.ts,PATCH,WORKSPACE_MODULE,workspaceRoute,crm,(checked in handler),true,false,true,session + organisation context + Shared Access authorize()
+api/crm/[resource]/[id]/route.ts,DELETE,WORKSPACE_MODULE,workspaceRoute,crm,(checked in handler),true,false,true,session + organisation context + Shared Access authorize()
+api/crm/[resource]/route.ts,GET,WORKSPACE_MODULE,workspaceRoute,crm,(module view permission),false,false,false,session + organisation context + Shared Access authorize()
+api/crm/[resource]/route.ts,POST,WORKSPACE_MODULE,workspaceRoute,crm,(checked in handler),true,false,true,session + organisation context + Shared Access authorize()
+api/crm/accounts/[id]/contact-relationships/route.ts,GET,WORKSPACE_MODULE,workspaceRoute,crm,(module view permission),false,false,false,session + organisation context + Shared Access authorize()
+api/crm/accounts/[id]/customer-360/route.ts,GET,WORKSPACE_MODULE,workspaceRoute,crm,(module view permission),false,false,false,session + organisation context + Shared Access authorize()
+api/crm/accounts/[id]/hierarchy/route.ts,GET,WORKSPACE_MODULE,workspaceRoute,crm,(module view permission),false,false,false,session + organisation context + Shared Access authorize()
+api/crm/accounts/[id]/hierarchy/route.ts,PATCH,WORKSPACE_MODULE,workspaceRoute,crm,CRM_PERMISSIONS.accountsManage,true,false,true,session + organisation context + Shared Access authorize()
+api/crm/accounts/[id]/route.ts,GET,WORKSPACE_MODULE,workspaceRoute,crm,(module view permission),false,false,false,session + organisation context + Shared Access authorize()
+api/crm/accounts/[id]/route.ts,PATCH,WORKSPACE_MODULE,workspaceRoute,crm,CRM_PERMISSIONS.accountsManage,true,false,true,session + organisation context + Shared Access authorize()
+api/crm/accounts/[id]/route.ts,DELETE,WORKSPACE_MODULE,workspaceRoute,crm,CRM_PERMISSIONS.accountsManage,true,false,true,session + organisation context + Shared Access authorize()
+api/crm/accounts/duplicates/route.ts,POST,WORKSPACE_MODULE,workspaceRoute,crm,(module view permission),false,false,true,session + organisation context + Shared Access authorize()
+api/crm/accounts/merge/preview/route.ts,POST,WORKSPACE_MODULE,workspaceRoute,crm,(module view permission),false,false,true,session + organisation context + Shared Access authorize()
+api/crm/accounts/merge/route.ts,POST,WORKSPACE_MODULE,workspaceRoute,crm,CRM_PERMISSIONS.accountsManage,true,false,true,session + organisation context + Shared Access authorize()
+api/crm/accounts/route.ts,GET,WORKSPACE_MODULE,workspaceRoute,crm,(module view permission),false,false,false,session + organisation context + Shared Access authorize()
+api/crm/accounts/route.ts,POST,WORKSPACE_MODULE,workspaceRoute,crm,CRM_PERMISSIONS.accountsManage,true,false,true,session + organisation context + Shared Access authorize()
+api/crm/attachments/[entityType]/[entityId]/[id]/download/route.ts,GET,WORKSPACE_MODULE,workspaceRoute,crm,(module view permission),false,false,false,session + organisation context + Shared Access authorize()
+api/crm/attachments/[entityType]/[entityId]/[id]/route.ts,DELETE,WORKSPACE_MODULE,workspaceRoute,crm,(module view permission),true,false,true,session + organisation context + Shared Access authorize()
+api/crm/attachments/[entityType]/[entityId]/[id]/versions/route.ts,GET,WORKSPACE_MODULE,workspaceRoute,crm,(module view permission),false,false,false,session + organisation context + Shared Access authorize()
+api/crm/attachments/[entityType]/[entityId]/route.ts,GET,WORKSPACE_MODULE,workspaceRoute,crm,(module view permission),false,false,false,session + organisation context + Shared Access authorize()
+api/crm/attachments/[entityType]/[entityId]/route.ts,POST,WORKSPACE_MODULE,workspaceRoute,crm,(module view permission),true,false,true,session + organisation context + Shared Access authorize()
+api/crm/calls/[id]/cancel/route.ts,POST,WORKSPACE_MODULE,workspaceRoute,crm,CRM_PERMISSIONS.activitiesManage,true,false,true,session + organisation context + Shared Access authorize()
+api/crm/calls/[id]/complete/route.ts,POST,WORKSPACE_MODULE,workspaceRoute,crm,CRM_PERMISSIONS.activitiesManage,true,false,true,session + organisation context + Shared Access authorize()
+api/crm/calls/[id]/events/route.ts,GET,WORKSPACE_MODULE,workspaceRoute,crm,CRM_PERMISSIONS.activitiesManage,false,false,false,session + organisation context + Shared Access authorize()
+api/crm/calls/[id]/route.ts,GET,WORKSPACE_MODULE,workspaceRoute,crm,CRM_PERMISSIONS.activitiesManage,false,false,false,session + organisation context + Shared Access authorize()
+api/crm/calls/[id]/route.ts,PATCH,WORKSPACE_MODULE,workspaceRoute,crm,CRM_PERMISSIONS.activitiesManage,true,false,true,session + organisation context + Shared Access authorize()
+api/crm/calls/[id]/start/route.ts,POST,WORKSPACE_MODULE,workspaceRoute,crm,CRM_PERMISSIONS.activitiesManage,true,false,true,session + organisation context + Shared Access authorize()
+api/crm/calls/route.ts,GET,WORKSPACE_MODULE,workspaceRoute,crm,CRM_PERMISSIONS.activitiesManage,false,false,false,session + organisation context + Shared Access authorize()
+api/crm/calls/route.ts,POST,WORKSPACE_MODULE,workspaceRoute,crm,CRM_PERMISSIONS.activitiesManage,true,false,true,session + organisation context + Shared Access authorize()
+api/crm/contacts/[id]/opportunity-roles/route.ts,GET,WORKSPACE_MODULE,workspaceRoute,crm,(module view permission),false,false,false,session + organisation context + Shared Access authorize()
+api/crm/contacts/[id]/reactivate/route.ts,POST,WORKSPACE_MODULE,workspaceRoute,crm,CRM_PERMISSIONS.accountsManage,true,false,true,session + organisation context + Shared Access authorize()
+api/crm/contacts/[id]/relationships/[relationshipId]/primary/route.ts,POST,WORKSPACE_MODULE,workspaceRoute,crm,CRM_PERMISSIONS.accountsManage,true,false,true,session + organisation context + Shared Access authorize()
+api/crm/contacts/[id]/relationships/[relationshipId]/route.ts,PATCH,WORKSPACE_MODULE,workspaceRoute,crm,CRM_PERMISSIONS.accountsManage,true,false,true,session + organisation context + Shared Access authorize()
+api/crm/contacts/[id]/relationships/[relationshipId]/route.ts,DELETE,WORKSPACE_MODULE,workspaceRoute,crm,CRM_PERMISSIONS.accountsManage,true,false,true,session + organisation context + Shared Access authorize()
+api/crm/contacts/[id]/relationships/route.ts,GET,WORKSPACE_MODULE,workspaceRoute,crm,(module view permission),false,false,false,session + organisation context + Shared Access authorize()
+api/crm/contacts/[id]/relationships/route.ts,POST,WORKSPACE_MODULE,workspaceRoute,crm,CRM_PERMISSIONS.accountsManage,true,false,true,session + organisation context + Shared Access authorize()
+api/crm/contacts/[id]/route.ts,GET,WORKSPACE_MODULE,workspaceRoute,crm,(module view permission),false,false,false,session + organisation context + Shared Access authorize()
+api/crm/contacts/[id]/route.ts,PATCH,WORKSPACE_MODULE,workspaceRoute,crm,CRM_PERMISSIONS.accountsManage,true,false,true,session + organisation context + Shared Access authorize()
+api/crm/contacts/[id]/route.ts,DELETE,WORKSPACE_MODULE,workspaceRoute,crm,CRM_PERMISSIONS.accountsManage,true,false,true,session + organisation context + Shared Access authorize()
+api/crm/contacts/duplicates/route.ts,POST,WORKSPACE_MODULE,workspaceRoute,crm,(module view permission),false,false,true,session + organisation context + Shared Access authorize()
+api/crm/contacts/merge/preview/route.ts,POST,WORKSPACE_MODULE,workspaceRoute,crm,(module view permission),false,false,true,session + organisation context + Shared Access authorize()
+api/crm/contacts/merge/route.ts,POST,WORKSPACE_MODULE,workspaceRoute,crm,CRM_PERMISSIONS.accountsManage,true,false,true,session + organisation context + Shared Access authorize()
+api/crm/contacts/route.ts,GET,WORKSPACE_MODULE,workspaceRoute,crm,(module view permission),false,false,false,session + organisation context + Shared Access authorize()
+api/crm/contacts/route.ts,POST,WORKSPACE_MODULE,workspaceRoute,crm,CRM_PERMISSIONS.accountsManage,true,false,true,session + organisation context + Shared Access authorize()
+api/crm/custom-fields/definitions/[entityType]/route.ts,GET,WORKSPACE_MODULE,workspaceRoute,crm,(module view permission),false,false,false,session + organisation context + Shared Access authorize()
+api/crm/custom-fields/definitions/[entityType]/route.ts,POST,WORKSPACE_MODULE,workspaceRoute,crm,CRM_PERMISSIONS.settingsManage,true,false,true,session + organisation context + Shared Access authorize()
+api/crm/custom-fields/definitions/by-id/[id]/active/route.ts,POST,WORKSPACE_MODULE,workspaceRoute,crm,CRM_PERMISSIONS.settingsManage,true,false,true,session + organisation context + Shared Access authorize()
+api/crm/custom-fields/values/[entityType]/[entityId]/history/route.ts,GET,WORKSPACE_MODULE,workspaceRoute,crm,(module view permission),false,false,false,session + organisation context + Shared Access authorize()
+api/crm/custom-fields/values/[entityType]/[entityId]/route.ts,GET,WORKSPACE_MODULE,workspaceRoute,crm,(module view permission),false,false,false,session + organisation context + Shared Access authorize()
+api/crm/custom-fields/values/[entityType]/[entityId]/route.ts,PATCH,WORKSPACE_MODULE,workspaceRoute,crm,(module view permission),true,false,true,session + organisation context + Shared Access authorize()
+api/crm/dashboard/route.ts,GET,WORKSPACE_MODULE,workspaceRoute,crm,(module view permission),false,false,false,session + organisation context + Shared Access authorize()
+api/crm/duplicate-rules/[id]/status/route.ts,POST,WORKSPACE_MODULE,workspaceRoute,crm,CRM_PERMISSIONS.dataQualityManage,true,false,true,session + organisation context + Shared Access authorize()
+api/crm/duplicate-rules/route.ts,GET,WORKSPACE_MODULE,workspaceRoute,crm,CRM_PERMISSIONS.dataQualityManage,false,false,false,session + organisation context + Shared Access authorize()
+api/crm/duplicate-rules/route.ts,POST,WORKSPACE_MODULE,workspaceRoute,crm,CRM_PERMISSIONS.dataQualityManage,true,false,true,session + organisation context + Shared Access authorize()
+api/crm/duplicate-scan/[jobId]/matches/route.ts,GET,WORKSPACE_MODULE,workspaceRoute,crm,CRM_PERMISSIONS.dataQualityManage,false,false,false,session + organisation context + Shared Access authorize()
+api/crm/duplicate-scan/[jobId]/route.ts,GET,WORKSPACE_MODULE,workspaceRoute,crm,CRM_PERMISSIONS.dataQualityManage,false,false,false,session + organisation context + Shared Access authorize()
+api/crm/duplicate-scan/route.ts,GET,WORKSPACE_MODULE,workspaceRoute,crm,CRM_PERMISSIONS.dataQualityManage,false,false,false,session + organisation context + Shared Access authorize()
+api/crm/duplicate-scan/route.ts,POST,WORKSPACE_MODULE,workspaceRoute,crm,CRM_PERMISSIONS.dataQualityManage,true,false,true,session + organisation context + Shared Access authorize()
+api/crm/email-history/route.ts,GET,WORKSPACE_MODULE,workspaceRoute,crm,(module view permission),false,false,false,session + organisation context + Shared Access authorize()
+api/crm/email-threads/[id]/route.ts,GET,WORKSPACE_MODULE,workspaceRoute,crm,(module view permission),false,false,false,session + organisation context + Shared Access authorize()
+api/crm/follow-ups/[id]/cancel/route.ts,POST,WORKSPACE_MODULE,workspaceRoute,crm,CRM_PERMISSIONS.activitiesManage,true,false,true,session + organisation context + Shared Access authorize()
+api/crm/follow-ups/[id]/complete/route.ts,POST,WORKSPACE_MODULE,workspaceRoute,crm,CRM_PERMISSIONS.activitiesManage,true,false,true,session + organisation context + Shared Access authorize()
+api/crm/follow-ups/[id]/history/route.ts,GET,WORKSPACE_MODULE,workspaceRoute,crm,CRM_PERMISSIONS.activitiesManage,false,false,false,session + organisation context + Shared Access authorize()
+api/crm/follow-ups/[id]/reminders/[reminderId]/acknowledge/route.ts,POST,WORKSPACE_MODULE,workspaceRoute,crm,CRM_PERMISSIONS.activitiesManage,true,false,true,session + organisation context + Shared Access authorize()
+api/crm/follow-ups/[id]/reminders/route.ts,GET,WORKSPACE_MODULE,workspaceRoute,crm,CRM_PERMISSIONS.activitiesManage,false,false,false,session + organisation context + Shared Access authorize()
+api/crm/follow-ups/[id]/route.ts,GET,WORKSPACE_MODULE,workspaceRoute,crm,CRM_PERMISSIONS.activitiesManage,false,false,false,session + organisation context + Shared Access authorize()
+api/crm/follow-ups/[id]/route.ts,PATCH,WORKSPACE_MODULE,workspaceRoute,crm,CRM_PERMISSIONS.activitiesManage,true,false,true,session + organisation context + Shared Access authorize()
+api/crm/follow-ups/[id]/snooze/route.ts,POST,WORKSPACE_MODULE,workspaceRoute,crm,CRM_PERMISSIONS.activitiesManage,true,false,true,session + organisation context + Shared Access authorize()
+api/crm/follow-ups/route.ts,GET,WORKSPACE_MODULE,workspaceRoute,crm,CRM_PERMISSIONS.activitiesManage,false,false,false,session + organisation context + Shared Access authorize()
+api/crm/follow-ups/route.ts,POST,WORKSPACE_MODULE,workspaceRoute,crm,CRM_PERMISSIONS.activitiesManage,true,false,true,session + organisation context + Shared Access authorize()
+api/crm/forecast/calibration/route.ts,GET,WORKSPACE_MODULE,workspaceRoute,crm,CRM_PERMISSIONS.opportunitiesManage,false,false,false,session + organisation context + Shared Access authorize()
+api/crm/forecast/predictive-snapshot/route.ts,POST,WORKSPACE_MODULE,workspaceRoute,crm,CRM_PERMISSIONS.opportunitiesManage,true,false,true,session + organisation context + Shared Access authorize()
+api/crm/lead-assignee-availability/[id]/route.ts,DELETE,WORKSPACE_MODULE,workspaceRoute,crm,CRM_PERMISSIONS.settingsManage,true,false,true,session + organisation context + Shared Access authorize()
+api/crm/lead-assignee-availability/route.ts,GET,WORKSPACE_MODULE,workspaceRoute,crm,CRM_PERMISSIONS.settingsManage,false,false,false,session + organisation context + Shared Access authorize()
+api/crm/lead-assignee-availability/route.ts,POST,WORKSPACE_MODULE,workspaceRoute,crm,CRM_PERMISSIONS.settingsManage,true,false,true,session + organisation context + Shared Access authorize()
+api/crm/lead-assignment-fallback/route.ts,GET,WORKSPACE_MODULE,workspaceRoute,crm,CRM_PERMISSIONS.settingsManage,false,false,false,session + organisation context + Shared Access authorize()
+api/crm/lead-assignment-fallback/route.ts,POST,WORKSPACE_MODULE,workspaceRoute,crm,CRM_PERMISSIONS.settingsManage,true,false,true,session + organisation context + Shared Access authorize()
+api/crm/lead-assignment-policies/[id]/explain/route.ts,GET,WORKSPACE_MODULE,workspaceRoute,crm,CRM_PERMISSIONS.settingsManage,false,false,false,session + organisation context + Shared Access authorize()
+api/crm/lead-assignment-policies/[id]/route.ts,POST,WORKSPACE_MODULE,workspaceRoute,crm,CRM_PERMISSIONS.settingsManage,true,false,true,session + organisation context + Shared Access authorize()
+api/crm/lead-assignment-policies/[id]/route.ts,PATCH,WORKSPACE_MODULE,workspaceRoute,crm,CRM_PERMISSIONS.settingsManage,true,false,true,session + organisation context + Shared Access authorize()
+api/crm/lead-assignment-policies/[id]/route.ts,DELETE,WORKSPACE_MODULE,workspaceRoute,crm,CRM_PERMISSIONS.settingsManage,true,false,true,session + organisation context + Shared Access authorize()
+api/crm/lead-assignment-policies/route.ts,GET,WORKSPACE_MODULE,workspaceRoute,crm,CRM_PERMISSIONS.settingsManage,false,false,false,session + organisation context + Shared Access authorize()
+api/crm/lead-assignment-policies/route.ts,POST,WORKSPACE_MODULE,workspaceRoute,crm,CRM_PERMISSIONS.settingsManage,true,false,true,session + organisation context + Shared Access authorize()
+api/crm/lead-scoring-models/[id]/activate/route.ts,POST,WORKSPACE_MODULE,workspaceRoute,crm,(module view permission),true,false,true,session + organisation context + Shared Access authorize()
+api/crm/lead-scoring-models/[id]/route.ts,PATCH,WORKSPACE_MODULE,workspaceRoute,crm,(module view permission),true,false,true,session + organisation context + Shared Access authorize()
+api/crm/lead-scoring-models/[id]/rules/[ruleId]/status/route.ts,POST,WORKSPACE_MODULE,workspaceRoute,crm,(module view permission),true,false,true,session + organisation context + Shared Access authorize()
+api/crm/lead-scoring-models/[id]/rules/route.ts,POST,WORKSPACE_MODULE,workspaceRoute,crm,(module view permission),true,false,true,session + organisation context + Shared Access authorize()
+api/crm/lead-scoring-models/[id]/train/route.ts,POST,WORKSPACE_MODULE,workspaceRoute,crm,(module view permission),true,false,true,session + organisation context + Shared Access authorize()
+api/crm/lead-scoring-models/route.ts,GET,WORKSPACE_MODULE,workspaceRoute,crm,(module view permission),false,false,false,session + organisation context + Shared Access authorize()
+api/crm/lead-scoring-models/route.ts,POST,WORKSPACE_MODULE,workspaceRoute,crm,(module view permission),true,false,true,session + organisation context + Shared Access authorize()
+api/crm/lead-sources/[id]/active/route.ts,POST,WORKSPACE_MODULE,workspaceRoute,crm,CRM_PERMISSIONS.settingsManage,true,false,true,session + organisation context + Shared Access authorize()
+api/crm/lead-sources/[id]/route.ts,PATCH,WORKSPACE_MODULE,workspaceRoute,crm,CRM_PERMISSIONS.settingsManage,true,false,true,session + organisation context + Shared Access authorize()
+api/crm/lead-sources/route.ts,GET,WORKSPACE_MODULE,workspaceRoute,crm,(module view permission),false,false,false,session + organisation context + Shared Access authorize()
+api/crm/lead-sources/route.ts,POST,WORKSPACE_MODULE,workspaceRoute,crm,CRM_PERMISSIONS.settingsManage,true,false,true,session + organisation context + Shared Access authorize()
+api/crm/lead-stage-transition-reasons/[id]/active/route.ts,POST,WORKSPACE_MODULE,workspaceRoute,crm,CRM_PERMISSIONS.settingsManage,true,false,true,session + organisation context + Shared Access authorize()
+api/crm/lead-stage-transition-reasons/route.ts,GET,WORKSPACE_MODULE,workspaceRoute,crm,(module view permission),false,false,false,session + organisation context + Shared Access authorize()
+api/crm/lead-stage-transition-reasons/route.ts,POST,WORKSPACE_MODULE,workspaceRoute,crm,CRM_PERMISSIONS.settingsManage,true,false,true,session + organisation context + Shared Access authorize()
+api/crm/lead-stage-transitions/[fromId]/[toId]/route.ts,DELETE,WORKSPACE_MODULE,workspaceRoute,crm,CRM_PERMISSIONS.settingsManage,true,false,true,session + organisation context + Shared Access authorize()
+api/crm/lead-stage-transitions/route.ts,GET,WORKSPACE_MODULE,workspaceRoute,crm,(module view permission),false,false,false,session + organisation context + Shared Access authorize()
+api/crm/lead-stage-transitions/route.ts,POST,WORKSPACE_MODULE,workspaceRoute,crm,CRM_PERMISSIONS.settingsManage,true,false,true,session + organisation context + Shared Access authorize()
+api/crm/lead-stages/[id]/deactivate/route.ts,POST,WORKSPACE_MODULE,workspaceRoute,crm,CRM_PERMISSIONS.settingsManage,true,false,true,session + organisation context + Shared Access authorize()
+api/crm/lead-stages/[id]/reactivate/route.ts,POST,WORKSPACE_MODULE,workspaceRoute,crm,CRM_PERMISSIONS.settingsManage,true,false,true,session + organisation context + Shared Access authorize()
+api/crm/lead-stages/[id]/route.ts,PATCH,WORKSPACE_MODULE,workspaceRoute,crm,CRM_PERMISSIONS.settingsManage,true,false,true,session + organisation context + Shared Access authorize()
+api/crm/lead-stages/recommended-template/route.ts,GET,WORKSPACE_MODULE,workspaceRoute,crm,CRM_PERMISSIONS.settingsManage,false,false,false,session + organisation context + Shared Access authorize()
+api/crm/lead-stages/recommended-template/route.ts,POST,WORKSPACE_MODULE,workspaceRoute,crm,CRM_PERMISSIONS.settingsManage,true,false,true,session + organisation context + Shared Access authorize()
+api/crm/lead-stages/route.ts,GET,WORKSPACE_MODULE,workspaceRoute,crm,(module view permission),false,false,false,session + organisation context + Shared Access authorize()
+api/crm/lead-stages/route.ts,POST,WORKSPACE_MODULE,workspaceRoute,crm,CRM_PERMISSIONS.settingsManage,true,false,true,session + organisation context + Shared Access authorize()
+api/crm/leads/[id]/assign/route.ts,POST,WORKSPACE_MODULE,workspaceRoute,crm,(module view permission),true,false,true,session + organisation context + Shared Access authorize()
+api/crm/leads/[id]/attribution/route.ts,GET,WORKSPACE_MODULE,workspaceRoute,crm,(module view permission),false,false,false,session + organisation context + Shared Access authorize()
+api/crm/leads/[id]/convert/preview/route.ts,GET,WORKSPACE_MODULE,workspaceRoute,crm,CRM_PERMISSIONS.leadsManage,false,false,false,session + organisation context + Shared Access authorize()
+api/crm/leads/[id]/convert/route.ts,POST,WORKSPACE_MODULE,workspaceRoute,crm,CRM_PERMISSIONS.leadsManage,true,false,true,session + organisation context + Shared Access authorize()
+api/crm/leads/[id]/duplicates/dismiss/route.ts,POST,WORKSPACE_MODULE,workspaceRoute,crm,(module view permission),true,false,true,session + organisation context + Shared Access authorize()
+api/crm/leads/[id]/follow-up/route.ts,POST,WORKSPACE_MODULE,workspaceRoute,crm,(checked in handler),true,false,true,session + organisation context + Shared Access authorize()
+api/crm/leads/[id]/merge/route.ts,POST,WORKSPACE_MODULE,workspaceRoute,crm,CRM_PERMISSIONS.dataQualityManage,true,false,true,session + organisation context + Shared Access authorize()
+api/crm/leads/[id]/qualification/route.ts,GET,WORKSPACE_MODULE,workspaceRoute,crm,(module view permission),false,false,false,session + organisation context + Shared Access authorize()
+api/crm/leads/[id]/qualification/route.ts,POST,WORKSPACE_MODULE,workspaceRoute,crm,(module view permission),true,false,true,session + organisation context + Shared Access authorize()
+api/crm/leads/[id]/score/route.ts,GET,WORKSPACE_MODULE,workspaceRoute,crm,(module view permission),false,false,false,session + organisation context + Shared Access authorize()
+api/crm/leads/[id]/score/route.ts,POST,WORKSPACE_MODULE,workspaceRoute,crm,(module view permission),true,false,true,session + organisation context + Shared Access authorize()
+api/crm/leads/[id]/stage/reasons/route.ts,GET,WORKSPACE_MODULE,workspaceRoute,crm,(module view permission),false,false,false,session + organisation context + Shared Access authorize()
+api/crm/leads/[id]/stage/route.ts,GET,WORKSPACE_MODULE,workspaceRoute,crm,(module view permission),false,false,false,session + organisation context + Shared Access authorize()
+api/crm/leads/[id]/stage/route.ts,POST,WORKSPACE_MODULE,workspaceRoute,crm,CRM_PERMISSIONS.leadsManage,true,false,true,session + organisation context + Shared Access authorize()
+api/crm/leads/[id]/tags/[tagId]/route.ts,DELETE,WORKSPACE_MODULE,workspaceRoute,crm,(module view permission),true,false,true,session + organisation context + Shared Access authorize()
+api/crm/leads/[id]/tags/route.ts,GET,WORKSPACE_MODULE,workspaceRoute,crm,(module view permission),false,false,false,session + organisation context + Shared Access authorize()
+api/crm/leads/[id]/tags/route.ts,POST,WORKSPACE_MODULE,workspaceRoute,crm,(module view permission),true,false,true,session + organisation context + Shared Access authorize()
+api/crm/leads/bulk/jobs/[jobId]/route.ts,GET,WORKSPACE_MODULE,workspaceRoute,crm,(module view permission),false,false,false,session + organisation context + Shared Access authorize()
+api/crm/leads/bulk/route.ts,POST,WORKSPACE_MODULE,workspaceRoute,crm,CRM_PERMISSIONS.leadsManage,true,false,true,session + organisation context + Shared Access authorize()
+api/crm/leads/duplicates/route.ts,POST,WORKSPACE_MODULE,workspaceRoute,crm,(module view permission),false,false,true,session + organisation context + Shared Access authorize()
+api/crm/leads/enrichment/route.ts,POST,WORKSPACE_MODULE,workspaceRoute,crm,(checked in handler),true,false,true,session + organisation context + Shared Access authorize()
+api/crm/leads/export/[jobId]/download/route.ts,GET,WORKSPACE_MODULE,workspaceRoute,crm,CRM_PERMISSIONS.export,false,false,false,session + organisation context + Shared Access authorize()
+api/crm/leads/export/[jobId]/route.ts,GET,WORKSPACE_MODULE,workspaceRoute,crm,CRM_PERMISSIONS.export,false,false,false,session + organisation context + Shared Access authorize()
+api/crm/leads/export/route.ts,POST,WORKSPACE_MODULE,workspaceRoute,crm,CRM_PERMISSIONS.export,false,false,true,session + organisation context + Shared Access authorize()
+api/crm/leads/import/[batchId]/commit/route.ts,POST,WORKSPACE_MODULE,workspaceRoute,crm,"[CRM_PERMISSIONS.import, CRM_PERMISSIONS.leadsManage]",true,false,true,session + organisation context + Shared Access authorize()
+api/crm/leads/import/[batchId]/rollback/route.ts,POST,WORKSPACE_MODULE,workspaceRoute,crm,"[CRM_PERMISSIONS.import, CRM_PERMISSIONS.leadsManage]",true,false,true,session + organisation context + Shared Access authorize()
+api/crm/leads/import/analyze/route.ts,POST,WORKSPACE_MODULE,workspaceRoute,crm,IMPORT_PERMISSIONS,false,false,true,session + organisation context + Shared Access authorize()
+api/crm/leads/import/batches/route.ts,GET,WORKSPACE_MODULE,workspaceRoute,crm,"[CRM_PERMISSIONS.import, CRM_PERMISSIONS.leadsManage]",false,false,false,session + organisation context + Shared Access authorize()
+api/crm/leads/import/preview/route.ts,POST,WORKSPACE_MODULE,workspaceRoute,crm,"[CRM_PERMISSIONS.import, CRM_PERMISSIONS.leadsManage]",false,false,true,session + organisation context + Shared Access authorize()
+api/crm/leads/sla/route.ts,POST,WORKSPACE_MODULE,workspaceRoute,crm,(checked in handler),true,false,true,session + organisation context + Shared Access authorize()
+api/crm/leads/transition-graph/route.ts,GET,WORKSPACE_MODULE,workspaceRoute,crm,(module view permission),false,false,false,session + organisation context + Shared Access authorize()
+api/crm/meetings/[id]/cancel/route.ts,POST,WORKSPACE_MODULE,workspaceRoute,crm,CRM_PERMISSIONS.activitiesManage,true,false,true,session + organisation context + Shared Access authorize()
+api/crm/meetings/[id]/complete/route.ts,POST,WORKSPACE_MODULE,workspaceRoute,crm,CRM_PERMISSIONS.activitiesManage,true,false,true,session + organisation context + Shared Access authorize()
+api/crm/meetings/[id]/events/route.ts,GET,WORKSPACE_MODULE,workspaceRoute,crm,CRM_PERMISSIONS.activitiesManage,false,false,false,session + organisation context + Shared Access authorize()
+api/crm/meetings/[id]/route.ts,GET,WORKSPACE_MODULE,workspaceRoute,crm,CRM_PERMISSIONS.activitiesManage,false,false,false,session + organisation context + Shared Access authorize()
+api/crm/meetings/[id]/route.ts,PATCH,WORKSPACE_MODULE,workspaceRoute,crm,CRM_PERMISSIONS.activitiesManage,true,false,true,session + organisation context + Shared Access authorize()
+api/crm/meetings/[id]/start/route.ts,POST,WORKSPACE_MODULE,workspaceRoute,crm,CRM_PERMISSIONS.activitiesManage,true,false,true,session + organisation context + Shared Access authorize()
+api/crm/meetings/route.ts,GET,WORKSPACE_MODULE,workspaceRoute,crm,CRM_PERMISSIONS.activitiesManage,false,false,false,session + organisation context + Shared Access authorize()
+api/crm/meetings/route.ts,POST,WORKSPACE_MODULE,workspaceRoute,crm,CRM_PERMISSIONS.activitiesManage,true,false,true,session + organisation context + Shared Access authorize()
+api/crm/notes/[id]/route.ts,GET,WORKSPACE_MODULE,workspaceRoute,crm,(module view permission),false,false,false,session + organisation context + Shared Access authorize()
+api/crm/notes/[id]/route.ts,PATCH,WORKSPACE_MODULE,workspaceRoute,crm,(module view permission),true,false,true,session + organisation context + Shared Access authorize()
+api/crm/notes/[id]/route.ts,DELETE,WORKSPACE_MODULE,workspaceRoute,crm,(module view permission),true,false,true,session + organisation context + Shared Access authorize()
+api/crm/notes/[id]/versions/route.ts,GET,WORKSPACE_MODULE,workspaceRoute,crm,(module view permission),false,false,false,session + organisation context + Shared Access authorize()
+api/crm/notes/route.ts,GET,WORKSPACE_MODULE,workspaceRoute,crm,(module view permission),false,false,false,session + organisation context + Shared Access authorize()
+api/crm/notes/route.ts,POST,WORKSPACE_MODULE,workspaceRoute,crm,(module view permission),true,false,true,session + organisation context + Shared Access authorize()
+api/crm/offline-sync/route.ts,POST,WORKSPACE_MODULE,workspaceRoute,crm,(checked in handler),true,false,true,session + organisation context + Shared Access authorize()
+api/crm/opportunities/[id]/contact-roles/[roleId]/primary/route.ts,POST,WORKSPACE_MODULE,workspaceRoute,crm,CRM_PERMISSIONS.opportunitiesManage,true,false,true,session + organisation context + Shared Access authorize()
+api/crm/opportunities/[id]/contact-roles/[roleId]/route.ts,PATCH,WORKSPACE_MODULE,workspaceRoute,crm,CRM_PERMISSIONS.opportunitiesManage,true,false,true,session + organisation context + Shared Access authorize()
+api/crm/opportunities/[id]/contact-roles/[roleId]/route.ts,DELETE,WORKSPACE_MODULE,workspaceRoute,crm,CRM_PERMISSIONS.opportunitiesManage,true,false,true,session + organisation context + Shared Access authorize()
+api/crm/opportunities/[id]/contact-roles/route.ts,GET,WORKSPACE_MODULE,workspaceRoute,crm,(module view permission),false,false,false,session + organisation context + Shared Access authorize()
+api/crm/opportunities/[id]/contact-roles/route.ts,POST,WORKSPACE_MODULE,workspaceRoute,crm,CRM_PERMISSIONS.opportunitiesManage,true,false,true,session + organisation context + Shared Access authorize()
+api/crm/opportunities/[id]/predictive-probability/route.ts,GET,WORKSPACE_MODULE,workspaceRoute,crm,(module view permission),false,false,false,session + organisation context + Shared Access authorize()
+api/crm/opportunities/[id]/probability-history/route.ts,GET,WORKSPACE_MODULE,workspaceRoute,crm,(module view permission),false,false,false,session + organisation context + Shared Access authorize()
+api/crm/opportunities/[id]/probability/route.ts,POST,WORKSPACE_MODULE,workspaceRoute,crm,CRM_PERMISSIONS.opportunitiesManage,true,false,true,session + organisation context + Shared Access authorize()
+api/crm/opportunities/[id]/restore/route.ts,POST,WORKSPACE_MODULE,workspaceRoute,crm,CRM_PERMISSIONS.opportunitiesManage,true,false,true,session + organisation context + Shared Access authorize()
+api/crm/opportunities/[id]/stage/route.ts,POST,WORKSPACE_MODULE,workspaceRoute,crm,CRM_PERMISSIONS.opportunitiesManage,true,false,true,session + organisation context + Shared Access authorize()
+api/crm/opportunities/bulk/jobs/[jobId]/route.ts,GET,WORKSPACE_MODULE,workspaceRoute,crm,(module view permission),false,false,false,session + organisation context + Shared Access authorize()
+api/crm/opportunities/bulk/route.ts,POST,WORKSPACE_MODULE,workspaceRoute,crm,CRM_PERMISSIONS.opportunitiesManage,true,false,true,session + organisation context + Shared Access authorize()
+api/crm/opportunities/pipeline-summary/route.ts,GET,WORKSPACE_MODULE,workspaceRoute,crm,(module view permission),false,false,false,session + organisation context + Shared Access authorize()
+api/crm/options/route.ts,GET,WORKSPACE_MODULE,workspaceRoute,crm,(module view permission),false,false,false,session + organisation context + Shared Access authorize()
+api/crm/pipeline-stages/[id]/active/route.ts,POST,WORKSPACE_MODULE,workspaceRoute,crm,CRM_PERMISSIONS.settingsManage,true,false,true,session + organisation context + Shared Access authorize()
+api/crm/pipeline-stages/[id]/deactivate/route.ts,POST,WORKSPACE_MODULE,workspaceRoute,crm,CRM_PERMISSIONS.settingsManage,true,false,true,session + organisation context + Shared Access authorize()
+api/crm/pipeline-stages/[id]/route.ts,PATCH,WORKSPACE_MODULE,workspaceRoute,crm,CRM_PERMISSIONS.settingsManage,true,false,true,session + organisation context + Shared Access authorize()
+api/crm/pipeline-stages/[id]/sla-policy/route.ts,PUT,WORKSPACE_MODULE,workspaceRoute,crm,CRM_PERMISSIONS.settingsManage,true,false,true,session + organisation context + Shared Access authorize()
+api/crm/pipeline-stages/history/route.ts,GET,WORKSPACE_MODULE,workspaceRoute,crm,CRM_PERMISSIONS.settingsManage,false,false,false,session + organisation context + Shared Access authorize()
+api/crm/pipeline-stages/reorder/route.ts,POST,WORKSPACE_MODULE,workspaceRoute,crm,CRM_PERMISSIONS.settingsManage,true,false,true,session + organisation context + Shared Access authorize()
+api/crm/pipeline-stages/route.ts,GET,WORKSPACE_MODULE,workspaceRoute,crm,(module view permission),false,false,false,session + organisation context + Shared Access authorize()
+api/crm/pipeline-stages/route.ts,POST,WORKSPACE_MODULE,workspaceRoute,crm,CRM_PERMISSIONS.settingsManage,true,false,true,session + organisation context + Shared Access authorize()
+api/crm/pipeline-stages/sla-policies/route.ts,GET,WORKSPACE_MODULE,workspaceRoute,crm,CRM_PERMISSIONS.settingsManage,false,false,false,session + organisation context + Shared Access authorize()
+api/crm/pipeline/snapshots/route.ts,GET,WORKSPACE_MODULE,workspaceRoute,crm,(module view permission),false,false,false,session + organisation context + Shared Access authorize()
+api/crm/pipeline/snapshots/route.ts,POST,WORKSPACE_MODULE,workspaceRoute,crm,CRM_PERMISSIONS.opportunitiesManage,true,false,true,session + organisation context + Shared Access authorize()
+api/crm/privacy-requests/[id]/execute/route.ts,POST,WORKSPACE_MODULE,workspaceRoute,crm,CRM_PERMISSIONS.privacyManage,true,false,true,session + organisation context + Shared Access authorize()
+api/crm/privacy-requests/[id]/preview/route.ts,GET,WORKSPACE_MODULE,workspaceRoute,crm,CRM_PERMISSIONS.privacyManage,false,false,false,session + organisation context + Shared Access authorize()
+api/crm/privacy/retention/[id]/route.ts,PATCH,WORKSPACE_MODULE,workspaceRoute,crm,CRM_PERMISSIONS.privacyManage,true,false,true,session + organisation context + Shared Access authorize()
+api/crm/privacy/retention/route.ts,GET,WORKSPACE_MODULE,workspaceRoute,crm,CRM_PERMISSIONS.privacyManage,false,false,false,session + organisation context + Shared Access authorize()
+api/crm/privacy/retention/run/route.ts,POST,WORKSPACE_MODULE,workspaceRoute,crm,CRM_PERMISSIONS.privacyManage,true,false,true,session + organisation context + Shared Access authorize()
+api/crm/public/meetings/bookings/[token]/availability/route.ts,GET,PUBLIC_TOKEN,explicit,,,false,false,false,Same booking token model; read-only reschedule availability.
+api/crm/public/meetings/bookings/[token]/route.ts,GET,PUBLIC_TOKEN,explicit,,,false,false,false,Opaque booking token (hash stored) for the prospect's own booking.
+api/crm/public/meetings/bookings/[token]/route.ts,PATCH,PUBLIC_TOKEN,explicit,,,false,false,false,Opaque booking token (hash stored) for the prospect's own booking.
+api/crm/public/meetings/links/[token]/availability/route.ts,GET,PUBLIC_TOKEN,explicit,,,false,false,false,Same meeting-link token model; read-only availability.
+api/crm/public/meetings/links/[token]/book/route.ts,POST,PUBLIC_TOKEN,explicit,,,false,false,false,Same meeting-link token model; the booking is validated against the link's own availability.
+api/crm/public/meetings/links/[token]/route.ts,GET,PUBLIC_TOKEN,explicit,,,false,false,false,Opaque meeting-link token (only its hash stored) resolves the organisation through a definer function; read-only.
+api/crm/reports/[report]/export/route.ts,GET,WORKSPACE_MODULE,workspaceRoute,crm,CRM_PERMISSIONS.reportsView,false,false,false,session + organisation context + Shared Access authorize()
+api/crm/reports/[report]/route.ts,GET,WORKSPACE_MODULE,workspaceRoute,crm,CRM_PERMISSIONS.reportsView,false,false,false,session + organisation context + Shared Access authorize()
+api/crm/tasks/[id]/cancel/route.ts,POST,WORKSPACE_MODULE,workspaceRoute,crm,CRM_PERMISSIONS.activitiesManage,true,false,true,session + organisation context + Shared Access authorize()
+api/crm/tasks/[id]/claim/route.ts,POST,WORKSPACE_MODULE,workspaceRoute,crm,CRM_PERMISSIONS.activitiesManage,true,false,true,session + organisation context + Shared Access authorize()
+api/crm/tasks/[id]/complete/route.ts,POST,WORKSPACE_MODULE,workspaceRoute,crm,CRM_PERMISSIONS.activitiesManage,true,false,true,session + organisation context + Shared Access authorize()
+api/crm/tasks/[id]/dependencies/[dependsOnTaskId]/route.ts,DELETE,WORKSPACE_MODULE,workspaceRoute,crm,CRM_PERMISSIONS.activitiesManage,true,false,true,session + organisation context + Shared Access authorize()
+api/crm/tasks/[id]/dependencies/route.ts,GET,WORKSPACE_MODULE,workspaceRoute,crm,CRM_PERMISSIONS.activitiesManage,false,false,false,session + organisation context + Shared Access authorize()
+api/crm/tasks/[id]/dependencies/route.ts,POST,WORKSPACE_MODULE,workspaceRoute,crm,CRM_PERMISSIONS.activitiesManage,true,false,true,session + organisation context + Shared Access authorize()
+api/crm/tasks/[id]/history/route.ts,GET,WORKSPACE_MODULE,workspaceRoute,crm,CRM_PERMISSIONS.activitiesManage,false,false,false,session + organisation context + Shared Access authorize()
+api/crm/tasks/[id]/release/route.ts,POST,WORKSPACE_MODULE,workspaceRoute,crm,CRM_PERMISSIONS.activitiesManage,true,false,true,session + organisation context + Shared Access authorize()
+api/crm/tasks/[id]/route.ts,GET,WORKSPACE_MODULE,workspaceRoute,crm,CRM_PERMISSIONS.activitiesManage,false,false,false,session + organisation context + Shared Access authorize()
+api/crm/tasks/[id]/route.ts,PATCH,WORKSPACE_MODULE,workspaceRoute,crm,CRM_PERMISSIONS.activitiesManage,true,false,true,session + organisation context + Shared Access authorize()
+api/crm/tasks/[id]/start/route.ts,POST,WORKSPACE_MODULE,workspaceRoute,crm,CRM_PERMISSIONS.activitiesManage,true,false,true,session + organisation context + Shared Access authorize()
+api/crm/tasks/route.ts,GET,WORKSPACE_MODULE,workspaceRoute,crm,CRM_PERMISSIONS.activitiesManage,false,false,false,session + organisation context + Shared Access authorize()
+api/crm/tasks/route.ts,POST,WORKSPACE_MODULE,workspaceRoute,crm,CRM_PERMISSIONS.activitiesManage,true,false,true,session + organisation context + Shared Access authorize()
+api/crm/tasks/teams/route.ts,GET,WORKSPACE_MODULE,workspaceRoute,crm,CRM_PERMISSIONS.activitiesManage,false,false,false,session + organisation context + Shared Access authorize()
+api/crm/territory-match/route.ts,GET,WORKSPACE_MODULE,workspaceRoute,crm,CRM_PERMISSIONS.settingsManage,false,false,false,session + organisation context + Shared Access authorize()
+api/crm/timeline/route.ts,GET,WORKSPACE_MODULE,workspaceRoute,crm,(module view permission),false,false,false,session + organisation context + Shared Access authorize()
+api/documents/[document]/[id]/pdf/route.ts,GET,WORKSPACE_MODULE,workspaceRoute,renderer.moduleKey,renderer.permission,false,false,false,session + organisation context + Shared Access authorize()
+api/health/route.ts,GET,PROBE,explicit,,,false,false,false,"Liveness only; no database, no tenant data."
+api/hr/actions/[action]/route.ts,POST,WORKSPACE_MODULE,hrMutation,hr-payroll,hr_payroll.view (helper default; route may narrow),true,when self-service,true,session + organisation context + Shared Access authorize()
+api/hr/view/[kind]/route.ts,GET,WORKSPACE_MODULE,hrRead,hr-payroll,hr_payroll.view (helper default; route may narrow),false,when self-service,false,session + organisation context + Shared Access authorize()
+api/inventory/actions/[action]/route.ts,POST,WORKSPACE_MODULE,inventoryMutation,stock,stock.view (helper default; route may narrow),true,false,true,session + organisation context + Shared Access authorize()
+api/inventory/master/[resource]/[id]/route.ts,PATCH,WORKSPACE_MODULE,inventoryMutation,stock,stock.view (helper default; route may narrow),true,false,true,session + organisation context + Shared Access authorize()
+api/inventory/master/[resource]/route.ts,GET,WORKSPACE_MODULE,inventoryRead,stock,stock.view (helper default; route may narrow),false,false,false,session + organisation context + Shared Access authorize()
+api/inventory/master/[resource]/route.ts,POST,WORKSPACE_MODULE,inventoryMutation,stock,stock.view (helper default; route may narrow),true,false,true,session + organisation context + Shared Access authorize()
+api/inventory/stock/[kind]/route.ts,GET,WORKSPACE_MODULE,inventoryRead,stock,stock.view (helper default; route may narrow),false,false,false,session + organisation context + Shared Access authorize()
+api/jobs/[id]/route.ts,GET,WORKSPACE_PLATFORM,workspaceRoute,,,false,false,false,Same viewer rule as the job list (getJobForViewer).
+api/jobs/route.ts,GET,WORKSPACE_PLATFORM,workspaceRoute,,,false,false,false,Own jobs only; the organisation-wide view requires the job operations permission (checked in the handler).
+api/manufacturing/actions/[action]/route.ts,POST,WORKSPACE_MODULE,manufacturingMutation,manufacturing,manufacturing.view (helper default; route may narrow),true,false,true,session + organisation context + Shared Access authorize()
+api/manufacturing/view/[kind]/route.ts,GET,WORKSPACE_MODULE,manufacturingRead,manufacturing,manufacturing.view (helper default; route may narrow),false,false,false,session + organisation context + Shared Access authorize()
+api/notifications/[id]/read/route.ts,PATCH,WORKSPACE_PLATFORM,workspaceRoute,,,false,false,true,The caller's own notification only.
+api/notifications/route.ts,GET,WORKSPACE_PLATFORM,workspaceRoute,,,false,false,false,"The caller's own notifications, filtered to accessible modules."
+api/notifications/route.ts,PATCH,WORKSPACE_PLATFORM,workspaceRoute,,,false,false,true,"The caller's own notifications, filtered to accessible modules."
+api/platform/mail/inbound/[routeKey]/route.ts,POST,WEBHOOK,explicit,,,false,false,false,Hashed route key resolves the organisation; HMAC-SHA256 of the raw body with the route's own encrypted signing secret; body ids ignored; idempotent.
+api/pos/[resource]/route.ts,GET,WORKSPACE_MODULE,workspaceRoute,point-of-sale,(module view permission),false,false,false,session + organisation context + Shared Access authorize()
+api/pos/accounting/mappings/route.ts,GET,WORKSPACE_MODULE,workspaceRoute,point-of-sale,pos.settings.manage,false,false,false,session + organisation context + Shared Access authorize()
+api/pos/accounting/mappings/route.ts,POST,WORKSPACE_MODULE,workspaceRoute,point-of-sale,pos.settings.manage,true,false,true,session + organisation context + Shared Access authorize()
+api/pos/accounting/posting-queue/route.ts,GET,WORKSPACE_MODULE,workspaceRoute,point-of-sale,pos.accounting.view,false,false,false,session + organisation context + Shared Access authorize()
+api/pos/analytics/route.ts,GET,WORKSPACE_MODULE,workspaceRoute,point-of-sale,pos.analytics.view,false,false,false,session + organisation context + Shared Access authorize()
+api/pos/carts/[id]/cancel/route.ts,POST,WORKSPACE_MODULE,workspaceRoute,point-of-sale,pos.sale.create,true,false,true,session + organisation context + Shared Access authorize()
+api/pos/carts/[id]/complete/route.ts,POST,WORKSPACE_MODULE,workspaceRoute,point-of-sale,pos.sale.create,true,false,true,session + organisation context + Shared Access authorize()
+api/pos/carts/[id]/coupon/route.ts,POST,WORKSPACE_MODULE,workspaceRoute,point-of-sale,pos.sale.create,true,false,true,session + organisation context + Shared Access authorize()
+api/pos/carts/[id]/coupon/route.ts,DELETE,WORKSPACE_MODULE,workspaceRoute,point-of-sale,pos.sale.create,true,false,true,session + organisation context + Shared Access authorize()
+api/pos/carts/[id]/customer/route.ts,POST,WORKSPACE_MODULE,workspaceRoute,point-of-sale,pos.sale.create,true,false,true,session + organisation context + Shared Access authorize()
+api/pos/carts/[id]/discount/route.ts,POST,WORKSPACE_MODULE,workspaceRoute,point-of-sale,pos.discount.apply,true,false,true,session + organisation context + Shared Access authorize()
+api/pos/carts/[id]/hold/route.ts,POST,WORKSPACE_MODULE,workspaceRoute,point-of-sale,pos.sale.create,true,false,true,session + organisation context + Shared Access authorize()
+api/pos/carts/[id]/lines/[lineId]/discount/route.ts,POST,WORKSPACE_MODULE,workspaceRoute,point-of-sale,pos.discount.apply,true,false,true,session + organisation context + Shared Access authorize()
+api/pos/carts/[id]/lines/[lineId]/discount/route.ts,DELETE,WORKSPACE_MODULE,workspaceRoute,point-of-sale,pos.discount.apply,true,false,true,session + organisation context + Shared Access authorize()
+api/pos/carts/[id]/lines/[lineId]/route.ts,PATCH,WORKSPACE_MODULE,workspaceRoute,point-of-sale,pos.sale.create,true,false,true,session + organisation context + Shared Access authorize()
+api/pos/carts/[id]/lines/[lineId]/route.ts,DELETE,WORKSPACE_MODULE,workspaceRoute,point-of-sale,pos.sale.create,true,false,true,session + organisation context + Shared Access authorize()
+api/pos/carts/[id]/lines/[lineId]/tracking/route.ts,POST,WORKSPACE_MODULE,workspaceRoute,point-of-sale,pos.sale.create,true,false,true,session + organisation context + Shared Access authorize()
+api/pos/carts/[id]/lines/route.ts,POST,WORKSPACE_MODULE,workspaceRoute,point-of-sale,pos.sale.create,true,false,true,session + organisation context + Shared Access authorize()
+api/pos/carts/[id]/loyalty/route.ts,POST,WORKSPACE_MODULE,workspaceRoute,point-of-sale,pos.loyalty.redeem,true,false,true,session + organisation context + Shared Access authorize()
+api/pos/carts/[id]/loyalty/route.ts,DELETE,WORKSPACE_MODULE,workspaceRoute,point-of-sale,pos.loyalty.redeem,true,false,true,session + organisation context + Shared Access authorize()
+api/pos/carts/[id]/resume/route.ts,POST,WORKSPACE_MODULE,workspaceRoute,point-of-sale,pos.sale.create,true,false,true,session + organisation context + Shared Access authorize()
+api/pos/carts/[id]/route.ts,GET,WORKSPACE_MODULE,workspaceRoute,point-of-sale,(module view permission),false,false,false,session + organisation context + Shared Access authorize()
+api/pos/carts/held/route.ts,GET,WORKSPACE_MODULE,workspaceRoute,point-of-sale,(module view permission),false,false,false,session + organisation context + Shared Access authorize()
+api/pos/carts/route.ts,POST,WORKSPACE_MODULE,workspaceRoute,point-of-sale,pos.sale.create,true,false,true,session + organisation context + Shared Access authorize()
+api/pos/cashiers/route.ts,GET,WORKSPACE_MODULE,workspaceRoute,point-of-sale,pos.store.manage,false,false,false,session + organisation context + Shared Access authorize()
+api/pos/coupons/[id]/active/route.ts,POST,WORKSPACE_MODULE,workspaceRoute,point-of-sale,pos.settings.manage,true,false,true,session + organisation context + Shared Access authorize()
+api/pos/coupons/[id]/route.ts,PATCH,WORKSPACE_MODULE,workspaceRoute,point-of-sale,pos.settings.manage,true,false,true,session + organisation context + Shared Access authorize()
+api/pos/coupons/route.ts,GET,WORKSPACE_MODULE,workspaceRoute,point-of-sale,(module view permission),false,false,false,session + organisation context + Shared Access authorize()
+api/pos/coupons/route.ts,POST,WORKSPACE_MODULE,workspaceRoute,point-of-sale,pos.settings.manage,true,false,true,session + organisation context + Shared Access authorize()
+api/pos/customers/route.ts,GET,WORKSPACE_MODULE,workspaceRoute,point-of-sale,(module view permission),false,false,false,session + organisation context + Shared Access authorize()
+api/pos/dashboard/route.ts,GET,WORKSPACE_MODULE,workspaceRoute,point-of-sale,(module view permission),false,false,false,session + organisation context + Shared Access authorize()
+api/pos/discount-approvals/route.ts,GET,WORKSPACE_MODULE,workspaceRoute,point-of-sale,(module view permission),false,false,false,session + organisation context + Shared Access authorize()
+api/pos/inventory/activity/route.ts,GET,WORKSPACE_MODULE,workspaceRoute,point-of-sale,pos.view,false,false,false,session + organisation context + Shared Access authorize()
+api/pos/inventory/route.ts,GET,WORKSPACE_MODULE,workspaceRoute,point-of-sale,pos.view,false,false,false,session + organisation context + Shared Access authorize()
+api/pos/invoices/route.ts,GET,WORKSPACE_MODULE,workspaceRoute,point-of-sale,pos.invoice.view,false,false,false,session + organisation context + Shared Access authorize()
+api/pos/item-groups/route.ts,GET,WORKSPACE_MODULE,workspaceRoute,point-of-sale,(module view permission),false,false,false,session + organisation context + Shared Access authorize()
+api/pos/loyalty/customers/[customerId]/adjust/route.ts,POST,WORKSPACE_MODULE,workspaceRoute,point-of-sale,pos.loyalty.manage,true,false,true,session + organisation context + Shared Access authorize()
+api/pos/loyalty/customers/[customerId]/ledger/route.ts,GET,WORKSPACE_MODULE,workspaceRoute,point-of-sale,(module view permission),false,false,false,session + organisation context + Shared Access authorize()
+api/pos/loyalty/customers/[customerId]/route.ts,GET,WORKSPACE_MODULE,workspaceRoute,point-of-sale,(module view permission),false,false,false,session + organisation context + Shared Access authorize()
+api/pos/loyalty/expire/route.ts,POST,WORKSPACE_MODULE,workspaceRoute,point-of-sale,pos.loyalty.manage,true,false,true,session + organisation context + Shared Access authorize()
+api/pos/loyalty/program/active/route.ts,POST,WORKSPACE_MODULE,workspaceRoute,point-of-sale,pos.loyalty.manage,true,false,true,session + organisation context + Shared Access authorize()
+api/pos/loyalty/program/route.ts,GET,WORKSPACE_MODULE,workspaceRoute,point-of-sale,(module view permission),false,false,false,session + organisation context + Shared Access authorize()
+api/pos/loyalty/program/route.ts,POST,WORKSPACE_MODULE,workspaceRoute,point-of-sale,pos.loyalty.manage,true,false,true,session + organisation context + Shared Access authorize()
+api/pos/offline/conflicts/[id]/resolve/route.ts,POST,WORKSPACE_MODULE,workspaceRoute,point-of-sale,pos.offline.resolve,true,false,true,session + organisation context + Shared Access authorize()
+api/pos/offline/conflicts/route.ts,GET,WORKSPACE_MODULE,workspaceRoute,point-of-sale,pos.offline.resolve,false,false,false,session + organisation context + Shared Access authorize()
+api/pos/offline/snapshot/route.ts,GET,WORKSPACE_MODULE,workspaceRoute,point-of-sale,pos.offline.sync,false,false,false,session + organisation context + Shared Access authorize()
+api/pos/offline/sync/route.ts,POST,WORKSPACE_MODULE,workspaceRoute,point-of-sale,pos.offline.sync,true,false,true,session + organisation context + Shared Access authorize()
+api/pos/payments/[id]/override/route.ts,POST,WORKSPACE_MODULE,workspaceRoute,point-of-sale,pos.payment.override,true,false,true,session + organisation context + Shared Access authorize()
+api/pos/payments/[id]/refund/route.ts,POST,WORKSPACE_MODULE,workspaceRoute,point-of-sale,pos.payment.refund,true,false,true,session + organisation context + Shared Access authorize()
+api/pos/payments/[id]/route.ts,GET,WORKSPACE_MODULE,workspaceRoute,point-of-sale,pos.view,false,false,false,session + organisation context + Shared Access authorize()
+api/pos/payments/initiate/route.ts,POST,WORKSPACE_MODULE,workspaceRoute,point-of-sale,pos.sale.create,true,false,true,session + organisation context + Shared Access authorize()
+api/pos/payments/webhook/[provider]/route.ts,POST,WEBHOOK,explicit,,,false,false,false,Provider HMAC signature over the raw body verified before parsing and again inside the domain transaction.
+api/pos/promotions/[id]/active/route.ts,POST,WORKSPACE_MODULE,workspaceRoute,point-of-sale,pos.settings.manage,true,false,true,session + organisation context + Shared Access authorize()
+api/pos/promotions/[id]/route.ts,PATCH,WORKSPACE_MODULE,workspaceRoute,point-of-sale,pos.settings.manage,true,false,true,session + organisation context + Shared Access authorize()
+api/pos/promotions/route.ts,GET,WORKSPACE_MODULE,workspaceRoute,point-of-sale,(module view permission),false,false,false,session + organisation context + Shared Access authorize()
+api/pos/promotions/route.ts,POST,WORKSPACE_MODULE,workspaceRoute,point-of-sale,pos.settings.manage,true,false,true,session + organisation context + Shared Access authorize()
+api/pos/reconciliations/[id]/correction/route.ts,POST,WORKSPACE_MODULE,workspaceRoute,point-of-sale,pos.reconciliation.approve,false,false,true,session + organisation context + Shared Access authorize()
+api/pos/reconciliations/[id]/resolve/route.ts,POST,WORKSPACE_MODULE,workspaceRoute,point-of-sale,pos.reconciliation.approve,false,false,true,session + organisation context + Shared Access authorize()
+api/pos/reconciliations/[id]/route.ts,GET,WORKSPACE_MODULE,workspaceRoute,point-of-sale,pos.reconciliation.view,false,false,false,session + organisation context + Shared Access authorize()
+api/pos/reconciliations/route.ts,GET,WORKSPACE_MODULE,workspaceRoute,point-of-sale,pos.reconciliation.view,false,false,false,session + organisation context + Shared Access authorize()
+api/pos/reports/day-end/[id]/accounting-post/route.ts,POST,WORKSPACE_MODULE,workspaceRoute,point-of-sale,pos.accounting.post,false,false,true,session + organisation context + Shared Access authorize()
+api/pos/reports/day-end/[id]/finalize/route.ts,POST,WORKSPACE_MODULE,workspaceRoute,point-of-sale,pos.report.finalize,false,false,true,session + organisation context + Shared Access authorize()
+api/pos/reports/day-end/[id]/reconciliation/route.ts,POST,WORKSPACE_MODULE,workspaceRoute,point-of-sale,pos.reconciliation.manage,false,false,true,session + organisation context + Shared Access authorize()
+api/pos/reports/day-end/[id]/review/route.ts,POST,WORKSPACE_MODULE,workspaceRoute,point-of-sale,pos.report.generate,false,false,true,session + organisation context + Shared Access authorize()
+api/pos/reports/day-end/[id]/route.ts,GET,WORKSPACE_MODULE,workspaceRoute,point-of-sale,pos.report.view,false,false,false,session + organisation context + Shared Access authorize()
+api/pos/reports/day-end/[id]/variance/route.ts,POST,WORKSPACE_MODULE,workspaceRoute,point-of-sale,pos.report.finalize,false,false,true,session + organisation context + Shared Access authorize()
+api/pos/reports/day-end/route.ts,GET,WORKSPACE_MODULE,workspaceRoute,point-of-sale,pos.report.view,false,false,false,session + organisation context + Shared Access authorize()
+api/pos/reports/day-end/route.ts,POST,WORKSPACE_MODULE,workspaceRoute,point-of-sale,pos.report.generate,false,false,true,session + organisation context + Shared Access authorize()
+api/pos/returns/[id]/accounting-post/route.ts,POST,WORKSPACE_MODULE,workspaceRoute,point-of-sale,pos.accounting.post,false,false,true,session + organisation context + Shared Access authorize()
+api/pos/returns/[id]/approve/route.ts,POST,WORKSPACE_MODULE,workspaceRoute,point-of-sale,pos.return.approve,true,false,true,session + organisation context + Shared Access authorize()
+api/pos/returns/[id]/complete/route.ts,POST,WORKSPACE_MODULE,workspaceRoute,point-of-sale,pos.return.approve,true,false,true,session + organisation context + Shared Access authorize()
+api/pos/returns/[id]/exchange/route.ts,POST,WORKSPACE_MODULE,workspaceRoute,point-of-sale,pos.sale.create,true,false,true,session + organisation context + Shared Access authorize()
+api/pos/returns/find/route.ts,GET,WORKSPACE_MODULE,workspaceRoute,point-of-sale,pos.return.create,false,false,false,session + organisation context + Shared Access authorize()
+api/pos/returns/route.ts,GET,WORKSPACE_MODULE,workspaceRoute,point-of-sale,(module view permission),false,false,false,session + organisation context + Shared Access authorize()
+api/pos/returns/route.ts,POST,WORKSPACE_MODULE,workspaceRoute,point-of-sale,pos.return.create,true,false,true,session + organisation context + Shared Access authorize()
+api/pos/sales/[id]/accounting-post/route.ts,POST,WORKSPACE_MODULE,workspaceRoute,point-of-sale,pos.accounting.post,false,false,true,session + organisation context + Shared Access authorize()
+api/pos/sales/[id]/invoice/route.ts,GET,WORKSPACE_MODULE,workspaceRoute,point-of-sale,pos.invoice.view,false,false,false,session + organisation context + Shared Access authorize()
+api/pos/sales/[id]/invoice/route.ts,POST,WORKSPACE_MODULE,workspaceRoute,point-of-sale,pos.invoice.generate,false,false,true,session + organisation context + Shared Access authorize()
+api/pos/sales/[id]/receipt/print/route.ts,POST,WORKSPACE_MODULE,workspaceRoute,point-of-sale,pos.view,true,false,true,session + organisation context + Shared Access authorize()
+api/pos/sales/[id]/receipt/route.ts,GET,WORKSPACE_MODULE,workspaceRoute,point-of-sale,(module view permission),false,false,false,session + organisation context + Shared Access authorize()
+api/pos/sales/[id]/route.ts,GET,WORKSPACE_MODULE,workspaceRoute,point-of-sale,(module view permission),false,false,false,session + organisation context + Shared Access authorize()
+api/pos/sales/route.ts,GET,WORKSPACE_MODULE,workspaceRoute,point-of-sale,(module view permission),false,false,false,session + organisation context + Shared Access authorize()
+api/pos/sales/route.ts,POST,WORKSPACE_MODULE,workspaceRoute,point-of-sale,pos.sale.create,true,false,true,session + organisation context + Shared Access authorize()
+api/pos/settings/route.ts,GET,WORKSPACE_MODULE,workspaceRoute,point-of-sale,pos.settings.manage,false,false,false,session + organisation context + Shared Access authorize()
+api/pos/settings/route.ts,PUT,WORKSPACE_MODULE,workspaceRoute,point-of-sale,pos.settings.manage,true,false,true,session + organisation context + Shared Access authorize()
+api/pos/settlements/route.ts,POST,WORKSPACE_MODULE,workspaceRoute,point-of-sale,pos.reconciliation.manage,false,false,true,session + organisation context + Shared Access authorize()
+api/pos/shifts/[id]/cash-movements/route.ts,GET,WORKSPACE_MODULE,workspaceRoute,point-of-sale,(module view permission),false,false,false,session + organisation context + Shared Access authorize()
+api/pos/shifts/[id]/cash-movements/route.ts,POST,WORKSPACE_MODULE,workspaceRoute,point-of-sale,pos.cash.adjust,true,false,true,session + organisation context + Shared Access authorize()
+api/pos/shifts/[id]/close/route.ts,POST,WORKSPACE_MODULE,workspaceRoute,point-of-sale,pos.shift.close,true,false,true,session + organisation context + Shared Access authorize()
+api/pos/shifts/[id]/route.ts,GET,WORKSPACE_MODULE,workspaceRoute,point-of-sale,(module view permission),false,false,false,session + organisation context + Shared Access authorize()
+api/pos/shifts/route.ts,GET,WORKSPACE_MODULE,workspaceRoute,point-of-sale,(module view permission),false,false,false,session + organisation context + Shared Access authorize()
+api/pos/shifts/route.ts,POST,WORKSPACE_MODULE,workspaceRoute,point-of-sale,pos.shift.open,true,false,true,session + organisation context + Shared Access authorize()
+api/pos/store-access/route.ts,GET,WORKSPACE_MODULE,workspaceRoute,point-of-sale,pos.store.manage,false,false,false,session + organisation context + Shared Access authorize()
+api/pos/store-access/route.ts,POST,WORKSPACE_MODULE,workspaceRoute,point-of-sale,pos.store.manage,true,false,true,session + organisation context + Shared Access authorize()
+api/pos/store-access/route.ts,DELETE,WORKSPACE_MODULE,workspaceRoute,point-of-sale,pos.store.manage,true,false,true,session + organisation context + Shared Access authorize()
+api/pos/stores/[storeId]/active/route.ts,POST,WORKSPACE_MODULE,workspaceRoute,point-of-sale,pos.store.manage,true,false,true,session + organisation context + Shared Access authorize()
+api/pos/stores/[storeId]/barcode/[code]/route.ts,GET,WORKSPACE_MODULE,workspaceRoute,point-of-sale,(module view permission),false,false,false,session + organisation context + Shared Access authorize()
+api/pos/stores/[storeId]/payment-config/route.ts,GET,WORKSPACE_MODULE,workspaceRoute,point-of-sale,pos.store.manage,false,false,false,session + organisation context + Shared Access authorize()
+api/pos/stores/[storeId]/payment-config/route.ts,PUT,WORKSPACE_MODULE,workspaceRoute,point-of-sale,pos.store.manage,true,false,true,session + organisation context + Shared Access authorize()
+api/pos/stores/[storeId]/products/route.ts,GET,WORKSPACE_MODULE,workspaceRoute,point-of-sale,(module view permission),false,false,false,session + organisation context + Shared Access authorize()
+api/pos/stores/[storeId]/route.ts,PATCH,WORKSPACE_MODULE,workspaceRoute,point-of-sale,pos.store.manage,true,false,true,session + organisation context + Shared Access authorize()
+api/pos/stores/route.ts,GET,WORKSPACE_MODULE,workspaceRoute,point-of-sale,(module view permission),false,false,false,session + organisation context + Shared Access authorize()
+api/pos/stores/route.ts,POST,WORKSPACE_MODULE,workspaceRoute,point-of-sale,pos.store.manage,true,false,true,session + organisation context + Shared Access authorize()
+api/pos/stores/setup-options/route.ts,GET,WORKSPACE_MODULE,workspaceRoute,point-of-sale,pos.store.manage,false,false,false,session + organisation context + Shared Access authorize()
+api/pos/terminals/[terminalId]/route.ts,PATCH,WORKSPACE_MODULE,workspaceRoute,point-of-sale,pos.terminal.manage,true,false,true,session + organisation context + Shared Access authorize()
+api/pos/terminals/[terminalId]/status/route.ts,POST,WORKSPACE_MODULE,workspaceRoute,point-of-sale,pos.terminal.manage,true,false,true,session + organisation context + Shared Access authorize()
+api/pos/terminals/route.ts,GET,WORKSPACE_MODULE,workspaceRoute,point-of-sale,(module view permission),false,false,false,session + organisation context + Shared Access authorize()
+api/pos/terminals/route.ts,POST,WORKSPACE_MODULE,workspaceRoute,point-of-sale,pos.terminal.manage,true,false,true,session + organisation context + Shared Access authorize()
+api/privacy/requests/[id]/transition/route.ts,POST,WORKSPACE_PLATFORM,workspaceRoute,,CORE_PERMISSIONS.platformPrivacyManage,false,false,true,session + organisation context + Shared Access authorize()
+api/privacy/requests/route.ts,GET,WORKSPACE_PLATFORM,workspaceRoute,,CORE_PERMISSIONS.platformPrivacyManage,false,false,false,session + organisation context + Shared Access authorize()
+api/privacy/requests/route.ts,POST,WORKSPACE_PLATFORM,workspaceRoute,,CORE_PERMISSIONS.platformPrivacyManage,false,false,true,session + organisation context + Shared Access authorize()
+api/privacy/retention-policies/route.ts,GET,WORKSPACE_PLATFORM,workspaceRoute,,CORE_PERMISSIONS.platformPrivacyManage,false,false,false,session + organisation context + Shared Access authorize()
+api/privacy/retention-policies/route.ts,POST,WORKSPACE_PLATFORM,workspaceRoute,,CORE_PERMISSIONS.platformPrivacyManage,false,false,true,session + organisation context + Shared Access authorize()
+api/procurement/[resource]/[id]/[action]/route.ts,POST,WORKSPACE_MODULE,procurementMutation,procurement,procurement.view (helper default; route may narrow),true,false,true,session + organisation context + Shared Access authorize()
+api/procurement/[resource]/[id]/readiness/route.ts,GET,WORKSPACE_MODULE,procurementRead,procurement,procurement.view (helper default; route may narrow),false,false,false,session + organisation context + Shared Access authorize()
+api/procurement/[resource]/[id]/route.ts,GET,WORKSPACE_MODULE,procurementRead,procurement,procurement.view (helper default; route may narrow),false,false,false,session + organisation context + Shared Access authorize()
+api/procurement/[resource]/[id]/route.ts,PATCH,WORKSPACE_MODULE,procurementMutation,procurement,procurement.view (helper default; route may narrow),true,false,true,session + organisation context + Shared Access authorize()
+api/procurement/[resource]/[id]/timeline/route.ts,GET,WORKSPACE_MODULE,procurementRead,procurement,procurement.view (helper default; route may narrow),false,false,false,session + organisation context + Shared Access authorize()
+api/procurement/[resource]/route.ts,GET,WORKSPACE_MODULE,procurementRead,procurement,procurement.view (helper default; route may narrow),false,false,false,session + organisation context + Shared Access authorize()
+api/procurement/[resource]/route.ts,POST,WORKSPACE_MODULE,procurementMutation,procurement,procurement.view (helper default; route may narrow),true,false,true,session + organisation context + Shared Access authorize()
+api/procurement/dashboard/route.ts,GET,WORKSPACE_MODULE,procurementRead,procurement,procurement.view (helper default; route may narrow),false,false,false,session + organisation context + Shared Access authorize()
+api/procurement/match/route.ts,POST,WORKSPACE_MODULE,procurementMutation,procurement,procurement.view (helper default; route may narrow),true,false,true,session + organisation context + Shared Access authorize()
+api/procurement/operations/landed-costs/route.ts,POST,WORKSPACE_MODULE,procurementMutation,procurement,procurement.view (helper default; route may narrow),true,false,true,session + organisation context + Shared Access authorize()
+api/procurement/operations/lead-times/route.ts,POST,WORKSPACE_MODULE,procurementMutation,procurement,procurement.view (helper default; route may narrow),true,false,true,session + organisation context + Shared Access authorize()
+api/procurement/operations/reorder-requests/[id]/convert/route.ts,POST,WORKSPACE_MODULE,procurementMutation,procurement,procurement.view (helper default; route may narrow),true,false,true,session + organisation context + Shared Access authorize()
+api/procurement/operations/reorder-requests/route.ts,POST,WORKSPACE_MODULE,procurementMutation,procurement,procurement.view (helper default; route may narrow),true,false,true,session + organisation context + Shared Access authorize()
+api/procurement/operations/route.ts,GET,WORKSPACE_MODULE,procurementRead,procurement,procurement.view (helper default; route may narrow),false,false,false,session + organisation context + Shared Access authorize()
+api/procurement/operations/subcontract-orders/route.ts,POST,WORKSPACE_MODULE,procurementMutation,procurement,procurement.view (helper default; route may narrow),true,false,true,session + organisation context + Shared Access authorize()
+api/procurement/operations/supplier-accounting-link/route.ts,POST,WORKSPACE_MODULE,procurementMutation,procurement,procurement.view (helper default; route may narrow),true,false,true,session + organisation context + Shared Access authorize()
+api/procurement/operations/supplier-prices/route.ts,POST,WORKSPACE_MODULE,procurementMutation,procurement,procurement.view (helper default; route may narrow),true,false,true,session + organisation context + Shared Access authorize()
+api/procurement/options/route.ts,GET,WORKSPACE_MODULE,procurementRead,procurement,procurement.view (helper default; route may narrow),false,false,false,session + organisation context + Shared Access authorize()
+api/procurement/planning/route.ts,GET,WORKSPACE_MODULE,procurementRead,procurement,procurement.view (helper default; route may narrow),false,false,false,session + organisation context + Shared Access authorize()
+api/procurement/reports/[key]/route.ts,GET,WORKSPACE_MODULE,procurementRead,procurement,procurement.view (helper default; route may narrow),false,false,false,session + organisation context + Shared Access authorize()
+api/projects/actions/[action]/route.ts,POST,WORKSPACE_MODULE,projectsMutation,projects,projects.view (helper default; route may narrow),true,false,true,session + organisation context + Shared Access authorize()
+api/projects/view/[kind]/route.ts,GET,WORKSPACE_MODULE,projectsRead,projects,projects.view (helper default; route may narrow),false,false,false,session + organisation context + Shared Access authorize()
+api/quality/actions/[action]/route.ts,POST,WORKSPACE_MODULE,qualityMutation,quality,quality.view (helper default; route may narrow),true,false,true,session + organisation context + Shared Access authorize()
+api/quality/view/[kind]/route.ts,GET,WORKSPACE_MODULE,qualityRead,quality,quality.view (helper default; route may narrow),false,false,false,session + organisation context + Shared Access authorize()
+api/readiness/route.ts,GET,PROBE,explicit,,,false,false,false,"Readiness: configuration, database role, migrations and storage status only; no tenant data."
+api/reports/datasets/route.ts,GET,WORKSPACE_PLATFORM,workspaceRoute,,,false,false,false,Datasets filtered to the snapshot's accessible modules and their permissions.
+api/reports/definitions/[id]/status/route.ts,POST,WORKSPACE_PLATFORM,workspaceRoute,,,false,false,true,"Owner or reporting manager, enforced by setReportDefinitionStatus."
+api/reports/definitions/route.ts,GET,WORKSPACE_PLATFORM,workspaceRoute,,,false,false,false,Definitions filtered to accessible modules; creating one re-checks the dataset's module and permission.
+api/reports/definitions/route.ts,POST,WORKSPACE_PLATFORM,workspaceRoute,,,false,false,true,Definitions filtered to accessible modules; creating one re-checks the dataset's module and permission.
+api/reports/runs/[id]/download/route.ts,GET,WORKSPACE_PLATFORM,workspaceRoute,,,false,false,false,Only the run's requester (readReportRunOutput).
+api/reports/runs/route.ts,GET,WORKSPACE_PLATFORM,workspaceRoute,,,false,false,false,Own runs; requesting a run re-checks the dataset's module and permission against the snapshot.
+api/reports/runs/route.ts,POST,WORKSPACE_PLATFORM,workspaceRoute,,,false,false,true,Own runs; requesting a run re-checks the dataset's module and permission against the snapshot.
+api/sales/approval-delegations/[id]/route.ts,DELETE,WORKSPACE_MODULE,salesMutation,sales,(route-specified),true,false,true,session + organisation context + Shared Access authorize()
+api/sales/approval-delegations/route.ts,GET,WORKSPACE_MODULE,salesRead,sales,(route-specified),false,false,false,session + organisation context + Shared Access authorize()
+api/sales/approval-delegations/route.ts,POST,WORKSPACE_MODULE,salesMutation,sales,(route-specified),true,false,true,session + organisation context + Shared Access authorize()
+api/sales/customer-prices/[id]/route.ts,DELETE,WORKSPACE_MODULE,workspaceRoute,sales,sales.settings.manage,true,false,true,session + organisation context + Shared Access authorize()
+api/sales/customer-prices/route.ts,GET,WORKSPACE_MODULE,workspaceRoute,sales,sales.view,false,false,false,session + organisation context + Shared Access authorize()
+api/sales/customer-prices/route.ts,POST,WORKSPACE_MODULE,workspaceRoute,sales,sales.settings.manage,true,false,true,session + organisation context + Shared Access authorize()
+api/sales/customers/[id]/credit/route.ts,GET,WORKSPACE_MODULE,salesRead,sales,(route-specified),false,false,false,session + organisation context + Shared Access authorize()
+api/sales/dashboard/route.ts,GET,WORKSPACE_MODULE,salesRead,sales,(route-specified),false,false,false,session + organisation context + Shared Access authorize()
+api/sales/documents/preview/route.ts,POST,WORKSPACE_MODULE,salesMutation,sales,(route-specified),true,false,true,session + organisation context + Shared Access authorize()
+api/sales/fulfillment-requests/[id]/complete/route.ts,POST,WORKSPACE_MODULE,salesMutation,sales,(route-specified),true,false,true,session + organisation context + Shared Access authorize()
+api/sales/fulfillment-requests/[id]/deliver/route.ts,POST,WORKSPACE_MODULE,salesMutation,sales,(route-specified),true,false,true,session + organisation context + Shared Access authorize()
+api/sales/fulfillment-requests/[id]/ship/route.ts,POST,WORKSPACE_MODULE,salesMutation,sales,(route-specified),true,false,true,session + organisation context + Shared Access authorize()
+api/sales/master/[resource]/[id]/route.ts,GET,WORKSPACE_MODULE,salesRead,sales,(route-specified),false,false,false,session + organisation context + Shared Access authorize()
+api/sales/master/[resource]/[id]/route.ts,PATCH,WORKSPACE_MODULE,salesMutation,sales,(route-specified),true,false,true,session + organisation context + Shared Access authorize()
+api/sales/master/[resource]/[id]/route.ts,DELETE,WORKSPACE_MODULE,salesMutation,sales,(route-specified),true,false,true,session + organisation context + Shared Access authorize()
+api/sales/master/[resource]/route.ts,GET,WORKSPACE_MODULE,salesRead,sales,(route-specified),false,false,false,session + organisation context + Shared Access authorize()
+api/sales/master/[resource]/route.ts,POST,WORKSPACE_MODULE,salesMutation,sales,(route-specified),true,false,true,session + organisation context + Shared Access authorize()
+api/sales/operations/adjustments/[id]/decide/route.ts,POST,WORKSPACE_MODULE,salesMutation,sales,(route-specified),true,false,true,session + organisation context + Shared Access authorize()
+api/sales/operations/adjustments/route.ts,POST,WORKSPACE_MODULE,salesMutation,sales,(route-specified),true,false,true,session + organisation context + Shared Access authorize()
+api/sales/operations/advances/[id]/cancel/route.ts,POST,WORKSPACE_MODULE,salesMutation,sales,(route-specified),true,false,true,session + organisation context + Shared Access authorize()
+api/sales/operations/advances/route.ts,POST,WORKSPACE_MODULE,salesMutation,sales,(route-specified),true,false,true,session + organisation context + Shared Access authorize()
+api/sales/operations/commission-rules/route.ts,POST,WORKSPACE_MODULE,salesMutation,sales,(route-specified),true,false,true,session + organisation context + Shared Access authorize()
+api/sales/operations/commissions/[id]/approve/route.ts,POST,WORKSPACE_MODULE,salesMutation,sales,(route-specified),true,false,true,session + organisation context + Shared Access authorize()
+api/sales/operations/commissions/route.ts,POST,WORKSPACE_MODULE,salesMutation,sales,(route-specified),true,false,true,session + organisation context + Shared Access authorize()
+api/sales/operations/drop-ships/[id]/status/route.ts,POST,WORKSPACE_MODULE,salesMutation,sales,(route-specified),true,false,true,session + organisation context + Shared Access authorize()
+api/sales/operations/drop-ships/route.ts,POST,WORKSPACE_MODULE,salesMutation,sales,(route-specified),true,false,true,session + organisation context + Shared Access authorize()
+api/sales/operations/options/route.ts,GET,WORKSPACE_MODULE,salesRead,sales,(route-specified),false,false,false,session + organisation context + Shared Access authorize()
+api/sales/operations/route.ts,GET,WORKSPACE_MODULE,salesRead,sales,(route-specified),false,false,false,session + organisation context + Shared Access authorize()
+api/sales/options/route.ts,GET,WORKSPACE_MODULE,salesRead,sales,(route-specified),false,false,false,session + organisation context + Shared Access authorize()
+api/sales/order-lines/[lineId]/promise/route.ts,POST,WORKSPACE_MODULE,salesMutation,sales,(route-specified),true,false,true,session + organisation context + Shared Access authorize()
+api/sales/orders/[id]/amend/impact/route.ts,POST,WORKSPACE_MODULE,salesMutation,sales,(route-specified),true,false,true,session + organisation context + Shared Access authorize()
+api/sales/orders/[id]/amend/route.ts,POST,WORKSPACE_MODULE,salesMutation,sales,(route-specified),true,false,true,session + organisation context + Shared Access authorize()
+api/sales/orders/[id]/approve/route.ts,POST,WORKSPACE_MODULE,salesMutation,sales,(route-specified),true,false,true,session + organisation context + Shared Access authorize()
+api/sales/orders/[id]/availability/route.ts,POST,WORKSPACE_MODULE,salesMutation,sales,(route-specified),true,false,true,session + organisation context + Shared Access authorize()
+api/sales/orders/[id]/cancel/route.ts,POST,WORKSPACE_MODULE,salesMutation,sales,(route-specified),true,false,true,session + organisation context + Shared Access authorize()
+api/sales/orders/[id]/close/route.ts,POST,WORKSPACE_MODULE,salesMutation,sales,(route-specified),true,false,true,session + organisation context + Shared Access authorize()
+api/sales/orders/[id]/compare/route.ts,GET,WORKSPACE_MODULE,salesRead,sales,(route-specified),false,false,false,session + organisation context + Shared Access authorize()
+api/sales/orders/[id]/confirm/route.ts,POST,WORKSPACE_MODULE,salesMutation,sales,(route-specified),true,false,true,session + organisation context + Shared Access authorize()
+api/sales/orders/[id]/fulfillment-request/route.ts,POST,WORKSPACE_MODULE,salesMutation,sales,(route-specified),true,false,true,session + organisation context + Shared Access authorize()
+api/sales/orders/[id]/hold/release/route.ts,POST,WORKSPACE_MODULE,salesMutation,sales,(route-specified),true,false,true,session + organisation context + Shared Access authorize()
+api/sales/orders/[id]/hold/route.ts,POST,WORKSPACE_MODULE,salesMutation,sales,(route-specified),true,false,true,session + organisation context + Shared Access authorize()
+api/sales/orders/[id]/invoice-request/route.ts,POST,WORKSPACE_MODULE,salesMutation,sales,(route-specified),true,false,true,session + organisation context + Shared Access authorize()
+api/sales/orders/[id]/readiness/route.ts,GET,WORKSPACE_MODULE,salesRead,sales,(route-specified),false,false,false,session + organisation context + Shared Access authorize()
+api/sales/orders/[id]/reject-approval/route.ts,POST,WORKSPACE_MODULE,salesMutation,sales,(route-specified),true,false,true,session + organisation context + Shared Access authorize()
+api/sales/orders/[id]/reservations/release/route.ts,POST,WORKSPACE_MODULE,salesMutation,sales,(route-specified),true,false,true,session + organisation context + Shared Access authorize()
+api/sales/orders/[id]/reserve/route.ts,POST,WORKSPACE_MODULE,salesMutation,sales,(route-specified),true,false,true,session + organisation context + Shared Access authorize()
+api/sales/orders/[id]/returns/route.ts,POST,WORKSPACE_MODULE,salesMutation,sales,(route-specified),true,false,true,session + organisation context + Shared Access authorize()
+api/sales/orders/[id]/route.ts,GET,WORKSPACE_MODULE,salesRead,sales,(route-specified),false,false,false,session + organisation context + Shared Access authorize()
+api/sales/orders/[id]/submit/route.ts,POST,WORKSPACE_MODULE,salesMutation,sales,(route-specified),true,false,true,session + organisation context + Shared Access authorize()
+api/sales/orders/[id]/timeline/route.ts,GET,WORKSPACE_MODULE,salesRead,sales,(route-specified),false,false,false,session + organisation context + Shared Access authorize()
+api/sales/orders/route.ts,GET,WORKSPACE_MODULE,salesRead,sales,(route-specified),false,false,false,session + organisation context + Shared Access authorize()
+api/sales/orders/route.ts,POST,WORKSPACE_MODULE,salesMutation,sales,(route-specified),true,false,true,session + organisation context + Shared Access authorize()
+api/sales/price-list-items/[id]/route.ts,DELETE,WORKSPACE_MODULE,workspaceRoute,sales,sales.settings.manage,true,false,true,session + organisation context + Shared Access authorize()
+api/sales/price-lists/[id]/items/route.ts,GET,WORKSPACE_MODULE,workspaceRoute,sales,sales.view,false,false,false,session + organisation context + Shared Access authorize()
+api/sales/price-lists/[id]/items/route.ts,POST,WORKSPACE_MODULE,workspaceRoute,sales,sales.settings.manage,true,false,true,session + organisation context + Shared Access authorize()
+api/sales/price-lists/route.ts,GET,WORKSPACE_MODULE,workspaceRoute,sales,sales.view,false,false,false,session + organisation context + Shared Access authorize()
+api/sales/price-lists/route.ts,POST,WORKSPACE_MODULE,workspaceRoute,sales,sales.settings.manage,true,false,true,session + organisation context + Shared Access authorize()
+api/sales/pricing-options/route.ts,GET,WORKSPACE_MODULE,workspaceRoute,sales,sales.view,false,false,false,session + organisation context + Shared Access authorize()
+api/sales/public/quotes/[token]/decision/route.ts,POST,PUBLIC_TOKEN,explicit,,,false,false,false,"Same quotation token; one decision only, Zod-validated body, IP/user-agent recorded as evidence."
+api/sales/public/quotes/[token]/route.ts,GET,PUBLIC_TOKEN,explicit,,,false,false,false,"32-byte quotation link token, only its SHA-256 stored; expiry, revocation and revision are enforced by the domain."
+api/sales/quotations/[id]/approve/route.ts,POST,WORKSPACE_MODULE,salesMutation,sales,(route-specified),true,false,true,session + organisation context + Shared Access authorize()
+api/sales/quotations/[id]/compare/route.ts,GET,WORKSPACE_MODULE,salesRead,sales,(route-specified),false,false,false,session + organisation context + Shared Access authorize()
+api/sales/quotations/[id]/convert/route.ts,POST,WORKSPACE_MODULE,salesMutation,sales,(route-specified),true,false,true,session + organisation context + Shared Access authorize()
+api/sales/quotations/[id]/reject-approval/route.ts,POST,WORKSPACE_MODULE,salesMutation,sales,(route-specified),true,false,true,session + organisation context + Shared Access authorize()
+api/sales/quotations/[id]/revise/route.ts,POST,WORKSPACE_MODULE,salesMutation,sales,(route-specified),true,false,true,session + organisation context + Shared Access authorize()
+api/sales/quotations/[id]/route.ts,GET,WORKSPACE_MODULE,salesRead,sales,(route-specified),false,false,false,session + organisation context + Shared Access authorize()
+api/sales/quotations/[id]/send/route.ts,POST,WORKSPACE_MODULE,salesMutation,sales,(route-specified),true,false,true,session + organisation context + Shared Access authorize()
+api/sales/quotations/[id]/submit/route.ts,POST,WORKSPACE_MODULE,salesMutation,sales,(route-specified),true,false,true,session + organisation context + Shared Access authorize()
+api/sales/quotations/[id]/timeline/route.ts,GET,WORKSPACE_MODULE,salesRead,sales,(route-specified),false,false,false,session + organisation context + Shared Access authorize()
+api/sales/quotations/route.ts,GET,WORKSPACE_MODULE,salesRead,sales,(route-specified),false,false,false,session + organisation context + Shared Access authorize()
+api/sales/quotations/route.ts,POST,WORKSPACE_MODULE,salesMutation,sales,(route-specified),true,false,true,session + organisation context + Shared Access authorize()
+api/sales/quotations/scan-expired/route.ts,POST,WORKSPACE_MODULE,salesMutation,sales,(route-specified),true,false,true,session + organisation context + Shared Access authorize()
+api/sales/reports/[key]/route.ts,GET,WORKSPACE_MODULE,salesRead,sales,(route-specified),false,false,false,session + organisation context + Shared Access authorize()
+api/sales/returns/[id]/decide/route.ts,POST,WORKSPACE_MODULE,salesMutation,sales,(route-specified),true,false,true,session + organisation context + Shared Access authorize()
+api/sales/returns/[id]/receive/route.ts,POST,WORKSPACE_MODULE,salesMutation,sales,(route-specified),true,false,true,session + organisation context + Shared Access authorize()
+api/sales/settings/route.ts,GET,WORKSPACE_MODULE,salesRead,sales,(route-specified),false,false,false,session + organisation context + Shared Access authorize()
+api/sales/settings/route.ts,PUT,WORKSPACE_MODULE,salesMutation,sales,(route-specified),true,false,true,session + organisation context + Shared Access authorize()
+api/search/route.ts,GET,WORKSPACE_PLATFORM,workspaceRoute,,,false,false,false,Results limited to the snapshot's accessible modules and the caller's record scope.
+api/settings/access/options/route.ts,GET,WORKSPACE_PLATFORM,workspaceRoute,,CORE_PERMISSIONS.usersView,false,false,false,session + organisation context + Shared Access authorize()
+api/settings/ai-governance/route.ts,GET,WORKSPACE_PLATFORM,workspaceRoute,,CORE_PERMISSIONS.platformAiManage,false,false,false,session + organisation context + Shared Access authorize()
+api/settings/ai-governance/route.ts,PUT,WORKSPACE_PLATFORM,workspaceRoute,,CORE_PERMISSIONS.platformAiManage,false,false,true,session + organisation context + Shared Access authorize()
+api/settings/audit/[id]/route.ts,GET,WORKSPACE_PLATFORM,workspaceRoute,,CORE_PERMISSIONS.auditView,false,false,false,session + organisation context + Shared Access authorize()
+api/settings/audit/actors/route.ts,GET,WORKSPACE_PLATFORM,workspaceRoute,,CORE_PERMISSIONS.auditView,false,false,false,session + organisation context + Shared Access authorize()
+api/settings/audit/route.ts,GET,WORKSPACE_PLATFORM,workspaceRoute,,CORE_PERMISSIONS.auditView,false,false,false,session + organisation context + Shared Access authorize()
+api/settings/automations/[id]/route.ts,PATCH,WORKSPACE_PLATFORM,workspaceRoute,,CORE_PERMISSIONS.platformWorkflowsManage,false,false,true,session + organisation context + Shared Access authorize()
+api/settings/automations/[id]/status/route.ts,POST,WORKSPACE_PLATFORM,workspaceRoute,,CORE_PERMISSIONS.platformWorkflowsManage,false,false,true,session + organisation context + Shared Access authorize()
+api/settings/automations/route.ts,GET,WORKSPACE_PLATFORM,workspaceRoute,,CORE_PERMISSIONS.platformWorkflowsManage,false,false,false,session + organisation context + Shared Access authorize()
+api/settings/automations/route.ts,POST,WORKSPACE_PLATFORM,workspaceRoute,,CORE_PERMISSIONS.platformWorkflowsManage,false,false,true,session + organisation context + Shared Access authorize()
+api/settings/automations/runs/route.ts,GET,WORKSPACE_PLATFORM,workspaceRoute,,CORE_PERMISSIONS.platformWorkflowsManage,false,false,false,session + organisation context + Shared Access authorize()
+api/settings/branches/[id]/route.ts,PUT,WORKSPACE_PLATFORM,workspaceRoute,,CORE_PERMISSIONS.branchManage,false,false,true,session + organisation context + Shared Access authorize()
+api/settings/branches/route.ts,GET,WORKSPACE_PLATFORM,workspaceRoute,,CORE_PERMISSIONS.branchManage,false,false,false,session + organisation context + Shared Access authorize()
+api/settings/branches/route.ts,POST,WORKSPACE_PLATFORM,workspaceRoute,,CORE_PERMISSIONS.branchManage,false,false,true,session + organisation context + Shared Access authorize()
+api/settings/companies/[id]/route.ts,PUT,WORKSPACE_PLATFORM,workspaceRoute,,CORE_PERMISSIONS.companyManage,false,false,true,session + organisation context + Shared Access authorize()
+api/settings/companies/route.ts,GET,WORKSPACE_PLATFORM,workspaceRoute,,CORE_PERMISSIONS.companyManage,false,false,false,session + organisation context + Shared Access authorize()
+api/settings/companies/route.ts,POST,WORKSPACE_PLATFORM,workspaceRoute,,CORE_PERMISSIONS.companyManage,false,false,true,session + organisation context + Shared Access authorize()
+api/settings/feature-configuration/cancel/route.ts,POST,WORKSPACE_PLATFORM,workspaceRoute,,CORE_PERMISSIONS.platformConfigurationManage,false,false,true,session + organisation context + Shared Access authorize()
+api/settings/feature-configuration/route.ts,GET,WORKSPACE_PLATFORM,workspaceRoute,,CORE_PERMISSIONS.platformConfigurationManage,false,false,false,session + organisation context + Shared Access authorize()
+api/settings/feature-configuration/route.ts,PUT,WORKSPACE_PLATFORM,workspaceRoute,,CORE_PERMISSIONS.platformConfigurationManage,false,false,true,session + organisation context + Shared Access authorize()
+api/settings/integrations/api-keys/[id]/revoke/route.ts,POST,WORKSPACE_PLATFORM,workspaceRoute,,CORE_PERMISSIONS.integrationsManage,false,false,true,session + organisation context + Shared Access authorize()
+api/settings/integrations/developer-apps/[id]/keys/route.ts,POST,WORKSPACE_PLATFORM,workspaceRoute,,CORE_PERMISSIONS.integrationsManage,false,false,true,session + organisation context + Shared Access authorize()
+api/settings/integrations/developer-apps/[id]/revoke/route.ts,POST,WORKSPACE_PLATFORM,workspaceRoute,,CORE_PERMISSIONS.integrationsManage,false,false,true,session + organisation context + Shared Access authorize()
+api/settings/integrations/developer-apps/[id]/route.ts,PATCH,WORKSPACE_PLATFORM,workspaceRoute,,CORE_PERMISSIONS.integrationsManage,false,false,true,session + organisation context + Shared Access authorize()
+api/settings/integrations/developer-apps/route.ts,GET,WORKSPACE_PLATFORM,workspaceRoute,,CORE_PERMISSIONS.integrationsView,false,false,false,session + organisation context + Shared Access authorize()
+api/settings/integrations/developer-apps/route.ts,POST,WORKSPACE_PLATFORM,workspaceRoute,,CORE_PERMISSIONS.integrationsManage,false,false,true,session + organisation context + Shared Access authorize()
+api/settings/integrations/inbound-mail/[id]/status/route.ts,POST,WORKSPACE_PLATFORM,workspaceRoute,,CORE_PERMISSIONS.integrationsManage,false,false,true,session + organisation context + Shared Access authorize()
+api/settings/integrations/inbound-mail/route.ts,GET,WORKSPACE_PLATFORM,workspaceRoute,,CORE_PERMISSIONS.integrationsView,false,false,false,session + organisation context + Shared Access authorize()
+api/settings/integrations/inbound-mail/route.ts,POST,WORKSPACE_PLATFORM,workspaceRoute,,CORE_PERMISSIONS.integrationsManage,false,false,true,session + organisation context + Shared Access authorize()
+api/settings/integrations/oauth/[id]/revoke/route.ts,POST,WORKSPACE_PLATFORM,workspaceRoute,,CORE_PERMISSIONS.integrationsManage,false,false,true,session + organisation context + Shared Access authorize()
+api/settings/integrations/oauth/callback/[provider]/route.ts,GET,WORKSPACE_PLATFORM,workspaceRoute,,CORE_PERMISSIONS.integrationsManage,false,false,false,session + organisation context + Shared Access authorize()
+api/settings/integrations/oauth/connect/route.ts,POST,WORKSPACE_PLATFORM,workspaceRoute,,CORE_PERMISSIONS.integrationsManage,false,false,true,session + organisation context + Shared Access authorize()
+api/settings/integrations/oauth/route.ts,GET,WORKSPACE_PLATFORM,workspaceRoute,,CORE_PERMISSIONS.integrationsView,false,false,false,session + organisation context + Shared Access authorize()
+api/settings/integrations/webhook-deliveries/[id]/redeliver/route.ts,POST,WORKSPACE_PLATFORM,workspaceRoute,,CORE_PERMISSIONS.integrationsManage,false,false,true,session + organisation context + Shared Access authorize()
+api/settings/integrations/webhooks/[id]/deliveries/route.ts,GET,WORKSPACE_PLATFORM,workspaceRoute,,CORE_PERMISSIONS.integrationsView,false,false,false,session + organisation context + Shared Access authorize()
+api/settings/integrations/webhooks/[id]/rotate-secret/route.ts,POST,WORKSPACE_PLATFORM,workspaceRoute,,CORE_PERMISSIONS.integrationsManage,false,false,true,session + organisation context + Shared Access authorize()
+api/settings/integrations/webhooks/[id]/route.ts,PATCH,WORKSPACE_PLATFORM,workspaceRoute,,CORE_PERMISSIONS.integrationsManage,false,false,true,session + organisation context + Shared Access authorize()
+api/settings/integrations/webhooks/route.ts,GET,WORKSPACE_PLATFORM,workspaceRoute,,CORE_PERMISSIONS.integrationsView,false,false,false,session + organisation context + Shared Access authorize()
+api/settings/integrations/webhooks/route.ts,POST,WORKSPACE_PLATFORM,workspaceRoute,,CORE_PERMISSIONS.integrationsManage,false,false,true,session + organisation context + Shared Access authorize()
+api/settings/modules/[key]/route.ts,PUT,WORKSPACE_PLATFORM,workspaceRoute,,CORE_PERMISSIONS.modulesManage,false,false,true,session + organisation context + Shared Access authorize()
+api/settings/modules/route.ts,GET,WORKSPACE_PLATFORM,workspaceRoute,,CORE_PERMISSIONS.modulesManage,false,false,false,session + organisation context + Shared Access authorize()
+api/settings/notification-preferences/route.ts,GET,WORKSPACE_PLATFORM,workspaceRoute,,,false,false,false,The caller's own preferences only.
+api/settings/notification-preferences/route.ts,PUT,WORKSPACE_PLATFORM,workspaceRoute,,,false,false,true,The caller's own preferences only.
+api/settings/numbering/advance/route.ts,POST,WORKSPACE_PLATFORM,workspaceRoute,,CORE_PERMISSIONS.numberingManage,false,false,true,session + organisation context + Shared Access authorize()
+api/settings/numbering/route.ts,GET,WORKSPACE_PLATFORM,workspaceRoute,,CORE_PERMISSIONS.numberingManage,false,false,false,session + organisation context + Shared Access authorize()
+api/settings/numbering/route.ts,PUT,WORKSPACE_PLATFORM,workspaceRoute,,CORE_PERMISSIONS.numberingManage,false,false,true,session + organisation context + Shared Access authorize()
+api/settings/organization/profile/route.ts,GET,WORKSPACE_PLATFORM,workspaceRoute,,,false,false,false,Any member may read the organisation name/timezone; updating requires organization.manage.
+api/settings/organization/profile/route.ts,PUT,WORKSPACE_PLATFORM,workspaceRoute,,CORE_PERMISSIONS.organizationManage,false,false,true,session + organisation context + Shared Access authorize()
+api/settings/organization/security/route.ts,GET,WORKSPACE_PLATFORM,workspaceRoute,,,false,false,false,Any member may read whether MFA is enforced; changing it requires platform.security.manage.
+api/settings/organization/security/route.ts,PUT,WORKSPACE_PLATFORM,workspaceRoute,,CORE_PERMISSIONS.platformSecurityManage,false,false,true,session + organisation context + Shared Access authorize()
+api/settings/roles/[id]/route.ts,PUT,WORKSPACE_PLATFORM,workspaceRoute,,CORE_PERMISSIONS.rolesManage,false,false,true,session + organisation context + Shared Access authorize()
+api/settings/roles/[id]/route.ts,DELETE,WORKSPACE_PLATFORM,workspaceRoute,,CORE_PERMISSIONS.rolesManage,false,false,true,session + organisation context + Shared Access authorize()
+api/settings/roles/permissions/route.ts,GET,WORKSPACE_PLATFORM,workspaceRoute,,CORE_PERMISSIONS.rolesManage,false,false,false,session + organisation context + Shared Access authorize()
+api/settings/roles/route.ts,GET,WORKSPACE_PLATFORM,workspaceRoute,,CORE_PERMISSIONS.rolesView,false,false,false,session + organisation context + Shared Access authorize()
+api/settings/roles/route.ts,POST,WORKSPACE_PLATFORM,workspaceRoute,,CORE_PERMISSIONS.rolesManage,false,false,true,session + organisation context + Shared Access authorize()
+api/settings/sessions/[id]/route.ts,DELETE,SELF_SERVICE,requireApiUser + sessionTransaction,,,false,false,true,the caller's own account; user + organisation context from the session
+api/settings/sessions/route.ts,GET,SELF_SERVICE,requireApiUser + sessionTransaction,,,false,false,false,the caller's own account; user + organisation context from the session
+api/settings/sessions/route.ts,DELETE,SELF_SERVICE,requireApiUser + sessionTransaction,,,false,false,true,the caller's own account; user + organisation context from the session
+api/settings/users/[id]/access/route.ts,PUT,WORKSPACE_PLATFORM,workspaceRoute,,CORE_PERMISSIONS.usersManage,false,false,true,session + organisation context + Shared Access authorize()
+api/settings/users/[id]/roles/route.ts,PUT,WORKSPACE_PLATFORM,workspaceRoute,,CORE_PERMISSIONS.rolesAssign,false,false,true,session + organisation context + Shared Access authorize()
+api/settings/users/[id]/status/route.ts,PUT,WORKSPACE_PLATFORM,workspaceRoute,,CORE_PERMISSIONS.usersManage,false,false,true,session + organisation context + Shared Access authorize()
+api/settings/users/route.ts,GET,WORKSPACE_PLATFORM,workspaceRoute,,CORE_PERMISSIONS.usersView,false,false,false,session + organisation context + Shared Access authorize()
+api/support/actions/[action]/route.ts,POST,WORKSPACE_MODULE,supportMutation,support,support.view (helper default; route may narrow),true,when self-service,true,session + organisation context + Shared Access authorize()
+api/support/attachments/[id]/download/route.ts,GET,WORKSPACE_MODULE,workspaceRoute,support,support.view,false,true,false,session + organisation context + Shared Access authorize()
+api/support/tickets/[ticketId]/attachments/route.ts,POST,WORKSPACE_MODULE,workspaceRoute,support,support.view,true,true,true,session + organisation context + Shared Access authorize()
+api/support/view/[kind]/route.ts,GET,WORKSPACE_MODULE,supportRead,support,support.view (helper default; route may narrow),false,when self-service,false,session + organisation context + Shared Access authorize()
+api/test-support/email-capture/route.ts,GET,TEST_SUPPORT,explicit,,,false,false,false,Returns 404 unless NODE_ENV is not production AND AUTH_EMAIL_CAPTURE_ENABLED is set; production configuration validation forbids the flag.
+api/test-support/email-capture/route.ts,POST,TEST_SUPPORT,explicit,,,false,false,false,Returns 404 unless NODE_ENV is not production AND AUTH_EMAIL_CAPTURE_ENABLED is set; production configuration validation forbids the flag.
+api/v1/platform/context/route.ts,GET,API_KEY,apiKeyRoute,,platform.context.read,false,false,false,hashed API key + key scopes + organisation context
+api/workspace/companies/route.ts,GET,WORKSPACE_PLATFORM,workspaceRoute,,,false,false,false,Companies inside the caller's own access scope.
+api/workspace/context/route.ts,PATCH,WORKSPACE_PLATFORM,workspaceRoute,,,false,false,true,Switches only to a company/branch inside the caller's own access scope.

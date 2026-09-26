@@ -1,11 +1,10 @@
 import { z } from "zod";
 
-import { assertSameOriginOrMobile, syncOfflinePosSale } from "@vercentlabs/api";
+import { syncOfflinePosSale } from "@vercentlabs/api";
 
-import { tenantTransaction } from "@/core/db";
-import { errorResponse, ok, readJson } from "@/core/http";
-import { requireWorkspace } from "@/core/session";
-import { posContext, requirePosAccess } from "@/features/pos/shared/pos-context";
+import { ok, readJson } from "@/core/http";
+import { posContext } from "@/features/pos/shared/pos-context";
+import { workspaceRoute } from "@/core/workspace-route";
 
 // Shape-level validation only. Every price/tax/stock/discount/shift figure
 // is re-derived fresh, from current Postgres state, inside
@@ -53,18 +52,15 @@ const syncSchema = z.object({
 // gets its own idempotency reservation keyed on its own local transaction
 // id (see syncOfflinePosSale).
 export async function POST(request: Request) {
-  try {
-    assertSameOriginOrMobile(request, process.env);
-    const session = await requireWorkspace();
+  return workspaceRoute(request, { module: "point-of-sale", permission: "pos.offline.sync", billingWrite: true }, async ({ client, session }) => {
     const input = syncSchema.parse(await readJson(request));
 
     const results = [];
     for (const transaction of input.transactions) {
       try {
-        const result = await tenantTransaction(session.organizationId, async (client) => {
-          await requirePosAccess(client, session, "pos.offline.sync", { mutation: true });
+    const result = await (async () => {
           return syncOfflinePosSale(client, posContext(session), transaction);
-        });
+    })();
         results.push(result);
       } catch (error) {
         const status = (error as { status?: number })?.status;
@@ -80,7 +76,5 @@ export async function POST(request: Request) {
       }
     }
     return ok({ results });
-  } catch (error) {
-    return errorResponse(error);
-  }
+  });
 }

@@ -1,10 +1,9 @@
-import { assertSameOriginOrMobile, getAccountHierarchy, setAccountParent } from "@vercentlabs/api";
+import { getAccountHierarchy, setAccountParent } from "@vercentlabs/api";
 import { CRM_PERMISSIONS } from "@vercentlabs/permissions";
 
-import { tenantTransaction } from "@/core/db";
-import { errorResponse, ok, readJson } from "@/core/http";
-import { requireWorkspace } from "@/core/session";
-import { crmContext, requireCrmAccess } from "@/features/crm/shared/crm-context";
+import { ok, readJson } from "@/core/http";
+import { crmContext } from "@/features/crm/shared/crm-context";
+import { workspaceRoute } from "@/core/workspace-route";
 
 // F002 Tranche E (Stage A). getAccountHierarchy/setAccountParent
 // (account-intelligence.js) were already a real, already-tested,
@@ -16,32 +15,19 @@ import { crmContext, requireCrmAccess } from "@/features/crm/shared/crm-context"
 // PATCH/DELETE convention in accounts/[id]/route.ts).
 type RouteContext = { params: Promise<{ id: string }> };
 
-export async function GET(_request: Request, context: RouteContext) {
-  try {
-    const session = await requireWorkspace();
+export async function GET(request: Request, context: RouteContext) {
+  return workspaceRoute(request, { module: "crm" }, async ({ client, session }) => {
     const { id } = await context.params;
-    const hierarchy = await tenantTransaction(session.organizationId, async (client) => {
-      await requireCrmAccess(client, session);
-      return getAccountHierarchy(client, crmContext(session), id);
-    });
+    const hierarchy = await getAccountHierarchy(client, crmContext(session), id);
     return ok(hierarchy);
-  } catch (error) {
-    return errorResponse(error);
-  }
+  });
 }
 
 export async function PATCH(request: Request, context: RouteContext) {
-  try {
-    assertSameOriginOrMobile(request, process.env);
-    const session = await requireWorkspace();
+  return workspaceRoute(request, { module: "crm", permission: CRM_PERMISSIONS.accountsManage, billingWrite: true }, async ({ client, session }) => {
     const { id } = await context.params;
     const body = (await readJson(request)) as { parentId?: string | null; reason?: string | null };
-    const record = await tenantTransaction(session.organizationId, async (client) => {
-      await requireCrmAccess(client, session, CRM_PERMISSIONS.accountsManage, { mutation: true });
-      return setAccountParent(client, crmContext(session), id, body.parentId || null, body.reason || null);
-    });
+    const record = await setAccountParent(client, crmContext(session), id, body.parentId || null, body.reason || null);
     return ok({ record });
-  } catch (error) {
-    return errorResponse(error);
-  }
+  });
 }

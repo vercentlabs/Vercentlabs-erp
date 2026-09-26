@@ -1,9 +1,8 @@
-import { assertSameOriginOrMobile, decideLeadQualification, getLeadQualification } from "@vercentlabs/api";
+import { decideLeadQualification, getLeadQualification } from "@vercentlabs/api";
 
-import { tenantTransaction } from "@/core/db";
-import { errorResponse, ok, readJson } from "@/core/http";
-import { requireWorkspace } from "@/core/session";
-import { crmContext, requireCrmAccess } from "@/features/crm/shared/crm-context";
+import { ok, readJson } from "@/core/http";
+import { crmContext } from "@/features/crm/shared/crm-context";
+import { workspaceRoute } from "@/core/workspace-route";
 
 // F006 qualification is a fully governed, independent axis from pipeline
 // stage (F007) and record status — decideLeadQualification (lead-
@@ -11,32 +10,19 @@ import { crmContext, requireCrmAccess } from "@/features/crm/shared/crm-context"
 // this route never re-derives any of that. decideLeadQualification already
 // checks crm.leads.manage internally (assertCanDecide); this route still
 // enforces the module-access layer for both GET and POST.
-export async function GET(_request: Request, context: { params: Promise<{ id: string }> }) {
-  try {
-    const session = await requireWorkspace();
+export async function GET(request: Request, context: { params: Promise<{ id: string }> }) {
+  return workspaceRoute(request, { module: "crm" }, async ({ client, session }) => {
     const { id } = await context.params;
-    const qualification = await tenantTransaction(session.organizationId, async (client) => {
-      await requireCrmAccess(client, session);
-      return getLeadQualification(client, crmContext(session), id);
-    });
+    const qualification = await getLeadQualification(client, crmContext(session), id);
     return ok({ qualification });
-  } catch (error) {
-    return errorResponse(error);
-  }
+  });
 }
 
 export async function POST(request: Request, context: { params: Promise<{ id: string }> }) {
-  try {
-    assertSameOriginOrMobile(request, process.env);
-    const session = await requireWorkspace();
+  return workspaceRoute(request, { module: "crm", billingWrite: true }, async ({ client, session }) => {
     const { id } = await context.params;
     const input = (await readJson(request)) as Record<string, unknown>;
-    const result = await tenantTransaction(session.organizationId, async (client) => {
-      await requireCrmAccess(client, session, undefined, { mutation: true });
-      return decideLeadQualification(client, crmContext(session), id, input);
-    });
+    const result = await decideLeadQualification(client, crmContext(session), id, input);
     return ok(result);
-  } catch (error) {
-    return errorResponse(error);
-  }
+  });
 }

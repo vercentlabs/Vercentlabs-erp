@@ -7,7 +7,7 @@ import { Button, Timeline, type TimelineEntry } from "@vercentlabs/design-system
 
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
-import { humanize } from "./human";
+import { humanize } from "@/shared/format/human";
 import { getRecordTimeline, type RecordTimelineRow, type TimelineKind } from "./timeline-api";
 
 const dateTimeFormatter = new Intl.DateTimeFormat("en-IN", { dateStyle: "medium", timeStyle: "short" });

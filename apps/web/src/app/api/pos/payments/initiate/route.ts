@@ -1,11 +1,10 @@
 import { z } from "zod";
 
-import { assertSameOriginOrMobile, initiatePosPayment } from "@vercentlabs/api";
+import { initiatePosPayment } from "@vercentlabs/api";
 
-import { tenantTransaction } from "@/core/db";
-import { errorResponse, ok, readJson } from "@/core/http";
-import { requireWorkspace } from "@/core/session";
-import { posContext, requirePosAccess } from "@/features/pos/shared/pos-context";
+import { ok, readJson } from "@/core/http";
+import { posContext } from "@/features/pos/shared/pos-context";
+import { workspaceRoute } from "@/core/workspace-route";
 
 // F283 (card) / F284 (UPI/digital) / F286 (multiple payment methods):
 // starts a non-cash tender leg on a priced cart. Never completes the sale
@@ -24,16 +23,9 @@ const initiateSchema = z.object({
 });
 
 export async function POST(request: Request) {
-  try {
-    assertSameOriginOrMobile(request, process.env);
-    const session = await requireWorkspace();
+  return workspaceRoute(request, { module: "point-of-sale", permission: "pos.sale.create", billingWrite: true }, async ({ client, session }) => {
     const input = initiateSchema.parse(await readJson(request));
-    const result = await tenantTransaction(session.organizationId, async (client) => {
-      await requirePosAccess(client, session, "pos.sale.create", { mutation: true });
-      return initiatePosPayment(client, posContext(session), input);
-    });
+    const result = await initiatePosPayment(client, posContext(session), input);
     return ok({ payment: result }, 201);
-  } catch (error) {
-    return errorResponse(error);
-  }
+  });
 }

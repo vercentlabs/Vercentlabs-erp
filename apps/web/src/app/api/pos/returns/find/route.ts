@@ -1,21 +1,14 @@
 import { findPosSaleForReturn } from "@vercentlabs/api";
 
-import { tenantTransaction } from "@/core/db";
-import { errorResponse, ok } from "@/core/http";
-import { requireWorkspace } from "@/core/session";
-import { posContext, requirePosAccess } from "@/features/pos/shared/pos-context";
+import { ok } from "@/core/http";
+import { posContext } from "@/features/pos/shared/pos-context";
+import { workspaceRoute } from "@/core/workspace-route";
 
 export async function GET(request: Request) {
-  try {
-    const session = await requireWorkspace();
+  return workspaceRoute(request, { module: "point-of-sale", permission: "pos.return.create" }, async ({ client, session }) => {
     const url = new URL(request.url);
     const receiptNumber = url.searchParams.get("receiptNumber") || "";
-    const result = await tenantTransaction(session.organizationId, async (client) => {
-      await requirePosAccess(client, session, "pos.return.create");
-      return findPosSaleForReturn(client, posContext(session), { receiptNumber });
-    });
+    const result = await findPosSaleForReturn(client, posContext(session), { receiptNumber });
     return ok(result);
-  } catch (error) {
-    return errorResponse(error);
-  }
+  });
 }

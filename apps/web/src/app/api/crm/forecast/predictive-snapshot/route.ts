@@ -1,10 +1,9 @@
-import { assertSameOriginOrMobile, capturePredictiveForecast } from "@vercentlabs/api";
+import { capturePredictiveForecast } from "@vercentlabs/api";
 import { CRM_PERMISSIONS } from "@vercentlabs/permissions";
 
-import { tenantTransaction } from "@/core/db";
-import { errorResponse, ok, readJson } from "@/core/http";
-import { requireWorkspace } from "@/core/session";
-import { crmContext, requireCrmAccess } from "@/features/crm/shared/crm-context";
+import { ok, readJson } from "@/core/http";
+import { crmContext } from "@/features/crm/shared/crm-context";
+import { workspaceRoute } from "@/core/workspace-route";
 
 // F025 Stage A2 §11. capturePredictiveForecast (opportunity-revenue-
 // intelligence.js) already existed, fully built, with zero frontend
@@ -14,16 +13,9 @@ import { crmContext, requireCrmAccess } from "@/features/crm/shared/crm-context"
 // so the caller sees it immediately, rather than requiring a separate
 // "latest snapshot" read endpoint this pass doesn't otherwise need.
 export async function POST(request: Request) {
-  try {
-    assertSameOriginOrMobile(request, process.env);
-    const session = await requireWorkspace();
+  return workspaceRoute(request, { module: "crm", permission: CRM_PERMISSIONS.opportunitiesManage, billingWrite: true }, async ({ client, session }) => {
     const input = (await readJson(request).catch(() => ({}))) as { forecastPeriodId?: string };
-    const result = await tenantTransaction(session.organizationId, async (client) => {
-      await requireCrmAccess(client, session, CRM_PERMISSIONS.opportunitiesManage, { mutation: true });
-      return capturePredictiveForecast(client, crmContext(session), { forecastPeriodId: input.forecastPeriodId || null });
-    });
+    const result = await capturePredictiveForecast(client, crmContext(session), { forecastPeriodId: input.forecastPeriodId || null });
     return ok(result, 201);
-  } catch (error) {
-    return errorResponse(error);
-  }
+  });
 }

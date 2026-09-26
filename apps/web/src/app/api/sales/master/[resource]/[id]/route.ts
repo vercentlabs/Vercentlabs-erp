@@ -11,7 +11,7 @@ const IDENTITY_FIELDS = ["displayName", "legalName", "gstin", "pan"];
 
 export async function GET(request: Request, ctx: { params: Promise<{ resource: string; id: string }> }) {
   const { resource, id } = await ctx.params;
-  return salesRead("sales.view", async (client, context) => {
+  return salesRead(request, "sales.view", async (client, context) => {
     assertReadable(resource);
     const record = (await getBusinessDataRecord(client, context, resource, id)) as Record<string, unknown>;
     if (resource === "parties" && !CUSTOMER_TYPES.includes(String(record.partyType))) {

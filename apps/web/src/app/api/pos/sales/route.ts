@@ -1,11 +1,10 @@
 import { z } from "zod";
 
-import { assertSameOriginOrMobile, completePointOfSale, listPosTransactions } from "@vercentlabs/api";
+import { completePointOfSale, listPosTransactions } from "@vercentlabs/api";
 
-import { tenantTransaction } from "@/core/db";
-import { errorResponse, ok, readJson } from "@/core/http";
-import { requireWorkspace } from "@/core/session";
-import { posContext, requirePosAccess } from "@/features/pos/shared/pos-context";
+import { ok, readJson } from "@/core/http";
+import { posContext } from "@/features/pos/shared/pos-context";
+import { workspaceRoute } from "@/core/workspace-route";
 
 // Shape-level validation only — the authoritative business rules (stock
 // availability, price-list resolution, discount/override permission,
@@ -54,46 +53,33 @@ const completeSaleSchema = z.object({
 // pagination. Nothing else in the app called this route's GET before
 // this feature existed, so widening it here is not a breaking change.
 export async function GET(request: Request) {
-  try {
-    const session = await requireWorkspace();
+  return workspaceRoute(request, { module: "point-of-sale" }, async ({ client, session }) => {
     const url = new URL(request.url);
     const params = url.searchParams;
-    const result = await tenantTransaction(session.organizationId, async (client) => {
-      await requirePosAccess(client, session);
-      return listPosTransactions(client, posContext(session), {
-        search: params.get("search") || undefined,
-        storeId: params.get("storeId") || undefined,
-        terminalId: params.get("terminalId") || undefined,
-        cashierId: params.get("cashierId") || undefined,
-        shiftId: params.get("shiftId") || undefined,
-        customerId: params.get("customerId") || undefined,
-        status: params.get("status") || undefined,
-        dateFrom: params.get("dateFrom") || undefined,
-        dateTo: params.get("dateTo") || undefined,
-        paymentMethod: params.get("paymentMethod") || undefined,
-        sortBy: (params.get("sortBy") as "sale_date" | "grand_total" | "receipt_number" | "status") || undefined,
-        sortDir: (params.get("sortDir") as "asc" | "desc") || undefined,
-        limit: params.get("limit") ? Number(params.get("limit")) : undefined,
-        offset: params.get("offset") ? Number(params.get("offset")) : undefined,
-      });
+    const result = await listPosTransactions(client, posContext(session), {
+      search: params.get("search") || undefined,
+      storeId: params.get("storeId") || undefined,
+      terminalId: params.get("terminalId") || undefined,
+      cashierId: params.get("cashierId") || undefined,
+      shiftId: params.get("shiftId") || undefined,
+      customerId: params.get("customerId") || undefined,
+      status: params.get("status") || undefined,
+      dateFrom: params.get("dateFrom") || undefined,
+      dateTo: params.get("dateTo") || undefined,
+      paymentMethod: params.get("paymentMethod") || undefined,
+      sortBy: (params.get("sortBy") as "sale_date" | "grand_total" | "receipt_number" | "status") || undefined,
+      sortDir: (params.get("sortDir") as "asc" | "desc") || undefined,
+      limit: params.get("limit") ? Number(params.get("limit")) : undefined,
+      offset: params.get("offset") ? Number(params.get("offset")) : undefined,
     });
     return ok(result);
-  } catch (error) {
-    return errorResponse(error);
-  }
+  });
 }
 
 export async function POST(request: Request) {
-  try {
-    assertSameOriginOrMobile(request, process.env);
-    const session = await requireWorkspace();
+  return workspaceRoute(request, { module: "point-of-sale", permission: "pos.sale.create", billingWrite: true }, async ({ client, session }) => {
     const input = completeSaleSchema.parse(await readJson(request));
-    const result = await tenantTransaction(session.organizationId, async (client) => {
-      await requirePosAccess(client, session, "pos.sale.create", { mutation: true });
-      return completePointOfSale(client, posContext(session), input);
-    });
+    const result = await completePointOfSale(client, posContext(session), input);
     return ok({ sale: result }, 201);
-  } catch (error) {
-    return errorResponse(error);
-  }
+  });
 }

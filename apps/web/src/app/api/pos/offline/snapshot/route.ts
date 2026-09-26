@@ -1,11 +1,10 @@
 import { z } from "zod";
 
-import { assertSameOriginOrMobile, getPosOfflineSnapshot } from "@vercentlabs/api";
+import { getPosOfflineSnapshot } from "@vercentlabs/api";
 
-import { tenantTransaction } from "@/core/db";
-import { errorResponse, ok } from "@/core/http";
-import { requireWorkspace } from "@/core/session";
-import { posContext, requirePosAccess } from "@/features/pos/shared/pos-context";
+import { ok } from "@/core/http";
+import { posContext } from "@/features/pos/shared/pos-context";
+import { workspaceRoute } from "@/core/workspace-route";
 
 const querySchema = z.object({ storeId: z.string().uuid() });
 
@@ -16,17 +15,10 @@ const querySchema = z.object({ storeId: z.string().uuid() });
 // and for OFFLINE_UNSUPPORTED_OPERATIONS, which this response always
 // includes so the client can render/enforce it verbatim.
 export async function GET(request: Request) {
-  try {
-    assertSameOriginOrMobile(request, process.env);
-    const session = await requireWorkspace();
+  return workspaceRoute(request, { module: "point-of-sale", permission: "pos.offline.sync" }, async ({ client, session }) => {
     const { searchParams } = new URL(request.url);
     const input = querySchema.parse({ storeId: searchParams.get("storeId") });
-    const result = await tenantTransaction(session.organizationId, async (client) => {
-      await requirePosAccess(client, session, "pos.offline.sync");
-      return getPosOfflineSnapshot(client, posContext(session), input);
-    });
+    const result = await getPosOfflineSnapshot(client, posContext(session), input);
     return ok({ snapshot: result });
-  } catch (error) {
-    return errorResponse(error);
-  }
+  });
 }

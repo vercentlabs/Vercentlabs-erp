@@ -10,3 +10,4 @@ export declare function receiveSerializedStock(client: any, context: StockContex
 export declare function listStockSerialsDetailed(client: any, context: StockContext, options?: { itemId?: string | null; status?: string | null; limit?: number }): Promise<Row[]>;
 export declare function saveStockReorderRule(client: any, context: StockContext, input?: Row): Promise<Row>;
 export declare function listStockReorderRulesDetailed(client: any, context: StockContext): Promise<Row[]>;
+export declare function guardStockItemIdentity(client: any, organizationId: string, itemId: string, input?: Row): Promise<void>;

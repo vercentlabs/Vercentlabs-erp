@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Button, ErrorState, Skeleton, TextArea, TextField } from "@vercentlabs/design-system";
 
-import { browserTimezone, canonicalTimezone, humanize, isoToLocalParts, timezoneLabel } from "@/features/crm/shared/human";
+import { browserTimezone, canonicalTimezone, humanize, isoToLocalParts, timezoneLabel } from "@/shared/format/human";
 import { TimezoneSelect } from "@/features/crm/shared/ui/TimezoneSelect";
 import { BookingCalendar } from "../components/BookingCalendar";
 import { BookingShell } from "../components/BookingShell";

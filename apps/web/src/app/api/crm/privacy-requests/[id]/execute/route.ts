@@ -1,10 +1,9 @@
-import { assertSameOriginOrMobile, executePrivacyRequest } from "@vercentlabs/api";
+import { executePrivacyRequest } from "@vercentlabs/api";
 import { CRM_PERMISSIONS } from "@vercentlabs/permissions";
 
-import { tenantTransaction } from "@/core/db";
-import { errorResponse, ok, readJson } from "@/core/http";
-import { requireWorkspace } from "@/core/session";
-import { crmContext, requireCrmAccess } from "@/features/crm/shared/crm-context";
+import { ok, readJson } from "@/core/http";
+import { crmContext } from "@/features/crm/shared/crm-context";
+import { workspaceRoute } from "@/core/workspace-route";
 
 // Executes a data-subject request: access/export produce an export
 // payload, correction applies input.corrections, deletion applies
@@ -15,17 +14,10 @@ import { crmContext, requireCrmAccess } from "@/features/crm/shared/crm-context"
 // crm_privacy_execution_runs audit trail — this route only authenticates
 // and forwards input.
 export async function POST(request: Request, context: { params: Promise<{ id: string }> }) {
-  try {
-    assertSameOriginOrMobile(request, process.env);
-    const session = await requireWorkspace();
+  return workspaceRoute(request, { module: "crm", permission: CRM_PERMISSIONS.privacyManage, billingWrite: true }, async ({ client, session }) => {
     const { id } = await context.params;
     const input = (await readJson(request).catch(() => ({}))) as Record<string, unknown>;
-    const result = await tenantTransaction(session.organizationId, async (client) => {
-      await requireCrmAccess(client, session, CRM_PERMISSIONS.privacyManage, { mutation: true });
-      return executePrivacyRequest(client, crmContext(session), id, input);
-    });
+    const result = await executePrivacyRequest(client, crmContext(session), id, input);
     return ok(result);
-  } catch (error) {
-    return errorResponse(error);
-  }
+  });
 }

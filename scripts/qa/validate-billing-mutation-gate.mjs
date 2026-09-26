@@ -1,5 +1,5 @@
 // SP011 Section 3 validator: re-derives the billing-mutation inventory
-// fresh and fails the process if any CRM/POS mutation-capable route is
+// fresh and fails the process if any business-module mutation-capable route is
 // neither billing-write-gated nor named in generate-billing-mutation-
 // inventory.mjs's DOCUMENTED_EXCLUSIONS with a real, reviewed reason.
 // Mirrors validate-route-security.mjs's shape exactly. Scope: CRM and POS
@@ -50,15 +50,15 @@ const rows = lines.map((line) => {
 const unaccounted = rows.filter((row) => row.status === "UNACCOUNTED");
 
 if (unaccounted.length > 0) {
-  console.error(`\nBILLING MUTATION GATE VALIDATION FAILED — ${unaccounted.length} CRM/POS mutation route(s) are neither billing-write-gated nor documented as excluded:\n`);
+  console.error(`\nBILLING MUTATION GATE VALIDATION FAILED — ${unaccounted.length} business-module mutation route(s) are neither billing-write-gated nor documented as excluded:\n`);
   for (const row of unaccounted) console.error(`  - ${row.route} [${row.mutation_methods}]`);
   console.error(
-    "\nEither wire requireBillingWriteAccess (directly, via requireCrmMutationAccess, or via requireCrmAccess/requirePosAccess's { mutation: true } option), or add a DOCUMENTED_EXCLUSIONS entry in scripts/qa/generate-billing-mutation-inventory.mjs naming the specific reason this route must remain reachable regardless of subscription-write state.\n",
+    "\nEither wire requireBillingWriteAccess (directly, or via workspaceRoute's billingWrite: true option), or add a DOCUMENTED_EXCLUSIONS entry in scripts/qa/generate-billing-mutation-inventory.mjs naming the specific reason this route must remain reachable regardless of subscription-write state.\n",
   );
   process.exit(1);
 }
 
 const inScope = rows.filter((row) => row.status !== "out-of-scope");
 console.log(
-  `Billing mutation gate validation passed — ${inScope.length} in-scope CRM/POS mutation routes checked (${rows.length} total mutation-capable routes repo-wide), 0 unaccounted.`,
+  `Billing mutation gate validation passed — ${inScope.length} in-scope business-module mutation routes checked (${rows.length} total mutation-capable routes repo-wide), 0 unaccounted.`,
 );

@@ -1,12 +1,11 @@
 import { z } from "zod";
 
-import { applyLeadStageTemplateUpgrade, assertSameOriginOrMobile, previewLeadStageTemplateUpgrade } from "@vercentlabs/api";
+import { applyLeadStageTemplateUpgrade, previewLeadStageTemplateUpgrade } from "@vercentlabs/api";
 import { CRM_PERMISSIONS } from "@vercentlabs/permissions";
 
-import { tenantTransaction } from "@/core/db";
-import { errorResponse, ok, readJson } from "@/core/http";
-import { requireWorkspace } from "@/core/session";
-import { crmContext, requireCrmAccess } from "@/features/crm/shared/crm-context";
+import { ok, readJson } from "@/core/http";
+import { crmContext } from "@/features/crm/shared/crm-context";
+import { workspaceRoute } from "@/core/workspace-route";
 
 // "Apply recommended Vercentlabs 5-stage template" admin workflow (F007) —
 // for an organization whose Lead stage catalogue has been customized (and
@@ -14,32 +13,19 @@ import { crmContext, requireCrmAccess } from "@/features/crm/shared/crm-context"
 // previews exactly what would change; POST applies it and requires
 // { confirm: true } in the body — this is a deliberate, reviewed action,
 // not something a page load can trigger by accident.
-export async function GET() {
-  try {
-    const session = await requireWorkspace();
-    const result = await tenantTransaction(session.organizationId, async (client) => {
-      await requireCrmAccess(client, session, CRM_PERMISSIONS.settingsManage);
-      return previewLeadStageTemplateUpgrade(client, crmContext(session));
-    });
+export async function GET(request: Request) {
+  return workspaceRoute(request, { module: "crm", permission: CRM_PERMISSIONS.settingsManage }, async ({ client, session }) => {
+    const result = await previewLeadStageTemplateUpgrade(client, crmContext(session));
     return ok(result);
-  } catch (error) {
-    return errorResponse(error);
-  }
+  });
 }
 
 const applyTemplateSchema = z.object({ confirm: z.literal(true) });
 
 export async function POST(request: Request) {
-  try {
-    assertSameOriginOrMobile(request, process.env);
-    const session = await requireWorkspace();
+  return workspaceRoute(request, { module: "crm", permission: CRM_PERMISSIONS.settingsManage, billingWrite: true }, async ({ client, session }) => {
     const input = applyTemplateSchema.parse(await readJson(request));
-    const result = await tenantTransaction(session.organizationId, async (client) => {
-      await requireCrmAccess(client, session, CRM_PERMISSIONS.settingsManage, { mutation: true });
-      return applyLeadStageTemplateUpgrade(client, crmContext(session), input);
-    });
+    const result = await applyLeadStageTemplateUpgrade(client, crmContext(session), input);
     return ok(result);
-  } catch (error) {
-    return errorResponse(error);
-  }
+  });
 }

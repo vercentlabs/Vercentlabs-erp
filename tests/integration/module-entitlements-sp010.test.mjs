@@ -2,7 +2,7 @@
 // resolveModuleAccess/assertModuleAccessible (services/api/src/core/
 // module-entitlements.js) is the SHARED, universal gate every CRM/POS
 // route calls before anything else (crm-context.ts/pos-context.ts's
-// requireCrmAccess/requirePosAccess both call it unconditionally, for
+// workspaceRoute({ module }) (through the access snapshot) applies it unconditionally, for
 // reads and writes alike) -- yet a repository-wide search before writing
 // this file found ZERO existing tests exercising it against a real
 // database. That is a real gap in its own right, independent of whether

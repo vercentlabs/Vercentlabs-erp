@@ -1,6 +1,6 @@
 "use client";
 
-import { humanize } from "@/features/crm/shared/human";
+import { humanize } from "@/shared/format/human";
 
 import { useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -27,7 +27,7 @@ import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext"
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import { cancelTask, claimTask, completeTask, listMyTaskTeams, listTasks, releaseTask, startTask, TaskApiError } from "../api/tasks-api";
 import type { Task, TaskListFilters } from "../types";
-import { LoadingState } from "@/features/crm/shared/ui/LoadingState";
+import { LoadingState } from "@/shared/ui/LoadingState";
 import { DueCell } from "@/features/crm/shared/ui/DueCell";
 
 const PAGE_SIZE = 25;

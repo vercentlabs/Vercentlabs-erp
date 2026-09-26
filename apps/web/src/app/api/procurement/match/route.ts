@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import { runProcurementMatchWithVendorBillImport } from "@vercentlabs/api";
+import { procurementRecordCompanyId, runProcurementMatchWithVendorBillImport } from "@vercentlabs/api";
 
 import { accountingContextForVendorBill } from "@/features/procurement/shared/cross-module-contexts";
 import { procurementMutation } from "@/features/procurement/shared/route-helpers";
@@ -22,8 +22,7 @@ const schema = z.object({
 // Accounting party; otherwise the match stands and says why no bill was created.
 export async function POST(request: Request) {
   return procurementMutation(request, schema, async (client, context, input, session) => {
-    const order = await client.query("SELECT company_id FROM tenant.procurement_purchase_orders WHERE organization_id=$1 AND id=$2", [context.organizationId, input.purchaseOrderId]);
-    const companyId = (order.rows[0]?.company_id as string | undefined) ?? context.activeCompanyId ?? "";
+    const companyId = (await procurementRecordCompanyId(client, context.organizationId, "purchase-orders", input.purchaseOrderId)) ?? context.activeCompanyId ?? "";
     return { result: await runProcurementMatchWithVendorBillImport(client, context, accountingContextForVendorBill(session, companyId), input) };
   }, 201);
 }

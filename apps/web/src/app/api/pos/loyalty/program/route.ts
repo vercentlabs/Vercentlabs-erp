@@ -1,11 +1,10 @@
 import { z } from "zod";
 
-import { assertSameOriginOrMobile, getPosLoyaltyProgram, upsertPosLoyaltyProgram } from "@vercentlabs/api";
+import { getPosLoyaltyProgram, upsertPosLoyaltyProgram } from "@vercentlabs/api";
 
-import { tenantTransaction } from "@/core/db";
-import { errorResponse, ok, readJson } from "@/core/http";
-import { requireWorkspace } from "@/core/session";
-import { posContext, requirePosAccess } from "@/features/pos/shared/pos-context";
+import { ok, readJson } from "@/core/http";
+import { posContext } from "@/features/pos/shared/pos-context";
+import { workspaceRoute } from "@/core/workspace-route";
 
 const upsertSchema = z.object({
   name: z.string().trim().min(1).max(200),
@@ -18,30 +17,17 @@ const upsertSchema = z.object({
   pointsExpiryDays: z.number().int().positive().optional().nullable(),
 });
 
-export async function GET() {
-  try {
-    const session = await requireWorkspace();
-    const record = await tenantTransaction(session.organizationId, async (client) => {
-      await requirePosAccess(client, session);
-      return getPosLoyaltyProgram(client, posContext(session));
-    });
+export async function GET(request: Request) {
+  return workspaceRoute(request, { module: "point-of-sale" }, async ({ client, session }) => {
+    const record = await getPosLoyaltyProgram(client, posContext(session));
     return ok({ record });
-  } catch (error) {
-    return errorResponse(error);
-  }
+  });
 }
 
 export async function POST(request: Request) {
-  try {
-    assertSameOriginOrMobile(request, process.env);
-    const session = await requireWorkspace();
+  return workspaceRoute(request, { module: "point-of-sale", permission: "pos.loyalty.manage", billingWrite: true }, async ({ client, session }) => {
     const input = upsertSchema.parse(await readJson(request));
-    const result = await tenantTransaction(session.organizationId, async (client) => {
-      await requirePosAccess(client, session, "pos.loyalty.manage", { mutation: true });
-      return upsertPosLoyaltyProgram(client, posContext(session), input);
-    });
+    const result = await upsertPosLoyaltyProgram(client, posContext(session), input);
     return ok({ record: result });
-  } catch (error) {
-    return errorResponse(error);
-  }
+  });
 }

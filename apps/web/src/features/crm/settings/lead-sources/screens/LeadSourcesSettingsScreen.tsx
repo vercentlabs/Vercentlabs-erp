@@ -22,7 +22,7 @@ import {
 import { CRM_PERMISSIONS } from "@vercentlabs/permissions";
 
 import { getCrmDashboardData } from "@/features/crm/dashboard/api/dashboard-api";
-import { humanize } from "@/features/crm/shared/human";
+import { humanize } from "@/shared/format/human";
 import { gridStates } from "@/features/crm/shared/ui/gridStates";
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";

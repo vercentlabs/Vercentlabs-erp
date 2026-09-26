@@ -1,12 +1,9 @@
 // Real PostgreSQL integration test — SP011 Section 3 (connect billing
-// enforcement to actual business mutations). The actual gate functions
-// this proves are wired (crm-context.ts's requireCrmMutationAccess/
-// requireCrmAccess, pos-context.ts's requirePosAccess) live in apps/web
-// and start with `import "server-only"`, which throws unconditionally
-// outside Next's bundler -- they cannot be imported by plain `node --test`
-// (see crm-context.ts's own comment on why resolveCrmMutationPermission
-// was extracted into an alias-free, server-only-free module for exactly
-// this reason). This file therefore proves two complementary things
+// enforcement to actual business mutations). The gate this proves is
+// wired (workspace-route.ts's billingWrite option, plus the generic CRM
+// resource routes' direct call) lives in apps/web and starts with
+// `import "server-only"`, which throws unconditionally outside Next's
+// bundler -- it cannot be imported by plain `node --test`. This file therefore proves two complementary things
 // instead of one end-to-end call:
 //   1. A structural check that the actual wiring is present in source --
 //      a regression guard against someone silently removing the
@@ -45,24 +42,23 @@ function hasImportAndCall(source, importName, calleeName) {
 }
 
 test("SP011 Section 3: billing-write enforcement wiring into real CRM/POS mutation entry points", async (t) => {
-  await t.test("crm-context.ts imports and calls requireBillingWriteAccess from both requireCrmMutationAccess and the opt-in requireCrmAccess mutation path", () => {
-    const source = fs.readFileSync(path.join(repoRoot, "apps/web/src/features/crm/shared/crm-context.ts"), "utf8");
+  await t.test("workspace-route.ts imports requireBillingWriteAccess and wires it as the billingWrite gate", () => {
+    const source = fs.readFileSync(path.join(repoRoot, "apps/web/src/core/workspace-route.ts"), "utf8");
     assert.ok(
       hasImportAndCall(source, "requireBillingWriteAccess", "requireBillingWriteAccess"),
-      "crm-context.ts must import requireBillingWriteAccess from @vercentlabs/api and actually call it, not just import it",
+      "workspace-route.ts must import requireBillingWriteAccess from @vercentlabs/api and actually call it, not just import it",
     );
+    const secure = fs.readFileSync(path.join(repoRoot, "apps/web/src/core/secure-route.ts"), "utf8");
+    assert.match(secure, /if \(options\.billingWrite\) await deps\.requireBillingWrite\(/, "secure-route.ts must run the billing gate for billingWrite routes");
   });
 
-  await t.test("pos-context.ts imports and calls requireBillingWriteAccess from the opt-in requirePosAccess mutation path", () => {
-    const source = fs.readFileSync(path.join(repoRoot, "apps/web/src/features/pos/shared/pos-context.ts"), "utf8");
-    assert.ok(hasImportAndCall(source, "requireBillingWriteAccess", "requireBillingWriteAccess"));
-  });
-
-  await t.test("the generic CRM resource routes (create/update/archive) delegate to requireCrmMutationAccess, which is unconditionally billing-gated", () => {
+  await t.test("the generic CRM resource routes (create/update/archive) check the resource permission then the billing write gate", () => {
     const collectionRoute = fs.readFileSync(path.join(repoRoot, "apps/web/src/app/api/crm/[resource]/route.ts"), "utf8");
     const itemRoute = fs.readFileSync(path.join(repoRoot, "apps/web/src/app/api/crm/[resource]/[id]/route.ts"), "utf8");
-    assert.ok(hasImportAndCall(collectionRoute, "requireCrmMutationAccess", "requireCrmMutationAccess"), "POST /api/crm/[resource] (create)");
-    assert.ok(hasImportAndCall(itemRoute, "requireCrmMutationAccess", "requireCrmMutationAccess"), "PATCH/DELETE /api/crm/[resource]/[id] (update/archive)");
+    for (const [label, source] of [["POST /api/crm/[resource] (create)", collectionRoute], ["PATCH/DELETE /api/crm/[resource]/[id] (update/archive)", itemRoute]]) {
+      assert.ok(hasImportAndCall(source, "assertCrmResourceMutationPermission", "assertCrmResourceMutationPermission"), label);
+      assert.ok(hasImportAndCall(source, "requireBillingWriteAccess", "requireBillingWriteAccess"), label);
+    }
   });
 
   await t.test("COMPLETE MUTATION INVENTORY: every CRM/POS mutation route is either billing-gated or has a specific, reviewed exclusion reason -- 0 unaccounted", () => {
@@ -78,9 +74,9 @@ test("SP011 Section 3: billing-write enforcement wiring into real CRM/POS mutati
     }, "scripts/qa/validate-billing-mutation-gate.mjs must exit 0 -- see its stderr for which route(s) are unaccounted");
   });
 
-  await t.test("the POS cart-completion route (the sale-creating mutation) opts requirePosAccess into the billing-write check", () => {
+  await t.test("the POS cart-completion route (the sale-creating mutation) opts into the billing-write check", () => {
     const source = fs.readFileSync(path.join(repoRoot, "apps/web/src/app/api/pos/carts/[id]/complete/route.ts"), "utf8");
-    assert.match(source, /requirePosAccess\([^)]*\{\s*mutation:\s*true\s*\}\)/s, "POST /api/pos/carts/[id]/complete must pass { mutation: true } to requirePosAccess");
+    assert.match(source, /workspaceRoute\(request, \{[^}]*\bbillingWrite: true\b[^}]*\}/, "POST /api/pos/carts/[id]/complete must pass billingWrite: true to workspaceRoute");
   });
 
   const adminConnectionString = process.env.MIGRATION_DATABASE_URL || "";
@@ -136,7 +132,7 @@ test("SP011 Section 3: billing-write enforcement wiring into real CRM/POS mutati
         await assert.rejects(
           () => requireBillingWriteAccess(admin, orgId, { NODE_ENV: "production" }),
           (error) => error instanceof EntitlementError && error.status === 402 && error.code === "ENTITLEMENT_SUBSCRIPTION_INACTIVE",
-          "the same check requireCrmMutationAccess/requirePosAccess(mutation:true) delegate to must block an expired subscription in enforce mode",
+          "the same check workspaceRoute's billingWrite gate delegates to must block an expired subscription in enforce mode",
         );
       } finally {
         await admin.query(`DELETE FROM organization_subscriptions WHERE id=$1`, [subId]).catch(() => undefined);

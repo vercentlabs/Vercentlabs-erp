@@ -1,11 +1,10 @@
 import { z } from "zod";
 
-import { assertSameOriginOrMobile, createStore, listPointOfSaleResource } from "@vercentlabs/api";
+import { createStore, listPointOfSaleResource } from "@vercentlabs/api";
 
-import { tenantTransaction } from "@/core/db";
-import { errorResponse, ok, readJson } from "@/core/http";
-import { requireWorkspace } from "@/core/session";
-import { posContext, requirePosAccess } from "@/features/pos/shared/pos-context";
+import { ok, readJson } from "@/core/http";
+import { posContext } from "@/features/pos/shared/pos-context";
+import { workspaceRoute } from "@/core/workspace-route";
 
 const createStoreSchema = z.object({
   branchId: z.string().uuid(),
@@ -23,33 +22,20 @@ const createStoreSchema = z.object({
 // dynamic sibling on an unmatched method), so GET has to live here rather
 // than being handled generically.
 export async function GET(request: Request) {
-  try {
-    const session = await requireWorkspace();
+  return workspaceRoute(request, { module: "point-of-sale" }, async ({ client, session }) => {
     const url = new URL(request.url);
-    const rows = await tenantTransaction(session.organizationId, async (client) => {
-      await requirePosAccess(client, session);
-      return listPointOfSaleResource(client, posContext(session), "stores", {
-        limit: url.searchParams.get("limit") ? Number(url.searchParams.get("limit")) : undefined,
-        offset: url.searchParams.get("offset") ? Number(url.searchParams.get("offset")) : undefined,
-      });
+    const rows = await listPointOfSaleResource(client, posContext(session), "stores", {
+      limit: url.searchParams.get("limit") ? Number(url.searchParams.get("limit")) : undefined,
+      offset: url.searchParams.get("offset") ? Number(url.searchParams.get("offset")) : undefined,
     });
     return ok({ rows });
-  } catch (error) {
-    return errorResponse(error);
-  }
+  });
 }
 
 export async function POST(request: Request) {
-  try {
-    assertSameOriginOrMobile(request, process.env);
-    const session = await requireWorkspace();
+  return workspaceRoute(request, { module: "point-of-sale", permission: "pos.store.manage", billingWrite: true }, async ({ client, session }) => {
     const input = createStoreSchema.parse(await readJson(request));
-    const result = await tenantTransaction(session.organizationId, async (client) => {
-      await requirePosAccess(client, session, "pos.store.manage", { mutation: true });
-      return createStore(client, posContext(session), input);
-    });
+    const result = await createStore(client, posContext(session), input);
     return ok({ store: result }, 201);
-  } catch (error) {
-    return errorResponse(error);
-  }
+  });
 }

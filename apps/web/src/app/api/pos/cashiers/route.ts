@@ -1,19 +1,12 @@
 import { listPosEligibleCashiers } from "@vercentlabs/api";
 
-import { tenantTransaction } from "@/core/db";
-import { errorResponse, ok } from "@/core/http";
-import { requireWorkspace } from "@/core/session";
-import { posContext, requirePosAccess } from "@/features/pos/shared/pos-context";
+import { ok } from "@/core/http";
+import { posContext } from "@/features/pos/shared/pos-context";
+import { workspaceRoute } from "@/core/workspace-route";
 
-export async function GET() {
-  try {
-    const session = await requireWorkspace();
-    const rows = await tenantTransaction(session.organizationId, async (client) => {
-      await requirePosAccess(client, session, "pos.store.manage");
-      return listPosEligibleCashiers(client, posContext(session));
-    });
+export async function GET(request: Request) {
+  return workspaceRoute(request, { module: "point-of-sale", permission: "pos.store.manage" }, async ({ client, session }) => {
+    const rows = await listPosEligibleCashiers(client, posContext(session));
     return ok({ rows });
-  } catch (error) {
-    return errorResponse(error);
-  }
+  });
 }

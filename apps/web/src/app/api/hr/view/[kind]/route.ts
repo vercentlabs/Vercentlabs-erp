@@ -25,7 +25,7 @@ export async function GET(request: Request, ctx: { params: Promise<{ kind: strin
   const { kind } = await ctx.params;
   const q = new URL(request.url).searchParams;
   const get = (name: string) => q.get(name) || undefined;
-  return hrRead(async (client, context) => {
+  return hrRead(request, async (client, context) => {
     switch (kind) {
       case "options":
         return { options: await listHrOptions(client, context) };

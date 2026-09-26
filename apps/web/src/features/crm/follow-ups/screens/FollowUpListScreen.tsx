@@ -24,7 +24,7 @@ import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext"
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import { cancelFollowUp, completeFollowUp, FollowUpApiError, listFollowUps, snoozeFollowUp } from "../api/follow-ups-api";
 import type { FollowUp, FollowUpListFilters } from "../types";
-import { LoadingState } from "@/features/crm/shared/ui/LoadingState";
+import { LoadingState } from "@/shared/ui/LoadingState";
 import { DueCell } from "@/features/crm/shared/ui/DueCell";
 
 const PAGE_SIZE = 25;

@@ -1,11 +1,10 @@
 import { z } from "zod";
 
-import { assertSameOriginOrMobile, recordPosDayEndVariance } from "@vercentlabs/api";
+import { recordPosDayEndVariance } from "@vercentlabs/api";
 
-import { tenantTransaction } from "@/core/db";
-import { errorResponse, ok, readJson } from "@/core/http";
-import { requireWorkspace } from "@/core/session";
-import { posContext, requirePosAccess } from "@/features/pos/shared/pos-context";
+import { ok, readJson } from "@/core/http";
+import { posContext } from "@/features/pos/shared/pos-context";
+import { workspaceRoute } from "@/core/workspace-route";
 
 const varianceSchema = z.object({
   varianceType: z.enum(["cash_variance", "total_adjustment", "reclassification", "other"]),
@@ -14,17 +13,10 @@ const varianceSchema = z.object({
 });
 
 export async function POST(request: Request, context: { params: Promise<{ id: string }> }) {
-  try {
-    assertSameOriginOrMobile(request, process.env);
-    const session = await requireWorkspace();
+  return workspaceRoute(request, { module: "point-of-sale", permission: "pos.report.finalize" }, async ({ client, session }) => {
     const { id } = await context.params;
     const input = varianceSchema.parse(await readJson(request));
-    const result = await tenantTransaction(session.organizationId, async (client) => {
-      await requirePosAccess(client, session, "pos.report.finalize");
-      return recordPosDayEndVariance(client, posContext(session), id, input);
-    });
+    const result = await recordPosDayEndVariance(client, posContext(session), id, input);
     return ok({ correction: result }, 201);
-  } catch (error) {
-    return errorResponse(error);
-  }
+  });
 }

@@ -20,7 +20,7 @@ export async function GET(request: Request, ctx: { params: Promise<{ kind: strin
   const { kind } = await ctx.params;
   const q = new URL(request.url).searchParams;
   const get = (name: string) => q.get(name) || undefined;
-  return supportRead(async (client, context) => {
+  return supportRead(request, async (client, context) => {
     switch (kind) {
       case "options":
         return { options: await listSupportOptions(client, context) };

@@ -13,7 +13,7 @@ export async function GET(request: Request, ctx: { params: Promise<{ kind: strin
   // "days" is a look-back window ending today; explicit from/to win.
   const days = Math.min(Math.max(Math.trunc(Number(q.get("days") ?? 30)) || 30, 1), 730);
   const window = { to: get("to") ?? new Date().toISOString().slice(0, 10), from: get("from") ?? new Date(Date.now() - days * 86400000).toISOString().slice(0, 10) };
-  return manufacturingRead(async (client, context) => {
+  return manufacturingRead(request, async (client, context) => {
     switch (kind) {
       case "options":
         return { options: await listManufacturingOptions(client, context) };

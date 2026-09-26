@@ -1,11 +1,10 @@
 import { z } from "zod";
 
-import { assertSameOriginOrMobile, getPosStorePaymentConfig, setPosStorePaymentConfig } from "@vercentlabs/api";
+import { getPosStorePaymentConfig, setPosStorePaymentConfig } from "@vercentlabs/api";
 
-import { tenantTransaction } from "@/core/db";
-import { errorResponse, ok, readJson } from "@/core/http";
-import { requireWorkspace } from "@/core/session";
-import { posContext, requirePosAccess } from "@/features/pos/shared/pos-context";
+import { ok, readJson } from "@/core/http";
+import { posContext } from "@/features/pos/shared/pos-context";
+import { workspaceRoute } from "@/core/workspace-route";
 
 const providerSchema = z.object({
   providerKey: z.string().trim().min(1).max(60).optional(),
@@ -19,32 +18,19 @@ const configSchema = z.object({
   providers: z.record(z.string(), providerSchema).optional(),
 });
 
-export async function GET(_request: Request, context: { params: Promise<{ storeId: string }> }) {
-  try {
-    const session = await requireWorkspace();
+export async function GET(request: Request, context: { params: Promise<{ storeId: string }> }) {
+  return workspaceRoute(request, { module: "point-of-sale", permission: "pos.store.manage" }, async ({ client, session }) => {
     const { storeId } = await context.params;
-    const result = await tenantTransaction(session.organizationId, async (client) => {
-      await requirePosAccess(client, session, "pos.store.manage");
-      return getPosStorePaymentConfig(client, posContext(session), storeId);
-    });
+    const result = await getPosStorePaymentConfig(client, posContext(session), storeId);
     return ok({ config: result });
-  } catch (error) {
-    return errorResponse(error);
-  }
+  });
 }
 
 export async function PUT(request: Request, context: { params: Promise<{ storeId: string }> }) {
-  try {
-    assertSameOriginOrMobile(request, process.env);
-    const session = await requireWorkspace();
+  return workspaceRoute(request, { module: "point-of-sale", permission: "pos.store.manage", billingWrite: true }, async ({ client, session }) => {
     const { storeId } = await context.params;
     const input = configSchema.parse(await readJson(request));
-    const result = await tenantTransaction(session.organizationId, async (client) => {
-      await requirePosAccess(client, session, "pos.store.manage", { mutation: true });
-      return setPosStorePaymentConfig(client, posContext(session), storeId, input);
-    });
+    const result = await setPosStorePaymentConfig(client, posContext(session), storeId, input);
     return ok({ config: result });
-  } catch (error) {
-    return errorResponse(error);
-  }
+  });
 }

@@ -3,7 +3,7 @@
 import type { ReactNode } from "react";
 import { EmptyState, ErrorState } from "@vercentlabs/design-system";
 
-import { LoadingState } from "./LoadingState";
+import { LoadingState } from "@/shared/ui/LoadingState";
 
 type QueryLike = { isLoading: boolean; isError: boolean; refetch: () => unknown };
 

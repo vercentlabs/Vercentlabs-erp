@@ -17,7 +17,7 @@ export async function GET(request: Request, ctx: { params: Promise<{ resource: s
     limit: url.searchParams.get("limit") || undefined,
     offset: url.searchParams.get("offset") || undefined,
   };
-  return procurementRead(async (client, context) => listProcurementRecords(client, context, resource, filters));
+  return procurementRead(request, async (client, context) => listProcurementRecords(client, context, resource, filters));
 }
 
 export async function POST(request: Request, ctx: { params: Promise<{ resource: string }> }) {

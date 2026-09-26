@@ -9,9 +9,9 @@ import { Button, ErrorState, Menu, MenuItem, MenuTrigger, MetricStrip, PageHeade
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import { getModuleNavigation } from "@/shell/navigation/module-navigation-registry";
-import { formatMoney } from "@/features/crm/shared/human";
+import { formatMoney } from "@/shared/format/human";
 import { ActivityGroups, type ActivityRow } from "@/features/crm/shared/ui/ActivityGroups";
-import { LoadingState } from "@/features/crm/shared/ui/LoadingState";
+import { LoadingState } from "@/shared/ui/LoadingState";
 import { CrmDashboardApiError, getCrmDashboardData } from "@/features/crm/dashboard/api/dashboard-api";
 import type { CrmDashboardActivity } from "@/features/crm/dashboard/types";
 

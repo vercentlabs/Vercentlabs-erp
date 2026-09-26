@@ -36,7 +36,7 @@ function requiredPermissions(permission, permissions) {
   return list;
 }
 
-export function authorize({ principal, snapshot, module, permission, permissions, action, resource, context, recordPolicy } = {}) {
+export function authorize({ principal, snapshot, module, permission, permissions, action, resource, context, recordPolicy, selfService = false } = {}) {
   const actor = principal ?? snapshot?.principal ?? null;
   const meta = { action, module };
   if (!actor || !actor.userId) return deny({ code: ACCESS_ERROR_CODES.AUTH_REQUIRED }, meta);
@@ -46,7 +46,12 @@ export function authorize({ principal, snapshot, module, permission, permissions
   if (module) {
     if (!snapshot) throw new TypeError("authorize(): module checks require a WorkspaceAccessSnapshot.");
     const moduleDenial = checkSnapshotModuleAccess(snapshot, module);
-    if (moduleDenial) return deny(moduleDenial, meta);
+    // Self-service (an employee's own HR records, a portal customer's own
+    // tickets): the module must still be released, enabled and entitled, but
+    // the module view permission is waived — the domain scopes every read and
+    // write to the caller's own records.
+    const waived = selfService && moduleDenial?.reason === "not_permitted";
+    if (moduleDenial && !waived) return deny(moduleDenial, meta);
   }
 
   for (const key of requiredPermissions(permission, permissions)) {

@@ -1,10 +1,9 @@
 import { getCrmReport } from "@vercentlabs/api";
 import { CRM_PERMISSIONS } from "@vercentlabs/permissions";
 
-import { tenantTransaction } from "@/core/db";
-import { errorResponse, ok } from "@/core/http";
-import { requireWorkspace } from "@/core/session";
-import { crmContext, requireCrmAccess } from "@/features/crm/shared/crm-context";
+import { ok } from "@/core/http";
+import { crmContext } from "@/features/crm/shared/crm-context";
+import { workspaceRoute } from "@/core/workspace-route";
 
 // getCrmReport only ever reads filters.from/filters.to (verified by reading
 // its body) — ownerId/stageId/sourceId/campaignId/period were previously
@@ -22,8 +21,7 @@ const FILTER_KEYS = ["from", "to"] as const;
 // getCrmReport does not check crm.reports.view internally, so this route
 // enforces it.
 export async function GET(request: Request, context: { params: Promise<{ report: string }> }) {
-  try {
-    const session = await requireWorkspace();
+  return workspaceRoute(request, { module: "crm", permission: CRM_PERMISSIONS.reportsView }, async ({ client, session }) => {
     const { report } = await context.params;
     const url = new URL(request.url);
     const filters: Record<string, string> = {};
@@ -31,12 +29,7 @@ export async function GET(request: Request, context: { params: Promise<{ report:
       const value = url.searchParams.get(key);
       if (value) filters[key] = value;
     }
-    const result = await tenantTransaction(session.organizationId, async (client) => {
-      await requireCrmAccess(client, session, CRM_PERMISSIONS.reportsView);
-      return getCrmReport(client, crmContext(session), report, filters);
-    });
+    const result = await getCrmReport(client, crmContext(session), report, filters);
     return ok({ report: result });
-  } catch (error) {
-    return errorResponse(error);
-  }
+  });
 }

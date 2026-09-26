@@ -1,20 +1,13 @@
 import { getLeadBulkJob } from "@vercentlabs/api";
 
-import { tenantTransaction } from "@/core/db";
-import { errorResponse, ok } from "@/core/http";
-import { requireWorkspace } from "@/core/session";
-import { crmContext, requireCrmAccess } from "@/features/crm/shared/crm-context";
+import { ok } from "@/core/http";
+import { crmContext } from "@/features/crm/shared/crm-context";
+import { workspaceRoute } from "@/core/workspace-route";
 
-export async function GET(_request: Request, context: { params: Promise<{ jobId: string }> }) {
-  try {
-    const session = await requireWorkspace();
+export async function GET(request: Request, context: { params: Promise<{ jobId: string }> }) {
+  return workspaceRoute(request, { module: "crm" }, async ({ client, session }) => {
     const { jobId } = await context.params;
-    const job = await tenantTransaction(session.organizationId, async (client) => {
-      await requireCrmAccess(client, session);
-      return getLeadBulkJob(client, crmContext(session), jobId);
-    });
+    const job = await getLeadBulkJob(client, crmContext(session), jobId);
     return ok({ job });
-  } catch (error) {
-    return errorResponse(error);
-  }
+  });
 }

@@ -1,10 +1,9 @@
-import { addOpportunityContactRole, assertSameOriginOrMobile, listOpportunityContactRoles } from "@vercentlabs/api";
+import { addOpportunityContactRole, listOpportunityContactRoles } from "@vercentlabs/api";
 import { CRM_PERMISSIONS } from "@vercentlabs/permissions";
 
-import { tenantTransaction } from "@/core/db";
-import { errorResponse, ok, readJson } from "@/core/http";
-import { requireWorkspace } from "@/core/session";
-import { crmContext, requireCrmAccess } from "@/features/crm/shared/crm-context";
+import { ok, readJson } from "@/core/http";
+import { crmContext } from "@/features/crm/shared/crm-context";
+import { workspaceRoute } from "@/core/workspace-route";
 
 type RouteContext = { params: Promise<{ id: string }> };
 
@@ -12,32 +11,19 @@ type RouteContext = { params: Promise<{ id: string }> };
 // (opportunity-contacts.js) govern the new multi-Contact Opportunity role
 // model (tenant.crm_opportunity_contact_roles, migration 165) — mirrors the
 // Contact<->Account relationship route shape exactly.
-export async function GET(_request: Request, context: RouteContext) {
-  try {
-    const session = await requireWorkspace();
+export async function GET(request: Request, context: RouteContext) {
+  return workspaceRoute(request, { module: "crm" }, async ({ client, session }) => {
     const { id } = await context.params;
-    const rows = await tenantTransaction(session.organizationId, async (client) => {
-      await requireCrmAccess(client, session);
-      return listOpportunityContactRoles(client, crmContext(session), id);
-    });
+    const rows = await listOpportunityContactRoles(client, crmContext(session), id);
     return ok({ rows });
-  } catch (error) {
-    return errorResponse(error);
-  }
+  });
 }
 
 export async function POST(request: Request, context: RouteContext) {
-  try {
-    assertSameOriginOrMobile(request, process.env);
-    const session = await requireWorkspace();
+  return workspaceRoute(request, { module: "crm", permission: CRM_PERMISSIONS.opportunitiesManage, billingWrite: true }, async ({ client, session }) => {
     const { id } = await context.params;
     const input = (await readJson(request)) as Record<string, unknown>;
-    const rows = await tenantTransaction(session.organizationId, async (client) => {
-      await requireCrmAccess(client, session, CRM_PERMISSIONS.opportunitiesManage, { mutation: true });
-      return addOpportunityContactRole(client, crmContext(session), id, input);
-    });
+    const rows = await addOpportunityContactRole(client, crmContext(session), id, input);
     return ok({ rows }, 201);
-  } catch (error) {
-    return errorResponse(error);
-  }
+  });
 }

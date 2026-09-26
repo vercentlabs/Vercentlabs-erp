@@ -5,8 +5,8 @@ import { procurementRead } from "@/features/procurement/shared/route-helpers";
 // Items at or below their reorder point. Stock has no web surface for a purchasing
 // role, so Stock's read runs with a narrow stock.view-only context built here, after
 // the caller's own Procurement permission (creating orders) has been checked.
-export async function GET() {
-  return procurementRead(
+export async function GET(request: Request) {
+  return procurementRead(request, 
     async (client, context, session) => {
       const companyId = context.activeCompanyId;
       if (!companyId) return { candidates: [] };

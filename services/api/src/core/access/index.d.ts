@@ -180,6 +180,8 @@ export type AuthorizeInput = {
   permission?: string;
   permissions?: readonly string[];
   action?: string;
+  /** Waive only the module view permission (own-records self-service). */
+  selfService?: boolean;
   resource?: AccessResource | null;
   context?: { companyId?: string | null; branchId?: string | null; [key: string]: unknown };
   recordPolicy?: (input: {

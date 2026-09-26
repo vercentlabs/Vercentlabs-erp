@@ -1,11 +1,10 @@
 import { z } from "zod";
 
-import { assertSameOriginOrMobile, listPointOfSaleResource, openShift } from "@vercentlabs/api";
+import { listPointOfSaleResource, openShift } from "@vercentlabs/api";
 
-import { tenantTransaction } from "@/core/db";
-import { errorResponse, ok, readJson } from "@/core/http";
-import { requireWorkspace } from "@/core/session";
-import { posContext, requirePosAccess } from "@/features/pos/shared/pos-context";
+import { ok, readJson } from "@/core/http";
+import { posContext } from "@/features/pos/shared/pos-context";
+import { workspaceRoute } from "@/core/workspace-route";
 
 const openShiftSchema = z.object({
   storeId: z.string().uuid(),
@@ -17,41 +16,28 @@ const openShiftSchema = z.object({
 });
 
 export async function GET(request: Request) {
-  try {
-    const session = await requireWorkspace();
+  return workspaceRoute(request, { module: "point-of-sale" }, async ({ client, session }) => {
     const url = new URL(request.url);
     const withTotal = url.searchParams.get("withTotal") === "1";
-    const result = await tenantTransaction(session.organizationId, async (client) => {
-      await requirePosAccess(client, session);
-      return listPointOfSaleResource(client, posContext(session), "shifts", {
-        limit: url.searchParams.get("limit") ? Number(url.searchParams.get("limit")) : undefined,
-        offset: url.searchParams.get("offset") ? Number(url.searchParams.get("offset")) : undefined,
-        storeId: url.searchParams.get("storeId") || undefined,
-        terminalId: url.searchParams.get("terminalId") || undefined,
-        status: url.searchParams.get("status") || undefined,
-        cashierUserId: url.searchParams.get("cashierUserId") || undefined,
-        dateFrom: url.searchParams.get("dateFrom") || undefined,
-        dateTo: url.searchParams.get("dateTo") || undefined,
-        withTotal,
-      });
+    const result = await listPointOfSaleResource(client, posContext(session), "shifts", {
+      limit: url.searchParams.get("limit") ? Number(url.searchParams.get("limit")) : undefined,
+      offset: url.searchParams.get("offset") ? Number(url.searchParams.get("offset")) : undefined,
+      storeId: url.searchParams.get("storeId") || undefined,
+      terminalId: url.searchParams.get("terminalId") || undefined,
+      status: url.searchParams.get("status") || undefined,
+      cashierUserId: url.searchParams.get("cashierUserId") || undefined,
+      dateFrom: url.searchParams.get("dateFrom") || undefined,
+      dateTo: url.searchParams.get("dateTo") || undefined,
+      withTotal,
     });
     return ok(withTotal ? (result as { rows: unknown[]; total: number }) : { rows: result });
-  } catch (error) {
-    return errorResponse(error);
-  }
+  });
 }
 
 export async function POST(request: Request) {
-  try {
-    assertSameOriginOrMobile(request, process.env);
-    const session = await requireWorkspace();
+  return workspaceRoute(request, { module: "point-of-sale", permission: "pos.shift.open", billingWrite: true }, async ({ client, session }) => {
     const input = openShiftSchema.parse(await readJson(request));
-    const result = await tenantTransaction(session.organizationId, async (client) => {
-      await requirePosAccess(client, session, "pos.shift.open", { mutation: true });
-      return openShift(client, posContext(session), input);
-    });
+    const result = await openShift(client, posContext(session), input);
     return ok({ shift: result }, 201);
-  } catch (error) {
-    return errorResponse(error);
-  }
+  });
 }

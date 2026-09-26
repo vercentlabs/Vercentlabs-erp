@@ -6,12 +6,12 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { CheckCircle2, Clock, Pencil, X } from "lucide-react";
 import { Button, Dialog, ErrorState, PermissionState, RecordDetailsPage, Select, StatusBadge, TextArea, TextField, Timeline, type SelectOption } from "@vercentlabs/design-system";
 import { CRM_PERMISSIONS } from "@vercentlabs/permissions";
-import { LoadingState } from "@/features/crm/shared/ui/LoadingState";
+import { LoadingState } from "@/shared/ui/LoadingState";
 
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import { getCrmOptions } from "@/features/crm/shared/crm-options-api";
-import { dueLabel, dueState, formatDateTime, formatMinutes, humanize, reminderLabel } from "@/features/crm/shared/human";
+import { dueLabel, dueState, formatDateTime, formatMinutes, humanize, reminderLabel } from "@/shared/format/human";
 import { DateTimeInput } from "@/features/crm/shared/ui/DateTimeInput";
 import { PropertyList } from "@/features/crm/shared/ui/PropertyList";
 import { RelatedRecordCard } from "@/features/crm/shared/ui/RelatedRecordCard";

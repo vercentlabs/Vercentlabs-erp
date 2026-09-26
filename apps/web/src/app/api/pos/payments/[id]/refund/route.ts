@@ -1,11 +1,10 @@
 import { z } from "zod";
 
-import { assertSameOriginOrMobile, refundPosPayment } from "@vercentlabs/api";
+import { refundPosPayment } from "@vercentlabs/api";
 
-import { tenantTransaction } from "@/core/db";
-import { errorResponse, ok, readJson } from "@/core/http";
-import { requireWorkspace } from "@/core/session";
-import { posContext, requirePosAccess } from "@/features/pos/shared/pos-context";
+import { ok, readJson } from "@/core/http";
+import { posContext } from "@/features/pos/shared/pos-context";
+import { workspaceRoute } from "@/core/workspace-route";
 
 // Always routes back to the original captured payment's own provider
 // reference and tender method (there is no "refund method" input here) and
@@ -17,17 +16,10 @@ const refundSchema = z.object({
 });
 
 export async function POST(request: Request, context: { params: Promise<{ id: string }> }) {
-  try {
-    assertSameOriginOrMobile(request, process.env);
-    const session = await requireWorkspace();
+  return workspaceRoute(request, { module: "point-of-sale", permission: "pos.payment.refund", billingWrite: true }, async ({ client, session }) => {
     const { id } = await context.params;
     const input = refundSchema.parse(await readJson(request));
-    const result = await tenantTransaction(session.organizationId, async (client) => {
-      await requirePosAccess(client, session, "pos.payment.refund", { mutation: true });
-      return refundPosPayment(client, posContext(session), { ...input, paymentId: id });
-    });
+    const result = await refundPosPayment(client, posContext(session), { ...input, paymentId: id });
     return ok({ payment: result });
-  } catch (error) {
-    return errorResponse(error);
-  }
+  });
 }

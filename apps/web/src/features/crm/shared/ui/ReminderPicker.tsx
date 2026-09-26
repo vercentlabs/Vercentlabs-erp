@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { Button, NumberField, Select } from "@vercentlabs/design-system";
 
-import { REMINDER_PRESETS, reminderLabel } from "../human";
+import { REMINDER_PRESETS, reminderLabel } from "@/shared/format/human";
 
 // Reminders as chips ("1 day before", "1 hour before", "At due time") over the integer minutes the backend stores.
 export function ReminderPicker({ value, onChange, label = "Reminders" }: { value: number[]; onChange: (minutes: number[]) => void; label?: string }) {

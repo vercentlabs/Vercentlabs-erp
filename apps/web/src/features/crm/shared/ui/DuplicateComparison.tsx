@@ -5,7 +5,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow } fro
 
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
-import { formatDate } from "@/features/crm/shared/human";
+import { formatDate } from "@/shared/format/human";
 
 // F008 — "review each one side by side": the record under review and a
 // suspected duplicate, field by field, with the fields that match marked, so a

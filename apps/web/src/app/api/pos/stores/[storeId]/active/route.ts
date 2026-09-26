@@ -1,26 +1,18 @@
 import { z } from "zod";
 
-import { assertSameOriginOrMobile, setPosStoreActive } from "@vercentlabs/api";
+import { setPosStoreActive } from "@vercentlabs/api";
 
-import { tenantTransaction } from "@/core/db";
-import { errorResponse, ok, readJson } from "@/core/http";
-import { requireWorkspace } from "@/core/session";
-import { posContext, requirePosAccess } from "@/features/pos/shared/pos-context";
+import { ok, readJson } from "@/core/http";
+import { posContext } from "@/features/pos/shared/pos-context";
+import { workspaceRoute } from "@/core/workspace-route";
 
 const setActiveSchema = z.object({ active: z.boolean() });
 
 export async function POST(request: Request, context: { params: Promise<{ storeId: string }> }) {
-  try {
-    assertSameOriginOrMobile(request, process.env);
-    const session = await requireWorkspace();
+  return workspaceRoute(request, { module: "point-of-sale", permission: "pos.store.manage", billingWrite: true }, async ({ client, session }) => {
     const { storeId } = await context.params;
     const { active } = setActiveSchema.parse(await readJson(request));
-    const result = await tenantTransaction(session.organizationId, async (client) => {
-      await requirePosAccess(client, session, "pos.store.manage", { mutation: true });
-      return setPosStoreActive(client, posContext(session), storeId, active);
-    });
+    const result = await setPosStoreActive(client, posContext(session), storeId, active);
     return ok({ store: result });
-  } catch (error) {
-    return errorResponse(error);
-  }
+  });
 }

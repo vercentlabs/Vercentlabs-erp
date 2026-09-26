@@ -1,21 +1,14 @@
 import { listMyTaskTeams } from "@vercentlabs/api";
 import { CRM_PERMISSIONS } from "@vercentlabs/permissions";
 
-import { tenantTransaction } from "@/core/db";
-import { errorResponse, ok } from "@/core/http";
-import { requireWorkspace } from "@/core/session";
-import { crmContext, requireCrmAccess } from "@/features/crm/shared/crm-context";
+import { ok } from "@/core/http";
+import { crmContext } from "@/features/crm/shared/crm-context";
+import { workspaceRoute } from "@/core/workspace-route";
 
 // Teams the caller can queue Tasks against — never every team in the org.
-export async function GET() {
-  try {
-    const session = await requireWorkspace();
-    const teams = await tenantTransaction(session.organizationId, async (client) => {
-      await requireCrmAccess(client, session, CRM_PERMISSIONS.activitiesManage);
-      return listMyTaskTeams(client, crmContext(session));
-    });
+export async function GET(request: Request) {
+  return workspaceRoute(request, { module: "crm", permission: CRM_PERMISSIONS.activitiesManage }, async ({ client, session }) => {
+    const teams = await listMyTaskTeams(client, crmContext(session));
     return ok({ teams });
-  } catch (error) {
-    return errorResponse(error);
-  }
+  });
 }

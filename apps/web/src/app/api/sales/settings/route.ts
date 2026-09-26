@@ -16,8 +16,8 @@ const schema = z.object({
   defaultPriceListId: z.string().uuid().nullable().optional(),
 });
 
-export async function GET() {
-  return salesRead("sales.view", async (client, context) => ({ settings: await getSalesSettings(client, context) }));
+export async function GET(request: Request) {
+  return salesRead(request, "sales.view", async (client, context) => ({ settings: await getSalesSettings(client, context) }));
 }
 
 // The domain validates ranges and demands sales.settings.manage; a saved change

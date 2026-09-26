@@ -1,10 +1,9 @@
-import { assertSameOriginOrMobile, moveOpportunityStage } from "@vercentlabs/api";
+import { moveOpportunityStage } from "@vercentlabs/api";
 import { CRM_PERMISSIONS } from "@vercentlabs/permissions";
 
-import { tenantTransaction } from "@/core/db";
-import { errorResponse, ok, readJson } from "@/core/http";
-import { requireWorkspace } from "@/core/session";
-import { crmContext, requireCrmAccess } from "@/features/crm/shared/crm-context";
+import { ok, readJson } from "@/core/http";
+import { crmContext } from "@/features/crm/shared/crm-context";
+import { workspaceRoute } from "@/core/workspace-route";
 
 // F010/F012/F026. A governed won/lost outcome reason travels through the
 // same expectations bag moveOpportunityStage already accepts
@@ -12,9 +11,7 @@ import { crmContext, requireCrmAccess } from "@/features/crm/shared/crm-context"
 // moveOpportunityStage does not check a permission internally, so this
 // route enforces crm.opportunities.manage itself.
 export async function POST(request: Request, context: { params: Promise<{ id: string }> }) {
-  try {
-    assertSameOriginOrMobile(request, process.env);
-    const session = await requireWorkspace();
+  return workspaceRoute(request, { module: "crm", permission: CRM_PERMISSIONS.opportunitiesManage, billingWrite: true }, async ({ client, session }) => {
     const { id } = await context.params;
     const body = (await readJson(request)) as {
       stageId: string;
@@ -24,17 +21,12 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
       outcomeReasonId?: string | null;
       outcomeNotes?: string | null;
     };
-    const record = await tenantTransaction(session.organizationId, async (client) => {
-      await requireCrmAccess(client, session, CRM_PERMISSIONS.opportunitiesManage, { mutation: true });
-      return moveOpportunityStage(client, crmContext(session), id, body.stageId, body.note ?? null, {
-        expectedUpdatedAt: body.expectedUpdatedAt,
-        expectedStageId: body.expectedStageId,
-        outcomeReasonId: body.outcomeReasonId,
-        outcomeNotes: body.outcomeNotes,
-      });
+    const record = await moveOpportunityStage(client, crmContext(session), id, body.stageId, body.note ?? null, {
+      expectedUpdatedAt: body.expectedUpdatedAt,
+      expectedStageId: body.expectedStageId,
+      outcomeReasonId: body.outcomeReasonId,
+      outcomeNotes: body.outcomeNotes,
     });
     return ok({ record });
-  } catch (error) {
-    return errorResponse(error);
-  }
+  });
 }

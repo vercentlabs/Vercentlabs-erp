@@ -1,11 +1,10 @@
 import { z } from "zod";
 
-import { assertSameOriginOrMobile, adjustPosCustomerLoyaltyBalance } from "@vercentlabs/api";
+import { adjustPosCustomerLoyaltyBalance } from "@vercentlabs/api";
 
-import { tenantTransaction } from "@/core/db";
-import { errorResponse, ok, readJson } from "@/core/http";
-import { requireWorkspace } from "@/core/session";
-import { posContext, requirePosAccess } from "@/features/pos/shared/pos-context";
+import { ok, readJson } from "@/core/http";
+import { posContext } from "@/features/pos/shared/pos-context";
+import { workspaceRoute } from "@/core/workspace-route";
 
 const adjustSchema = z.object({
   points: z.number().refine((value) => value !== 0, "Adjustment points must not be zero."),
@@ -13,17 +12,10 @@ const adjustSchema = z.object({
 });
 
 export async function POST(request: Request, context: { params: Promise<{ customerId: string }> }) {
-  try {
-    assertSameOriginOrMobile(request, process.env);
-    const session = await requireWorkspace();
+  return workspaceRoute(request, { module: "point-of-sale", permission: "pos.loyalty.manage", billingWrite: true }, async ({ client, session }) => {
     const { customerId } = await context.params;
     const input = adjustSchema.parse(await readJson(request));
-    const result = await tenantTransaction(session.organizationId, async (client) => {
-      await requirePosAccess(client, session, "pos.loyalty.manage", { mutation: true });
-      return adjustPosCustomerLoyaltyBalance(client, posContext(session), customerId, input.points, input.reason);
-    });
+    const result = await adjustPosCustomerLoyaltyBalance(client, posContext(session), customerId, input.points, input.reason);
     return ok({ balance: result });
-  } catch (error) {
-    return errorResponse(error);
-  }
+  });
 }

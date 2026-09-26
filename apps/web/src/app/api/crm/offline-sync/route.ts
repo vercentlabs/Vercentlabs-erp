@@ -1,10 +1,9 @@
-import { applyOfflineBatch, assertSameOriginOrMobile, requireSessionPermission } from "@vercentlabs/api";
+import { applyOfflineBatch, requireSessionPermission } from "@vercentlabs/api";
 import { CRM_PERMISSIONS } from "@vercentlabs/permissions";
 
-import { tenantTransaction } from "@/core/db";
-import { errorResponse, HttpError, ok, readJson } from "@/core/http";
-import { requireWorkspace } from "@/core/session";
-import { crmContext, requireCrmAccess } from "@/features/crm/shared/crm-context";
+import { HttpError, ok, readJson } from "@/core/http";
+import { crmContext } from "@/features/crm/shared/crm-context";
+import { workspaceRoute } from "@/core/workspace-route";
 
 // The mobile app's offline mutation queue (apps/mobile/src/modules/crm/
 // data/offline-hardening.ts's flushCrmOfflineBatch, POST /crm/offline-sync
@@ -36,26 +35,19 @@ const RESOURCE_OPERATION_PERMISSIONS: Record<string, string> = {
 };
 
 export async function POST(request: Request) {
-  try {
-    assertSameOriginOrMobile(request, process.env);
-    const session = await requireWorkspace();
+  return workspaceRoute(request, { module: "crm", billingWrite: true }, async ({ client, session }) => {
     const input = (await readJson(request)) as { mutations?: Array<{ resource?: string; operation?: string }> };
     const mutations = Array.isArray(input.mutations) ? input.mutations : [];
     if (!mutations.length) throw new HttpError(400, "At least one offline mutation is required.");
     if (mutations.length > 50) throw new HttpError(400, "Offline batches are limited to 50 mutations.");
 
-    const result = await tenantTransaction(session.organizationId, async (client) => {
-      await requireCrmAccess(client, session, undefined, { mutation: true });
-      const requiredPermissions = new Set<string>();
-      for (const mutation of mutations) {
-        const permission = RESOURCE_OPERATION_PERMISSIONS[`${mutation.resource}:${mutation.operation}`];
-        if (permission) requiredPermissions.add(permission);
-      }
-      for (const permission of requiredPermissions) requireSessionPermission(session, permission);
-      return applyOfflineBatch(client, crmContext(session), { mutations });
-    });
+    const requiredPermissions = new Set<string>();
+    for (const mutation of mutations) {
+      const permission = RESOURCE_OPERATION_PERMISSIONS[`${mutation.resource}:${mutation.operation}`];
+      if (permission) requiredPermissions.add(permission);
+    }
+    for (const permission of requiredPermissions) requireSessionPermission(session, permission);
+    const result = await applyOfflineBatch(client, crmContext(session), { mutations });
     return ok(result);
-  } catch (error) {
-    return errorResponse(error);
-  }
+  });
 }

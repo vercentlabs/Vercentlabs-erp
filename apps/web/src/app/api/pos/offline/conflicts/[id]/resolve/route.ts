@@ -1,11 +1,10 @@
 import { z } from "zod";
 
-import { assertSameOriginOrMobile, resolvePosOfflineSyncConflict } from "@vercentlabs/api";
+import { resolvePosOfflineSyncConflict } from "@vercentlabs/api";
 
-import { tenantTransaction } from "@/core/db";
-import { errorResponse, ok, readJson } from "@/core/http";
-import { requireWorkspace } from "@/core/session";
-import { posContext, requirePosAccess } from "@/features/pos/shared/pos-context";
+import { ok, readJson } from "@/core/http";
+import { posContext } from "@/features/pos/shared/pos-context";
+import { workspaceRoute } from "@/core/workspace-route";
 
 const lineSchema = z.object({
   itemId: z.string().uuid(),
@@ -36,17 +35,10 @@ const resolveSchema = z.discriminatedUnion("action", [
 // modules/point-of-sale/index.js) for why a retry re-resolves price fresh
 // and uses its own resolution-scoped idempotency key.
 export async function POST(request: Request, context: { params: Promise<{ id: string }> }) {
-  try {
-    assertSameOriginOrMobile(request, process.env);
-    const session = await requireWorkspace();
+  return workspaceRoute(request, { module: "point-of-sale", permission: "pos.offline.resolve", billingWrite: true }, async ({ client, session }) => {
     const { id } = await context.params;
     const input = resolveSchema.parse(await readJson(request));
-    const result = await tenantTransaction(session.organizationId, async (client) => {
-      await requirePosAccess(client, session, "pos.offline.resolve", { mutation: true });
-      return resolvePosOfflineSyncConflict(client, posContext(session), id, input);
-    });
+    const result = await resolvePosOfflineSyncConflict(client, posContext(session), id, input);
     return ok({ conflict: result });
-  } catch (error) {
-    return errorResponse(error);
-  }
+  });
 }

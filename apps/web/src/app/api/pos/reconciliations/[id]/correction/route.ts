@@ -1,11 +1,10 @@
 import { z } from "zod";
 
-import { assertSameOriginOrMobile, recordPosReconciliationCorrection } from "@vercentlabs/api";
+import { recordPosReconciliationCorrection } from "@vercentlabs/api";
 
-import { tenantTransaction } from "@/core/db";
-import { errorResponse, ok, readJson } from "@/core/http";
-import { requireWorkspace } from "@/core/session";
-import { posContext, requirePosAccess } from "@/features/pos/shared/pos-context";
+import { ok, readJson } from "@/core/http";
+import { posContext } from "@/features/pos/shared/pos-context";
+import { workspaceRoute } from "@/core/workspace-route";
 
 const correctionSchema = z.object({
   reason: z.string().trim().min(1).max(2_000),
@@ -13,17 +12,10 @@ const correctionSchema = z.object({
 });
 
 export async function POST(request: Request, context: { params: Promise<{ id: string }> }) {
-  try {
-    assertSameOriginOrMobile(request, process.env);
-    const session = await requireWorkspace();
+  return workspaceRoute(request, { module: "point-of-sale", permission: "pos.reconciliation.approve" }, async ({ client, session }) => {
     const { id } = await context.params;
     const input = correctionSchema.parse(await readJson(request));
-    const result = await tenantTransaction(session.organizationId, async (client) => {
-      await requirePosAccess(client, session, "pos.reconciliation.approve");
-      return recordPosReconciliationCorrection(client, posContext(session), id, input);
-    });
+    const result = await recordPosReconciliationCorrection(client, posContext(session), id, input);
     return ok({ correction: result }, 201);
-  } catch (error) {
-    return errorResponse(error);
-  }
+  });
 }

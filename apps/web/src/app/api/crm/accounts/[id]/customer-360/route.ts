@@ -1,9 +1,8 @@
 import { getCustomer360ForCaller } from "@vercentlabs/api";
 
-import { tenantTransaction } from "@/core/db";
-import { errorResponse, ok } from "@/core/http";
-import { requireWorkspace } from "@/core/session";
-import { crmContext, requireCrmAccess } from "@/features/crm/shared/crm-context";
+import { ok } from "@/core/http";
+import { crmContext } from "@/features/crm/shared/crm-context";
+import { workspaceRoute } from "@/core/workspace-route";
 
 type RouteContext = { params: Promise<{ id: string }> };
 
@@ -15,16 +14,10 @@ type RouteContext = { params: Promise<{ id: string }> };
 // caller anywhere in the app (confirmed by grep before this pass). Matches
 // the hierarchy route's convention exactly: GET is module-access-only, the
 // underlying service does its own not-found/scope handling.
-export async function GET(_request: Request, context: RouteContext) {
-  try {
-    const session = await requireWorkspace();
+export async function GET(request: Request, context: RouteContext) {
+  return workspaceRoute(request, { module: "crm" }, async ({ client, session }) => {
     const { id } = await context.params;
-    const view = await tenantTransaction(session.organizationId, async (client) => {
-      await requireCrmAccess(client, session);
-      return getCustomer360ForCaller(client, crmContext(session), id);
-    });
+    const view = await getCustomer360ForCaller(client, crmContext(session), id);
     return ok({ view });
-  } catch (error) {
-    return errorResponse(error);
-  }
+  });
 }

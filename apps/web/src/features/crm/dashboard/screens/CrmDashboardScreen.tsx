@@ -9,10 +9,10 @@ import { ErrorState, PageHeader, PermissionState, Select, TextField } from "@ver
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import { toNumber } from "@/features/crm/shared/format";
-import { formatDate, formatMoney } from "@/features/crm/shared/human";
+import { formatDate, formatMoney } from "@/shared/format/human";
 import { ActivityGroups, type ActivityRow } from "@/features/crm/shared/ui/ActivityGroups";
 import { BarList } from "@/features/crm/shared/ui/BarList";
-import { LoadingState } from "@/features/crm/shared/ui/LoadingState";
+import { LoadingState } from "@/shared/ui/LoadingState";
 import { ViewToggle } from "@/features/crm/shared/ui/ViewToggle";
 import { CrmDashboardApiError, getCrmDashboardData } from "../api/dashboard-api";
 import type { CrmDashboardActivity, CrmDashboardScope } from "../types";

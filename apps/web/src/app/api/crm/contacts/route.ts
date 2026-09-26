@@ -1,14 +1,12 @@
-import { assertSameOriginOrMobile, createCrmContact, listCrmContacts } from "@vercentlabs/api";
+import { createCrmContact, listCrmContacts } from "@vercentlabs/api";
 import { CRM_PERMISSIONS } from "@vercentlabs/permissions";
 
-import { tenantTransaction } from "@/core/db";
-import { errorResponse, ok, readJson } from "@/core/http";
-import { requireWorkspace } from "@/core/session";
-import { crmContext, requireCrmAccess } from "@/features/crm/shared/crm-context";
+import { ok, readJson } from "@/core/http";
+import { crmContext } from "@/features/crm/shared/crm-context";
+import { workspaceRoute } from "@/core/workspace-route";
 
 export async function GET(request: Request) {
-  try {
-    const session = await requireWorkspace();
+  return workspaceRoute(request, { module: "crm" }, async ({ client, session }) => {
     const url = new URL(request.url);
     const options = {
       search: url.searchParams.get("search") || undefined,
@@ -17,27 +15,15 @@ export async function GET(request: Request) {
       limit: url.searchParams.get("limit") ? Number(url.searchParams.get("limit")) : undefined,
       offset: url.searchParams.get("offset") ? Number(url.searchParams.get("offset")) : undefined,
     };
-    const result = await tenantTransaction(session.organizationId, async (client) => {
-      await requireCrmAccess(client, session);
-      return listCrmContacts(client, crmContext(session), options);
-    });
+    const result = await listCrmContacts(client, crmContext(session), options);
     return ok(result);
-  } catch (error) {
-    return errorResponse(error);
-  }
+  });
 }
 
 export async function POST(request: Request) {
-  try {
-    assertSameOriginOrMobile(request, process.env);
-    const session = await requireWorkspace();
+  return workspaceRoute(request, { module: "crm", permission: CRM_PERMISSIONS.accountsManage, billingWrite: true }, async ({ client, session }) => {
     const input = (await readJson(request)) as Record<string, unknown>;
-    const record = await tenantTransaction(session.organizationId, async (client) => {
-      await requireCrmAccess(client, session, CRM_PERMISSIONS.accountsManage, { mutation: true });
-      return createCrmContact(client, crmContext(session), input);
-    });
+    const record = await createCrmContact(client, crmContext(session), input);
     return ok({ record }, 201);
-  } catch (error) {
-    return errorResponse(error);
-  }
+  });
 }

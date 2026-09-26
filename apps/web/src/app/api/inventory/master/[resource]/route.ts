@@ -8,7 +8,7 @@ import { inventoryMutation, inventoryRead } from "@/features/inventory/shared/ro
 export async function GET(request: Request, ctx: { params: Promise<{ resource: string }> }) {
   const { resource } = await ctx.params;
   const url = new URL(request.url);
-  return inventoryRead(async (client, context) => {
+  return inventoryRead(request, async (client, context) => {
     const name = masterResource(resource);
     const status = url.searchParams.get("status");
     const result = await listBusinessDataRecords(client, context, name, {

@@ -1,11 +1,10 @@
 import { z } from "zod";
 
-import { assertSameOriginOrMobile, createPointOfSaleReturn, listPointOfSaleResource } from "@vercentlabs/api";
+import { createPointOfSaleReturn, listPointOfSaleResource } from "@vercentlabs/api";
 
-import { tenantTransaction } from "@/core/db";
-import { errorResponse, ok, readJson } from "@/core/http";
-import { requireWorkspace } from "@/core/session";
-import { posContext, requirePosAccess } from "@/features/pos/shared/pos-context";
+import { ok, readJson } from "@/core/http";
+import { posContext } from "@/features/pos/shared/pos-context";
+import { workspaceRoute } from "@/core/workspace-route";
 
 const returnLineSchema = z.object({
   saleLineId: z.string().uuid(),
@@ -24,34 +23,21 @@ const createReturnSchema = z.object({
 });
 
 export async function GET(request: Request) {
-  try {
-    const session = await requireWorkspace();
+  return workspaceRoute(request, { module: "point-of-sale" }, async ({ client, session }) => {
     const url = new URL(request.url);
-    const rows = await tenantTransaction(session.organizationId, async (client) => {
-      await requirePosAccess(client, session);
-      return listPointOfSaleResource(client, posContext(session), "returns", {
-        limit: url.searchParams.get("limit") ? Number(url.searchParams.get("limit")) : undefined,
-        offset: url.searchParams.get("offset") ? Number(url.searchParams.get("offset")) : undefined,
-        shiftId: url.searchParams.get("shiftId") || null,
-      });
+    const rows = await listPointOfSaleResource(client, posContext(session), "returns", {
+      limit: url.searchParams.get("limit") ? Number(url.searchParams.get("limit")) : undefined,
+      offset: url.searchParams.get("offset") ? Number(url.searchParams.get("offset")) : undefined,
+      shiftId: url.searchParams.get("shiftId") || null,
     });
     return ok({ rows });
-  } catch (error) {
-    return errorResponse(error);
-  }
+  });
 }
 
 export async function POST(request: Request) {
-  try {
-    assertSameOriginOrMobile(request, process.env);
-    const session = await requireWorkspace();
+  return workspaceRoute(request, { module: "point-of-sale", permission: "pos.return.create", billingWrite: true }, async ({ client, session }) => {
     const input = createReturnSchema.parse(await readJson(request));
-    const result = await tenantTransaction(session.organizationId, async (client) => {
-      await requirePosAccess(client, session, "pos.return.create", { mutation: true });
-      return createPointOfSaleReturn(client, posContext(session), input);
-    });
+    const result = await createPointOfSaleReturn(client, posContext(session), input);
     return ok({ posReturn: result }, 201);
-  } catch (error) {
-    return errorResponse(error);
-  }
+  });
 }

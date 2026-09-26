@@ -1,9 +1,8 @@
-import { assertSameOriginOrMobile, createCrmRecord, isCrmResource, listCrmRecords } from "@vercentlabs/api";
+import { createCrmRecord, isCrmResource, listCrmRecords, requireBillingWriteAccess } from "@vercentlabs/api";
 
-import { tenantTransaction } from "@/core/db";
-import { errorResponse, HttpError, ok, readJson } from "@/core/http";
-import { requireWorkspace } from "@/core/session";
-import { crmContext, requireCrmAccess, requireCrmMutationAccess } from "@/features/crm/shared/crm-context";
+import { HttpError, ok, readJson } from "@/core/http";
+import { workspaceRoute } from "@/core/workspace-route";
+import { assertCrmResourceMutationPermission, crmContext } from "@/features/crm/shared/crm-context";
 
 const LIST_FILTER_KEYS = [
   "search",
@@ -70,35 +69,20 @@ function parseListFilters(url: URL) {
 // leads, so Accounts/Contacts-adjacent and future CRM screens reuse the
 // same boundary rather than each inventing their own.
 export async function GET(request: Request, context: { params: Promise<{ resource: string }> }) {
-  try {
-    const session = await requireWorkspace();
+  return workspaceRoute(request, { module: "crm", action: "crm.resource.list" }, async ({ client, session }) => {
     const { resource } = await context.params;
     if (!isCrmResource(resource)) throw new HttpError(404, "Unknown CRM resource.");
-    const url = new URL(request.url);
-    const filters = parseListFilters(url);
-    const result = await tenantTransaction(session.organizationId, async (client) => {
-      await requireCrmAccess(client, session);
-      return listCrmRecords(client, crmContext(session), resource, filters);
-    });
-    return ok(result);
-  } catch (error) {
-    return errorResponse(error);
-  }
+    return ok(await listCrmRecords(client, crmContext(session), resource, parseListFilters(new URL(request.url))));
+  });
 }
 
 export async function POST(request: Request, context: { params: Promise<{ resource: string }> }) {
-  try {
-    assertSameOriginOrMobile(request, process.env);
-    const session = await requireWorkspace();
+  return workspaceRoute(request, { module: "crm", action: "crm.resource.create" }, async ({ client, session }) => {
     const { resource } = await context.params;
     if (!isCrmResource(resource)) throw new HttpError(404, "Unknown CRM resource.");
+    assertCrmResourceMutationPermission(session, resource);
+    await requireBillingWriteAccess(client, session.organizationId, process.env);
     const input = (await readJson(request)) as Record<string, unknown>;
-    const record = await tenantTransaction(session.organizationId, async (client) => {
-      await requireCrmMutationAccess(client, session, resource);
-      return createCrmRecord(client, crmContext(session), resource, input);
-    });
-    return ok({ record }, 201);
-  } catch (error) {
-    return errorResponse(error);
-  }
+    return ok({ record: await createCrmRecord(client, crmContext(session), resource, input) }, 201);
+  });
 }
