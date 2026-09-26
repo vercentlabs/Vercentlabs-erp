@@ -1,0 +1,25 @@
+# Landing demo form -> ERP lead capture (the signed trusted-proxy contract of
+# /api/crm/public/capture/[key]). Needs the crm-capture-proxy-secret version
+# (shared with the web's crm-inbound-secrets component) and the capture form
+# key of the organisation that receives the leads.
+apiVersion: kustomize.config.k8s.io/v1alpha1
+kind: Component
+resources:
+  - secret-provider-class.yaml
+patches:
+  - target: { kind: Deployment, name: landing }
+    patch: |-
+      - op: add
+        path: /spec/template/spec/volumes/-
+        value:
+          name: landing-crm-capture
+          csi: { driver: secrets-store-gke.csi.k8s.io, readOnly: true, volumeAttributes: { secretProviderClass: landing-crm-capture-secrets } }
+      - op: add
+        path: /spec/template/spec/containers/0/volumeMounts/-
+        value: { name: landing-crm-capture, mountPath: /var/run/secrets/vercentlabs-landing, readOnly: true }
+      - op: add
+        path: /spec/template/spec/containers/0/env/-
+        value: { name: CRM_CAPTURE_PROXY_SECRET_FILE, value: /var/run/secrets/vercentlabs-landing/CRM_CAPTURE_PROXY_SECRET }
+      - op: add
+        path: /spec/template/spec/containers/0/env/-
+        value: { name: CRM_CAPTURE_FORM_KEY, value: "${CRM_CAPTURE_FORM_KEY}" }

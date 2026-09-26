@@ -1,0 +1,33 @@
+# Legacy INTEGRATION_TOKEN_ENCRYPTION_KEY, decrypt-only, while `pnpm secrets:migrate-legacy` upgrades old envelopes. Remove once it reports 0 legacy rows.
+# Enable in an overlay only after the Secret Manager secret(s) have a version.
+apiVersion: kustomize.config.k8s.io/v1alpha1
+kind: Component
+resources:
+  - secret-provider-class.yaml
+patches:
+  - target: { kind: Deployment, name: web }
+    patch: |-
+      - op: add
+        path: /spec/template/spec/volumes/-
+        value:
+          name: legacy-encryption-key
+          csi: { driver: secrets-store-gke.csi.k8s.io, readOnly: true, volumeAttributes: { secretProviderClass: legacy-encryption-key-secrets } }
+      - op: add
+        path: /spec/template/spec/containers/0/volumeMounts/-
+        value: { name: legacy-encryption-key, mountPath: /var/run/secrets/vercentlabs-legacy-encryption-key, readOnly: true }
+      - op: add
+        path: /spec/template/spec/containers/0/env/-
+        value: { name: INTEGRATION_TOKEN_ENCRYPTION_KEY_FILE, value: /var/run/secrets/vercentlabs-legacy-encryption-key/INTEGRATION_TOKEN_ENCRYPTION_KEY }
+  - target: { kind: Deployment, name: erp-worker }
+    patch: |-
+      - op: add
+        path: /spec/template/spec/volumes/-
+        value:
+          name: legacy-encryption-key
+          csi: { driver: secrets-store-gke.csi.k8s.io, readOnly: true, volumeAttributes: { secretProviderClass: legacy-encryption-key-secrets } }
+      - op: add
+        path: /spec/template/spec/containers/0/volumeMounts/-
+        value: { name: legacy-encryption-key, mountPath: /var/run/secrets/vercentlabs-legacy-encryption-key, readOnly: true }
+      - op: add
+        path: /spec/template/spec/containers/0/env/-
+        value: { name: INTEGRATION_TOKEN_ENCRYPTION_KEY_FILE, value: /var/run/secrets/vercentlabs-legacy-encryption-key/INTEGRATION_TOKEN_ENCRYPTION_KEY }

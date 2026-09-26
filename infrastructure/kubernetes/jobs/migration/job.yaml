@@ -1,0 +1,99 @@
+# One migration Job per release, applied by the deploy workflow BEFORE the
+# web/worker rollout and awaited to completion:
+#   expand migrations (checksummed; per-scope advisory lock serializes two
+#   concurrent runs) -> re-provision the restricted web/worker roles.
+# Runs as the migration Google service account and the migration database
+# role only; web and worker never migrate at startup. Contract (destructive)
+# migrations are never run here (docs/operations/RELEASE_RUNBOOK.md).
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: db-migrate-${RELEASE_ID}
+  namespace: vercentlabs
+  labels: { app: vercentlabs-migration, release: "${RELEASE_ID}" }
+spec:
+  backoffLimit: 0
+  activeDeadlineSeconds: 1800
+  ttlSecondsAfterFinished: 604800
+  template:
+    metadata:
+      labels: { app: vercentlabs-migration, release: "${RELEASE_ID}" }
+    spec:
+      serviceAccountName: migration
+      automountServiceAccountToken: false
+      restartPolicy: Never
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        fsGroup: 10001
+        seccompProfile: { type: RuntimeDefault }
+      initContainers:
+        # Native sidecar: stops automatically when the migration container exits.
+        - name: cloud-sql-proxy
+          image: gcr.io/cloud-sql-connectors/cloud-sql-proxy:2.14.3@sha256:c05efe2fed938b70ce20250e4e0d3cbe17e715c2017ace5cf3ab33211f574d2a
+          restartPolicy: Always
+          args:
+            - --private-ip
+            - --structured-logs
+            - --address=127.0.0.1
+            - --port=5432
+            - --health-check
+            - --http-address=0.0.0.0
+            - --http-port=9801
+            - ${SQL_CONNECTION_NAME}
+          ports: [{ name: proxy-health, containerPort: 9801 }]
+          startupProbe:
+            httpGet: { path: /startup, port: proxy-health }
+            periodSeconds: 2
+            failureThreshold: 30
+          resources:
+            requests: { cpu: 100m, memory: 128Mi }
+            limits: { cpu: 500m, memory: 256Mi }
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            capabilities: { drop: [ALL] }
+      containers:
+        - name: migrate
+          image: ${MIGRATION_IMAGE}
+          env:
+            - { name: NODE_ENV, value: production }
+            - { name: MIGRATION_DATABASE_URL_FILE, value: /var/run/secrets/vercentlabs/MIGRATION_DATABASE_URL }
+            - { name: DATABASE_URL_FILE, value: /var/run/secrets/vercentlabs/DATABASE_URL }
+            - { name: WORKER_DATABASE_URL_FILE, value: /var/run/secrets/vercentlabs/WORKER_DATABASE_URL }
+          resources:
+            requests: { cpu: 250m, memory: 256Mi }
+            limits: { cpu: "1", memory: 512Mi }
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            capabilities: { drop: [ALL] }
+          volumeMounts:
+            - { name: tmp, mountPath: /tmp }
+            - { name: migration-secrets, mountPath: /var/run/secrets/vercentlabs, readOnly: true }
+      volumes:
+        - { name: tmp, emptyDir: { sizeLimit: 64Mi } }
+        - name: migration-secrets
+          csi:
+            driver: secrets-store-gke.csi.k8s.io
+            readOnly: true
+            volumeAttributes: { secretProviderClass: migration-secrets }
+---
+apiVersion: secrets-store.csi.x-k8s.io/v1
+kind: SecretProviderClass
+metadata:
+  name: migration-secrets
+  namespace: vercentlabs
+spec:
+  provider: gke
+  parameters:
+    secrets: |
+      - resourceName: "projects/${GCP_PROJECT_ID}/secrets/${SECRET_PREFIX}-database-url-migration/versions/latest"
+        path: "MIGRATION_DATABASE_URL"
+      - resourceName: "projects/${GCP_PROJECT_ID}/secrets/${SECRET_PREFIX}-database-url-web/versions/latest"
+        path: "DATABASE_URL"
+      - resourceName: "projects/${GCP_PROJECT_ID}/secrets/${SECRET_PREFIX}-database-url-worker/versions/latest"
+        path: "WORKER_DATABASE_URL"

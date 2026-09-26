@@ -1,0 +1,6 @@
+# Rendered with --target operations (OPERATION, OPERATION_FLAGS).
+# Reuses the migration-secrets SecretProviderClass from jobs/migration.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - job.yaml

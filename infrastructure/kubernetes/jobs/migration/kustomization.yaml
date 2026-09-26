@@ -1,0 +1,6 @@
+# Rendered and applied by the deploy workflow before each rollout
+# (scripts/deploy/render-manifests.mjs --target migration).
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - job.yaml

@@ -1,0 +1,154 @@
+name: Infrastructure CI
+
+# Static production-readiness gate for the Google Cloud deployment. Creates
+# NO cloud resources and receives NO cloud credentials (PRs included):
+#   - Terraform fmt/validate (no backend, no provider credentials)
+#   - Kubernetes render (overlays, migration and operations Jobs) with the
+#     example deploy values, then schema validation (kubeconform)
+#   - Docker builds of every image + vulnerability scan (Trivy)
+#   - pnpm verify:production
+on:
+  pull_request:
+    paths:
+      - "infrastructure/**"
+      - "scripts/deploy/**"
+      - "scripts/production/**"
+      - "scripts/database/**"
+      - "scripts/operations/**"
+      - "packages/config/**"
+      - ".dockerignore"
+      - "apps/web/next.config.*"
+      - "apps/web/src/app/api/health/**"
+      - "apps/web/src/app/api/readiness/**"
+      - "services/worker/**"
+      - "pnpm-lock.yaml"
+      - ".github/workflows/infrastructure-ci.yml"
+      - ".github/workflows/deploy.yml"
+  push:
+    branches: [main]
+    paths:
+      - "infrastructure/**"
+      - "scripts/deploy/**"
+      - "scripts/production/**"
+      - ".dockerignore"
+      - "pnpm-lock.yaml"
+      - ".github/workflows/infrastructure-ci.yml"
+      - ".github/workflows/deploy.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: infrastructure-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  static:
+    name: Terraform, Kubernetes render/schema, verify:production
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: hashicorp/setup-terraform@v4
+        with:
+          terraform_version: 1.9.8
+          terraform_wrapper: false
+
+      - name: Terraform fmt
+        run: terraform -chdir=infrastructure/terraform fmt -check -recursive
+
+      - name: Terraform validate (no backend, no credentials)
+        run: |
+          terraform -chdir=infrastructure/terraform init -backend=false -input=false
+          terraform -chdir=infrastructure/terraform validate
+
+      - name: Set up Node and pnpm
+        uses: pnpm/setup@v1
+        with:
+          version: 11.21.0
+          runtime: node@24
+          cache: true
+          install: false
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Render Kubernetes manifests (example values)
+        run: |
+          mkdir -p rendered
+          for overlay in staging production; do
+            node scripts/deploy/render-manifests.mjs --overlay "$overlay" --values infrastructure/kubernetes/deploy-values.example.json --out "rendered/$overlay.yaml"
+          done
+          node scripts/deploy/render-manifests.mjs --target migration --values infrastructure/kubernetes/deploy-values.example.json --out rendered/migration.yaml
+          for operation in status files-reconcile secrets-migrate-legacy; do
+            OPERATION="$operation" node scripts/deploy/render-manifests.mjs --target operations --values infrastructure/kubernetes/deploy-values.example.json --out "rendered/ops-$operation.yaml"
+          done
+
+      - name: Render every optional component together
+        run: |
+          mkdir -p infrastructure/kubernetes/overlays/_all-components
+          {
+            printf 'apiVersion: kustomize.config.k8s.io/v1beta1\nkind: Kustomization\nresources: [../../base]\ncomponents:\n'
+            for component in infrastructure/kubernetes/components/*/; do printf '  - ../../components/%s\n' "$(basename "$component")"; done
+          } > infrastructure/kubernetes/overlays/_all-components/kustomization.yaml
+          kubectl kustomize infrastructure/kubernetes/overlays/_all-components > rendered/all-components.yaml
+          rm -rf infrastructure/kubernetes/overlays/_all-components
+
+      - name: Kubernetes schema validation
+        run: |
+          curl -sSfL -o kubeconform.tar.gz https://github.com/yannh/kubeconform/releases/download/v0.6.7/kubeconform-linux-amd64.tar.gz
+          echo "95f14e87aa28c09d5941f11bd024c1d02fdc0303ccaa23f61cef67bc92619d73  kubeconform.tar.gz" | sha256sum -c -
+          tar -xzf kubeconform.tar.gz kubeconform
+          # GKE/Secret Store CRDs (ManagedCertificate, BackendConfig,
+          # FrontendConfig, SecretProviderClass) have no public schema here.
+          ./kubeconform -strict -summary -kubernetes-version 1.33.0 -ignore-missing-schemas rendered/*.yaml
+
+      - name: Production readiness verification
+        run: pnpm verify:production
+
+  images:
+    name: Build and scan images
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        image: [web, worker, landing, migration]
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: docker/setup-buildx-action@v4
+
+      - name: Build ${{ matrix.image }}
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: infrastructure/docker/Dockerfile.${{ matrix.image }}
+          build-args: |
+            GIT_SHA=${{ github.sha }}
+            NEXT_PUBLIC_SITE_URL=https://www.example.com
+            NEXT_PUBLIC_APP_URL=https://erp.example.com
+          tags: vercentlabs-erp-${{ matrix.image }}:ci
+          load: true
+          push: false
+          cache-from: type=gha,scope=${{ matrix.image }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.image }}
+
+      - name: Runtime image runs as non-root
+        run: test "$(docker run --rm --entrypoint id vercentlabs-erp-${{ matrix.image }}:ci -u)" = "10001"
+
+      - name: No environment files in the image
+        run: |
+          if docker run --rm --entrypoint sh vercentlabs-erp-${{ matrix.image }}:ci -c 'find / -xdev \( -name ".env" -o -name ".env.*" \) -not -name ".env.example" 2>/dev/null | grep -v "^/proc"'; then
+            echo "Environment files found in the image"; exit 1
+          fi
+
+      - name: Vulnerability scan (fail on fixable critical)
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          image-ref: vercentlabs-erp-${{ matrix.image }}:ci
+          severity: CRITICAL
+          ignore-unfixed: true
+          exit-code: "1"
+          format: table

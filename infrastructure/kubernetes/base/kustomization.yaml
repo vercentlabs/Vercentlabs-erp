@@ -1,9 +1,16 @@
+# Long-running ERP workloads. Rendered per environment by
+# scripts/deploy/render-manifests.mjs (overlays/<environment> + deploy
+# values); ${...} placeholders are never applied unrendered.
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
   - namespace.yaml
+  - service-accounts.yaml
   - configmap.yaml
-  - apps.yaml
+  - secret-provider-classes.yaml
+  - web.yaml
+  - worker.yaml
+  - landing.yaml
   - scaling.yaml
-  - workers.yaml
   - network-policy.yaml
+  - ingress.yaml

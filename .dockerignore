@@ -12,9 +12,12 @@ coverage
 tmp
 temp
 .cache
+# Environment files at ANY depth (apps/web/.env.local holds local secrets).
 .env
 .env.*
-!.env.example
+**/.env
+**/.env.*
+!**/.env.example
 *.log
 *.pem
 *.key
@@ -22,3 +25,13 @@ temp
 playwright-report
 test-results
 blob-report
+# Never in an image context: tests, evidence, docs, research, infra state
+tests
+reports
+research_notes
+docs
+*.tfstate
+*.tfstate.*
+*.tfplan
+.terraform
+infrastructure/terraform

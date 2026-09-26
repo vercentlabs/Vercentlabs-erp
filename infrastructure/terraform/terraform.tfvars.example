@@ -1,0 +1,19 @@
+# Copy to <environment>.tfvars (gitignored). Non-secret values only.
+project_id        = "example-erp-production"
+region            = "asia-south1"
+environment       = "production"
+github_repository = "example-org/vercentlabs-erp"
+alert_email       = "oncall@example.com"
+
+# Cloud SQL sizing and the connection budget (see README.md).
+sql_tier            = "db-custom-2-7680"
+sql_max_connections = 200
+web_max_replicas    = 6
+web_pool_max        = 10
+worker_replicas     = 2
+worker_pool_max     = 6
+
+# Operators allowed to reach the GKE control plane.
+control_plane_authorized_networks = [
+  { cidr = "203.0.113.0/28", name = "operations" },
+]

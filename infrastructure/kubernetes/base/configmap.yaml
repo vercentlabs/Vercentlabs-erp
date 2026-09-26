@@ -1,15 +1,107 @@
+# NON-SECRET runtime configuration only. Passwords, tokens, keys and
+# connection strings are Secret Manager files (secret-provider-classes.yaml)
+# read through NAME_FILE. ${...} values are filled per environment by
+# scripts/deploy/render-manifests.mjs from the environment's deploy values.
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: vercentlabs-runtime
+  name: vercentlabs-web
   namespace: vercentlabs
 data:
   NODE_ENV: production
-  DATABASE_POOL_MAX: "12"
+  APP_URL: ${APP_URL}
+  FORM_ALLOWED_ORIGINS: ${FORM_ALLOWED_ORIGINS}
+  SERVICE_NAME: vercentlabs-web
+  DEPLOYMENT_ENVIRONMENT: ${ENVIRONMENT}
+  # Database: through the Cloud SQL Auth Proxy sidecar on 127.0.0.1:5432
+  # (mTLS to the private instance), as the restricted web role.
+  ENFORCE_RESTRICTED_DB_ROLE: "true"
+  DATABASE_SSL: "false"
+  DATABASE_POOL_MAX: ${WEB_POOL_MAX}
   DATABASE_IDLE_TIMEOUT_MS: "30000"
   DATABASE_CONNECTION_TIMEOUT_MS: "5000"
   DATABASE_STATEMENT_TIMEOUT_MS: "15000"
   DATABASE_QUERY_TIMEOUT_MS: "20000"
-  CRM_OUTBOX_BATCH_SIZE: "25"
-  CRM_OUTBOX_MAX_ATTEMPTS: "5"
-  CRM_OUTBOX_LEASE_SECONDS: "300"
+  DATABASE_URL_FILE: /var/run/secrets/vercentlabs/DATABASE_URL
+  # Client IP behind the Google Cloud external load balancer:
+  # "<client>, <lb-ip>" -> the second-to-last entry.
+  TRUSTED_PROXY_IP_HEADER: x-forwarded-for
+  TRUSTED_PROXY_CLIENT_INDEX: "-2"
+  SESSION_COOKIE_NAME: vercent_session
+  SESSION_IDLE_MINUTES: "480"
+  SESSION_ABSOLUTE_DAYS: "30"
+  # Billing
+  BILLING_ENFORCEMENT_MODE: enforce
+  BILLING_CHECKOUT_ENABLED: ${BILLING_CHECKOUT_ENABLED}
+  RAZORPAY_MODE: ${RAZORPAY_MODE}
+  RAZORPAY_KEY_ID: ${RAZORPAY_KEY_ID}
+  RAZORPAY_KEY_SECRET_FILE: /var/run/secrets/vercentlabs/RAZORPAY_KEY_SECRET
+  RAZORPAY_WEBHOOK_SECRET_FILE: /var/run/secrets/vercentlabs/RAZORPAY_WEBHOOK_SECRET
+  # Files: private Cloud Storage bucket; malware scanning required.
+  FILE_STORAGE_DRIVER: gcs
+  FILE_STORAGE_GCS_BUCKET: ${FILES_BUCKET}
+  ATTACHMENT_SCAN_MODE: required
+  ATTACHMENT_SCAN_URL: ${ATTACHMENT_SCAN_URL}
+  ATTACHMENT_SCAN_TOKEN_FILE: /var/run/secrets/vercentlabs/ATTACHMENT_SCAN_TOKEN
+  # Integration secrets: envelope encryption with Cloud KMS.
+  SECRETS_ENCRYPTION_PROVIDER: gcp-kms
+  SECRETS_KMS_KEY_NAME: ${SECRETS_KMS_KEY_NAME}
+  # Transactional email (SMTP).
+  SMTP_HOST: ${SMTP_HOST}
+  SMTP_PORT: ${SMTP_PORT}
+  SMTP_SECURE: ${SMTP_SECURE}
+  SMTP_USER: ${SMTP_USER}
+  SMTP_PASSWORD_FILE: /var/run/secrets/vercentlabs/SMTP_PASSWORD
+  AUTH_EMAIL_FROM: ${AUTH_EMAIL_FROM}
+  AUTH_EMAIL_REPLY_TO: ${AUTH_EMAIL_REPLY_TO}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: vercentlabs-worker
+  namespace: vercentlabs
+data:
+  NODE_ENV: production
+  APP_URL: ${APP_URL}
+  SERVICE_NAME: vercentlabs-worker
+  DEPLOYMENT_ENVIRONMENT: ${ENVIRONMENT}
+  ENFORCE_RESTRICTED_DB_ROLE: "true"
+  DATABASE_SSL: "false"
+  DATABASE_POOL_MAX: ${WORKER_POOL_MAX}
+  DATABASE_IDLE_TIMEOUT_MS: "30000"
+  DATABASE_CONNECTION_TIMEOUT_MS: "5000"
+  DATABASE_STATEMENT_TIMEOUT_MS: "60000"
+  DATABASE_QUERY_TIMEOUT_MS: "65000"
+  WORKER_DATABASE_URL_FILE: /var/run/secrets/vercentlabs/WORKER_DATABASE_URL
+  # Bounded concurrency: DATABASE_POOL_MAX must be >= WORKER_CONCURRENCY + 3.
+  WORKER_ENABLED: "true"
+  WORKER_CONCURRENCY: ${WORKER_CONCURRENCY}
+  WORKER_POLL_INTERVAL_MS: "5000"
+  WORKER_LEASE_MS: "120000"
+  WORKER_BATCH_SIZE: "10"
+  WORKER_SCHEDULER_TICK_MS: "300000"
+  WORKER_WEBHOOK_TIMEOUT_MS: "10000"
+  WORKER_ALLOW_PRIVATE_WEBHOOK_TARGETS: "false"
+  WORKER_SHUTDOWN_DEADLINE_MS: "45000"
+  WORKER_HEALTH_PORT: "8081"
+  BILLING_ENFORCEMENT_MODE: enforce
+  BILLING_MAINTENANCE_ENABLED: "true"
+  BILLING_MAINTENANCE_INTERVAL_MS: "15000"
+  BILLING_MAINTENANCE_BATCH_SIZE: "20"
+  RAZORPAY_MODE: ${RAZORPAY_MODE}
+  RAZORPAY_KEY_ID: ${RAZORPAY_KEY_ID}
+  RAZORPAY_KEY_SECRET_FILE: /var/run/secrets/vercentlabs/RAZORPAY_KEY_SECRET
+  FILE_STORAGE_DRIVER: gcs
+  FILE_STORAGE_GCS_BUCKET: ${FILES_BUCKET}
+  ATTACHMENT_SCAN_MODE: required
+  ATTACHMENT_SCAN_URL: ${ATTACHMENT_SCAN_URL}
+  ATTACHMENT_SCAN_TOKEN_FILE: /var/run/secrets/vercentlabs/ATTACHMENT_SCAN_TOKEN
+  SECRETS_ENCRYPTION_PROVIDER: gcp-kms
+  SECRETS_KMS_KEY_NAME: ${SECRETS_KMS_KEY_NAME}
+  SMTP_HOST: ${SMTP_HOST}
+  SMTP_PORT: ${SMTP_PORT}
+  SMTP_SECURE: ${SMTP_SECURE}
+  SMTP_USER: ${SMTP_USER}
+  SMTP_PASSWORD_FILE: /var/run/secrets/vercentlabs/SMTP_PASSWORD
+  AUTH_EMAIL_FROM: ${AUTH_EMAIL_FROM}
+  AUTH_EMAIL_REPLY_TO: ${AUTH_EMAIL_REPLY_TO}

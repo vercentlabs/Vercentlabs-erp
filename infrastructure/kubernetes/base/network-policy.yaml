@@ -1,16 +1,35 @@
+# Default deny in both directions, then only what each workload needs.
+# Enforced by GKE Dataplane V2 (Autopilot).
+#
+# Egress notes:
+# - The database is reached only by the Cloud SQL Auth Proxy sidecar, on
+#   3307 to the private services range (${PRIVATE_SERVICES_CIDR}); the app
+#   talks to the proxy on loopback. No broad 5432 egress.
+# - 169.254.169.254 (80, 988) is the GKE metadata server: Workload Identity
+#   tokens for the proxy, Cloud Storage, KMS and Secret Manager clients.
+#   Application code never fetches it: outbound webhook URLs are resolved and
+#   refused for link-local/private targets by the webhook SSRF guard
+#   (WORKER_ALLOW_PRIVATE_WEBHOOK_TARGETS=false, enforced in production).
+# - HTTPS 443 to any destination is intentional: Google APIs, payment and
+#   OAuth providers, the malware scanner and customer webhook endpoints are
+#   all public HTTPS with changing addresses.
+# - SMTP submission (465/587) to any destination: mail providers' addresses
+#   change; only the web and worker send mail.
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
-  name: default-deny-ingress
+  name: default-deny
   namespace: vercentlabs
 spec:
   podSelector: {}
-  policyTypes: [Ingress]
+  policyTypes: [Ingress, Egress]
 ---
+# Google Cloud load balancer (container-native NEGs): proxies and health
+# checks come from these Google front-end ranges.
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
-  name: allow-http-ingress
+  name: allow-load-balancer
   namespace: vercentlabs
 spec:
   podSelector:
@@ -18,24 +37,17 @@ spec:
       - { key: app, operator: In, values: [vercentlabs-web, vercentlabs-landing] }
   policyTypes: [Ingress]
   ingress:
-    - ports:
+    - from:
+        - ipBlock: { cidr: 35.191.0.0/16 }
+        - ipBlock: { cidr: 130.211.0.0/22 }
+      ports:
         - { protocol: TCP, port: 3000 }
         - { protocol: TCP, port: 3001 }
-
 ---
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
-  name: default-deny-egress
-  namespace: vercentlabs
-spec:
-  podSelector: {}
-  policyTypes: [Egress]
----
-apiVersion: networking.k8s.io/v1
-kind: NetworkPolicy
-metadata:
-  name: allow-runtime-egress
+  name: allow-dns
   namespace: vercentlabs
 spec:
   podSelector: {}
@@ -43,13 +55,59 @@ spec:
   egress:
     - to:
         - namespaceSelector:
-            matchLabels:
-              kubernetes.io/metadata.name: kube-system
+            matchLabels: { kubernetes.io/metadata.name: kube-system }
       ports:
         - { protocol: UDP, port: 53 }
         - { protocol: TCP, port: 53 }
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-application-egress
+  namespace: vercentlabs
+spec:
+  podSelector:
+    matchExpressions:
+      - { key: app, operator: In, values: [vercentlabs-web, erp-worker, vercentlabs-migration] }
+  policyTypes: [Egress]
+  egress:
+    - to:
+        - ipBlock: { cidr: "${PRIVATE_SERVICES_CIDR}" }
+      ports:
+        - { protocol: TCP, port: 3307 }
+    - to:
+        - ipBlock: { cidr: 169.254.169.254/32 }
+      ports:
+        - { protocol: TCP, port: 80 }
+        - { protocol: TCP, port: 988 }
     - ports:
         - { protocol: TCP, port: 443 }
-        - { protocol: TCP, port: 5432 }
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-mail-egress
+  namespace: vercentlabs
+spec:
+  podSelector:
+    matchExpressions:
+      - { key: app, operator: In, values: [vercentlabs-web, erp-worker] }
+  policyTypes: [Egress]
+  egress:
+    - ports:
         - { protocol: TCP, port: 465 }
         - { protocol: TCP, port: 587 }
+---
+# Landing: HTTPS only (the demo form posts to the ERP capture endpoint).
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-landing-egress
+  namespace: vercentlabs
+spec:
+  podSelector:
+    matchLabels: { app: vercentlabs-landing }
+  policyTypes: [Egress]
+  egress:
+    - ports:
+        - { protocol: TCP, port: 443 }

@@ -8,6 +8,15 @@ import { crmLeadAcquisitionHash } from "./lead-acquisition.js";
 
 
 
+// Public web-to-lead: the capture-form key resolves its organisation through
+// the narrow tenant.crm_public_capture_form definer function, before any
+// organisation context exists (ingress). Returns null for an unknown or
+// inactive form.
+export async function resolvePublicCaptureOrganization(queryable, formKey) {
+  const result = await queryable.query("SELECT form.organization_id FROM tenant.crm_public_capture_form($1) AS form", [formKey]);
+  return result.rows[0]?.organization_id ?? null;
+}
+
 export async function captureCrmLead(
   client,
   formKey,

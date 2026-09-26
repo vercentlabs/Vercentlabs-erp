@@ -1,0 +1,124 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: web
+  namespace: vercentlabs
+  labels: { app: vercentlabs-web }
+spec:
+  replicas: 2
+  revisionHistoryLimit: 10 # rollback targets: kubectl rollout undo deployment/web
+  strategy:
+    type: RollingUpdate
+    rollingUpdate: { maxUnavailable: 0, maxSurge: 1 }
+  selector:
+    matchLabels: { app: vercentlabs-web }
+  template:
+    metadata:
+      labels: { app: vercentlabs-web }
+    spec:
+      serviceAccountName: web
+      automountServiceAccountToken: false
+      terminationGracePeriodSeconds: 45
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        fsGroup: 10001
+        seccompProfile: { type: RuntimeDefault }
+      initContainers:
+        # Native sidecar (restartPolicy: Always): starts before the app, stops
+        # after it. mTLS to the private Cloud SQL instance with the pod's
+        # Workload Identity; the app connects to 127.0.0.1:5432 with plain pg.
+        - name: cloud-sql-proxy
+          image: gcr.io/cloud-sql-connectors/cloud-sql-proxy:2.14.3@sha256:c05efe2fed938b70ce20250e4e0d3cbe17e715c2017ace5cf3ab33211f574d2a
+          restartPolicy: Always
+          args:
+            - --private-ip
+            - --structured-logs
+            - --address=127.0.0.1
+            - --port=5432
+            - --health-check
+            - --http-address=0.0.0.0
+            - --http-port=9801
+            - --max-sigterm-delay=40s
+            - ${SQL_CONNECTION_NAME}
+          ports: [{ name: proxy-health, containerPort: 9801 }]
+          startupProbe:
+            httpGet: { path: /startup, port: proxy-health }
+            periodSeconds: 2
+            failureThreshold: 30
+          livenessProbe:
+            httpGet: { path: /liveness, port: proxy-health }
+            periodSeconds: 20
+            failureThreshold: 3
+          resources:
+            requests: { cpu: 100m, memory: 128Mi }
+            limits: { cpu: 500m, memory: 256Mi }
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            capabilities: { drop: [ALL] }
+      containers:
+        - name: web
+          image: ${WEB_IMAGE}
+          ports: [{ name: http, containerPort: 3001 }]
+          envFrom:
+            - configMapRef: { name: vercentlabs-web }
+          env:
+            - name: RELEASE_SHA
+              value: ${RELEASE_SHA}
+          # Readiness: configuration, database role, migrations and storage
+          # (apps/web/src/app/api/readiness). Liveness: the process only
+          # (/api/health) — a slow dependency never restarts a healthy pod.
+          startupProbe:
+            httpGet: { path: /api/health, port: http }
+            periodSeconds: 3
+            failureThreshold: 40
+          readinessProbe:
+            httpGet: { path: /api/readiness, port: http }
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+          livenessProbe:
+            httpGet: { path: /api/health, port: http }
+            periodSeconds: 20
+            timeoutSeconds: 3
+            failureThreshold: 3
+          lifecycle:
+            # Let the load balancer stop routing before SIGTERM.
+            preStop:
+              exec: { command: ["sleep", "10"] }
+          resources:
+            requests: { cpu: 500m, memory: 768Mi }
+            limits: { cpu: "1", memory: 1536Mi }
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            capabilities: { drop: [ALL] }
+          volumeMounts:
+            - { name: tmp, mountPath: /tmp }
+            - { name: next-cache, mountPath: /app/apps/web/.next/cache }
+            - { name: runtime-secrets, mountPath: /var/run/secrets/vercentlabs, readOnly: true }
+      volumes:
+        - { name: tmp, emptyDir: { sizeLimit: 256Mi } }
+        - { name: next-cache, emptyDir: { sizeLimit: 512Mi } }
+        - name: runtime-secrets
+          csi:
+            driver: secrets-store-gke.csi.k8s.io
+            readOnly: true
+            volumeAttributes: { secretProviderClass: web-secrets }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: web
+  namespace: vercentlabs
+  annotations:
+    cloud.google.com/neg: '{"ingress": true}'
+    cloud.google.com/backend-config: '{"default": "web"}'
+spec:
+  type: ClusterIP
+  selector: { app: vercentlabs-web }
+  ports: [{ name: http, port: 80, targetPort: http }]

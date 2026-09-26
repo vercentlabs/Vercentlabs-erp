@@ -129,6 +129,7 @@ api/crm/pipeline/snapshots/route.ts,POST,via-workspaceRoute,gated,,"business-dat
 api/crm/privacy-requests/[id]/execute/route.ts,POST,via-workspaceRoute,gated,,export/privacy/recovery (likely must stay reachable)
 api/crm/privacy/retention/[id]/route.ts,PATCH,via-workspaceRoute,gated,,export/privacy/recovery (likely must stay reachable)
 api/crm/privacy/retention/run/route.ts,POST,via-workspaceRoute,gated,,export/privacy/recovery (likely must stay reachable)
+api/crm/public/capture/[key]/route.ts,POST,direct,gated,,"business-data mutation (default assumption, needs confirmation)"
 api/crm/public/meetings/bookings/[token]/route.ts,PATCH,none,excluded,"Public, token-authenticated prospect self-service -- no ERP session/subscription context applies (see ROUTE_SECURITY_MATRIX's own documented exception for the same route).","business-data mutation (default assumption, needs confirmation)"
 api/crm/public/meetings/links/[token]/book/route.ts,POST,none,excluded,"Public, token-authenticated prospect self-service -- same as above.","business-data mutation (default assumption, needs confirmation)"
 api/crm/tasks/[id]/cancel/route.ts,POST,via-workspaceRoute,gated,,"business-data mutation (default assumption, needs confirmation)"

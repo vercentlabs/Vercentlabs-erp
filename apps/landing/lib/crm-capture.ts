@@ -1,4 +1,5 @@
 import { createHash, createHmac } from "node:crypto";
+import { readFileSync } from "node:fs";
 import { APP_URL } from "./site.ts";
 
 /**
@@ -32,6 +33,20 @@ export interface CrmCaptureResult {
   body: unknown;
 }
 
+// Deployed on Kubernetes the secret is a Secret Manager file
+// (CRM_CAPTURE_PROXY_SECRET_FILE); locally it may be a plain variable.
+function captureProxySecret(): string | undefined {
+  const direct = process.env.CRM_CAPTURE_PROXY_SECRET?.trim();
+  if (direct) return direct;
+  const file = process.env.CRM_CAPTURE_PROXY_SECRET_FILE?.trim();
+  if (!file) return undefined;
+  try {
+    return readFileSync(file, "utf8").trim() || undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 function clientFingerprint(clientIp: string, userAgent: string): string {
   return createHash("sha256").update(`${clientIp}|${userAgent}`).digest("hex");
 }
@@ -46,7 +61,7 @@ function clientFingerprint(clientIp: string, userAgent: string): string {
  */
 export async function deliverDemoRequest(payload: DemoRequestPayload, clientIp: string, userAgent: string): Promise<CrmCaptureResult> {
   const formKey = process.env.CRM_CAPTURE_FORM_KEY?.trim();
-  const secret = process.env.CRM_CAPTURE_PROXY_SECRET?.trim();
+  const secret = captureProxySecret();
   if (!formKey || !secret) {
     throw new Error("CRM_CAPTURE_FORM_KEY / CRM_CAPTURE_PROXY_SECRET are not configured — lead delivery is unavailable.");
   }

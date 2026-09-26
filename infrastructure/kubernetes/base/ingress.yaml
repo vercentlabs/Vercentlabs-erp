@@ -1,0 +1,94 @@
+# External HTTPS load balancer (GKE Ingress, container-native NEGs) with a
+# Google-managed certificate, HTTP->HTTPS redirect and the Cloud Armor edge
+# policy from Terraform. DNS stays at the registrar: point the A records for
+# ${APP_HOST} and ${LANDING_HOST} to the static IP ${INGRESS_IP_NAME}
+# (terraform output ingress_ip_address).
+apiVersion: networking.gke.io/v1
+kind: ManagedCertificate
+metadata:
+  name: vercentlabs-certificate
+  namespace: vercentlabs
+spec:
+  domains:
+    - ${APP_HOST}
+    - ${LANDING_HOST}
+---
+apiVersion: networking.gke.io/v1beta1
+kind: FrontendConfig
+metadata:
+  name: vercentlabs-frontend
+  namespace: vercentlabs
+spec:
+  redirectToHttps:
+    enabled: true
+    responseCodeName: MOVED_PERMANENTLY_DEFAULT
+  sslPolicy: ${SSL_POLICY}
+---
+apiVersion: cloud.google.com/v1
+kind: BackendConfig
+metadata:
+  name: web
+  namespace: vercentlabs
+spec:
+  securityPolicy:
+    name: ${EDGE_POLICY}
+  healthCheck:
+    type: HTTP
+    requestPath: /api/readiness
+    port: 3001
+    checkIntervalSec: 10
+    timeoutSec: 5
+    healthyThreshold: 1
+    unhealthyThreshold: 3
+  connectionDraining:
+    drainingTimeoutSec: 30
+  timeoutSec: 120
+  logging:
+    enable: true
+    sampleRate: 1.0
+---
+apiVersion: cloud.google.com/v1
+kind: BackendConfig
+metadata:
+  name: landing
+  namespace: vercentlabs
+spec:
+  securityPolicy:
+    name: ${EDGE_POLICY}
+  healthCheck:
+    type: HTTP
+    requestPath: /
+    port: 3000
+  connectionDraining:
+    drainingTimeoutSec: 30
+  logging:
+    enable: true
+    sampleRate: 0.2
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: vercentlabs
+  namespace: vercentlabs
+  annotations:
+    kubernetes.io/ingress.class: gce
+    kubernetes.io/ingress.global-static-ip-name: ${INGRESS_IP_NAME}
+    networking.gke.io/managed-certificates: vercentlabs-certificate
+    networking.gke.io/v1beta1.FrontendConfig: vercentlabs-frontend
+    kubernetes.io/ingress.allow-http: "true" # only to serve the HTTPS redirect
+spec:
+  rules:
+    - host: ${APP_HOST}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service: { name: web, port: { name: http } }
+    - host: ${LANDING_HOST}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service: { name: landing, port: { name: http } }

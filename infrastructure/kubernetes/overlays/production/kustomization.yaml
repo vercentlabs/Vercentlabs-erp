@@ -1,0 +1,28 @@
+# Production: regional HA Cloud SQL, web 2-6 replicas (connection budget in
+# infrastructure/terraform/sql.tf), 2 worker replicas.
+#
+# Optional integrations are components; enable one ONLY after its Secret
+# Manager secret has a version (a missing version blocks pod start):
+#   ../../components/google-oauth           GOOGLE_OAUTH_CLIENT_ID + secret
+#   ../../components/microsoft-oauth        MICROSOFT_OAUTH_CLIENT_ID + secret
+#   ../../components/crm-inbound-secrets    CRM capture/inbound/provider secrets (web)
+#   ../../components/landing-crm-capture    landing demo form -> ERP capture
+#   ../../components/razorpay-webhook-rotation  while rotating the webhook secret
+#   ../../components/legacy-encryption-key  until secrets:migrate-legacy reports 0
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ../../base
+components: []
+labels:
+  - pairs:
+      vercentlabs.com/environment: production
+    includeSelectors: false
+patches:
+  - target: { kind: HorizontalPodAutoscaler, name: web }
+    patch: |-
+      - { op: replace, path: /spec/minReplicas, value: 2 }
+      - { op: replace, path: /spec/maxReplicas, value: 6 }
+  - target: { kind: Deployment, name: erp-worker }
+    patch: |-
+      - { op: replace, path: /spec/replicas, value: 2 }

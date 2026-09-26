@@ -1,0 +1,22 @@
+# secrets:migrate-legacy only: the operations Job plus the legacy,
+# decrypt-only INTEGRATION_TOKEN_ENCRYPTION_KEY (a separate volume, so every
+# other Job keeps working once the legacy secret is destroyed).
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ../operations
+  - secret-provider-class.yaml
+patches:
+  - target: { kind: Job }
+    patch: |-
+      - op: add
+        path: /spec/template/spec/volumes/-
+        value:
+          name: legacy-key
+          csi: { driver: secrets-store-gke.csi.k8s.io, readOnly: true, volumeAttributes: { secretProviderClass: legacy-encryption-key-operations } }
+      - op: add
+        path: /spec/template/spec/containers/0/volumeMounts/-
+        value: { name: legacy-key, mountPath: /var/run/secrets/vercentlabs-legacy, readOnly: true }
+      - op: add
+        path: /spec/template/spec/containers/0/env/-
+        value: { name: INTEGRATION_TOKEN_ENCRYPTION_KEY_FILE, value: /var/run/secrets/vercentlabs-legacy/INTEGRATION_TOKEN_ENCRYPTION_KEY }

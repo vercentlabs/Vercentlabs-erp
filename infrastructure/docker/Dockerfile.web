@@ -1,17 +1,31 @@
-FROM node:24-alpine AS build
-RUN corepack enable
+# syntax=docker/dockerfile:1.7
+# ERP web (Next.js standalone). Multi-stage, frozen lockfile, digest-pinned
+# base, fixed non-root UID (Kubernetes runAsNonRoot can verify it). No
+# secrets, .env files, tests or docs enter the image (.dockerignore); runtime
+# configuration and Secret Manager files come from Kubernetes. No migration
+# credentials: migrations run in the separate migration image/Job.
+ARG NODE_IMAGE=node:24-alpine@sha256:ebfe2f90462722a7a4de65e91990e97fe0d401c70e0e762c5b53302f905ec1c1
+
+FROM ${NODE_IMAGE} AS build
+ENV CI=1 NEXT_TELEMETRY_DISABLED=1
+RUN npm install --global --no-fund --no-audit pnpm@11.21.0
 WORKDIR /app
 COPY . .
 RUN --mount=type=cache,id=pnpm-store,target=/root/.local/share/pnpm/store \
-    pnpm --filter @vercentlabs/web... install --frozen-lockfile
-RUN pnpm build:web
+    pnpm install --frozen-lockfile --filter "@vercentlabs/web..."
+RUN pnpm --filter @vercentlabs/web build
 
-FROM node:24-alpine AS runtime
-ENV NODE_ENV=production PORT=3001 HOSTNAME=0.0.0.0
+FROM ${NODE_IMAGE} AS runtime
+ARG GIT_SHA=unknown
+LABEL org.opencontainers.image.title="vercentlabs-erp-web" \
+      org.opencontainers.image.description="Vercentlabs ERP web and API runtime" \
+      org.opencontainers.image.vendor="Vercentlabs" \
+      org.opencontainers.image.revision="${GIT_SHA}"
+ENV NODE_ENV=production PORT=3001 HOSTNAME=0.0.0.0 NEXT_TELEMETRY_DISABLED=1 RELEASE_SHA=${GIT_SHA}
 WORKDIR /app
-RUN addgroup -S vercentlabs && adduser -S vercentlabs -G vercentlabs
-COPY --from=build --chown=vercentlabs:vercentlabs /app/apps/web/.next/standalone ./
-COPY --from=build --chown=vercentlabs:vercentlabs /app/apps/web/.next/static ./apps/web/.next/static
-USER vercentlabs
+RUN addgroup -S -g 10001 vercentlabs && adduser -S -D -H -u 10001 -G vercentlabs vercentlabs
+COPY --from=build --chown=10001:10001 /app/apps/web/.next/standalone ./
+COPY --from=build --chown=10001:10001 /app/apps/web/.next/static ./apps/web/.next/static
+USER 10001:10001
 EXPOSE 3001
 CMD ["node", "apps/web/server.js"]

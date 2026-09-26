@@ -1,9 +1,40 @@
-FROM node:24-alpine
-RUN corepack enable
+# syntax=docker/dockerfile:1.7
+# Migration and operations image (the migration authority). Default command:
+# expand migrations (checksummed, advisory locked), then re-provision the
+# restricted web/worker roles from the table classification. The same image
+# runs the operations Jobs (ops:status, files:migrate-legacy,
+# files:reconcile, secrets:reencrypt, secrets:migrate-legacy) through
+# infrastructure/kubernetes/jobs/operations. Contract (destructive)
+# migrations are never the default command: they are a separate, explicitly
+# confirmed operation (docs/operations/RELEASE_RUNBOOK.md).
+# Connection strings arrive as Secret Manager files (NAME_FILE); nothing is
+# baked into the image.
+ARG NODE_IMAGE=node:24-alpine@sha256:ebfe2f90462722a7a4de65e91990e97fe0d401c70e0e762c5b53302f905ec1c1
+
+FROM ${NODE_IMAGE} AS build
+ENV CI=1
+RUN npm install --global --no-fund --no-audit pnpm@11.21.0
 WORKDIR /app
 COPY . .
 RUN --mount=type=cache,id=pnpm-store,target=/root/.local/share/pnpm/store \
-    pnpm --filter vercentlabs-erp --filter @vercentlabs/web... install --prod --frozen-lockfile
-RUN addgroup -S vercentlabs && adduser -S vercentlabs -G vercentlabs && chown -R vercentlabs:vercentlabs /app
-USER vercentlabs
-CMD ["sh", "-ec", "pnpm db:setup"]
+    pnpm install --prod --frozen-lockfile --filter vercentlabs-erp --filter "@vercentlabs/api..."
+
+FROM ${NODE_IMAGE} AS runtime
+ARG GIT_SHA=unknown
+LABEL org.opencontainers.image.title="vercentlabs-erp-migration" \
+      org.opencontainers.image.description="Vercentlabs ERP database migration and operations Jobs" \
+      org.opencontainers.image.vendor="Vercentlabs" \
+      org.opencontainers.image.revision="${GIT_SHA}"
+ENV NODE_ENV=production RELEASE_SHA=${GIT_SHA}
+RUN addgroup -S -g 10001 vercentlabs && adduser -S -D -H -u 10001 -G vercentlabs vercentlabs
+WORKDIR /app
+COPY --from=build --chown=10001:10001 /app/package.json ./package.json
+COPY --from=build --chown=10001:10001 /app/node_modules ./node_modules
+COPY --from=build --chown=10001:10001 /app/.pnpm ./.pnpm
+COPY --from=build --chown=10001:10001 /app/packages ./packages
+COPY --from=build --chown=10001:10001 /app/services/api ./services/api
+COPY --from=build --chown=10001:10001 /app/database ./database
+COPY --from=build --chown=10001:10001 /app/scripts/database ./scripts/database
+COPY --from=build --chown=10001:10001 /app/scripts/operations ./scripts/operations
+USER 10001:10001
+CMD ["sh", "-ec", "node scripts/database/migrate.mjs platform && node scripts/database/migrate.mjs tenant && node scripts/database/provision-runtime-role.mjs"]

@@ -1,0 +1,119 @@
+name: Deploy
+
+# Release pipeline for Google Cloud (docs/operations/RELEASE_RUNBOOK.md):
+#
+#   ERP CI green -> build + scan images (once) -> staging: push by digest,
+#   expand migrations (Job), rollout, smoke, ops status -> production
+#   approval (GitHub environment protection) -> production: push by digest,
+#   expand migrations (Job), rollout, smoke, ops status -> release manifest.
+#
+# Contract (destructive) migrations are NEVER run here: they are a separate,
+# explicitly confirmed operation after reconciliation (release runbook).
+#
+# Only `main` can deploy: the workflow refuses other refs, and the Google
+# Workload Identity Federation provider only issues credentials for
+# refs/heads/main from the matching GitHub environment (terraform/iam.tf).
+# No service-account keys. Pull requests never run this workflow.
+#
+# Per-environment configuration (GitHub environment "staging"/"production"):
+#   vars.GCP_WORKLOAD_IDENTITY_PROVIDER   terraform output github_workload_identity_provider
+#   vars.GCP_DEPLOYER_SERVICE_ACCOUNT     terraform output deployer_service_account
+#   vars.GCP_REGION, vars.GKE_CLUSTER     terraform outputs cluster_location / cluster_name
+#   vars.IMAGE_REPOSITORY                 terraform output image_repository
+#   vars.DEPLOY_VALUES_JSON               non-secret deploy values (see infrastructure/kubernetes/deploy-values.example.json)
+#   secrets.SMOKE_EMAIL / SMOKE_PASSWORD  optional dedicated smoke account (no MFA, no business permissions)
+#
+# Repository variables (the landing image inlines its public URLs at build
+# time, so it is built once per environment):
+#   vars.STAGING_SITE_URL, vars.STAGING_APP_URL, vars.PRODUCTION_SITE_URL, vars.PRODUCTION_APP_URL
+on:
+  workflow_dispatch:
+    inputs:
+      promote_to_production:
+        description: "Continue to production after staging (requires production environment approval)"
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy
+  cancel-in-progress: false
+
+jobs:
+  guard:
+    name: Only main deploys
+    runs-on: ubuntu-latest
+    steps:
+      - name: Refuse non-main refs
+        if: github.ref != 'refs/heads/main'
+        run: |
+          echo "Deployments run only from refs/heads/main (got ${{ github.ref }})."
+          exit 1
+
+  ci:
+    name: ERP CI
+    needs: guard
+    uses: ./.github/workflows/erp-ci.yml
+
+  build:
+    name: Build and scan ${{ matrix.image }} (${{ matrix.variant }})
+    needs: ci
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    strategy:
+      matrix:
+        include:
+          - { image: web, variant: shared }
+          - { image: worker, variant: shared }
+          - { image: migration, variant: shared }
+          - { image: landing, variant: staging, site_url: "${{ vars.STAGING_SITE_URL }}", app_url: "${{ vars.STAGING_APP_URL }}" }
+          - { image: landing, variant: production, site_url: "${{ vars.PRODUCTION_SITE_URL }}", app_url: "${{ vars.PRODUCTION_APP_URL }}" }
+    steps:
+      - uses: actions/checkout@v6
+      - uses: docker/setup-buildx-action@v4
+      - name: Build
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: infrastructure/docker/Dockerfile.${{ matrix.image }}
+          build-args: |
+            GIT_SHA=${{ github.sha }}
+            NEXT_PUBLIC_SITE_URL=${{ matrix.site_url }}
+            NEXT_PUBLIC_APP_URL=${{ matrix.app_url }}
+          tags: vercentlabs-erp-${{ matrix.image }}:${{ github.sha }}-${{ matrix.variant }}
+          outputs: type=docker,dest=${{ runner.temp }}/${{ matrix.image }}-${{ matrix.variant }}.tar
+          cache-from: type=gha,scope=${{ matrix.image }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.image }}
+      - name: Load for scanning
+        run: docker load --input "${{ runner.temp }}/${{ matrix.image }}-${{ matrix.variant }}.tar"
+      - name: Vulnerability scan (fail on fixable critical)
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          image-ref: vercentlabs-erp-${{ matrix.image }}:${{ github.sha }}-${{ matrix.variant }}
+          severity: CRITICAL
+          ignore-unfixed: true
+          exit-code: "1"
+      - uses: actions/upload-artifact@v7
+        with:
+          name: image-${{ matrix.image }}-${{ matrix.variant }}
+          path: ${{ runner.temp }}/${{ matrix.image }}-${{ matrix.variant }}.tar
+          retention-days: 3
+
+  staging:
+    name: Deploy staging
+    needs: build
+    uses: ./.github/workflows/deploy-environment.yml
+    with:
+      environment: staging
+    secrets: inherit
+
+  production:
+    name: Deploy production
+    needs: staging
+    if: inputs.promote_to_production
+    uses: ./.github/workflows/deploy-environment.yml
+    with:
+      environment: production
+    secrets: inherit

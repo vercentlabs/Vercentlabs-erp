@@ -214,6 +214,7 @@ export function findCrmDuplicates(
   input: Record<string, unknown>,
   excludeId?: string | null,
 ): Promise<any[]>;
+export function resolvePublicCaptureOrganization(queryable: QueryClient, formKey: string): Promise<string | null>;
 export function captureCrmLead(
   client: QueryClient,
   formKey: string,

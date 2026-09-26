@@ -1,3 +1,6 @@
+# Web autoscaling is bounded by the Cloud SQL connection budget, not only by
+# CPU: (maxReplicas + 1 surge) x DATABASE_POOL_MAX must fit the budget
+# checked in infrastructure/terraform/sql.tf. Overlays set the numbers.
 apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler
 metadata:
@@ -6,7 +9,7 @@ metadata:
 spec:
   scaleTargetRef: { apiVersion: apps/v1, kind: Deployment, name: web }
   minReplicas: 2
-  maxReplicas: 12
+  maxReplicas: 6
   behavior:
     scaleDown:
       stabilizationWindowSeconds: 300
@@ -24,7 +27,7 @@ metadata:
 spec:
   scaleTargetRef: { apiVersion: apps/v1, kind: Deployment, name: landing }
   minReplicas: 2
-  maxReplicas: 8
+  maxReplicas: 6
   metrics:
     - type: Resource
       resource:
@@ -50,3 +53,13 @@ spec:
   minAvailable: 1
   selector:
     matchLabels: { app: vercentlabs-landing }
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: erp-worker
+  namespace: vercentlabs
+spec:
+  maxUnavailable: 1
+  selector:
+    matchLabels: { app: erp-worker }

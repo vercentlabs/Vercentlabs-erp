@@ -1,0 +1,105 @@
+# Durable PostgreSQL-backed worker (jobs, schedules, outbound webhooks,
+# billing maintenance). Scaling is by replica count, not CPU: work is claimed
+# with leases (FOR UPDATE SKIP LOCKED), so replicas never double-process; each
+# replica runs WORKER_CONCURRENCY bounded lanes inside its DATABASE_POOL_MAX.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: erp-worker
+  namespace: vercentlabs
+  labels: { app: erp-worker }
+spec:
+  replicas: 2
+  revisionHistoryLimit: 10
+  strategy:
+    type: RollingUpdate
+    rollingUpdate: { maxUnavailable: 1, maxSurge: 1 }
+  selector:
+    matchLabels: { app: erp-worker }
+  template:
+    metadata:
+      labels: { app: erp-worker }
+    spec:
+      serviceAccountName: erp-worker
+      automountServiceAccountToken: false
+      # > WORKER_SHUTDOWN_DEADLINE_MS (45s): in-flight jobs finish or release
+      # their leases before SIGKILL.
+      terminationGracePeriodSeconds: 60
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        fsGroup: 10001
+        seccompProfile: { type: RuntimeDefault }
+      initContainers:
+        - name: cloud-sql-proxy
+          image: gcr.io/cloud-sql-connectors/cloud-sql-proxy:2.14.3@sha256:c05efe2fed938b70ce20250e4e0d3cbe17e715c2017ace5cf3ab33211f574d2a
+          restartPolicy: Always
+          args:
+            - --private-ip
+            - --structured-logs
+            - --address=127.0.0.1
+            - --port=5432
+            - --health-check
+            - --http-address=0.0.0.0
+            - --http-port=9801
+            - --max-sigterm-delay=55s
+            - ${SQL_CONNECTION_NAME}
+          ports: [{ name: proxy-health, containerPort: 9801 }]
+          startupProbe:
+            httpGet: { path: /startup, port: proxy-health }
+            periodSeconds: 2
+            failureThreshold: 30
+          livenessProbe:
+            httpGet: { path: /liveness, port: proxy-health }
+            periodSeconds: 20
+            failureThreshold: 3
+          resources:
+            requests: { cpu: 100m, memory: 128Mi }
+            limits: { cpu: 500m, memory: 256Mi }
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            capabilities: { drop: [ALL] }
+      containers:
+        - name: worker
+          image: ${WORKER_IMAGE}
+          ports: [{ name: health, containerPort: 8081 }]
+          envFrom:
+            - configMapRef: { name: vercentlabs-worker }
+          env:
+            - name: RELEASE_SHA
+              value: ${RELEASE_SHA}
+          # services/worker/src/health.js: /livez = process alive; /readyz =
+          # polling started and a poll cycle completed recently.
+          startupProbe:
+            httpGet: { path: /livez, port: health }
+            periodSeconds: 3
+            failureThreshold: 20
+          readinessProbe:
+            httpGet: { path: /readyz, port: health }
+            periodSeconds: 15
+            failureThreshold: 4
+          livenessProbe:
+            httpGet: { path: /livez, port: health }
+            periodSeconds: 20
+            failureThreshold: 3
+          resources:
+            requests: { cpu: 250m, memory: 384Mi }
+            limits: { cpu: "1", memory: 768Mi }
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            capabilities: { drop: [ALL] }
+          volumeMounts:
+            - { name: tmp, mountPath: /tmp }
+            - { name: runtime-secrets, mountPath: /var/run/secrets/vercentlabs, readOnly: true }
+      volumes:
+        - { name: tmp, emptyDir: { sizeLimit: 256Mi } }
+        - name: runtime-secrets
+          csi:
+            driver: secrets-store-gke.csi.k8s.io
+            readOnly: true
+            volumeAttributes: { secretProviderClass: worker-secrets }

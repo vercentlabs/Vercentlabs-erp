@@ -217,6 +217,7 @@ api/crm/privacy-requests/[id]/preview/route.ts,GET,WORKSPACE_MODULE,workspaceRou
 api/crm/privacy/retention/[id]/route.ts,PATCH,WORKSPACE_MODULE,workspaceRoute,crm,CRM_PERMISSIONS.privacyManage,true,false,true,session + organisation context + Shared Access authorize()
 api/crm/privacy/retention/route.ts,GET,WORKSPACE_MODULE,workspaceRoute,crm,CRM_PERMISSIONS.privacyManage,false,false,false,session + organisation context + Shared Access authorize()
 api/crm/privacy/retention/run/route.ts,POST,WORKSPACE_MODULE,workspaceRoute,crm,CRM_PERMISSIONS.privacyManage,true,false,true,session + organisation context + Shared Access authorize()
+api/crm/public/capture/[key]/route.ts,POST,PUBLIC_TOKEN,explicit,,,false,false,false,"Capture-form key resolves the organisation through a definer function; allowed origins, honeypots, required fields and an hourly per-fingerprint rate limit in the domain; the landing proxy is HMAC-verified over the raw body; billing write gate."
 api/crm/public/meetings/bookings/[token]/availability/route.ts,GET,PUBLIC_TOKEN,explicit,,,false,false,false,Same booking token model; read-only reschedule availability.
 api/crm/public/meetings/bookings/[token]/route.ts,GET,PUBLIC_TOKEN,explicit,,,false,false,false,Opaque booking token (hash stored) for the prospect's own booking.
 api/crm/public/meetings/bookings/[token]/route.ts,PATCH,PUBLIC_TOKEN,explicit,,,false,false,false,Opaque booking token (hash stored) for the prospect's own booking.

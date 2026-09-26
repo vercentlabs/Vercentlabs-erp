@@ -1,0 +1,29 @@
+# CRM capture proxy / inbound email / provider and acquisition webhooks (web only).
+# Enable in an overlay only after the Secret Manager secret(s) have a version.
+apiVersion: kustomize.config.k8s.io/v1alpha1
+kind: Component
+resources:
+  - secret-provider-class.yaml
+patches:
+  - target: { kind: Deployment, name: web }
+    patch: |-
+      - op: add
+        path: /spec/template/spec/volumes/-
+        value:
+          name: crm-inbound-secrets
+          csi: { driver: secrets-store-gke.csi.k8s.io, readOnly: true, volumeAttributes: { secretProviderClass: crm-inbound-secrets-secrets } }
+      - op: add
+        path: /spec/template/spec/containers/0/volumeMounts/-
+        value: { name: crm-inbound-secrets, mountPath: /var/run/secrets/vercentlabs-crm-inbound-secrets, readOnly: true }
+      - op: add
+        path: /spec/template/spec/containers/0/env/-
+        value: { name: CRM_CAPTURE_PROXY_SECRET_FILE, value: /var/run/secrets/vercentlabs-crm-inbound-secrets/CRM_CAPTURE_PROXY_SECRET }
+      - op: add
+        path: /spec/template/spec/containers/0/env/-
+        value: { name: CRM_INBOUND_EMAIL_SECRET_FILE, value: /var/run/secrets/vercentlabs-crm-inbound-secrets/CRM_INBOUND_EMAIL_SECRET }
+      - op: add
+        path: /spec/template/spec/containers/0/env/-
+        value: { name: CRM_PROVIDER_WEBHOOK_SECRET_FILE, value: /var/run/secrets/vercentlabs-crm-inbound-secrets/CRM_PROVIDER_WEBHOOK_SECRET }
+      - op: add
+        path: /spec/template/spec/containers/0/env/-
+        value: { name: CRM_ACQUISITION_WEBHOOK_SECRET_FILE, value: /var/run/secrets/vercentlabs-crm-inbound-secrets/CRM_ACQUISITION_WEBHOOK_SECRET }

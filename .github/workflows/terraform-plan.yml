@@ -1,0 +1,77 @@
+name: Terraform plan
+
+# Manually triggered `terraform plan` for one environment. Read-only: this
+# workflow never applies. Apply is an operator action after reviewing the
+# plan (infrastructure/terraform/README.md). Pull requests never receive
+# cloud credentials; infrastructure-ci.yml covers fmt/validate on PRs.
+#
+# GitHub environment "<environment>-infrastructure" (required reviewers):
+#   vars.TF_WORKLOAD_IDENTITY_PROVIDER  planner pool provider (bootstrap)
+#   vars.TF_PLANNER_SERVICE_ACCOUNT     read-only planner (bootstrap)
+#   vars.TF_STATE_BUCKET                remote state bucket (bootstrap)
+#   vars.TF_VARS                        non-secret terraform.tfvars content
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Environment to plan
+        type: choice
+        options: [staging, production]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: terraform-${{ inputs.environment }}
+  cancel-in-progress: false
+
+jobs:
+  plan:
+    name: Plan ${{ inputs.environment }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: ${{ inputs.environment }}-infrastructure
+    permissions:
+      contents: read
+      id-token: write
+    defaults:
+      run:
+        working-directory: infrastructure/terraform
+    steps:
+      - name: Refuse non-main refs
+        if: github.ref != 'refs/heads/main'
+        run: exit 1
+
+      - uses: actions/checkout@v6
+
+      - uses: hashicorp/setup-terraform@v4
+        with:
+          terraform_version: 1.9.8
+          terraform_wrapper: false
+
+      - name: Authenticate (Workload Identity Federation, read-only planner)
+        uses: google-github-actions/auth@v3
+        with:
+          workload_identity_provider: ${{ vars.TF_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.TF_PLANNER_SERVICE_ACCOUNT }}
+
+      - name: Init (remote state)
+        run: terraform init -input=false -backend-config="bucket=${{ vars.TF_STATE_BUCKET }}" -backend-config="prefix=erp/${{ inputs.environment }}"
+
+      - name: Plan
+        env:
+          TF_VARS: ${{ vars.TF_VARS }}
+        run: |
+          set -euo pipefail
+          printf '%s\n' "$TF_VARS" > "$RUNNER_TEMP/environment.tfvars"
+          terraform plan -input=false -lock-timeout=5m -var-file="$RUNNER_TEMP/environment.tfvars" -out="$RUNNER_TEMP/tfplan"
+          # Human-readable plan only (sensitive values are masked; this
+          # configuration holds no secret values). The binary plan is not kept.
+          terraform show -no-color "$RUNNER_TEMP/tfplan" > "$RUNNER_TEMP/plan-${{ inputs.environment }}.txt"
+          rm -f "$RUNNER_TEMP/tfplan"
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: terraform-plan-${{ inputs.environment }}
+          path: ${{ runner.temp }}/plan-${{ inputs.environment }}.txt
+          retention-days: 7

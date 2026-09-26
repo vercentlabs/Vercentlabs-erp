@@ -22,6 +22,7 @@ import { fileURLToPath } from "node:url";
 import { Client } from "pg";
 import { config as loadDotEnv } from "dotenv";
 
+import { loadSecretFiles } from "../../packages/config/src/production.js";
 import { DEFINER_FUNCTIONS, PUBLIC_TABLES, runtimePrivileges } from "../../packages/database/src/table-classification.js";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -30,6 +31,9 @@ const root = path.resolve(here, "../..");
 for (const file of [path.join(root, "apps/web/.env.local"), path.join(root, "apps/web/.env"), path.join(root, ".env")]) {
   if (fs.existsSync(file)) loadDotEnv({ path: file, override: false, quiet: true });
 }
+// Deployed (the migration Job): connection strings are mounted as files
+// (Secret Manager) and passed as NAME_FILE.
+loadSecretFiles(process.env);
 
 const migrationRaw = String(process.env.MIGRATION_DATABASE_URL || "").trim();
 const webRaw = String(process.env.DATABASE_URL || "").trim();

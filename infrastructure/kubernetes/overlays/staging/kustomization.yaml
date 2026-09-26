@@ -1,0 +1,28 @@
+# Staging: same topology as production at minimum size (zonal Cloud SQL).
+# Optional integration components: see overlays/production/kustomization.yaml.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ../../base
+labels:
+  - pairs:
+      vercentlabs.com/environment: staging
+    includeSelectors: false
+patches:
+  - target: { kind: HorizontalPodAutoscaler, name: web }
+    patch: |-
+      - { op: replace, path: /spec/minReplicas, value: 1 }
+      - { op: replace, path: /spec/maxReplicas, value: 2 }
+  - target: { kind: HorizontalPodAutoscaler, name: landing }
+    patch: |-
+      - { op: replace, path: /spec/minReplicas, value: 1 }
+      - { op: replace, path: /spec/maxReplicas, value: 2 }
+  - target: { kind: Deployment, name: erp-worker }
+    patch: |-
+      - { op: replace, path: /spec/replicas, value: 1 }
+  - target: { kind: PodDisruptionBudget, name: web }
+    patch: |-
+      - { op: replace, path: /spec/minAvailable, value: 0 }
+  - target: { kind: PodDisruptionBudget, name: landing }
+    patch: |-
+      - { op: replace, path: /spec/minAvailable, value: 0 }

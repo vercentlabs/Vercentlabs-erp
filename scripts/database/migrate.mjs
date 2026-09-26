@@ -23,12 +23,17 @@ import { fileURLToPath } from "node:url";
 import { Client } from "pg";
 import { config as loadDotEnv } from "dotenv";
 
+import { loadSecretFiles } from "../../packages/config/src/production.js";
+
 const here = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(here, "../..");
 
 for (const file of [path.join(root, "apps/web/.env.local"), path.join(root, "apps/web/.env"), path.join(root, ".env")]) {
   if (fs.existsSync(file)) loadDotEnv({ path: file, override: false, quiet: true });
 }
+// Deployed (the migration Job): connection strings are mounted as files
+// (Secret Manager) and passed as NAME_FILE.
+loadSecretFiles(process.env);
 
 const scope = process.argv[2];
 const args = new Set(process.argv.slice(3));

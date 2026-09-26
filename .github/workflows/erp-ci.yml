@@ -47,12 +47,14 @@ on:
       - "pnpm-workspace.yaml"
       - "turbo.json"
       - ".github/workflows/erp-ci.yml"
+  # The deploy workflow runs this whole gate before building release images.
+  workflow_call:
 
 permissions:
   contents: read
 
 concurrency:
-  group: erp-ci-${{ github.ref }}
+  group: erp-ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -173,6 +175,8 @@ jobs:
     env:
       MIGRATION_DATABASE_URL: postgresql://vercentlabs:ci_owner_password@localhost:5433/vercentlabs_control
       DATABASE_URL: postgresql://vercent_app:ci_app_password@localhost:5433/vercentlabs_control
+      # Separate restricted worker role (three database authorities).
+      WORKER_DATABASE_URL: postgresql://vercent_worker:ci_worker_password@localhost:5433/vercentlabs_control
       DATABASE_SSL: "false"
       CRM_ACCESS_DB_REQUIRED: "1"
     steps:
@@ -206,3 +210,6 @@ jobs:
 
       - name: Shared Platform services tests against PostgreSQL and local OAuth/storage stand-ins (zero skips allowed)
         run: pnpm test:platform-services:db
+
+      - name: Production database suite (tenant + platform RLS, three role authorities, contract plans; zero skips allowed)
+        run: pnpm test:production:db

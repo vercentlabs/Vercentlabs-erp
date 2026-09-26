@@ -1,0 +1,149 @@
+name: Deploy environment
+
+# One environment's deployment, called by deploy.yml after the images were
+# built and scanned. The GitHub environment carries the protection (required
+# reviewers for production) and the Workload Identity Federation settings.
+on:
+  workflow_call:
+    inputs:
+      environment:
+        type: string
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    name: ${{ inputs.environment }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    environment: ${{ inputs.environment }}
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      RELEASE_SHA: ${{ github.sha }}
+      ENVIRONMENT: ${{ inputs.environment }}
+    steps:
+      - name: Refuse non-main refs
+        if: github.ref != 'refs/heads/main'
+        run: exit 1
+
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+
+      - name: Authenticate to Google Cloud (Workload Identity Federation, no keys)
+        uses: google-github-actions/auth@v3
+        with:
+          workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.GCP_DEPLOYER_SERVICE_ACCOUNT }}
+
+      - uses: google-github-actions/setup-gcloud@v3
+
+      - uses: google-github-actions/get-gke-credentials@v3
+        with:
+          cluster_name: ${{ vars.GKE_CLUSTER }}
+          location: ${{ vars.GCP_REGION }}
+
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: image-*
+          path: ${{ runner.temp }}/images
+          merge-multiple: true
+
+      - name: Push images and resolve digests
+        id: images
+        run: |
+          set -euo pipefail
+          registry="${{ vars.IMAGE_REPOSITORY }}"
+          gcloud auth configure-docker "${registry%%/*}" --quiet
+          for image in web worker landing migration; do
+            # web/worker/migration are environment-independent; landing is built
+            # per environment (public URLs are inlined at build time).
+            variant=shared; [ "$image" = landing ] && variant="$ENVIRONMENT"
+            docker load --input "${{ runner.temp }}/images/$image-$variant.tar"
+            docker tag "vercentlabs-erp-$image:$RELEASE_SHA-$variant" "$registry/$image:$RELEASE_SHA"
+            # Tags are immutable: a re-run of the same commit reuses the pushed image.
+            if docker push "$registry/$image:$RELEASE_SHA"; then
+              digest="$(docker inspect --format '{{index .RepoDigests 0}}' "$registry/$image:$RELEASE_SHA")"
+            else
+              digest="$registry/$image@$(gcloud artifacts docker images describe "$registry/$image:$RELEASE_SHA" --format='value(image_summary.digest)')"
+            fi
+            case "$digest" in *@sha256:*) ;; *) echo "no digest for $image"; exit 1 ;; esac
+            echo "$(echo "$image" | tr a-z A-Z)_IMAGE=$digest" >> "$GITHUB_ENV"
+          done
+
+      - name: Deploy values
+        env:
+          DEPLOY_VALUES_JSON: ${{ vars.DEPLOY_VALUES_JSON }}
+        run: |
+          set -euo pipefail
+          printf '%s' "$DEPLOY_VALUES_JSON" > "$RUNNER_TEMP/deploy-values.json"
+          node -e 'const v=JSON.parse(require("fs").readFileSync(process.argv[1],"utf8")); if (v.ENVIRONMENT!==process.argv[2]) { console.error("DEPLOY_VALUES_JSON is for "+v.ENVIRONMENT); process.exit(1); }' "$RUNNER_TEMP/deploy-values.json" "$ENVIRONMENT"
+
+      - name: Record rollback target (current images)
+        run: |
+          {
+            echo "PREVIOUS_IMAGES<<EOF"
+            kubectl -n vercentlabs get deployment web erp-worker landing -o jsonpath='{range .items[*]}{.metadata.name}={.spec.template.spec.containers[0].image}{"\n"}{end}' 2>/dev/null || true
+            echo "EOF"
+          } >> "$GITHUB_ENV"
+
+      - name: Expand migrations (Job, migration role only)
+        run: |
+          set -euo pipefail
+          node scripts/deploy/render-manifests.mjs --target migration --values "$RUNNER_TEMP/deploy-values.json" --out "$RUNNER_TEMP/migration.yaml"
+          job="db-migrate-${RELEASE_SHA:0:12}"
+          kubectl apply -f "$RUNNER_TEMP/migration.yaml"
+          if ! kubectl -n vercentlabs wait --for=condition=complete "job/$job" --timeout=30m; then
+            kubectl -n vercentlabs logs "job/$job" -c migrate --tail=200 || true
+            echo "Migration failed: the application was NOT rolled out."
+            exit 1
+          fi
+          kubectl -n vercentlabs logs "job/$job" -c migrate --tail=50
+
+      - name: Roll out web, worker and landing
+        run: |
+          set -euo pipefail
+          node scripts/deploy/render-manifests.mjs --overlay "$ENVIRONMENT" --values "$RUNNER_TEMP/deploy-values.json" --out "$RUNNER_TEMP/app.yaml"
+          kubectl apply -f "$RUNNER_TEMP/app.yaml"
+          for deployment in web erp-worker landing; do
+            kubectl -n vercentlabs rollout status "deployment/$deployment" --timeout=15m
+          done
+
+      - name: Smoke test through the load balancer
+        env:
+          SMOKE_EMAIL: ${{ secrets.SMOKE_EMAIL }}
+          SMOKE_PASSWORD: ${{ secrets.SMOKE_PASSWORD }}
+        run: |
+          url="$(node -e 'console.log(JSON.parse(require("fs").readFileSync(process.argv[1],"utf8")).APP_URL)' "$RUNNER_TEMP/deploy-values.json")"
+          node scripts/deploy/smoke.mjs --url "$url" | tee "$RUNNER_TEMP/smoke.json"
+
+      - name: Reconciliation status (ops:status Job)
+        run: |
+          set -euo pipefail
+          export OPERATION=status RELEASE_ID="${RELEASE_SHA:0:12}-${GITHUB_RUN_ATTEMPT}"
+          node scripts/deploy/render-manifests.mjs --target operations --values "$RUNNER_TEMP/deploy-values.json" --out "$RUNNER_TEMP/ops.yaml"
+          kubectl apply -f "$RUNNER_TEMP/ops.yaml"
+          kubectl -n vercentlabs wait --for=condition=complete "job/ops-status-$RELEASE_ID" --timeout=10m
+          kubectl -n vercentlabs logs "job/ops-status-$RELEASE_ID" -c operation | tee "$RUNNER_TEMP/ops-status.json"
+
+      - name: Release manifest
+        if: always()
+        env:
+          VERIFICATION: "erp-ci: success; smoke: ${{ job.status }}"
+        run: node scripts/deploy/release-manifest.mjs --environment "$ENVIRONMENT" --out "$RUNNER_TEMP/release-$ENVIRONMENT.json"
+
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: release-${{ inputs.environment }}
+          path: |
+            ${{ runner.temp }}/release-${{ inputs.environment }}.json
+            ${{ runner.temp }}/smoke.json
+            ${{ runner.temp }}/ops-status.json
+          retention-days: 400

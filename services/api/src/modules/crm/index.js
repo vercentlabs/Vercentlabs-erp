@@ -4,7 +4,7 @@ export { getCrmDashboard, getCrmReport } from "./pipeline-analytics-and-forecast
 export { findCrmDuplicates } from "./prospect-and-relationship-master-data/duplicate-search.js";
 export { CrmError } from "./crm-data-operations-and-customization/errors.js";
 export { assignLeadOwner } from "./lead-lifecycle-qualification-and-prioritization/lead-assignment.js";
-export { captureCrmLead } from "./prospect-and-relationship-master-data/lead-capture.js";
+export { captureCrmLead, resolvePublicCaptureOrganization } from "./prospect-and-relationship-master-data/lead-capture.js";
 export { convertCrmLead, mergeCrmLead } from "./crm-conversion-and-sales-handoff/lead-conversion.js";
 export { archiveCrmRecord, createCrmRecord, runCrmAutomation, updateCrmRecord } from "./crm-data-operations-and-customization/resource-mutation-service.js";
 export { moveOpportunityStage, updateOpportunityProbability, restoreOpportunity, listOpportunityProbabilityHistory, getOpportunityPredictiveProbability } from "./opportunity-and-pipeline-governance/opportunity-transitions.js";

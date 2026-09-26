@@ -1,0 +1,86 @@
+# One-off operations Job with the migration authority (read by operators,
+# the deploy workflow's post-rollout status step, and the release runbook):
+#   ops:status, files:migrate-legacy, files:reconcile, secrets:reencrypt,
+#   secrets:migrate-legacy.
+# Rendered with OPERATION=<name> (and OPERATION_FLAGS="--dry-run" or "").
+# Needs the migration Google service account's Cloud Storage and KMS access
+# for the file and secret operations (infrastructure/terraform/iam.tf).
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: ops-${OPERATION}-${RELEASE_ID}
+  namespace: vercentlabs
+  labels: { app: vercentlabs-migration, operation: "${OPERATION}" }
+spec:
+  backoffLimit: 0
+  activeDeadlineSeconds: 3600
+  ttlSecondsAfterFinished: 604800
+  template:
+    metadata:
+      labels: { app: vercentlabs-migration, operation: "${OPERATION}" }
+    spec:
+      serviceAccountName: migration
+      automountServiceAccountToken: false
+      restartPolicy: Never
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        fsGroup: 10001
+        seccompProfile: { type: RuntimeDefault }
+      initContainers:
+        - name: cloud-sql-proxy
+          image: gcr.io/cloud-sql-connectors/cloud-sql-proxy:2.14.3@sha256:c05efe2fed938b70ce20250e4e0d3cbe17e715c2017ace5cf3ab33211f574d2a
+          restartPolicy: Always
+          args:
+            - --private-ip
+            - --structured-logs
+            - --address=127.0.0.1
+            - --port=5432
+            - --health-check
+            - --http-address=0.0.0.0
+            - --http-port=9801
+            - ${SQL_CONNECTION_NAME}
+          ports: [{ name: proxy-health, containerPort: 9801 }]
+          startupProbe:
+            httpGet: { path: /startup, port: proxy-health }
+            periodSeconds: 2
+            failureThreshold: 30
+          resources:
+            requests: { cpu: 100m, memory: 128Mi }
+            limits: { cpu: 500m, memory: 256Mi }
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            capabilities: { drop: [ALL] }
+      containers:
+        - name: operation
+          image: ${MIGRATION_IMAGE}
+          command: ["node", "scripts/operations/run.mjs", "${OPERATION}", "${OPERATION_FLAGS}"]
+          env:
+            - { name: NODE_ENV, value: production }
+            - { name: MIGRATION_DATABASE_URL_FILE, value: /var/run/secrets/vercentlabs/MIGRATION_DATABASE_URL }
+            - { name: DATABASE_SSL, value: "false" }
+            - { name: FILE_STORAGE_DRIVER, value: gcs }
+            - { name: FILE_STORAGE_GCS_BUCKET, value: "${FILES_BUCKET}" }
+            - { name: SECRETS_ENCRYPTION_PROVIDER, value: gcp-kms }
+            - { name: SECRETS_KMS_KEY_NAME, value: "${SECRETS_KMS_KEY_NAME}" }
+          resources:
+            requests: { cpu: 250m, memory: 384Mi }
+            limits: { cpu: "1", memory: 768Mi }
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            capabilities: { drop: [ALL] }
+          volumeMounts:
+            - { name: tmp, mountPath: /tmp }
+            - { name: migration-secrets, mountPath: /var/run/secrets/vercentlabs, readOnly: true }
+      volumes:
+        - { name: tmp, emptyDir: { sizeLimit: 256Mi } }
+        - name: migration-secrets
+          csi:
+            driver: secrets-store-gke.csi.k8s.io
+            readOnly: true
+            volumeAttributes: { secretProviderClass: migration-secrets }

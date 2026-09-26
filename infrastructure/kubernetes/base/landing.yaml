@@ -1,0 +1,75 @@
+# Public marketing site: no database. The demo form forwards leads to the
+# ERP capture endpoint; its signing secret is added by the
+# components/landing-crm-capture component.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: landing
+  namespace: vercentlabs
+  labels: { app: vercentlabs-landing }
+spec:
+  replicas: 2
+  revisionHistoryLimit: 10
+  strategy:
+    type: RollingUpdate
+    rollingUpdate: { maxUnavailable: 0, maxSurge: 1 }
+  selector:
+    matchLabels: { app: vercentlabs-landing }
+  template:
+    metadata:
+      labels: { app: vercentlabs-landing }
+    spec:
+      serviceAccountName: landing
+      automountServiceAccountToken: false
+      terminationGracePeriodSeconds: 30
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        fsGroup: 10001
+        seccompProfile: { type: RuntimeDefault }
+      containers:
+        - name: landing
+          image: ${LANDING_IMAGE}
+          ports: [{ name: http, containerPort: 3000 }]
+          env:
+            - { name: NODE_ENV, value: production }
+            - { name: TRUSTED_PROXY_IP_HEADER, value: x-forwarded-for }
+            - { name: TRUSTED_PROXY_CLIENT_INDEX, value: "-2" }
+          readinessProbe:
+            httpGet: { path: /, port: http }
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: { path: /, port: http }
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          lifecycle:
+            preStop:
+              exec: { command: ["sleep", "10"] }
+          resources:
+            requests: { cpu: 250m, memory: 256Mi }
+            limits: { cpu: 500m, memory: 512Mi }
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            capabilities: { drop: [ALL] }
+          volumeMounts:
+            - { name: tmp, mountPath: /tmp }
+            - { name: next-cache, mountPath: /app/apps/landing/.next/cache }
+      volumes:
+        - { name: tmp, emptyDir: { sizeLimit: 128Mi } }
+        - { name: next-cache, emptyDir: { sizeLimit: 256Mi } }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: landing
+  namespace: vercentlabs
+  annotations:
+    cloud.google.com/neg: '{"ingress": true}'
+    cloud.google.com/backend-config: '{"default": "landing"}'
+spec:
+  type: ClusterIP
+  selector: { app: vercentlabs-landing }
+  ports: [{ name: http, port: 80, targetPort: http }]

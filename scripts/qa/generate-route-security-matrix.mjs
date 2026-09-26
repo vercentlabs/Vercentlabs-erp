@@ -39,7 +39,7 @@ export const OUTPUT = "docs/frontend-rebuild/ROUTE_SECURITY_MATRIX.csv";
 // Evidence each explicit class must show in the route source.
 const CLASS_EVIDENCE = {
   PUBLIC_AUTH: { mutation: [/\bassertSameOrigin(OrMobile)?\s*\(/], any: [] },
-  PUBLIC_TOKEN: { mutation: [], any: [/\bpublic[A-Za-z]*Token|\btoken\b/] },
+  PUBLIC_TOKEN: { mutation: [], any: [/\bpublic[A-Za-z]*Token|\btoken\b|\bresolvePublic[A-Za-z]*Organization\s*\(/] },
   WEBHOOK: { mutation: [/signature/i], any: [] },
   PROBE: { mutation: [], any: [] },
   TEST_SUPPORT: { mutation: [], any: [/NODE_ENV/] },
@@ -63,6 +63,7 @@ export const EXPLICIT_ROUTES = Object.freeze({
   "api/crm/public/meetings/links/[token]/book/route.ts": ["PUBLIC_TOKEN", "Same meeting-link token model; the booking is validated against the link's own availability."],
   "api/crm/public/meetings/bookings/[token]/route.ts": ["PUBLIC_TOKEN", "Opaque booking token (hash stored) for the prospect's own booking."],
   "api/crm/public/meetings/bookings/[token]/availability/route.ts": ["PUBLIC_TOKEN", "Same booking token model; read-only reschedule availability."],
+  "api/crm/public/capture/[key]/route.ts": ["PUBLIC_TOKEN", "Capture-form key resolves the organisation through a definer function; allowed origins, honeypots, required fields and an hourly per-fingerprint rate limit in the domain; the landing proxy is HMAC-verified over the raw body; billing write gate."],
   "api/sales/public/quotes/[token]/route.ts": ["PUBLIC_TOKEN", "32-byte quotation link token, only its SHA-256 stored; expiry, revocation and revision are enforced by the domain."],
   "api/sales/public/quotes/[token]/decision/route.ts": ["PUBLIC_TOKEN", "Same quotation token; one decision only, Zod-validated body, IP/user-agent recorded as evidence."],
   "api/billing/webhook/route.ts": ["WEBHOOK", "HMAC-SHA256 over the exact raw body (previous secret accepted during rotation), size-limited; stores the event, the worker applies it."],
