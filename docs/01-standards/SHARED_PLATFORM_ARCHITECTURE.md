@@ -493,7 +493,8 @@ Remaining, deliberately out of scope so far:
    filters records by it; company/branch scope and each module's own ownership
    rules remain the record boundary.
 3. Field-level rules exist where the repository has a sensitive-field
-   permission (see the registry); Assets, Stock and Quality have none.
+   permission (see the registry); Quality has none (Assets and Stock
+   are covered).
 4. Billing: Vercentlabs GST tax invoices are not generated (provider
    invoices/receipts only; fails closed until the legal configuration exists);
    Custom contracts are provisioned by an operator script, with no internal
