@@ -67,7 +67,10 @@ test("developer API: apps, keys, scopes, machine principal", async (t) => {
     const org = await kit.organization(["admin"]);
     const other = await kit.organization(["x"]);
     const admin = org.session("admin", ["integrations.manage"]);
-    const platform = (work) => kit.runtime(async (client) => {
+    // Administration runs under the admin's organisation; key authentication
+    // starts with NO organisation (the key alone establishes it).
+    const platform = (work) => kit.tenant(org.organizationId, work);
+    const ingress = (work) => kit.runtime(async (client) => {
       await client.query("BEGIN");
       try {
         const result = await work(client);
@@ -98,10 +101,10 @@ test("developer API: apps, keys, scopes, machine principal", async (t) => {
     });
 
     await t.test("a key authenticates to its own organisation only, with its registered scopes", async () => {
-      const principal = await platform((client) => authenticateApiKey(client, first.token));
+      const principal = await ingress((client) => authenticateApiKey(client, first.token));
       assert.equal(principal.organizationId, org.organizationId);
       assert.deepEqual([...principal.scopes], ["platform.context.read"]);
-      const context = await platform((client) => getApiPlatformContext(client, principal));
+      const context = await kit.tenant(principal.organizationId, (client) => getApiPlatformContext(client, principal));
       assert.equal(context.organization.id, org.organizationId);
       assert.equal(context.app.name, "Warehouse sync");
       for (const leaked of ["password", "billing", "role", "users", first.token]) assert.ok(!JSON.stringify(context).toLowerCase().includes(leaked.toLowerCase()), leaked);
@@ -109,7 +112,7 @@ test("developer API: apps, keys, scopes, machine principal", async (t) => {
     });
 
     await t.test("rate limit per key", async () => {
-      const principal = await platform((client) => authenticateApiKey(client, second.token));
+      const principal = await ingress((client) => authenticateApiKey(client, second.token));
       for (let attempt = 0; attempt < 3; attempt += 1) await platform((client) => enforceRateLimit(client, `api-key:${principal.apiKeyId}`, 3, 60));
       await assert.rejects(platform((client) => enforceRateLimit(client, `api-key:${principal.apiKeyId}`, 3, 60)), (error) => error.status === 429);
       await kit.owner.query(`DELETE FROM auth_rate_limits WHERE key=$1`, [`api-key:${principal.apiKeyId}`]);
@@ -117,14 +120,14 @@ test("developer API: apps, keys, scopes, machine principal", async (t) => {
 
     await t.test("revoked and expired keys are refused; revoking the app refuses every key", async () => {
       await platform((client) => revokeApiKey(client, admin, first.key.id));
-      await assert.rejects(platform((client) => authenticateApiKey(client, first.token)), expectCode("PLATFORM_API_KEY_INVALID"));
+      await assert.rejects(ingress((client) => authenticateApiKey(client, first.token)), expectCode("PLATFORM_API_KEY_INVALID"));
       const expiring = await platform((client) => createApiKey(client, admin, app.id, { name: "Short", scopes: ["platform.context.read"], expiresAt: new Date(Date.now() + 60_000).toISOString() }));
       await kit.owner.query(`UPDATE api_keys SET expires_at = now() - interval '1 second' WHERE id=$1`, [expiring.key.id]);
-      await assert.rejects(platform((client) => authenticateApiKey(client, expiring.token)), expectCode("PLATFORM_API_KEY_INVALID"));
-      await platform((client) => authenticateApiKey(client, second.token));
+      await assert.rejects(ingress((client) => authenticateApiKey(client, expiring.token)), expectCode("PLATFORM_API_KEY_INVALID"));
+      await ingress((client) => authenticateApiKey(client, second.token));
       const revoked = await platform((client) => revokeDeveloperApp(client, admin, app.id));
       assert.ok(revoked.revokedKeys >= 1);
-      await assert.rejects(platform((client) => authenticateApiKey(client, second.token)), expectCode("PLATFORM_API_KEY_INVALID"));
+      await assert.rejects(ingress((client) => authenticateApiKey(client, second.token)), expectCode("PLATFORM_API_KEY_INVALID"));
       assert.equal((await kit.owner.query(`SELECT count(*)::int AS n FROM api_keys WHERE developer_app_id=$1`, [app.id])).rows[0].n, 3, "key history is never deleted");
       const events = (await kit.owner.query(`SELECT event_type FROM audit_events WHERE organization_id=$1 AND event_type LIKE 'integration.%' ORDER BY created_at`, [org.organizationId])).rows.map((row) => row.event_type);
       assert.ok(events.includes("integration.api_key_created") && events.includes("integration.api_key_revoked") && events.includes("integration.developer_app_revoked"));
@@ -172,17 +175,7 @@ test("OAuth: PKCE flow, encrypted tokens, refresh, rotation, reconnect", async (
     const org = await kit.organization(["admin"]);
     const other = await kit.organization(["x"]);
     const admin = org.session("admin", ["integrations.manage"]);
-    const tx = (work) => kit.runtime(async (client) => {
-      await client.query("BEGIN");
-      try {
-        const result = await work(client);
-        await client.query("COMMIT");
-        return result;
-      } catch (error) {
-        await client.query("ROLLBACK");
-        throw error;
-      }
-    });
+    const tx = (work) => kit.tenant(org.organizationId, work);
     const authorize = async () => {
       const started = await tx((client) => beginOAuthConnection(client, admin, { profile: "google.identity", returnPath: "/settings/integrations" }, env));
       const response = await fetch(started.authorizeUrl, { redirect: "manual" });
@@ -445,7 +438,7 @@ test("inbound email -> Support: routing, verification, idempotency, threading", 
     const other = await kit.organization(["x"]);
     await kit.owner.query(`INSERT INTO organization_modules (organization_id, module_key, name, status, enabled_at) VALUES ($1,'support','Support','enabled',now()) ON CONFLICT (organization_id, module_key) DO UPDATE SET status='enabled'`, [org.organizationId]);
     const admin = org.session("admin", ["integrations.manage"]);
-    const route = await kit.runtime(async (client) => createInboundMailRoute(client, admin, { name: "Help desk", target: "support.email_to_ticket", companyId: org.companyId }, ENV));
+    const route = await kit.tenant(org.organizationId, async (client) => createInboundMailRoute(client, admin, { name: "Help desk", target: "support.email_to_ticket", companyId: org.companyId }, ENV));
     const runners = {
       runPlatform: (work) => kit.runtime(async (client) => {
         await client.query("BEGIN");

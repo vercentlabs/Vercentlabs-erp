@@ -12,7 +12,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
   const { id } = await context.params;
   return workspaceRoute(
     request,
-    { permission: CORE_PERMISSIONS.integrationsManage, action: "integrations.developer_app.update", transaction: "platform", auditDenial: true },
+    { permission: CORE_PERMISSIONS.integrationsManage, action: "integrations.developer_app.update", auditDenial: true },
     async ({ client, session }) => ok({ app: await updateDeveloperApp(client, session, id, schema.parse(await readJson(request))) }),
   );
 }

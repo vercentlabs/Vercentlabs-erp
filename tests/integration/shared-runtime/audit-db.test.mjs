@@ -33,7 +33,7 @@ test("audit: organisation-scoped, filtered, stable cursor, redacted, read-only",
     });
     await insert(org.organizationId, { actor: null, eventType: "zz_unknown.something_new", entityType: "mystery", createdAt: "2026-01-01T00:00:00Z" });
     await insert(other.organizationId, { actor: other.ids.outsider, eventType: "organization.member_role_changed", entityType: "membership", entityId: "foreign" });
-    const query = (filters, organizationId = org.organizationId) => kit.runtime((client) => queryAuditEvents(client, organizationId, filters));
+    const query = (filters, organizationId = org.organizationId) => kit.tenant(organizationId, (client) => queryAuditEvents(client, organizationId, filters));
 
     await t.test("only the caller's organisation, newest first", async () => {
       const { events } = await query({ limit: 100 });
@@ -43,7 +43,7 @@ test("audit: organisation-scoped, filtered, stable cursor, redacted, read-only",
       assert.equal(events.at(-1).actorName, null);
       const foreign = (await query({ limit: 100 }, other.organizationId)).events;
       assert.equal(foreign.length, 1);
-      await assert.rejects(kit.runtime((client) => getAuditEvent(client, other.organizationId, sensitiveId)), expectCode("AUDIT_EVENT_NOT_FOUND"));
+      await assert.rejects(kit.tenant(other.organizationId, (client) => getAuditEvent(client, other.organizationId, sensitiveId)), expectCode("AUDIT_EVENT_NOT_FOUND"));
     });
 
     await t.test("keyset cursor is stable when timestamps collide", async () => {
@@ -72,7 +72,7 @@ test("audit: organisation-scoped, filtered, stable cursor, redacted, read-only",
     });
 
     await t.test("detail is redacted and size-capped", async () => {
-      const detail = await kit.runtime((client) => getAuditEvent(client, org.organizationId, sensitiveId));
+      const detail = await kit.tenant(org.organizationId, (client) => getAuditEvent(client, org.organizationId, sensitiveId));
       const text = JSON.stringify(detail);
       assert.ok(!text.includes("vl_live_secret"));
       assert.ok(!text.includes("hunter2"));
@@ -81,16 +81,16 @@ test("audit: organisation-scoped, filtered, stable cursor, redacted, read-only",
       assert.equal(detail.metadata.truncated, true, "an oversized payload is truncated");
       assert.ok(text.length < 20_000);
       assert.equal(detail.request.userAgent.length, 300);
-      await assert.rejects(kit.runtime((client) => getAuditEvent(client, org.organizationId, "not-a-uuid")), expectCode("AUDIT_EVENT_NOT_FOUND"));
+      await assert.rejects(kit.tenant(org.organizationId, (client) => getAuditEvent(client, org.organizationId, "not-a-uuid")), expectCode("AUDIT_EVENT_NOT_FOUND"));
     });
 
     await t.test("actor filter options come from this organisation only", async () => {
-      const actors = await kit.runtime((client) => listAuditActors(client, org.organizationId));
+      const actors = await kit.tenant(org.organizationId, (client) => listAuditActors(client, org.organizationId));
       assert.deepEqual(actors.map((actor) => actor.id).sort(), [org.ids.admin, org.ids.clerk].sort());
     });
 
     await t.test("audit events cannot be edited", async () => {
-      await assert.rejects(kit.runtime((client) => client.query(`UPDATE audit_events SET event_type='tampered' WHERE id=$1`, [sensitiveId])));
+      await assert.rejects(kit.tenant(org.organizationId, (client) => client.query(`UPDATE audit_events SET event_type='tampered' WHERE id=$1`, [sensitiveId])));
     });
   } finally {
     await kit.close();

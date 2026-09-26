@@ -107,7 +107,6 @@ test("Financial integrity Gaps A/B/C: loyalty-accrual reversal, exact refund all
     await admin.query(`INSERT INTO public.users(id,email,full_name,password_hash,status,email_verified_at) VALUES ($1,$2,'GapABC Supervisor','x','active',now())`, [supervisorId, `gapabc-supervisor-${supervisorId}@test.invalid`]);
     await admin.query(`INSERT INTO public.users(id,email,full_name,password_hash,status,email_verified_at) VALUES ($1,$2,'GapABC Manager','x','active',now())`, [managerId, `gapabc-manager-${managerId}@test.invalid`]);
     await admin.query(`INSERT INTO public.organizations(id,name,slug,country_code,timezone,base_currency,created_by) VALUES ($1,'GapABC Test Org',$2,'IN','Asia/Kolkata','INR',$3)`, [orgId, `gapabc-org-${orgId}`, cashierId]);
-    await admin.query(`INSERT INTO public.numbering_series(organization_id,entity_type,prefix) VALUES ($1,'journal_entry','JE-')`, [orgId]);
     await admin.query(`INSERT INTO public.companies(id,organization_id,name,legal_name,code,base_currency,country_code,is_primary,status) VALUES ($1,$2,'GapABC Co','GapABC Co Pvt Ltd','GAPABCCO','INR','IN',true,'active')`, [companyId, orgId]);
     await admin.query(`INSERT INTO public.branches(id,organization_id,company_id,name,code,timezone,status) VALUES ($1,$2,$3,'HQ','HQ','Asia/Kolkata','active')`, [branchId, orgId, companyId]);
     await setTenantContext(admin, orgId);
@@ -388,7 +387,6 @@ test("Financial integrity Gaps A/B/C: loyalty-accrual reversal, exact refund all
     ]) {
       await admin.query(`DELETE FROM tenant.${table} WHERE organization_id=$1`, [orgId]).catch(() => undefined);
     }
-    await admin.query(`DELETE FROM public.numbering_series WHERE organization_id=$1`, [orgId]).catch(() => undefined);
     await admin.query(`DELETE FROM public.organizations WHERE id=$1`, [orgId]).catch(() => undefined);
     await admin.query(`DELETE FROM public.users WHERE id=ANY($1::uuid[])`, [[cashierId, supervisorId, managerId]]).catch(() => undefined);
     await admin.end();

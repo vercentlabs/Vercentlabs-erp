@@ -6,7 +6,7 @@ import { authenticateApiKey, enforceRateLimit, requireApiScope, type ApiPrincipa
 import type { PoolClient } from "pg";
 import { ZodError } from "zod";
 
-import { tenantTransaction, transaction } from "@/core/db";
+import { ingressTransaction, tenantTransaction } from "@/core/db";
 
 // Versioned developer API (/api/v1/*) composition. Machine callers only:
 //   - Bearer API key (never a cookie session; no CSRF check - there is no
@@ -30,7 +30,6 @@ import { tenantTransaction, transaction } from "@/core/db";
 export type ApiKeyRouteOptions = {
   scope: string;
   action: string;
-  transaction?: "platform" | "tenant";
   maxBodyBytes?: number;
 };
 
@@ -81,15 +80,15 @@ export async function apiKeyRoute(request: Request, options: ApiKeyRouteOptions,
     if (!match) return apiError(requestId, 401, "PLATFORM_API_KEY_REQUIRED", "Send an API key as 'Authorization: Bearer <key>'.", { "WWW-Authenticate": "Bearer" });
 
     // Every authenticated request counts, including ones the scope check refuses.
-    const principal = await transaction(async (client) => {
+    const principal = await ingressTransaction(async (client) => {
       const authenticated = await authenticateApiKey(client, match[1]);
       await enforceRateLimit(client, `api-key:${authenticated.apiKeyId}`, rateLimitPerMinute(), RATE_WINDOW_SECONDS);
       return authenticated;
     });
     requireApiScope(principal, options.scope);
 
-    const run = (client: PoolClient) => handler({ client, principal, requestId });
-    return options.transaction === "tenant" ? await tenantTransaction(principal.organizationId, run) : await transaction(run);
+    // The handler runs under the key's organisation (platform and tenant RLS).
+    return await tenantTransaction(principal.organizationId, (client: PoolClient) => handler({ client, principal, requestId }));
   } catch (error) {
     return toApiError(requestId, error, options.action);
   }

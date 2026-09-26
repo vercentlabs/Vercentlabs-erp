@@ -245,7 +245,7 @@ try {
       (
         await client.query(
           `SELECT count(*)::int AS count
-             FROM tenant.crm_outbox_events
+             FROM tenant.platform_events
             WHERE organization_id=$1
               AND entity_type='opportunity'
               AND entity_id=$2

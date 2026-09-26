@@ -10,6 +10,8 @@
 // is rejected.
 import { createHash, createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 
+import { setTenantContext } from "@vercentlabs/database";
+
 import { audit } from "../../../security.js";
 import { decryptSecret, encryptSecret } from "../../secrets/index.js";
 
@@ -119,10 +121,18 @@ export async function listInboundMailEvents(client, organizationId, { routeId = 
 
 // ------------------------------------------------------------ receipt
 
-/** Resolves a route key to its trusted configuration (platform transaction). */
+/**
+ * Resolves a route key to its trusted configuration. Runs inside a
+ * transaction with no organisation yet: the organisation comes from the key
+ * hash alone (public.resolve_inbound_mail_route_organization, migration 068)
+ * and becomes the transaction's context before the route row is read.
+ */
 export async function resolveInboundMailRoute(client, routeKey) {
   const key = String(routeKey || "");
   if (!/^imr_[A-Za-z0-9_-]{20,64}$/.test(key)) throw new InboundMailError(404, "Unknown inbound address.", "PLATFORM_INBOUND_MAIL_ROUTE_NOT_FOUND");
+  const organizationId = (await client.query("SELECT public.resolve_inbound_mail_route_organization($1) AS organization_id", [hash(key)])).rows[0]?.organization_id;
+  if (!organizationId) throw new InboundMailError(404, "Unknown inbound address.", "PLATFORM_INBOUND_MAIL_ROUTE_NOT_FOUND");
+  await setTenantContext(client, organizationId);
   const { rows } = await client.query(`SELECT * FROM inbound_mail_routes WHERE route_key_hash=$1 AND status='active'`, [hash(key)]);
   if (!rows[0]) throw new InboundMailError(404, "Unknown inbound address.", "PLATFORM_INBOUND_MAIL_ROUTE_NOT_FOUND");
   return rows[0];

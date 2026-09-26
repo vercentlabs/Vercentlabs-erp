@@ -4,7 +4,7 @@ import { Pool, type PoolClient, type QueryResultRow } from "pg";
 import { databaseConfig } from "@vercentlabs/config";
 
 import { resolveDbSsl } from "./db-ssl.ts";
-import { runTenantTransaction } from "@vercentlabs/database";
+import { runTenantTransaction, setTenantContext, setUserContext } from "@vercentlabs/database";
 
 // The one connection pool for the ERP web server process (Next.js Route
 // Handlers / Server Components — never imported by a Client Component,
@@ -32,31 +32,6 @@ function getPool() {
     });
   }
   return pool;
-}
-
-export async function query<T extends QueryResultRow = QueryResultRow>(
-  text: string,
-  values?: unknown[],
-) {
-  const result = await getPool().query<T>(text, values);
-  return result.rows;
-}
-
-export async function transaction<T>(
-  handler: (client: PoolClient) => Promise<T>,
-): Promise<T> {
-  const client = await getPool().connect();
-  try {
-    await client.query("BEGIN");
-    const result = await handler(client);
-    await client.query("COMMIT");
-    return result;
-  } catch (error) {
-    await client.query("ROLLBACK").catch(() => undefined);
-    throw error;
-  } finally {
-    client.release();
-  }
 }
 
 // Row-level-security-scoped variant — every handler touching tenant data
@@ -87,9 +62,63 @@ export async function workspaceTransaction<T>(
   return tenantTransaction(principal.organizationId, handler);
 }
 
-export async function withClient<T>(
+// Authenticated self-service outside a full workspace (MFA, sessions,
+// profile, onboarding): the verified user's identity context, plus the
+// session's organisation context when it has one. Both come from the
+// resolved session, never from the request.
+export async function sessionTransaction<T>(
+  session: { readonly userId: string; readonly organizationId: string | null },
   handler: (client: PoolClient) => Promise<T>,
 ): Promise<T> {
+  const client = await getPool().connect();
+  try {
+    await client.query("BEGIN");
+    try {
+      await setUserContext(client, session.userId);
+      if (session.organizationId) await setTenantContext(client, session.organizationId);
+      const result = await handler(client);
+      await client.query("COMMIT");
+      return result;
+    } catch (error) {
+      await client.query("ROLLBACK").catch(() => undefined);
+      throw error;
+    }
+  } finally {
+    client.release();
+  }
+}
+
+// A user whose credentials were JUST verified (login), before a session
+// exists: identity context only.
+export async function identityTransaction<T>(userId: string, handler: (client: PoolClient) => Promise<T>): Promise<T> {
+  return sessionTransaction({ userId, organizationId: null }, handler);
+}
+
+// Pre-authentication ingress with NO organisation or user context: sign-in
+// and registration steps, public-token and provider lookups that resolve
+// their organisation through a narrow database function (migration 068)
+// and then switch to tenantTransaction. Organisation-scoped platform and
+// tenant tables are invisible here by design.
+export async function ingressTransaction<T>(handler: (client: PoolClient) => Promise<T>): Promise<T> {
+  const client = await getPool().connect();
+  try {
+    await client.query("BEGIN");
+    try {
+      const result = await handler(client);
+      await client.query("COMMIT");
+      return result;
+    } catch (error) {
+      await client.query("ROLLBACK").catch(() => undefined);
+      throw error;
+    }
+  } finally {
+    client.release();
+  }
+}
+
+// One pooled client, no transaction, no context: rate-limit buckets, auth
+// identity reads, and session resolution (which opens its own transaction).
+export async function withIngressClient<T>(handler: (client: PoolClient) => Promise<T>): Promise<T> {
   const client = await getPool().connect();
   try {
     return await handler(client);

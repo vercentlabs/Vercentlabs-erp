@@ -55,4 +55,4 @@ export function readFileContent(
   options?: { storage?: ObjectStorage; env?: Env },
 ): Promise<{ id: string; fileName: string; mimeType: string; sizeBytes: number; contentSha256: string | null; body: Buffer }>;
 export function archiveFile(client: Client, input: { organizationId: string; entityType: string; entityId: string; fileId: string; actorUserId?: string | null }): Promise<FileMetadata & { wasCurrent: boolean }>;
-export function purgeExpiredFileContent(client: Client, options?: { storage?: ObjectStorage; env?: Env; limit?: number }): Promise<{ removed: number }>;
+export function purgeExpiredFileContent(client: Client, options: { organizationId: string; storage?: ObjectStorage; env?: Env; limit?: number }): Promise<{ removed: number }>;

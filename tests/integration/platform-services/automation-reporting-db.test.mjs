@@ -48,17 +48,7 @@ test("automations: registered triggers and actions, conditions, idempotency, pre
     const other = await kit.organization(["x"]);
     const admin = org.session("admin", ["platform.workflows.manage", "crm.view", "crm.leads.manage"]);
     const rep = org.session("rep", ["crm.view", "crm.leads.manage"]);
-    const tx = (work) => kit.runtime(async (client) => {
-      await client.query("BEGIN");
-      try {
-        const result = await work(client);
-        await client.query("COMMIT");
-        return result;
-      } catch (error) {
-        await client.query("ROLLBACK");
-        throw error;
-      }
-    });
+    const tx = (work) => kit.tenant(org.organizationId, work);
     const process = async () => {
       await dispatchOrganizationEvents(kit.pool, org.organizationId);
       await processOrganizationWorkflows(kit.pool, org.organizationId);
@@ -117,13 +107,13 @@ test("automations: registered triggers and actions, conditions, idempotency, pre
     });
 
     await t.test("the recipient's notification preference is respected", async () => {
-      await kit.runtime((client) => setNotificationPreference(client, rep, { category: "crm_workflow", enabled: false }));
+      await kit.tenant(rep.organizationId, (client) => setNotificationPreference(client, rep, { category: "crm_workflow", enabled: false }));
       await assign();
       await process();
       assert.equal((await notifications()).length, 1);
       const [latest] = await tx((client) => listWorkflowRuns(client, org.organizationId, { workflowId: workflow.id }));
       assert.equal(latest.status, "succeeded");
-      await kit.runtime((client) => setNotificationPreference(client, rep, { category: "crm_workflow", enabled: true }));
+      await kit.tenant(rep.organizationId, (client) => setNotificationPreference(client, rep, { category: "crm_workflow", enabled: true }));
     });
 
     await t.test("inactive workflows, the organisation switch and workflow-originated events do not run", async () => {
@@ -190,25 +180,25 @@ test("reports: registered datasets, module/plan/permission gates, record scope, 
 
     await t.test("definitions validate columns and refuse schedules", async () => {
       const available = await modules(rep);
-      await assert.rejects(kit.runtime((client) => createReportDefinition(client, rep, available, { name: "Bad", datasetKey: "crm.leads", columns: ["email"] })), expectCode("REPORT_COLUMN_UNKNOWN"));
-      await assert.rejects(kit.runtime((client) => createReportDefinition(client, rep, available, { name: "Bad", datasetKey: "procurement.orders" })), expectCode("REPORT_DATASET_UNKNOWN"));
-      await assert.rejects(kit.runtime((client) => createReportDefinition(client, rep, available, { name: "Nightly", datasetKey: "crm.leads", schedule: { cron: "0 0 * * *" } })), expectCode("REPORT_SCHEDULE_UNAVAILABLE"));
+      await assert.rejects(kit.tenant(rep.organizationId, (client) => createReportDefinition(client, rep, available, { name: "Bad", datasetKey: "crm.leads", columns: ["email"] })), expectCode("REPORT_COLUMN_UNKNOWN"));
+      await assert.rejects(kit.tenant(rep.organizationId, (client) => createReportDefinition(client, rep, available, { name: "Bad", datasetKey: "procurement.orders" })), expectCode("REPORT_DATASET_UNKNOWN"));
+      await assert.rejects(kit.tenant(rep.organizationId, (client) => createReportDefinition(client, rep, available, { name: "Nightly", datasetKey: "crm.leads", schedule: { cron: "0 0 * * *" } })), expectCode("REPORT_SCHEDULE_UNAVAILABLE"));
     });
 
     await t.test("a run executes in the background with current authority, record scope and formula-safe CSV", async () => {
       const available = await modules(rep);
-      const definition = await kit.runtime((client) => createReportDefinition(client, rep, available, { name: "My leads", datasetKey: "crm.leads", columns: ["code", "firstName", "lastName", "status"] }));
+      const definition = await kit.tenant(rep.organizationId, (client) => createReportDefinition(client, rep, available, { name: "My leads", datasetKey: "crm.leads", columns: ["code", "firstName", "lastName", "status"] }));
       const run = await kit.tenant(org.organizationId, (client) => requestReportRun(client, rep, available, { definitionId: definition.id }));
       const job = (await kit.owner.query(`SELECT job_type, requested_by FROM tenant.background_jobs WHERE id=$1`, [run.jobId])).rows[0];
       assert.deepEqual(job, { job_type: "platform.reports.run", requested_by: org.ids.rep });
       const result = await kit.tenant(org.organizationId, (client) => executeReportRun(client, org.organizationId, { reportRunId: run.id, activeCompanyId: org.companyId, activeBranchId: org.branchId }, { env: { BILLING_ENFORCEMENT_MODE: "observe" }, storage }));
       assert.equal(result.rowCount, 1, "only the rep's own lead");
-      const file = await kit.runtime((client) => readReportRunOutput(client, rep, run.id, { storage }));
+      const file = await kit.tenant(rep.organizationId, (client) => readReportRunOutput(client, rep, run.id, { storage }));
       const csv = file.body.toString("utf8");
       assert.match(csv, /'=HYPERLINK/, "formula neutralised");
       assert.ok(!csv.includes("Hidden") && !csv.includes("@"), "no other owner's record, no contact details");
-      await assert.rejects(kit.runtime((client) => readReportRunOutput(client, peer, run.id, { storage })), expectCode("REPORT_RUN_NOT_FOUND"));
-      const [listed] = await kit.runtime((client) => listReportRuns(client, rep));
+      await assert.rejects(kit.tenant(peer.organizationId, (client) => readReportRunOutput(client, peer, run.id, { storage })), expectCode("REPORT_RUN_NOT_FOUND"));
+      const [listed] = await kit.tenant(rep.organizationId, (client) => listReportRuns(client, rep));
       assert.equal(listed.status, "succeeded");
       assert.equal(listed.downloadable, true);
     });
@@ -221,7 +211,7 @@ test("reports: registered datasets, module/plan/permission gates, record scope, 
     });
 
     await t.test("other organisations see none of it", async () => {
-      assert.deepEqual(await kit.runtime((client) => listReportRuns(client, other.session("x", reportPermissions))), []);
+      assert.deepEqual(await kit.tenant(other.organizationId, (client) => listReportRuns(client, other.session("x", reportPermissions))), []);
     });
   } finally {
     setObjectStorageForTests(null);
@@ -240,7 +230,6 @@ test("documents: a Sales order PDF through the module's own read", async () => {
     const priceListId = randomUUID();
     const itemId = randomUUID();
     const customerId = randomUUID();
-    for (const [entity, prefix] of [["sales_order", "SO-"]]) await kit.owner.query(`INSERT INTO numbering_series(organization_id,entity_type,prefix) VALUES ($1,$2,$3) ON CONFLICT DO NOTHING`, [orgId, entity, prefix]);
     await kit.owner.query(`INSERT INTO tenant.currencies(organization_id,code,name,decimal_places,is_base,status) VALUES ($1,'INR','Indian Rupee',2,true,'active') ON CONFLICT DO NOTHING`, [orgId]);
     await kit.owner.query(`INSERT INTO tenant.units_of_measure(id,organization_id,code,name,category,status) VALUES ($1,$2,'EA','Each','quantity','active')`, [uomId, orgId]);
     await kit.owner.query(`INSERT INTO tenant.tax_categories(id,organization_id,code,name,status) VALUES ($1,$2,'STD','Standard','active')`, [taxCategoryId, orgId]);

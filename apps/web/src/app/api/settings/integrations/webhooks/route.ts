@@ -9,7 +9,7 @@ import { workspaceRoute } from "@/core/workspace-route";
 // Settings > Integrations > Webhooks. Only registered events can be chosen.
 // The signing secret is in the create response once and never again.
 export async function GET(request: Request) {
-  return workspaceRoute(request, { permission: CORE_PERMISSIONS.integrationsView, action: "integrations.webhooks.list", transaction: "tenant" }, async ({ client, session }) =>
+  return workspaceRoute(request, { permission: CORE_PERMISSIONS.integrationsView, action: "integrations.webhooks.list" }, async ({ client, session }) =>
     ok({
       subscriptions: await listWebhookSubscriptions(client, session.organizationId),
       events: DOMAIN_EVENTS.map((event) => ({ key: event.key, moduleKey: event.moduleKey, label: event.label, description: event.description })),
@@ -26,7 +26,7 @@ const schema = z.object({
 export async function POST(request: Request) {
   return workspaceRoute(
     request,
-    { permission: CORE_PERMISSIONS.integrationsManage, action: "integrations.webhook.create", transaction: "tenant", auditDenial: true },
+    { permission: CORE_PERMISSIONS.integrationsManage, action: "integrations.webhook.create", auditDenial: true },
     async ({ client, session }) => ok(await createWebhookSubscription(client, session, schema.parse(await readJson(request))), 201),
   );
 }

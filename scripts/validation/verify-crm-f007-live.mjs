@@ -60,7 +60,7 @@ try {
   const before = await client.query(
     `SELECT
        (SELECT count(*)::int FROM tenant.crm_lead_stage_events WHERE organization_id=$1 AND lead_id=$2) history,
-       (SELECT count(*)::int FROM tenant.crm_outbox_events WHERE organization_id=$1 AND entity_id=$2 AND event_type='crm.lead.stage_changed') outbox`,
+       (SELECT count(*)::int FROM tenant.platform_events WHERE organization_id=$1 AND entity_id=$2 AND event_type='crm.lead.stage_changed') outbox`,
     [lead.organization_id, lead.id],
   );
   const result = await transitionLeadStage(
@@ -77,7 +77,7 @@ try {
   const after = await client.query(
     `SELECT
        (SELECT count(*)::int FROM tenant.crm_lead_stage_events WHERE organization_id=$1 AND lead_id=$2) history,
-       (SELECT count(*)::int FROM tenant.crm_outbox_events WHERE organization_id=$1 AND entity_id=$2 AND event_type='crm.lead.stage_changed') outbox`,
+       (SELECT count(*)::int FROM tenant.platform_events WHERE organization_id=$1 AND entity_id=$2 AND event_type='crm.lead.stage_changed') outbox`,
     [lead.organization_id, lead.id],
   );
   let guardBlocked = false;

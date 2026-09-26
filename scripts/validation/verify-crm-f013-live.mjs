@@ -100,7 +100,7 @@ try {
     VALUES($1,$2,$3,NULL,$4,$5,$6,$7,'active',$8,false,$8,$8)`, [leadId, organizationId, base.company_id, `F013-${suffix}`, `F013 Verify ${suffix}`, "+91 9876543210", initialStage.code, seller.user_id]);
 
   const beforeCreateEvents = Number((await client.query(`SELECT count(*)::int AS count FROM tenant.crm_call_events WHERE organization_id=$1`, [organizationId])).rows[0]?.count || 0);
-  const beforeCreateOutbox = Number((await client.query(`SELECT count(*)::int AS count FROM tenant.crm_outbox_events WHERE organization_id=$1 AND event_type LIKE 'crm.call.%'`, [organizationId])).rows[0]?.count || 0);
+  const beforeCreateOutbox = Number((await client.query(`SELECT count(*)::int AS count FROM tenant.platform_events WHERE organization_id=$1 AND event_type LIKE 'crm.call.%'`, [organizationId])).rows[0]?.count || 0);
   const scheduled = await createCrmCall(client, context, { mode: "schedule", entityType: "lead", entityId: leadId, subject: `F013 scheduled ${suffix}`, direction: "outbound", dueAt: new Date(Date.now()+3600_000).toISOString() });
   callId = scheduled.id;
   result.scheduledCallCreated = scheduled.status === "planned" && scheduled.activityType === "call";
@@ -110,13 +110,13 @@ try {
   const dncCountsBefore = (await client.query(`SELECT
       (SELECT count(*)::int FROM tenant.crm_activities WHERE organization_id=$1 AND activity_type='call') AS calls,
       (SELECT count(*)::int FROM tenant.crm_call_events WHERE organization_id=$1) AS events,
-      (SELECT count(*)::int FROM tenant.crm_outbox_events WHERE organization_id=$1 AND event_type LIKE 'crm.call.%') AS outbox`, [organizationId])).rows[0];
+      (SELECT count(*)::int FROM tenant.platform_events WHERE organization_id=$1 AND event_type LIKE 'crm.call.%') AS outbox`, [organizationId])).rows[0];
   try { await createCrmCall(client, context, { mode: "schedule", entityType: "lead", entityId: leadId, subject: "Blocked DNC", direction: "outbound", dueAt: new Date(Date.now()+7200_000).toISOString() }); }
   catch (error) { result.doNotContactBlocked = error?.code === "CRM_CALL_DO_NOT_CONTACT"; }
   const dncCountsAfter = (await client.query(`SELECT
       (SELECT count(*)::int FROM tenant.crm_activities WHERE organization_id=$1 AND activity_type='call') AS calls,
       (SELECT count(*)::int FROM tenant.crm_call_events WHERE organization_id=$1) AS events,
-      (SELECT count(*)::int FROM tenant.crm_outbox_events WHERE organization_id=$1 AND event_type LIKE 'crm.call.%') AS outbox`, [organizationId])).rows[0];
+      (SELECT count(*)::int FROM tenant.platform_events WHERE organization_id=$1 AND event_type LIKE 'crm.call.%') AS outbox`, [organizationId])).rows[0];
   result.doNotContactMutationFree = ["calls","events","outbox"].every((key) => Number(dncCountsAfter[key]) === Number(dncCountsBefore[key]));
   await client.query(`UPDATE tenant.crm_leads SET do_not_contact=false WHERE organization_id=$1 AND id=$2`, [organizationId, leadId]);
 
@@ -128,11 +128,11 @@ try {
   result.updateApplied = updated.subject.endsWith(" updated");
   const updateCountsBefore = (await client.query(`SELECT
       (SELECT count(*)::int FROM tenant.crm_call_events WHERE organization_id=$1 AND activity_id=$2) AS events,
-      (SELECT count(*)::int FROM tenant.crm_outbox_events WHERE organization_id=$1 AND entity_type='call' AND entity_id=$2) AS outbox`, [organizationId, callId])).rows[0];
+      (SELECT count(*)::int FROM tenant.platform_events WHERE organization_id=$1 AND entity_type='call' AND entity_id=$2) AS outbox`, [organizationId, callId])).rows[0];
   const updateReplay = await updateCrmCall(client, context, callId, { subject: updated.subject, expectedUpdatedAt: "2000-01-01T00:00:00.000Z", expectedStatus: "planned" });
   const updateCountsAfter = (await client.query(`SELECT
       (SELECT count(*)::int FROM tenant.crm_call_events WHERE organization_id=$1 AND activity_id=$2) AS events,
-      (SELECT count(*)::int FROM tenant.crm_outbox_events WHERE organization_id=$1 AND entity_type='call' AND entity_id=$2) AS outbox`, [organizationId, callId])).rows[0];
+      (SELECT count(*)::int FROM tenant.platform_events WHERE organization_id=$1 AND entity_type='call' AND entity_id=$2) AS outbox`, [organizationId, callId])).rows[0];
   result.updateReplayMutationFree = updateReplay.replayed === true && Number(updateCountsAfter.events)===Number(updateCountsBefore.events) && Number(updateCountsAfter.outbox)===Number(updateCountsBefore.outbox);
 
   const beforeStale = await getCrmCall(client, context, callId);
@@ -150,13 +150,13 @@ try {
 
   const completeCountsBefore = (await client.query(`SELECT
       (SELECT count(*)::int FROM tenant.crm_call_events WHERE organization_id=$1 AND activity_id=$2) AS events,
-      (SELECT count(*)::int FROM tenant.crm_outbox_events WHERE organization_id=$1 AND entity_type='call' AND entity_id=$2) AS outbox`, [organizationId, callId])).rows[0];
+      (SELECT count(*)::int FROM tenant.platform_events WHERE organization_id=$1 AND entity_type='call' AND entity_id=$2) AS outbox`, [organizationId, callId])).rows[0];
   const completed = await completeCrmCall(client, context, callId, { outcomeCode: "connected", outcome: "private verifier note", expectedUpdatedAt: new Date(started.updatedAt).toISOString(), expectedStatus: "in_progress" });
   result.completionApplied = completed.status === "completed" && completed.outcomeCode === "connected" && Number(completed.durationSeconds) >= 0;
   const completeReplay = await completeCrmCall(client, context, callId, { outcomeCode: "connected", outcome: "private verifier note", expectedUpdatedAt: "2000-01-01T00:00:00.000Z", expectedStatus: "planned" });
   const completeCountsAfter = (await client.query(`SELECT
       (SELECT count(*)::int FROM tenant.crm_call_events WHERE organization_id=$1 AND activity_id=$2) AS events,
-      (SELECT count(*)::int FROM tenant.crm_outbox_events WHERE organization_id=$1 AND entity_type='call' AND entity_id=$2) AS outbox`, [organizationId, callId])).rows[0];
+      (SELECT count(*)::int FROM tenant.platform_events WHERE organization_id=$1 AND entity_type='call' AND entity_id=$2) AS outbox`, [organizationId, callId])).rows[0];
   result.completionReplayMutationFree = completeReplay.replayed === true && Number(completeCountsAfter.events) === Number(completeCountsBefore.events)+1 && Number(completeCountsAfter.outbox) === Number(completeCountsBefore.outbox)+1;
   const leadAfter = (await client.query(`SELECT last_contacted_at,first_responded_at FROM tenant.crm_leads WHERE organization_id=$1 AND id=$2`, [organizationId, leadId])).rows[0];
   result.parentTouchedOnCompletion = Boolean(leadAfter?.last_contacted_at && leadAfter?.first_responded_at);
@@ -172,10 +172,10 @@ try {
   const history = await listCrmCallEvents(client, context, callId, 50);
   result.historyWritten = history.some((event) => event.eventType === "scheduled") && history.some((event) => event.eventType === "started") && history.some((event) => event.eventType === "completed");
   const finalEvents = Number((await client.query(`SELECT count(*)::int AS count FROM tenant.crm_call_events WHERE organization_id=$1`, [organizationId])).rows[0]?.count || 0);
-  const finalOutbox = Number((await client.query(`SELECT count(*)::int AS count FROM tenant.crm_outbox_events WHERE organization_id=$1 AND event_type LIKE 'crm.call.%'`, [organizationId])).rows[0]?.count || 0);
+  const finalOutbox = Number((await client.query(`SELECT count(*)::int AS count FROM tenant.platform_events WHERE organization_id=$1 AND event_type LIKE 'crm.call.%'`, [organizationId])).rows[0]?.count || 0);
   result.historyWritten = result.historyWritten && finalEvents >= beforeCreateEvents + 6;
   result.outboxWritten = finalOutbox >= beforeCreateOutbox + 6;
-  const leaked = Number((await client.query(`SELECT count(*)::int AS count FROM tenant.crm_outbox_events WHERE organization_id=$1 AND entity_type='call' AND (payload::text LIKE '%9876543210%' OR payload::text LIKE '%private verifier note%')`, [organizationId])).rows[0]?.count || 0);
+  const leaked = Number((await client.query(`SELECT count(*)::int AS count FROM tenant.platform_events WHERE organization_id=$1 AND entity_type='call' AND (payload::text LIKE '%9876543210%' OR payload::text LIKE '%private verifier note%')`, [organizationId])).rows[0]?.count || 0);
   result.piiExcludedFromOutbox = leaked === 0;
 
   await client.query("ROLLBACK"); transactionOpen = false;

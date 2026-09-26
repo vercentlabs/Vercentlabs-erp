@@ -14,6 +14,16 @@ export async function setTenantContext(client, organizationId) {
   );
 }
 
+// Identity context (transaction-local): set ONLY after a session token has
+// been verified, so RLS lets that user read their own memberships across
+// organisations (public.current_app_user_id()). Never from request input.
+export async function setUserContext(client, userId) {
+  if (!UUID_PATTERN.test(String(userId || ""))) {
+    throw new TypeError("A valid userId is required for identity context.");
+  }
+  await client.query("SELECT set_config('app.current_user_id', $1, true)", [userId]);
+}
+
 // The one tenant transaction sequence (docs/01-standards/
 // TENANT_TRANSACTION_RLS_STANDARD.md): on ONE checked-out client,
 // BEGIN -> transaction-local tenant context (parameterized) -> work ->
@@ -53,6 +63,7 @@ export function resolveDbSsl(env = process.env) {
   const production = env.NODE_ENV === "production";
   const insecure = env.DATABASE_SSL_INSECURE === "true";
   if (production && insecure) throw new Error("DATABASE_SSL_INSECURE is not allowed in production. Provide DATABASE_SSL_CA instead.");
-  const ca = env.DATABASE_SSL_CA ? env.DATABASE_SSL_CA.replace(/\n/g, "\n") : undefined;
+  const ca = env.DATABASE_SSL_CA ? env.DATABASE_SSL_CA.replace(/\\n/g, "\n") : undefined;
   return { rejectUnauthorized: !insecure, ...(ca ? { ca } : {}) };
 }
+export { classifyPublicTable, DEFINER_FUNCTIONS, organizationScopedTables, PUBLIC_TABLES, runtimePrivileges, TABLE_CLASSES } from "./table-classification.js";

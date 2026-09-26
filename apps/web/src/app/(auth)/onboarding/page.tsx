@@ -2,7 +2,7 @@ import Link from "next/link";
 
 import { listPendingInvitationsForEmail } from "@vercentlabs/api";
 
-import { withClient } from "@/core/db";
+import { withIngressClient } from "@/core/db";
 import { requireVerifiedUser } from "@/core/session";
 import { SignOutLink } from "./sign-out-link";
 
@@ -18,7 +18,7 @@ export const metadata = { title: "Join an organization" };
 // to fabricate a next step that isn't real).
 export default async function OnboardingPage() {
   const session = await requireVerifiedUser();
-  const invitations = await withClient((client) => listPendingInvitationsForEmail(client, session.email));
+  const invitations = await withIngressClient((client) => listPendingInvitationsForEmail(client, session.email));
 
   return (
     <div className="flex flex-col gap-6">

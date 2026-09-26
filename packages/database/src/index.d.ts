@@ -13,6 +13,8 @@ export function setTenantContext(
   organizationId: string,
 ): Promise<void>;
 
+export function setUserContext(client: QueryableClient, userId: string): Promise<void>;
+
 export function runTenantTransaction<T, C extends QueryableClient = QueryableClient>(
   client: C,
   organizationId: string,
@@ -36,3 +38,10 @@ export function readMigrationStatus(
 ): Promise<{ ready: boolean; missing: string[]; latest: { platform: string | null; tenant: string | null } }>;
 export type DbSslConfig = { rejectUnauthorized: boolean; ca?: string } | undefined;
 export function resolveDbSsl(env?: Record<string, string | undefined>): DbSslConfig;
+export type TableClassEntry = { class: string; reason: string | null; [key: string]: unknown };
+export const TABLE_CLASSES: readonly string[];
+export const PUBLIC_TABLES: Readonly<Record<string, TableClassEntry>>;
+export const DEFINER_FUNCTIONS: Readonly<Record<string, { web?: boolean; worker?: boolean; trigger?: boolean; retired?: boolean; reason: string }>>;
+export function classifyPublicTable(name: string): TableClassEntry | null;
+export function organizationScopedTables(): string[];
+export function runtimePrivileges(role: "web" | "worker", table: string, entry: TableClassEntry | null): readonly string[];

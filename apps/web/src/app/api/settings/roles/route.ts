@@ -12,7 +12,7 @@ import { workspaceRoute } from "@/core/workspace-route";
 export async function GET(request: Request) {
   return workspaceRoute(
     request,
-    { permission: CORE_PERMISSIONS.rolesView, action: "settings.roles.list", transaction: "none" },
+    { permission: CORE_PERMISSIONS.rolesView, action: "settings.roles.list" },
     async ({ client, session }) => ok({ roles: await listOrganizationRolesDetailed(client, session) }),
   );
 }
@@ -29,7 +29,7 @@ const postSchema = z.object({
 export async function POST(request: Request) {
   return workspaceRoute(
     request,
-    { permission: CORE_PERMISSIONS.rolesManage, action: "settings.roles.create", transaction: "platform", auditDenial: true },
+    { permission: CORE_PERMISSIONS.rolesManage, action: "settings.roles.create", auditDenial: true },
     async ({ client, session }) => {
       const body = postSchema.parse(await readJson(request));
       return ok({ role: await createRole(client, session, body) }, 201);

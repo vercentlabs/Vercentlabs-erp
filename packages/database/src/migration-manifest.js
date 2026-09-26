@@ -66,7 +66,8 @@ export const EXPECTED_MIGRATIONS = Object.freeze({
     "064_developer_apps_and_api_scopes.sql",
     "065_oauth_pkce_and_profiles.sql",
     "066_inbound_mail_routes.sql",
-    "067_workflows_and_reports.sql"
+    "067_workflows_and_reports.sql",
+    "068_platform_row_level_security.sql"
   ],
   "tenant": [
     "001_business_data_foundation.sql",
@@ -252,10 +253,18 @@ export const EXPECTED_MIGRATIONS = Object.freeze({
     "181_document_numbering_unification.sql",
     "182_support_attachments_shared_files.sql",
     "183_export_artifacts_out_of_job_manifests.sql",
-    "184_platform_events_and_webhooks.sql"
+    "184_platform_events_and_webhooks.sql",
+    "185_restrict_definer_function_execute.sql"
   ],
   "contracts": {
-    "platform": [],
-    "tenant": []
+    "platform": [
+      "001_drop_legacy_invitation_columns.sql",
+      "002_drop_retired_platform_tables.sql",
+      "003_drop_attachment_legacy_bytes.sql"
+    ],
+    "tenant": [
+      "001_drop_retired_crm_outbox_and_webhooks.sql",
+      "002_drop_retired_public_definer_functions.sql"
+    ]
   }
 });

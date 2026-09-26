@@ -7,7 +7,7 @@ import type { NextResponse } from "next/server";
 
 import { resolveSessionContext, type ModuleAccess } from "@vercentlabs/api";
 
-import { withClient } from "@/core/db";
+import { withIngressClient } from "@/core/db";
 import { HttpError } from "@/core/http-errors";
 
 const COOKIE_NAME = process.env.SESSION_COOKIE_NAME || "vercentlabs_session";
@@ -65,7 +65,7 @@ async function resolveFromToken(
   token: string,
   sessionType: "browser" | "mobile",
 ) {
-  return withClient((client) =>
+  return withIngressClient((client) =>
     resolveSessionContext(client, token, sessionType, process.env),
   ) as Promise<SessionContext | null>;
 }

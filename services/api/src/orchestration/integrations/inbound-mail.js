@@ -137,9 +137,10 @@ async function deliverToSupport(client, route, message, prepared) {
 }
 
 /**
- * The whole inbound flow for one provider POST. `runPlatform(work)` and
- * `runTenant(organizationId, work)` each run `work` in their own short
- * transaction; attachment scanning happens between them, outside both.
+ * The whole inbound flow for one provider POST. `runPlatform(work)` (no
+ * organisation yet: only the route lookup) and `runTenant(organizationId,
+ * work)` each run `work` in their own short transaction; attachment
+ * scanning happens between them, outside both.
  */
 export async function receiveInboundMail({ runPlatform, runTenant }, { routeKey, rawBody, signature }, env = process.env) {
   if (Buffer.byteLength(rawBody) > MAX_RAW_BODY) throw new InboundMailError(413, "The inbound message is too large.", "PLATFORM_INBOUND_MAIL_TOO_LARGE");
@@ -152,7 +153,7 @@ export async function receiveInboundMail({ runPlatform, runTenant }, { routeKey,
     throw new InboundMailError(400, "The inbound message is malformed.", "PLATFORM_INBOUND_MAIL_MALFORMED");
   }
   const message = normalizeInboundMessage(payload);
-  const { event, replayed } = await runPlatform((client) => recordInboundMailEvent(client, { route, message, payloadDigest: inboundPayloadDigest(rawBody) }));
+  const { event, replayed } = await runTenant(route.organization_id, (client) => recordInboundMailEvent(client, { route, message, payloadDigest: inboundPayloadDigest(rawBody) }));
   if (replayed && event.status === "processed") return { eventId: event.id, replayed: true, outcome: event.outcome, ticketId: event.ticket_id };
 
   const { prepared, notes } = await prepareAttachments(message, env);
@@ -165,7 +166,7 @@ export async function receiveInboundMail({ runPlatform, runTenant }, { routeKey,
     });
     return { eventId: event.id, replayed, ...result };
   } catch (error) {
-    await runPlatform((client) => completeInboundMailEvent(client, event.id, { status: "failed", error: error?.message || String(error), attachmentNotes: notes }));
+    await runTenant(route.organization_id, (client) => completeInboundMailEvent(client, event.id, { status: "failed", error: error?.message || String(error), attachmentNotes: notes }));
     throw error;
   }
 }

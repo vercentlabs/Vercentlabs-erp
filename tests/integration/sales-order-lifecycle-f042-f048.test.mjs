@@ -150,9 +150,6 @@ test("Sales order lifecycle against real PostgreSQL", async (t) => {
     for (const id of [sellerId, approverId, financeId]) {
       await admin.query(`INSERT INTO public.organization_memberships(organization_id,user_id,role,status) VALUES ($1,$2,'member','active')`, [orgId, id]);
     }
-    for (const [entity, prefix] of [["quotation", "QUO-"], ["sales_order", "SO-"], ["sales_fulfillment_request", "FUL-"], ["sales_invoice_request", "SIR-"]]) {
-      await admin.query(`INSERT INTO public.numbering_series(organization_id,entity_type,prefix) VALUES ($1,$2,$3) ON CONFLICT DO NOTHING`, [orgId, entity, prefix]);
-    }
     await setTenantContext(admin, orgId);
     await admin.query(`INSERT INTO tenant.currencies(organization_id,code,name,decimal_places,is_base,status) VALUES ($1,'INR','Indian Rupee',2,true,'active')`, [orgId]);
     await admin.query(`INSERT INTO tenant.units_of_measure(id,organization_id,code,name,category,status) VALUES ($1,$2,'EA','Each','quantity','active')`, [uomId, orgId]);

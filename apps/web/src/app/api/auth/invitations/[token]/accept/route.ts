@@ -10,7 +10,7 @@ import {
   setSessionOrganization,
 } from "@vercentlabs/api";
 
-import { transaction, withClient } from "@/core/db";
+import { ingressTransaction, withIngressClient } from "@/core/db";
 import { errorResponse, HttpError, ok, readJson } from "@/core/http";
 import { getSessionContext, setSessionCookie } from "@/core/session";
 
@@ -24,7 +24,7 @@ export async function POST(request: Request, context: { params: Promise<{ token:
     assertSameOrigin(request, process.env);
     const { token } = await context.params;
     const body = schema.parse(await readJson(request));
-    await withClient((client) => enforceRateLimit(client, `accept-invitation:${clientIp(request, process.env)}`, 10, 300));
+    await withIngressClient((client) => enforceRateLimit(client, `accept-invitation:${clientIp(request, process.env)}`, 10, 300));
 
     if (body.password) {
       const issues = passwordPolicyIssues(body.password);
@@ -39,7 +39,7 @@ export async function POST(request: Request, context: { params: Promise<{ token:
     // request body, which a caller fully controls.
     const currentSession = await getSessionContext();
 
-    const result = await transaction(async (client) => {
+    const result = await ingressTransaction(async (client) => {
       const accepted = await acceptOrganizationInvitation(client, token, body, currentSession?.userId ?? null);
       if (!accepted.mintNewSession) {
         // Existing account, already authenticated as itself — reuse its

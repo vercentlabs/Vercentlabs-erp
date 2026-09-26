@@ -2,7 +2,7 @@ import { z } from "zod";
 
 import { assertSameOriginOrMobile, audit, enforceRateLimit, verifyMfaForSession } from "@vercentlabs/api";
 
-import { transaction } from "@/core/db";
+import { sessionTransaction } from "@/core/db";
 import { errorResponse, ok, readJson } from "@/core/http";
 import { requireApiUser } from "@/core/session";
 
@@ -18,7 +18,7 @@ export async function POST(request: Request) {
     assertSameOriginOrMobile(request, process.env);
     const session = await requireApiUser();
     const body = verifySchema.parse(await readJson(request));
-    await transaction(async (client) => {
+    await sessionTransaction(session, async (client) => {
       // A 6-digit TOTP code has only 10^6 possibilities; without a limit
       // here an attacker holding an authenticated-but-not-MFA-verified
       // session could brute-force the step-up check directly. Keyed by

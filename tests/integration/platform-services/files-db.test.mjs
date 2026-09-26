@@ -139,9 +139,7 @@ test("files: export artifacts expire and their bytes are purged, evidence kept",
     await assert.rejects(read(), expectCode("FILE_EXPIRED"));
     const client = await kit.pool.connect();
     try {
-      await client.query("BEGIN");
-      const result = await purgeExpiredFileContent(client, { storage });
-      await client.query("COMMIT");
+      const result = await kit.tenant(org.organizationId, (tenantClient) => purgeExpiredFileContent(tenantClient, { organizationId: org.organizationId, storage }));
       assert.ok(result.removed >= 1);
     } finally {
       client.release();

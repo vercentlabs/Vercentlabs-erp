@@ -4,7 +4,7 @@ import { expect, test, type Page } from "@playwright/test";
 import pg from "pg";
 
 import { setTenantContext } from "../../../packages/database/src/index.js";
-import { createNotification } from "../../../services/api/src/core/platform/notifications/index.js";
+import { createNotification, NOTIFICATION_CATEGORIES } from "../../../services/api/src/core/platform/notifications/index.js";
 import { hashPassword } from "../../../services/api/src/core/session.js";
 import { createCrmRecord, createJournalEntry, initializeAccountingCompany, submitJournalEntry } from "../../../services/api/src/index.js";
 import { MIGRATION_DATABASE_URL } from "./pos-fixtures";
@@ -100,7 +100,8 @@ test("notifications: an item appears, is marked read, and a preference stops the
   await page.getByRole("link", { name: "Notification preferences" }).click();
   await expect(page.getByRole("heading", { level: 1, name: "Notification preferences" })).toBeVisible({ timeout: 180_000 });
   await expect(page.getByRole("switch", { name: /push|email|sms/i })).toHaveCount(0);
-  await expect(page.getByRole("switch")).toHaveCount(6);
+  // One switch per user-configurable category in the registry (the page must not invent or hide any).
+  await expect(page.getByRole("switch")).toHaveCount(NOTIFICATION_CATEGORIES.filter((category) => category.userConfigurable).length);
   const toggle = page.getByRole("switch", { name: "Lead assigned to me" });
   await expect(toggle).toBeChecked();
   const saved = page.waitForResponse((response) => response.url().includes("/api/settings/notification-preferences") && response.request().method() === "PUT");
@@ -113,7 +114,6 @@ test("notifications: an item appears, is marked read, and a preference stops the
 
 test("approvals: the owner approves a member's journal from the inbox; document and request both update", async ({ browser }) => {
   await db.query(`INSERT INTO tenant.currencies(organization_id,code,name,decimal_places,is_base,status) VALUES ($1,'INR','Indian Rupee',2,true,'active') ON CONFLICT DO NOTHING`, [world.organizationId]);
-  await db.query(`INSERT INTO numbering_series(organization_id,entity_type,prefix) VALUES ($1,'journal_entry','JE-') ON CONFLICT DO NOTHING`, [world.organizationId]);
   const year = new Date().getUTCFullYear();
   await db.query(`INSERT INTO tenant.fiscal_periods(organization_id,company_id,name,fiscal_year,start_date,end_date,status) VALUES ($1,$2,'FY Current','FY-CURRENT',$3,$4,'open') ON CONFLICT DO NOTHING`, [world.organizationId, world.companyId, `${year}-01-01`, `${year}-12-31`]);
   const requester = { organizationId: world.organizationId, activeCompanyId: world.companyId, activeBranchId: null, allowAllCompanies: false, userId: world.memberId, roleSlugs: [] as string[], permissions: ["accounting.view", "accounting.journal.create", "accounting.journal.submit"] };

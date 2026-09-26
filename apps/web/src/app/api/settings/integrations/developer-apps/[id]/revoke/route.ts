@@ -9,7 +9,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
   const { id } = await context.params;
   return workspaceRoute(
     request,
-    { permission: CORE_PERMISSIONS.integrationsManage, action: "integrations.developer_app.revoke", transaction: "platform", auditDenial: true },
+    { permission: CORE_PERMISSIONS.integrationsManage, action: "integrations.developer_app.revoke", auditDenial: true },
     async ({ client, session }) => ok({ app: await revokeDeveloperApp(client, session, id) }),
   );
 }

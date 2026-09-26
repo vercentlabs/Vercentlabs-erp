@@ -9,7 +9,7 @@ import { workspaceRoute } from "@/core/workspace-route";
 export async function GET(request: Request) {
   return workspaceRoute(
     request,
-    { permission: BILLING_PERMISSIONS.view, action: "billing.summary", transaction: "none" },
+    { permission: BILLING_PERMISSIONS.view, action: "billing.summary" },
     async ({ client, session }) => ok({ overview: await getBillingOverview(client, session.organizationId, process.env) }),
   );
 }

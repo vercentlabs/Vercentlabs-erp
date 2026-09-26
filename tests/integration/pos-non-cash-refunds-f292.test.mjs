@@ -85,7 +85,6 @@ test("F292: non-cash and split-tender refunds against real PostgreSQL", async (t
     await admin.query(`INSERT INTO public.users(id,email,full_name,password_hash,status,email_verified_at) VALUES ($1,$2,'F292 Cashier','x','active',now())`, [cashierId, `f292-cashier-${cashierId}@test.invalid`]);
     await admin.query(`INSERT INTO public.users(id,email,full_name,password_hash,status,email_verified_at) VALUES ($1,$2,'F292 Supervisor','x','active',now())`, [supervisorId, `f292-supervisor-${supervisorId}@test.invalid`]);
     await admin.query(`INSERT INTO public.organizations(id,name,slug,country_code,timezone,base_currency,created_by) VALUES ($1,'F292 Test Org',$2,'IN','Asia/Kolkata','INR',$3)`, [orgId, `f292-org-${orgId}`, cashierId]);
-    await admin.query(`INSERT INTO public.numbering_series(organization_id,entity_type,prefix) VALUES ($1,'journal_entry','JE-'),($1,'customer_invoice','INV-') ON CONFLICT DO NOTHING`, [orgId]);
     await admin.query(`INSERT INTO public.companies(id,organization_id,name,legal_name,code,base_currency,country_code,is_primary,status) VALUES ($1,$2,'F292 Co','F292 Co Pvt Ltd','F292CO','INR','IN',true,'active')`, [companyId, orgId]);
     await admin.query(`INSERT INTO public.branches(id,organization_id,company_id,name,code,timezone,status) VALUES ($1,$2,$3,'HQ','HQ','Asia/Kolkata','active')`, [branchId, orgId, companyId]);
     await setTenantContext(admin, orgId);
@@ -306,7 +305,6 @@ test("F292: non-cash and split-tender refunds against real PostgreSQL", async (t
     ]) {
       await admin.query(`DELETE FROM tenant.${table} WHERE organization_id=$1`, [orgId]).catch(() => undefined);
     }
-    await admin.query(`DELETE FROM public.numbering_series WHERE organization_id=$1`, [orgId]).catch(() => undefined);
     await admin.query(`DELETE FROM public.organizations WHERE id=$1`, [orgId]).catch(() => undefined);
     await admin.query(`DELETE FROM public.users WHERE id=ANY($1::uuid[])`, [[cashierId, supervisorId]]).catch(() => undefined);
     await admin.end();

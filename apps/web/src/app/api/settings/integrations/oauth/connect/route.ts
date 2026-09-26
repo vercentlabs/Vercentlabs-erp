@@ -13,7 +13,7 @@ const schema = z.object({ profile: z.string().trim().min(1).max(80), returnPath:
 export async function POST(request: Request) {
   return workspaceRoute(
     request,
-    { permission: CORE_PERMISSIONS.integrationsManage, action: "integrations.oauth.connect", transaction: "platform", auditDenial: true },
+    { permission: CORE_PERMISSIONS.integrationsManage, action: "integrations.oauth.connect", auditDenial: true },
     async ({ client, session }) => ok(await beginOAuthConnection(client, session, schema.parse(await readJson(request)))),
   );
 }

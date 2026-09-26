@@ -9,7 +9,7 @@ import { workspaceRoute } from "@/core/workspace-route";
 export async function POST(request: Request, context: { params: Promise<{ id: string }> }) {
   return workspaceRoute(
     request,
-    { permission: CORE_PERMISSIONS.usersManage, action: "settings.invitations.resend", transaction: "platform", auditDenial: true },
+    { permission: CORE_PERMISSIONS.usersManage, action: "settings.invitations.resend", auditDenial: true },
     async ({ client, session }) => {
       const { id } = await context.params;
       const result = await resendOrganizationInvitation(

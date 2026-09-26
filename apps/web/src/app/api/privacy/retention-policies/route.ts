@@ -10,7 +10,7 @@ import { workspaceRoute } from "@/core/workspace-route";
 // how it is enforced - most are recorded for review; statutory records are
 // never deleted automatically.
 export async function GET(request: Request) {
-  return workspaceRoute(request, { permission: CORE_PERMISSIONS.platformPrivacyManage, action: "privacy.retention.list", transaction: "none" }, async ({ client, session }) =>
+  return workspaceRoute(request, { permission: CORE_PERMISSIONS.platformPrivacyManage, action: "privacy.retention.list" }, async ({ client, session }) =>
     ok({ rows: await listRetentionPolicies(client, session.organizationId), dataClasses: listPrivacyDataClasses() }),
   );
 }
@@ -27,7 +27,7 @@ const schema = z.object({
 export async function POST(request: Request) {
   return workspaceRoute(
     request,
-    { permission: CORE_PERMISSIONS.platformPrivacyManage, action: "privacy.retention.write", transaction: "platform", auditDenial: true },
+    { permission: CORE_PERMISSIONS.platformPrivacyManage, action: "privacy.retention.write", auditDenial: true },
     async ({ client, session }) => ok({ record: await writeRetentionPolicy(client, session, schema.parse(await readJson(request))) }, 201),
   );
 }

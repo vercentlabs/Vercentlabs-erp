@@ -9,7 +9,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
   const { id } = await context.params;
   return workspaceRoute(
     request,
-    { permission: CORE_PERMISSIONS.integrationsManage, action: "integrations.webhook.redeliver", transaction: "tenant", auditDenial: true },
+    { permission: CORE_PERMISSIONS.integrationsManage, action: "integrations.webhook.redeliver", auditDenial: true },
     async ({ client, session }) => ok({ delivery: await redeliverWebhookDelivery(client, session, id) }),
   );
 }

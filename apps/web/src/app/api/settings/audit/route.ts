@@ -10,7 +10,7 @@ const FILTERS = ["actorUserId", "area", "eventType", "entityType", "entityId", "
 export async function GET(request: Request) {
   return workspaceRoute(
     request,
-    { permission: CORE_PERMISSIONS.auditView, action: "audit.query", transaction: "none", auditDenial: true },
+    { permission: CORE_PERMISSIONS.auditView, action: "audit.query", auditDenial: true },
     async ({ client, session }) => {
       const params = new URL(request.url).searchParams;
       const filters: Record<string, string> = {};

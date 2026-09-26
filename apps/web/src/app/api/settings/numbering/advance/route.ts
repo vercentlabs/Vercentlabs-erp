@@ -13,7 +13,7 @@ const schema = z.object({ documentType: z.string().trim().min(1).max(160), compa
 export async function POST(request: Request) {
   return workspaceRoute(
     request,
-    { permission: CORE_PERMISSIONS.numberingManage, action: "numbering.counter_advance", transaction: "tenant", auditDenial: true },
+    { permission: CORE_PERMISSIONS.numberingManage, action: "numbering.counter_advance", auditDenial: true },
     async ({ client, session }) => ok({ counter: await advanceNumberingCounter(client, session, schema.parse(await readJson(request))) }),
   );
 }

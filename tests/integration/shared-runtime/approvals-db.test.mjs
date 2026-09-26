@@ -201,9 +201,6 @@ test("approvals: sales orders through the inbox and the Sales screen", async (t)
     await admin.query(`INSERT INTO public.companies(id,organization_id,name,legal_name,code,base_currency,country_code,is_primary,status) VALUES ($1,$2,'RT Co','RT Co','RTSC','INR','IN',true,'active')`, [companyId, orgId]);
     await admin.query(`INSERT INTO public.branches(id,organization_id,company_id,name,code,timezone,status) VALUES ($1,$2,$3,'HQ','HQ','Asia/Kolkata','active')`, [branchId, orgId, companyId]);
     for (const id of [sellerId, approverId]) await admin.query(`INSERT INTO public.organization_memberships(organization_id,user_id,role,status) VALUES ($1,$2,'member','active')`, [orgId, id]);
-    for (const [entity, prefix] of [["sales_order", "SO-"], ["sales_quotation", "QT-"]]) {
-      await admin.query(`INSERT INTO public.numbering_series(organization_id,entity_type,prefix) VALUES ($1,$2,$3) ON CONFLICT DO NOTHING`, [orgId, entity, prefix]);
-    }
     await admin.query(`INSERT INTO tenant.currencies(organization_id,code,name,decimal_places,is_base,status) VALUES ($1,'INR','Indian Rupee',2,true,'active')`, [orgId]);
     await admin.query(`INSERT INTO tenant.units_of_measure(id,organization_id,code,name,category,status) VALUES ($1,$2,'EA','Each','quantity','active')`, [uomId, orgId]);
     await admin.query(`INSERT INTO tenant.tax_categories(id,organization_id,code,name,status) VALUES ($1,$2,'STD','Standard','active')`, [taxCategoryId, orgId]);
@@ -248,7 +245,7 @@ test("approvals: sales orders through the inbox and the Sales screen", async (t)
     await admin.query("SET session_replication_role = replica").catch(() => undefined);
     const tables = (await admin.query(`SELECT table_name FROM information_schema.columns WHERE table_schema='tenant' AND column_name='organization_id'`)).rows;
     for (const row of tables) await admin.query(`DELETE FROM tenant.${row.table_name} WHERE organization_id=$1`, [orgId]).catch(() => undefined);
-    for (const table of ["approval_decisions", "approval_requests", "audit_events", "numbering_series"]) await admin.query(`DELETE FROM public.${table} WHERE organization_id=$1`, [orgId]).catch(() => undefined);
+    for (const table of ["approval_decisions", "approval_requests", "audit_events"]) await admin.query(`DELETE FROM public.${table} WHERE organization_id=$1`, [orgId]).catch(() => undefined);
     await admin.query("SET session_replication_role = DEFAULT").catch(() => undefined);
     await admin.query(`DELETE FROM public.organizations WHERE id=$1`, [orgId]);
     await admin.query(`DELETE FROM public.users WHERE id = ANY($1::uuid[])`, [[sellerId, approverId]]).catch(() => undefined);

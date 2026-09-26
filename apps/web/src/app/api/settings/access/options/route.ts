@@ -12,7 +12,7 @@ import { workspaceRoute } from "@/core/workspace-route";
 export async function GET(request: Request) {
   return workspaceRoute(
     request,
-    { permission: CORE_PERMISSIONS.usersView, action: "settings.access.options", transaction: "none" },
+    { permission: CORE_PERMISSIONS.usersView, action: "settings.access.options" },
     async ({ client, session }) => {
       const canManageUsers = hasSessionPermission(session, CORE_PERMISSIONS.usersManage);
       const canAssignRoles = hasSessionPermission(session, CORE_PERMISSIONS.rolesAssign);

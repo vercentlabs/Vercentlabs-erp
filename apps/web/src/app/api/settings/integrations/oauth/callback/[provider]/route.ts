@@ -1,7 +1,7 @@
 import { consumeOAuthState, exchangeOAuthCode, saveOAuthConnection, safeReturnPath } from "@vercentlabs/api";
 import { CORE_PERMISSIONS } from "@vercentlabs/permissions";
 
-import { transaction } from "@/core/db";
+import { tenantTransaction } from "@/core/db";
 import { workspaceRoute } from "@/core/workspace-route";
 
 // The server-owned OAuth redirect URI (APP_URL + this path, registered with
@@ -12,7 +12,7 @@ import { workspaceRoute } from "@/core/workspace-route";
 // It always ends on an allow-listed internal page.
 export async function GET(request: Request, context: { params: Promise<{ provider: string }> }) {
   const { provider } = await context.params;
-  return workspaceRoute(request, { permission: CORE_PERMISSIONS.integrationsManage, action: "integrations.oauth.callback", transaction: "none" }, async ({ session }) => {
+  return workspaceRoute(request, { permission: CORE_PERMISSIONS.integrationsManage, action: "integrations.oauth.callback" }, async ({ session }) => {
     const url = new URL(request.url);
     const land = (path: string, outcome: "connected" | "failed", reason?: string) => {
       const target = new URL(safeReturnPath(path), url.origin);
@@ -23,14 +23,14 @@ export async function GET(request: Request, context: { params: Promise<{ provide
     };
     let attempt;
     try {
-      attempt = await transaction((client) => consumeOAuthState(client, session, provider, url.searchParams.get("state") ?? ""));
+      attempt = await tenantTransaction(session.organizationId, (client) => consumeOAuthState(client, session, provider, url.searchParams.get("state") ?? ""));
     } catch {
       return land("/settings/integrations", "failed", "expired");
     }
     if (url.searchParams.get("error")) return land(attempt.returnPath, "failed", "declined");
     try {
       const exchanged = await exchangeOAuthCode(attempt.profileKey, { code: url.searchParams.get("code") ?? "", redirectUri: attempt.redirectUri, codeVerifier: attempt.codeVerifier });
-      await transaction((client) => saveOAuthConnection(client, session, exchanged));
+      await tenantTransaction(session.organizationId, (client) => saveOAuthConnection(client, session, exchanged));
       return land(attempt.returnPath, "connected");
     } catch {
       return land(attempt.returnPath, "failed", "provider");

@@ -1,6 +1,6 @@
 import { assertSameOrigin, createEmailVerificationToken, enforceRateLimit, clientIp } from "@vercentlabs/api";
 
-import { withClient } from "@/core/db";
+import { withIngressClient } from "@/core/db";
 import { errorResponse, ok } from "@/core/http";
 import { requireUser } from "@/core/session";
 
@@ -14,8 +14,8 @@ export async function POST(request: Request) {
   try {
     assertSameOrigin(request, process.env);
     const session = await requireUser();
-    await withClient((client) => enforceRateLimit(client, `resend-verification:${clientIp(request, process.env)}`, 5, 300));
-    const result = await withClient((client) => createEmailVerificationToken(client, session.userId));
+    await withIngressClient((client) => enforceRateLimit(client, `resend-verification:${clientIp(request, process.env)}`, 5, 300));
+    const result = await withIngressClient((client) => createEmailVerificationToken(client, session.userId));
     return ok({ alreadyVerified: result.alreadyVerified, delivered: result.delivered ?? false });
   } catch (error) {
     return errorResponse(error);

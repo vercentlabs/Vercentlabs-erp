@@ -13,7 +13,7 @@ const putSchema = z.object({ enabled: z.boolean() });
 export async function PUT(request: Request, context: { params: Promise<{ key: string }> }) {
   return workspaceRoute(
     request,
-    { permission: CORE_PERMISSIONS.modulesManage, action: "settings.modules.update", transaction: "platform", auditDenial: true },
+    { permission: CORE_PERMISSIONS.modulesManage, action: "settings.modules.update", auditDenial: true },
     async ({ client, session }) => {
       const { key } = await context.params;
       const body = putSchema.parse(await readJson(request));

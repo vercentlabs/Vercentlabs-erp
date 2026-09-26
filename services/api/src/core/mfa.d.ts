@@ -23,3 +23,4 @@ export declare const __internal: {
   generateRecoveryCode(): string;
   recoveryCodeHash(code: string): string;
 };
+export declare function getOrganizationMfaEnforcement(client: any, organizationId: string): Promise<boolean>;

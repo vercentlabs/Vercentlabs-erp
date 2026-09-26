@@ -1,19 +1,18 @@
 import { z } from "zod";
 
-import { assertSameOriginOrMobile, audit, getOrganizationProfile, updateOrganizationProfile } from "@vercentlabs/api";
+import { audit, getOrganizationProfile, updateOrganizationProfile } from "@vercentlabs/api";
+import { CORE_PERMISSIONS } from "@vercentlabs/permissions";
 
-import { transaction, withClient } from "@/core/db";
-import { errorResponse, ok, readJson } from "@/core/http";
-import { requireApiWorkspace } from "@/core/session";
+import { ok, readJson } from "@/core/http";
+import { workspaceRoute } from "@/core/workspace-route";
 
-export async function GET() {
-  try {
-    const session = await requireApiWorkspace();
-    const profile = await withClient((client) => getOrganizationProfile(client, session.organizationId));
-    return ok({ profile });
-  } catch (error) {
-    return errorResponse(error);
-  }
+// Settings > Organization. Any member may read the organisation's name and
+// timezone; changing them needs organization.manage (also enforced inside
+// updateOrganizationProfile).
+export async function GET(request: Request) {
+  return workspaceRoute(request, { action: "organization.profile.view" }, async ({ client, session }) =>
+    ok({ profile: await getOrganizationProfile(client, session.organizationId) }),
+  );
 }
 
 const putSchema = z.object({
@@ -23,25 +22,17 @@ const putSchema = z.object({
 });
 
 export async function PUT(request: Request) {
-  try {
-    assertSameOriginOrMobile(request, process.env);
-    const session = await requireApiWorkspace();
-    const body = putSchema.parse(await readJson(request));
-    const profile = await transaction(async (client) => {
-      const updated = await updateOrganizationProfile(client, session, body);
-      await audit(client, {
-        organizationId: session.organizationId,
-        actorUserId: session.userId,
-        eventType: "organization.profile.updated",
-        entityType: "organization",
-        entityId: session.organizationId,
-        request,
-        env: process.env,
-      });
-      return updated;
+  return workspaceRoute(request, { permission: CORE_PERMISSIONS.organizationManage, action: "organization.profile.update", auditDenial: true }, async ({ client, session }) => {
+    const updated = await updateOrganizationProfile(client, session, putSchema.parse(await readJson(request)));
+    await audit(client, {
+      organizationId: session.organizationId,
+      actorUserId: session.userId,
+      eventType: "organization.profile.updated",
+      entityType: "organization",
+      entityId: session.organizationId,
+      request,
+      env: process.env,
     });
-    return ok({ profile });
-  } catch (error) {
-    return errorResponse(error);
-  }
+    return ok({ profile: updated });
+  });
 }

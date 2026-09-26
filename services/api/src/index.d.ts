@@ -513,6 +513,20 @@ export function getCommunicationsDashboard(client: QueryClient, context: any): P
 export function listThreadMessages(client: QueryClient, context: any, threadId: string): Promise<{ thread: any; messages: any[] }>;
 export function updateSharedInboxThreadStatus(client: QueryClient, context: any, threadId: string, status: unknown): Promise<any>;
 
+export function publicQuoteTokenHash(token: string): string;
+export function resolvePublicQuoteOrganization(queryable: QueryClient, tokenHash: string): Promise<string>;
+// F014 public meeting pages (token-resolved, anonymous host context).
+export class PublicMeetingError extends Error { readonly status: number; readonly code: string }
+export type PublicMeetingLinkRow = { organization_id: string; meeting_link_id: string; owner_user_id: string; [key: string]: any };
+export type PublicMeetingBookingRow = { organization_id: string; booking_id: string; host_user_id: string; token_type: string };
+export function resolvePublicMeetingLink(queryable: QueryClient, token: string): Promise<PublicMeetingLinkRow>;
+export function resolvePublicMeetingBooking(queryable: QueryClient, token: string): Promise<PublicMeetingBookingRow>;
+export function publicMeetingContext(input: { organizationId: string; hostUserId: string }): any;
+export function assertPublicDate(date: string | null): string;
+export function getPublicMeetingLinkView(client: QueryClient, link: PublicMeetingLinkRow): Promise<Record<string, unknown>>;
+export function getPublicMeetingBookingView(client: QueryClient, booking: PublicMeetingBookingRow): Promise<Record<string, unknown>>;
+export function getPublicRescheduleAvailability(client: QueryClient, booking: PublicMeetingBookingRow, date: string | null): Promise<any>;
+
 export * from "./modules/crm/prospect-and-relationship-master-data/lead-acquisition.js";
 export * from "./modules/crm/prospect-and-relationship-master-data/lead-export.js";
 export * from "./modules/crm/lead-lifecycle-qualification-and-prioritization/lead-intelligence.js";

@@ -1,10 +1,9 @@
-import { createHash } from "node:crypto";
 import { z } from "zod";
 
-import { recordPublicQuoteDecision } from "@vercentlabs/api";
+import { clientIp, publicQuoteTokenHash, recordPublicQuoteDecision, resolvePublicQuoteOrganization } from "@vercentlabs/api";
 
-import { query, tenantTransaction } from "@/core/db";
-import { errorResponse, HttpError, ok, readJson } from "@/core/http";
+import { tenantTransaction, withIngressClient } from "@/core/db";
+import { errorResponse, ok, readJson } from "@/core/http";
 import { toWire } from "@/features/sales/shared/wire";
 
 type RouteContext = { params: Promise<{ token: string }> };
@@ -21,23 +20,20 @@ const schema = z.object({
 // Records the customer's accept/decline. The domain function refuses a second
 // decision, an expired or revoked link, and a quote that was revised after the
 // link was sent -- an accepted decision is evidence, so it can only be made
-// once, against the exact version the customer was shown.
+// once, against the exact version the customer was shown. The client address
+// comes from the trusted proxy configuration, never a raw forwarded header.
 export async function POST(request: Request, context: RouteContext) {
   try {
     const { token } = await context.params;
-    if (!/^[A-Za-z0-9_-]{43}$/.test(token)) throw new HttpError(404, "Quotation link not found.");
+    const tokenHash = publicQuoteTokenHash(token);
     const input = schema.parse(await readJson(request));
-    const tokenHash = createHash("sha256").update(token).digest("hex");
-    const rows = await query<{ organization_id: string }>("SELECT organization_id FROM public.sales_public_quote_tokens WHERE token_hash=$1", [tokenHash]);
-    const found = rows[0];
-    if (!found) throw new HttpError(404, "Quotation link not found.");
+    const organizationId = await withIngressClient((client) => resolvePublicQuoteOrganization(client, tokenHash));
+    const address = clientIp(request, process.env);
     const metadata = {
-      ipAddress: request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || null,
+      ipAddress: ["unavailable", "local"].includes(address) ? null : address,
       userAgent: request.headers.get("user-agent")?.slice(0, 500) || null,
     };
-    const result = await tenantTransaction(found.organization_id, (client) =>
-      recordPublicQuoteDecision(client, { organizationId: found.organization_id } as never, tokenHash, input, metadata),
-    );
+    const result = await tenantTransaction(organizationId, (client) => recordPublicQuoteDecision(client, { organizationId } as never, tokenHash, input, metadata));
     return ok(toWire({ result }) as Record<string, unknown>, 201);
   } catch (error) {
     return errorResponse(error);

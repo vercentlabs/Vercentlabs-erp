@@ -367,3 +367,9 @@ export async function setOrganizationMfaEnforcement(client, session, enforced) {
 // Exported for tests and for anything that needs the raw TOTP primitives
 // without the DB-facing enrollment ceremony around them.
 export const __internal = { base32Encode, base32Decode, hotp, totpAt, matchTotpStep, claimTotpStep, totpUri, generateRecoveryCode, recoveryCodeHash };
+
+/** The organisation's MFA enforcement flag (any member may read it). */
+export async function getOrganizationMfaEnforcement(client, organizationId) {
+  const row = (await client.query(`SELECT mfa_enforced FROM organizations WHERE id = $1`, [organizationId])).rows[0];
+  return Boolean(row?.mfa_enforced);
+}

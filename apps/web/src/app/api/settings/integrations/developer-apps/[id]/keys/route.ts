@@ -18,7 +18,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
   const { id } = await context.params;
   return workspaceRoute(
     request,
-    { permission: CORE_PERMISSIONS.integrationsManage, action: "integrations.api_key.create", transaction: "platform", auditDenial: true },
+    { permission: CORE_PERMISSIONS.integrationsManage, action: "integrations.api_key.create", auditDenial: true },
     async ({ client, session }) => {
       const issued = await createApiKey(client, session, id, schema.parse(await readJson(request)));
       return ok({ key: issued.key, token: issued.token }, 201);

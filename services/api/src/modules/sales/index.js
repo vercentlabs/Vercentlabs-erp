@@ -1398,6 +1398,23 @@ export async function sendQuotation(client, context, id, expiresInDays = 30) {
   );
   return { token, expiresAt, quotationNumber: quote.quotation_number };
 }
+// Public quote links: the URL token (32 random bytes, base64url) is the
+// credential; only its SHA-256 is stored. The organisation is resolved from
+// the hash alone, with no organisation context, by
+// public.resolve_public_quote_organization (migration 068); callers then run
+// resolvePublicQuoteToken / recordPublicQuoteDecision in a tenant
+// transaction for that organisation.
+export function publicQuoteTokenHash(token) {
+  if (!/^[A-Za-z0-9_-]{43}$/.test(String(token || ""))) throw new SalesError(404, "Quotation link not found.", "SALES_PUBLIC_QUOTE_NOT_FOUND");
+  return createHash("sha256").update(String(token)).digest("hex");
+}
+
+export async function resolvePublicQuoteOrganization(queryable, tokenHash) {
+  const organizationId = (await queryable.query("SELECT public.resolve_public_quote_organization($1) AS organization_id", [tokenHash])).rows[0]?.organization_id;
+  if (!organizationId) throw new SalesError(404, "Quotation link not found.", "SALES_PUBLIC_QUOTE_NOT_FOUND");
+  return organizationId;
+}
+
 export async function resolvePublicQuoteToken(
   client,
   context,

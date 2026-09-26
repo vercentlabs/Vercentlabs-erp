@@ -6,7 +6,7 @@ import { workspaceRoute } from "@/core/workspace-route";
 
 export async function GET(request: Request) {
   const workflowId = new URL(request.url).searchParams.get("workflowId");
-  return workspaceRoute(request, { permission: CORE_PERMISSIONS.platformWorkflowsManage, action: "workflows.runs", transaction: "none" }, async ({ client, session }) =>
+  return workspaceRoute(request, { permission: CORE_PERMISSIONS.platformWorkflowsManage, action: "workflows.runs" }, async ({ client, session }) =>
     ok({ runs: await listWorkflowRuns(client, session.organizationId, { workflowId }) }),
   );
 }

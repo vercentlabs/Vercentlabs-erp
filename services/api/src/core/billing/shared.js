@@ -1,5 +1,5 @@
 // Internal helpers shared by the billing modules (not exported from the boundary).
-import { audit } from "../security.js";
+import { redactAuditPayload } from "../audit-redaction.js";
 
 // Short local transaction on a dedicated client. Billing sagas commit BEFORE
 // any provider HTTP call, so a transaction (and its row/advisory locks) is
@@ -16,17 +16,20 @@ export async function tx(client, work) {
   }
 }
 
+// Billing runs across organisations (provider reconciliation), so its audit
+// rows go through the one narrow database function that may write billing.*
+// events for a named organisation outside that organisation's RLS context.
+// Payloads are redacted exactly like every other audit event.
 export async function billingAudit(client, { organizationId, actorUserId = null, eventType, entityId = null, metadata = {}, beforeData, afterData }) {
-  await audit(client, {
-    organizationId,
-    actorUserId,
+  await client.query("SELECT public.record_billing_audit_event($1, $2, $3, $4, $5::jsonb, $6::jsonb, $7::jsonb)", [
+    organizationId || null,
+    actorUserId || null,
     eventType,
-    entityType: "billing",
-    entityId: entityId ? String(entityId) : null,
-    metadata,
-    beforeData,
-    afterData,
-  });
+    entityId ? String(entityId) : null,
+    JSON.stringify(redactAuditPayload(metadata || {})),
+    beforeData === undefined ? null : JSON.stringify(redactAuditPayload(beforeData)),
+    afterData === undefined ? null : JSON.stringify(redactAuditPayload(afterData)),
+  ]);
 }
 
 export const epoch = (seconds) => (seconds ? new Date(Number(seconds) * 1000) : null);

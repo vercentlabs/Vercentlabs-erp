@@ -1,17 +1,12 @@
 import { listAccessibleCompanies } from "@vercentlabs/api";
 
-import { withClient } from "@/core/db";
-import { errorResponse, ok } from "@/core/http";
-import { requireWorkspace } from "@/core/session";
+import { ok } from "@/core/http";
+import { workspaceRoute } from "@/core/workspace-route";
 
-export async function GET() {
-  try {
-    const session = await requireWorkspace();
-    const companies = await withClient((client) =>
-      listAccessibleCompanies(client, session.organizationId, session.userId),
-    );
-    return ok({ companies });
-  } catch (error) {
-    return errorResponse(error);
-  }
+// The companies (and branches) the caller may switch to — the same predicate
+// session resolution uses.
+export async function GET(request: Request) {
+  return workspaceRoute(request, { action: "workspace.companies.list" }, async ({ client, session }) =>
+    ok({ companies: await listAccessibleCompanies(client, session.organizationId, session.userId) }),
+  );
 }

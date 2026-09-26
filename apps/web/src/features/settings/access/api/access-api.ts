@@ -32,9 +32,11 @@ export type GrantableRole = {
 };
 
 export type GrantableCompany = { id: string; name: string; code: string; branches: Array<{ id: string; name: string; code: string }> };
+export type GrantableDepartment = { id: string; name: string; code: string; companyId: string | null };
+export type GrantableTeam = { id: string; name: string; code: string; departmentId: string | null };
 
 export type AccessOptions = {
-  scope: { unrestricted: boolean; companies: GrantableCompany[] } | null;
+  scope: { unrestricted: boolean; companies: GrantableCompany[]; departments: GrantableDepartment[]; teams: GrantableTeam[] } | null;
   roles: GrantableRole[];
   abilities: { canManageUsers: boolean; canAssignRoles: boolean };
 };
@@ -43,11 +45,12 @@ export async function getAccessOptions(): Promise<AccessOptions> {
   return parseResponse(await fetch("/api/settings/access/options"));
 }
 
-export async function saveUserAccessScope(userId: string, companyIds: string[], branchIds: string[]): Promise<{ access: unknown }> {
-  const response = await fetch(`/api/settings/users/${userId}/access`, {
-    method: "PUT",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ companyIds, branchIds }),
-  });
-  return parseResponse(response);
+export async function saveUserAccessScope(userId: string, scope: { companyIds: string[]; branchIds: string[]; departmentIds: string[]; teamIds: string[] }): Promise<{ access: unknown }> {
+  return parseResponse(
+    await fetch(`/api/settings/users/${userId}/access`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(scope),
+    }),
+  );
 }

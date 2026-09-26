@@ -12,7 +12,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
   const { id } = await context.params;
   return workspaceRoute(
     request,
-    { permission: CORE_PERMISSIONS.platformWorkflowsManage, action: "workflows.status", transaction: "platform", auditDenial: true },
+    { permission: CORE_PERMISSIONS.platformWorkflowsManage, action: "workflows.status", auditDenial: true },
     async ({ client, session }) => ok({ workflow: await setWorkflowStatus(client, session, id, schema.parse(await readJson(request)).status) }),
   );
 }

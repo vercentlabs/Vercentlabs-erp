@@ -21,7 +21,7 @@ const STATUS: Record<InvitationRow["status"], { label: string; tone: "success" |
 
 const dateTimeFormatter = new Intl.DateTimeFormat("en-IN", { dateStyle: "medium", timeStyle: "short" });
 
-const EMPTY_FORM = { email: "", roleIds: [] as string[], primaryRoleId: "", companyIds: [] as string[], branchIds: [] as string[] };
+const EMPTY_FORM = { email: "", roleIds: [] as string[], primaryRoleId: "", companyIds: [] as string[], branchIds: [] as string[], departmentIds: [] as string[], teamIds: [] as string[] };
 
 export function InvitationsScreen({ canManage }: { canManage: boolean }) {
   const queryClient = useQueryClient();
@@ -167,12 +167,16 @@ export function InvitationsScreen({ canManage }: { canManage: boolean }) {
             />
           </div>
           <div className="flex flex-col gap-2">
-            <span className="text-xs font-semibold tracking-wide text-text-muted uppercase">Company and branch access</span>
+            <span className="text-xs font-semibold tracking-wide text-text-muted uppercase">Access scope</span>
             {scoped && <p className="text-xs text-text-muted">Choose at least one company you administer.</p>}
             <ScopeSelector
               companies={options?.scope?.companies ?? []}
+              departments={options?.scope?.departments ?? []}
+              teams={options?.scope?.teams ?? []}
               companyIds={form.companyIds}
               branchIds={form.branchIds}
+              departmentIds={form.departmentIds}
+              teamIds={form.teamIds}
               onChange={(next) => setForm((current) => ({ ...current, ...next }))}
             />
           </div>

@@ -19,7 +19,7 @@ const putSchema = z.object({
 export async function PUT(request: Request, context: { params: Promise<{ id: string }> }) {
   return workspaceRoute(
     request,
-    { permission: CORE_PERMISSIONS.rolesManage, action: "settings.roles.update", transaction: "platform", auditDenial: true },
+    { permission: CORE_PERMISSIONS.rolesManage, action: "settings.roles.update", auditDenial: true },
     async ({ client, session }) => {
       const { id } = await context.params;
       const body = putSchema.parse(await readJson(request));
@@ -31,7 +31,7 @@ export async function PUT(request: Request, context: { params: Promise<{ id: str
 export async function DELETE(request: Request, context: { params: Promise<{ id: string }> }) {
   return workspaceRoute(
     request,
-    { permission: CORE_PERMISSIONS.rolesManage, action: "settings.roles.archive", transaction: "platform", auditDenial: true },
+    { permission: CORE_PERMISSIONS.rolesManage, action: "settings.roles.archive", auditDenial: true },
     async ({ client, session }) => {
       const { id } = await context.params;
       await archiveRole(client, session, id);

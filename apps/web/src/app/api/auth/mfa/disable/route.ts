@@ -2,7 +2,7 @@ import { z } from "zod";
 
 import { assertSameOriginOrMobile, audit, disableMfa, enforceRateLimit } from "@vercentlabs/api";
 
-import { transaction } from "@/core/db";
+import { sessionTransaction } from "@/core/db";
 import { errorResponse, ok, readJson } from "@/core/http";
 import { requireApiUser } from "@/core/session";
 
@@ -18,7 +18,7 @@ export async function POST(request: Request) {
     assertSameOriginOrMobile(request, process.env);
     const session = await requireApiUser();
     const body = disableSchema.parse(await readJson(request));
-    await transaction(async (client) => {
+    await sessionTransaction(session, async (client) => {
       await enforceRateLimit(client, `mfa-verify:${session.userId}`, 8, 300);
       await disableMfa(client, session.userId, body.code, process.env);
       await audit(client, {

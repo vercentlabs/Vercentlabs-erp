@@ -15,19 +15,9 @@ import {
 import { createPrivacyRequest, listRetentionPolicies, transitionPrivacyRequest, writeRetentionPolicy } from "../../../services/api/src/core/platform/privacy/index.js";
 import { createRuntimeKit, expectCode } from "../shared-runtime/runtime-kit.mjs";
 
-function platformTx(kit) {
-  return (work) =>
-    kit.runtime(async (client) => {
-      await client.query("BEGIN");
-      try {
-        const result = await work(client);
-        await client.query("COMMIT");
-        return result;
-      } catch (error) {
-        await client.query("ROLLBACK");
-        throw error;
-      }
-    });
+// The web runs every Settings request under the session's organisation.
+function platformTx(kit, org) {
+  return (work) => kit.tenant(org.organizationId, work);
 }
 
 test("feature configuration: versions, schedules, concurrency, operator isolation", async (t) => {
@@ -35,7 +25,7 @@ test("feature configuration: versions, schedules, concurrency, operator isolatio
   try {
     const org = await kit.organization(["admin"]);
     const admin = org.session("admin", ["platform.configuration.manage"]);
-    const tx = platformTx(kit);
+    const tx = platformTx(kit, org);
     const retention = { namespace: "platform.exports", key: "artifact_retention_hours" };
 
     await t.test("defaults, then a new effective version", async () => {
@@ -83,7 +73,7 @@ test("privacy: FSM, versioned registered retention policies, honest enforcement"
   try {
     const org = await kit.organization(["admin"]);
     const admin = org.session("admin", ["platform.privacy.manage"]);
-    const tx = platformTx(kit);
+    const tx = platformTx(kit, org);
 
     await t.test("requests follow the state machine and are audited", async () => {
       const request = await tx((client) => createPrivacyRequest(client, admin, { requestType: "erasure", subjectReference: "customer-42" }));
@@ -124,7 +114,7 @@ test("AI governance: fail closed, registered tools only, approval before executi
     const org = await kit.organization(["admin"]);
     const other = await kit.organization(["x"]);
     const admin = org.session("admin", ["platform.ai.manage"]);
-    const tx = platformTx(kit);
+    const tx = platformTx(kit, org);
     const request = (input) => tx((client) => recordAiRequest(client, admin, { policyKey: "organization", prompt: "Summarise Asha Rao's account balance", ...input }));
 
     await t.test("no policy means no AI", async () => {

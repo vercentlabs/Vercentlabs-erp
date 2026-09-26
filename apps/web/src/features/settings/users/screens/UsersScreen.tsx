@@ -7,7 +7,7 @@ import { AlertDialog, Badge, Button, Dialog, EmptyState, ErrorState, PageHeader,
 import { AccessApiError, getAccessOptions, saveUserAccessScope } from "@/features/settings/access/api/access-api";
 import { EffectiveAccessSummary } from "@/features/settings/access/EffectiveAccessSummary";
 import { RoleSelector } from "@/features/settings/access/RoleSelector";
-import { ScopeSelector } from "@/features/settings/access/ScopeSelector";
+import { ScopeSelector, type AccessScope } from "@/features/settings/access/ScopeSelector";
 import { RolesApiError, setUserRoles } from "@/features/settings/roles/api/roles-api";
 import { listMembers, MemberRow, setMemberStatus, UsersApiError } from "../api/users-api";
 
@@ -35,7 +35,7 @@ export function UsersScreen({ abilities, currentUserId }: { abilities: UsersAbil
 
   const [statusTarget, setStatusTarget] = useState<MemberRow | null>(null);
   const [accessTarget, setAccessTarget] = useState<MemberRow | null>(null);
-  const [scope, setScope] = useState<{ companyIds: string[]; branchIds: string[] }>({ companyIds: [], branchIds: [] });
+  const [scope, setScope] = useState<AccessScope>({ companyIds: [], branchIds: [], departmentIds: [], teamIds: [] });
   const [rolesTarget, setRolesTarget] = useState<MemberRow | null>(null);
   const [roleSelection, setRoleSelection] = useState<{ roleIds: string[]; primaryRoleId: string }>({ roleIds: [], primaryRoleId: "" });
   const [dialogError, setDialogError] = useState<string | null>(null);
@@ -57,7 +57,7 @@ export function UsersScreen({ abilities, currentUserId }: { abilities: UsersAbil
   });
 
   const accessMutation = useMutation({
-    mutationFn: () => saveUserAccessScope(accessTarget!.user_id, scope.companyIds, scope.branchIds),
+    mutationFn: () => saveUserAccessScope(accessTarget!.user_id, scope),
     onSuccess: () => {
       setDialogError(null);
       setAccessTarget(null);
@@ -96,7 +96,7 @@ export function UsersScreen({ abilities, currentUserId }: { abilities: UsersAbil
 
   const openAccess = (member: MemberRow) => {
     // Ids come straight from the server — never reconstructed from names.
-    setScope({ companyIds: member.company_ids, branchIds: member.branch_ids });
+    setScope({ companyIds: member.company_ids, branchIds: member.branch_ids, departmentIds: member.department_ids ?? [], teamIds: member.team_ids ?? [] });
     setDialogError(null);
     setAccessTarget(member);
   };
@@ -198,11 +198,11 @@ export function UsersScreen({ abilities, currentUserId }: { abilities: UsersAbil
 
       <Dialog isOpen={Boolean(accessTarget)} onOpenChange={(open) => !open && setAccessTarget(null)} title={`Manage access — ${accessTarget?.full_name ?? ""}`}>
         <div className="flex flex-col gap-4">
-          <p className="text-sm text-text-secondary">Choose the companies and branches this person can work in.</p>
+          <p className="text-sm text-text-secondary">Choose the companies, branches, departments and teams this person can work in.</p>
           {optionsQuery.isLoading ? (
             <p className="text-sm text-text-secondary">Loading…</p>
           ) : (
-            <ScopeSelector companies={grantableCompanies} companyIds={scope.companyIds} branchIds={scope.branchIds} onChange={setScope} />
+            <ScopeSelector companies={grantableCompanies} departments={options?.scope?.departments ?? []} teams={options?.scope?.teams ?? []} companyIds={scope.companyIds} branchIds={scope.branchIds} departmentIds={scope.departmentIds} teamIds={scope.teamIds} onChange={setScope} />
           )}
           {dialogError && accessTarget ? (
             <p role="alert" className="text-sm text-danger">

@@ -9,7 +9,7 @@ import { workspaceRoute } from "@/core/workspace-route";
 export async function GET(request: Request) {
   return workspaceRoute(
     request,
-    { permission: CORE_PERMISSIONS.usersView, action: "settings.users.list", transaction: "none" },
+    { permission: CORE_PERMISSIONS.usersView, action: "settings.users.list" },
     async ({ client, session }) => ok({ members: await listOrganizationMembers(client, session) }),
   );
 }

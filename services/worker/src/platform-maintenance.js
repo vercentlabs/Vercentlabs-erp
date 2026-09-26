@@ -5,22 +5,23 @@
 import { purgeExpiredFileContent } from "@vercentlabs/api";
 import { createLogger, redact } from "@vercentlabs/observability";
 
+import { listActiveOrganizationIds, withTenantClient } from "./db.js";
+
 const logger = createLogger("worker-platform");
 
+// Per organisation, each in its own organisation-context transaction.
 export async function runPlatformMaintenanceTick(pool, { limit = 100 } = {}) {
-  const client = await pool.connect();
-  try {
-    await client.query("BEGIN");
-    const files = await purgeExpiredFileContent(client, { limit });
-    await client.query("COMMIT");
-    if (files.removed) logger.info("expired artifacts purged", { removed: files.removed });
-    return { files };
-  } catch (error) {
-    await client.query("ROLLBACK").catch(() => undefined);
-    throw error;
-  } finally {
-    client.release();
+  let removed = 0;
+  for (const organizationId of await listActiveOrganizationIds(pool)) {
+    try {
+      const files = await withTenantClient(pool, organizationId, (client) => purgeExpiredFileContent(client, { organizationId, limit }));
+      removed += files.removed;
+    } catch (error) {
+      logger.error("expired artifact purge failed", { organizationId, error: redact(String(error?.message || error)) });
+    }
   }
+  if (removed) logger.info("expired artifacts purged", { removed });
+  return { files: { removed } };
 }
 
 export function createPlatformMaintenanceLoop(getPool, config) {

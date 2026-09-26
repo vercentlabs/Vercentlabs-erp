@@ -123,7 +123,6 @@ test("F290/F304/F305/F307: invoice generation, payment reconciliation, accountin
     // org that existed at that time, or via onboarding for later ones --
     // this test's org is created directly via SQL, so it needs the same
     // row a real org's Accounting module enablement would provide.
-    await admin.query(`INSERT INTO public.numbering_series(organization_id,entity_type,prefix) VALUES ($1,'journal_entry','JE-'),($1,'customer_invoice','INV-') ON CONFLICT DO NOTHING`, [orgId]);
     await admin.query(`INSERT INTO public.companies(id,organization_id,name,legal_name,code,base_currency,country_code,is_primary,status) VALUES ($1,$2,'F305 Co','F305 Co Pvt Ltd','F305CO','INR','IN',true,'active')`, [companyId, orgId]);
     await admin.query(`INSERT INTO public.branches(id,organization_id,company_id,name,code,timezone,status) VALUES ($1,$2,$3,'HQ','HQ','Asia/Kolkata','active')`, [branchId, orgId, companyId]);
     await setTenantContext(admin, orgId);
@@ -429,7 +428,6 @@ test("F290/F304/F305/F307: invoice generation, payment reconciliation, accountin
     ]) {
       await admin.query(`DELETE FROM tenant.${table} WHERE organization_id=$1`, [orgId]).catch(() => undefined);
     }
-    await admin.query(`DELETE FROM public.numbering_series WHERE organization_id=$1`, [orgId]).catch(() => undefined);
     await admin.query(`DELETE FROM public.organizations WHERE id=$1`, [orgId]).catch(() => undefined);
     await admin.query(`DELETE FROM public.users WHERE id=ANY($1::uuid[])`, [[cashierId, supervisorId, managerId]]).catch(() => undefined);
     await admin.end();

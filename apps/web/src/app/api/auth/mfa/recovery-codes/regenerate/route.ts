@@ -2,7 +2,7 @@ import { z } from "zod";
 
 import { assertSameOriginOrMobile, audit, enforceRateLimit, regenerateRecoveryCodes } from "@vercentlabs/api";
 
-import { transaction } from "@/core/db";
+import { sessionTransaction } from "@/core/db";
 import { errorResponse, ok, readJson } from "@/core/http";
 import { requireApiUser } from "@/core/session";
 
@@ -17,7 +17,7 @@ export async function POST(request: Request) {
     assertSameOriginOrMobile(request, process.env);
     const session = await requireApiUser();
     const body = regenerateSchema.parse(await readJson(request));
-    const result = await transaction(async (client) => {
+    const result = await sessionTransaction(session, async (client) => {
       await enforceRateLimit(client, `mfa-verify:${session.userId}`, 8, 300);
       const regenerated = await regenerateRecoveryCodes(client, session.userId, body.code, process.env);
       await audit(client, {

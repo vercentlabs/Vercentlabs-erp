@@ -9,7 +9,7 @@ import { billingProvider } from "@/features/billing/provider";
 export async function POST(request: Request) {
   return workspaceRoute(
     request,
-    { permission: BILLING_PERMISSIONS.manage, action: "billing.cancel", transaction: "none", auditDenial: true },
+    { permission: BILLING_PERMISSIONS.manage, action: "billing.cancel", auditDenial: true },
     async ({ client, session }) =>
       ok(await cancelPaidSubscription(client, { organizationId: session.organizationId, userId: session.userId }, billingProvider())),
   );

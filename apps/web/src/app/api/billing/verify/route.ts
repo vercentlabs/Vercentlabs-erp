@@ -19,7 +19,7 @@ const schema = z.object({
 export async function POST(request: Request) {
   return workspaceRoute(
     request,
-    { permission: BILLING_PERMISSIONS.checkout, action: "billing.checkout.verify", transaction: "none", auditDenial: true },
+    { permission: BILLING_PERMISSIONS.checkout, action: "billing.checkout.verify", auditDenial: true },
     async ({ client, session }) => {
       const body = schema.parse(await readJson(request));
       const ctx = { organizationId: session.organizationId, userId: session.userId, email: session.email };

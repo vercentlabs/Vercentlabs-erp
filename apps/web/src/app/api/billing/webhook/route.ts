@@ -1,6 +1,6 @@
 import { ingestBillingWebhook, MAX_WEBHOOK_BODY_BYTES, readRequestBytes } from "@vercentlabs/api";
 
-import { withClient } from "@/core/db";
+import { withIngressClient } from "@/core/db";
 import { errorResponse, ok } from "@/core/http";
 import { billingProvider } from "@/features/billing/provider";
 
@@ -12,7 +12,7 @@ import { billingProvider } from "@/features/billing/provider";
 export async function POST(request: Request) {
   try {
     const rawBody = Buffer.from(await readRequestBytes(request, MAX_WEBHOOK_BODY_BYTES)).toString("utf8");
-    const result = await withClient((client) =>
+    const result = await withIngressClient((client) =>
       ingestBillingWebhook(
         client,
         { rawBody, signature: request.headers.get("x-razorpay-signature"), eventIdHeader: request.headers.get("x-razorpay-event-id") },

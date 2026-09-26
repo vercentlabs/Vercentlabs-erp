@@ -264,6 +264,38 @@ export async function assertInvitationWithinAdministrationScope(
   }
 }
 
+// Departments and teams in a scope selection must exist in this
+// organisation, be active when newly granted, and sit under the rest of the
+// selection: a company-bound department under a selected company, a team
+// under a selected department (the same rule branches follow for companies).
+// Never trusts client-side filtering; stale and cross-organisation ids fail.
+export async function validateDepartmentTeamScope(client, organizationId, { companyIds, departmentIds, teamIds }, { previousDepartmentIds = [], previousTeamIds = [] } = {}) {
+  const departments = departmentIds.length
+    ? (await client.query("SELECT id, company_id, status FROM departments WHERE organization_id = $1 AND id = ANY($2::uuid[])", [organizationId, departmentIds])).rows
+    : [];
+  if (departments.length !== departmentIds.length) {
+    throw new AccessAdministrationError(422, "One or more departments do not belong to this organization.", "ACCESS_ADMIN_DEPARTMENT_INVALID");
+  }
+  if (departments.some((department) => department.status !== "active" && !previousDepartmentIds.includes(department.id))) {
+    throw new AccessAdministrationError(422, "Inactive departments cannot be newly granted.", "ACCESS_ADMIN_DEPARTMENT_INACTIVE");
+  }
+  if (departments.some((department) => department.company_id && !companyIds.includes(department.company_id))) {
+    throw new AccessAdministrationError(422, "Every department must belong to one of the selected companies.", "ACCESS_ADMIN_DEPARTMENT_OUTSIDE_COMPANY");
+  }
+  const teams = teamIds.length
+    ? (await client.query("SELECT id, department_id, status FROM teams WHERE organization_id = $1 AND id = ANY($2::uuid[])", [organizationId, teamIds])).rows
+    : [];
+  if (teams.length !== teamIds.length) {
+    throw new AccessAdministrationError(422, "One or more teams do not belong to this organization.", "ACCESS_ADMIN_TEAM_INVALID");
+  }
+  if (teams.some((team) => team.status !== "active" && !previousTeamIds.includes(team.id))) {
+    throw new AccessAdministrationError(422, "Inactive teams cannot be newly granted.", "ACCESS_ADMIN_TEAM_INACTIVE");
+  }
+  if (teams.some((team) => team.department_id && !departmentIds.includes(team.department_id))) {
+    throw new AccessAdministrationError(422, "Every team must belong to one of the selected departments.", "ACCESS_ADMIN_TEAM_OUTSIDE_DEPARTMENT");
+  }
+}
+
 export async function validateScopeGrantCeiling(
   client,
   { organizationId, actorUserId, actorRoleSlugs, companyIds, branchIds, departmentIds, teamIds },
@@ -777,12 +809,37 @@ export async function listGrantableScope(client, session) {
       ORDER BY branch.is_primary DESC, branch.name ASC`,
     [session.organizationId, session.userId, unrestricted],
   );
+  // Departments and teams follow the same ceiling: unrestricted
+  // administrators see all active ones, delegated administrators only those
+  // they hold themselves.
+  const departments = await client.query(
+    `SELECT department.id, department.name, department.code, department.company_id
+       FROM departments department
+      WHERE department.organization_id = $1 AND department.status = 'active'
+        AND ($3::boolean OR EXISTS (
+          SELECT 1 FROM membership_department_access access
+           WHERE access.organization_id = department.organization_id AND access.user_id = $2 AND access.department_id = department.id))
+      ORDER BY department.name ASC`,
+    [session.organizationId, session.userId, unrestricted],
+  );
+  const teams = await client.query(
+    `SELECT team.id, team.name, team.code, team.department_id
+       FROM teams team
+      WHERE team.organization_id = $1 AND team.status = 'active'
+        AND ($3::boolean OR EXISTS (
+          SELECT 1 FROM membership_team_access access
+           WHERE access.organization_id = team.organization_id AND access.user_id = $2 AND access.team_id = team.id))
+      ORDER BY team.name ASC`,
+    [session.organizationId, session.userId, unrestricted],
+  );
   return {
     unrestricted,
     companies: companies.rows.map((company) => ({
       ...company,
       branches: branches.rows.filter((branch) => branch.company_id === company.id).map(({ id, name, code }) => ({ id, name, code })),
     })),
+    departments: departments.rows.map((row) => ({ id: row.id, name: row.name, code: row.code, companyId: row.company_id })),
+    teams: teams.rows.map((row) => ({ id: row.id, name: row.name, code: row.code, departmentId: row.department_id })),
   };
 }
 
@@ -846,6 +903,8 @@ export async function setUserAccessScope(client, session, targetUserId, { compan
   if (branches.some((branch) => !next.companyIds.includes(branch.company_id))) {
     throw new AccessAdministrationError(422, "Every branch must belong to one of the selected companies.", "ACCESS_ADMIN_BRANCH_OUTSIDE_COMPANY");
   }
+
+  await validateDepartmentTeamScope(client, session.organizationId, next, { previousDepartmentIds: before.departmentIds, previousTeamIds: before.teamIds });
 
   // 3. The new grants must stay inside the actor's own scope.
   await validateScopeGrantCeiling(client, {

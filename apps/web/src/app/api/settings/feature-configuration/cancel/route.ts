@@ -12,7 +12,7 @@ const schema = z.object({ namespace: z.string().max(120), key: z.string().max(16
 export async function POST(request: Request) {
   return workspaceRoute(
     request,
-    { permission: CORE_PERMISSIONS.platformConfigurationManage, action: "configuration.cancel_schedule", transaction: "platform", auditDenial: true },
+    { permission: CORE_PERMISSIONS.platformConfigurationManage, action: "configuration.cancel_schedule", auditDenial: true },
     async ({ client, session }) => ok(await cancelScheduledConfiguration(client, session, schema.parse(await readJson(request)))),
   );
 }

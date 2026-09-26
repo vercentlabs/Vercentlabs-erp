@@ -234,7 +234,7 @@ try {
   );
   const outboxBefore = await client.query(
     `SELECT count(*)::int AS count
-       FROM tenant.crm_outbox_events
+       FROM tenant.platform_events
       WHERE organization_id=$1 AND entity_type='opportunity' AND entity_id=$2
         AND event_type='crm.opportunity.stage_changed'`,
     [base.organization_id, created.id],
@@ -269,7 +269,7 @@ try {
   );
   const outboxAfterMove = await client.query(
     `SELECT count(*)::int AS count
-       FROM tenant.crm_outbox_events
+       FROM tenant.platform_events
       WHERE organization_id=$1 AND entity_type='opportunity' AND entity_id=$2
         AND event_type='crm.opportunity.stage_changed'`,
     [base.organization_id, created.id],
@@ -295,7 +295,7 @@ try {
   );
   const outboxAfterReplay = await client.query(
     `SELECT count(*)::int AS count
-       FROM tenant.crm_outbox_events
+       FROM tenant.platform_events
       WHERE organization_id=$1 AND entity_type='opportunity' AND entity_id=$2
         AND event_type='crm.opportunity.stage_changed'`,
     [base.organization_id, created.id],

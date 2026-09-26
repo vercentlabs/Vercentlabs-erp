@@ -10,7 +10,7 @@ import { workspaceRoute } from "@/core/workspace-route";
 // this runs in a tenant transaction. Never billing-gated: numbering is account
 // administration.
 export async function GET(request: Request) {
-  return workspaceRoute(request, { permission: CORE_PERMISSIONS.numberingManage, action: "numbering.view", transaction: "tenant" }, async ({ client, session }) => {
+  return workspaceRoute(request, { permission: CORE_PERMISSIONS.numberingManage, action: "numbering.view" }, async ({ client, session }) => {
     const companies = (await listAccessibleCompanies(client, session.organizationId, session.userId)).map(({ id, name }) => ({ id, name }));
     const requested = new URL(request.url).searchParams.get("companyId");
     const companyId = companies.some((company) => company.id === requested) ? requested : companies[0]?.id;
@@ -31,7 +31,7 @@ const policySchema = z.object({
 export async function PUT(request: Request) {
   return workspaceRoute(
     request,
-    { permission: CORE_PERMISSIONS.numberingManage, action: "numbering.policy_update", transaction: "tenant", auditDenial: true },
+    { permission: CORE_PERMISSIONS.numberingManage, action: "numbering.policy_update", auditDenial: true },
     async ({ client, session }) => ok({ policy: await setNumberingPolicy(client, session, policySchema.parse(await readJson(request))) }),
   );
 }

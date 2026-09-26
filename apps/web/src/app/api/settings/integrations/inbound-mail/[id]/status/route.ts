@@ -12,7 +12,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
   const { id } = await context.params;
   return workspaceRoute(
     request,
-    { permission: CORE_PERMISSIONS.integrationsManage, action: "integrations.inbound_mail.status", transaction: "platform", auditDenial: true },
+    { permission: CORE_PERMISSIONS.integrationsManage, action: "integrations.inbound_mail.status", auditDenial: true },
     async ({ client, session }) => ok({ route: await setInboundMailRouteStatus(client, session, id, schema.parse(await readJson(request)).status) }),
   );
 }

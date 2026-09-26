@@ -35,14 +35,6 @@ function harness(overrides: Partial<SecureRouteDeps<Session, Client>> & { allow?
       calls.push(`tenant:${organizationId}`);
       return work({ id: "tenant-client" });
     },
-    runPlatform: async (work) => {
-      calls.push("platform");
-      return work({ id: "platform-client" });
-    },
-    runClient: async (work) => {
-      calls.push("client");
-      return work({ id: "client" });
-    },
     createPrincipal: () => {
       calls.push("principal");
       return principal;
@@ -137,11 +129,11 @@ test("a denied authorization is logged, never reaches the handler, and skips the
   assert.ok(!calls.includes("billing"));
 });
 
-test("reads skip the origin check; permission-only routes skip the snapshot; transaction mode is honoured", async () => {
+test("reads skip the origin check; permission-only routes skip the snapshot; every request runs under the session's organisation", async () => {
   const { calls, route } = harness();
   const get = new Request("https://erp.example/api/thing", { method: "GET" });
-  await route(get, { permission: "roles.manage", transaction: "none" }, async () => new Response("ok"));
-  assert.deepEqual(calls, ["session", "client", "principal", "authorize:-:roles.manage"]);
+  await route(get, { permission: "roles.manage" }, async () => new Response("ok"));
+  assert.deepEqual(calls, ["session", `tenant:${ORG}`, "principal", "authorize:-:roles.manage"]);
 });
 
 test("the tenant for the transaction always comes from the session, never the request", async () => {
@@ -174,7 +166,7 @@ test("auditDenial: an authenticated domain denial is logged and durably recorded
       logged.push(String(event.code));
     },
   });
-  const response = await route(post(), { action: "settings.user_access.update", transaction: "platform", auditDenial: true }, async () => {
+  const response = await route(post(), { action: "settings.user_access.update", auditDenial: true }, async () => {
     throw denial();
   });
   assert.equal(response.status, 403);
@@ -186,7 +178,7 @@ test("auditDenial: an authenticated domain denial is logged and durably recorded
       throw new Error("audit database unavailable");
     },
   });
-  const stillForbidden = await failing.route(post(), { auditDenial: true, transaction: "platform" }, async () => {
+  const stillForbidden = await failing.route(post(), { auditDenial: true }, async () => {
     throw denial();
   });
   assert.equal(stillForbidden.status, 403);
@@ -195,7 +187,7 @@ test("auditDenial: an authenticated domain denial is logged and durably recorded
 test("auditDenial is opt-in and never records unauthenticated requests", async () => {
   const recorded: unknown[] = [];
   const optedOut = harness({ recordDeniedAccess: async (event) => void recorded.push(event) });
-  await optedOut.route(post(), { transaction: "platform" }, async () => {
+  await optedOut.route(post(), {}, async () => {
     throw Object.assign(new Error("no"), { status: 403, code: "PERMISSION_DENIED" });
   });
   const anonymous = harness({

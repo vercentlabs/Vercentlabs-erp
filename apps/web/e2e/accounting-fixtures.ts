@@ -38,9 +38,6 @@ async function buildWorld(): Promise<AccountingWorld> {
     await client.query("BEGIN");
     await client.query(`SELECT set_config('app.current_organization_id', $1, true)`, [organizationId]);
     await client.query(`INSERT INTO tenant.currencies(organization_id,code,name,decimal_places,is_base,status) VALUES ($1,$2::text,$2::text,2,true,'active') ON CONFLICT DO NOTHING`, [organizationId, company.base_currency]);
-    for (const [type, prefix] of [["journal_entry", "JE-"], ["customer_invoice", "INV-"], ["customer_credit_note", "CRN-"], ["customer_receipt", "RCT-"], ["vendor_bill", "BILL-"], ["vendor_payment", "PAY-"]]) {
-      await client.query(`INSERT INTO public.numbering_series(organization_id,entity_type,prefix) VALUES ($1,$2,$3) ON CONFLICT DO NOTHING`, [organizationId, type, prefix]);
-    }
     const year = new Date().getUTCFullYear();
     const overlap = await client.query(`SELECT 1 FROM tenant.fiscal_periods WHERE organization_id=$1 AND company_id=$2 AND status='open' AND start_date<=current_date AND end_date>=current_date`, [organizationId, companyId]);
     if (!overlap.rows[0]) {

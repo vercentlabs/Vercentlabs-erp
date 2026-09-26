@@ -13,7 +13,7 @@ const putSchema = z.object({ status: z.enum(["active", "disabled"]) });
 export async function PUT(request: Request, context: { params: Promise<{ id: string }> }) {
   return workspaceRoute(
     request,
-    { permission: CORE_PERMISSIONS.usersManage, action: "settings.user_status.update", transaction: "platform", auditDenial: true },
+    { permission: CORE_PERMISSIONS.usersManage, action: "settings.user_status.update", auditDenial: true },
     async ({ client, session }) => {
       const { id } = await context.params;
       const body = putSchema.parse(await readJson(request));

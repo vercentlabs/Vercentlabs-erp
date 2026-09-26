@@ -26,7 +26,6 @@ import type {
 
 const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
 
-export type SecureRouteTransaction = "tenant" | "platform" | "none";
 
 export type SecureRouteOptions = {
   /** Business module that must be released, enabled, entitled and permitted. */
@@ -38,12 +37,6 @@ export type SecureRouteOptions = {
   action?: string;
   /** Require an active, writable subscription (business-data mutations only). */
   billingWrite?: boolean;
-  /**
-   * "tenant" (default): tenant-RLS transaction for the session's organization.
-   * "platform": plain transaction for public/platform tables (Settings).
-   * "none": a single pooled client, no transaction (read-only platform reads).
-   */
-  transaction?: SecureRouteTransaction;
   /** Build the full WorkspaceAccessSnapshot even without a module check. */
   snapshot?: boolean;
   /**
@@ -91,8 +84,6 @@ export type SecureRouteDeps<Session extends { organizationId: string }, Client> 
   assertOrigin(request: Request): void;
   requireSession(): Promise<Session>;
   runTenant<T>(organizationId: string, work: (client: Client) => Promise<T>): Promise<T>;
-  runPlatform<T>(work: (client: Client) => Promise<T>): Promise<T>;
-  runClient<T>(work: (client: Client) => Promise<T>): Promise<T>;
   createPrincipal(session: Session): AccessPrincipal;
   buildSnapshot(client: Client, session: Session): Promise<WorkspaceAccessSnapshot>;
   authorize(input: AuthorizeInput): AccessDecision;
@@ -127,15 +118,10 @@ export function createSecureRoute<Session extends { organizationId: string }, Cl
       }
 
       const session = await deps.requireSession();
-      const transaction = options.transaction ?? "tenant";
-      const run =
-        transaction === "none"
-          ? deps.runClient
-          : transaction === "platform"
-            ? deps.runPlatform
-            : <T>(work: (client: Client) => Promise<T>) => deps.runTenant(session.organizationId, work);
-
-      return await run(async (client) => {
+      // One transaction per request, always under the session's organisation
+      // context: tenant tables AND organisation-scoped platform tables are
+      // row-level-security protected (packages/database/src/table-classification.js).
+      return await deps.runTenant(session.organizationId, async (client) => {
         const snapshot = options.module || options.snapshot ? await deps.buildSnapshot(client, session) : null;
         principal = snapshot?.principal ?? deps.createPrincipal(session);
         const decision = deps.authorize({

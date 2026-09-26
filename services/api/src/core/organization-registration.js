@@ -19,6 +19,8 @@
 // with) rather than re-encoding a second, driftable copy of it.
 import { randomUUID } from "node:crypto";
 
+import { setTenantContext } from "@vercentlabs/database";
+
 import { ROLE_TEMPLATES } from "@vercentlabs/permissions";
 
 import { hashPassword } from "./session.js";
@@ -121,6 +123,10 @@ export async function registerOrganization(client, input) {
   );
 
   const organizationId = randomUUID();
+  // Everything below creates the new organisation's own rows: the caller's
+  // transaction runs under the new organisation's context from here on
+  // (platform and tenant tables are organisation-RLS protected).
+  await setTenantContext(client, organizationId);
   const baseSlug = slugify(organizationName) || "organization";
   const existingSlugs = new Set(
     (await client.query(`SELECT slug FROM organizations WHERE slug LIKE $1`, [`${baseSlug}%`])).rows.map((row) => row.slug),

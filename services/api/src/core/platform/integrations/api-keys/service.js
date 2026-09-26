@@ -7,6 +7,8 @@
 // scopes) - a machine identity with no human roles or permissions.
 import { createHash, randomBytes } from "node:crypto";
 
+import { setTenantContext } from "@vercentlabs/database";
+
 import { audit } from "../../../security.js";
 import { API_SCOPES, getApiScope } from "./scopes.js";
 
@@ -198,8 +200,15 @@ export async function revokeApiKey(client, session, keyId) {
  * app must be active and unexpired. last_used_at is refreshed at most every
  * five minutes, so reads do not write on every request.
  */
+// Must run inside a transaction: the key's organisation is resolved from the
+// key hash alone (public.resolve_api_key_organization, migration 068) and
+// becomes the transaction's organisation context — the ONLY source of a
+// machine principal's tenant (never a path, query or body value).
 export async function authenticateApiKey(client, token) {
   const keyHash = apiKeyHash(token);
+  const organizationId = (await client.query("SELECT public.resolve_api_key_organization($1) AS organization_id", [keyHash])).rows[0]?.organization_id;
+  if (!organizationId) throw new ApiKeyError(401, "The API key is invalid, revoked or expired.", "PLATFORM_API_KEY_INVALID");
+  await setTenantContext(client, organizationId);
   const { rows } = await client.query(
     `SELECT key.id, key.organization_id, key.developer_app_id, key.scopes, key.last_used_at, app.name AS app_name
        FROM api_keys key

@@ -18,7 +18,7 @@ export async function GET(request: Request) {
 
 // Mark every notification read: the caller's own rows only.
 export async function PATCH(request: Request) {
-  return workspaceRoute(request, { action: "notifications.mark_all_read", transaction: "platform" }, async ({ client, session }) =>
+  return workspaceRoute(request, { action: "notifications.mark_all_read" }, async ({ client, session }) =>
     ok(await markAllNotificationsRead(client, session)),
   );
 }

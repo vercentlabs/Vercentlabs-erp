@@ -1,6 +1,6 @@
 import { getInvitationByToken } from "@vercentlabs/api";
 
-import { withClient } from "@/core/db";
+import { withIngressClient } from "@/core/db";
 import { errorResponse, ok } from "@/core/http";
 
 // Public by design — the acceptance page needs to show the organization
@@ -10,7 +10,7 @@ import { errorResponse, ok } from "@/core/http";
 export async function GET(_request: Request, context: { params: Promise<{ token: string }> }) {
   try {
     const { token } = await context.params;
-    const invitation = await withClient((client) => getInvitationByToken(client, token));
+    const invitation = await withIngressClient((client) => getInvitationByToken(client, token));
     return ok({
       organizationName: invitation.organization_name,
       roleName: invitation.role_name,

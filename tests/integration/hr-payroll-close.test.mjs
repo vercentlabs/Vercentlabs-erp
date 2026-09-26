@@ -121,7 +121,6 @@ test("HR final settlement, bank file, accounting posting and reconciliation agai
       await denied("hrA", (c, x) => close.postPayrollToAccounting(c, x, ids.run), 409, "HR_ACCOUNTING_NOT_CONFIGURED");
       await admin.query("BEGIN");
       await admin.query(`SELECT set_config('app.current_organization_id', $1, true)`, [w.orgId]);
-      await admin.query(`INSERT INTO public.numbering_series(organization_id,entity_type,prefix) VALUES ($1,'journal_entry','JE-') ON CONFLICT DO NOTHING`, [w.orgId]);
       await admin.query(`INSERT INTO tenant.fiscal_periods(organization_id,company_id,name,fiscal_year,start_date,end_date,status) VALUES ($1,$2,'FY Current','FY-CURRENT',date_trunc('year',current_date)::date,(date_trunc('year',current_date)+interval '1 year - 1 day')::date,'open') ON CONFLICT DO NOTHING`, [w.orgId, w.companyId]);
       await initializeAccountingCompany(admin, { organizationId: w.orgId, companyId: w.companyId, userId: users.hrA });
       const ledger = (await admin.query(`SELECT id FROM tenant.accounting_ledgers WHERE organization_id=$1 AND company_id=$2`, [w.orgId, w.companyId])).rows[0];

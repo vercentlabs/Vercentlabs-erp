@@ -35,6 +35,10 @@ export type MemberRow = {
   company_names: string[];
   branch_ids: string[];
   branch_names: string[];
+  department_ids: string[];
+  department_names: string[];
+  team_ids: string[];
+  team_names: string[];
 };
 
 export async function listMembers(): Promise<{ members: MemberRow[] }> {

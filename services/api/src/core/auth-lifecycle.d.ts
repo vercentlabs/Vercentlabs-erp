@@ -38,6 +38,8 @@ export declare function createOrganizationInvitation(
     primaryRoleId?: string;
     companyIds?: string[];
     branchIds?: string[];
+    departmentIds?: string[];
+    teamIds?: string[];
     inviter: { roleSlugs: string[]; permissions: string[] };
     acknowledgeWarningConflicts?: boolean;
   },
@@ -84,3 +86,12 @@ export declare function resendOrganizationInvitation(
   input: { organizationId: string; invitationId: string; actor: InvitationAdministrator },
   env?: any,
 ): Promise<{ delivered: boolean }>;
+
+export declare function findUserForSignIn(
+  client: { query(text: string, values?: unknown[]): Promise<{ rows: any[] }> },
+  email: string,
+): Promise<{ id: string; email: string; password_hash: string | null; status: string } | null>;
+export declare function startUserSession(
+  client: { query(text: string, values?: unknown[]): Promise<{ rows: any[] }> },
+  input: { userId: string; ipAddress: string | null; userAgent: string | null; request?: Request; env?: Record<string, string | undefined> },
+): Promise<{ sessionId: string; token: string; expiresAt: Date }>;

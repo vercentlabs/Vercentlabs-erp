@@ -227,7 +227,7 @@ try {
     (
       await client.query(
         `SELECT count(*)::int AS count
-           FROM tenant.crm_outbox_events
+           FROM tenant.platform_events
           WHERE organization_id=$1 AND event_type LIKE 'crm.meeting.%'`,
         [organizationId],
       )
@@ -281,7 +281,7 @@ try {
     await client.query(
       `SELECT
          (SELECT count(*)::int FROM tenant.crm_meeting_events WHERE organization_id=$1 AND activity_id=$2) AS events,
-         (SELECT count(*)::int FROM tenant.crm_outbox_events WHERE organization_id=$1 AND entity_type='meeting' AND entity_id=$2) AS outbox`,
+         (SELECT count(*)::int FROM tenant.platform_events WHERE organization_id=$1 AND entity_type='meeting' AND entity_id=$2) AS outbox`,
       [organizationId, manualMeetingId],
     )
   ).rows[0];
@@ -294,7 +294,7 @@ try {
     await client.query(
       `SELECT
          (SELECT count(*)::int FROM tenant.crm_meeting_events WHERE organization_id=$1 AND activity_id=$2) AS events,
-         (SELECT count(*)::int FROM tenant.crm_outbox_events WHERE organization_id=$1 AND entity_type='meeting' AND entity_id=$2) AS outbox`,
+         (SELECT count(*)::int FROM tenant.platform_events WHERE organization_id=$1 AND entity_type='meeting' AND entity_id=$2) AS outbox`,
       [organizationId, manualMeetingId],
     )
   ).rows[0];
@@ -355,7 +355,7 @@ try {
     await client.query(
       `SELECT
          (SELECT count(*)::int FROM tenant.crm_meeting_events WHERE organization_id=$1 AND activity_id=$2) AS events,
-         (SELECT count(*)::int FROM tenant.crm_outbox_events WHERE organization_id=$1 AND entity_type='meeting' AND entity_id=$2) AS outbox`,
+         (SELECT count(*)::int FROM tenant.platform_events WHERE organization_id=$1 AND entity_type='meeting' AND entity_id=$2) AS outbox`,
       [organizationId, manualMeetingId],
     )
   ).rows[0];
@@ -379,7 +379,7 @@ try {
     await client.query(
       `SELECT
          (SELECT count(*)::int FROM tenant.crm_meeting_events WHERE organization_id=$1 AND activity_id=$2) AS events,
-         (SELECT count(*)::int FROM tenant.crm_outbox_events WHERE organization_id=$1 AND entity_type='meeting' AND entity_id=$2) AS outbox`,
+         (SELECT count(*)::int FROM tenant.platform_events WHERE organization_id=$1 AND entity_type='meeting' AND entity_id=$2) AS outbox`,
       [organizationId, manualMeetingId],
     )
   ).rows[0];
@@ -457,7 +457,7 @@ try {
     (
       await client.query(
         `SELECT count(*)::int AS count
-           FROM tenant.crm_outbox_events
+           FROM tenant.platform_events
           WHERE organization_id=$1 AND event_type LIKE 'crm.meeting.%'`,
         [organizationId],
       )
@@ -469,7 +469,7 @@ try {
     (
       await client.query(
         `SELECT count(*)::int AS count
-           FROM tenant.crm_outbox_events
+           FROM tenant.platform_events
           WHERE organization_id=$1 AND entity_type='meeting'
             AND (payload::text LIKE $2 OR payload::text LIKE $3 OR payload::text LIKE $4)`,
         [
@@ -689,7 +689,7 @@ try {
     (
       await client.query(
         `SELECT count(*)::int AS count
-           FROM tenant.crm_outbox_events
+           FROM tenant.platform_events
           WHERE organization_id=$1 AND event_type='crm.meeting.booked'
             AND payload::text LIKE $2`,
         [organizationId, `%${guestEmail}%`],

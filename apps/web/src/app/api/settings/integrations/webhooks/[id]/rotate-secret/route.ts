@@ -9,7 +9,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
   const { id } = await context.params;
   return workspaceRoute(
     request,
-    { permission: CORE_PERMISSIONS.integrationsManage, action: "integrations.webhook.rotate_secret", transaction: "tenant", auditDenial: true },
+    { permission: CORE_PERMISSIONS.integrationsManage, action: "integrations.webhook.rotate_secret", auditDenial: true },
     async ({ client, session }) => ok(await rotateWebhookSecret(client, session, id)),
   );
 }

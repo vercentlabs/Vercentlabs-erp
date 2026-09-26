@@ -9,7 +9,7 @@ import { workspaceRoute } from "@/core/workspace-route";
 // Settings > Integrations > Inbound email. The route key (the provider's
 // webhook URL) and its signing secret are in the create response once.
 export async function GET(request: Request) {
-  return workspaceRoute(request, { permission: CORE_PERMISSIONS.integrationsView, action: "integrations.inbound_mail.list", transaction: "none" }, async ({ client, session }) => {
+  return workspaceRoute(request, { permission: CORE_PERMISSIONS.integrationsView, action: "integrations.inbound_mail.list" }, async ({ client, session }) => {
     const companies = (await listAccessibleCompanies(client, session.organizationId, session.userId)).map(({ id, name }) => ({ id, name }));
     return ok({
       routes: await listInboundMailRoutes(client, session.organizationId),
@@ -25,7 +25,7 @@ const schema = z.object({ name: z.string().trim().min(1).max(120), target: z.str
 export async function POST(request: Request) {
   return workspaceRoute(
     request,
-    { permission: CORE_PERMISSIONS.integrationsManage, action: "integrations.inbound_mail.create", transaction: "platform", auditDenial: true },
+    { permission: CORE_PERMISSIONS.integrationsManage, action: "integrations.inbound_mail.create", auditDenial: true },
     async ({ client, session }) => {
       const created = await createInboundMailRoute(client, session, schema.parse(await readJson(request)));
       const origin = new URL(request.url).origin;

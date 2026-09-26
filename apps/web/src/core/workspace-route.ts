@@ -12,7 +12,7 @@ import {
 } from "@vercentlabs/api";
 import type { PoolClient } from "pg";
 
-import { tenantTransaction, transaction, withClient } from "@/core/db";
+import { tenantTransaction } from "@/core/db";
 import { errorResponse } from "@/core/http";
 import { requireApiWorkspace, type WorkspaceSessionContext } from "@/core/session";
 
@@ -58,8 +58,6 @@ export async function workspaceRoute(
     assertOrigin: (incoming) => assertSameOriginOrMobile(incoming, process.env),
     requireSession: () => requireApiWorkspace(),
     runTenant: (organizationId, work) => tenantTransaction(organizationId, work),
-    runPlatform: (work) => transaction(work),
-    runClient: (work) => withClient(work),
     createPrincipal: (session) => createAccessPrincipal(session),
     buildSnapshot: (client, session) => buildWorkspaceAccessSnapshot(client, session, { env: process.env }),
     authorize: (input) => authorize(input),
@@ -71,11 +69,11 @@ export async function workspaceRoute(
       }),
     requireBillingWrite: (client, organizationId) => requireBillingWriteAccess(client, organizationId, process.env),
     logDeniedAccess: (event) => logAccessDenial(denialDecision(event), event.principal, requestIds(event.request)),
-    // Separate pooled connection, no transaction: the request transaction
+    // Its own short organisation-context transaction: the request transaction
     // has already rolled back, and this evidence must survive it.
     recordDeniedAccess: async (event) => {
       try {
-        await withClient((client) =>
+        await tenantTransaction(event.principal.organizationId, (client) =>
           recordAccessDenial(client, {
             decision: denialDecision(event),
             principal: event.principal,

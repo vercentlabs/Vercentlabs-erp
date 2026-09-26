@@ -299,7 +299,11 @@ export async function listOrganizationMembers(client, session) {
         COALESCE(company_agg.company_ids, ARRAY[]::uuid[]) AS company_ids,
         COALESCE(company_agg.company_names, ARRAY[]::text[]) AS company_names,
         COALESCE(branch_agg.branch_ids, ARRAY[]::uuid[]) AS branch_ids,
-        COALESCE(branch_agg.branch_names, ARRAY[]::text[]) AS branch_names
+        COALESCE(branch_agg.branch_names, ARRAY[]::text[]) AS branch_names,
+        COALESCE(department_agg.department_ids, ARRAY[]::uuid[]) AS department_ids,
+        COALESCE(department_agg.department_names, ARRAY[]::text[]) AS department_names,
+        COALESCE(team_agg.team_ids, ARRAY[]::uuid[]) AS team_ids,
+        COALESCE(team_agg.team_names, ARRAY[]::text[]) AS team_names
       FROM organization_memberships AS membership
       JOIN users AS app_user ON app_user.id = membership.user_id
       LEFT JOIN LATERAL (
@@ -323,6 +327,18 @@ export async function listOrganizationMembers(client, session) {
         JOIN branches branch ON branch.id = access.branch_id
         WHERE access.organization_id = membership.organization_id AND access.user_id = membership.user_id
       ) AS branch_agg ON true
+      LEFT JOIN LATERAL (
+        SELECT array_agg(department.id ORDER BY department.name) AS department_ids, array_agg(department.name ORDER BY department.name) AS department_names
+        FROM membership_department_access access
+        JOIN departments department ON department.id = access.department_id
+        WHERE access.organization_id = membership.organization_id AND access.user_id = membership.user_id
+      ) AS department_agg ON true
+      LEFT JOIN LATERAL (
+        SELECT array_agg(team.id ORDER BY team.name) AS team_ids, array_agg(team.name ORDER BY team.name) AS team_names
+        FROM membership_team_access access
+        JOIN teams team ON team.id = access.team_id
+        WHERE access.organization_id = membership.organization_id AND access.user_id = membership.user_id
+      ) AS team_agg ON true
       WHERE membership.organization_id = $1
         AND ($3::boolean OR ${scope})
       ORDER BY membership.created_at ASC`,

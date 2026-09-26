@@ -50,6 +50,8 @@ export type InvitationInput = {
   primaryRoleId: string;
   companyIds: string[];
   branchIds: string[];
+  departmentIds: string[];
+  teamIds: string[];
 };
 
 export async function createInvitation(input: InvitationInput): Promise<{ invitationId: string; delivered: boolean }> {

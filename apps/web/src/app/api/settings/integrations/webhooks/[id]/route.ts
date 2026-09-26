@@ -17,7 +17,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
   const { id } = await context.params;
   return workspaceRoute(
     request,
-    { permission: CORE_PERMISSIONS.integrationsManage, action: "integrations.webhook.update", transaction: "tenant", auditDenial: true },
+    { permission: CORE_PERMISSIONS.integrationsManage, action: "integrations.webhook.update", auditDenial: true },
     async ({ client, session }) => ok({ subscription: await updateWebhookSubscription(client, session, id, schema.parse(await readJson(request))) }),
   );
 }

@@ -4,7 +4,7 @@ import { cache } from "react";
 
 import { buildWorkspaceAccessSnapshot, type WorkspaceAccessSnapshot } from "@vercentlabs/api";
 
-import { withClient } from "@/core/db";
+import { tenantTransaction } from "@/core/db";
 import { requireWorkspace, type WorkspaceSessionContext } from "@/core/session";
 
 export type { AccessPrincipal, WorkspaceAccessSnapshot } from "@vercentlabs/api";
@@ -15,7 +15,7 @@ export type { AccessPrincipal, WorkspaceAccessSnapshot } from "@vercentlabs/api"
 // object.
 const snapshotForSession = cache(
   async (session: WorkspaceSessionContext): Promise<WorkspaceAccessSnapshot> =>
-    withClient((client) => buildWorkspaceAccessSnapshot(client, session, { env: process.env })),
+    tenantTransaction(session.organizationId, (client) => buildWorkspaceAccessSnapshot(client, session, { env: process.env })),
 );
 
 // Server Components/layouts: the workspace access snapshot for the current

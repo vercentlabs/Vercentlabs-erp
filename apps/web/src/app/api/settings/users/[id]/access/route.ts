@@ -9,15 +9,18 @@ import { workspaceRoute } from "@/core/workspace-route";
 const putSchema = z.object({
   companyIds: z.array(z.string().uuid()).max(200),
   branchIds: z.array(z.string().uuid()).max(500),
+  // Omitted = unchanged (older clients); present = replace.
+  departmentIds: z.array(z.string().uuid()).max(500).optional(),
+  teamIds: z.array(z.string().uuid()).max(500).optional(),
 });
 
 // The one atomic user access-scope mutation: target-in-scope check, grant
-// ceiling, branch→company validation, diff apply, evidence and audit all
-// happen inside setUserAccessScope.
+// ceiling, branch→company and department/team validation, diff apply,
+// evidence and audit all happen inside setUserAccessScope.
 export async function PUT(request: Request, context: { params: Promise<{ id: string }> }) {
   return workspaceRoute(
     request,
-    { permission: CORE_PERMISSIONS.usersManage, action: "settings.user_access.update", transaction: "platform", auditDenial: true },
+    { permission: CORE_PERMISSIONS.usersManage, action: "settings.user_access.update", auditDenial: true },
     async ({ client, session }) => {
       const { id } = await context.params;
       const body = putSchema.parse(await readJson(request));

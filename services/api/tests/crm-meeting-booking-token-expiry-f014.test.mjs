@@ -33,13 +33,12 @@ test("F014: the public booking cancel/reschedule route is the ONLY code path tha
   // Prompt 3 (CRM clean-frontend rebuild): the previous two-file split (a
   // thin route.ts delegating to a separate route-handlers module) was
   // consolidated into this one file — still the sole call site.
+  // Prompt 6: the token lookup moved out of the web route (no SQL in
+  // apps/web) into the CRM public-meetings service, which the route calls.
   const route = read("apps/web/src/app/api/crm/public/meetings/bookings/[token]/route.ts");
-  assert.match(route, /crm_public_meeting_booking/);
-  // A broader grep across the whole web+api tree for direct
-  // cancellation_token/reschedule_token references is enforced by the
-  // audit that produced this fix (confirmed: the route above is the only
-  // hit) — this test pins the one legitimate call site's shape so a
-  // future direct-table bypass would be a visible diff here, not a silent
-  // regression.
-  assert.match(route, /SELECT \* FROM tenant\.crm_public_meeting_booking\(\$1\)/);
+  assert.match(route, /resolvePublicMeetingBooking\(/);
+  const service = read("services/api/src/modules/crm/seller-activity-and-follow-up-workspace/public-meetings.js");
+  // This pins the one legitimate call site's shape so a future direct-table
+  // bypass would be a visible diff here, not a silent regression.
+  assert.match(service, /SELECT \* FROM tenant\.crm_public_meeting_booking\(\$1\)/);
 });

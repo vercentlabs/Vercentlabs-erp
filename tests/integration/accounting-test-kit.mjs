@@ -46,15 +46,6 @@ export async function buildAccountingWorld(admin, roles, tag) {
   await admin.query(`INSERT INTO tenant.currencies(organization_id,code,name,decimal_places,is_base,status) VALUES ($1,'INR','Indian Rupee',2,true,'active')`, [orgId]);
   await admin.query(`INSERT INTO tenant.business_parties(id,organization_id,company_id,code,party_type,display_name,currency_code,created_by,updated_by) VALUES ($1,$2,$3,$4,'customer',$5,'INR',$6,$6)`, [customerId, orgId, companyId, `${tag}-CUST`.slice(0, 30), `${tag} Customer`, first]);
   await admin.query(`INSERT INTO tenant.business_parties(id,organization_id,company_id,code,party_type,display_name,currency_code,created_by,updated_by) VALUES ($1,$2,$3,$4,'supplier',$5,'INR',$6,$6)`, [supplierId, orgId, companyId, `${tag}-SUP`.slice(0, 30), `${tag} Supplier`, first]);
-  await admin.query(`INSERT INTO public.numbering_series(organization_id,entity_type,prefix) VALUES ($1,'journal_entry','JE-') ON CONFLICT DO NOTHING`, [orgId]);
-  await admin.query(`INSERT INTO public.numbering_series(organization_id,entity_type,prefix) VALUES ($1,'customer_invoice','INV-') ON CONFLICT DO NOTHING`, [orgId]);
-  await admin.query(`INSERT INTO public.numbering_series(organization_id,entity_type,prefix) VALUES ($1,'customer_credit_note','CRN-') ON CONFLICT DO NOTHING`, [orgId]);
-  await admin.query(`INSERT INTO public.numbering_series(organization_id,entity_type,prefix) VALUES ($1,'customer_receipt','RCT-') ON CONFLICT DO NOTHING`, [orgId]);
-  await admin.query(`INSERT INTO public.numbering_series(organization_id,entity_type,prefix) VALUES ($1,'vendor_bill','BILL-') ON CONFLICT DO NOTHING`, [orgId]);
-  await admin.query(`INSERT INTO public.numbering_series(organization_id,entity_type,prefix) VALUES ($1,'vendor_credit_note','VCN-') ON CONFLICT DO NOTHING`, [orgId]);
-  await admin.query(`INSERT INTO public.numbering_series(organization_id,entity_type,prefix) VALUES ($1,'vendor_payment','PAY-') ON CONFLICT DO NOTHING`, [orgId]);
-  await admin.query(`INSERT INTO public.numbering_series(organization_id,entity_type,prefix) VALUES ($1,'bank_statement','STMT-') ON CONFLICT DO NOTHING`, [orgId]);
-  await admin.query(`INSERT INTO public.numbering_series(organization_id,entity_type,prefix) VALUES ($1,'fixed_asset','FA-') ON CONFLICT DO NOTHING`, [orgId]);
   const t0 = new Date();
   const yearStart = new Date(Date.UTC(t0.getUTCFullYear(), 0, 1));
   const yearEnd = new Date(Date.UTC(t0.getUTCFullYear(), 11, 31));

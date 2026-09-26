@@ -243,7 +243,7 @@ try {
     await client.query(
       `SELECT
          (SELECT count(*)::int FROM tenant.crm_sales_stage_configuration_history WHERE organization_id=$1 AND stage_id=$2) AS history_count,
-         (SELECT count(*)::int FROM tenant.crm_outbox_events WHERE organization_id=$1 AND entity_type='sales_stage' AND entity_id=$2) AS outbox_count`,
+         (SELECT count(*)::int FROM tenant.platform_events WHERE organization_id=$1 AND entity_type='sales_stage' AND entity_id=$2) AS outbox_count`,
       [organizationId, openA.id],
     )
   ).rows[0];
@@ -260,7 +260,7 @@ try {
     await client.query(
       `SELECT
          (SELECT count(*)::int FROM tenant.crm_sales_stage_configuration_history WHERE organization_id=$1 AND stage_id=$2) AS history_count,
-         (SELECT count(*)::int FROM tenant.crm_outbox_events WHERE organization_id=$1 AND entity_type='sales_stage' AND entity_id=$2) AS outbox_count`,
+         (SELECT count(*)::int FROM tenant.platform_events WHERE organization_id=$1 AND entity_type='sales_stage' AND entity_id=$2) AS outbox_count`,
       [organizationId, openA.id],
     )
   ).rows[0];
@@ -331,7 +331,7 @@ try {
     await client.query(
       `SELECT
          (SELECT count(*)::int FROM tenant.crm_sales_stage_configuration_history WHERE organization_id=$1 AND pipeline_id=$2) AS history_count,
-         (SELECT count(*)::int FROM tenant.crm_outbox_events WHERE organization_id=$1 AND entity_type='sales_pipeline' AND entity_id=$2) AS outbox_count`,
+         (SELECT count(*)::int FROM tenant.platform_events WHERE organization_id=$1 AND entity_type='sales_pipeline' AND entity_id=$2) AS outbox_count`,
       [organizationId, pipelineId],
     )
   ).rows[0];
@@ -345,7 +345,7 @@ try {
     await client.query(
       `SELECT
          (SELECT count(*)::int FROM tenant.crm_sales_stage_configuration_history WHERE organization_id=$1 AND pipeline_id=$2) AS history_count,
-         (SELECT count(*)::int FROM tenant.crm_outbox_events WHERE organization_id=$1 AND entity_type='sales_pipeline' AND entity_id=$2) AS outbox_count`,
+         (SELECT count(*)::int FROM tenant.platform_events WHERE organization_id=$1 AND entity_type='sales_pipeline' AND entity_id=$2) AS outbox_count`,
       [organizationId, pipelineId],
     )
   ).rows[0];
@@ -355,7 +355,7 @@ try {
     Number(reorderCountsAfter.outbox_count) === Number(reorderCountsBefore.outbox_count);
 
   const historyCount = Number((await client.query("SELECT count(*)::int AS count FROM tenant.crm_sales_stage_configuration_history WHERE organization_id=$1 AND pipeline_id=$2", [organizationId, pipelineId])).rows[0]?.count || 0);
-  const outboxCount = Number((await client.query("SELECT count(*)::int AS count FROM tenant.crm_outbox_events WHERE organization_id=$1 AND ((entity_type='sales_stage' AND entity_id IN ($2,$3,$4,$5)) OR (entity_type='sales_pipeline' AND entity_id=$6))", [organizationId, openA.id, openB.id, won.id, lost.id, pipelineId])).rows[0]?.count || 0);
+  const outboxCount = Number((await client.query("SELECT count(*)::int AS count FROM tenant.platform_events WHERE organization_id=$1 AND ((entity_type='sales_stage' AND entity_id IN ($2,$3,$4,$5)) OR (entity_type='sales_pipeline' AND entity_id=$6))", [organizationId, openA.id, openB.id, won.id, lost.id, pipelineId])).rows[0]?.count || 0);
   result.historyWritten = historyCount >= 8;
   result.outboxWritten = outboxCount >= 8;
 

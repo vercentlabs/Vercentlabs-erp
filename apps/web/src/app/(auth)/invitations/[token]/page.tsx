@@ -1,6 +1,6 @@
 import { AuthLifecycleError, getInvitationByToken } from "@vercentlabs/api";
 
-import { withClient } from "@/core/db";
+import { withIngressClient } from "@/core/db";
 import { getSessionContext } from "@/core/session";
 import { AcceptInvitationForm } from "./accept-invitation-form";
 
@@ -12,7 +12,7 @@ export default async function InvitationPage({ params }: { params: Promise<{ tok
   let invitation: Awaited<ReturnType<typeof getInvitationByToken>> | null = null;
   let error: string | null = null;
   try {
-    invitation = await withClient((client) => getInvitationByToken(client, token));
+    invitation = await withIngressClient((client) => getInvitationByToken(client, token));
   } catch (caught) {
     error = caught instanceof AuthLifecycleError ? caught.message : "This invitation link is invalid.";
   }

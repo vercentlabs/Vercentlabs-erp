@@ -114,7 +114,8 @@
     "files:reconcile": "node scripts/operations/files-reconcile.mjs",
     "secrets:reencrypt": "node scripts/operations/secrets-reencrypt.mjs",
     "secrets:migrate-legacy": "node scripts/operations/secrets-reencrypt.mjs --legacy",
-    "ops:status": "node scripts/operations/status.mjs"
+    "ops:status": "node scripts/operations/status.mjs",
+    "test:production:db": "node scripts/production/run-db-tests.mjs"
   },
   "engines": {
     "node": ">=24 <25",

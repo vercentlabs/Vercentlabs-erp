@@ -1,9 +1,9 @@
 import { assertSameOriginOrMobile, revokeSessionById } from "@vercentlabs/api";
 import { z } from "zod";
 
-import { withClient } from "@/core/db";
+import { sessionTransaction } from "@/core/db";
 import { errorResponse, HttpError, ok } from "@/core/http";
-import { requireWorkspace } from "@/core/session";
+import { requireApiUser } from "@/core/session";
 
 const paramsSchema = z.object({ id: z.string().uuid() });
 
@@ -16,9 +16,9 @@ type RouteContext = { params: Promise<{ id: string }> };
 export async function DELETE(request: Request, context: RouteContext) {
   try {
     assertSameOriginOrMobile(request, process.env);
-    const session = await requireWorkspace();
+    const session = await requireApiUser();
     const { id } = paramsSchema.parse(await context.params);
-    const revoked = await withClient((client) => revokeSessionById(client, session.userId, id, "user_revoked"));
+    const revoked = await sessionTransaction(session, (client) => revokeSessionById(client, session.userId, id, "user_revoked"));
     if (!revoked) throw new HttpError(404, "Session not found.");
     return ok({ ok: true });
   } catch (error) {

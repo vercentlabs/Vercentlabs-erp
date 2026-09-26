@@ -2,7 +2,7 @@ import { cookies } from "next/headers";
 
 import { assertSameOriginOrMobile, tokenHash, revokeSessionByTokenHash } from "@vercentlabs/api";
 
-import { withClient } from "@/core/db";
+import { withIngressClient } from "@/core/db";
 import { errorResponse, ok } from "@/core/http";
 import { clearSessionCookie } from "@/core/session";
 
@@ -22,7 +22,7 @@ export async function POST(request: Request) {
     const store = await cookies();
     const token = store.get(COOKIE_NAME)?.value;
     if (token) {
-      await withClient((client) =>
+      await withIngressClient((client) =>
         revokeSessionByTokenHash(client, tokenHash(token), "logout"),
       );
     }

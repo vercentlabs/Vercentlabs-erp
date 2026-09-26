@@ -1,6 +1,6 @@
 import { assertSameOriginOrMobile, beginMfaEnrollment } from "@vercentlabs/api";
 
-import { withClient } from "@/core/db";
+import { sessionTransaction } from "@/core/db";
 import { errorResponse, ok } from "@/core/http";
 import { requireApiUser } from "@/core/session";
 
@@ -11,7 +11,7 @@ export async function POST(request: Request) {
   try {
     assertSameOriginOrMobile(request, process.env);
     const session = await requireApiUser();
-    const result = await withClient((client) => beginMfaEnrollment(client, session.userId, process.env));
+    const result = await sessionTransaction(session, (client) => beginMfaEnrollment(client, session.userId, process.env));
     return ok(result);
   } catch (error) {
     return errorResponse(error);

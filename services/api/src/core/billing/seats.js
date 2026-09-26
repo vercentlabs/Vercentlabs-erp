@@ -13,19 +13,11 @@ import { billingAudit, inr, recoveryBackoffSeconds, subscriptionRow, tx } from "
 
 export const SEAT_OVERAGE_GRACE_DAYS = 14;
 
+// Counted in PostgreSQL by public.billable_user_count (migration 068): billing
+// reconciles across organisations, while memberships and invitations are
+// organisation-RLS protected; the function returns the two counts only.
 export async function countBillableUsers(client, organizationId, { excludeInvitationId = null } = {}) {
-  const row = (
-    await client.query(
-      `SELECT
-         (SELECT count(*) FROM organization_memberships m WHERE m.organization_id = $1 AND m.status = 'active')::int AS members,
-         (SELECT count(DISTINCT lower(i.email)) FROM organization_invitations i
-           WHERE i.organization_id = $1 AND i.accepted_at IS NULL AND i.revoked_at IS NULL AND i.expires_at > now()
-             AND ($2::uuid IS NULL OR i.id <> $2::uuid)
-             AND NOT EXISTS (SELECT 1 FROM organization_memberships m JOIN users u ON u.id = m.user_id
-                              WHERE m.organization_id = i.organization_id AND m.status = 'active' AND lower(u.email) = lower(i.email)))::int AS pending`,
-      [organizationId, excludeInvitationId],
-    )
-  ).rows[0];
+  const row = (await client.query("SELECT members, pending FROM public.billable_user_count($1::uuid, $2::uuid)", [organizationId, excludeInvitationId])).rows[0];
   return { members: Number(row.members), pending: Number(row.pending) };
 }
 

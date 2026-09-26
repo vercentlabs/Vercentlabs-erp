@@ -66,22 +66,29 @@ async function withRolledBackDatabase(work) {
   }
 }
 
-// Run domain code as the restricted runtime role.
-async function asRuntime(db, work) {
+// Run domain code as the restricted runtime role, under the organisation
+// context the web layer would set from the actor's session (platform tables
+// are organisation-RLS protected). Seeding a world makes it the active one;
+// pass { organizationId: null } for pre-organisation flows (invitation
+// acceptance by token), which must resolve their organisation themselves.
+let activeOrganizationId = null;
+async function asRuntime(db, work, { organizationId = activeOrganizationId } = {}) {
   await db.query(`SET LOCAL ROLE "${runtimeRole.replaceAll('"', '""')}"`);
+  await db.query("SELECT set_config('app.current_organization_id', $1, true)", [organizationId ?? ""]);
   try {
     return await work();
   } finally {
-    await db.query("RESET ROLE");
+    await db.query("SELECT set_config('app.current_organization_id', '', true)").catch(() => undefined);
+    await db.query("RESET ROLE").catch(() => undefined);
   }
 }
 
 // Expected denial, isolated in a savepoint. Returns the error.
-async function denied(db, work, matcher) {
+async function denied(db, work, matcher, options) {
   await db.query("SAVEPOINT expected_denial");
   let caught;
   try {
-    await asRuntime(db, work);
+    await asRuntime(db, work, options);
   } catch (error) {
     caught = error;
   }
@@ -106,6 +113,7 @@ async function insertUser(db, label) {
 async function seedWorld(db) {
   const ownerId = await insertUser(db, "Owner");
   const organizationId = randomUUID();
+  activeOrganizationId = organizationId;
   await db.query(
     `INSERT INTO organizations (id, name, slug, country_code, timezone, base_currency, created_by) VALUES ($1, 'Access Admin Org', $2, 'IN', 'Asia/Kolkata', 'INR', $3)`,
     [organizationId, `access-admin-${organizationId}`, ownerId],
@@ -289,6 +297,7 @@ test("cross-tenant: organization A administrators can neither see nor change org
   await withRolledBackDatabase(async (db) => {
     const one = await seedWorld(db);
     const two = await seedWorld(db);
+    activeOrganizationId = one.organizationId;
     await asRuntime(db, async () => {
       const members = (await listOrganizationMembers(db, one.owner)).map((row) => row.user_id);
       assert.ok(!members.includes(two.ids.userA));
@@ -305,7 +314,7 @@ test("cross-tenant: organization A administrators can neither see nor change org
 test("invitations: normalized multi-role access, delegated scope, acceptance and lifecycle", async () => {
   await withRolledBackDatabase(async (db) => {
     const world = await seedWorld(db);
-    const { A, B, A1, B1 } = world.ids;
+    const { A, B, A1, B1, userA } = world.ids;
     const role = (slug) => world.roles.get(slug);
 
     // Legacy backfill: a row written by the pre-normalization code (legacy
@@ -331,8 +340,44 @@ test("invitations: normalized multi-role access, delegated scope, acceptance and
     assert.equal(stored.rows.length, 2);
     assert.equal(stored.rows.filter((row) => row.is_primary).length, 1);
     assert.equal(stored.rows[0].role_id, role("sales_representative"));
-    const legacyMirror = (await db.query(`SELECT role_id, company_ids, branch_ids FROM organization_invitations WHERE id = $1`, [multi.invitationId])).rows[0];
-    assert.equal(legacyMirror.role_id, role("sales_representative"), "legacy column mirrors the primary role during rollout");
+    const legacyMirror = (await db.query(`SELECT role_id FROM organization_invitations WHERE id = $1`, [multi.invitationId])).rows[0];
+    assert.equal(legacyMirror.role_id, null, "the deprecated legacy mirror is no longer written (contract migration drops it)");
+
+    // Departments and teams: normalized, validated against the organisation
+    // and the rest of the selection, and applied on acceptance.
+    const department = async (companyId, code) => {
+      const id = randomUUID();
+      await db.query(`INSERT INTO departments (id, organization_id, company_id, name, code, status) VALUES ($1, $2, $3, $4, $4, 'active')`, [id, world.organizationId, companyId, code]);
+      return id;
+    };
+    const team = async (departmentId, code) => {
+      const id = randomUUID();
+      await db.query(`INSERT INTO teams (id, organization_id, department_id, name, code, status) VALUES ($1, $2, $3, $4, $4, 'active')`, [id, world.organizationId, departmentId, code]);
+      return id;
+    };
+    const salesA = await department(A, "SALES-A");
+    const salesB = await department(B, "SALES-B");
+    const fieldTeam = await team(salesA, "FIELD-A");
+    const scoped = await asRuntime(db, () =>
+      inviteWithToken(db, { ...ownerInviter(world), email: `dept-${randomUUID()}@test.invalid`, roleIds: [role("employee")], primaryRoleId: role("employee"), companyIds: [A], branchIds: [A1], departmentIds: [salesA], teamIds: [fieldTeam] }),
+    );
+    assert.deepEqual((await db.query(`SELECT department_id FROM organization_invitation_department_access WHERE invitation_id = $1`, [scoped.invitationId])).rows.map((row) => row.department_id), [salesA]);
+    assert.deepEqual((await db.query(`SELECT team_id FROM organization_invitation_team_access WHERE invitation_id = $1`, [scoped.invitationId])).rows.map((row) => row.team_id), [fieldTeam]);
+    const invite = (extra) => createOrganizationInvitation(db, { ...ownerInviter(world), email: `bad-${randomUUID()}@test.invalid`, roleIds: [role("employee")], primaryRoleId: role("employee"), companyIds: [A], ...extra }, ENV);
+    await denied(db, () => invite({ departmentIds: [salesB] }), (error) => error.code === "ACCESS_ADMIN_DEPARTMENT_OUTSIDE_COMPANY");
+    await denied(db, () => invite({ teamIds: [fieldTeam] }), (error) => error.code === "ACCESS_ADMIN_TEAM_OUTSIDE_DEPARTMENT");
+    await denied(db, () => invite({ departmentIds: [randomUUID()] }), (error) => error.code === "ACCESS_ADMIN_DEPARTMENT_INVALID");
+    await denied(db, () => createOrganizationInvitation(db, { ...adminInviter(world), email: `dept-ceiling-${randomUUID()}@test.invalid`, roleIds: [role("employee")], primaryRoleId: role("employee"), companyIds: [A], departmentIds: [salesA] }, ENV), forbidden);
+    const joinedScope = await asRuntime(db, () => acceptOrganizationInvitation(db, scoped.token, { fullName: "Dept Person", password: "Correct-Horse-Battery-9!" }, null), { organizationId: null });
+    assert.deepEqual((await db.query(`SELECT department_id FROM membership_department_access WHERE user_id = $1`, [joinedScope.userId])).rows.map((row) => row.department_id), [salesA]);
+    assert.deepEqual((await db.query(`SELECT team_id FROM membership_team_access WHERE user_id = $1`, [joinedScope.userId])).rows.map((row) => row.team_id), [fieldTeam]);
+
+    // The same rules on direct access administration.
+    await asRuntime(db, () => setUserAccessScope(db, world.owner, userA, { companyIds: [A], branchIds: [A1], departmentIds: [salesA], teamIds: [fieldTeam] }));
+    assert.deepEqual((await db.query(`SELECT team_id FROM membership_team_access WHERE user_id = $1`, [userA])).rows.map((row) => row.team_id), [fieldTeam]);
+    await denied(db, () => setUserAccessScope(db, world.owner, userA, { companyIds: [A], branchIds: [A1], departmentIds: [], teamIds: [fieldTeam] }), (error) => error.code === "ACCESS_ADMIN_TEAM_OUTSIDE_DEPARTMENT");
+    await denied(db, () => setUserAccessScope(db, world.owner, userA, { companyIds: [A], branchIds: [A1], departmentIds: [salesB], teamIds: [] }), (error) => error.code === "ACCESS_ADMIN_DEPARTMENT_OUTSIDE_COMPANY");
+    await denied(db, () => setUserAccessScope(db, world.owner, userA, { companyIds: [A], branchIds: [A1], departmentIds: [randomUUID()], teamIds: [] }), (error) => error.code === "ACCESS_ADMIN_DEPARTMENT_INVALID");
 
     // Validation: SoD, grant ceiling, scope ceiling, branch↔company, required scope.
     await denied(db, () => createOrganizationInvitation(db, { ...ownerInviter(world), email: `sod-${randomUUID()}@test.invalid`, roleIds: [role("accountant"), role("finance_manager")], primaryRoleId: role("accountant"), companyIds: [A] }, ENV), (error) => error.status === 409);
@@ -347,7 +392,7 @@ test("invitations: normalized multi-role access, delegated scope, acceptance and
 
     // Acceptance assigns every role, one primary, the scope, consumes the
     // invitation and records evidence — as the restricted runtime role.
-    const accepted = await asRuntime(db, () => acceptOrganizationInvitation(db, multi.token, { fullName: "Multi Role", password: "Correct-Horse-Battery-9!" }, null));
+    const accepted = await asRuntime(db, () => acceptOrganizationInvitation(db, multi.token, { fullName: "Multi Role", password: "Correct-Horse-Battery-9!" }, null), { organizationId: null });
     const assignments = await db.query(`SELECT role_id, is_primary FROM user_role_assignments WHERE organization_id = $1 AND user_id = $2 AND status = 'active'`, [world.organizationId, accepted.userId]);
     assert.deepEqual(assignments.rows.map((row) => row.role_id).sort(), [role("sales_representative"), role("marketing_manager")].sort());
     assert.equal(assignments.rows.filter((row) => row.is_primary).length, 1);
@@ -357,28 +402,29 @@ test("invitations: normalized multi-role access, delegated scope, acceptance and
     assert.ok((await db.query(`SELECT accepted_at FROM organization_invitations WHERE id = $1`, [multi.invitationId])).rows[0].accepted_at);
     assert.equal((await db.query(`SELECT event_type FROM access_assignment_events WHERE user_id = $1`, [accepted.userId])).rows[0].event_type, "invitation_accepted");
 
-    await denied(db, () => acceptOrganizationInvitation(db, multi.token, { fullName: "Again", password: "Correct-Horse-Battery-9!" }, null), (error) => error.status === 409);
+    await denied(db, () => acceptOrganizationInvitation(db, multi.token, { fullName: "Again", password: "Correct-Horse-Battery-9!" }, null), (error) => error.status === 409, { organizationId: null });
 
     const revoked = await asRuntime(db, () => inviteWithToken(db, { ...ownerInviter(world), email: `revoked-${randomUUID()}@test.invalid`, roleIds: [role("employee")], primaryRoleId: role("employee"), companyIds: [A] }));
     await asRuntime(db, () => revokeOrganizationInvitation(db, { organizationId: world.organizationId, invitationId: revoked.invitationId, actor: { userId: world.ownerId, roleSlugs: world.owner.roleSlugs } }));
-    await denied(db, () => acceptOrganizationInvitation(db, revoked.token, { fullName: "R", password: "Correct-Horse-Battery-9!" }, null), (error) => error.status === 410);
+    await denied(db, () => acceptOrganizationInvitation(db, revoked.token, { fullName: "R", password: "Correct-Horse-Battery-9!" }, null), (error) => error.status === 410, { organizationId: null });
 
     const expired = await asRuntime(db, () => inviteWithToken(db, { ...ownerInviter(world), email: `expired-${randomUUID()}@test.invalid`, roleIds: [role("employee")], primaryRoleId: role("employee"), companyIds: [A] }));
     await db.query(`UPDATE organization_invitations SET expires_at = now() - interval '1 minute' WHERE id = $1`, [expired.invitationId]);
-    await denied(db, () => acceptOrganizationInvitation(db, expired.token, { fullName: "E", password: "Correct-Horse-Battery-9!" }, null), (error) => error.status === 410);
+    await denied(db, () => acceptOrganizationInvitation(db, expired.token, { fullName: "E", password: "Correct-Horse-Battery-9!" }, null), (error) => error.status === 410, { organizationId: null });
 
     // Existing account: the link alone never joins it.
     const existingEmail = `existing-${randomUUID()}@test.invalid`;
     const existingId = randomUUID();
     await db.query(`INSERT INTO users (id, email, full_name, password_hash, status, email_verified_at) VALUES ($1, $2, 'Existing', 'hash', 'active', now())`, [existingId, existingEmail]);
     const forExisting = await asRuntime(db, () => inviteWithToken(db, { ...ownerInviter(world), email: existingEmail, roleIds: [role("employee")], primaryRoleId: role("employee"), companyIds: [A] }));
-    await denied(db, () => acceptOrganizationInvitation(db, forExisting.token, { fullName: "x", password: "Correct-Horse-Battery-9!" }, null), (error) => error.status === 401);
-    const joined = await asRuntime(db, () => acceptOrganizationInvitation(db, forExisting.token, {}, existingId));
+    await denied(db, () => acceptOrganizationInvitation(db, forExisting.token, { fullName: "x", password: "Correct-Horse-Battery-9!" }, null), (error) => error.status === 401, { organizationId: null });
+    const joined = await asRuntime(db, () => acceptOrganizationInvitation(db, forExisting.token, {}, existingId), { organizationId: null });
     assert.equal(joined.mintNewSession, false);
     assert.equal((await db.query(`SELECT password_hash FROM users WHERE id = $1`, [existingId])).rows[0].password_hash, "hash", "password never overwritten");
 
-    // Rolling-deployment fallback: a legacy-only row written by an older
-    // instance AFTER the migration is normalized on acceptance.
+    // The lazy legacy fallback is gone (every deployed version writes the
+    // normalized tables; the contract migration backfills anything older).
+    // A legacy-only row is refused, never silently accepted with no access.
     const lateId = randomUUID();
     const lateToken = `late${randomUUID().replaceAll("-", "")}`;
     await db.query(
@@ -386,8 +432,7 @@ test("invitations: normalized multi-role access, delegated scope, acceptance and
        VALUES ($1, $2, $3, 'member', $4, $5, $6, $7, $8, now() + interval '7 days')`,
       [lateId, world.organizationId, `late-${lateId}@test.invalid`, role("employee"), [A], [A1], tokenHash(lateToken), world.ownerId],
     );
-    const late = await asRuntime(db, () => acceptOrganizationInvitation(db, lateToken, { fullName: "Late", password: "Correct-Horse-Battery-9!" }, null));
-    assert.equal((await db.query(`SELECT count(*)::int AS n FROM user_role_assignments WHERE user_id = $1 AND status = 'active'`, [late.userId])).rows[0].n, 1);
+    await denied(db, () => acceptOrganizationInvitation(db, lateToken, { fullName: "Late", password: "Correct-Horse-Battery-9!" }, null), (error) => error.status === 409, { organizationId: null });
   });
 });
 

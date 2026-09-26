@@ -22,6 +22,8 @@ import {
 } from "node:crypto";
 import { promisify } from "node:util";
 
+import { setTenantContext, setUserContext } from "@vercentlabs/database";
+
 const scrypt = promisify(scryptCallback);
 
 const dummyPasswordHash =
@@ -316,8 +318,52 @@ export async function switchActiveCompany(client, session, companyId, branchId) 
 // allowed to see. Company/branch resolution intentionally never filters
 // business-record queries itself — it only decides what a shell/nav layer
 // may default to.
+// Runs as ONE transaction on the caller's dedicated client, in three steps
+// that line up with row-level security:
+//   1. the session and its user (auth identity: no organisation needed);
+//   2. app.current_user_id := that user, so RLS lets them read their OWN
+//      memberships across organisations, and pick the active one;
+//   3. app.current_organization_id := that organisation, then read the
+//      workspace (companies, roles, preferences) under organisation RLS.
+// Both settings are transaction-local and never taken from request input.
 export async function resolveSessionContext(client, token, sessionType, env = process.env) {
+  await client.query("BEGIN");
+  try {
+    const context = await resolveSessionContextInTransaction(client, token, sessionType, env);
+    await client.query("COMMIT");
+    return context;
+  } catch (error) {
+    await client.query("ROLLBACK").catch(() => undefined);
+    throw error;
+  }
+}
+
+async function resolveSessionContextInTransaction(client, token, sessionType, env) {
   const hash = tokenHash(token);
+  const identity = (
+    await client.query(
+      `SELECT session.user_id, session.active_organization_id
+         FROM sessions AS session JOIN users AS app_user ON app_user.id = session.user_id
+        WHERE session.token_hash = $1 AND session.session_type = $2 AND session.revoked_at IS NULL
+          AND session.expires_at > now() AND session.idle_expires_at > now() AND app_user.status = 'active'
+        LIMIT 1`,
+      [hash, sessionType],
+    )
+  ).rows[0];
+  if (!identity) return null;
+  await setUserContext(client, identity.user_id);
+  const chosen = (
+    await client.query(
+      `SELECT membership.organization_id
+         FROM organization_memberships AS membership
+         JOIN organizations AS organization ON organization.id = membership.organization_id AND organization.status = 'active'
+        WHERE membership.user_id = $1 AND membership.status = 'active'
+        ORDER BY CASE WHEN membership.organization_id = $2 THEN 0 ELSE 1 END, membership.created_at ASC, membership.organization_id ASC
+        LIMIT 1`,
+      [identity.user_id, identity.active_organization_id],
+    )
+  ).rows[0];
+  if (chosen) await setTenantContext(client, chosen.organization_id);
   const result = await client.query(
     `SELECT
       session.id AS session_id,

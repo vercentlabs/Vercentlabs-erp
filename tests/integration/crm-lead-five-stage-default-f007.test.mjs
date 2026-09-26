@@ -39,10 +39,6 @@ async function freshOrg(admin, label) {
     `INSERT INTO public.organizations(id,name,slug,country_code,timezone,base_currency,created_by) VALUES ($1,$2,$3,'IN','Asia/Kolkata','INR',$4)`,
     [orgId, label, `${label}-${orgId}`, userId],
   );
-  await admin.query(
-    `INSERT INTO public.numbering_series(organization_id,entity_type,prefix,next_number,padding,status) VALUES ($1,'crm_lead','LEAD-',1,6,'active')`,
-    [orgId],
-  );
   return {
     orgId,
     userId,
@@ -259,7 +255,6 @@ test("F007 five-stage default: fresh org, legacy-org upgrade, and customized-org
       await admin.query(`DELETE FROM tenant.crm_leads WHERE organization_id=$1`, [orgId]).catch(() => undefined);
       await admin.query(`DELETE FROM tenant.crm_lead_stage_transitions WHERE organization_id=$1`, [orgId]).catch(() => undefined);
       await admin.query(`DELETE FROM tenant.crm_lead_stages WHERE organization_id=$1`, [orgId]).catch(() => undefined);
-      await admin.query(`DELETE FROM public.numbering_series WHERE organization_id=$1`, [orgId]).catch(() => undefined);
       const org = await admin.query(`SELECT created_by FROM public.organizations WHERE id=$1`, [orgId]).catch(() => ({ rows: [] }));
       await admin.query(`DELETE FROM public.organizations WHERE id=$1`, [orgId]).catch(() => undefined);
       if (org.rows[0]?.created_by) {

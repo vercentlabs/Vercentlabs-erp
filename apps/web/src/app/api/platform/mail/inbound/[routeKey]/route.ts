@@ -1,6 +1,6 @@
 import { receiveInboundMail } from "@vercentlabs/api";
 
-import { tenantTransaction, transaction } from "@/core/db";
+import { ingressTransaction, tenantTransaction } from "@/core/db";
 
 // Public provider webhook for inbound email. Not a session route: it is
 // authenticated by the opaque route key (resolves the organisation, target and
@@ -12,7 +12,7 @@ export async function POST(request: Request, context: { params: Promise<{ routeK
   try {
     const rawBody = await request.text();
     const result = await receiveInboundMail(
-      { runPlatform: (work) => transaction(work), runTenant: (organizationId, work) => tenantTransaction(organizationId, work) },
+      { runPlatform: (work) => ingressTransaction(work), runTenant: (organizationId, work) => tenantTransaction(organizationId, work) },
       { routeKey, rawBody, signature: request.headers.get("x-inbound-signature") },
     );
     return Response.json({ ok: true, eventId: result.eventId, replayed: result.replayed, outcome: result.outcome ?? null }, { headers: { "Cache-Control": "no-store" } });

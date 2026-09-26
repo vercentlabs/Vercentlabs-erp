@@ -193,13 +193,13 @@ try {
   );
   state.finalRowCount = Number(finalLead.rows[0]?.count || 0);
   const outbox = await admin.query(
-    "SELECT count(*)::int AS count FROM tenant.crm_outbox_events WHERE organization_id=$1 AND entity_type='leads' AND entity_id=$2",
+    "SELECT count(*)::int AS count FROM tenant.platform_events WHERE organization_id=$1 AND entity_type='leads' AND entity_id=$2",
     [base.organization_id, state.leadId],
   );
   state.outboxRows = Number(outbox.rows[0]?.count || 0);
   if (state.finalRowCount !== 1) throw new Error("Concurrent F001 verification changed Lead cardinality.");
   if (state.outboxRows > 1) throw new Error("Stale concurrent Lead write duplicated the outbox business effect.");
-  await admin.query("DELETE FROM tenant.crm_outbox_events WHERE organization_id=$1 AND entity_id=$2", [base.organization_id, state.leadId]);
+  await admin.query("DELETE FROM tenant.platform_events WHERE organization_id=$1 AND entity_id=$2", [base.organization_id, state.leadId]);
   await admin.query("DELETE FROM tenant.crm_leads WHERE organization_id=$1 AND id=$2", [base.organization_id, state.leadId]);
   await admin.query("COMMIT");
   state.cleanedUp = true;
@@ -215,7 +215,7 @@ try {
     try {
       await admin.query("BEGIN");
       await admin.query("SELECT set_config('app.current_organization_id',$1,true)", [state.organizationId]);
-      await admin.query("DELETE FROM tenant.crm_outbox_events WHERE organization_id=$1 AND entity_id=$2", [state.organizationId, state.leadId]);
+      await admin.query("DELETE FROM tenant.platform_events WHERE organization_id=$1 AND entity_id=$2", [state.organizationId, state.leadId]);
       await admin.query("DELETE FROM tenant.crm_leads WHERE organization_id=$1 AND id=$2", [state.organizationId, state.leadId]);
       await admin.query("COMMIT");
       state.cleanedUp = true;

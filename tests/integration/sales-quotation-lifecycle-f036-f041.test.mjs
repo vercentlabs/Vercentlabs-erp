@@ -126,9 +126,6 @@ test("Sales quotation lifecycle against real PostgreSQL", async (t) => {
     }
     // Organisations created through the platform get their document numbering
     // series seeded; this test inserts the organisation directly, so it does too.
-    for (const [entity, prefix] of [["quotation", "QUO-"], ["sales_order", "SO-"], ["sales_fulfillment_request", "FUL-"], ["sales_invoice_request", "SIR-"]]) {
-      await admin.query(`INSERT INTO public.numbering_series(organization_id,entity_type,prefix) VALUES ($1,$2,$3) ON CONFLICT DO NOTHING`, [orgId, entity, prefix]);
-    }
     await setTenantContext(admin, orgId);
     await admin.query(`INSERT INTO tenant.currencies(organization_id,code,name,decimal_places,is_base,status) VALUES ($1,'INR','Indian Rupee',2,true,'active')`, [orgId]);
     await admin.query(`INSERT INTO tenant.warehouses(id,organization_id,company_id,branch_id,code,name,status) VALUES ($1,$2,$3,$4,'WH','WH','active')`, [warehouseId, orgId, companyId, branchId]);
@@ -272,7 +269,6 @@ test("Sales quotation lifecycle against real PostgreSQL", async (t) => {
     }
     await admin.query(`DELETE FROM public.sales_public_quote_tokens WHERE organization_id=$1`, [orgId]).catch(() => undefined);
     await admin.query(`DELETE FROM public.organization_memberships WHERE organization_id=$1`, [orgId]).catch(() => undefined);
-    await admin.query(`DELETE FROM public.numbering_series WHERE organization_id=$1`, [orgId]).catch(() => undefined);
     await admin.query(`DELETE FROM public.organizations WHERE id=$1`, [orgId]).catch(() => undefined);
     await admin.query(`DELETE FROM public.users WHERE id=ANY($1::uuid[])`, [[sellerId, approverId]]).catch(() => undefined);
     await admin.end();

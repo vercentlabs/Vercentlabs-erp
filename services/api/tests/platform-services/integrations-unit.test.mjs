@@ -46,10 +46,23 @@ test("API scopes: only registered scopes can be issued; '*' and unknown strings 
   }
 });
 
+// A fake client for key authentication: the organisation lookup (definer
+// function), the context switch, then the key row under that context.
+function keyClient(key, writes = []) {
+  return {
+    async query(sql) {
+      if (sql.includes("resolve_api_key_organization")) return { rows: [{ organization_id: SESSION.organizationId }] };
+      if (sql.includes("set_config")) return { rows: [] };
+      if (sql.startsWith("UPDATE")) writes.push(sql);
+      return sql.startsWith("SELECT") ? { rows: [{ id: "k", organization_id: SESSION.organizationId, developer_app_id: "a", app_name: "App", ...key }] } : { rows: [] };
+    },
+  };
+}
+
 test("API authentication fails closed and a wildcard or unregistered stored scope grants nothing", async () => {
   await assert.rejects(authenticateApiKey({ query: async () => ({ rows: [] }) }, createTenantApiKeyMaterial().token), rejectsWith("PLATFORM_API_KEY_INVALID"));
   const principal = await authenticateApiKey(
-    { query: async (sql) => (sql.startsWith("SELECT") ? { rows: [{ id: "k", organization_id: "o", developer_app_id: "a", app_name: "App", scopes: ["*", "made.up", "platform.context.read"], last_used_at: new Date() }] } : { rows: [] }) },
+    keyClient({ scopes: ["*", "made.up", "platform.context.read"], last_used_at: new Date() }),
     createTenantApiKeyMaterial().token,
   );
   assert.deepEqual([...principal.scopes], ["platform.context.read"]);
@@ -61,12 +74,7 @@ test("API authentication fails closed and a wildcard or unregistered stored scop
 
 test("last_used_at is refreshed coarsely, not on every request", async () => {
   const writes = [];
-  const client = (lastUsedAt) => ({
-    query: async (sql) => {
-      if (sql.startsWith("UPDATE")) writes.push(sql);
-      return sql.startsWith("SELECT") ? { rows: [{ id: "k", organization_id: "o", developer_app_id: "a", app_name: "App", scopes: [], last_used_at: lastUsedAt }] } : { rows: [] };
-    },
-  });
+  const client = (lastUsedAt) => keyClient({ scopes: [], last_used_at: lastUsedAt }, writes);
   await authenticateApiKey(client(new Date()), createTenantApiKeyMaterial().token);
   assert.equal(writes.length, 0);
   await authenticateApiKey(client(new Date(Date.now() - 10 * 60 * 1000)), createTenantApiKeyMaterial().token);

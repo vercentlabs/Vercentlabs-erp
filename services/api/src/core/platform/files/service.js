@@ -103,9 +103,9 @@ export async function storeFile(client, input, { storage, env = process.env } = 
     await client.query(
       `INSERT INTO public.attachments (
          id, organization_id, entity_type, entity_id, file_name, storage_key, mime_type, size_bytes, uploaded_by,
-         content, content_sha256, lifecycle_status, scan_status, logical_id, version, is_current,
+         content_sha256, lifecycle_status, scan_status, logical_id, version, is_current,
          storage_mode, storage_provider, purpose, expires_at, classification
-       ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,NULL,$10,'clean',$11,COALESCE($12::uuid,$1),$13,true,'object',$14,$15,$16,$17)
+       ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,'clean',$11,COALESCE($12::uuid,$1),$13,true,'object',$14,$15,$16,$17)
        RETURNING ${METADATA}`,
       [id, organizationId, entityType, String(entityId), prepared.fileName, storageKey, prepared.mimeType, prepared.sizeBytes, uploadedBy,
         prepared.contentSha256, prepared.scanStatus, logicalId, version, store.name, purpose, expiresAt, classification],
@@ -150,7 +150,7 @@ export async function readFileContent(client, { organizationId, entityType, enti
   registered(entityType);
   const row = (
     await client.query(
-      `SELECT id, file_name, mime_type, size_bytes, storage_mode, storage_key, content, content_sha256, lifecycle_status, scan_status, purpose, expires_at, content_removed_at
+      `SELECT id, file_name, mime_type, size_bytes, storage_mode, storage_key, content_sha256, lifecycle_status, scan_status, purpose, expires_at, content_removed_at
          FROM public.attachments WHERE organization_id=$1 AND id=$2 AND entity_type=$3 AND entity_id=$4`,
       [organizationId, uuid(fileId, "File"), entityType, String(entityId)],
     )
@@ -162,8 +162,11 @@ export async function readFileContent(client, { organizationId, entityType, enti
   if (row.lifecycle_status !== "clean") throw notFound();
   let body;
   if (row.storage_mode === "database_legacy") {
-    if (!row.content) throw notFound();
-    body = Buffer.from(row.content);
+    // Historical bytes, until `pnpm files:migrate-legacy` moves them (the
+    // contract migration that drops the column requires zero such rows).
+    const legacy = (await client.query("SELECT content FROM public.attachments WHERE organization_id=$1 AND id=$2", [organizationId, row.id])).rows[0];
+    if (!legacy?.content) throw notFound();
+    body = Buffer.from(legacy.content);
   } else {
     const store = storage || (await resolveObjectStorage(env));
     try {
@@ -211,13 +214,15 @@ export async function archiveFile(client, { organizationId, entityType, entityId
  * Worker maintenance: deletes the bytes of expired artifacts (exports,
  * report outputs). The metadata row, its hash and its audit trail remain.
  */
-export async function purgeExpiredFileContent(client, { storage, env = process.env, limit = 100 } = {}) {
+// One organisation at a time, inside that organisation's context (attachments
+// are organisation-RLS protected); the worker walks the organisations.
+export async function purgeExpiredFileContent(client, { organizationId, storage, env = process.env, limit = 100 } = {}) {
   const store = storage || (await resolveObjectStorage(env));
   const { rows } = await client.query(
     `SELECT id, storage_key FROM public.attachments
-      WHERE storage_mode='object' AND expires_at IS NOT NULL AND expires_at <= now() AND content_removed_at IS NULL
+      WHERE organization_id=$2 AND storage_mode='object' AND expires_at IS NOT NULL AND expires_at <= now() AND content_removed_at IS NULL
       ORDER BY expires_at LIMIT $1 FOR UPDATE SKIP LOCKED`,
-    [limit],
+    [limit, organizationId],
   );
   for (const row of rows) {
     await store.remove(row.storage_key);

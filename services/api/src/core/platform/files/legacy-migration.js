@@ -27,7 +27,11 @@ function bounded(value, fallback) {
   return Math.min(Math.max(Number.isInteger(number) ? number : fallback, 1), MAX_BATCH);
 }
 
+// After the contract migration drops attachments.content there is nothing
+// left to count (and the query below could not run).
 export async function countLegacyFileRows(queryable) {
+  const column = await queryable.query(`SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='attachments' AND column_name='content'`);
+  if (!column.rowCount) return { rows: 0, bytes: 0 };
   const { rows } = await queryable.query(`SELECT count(*)::int AS rows, COALESCE(sum(octet_length(content)), 0)::bigint AS bytes FROM public.attachments WHERE storage_mode = 'database_legacy' AND content IS NOT NULL`);
   return { rows: rows[0].rows, bytes: Number(rows[0].bytes) };
 }
@@ -64,9 +68,10 @@ async function migrateOne(client, store, row, { dryRun }) {
  * owner-role transaction (the script provides it).
  */
 export async function migrateLegacyFiles(withTransaction, { batchSize, maxBatches = 20, dryRun = false, storage, env = process.env } = {}) {
+  const summary = { migrated: 0, wouldMigrate: 0, hashMismatch: [], verifyFailed: [], batches: 0 };
+  if (!(await withTransaction(async (client) => (await countLegacyFileRows(client)).rows))) return summary;
   const store = storage || (await resolveObjectStorage(env));
   const size = bounded(batchSize, DEFAULT_BATCH);
-  const summary = { migrated: 0, wouldMigrate: 0, hashMismatch: [], verifyFailed: [], batches: 0 };
   let cursor = "00000000-0000-0000-0000-000000000000";
   for (let batch = 0; batch < maxBatches; batch += 1) {
     const results = await withTransaction(async (client) => {

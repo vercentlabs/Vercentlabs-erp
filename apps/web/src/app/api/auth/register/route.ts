@@ -11,7 +11,7 @@ import {
   setSessionOrganization,
 } from "@vercentlabs/api";
 
-import { transaction, withClient } from "@/core/db";
+import { ingressTransaction, withIngressClient } from "@/core/db";
 import { errorResponse, readJson, ok } from "@/core/http";
 import { setSessionCookie } from "@/core/session";
 
@@ -36,9 +36,9 @@ export async function POST(request: Request) {
   try {
     assertSameOrigin(request, process.env);
     const body = schema.parse(await readJson(request));
-    await withClient((client) => enforceRateLimit(client, `register:${clientIp(request, process.env)}`, 5, 600));
+    await withIngressClient((client) => enforceRateLimit(client, `register:${clientIp(request, process.env)}`, 5, 600));
 
-    const result = await transaction(async (client) => {
+    const result = await ingressTransaction(async (client) => {
       const registered = await registerOrganization(client, body);
       const session = await createSession(client, {
         userId: registered.userId,
@@ -64,7 +64,7 @@ export async function POST(request: Request) {
     // this codebase) -- a delivery failure must never roll back a
     // successful signup; the user can always request a fresh link from
     // /verify-email.
-    await withClient((client) => createEmailVerificationToken(client, result.registered.userId, process.env));
+    await withIngressClient((client) => createEmailVerificationToken(client, result.registered.userId, process.env));
 
     const response = ok({ registered: true }, 201);
     setSessionCookie(response, result.session);

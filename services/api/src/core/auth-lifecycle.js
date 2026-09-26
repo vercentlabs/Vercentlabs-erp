@@ -11,7 +11,10 @@
 // stores, validates and consumes tokens is new.
 import { randomUUID } from "node:crypto";
 
-import { hashPassword, createOpaqueToken, tokenHash } from "./session.js";
+import { setTenantContext } from "@vercentlabs/database";
+
+import { audit } from "./security.js";
+import { createOpaqueToken, createSession, hashPassword, setSessionOrganization, tokenHash } from "./session.js";
 import { deliverAuthMessage } from "./auth-mailer.js";
 import {
   assertInvitationWithinAdministrationScope,
@@ -19,6 +22,7 @@ import {
   invitationWithinAdministrationScopeSql,
   validateInvitationRolesForAcceptance,
   validateRoleSelection,
+  validateDepartmentTeamScope,
   validateScopeGrantCeiling,
 } from "./access-administration.js";
 import { ACCESS_EVIDENCE_EVENTS, recordAccessAssignmentEvent } from "./access/index.js";
@@ -177,12 +181,11 @@ export async function resetPasswordWithToken(client, token, newPassword) {
 // Organization invitations
 //
 // Canonical storage: organization_invitation_roles (multiple roles, exactly
-// one primary) and organization_invitation_company_access /
-// _branch_access (department/team tables preserved as foundations). The
-// legacy organization_invitations.role_id / company_ids / branch_ids columns
-// are DEPRECATED mirrors kept only for the rolling-deployment window
-// (migration 060); nothing reads them except the one-time fallback in
-// ensureNormalizedInvitationAccess for rows an older instance wrote.
+// one primary) and organization_invitation_company_access / _branch_access /
+// _department_access / _team_access. Acceptance applies all of it in one
+// transaction. The legacy organization_invitations.role_id / company_ids /
+// branch_ids mirrors are no longer written or read; a contract migration
+// drops them once no row depends on them.
 // ---------------------------------------------------------------------
 
 const INVITATION_TOKEN_TTL_DAYS = 7;
@@ -197,9 +200,8 @@ function uniqueIds(values) {
   return [...new Set((values || []).filter(Boolean))].sort();
 }
 
-// Replace an invitation's normalized roles and scope, and mirror the
-// deprecated legacy columns for older instances during rollout.
-async function writeInvitationAccess(client, { organizationId, invitationId, roleIds, primaryRoleId, companyIds, branchIds }) {
+// Replace an invitation's normalized roles and scope.
+async function writeInvitationAccess(client, { organizationId, invitationId, roleIds, primaryRoleId, companyIds, branchIds, departmentIds, teamIds }) {
   await client.query(`DELETE FROM organization_invitation_roles WHERE organization_id = $1 AND invitation_id = $2`, [organizationId, invitationId]);
   await client.query(
     `INSERT INTO organization_invitation_roles (invitation_id, organization_id, role_id, is_primary)
@@ -220,36 +222,15 @@ async function writeInvitationAccess(client, { organizationId, invitationId, rol
       [organizationId, invitationId, branchIds],
     );
   }
-  await client.query(
-    `UPDATE organization_invitations SET role_id = $3, company_ids = $4, branch_ids = $5 WHERE organization_id = $1 AND id = $2`,
-    [organizationId, invitationId, primaryRoleId, companyIds, branchIds],
-  );
-}
-
-// Rolling-deployment fallback: an older instance may still write only the
-// legacy columns. Normalize such a row once, inside the caller's
-// transaction, so every reader below sees one canonical shape.
-async function ensureNormalizedInvitationAccess(client, invitation) {
-  const existing = await client.query(`SELECT 1 FROM organization_invitation_roles WHERE invitation_id = $1 LIMIT 1`, [invitation.id]);
-  if (existing.rows[0] || !invitation.role_id) return;
-  await client.query(
-    `INSERT INTO organization_invitation_roles (invitation_id, organization_id, role_id, is_primary)
-     SELECT $1, $2, role.id, true FROM roles role WHERE role.id = $3 AND role.organization_id = $2
-     ON CONFLICT DO NOTHING`,
-    [invitation.id, invitation.organization_id, invitation.role_id],
-  );
-  await client.query(
-    `INSERT INTO organization_invitation_company_access (invitation_id, organization_id, company_id)
-     SELECT $1, $2, company.id FROM companies company WHERE company.organization_id = $2 AND company.id = ANY($3::uuid[])
-     ON CONFLICT DO NOTHING`,
-    [invitation.id, invitation.organization_id, invitation.company_ids || []],
-  );
-  await client.query(
-    `INSERT INTO organization_invitation_branch_access (invitation_id, organization_id, branch_id)
-     SELECT $1, $2, branch.id FROM branches branch WHERE branch.organization_id = $2 AND branch.id = ANY($3::uuid[])
-     ON CONFLICT DO NOTHING`,
-    [invitation.id, invitation.organization_id, invitation.branch_ids || []],
-  );
+  for (const [table, column, ids] of [
+    ["organization_invitation_department_access", "department_id", departmentIds],
+    ["organization_invitation_team_access", "team_id", teamIds],
+  ]) {
+    await client.query(`DELETE FROM ${table} WHERE organization_id = $1 AND invitation_id = $2`, [organizationId, invitationId]);
+    if (ids.length) {
+      await client.query(`INSERT INTO ${table} (invitation_id, organization_id, ${column}) SELECT $2, $1, unnest($3::uuid[])`, [organizationId, invitationId, ids]);
+    }
+  }
 }
 
 // Issue (or re-issue, for a still-pending email) an invitation.
@@ -257,7 +238,7 @@ async function ensureNormalizedInvitationAccess(client, invitation) {
 // accepted and treated as [roleId] with itself as primary.
 export async function createOrganizationInvitation(
   client,
-  { organizationId, invitedByUserId, email, roleId, roleIds, primaryRoleId, companyIds = [], branchIds = [], inviter, acknowledgeWarningConflicts },
+  { organizationId, invitedByUserId, email, roleId, roleIds, primaryRoleId, companyIds = [], branchIds = [], departmentIds = [], teamIds = [], inviter, acknowledgeWarningConflicts },
   env = process.env,
 ) {
   // `inviter` is required, never optional — the grant ceiling, SoD and
@@ -270,6 +251,8 @@ export async function createOrganizationInvitation(
 
   const uniqueCompanyIds = uniqueIds(companyIds);
   const uniqueBranchIds = uniqueIds(branchIds);
+  const uniqueDepartmentIds = uniqueIds(departmentIds);
+  const uniqueTeamIds = uniqueIds(teamIds);
   // Scope targets must belong to this organization (never trusted blind),
   // and every branch must sit under a selected company.
   if (uniqueCompanyIds.length) {
@@ -288,6 +271,8 @@ export async function createOrganizationInvitation(
     }
   }
 
+  await validateDepartmentTeamScope(client, organizationId, { companyIds: uniqueCompanyIds, departmentIds: uniqueDepartmentIds, teamIds: uniqueTeamIds });
+
   // Delegated administrators: the invitation must stay inside their own
   // scope and must carry company scope, or they could never manage it later.
   if (!hasUnrestrictedAccessAdministration(actor.roleSlugs)) {
@@ -300,8 +285,8 @@ export async function createOrganizationInvitation(
       actorRoleSlugs: actor.roleSlugs,
       companyIds: uniqueCompanyIds,
       branchIds: uniqueBranchIds,
-      departmentIds: [],
-      teamIds: [],
+      departmentIds: uniqueDepartmentIds,
+      teamIds: uniqueTeamIds,
     });
   }
 
@@ -330,7 +315,7 @@ export async function createOrganizationInvitation(
 
   const pending = (
     await client.query(
-      `SELECT id, organization_id, role_id, company_ids, branch_ids FROM organization_invitations
+      `SELECT id, organization_id FROM organization_invitations
         WHERE organization_id = $1 AND lower(email) = lower($2) AND accepted_at IS NULL AND revoked_at IS NULL AND expires_at > now()`,
       [organizationId, email],
     )
@@ -338,7 +323,6 @@ export async function createOrganizationInvitation(
   if (pending) {
     // Re-issuing overwrites the pending invitation: a delegated admin may
     // only do that to an invitation already inside their scope.
-    await ensureNormalizedInvitationAccess(client, pending);
     await assertInvitationWithinAdministrationScope(client, { organizationId, actorUserId: actor.userId, actorRoleSlugs: actor.roleSlugs, invitationId: pending.id });
   }
 
@@ -360,9 +344,9 @@ export async function createOrganizationInvitation(
     } else {
       invitationId = randomUUID();
       await client.query(
-        `INSERT INTO organization_invitations (id, organization_id, email, role, role_id, company_ids, branch_ids, token_hash, invited_by, expires_at)
-         VALUES ($1, $2, $3, 'member', $4, $5, $6, $7, $8, now() + interval '${INVITATION_TOKEN_TTL_DAYS} days')`,
-        [invitationId, organizationId, email, selectedPrimaryRoleId, uniqueCompanyIds, uniqueBranchIds, hash, invitedByUserId],
+        `INSERT INTO organization_invitations (id, organization_id, email, role, token_hash, invited_by, expires_at)
+         VALUES ($1, $2, $3, 'member', $4, $5, now() + interval '${INVITATION_TOKEN_TTL_DAYS} days')`,
+        [invitationId, organizationId, email, hash, invitedByUserId],
       );
     }
     await writeInvitationAccess(client, {
@@ -372,6 +356,8 @@ export async function createOrganizationInvitation(
       primaryRoleId: selectedPrimaryRoleId,
       companyIds: uniqueCompanyIds,
       branchIds: uniqueBranchIds,
+      departmentIds: uniqueDepartmentIds,
+      teamIds: uniqueTeamIds,
     });
   });
 
@@ -382,13 +368,39 @@ export async function createOrganizationInvitation(
   return { invitationId, delivered };
 }
 
+// Invitation links are opened before any organisation context exists: the
+// organisation is resolved from the token hash alone (public.
+// resolve_invitation_organization, migration 068), then everything else
+// runs under that organisation's row-level security.
+async function enterInvitationOrganization(client, hash) {
+  const organizationId = (await client.query("SELECT public.resolve_invitation_organization($1) AS organization_id", [hash])).rows[0]?.organization_id;
+  if (!organizationId) throw new AuthLifecycleError(404, "This invitation link is invalid.", "AUTH_INVITATION_NOT_FOUND");
+  await setTenantContext(client, organizationId);
+  return organizationId;
+}
+
+// Runs its own short transaction on the caller's dedicated client (the
+// organisation context is transaction-local).
 export async function getInvitationByToken(client, token) {
+  await client.query("BEGIN");
+  try {
+    const invitation = await readInvitationByToken(client, token);
+    await client.query("COMMIT");
+    return invitation;
+  } catch (error) {
+    await client.query("ROLLBACK").catch(() => undefined);
+    throw error;
+  }
+}
+
+async function readInvitationByToken(client, token) {
   const hash = tokenHash(token);
+  await enterInvitationOrganization(client, hash);
   const row = (
     await client.query(
       `SELECT invitation.id, invitation.organization_id, invitation.email, invitation.expires_at,
               invitation.accepted_at, invitation.revoked_at, organization.name AS organization_name,
-              COALESCE(primary_role.name, legacy_role.name) AS role_name,
+              primary_role.name AS role_name,
               (existing_user.password_hash IS NOT NULL) AS has_existing_account
          FROM organization_invitations AS invitation
          JOIN organizations AS organization ON organization.id = invitation.organization_id
@@ -397,7 +409,6 @@ export async function getInvitationByToken(client, token) {
              JOIN roles role ON role.id = invitation_role.role_id
             WHERE invitation_role.invitation_id = invitation.id AND invitation_role.is_primary
          ) AS primary_role ON true
-         LEFT JOIN roles AS legacy_role ON legacy_role.id = invitation.role_id
          LEFT JOIN users AS existing_user ON lower(existing_user.email) = lower(invitation.email)
         WHERE invitation.token_hash = $1`,
       [hash],
@@ -425,9 +436,10 @@ export async function getInvitationByToken(client, token) {
 // user's password is never written here under any input.
 export async function acceptOrganizationInvitation(client, token, { fullName, password }, authenticatedUserId = null) {
   const hash = tokenHash(token);
+  await enterInvitationOrganization(client, hash);
   const invitation = (
     await client.query(
-      `SELECT id, organization_id, email, role_id, company_ids, branch_ids, invited_by, expires_at, accepted_at, revoked_at
+      `SELECT id, organization_id, email, invited_by, expires_at, accepted_at, revoked_at
          FROM organization_invitations WHERE token_hash = $1 FOR UPDATE`,
       [hash],
     )
@@ -442,7 +454,6 @@ export async function acceptOrganizationInvitation(client, token, { fullName, pa
   // Re-validate the roles NOW (still active, assignable, module enabled,
   // exactly one primary, no blocking SoD) — they were validated at issue
   // time, but roles and modules can change while an invitation is pending.
-  await ensureNormalizedInvitationAccess(client, invitation);
   const invitationRoles = await validateInvitationRolesForAcceptance(client, { organizationId: invitation.organization_id, invitationId: invitation.id });
 
   const user = (await client.query(`SELECT id, password_hash FROM users WHERE lower(email) = lower($1)`, [invitation.email])).rows[0];
@@ -513,6 +524,18 @@ export async function acceptOrganizationInvitation(client, token, { fullName, pa
       WHERE access.invitation_id = $1 ON CONFLICT DO NOTHING RETURNING branch_id`,
     [invitation.id, userId],
   );
+  const departments = await client.query(
+    `INSERT INTO membership_department_access (organization_id, user_id, department_id)
+     SELECT access.organization_id, $2, access.department_id FROM organization_invitation_department_access access
+      WHERE access.invitation_id = $1 ON CONFLICT DO NOTHING RETURNING department_id`,
+    [invitation.id, userId],
+  );
+  const teams = await client.query(
+    `INSERT INTO membership_team_access (organization_id, user_id, team_id)
+     SELECT access.organization_id, $2, access.team_id FROM organization_invitation_team_access access
+      WHERE access.invitation_id = $1 ON CONFLICT DO NOTHING RETURNING team_id`,
+    [invitation.id, userId],
+  );
   await client.query(`UPDATE organization_invitations SET accepted_at = now() WHERE id = $1`, [invitation.id]);
 
   await recordAccessAssignmentEvent(client, {
@@ -527,24 +550,20 @@ export async function acceptOrganizationInvitation(client, token, { fullName, pa
       primaryRoleId: invitationRoles.find((role) => role.is_primary)?.role_id ?? null,
       companyIds: companies.rows.map((row) => row.company_id).sort(),
       branchIds: branches.rows.map((row) => row.branch_id).sort(),
+      departmentIds: departments.rows.map((row) => row.department_id).sort(),
+      teamIds: teams.rows.map((row) => row.team_id).sort(),
     },
   });
 
   return { userId, organizationId: invitation.organization_id, mintNewSession };
 }
 
+// The signed-in user's own pending invitations across organisations (the
+// caller passes the email from the authenticated session). Answered by
+// public.pending_invitations_for_email (migration 068): id, organisation
+// name and expiry only.
 export async function listPendingInvitationsForEmail(client, email) {
-  const rows = await client.query(
-    `SELECT invitation.id, organization.name AS organization_name, invitation.expires_at
-       FROM organization_invitations AS invitation
-       JOIN organizations AS organization ON organization.id = invitation.organization_id
-      WHERE lower(invitation.email) = lower($1)
-        AND invitation.accepted_at IS NULL
-        AND invitation.revoked_at IS NULL
-        AND invitation.expires_at > now()
-      ORDER BY invitation.created_at DESC`,
-    [email],
-  );
+  const rows = await client.query("SELECT id, organization_name, expires_at FROM public.pending_invitations_for_email($1)", [email]);
   return rows.rows;
 }
 
@@ -645,4 +664,33 @@ export async function resendOrganizationInvitation(client, { organizationId, inv
     env,
   );
   return { delivered };
+}
+
+// ------------------------------------------------------------ password sign-in
+
+/** The account for a sign-in attempt (auth identity; exact email match). */
+export async function findUserForSignIn(client, email) {
+  const { rows } = await client.query(`SELECT id, email, password_hash, status FROM users WHERE lower(email) = lower($1) LIMIT 1`, [String(email || "")]);
+  return rows[0] ?? null;
+}
+
+/**
+ * Creates the session for a user whose credentials were JUST verified. Runs in
+ * the caller's identity transaction (app.current_user_id = userId): the
+ * default organisation is the user's own earliest active membership, which
+ * then becomes the transaction's organisation context for the audit event.
+ * Session resolution re-picks and corrects the organisation on first use.
+ */
+export async function startUserSession(client, { userId, ipAddress, userAgent, request, env = process.env }) {
+  const created = await createSession(client, { userId, ipAddress, userAgent, env });
+  const membership = (
+    await client.query(`SELECT organization_id FROM organization_memberships WHERE user_id = $1 AND status = 'active' ORDER BY created_at ASC LIMIT 1`, [userId])
+  ).rows[0];
+  const organizationId = membership?.organization_id ?? null;
+  if (organizationId) {
+    await setTenantContext(client, organizationId);
+    await setSessionOrganization(client, created.sessionId, userId, organizationId);
+  }
+  await audit(client, { organizationId, actorUserId: userId, eventType: "auth.session.created", entityType: "session", entityId: created.sessionId, request, env });
+  return created;
 }

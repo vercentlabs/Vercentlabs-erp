@@ -78,9 +78,6 @@ async function buildSalesWorld(): Promise<SalesWorld> {
 
     // A brand-new organisation gets its document numbering seeded by the platform;
     // this one predates the Sales module's series, so make sure they exist.
-    for (const [entity, prefix] of [["quotation", "QUO-"], ["sales_order", "SO-"], ["sales_fulfillment_request", "FUL-"], ["sales_invoice_request", "SIR-"]]) {
-      await client.query(`INSERT INTO public.numbering_series(organization_id,entity_type,prefix) VALUES ($1,$2,$3) ON CONFLICT DO NOTHING`, [organizationId, entity, prefix]);
-    }
 
     const customerName = `Sales E2E Customer ${suffix}`;
     const itemName = "Sales E2E Widget";
