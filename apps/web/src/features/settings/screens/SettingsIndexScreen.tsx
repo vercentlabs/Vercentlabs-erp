@@ -6,10 +6,7 @@ import { requireWorkspace } from "@/core/session";
 import { SETTINGS_NAVIGATION } from "@/shell/navigation/settings-navigation-registry";
 
 // Phase 6 (platform checkpoint D): a real, permission-aware settings
-// index, replacing the generic PlatformFoundationPage placeholder for
-// /settings specifically (that component is still used as-is for Work,
-// Search, and other still-unbuilt global surfaces — this page earns a
-// dedicated one now that two real sections exist to make discoverable).
+// index (it replaced the former generic placeholder page for /settings).
 // Every item is classified AVAILABLE or PLANNED against
 // settings-navigation-registry.ts; a built-but-permission-gated item
 // renders its own third state (UNAVAILABLE) inline. Only AVAILABLE items

@@ -3,9 +3,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { ACCOUNTANT, MANAGER, buildAssetsWorld, connectAdmin } from "./assets-test-kit.mjs";
+import { ACCOUNTANT, MANAGER, REGISTRAR, buildAssetsWorld, connectAdmin } from "./assets-test-kit.mjs";
 
-const ROLES = { mgr: MANAGER, auditor: ["assets.view", "assets.inspect"], acctA: ACCOUNTANT, acctB: ACCOUNTANT, custodian: ["assets.view"] };
+const ROLES = { mgr: MANAGER, registrar: REGISTRAR, auditor: ["assets.view", "assets.inspect"], acctA: ACCOUNTANT, acctB: ACCOUNTANT, custodian: ["assets.view"] };
 
 test("Asset verification, disposal and reporting against real PostgreSQL", async (t) => {
   const admin = await connectAdmin();
@@ -19,13 +19,13 @@ test("Asset verification, disposal and reporting against real PostgreSQL", async
     const roomA = await run("mgr", (c, x) => api.saveAssetLocation(c, x, { code: "a", name: "Room A", locationType: "room" }));
     const roomB = await run("mgr", (c, x) => api.saveAssetLocation(c, x, { code: "b", name: "Room B", locationType: "room" }));
     const make = async (name, over = {}) => {
-      const a = await run("mgr", (c, x) => api.registerAsset(c, x, { name, categoryId: cat.id, acquisitionCost: 12000, locationId: roomA.id, ...over }));
+      const a = await run("registrar", (c, x) => api.registerAsset(c, x, { name, categoryId: cat.id, acquisitionCost: 12000, locationId: roomA.id, ...over }));
       return run("acctA", (c, x) => api.capitalizeAssetRecord(c, x, a.id, { capitalizationDate: "2026-01-15" }));
     };
     const desk = await make("Desk");
     const chair = await make("Chair");
     const lamp = await make("Lamp");
-    const stray = await run("mgr", (c, x) => api.registerAsset(c, x, { name: "Stray", categoryId: cat.id, acquisitionCost: 100, locationId: roomB.id }));
+    const stray = await run("registrar", (c, x) => api.registerAsset(c, x, { name: "Stray", categoryId: cat.id, acquisitionCost: 100, locationId: roomB.id }));
 
     await t.test("F260/F261: a scan classifies each asset as matched, moved, damaged or unexpected", async () => {
       await denied("custodian", (c, x) => api.createAssetVerificationCampaign(c, x, { name: "Q1 check" }), 403);

@@ -6,8 +6,7 @@
 // STATUS HONESTY: an item is AVAILABLE only once the prompt that built its
 // screen flips it here — do not flip one speculatively. For every module
 // other than CRM, every item is still PLANNED except each module's own
-// "Overview"/root item (a ModuleFoundationPage — see
-// apps/web/src/app/(workspace)/<module>/page.tsx). CRM's clean rebuild
+// "Overview"/root item (apps/web/src/app/(workspace)/<module>/page.tsx). CRM's clean rebuild
 // (Prompt 3) has flipped its built screens (Leads/Accounts/Contacts/
 // Opportunities/Pipeline/Tasks/Calls/Meetings/Follow-ups/Communications/
 // Dashboard/Territories & Sales Teams) to AVAILABLE as each was verified

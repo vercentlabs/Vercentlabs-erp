@@ -4,10 +4,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { ACCOUNTANT, MANAGER, buildAssetsWorld, connectAdmin } from "./assets-test-kit.mjs";
+import { ACCOUNTANT, MANAGER, REGISTRAR, buildAssetsWorld, connectAdmin } from "./assets-test-kit.mjs";
 
 const ROLES = {
-  mgr: MANAGER,
+  mgr: MANAGER, registrar: REGISTRAR,
   mgr2: MANAGER,
   acctA: ACCOUNTANT,
   acctB: ACCOUNTANT,
@@ -24,7 +24,7 @@ test("Asset custody and value against real PostgreSQL", async (t) => {
   async function newAsset(over = {}, catOver = {}) {
     let categoryId = ids.cat;
     if (Object.keys(catOver).length) categoryId = (await run("mgr", (c, x) => api.saveAssetCategory(c, x, w.categoryInput(catOver)))).id;
-    const a = await run("mgr", (c, x) => api.registerAsset(c, x, { name: "Asset", categoryId, acquisitionCost: 12000, ...over }));
+    const a = await run("registrar", (c, x) => api.registerAsset(c, x, { name: "Asset", categoryId, acquisitionCost: 12000, ...over }));
     return run("acctA", (c, x) => api.capitalizeAssetRecord(c, x, a.id, { capitalizationDate: over.capDate || "2026-01-15" }));
   }
 

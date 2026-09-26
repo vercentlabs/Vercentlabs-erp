@@ -153,17 +153,11 @@ export * from "./orchestration/sales-stock-fulfillment.js";
 // parked directory at runtime.
 // Shared Access public boundary (see core/access/index.js).
 export * from "./core/access/index.js";
-export * from "./core/auth/session.js";
+// Shared Platform domain boundaries.
+export * from "./core/auth/index.js";
+export * from "./core/security/index.js";
+export * from "./core/organization/index.js";
 export * from "./core/billing/index.js";
-export * from "./core/security/audit-redaction.js";
-export * from "./core/security/request-security.js";
-export * from "./core/security/attachment-security.js";
-export * from "./core/auth/password-policy.js";
-export * from "./core/auth/mailer.js";
-export * from "./core/auth/lifecycle.js";
-export * from "./core/auth/mfa.js";
-export * from "./core/organization/administration.js";
-export * from "./core/organization/registration.js";
 export * from "./core/platform/integrations/api-keys/index.js";
 export * from "./core/platform/integrations/oauth/index.js";
 export * from "./core/platform/secrets/index.js";

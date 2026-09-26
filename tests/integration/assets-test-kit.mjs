@@ -6,6 +6,9 @@ import { buildAccountingWorld, connectAdmin } from "./accounting-test-kit.mjs";
 export { connectAdmin };
 
 export const MANAGER = ["assets.view", "assets.manage", "assets.create", "assets.assign", "assets.transfer", "assets.maintain", "assets.inspect", "assets.settings.manage"];
+// Entering an asset's cost needs value visibility (field write protection): the
+// built-in asset_manager role has it; the value-blind MANAGER above is refused.
+export const REGISTRAR = [...MANAGER, "assets.reports.view"];
 export const ACCOUNTANT = ["assets.view", "assets.capitalize", "assets.depreciate", "assets.dispose", "assets.accounting.handoff", "assets.reports.view", "assets.audit.view"];
 
 export async function buildAssetsWorld(admin, roles, tag) {

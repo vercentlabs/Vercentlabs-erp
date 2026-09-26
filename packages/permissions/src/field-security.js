@@ -152,6 +152,30 @@ export const FIELD_SECURITY = Object.freeze([
     note: "Any project finance permission reveals them (canSeeFinance: budget.manage, billing.manage, profitability.view, approve, reports.view).",
   }),
   Object.freeze({
+    module: "assets",
+    resource: "assets",
+    fields: Object.freeze(["acquisition_cost", "capitalized_cost", "residual_value", "accumulated_depreciation", "net_book_value", "impairment_accumulated", "revaluation_surplus"]),
+    readPermission: "assets.reports.view",
+    writePermission: "assets.reports.view",
+    ownerBypass: true,
+    enforcement: Object.freeze({ read: "services/api/src/modules/assets/register.js#maskAsset", write: "services/api/src/modules/assets/register.js#assertValueFieldsWritable" }),
+    channels: channels({ report: "gated", events: "not-exposed", automation: "not-exposed" }),
+    note: "Any asset value permission reveals them (canSeeValue: reports.view, depreciate, capitalize, accounting.handoff, audit.view, dispose); a custodian with assets.view sees only their assets, without values.",
+  }),
+  Object.freeze({
+    module: "stock",
+    resource: "valuation",
+    fields: Object.freeze(["average_cost", "stock_value", "unit_cost", "cost_variance"]),
+    readPermission: "stock.valuation.view",
+    writePermission: null,
+    ownerBypass: false,
+    enforcement: Object.freeze({
+      read: "services/api/src/modules/stock/read-models.js#canSeeValue;services/api/src/modules/stock/valuation.js#showValue;services/api/src/modules/stock/counts.js#showValue",
+      write: "computed server-side from movements; never client input",
+    }),
+    channels: channels({ report: "gated", events: "not-exposed", automation: "not-exposed" }),
+  }),
+  Object.freeze({
     module: "accounting",
     resource: "bank_accounts",
     fields: Object.freeze(["masked_account_number"]),
@@ -179,9 +203,7 @@ export const FIELD_SECURITY = Object.freeze([
 // at record/permission level only (evidence: no existing field projection or
 // sensitive permission in the module).
 export const FIELD_SECURITY_NOT_APPLICABLE = Object.freeze({
-  assets: "Asset register values are visible to every assets.view holder; no sensitive-field permission exists.",
-  stock: "Stock quantities and valuation are protected by stock permissions at record level; no field rule exists.",
-  quality: "Inspection data carries no personal or financial sensitive fields.",
+  quality: "Inspection data carries no personal or financial sensitive fields; the cost-of-quality KPI is a report gated by quality reporting permissions.",
 });
 
 export const FIELD_SECURITY_CHANNELS = CHANNELS;

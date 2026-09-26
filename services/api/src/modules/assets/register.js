@@ -18,6 +18,14 @@ const VALUE_FIELDS = ["acquisition_cost", "capitalized_cost", "residual_value", 
 // A person holding only assets.view is a custodian: they see the assets assigned to them, nothing else.
 export const broadScope = (c) => c.roleSlugs?.includes("organization_owner") || ANY_OPERATIONAL.some((p) => c.permissions?.includes(p));
 export const canSeeValue = (c) => c.roleSlugs?.includes("organization_owner") || VALUE_VIEWERS.some((p) => c.permissions?.includes(p));
+const VALUE_INPUT_FIELDS = ["acquisitionCost", "residualValue"];
+// Field write protection: the cost and residual value are hidden from callers
+// without an asset value permission (maskAsset), so they may not submit them.
+function assertValueFieldsWritable(c, input) {
+  if (canSeeValue(c) || !VALUE_INPUT_FIELDS.some((field) => input?.[field] !== undefined)) return;
+  throw new AssetError(403, "You do not have permission to change one or more of these fields.", "FIELD_ACCESS_DENIED");
+}
+
 export function maskAsset(c, row) {
   if (canSeeValue(c)) return row;
   const out = { ...row };
@@ -242,6 +250,7 @@ async function assertParent(client, c, parentId, selfId) {
 
 export async function registerAsset(client, c, input, source = null) {
   need(c, "assets.create");
+  if (!source) assertValueFieldsWritable(c, input);
   const category = await loadCategory(client, c, input.categoryId);
   const settings = await loadSettings(client, c);
   const method = oneOf(input.depreciationMethod || category.depreciation_method || settings.default_depreciation_method, METHODS, "Depreciation method");
@@ -283,6 +292,7 @@ export async function registerAsset(client, c, input, source = null) {
 
 export async function updateAssetRecord(client, c, assetId, input) {
   need(c, "assets.manage");
+  assertValueFieldsWritable(c, input);
   const a = await loadAsset(client, c, assetId, { lock: true });
   if (a.status === "disposed") throw new AssetError(409, "A disposed asset can no longer be edited.", "ASSET_STATE_INVALID");
   const sets = [];

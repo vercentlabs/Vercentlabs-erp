@@ -4,10 +4,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { ACCOUNTANT, MANAGER, buildAssetsWorld, connectAdmin } from "./assets-test-kit.mjs";
+import { ACCOUNTANT, MANAGER, REGISTRAR, buildAssetsWorld, connectAdmin } from "./assets-test-kit.mjs";
 
 const ROLES = {
-  mgr: MANAGER,
+  mgr: MANAGER, registrar: REGISTRAR,
   acctA: [...ACCOUNTANT, "accounting.view", "accounting.payables.manage", "accounting.payables.approve"],
   acctB: [...ACCOUNTANT, "accounting.view", "accounting.payables.manage", "accounting.payables.approve"],
   custodian: ["assets.view"],
@@ -46,14 +46,19 @@ test("Asset register, identity and capitalisation against real PostgreSQL", asyn
     });
 
     await t.test("F231/F233: an asset gets an identity, a tag code, and duplicates are refused", async () => {
-      const a = await run("mgr", (c, x) => api.registerAsset(c, x, { name: "Server rack", categoryId: ids.cat, acquisitionCost: 12000, serialNumber: "SN-1", locationId: ids.room, criticality: "high" }));
+      const a = await run("registrar", (c, x) => api.registerAsset(c, x, { name: "Server rack", categoryId: ids.cat, acquisitionCost: 12000, serialNumber: "SN-1", locationId: ids.room, criticality: "high" }));
       assert.equal(a.status, "draft");
       assert.ok(a.asset_number && a.tag_code);
-      assert.equal(a.residual_value, null, "a manager without a value permission is not shown cost or residual");
+      // Field write protection: a manager without a value permission can neither see nor submit cost.
+      const blind = await run("mgr", (c, x) => api.registerAsset(c, x, { name: "Blind", categoryId: ids.cat, acquisitionCost: 10 })).catch((e) => e);
+      assert.equal(blind.code, "FIELD_ACCESS_DENIED");
+      const masked = await run("mgr", (c, x) => api.getAssetProfile(c, x, a.id));
+      assert.equal(masked.asset.residual_value, null, "a manager without a value permission is not shown cost or residual");
+      assert.equal(masked.asset.acquisition_cost, null);
       assert.equal(Number((await sql(`SELECT residual_value FROM tenant.assets WHERE id=$1`, [a.id]))[0].residual_value), 1200, "the category's 10% residual applies");
       ids.a1 = a.id;
       ids.tag = a.tag_code;
-      const dup = await run("mgr", (c, x) => api.registerAsset(c, x, { name: "Copy", categoryId: ids.cat, acquisitionCost: 100, serialNumber: "SN-1" })).catch((e) => e);
+      const dup = await run("registrar", (c, x) => api.registerAsset(c, x, { name: "Copy", categoryId: ids.cat, acquisitionCost: 100, serialNumber: "SN-1" })).catch((e) => e);
       assert.equal(dup.status, 409, "a serial number is unique");
       const scanned = await run("mgr", (c, x) => api.resolveAssetByTag(c, x, ids.tag));
       assert.equal(scanned.id, a.id);
@@ -64,7 +69,7 @@ test("Asset register, identity and capitalisation against real PostgreSQL", asyn
     });
 
     await t.test("F231: component hierarchy refuses a cycle; documents attach", async () => {
-      const child = await run("mgr", (c, x) => api.registerAsset(c, x, { name: "PSU", categoryId: ids.cat, acquisitionCost: 800, parentAssetId: ids.a1 }));
+      const child = await run("registrar", (c, x) => api.registerAsset(c, x, { name: "PSU", categoryId: ids.cat, acquisitionCost: 800, parentAssetId: ids.a1 }));
       const cyc = await run("mgr", (c, x) => api.updateAssetRecord(c, x, ids.a1, { parentAssetId: child.id })).catch((e) => e);
       assert.equal(cyc.status, 400, "the parent cannot become its own descendant");
       const doc = await run("mgr", (c, x) => api.addAssetDocument(c, x, ids.a1, { documentType: "manual", title: "Rack manual", referenceUrl: "https://example.test/manual.pdf" }));
@@ -77,7 +82,7 @@ test("Asset register, identity and capitalisation against real PostgreSQL", asyn
     await t.test("F237: capitalisation needs a different person, the threshold, and posts a balanced journal", async () => {
       // the registering user (mgr) holds no capitalize permission at all
       await denied("mgr", (c, x) => api.capitalizeAssetRecord(c, x, ids.a1, {}), 403);
-      const tiny = await run("mgr", (c, x) => api.registerAsset(c, x, { name: "Stapler", categoryId: ids.cat, acquisitionCost: 50 }));
+      const tiny = await run("registrar", (c, x) => api.registerAsset(c, x, { name: "Stapler", categoryId: ids.cat, acquisitionCost: 50 }));
       const below = await run("acctA", (c, x) => api.capitalizeAssetRecord(c, x, tiny.id, {})).catch((e) => e);
       assert.equal(below.status, 409, "below the category threshold it must be expensed");
       const cap = await run("acctA", (c, x) => api.capitalizeAssetRecord(c, x, ids.a1, { capitalizationDate: w.today }));
@@ -110,7 +115,7 @@ test("Asset register, identity and capitalisation against real PostgreSQL", asyn
     });
 
     await t.test("F237: financial fields lock at capitalisation; descriptive fields stay editable", async () => {
-      const locked = await run("mgr", (c, x) => api.updateAssetRecord(c, x, ids.a1, { acquisitionCost: 1 })).catch((e) => e);
+      const locked = await run("registrar", (c, x) => api.updateAssetRecord(c, x, ids.a1, { acquisitionCost: 1 })).catch((e) => e);
       assert.equal(locked.status, 409);
       const ok = await run("mgr", (c, x) => api.updateAssetRecord(c, x, ids.a1, { name: "Server rack A", conditionRating: "fair" }));
       assert.equal(ok.name, "Server rack A");

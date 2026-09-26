@@ -5,9 +5,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { ACCOUNTANT, MANAGER, buildAssetsWorld, connectAdmin } from "./assets-test-kit.mjs";
+import { ACCOUNTANT, MANAGER, REGISTRAR, buildAssetsWorld, connectAdmin } from "./assets-test-kit.mjs";
 
-const ROLES = { mgr: MANAGER, tech: ["assets.view", "assets.maintain", "assets.inspect"], acctA: ACCOUNTANT, custodian: ["assets.view"] };
+const ROLES = { mgr: MANAGER, registrar: REGISTRAR, tech: ["assets.view", "assets.maintain", "assets.inspect"], acctA: ACCOUNTANT, custodian: ["assets.view"] };
 
 test("Asset maintenance, warranty, inspection and calibration against real PostgreSQL", async (t) => {
   const admin = await connectAdmin();
@@ -20,7 +20,7 @@ test("Asset maintenance, warranty, inspection and calibration against real Postg
   try {
     const cat = await run("mgr", (c, x) => api.saveAssetCategory(c, x, w.categoryInput({ code: "MCH" })));
     const make = async (name) => {
-      const a = await run("mgr", (c, x) => api.registerAsset(c, x, { name, categoryId: cat.id, acquisitionCost: 20000 }));
+      const a = await run("registrar", (c, x) => api.registerAsset(c, x, { name, categoryId: cat.id, acquisitionCost: 20000 }));
       return run("acctA", (c, x) => api.capitalizeAssetRecord(c, x, a.id, { capitalizationDate: "2026-01-10" }));
     };
     ids.pump = (await make("Pump")).id;
