@@ -118,7 +118,8 @@
     "test:production:db": "node scripts/production/run-db-tests.mjs",
     "verify:production": "node scripts/production/verify-production.mjs",
     "test:production:smoke": "node scripts/production/production-smoke.mjs",
-    "ops:restore-verify": "node scripts/operations/restore-verify.mjs"
+    "ops:restore-verify": "node scripts/operations/restore-verify.mjs",
+    "perf:baseline": "node scripts/perf/run-baseline.mjs"
   },
   "engines": {
     "node": ">=24 <25",
