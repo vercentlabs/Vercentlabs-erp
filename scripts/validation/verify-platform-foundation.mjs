@@ -76,8 +76,8 @@ const required = [
   "services/worker/src/queue.js",
   "services/worker/src/registry.js",
   "services/worker/src/worker.js",
-  "services/worker/src/ssrf.js",
-  "services/worker/src/webhook-delivery.js",
+  "services/worker/src/webhooks.js",
+  "services/api/src/core/platform/integrations/webhooks/ssrf.js",
 
   "packages/config",
   "packages/database",

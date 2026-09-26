@@ -29,6 +29,27 @@
       "path": "services/api/src/modules/accounting/receivables.js",
       "operation": "UPDATE",
       "table": "tenant.sales_orders"
+    },
+    {
+      "sourceModule": "stock",
+      "ownerModule": "procurement",
+      "path": "services/api/src/modules/stock/valuation.js",
+      "operation": "UPDATE",
+      "table": "tenant.procurement_landed_costs"
+    },
+    {
+      "sourceModule": "point-of-sale",
+      "ownerModule": "accounting",
+      "path": "services/api/src/modules/point-of-sale/cash-shift-day-end-and-reconciliation/accounting-mapping-config.js",
+      "operation": "UPDATE",
+      "table": "tenant.accounting_account_mappings"
+    },
+    {
+      "sourceModule": "support",
+      "ownerModule": "crm",
+      "path": "services/api/src/modules/support/tickets.js",
+      "operation": "INSERT INTO",
+      "table": "tenant.crm_customer_service_events"
     }
   ]
 }
