@@ -15,6 +15,7 @@ import {
   HelpCircle,
   Settings,
   UserRound,
+  FileSpreadsheet,
 } from "lucide-react";
 
 import { MODULE_NAVIGATION } from "./module-navigation-registry";
@@ -124,6 +125,15 @@ export const GLOBAL_NAV_BOTTOM: readonly GlobalNavEntry[] = [
     requiredPermission: null,
     availability: "implemented",
     keywords: ["my hr", "my profile", "my leave", "my attendance", "payslip", "self service"],
+  },
+  {
+    key: "reports",
+    label: "Reports",
+    href: "/reports",
+    icon: FileSpreadsheet,
+    requiredPermission: null,
+    availability: "implemented",
+    keywords: ["reports", "csv", "download data"],
   },
   {
     key: "jobs",

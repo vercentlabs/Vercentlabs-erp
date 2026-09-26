@@ -109,8 +109,8 @@ test("F002: valid account creation uses governed numbering, active company scope
   const client = {
     async query(sql, values) {
       calls.push({ sql, values });
-      if (sql.includes("UPDATE public.numbering_series")) {
-        return { rows: [{ prefix: "PTY-", number: 42, padding: 5 }] };
+      if (sql.includes("INSERT INTO tenant.document_sequences")) {
+        return { rows: [{ allocated_value: "42", effective_prefix: "PTY-", effective_padding: 5 }] };
       }
       if (sql.includes("INSERT INTO tenant.business_parties")) {
         return { rows: [{ ...accountRow, code: "PTY-00042" }] };
@@ -137,7 +137,7 @@ test("F002: valid account creation uses governed numbering, active company scope
   assert.equal(insert.values[4], "Acme Manufacturing");
   assert.equal(insert.values[9], "sales@acme.example");
   const outbox = calls.find((call) =>
-    call.sql.includes("INSERT INTO tenant.crm_outbox_events"),
+    call.sql.includes("INSERT INTO tenant.platform_events"),
   );
   assert.equal(outbox.values[1], "crm.accounts.created");
 });
@@ -147,8 +147,8 @@ test("F002: MSME registration number is actually persisted on create (regression
   const client = {
     async query(sql, values) {
       calls.push({ sql, values });
-      if (sql.includes("UPDATE public.numbering_series")) {
-        return { rows: [{ prefix: "PTY-", number: 43, padding: 5 }] };
+      if (sql.includes("INSERT INTO tenant.document_sequences")) {
+        return { rows: [{ allocated_value: "43", effective_prefix: "PTY-", effective_padding: 5 }] };
       }
       if (sql.includes("INSERT INTO tenant.business_parties")) {
         return { rows: [{ ...accountRow, code: "PTY-00043", msme_number: "UDYAM-XX-00-0000001" }] };
@@ -201,8 +201,8 @@ function duplicateBlockingClient({ existingGstin = "27AABCU9603R1ZM" } = {}) {
           ],
         };
       }
-      if (sql.includes("UPDATE public.numbering_series")) {
-        return { rows: [{ prefix: "PTY-", number: 99, padding: 5 }] };
+      if (sql.includes("INSERT INTO tenant.document_sequences")) {
+        return { rows: [{ allocated_value: "99", effective_prefix: "PTY-", effective_padding: 5 }] };
       }
       if (sql.includes("INSERT INTO tenant.business_parties")) {
         return { rows: [{ ...accountRow, id: "new-account-1", gstin: existingGstin }] };
@@ -271,7 +271,7 @@ test("F002/F008: a merely probable (non-blocking) match does not require an over
     if (/FROM tenant\.business_parties party\s/.test(sql)) {
       return { rows: [{ id: "existing-account-1", display_name: "Acme Existing", match_score: 35, matched_signals: ["legal_name"], classification: "probable" }] };
     }
-    if (sql.includes("UPDATE public.numbering_series")) return { rows: [{ prefix: "PTY-", number: 99, padding: 5 }] };
+    if (sql.includes("INSERT INTO tenant.document_sequences")) return { rows: [{ allocated_value: "99", effective_prefix: "PTY-", effective_padding: 5 }] };
     if (sql.includes("INSERT INTO tenant.business_parties")) return { rows: [{ ...accountRow, id: "new-account-1" }] };
     if (sql.includes("FROM tenant.business_parties account")) return { rows: [{ ...accountRow, id: "new-account-1" }] };
     if (sql.includes("AS contacts") && sql.includes("AS opportunities")) return { rows: [{ contacts: 0, opportunities: 0 }] };
@@ -357,7 +357,7 @@ test("F002: partial updates preserve omitted persisted fields and emit an update
   assert.match(update.sql, /industry = \$3/);
   assert.doesNotMatch(update.sql, /email =/);
   const outbox = client.calls.find((call) =>
-    call.sql.includes("INSERT INTO tenant.crm_outbox_events"),
+    call.sql.includes("INSERT INTO tenant.platform_events"),
   );
   assert.equal(outbox.values[1], "crm.accounts.updated");
 });
@@ -376,7 +376,7 @@ test("F002: archive is soft, preserves related rows and emits the governed event
     true,
   );
   const outbox = client.calls.find((call) =>
-    call.sql.includes("INSERT INTO tenant.crm_outbox_events"),
+    call.sql.includes("INSERT INTO tenant.platform_events"),
   );
   assert.equal(outbox.values[1], "crm.accounts.archived");
 });

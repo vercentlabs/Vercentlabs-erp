@@ -106,7 +106,7 @@ function qualificationClient(initial = {}) {
         writes.push({ kind: "history", sql, values });
         return { rows: [row] };
       }
-      if (sql.includes("INSERT INTO tenant.crm_outbox_events")) {
+      if (sql.includes("INSERT INTO tenant.platform_events")) {
         writes.push({ kind: "outbox", sql, values });
         return { rows: [] };
       }
@@ -370,7 +370,8 @@ test("F006: domain serializes decisions with a row lock before update", () => {
   assert.match(source, /FOR UPDATE OF lead/);
   assert.match(source, /previousState === "unqualified"/);
   assert.match(source, /INSERT INTO tenant\.crm_lead_qualification_events/);
-  assert.match(source, /INSERT INTO tenant\.crm_outbox_events/);
+  // The decision event goes through the Shared Platform transactional outbox.
+  assert.match(source, /publishDomainEvent\(client/);
   assert.doesNotMatch(source, /createCrmRecord[\s\S]*opportunit/);
 });
 

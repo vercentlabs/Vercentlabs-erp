@@ -23,7 +23,7 @@ function clientFor(current=row()) {
     if (sql.includes("FROM tenant.crm_opportunities record WHERE")) return {rows:[current]};
     if (sql.startsWith("UPDATE tenant.crm_opportunities")) return {rows:[row({probability:String(values[0]),expected_revenue:(1000*Number(values[0])/100).toFixed(2),updated_at:"2026-08-27T00:01:00.000Z"})]};
     if (sql.includes("INSERT INTO tenant.crm_opportunity_probability_history")) return {rows:[]};
-    if (sql.includes("INSERT INTO tenant.crm_outbox_events")) return {rows:[]};
+    if (sql.includes("INSERT INTO tenant.platform_events")) return {rows:[]};
     throw new Error(`Unexpected query: ${sql}`);
   }}};
 }
@@ -39,7 +39,7 @@ test("F011 governed update is scoped, locked, atomic, historical and evented", a
   assert.equal(Number(updated.expectedRevenue),725);
   assert.match(calls[0].sql,/FOR UPDATE/);
   assert.ok(calls.some(c=>c.sql.includes("crm_opportunity_probability_history")));
-  assert.ok(calls.some(c=>c.sql.includes("crm_outbox_events")));
+  assert.ok(calls.some(c=>c.sql.includes("platform_events")));
 });
 
 test("F011 desired-state replay is mutation-free even with an old retry token", async () => {

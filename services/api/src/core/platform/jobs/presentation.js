@@ -20,6 +20,7 @@ export const JOB_TYPE_PRESENTATION = Object.freeze([
   { jobType: "crm.follow_ups.dispatch_reminders", label: "Follow-up reminder delivery", category: "CRM automation", userVisible: false },
   { jobType: "crm.nurture_queue.dispatch_notifications", label: "Nurture queue reminders", category: "CRM automation", userVisible: false },
   { jobType: "crm.pipeline.capture_daily_snapshot", label: "Daily pipeline snapshot", category: "CRM reporting", userVisible: false },
+  { jobType: "platform.reports.run", label: "Report export", category: "Reports", userVisible: true },
   { jobType: "sales.automation.detect_expired_quotations", label: "Expired quotation check", category: "Sales automation", userVisible: false },
 ]);
 

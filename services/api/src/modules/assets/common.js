@@ -98,7 +98,7 @@ export async function qx(client, sql, params) {
 }
 
 export async function nextNumber(client, c, documentType, prefix) {
-  const { nextDocumentNumber } = await import("../../core/document-numbering.js");
+  const { nextDocumentNumber } = await import("../../core/platform/numbering/index.js");
   return nextDocumentNumber(client, c, { documentType, prefix });
 }
 

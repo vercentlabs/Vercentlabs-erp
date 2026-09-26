@@ -49,7 +49,7 @@ function slaScanClient({ openCases = [], leadRow = { id: leadId, organization_id
         return { rows: [{ id: escalationUserId, name: "Escalation Manager", email: "escalation@example.com" }] };
       if (sql.startsWith("UPDATE tenant.crm_leads SET owner_user_id")) return { rows: [{ ...leadRow, owner_user_id: escalationUserId }] };
       if (sql.includes("INSERT INTO tenant.crm_lead_assignment_events")) return { rows: [{ id: "event-1" }] };
-      if (sql.includes("INSERT INTO tenant.crm_outbox_events")) return { rows: [] };
+      if (sql.includes("INSERT INTO tenant.platform_events")) return { rows: [] };
       return { rows: [] };
     },
   };

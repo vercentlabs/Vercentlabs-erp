@@ -9,11 +9,11 @@
 //
 // Deliberately hand-rolled on node:crypto rather than a TOTP dependency --
 // matches this module's own established convention (session.js's scrypt
-// password hashing, oauth.js's AES-256-GCM envelope) of no external
+// password hashing, platform/integrations/secrets.js's AES-256-GCM envelope) of no external
 // crypto/auth library anywhere in services/api.
 import { createHash, createHmac, randomBytes, randomUUID, timingSafeEqual } from "node:crypto";
 
-import { encryptIntegrationCredentials, decryptIntegrationCredentials } from "./oauth.js";
+import { encryptIntegrationCredentials, decryptIntegrationCredentials } from "./platform/integrations/secrets.js";
 import { requireSessionPermission } from "./access-control-runtime.js";
 
 export class MfaError extends Error {

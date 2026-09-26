@@ -18,6 +18,7 @@ import { assertExpectedRecordVersion } from "./record-version.js";
 import { getEligibleLeadAssignee } from "../lead-lifecycle-qualification-and-prioritization/assignment/eligibility.js";
 import { assertCrmOwnerAssignable, crmAccountVisibleSql } from "../crm-data-operations-and-customization/crm-access-scope.js";
 import { crmChildScopes } from "../crm-data-operations-and-customization/record-policy.js";
+import { nextDocumentNumber } from "../../../core/platform/numbering/index.js";
 
 // F008 create-time governed duplicate check (CRM-VNEXT-081). Mirrors Lead's
 // established exact-classification-blocks-unless-overridden contract
@@ -176,22 +177,7 @@ function persistenceError(error) {
 }
 
 async function nextAccountCode(client, organizationId) {
-  const result = await client.query(
-    `UPDATE public.numbering_series
-     SET next_number = next_number + 1
-     WHERE organization_id = $1 AND entity_type = 'business_party'
-     RETURNING prefix, next_number - 1 AS number, padding`,
-    [organizationId],
-  );
-  if (!result.rows[0]) {
-    throw new CrmError(
-      409,
-      "Account numbering is not configured for this organisation.",
-      "CRM_ACCOUNT_NUMBERING_UNAVAILABLE",
-    );
-  }
-  const row = result.rows[0];
-  return `${row.prefix}${String(row.number).padStart(Number(row.padding || 5), "0")}`;
+  return nextDocumentNumber(client, { organizationId }, { documentType: "business_party" });
 }
 
 function accountSelect() {

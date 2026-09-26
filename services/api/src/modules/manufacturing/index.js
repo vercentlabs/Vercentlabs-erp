@@ -1,6 +1,6 @@
 import { createHash, randomUUID } from "node:crypto";
 
-import { nextDocumentNumber } from "../../core/document-numbering.js";
+import { nextDocumentNumber } from "../../core/platform/numbering/index.js";
 import { beginIdempotentOperation, completeIdempotentOperation } from "../../core/idempotency.js";
 import { postStockMovement as postCanonicalStockMovement } from "../stock/index.js";
 

@@ -240,7 +240,7 @@ test("F003: standalone Contact creation persists without fabricating an Account"
   assert.equal(insert.values[2], "Priya");
   assert.equal(insert.values[5], "priya@example.com");
   assert.equal(insert.values[8], false);
-  const outbox = client.calls.find((call) => call.sql.includes("INSERT INTO tenant.crm_outbox_events"));
+  const outbox = client.calls.find((call) => call.sql.includes("INSERT INTO tenant.platform_events"));
   assert.equal(outbox.values[1], "crm.contacts.created");
 });
 
@@ -293,7 +293,7 @@ test("F003: partial update preserves omitted identity, channels and Account", as
   assert.equal(updated.accountId, accountId);
   const update = client.calls.find((call) => call.sql.includes("designation ="));
   assert.doesNotMatch(update.sql, /email =|mobile =|party_id =/);
-  const outbox = client.calls.find((call) => call.sql.includes("INSERT INTO tenant.crm_outbox_events"));
+  const outbox = client.calls.find((call) => call.sql.includes("INSERT INTO tenant.platform_events"));
   assert.equal(outbox.values[1], "crm.contacts.updated");
 });
 
@@ -311,7 +311,7 @@ test("F003: archive is soft and preserves Account and related-record counts", as
   assert.equal(archived.accountId, accountId);
   assert.deepEqual(archived.relationships, { opportunities: 2, activities: 4 });
   assert.equal(client.calls.some((call) => /\bDELETE\b/i.test(call.sql)), false);
-  const outbox = client.calls.find((call) => call.sql.includes("INSERT INTO tenant.crm_outbox_events"));
+  const outbox = client.calls.find((call) => call.sql.includes("INSERT INTO tenant.platform_events"));
   assert.equal(outbox.values[1], "crm.contacts.archived");
 });
 
@@ -322,7 +322,7 @@ test("F003: reactivate restores an archived Contact whose Account is still activ
   assert.equal(reactivated.status, "active");
   assert.equal(reactivated.accountId, accountId);
   const outbox = client.calls
-    .filter((call) => call.sql.includes("INSERT INTO tenant.crm_outbox_events"))
+    .filter((call) => call.sql.includes("INSERT INTO tenant.platform_events"))
     .at(-1);
   assert.equal(outbox.values[1], "crm.contacts.reactivated");
 });
@@ -334,7 +334,7 @@ test("F003: reactivate on an already-active Contact is idempotent and queues no 
   assert.equal(reactivated.status, "active");
   const newOutboxWrites = client.calls
     .slice(before)
-    .filter((call) => call.sql.includes("INSERT INTO tenant.crm_outbox_events"));
+    .filter((call) => call.sql.includes("INSERT INTO tenant.platform_events"));
   assert.equal(newOutboxWrites.length, 0);
 });
 
@@ -353,7 +353,7 @@ test("F003 QA: repeated archive is idempotent at the lifecycle-event boundary", 
   await archiveCrmContact(client, context, contactId);
   const archiveEvents = client.calls.filter(
     (call) =>
-      call.sql.includes("INSERT INTO tenant.crm_outbox_events") &&
+      call.sql.includes("INSERT INTO tenant.platform_events") &&
       call.values?.[1] === "crm.contacts.archived",
   );
   assert.equal(archiveEvents.length, 1);

@@ -74,7 +74,7 @@ function movingClient({ playbookQuestions = [] } = {}) {
         if (sql.includes("INSERT INTO tenant.crm_opportunity_stage_history")) return { rows: [] };
         if (sql.includes("INSERT INTO tenant.crm_opportunity_probability_history")) return { rows: [] };
         if (sql.includes("FROM tenant.crm_automation_rules")) return { rows: [] };
-        if (sql.includes("INSERT INTO tenant.crm_outbox_events")) return { rows: [] };
+        if (sql.includes("INSERT INTO tenant.platform_events")) return { rows: [] };
         throw new Error(`Unexpected query: ${sql}`);
       },
     },

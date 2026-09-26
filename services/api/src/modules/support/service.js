@@ -4,7 +4,7 @@
 // Support never writes to another module's tables (the one exception, a best-effort write into CRM's
 // own service-event log, lives in tickets.js next to the ticket lifecycle it mirrors).
 import { SupportError, dateOrNull, dateRequired, need, needAny, oneOf, positive, qx, resolveParty, seq, textOrNull, uuid, uuidOrNull } from "./common.js";
-import { nextDocumentNumber } from "../../core/document-numbering.js";
+import { nextDocumentNumber } from "../../core/platform/numbering/index.js";
 
 const MANAGE = "support.manage";
 const VIEW = ["support.view", MANAGE];

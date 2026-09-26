@@ -158,7 +158,7 @@ function fakeClient({
         // ON CONFLICT DO UPDATE branch of ensurePrimaryRelationshipFromLegacyFields — handled below
         return { rows: [] };
       }
-      if (/^INSERT INTO tenant\.crm_outbox_events/.test(sql) || sql.includes("INSERT INTO tenant.crm_outbox_events")) {
+      if (/^INSERT INTO tenant\.platform_events/.test(sql) || sql.includes("INSERT INTO tenant.platform_events")) {
         return { rows: [] };
       }
       throw new Error(`Unexpected query: ${sql}`);

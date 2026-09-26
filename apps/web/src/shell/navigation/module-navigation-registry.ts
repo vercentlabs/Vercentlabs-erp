@@ -155,14 +155,10 @@ export const MODULE_NAVIGATION: readonly ModuleNavigation[] = [
           { ...available("Won / Lost Reasons", "/crm/settings/lost-reasons"), requiredPermission: "crm.settings.manage" },
           { ...available("Qualification / Playbooks", "/crm/settings/playbooks"), requiredPermission: "crm.settings.manage" },
           { ...available("Meeting Links", "/crm/settings/meeting-links"), requiredPermission: "crm.settings.manage" },
-          // F002 Stage A2 §13 — deliberately gated by the PLATFORM privacy
-          // permission, not a crm.* one: an ordinary CRM settings manager
-          // must not also gain privacy-administration authority.
-          { ...available("Privacy Administration", "/crm/settings/privacy"), requiredPermission: "platform.privacy.manage" },
           // Consent/GDPR gap-closure — the CRM-specific DSR queue (Leads/
           // Contacts/Accounts), gated by crm.privacy.manage (already seeded,
           // already used by the "privacy" report), distinct from the
-          // platform-wide screen above.
+          // platform-wide Settings > Privacy and retention page.
           { ...available("Data Subject Requests", "/crm/settings/data-requests"), requiredPermission: "crm.privacy.manage" },
         ],
       },

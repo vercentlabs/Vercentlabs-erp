@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { assertPrivacyTransition, transitionPrivacyRequest, PrivacyError } from "../src/core/privacy.js";
+import { assertPrivacyTransition, transitionPrivacyRequest, PrivacyError } from "../src/core/platform/privacy/index.js";
 
 test("assertPrivacyTransition allows only the defined finite-state-machine edges", () => {
   assert.doesNotThrow(() => assertPrivacyTransition("received", "verified"));

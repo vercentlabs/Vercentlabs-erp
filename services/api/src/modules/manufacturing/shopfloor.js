@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 
-import { nextDocumentNumber } from "../../core/document-numbering.js";
+import { nextDocumentNumber } from "../../core/platform/numbering/index.js";
 import { beginIdempotentOperation, completeIdempotentOperation } from "../../core/idempotency.js";
 import { createStockBatch, postStockMovement, receiveSerializedStock, releaseStockReservation, reserveStock } from "../stock/index.js";
 import { MfgError, dateOrNull, has, need, positive, recordEvent, text, uuid } from "./common.js";

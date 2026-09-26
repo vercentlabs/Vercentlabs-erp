@@ -59,6 +59,7 @@ export const DOCUMENTED_EXCLUSIONS = Object.freeze({
   "api/crm/contacts/duplicates/route.ts": "Read-only duplicate search (findContactDuplicates) -- mirrors accounts/duplicates exactly.",
   "api/crm/contacts/merge/preview/route.ts": "Read-only merge preview -- mirrors accounts/merge/preview exactly.",
   "api/crm/leads/duplicates/route.ts": "Read-only possible-duplicate check performed while composing a Lead -- never auto-merges, writes nothing.",
+  "api/crm/leads/import/analyze/route.ts": "Step 0 of Lead import -- parses the uploaded CSV server-side and returns its headers/sample for column mapping; stores nothing. The commit step (leads/import/[batchId]/commit) is gated.",
   "api/crm/leads/import/preview/route.ts": "Preview stage of the two-step Lead import -- validates and stages rows for review; 'creates no Lead yet' per its own header comment. The commit step (leads/import/[batchId]/commit) is gated.",
   "api/crm/leads/export/route.ts": "Authorized data export -- exports must remain available regardless of subscription-write state, per this pass's explicit policy.",
   "api/crm/public/meetings/bookings/[token]/route.ts": "Public, token-authenticated prospect self-service -- no ERP session/subscription context applies (see ROUTE_SECURITY_MATRIX's own documented exception for the same route).",

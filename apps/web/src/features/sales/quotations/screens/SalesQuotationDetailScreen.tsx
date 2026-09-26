@@ -5,8 +5,8 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { ColumnDef } from "@tanstack/react-table";
-import { ArrowLeft, Check, Copy, Pencil, Send, ShoppingCart, X } from "lucide-react";
-import { Button, Dialog, EnterpriseDataGrid, ErrorState, MetricStrip, PermissionState, RecordDetailsPage, StatusBadge, Tab, TabList, TabPanel, Tabs, TextArea } from "@vercentlabs/design-system";
+import { ArrowLeft, Check, Copy, Download, Pencil, Send, ShoppingCart, X } from "lucide-react";
+import { Button, Dialog, LinkButton, EnterpriseDataGrid, ErrorState, MetricStrip, PermissionState, RecordDetailsPage, StatusBadge, Tab, TabList, TabPanel, Tabs, TextArea } from "@vercentlabs/design-system";
 import { SALES_PERMISSIONS } from "@vercentlabs/permissions";
 
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
@@ -184,6 +184,10 @@ export function SalesQuotationDetailScreen({ quotationId }: { quotationId: strin
             ) : undefined,
           secondaryActions: (
             <div className="flex items-center gap-2">
+              <LinkButton variant="secondary" href={`/api/documents/sales.quotation/${quotationId}/pdf`} download>
+                <Download className="size-4" aria-hidden="true" />
+                Download PDF
+              </LinkButton>
               {state === "pending_approval" && can(SALES_PERMISSIONS.quotationApprove) && (
                 <Button variant="secondary" onPress={() => setRejecting(true)}>
                   <X className="size-4" aria-hidden="true" />

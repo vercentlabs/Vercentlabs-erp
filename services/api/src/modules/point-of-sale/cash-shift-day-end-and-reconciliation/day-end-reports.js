@@ -39,7 +39,7 @@
 // business-day report the caller supplies the target business date and
 // every CLOSED shift whose closed_at falls on that date in the store's zone
 // is included.
-import { nextDocumentNumber } from "../../../core/document-numbering.js";
+import { nextDocumentNumber } from "../../../core/platform/numbering/index.js";
 import { beginIdempotentOperation, completeIdempotentOperation } from "../../../core/idempotency.js";
 import { requireCompanyRecord } from "../../../core/references.js";
 import { add, sub, decimal, asDatabaseDecimal } from "../../../core/decimal.js";

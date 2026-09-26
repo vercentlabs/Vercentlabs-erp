@@ -3,6 +3,21 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "exports": { ".": { "types": "./src/index.d.ts", "default": "./src/index.js" } },
-  "scripts": { "test": "node --test" }
+  "exports": {
+    ".": {
+      "types": "./src/index.d.ts",
+      "default": "./src/index.js"
+    },
+    "./pdf": {
+      "types": "./src/pdf.d.ts",
+      "default": "./src/pdf.js"
+    }
+  },
+  "scripts": {
+    "test": "node --test"
+  },
+  "dependencies": {
+    "@react-pdf/renderer": "^4.9.0",
+    "react": "19.2.3"
+  }
 }

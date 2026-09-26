@@ -195,7 +195,7 @@ test("F012: reorder parks active sequences before assigning the final unique ord
         evidence.push("history");
         return { rows: [], rowCount: 1 };
       }
-      if (sql.includes("INSERT INTO tenant.crm_outbox_events")) {
+      if (sql.includes("INSERT INTO tenant.platform_events")) {
         evidence.push("outbox");
         return { rows: [], rowCount: 1 };
       }
@@ -255,7 +255,7 @@ test("F012 safe deactivation: a stage with zero open Opportunities deactivates i
     if (sql.includes("SELECT count(*)::int AS count") && sql.includes("NOT is_won")) return { rows: [{ count: 1 }] };
     if (sql.startsWith("UPDATE tenant.crm_pipeline_stages SET status=$3")) return { rows: [] };
     if (sql.includes("INSERT INTO tenant.crm_sales_stage_configuration_history")) return { rows: [] };
-    if (sql.includes("INSERT INTO tenant.crm_outbox_events")) {
+    if (sql.includes("INSERT INTO tenant.platform_events")) {
       evidence.push("outbox");
       return { rows: [] };
     }
@@ -298,7 +298,7 @@ test("F012 safe deactivation: an elevated actor with a replacement stage enqueue
     if (sql.includes("INSERT INTO tenant.background_jobs")) return { rows: [jobRow] };
     if (sql.includes("INSERT INTO tenant.crm_opportunity_stage_migration_items")) return { rowCount: 2 };
     if (sql.startsWith("UPDATE tenant.background_jobs")) return { rows: [{ ...jobRow, result_manifest: { requested: 2 }, progress: { requested: 2 } }] };
-    if (sql.includes("INSERT INTO tenant.crm_outbox_events")) return { rows: [] };
+    if (sql.includes("INSERT INTO tenant.platform_events")) return { rows: [] };
     throw new Error(`Unexpected query: ${sql}`);
   });
   const result = await deactivateSalesStageWithMigration(client, context, stage, { migrateToStageId: toStage });

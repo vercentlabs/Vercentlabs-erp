@@ -15,6 +15,7 @@ import {
 } from "./money.js";
 import { beginIdempotentOperation, completeIdempotentOperation } from "../../core/idempotency.js";
 import { resolveTaxRateComponents, isExemptSupplyType } from "../../core/tax-engine.js";
+import { nextDocumentNumber } from "../../core/platform/numbering/index.js";
 
 export class SalesError extends Error {
   constructor(status, message, code = "SALES_ERROR") {
@@ -88,20 +89,9 @@ async function assertNotSelfApproval(client, context, entityType, entityId) {
     );
 }
 
+// Organisation-wide Sales document numbers from the one platform numbering service.
 async function allocateNumber(client, organizationId, entityType) {
-  const result = await client.query(
-    `UPDATE public.numbering_series SET next_number=next_number+1,updated_at=now()
-      WHERE organization_id=$1 AND entity_type=$2 AND status='active'
-      RETURNING prefix,next_number-1 AS number,padding`,
-    [organizationId, entityType],
-  );
-  const row = result.rows[0];
-  if (!row)
-    throw new SalesError(
-      409,
-      `Numbering series ${entityType} is not configured.`,
-    );
-  return `${row.prefix}${String(row.number).padStart(Number(row.padding || 5), "0")}`;
+  return nextDocumentNumber(client, { organizationId }, { documentType: entityType });
 }
 
 function sha256(value) {

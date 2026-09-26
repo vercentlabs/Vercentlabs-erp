@@ -49,7 +49,7 @@ function fakeClient() {
       if (sql.startsWith("UPDATE tenant.crm_duplicate_rules")) {
         return { rows: [{ id: ruleId, organization_id: org, enabled: params[2] }] };
       }
-      if (sql.includes("INSERT INTO tenant.crm_outbox_events")) return { rows: [] };
+      if (sql.includes("INSERT INTO tenant.platform_events")) return { rows: [] };
       throw new Error(`Unexpected query: ${sql}`);
     },
   };
@@ -127,5 +127,5 @@ test("F008 rules: setDuplicateRuleEnabled toggles enabled and records an outbox 
   const client = fakeClient();
   const result = await setDuplicateRuleEnabled(client, context(), ruleId, false);
   assert.equal(result.enabled, false);
-  assert.ok(client.calls.some((c) => c.sql.includes("INSERT INTO tenant.crm_outbox_events")));
+  assert.ok(client.calls.some((c) => c.sql.includes("INSERT INTO tenant.platform_events")));
 });

@@ -105,7 +105,7 @@ function movingClient({
         if (sql.includes("INSERT INTO tenant.crm_opportunity_probability_history"))
           return { rows: [] };
         if (sql.includes("FROM tenant.crm_automation_rules")) return { rows: [] };
-        if (sql.includes("INSERT INTO tenant.crm_outbox_events")) return { rows: [] };
+        if (sql.includes("INSERT INTO tenant.platform_events")) return { rows: [] };
         throw new Error(`Unexpected query: ${sql}`);
       },
     },
@@ -142,7 +142,7 @@ test("F010: canonical move is record-scoped, locked, same-pipeline and auditable
     1,
   );
   const outbox = calls.find((call) =>
-    call.sql.includes("INSERT INTO tenant.crm_outbox_events"),
+    call.sql.includes("INSERT INTO tenant.platform_events"),
   );
   assert.equal(outbox.values[1], "crm.opportunity.stage_changed");
   assert.deepEqual(outbox.values[4], {
@@ -195,7 +195,7 @@ test("F010: same-stage replay is a mutation-free no-op", async () => {
     false,
   );
   assert.equal(
-    calls.some((call) => call.sql.includes("crm_outbox_events")),
+    calls.some((call) => call.sql.includes("platform_events")),
     false,
   );
 });
@@ -288,7 +288,7 @@ test("F009: a reopened opportunity clears its prior outcome and preserves the cl
   );
   assert.equal(history.values.at(-4), "open");
   const reopenEvent = reopened.calls.find(
-    (call) => call.sql.includes("INSERT INTO tenant.crm_outbox_events") && call.values[1] === "crm.opportunity.reopened",
+    (call) => call.sql.includes("INSERT INTO tenant.platform_events") && call.values[1] === "crm.opportunity.reopened",
   );
   assert.equal(reopenEvent.values[4].previousStatus, "won");
   assert.equal(reopenEvent.values[4].previousOutcomeReasonId, reason);

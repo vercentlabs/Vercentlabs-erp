@@ -1,6 +1,6 @@
 export * from "@vercentlabs/reporting-engine";
 export * from "./core/master-data.js";
-export * from "./core/document-numbering.js";
+export * from "./core/platform/numbering/index.js";
 export * from "./core/idempotency.js";
 export * from "./core/inventory-lock.js";
 export * from "./core/references.js";
@@ -118,9 +118,9 @@ export { listQualityHolds, getQualityHold, createQualityHold, cancelQualityHold,
 export { listSupplierQualityRecords, recomputeSupplierQualityRecord, listAudits, getAudit, saveAudit, startAudit, addAuditFinding, linkFindingCapa, closeAuditFinding, completeAudit, listCalibrationRecords, recordCalibration, markOverdueCalibrations, listCertificates, saveCertificate, issueCertificate, voidCertificate, listQualityDocuments, saveQualityDocument, submitQualityDocument, approveQualityDocument, reviseQualityDocument, obsoleteQualityDocument, listCustomerComplaints, getCustomerComplaint, createCustomerComplaint, investigateComplaint, resolveComplaint, closeComplaint, getBatchTraceability, getQualityCostReport, getQualityKpiDashboard, listQualityOptions } from "./modules/quality/management.js";
 export * from "./modules/support/index.js";
 export { supportContext } from "./modules/support/common.js";
-export { getSupportSettings, saveSupportSettings, listCategories as listSupportCategories, saveCategory as saveSupportCategory, listQueues as listSupportQueues, saveQueue as saveSupportQueue, listQueueMembers, setQueueMember, removeQueueMember, listRoutingRules, saveRoutingRule, deactivateRoutingRule, listSlaPolicies, saveSlaPolicy, deactivateSlaPolicy, listEscalationPolicies, saveEscalationPolicy, createTicket, listTickets, getTicket, updateTicket, assignTicket, transitionTicket, mergeTickets, listCommunications, addCommunication, listAttachments, addAttachment, removeAttachment, listEscalations, escalateTicket, decideEscalation, checkSlaBreaches, getTicketHistory } from "./modules/support/tickets.js";
+export { getSupportSettings, saveSupportSettings, listCategories as listSupportCategories, saveCategory as saveSupportCategory, listQueues as listSupportQueues, saveQueue as saveSupportQueue, listQueueMembers, setQueueMember, removeQueueMember, listRoutingRules, saveRoutingRule, deactivateRoutingRule, listSlaPolicies, saveSlaPolicy, deactivateSlaPolicy, listEscalationPolicies, saveEscalationPolicy, createTicket, listTickets, getTicket, updateTicket, assignTicket, transitionTicket, mergeTickets, listCommunications, addCommunication, listAttachments, addAttachment, removeAttachment, getAttachmentContent as getSupportAttachmentContent, listEscalations, escalateTicket, decideEscalation, checkSlaBreaches, getTicketHistory } from "./modules/support/tickets.js";
 export { listKnowledgeArticles, getKnowledgeArticle, saveKnowledgeArticle, submitKnowledgeArticle, publishKnowledgeArticle, retireKnowledgeArticle, reviseKnowledgeArticle, rateKnowledgeArticle, linkArticleToTicket, listTicketKnowledgeLinks, listCannedResponses, saveCannedResponse, recordCannedResponseUsage } from "./modules/support/knowledge.js";
-export { listPortalUsers, invitePortalUser, setPortalUserStatus, getMyPortalAccess, listMyTickets, getMyTicket, createMyTicket, listMyCommunications, replyToMyTicket, listMyAttachments, addMyAttachment, submitMyCsat, listMyKnowledgeArticles, getMyKnowledgeArticle } from "./modules/support/portal.js";
+export { listPortalUsers, invitePortalUser, setPortalUserStatus, getMyPortalAccess, listMyTickets, getMyTicket, createMyTicket, listMyCommunications, replyToMyTicket, listMyAttachments, addMyAttachment, getMyAttachmentContent, submitMyCsat, listMyKnowledgeArticles, getMyKnowledgeArticle } from "./modules/support/portal.js";
 export { getCustomerOrderHistory, getTicketLinkedRecords, listEntitlements, saveEntitlement, setEntitlementStatus, getCsatReport, getAgentPerformance, getSlaReport, getSupportDeskDashboard, getAuditLog as getSupportAuditLog, listSupportOptions, listCustomerContacts } from "./modules/support/service.js";
 export * from "./modules/hr-payroll/index.js";
 // task-operations.js is now also re-exported from ./modules/crm/index.js
@@ -163,13 +163,15 @@ export * from "./core/auth-lifecycle.js";
 export * from "./core/mfa.js";
 export * from "./core/organization-administration.js";
 export * from "./core/organization-registration.js";
-export * from "./core/api-keys.js";
-export * from "./core/oauth.js";
-export * from "./core/inbound-mail.js";
+export * from "./core/platform/integrations/api-keys/index.js";
+export * from "./core/platform/integrations/oauth/index.js";
+export * from "./core/platform/integrations/secrets.js";
+export * from "./core/platform/integrations/inbound-mail/index.js";
+export * from "./orchestration/integrations/inbound-mail.js";
 export * from "./core/tags.js";
-export * from "./core/configuration.js";
-export * from "./core/privacy.js";
-export * from "./core/ai-governance.js";
+export * from "./core/platform/configuration/index.js";
+export * from "./core/platform/privacy/index.js";
+export * from "./core/platform/ai/index.js";
 
 // Prompt 2B — global shell closure: cross-module approval inbox,
 // notification center, and background-job visibility.
@@ -177,6 +179,18 @@ export * from "./core/platform/notifications/index.js";
 export * from "./core/platform/approvals/index.js";
 export * from "./core/platform/jobs/index.js";
 export * from "./core/platform/audit/index.js";
+export * from "./core/platform/files/index.js";
+export * from "./core/platform/mail/index.js";
+export * from "./core/platform/data-exchange/index.js";
+export * from "./orchestration/data-exchange/registry.js";
+export * from "./orchestration/documents/registry.js";
+export * from "./orchestration/reporting/datasets.js";
+export * from "./orchestration/reporting/service.js";
+export * from "./core/platform/reporting/execution-context.js";
+export * from "./core/platform/events/index.js";
+export * from "./core/platform/workflows/index.js";
+export * from "./core/platform/integrations/webhooks/index.js";
+export * from "./orchestration/integrations/event-fan-out.js";
 export * from "./orchestration/approvals/inbox.js";
 export { APPROVAL_COMMAND_REGISTRY, REGISTERED_APPROVAL_COMMAND_KEYS, approvalHref } from "./orchestration/approvals/registry.js";
 export * from "./orchestration/search/service.js";

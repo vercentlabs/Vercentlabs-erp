@@ -31,10 +31,6 @@ export declare function claimJobs(client: any, organizationId: string, options: 
 export declare function completeJob(client: any, jobId: string, workerId: string): Promise<Record<string, unknown> | null>;
 export declare function failJob(client: any, jobId: string, workerId: string, options: Record<string, unknown>): Promise<Record<string, unknown> | null>;
 
-export declare const DEFAULT_MAX_OUTBOX_ATTEMPTS: number;
-export declare function claimOutboxEvents(client: any, organizationId: string, options: Record<string, unknown>): Promise<Array<Record<string, unknown>>>;
-export declare function completeOutboxEvent(client: any, id: string, workerId: string, options?: Record<string, unknown>): Promise<Record<string, unknown> | null>;
-export declare function failOutboxEvent(client: any, id: string, workerId: string, options: Record<string, unknown>): Promise<Record<string, unknown> | null>;
 
 export declare class HandlerValidationError extends Error {}
 export declare function registerJobHandler(jobType: string, definition: Record<string, unknown>): void;
@@ -47,17 +43,10 @@ export declare function internalJobBackoff(attempt: number): number;
 export declare function webhookBackoff(attempt: number): number;
 export declare function boundedRetryAfterMilliseconds(retryAfterSeconds: number, maxMilliseconds?: number): number | null;
 
-export declare class SsrfError extends Error {}
-export declare function isBlockedAddress(address: string, options?: { allowPrivate?: boolean }): boolean;
-export declare function validateWebhookUrl(rawUrl: string): URL;
-export declare function resolveSafeAddress(hostname: string, options?: { allowPrivate?: boolean }): Promise<{ address: string; family: number }>;
-
-export declare class WebhookDeliveryError extends Error {
-  retryable: boolean;
-}
-export declare function deliverWebhook(endpointUrl: string, options: Record<string, unknown>): Promise<Record<string, unknown>>;
-export declare function findMatchingSubscriptions(client: any, organizationId: string, eventType: string): Promise<Array<Record<string, unknown>>>;
-export declare function deliverOutboxEvent(subscriptions: Array<Record<string, unknown>>, event: Record<string, unknown>, config: Record<string, unknown>): Promise<Record<string, unknown>>;
+export declare function dispatchOrganizationEvents(pool: any, organizationId: string, options?: { limit?: number }): Promise<{ dispatched: number }>;
+export declare function processWebhookDelivery(pool: any, workerId: string, config: any, organizationId: string, claimed: Record<string, any>, options?: { deliver?: (...args: any[]) => Promise<any>; env?: Record<string, string | undefined> }): Promise<string | null>;
+export declare function processOrganizationWorkflows(pool: any, organizationId: string): Promise<{ runs: number }>;
+export declare function processOrganizationWebhooks(pool: any, workerId: string, config: any, organizationId: string, options?: { deliver?: (...args: any[]) => Promise<any>; env?: Record<string, string | undefined> }): Promise<{ dispatched: number; deliveries: number }>;
 
 export declare function detectOverdueActivitiesHandler(client: any, context: Record<string, unknown>, payload: unknown): Promise<{ scanned: number; fired: number }>;
 export declare const OVERDUE_ACTIVITY_JOB_TYPE: string;

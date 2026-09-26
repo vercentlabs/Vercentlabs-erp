@@ -7,7 +7,7 @@ export default defineConfig({
   testDir: "./e2e",
   // Billing journeys need their own enforce-mode server and Razorpay stand-in: playwright.config.billing.ts.
   // Shared Runtime journeys run on their own isolated server: playwright.config.shared-runtime.ts.
-  testIgnore: ["billing-saas.spec.ts", "billing-expired-subscription.spec.ts", "shared-runtime.spec.ts"],
+  testIgnore: ["billing-saas.spec.ts", "billing-expired-subscription.spec.ts", "shared-runtime.spec.ts", "platform-services.spec.ts"],
   fullyParallel: false,
   workers: 1,
   retries: 0,

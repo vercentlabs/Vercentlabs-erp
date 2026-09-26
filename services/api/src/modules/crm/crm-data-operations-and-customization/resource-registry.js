@@ -424,20 +424,8 @@ export const resources = Object.freeze({
       status: "status",
     },
   },
-  "webhook-subscriptions": {
-    table: "tenant.crm_webhook_subscriptions",
-    search: ["name", "endpoint_url"],
-    orderBy: "name ASC",
-    statusColumn: "status",
-    companyScoped: false,
-    fields: {
-      name: "name",
-      endpointUrl: "endpoint_url",
-      eventTypes: "event_types",
-      secretReference: "secret_reference",
-      status: "status",
-    },
-  },
+  // Webhook subscriptions moved to the Shared Platform (Settings >
+  // Integrations > Webhooks; tenant migration 184).
   "sales-teams": {
     table: "tenant.crm_sales_teams",
     search: ["code", "name"],

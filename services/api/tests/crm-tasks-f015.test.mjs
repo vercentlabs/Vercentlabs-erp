@@ -104,7 +104,7 @@ function mockClient({ occurrenceCount = 0, claimSucceeds = true } = {}) {
         return { rows: [], rowCount: 1 };
       if (sql.includes("INSERT INTO tenant.crm_task_events"))
         return { rows: [], rowCount: 1 };
-      if (sql.includes("INSERT INTO tenant.crm_outbox_events"))
+      if (sql.includes("INSERT INTO tenant.platform_events"))
         return { rows: [], rowCount: 1 };
       throw new Error(`Unexpected query: ${sql}`);
     },
@@ -168,7 +168,7 @@ function completionMockClient({ recurring = false, blocked = false } = {}) {
         return { rows: [taskRow({ status: "completed", completed_at: "2026-09-09T12:00:00.000Z", ...(recurring ? { recurrence_config: { freq: "daily", interval: 1 } } : {}) })] };
       if (sql.includes("INSERT INTO tenant.crm_task_events"))
         return { rows: [], rowCount: 1 };
-      if (sql.includes("INSERT INTO tenant.crm_outbox_events"))
+      if (sql.includes("INSERT INTO tenant.platform_events"))
         return { rows: [], rowCount: 1 };
       if (sql.includes("FROM tenant.crm_task_recurrence_occurrences") && sql.includes("count(*)"))
         return { rows: [{ total: 0 }] };
@@ -309,7 +309,7 @@ function claimMockClient({ alreadyClaimed = false, updateWins = true } = {}) {
         return { rows: updateWins ? [queueTaskRow({ assigned_to: values[2] })] : [] };
       if (sql.includes("INSERT INTO tenant.crm_task_events"))
         return { rows: [], rowCount: 1 };
-      if (sql.includes("INSERT INTO tenant.crm_outbox_events"))
+      if (sql.includes("INSERT INTO tenant.platform_events"))
         return { rows: [], rowCount: 1 };
       throw new Error(`Unexpected query: ${sql}`);
     },
@@ -366,7 +366,7 @@ function releaseMockClient({ assignedTo = user, teamRow = { manager_user_id: man
         return { rows: [queueTaskRow({ assigned_to: null })] };
       if (sql.includes("INSERT INTO tenant.crm_task_events"))
         return { rows: [], rowCount: 1 };
-      if (sql.includes("INSERT INTO tenant.crm_outbox_events"))
+      if (sql.includes("INSERT INTO tenant.platform_events"))
         return { rows: [], rowCount: 1 };
       throw new Error(`Unexpected query: ${sql}`);
     },
@@ -416,7 +416,7 @@ function createTeamTaskMockClient({ teamActive = true, teamCompany = company, as
         return { rows: [queueTaskRow({ assigned_to: values[8], team_id: values[9] })] };
       if (sql.includes("INSERT INTO tenant.crm_task_events"))
         return { rows: [], rowCount: 1 };
-      if (sql.includes("INSERT INTO tenant.crm_outbox_events"))
+      if (sql.includes("INSERT INTO tenant.platform_events"))
         return { rows: [], rowCount: 1 };
       throw new Error(`Unexpected query: ${sql}`);
     },

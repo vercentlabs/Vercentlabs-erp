@@ -32,7 +32,98 @@ export function assertAttachmentTransition(current, next) {
   return next;
 }
 
-export function createStorageAdapter(adapter) {
-  for (const method of ["createUpload", "createDownload", "remove"]) if (typeof adapter?.[method] !== "function") throw new TypeError(`Storage adapter must implement ${method}.`);
-  return Object.freeze({ createUpload: (...args) => adapter.createUpload(...args), createDownload: (...args) => adapter.createDownload(...args), remove: (...args) => adapter.remove(...args) });
+// ------------------------------------------------------------ Object storage
+//
+// PostgreSQL stores file metadata; bytes live behind this contract. Keys are
+// opaque internal identifiers, never public URLs: every download goes through
+// the application's authorization first. The production provider (S3-style)
+// is selected in Prompt 6; it implements the same four methods.
+const STORAGE_KEY = /^[a-z0-9][a-z0-9/_.-]{0,400}$/i;
+
+export function assertStorageKey(key) {
+  const value = String(key || "");
+  if (!STORAGE_KEY.test(value) || value.includes("..") || value.includes("//")) throw new TypeError("Invalid storage key.");
+  return value;
+}
+
+export function defineObjectStorage(adapter) {
+  for (const method of ["put", "get", "remove", "head"]) if (typeof adapter?.[method] !== "function") throw new TypeError(`Object storage must implement ${method}.`);
+  if (!adapter.name) throw new TypeError("Object storage must have a name.");
+  return Object.freeze({
+    name: adapter.name,
+    // Always asynchronous: an invalid key is a rejected promise, never a sync throw.
+    put: async (key, bytes, options = {}) => adapter.put(assertStorageKey(key), Buffer.from(bytes), options),
+    get: async (key) => adapter.get(assertStorageKey(key)),
+    remove: async (key) => adapter.remove(assertStorageKey(key)),
+    head: async (key) => adapter.head(assertStorageKey(key)),
+  });
+}
+
+// Tests and single-process tools only (bytes vanish with the process).
+export function createMemoryObjectStorage() {
+  const objects = new Map();
+  return defineObjectStorage({
+    name: "memory",
+    async put(key, bytes, { contentType = "application/octet-stream" } = {}) {
+      objects.set(key, { bytes: Buffer.from(bytes), contentType });
+      return { key, size: bytes.length };
+    },
+    async get(key) {
+      const object = objects.get(key);
+      if (!object) throw Object.assign(new Error("Object not found."), { code: "OBJECT_NOT_FOUND" });
+      return Buffer.from(object.bytes);
+    },
+    async remove(key) {
+      objects.delete(key);
+    },
+    async head(key) {
+      const object = objects.get(key);
+      return object ? { size: object.bytes.length, contentType: object.contentType } : null;
+    },
+  });
+}
+
+// Local development: files under one root directory shared by the web app and
+// the worker on the same machine. Never used in production.
+export async function createLocalObjectStorage({ root }) {
+  const { mkdir, readFile, rm, stat, writeFile, rename } = await import("node:fs/promises");
+  const path = await import("node:path");
+  const base = path.resolve(String(root || ""));
+  if (!root) throw new TypeError("A local storage root is required.");
+  const resolve = (key) => {
+    const target = path.resolve(base, key);
+    if (!target.startsWith(base + path.sep)) throw new TypeError("Invalid storage key.");
+    return target;
+  };
+  return defineObjectStorage({
+    name: "local",
+    async put(key, bytes) {
+      const target = resolve(key);
+      await mkdir(path.dirname(target), { recursive: true });
+      const temporary = `${target}.${randomUUID()}.partial`;
+      await writeFile(temporary, bytes, { flag: "wx" });
+      await rename(temporary, target);
+      return { key, size: bytes.length };
+    },
+    async get(key) {
+      try {
+        return await readFile(resolve(key));
+      } catch (error) {
+        if (error?.code === "ENOENT") throw Object.assign(new Error("Object not found."), { code: "OBJECT_NOT_FOUND" });
+        throw error;
+      }
+    },
+    async remove(key) {
+      await rm(resolve(key), { force: true });
+    },
+    async head(key) {
+      try {
+        const info = await stat(resolve(key));
+        return { size: info.size, contentType: null };
+      } catch (error) {
+        if (error?.code === "ENOENT") return null;
+        throw error;
+      }
+    },
+  });
 }

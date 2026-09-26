@@ -4,7 +4,8 @@
 import {
   CHANNELS, PRIORITIES, SupportError, dateOrNull, emailOrNull, has, need, needAny, nonNegative, oneOf, positive, qx, recordEvent, resolveParty, seq, stripPrivate, text, textOrNull, uuid, uuidOrNull,
 } from "./common.js";
-import { nextDocumentNumber } from "../../core/document-numbering.js";
+import { nextDocumentNumber } from "../../core/platform/numbering/index.js";
+import { archiveFile, readFileContent, storeFile } from "../../core/platform/files/index.js";
 
 const MANAGE = "support.manage";
 const VIEW = ["support.view", MANAGE];
@@ -552,24 +553,49 @@ export async function listAttachments(client, c, ticketId, { forceCustomerId } =
   const { rows } = await qx(client, `SELECT * FROM tenant.support_attachments WHERE organization_id=$1 AND ticket_id=$2 ORDER BY created_at`, [c.organizationId, uuid(ticketId, "Ticket")]);
   return forceCustomerId ? rows.filter((r) => !r.private_note) : stripPrivate(rows, c);
 }
-export async function addAttachment(client, c, ticketId, input, { forceCustomerId } = {}) {
+// Attachments are Shared Platform files (entity "support.ticket"): the bytes
+// go through the platform upload pipeline (validation, malware scan, SHA-256,
+// object storage). `input.prepared` is a prepareFileUpload() result made by
+// the route; a caller-typed storage reference is never accepted.
+export async function addAttachment(client, c, ticketId, input, { forceCustomerId, storage, purpose = "attachment", communicationId = null } = {}) {
   const t = await getTicket(client, c, ticketId, { forceCustomerId });
   if (!forceCustomerId) need(c, "support.communication.manage");
-  const fileName = text(input.fileName, 260);
-  if (!fileName) throw new SupportError(400, "A file name is required.", "SUPPORT_ATTACHMENT_INVALID");
-  const size = Math.trunc(positive(input.sizeBytes, "File size"));
-  if (size > 26214400) throw new SupportError(400, "Attachments are limited to 25 MB.", "SUPPORT_ATTACHMENT_TOO_LARGE");
-  const { rows } = await qx(client, `INSERT INTO tenant.support_attachments(organization_id,company_id,ticket_id,communication_id,file_name,content_type,size_bytes,storage_key,private_note,uploaded_by) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING *`,
-    [c.organizationId, c.companyId, t.id, uuidOrNull(input.communicationId, "Communication"), fileName, textOrNull(input.contentType, 120) ?? "application/octet-stream", size, text(input.storageKey, 400) || `support/${t.id}/${Date.now()}-${fileName}`, forceCustomerId ? false : Boolean(input.privateNote), c.userId]);
-  await recordEvent(client, c, t.id, "attachment", rows[0].id, "support.attachment.added", { fileName });
+  if (!input?.prepared) throw new SupportError(400, "Upload the file itself; a file reference cannot be attached.", "SUPPORT_ATTACHMENT_UPLOAD_REQUIRED");
+  if (input.prepared.sizeBytes > 26214400) throw new SupportError(400, "Attachments are limited to 25 MB.", "SUPPORT_ATTACHMENT_TOO_LARGE");
+  const file = await storeFile(client, { organizationId: c.organizationId, entityType: "support.ticket", entityId: t.id, prepared: input.prepared, uploadedBy: c.userId ?? null, purpose }, { storage });
+  const { rows } = await qx(client, `INSERT INTO tenant.support_attachments(organization_id,company_id,ticket_id,communication_id,file_name,content_type,size_bytes,storage_key,private_note,uploaded_by,file_id) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING *`,
+    [c.organizationId, c.companyId, t.id, uuidOrNull(input.communicationId ?? communicationId, "Communication"), file.fileName, file.mimeType, file.sizeBytes, `platform-file:${file.id}`, forceCustomerId ? false : Boolean(input.privateNote), c.userId ?? null, file.id]);
+  await recordEvent(client, c, t.id, "attachment", rows[0].id, "support.attachment.added", { fileName: file.fileName });
   return rows[0];
 }
+
+// Download: the ticket must be visible to the caller (portal customers: their
+// own tickets only) and a private attachment only to sensitive viewers or its
+// uploader. Metadata-only rows from before Shared Files have no bytes (404).
+export async function getAttachmentContent(client, c, attachmentId, { forceCustomerId, storage } = {}) {
+  const { rows } = await qx(client, `SELECT * FROM tenant.support_attachments WHERE organization_id=$1 AND id=$2`, [c.organizationId, uuid(attachmentId, "Attachment")]);
+  const row = rows[0];
+  const notFound = () => new SupportError(404, "Attachment was not found.", "SUPPORT_ATTACHMENT_NOT_FOUND");
+  if (!row) throw notFound();
+  await getTicket(client, c, row.ticket_id, { forceCustomerId });
+  const visible = forceCustomerId ? !row.private_note : Boolean(stripPrivate(row, c, false));
+  if (!visible || !row.file_id) throw notFound();
+  try {
+    return await readFileContent(client, { organizationId: c.organizationId, entityType: "support.ticket", entityId: row.ticket_id, fileId: row.file_id }, { storage });
+  } catch (error) {
+    if (error?.code === "FILE_NOT_FOUND") throw notFound();
+    throw error;
+  }
+}
+
 export async function removeAttachment(client, c, id) {
   need(c, "support.communication.manage");
   const { rows } = await qx(client, `DELETE FROM tenant.support_attachments WHERE organization_id=$1 AND id=$2 RETURNING *`, [c.organizationId, uuid(id, "Attachment")]);
   if (!rows[0]) throw new SupportError(404, "Attachment was not found.", "SUPPORT_ATTACHMENT_NOT_FOUND");
+  if (rows[0].file_id) await archiveFile(client, { organizationId: c.organizationId, entityType: "support.ticket", entityId: rows[0].ticket_id, fileId: rows[0].file_id, actorUserId: c.userId ?? null });
   return rows[0];
 }
+
 
 // ---------------------------------------------------------------- escalations (F362-363)
 export async function listEscalations(client, c, filters = {}) {

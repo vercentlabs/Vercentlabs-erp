@@ -48,7 +48,7 @@ function mockClient({ pipelines = [pipelineA], aggregatesByPipeline = {} } = {})
         }
         return { rows: [{ id: `snap-${queries.length}` }] };
       }
-      if (/INSERT INTO tenant\.crm_outbox_events/.test(sql)) return { rows: [] };
+      if (/INSERT INTO tenant\.platform_events/.test(sql)) return { rows: [] };
       if (/^\s*SELECT snap\.\*/.test(sql)) return { rows: [] };
       return { rows: [] };
     },

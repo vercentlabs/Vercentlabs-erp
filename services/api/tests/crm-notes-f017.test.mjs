@@ -56,7 +56,7 @@ function mockClient({ leadRow = { id: lead }, notes = [noteRow()], versions = []
         return { rows: [{ ...notes[0], body: values[2], is_pinned: values[3], visibility: values[4], version: notes[0].version + 1 }] };
       if (sql.includes("UPDATE tenant.crm_notes SET archived_at=now()"))
         return { rows: [{ ...notes[0], archived_at: "2026-09-02T00:00:00.000Z", archived_by: values[2] }] };
-      if (sql.includes("INSERT INTO tenant.crm_outbox_events"))
+      if (sql.includes("INSERT INTO tenant.platform_events"))
         return { rows: [], rowCount: 1 };
       throw new Error(`Unexpected query: ${sql}`);
     },

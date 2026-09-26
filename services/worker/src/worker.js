@@ -5,13 +5,13 @@ import { redact, createLogger } from "@vercentlabs/observability";
 
 import { getPool, closePool, listActiveOrganizationIds, withTenantClient } from "./db.js";
 import { claimJobs, completeJob, failJob } from "./queue.js";
-import { claimOutboxEvents, completeOutboxEvent, failOutboxEvent, DEFAULT_MAX_OUTBOX_ATTEMPTS } from "./outbox.js";
 import { getJobHandler, validatePayload, HandlerValidationError } from "./registry.js";
-import { findMatchingSubscriptions, deliverOutboxEvent } from "./handlers/crm-webhook-deliver.js";
-import { webhookBackoff, internalJobBackoff } from "./backoff.js";
+import { internalJobBackoff } from "./backoff.js";
+import { processOrganizationWebhooks, processOrganizationWorkflows } from "./webhooks.js";
 import { buildSystemContext } from "./system-context.js";
 import { runSchedulerTick } from "./scheduler.js";
 import { createBillingMaintenanceLoop } from "./billing-maintenance.js";
+import { createPlatformMaintenanceLoop } from "./platform-maintenance.js";
 
 const logger = createLogger("worker");
 
@@ -69,46 +69,6 @@ export async function processGenericJob(pool, workerId, organizationId, job, { l
   }
 }
 
-async function processOutboxDelivery(pool, workerId, config, organizationId, event) {
-  try {
-    // Phase 1: short, read-only tenant-scoped transaction — no external I/O.
-    const subscriptions = await withTenantClient(pool, organizationId, (client) =>
-      findMatchingSubscriptions(client, organizationId, event.event_type),
-    );
-
-    // Phase 2: external HTTP delivery — deliberately outside any open
-    // transaction (Part 44/45).
-    const result = await deliverOutboxEvent(subscriptions, event, config.worker);
-
-    // Phase 3: record the outcome in a fresh transaction.
-    if (result.outcome === "success") {
-      await withTenantClient(pool, organizationId, (client) => completeOutboxEvent(client, event.id, workerId, {}));
-      logger.info("outbox event delivered", { eventId: event.id, organizationId, matchedSubscriptions: result.matchedSubscriptions });
-      return;
-    }
-    await withTenantClient(pool, organizationId, (client) =>
-      failOutboxEvent(client, event.id, workerId, {
-        error: result.summary || "Webhook delivery failed.",
-        backoffMilliseconds: webhookBackoff(event.attempt_count),
-        maxAttempts: DEFAULT_MAX_OUTBOX_ATTEMPTS,
-        forceDead: result.outcome === "terminal",
-      }),
-    );
-    logger.warn("outbox event delivery failed", { eventId: event.id, organizationId, outcome: result.outcome, error: redact(result.summary) });
-  } catch (error) {
-    // A failure outside deliverOutboxEvent's own try/catch (e.g. the
-    // subscription lookup itself failing) — still must not crash the
-    // worker loop or leave the event permanently locked.
-    logger.error("outbox event processing crashed", { eventId: event.id, organizationId, error: redact(String(error?.message || error)) });
-    await withTenantClient(pool, organizationId, (client) =>
-      failOutboxEvent(client, event.id, workerId, {
-        error: String(error?.message || error),
-        backoffMilliseconds: webhookBackoff(event.attempt_count),
-      }),
-    ).catch((innerError) => logger.error("failed to record outbox failure", { eventId: event.id, error: String(innerError?.message || innerError) }));
-  }
-}
-
 async function processOrganization(pool, workerId, config, organizationId) {
   const claimedJobs = await withTenantClient(pool, organizationId, (client) =>
     claimJobs(client, organizationId, {
@@ -121,18 +81,11 @@ async function processOrganization(pool, workerId, config, organizationId) {
     await processGenericJob(pool, workerId, organizationId, job, { leaseMilliseconds: config.worker.leaseMilliseconds });
   }
 
-  const claimedEvents = await withTenantClient(pool, organizationId, (client) =>
-    claimOutboxEvents(client, organizationId, {
-      workerId,
-      leaseMilliseconds: config.worker.leaseMilliseconds,
-      batchSize: config.worker.batchSize,
-    }),
-  );
-  for (const event of claimedEvents) {
-    await processOutboxDelivery(pool, workerId, config, organizationId, event);
-  }
+  // Shared Platform events: fan-out, then per-subscription webhook delivery.
+  const webhooks = await processOrganizationWebhooks(pool, workerId, config, organizationId);
+  const workflows = await processOrganizationWorkflows(pool, organizationId);
 
-  return { jobsClaimed: claimedJobs.length, eventsClaimed: claimedEvents.length };
+  return { jobsClaimed: claimedJobs.length, eventsClaimed: webhooks.dispatched + webhooks.deliveries + workflows.runs };
 }
 
 // The main worker loop. Never a Next.js-process-dependent timer (Part
@@ -143,6 +96,7 @@ export function createWorker(config, { workerId = generateWorkerId(), billingPro
   let stopped = false;
   // Platform billing runs on its own loop and connections, never inside tenant job transactions.
   const billing = createBillingMaintenanceLoop(getPool, config, { workerId, provider: billingProvider });
+  const platform = createPlatformMaintenanceLoop(getPool, config);
   let stopRequested = false;
   let pollTimer;
   let schedulerTimer;
@@ -193,6 +147,7 @@ export function createWorker(config, { workerId = generateWorkerId(), billingPro
       await tick();
       schedulerTimer = setInterval(schedule, config.worker.schedulerTickMilliseconds);
       billing.start();
+      platform.start();
       logger.info("worker started", { workerId });
     },
     // Graceful shutdown (Part 13): stop claiming new work, let the
@@ -207,6 +162,7 @@ export function createWorker(config, { workerId = generateWorkerId(), billingPro
       clearInterval(schedulerTimer);
       await activePoll.catch(() => {});
       await billing.stop();
+      await platform.stop();
       await closePool();
       stopped = true;
       logger.info("worker stopped", { workerId });

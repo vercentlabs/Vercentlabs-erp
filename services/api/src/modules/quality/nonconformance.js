@@ -4,7 +4,7 @@
 // second-person approval), root cause analysis and CAPA (corrective + preventive actions) through to
 // independent effectiveness verification.
 import { QualityError, need, needAny, nonNegative, oneOf, qx, recordEvent, text, textOrNull, uuid, uuidOrNull } from "./common.js";
-import { nextDocumentNumber } from "../../core/document-numbering.js";
+import { nextDocumentNumber } from "../../core/platform/numbering/index.js";
 import { lockInventoryItem } from "../../core/inventory-lock.js";
 
 const MANAGE = "quality.manage";

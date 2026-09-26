@@ -3,7 +3,7 @@
 // (optionally linked to a real Support ticket), lot/batch traceability, cost reporting and the KPI
 // dashboard.
 import { QualityError, dateOrNull, dateRequired, has, need, needAny, oneOf, qx, recordEvent, round2, seq, text, textOrNull, uuid, uuidOrNull } from "./common.js";
-import { nextDocumentNumber } from "../../core/document-numbering.js";
+import { nextDocumentNumber } from "../../core/platform/numbering/index.js";
 
 const MANAGE = "quality.manage";
 const VIEW = ["quality.view", MANAGE];

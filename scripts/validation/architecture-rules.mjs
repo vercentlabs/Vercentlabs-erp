@@ -81,7 +81,7 @@ export const API_CORE_DOMAINS = Object.freeze(["access", "auth", "organization",
 export const LEGACY_FLAT_CORE_FILES = Object.freeze([
   "access-administration", "access-control-runtime", "ai-governance", "api-keys", "attachment-security",
   "audit-redaction", "auth-lifecycle", "auth-mailer", "configuration", "decimal",
-  "document-numbering", "field-visibility", "idempotency", "inbound-mail", "inventory-lock",
+  "field-visibility", "idempotency", "inbound-mail", "inventory-lock",
   "master-data", "mfa", "module-entitlements", "oauth",
   "organization-administration", "organization-registration", "password-policy", "privacy",
   "references", "security", "session", "tags", "tax-engine",
@@ -311,6 +311,7 @@ export const MODULE_LIST_EXCEPTIONS = Object.freeze({
   "packages/permissions/src/roles.d.ts": "types for CURRENT_MODULE_KEYS",
   "packages/permissions/src/module-access.js": "canonical module → view permission map",
   "apps/web/src/shell/navigation/module-navigation-registry.ts": "per-module navigation config keyed by the catalogue (UI, not a catalogue)",
+  "services/api/src/core/platform/numbering/registry.js": "document types and their owning module (not a catalogue); verify:platform-services checks every key against ERP_MODULE_CATALOG",
 });
 
 export function checkModuleCatalogueCopies(files, moduleKeys) {

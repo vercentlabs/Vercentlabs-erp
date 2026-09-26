@@ -1,6 +1,5 @@
 import { z } from "zod";
-import { addBusinessMinutes, claimDueNurtureQueueItems, createNotification } from "@vercentlabs/api";
-import { sendTransactionalEmail } from "../mailer.js";
+import { addBusinessMinutes, claimDueNurtureQueueItems, createNotification, sendTransactionalEmail } from "@vercentlabs/api";
 
 export const JOB_TYPE = "crm.nurture_queue.dispatch_notifications";
 

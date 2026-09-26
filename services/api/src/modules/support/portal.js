@@ -2,7 +2,7 @@
 // employee self-service pattern), and portal-scoped wrappers around the ticket/knowledge functions
 // that force every read/write to that party's own records.
 import { SupportError, need, needAny, ownPortalAccess, qx, requirePortalAccess, resolveParty, text, uuid, uuidOrNull } from "./common.js";
-import { addAttachment, addCommunication, createTicket, getTicket, listAttachments, listCommunications, listTickets } from "./tickets.js";
+import { addAttachment, addCommunication, createTicket, getAttachmentContent, getTicket, listAttachments, listCommunications, listTickets } from "./tickets.js";
 import { getKnowledgeArticle, listKnowledgeArticles } from "./knowledge.js";
 
 const MANAGE = "support.manage";
@@ -72,9 +72,13 @@ export async function listMyAttachments(client, c, ticketId) {
   const p = await requirePortalAccess(client, c);
   return listAttachments(client, c, ticketId, { forceCustomerId: p.party_id });
 }
-export async function addMyAttachment(client, c, ticketId, input) {
+export async function addMyAttachment(client, c, ticketId, input, options = {}) {
   const p = await requirePortalAccess(client, c);
-  return addAttachment(client, c, ticketId, input, { forceCustomerId: p.party_id });
+  return addAttachment(client, c, ticketId, input, { ...options, forceCustomerId: p.party_id });
+}
+export async function getMyAttachmentContent(client, c, attachmentId, options = {}) {
+  const p = await requirePortalAccess(client, c);
+  return getAttachmentContent(client, c, attachmentId, { ...options, forceCustomerId: p.party_id });
 }
 export async function submitMyCsat(client, c, ticketId, input) {
   const p = await requirePortalAccess(client, c);

@@ -200,7 +200,7 @@ function lifecycleClient(initial = {}) {
         sql.includes("source.id=$2")
       )
         return { rows: [row] };
-      if (sql.includes("INSERT INTO tenant.crm_outbox_events"))
+      if (sql.includes("INSERT INTO tenant.platform_events"))
         return { rows: [] };
       if (sql.includes("count(*)::int AS count"))
         return { rows: [{ count: 1 }] };
@@ -223,7 +223,7 @@ test("F004: create generates an immutable normalized code, starts active and emi
   assert.equal(source.code, "LINKEDIN_ORGANIC");
   assert.equal(source.status, "active");
   assert.equal(
-    client.calls.find((call) => call.sql.includes("crm_outbox_events"))
+    client.calls.find((call) => call.sql.includes("platform_events"))
       .values[1],
     "crm.lead_sources.created",
   );
@@ -310,14 +310,14 @@ test("F004: deactivate/reactivate is soft, preserves usage and emits governed ev
     false,
   );
   assert.equal(
-    client.calls.find((call) => call.sql.includes("crm_outbox_events"))
+    client.calls.find((call) => call.sql.includes("platform_events"))
       .values[1],
     "crm.lead_sources.deactivated",
   );
   const active = await setCrmLeadSourceActive(client, context, sourceId, true);
   assert.equal(active.status, "active");
   assert.equal(
-    client.calls.filter((call) => call.sql.includes("crm_outbox_events")).at(-1)
+    client.calls.filter((call) => call.sql.includes("platform_events")).at(-1)
       .values[1],
     "crm.lead_sources.reactivated",
   );

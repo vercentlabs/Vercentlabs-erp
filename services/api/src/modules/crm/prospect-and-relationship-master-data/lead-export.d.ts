@@ -26,4 +26,12 @@ export function completeCrmLeadExportJob(
   jobId: string,
   organizationId: string,
   result: { csv: string; rowCount: number; truncated: boolean },
-): Promise<void>;
+  options?: { storage?: unknown; env?: Record<string, string | undefined> },
+): Promise<{ rowCount: number; truncated: boolean; columns: string[]; generatedAt: string; expiresAt: string; artifactId: string; fileName: string }>;
+
+export function readCrmLeadExportArtifact(
+  client: QueryClient,
+  context: CrmFoundationContext,
+  jobId: string,
+  options?: { storage?: unknown; env?: Record<string, string | undefined> },
+): Promise<{ id: string; fileName: string; mimeType: string; sizeBytes: number; contentSha256: string | null; body: Buffer }>;

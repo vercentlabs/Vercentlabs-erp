@@ -1,9 +1,7 @@
-import { requireWorkspace } from "@/core/session";
-import { PrivacyAdministrationScreen } from "@/features/crm/settings/privacy/screens/PrivacyAdministrationScreen";
+import { redirect } from "next/navigation";
 
-export const metadata = { title: "Privacy Administration" };
-
-export default async function PrivacyAdministrationPage() {
-  await requireWorkspace();
-  return <PrivacyAdministrationScreen />;
+// Privacy administration is a Shared Platform page; the old CRM address
+// keeps working.
+export default function LegacyCrmPrivacyPage() {
+  redirect("/settings/privacy");
 }

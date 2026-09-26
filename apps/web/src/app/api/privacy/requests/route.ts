@@ -1,41 +1,31 @@
-import { assertSameOriginOrMobile, createPrivacyRequest, listPrivacyRequests } from "@vercentlabs/api";
+import { z } from "zod";
 
-import { errorResponse, ok, readJson } from "@/core/http";
-import { transaction, withClient } from "@/core/db";
-import { requireWorkspace } from "@/core/session";
-import { assertPrivacyManage } from "@/core/privacy-authorization";
+import { createPrivacyRequest, listPrivacyRequests } from "@vercentlabs/api";
+import { CORE_PERMISSIONS } from "@vercentlabs/permissions";
 
-// F002 Stage A2 §13. Wires the shared PLATFORM privacy authority
-// (services/api/src/core/privacy.js — a real, already-built, org-scoped
-// finite-state-machine request tracker with zero frontend consumer
-// anywhere in the app, not just CRM) rather than building CRM-local
-// privacy logic. Deliberately NOT under /api/crm/ and NOT gated by
-// crm.* permissions — this is a platform capability CRM's UI merely
-// surfaces, gated by platform.privacy.manage, a genuinely elevated
-// permission excluded from the default "privileged" role bundle (see
-// packages/permissions/src/roles.js) so an ordinary CRM manager with
-// crm.accounts.manage does not also gain privacy-administration
-// authority just by being able to view an Account.
-export async function GET() {
-  try {
-    const session = await requireWorkspace();
-    assertPrivacyManage(session);
-    const rows = await withClient((client) => listPrivacyRequests(client, session.organizationId));
-    return ok({ rows });
-  } catch (error) {
-    return errorResponse(error);
-  }
+import { ok, readJson } from "@/core/http";
+import { workspaceRoute } from "@/core/workspace-route";
+
+// Settings > Privacy and retention: the platform privacy request tracker
+// (core/platform/privacy). platform.privacy.manage only - an elevated
+// permission that ordinary module managers do not hold. Never billing-gated:
+// a locked account must still be able to meet privacy obligations.
+export async function GET(request: Request) {
+  return workspaceRoute(request, { permission: CORE_PERMISSIONS.platformPrivacyManage, action: "privacy.requests.list", transaction: "none" }, async ({ client, session }) =>
+    ok({ rows: await listPrivacyRequests(client, session.organizationId) }),
+  );
 }
 
+const schema = z.object({
+  requestType: z.enum(["access", "export", "correction", "restriction", "erasure", "consent_withdrawal"]),
+  subjectReference: z.string().trim().min(1).max(240),
+  payload: z.record(z.string(), z.unknown()).optional(),
+});
+
 export async function POST(request: Request) {
-  try {
-    assertSameOriginOrMobile(request, process.env);
-    const session = await requireWorkspace();
-    assertPrivacyManage(session);
-    const input = (await readJson(request)) as { requestType?: string; subjectReference?: string; payload?: Record<string, unknown> };
-    const record = await transaction((client) => createPrivacyRequest(client, session, input));
-    return ok({ record }, 201);
-  } catch (error) {
-    return errorResponse(error);
-  }
+  return workspaceRoute(
+    request,
+    { permission: CORE_PERMISSIONS.platformPrivacyManage, action: "privacy.requests.create", transaction: "platform", auditDenial: true },
+    async ({ client, session }) => ok({ record: await createPrivacyRequest(client, session, schema.parse(await readJson(request))) }, 201),
+  );
 }

@@ -155,7 +155,7 @@ test("F018 §14: an outbound reply that supplies the inbound thread's externalTh
       if (sql.includes("FROM tenant.contacts WHERE organization_id")) return { rows: [] };
       if (sql.includes("INSERT INTO tenant.crm_communication_participants")) return { rows: [], rowCount: 1 };
       if (sql.includes("INSERT INTO tenant.crm_email_messages")) return { rows: [{ id: "msg-out-1" }] };
-      if (sql.includes("INSERT INTO tenant.crm_outbox_events")) return { rows: [], rowCount: 1 };
+      if (sql.includes("INSERT INTO tenant.platform_events")) return { rows: [], rowCount: 1 };
       throw new Error(`Unexpected query: ${sql}`);
     },
   };

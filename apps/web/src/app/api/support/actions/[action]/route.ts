@@ -2,10 +2,10 @@ import { z } from "zod";
 
 import {
   saveSupportSettings, saveSupportCategory, saveSupportQueue, setQueueMember, removeQueueMember, saveRoutingRule, deactivateRoutingRule, saveSlaPolicy, deactivateSlaPolicy, saveEscalationPolicy,
-  createTicket, updateTicket, assignTicket, transitionTicket, mergeTickets, addCommunication, addAttachment, removeAttachment, escalateTicket, decideEscalation, checkSlaBreaches,
+  createTicket, updateTicket, assignTicket, transitionTicket, mergeTickets, addCommunication, removeAttachment, escalateTicket, decideEscalation, checkSlaBreaches,
   saveKnowledgeArticle, submitKnowledgeArticle, publishKnowledgeArticle, retireKnowledgeArticle, reviseKnowledgeArticle, rateKnowledgeArticle, linkArticleToTicket, saveCannedResponse, recordCannedResponseUsage,
   saveEntitlement, setEntitlementStatus, invitePortalUser, setPortalUserStatus,
-  createMyTicket, replyToMyTicket, addMyAttachment, submitMyCsat,
+  createMyTicket, replyToMyTicket, submitMyCsat,
 } from "@vercentlabs/api";
 
 import { HttpError } from "@/core/http";
@@ -61,7 +61,8 @@ export async function POST(request: Request, ctx: { params: Promise<{ action: st
         case "communication-add":
           return { record: await addCommunication(client, context, String(input.ticketId ?? ""), input) };
         case "attachment-add":
-          return { record: await addAttachment(client, context, String(input.ticketId ?? ""), input) };
+          // Files carry bytes: upload through POST /api/support/tickets/{ticketId}/attachments.
+          throw new HttpError(400, "Upload the file to the ticket's attachments endpoint.", "SUPPORT_ATTACHMENT_UPLOAD_REQUIRED");
         case "attachment-remove":
           return { record: await removeAttachment(client, context, idOf(input)) };
         case "escalation-raise":
@@ -101,7 +102,7 @@ export async function POST(request: Request, ctx: { params: Promise<{ action: st
         case "my-ticket-reply":
           return { record: await replyToMyTicket(client, context, String(input.ticketId ?? ""), input) };
         case "my-attachment-add":
-          return { record: await addMyAttachment(client, context, String(input.ticketId ?? ""), input) };
+          throw new HttpError(400, "Upload the file to the ticket's attachments endpoint.", "SUPPORT_ATTACHMENT_UPLOAD_REQUIRED");
         case "my-csat-submit":
           return { record: await submitMyCsat(client, context, String(input.ticketId ?? ""), input) };
         default:

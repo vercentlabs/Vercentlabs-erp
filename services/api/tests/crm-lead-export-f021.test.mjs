@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
+import { createMemoryObjectStorage } from "@vercentlabs/document-engine";
+
 import {
   buildCrmLeadExportCsv,
   completeCrmLeadExportJob,
@@ -30,6 +32,9 @@ function createClient({ leadRows = [], ownerRows = [], jobRow = null } = {}) {
       if (sql.startsWith("SELECT record.* FROM tenant.crm_leads")) return { rows: leadRows };
       if (sql.includes("FROM public.users WHERE id = ANY")) return { rows: ownerRows };
       if (sql.startsWith("UPDATE tenant.background_jobs")) return { rows: [{ id: jobId }] };
+      if (sql.includes("gen_random_uuid() AS id")) return { rows: [{ id: "77777777-7777-4777-8777-777777777777" }] };
+      if (sql.includes("INSERT INTO public.attachments"))
+        return { rows: [{ id: values[0], logical_id: values[0], version: 1, is_current: true, entity_type: values[2], entity_id: values[3], file_name: values[4], mime_type: values[6], size_bytes: values[7], storage_mode: "object", purpose: values[14], expires_at: values[15] }] };
       return { rows: [] };
     },
   };
@@ -120,15 +125,20 @@ test("F021: buildCrmLeadExportCsv reuses listCrmRecords's real query shape, reso
   assert.doesNotMatch(csv, /(?<!')=cmd/);
 });
 
-test("F021: completeCrmLeadExportJob writes a light summary to progress and the full manifest (including csv) to result_manifest, not the same payload twice", async () => {
+test("F021: completeCrmLeadExportJob stores the CSV as an expiring file artifact; the job manifest holds only metadata and the artifact id", async () => {
   const client = createClient();
-  await completeCrmLeadExportJob(client, jobId, org, { csv: "a,b\n1,2\n", rowCount: 1, truncated: false });
+  const storage = createMemoryObjectStorage();
+  await completeCrmLeadExportJob(client, jobId, org, { csv: "a,b\n1,2\n", rowCount: 1, truncated: false }, { storage });
+  const insert = client.calls.find(({ sql }) => sql.includes("INSERT INTO public.attachments"));
+  assert.equal(insert.values[2], "platform.export");
+  assert.equal(insert.values[3], jobId);
+  assert.equal(insert.values[14], "export");
+  assert.ok(insert.values[15] instanceof Date, "an export must carry a real expiry, not be downloadable forever");
+  assert.equal((await storage.get(insert.values[5])).toString("utf8"), "a,b\n1,2\n", "the bytes are in object storage");
   const update = client.calls.find(({ sql }) => sql.startsWith("UPDATE tenant.background_jobs"));
-  const [, , progressJson, manifestJson] = update.values;
-  const progress = JSON.parse(progressJson);
-  const manifest = JSON.parse(manifestJson);
-  assert.equal(progress.csv, undefined, "progress must stay small — no file content, for cheap status polling");
-  assert.equal(manifest.csv, "a,b\n1,2\n");
+  const manifest = JSON.parse(update.values[2]);
+  assert.equal(manifest.csv, undefined, "no file content in the job JSON");
+  assert.equal(manifest.artifactId, "77777777-7777-4777-8777-777777777777");
   assert.equal(manifest.rowCount, 1);
-  assert.ok(manifest.expiresAt, "an export must carry a real expiry, not be downloadable forever");
+  assert.ok(manifest.expiresAt);
 });

@@ -1,4 +1,6 @@
 import { rowsToCsv } from "@vercentlabs/reporting-engine";
+import { getConfigurationValue } from "../../../core/platform/configuration/index.js";
+import { prepareFileUpload, readFileContent, storeFile } from "../../../core/platform/files/index.js";
 import { CrmError } from "../crm-data-operations-and-customization/errors.js";
 import { listCrmRecords } from "../crm-data-operations-and-customization/resource-query-service.js";
 
@@ -117,21 +119,47 @@ export async function buildCrmLeadExportCsv(client, context, filters) {
   return { csv, rowCount: withOwnerNames.length, truncated: rows.length > EXPORT_ROW_CAP };
 }
 
-export async function completeCrmLeadExportJob(client, jobId, organizationId, { csv, rowCount, truncated }) {
-  // progress stays a small, poll-friendly summary (no file content) —
-  // result_manifest additionally carries the generated CSV itself, since
-  // this codebase has no separate blob-storage abstraction and the same
-  // row cap already bounds it to a safe size (see EXPORT_ROW_CAP).
+// The CSV is a Shared Platform file artifact (object storage, entity
+// "platform.export" = this job, expires after EXPORT_TTL_HOURS). The job's
+// result manifest holds only safe metadata and the artifact id — never the
+// file content.
+export async function completeCrmLeadExportJob(client, jobId, organizationId, { csv, rowCount, truncated }, options = {}) {
+  const generatedAt = new Date();
+  // Settings > Feature configuration: "Keep export files for" (default 24h).
+  const ttlHours = await getConfigurationValue(client, organizationId, "platform.exports", "artifact_retention_hours").catch(() => EXPORT_TTL_HOURS);
+  const expiresAt = new Date(generatedAt.getTime() + Number(ttlHours || EXPORT_TTL_HOURS) * 60 * 60 * 1000);
+  const prepared = await prepareFileUpload({ fileName: `leads-export-${jobId}.csv`, mimeType: "text/csv", bytes: Buffer.from(csv, "utf8"), maximumBytes: 50 * 1024 * 1024 }, options.env);
+  const requester = (await client.query(`SELECT requested_by FROM tenant.background_jobs WHERE organization_id=$1 AND id=$2`, [organizationId, jobId])).rows[0];
+  const artifact = await storeFile(client, { organizationId, entityType: "platform.export", entityId: jobId, prepared, uploadedBy: requester?.requested_by ?? null, purpose: "export", expiresAt, classification: "confidential" }, options);
   const summary = {
     rowCount,
     truncated,
     columns: LEAD_EXPORT_COLUMNS.map((column) => column.key),
-    generatedAt: new Date().toISOString(),
-    expiresAt: new Date(Date.now() + EXPORT_TTL_HOURS * 60 * 60 * 1000).toISOString(),
+    generatedAt: generatedAt.toISOString(),
+    expiresAt: expiresAt.toISOString(),
+    artifactId: artifact.id,
+    fileName: artifact.fileName,
   };
   await client.query(
-    `UPDATE tenant.background_jobs SET status='completed',progress=$3::jsonb,result_manifest=$4::jsonb,completed_at=now(),updated_at=now()
+    `UPDATE tenant.background_jobs SET status='completed',progress=$3::jsonb,result_manifest=$3::jsonb,completed_at=now(),updated_at=now()
       WHERE organization_id=$1 AND id=$2`,
-    [organizationId, jobId, JSON.stringify(summary), JSON.stringify({ ...summary, csv })],
+    [organizationId, jobId, JSON.stringify(summary)],
   );
+  return summary;
+}
+
+// Download for an authorized caller (see getCrmLeadExportJob): 409 until the
+// job completes, 410 once the artifact has expired.
+export async function readCrmLeadExportArtifact(client, context, jobId, options = {}) {
+  const job = await getCrmLeadExportJob(client, context, jobId);
+  if (job.status !== "completed") throw new CrmError(409, "This export is not ready yet.", "CRM_LEAD_EXPORT_NOT_READY");
+  const artifactId = job.result_manifest?.artifactId;
+  if (!artifactId) throw new CrmError(410, "This export has expired. Start a new export.", "CRM_LEAD_EXPORT_EXPIRED");
+  try {
+    return await readFileContent(client, { organizationId: context.organizationId, entityType: "platform.export", entityId: job.id, fileId: artifactId }, options);
+  } catch (error) {
+    if (error?.code === "FILE_EXPIRED") throw new CrmError(410, "This export has expired. Start a new export.", "CRM_LEAD_EXPORT_EXPIRED");
+    if (error?.code === "FILE_NOT_FOUND") throw new CrmError(404, "Export file not found.", "CRM_LEAD_EXPORT_NOT_FOUND");
+    throw error;
+  }
 }

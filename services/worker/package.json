@@ -19,7 +19,6 @@
     "@vercentlabs/config": "workspace:*",
     "@vercentlabs/database": "workspace:*",
     "@vercentlabs/observability": "workspace:*",
-    "nodemailer": "^9.0.3",
     "pg": "^8.16.3",
     "undici": "^7.16.0",
     "zod": "^4.1.12"

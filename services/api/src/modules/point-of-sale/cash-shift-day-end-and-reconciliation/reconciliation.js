@@ -17,7 +17,7 @@
 // the sandbox adapter's own test-settlement generator for end-to-end
 // verification. Nothing here fabricates a settlement.
 import { beginIdempotentOperation, completeIdempotentOperation } from "../../../core/idempotency.js";
-import { nextDocumentNumber } from "../../../core/document-numbering.js";
+import { nextDocumentNumber } from "../../../core/platform/numbering/index.js";
 import { add, sub, decimal, asDatabaseDecimal } from "../../../core/decimal.js";
 import { posError } from "../shared/errors.js";
 import { requirePermission, assertPosStoreAccess } from "../shared/access-control.js";

@@ -1,4 +1,4 @@
-import { nextDocumentNumber } from "../../core/document-numbering.js";
+import { nextDocumentNumber } from "../../core/platform/numbering/index.js";
 import { MfgError, dateOrNull, has, need, positive, recordEvent, uuid } from "./common.js";
 import { explodeBom } from "./engineering.js";
 import { getCapacityPlan } from "./routing.js";

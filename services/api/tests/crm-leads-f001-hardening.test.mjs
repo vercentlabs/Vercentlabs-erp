@@ -100,7 +100,7 @@ test("F001 hardening: scoring-rule text comparison values are encoded safely for
           ],
         };
       }
-      if (sql.includes("INSERT INTO tenant.crm_outbox_events")) return { rows: [] };
+      if (sql.includes("INSERT INTO tenant.platform_events")) return { rows: [] };
       throw new Error(`Unexpected query: ${sql}`);
     },
   };

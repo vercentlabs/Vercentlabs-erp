@@ -71,7 +71,7 @@ function createClient({ leadRow, activity = {}, managerUserId, reminderInsertRet
         if (!reminderInsertReturnsRow) return { rows: [] };
         return { rows: [{ id: `reminder-${reminderSeq}`, organization_id: org, activity_id: values[1], offset_minutes: values[2], channel: values[3], fire_at: values[4], status: "pending", created_by: values[5] }] };
       }
-      if (sql.includes("INSERT INTO tenant.crm_outbox_events"))
+      if (sql.includes("INSERT INTO tenant.platform_events"))
         return { rows: [], rowCount: 1 };
       if (sql.includes("UPDATE tenant.crm_activities SET due_at=$3,follow_up_snooze_count"))
         return { rows: [activityRow({ ...activity, due_at: values[2], follow_up_snooze_count: (activity.follow_up_snooze_count || 0) + 1, follow_up_escalated_at: null, follow_up_escalated_to: null })] };
@@ -117,7 +117,7 @@ test("F016: creating a general Follow-up writes the activity row, a created even
   const reminderInserts = client.calls.filter(({ sql }) => sql.includes("INSERT INTO tenant.crm_activity_reminders("));
   assert.equal(reminderInserts.length, 3); // DEFAULT_REMINDER_OFFSETS = [1440, 60, 0]
   assert.deepEqual(reminderInserts.map(({ values }) => values[2]).sort((a, b) => a - b), [0, 60, 1440]);
-  assert.ok(client.calls.some(({ sql }) => sql.includes("INSERT INTO tenant.crm_outbox_events")));
+  assert.ok(client.calls.some(({ sql }) => sql.includes("INSERT INTO tenant.platform_events")));
 });
 
 test("F016: a Lead-related Follow-up requires Lead sensitive-content permission before touching the Lead", async () => {

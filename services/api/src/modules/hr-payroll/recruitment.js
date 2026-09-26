@@ -1,6 +1,6 @@
 // F397-F402: job openings, candidates, the recruitment pipeline, interviews and feedback, offers,
 // and conversion of an accepted offer into an employee record.
-import { nextDocumentNumber } from "../../core/document-numbering.js";
+import { nextDocumentNumber } from "../../core/platform/numbering/index.js";
 import {
   HrError, canSeeSensitive, dateOrNull, dateRequired, has, hasAny, need, needAny, nonNegative, oneOf, ownEmployee, positive, qx, recordEvent, seq, text, textOrNull, today, uuid, uuidOrNull,
 } from "./common.js";

@@ -36,6 +36,9 @@ const nextConfig: NextConfig = {
   // src/shell/primary-sidebar) — it visually and pointer-event overlaps
   // the profile menu button. Disabled rather than worked around.
   devIndicators: false,
+  // The PDF stack (@react-pdf/renderer, pure Node) is loaded at runtime from
+  // the document-engine workspace package, never bundled.
+  serverExternalPackages: ["@vercentlabs/document-engine", "@react-pdf/renderer"],
   transpilePackages: [
     "@vercentlabs/api",
     "@vercentlabs/database",

@@ -207,7 +207,7 @@ function assignmentClient({ currentOwner = ownerA } = {}) {
           ],
         };
       }
-      if (sql.includes("INSERT INTO tenant.crm_outbox_events")) {
+      if (sql.includes("INSERT INTO tenant.platform_events")) {
         writes.push({ kind: "outbox", sql, values });
         return { rows: [] };
       }
@@ -565,8 +565,8 @@ test("F005: explicit create owner is persisted instead of being discarded", asyn
       // untouched 3-stage legacy default.
       if (sql.includes("SELECT code,name,description,sort_order,status,is_system,is_initial,dwell_warning_hours,dwell_breach_hours") && sql.includes("FROM tenant.crm_lead_stages"))
         return { rows: [{ code: "new" }, { code: "attempting" }, { code: "contacted" }, { code: "working" }, { code: "nurturing" }] };
-      if (sql.startsWith("UPDATE public.numbering_series"))
-        return { rows: [{ prefix: "LEAD-", number: 1, padding: 5 }] };
+      if (sql.includes("INSERT INTO tenant.document_sequences"))
+        return { rows: [{ allocated_value: "1", effective_prefix: "LEAD-", effective_padding: 5 }] };
       if (sql.includes("FROM public.organization_memberships membership"))
         return {
           rows: [{ id: ownerA, name: "Priya", email: "priya@example.com" }],
@@ -581,7 +581,7 @@ test("F005: explicit create owner is persisted instead of being discarded", asyn
       if (sql.includes("INSERT INTO tenant.crm_lead_score_history"))
         return { rows: [] };
       if (sql.includes("FROM tenant.crm_automation_rules")) return { rows: [] };
-      if (sql.includes("INSERT INTO tenant.crm_outbox_events"))
+      if (sql.includes("INSERT INTO tenant.platform_events"))
         return { rows: [] };
       if (sql.includes("INSERT INTO tenant.crm_lead_assignment_events"))
         return {

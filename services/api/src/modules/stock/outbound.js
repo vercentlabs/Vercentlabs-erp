@@ -1,4 +1,4 @@
-import { nextDocumentNumber } from "../../core/document-numbering.js";
+import { nextDocumentNumber } from "../../core/platform/numbering/index.js";
 import { StockError, postStockMovement, releaseStockReservation, reserveStock } from "./index.js";
 
 // Picking, packing and shipping (F135-F137).

@@ -1,22 +1,23 @@
-import { assertSameOriginOrMobile, transitionPrivacyRequest } from "@vercentlabs/api";
+import { z } from "zod";
 
-import { errorResponse, HttpError, ok, readJson } from "@/core/http";
-import { transaction } from "@/core/db";
-import { requireWorkspace } from "@/core/session";
-import { assertPrivacyManage } from "@/core/privacy-authorization";
+import { transitionPrivacyRequest } from "@vercentlabs/api";
+import { CORE_PERMISSIONS } from "@vercentlabs/permissions";
+
+import { ok, readJson } from "@/core/http";
+import { workspaceRoute } from "@/core/workspace-route";
+
+// The request FSM (received -> verified -> in_progress -> completed, or
+// rejected/cancelled) is enforced by the domain under a row lock.
+const schema = z.object({ status: z.enum(["verified", "in_progress", "completed", "rejected", "cancelled"]), resultPayload: z.unknown().optional() });
 
 export async function POST(request: Request, context: { params: Promise<{ id: string }> }) {
-  try {
-    assertSameOriginOrMobile(request, process.env);
-    const session = await requireWorkspace();
-    assertPrivacyManage(session);
-    const { id } = await context.params;
-    const input = (await readJson(request)) as { status?: string; resultPayload?: unknown };
-    const status = input.status;
-    if (!status) throw new HttpError(400, "A target status is required.");
-    const record = await transaction((client) => transitionPrivacyRequest(client, session, id, status, input.resultPayload));
-    return ok({ record });
-  } catch (error) {
-    return errorResponse(error);
-  }
+  const { id } = await context.params;
+  return workspaceRoute(
+    request,
+    { permission: CORE_PERMISSIONS.platformPrivacyManage, action: "privacy.requests.transition", transaction: "platform", auditDenial: true },
+    async ({ client, session }) => {
+      const input = schema.parse(await readJson(request));
+      return ok({ record: await transitionPrivacyRequest(client, session, id, input.status, input.resultPayload) });
+    },
+  );
 }

@@ -4,7 +4,7 @@ import { createHash } from "node:crypto";
 
 import { getPrimaryLedger, loadCompany } from "../accounting/index.js";
 import { createJournalEntry, postJournalEntry } from "../accounting/index.js";
-import { nextDocumentNumber } from "../../core/document-numbering.js";
+import { nextDocumentNumber } from "../../core/platform/numbering/index.js";
 import {
   HrError, addDays, dateOrNull, dateRequired, need, needAny, nonNegative, qx, recordEvent, round2, text, textOrNull, today, uuid, uuidOrNull,
 } from "./common.js";

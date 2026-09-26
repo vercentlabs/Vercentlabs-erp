@@ -6,7 +6,7 @@
 // update/delete function exists for this table anywhere in the module);
 // correcting a mistake means recording an offsetting movement with its own
 // reason, never editing history.
-import { nextDocumentNumber } from "../../../core/document-numbering.js";
+import { nextDocumentNumber } from "../../../core/platform/numbering/index.js";
 import { decimal, asDatabaseDecimal } from "../../../core/decimal.js";
 import { beginIdempotentOperation, completeIdempotentOperation } from "../../../core/idempotency.js";
 import { posError } from "../shared/errors.js";

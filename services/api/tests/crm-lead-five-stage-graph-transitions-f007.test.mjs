@@ -63,7 +63,7 @@ function graphClient(fromCode, toCode) {
       if (sql.includes("UPDATE tenant.crm_leads SET status="))
         return { rows: [{ id: leadId, status: toCode, record_status: "active" }] };
       if (sql.includes("INSERT INTO tenant.crm_lead_stage_events")) return { rows: [{ id: "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee" }] };
-      if (sql.includes("INSERT INTO tenant.crm_outbox_events")) return { rows: [] };
+      if (sql.includes("INSERT INTO tenant.platform_events")) return { rows: [] };
       if (sql.includes("SELECT lead.id FROM tenant.crm_leads lead")) return { rows: [{ id: leadId }] };
       if (sql.includes("FROM tenant.crm_lead_stage_events event")) return { rows: [] };
       if (sql.startsWith("SELECT set_config")) return { rows: [] };

@@ -1,4 +1,4 @@
-import { nextDocumentNumber } from "../../core/document-numbering.js";
+import { nextDocumentNumber } from "../../core/platform/numbering/index.js";
 
 // tenant.support_communications rows marked private_note=true are internal
 // staff-only notes not meant to be visible to every ticket viewer. Gated

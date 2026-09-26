@@ -1,3 +1,8 @@
+import { publishDomainEvent } from "../../../core/platform/events/index.js";
+
+// Every CRM domain event goes through the Shared Platform transactional outbox
+// (same transaction as the change). Registered events are what webhooks and
+// workflows can see, via each event's own payload allow-list.
 export async function queueOutboxEvent(
   client,
   context,
@@ -10,10 +15,7 @@ export async function queueOutboxEvent(
     entityType === "leads"
       ? safeLeadOutboxPayload(eventType, entityId, payload)
       : payload || {};
-  await client.query(
-    `INSERT INTO tenant.crm_outbox_events (organization_id, event_type, entity_type, entity_id, payload) VALUES ($1, $2, $3, $4, $5)`,
-    [context.organizationId, eventType, entityType, entityId, eventPayload],
-  );
+  return publishDomainEvent(client, { organizationId: context.organizationId, moduleKey: "crm", eventType, entityType, entityId, payload: eventPayload });
 }
 
 

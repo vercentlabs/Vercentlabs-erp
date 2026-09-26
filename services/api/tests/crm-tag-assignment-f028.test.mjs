@@ -91,7 +91,7 @@ test("F028 tags: assignRecordTag inserts idempotently (ON CONFLICT DO NOTHING) a
   const client = createClient({
     queries: {
       "INSERT INTO tenant.crm_lead_tags": () => ({ rows: [], rowCount: 1 }),
-      "INSERT INTO tenant.crm_outbox_events": () => ({ rows: [], rowCount: 1 }),
+      "INSERT INTO tenant.platform_events": () => ({ rows: [], rowCount: 1 }),
       "FROM tenant.crm_lead_tags lt": () => ({ rows: [{ tag_id: tag, name: "VIP", color: "#111111", assigned_at: "2026-09-01T00:00:00.000Z" }] }),
     },
   });
@@ -99,7 +99,7 @@ test("F028 tags: assignRecordTag inserts idempotently (ON CONFLICT DO NOTHING) a
   assert.equal(rows[0].tagId, tag);
   const insert = client.calls.find(({ sql }) => sql.includes("INSERT INTO tenant.crm_lead_tags"));
   assert.ok(insert.sql.includes("ON CONFLICT"), "assigning an already-assigned tag must not throw a duplicate-key error");
-  assert.ok(client.calls.some(({ sql }) => sql.includes("INSERT INTO tenant.crm_outbox_events")));
+  assert.ok(client.calls.some(({ sql }) => sql.includes("INSERT INTO tenant.platform_events")));
 });
 
 test("F028 tags: removeRecordTag requires crm.leads.manage", async () => {
@@ -126,13 +126,13 @@ test("F028 tags: removeRecordTag deletes the junction row and queues an outbox e
   const client = createClient({
     queries: {
       "DELETE FROM tenant.crm_lead_tags": () => ({ rows: [{ tag_id: tag }] }),
-      "INSERT INTO tenant.crm_outbox_events": () => ({ rows: [], rowCount: 1 }),
+      "INSERT INTO tenant.platform_events": () => ({ rows: [], rowCount: 1 }),
       "FROM tenant.crm_lead_tags lt": () => ({ rows: [] }),
     },
   });
   const rows = await removeRecordTag(client, manager, "lead", lead, tag);
   assert.deepEqual(rows, []);
-  assert.ok(client.calls.some(({ sql }) => sql.includes("INSERT INTO tenant.crm_outbox_events")));
+  assert.ok(client.calls.some(({ sql }) => sql.includes("INSERT INTO tenant.platform_events")));
 });
 
 test("F028 tags: organization isolation is enforced by parameterization on every crm_lead_tags query", async () => {

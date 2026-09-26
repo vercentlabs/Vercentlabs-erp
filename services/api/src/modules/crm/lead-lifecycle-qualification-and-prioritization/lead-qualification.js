@@ -1,6 +1,7 @@
 import { crmOwnerScopeSql } from "../crm-data-operations-and-customization/crm-access-scope.js";
 import { runCrmAutomation } from "../crm-data-operations-and-customization/resource-mutation-service.js";
 import { recalculateLeadScoreInternal } from "./scoring/scoring-engine.js";
+import { publishDomainEvent } from "../../../core/platform/events/index.js";
 
 export const LEAD_QUALIFICATION_STATES = Object.freeze([
   "not_reviewed",
@@ -374,26 +375,21 @@ export async function decideLeadQualification(client, context, leadId, input = {
       overrideUsed ? overrideReason : null,
     ],
   );
-  await client.query(
-    `INSERT INTO tenant.crm_outbox_events
-       (organization_id,event_type,entity_type,entity_id,payload)
-     VALUES($1,$2,'lead',$3,$4)`,
-    [
-      context.organizationId,
-      previousState === "unqualified" && decision === "qualified"
-        ? "crm.leads.requalified"
-        : `crm.leads.${decision}`,
+  await publishDomainEvent(client, {
+    organizationId: context.organizationId,
+    moduleKey: "crm",
+    eventType: previousState === "unqualified" && decision === "qualified" ? "crm.leads.requalified" : `crm.leads.${decision}`,
+    entityType: "lead",
+    entityId: leadId,
+    payload: {
       leadId,
-      {
-        leadId,
-        previousState,
-        state: decision,
-        reasonCode: decision === "unqualified" ? reasonCode : null,
-        qualificationEventId: event.rows[0].id,
-        overrideUsed,
-      },
-    ],
-  );
+      previousState,
+      state: decision,
+      reasonCode: decision === "unqualified" ? reasonCode : null,
+      qualificationEventId: event.rows[0].id,
+      overrideUsed,
+    },
+  });
   const camelizedLead = camelize(updated.rows[0]);
   if (decision === "qualified") {
     await runCrmAutomation(client, context, "lead.qualified", "lead", leadId, camelizedLead);

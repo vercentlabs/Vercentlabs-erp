@@ -57,6 +57,15 @@ export const NOTIFICATION_CATEGORIES = Object.freeze([
     defaultInAppEnabled: true,
     userConfigurable: true,
   },
+  {
+    // Sent by Settings > Automations workflows triggered by CRM events.
+    key: "crm_workflow",
+    displayName: "Automations about CRM records",
+    description: "Notifications from your organization's automations when CRM leads or opportunities change.",
+    moduleKey: "crm",
+    defaultInAppEnabled: true,
+    userConfigurable: true,
+  },
 ]);
 
 const BY_KEY = new Map(NOTIFICATION_CATEGORIES.map((category) => [category.key, category]));

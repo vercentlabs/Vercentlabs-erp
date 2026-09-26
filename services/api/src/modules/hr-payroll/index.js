@@ -1,4 +1,4 @@
-import { nextDocumentNumber } from "../../core/document-numbering.js";
+import { nextDocumentNumber } from "../../core/platform/numbering/index.js";
 import { omitFields, omitFieldsFromRows } from "../../core/field-visibility.js";
 import { requireCompanyRecord } from "../../core/references.js";
 

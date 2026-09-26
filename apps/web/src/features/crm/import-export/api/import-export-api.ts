@@ -20,17 +20,20 @@ async function parseResponse<T>(response: Response): Promise<T> {
   return payload;
 }
 
-export async function previewLeadImportRequest(input: {
-  rows: Record<string, unknown>[];
-  fieldMapping: Record<string, string>;
-  fileName: string;
-  duplicateStrategy: string;
-}): Promise<LeadImportPreviewResult> {
-  const response = await fetch("/api/crm/leads/import/preview", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(input),
-  });
+// The server parses the CSV (Shared Platform parser); the browser uploads the file.
+export async function analyzeLeadImportRequest(file: File): Promise<{ fileName: string; headers: string[]; sample: Record<string, string>[]; rowCount: number }> {
+  const body = new FormData();
+  body.set("file", file);
+  const response = await fetch("/api/crm/leads/import/analyze", { method: "POST", body });
+  return parseResponse(response);
+}
+
+export async function previewLeadImportRequest(input: { file: File; fieldMapping: Record<string, string>; duplicateStrategy: string }): Promise<LeadImportPreviewResult> {
+  const body = new FormData();
+  body.set("file", input.file);
+  body.set("fieldMapping", JSON.stringify(input.fieldMapping));
+  body.set("duplicateStrategy", input.duplicateStrategy);
+  const response = await fetch("/api/crm/leads/import/preview", { method: "POST", body });
   return parseResponse(response);
 }
 

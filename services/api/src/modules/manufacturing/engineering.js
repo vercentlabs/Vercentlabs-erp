@@ -1,4 +1,4 @@
-import { nextDocumentNumber } from "../../core/document-numbering.js";
+import { nextDocumentNumber } from "../../core/platform/numbering/index.js";
 import { MfgError, dateOrNull, has, need, nonNegative, positive, recordEvent, text, uuid } from "./common.js";
 
 // Product definition: BOMs (multi-level, versioned, alternates) and engineering change control

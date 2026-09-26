@@ -11,13 +11,13 @@ import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import { formatDateTime, humanize } from "@/features/crm/shared/human";
 import { ImportStepper } from "@/features/crm/shared/ui/ImportStepper";
 import { ViewToggle } from "@/features/crm/shared/ui/ViewToggle";
-import { parseCsv, rowsToObjects } from "../csv";
 import {
   commitLeadImportRequest,
   getLeadExportJobRequest,
   ImportExportApiError,
   leadExportDownloadUrl,
   listLeadImportBatchesRequest,
+  analyzeLeadImportRequest,
   previewLeadImportRequest,
   rollbackLeadImportRequest,
   startLeadExportRequest,
@@ -65,7 +65,11 @@ export function CrmImportExportScreen() {
   const [step, setStep] = useState<Step>("upload");
   const [fileName, setFileName] = useState("");
   const [headers, setHeaders] = useState<string[]>([]);
+  // The server parses the file; the browser keeps only the File itself, a
+  // short sample for mapping, and the server's row count.
   const [records, setRecords] = useState<Record<string, string>[]>([]);
+  const [uploadFile, setUploadFile] = useState<File | null>(null);
+  const [rowCount, setRowCount] = useState(0);
   const [mapping, setMapping] = useState<Record<string, string>>({});
   const [duplicateStrategy, setDuplicateStrategy] = useState("skip");
   const [preview, setPreview] = useState<LeadImportPreviewResult | null>(null);
@@ -80,6 +84,8 @@ export function CrmImportExportScreen() {
     setStep("upload");
     setPreview(null);
     setRecords([]);
+    setUploadFile(null);
+    setRowCount(0);
     setHeaders([]);
     setFileName("");
     setError(null);
@@ -93,29 +99,30 @@ export function CrmImportExportScreen() {
       setError("That does not look like a CSV file. Export your sheet as CSV and try again.");
       return;
     }
-    const reader = new FileReader();
-    reader.onload = () => {
-      const { headers: parsedHeaders, records: parsedRecords } = rowsToObjects(parseCsv(String(reader.result || "")));
-      if (parsedRecords.length === 0) {
-        setError("The file has a header row but no data rows.");
-        return;
-      }
-      setFileName(file.name);
-      setHeaders(parsedHeaders);
-      setRecords(parsedRecords);
-      const auto: Record<string, string> = {};
-      for (const field of LEAD_IMPORT_FIELDS) {
-        const match = parsedHeaders.find((h) => h.toLowerCase().replace(/[^a-z0-9]/g, "") === field.target.toLowerCase());
-        if (match) auto[field.target] = match;
-      }
-      setMapping(auto);
-      setStep("map");
-    };
-    reader.readAsText(file);
+    analyzeLeadImportRequest(file)
+      .then((analyzed) => {
+        if (analyzed.rowCount === 0) {
+          setError("The file has a header row but no data rows.");
+          return;
+        }
+        setUploadFile(file);
+        setFileName(analyzed.fileName);
+        setHeaders(analyzed.headers);
+        setRecords(analyzed.sample);
+        setRowCount(analyzed.rowCount);
+        const auto: Record<string, string> = {};
+        for (const field of LEAD_IMPORT_FIELDS) {
+          const match = analyzed.headers.find((h) => h.toLowerCase().replace(/[^a-z0-9]/g, "") === field.target.toLowerCase());
+          if (match) auto[field.target] = match;
+        }
+        setMapping(auto);
+        setStep("map");
+      })
+      .catch((err) => setError(err instanceof ImportExportApiError ? err.message : "The file could not be read. Check it is a UTF-8 CSV and try again."));
   }
 
   const previewMutation = useMutation({
-    mutationFn: () => previewLeadImportRequest({ rows: records, fieldMapping: mapping, fileName, duplicateStrategy }),
+    mutationFn: () => previewLeadImportRequest({ file: uploadFile!, fieldMapping: mapping, duplicateStrategy }),
     onSuccess: (result) => { setPreview(result); setStep("validate"); setError(null); },
     onError: (err) => setError(err instanceof ImportExportApiError ? err.message : "The file could not be checked. Try again."),
   });
@@ -278,7 +285,7 @@ export function CrmImportExportScreen() {
 
           {step === "map" && (
             <div className="flex flex-col gap-4">
-              <p className="text-sm text-text-secondary">{`${fileName}: ${records.length} row${records.length === 1 ? "" : "s"}. Match each lead field to a column in your file. First name is required.`}</p>
+              <p className="text-sm text-text-secondary">{`${fileName}: ${rowCount} row${rowCount === 1 ? "" : "s"}. Match each lead field to a column in your file. First name is required.`}</p>
               <div className="overflow-x-auto rounded-[var(--radius-control)] border border-border">
                 <Table className="w-full text-sm">
                   <TableHead className="bg-canvas-strong text-left text-xs uppercase tracking-wide text-text-muted"><TableRow><TableHeaderCell className="px-3 py-2">Lead field</TableHeaderCell><TableHeaderCell className="px-3 py-2">Column in your file</TableHeaderCell><TableHeaderCell className="px-3 py-2">Example from your file</TableHeaderCell></TableRow></TableHead>

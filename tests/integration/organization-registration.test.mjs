@@ -118,15 +118,15 @@ test("SP004: self-serve organization registration against a real database", asyn
       assert.equal(sub.rows[0].included_users_snapshot, 1, "a self-serve signup starts on Free with 1 user (migration 061)");
     });
 
-    await t.test("a new organization can create its first account: numbering series and the base currency exist from the start", async () => {
-      const numbering = await admin.query(`SELECT entity_type FROM numbering_series WHERE organization_id=$1`, [firstOrgId]);
-      const types = new Set(numbering.rows.map((r) => r.entity_type));
-      for (const needed of ["business_party", "contact", "crm_lead", "crm_opportunity", "crm_activity", "customer_invoice", "journal_entry"]) {
-        assert.ok(types.has(needed), `numbering series for ${needed} must exist for a new organization`);
-      }
+    await t.test("a new organization can create its first account: numbering works unseeded and the base currency exists from the start", async () => {
+      const { nextDocumentNumber } = await import("../../services/api/src/core/platform/numbering/index.js");
       await admin.query("BEGIN");
       try {
         await admin.query(`SELECT set_config('app.current_organization_id', $1, true)`, [firstOrgId]);
+        // The platform numbering registry supplies every default format; nothing is seeded per organisation.
+        for (const [documentType, expected] of [["business_party", /^PTY-\d{5}$/], ["crm_lead", /^LEAD-\d{5}$/], ["journal_entry", /^JE-\d{5}$/], ["customer_invoice", /^INV-\d{5}$/]]) {
+          assert.match(await nextDocumentNumber(admin, { organizationId: firstOrgId }, { documentType }), expected);
+        }
         const currencies = await admin.query(`SELECT code, is_base, status FROM tenant.currencies WHERE organization_id=$1`, [firstOrgId]);
         assert.deepEqual(currencies.rows.map((r) => [r.code.trim(), r.is_base, r.status]), [["INR", true, "active"]]);
         // The exact failure a new customer hit: an account carrying the organisation's own currency.

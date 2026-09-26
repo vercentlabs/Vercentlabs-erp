@@ -1,8 +1,9 @@
 // Ported from docs/frontend-rebuild/recovered-platform-code/apps/web/src/
 // core/mailer.ts (TS -> JS syntax only; unchanged logic). Needed directly
 // by Phase 4's verify-email / reset-password / invitation flows.
-import nodemailer from "nodemailer";
 import { WORKSPACE_EMAILS } from "@vercentlabs/config";
+
+import { escapeHtml, getMailTransport, smtpConfiguration } from "./platform/mail/index.js";
 
 const emailContent = {
   "verify-email": {
@@ -25,53 +26,8 @@ const emailContent = {
   },
 };
 
-let smtpTransporter = null;
-
-function escapeHtml(value) {
-  return value
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#039;");
-}
-
-function getSmtpConfiguration(env) {
-  const host = env.SMTP_HOST?.trim();
-  const user = env.SMTP_USER?.trim();
-  const password = env.SMTP_PASSWORD?.trim();
-  const from = env.AUTH_EMAIL_FROM?.trim();
-  const replyTo = env.AUTH_EMAIL_REPLY_TO?.trim() || WORKSPACE_EMAILS.support;
-
-  if (!host && !user && !password && !from) return null;
-  if (!host || !user || !password || !from) {
-    throw new Error("SMTP configuration is incomplete. SMTP_HOST, SMTP_USER, SMTP_PASSWORD and AUTH_EMAIL_FROM are required.");
-  }
-  const port = Number(env.SMTP_PORT || "465");
-  if (!Number.isInteger(port) || port < 1 || port > 65535) throw new Error("SMTP_PORT must be a valid network port.");
-  const secure = env.SMTP_SECURE?.toLowerCase() !== "false";
-  return { host, port, secure, user, password, from, replyTo };
-}
-
-function getSmtpTransporter(env) {
-  const configuration = getSmtpConfiguration(env);
-  if (!configuration) return null;
-  if (!smtpTransporter) {
-    smtpTransporter = nodemailer.createTransport({
-      host: configuration.host,
-      port: configuration.port,
-      secure: configuration.secure,
-      requireTLS: !configuration.secure,
-      auth: { user: configuration.user, pass: configuration.password },
-      connectionTimeout: 10_000,
-      greetingTimeout: 10_000,
-      socketTimeout: 15_000,
-      tls: { minVersion: "TLSv1.2" },
-    });
-  }
-  return { transporter: smtpTransporter, from: configuration.from, replyTo: configuration.replyTo };
-}
-
+// Security templates below; the SMTP transport is the shared platform one
+// (core/platform/mail). Security mail never consults notification preferences.
 function createEmail(input) {
   const content = emailContent[input.type];
   const organizationText = input.organizationName ? ` Organisation: ${input.organizationName}.` : "";
@@ -126,7 +82,7 @@ function createEmail(input) {
 }
 
 async function deliverWithSmtp(input, env) {
-  const smtp = getSmtpTransporter(env);
+  const smtp = getMailTransport(env);
   if (!smtp) return false;
   const content = createEmail(input);
   await smtp.transporter.sendMail({
@@ -175,5 +131,5 @@ export async function deliverAuthMessage(input, env = process.env) {
 // registered, since it's identical for every caller regardless of the
 // target address.
 export function isAuthMailerConfigured(env = process.env) {
-  return Boolean(getSmtpConfiguration(env)) || Boolean(env.AUTH_EMAIL_WEBHOOK_URL?.trim());
+  return Boolean(smtpConfiguration(env)) || Boolean(env.AUTH_EMAIL_WEBHOOK_URL?.trim());
 }

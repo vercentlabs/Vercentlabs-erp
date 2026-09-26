@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { ACCOUNTING_PERMISSIONS } from "@vercentlabs/permissions";
 import { decimal, asDatabaseDecimal, mul, roundMoney } from "./money.js";
+import { nextDocumentNumber } from "../../core/platform/numbering/index.js";
 
 export class AccountingError extends Error {
   constructor(status, message, code = "ACCOUNTING_ERROR") {
@@ -101,17 +102,10 @@ export function hashPayload(value) {
   return createHash("sha256").update(stable(value)).digest("hex");
 }
 
+// Organisation-wide accounting document numbers from the one platform
+// numbering service.
 export async function allocateNumber(client, organizationId, entityType) {
-  const result = await client.query(
-    `UPDATE public.numbering_series
-        SET next_number=next_number+1,updated_at=now()
-      WHERE organization_id=$1 AND entity_type=$2 AND status='active'
-      RETURNING prefix,next_number-1 AS number,padding`,
-    [organizationId, entityType],
-  );
-  const row = result.rows[0];
-  if (!row) throw new AccountingError(409, `Numbering series ${entityType} is not configured.`);
-  return `${row.prefix}${String(row.number).padStart(Number(row.padding || 5), "0")}`;
+  return nextDocumentNumber(client, { organizationId }, { documentType: entityType });
 }
 
 export async function loadCompany(client, context, companyIdValue) {

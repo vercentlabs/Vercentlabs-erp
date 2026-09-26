@@ -26,7 +26,7 @@ function createClient({ dnc = false } = {}) {
       if (sql.includes("FROM public.organization_memberships membership")) return { rows: [{ id: user, name: "Seller", email: "seller@example.com" }] };
       if (sql.includes("INSERT INTO tenant.crm_activities")) return { rows: [{ id: call, organization_id: org, company_id: company, branch_id: branch, entity_type: "lead", entity_id: lead, activity_type: "call", subject: "Call lead", description: null, status: "planned", priority: "medium", assigned_to: user, due_at: "2026-08-28T10:00:00.000Z", call_direction: "outbound", call_phone: "+91 9876543210", call_outcome_code: null, call_started_at: null, call_ended_at: null, call_duration_seconds: null, updated_at: "2026-08-27T10:00:00.000Z" }] };
       if (sql.includes("INSERT INTO tenant.crm_call_events")) return { rows: [], rowCount: 1 };
-      if (sql.includes("INSERT INTO tenant.crm_outbox_events")) return { rows: [], rowCount: 1 };
+      if (sql.includes("INSERT INTO tenant.platform_events")) return { rows: [], rowCount: 1 };
       throw new Error(`Unexpected query: ${sql}`);
     },
   };
@@ -38,7 +38,7 @@ test("F013: a scheduled outbound Lead Call resolves its phone and writes Call ev
   assert.equal(result.id, call);
   assert.equal(result.phoneNumber, "+91 9876543210");
   assert.ok(client.calls.some(({ sql }) => sql.includes("INSERT INTO tenant.crm_call_events")));
-  assert.ok(client.calls.some(({ sql }) => sql.includes("INSERT INTO tenant.crm_outbox_events")));
+  assert.ok(client.calls.some(({ sql }) => sql.includes("INSERT INTO tenant.platform_events")));
 });
 
 test("F013: all-company creation inherits the related record company/branch instead of becoming organization-wide", async () => {

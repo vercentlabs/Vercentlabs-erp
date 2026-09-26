@@ -37,7 +37,7 @@ test("F029: preview never keeps a write — every row is rolled back", async () 
   assert.equal(result.applied, 0);
   const rollbacks = c.statements.filter((sql) => sql === "ROLLBACK TO SAVEPOINT crm_opportunity_bulk_item").length;
   assert.equal(rollbacks, 2, "each previewed row is rolled back");
-  assert.ok(!c.statements.some((sql) => sql.startsWith("INSERT INTO tenant.crm_outbox_events")), "no bulk event is emitted for a preview");
+  assert.ok(!c.statements.some((sql) => sql.startsWith("INSERT INTO tenant.platform_events")), "no bulk event is emitted for a preview");
 });
 
 test("F029: a bulk edit cannot set a stage-governed field", async () => {

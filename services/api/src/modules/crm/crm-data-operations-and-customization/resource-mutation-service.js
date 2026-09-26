@@ -982,7 +982,6 @@ export async function archiveCrmRecord(
     "capture-forms": "inactive",
     competitors: "inactive",
     integrations: "disabled",
-    "webhook-subscriptions": "inactive",
     "sales-teams": "inactive",
     "sales-team-members": "inactive",
     territories: "archived",

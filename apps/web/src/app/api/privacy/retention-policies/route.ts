@@ -1,34 +1,33 @@
-import { assertSameOriginOrMobile, listRetentionPolicies, writeRetentionPolicy } from "@vercentlabs/api";
+import { z } from "zod";
 
-import { errorResponse, ok, readJson } from "@/core/http";
-import { transaction, withClient } from "@/core/db";
-import { requireWorkspace } from "@/core/session";
-import { assertPrivacyManage } from "@/core/privacy-authorization";
+import { listPrivacyDataClasses, listRetentionPolicies, writeRetentionPolicy } from "@vercentlabs/api";
+import { CORE_PERMISSIONS } from "@vercentlabs/permissions";
 
-export async function GET() {
-  try {
-    const session = await requireWorkspace();
-    assertPrivacyManage(session);
-    const rows = await withClient((client) => listRetentionPolicies(client, session.organizationId));
-    return ok({ rows });
-  } catch (error) {
-    return errorResponse(error);
-  }
+import { ok, readJson } from "@/core/http";
+import { workspaceRoute } from "@/core/workspace-route";
+
+// Versioned retention policies for REGISTERED data classes. Each policy says
+// how it is enforced - most are recorded for review; statutory records are
+// never deleted automatically.
+export async function GET(request: Request) {
+  return workspaceRoute(request, { permission: CORE_PERMISSIONS.platformPrivacyManage, action: "privacy.retention.list", transaction: "none" }, async ({ client, session }) =>
+    ok({ rows: await listRetentionPolicies(client, session.organizationId), dataClasses: listPrivacyDataClasses() }),
+  );
 }
 
-// writeRetentionPolicy is itself the versioning authority (privacy.js):
-// each call creates a NEW version, closing out whatever version was
-// previously open-ended for that data class — never an in-place edit of
-// a historical policy version.
+const schema = z.object({
+  dataClass: z.string().trim().min(1).max(120),
+  retentionDays: z.number().int().min(1).max(36500),
+  legalBasis: z.string().trim().min(1).max(500),
+  effectiveFrom: z.string().datetime({ offset: true }).nullable().optional(),
+});
+
+// writeRetentionPolicy creates a NEW version and closes the previous one; a
+// historical version is never edited in place.
 export async function POST(request: Request) {
-  try {
-    assertSameOriginOrMobile(request, process.env);
-    const session = await requireWorkspace();
-    assertPrivacyManage(session);
-    const input = (await readJson(request)) as Record<string, unknown>;
-    const record = await transaction((client) => writeRetentionPolicy(client, session, input));
-    return ok({ record }, 201);
-  } catch (error) {
-    return errorResponse(error);
-  }
+  return workspaceRoute(
+    request,
+    { permission: CORE_PERMISSIONS.platformPrivacyManage, action: "privacy.retention.write", transaction: "platform", auditDenial: true },
+    async ({ client, session }) => ok({ record: await writeRetentionPolicy(client, session, schema.parse(await readJson(request))) }, 201),
+  );
 }

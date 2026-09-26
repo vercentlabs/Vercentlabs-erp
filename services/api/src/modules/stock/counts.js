@@ -1,4 +1,4 @@
-import { nextDocumentNumber } from "../../core/document-numbering.js";
+import { nextDocumentNumber } from "../../core/platform/numbering/index.js";
 import { StockError, postStockMovement } from "./index.js";
 
 // Cycle counts and physical inventory (F126-F128).

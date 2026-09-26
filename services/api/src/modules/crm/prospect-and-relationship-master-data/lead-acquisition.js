@@ -7,6 +7,7 @@ import { resolveIngestionLeadSource } from "./lead-source-validation.js";
 import { evaluateLeadDuplicateRisk } from "./lead-duplicates.js";
 import { canViewSensitiveLeadContent, leadScopeSql } from "../lead-lifecycle-qualification-and-prioritization/lead-security.js";
 import { recordLeadTouchpoint } from "./lead-attribution.js";
+import { publishDomainEvent } from "../../../core/platform/events/index.js";
 
 export const CRM_LEAD_ACQUISITION_CAPABILITY_IDS = Object.freeze([
   "CRM-054",
@@ -511,21 +512,20 @@ async function createLead(client, context, lead, options = {}) {
         context.userId || null,
       ],
     );
-    await client.query(
-      `INSERT INTO tenant.crm_outbox_events(organization_id,event_type,entity_type,entity_id,payload)
-       VALUES($1,'crm.leads.assigned','leads',$2,$3::jsonb)`,
-      [
-        context.organizationId,
-        inserted.rows[0].id,
-        JSON.stringify({
-          leadId: inserted.rows[0].id,
-          previousOwnerUserId: null,
-          ownerUserId,
-          policyId: automaticAssignment.policyId || null,
-          reason: automaticAssignment.reason,
-        }),
-      ],
-    );
+    await publishDomainEvent(client, {
+      organizationId: context.organizationId,
+      moduleKey: "crm",
+      eventType: "crm.leads.assigned",
+      entityType: "leads",
+      entityId: inserted.rows[0].id,
+      payload: {
+        leadId: inserted.rows[0].id,
+        previousOwnerUserId: null,
+        ownerUserId,
+        policyId: automaticAssignment.policyId || null,
+        reason: automaticAssignment.reason,
+      },
+    });
   }
   // F004: callers (submitPublishedLeadForm, ingestLeadAcquisitionWebhook)
   // write crm_lead_provenance.attribution from this result — returning the

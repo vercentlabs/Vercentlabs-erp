@@ -90,7 +90,7 @@ function movingClient({ current = opportunityRow(), stage, reasonRow = null } = 
         }
         if (sql.includes("INSERT INTO tenant.crm_opportunity_stage_history")) return { rows: [] };
         if (sql.includes("FROM tenant.crm_automation_rules")) return { rows: [] };
-        if (sql.includes("INSERT INTO tenant.crm_outbox_events")) return { rows: [] };
+        if (sql.includes("INSERT INTO tenant.platform_events")) return { rows: [] };
         if (sql.includes("INSERT INTO tenant.crm_opportunity_probability_history")) return { rows: [] };
         throw new Error(`Unexpected query: ${sql}`);
       },
@@ -172,7 +172,7 @@ test("updateOpportunityProbability: a manual override writes source='manual_over
       if (sql.startsWith("UPDATE tenant.crm_opportunities"))
         return { rows: [opportunityRow({ probability: "65.00", updated_at: "2026-08-27T00:01:00.000Z" })] };
       if (sql.includes("INSERT INTO tenant.crm_opportunity_probability_history")) return { rows: [] };
-      if (sql.includes("INSERT INTO tenant.crm_outbox_events")) return { rows: [] };
+      if (sql.includes("INSERT INTO tenant.platform_events")) return { rows: [] };
       throw new Error(`Unexpected query: ${sql}`);
     },
   };

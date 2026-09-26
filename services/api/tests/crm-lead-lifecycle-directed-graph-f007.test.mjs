@@ -36,7 +36,7 @@ test("F007: adding a transition is directional — A->B does not create B->A", a
         inserts.push(values);
         return { rows: [] };
       }
-      if (sql.includes("INSERT INTO tenant.crm_outbox_events")) return { rows: [] };
+      if (sql.includes("INSERT INTO tenant.platform_events")) return { rows: [] };
       throw new Error(`Unexpected query: ${sql}`);
     },
   };
@@ -194,7 +194,7 @@ test("F007 safe deactivation: succeeds immediately with zero active Leads", asyn
       if (sql.includes("SELECT count(*)::int AS count FROM tenant.crm_leads"))
         return { rows: [{ count: 0 }] };
       if (sql.startsWith("UPDATE tenant.crm_lead_stages SET status='inactive'")) return { rows: [] };
-      if (sql.includes("INSERT INTO tenant.crm_outbox_events")) return { rows: [] };
+      if (sql.includes("INSERT INTO tenant.platform_events")) return { rows: [] };
       throw new Error(`Unexpected query: ${sql}`);
     },
   };
@@ -210,7 +210,7 @@ test("F007 migration job: enqueues one item per active Lead currently on the sou
       if (sql.includes("INSERT INTO tenant.background_jobs")) return { rows: [{ id: "jjjjjjjj-jjjj-4jjj-8jjj-jjjjjjjjjjjj" }] };
       if (sql.includes("INSERT INTO tenant.crm_lead_stage_migration_items")) return { rowCount: 5 };
       if (sql.includes("UPDATE tenant.background_jobs")) return { rows: [{ id: "jjjjjjjj-jjjj-4jjj-8jjj-jjjjjjjjjjjj", status: "pending", progress: { requested: 5 }, result_manifest: { requested: 5 } }] };
-      if (sql.includes("INSERT INTO tenant.crm_outbox_events")) return { rows: [] };
+      if (sql.includes("INSERT INTO tenant.platform_events")) return { rows: [] };
       throw new Error(`Unexpected query: ${sql}`);
     },
   };

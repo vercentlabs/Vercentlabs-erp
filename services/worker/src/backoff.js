@@ -14,15 +14,5 @@ export function internalJobBackoff(attempt) {
   return schedule[Math.min(attempt - 1, schedule.length - 1)];
 }
 
-export function webhookBackoff(attempt) {
-  const schedule = [1 * MINUTE, 5 * MINUTE, 15 * MINUTE, 1 * HOUR, 6 * HOUR];
-  return schedule[Math.min(attempt - 1, schedule.length - 1)];
-}
-
-// Caps a hostile/absurd Retry-After header so a malicious or misconfigured
-// endpoint cannot schedule a retry years into the future — never exceeds
-// this backoff profile's own maximum step.
-export function boundedRetryAfterMilliseconds(retryAfterSeconds, maxMilliseconds = 6 * HOUR) {
-  if (!Number.isFinite(retryAfterSeconds) || retryAfterSeconds < 0) return null;
-  return Math.min(retryAfterSeconds * 1_000, maxMilliseconds);
-}
+// The webhook policy lives with webhook delivery (Shared Platform).
+export { boundedRetryAfterMilliseconds, webhookBackoff } from "@vercentlabs/api";

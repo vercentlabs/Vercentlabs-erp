@@ -103,7 +103,7 @@ test("F014: booking and Meeting evidence excludes attendee email, meeting URL an
   for (const value of [safePayload, eventInsert, auditSnapshot]) {
     assert.doesNotMatch(value, /meetingUrl|meeting_url|description|attendee.*email|guestEmail|outcome\s*:/i);
   }
-  const bookingBlock = communications().match(/INSERT INTO tenant\.crm_outbox_events[\s\S]{0,700}crm\.meeting\.booked[\s\S]{0,700}?\);/)?.[0] || "";
+  const bookingBlock = communications().match(/INSERT INTO tenant\.platform_events[\s\S]{0,700}crm\.meeting\.booked[\s\S]{0,700}?\);/)?.[0] || "";
   assert.doesNotMatch(bookingBlock, /guestEmail/);
 });
 

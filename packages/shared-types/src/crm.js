@@ -20,7 +20,6 @@ export const CRM_RESOURCE_KEYS = Object.freeze([
   "competitors",
   "forecast-targets",
   "integrations",
-  "webhook-subscriptions",
   "sales-teams",
   "sales-team-members",
   "territories",

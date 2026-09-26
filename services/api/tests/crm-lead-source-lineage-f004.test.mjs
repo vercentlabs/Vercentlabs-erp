@@ -56,8 +56,8 @@ function creationClient({ insertRow = leadRow() } = {}) {
         return { rows: [] };
       if (sql.includes("SELECT id,name,status FROM tenant.crm_lead_sources"))
         return { rows: [{ id: sourceId, name: "Website", status: "active" }] };
-      if (sql.startsWith("UPDATE public.numbering_series"))
-        return { rows: [{ prefix: "LEAD-", number: 1, padding: 5 }] };
+      if (sql.includes("INSERT INTO tenant.document_sequences"))
+        return { rows: [{ allocated_value: "1", effective_prefix: "LEAD-", effective_padding: 5 }] };
       if (sql.startsWith("SELECT field_name, operator")) return { rows: [] };
       if (sql.startsWith("SELECT user_id FROM public.organization_memberships"))
         return { rows: [{ user_id: userId }] };
@@ -67,7 +67,7 @@ function creationClient({ insertRow = leadRow() } = {}) {
         return { rows: [insertRow] };
       if (sql.includes("INSERT INTO tenant.crm_lead_score_history")) return { rows: [] };
       if (sql.includes("FROM tenant.crm_automation_rules")) return { rows: [] };
-      if (sql.includes("INSERT INTO tenant.crm_outbox_events")) return { rows: [] };
+      if (sql.includes("INSERT INTO tenant.platform_events")) return { rows: [] };
       if (sql.includes("INSERT INTO tenant.crm_lead_assignment_events"))
         return {
           rows: [{
@@ -176,7 +176,7 @@ test("F004: deactivating a Lead Source issues only an UPDATE (status toggle), ne
       if (sql.includes("SELECT") && sql.includes("FROM tenant.crm_lead_sources") && sql.includes("WHERE"))
         return { rows: [{ id, code: "WEB", name: "Website", status: "active", lead_count: 0 }] };
       if (sql.startsWith("UPDATE tenant.crm_lead_sources")) return { rows: [], rowCount: 1 };
-      if (sql.includes("INSERT INTO tenant.crm_outbox_events")) return { rows: [] };
+      if (sql.includes("INSERT INTO tenant.platform_events")) return { rows: [] };
       return { rows: [] };
     },
   };

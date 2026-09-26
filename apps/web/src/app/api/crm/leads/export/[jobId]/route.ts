@@ -6,10 +6,9 @@ import { errorResponse, ok } from "@/core/http";
 import { requireWorkspace } from "@/core/session";
 import { crmContext, requireCrmAccess } from "@/features/crm/shared/crm-context";
 
-// F021 Stage A2 §9. Status polling — deliberately strips the generated
-// CSV out of result_manifest before responding (getCrmLeadExportJob
-// already enforces download authorization: requester or view_all only).
-// The download route below serves the actual file content.
+// F021 Stage A2 §9. Status polling (getCrmLeadExportJob enforces
+// requester-or-view_all). The manifest holds only safe metadata; the file
+// itself is a Shared Platform artifact served by the download route.
 export async function GET(_request: Request, context: { params: Promise<{ jobId: string }> }) {
   try {
     const session = await requireWorkspace();
@@ -18,8 +17,7 @@ export async function GET(_request: Request, context: { params: Promise<{ jobId:
       await requireCrmAccess(client, session, CRM_PERMISSIONS.export);
       return getCrmLeadExportJob(client, crmContext(session), jobId);
     });
-    const fullManifest = (job.result_manifest || {}) as Record<string, unknown>;
-    const manifest = Object.fromEntries(Object.entries(fullManifest).filter(([key]) => key !== "csv"));
+    const manifest = (job.result_manifest || {}) as Record<string, unknown>;
     return ok({
       job: {
         id: job.id,

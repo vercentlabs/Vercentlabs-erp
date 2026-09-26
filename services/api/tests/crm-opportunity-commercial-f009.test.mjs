@@ -91,7 +91,7 @@ test("F009: adding an item defaults unit price from the catalogue and writes a r
         inserts.push(values);
         return { rows: [{ id: itemRowId, unit_price: 199.5, item_id: itemId, quantity: 2 }] };
       }
-      if (sql.includes("INSERT INTO tenant.crm_outbox_events")) return { rows: [] };
+      if (sql.includes("INSERT INTO tenant.platform_events")) return { rows: [] };
       throw new Error(`Unexpected query: ${sql}`);
     },
   };
@@ -139,7 +139,7 @@ test("F009: updating an item only sets the fields actually supplied", async () =
         updateValues = values;
         return { rows: [{ id: itemRowId, quantity: 5 }] };
       }
-      if (sql.includes("INSERT INTO tenant.crm_outbox_events")) return { rows: [] };
+      if (sql.includes("INSERT INTO tenant.platform_events")) return { rows: [] };
       throw new Error(`Unexpected query: ${sql}`);
     },
   };
@@ -163,7 +163,7 @@ test("F009: a team member can be added without a revenue split (standalone team 
         inserts.push(values);
         return { rows: [{ id: teamMemberA, user_id: userA, team_role: "observer", access_level: "view" }] };
       }
-      if (sql.includes("INSERT INTO tenant.crm_outbox_events")) return { rows: [] };
+      if (sql.includes("INSERT INTO tenant.platform_events")) return { rows: [] };
       throw new Error(`Unexpected query: ${sql}`);
     },
   };
@@ -187,7 +187,7 @@ test("F009: removing a team member also removes their now-meaningless revenue sp
         deletes.push(["revenue_splits", values]);
         return { rows: [] };
       }
-      if (sql.includes("INSERT INTO tenant.crm_outbox_events")) return { rows: [] };
+      if (sql.includes("INSERT INTO tenant.platform_events")) return { rows: [] };
       throw new Error(`Unexpected query: ${sql}`);
     },
   };
@@ -245,7 +245,7 @@ test("F009: linking a competitor as primary clears any other primary flag first"
       if (sql.includes("FROM tenant.crm_competitors WHERE")) return { rows: [{ id: competitorId }] };
       if (sql.startsWith("UPDATE tenant.crm_opportunity_competitors SET is_primary=false")) return { rows: [] };
       if (sql.includes("INSERT INTO tenant.crm_opportunity_competitors")) return { rows: [{ competitor_id: competitorId, is_primary: true }] };
-      if (sql.includes("INSERT INTO tenant.crm_outbox_events")) return { rows: [] };
+      if (sql.includes("INSERT INTO tenant.platform_events")) return { rows: [] };
       throw new Error(`Unexpected query: ${sql}`);
     },
   };
@@ -287,7 +287,7 @@ test("F012: enqueueing a migration snapshots every open Opportunity currently on
         insertedManifest = JSON.parse(values[2]);
         return { rows: [{ id: jobId, job_type: "crm.opportunities.stage_migration", status: "pending", progress: values[2], result_manifest: values[2] }] };
       }
-      if (sql.includes("INSERT INTO tenant.crm_outbox_events")) return { rows: [] };
+      if (sql.includes("INSERT INTO tenant.platform_events")) return { rows: [] };
       throw new Error(`Unexpected query: ${sql}`);
     },
   };

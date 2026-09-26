@@ -1,7 +1,7 @@
 // F369-F370: the knowledge base (draft -> review -> published -> retired, with a second-person
 // publish check since published articles are customer-facing) and canned responses.
 import { SupportError, has, need, needAny, oneOf, qx, text, textOrNull, uuid, uuidOrNull } from "./common.js";
-import { nextDocumentNumber } from "../../core/document-numbering.js";
+import { nextDocumentNumber } from "../../core/platform/numbering/index.js";
 
 const MANAGE = "support.manage";
 const VIEW = ["support.view", MANAGE];

@@ -15,6 +15,7 @@ import {
 } from "./communications/communication-projection.js";
 import { resolveCrmEntityAccess } from "./timeline/timeline.js";
 import { createRemindersForActivity, cancelPendingRemindersForActivity } from "./follow-ups/follow-up-operations.js";
+import { publishDomainEvent } from "../../../core/platform/events/index.js";
 
 // Same one-line check every other CRM domain module in this codebase
 // already carries locally (index.js's recordScope, timeline.js, task-
@@ -1399,18 +1400,14 @@ export async function queueOutboundEmail(client, context, input = {}) {
       context.userId,
     ],
   );
-  await client.query(
-    `INSERT INTO tenant.crm_outbox_events(organization_id,event_type,entity_type,entity_id,payload,status) VALUES($1,'crm.communication.queued','communication',$2,$3,'pending')`,
-    [
-      context.organizationId,
-      communication.rows[0].id,
-      JSON.stringify({
-        provider: text(input.provider) || "manual",
-        syncAccountId: input.syncAccountId || null,
-        emailMessageId: message.rows[0].id,
-      }),
-    ],
-  );
+  await publishDomainEvent(client, {
+    organizationId: context.organizationId,
+    moduleKey: "crm",
+    eventType: "crm.communication.queued",
+    entityType: "communication",
+    entityId: communication.rows[0].id,
+    payload: { provider: text(input.provider) || "manual", syncAccountId: input.syncAccountId || null, emailMessageId: message.rows[0].id },
+  });
   return message.rows[0];
 }
 
@@ -1593,19 +1590,14 @@ export async function bookMeeting(client, context, meetingLinkId, input = {}) {
       context.userId,
     ],
   );
-  await client.query(
-    `INSERT INTO tenant.crm_outbox_events(organization_id,event_type,entity_type,entity_id,payload,status)
-     VALUES($1,'crm.meeting.booked','meeting_booking',$2,$3,'pending')`,
-    [
-      context.organizationId,
-      booking.rows[0].id,
-      JSON.stringify({
-        startsAt: desiredStart,
-        meetingLinkId: link.rows[0].id,
-        meetingActivityId: meetingActivity.rows[0].id,
-      }),
-    ],
-  );
+  await publishDomainEvent(client, {
+    organizationId: context.organizationId,
+    moduleKey: "crm",
+    eventType: "crm.meeting.booked",
+    entityType: "meeting_booking",
+    entityId: booking.rows[0].id,
+    payload: { startsAt: desiredStart, meetingLinkId: link.rows[0].id, meetingActivityId: meetingActivity.rows[0].id },
+  });
   // F014 closeout: push this newly-booked Meeting to the host's real
   // connected calendar (if any) instead of leaving provider='internal'
   // as the only record of it — see pushProviderCalendarEvent's own
@@ -2080,7 +2072,7 @@ export async function markMeetingCalendarEventCancelling(client, context, calend
 // services/worker's queue.js#enqueueJob writes) rather than importing the
 // worker package from services/api — the two are separate deployable
 // services with no existing cross-service import path (see
-// services/worker/src/mailer.js's own precedent for this exact
+// the shared platform mail transport's (core/platform/mail) own precedent for this exact
 // constraint). ON CONFLICT DO NOTHING against the idempotency key means a
 // retried request that already enqueued a push for this exact
 // meeting+action+moment can never double-enqueue.

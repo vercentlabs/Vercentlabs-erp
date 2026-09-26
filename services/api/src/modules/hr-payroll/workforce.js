@@ -1,7 +1,7 @@
 // F381-F396: employee master and number, departments, designations, reporting line, branch and
 // location, employment type, documents, joining, probation, confirmation, transfers, promotions,
 // separation, offboarding and employee self-service.
-import { nextDocumentNumber } from "../../core/document-numbering.js";
+import { nextDocumentNumber } from "../../core/platform/numbering/index.js";
 import {
   HrError, addDays, canSeeSensitive, cleanBank, cleanStatutory, cleanTax, dateOrNull, dateRequired, has, hasAny, need, needAny, oneOf, ownEmployee, recordEvent,
   requireOwnEmployee, stripSensitive, text, textOrNull, today, uuid, uuidOrNull, nonNegative, qx, seq,

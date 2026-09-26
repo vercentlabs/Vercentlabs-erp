@@ -19,7 +19,8 @@
     "verify:no-legacy-frontend": "node ../../scripts/validation/verify-no-legacy-frontend.mjs",
     "verify:routes": "node scripts/verify-routes.mjs",
     "test:e2e:billing": "playwright test -c playwright.config.billing.ts",
-    "test:e2e:shared-runtime": "playwright test -c playwright.config.shared-runtime.ts"
+    "test:e2e:shared-runtime": "playwright test -c playwright.config.shared-runtime.ts",
+    "test:e2e:platform-services": "playwright test -c playwright.config.platform-services.ts"
   },
   "dependencies": {
     "@swc/helpers": "0.5.15",

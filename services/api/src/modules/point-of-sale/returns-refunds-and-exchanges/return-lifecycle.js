@@ -7,7 +7,7 @@
 // Stock and tender-and-payment-execution -- a capability's own lifecycle
 // capstone composing other capabilities' primitives is expected, not a
 // layering violation.
-import { nextDocumentNumber } from "../../../core/document-numbering.js";
+import { nextDocumentNumber } from "../../../core/platform/numbering/index.js";
 import { beginIdempotentOperation, completeIdempotentOperation } from "../../../core/idempotency.js";
 import { add, sub, decimal, asDatabaseDecimal, allocate } from "../../../core/decimal.js";
 import { postStockMovement as postCanonicalStockMovement } from "../../stock/index.js";

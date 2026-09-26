@@ -127,7 +127,7 @@ test("F009/F012 bugfix: an offline-synced stage move is routed through the gover
         return { rows: [{ id: opportunityId, stage_id: stageId, status: "open", updated_at: "2026-01-02T00:00:00.000Z" }] };
       if (sql.includes("INSERT INTO tenant.crm_opportunity_stage_history")) return { rows: [] };
       if (sql.includes("FROM tenant.crm_automation_rules")) return { rows: [] };
-      if (sql.includes("INSERT INTO tenant.crm_outbox_events")) return { rows: [] };
+      if (sql.includes("INSERT INTO tenant.platform_events")) return { rows: [] };
       if (sql.startsWith("INSERT INTO tenant.crm_mobile_mutations")) return { rows: [{ id: "mutation-1" }] };
       if (sql.startsWith("INSERT INTO tenant.crm_mobile_change_log")) return { rows: [] };
       throw new Error(`Unexpected query: ${sql}`);

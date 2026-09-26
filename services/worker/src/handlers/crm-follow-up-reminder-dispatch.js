@@ -5,8 +5,8 @@ import {
   escalateOverdueFollowUps,
   markReminderOutcome,
   resetStuckDispatchingReminders,
+  sendTransactionalEmail,
 } from "@vercentlabs/api";
-import { sendTransactionalEmail } from "../mailer.js";
 
 export const JOB_TYPE = "crm.follow_ups.dispatch_reminders";
 

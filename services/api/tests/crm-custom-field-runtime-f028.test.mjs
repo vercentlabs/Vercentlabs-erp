@@ -176,7 +176,7 @@ test("F028: setCustomFieldValues upserts a valid value and queues an outbox even
     definitions: [{ id: definitionText, field_key: "preferred_channel", label: "Preferred Channel", data_type: "select", required: false, configuration: { options: ["Email", "Phone"] } }],
     queries: {
       "INSERT INTO custom_field_values": () => ({ rows: [], rowCount: 1 }),
-      "INSERT INTO tenant.crm_outbox_events": () => ({ rows: [], rowCount: 1 }),
+      "INSERT INTO tenant.platform_events": () => ({ rows: [], rowCount: 1 }),
       "FROM custom_field_definitions definition": () => ({
         rows: [{ definition_id: definitionText, field_key: "preferred_channel", label: "Preferred Channel", data_type: "select", required: false, configuration: { options: ["Email", "Phone"] }, value: "Email", value_updated_at: "2026-09-01T00:00:00.000Z" }],
       }),
@@ -186,5 +186,5 @@ test("F028: setCustomFieldValues upserts a valid value and queues an outbox even
   assert.equal(rows[0].value, "Email");
   const insert = client.calls.find(({ sql }) => sql.includes("INSERT INTO custom_field_values"));
   assert.ok(insert.sql.includes("ON CONFLICT"), "must upsert, not fail on a second save of the same field");
-  assert.ok(client.calls.some(({ sql }) => sql.includes("INSERT INTO tenant.crm_outbox_events")));
+  assert.ok(client.calls.some(({ sql }) => sql.includes("INSERT INTO tenant.platform_events")));
 });

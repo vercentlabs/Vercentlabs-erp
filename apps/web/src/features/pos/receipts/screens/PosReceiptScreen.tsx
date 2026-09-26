@@ -1,9 +1,9 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Printer } from "lucide-react";
+import { Download, Printer } from "lucide-react";
 import Link from "next/link";
-import { Button, ErrorState, PageHeader, StatusBadge } from "@vercentlabs/design-system";
+import { Button, ErrorState, LinkButton, PageHeader, StatusBadge } from "@vercentlabs/design-system";
 import { POS_PERMISSIONS } from "@vercentlabs/permissions";
 
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
@@ -104,7 +104,15 @@ export function PosReceiptScreen({ saleId }: { saleId: string }) {
         <PageHeader
           title={`Receipt ${sale.receipt_number}`}
           description={`${sale.store_name} · ${dateTime(sale.completed_at ?? sale.created_at)}`}
-          secondaryActions={printStatus}
+          secondaryActions={
+            <div className="flex flex-wrap items-center gap-2">
+              {printStatus}
+              <LinkButton variant="secondary" href={`/api/documents/pos.receipt/${saleId}/pdf`} download>
+                <Download className="size-4" aria-hidden="true" />
+                Download PDF
+              </LinkButton>
+            </div>
+          }
           primaryAction={
             <Button variant="primary" onPress={handlePrint} isLoading={recordPrint.isPending}>
               <Printer className="size-4" aria-hidden="true" />

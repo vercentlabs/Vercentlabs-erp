@@ -2,7 +2,7 @@ import { createHash, randomUUID } from "node:crypto";
 
 import { add, allocate, decimal, format, mul } from "./money.js";
 import { hasAnyOwnField, omitFields } from "../../core/field-visibility.js";
-import { nextDocumentNumber } from "../../core/document-numbering.js";
+import { nextDocumentNumber } from "../../core/platform/numbering/index.js";
 
 // Supplier banking/financial-account keys inside tenant.procurement_suppliers'
 // jsonb `data` column, gated behind procurement.suppliers.sensitive (see
@@ -865,24 +865,11 @@ function companyWhere(context, values, alias = "") {
   return clause;
 }
 
-async function nextNumber(client, context, entityType, fallbackPrefix) {
-  const result = await client.query(
-    `
-      UPDATE public.numbering_series
-      SET next_number=next_number+1, updated_at=now()
-      WHERE organization_id=$1 AND entity_type=$2 AND status='active'
-      RETURNING prefix, next_number-1 AS number, padding
-    `,
-    [context.organizationId, entityType],
-  );
-  const row = result.rows[0];
-  if (!row) {
-    return nextDocumentNumber(client, context, {
-      documentType: `procurement:${entityType}`,
-      prefix: String(fallbackPrefix || "DOC").replace(/-+$/, "") || "DOC",
-    });
-  }
-  return `${row.prefix}${String(row.number).padStart(Number(row.padding || 6), "0")}`;
+// Organisation-wide procurement document numbers from the one platform
+// numbering service (migration 181 merged the legacy series and the old
+// per-company "procurement:<type>" fallback counters).
+async function nextNumber(client, context, entityType) {
+  return nextDocumentNumber(client, context, { documentType: entityType });
 }
 
 const NUMBERING = Object.freeze({
@@ -899,7 +886,7 @@ const NUMBERING = Object.freeze({
 async function ensureNumber(client, context, resource, payload) {
   const rule = NUMBERING[resource];
   if (!rule || payload[rule[2]]) return payload;
-  return { ...payload, [rule[2]]: await nextNumber(client, context, rule[0], rule[1]) };
+  return { ...payload, [rule[2]]: await nextNumber(client, context, rule[0]) };
 }
 
 

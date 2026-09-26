@@ -76,8 +76,8 @@ function defaultDueDate(): string {
 // already-built preview/executePrivacyRequest engine and the
 // crm_privacy_requests/crm_privacy_retention_policies tables, which had a
 // full backend but no route and no screen before this. Distinct from the
-// platform-wide Privacy Administration screen at /crm/settings/privacy
-// (services/api/src/core/privacy.js): that one is a generic subject-
+// platform-wide Settings > Privacy and retention page at /settings/privacy
+// (services/api/src/core/platform/privacy): that one is a generic subject-
 // reference tracker; this one understands Lead/Contact/Account subjects
 // specifically and drives the same governed anonymize/erase/restrict/
 // export operations those records already support elsewhere in CRM.

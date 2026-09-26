@@ -9,20 +9,17 @@
 // docs/frontend-rebuild/PLATFORM_PORT_REGISTER.csv for the full per-
 // capability source mapping and classification.
 //
-// Two slices remain intentionally NOT ported yet, pending a dedicated
-// overlap audit against packages/reporting-engine and packages/workflows
-// (porting them without that check risked creating a duplicate,
-// possibly-diverging implementation): shared reporting dataset
-// permissions (requireReportDatasetPermission) and the generic
-// workflow-run engine (executeWorkflowRun). This script still checks
-// those two against the parked snapshot only, and says so explicitly.
+// UPDATED (Prompt 5 of 6): the last two parked slices are live - the
+// workflow engine (core/platform/workflows, executeWorkflowRun) and shared
+// report datasets (orchestration/reporting, dataset permission + module
+// access checks). This script reads ONLY live code; it no longer depends on
+// the parked recovered-platform-code snapshot.
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(here, "../..");
-const PARKED = "docs/frontend-rebuild/recovered-platform-code/apps/web";
 const expected = [
   "SP010","SP011","SP012","SP013","SP017","SP018","SP019","SP020","SP021","SP022","SP023",
   "SP024","SP025","SP026","SP027","SP028","SP031","SP032","SP033","SP034","SP036",
@@ -55,14 +52,16 @@ for (const relative of [
   "services/api/src/core/attachment-security.js",
   "services/api/src/core/password-policy.js",
   "services/api/src/core/auth-mailer.js",
-  "services/api/src/core/api-keys.js",
-  "services/api/src/core/oauth.js",
+  "services/api/src/core/platform/integrations/api-keys/service.js",
+  "services/api/src/core/platform/integrations/oauth/service.js",
   "services/api/src/core/platform/notifications/service.js",
-  "services/api/src/core/inbound-mail.js",
+  "services/api/src/core/platform/integrations/inbound-mail/service.js",
   "services/api/src/core/tags.js",
-  "services/api/src/core/configuration.js",
-  "services/api/src/core/privacy.js",
-  "services/api/src/core/ai-governance.js",
+  "services/api/src/core/platform/configuration/service.js",
+  "services/api/src/core/platform/privacy/service.js",
+  "services/api/src/core/platform/ai/service.js",
+  "services/api/src/core/platform/workflows/service.js",
+  "services/api/src/orchestration/reporting/service.js",
   "packages/permissions/src/roles.js",
   // Dedicated tests for the ported modules.
   "services/api/tests/platform-access-control-runtime.test.mjs",
@@ -70,14 +69,14 @@ for (const relative of [
   "services/api/tests/platform-access-administration.test.mjs",
   "services/api/tests/platform-module-entitlements.test.mjs",
   "services/api/tests/platform-entitlements.test.mjs",
-  "services/api/tests/platform-oauth.test.mjs",
-  "services/api/tests/platform-api-keys.test.mjs",
-  "services/api/tests/platform-inbound-mail.test.mjs",
+  "services/api/tests/platform-services/integrations-unit.test.mjs",
+  "tests/integration/platform-services/integrations-db.test.mjs",
   "services/api/tests/platform-security.test.mjs",
   "services/api/tests/platform-attachment-security.test.mjs",
-  "services/api/tests/platform-ai-governance.test.mjs",
+  "services/api/tests/platform-services/ai-governance.test.mjs",
   "services/api/tests/platform-privacy.test.mjs",
   "services/api/tests/platform-configuration.test.mjs",
+  "tests/integration/platform-services/governance-db.test.mjs",
   "services/api/tests/platform-tags-notifications.test.mjs",
   "services/api/tests/platform-password-policy-mailer.test.mjs",
   "packages/permissions/tests/roles.test.mjs",
@@ -99,26 +98,30 @@ if (!/role\.slug IN \('organization_owner','system_administrator'\)/.test(platfo
 // (this replaces the old "does the parked snapshot still contain X" check
 // — the question now is whether the ACTIVE code contains it).
 const liveChecks = [
-  ["services/api/src/core/api-keys.js", ["createTenantApiKeyMaterial", "requireTenantApiScope"]],
-  ["services/api/src/core/oauth.js", ["completeOAuthConnection", "encryptIntegrationCredentials"]],
-  ["services/api/src/core/inbound-mail.js", ["verifyInboundMailSignature", "PLATFORM_INBOUND_MAIL_IDEMPOTENCY_CONFLICT"]],
-  ["services/api/src/core/configuration.js", ["setFeatureFlag", "isFeatureFlagEnabled"]],
-  ["services/api/src/core/privacy.js", ["assertPrivacyTransition"]],
-  ["services/api/src/core/ai-governance.js", ["AI_POLICY_MISSING", "AI_APPROVAL_REQUIRED"]],
+  ["services/api/src/core/platform/integrations/api-keys/service.js", ["createTenantApiKeyMaterial", "authenticateApiKey", "requireApiScope"]],
+  ["services/api/src/core/platform/integrations/api-keys/scopes.js", ["API_SCOPES", "platform.context.read"]],
+  ["services/api/src/core/platform/integrations/oauth/service.js", ["code_challenge_method", "consumeOAuthState", "oauthCallbackUri"]],
+  ["services/api/src/core/platform/integrations/secrets.js", ["encryptIntegrationCredentials", "aes-256-gcm"]],
+  ["services/api/src/core/platform/integrations/inbound-mail/service.js", ["verifyInboundMailSignature", "PLATFORM_INBOUND_MAIL_IDEMPOTENCY_CONFLICT", "resolveInboundMailRoute"]],
+  ["services/api/src/core/platform/configuration/service.js", ["pg_advisory_xact_lock", "isFeatureFlagEnabled", "setTenantConfiguration"]],
+  ["services/api/src/core/platform/privacy/service.js", ["assertPrivacyTransition"]],
+  ["services/api/src/core/platform/ai/service.js", ["AI_POLICY_MISSING", "AI_APPROVAL_REQUIRED", "AI_TOOL_DENIED"]],
   ["services/api/src/core/security.js", ["canonicalAppOrigin", "assertSameOriginOrMobile"]],
+  // Formerly parked slices, now live:
+  ["services/api/src/core/platform/workflows/service.js", ["executeWorkflowRun", "fanOutWorkflowRuns", "evaluateWorkflowConditions"]],
+  ["services/api/src/core/platform/workflows/registry.js", ["WORKFLOW_ACTIONS", "CONDITION_OPERATORS"]],
+  ["services/api/src/orchestration/reporting/datasets.js", ["REPORT_DATASETS", "requiredPermissions"]],
+  ["services/api/src/orchestration/reporting/service.js", ["listReportDatasets", "executeReportRun", "canUseDataset", "resolveMemberExecutionContext"]],
 ];
 for (const [relative, tokens] of liveChecks) {
+  if (!exists(relative)) {
+    fail(`live module missing: ${relative}`);
+    continue;
+  }
   const source = text(relative);
   for (const token of tokens) {
     if (!source.includes(token)) fail(`live module ${relative} missing expected symbol ${token}`);
   }
-}
-
-// Deliberately still-deferred slices (see header comment) — checked
-// against the parked snapshot only, and explicitly reported as such.
-const deferred = text(`${PARKED}/src/core/shared-platform.ts`);
-for (const token of ["requireReportDatasetPermission", "executeWorkflowRun"]) {
-  if (!deferred.includes(token)) fail(`parked shared-platform snapshot missing deferred symbol ${token}`);
 }
 
 if (failures.length) {
@@ -128,6 +131,6 @@ if (failures.length) {
 }
 console.log("T01 SHARED-PLATFORM VALIDATION PASSED (live ported modules + DB/dossier artifacts)");
 console.log(` - shared-platform requirement dossiers present: ${expected.length}/${expected.length}`);
-console.log(" - platform/access/session/API-key/OAuth/inbound-mail/config/privacy/AI-governance modules are LIVE in services/api/src/core/*.js, each with dedicated tests");
+console.log(" - platform/access/session/API-key/OAuth/inbound-mail/config/privacy/AI-governance modules are LIVE under services/api/src/core/platform, each with dedicated tests");
 console.log(" - platform 035 and tenant 075 migration artifacts present");
-console.log(" - STILL DEFERRED (parked only, pending a reporting-engine/workflows overlap audit): shared report-dataset permissions, generic workflow-run engine — see PLATFORM_PORT_REGISTER.csv");
+console.log(" - workflow engine and shared report datasets are LIVE (no parked-snapshot dependency remains)");

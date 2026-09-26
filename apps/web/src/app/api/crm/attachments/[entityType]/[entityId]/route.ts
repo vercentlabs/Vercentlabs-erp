@@ -1,7 +1,4 @@
-import { randomUUID } from "node:crypto";
-
-import { assertSameOriginOrMobile, createCrmAttachment, listCrmAttachments, scanAttachmentForUpload } from "@vercentlabs/api";
-import { attachmentStorageKey, sha256, validateAttachment } from "@vercentlabs/document-engine";
+import { assertSameOriginOrMobile, createCrmAttachment, listCrmAttachments, prepareFileUpload } from "@vercentlabs/api";
 
 import { tenantTransaction } from "@/core/db";
 import { errorResponse, HttpError, ok } from "@/core/http";
@@ -16,15 +13,11 @@ import { crmContext, requireCrmAccess } from "@/features/crm/shared/crm-context"
 // Timeline already use), not a blanket "manage" permission, so this
 // route stays module-access-only, same as the Notes routes.
 //
-// Upload validation is layered exactly as the platform's own attachment-
-// security/document-engine primitives are designed to be used, never
-// re-implemented: document-engine's validateAttachment (size/MIME
-// allow-list, filename sanitization) runs first, then attachment-
-// security's scanAttachmentForUpload (content-signature-vs-MIME check,
-// EICAR/malware rejection, external scanner in production) — only a
-// file that survives both ever reaches createCrmAttachment. Content
-// bytes are read once, size-capped by validateAttachment's own default
-// (10MB), never trusted from the browser's declared Content-Length.
+// Uploads go through the Shared Platform file pipeline: prepareFileUpload
+// (validateAttachment + scanAttachmentForUpload + SHA-256) runs OUTSIDE the
+// transaction; createCrmAttachment then stores the bytes in object storage
+// and records metadata. Size is capped by validateAttachment (10MB), never
+// trusted from the browser's declared Content-Length.
 export async function GET(_request: Request, context: { params: Promise<{ entityType: string; entityId: string }> }) {
   try {
     const session = await requireWorkspace();
@@ -52,30 +45,12 @@ export async function POST(request: Request, context: { params: Promise<{ entity
     if (!(file instanceof File)) throw new HttpError(400, "A file is required.");
     const replacesLogicalId = form.get("replacesLogicalId");
 
-    const bytes = Buffer.from(await file.arrayBuffer());
-    let validated;
-    try {
-      validated = validateAttachment({ fileName: file.name, mimeType: file.type, sizeBytes: bytes.length });
-    } catch (validationError) {
-      throw new HttpError(400, validationError instanceof Error ? validationError.message : "The attachment could not be validated.", "CRM_ATTACHMENT_INVALID");
-    }
-    const { scanStatus } = await scanAttachmentForUpload(bytes, validated.mimeType, process.env);
-
-    const id = randomUUID();
-    const storageKey = attachmentStorageKey({ organizationId: session.organizationId, attachmentId: id, fileName: validated.fileName });
-    const contentSha256 = sha256(bytes);
+    const prepared = await prepareFileUpload({ fileName: file.name, mimeType: file.type, bytes: Buffer.from(await file.arrayBuffer()) }, process.env);
 
     const record = await tenantTransaction(session.organizationId, async (client) => {
       await requireCrmAccess(client, session, undefined, { mutation: true });
       return createCrmAttachment(client, crmContext(session), entityType as never, entityId, {
-        id,
-        fileName: validated.fileName,
-        storageKey,
-        mimeType: validated.mimeType,
-        sizeBytes: validated.sizeBytes,
-        content: bytes,
-        contentSha256,
-        scanStatus,
+        prepared,
         replacesLogicalId: typeof replacesLogicalId === "string" && replacesLogicalId ? replacesLogicalId : undefined,
       });
     });

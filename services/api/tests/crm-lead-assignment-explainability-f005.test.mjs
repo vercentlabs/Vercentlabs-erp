@@ -135,7 +135,7 @@ function assignmentClient() {
         writes.push({ kind: "assignment", sql, values });
         return { rows: [{ id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", is_override: values[7] }] };
       }
-      if (sql.includes("INSERT INTO tenant.crm_outbox_events")) {
+      if (sql.includes("INSERT INTO tenant.platform_events")) {
         writes.push({ kind: "outbox", sql, values });
         return { rows: [] };
       }

@@ -105,5 +105,5 @@ test("canonical transition locks, validates, records history and emits one outbo
   assert.equal(result.record.status, "contacted");
   assert.equal(calls.filter((call) => call.sql.includes("FOR UPDATE OF lead")).length, 1);
   assert.equal(calls.filter((call) => call.sql.includes("INSERT INTO tenant.crm_lead_stage_events")).length, 1);
-  assert.equal(calls.filter((call) => call.sql.includes("INSERT INTO tenant.crm_outbox_events")).length, 1);
+  assert.equal(calls.filter((call) => call.sql.includes("INSERT INTO tenant.platform_events")).length, 1);
 });

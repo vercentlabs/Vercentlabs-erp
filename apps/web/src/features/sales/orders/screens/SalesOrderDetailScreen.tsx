@@ -5,8 +5,8 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { ColumnDef } from "@tanstack/react-table";
-import { ArrowLeft, Ban, Check, FileText, Pause, Pencil, PlayCircle, Truck, X } from "lucide-react";
-import { Button, Dialog, EnterpriseDataGrid, ErrorState, MetricStrip, PermissionState, RecordDetailsPage, Select, StatusBadge, Tab, TabList, TabPanel, Tabs, TextArea, TextField, NumberField } from "@vercentlabs/design-system";
+import { ArrowLeft, Ban, Check, Download, FileText, Pause, Pencil, PlayCircle, Truck, X } from "lucide-react";
+import { Button, Dialog, LinkButton, EnterpriseDataGrid, ErrorState, MetricStrip, PermissionState, RecordDetailsPage, Select, StatusBadge, Tab, TabList, TabPanel, Tabs, TextArea, TextField, NumberField } from "@vercentlabs/design-system";
 import { SALES_PERMISSIONS } from "@vercentlabs/permissions";
 
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
@@ -228,6 +228,10 @@ export function SalesOrderDetailScreen({ orderId }: { orderId: string }) {
           primaryAction: primary,
           secondaryActions: (
             <div className="flex flex-wrap items-center gap-2">
+              <LinkButton variant="secondary" href={`/api/documents/sales.order/${orderId}/pdf`} download>
+                <Download className="size-4" aria-hidden="true" />
+                Download PDF
+              </LinkButton>
               {state === "pending_approval" && can(SALES_PERMISSIONS.orderApprove) && (
                 <Button variant="secondary" onPress={() => setDialogue("reject")}>
                   <X className="size-4" aria-hidden="true" />

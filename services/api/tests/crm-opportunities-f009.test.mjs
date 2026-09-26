@@ -136,7 +136,7 @@ test("F009: stage and pipeline must be a coherent active pair", async () => {
   const client = {
     async query(sql) {
       calls += 1;
-      if (sql.includes("UPDATE public.numbering_series")) return { rows: [{ prefix: "OPP-", number: 1, padding: 5 }] };
+      if (sql.includes("INSERT INTO tenant.document_sequences")) return { rows: [{ allocated_value: "1", effective_prefix: "OPP-", effective_padding: 5 }] };
       if (sql.includes("FROM tenant.crm_pipeline_stages s") && sql.includes("s.id=$2"))
         return { rows: [{ stage_id: stage, pipeline_id: pipeline, probability: "20", forecast_category: "pipeline", pipeline_company_id: company }] };
       throw new Error(`Unexpected query: ${sql}`);
@@ -154,7 +154,7 @@ test("F009: manual create defaults to actor ownership and derives probability/fo
   let outboxPayload = null;
   const client = {
     async query(sql, values = []) {
-      if (sql.includes("UPDATE public.numbering_series")) return { rows: [{ prefix: "OPP-", number: 2, padding: 5 }] };
+      if (sql.includes("INSERT INTO tenant.document_sequences")) return { rows: [{ allocated_value: "2", effective_prefix: "OPP-", effective_padding: 5 }] };
       if (sql.includes("FROM tenant.crm_pipelines p") && sql.includes("ORDER BY (p.company_id=$2)"))
         return { rows: [{ stage_id: stage, pipeline_id: pipeline, probability: "35", forecast_category: "best_case", pipeline_company_id: company }] };
       if (sql.includes("FROM public.organization_memberships membership") && sql.includes("membership.user_id=$2"))
@@ -165,7 +165,7 @@ test("F009: manual create defaults to actor ownership and derives probability/fo
       }
       if (sql.includes("INSERT INTO tenant.crm_opportunity_stage_history")) return { rows: [] };
       if (sql.includes("FROM tenant.crm_automation_rules")) return { rows: [] };
-      if (sql.includes("INSERT INTO tenant.crm_outbox_events")) { outboxPayload = values[4]; return { rows: [] }; }
+      if (sql.includes("INSERT INTO tenant.platform_events")) { outboxPayload = values[4]; return { rows: [] }; }
       if (sql.includes("SELECT user_id FROM public.organization_memberships") && sql.includes("ANY($2::uuid[])")) return { rows: [{ user_id: user }] };
       throw new Error(`Unexpected query: ${sql}`);
     },
@@ -184,7 +184,7 @@ test("F009: manual create defaults to actor ownership and derives probability/fo
 test("F009: owner must be an active CRM-eligible member for the selected scope", async () => {
   const client = {
     async query(sql) {
-      if (sql.includes("UPDATE public.numbering_series")) return { rows: [{ prefix: "OPP-", number: 3, padding: 5 }] };
+      if (sql.includes("INSERT INTO tenant.document_sequences")) return { rows: [{ allocated_value: "3", effective_prefix: "OPP-", effective_padding: 5 }] };
       if (sql.includes("FROM tenant.crm_pipelines p") && sql.includes("ORDER BY (p.company_id=$2)"))
         return { rows: [{ stage_id: stage, pipeline_id: pipeline, probability: "10", forecast_category: "pipeline", pipeline_company_id: company }] };
       if (sql.includes("FROM public.organization_memberships membership") && sql.includes("membership.user_id=$2")) return { rows: [] };
@@ -200,7 +200,7 @@ test("F009: owner must be an active CRM-eligible member for the selected scope",
 test("F009: Contact and Account must describe one customer relationship", async () => {
   const client = {
     async query(sql) {
-      if (sql.includes("UPDATE public.numbering_series")) return { rows: [{ prefix: "OPP-", number: 4, padding: 5 }] };
+      if (sql.includes("INSERT INTO tenant.document_sequences")) return { rows: [{ allocated_value: "4", effective_prefix: "OPP-", effective_padding: 5 }] };
       if (sql.includes("FROM tenant.crm_pipelines p") && sql.includes("ORDER BY (p.company_id=$2)"))
         return { rows: [{ stage_id: stage, pipeline_id: pipeline, probability: "10", forecast_category: "pipeline", pipeline_company_id: company }] };
       if (sql.includes("FROM tenant.contacts c") && sql.includes("JOIN tenant.business_parties p"))
@@ -309,7 +309,7 @@ test("F009: archiving an open Opportunity wraps the UPDATE with the governed lif
       const related = opportunityRelationMockResponse(sql);
       if (related) return related;
       if (sql.startsWith("UPDATE tenant.crm_opportunities")) return { rows: [currentOpportunity({ status: "archived" })] };
-      if (sql.startsWith("INSERT INTO tenant.crm_outbox_events")) return { rows: [] };
+      if (sql.startsWith("INSERT INTO tenant.platform_events")) return { rows: [] };
       throw new Error(`Unexpected query: ${sql}`);
     },
   };
@@ -377,7 +377,7 @@ test("F009: ordinary descriptive edits do not revalidate unchanged relationships
       }
       if (sql.startsWith("UPDATE tenant.crm_opportunities record SET"))
         return { rows: [currentOpportunity({ party_id: party, contact_id: contact, description: "Updated" })] };
-      if (sql.includes("INSERT INTO tenant.crm_outbox_events")) return { rows: [] };
+      if (sql.includes("INSERT INTO tenant.platform_events")) return { rows: [] };
       throw new Error(`Unexpected query: ${sql}`);
     },
   };
@@ -407,7 +407,7 @@ test("F010 fallout: updating an unrelated field on an Opportunity whose expected
       if (related) return related;
       if (sql.startsWith("UPDATE tenant.crm_opportunities record SET"))
         return { rows: [currentOpportunity({ expected_close_date: new Date("2026-11-23T00:00:00.000Z"), next_step: "Call CFO" })] };
-      if (sql.includes("INSERT INTO tenant.crm_outbox_events")) return { rows: [] };
+      if (sql.includes("INSERT INTO tenant.platform_events")) return { rows: [] };
       throw new Error(`Unexpected query: ${sql}`);
     },
   };

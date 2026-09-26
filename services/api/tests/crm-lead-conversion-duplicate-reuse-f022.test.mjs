@@ -134,8 +134,8 @@ function makeClient({ accountBlocking, contactBlocking }) {
       }
       if (sql.includes("INSERT INTO tenant.contacts"))
         return { rows: [{ id: newContactId }] };
-      if (sql.includes("public.numbering_series"))
-        return { rows: [{ prefix: "CUST-", number: 2, padding: 4 }] };
+      if (sql.includes("INSERT INTO tenant.document_sequences"))
+        return { rows: [{ allocated_value: "2", effective_prefix: "CUST-", effective_padding: 4 }] };
       if (sql.includes("UPDATE tenant.crm_leads")) return { rows: [] };
       if (sql.includes("INSERT INTO tenant.crm_conversion_records"))
         return {
@@ -155,7 +155,7 @@ function makeClient({ accountBlocking, contactBlocking }) {
       if (/^SELECT (account|contact)\.id FROM tenant\.(business_parties account|contacts contact)/.test(sql)) return { rows: [{ id: values[1] }] };
       if (sql.includes("crm_campaign_members")) return { rows: [] };
       if (sql.includes("crm_marketing_touchpoints")) return { rows: [] };
-      if (sql.includes("crm_outbox_events")) return { rows: [] };
+      if (sql.includes("platform_events")) return { rows: [] };
       throw new Error(`Unexpected query in test mock: ${sql.slice(0, 120)}`);
     },
   };

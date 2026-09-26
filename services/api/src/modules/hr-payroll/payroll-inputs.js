@@ -1,7 +1,7 @@
 // F428-F432: what is added to or taken from a payroll besides the structure -- bonus, incentives,
 // reimbursements, loans and advances, arrears -- each with its own approval, and the hooks that
 // bring approved items into a run exactly once.
-import { nextDocumentNumber } from "../../core/document-numbering.js";
+import { nextDocumentNumber } from "../../core/platform/numbering/index.js";
 import {
   HrError, addDays, dateOrNull, dateRequired, has, need, needAny, nonNegative, oneOf, ownEmployee, positive, qx, recordEvent, round2, text, textOrNull, today, uuid, uuidOrNull,
 } from "./common.js";

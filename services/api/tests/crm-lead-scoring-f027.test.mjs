@@ -237,7 +237,7 @@ test("F027 config: activating a model retires the previously active one and enqu
       if (sql.includes("INSERT INTO tenant.background_jobs")) return { rows: [{ id: jobId }] };
       if (sql.includes("INSERT INTO tenant.crm_lead_score_recalc_items")) return { rowCount: 2 };
       if (sql.includes("UPDATE tenant.background_jobs")) return { rows: [{ id: jobId, status: "pending", progress: {}, result_manifest: { requested: 2 } }] };
-      if (sql.includes("INSERT INTO tenant.crm_outbox_events")) return { rows: [] };
+      if (sql.includes("INSERT INTO tenant.platform_events")) return { rows: [] };
       throw new Error(`Unexpected query: ${sql}`);
     },
   };

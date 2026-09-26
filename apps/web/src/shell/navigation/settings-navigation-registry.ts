@@ -43,6 +43,7 @@ export const SETTINGS_NAVIGATION: readonly SettingsNavSection[] = [
       { id: "companies", label: "Companies", route: "/settings/companies", status: "AVAILABLE", description: "Legal entities within your organization.", requiredPermission: "company.manage" },
       { id: "branches", label: "Branches", route: "/settings/branches", status: "AVAILABLE", description: "Locations within each company.", requiredPermission: "branch.manage" },
       { id: "modules", label: "Modules", route: "/settings/modules", status: "AVAILABLE", description: "Turn business modules on or off for the whole organization.", requiredPermission: "modules.manage" },
+      { id: "numbering", label: "Numbering", route: "/settings/numbering", status: "AVAILABLE", description: "Prefixes and sequences for document numbers.", requiredPermission: "numbering.manage" },
     ],
   },
   {
@@ -59,19 +60,18 @@ export const SETTINGS_NAVIGATION: readonly SettingsNavSection[] = [
     label: "Billing and integrations",
     items: [
       { id: "billing", label: "Billing and plans", route: "/settings/billing", status: "AVAILABLE", description: "Your plan, users, payments and invoices.", requiredPermission: "billing.view" },
-      { id: "integrations", label: "Integrations", route: "/settings/integrations", status: "PLANNED", description: "Connected third-party services." },
-      { id: "api-keys", label: "API keys", route: "/settings/api-keys", status: "PLANNED", description: "Keys for programmatic access." },
-      { id: "oauth-connections", label: "OAuth connections", route: "/settings/oauth-connections", status: "PLANNED", description: "Authorized OAuth applications." },
+      { id: "integrations", label: "Integrations", route: "/settings/integrations", status: "AVAILABLE", description: "Connected accounts, webhooks, developer API keys and inbound email.", requiredPermission: "integrations.view" },
     ],
   },
   {
     id: "governance",
     label: "Governance",
     items: [
-      { id: "privacy", label: "Privacy and retention", route: "/settings/privacy", status: "PLANNED", description: "Data retention and privacy request handling." },
-      { id: "feature-configuration", label: "Feature configuration", route: "/settings/feature-configuration", status: "PLANNED", description: "Feature flags and rollout configuration." },
+      { id: "privacy", label: "Privacy and retention", route: "/settings/privacy", status: "AVAILABLE", description: "Data retention and privacy request handling.", requiredPermission: "platform.privacy.manage" },
+      { id: "feature-configuration", label: "Feature configuration", route: "/settings/feature-configuration", status: "AVAILABLE", description: "Organisation-wide settings and switches, versioned and schedulable.", requiredPermission: "platform.configuration.manage" },
+      { id: "automations", label: "Automations", route: "/settings/automations", status: "AVAILABLE", description: "When something happens, notify the right people.", requiredPermission: "platform.workflows.manage" },
       { id: "audit", label: "Audit", route: "/settings/audit", status: "AVAILABLE", description: "Who did what in your organization.", requiredPermission: "audit.view" },
-      { id: "ai-governance", label: "AI governance", route: "/settings/ai-governance", status: "PLANNED", description: "AI feature policy and oversight." },
+      { id: "ai-governance", label: "AI governance", route: "/settings/ai-governance", status: "AVAILABLE", description: "AI feature policy and oversight.", requiredPermission: "platform.ai.manage" },
     ],
   },
 ];

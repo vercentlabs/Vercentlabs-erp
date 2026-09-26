@@ -3,7 +3,7 @@
 // the server computes pass/fail from each point's own tolerance/allowed-values rather than trusting a
 // caller-supplied verdict, a real integrity improvement over this folder's original thin stub.
 import { QualityError, has, need, needAny, nonNegative, oneOf, positive, qx, recordEvent, text, textOrNull, uuid, uuidOrNull } from "./common.js";
-import { nextDocumentNumber } from "../../core/document-numbering.js";
+import { nextDocumentNumber } from "../../core/platform/numbering/index.js";
 import { createQualityHold } from "./nonconformance.js";
 
 const MANAGE = "quality.manage";

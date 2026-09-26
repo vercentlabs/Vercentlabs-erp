@@ -304,13 +304,152 @@ never imports modules, the catalogue matches the registry, every worker job
 type is presented, routes use `workspaceRoute`, and audit and job routes are
 read-only.
 
-## 11. Known gaps (closed in later prompts)
+## 11. Shared Platform services
+
+The product layer every module builds on. Each service has one implementation
+under `services/api/src/core/platform/<service>/` (plus orchestration where it
+must reach modules) and a Settings page. None of them imports a module.
+
+| Service | Platform owns | Orchestration / modules | Settings / UI |
+|---|---|---|---|
+| Numbering | `numbering/`: `DOCUMENT_TYPES` registry, `nextDocumentNumber` (single-statement allocator), policies, forward-only advance | modules call `nextDocumentNumber`; nothing else writes a counter | Settings > Numbering |
+| Files | `files/`: prepare (validate + scan) → store → list/versions/read/archive; expiry purge | CRM and Support attachments, export artifacts, report output, inbound mail attachments | per-record panels |
+| Developer API | `integrations/api-keys/`: developer apps, keys, the scope catalogue | `/api/v1/*` via `apiKeyRoute` | Integrations > Developer API |
+| OAuth | `integrations/oauth/`: registered profiles, Authorization Code + PKCE, encrypted credentials, refresh with rotation | — | Integrations > Connected accounts |
+| Events + webhooks | `events/` (registry, `publishDomainEvent`, dispatch) and `integrations/webhooks/` (subscriptions, per-delivery state, signing, SSRF-safe transport) | `integrations/event-fan-out.js` wires webhooks + workflows | Integrations > Webhooks |
+| Inbound mail | `integrations/inbound-mail/`: routes, signature check, normalisation, idempotent event record | `integrations/inbound-mail.js`: Support email-to-ticket | Integrations > Inbound email |
+| Mail | `mail/transport.js`: the one SMTP transport | auth and notification mail | — |
+| Data exchange | `data-exchange/csv.js`: server-side CSV parsing with caps | `data-exchange/registry.js`: CRM lead import/export | CRM import/export |
+| Documents | `packages/document-engine` (`pdf.js`, object storage contract) | `documents/registry.js`: POS receipt, Sales quotation, Sales order renderers | "Download PDF" buttons |
+| Configuration | `configuration/`: registry of typed keys and flags, effective-dated versions | consumers read through `getConfigurationValue` / `isFeatureFlagEnabled` | Settings > Feature configuration |
+| Privacy | `privacy/`: request tracker, versioned retention policies for registered data classes | CRM keeps its own subject-aware data requests | Settings > Privacy and retention |
+| AI governance | `ai/`: tool registry (empty today), versioned organisation policy, fail-closed checks | — | Settings > AI governance |
+| Workflows | `workflows/`: registered triggers, fixed condition vocabulary, registered actions (in-app notification), versioned definitions, runs | fan-out from domain events; the worker executes runs | Settings > Automations |
+| Reporting | `reporting/execution-context.js` | `reporting/datasets.js` + `service.js`: permissioned datasets, background runs, expiring CSV output | Reports |
+
+### Webhook signing contract (v1)
+
+Each delivery is an HTTP POST of a JSON envelope `{ id, type, version,
+occurredAt, module, entity: { type, id }, data }`, where `data` is the event's registered
+projection (no contact details). Headers:
+
+- `X-Vercentlabs-Event`: the event type, for example `crm.leads.assigned`.
+- `X-Vercentlabs-Event-Id`: stable per event.
+- `X-Vercentlabs-Delivery-Id`: stable per (event, subscription), and the same on every retry.
+- `X-Vercentlabs-Timestamp`: unix seconds when this attempt was signed.
+- `X-Vercentlabs-Signature`: `v1=<hex HMAC-SHA256(secret, "<delivery-id>.<timestamp>.<raw body>")>`.
+
+A webhook receives only events that occur after it was created. Receivers
+verify in constant time, reject stale timestamps, and de-duplicate on the
+event id, because delivery is at least once. Retries use exponential
+backoff with jitter, honour `Retry-After`, and stop after the configured
+number of attempts (`platform.webhooks.max_delivery_attempts`, 3–10, default
+8). After that the delivery is marked failed and can be resent from Settings.
+Endpoints must be public: private, loopback and link-local targets are refused
+at save time and again at send time, including after DNS resolution and on
+redirects. The operator flag `operator.webhooks.delivery_paused` holds
+deliveries in the queue without losing them. Signing secrets are encrypted at
+rest and shown once, on create and on rotate.
+
+### Inbound email provider contract
+
+`POST /api/platform/mail/inbound/{routeKey}` is public: there is no session,
+and the route key identifies the organisation's inbound address.
+
+- **Authentication:** the `X-Inbound-Signature` header carries the hex
+  HMAC-SHA256 of the raw request body, keyed with the route's signing secret,
+  optionally prefixed with `sha256=`.
+- **Body:** JSON `{ provider, messageId, from, fromName?, to, subject, text,
+  inReplyTo?, references?, attachments?: [{ fileName, contentType,
+  contentBase64 }] }`.
+- **Idempotency:** receipt is idempotent per (organisation, provider,
+  messageId). A replay returns the first outcome. The same id with different
+  content is refused.
+- **Threading:** a message joins an existing ticket by its message
+  references, then by the `[TKT-…]` subject token. Otherwise it opens a new
+  ticket; so does a reply to a closed ticket.
+- **Access checks:** the Support module, entitlement and billing state are
+  checked before anything is written.
+- **Attachments:** each one is validated and scanned. A rejected attachment
+  is noted on the event and does not stop the message.
+
+The route key and signing secret are shown once, when the address is created.
+
+### Developer API (`/api/v1`) contract
+
+- **Authentication:** `Authorization: Bearer <key>` only. There is no cookie
+  session and no CSRF.
+- **Organisation:** always taken from the key, never from the request.
+- **Scopes:** a key holds explicit scopes from `API_SCOPES` and never `*`. A
+  scope exists only when a v1 endpoint consumes it (today:
+  `platform.context.read`). A key is not a user and carries no user roles or
+  permissions.
+- **Success response:** `{ ok: true, requestId, ...data }`.
+- **Error response:** `{ ok: false, code, message, requestId }`, with the
+  `X-Request-Id` header:
+
+  | Status | Code | Meaning |
+  |---|---|---|
+  | 400 | `VALIDATION_FAILED` | the request is not valid |
+  | 401 | `PLATFORM_API_KEY_REQUIRED` / `PLATFORM_API_KEY_INVALID` | missing, unknown, revoked or expired key |
+  | 403 | `PLATFORM_API_SCOPE_DENIED` | the key lacks the endpoint's scope |
+  | 404 | `*_NOT_FOUND` | no such resource for this organisation |
+  | 413 | `REQUEST_TOO_LARGE` | the body is over the endpoint limit |
+  | 429 | `RATE_LIMITED` | over the per-key limit (`API_KEY_RATE_LIMIT_PER_MINUTE`, default 600); see `Retry-After` |
+  | 500 | `INTERNAL_ERROR` | anything unexpected; no internals in the message |
+
+- **Tokens:** stored only as hashes and shown once. Last use is recorded at
+  most every five minutes.
+
+### Numbering migration rules
+
+`tenant.document_numbering_policies` (prefix, padding, reset policy, version)
+and `document_sequences` (counters) replace `numbering_series` and the
+per-module fallbacks. Migration 181 carries each legacy series forward as an
+organisation-level policy and counter, so families that were unique per
+organisation stay that way. The counter floor is the greater of the legacy
+`next_number` and the highest number already issued, parsed from existing
+documents plus one, so no issued number can repeat. Procurement's fallback
+counters were merged the same way. Newer families are numbered per company.
+
+- Changing a prefix, padding or reset policy creates a new policy version and
+  applies only to documents created afterwards; issued numbers never change.
+- Counters can only move forward.
+- Families with their own module settings (project tasks, POS shifts) are
+  listed but not editable here.
+- `nextDocumentNumber` is the only allocator (`verify:platform-services`).
+
+### Files and object storage
+
+- **Storage:** new file content lives in object storage (`storage_mode =
+  object`, no bytes in PostgreSQL). Legacy `bytea` rows stay readable
+  (`database_legacy`).
+- **Access:** keys are internal and opaque, and never accepted from a request.
+  Every read goes through the owning module's authorisation. Only clean
+  (scanned) files are served.
+- **Versions and archiving:** a new version keeps the logical id. Removing a
+  file archives it; nothing is hard-deleted from a request.
+- **Expiring files:** export artifacts and report output carry an
+  `expires_at` (`platform.exports.artifact_retention_hours`). Once expired, a
+  read returns 410, and the maintenance loop purges the content and keeps the
+  metadata.
+- **Drivers:** `FILE_STORAGE_DRIVER=local` (the development default) or
+  `memory` (single-process tests). Production has no default: without a
+  configured provider, storage returns 503.
+
+Enforced by `pnpm verify:platform-services` (static rules and unit tests) and
+`pnpm test:platform-services:db` (real PostgreSQL, zero skips allowed). Browser
+journeys: `pnpm test:e2e:platform-services`, which runs its own web server and
+the OAuth stand-in.
+
+## 12. Known gaps (closed in later prompts)
 
 1. Department/team access exists in foundations but is not productized or universally wired (needs the HR/organisation-structure ownership decision).
 2. Record access stays domain-specific by design; field security is uneven across modules.
 3. Organization-scoped public/platform tables lack an RLS safety net (§6).
 4. Business-module routes still use per-module `require<Module>Access` helpers instead of `workspaceRoute`; organisation profile/security settings routes are listed exceptions.
 5. Deprecated invitation columns (`role_id`, `company_ids`, `branch_ids`) are still mirrored for the rollout window; drop them once no older instance can run.
-6. `docs/frontend-rebuild/recovered-platform-code` is still read by `verify:t01` for two unported slices (reporting dataset permissions, workflow-run engine).
-7. Billing: Vercentlabs GST tax invoices are not generated (provider invoices/receipts only; fails closed until the legal configuration exists); Custom contracts are provisioned by an operator script, with no internal admin UI yet; moving legacy v1 Standard subscriptions (3 included users) to v2 terms needs a deliberate provider plan change.
-8. Shared Runtime: notification categories are registered only where a module emits today (CRM); search covers CRM (leads, accounts, contacts, opportunities) and Sales (customers, products) only; background jobs have no cancel/retry; notifications are in-app only (no push/email delivery).
+6. Billing: Vercentlabs GST tax invoices are not generated (provider invoices/receipts only; fails closed until the legal configuration exists); Custom contracts are provisioned by an operator script, with no internal admin UI yet; moving legacy v1 Standard subscriptions (3 included users) to v2 terms needs a deliberate provider plan change.
+7. Shared Runtime: notification categories are registered only where a module emits today (CRM); search covers CRM (leads, accounts, contacts, opportunities) and Sales (customers, products) only; background jobs have no cancel/retry; notifications are in-app only (no push/email delivery).
+8. Platform services (Prompt 6): organisation-scoped platform tables (`attachments`, `api_keys`, `oauth_connections`, `inbound_mail_*`, workflow and report tables) still lack RLS; integration secrets use one environment key with no KMS or rotation tooling; a cloud object-storage provider is not implemented (production file storage fails closed); retired tables (`numbering_series`, `crm_webhook_subscriptions`, `crm_outbox_events`) are commented as retired but not dropped.
+9. Platform services scope: the only v1 endpoint is `GET /api/v1/platform/context`; workflows have one action (in-app notification) and CRM triggers only; report datasets are CRM leads and Sales orders, without scheduling; no AI tools are registered; tags have no Settings admin page.

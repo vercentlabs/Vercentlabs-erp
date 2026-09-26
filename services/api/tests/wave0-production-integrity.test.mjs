@@ -7,7 +7,7 @@ import {
   completeIdempotentOperation,
   requestPayloadHash,
 } from "../src/core/idempotency.js";
-import { nextDocumentNumber } from "../src/core/document-numbering.js";
+import { nextDocumentNumber } from "../src/core/platform/numbering/index.js";
 import { listHrPayrollResource } from "../src/modules/hr-payroll/index.js";
 import { postStockMovement } from "../src/modules/stock/index.js";
 import { completePointOfSale } from "../src/modules/point-of-sale/index.js";

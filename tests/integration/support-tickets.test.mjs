@@ -151,8 +151,12 @@ test("Support ticket desk against real PostgreSQL", async (t) => {
 
     await t.test("F358: attachments are size-limited and a private one is hidden without sensitive access", async () => {
       const ticket = await run("agentA", (c, x) => api.createTicket(c, x, { subject: "With attachment", description: "x", customerId: partyId }));
-      await denied("agentA", (c, x) => api.addAttachment(c, x, ticket.id, { fileName: "huge.zip", sizeBytes: 30 * 1024 * 1024 }), 400, "SUPPORT_ATTACHMENT_TOO_LARGE");
-      const att = await run("agentA", (c, x) => api.addAttachment(c, x, ticket.id, { fileName: "screenshot.png", sizeBytes: 2048, contentType: "image/png", privateNote: true }));
+      // Shared Files: an attachment is the uploaded bytes (validated and
+      // scanned by prepareFileUpload), never a caller-supplied reference.
+      await denied("agentA", (c, x) => api.addAttachment(c, x, ticket.id, { fileName: "notes.txt", sizeBytes: 2048 }), 400, "SUPPORT_ATTACHMENT_UPLOAD_REQUIRED");
+      await denied("agentA", (c, x) => api.addAttachment(c, x, ticket.id, { prepared: { fileName: "huge.zip", sizeBytes: 30 * 1024 * 1024 } }), 400, "SUPPORT_ATTACHMENT_TOO_LARGE");
+      const prepared = await api.prepareFileUpload({ fileName: "notes.txt", mimeType: "text/plain", bytes: Buffer.from("customer notes"), maximumBytes: 25 * 1024 * 1024 }, { ...process.env, ATTACHMENT_SCAN_MODE: "local" });
+      const att = await run("agentA", (c, x) => api.addAttachment(c, x, ticket.id, { prepared, privateNote: true }));
       const seenByViewer = await run("viewer", (c, x) => api.listAttachments(c, x, ticket.id));
       assert.equal(seenByViewer.some((a) => a.id === att.id), false);
       await run("agentA", (c, x) => api.removeAttachment(c, x, att.id));

@@ -6,7 +6,7 @@ import { Button, Dialog, Select, type SelectOption } from "@vercentlabs/design-s
 import { CORE_PERMISSIONS } from "@vercentlabs/permissions";
 
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
-import { createPrivacyRequest, PrivacyApiError } from "@/features/crm/settings/privacy/api/privacy-api";
+import { requestJson, RequestError } from "@/shared/http/request-json";
 
 const REQUEST_TYPE_OPTIONS: SelectOption[] = [
   { value: "access", label: "Access" },
@@ -34,12 +34,12 @@ export function AccountPrivacyPanel({ accountId, accountName }: { accountId: str
   const [created, setCreated] = useState(false);
 
   const mutation = useMutation({
-    mutationFn: () => createPrivacyRequest({ requestType, subjectReference: `account:${accountId}` }),
+    mutationFn: () => requestJson("/api/privacy/requests", { method: "POST", json: { requestType, subjectReference: `account:${accountId}` } }),
     onSuccess: () => {
       setError(null);
       setCreated(true);
     },
-    onError: (err: unknown) => setError(err instanceof PrivacyApiError ? err.message : "This request could not be created."),
+    onError: (err: unknown) => setError(err instanceof RequestError ? err.message : "This request could not be created."),
   });
 
   if (!canManage) return null;

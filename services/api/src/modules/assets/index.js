@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 
-import { nextDocumentNumber } from "../../core/document-numbering.js";
+import { nextDocumentNumber } from "../../core/platform/numbering/index.js";
 
 const TABLES = Object.freeze({
   assets: "assets",

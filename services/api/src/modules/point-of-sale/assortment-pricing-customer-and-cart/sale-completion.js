@@ -13,7 +13,7 @@
 // completePosCart (no cart aggregate involved) -- kept working, not
 // rebuilt, per the standing "do not rebuild functionality that already
 // works" instruction; both share the private helpers below.
-import { nextDocumentNumber } from "../../../core/document-numbering.js";
+import { nextDocumentNumber } from "../../../core/platform/numbering/index.js";
 import { beginIdempotentOperation, completeIdempotentOperation } from "../../../core/idempotency.js";
 import { add, sub, mul, div, percent, max, roundMoney, asDatabaseDecimal, decimal } from "../../../core/decimal.js";
 import { resolveTaxRateComponents } from "../../../core/tax-engine.js";

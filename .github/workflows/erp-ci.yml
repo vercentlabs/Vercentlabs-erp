@@ -97,6 +97,9 @@ jobs:
       - name: Shared Runtime verification (notification/approval/audit/search/job ownership rules + unit tests)
         run: pnpm verify:shared-runtime
 
+      - name: Shared Platform services verification (numbering, files, integrations, events, configuration, privacy, AI, workflows, reporting)
+        run: pnpm verify:platform-services
+
       - name: Database structure verification
         run: pnpm verify:db
 
@@ -152,7 +155,7 @@ jobs:
   # Razorpay credentials, zero skips. Deliberately focused: no Playwright, no
   # full integration suite.
   shared-access-db:
-    name: Shared Access, tenant isolation, SaaS billing + Shared Runtime (real PostgreSQL 16)
+    name: Shared Access, tenant isolation, SaaS billing, Shared Runtime + Platform services (real PostgreSQL 16)
     runs-on: ubuntu-latest
     timeout-minutes: 30
     services:
@@ -200,3 +203,6 @@ jobs:
 
       - name: Shared Runtime tests against PostgreSQL (notifications, approvals, audit, search, jobs; zero skips allowed)
         run: pnpm test:shared-runtime:db
+
+      - name: Shared Platform services tests against PostgreSQL and local OAuth/storage stand-ins (zero skips allowed)
+        run: pnpm test:platform-services:db

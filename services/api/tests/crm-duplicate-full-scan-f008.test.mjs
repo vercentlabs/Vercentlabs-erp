@@ -65,7 +65,7 @@ test("F008 full scan: enqueue creates a fresh job with no idempotency key (re-ru
   };
   const db = makeDb([
     [/^INSERT INTO tenant\.background_jobs/, () => ({ rows: [jobRow] })],
-    [/^INSERT INTO tenant\.crm_outbox_events/, () => ({ rows: [] })],
+    [/^INSERT INTO tenant\.platform_events/, () => ({ rows: [] })],
   ]);
   const job = await enqueueDuplicateFullScan(db, context(), "lead");
   assert.equal(job.id, jobId);

@@ -1,4 +1,5 @@
 import { leadSearchColumnsForContext } from "../lead-lifecycle-qualification-and-prioritization/lead-security.js";
+import { nextDocumentNumber } from "../../../core/platform/numbering/index.js";
 import { taskOverdueSql } from "../seller-activity-and-follow-up-workspace/task-operations.js";
 import { CrmError } from "./errors.js";
 import { projectCrmRecord, projectCrmRecords, recordScope } from "./record-policy.js";
@@ -7,18 +8,10 @@ import { addParameter, camelizeRow, limitValue, managedTeamMembersSql } from "./
 
 
 
+// Organisation-wide CRM codes (LEAD-00001, OPP-00001, ...) from the one
+// platform numbering service.
 export async function nextCode(client, organizationId, entityType) {
-  const result = await client.query(
-    `UPDATE public.numbering_series SET next_number = next_number + 1 WHERE organization_id = $1 AND entity_type = $2 RETURNING prefix, next_number - 1 AS number, padding`,
-    [organizationId, entityType],
-  );
-  if (!result.rows[0])
-    throw new CrmError(
-      409,
-      `Numbering series ${entityType} is not configured.`,
-    );
-  const row = result.rows[0];
-  return `${row.prefix}${String(row.number).padStart(Number(row.padding || 5), "0")}`;
+  return nextDocumentNumber(client, { organizationId }, { documentType: entityType });
 }
 
 

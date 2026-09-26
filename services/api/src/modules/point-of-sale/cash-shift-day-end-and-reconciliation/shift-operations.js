@@ -3,7 +3,7 @@
 // cash-movements.js; day-end/Z-report (F303), reconciliation (F304) and
 // accounting posting (F305) belong in this same capability directory once
 // built.
-import { nextDocumentNumber } from "../../../core/document-numbering.js";
+import { nextDocumentNumber } from "../../../core/platform/numbering/index.js";
 import { requireCompanyRecord } from "../../../core/references.js";
 import { decimal, sub, asDatabaseDecimal } from "../../../core/decimal.js";
 import { beginIdempotentOperation, completeIdempotentOperation } from "../../../core/idempotency.js";
