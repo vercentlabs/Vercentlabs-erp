@@ -1,9 +1,8 @@
 import "server-only";
 
 import {
-  getPendingApprovalCount,
+  getActionablePendingApprovalCount,
   getUnreadNotificationCount,
-  principalHasPermission,
   type ModuleAccess,
 } from "@vercentlabs/api";
 
@@ -34,9 +33,9 @@ export async function resolveWorkspaceContext(): Promise<WorkspaceContext> {
   // own client — a single pg connection runs one query at a time.
   const access = await getWorkspaceAccessSnapshot();
   const accessibleModules = [...access.modules];
-  const pendingApprovalCount = principalHasPermission(access.principal, "approvals.manage")
-    ? await withClient((client) => getPendingApprovalCount(client, session.organizationId))
-    : 0;
+  // Pending approvals this person can act on (or oversee with approvals.manage);
+  // the same visibility rule as the approvals inbox.
+  const pendingApprovalCount = await withClient((client) => getActionablePendingApprovalCount(client, session));
   const unreadNotificationCount = await withClient((client) => getUnreadNotificationCount(client, session));
   return {
     session,

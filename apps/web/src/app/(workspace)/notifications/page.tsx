@@ -1,9 +1,9 @@
 import { requireWorkspace } from "@/core/session";
-import { NotificationsClient } from "./notifications-client";
+import { NotificationsScreen } from "@/features/platform/notifications/NotificationsScreen";
 
 export const metadata = { title: "Notifications" };
 
 export default async function NotificationsPage() {
   await requireWorkspace();
-  return <NotificationsClient />;
+  return <NotificationsScreen />;
 }

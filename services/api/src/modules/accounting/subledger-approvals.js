@@ -1,3 +1,4 @@
+import { createApprovalRequest, finalizeApprovalRequest } from "../../core/platform/approvals/index.js";
 import {
   ACCOUNTING_PERMISSIONS,
   AccountingError,
@@ -123,27 +124,26 @@ export async function submitSubledgerDocument(client, context, kind, idValue, as
     await event(client, context, kind, document.id, `accounting.${kind}.auto_approved`, "draft", "approved", {});
     return { id: document.id, status: "approved", approvalRequired: false, contentHash: hash };
   }
-  const approval = await client.query(
-    `INSERT INTO public.approval_requests (
-      organization_id,entity_type,entity_id,title,status,requested_by,assigned_to,command_key,command_payload
-    ) VALUES ($1,$2,$3,$4,'pending',$5,$6,$7,$8::jsonb)
-    RETURNING id,status,version`,
-    [context.organizationId, config.entityType, document.id,
-      `Approve ${String(document[config.numberColumn])}`, context.userId,
-      assignedTo ? uuid(assignedTo, "Approver") : null, config.commandKey,
-      JSON.stringify({ documentId: document.id, contentHash: hash })],
-  );
+  const approval = await createApprovalRequest(client, {
+    organizationId: context.organizationId,
+    commandKey: config.commandKey,
+    entityId: document.id,
+    title: `Approve ${String(document[config.numberColumn])}`,
+    requestedBy: context.userId,
+    assignedTo: assignedTo ? uuid(assignedTo, "Approver") : null,
+    payload: { documentId: document.id, contentHash: hash },
+  });
   await client.query(
     `UPDATE tenant.${config.table}
       SET status='pending_approval',approval_request_id=$3,content_hash=$4,
           submitted_at=now(),submitted_by=$5,updated_by=$5,updated_at=now()
       WHERE organization_id=$1 AND id=$2`,
-    [context.organizationId, document.id, approval.rows[0].id, hash, context.userId],
+    [context.organizationId, document.id, approval.id, hash, context.userId],
   );
   await event(client, context, kind, document.id, `accounting.${kind}.submitted`, "draft", "pending_approval", {
-    approvalRequestId: approval.rows[0].id,
+    approvalRequestId: approval.id,
   });
-  return { id: document.id, status: "pending_approval", approvalRequired: true, contentHash: hash, approvalRequest: approval.rows[0] };
+  return { id: document.id, status: "pending_approval", approvalRequired: true, contentHash: hash, approvalRequest: { id: approval.id, status: approval.status, version: approval.version } };
 }
 
 export async function approveSubledgerDocument(client, context, kind, idValue, expectedHash) {
@@ -163,6 +163,10 @@ export async function approveSubledgerDocument(client, context, kind, idValue, e
       WHERE organization_id=$1 AND id=$2`,
     [context.organizationId, document.id, context.userId],
   );
+  await finalizeApprovalRequest(client, {
+    organizationId: context.organizationId, commandKey: config.commandKey, entityId: document.id,
+    approvalRequestId: document.approval_request_id, decision: "approved", actorUserId: context.userId,
+  });
   await event(client, context, kind, document.id, `accounting.${kind}.approved`, "pending_approval", "approved", {});
   return { id: document.id, status: "approved" };
 }
@@ -171,6 +175,10 @@ export async function rejectSubledgerDocument(client, context, kind, idValue) {
   const { config, document } = await lockDocument(client, context, kind, idValue);
   requirePermission(context, config.permission);
   if (document.status !== "pending_approval") return { id: document.id, status: document.status };
+  await finalizeApprovalRequest(client, {
+    organizationId: context.organizationId, commandKey: config.commandKey, entityId: document.id,
+    approvalRequestId: document.approval_request_id, decision: "rejected", actorUserId: context.userId,
+  });
   await client.query(
     `UPDATE tenant.${config.table}
       SET status='draft',approval_request_id=NULL,content_hash=NULL,approved_at=NULL,approved_by=NULL,

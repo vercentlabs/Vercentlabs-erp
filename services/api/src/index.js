@@ -165,7 +165,6 @@ export * from "./core/organization-administration.js";
 export * from "./core/organization-registration.js";
 export * from "./core/api-keys.js";
 export * from "./core/oauth.js";
-export * from "./core/notification-preferences.js";
 export * from "./core/inbound-mail.js";
 export * from "./core/tags.js";
 export * from "./core/configuration.js";
@@ -174,9 +173,15 @@ export * from "./core/ai-governance.js";
 
 // Prompt 2B — global shell closure: cross-module approval inbox,
 // notification center, and background-job visibility.
-export * from "./core/approvals.js";
-export * from "./core/notifications.js";
-export * from "./core/background-jobs.js";
+export * from "./core/platform/notifications/index.js";
+export * from "./core/platform/approvals/index.js";
+export * from "./core/platform/jobs/index.js";
+export * from "./core/platform/audit/index.js";
+export * from "./orchestration/approvals/inbox.js";
+export { APPROVAL_COMMAND_REGISTRY, REGISTERED_APPROVAL_COMMAND_KEYS, approvalHref } from "./orchestration/approvals/registry.js";
+export * from "./orchestration/search/service.js";
+export { SEARCH_PROVIDERS } from "./orchestration/search/providers.js";
+export * from "./orchestration/notifications/visibility.js";
 export * from "./core/platform/module-administration.js";
 
 export * from "./orchestration/sales-crm-opportunity-sync.js";

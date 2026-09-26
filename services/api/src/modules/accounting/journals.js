@@ -1,3 +1,4 @@
+import { createApprovalRequest, finalizeApprovalRequest } from "../../core/platform/approvals/index.js";
 import {
   ACCOUNTING_PERMISSIONS,
   AccountingError,
@@ -353,17 +354,18 @@ export async function submitJournalEntry(client, context, idValue, assignedTo = 
     await event(client, context, "journal_entry", entry.id, "accounting.journal.auto_approved", entry.status, "approved", {});
     return { status: "approved", approvalRequired: false };
   }
-  const approval = await client.query(
-    `INSERT INTO public.approval_requests (
-      organization_id,entity_type,entity_id,title,status,requested_by,assigned_to,command_key,command_payload
-    ) VALUES ($1,'accounting_journal_entry',$2,$3,'pending',$4,$5,'accounting.journal.approve',$6::jsonb)
-    RETURNING id,status,version`,
-    [context.organizationId, entry.id, `Approve journal ${entry.entry_number}`, context.userId,
-      assignedTo ? uuid(assignedTo, "Approver") : null, JSON.stringify({ journalEntryId: entry.id, contentHash: entry.content_hash })],
-  );
-  await client.query(`UPDATE tenant.accounting_journal_entries SET status='pending_approval',approval_request_id=$3,submitted_at=now(),submitted_by=$4,updated_by=$4 WHERE organization_id=$1 AND id=$2`, [context.organizationId, entry.id, approval.rows[0].id, context.userId]);
-  await event(client, context, "journal_entry", entry.id, "accounting.journal.submitted", entry.status, "pending_approval", { approvalRequestId: approval.rows[0].id });
-  return { status: "pending_approval", approvalRequired: true, approvalRequest: approval.rows[0] };
+  const approval = await createApprovalRequest(client, {
+    organizationId: context.organizationId,
+    commandKey: "accounting.journal.approve",
+    entityId: entry.id,
+    title: `Approve journal ${entry.entry_number}`,
+    requestedBy: context.userId,
+    assignedTo: assignedTo ? uuid(assignedTo, "Approver") : null,
+    payload: { journalEntryId: entry.id, contentHash: entry.content_hash },
+  });
+  await client.query(`UPDATE tenant.accounting_journal_entries SET status='pending_approval',approval_request_id=$3,submitted_at=now(),submitted_by=$4,updated_by=$4 WHERE organization_id=$1 AND id=$2`, [context.organizationId, entry.id, approval.id, context.userId]);
+  await event(client, context, "journal_entry", entry.id, "accounting.journal.submitted", entry.status, "pending_approval", { approvalRequestId: approval.id });
+  return { status: "pending_approval", approvalRequired: true, approvalRequest: { id: approval.id, status: approval.status, version: approval.version } };
 }
 
 export async function approveJournalEntry(client, context, idValue, contentHash) {
@@ -373,6 +375,10 @@ export async function approveJournalEntry(client, context, idValue, contentHash)
   if (entry.content_hash !== contentHash) throw new AccountingError(409, "Journal content changed after approval was requested.");
   if (entry.submitted_by && entry.submitted_by === context.userId) throw new AccountingError(409, "The submitter cannot approve the same journal.");
   await client.query(`UPDATE tenant.accounting_journal_entries SET status='approved',approved_at=now(),approved_by=$3,updated_by=$3 WHERE organization_id=$1 AND id=$2`, [context.organizationId, entry.id, context.userId]);
+  await finalizeApprovalRequest(client, {
+    organizationId: context.organizationId, commandKey: "accounting.journal.approve", entityId: entry.id,
+    approvalRequestId: entry.approval_request_id, decision: "approved", actorUserId: context.userId,
+  });
   await event(client, context, "journal_entry", entry.id, "accounting.journal.approved", entry.status, "approved", {});
   return { id: entry.id, status: "approved" };
 }
@@ -382,6 +388,10 @@ export async function rejectJournalApproval(client, context, idValue) {
   const entry = await lockEntry(client, context, idValue);
   if (entry.status !== "pending_approval") return { id: entry.id, status: entry.status };
   await client.query(`UPDATE tenant.accounting_journal_entries SET status='rejected',updated_by=$3 WHERE organization_id=$1 AND id=$2`, [context.organizationId, entry.id, context.userId]);
+  await finalizeApprovalRequest(client, {
+    organizationId: context.organizationId, commandKey: "accounting.journal.approve", entityId: entry.id,
+    approvalRequestId: entry.approval_request_id, decision: "rejected", actorUserId: context.userId,
+  });
   await event(client, context, "journal_entry", entry.id, "accounting.journal.rejected", entry.status, "rejected", {});
   return { id: entry.id, status: "rejected" };
 }

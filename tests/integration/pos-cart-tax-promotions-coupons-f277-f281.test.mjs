@@ -97,6 +97,8 @@ test("F277-F281: cart, authoritative tax, discounts, promotions and coupons agai
     roleSlugs: [],
     permissions: ["pos.discount.approve"],
   };
+  // The inbox only dispatches into modules the caller can open (normally from the request snapshot).
+  const POS_INBOX = { accessibleModules: ["point-of-sale"] };
   const supervisorSession = { organizationId: orgId, userId: supervisorId, activeCompanyId: companyId, activeBranchId: branchId, roleSlugs: [], permissions: [] };
 
   async function tx(fn) {
@@ -275,7 +277,7 @@ test("F277-F281: cart, authoritative tax, discounts, promotions and coupons agai
       // enforced by the shared platform engine's assertSeparationOfDuties,
       // independent of anything cart.js does.
       await assert.rejects(
-        () => tx((c) => decideApproval(c, supervisorSession, approvalRequestId, { decision: "approved" })),
+        () => tx((c) => decideApproval(c, supervisorSession, approvalRequestId, { decision: "approved" }, POS_INBOX)),
         (error) => error.code === "SELF_APPROVAL_DENIED",
       );
 
@@ -320,19 +322,25 @@ test("F277-F281: cart, authoritative tax, discounts, promotions and coupons agai
       await assert.rejects(
         () =>
           tx((c) =>
-            decideApproval(c, { ...managerSession, permissions: [] }, approvalRequestId, { decision: "approved" }),
+            decideApproval(c, { ...managerSession, permissions: [] }, approvalRequestId, { decision: "approved" }, POS_INBOX),
           ),
-        (error) => error.code === "FORBIDDEN",
+        // Without the business permission the request is not even visible to them.
+        (error) => error.code === "APPROVAL_NOT_FOUND",
       );
 
       // The genuine approver: a different, authenticated session holding
       // pos.discount.approve.
-      const decision = await tx((c) => decideApproval(c, managerSession, approvalRequestId, { decision: "approved" }));
+      const decision = await tx((c) => decideApproval(c, managerSession, approvalRequestId, { decision: "approved" }, POS_INBOX));
       assert.equal(decision.approval.status, "approved");
 
       const approvalRow = await admin.query(`SELECT status, approved_by FROM tenant.pos_cart_discount_approvals WHERE approval_request_id=$1`, [approvalRequestId]);
       assert.equal(approvalRow.rows[0].status, "approved");
       assert.equal(approvalRow.rows[0].approved_by, managerId, "approved_by must be the REAL decider's own authenticated id, never a client-supplied one (requirement D)");
+      // The shared request and the POS document agree, with decision evidence.
+      const shared = await admin.query(`SELECT status, decided_by FROM public.approval_requests WHERE id=$1`, [approvalRequestId]);
+      assert.deepEqual(shared.rows[0], { status: "approved", decided_by: managerId });
+      const evidence = await admin.query(`SELECT decision, decided_by FROM public.approval_decisions WHERE approval_request_id=$1`, [approvalRequestId]);
+      assert.deepEqual(evidence.rows, [{ decision: "approved", decided_by: managerId }]);
 
       // Once decided it leaves the pending queue and shows as approved, with
       // the real approver's name -- and the live cart reflects it.
@@ -388,7 +396,7 @@ test("F277-F281: cart, authoritative tax, discounts, promotions and coupons agai
         [orgId],
       );
       assert.ok(pendingRequest.rows[0]);
-      const decision = await tx((c) => decideApproval(c, managerSession, pendingRequest.rows[0].id, { decision: "approved" }));
+      const decision = await tx((c) => decideApproval(c, managerSession, pendingRequest.rows[0].id, { decision: "approved" }, POS_INBOX));
       assert.equal(decision.approval.status, "approved");
     });
 

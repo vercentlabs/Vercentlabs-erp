@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { addBusinessMinutes, claimDueNurtureQueueItems, createInAppNotification } from "@vercentlabs/api";
+import { addBusinessMinutes, claimDueNurtureQueueItems, createNotification } from "@vercentlabs/api";
 import { sendTransactionalEmail } from "../mailer.js";
 
 export const JOB_TYPE = "crm.nurture_queue.dispatch_notifications";
@@ -62,10 +62,12 @@ export async function dispatchNurtureQueueNotificationsHandler(_client, _systemC
     if (!lead?.owner_user_id) { skipped += 1; continue; }
     const message = `${lead.full_name || lead.company_name || "A Lead"} is due for ${item.recommended_action || "follow-up"}.`;
     await runtime.withTenantClient(runtime.pool, runtime.organizationId, (client) =>
-      createInAppNotification(client, context, {
+      createNotification(client, {
+        organizationId: context.organizationId,
         userId: lead.owner_user_id,
-        type: "crm_nurture_queue_due",
         category: "crm_nurture_queue_due",
+        entityType: "crm_lead",
+        entityId: lead.id,
         title: "Lead nurture action due",
         message,
         href: `/follow-ups`,

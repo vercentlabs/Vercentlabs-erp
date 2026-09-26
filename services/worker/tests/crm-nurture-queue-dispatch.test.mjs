@@ -24,7 +24,7 @@ function fakeRuntime({ claimed = [], leads = new Map() } = {}) {
         const ids = values[1];
         return { rows: ids.map((id) => leads.get(id)).filter(Boolean) };
       }
-      if (sql.includes("INSERT INTO notifications("))
+      if (sql.includes("INSERT INTO notifications ("))
         return { rows: [{ id: "notif-1" }] };
       throw new Error(`Unexpected query: ${sql}`);
     },
@@ -64,7 +64,7 @@ test("CRM-VNEXT-052 worker: a due, claimed nurture item notifies its Lead's owne
     assert.equal(result.claimed, 1);
     assert.equal(result.notified, 1);
     assert.equal(result.skipped, 0);
-    assert.ok(calls.some(({ sql, values }) => sql.includes("INSERT INTO notifications(") && values[1] === user));
+    assert.ok(calls.some(({ sql, values }) => sql.includes("INSERT INTO notifications (") && values[1] === user));
   } finally {
     mock.timers.reset();
   }
@@ -79,7 +79,7 @@ test("CRM-VNEXT-052 worker: a claimed item whose Lead has no resolvable owner is
     const result = await dispatchNurtureQueueNotificationsHandler(null, null, {}, runtime);
     assert.equal(result.skipped, 1);
     assert.equal(result.notified, 0);
-    assert.ok(!calls.some(({ sql }) => sql.includes("INSERT INTO notifications(")));
+    assert.ok(!calls.some(({ sql }) => sql.includes("INSERT INTO notifications (")));
   } finally {
     mock.timers.reset();
   }

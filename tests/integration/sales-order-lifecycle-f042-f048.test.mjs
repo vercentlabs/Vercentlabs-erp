@@ -257,6 +257,12 @@ test("Sales order lifecycle against real PostgreSQL", async (t) => {
       await assert.rejects(() => tx((c) => approveSalesOrderAmendment(c, sellerContext, confirmed.id, pending.current_version_id, versions.rows[0].id, "confirmed")), (e) => /permission/i.test(e.message) || e.code === "FORBIDDEN");
       await tx((c) => approveSalesOrderAmendment(c, approverContext, confirmed.id, pending.current_version_id, versions.rows[0].id, "confirmed"));
       assert.equal((await orderRow(confirmed.id)).lifecycle_status, "confirmed");
+      // Approving directly from the order screen also closes the shared approval request.
+      const shared = await admin.query(
+        `SELECT status, decided_by FROM public.approval_requests WHERE organization_id=$1 AND command_key='sales.order.amendment.approve' AND entity_id=$2`,
+        [orgId, confirmed.id],
+      );
+      assert.deepEqual(shared.rows, [{ status: "approved", decided_by: approverContext.userId }]);
     });
 
     await t.test("F049/F050: fulfilment and invoice requests are idempotent on their key", async () => {

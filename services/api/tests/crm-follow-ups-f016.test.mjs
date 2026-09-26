@@ -97,7 +97,7 @@ function createClient({ leadRow, activity = {}, managerUserId, reminderInsertRet
         return { rows: managerUserId ? [{ manager_user_id: managerUserId }] : [] };
       if (sql.includes("UPDATE tenant.crm_activities SET follow_up_escalated_at=now()"))
         return { rows: [], rowCount: 1 };
-      if (sql.includes("INSERT INTO notifications("))
+      if (sql.includes("INSERT INTO notifications ("))
         return { rows: notificationInserted ? [{ id: "notif-1" }] : [] };
       if (sql.includes("UPDATE tenant.crm_leads SET updated_at=now()"))
         return { rows: [], rowCount: 1 };
@@ -250,7 +250,7 @@ test("F016: escalation resolves the assignee's sales-team manager and notifies t
   const escalated = await escalateOverdueFollowUps(client, context);
   assert.equal(escalated, 1);
   assert.ok(client.calls.some(({ sql, values }) => sql.includes("UPDATE tenant.crm_activities SET follow_up_escalated_at=now()") && values[2] === manager));
-  assert.ok(client.calls.some(({ sql }) => sql.includes("INSERT INTO notifications(")));
+  assert.ok(client.calls.some(({ sql }) => sql.includes("INSERT INTO notifications (")));
 });
 
 test("F016: escalation with no resolvable manager is a logged non-error outcome, not a notification to an unrelated admin", async () => {
@@ -261,7 +261,7 @@ test("F016: escalation with no resolvable manager is a logged non-error outcome,
   const escalated = await escalateOverdueFollowUps(client, context);
   assert.equal(escalated, 1);
   assert.ok(client.calls.some(({ sql, values }) => sql.includes("UPDATE tenant.crm_activities SET follow_up_escalated_at=now()") && values[2] === null));
-  assert.equal(client.calls.some(({ sql }) => sql.includes("INSERT INTO notifications(")), false);
+  assert.equal(client.calls.some(({ sql }) => sql.includes("INSERT INTO notifications (")), false);
 });
 
 test("F016: claiming due reminders moves them pending -> dispatching atomically and returns delivery context in one round trip", async () => {

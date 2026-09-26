@@ -1,3 +1,4 @@
+import { createApprovalRequest, finalizeApprovalRequest } from "../../core/platform/approvals/index.js";
 import { createHash, randomBytes } from "node:crypto";
 import { applySalesAdvancesToInvoiceRequest, reverseSalesCommissionsForOrder } from "./after-sales.js";
 import {
@@ -1015,10 +1016,10 @@ export async function reviseQuotation(client, context, id, input) {
   const preview = await previewSalesDocument(client, context, input);
   if (preview.master.partyId !== quote.party_id)
     throw new SalesError(409, "A revision cannot change the customer. Create a new quotation instead.", "SALES_QUOTATION_CUSTOMER_LOCKED");
-  await client.query(
-    `UPDATE public.approval_requests SET status='cancelled',decided_at=now(),decision_note='Quotation was revised.',updated_at=now() WHERE organization_id=$1 AND entity_type='sales_quotation' AND entity_id=$2 AND status='pending'`,
-    [context.organizationId, id],
-  );
+  await finalizeApprovalRequest(client, {
+    organizationId: context.organizationId, commandKey: "sales.quotation.approve", entityId: id,
+    decision: "cancelled", actorUserId: context.userId || null, note: "Quotation was revised.",
+  });
   await revokeQuoteLinks(client, context, id);
   const version = await insertQuotationVersion(
     client,
@@ -1065,12 +1066,16 @@ async function resolveApprover(client, context, assignedTo) {
 }
 // Approving/rejecting straight from the quotation or order must also close
 // the matching inbox request, or it stays "pending" and fails when opened.
+const APPROVAL_COMMAND_FOR = Object.freeze({
+  sales_quotation: "sales.quotation.approve",
+  sales_order: "sales.order.approve",
+  sales_order_amendment: "sales.order.amendment.approve",
+});
 async function closeApprovalRequest(client, context, entityType, entityId, status, note = null) {
-  await client.query(
-    `UPDATE public.approval_requests SET status=$4,decided_at=now(),decided_by=$5,decision_note=COALESCE($6,decision_note),updated_at=now()
-      WHERE organization_id=$1 AND entity_type=$2 AND entity_id=$3 AND status='pending'`,
-    [context.organizationId, entityType, entityId, status, context.userId || null, note],
-  );
+  await finalizeApprovalRequest(client, {
+    organizationId: context.organizationId, commandKey: APPROVAL_COMMAND_FOR[entityType], entityId,
+    decision: status, actorUserId: context.userId || null, note,
+  });
 }
 
 async function lockQuotation(client, context, id) {
@@ -1267,23 +1272,18 @@ export async function submitQuotation(client, context, id, assignedTo = null) {
     );
     return { approvalRequired: false };
   }
-  const approvalId = cryptoRandomUuid();
   const route = await resolveApprover(client, context, assignedTo);
-  await client.query(
-    `INSERT INTO public.approval_requests (id,organization_id,entity_type,entity_id,title,status,requested_by,assigned_to,command_key,command_payload) VALUES ($1,$2,'sales_quotation',$3,$4,'pending',$5,$6,'sales.quotation.approve',$7::jsonb)`,
-    [
-      approvalId,
-      context.organizationId,
-      id,
-      `Approve quotation ${quote.quotation_number}`,
-      context.userId,
-      route.assignee,
-      JSON.stringify({
-        quotationId: id,
-        quotationVersionId: quote.current_version_id,
-      }),
-    ],
-  );
+  const approvalId = (
+    await createApprovalRequest(client, {
+      organizationId: context.organizationId,
+      commandKey: "sales.quotation.approve",
+      entityId: id,
+      title: `Approve quotation ${quote.quotation_number}`,
+      requestedBy: context.userId,
+      assignedTo: route.assignee,
+      payload: { quotationId: id, quotationVersionId: quote.current_version_id },
+    })
+  ).id;
   await client.query(
     `UPDATE tenant.sales_quotations SET lifecycle_status='pending_approval',approval_status='pending',updated_by=$1,updated_at=now() WHERE organization_id=$2 AND id=$3`,
     [context.userId, context.organizationId, id],
@@ -1299,13 +1299,6 @@ export async function submitQuotation(client, context, id, assignedTo = null) {
     { approvalId, versionId: quote.current_version_id, assignedTo: route.assignee, delegatedFrom: route.delegatedFrom },
   );
   return { approvalRequired: true, approvalId };
-}
-function cryptoRandomUuid() {
-  const bytes = randomBytes(16);
-  bytes[6] = (bytes[6] & 15) | 64;
-  bytes[8] = (bytes[8] & 63) | 128;
-  const hex = bytes.toString("hex");
-  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
 }
 export async function approveQuotation(
   client,
@@ -1974,22 +1967,18 @@ export async function submitSalesOrder(client, context, id, assignedTo = null) {
       orderVersionId: order.current_version_id,
     };
   }
-  const approvalId = cryptoRandomUuid();
   const route = await resolveApprover(client, context, assignedTo);
-  await client.query(
-    `INSERT INTO public.approval_requests
-      (id,organization_id,entity_type,entity_id,title,status,requested_by,assigned_to,command_key,command_payload)
-     VALUES ($1,$2,'sales_order',$3,$4,'pending',$5,$6,'sales.order.approve',$7::jsonb)`,
-    [
-      approvalId,
-      context.organizationId,
-      id,
-      `Approve sales order ${order.sales_order_number}`,
-      context.userId,
-      route.assignee,
-      JSON.stringify({ orderId: id, orderVersionId: order.current_version_id }),
-    ],
-  );
+  const approvalId = (
+    await createApprovalRequest(client, {
+      organizationId: context.organizationId,
+      commandKey: "sales.order.approve",
+      entityId: id,
+      title: `Approve sales order ${order.sales_order_number}`,
+      requestedBy: context.userId,
+      assignedTo: route.assignee,
+      payload: { orderId: id, orderVersionId: order.current_version_id },
+    })
+  ).id;
   await client.query(
     `UPDATE tenant.sales_orders
         SET lifecycle_status='pending_approval',approval_status='pending',updated_by=$1,updated_at=now()
@@ -3045,29 +3034,21 @@ export async function amendSalesOrder(client, context, id, input) {
       ],
     );
   }
-  const approvalId = cryptoRandomUuid();
-  await client.query(
-    `INSERT INTO public.approval_requests (
-       id,organization_id,entity_type,entity_id,title,status,requested_by,
-       command_key,command_payload
-     ) VALUES (
-       $1,$2,'sales_order_amendment',$3,$4,'pending',$5,
-       'sales.order.amendment.approve',$6::jsonb
-     )`,
-    [
-      approvalId,
-      context.organizationId,
-      order.id,
-      `Approve amendment to sales order ${order.sales_order_number}`,
-      context.userId,
-      JSON.stringify({
+  const approvalId = (
+    await createApprovalRequest(client, {
+      organizationId: context.organizationId,
+      commandKey: "sales.order.amendment.approve",
+      entityId: order.id,
+      title: `Approve amendment to sales order ${order.sales_order_number}`,
+      requestedBy: context.userId,
+      payload: {
         orderId: order.id,
         orderVersionId: version.id,
         previousVersionId: order.current_version_id,
         resumeStatus: order.lifecycle_status,
-      }),
-    ],
-  );
+      },
+    })
+  ).id;
   await client.query(
       `INSERT INTO tenant.sales_order_amendments (organization_id,sales_order_id,from_version_id,to_version_id,reason,approval_request_id,created_by)
      VALUES ($1,$2,$3,$4,$5,$6,$7)
@@ -3186,6 +3167,7 @@ export async function approveSalesOrderAmendment(
     resumeStatus,
     { orderVersionId, previousVersionId },
   );
+  await closeApprovalRequest(client, context, "sales_order_amendment", orderId, "approved");
   return { orderId, orderVersionId, status: resumeStatus };
 }
 
@@ -3231,6 +3213,7 @@ export async function rejectSalesOrderAmendment(
       "The order changed before the amendment was rejected.",
     );
   }
+  await closeApprovalRequest(client, context, "sales_order_amendment", orderId, "rejected");
   await event(
     client,
     context,

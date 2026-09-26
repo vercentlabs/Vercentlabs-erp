@@ -10,6 +10,7 @@
 // row lock sees the first one's already-applied change.
 import { randomUUID } from "node:crypto";
 
+import { createApprovalRequest, finalizeApprovalRequest } from "../../../core/platform/approvals/index.js";
 import { requireCompanyRecord } from "../../../core/references.js";
 import { decimal, div, mul, min, max, asDatabaseDecimal, formatDecimal } from "../../../core/decimal.js";
 import { priceCartLines } from "./cart-pricing.js";
@@ -539,11 +540,15 @@ async function ensureDiscountApprovalRequested(client, context, cart, cartLineId
   const title =
     (cartLineId ? "Approve line discount" : "Approve cart discount") +
     `: ${formatDecimal(amount, 2)} (${formatDecimal(percentOfGross, 1)}%) -- "${reason}"`;
-  await client.query(
-    `INSERT INTO public.approval_requests (id,organization_id,entity_type,entity_id,title,status,requested_by,command_key,command_payload)
-     VALUES ($1,$2,'pos_cart_discount',$3,$4,'pending',$5,'pos.discount.approve',$6::jsonb)`,
-    [approvalRequestId, context.organizationId, cart.id, title, context.userId, JSON.stringify({ discountApprovalId })],
-  );
+  await createApprovalRequest(client, {
+    id: approvalRequestId,
+    organizationId: context.organizationId,
+    commandKey: "pos.discount.approve",
+    entityId: cart.id,
+    title,
+    requestedBy: context.userId,
+    payload: { discountApprovalId },
+  });
   await client.query(
     `INSERT INTO tenant.pos_cart_discount_approvals
       (id,organization_id,cart_id,cart_version,cart_line_id,discount_amount_snapshot,discount_percent_snapshot,
@@ -593,6 +598,10 @@ export async function approvePosCartDiscountApproval(client, context, payload) {
     `UPDATE tenant.pos_cart_discount_approvals SET status='approved',approved_by=$3,approved_at=now() WHERE organization_id=$1 AND id=$2`,
     [context.organizationId, row.id, context.userId],
   );
+  await finalizeApprovalRequest(client, {
+    organizationId: context.organizationId, commandKey: "pos.discount.approve", entityId: row.cart_id,
+    approvalRequestId: row.approval_request_id, decision: "approved", actorUserId: context.userId,
+  });
   return { discountApprovalId: row.id, cartId: row.cart_id, status: "approved" };
 }
 
@@ -603,6 +612,10 @@ export async function rejectPosCartDiscountApproval(client, context, payload) {
     context.organizationId,
     row.id,
   ]);
+  await finalizeApprovalRequest(client, {
+    organizationId: context.organizationId, commandKey: "pos.discount.approve", entityId: row.cart_id,
+    approvalRequestId: row.approval_request_id, decision: "rejected", actorUserId: context.userId, note: payload?.note ?? null,
+  });
   return { discountApprovalId: row.id, cartId: row.cart_id, status: "rejected" };
 }
 

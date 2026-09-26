@@ -1,3 +1,4 @@
+import { createNotification } from "../../../core/platform/notifications/index.js";
 import { assertNoQualificationMutation } from "../lead-lifecycle-qualification-and-prioritization/lead-qualification.js";
 import { ensureDefaultLeadStages } from "../lead-lifecycle-qualification-and-prioritization/lifecycle/stage-catalog.js";
 import { normalizeLeadRecordInput, validateLeadRecord } from "../lead-lifecycle-qualification-and-prioritization/lead-record-validation.js";
@@ -1139,19 +1140,19 @@ export async function runCrmAutomation(
         }
         if (action.type === "notification" && action.userId) {
           await assertActiveOrganizationUsers(client, context, [action.userId]);
-          await client.query(
-            `INSERT INTO public.notifications (organization_id, user_id, type, title, message, href) VALUES ($1, $2, 'crm_automation', $3, $4, $5)`,
-            [
-              context.organizationId,
-              action.userId,
-              action.title || "CRM automation",
-              action.message || "A CRM automation rule ran.",
-              // Always the triggering record's real route, so the link works and
-              // notification redaction (notification-visibility.js) can
-              // re-check access to it; a free-form href is not accepted.
-              `/crm/${CRM_NOTIFICATION_ROUTE[entityType] ?? `${entityType}s`}/${entityId}`,
-            ],
-          );
+          await createNotification(client, {
+            organizationId: context.organizationId,
+            userId: action.userId,
+            category: "crm_automation",
+            title: action.title || "CRM automation",
+            message: action.message || "A CRM automation rule ran.",
+            // Always the triggering record's real route, so the link works and
+            // notification redaction (notification-visibility.js) can
+            // re-check access to it; a free-form href is not accepted.
+            href: `/crm/${CRM_NOTIFICATION_ROUTE[entityType] ?? `${entityType}s`}/${entityId}`,
+            entityType: `crm_${entityType}`,
+            entityId,
+          });
           output.push({ action: action.type });
         }
         if (action.type === "update_record" && isPlainObject(action.fields)) {

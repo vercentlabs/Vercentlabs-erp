@@ -94,6 +94,9 @@ jobs:
       - name: SaaS billing verification (architecture rules, provider isolation, billing unit tests, worker wiring)
         run: pnpm verify:billing
 
+      - name: Shared Runtime verification (notification/approval/audit/search/job ownership rules + unit tests)
+        run: pnpm verify:shared-runtime
+
       - name: Database structure verification
         run: pnpm verify:db
 
@@ -149,7 +152,7 @@ jobs:
   # Razorpay credentials, zero skips. Deliberately focused: no Playwright, no
   # full integration suite.
   shared-access-db:
-    name: Shared Access, tenant isolation + SaaS billing (real PostgreSQL 16)
+    name: Shared Access, tenant isolation, SaaS billing + Shared Runtime (real PostgreSQL 16)
     runs-on: ubuntu-latest
     timeout-minutes: 30
     services:
@@ -194,3 +197,6 @@ jobs:
 
       - name: SaaS billing tests against PostgreSQL and a local Razorpay stand-in (zero skips allowed)
         run: pnpm test:billing:db
+
+      - name: Shared Runtime tests against PostgreSQL (notifications, approvals, audit, search, jobs; zero skips allowed)
+        run: pnpm test:shared-runtime:db

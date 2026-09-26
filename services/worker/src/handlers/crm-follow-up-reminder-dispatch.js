@@ -1,7 +1,7 @@
 import { z } from "zod";
 import {
   claimDueReminders,
-  createInAppNotification,
+  createNotification,
   escalateOverdueFollowUps,
   markReminderOutcome,
   resetStuckDispatchingReminders,
@@ -70,10 +70,12 @@ export async function dispatchFollowUpRemindersHandler(_client, _systemContext, 
         // reminder that is still 'dispatching' — which the recovery step
         // would otherwise re-deliver as a duplicate.
         await runtime.withTenantClient(runtime.pool, runtime.organizationId, async (client) => {
-          await createInAppNotification(client, context, {
+          await createNotification(client, {
+            organizationId: context.organizationId,
             userId: activity.assignedTo,
-            type: "crm_follow_up_reminder",
             category: "crm_follow_up_reminder",
+            entityType: "crm_activity",
+            entityId: activity.id,
             title: "Follow-up reminder",
             message: `${activity.subject || "A Follow-up"} is due ${new Date(activity.dueAt).toLocaleString()}.`,
             href: `/crm/follow-ups/${activity.id}`,

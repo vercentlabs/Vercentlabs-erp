@@ -79,10 +79,10 @@ export const API_CORE_DOMAINS = Object.freeze(["access", "auth", "organization",
 // domain index.js files re-export them) and move behind their boundary
 // incrementally. New core code must be created inside a domain directory.
 export const LEGACY_FLAT_CORE_FILES = Object.freeze([
-  "access-administration", "access-control-runtime", "ai-governance", "api-keys", "approvals", "attachment-security",
-  "audit-redaction", "auth-lifecycle", "auth-mailer", "background-jobs", "configuration", "decimal",
+  "access-administration", "access-control-runtime", "ai-governance", "api-keys", "attachment-security",
+  "audit-redaction", "auth-lifecycle", "auth-mailer", "configuration", "decimal",
   "document-numbering", "field-visibility", "idempotency", "inbound-mail", "inventory-lock",
-  "master-data", "mfa", "module-entitlements", "notification-preferences", "notifications", "oauth",
+  "master-data", "mfa", "module-entitlements", "oauth",
   "organization-administration", "organization-registration", "password-policy", "privacy",
   "references", "security", "session", "tags", "tax-engine",
 ]);
@@ -153,6 +153,21 @@ export const CANONICAL_DEFINITIONS = Object.freeze({
   MODULE_ACCESS_PERMISSIONS: "packages/permissions/src/module-access.js",
   MODULE_VIEW_PERMISSIONS: "packages/permissions/src/module-access.js",
   ERP_MODULE_CATALOG: "packages/shared-types/src/modules.js",
+  // Shared Runtime: one authoritative service per capability (see
+  // scripts/validation/verify-shared-runtime.mjs for the writer/reader rules).
+  createNotification: "services/api/src/core/platform/notifications/service.js",
+  NOTIFICATION_CATEGORIES: "services/api/src/core/platform/notifications/categories.js",
+  createApprovalRequest: "services/api/src/core/platform/approvals/repository.js",
+  finalizeApprovalRequest: "services/api/src/core/platform/approvals/repository.js",
+  recordApprovalDecision: "services/api/src/core/platform/approvals/repository.js",
+  APPROVAL_COMMANDS: "services/api/src/core/platform/approvals/catalog.js",
+  APPROVAL_COMMAND_REGISTRY: "services/api/src/orchestration/approvals/registry.js",
+  decideApproval: "services/api/src/orchestration/approvals/inbox.js",
+  queryAuditEvents: "services/api/src/core/platform/audit/reader.js",
+  SEARCH_PROVIDERS: "services/api/src/orchestration/search/providers.js",
+  searchRecords: "services/api/src/orchestration/search/service.js",
+  JOB_TYPE_PRESENTATION: "services/api/src/core/platform/jobs/presentation.js",
+  listJobsForViewer: "services/api/src/core/platform/jobs/service.js",
 });
 
 export function checkCanonicalDefinitions(files) {
@@ -315,6 +330,7 @@ export function checkModuleCatalogueCopies(files, moduleKeys) {
 export const RETIRED_DEFINITIONS = Object.freeze({
   setUserCompanyAccess: "use setUserAccessScope (one atomic company + branch mutation)",
   setUserBranchAccess: "use setUserAccessScope (one atomic company + branch mutation)",
+  createInAppNotification: "use createNotification (the one platform notification writer, category-registered)",
 });
 
 export function checkRetiredDefinitions(files) {

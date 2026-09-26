@@ -13,7 +13,8 @@ import { queueOutboxEvent } from "../../crm-data-operations-and-customization/ou
 import { assertEligibleLeadAssignee } from "../../lead-lifecycle-qualification-and-prioritization/lead-governance.js";
 import { canViewSensitiveLeadContent, leadScopeSql } from "../../lead-lifecycle-qualification-and-prioritization/lead-security.js";
 import { addBusinessMinutes } from "../../lead-lifecycle-qualification-and-prioritization/lead-intelligence.js";
-import { createInAppNotification, getManagerForUser } from "../shared/notify.js";
+import { createNotification } from "../../../../core/platform/notifications/index.js";
+import { getManagerForUser } from "../shared/notify.js";
 
 // Same default business-hours shape crm_lead_sla_policies already uses
 // (018/035) — reused rather than re-invented so working-hours behavior is
@@ -370,10 +371,12 @@ export async function escalateOverdueFollowUps(client, context) {
     );
     await event(client, context, followUp.id, "escalated", followUp, followUp, { managerUserId, escalateAfterMinutes: followUp.followUpEscalateAfterMinutes });
     if (managerUserId) {
-      await createInAppNotification(client, context, {
+      await createNotification(client, {
+        organizationId: context.organizationId,
         userId: managerUserId,
-        type: "crm_follow_up_escalation",
         category: "crm_follow_up_escalation",
+        entityType: "crm_activity",
+        entityId: followUp.id,
         title: "Overdue Follow-up needs attention",
         message: `${followUp.subject || "A Follow-up"} is overdue and was escalated to you.`,
         href: `/crm/follow-ups/${followUp.id}`,

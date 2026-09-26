@@ -101,7 +101,15 @@ export async function createBillingKit() {
   async function close() {
     if (organizations.length) {
       await owner.query(`DELETE FROM billing_webhook_events WHERE organization_id = ANY($1::uuid[])`, [organizations]).catch(() => undefined);
-      await owner.query(`DELETE FROM organizations WHERE id = ANY($1::uuid[])`, [organizations]).catch(() => undefined);
+      // audit_events is append-only (its trigger would abort the organisation
+      // cascade), so remove this run's audit rows with triggers off first, then
+      // delete the organisations with FK cascades ON. Previously this delete
+      // failed silently and left checkout sessions behind that later runs'
+      // global maintenance passes had to wade through.
+      await owner.query("SET session_replication_role = replica").catch(() => undefined);
+      await owner.query(`DELETE FROM audit_events WHERE organization_id = ANY($1::uuid[])`, [organizations]).catch(() => undefined);
+      await owner.query("SET session_replication_role = DEFAULT").catch(() => undefined);
+      await owner.query(`DELETE FROM organizations WHERE id = ANY($1::uuid[])`, [organizations]);
     }
     if (users.length) await owner.query(`DELETE FROM users WHERE id = ANY($1::uuid[])`, [users]).catch(() => undefined);
     await owner.end().catch(() => undefined);

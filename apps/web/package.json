@@ -18,7 +18,8 @@
     "verify:tokens": "node ../../scripts/design/generate-tailwind-theme.mjs --check",
     "verify:no-legacy-frontend": "node ../../scripts/validation/verify-no-legacy-frontend.mjs",
     "verify:routes": "node scripts/verify-routes.mjs",
-    "test:e2e:billing": "playwright test -c playwright.config.billing.ts"
+    "test:e2e:billing": "playwright test -c playwright.config.billing.ts",
+    "test:e2e:shared-runtime": "playwright test -c playwright.config.shared-runtime.ts"
   },
   "dependencies": {
     "@swc/helpers": "0.5.15",

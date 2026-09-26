@@ -22,7 +22,7 @@ function fakeRuntime({ stuck = 0, claimed = [], activities = new Map(), escalate
       }
       if (sql.includes("SET status=$3,sent_at=CASE"))
         return { rows: [], rowCount: 1 };
-      if (sql.includes("INSERT INTO notifications("))
+      if (sql.includes("INSERT INTO notifications ("))
         return { rows: [{ id: "notif-1" }] };
       if (sql.includes("SELECT activity.* FROM tenant.crm_activities activity") && sql.includes("follow_up_escalate_after_minutes IS NOT NULL"))
         return { rows: Array.from({ length: escalated }, (_v, i) => ({ id: `escalate-${i}`, organization_id: org, activity_type: "follow_up", status: "planned", assigned_to: user, subject: "Overdue", follow_up_escalate_after_minutes: 60 })) };
@@ -67,7 +67,7 @@ test("F016 worker: an in-app reminder with a resolvable assignee is delivered an
   assert.equal(result.claimed, 1);
   assert.equal(result.sent, 1);
   assert.equal(result.failed, 0);
-  assert.ok(calls.some(({ sql }) => sql.includes("INSERT INTO notifications(")));
+  assert.ok(calls.some(({ sql }) => sql.includes("INSERT INTO notifications (")));
   assert.ok(calls.some(({ sql, values }) => sql.includes("SET status=$3,sent_at=CASE") && values[2] === "sent"));
 });
 
@@ -131,12 +131,12 @@ test("F016 worker: an in-app reminder links to the real Follow-up page and deliv
   runtime.withTenantClient = async (pool, orgId, callback) => {
     const id = ++scope;
     return originalWith(pool, orgId, async (client) =>
-      callback({ query: async (sql, values) => { scopeOf.set(sql.includes("INSERT INTO notifications(") ? "notify" : sql.includes("SET status=$3,sent_at=CASE") ? "mark" : `other-${id}-${scopeOf.size}`, id); return client.query(sql, values); } }),
+      callback({ query: async (sql, values) => { scopeOf.set(sql.includes("INSERT INTO notifications (") ? "notify" : sql.includes("SET status=$3,sent_at=CASE") ? "mark" : `other-${id}-${scopeOf.size}`, id); return client.query(sql, values); } }),
     );
   };
   await dispatchFollowUpRemindersHandler(null, null, {}, runtime);
   assert.equal(scopeOf.get("notify"), scopeOf.get("mark"), "notification insert and sent-mark must share one tenant transaction");
-  const notification = calls.find(({ sql }) => sql.includes("INSERT INTO notifications("));
+  const notification = calls.find(({ sql }) => sql.includes("INSERT INTO notifications ("));
   assert.ok(notification.values.includes(`/crm/follow-ups/${followUp}`), "reminder must link to /crm/follow-ups/<id>");
   assert.ok(!notification.values.some((v) => String(v).includes("/crm/activities")));
 });

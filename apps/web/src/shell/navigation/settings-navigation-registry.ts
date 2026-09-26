@@ -32,6 +32,7 @@ export const SETTINGS_NAVIGATION: readonly SettingsNavSection[] = [
     items: [
       { id: "profile", label: "Profile", route: "/settings/profile", status: "AVAILABLE", description: "Your name, email, locale and timezone." },
       { id: "security", label: "Security", route: "/settings/security", status: "AVAILABLE", description: "Active sessions and devices signed in to your account." },
+      { id: "notification-preferences", label: "Notification preferences", route: "/settings/notification-preferences", status: "AVAILABLE", description: "Choose which in-app notifications you receive." },
     ],
   },
   {
@@ -67,10 +68,9 @@ export const SETTINGS_NAVIGATION: readonly SettingsNavSection[] = [
     id: "governance",
     label: "Governance",
     items: [
-      { id: "notification-preferences", label: "Notification preferences", route: "/settings/notification-preferences", status: "PLANNED", description: "Organization-wide notification defaults." },
       { id: "privacy", label: "Privacy and retention", route: "/settings/privacy", status: "PLANNED", description: "Data retention and privacy request handling." },
       { id: "feature-configuration", label: "Feature configuration", route: "/settings/feature-configuration", status: "PLANNED", description: "Feature flags and rollout configuration." },
-      { id: "audit", label: "Audit", route: "/settings/audit", status: "PLANNED", description: "Organization-wide audit log." },
+      { id: "audit", label: "Audit", route: "/settings/audit", status: "AVAILABLE", description: "Who did what in your organization.", requiredPermission: "audit.view" },
       { id: "ai-governance", label: "AI governance", route: "/settings/ai-governance", status: "PLANNED", description: "AI feature policy and oversight." },
     ],
   },

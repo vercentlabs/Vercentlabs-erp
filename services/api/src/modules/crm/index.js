@@ -146,7 +146,7 @@ export {
   updateCrmFollowUp,
 } from "./seller-activity-and-follow-up-workspace/follow-ups/follow-up-operations.js";
 
-export { createInAppNotification, getManagerForUser } from "./seller-activity-and-follow-up-workspace/shared/notify.js";
+export { getManagerForUser } from "./seller-activity-and-follow-up-workspace/shared/notify.js";
 
 export {
   getCrmTimelinePage as getCrmRecordTimelinePage,

@@ -6,12 +6,12 @@ import { EmptyState, ErrorState, PageHeader } from "@vercentlabs/design-system";
 
 import { listFollowUps } from "@/features/crm/follow-ups/api/follow-ups-api";
 import { listTasks } from "@/features/crm/tasks/api/tasks-api";
-import { dueLabel, formatDateTime, humanize } from "@/features/crm/shared/human";
+import { dueLabel, formatDateTime } from "@/features/crm/shared/human";
 import { LoadingState } from "@/features/crm/shared/ui/LoadingState";
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 
-type Approval = { id: string; title: string; requested_at: string; entity_type: string };
+type Approval = { id: string; label: string; documentLabel: string; requestedAt: string; canApprove: boolean };
 type WorkItem = { id: string; subject: string; dueAt: string | null; href: string; kind: string };
 
 async function fetchPendingApprovals(): Promise<Approval[]> {
@@ -59,8 +59,8 @@ function ApprovalsSection() {
         <ul className="flex flex-col divide-y divide-border">
           {query.data.slice(0, 10).map((approval) => (
             <li key={approval.id} className="flex items-center justify-between gap-3 py-2">
-              <Link href="/approvals" className="text-sm font-medium text-text hover:underline">{approval.title}</Link>
-              <span className="shrink-0 text-xs text-text-secondary">{`${humanize(approval.entity_type)}, ${formatDateTime(approval.requested_at)}`}</span>
+              <Link href="/approvals" className="text-sm font-medium text-text hover:underline">{approval.documentLabel}</Link>
+              <span className="shrink-0 text-xs text-text-secondary">{`${approval.label}, ${formatDateTime(approval.requestedAt)}`}</span>
             </li>
           ))}
         </ul>

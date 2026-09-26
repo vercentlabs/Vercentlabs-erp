@@ -21,6 +21,7 @@
 //   - A refund can never exceed the captured amount and always routes
 //     back to the original provider reference/tender -- there is no
 //     "refund to an alternate method" path.
+import { createApprovalRequest, finalizeApprovalRequest } from "../../../core/platform/approvals/index.js";
 import { beginIdempotentOperation, completeIdempotentOperation } from "../../../core/idempotency.js";
 import { add, decimal, asDatabaseDecimal, sub } from "../../../core/decimal.js";
 import { resolvePaymentAdapter, PaymentAdapterError } from "./adapter.js";
@@ -380,20 +381,16 @@ export async function requestPosPaymentOverride(client, context, input = {}) {
     throw posError(409, `A ${payment.status} payment is not eligible for a manual override.`, "POS_OVERRIDE_STATE_INVALID");
   }
 
-  const approval = await client.query(
-    `INSERT INTO public.approval_requests (organization_id,entity_type,entity_id,title,status,requested_by,command_key,command_payload)
-     VALUES ($1,'pos_payment',$2,$3,'pending',$4,'pos.payment.override.approve',$5::jsonb)
-     RETURNING id,status,version`,
-    [
-      context.organizationId,
-      payment.id,
-      `Manually accept ${payment.payment_method} payment of ${asDatabaseDecimal(decimal(payment.amount))}`,
-      context.userId,
-      JSON.stringify({ paymentId: payment.id, reason: String(input.reason).trim() }),
-    ],
-  );
+  const approval = await createApprovalRequest(client, {
+    organizationId: context.organizationId,
+    commandKey: "pos.payment.override.approve",
+    entityId: payment.id,
+    title: `Manually accept ${payment.payment_method} payment of ${asDatabaseDecimal(decimal(payment.amount))}`,
+    requestedBy: context.userId,
+    payload: { paymentId: payment.id, reason: String(input.reason).trim() },
+  });
   await event(client, context, "payment", payment.id, "pos.payment.override_requested", { reason: String(input.reason).trim() });
-  return { paymentId: payment.id, approvalRequest: approval.rows[0] };
+  return { paymentId: payment.id, approvalRequest: { id: approval.id, status: approval.status, version: approval.version } };
 }
 
 // NOTE on context.companyId here: these two functions are invoked from the
@@ -425,6 +422,9 @@ export async function approvePosPaymentOverride(client, context, payload = {}) {
      RETURNING *`,
     [context.organizationId, payment.id],
   );
+  await finalizeApprovalRequest(client, {
+    organizationId: context.organizationId, commandKey: "pos.payment.override.approve", entityId: payment.id, decision: "approved", actorUserId: context.userId,
+  });
   await event(client, { organizationId: context.organizationId, companyId: payment.company_id, userId: context.userId }, "payment", payment.id, "pos.payment.override_approved", {
     reason: payload.reason || null,
   });
@@ -445,6 +445,9 @@ export async function rejectPosPaymentOverrideApproval(client, context, payload 
      RETURNING *`,
     [context.organizationId, payment.id],
   );
+  await finalizeApprovalRequest(client, {
+    organizationId: context.organizationId, commandKey: "pos.payment.override.approve", entityId: payment.id, decision: "rejected", actorUserId: context.userId, note: payload.note ?? null,
+  });
   await event(client, { organizationId: context.organizationId, companyId: payment.company_id, userId: context.userId }, "payment", payment.id, "pos.payment.override_rejected", {});
   return updated.rows[0];
 }

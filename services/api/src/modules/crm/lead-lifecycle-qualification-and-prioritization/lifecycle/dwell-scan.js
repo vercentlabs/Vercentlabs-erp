@@ -1,3 +1,5 @@
+import { createNotification } from "../../../../core/platform/notifications/index.js";
+
 // F007 gap-closure (benchmark: "Lead stages and statuses in top ERPs") —
 // SAP's Lead Aging feature notifies both the lead owner and, separately,
 // their sales manager on a breach; this scan previously notified only the
@@ -27,15 +29,8 @@ async function resolveOwnerManager(client, organizationId, ownerUserId) {
   return result.rows[0]?.manager_user_id || null;
 }
 
-async function notifyDwellBreach(client, organizationId, userId, title, message, href) {
-  await client.query(
-    `INSERT INTO notifications(organization_id,user_id,type,title,message,href)
-     SELECT $1,$2,'crm_dwell_breach',$3,$4,$5
-     WHERE EXISTS(SELECT 1 FROM organization_memberships WHERE organization_id=$1 AND user_id=$2 AND status='active')
-       AND COALESCE((SELECT enabled FROM notification_preferences
-         WHERE organization_id=$1 AND user_id=$2 AND channel='in_app' AND category='crm_dwell_breach'),true)`,
-    [organizationId, userId, title, message, href],
-  );
+async function notifyDwellBreach(client, organizationId, userId, title, message, href, leadId) {
+  await createNotification(client, { organizationId, userId, category: "crm_dwell_breach", title, message, href, entityType: "crm_lead", entityId: leadId });
 }
 
 // F007 dwell SLA: scheduled breach detection + notification. Mirrors the
@@ -69,6 +64,7 @@ export async function scanLeadStageDwellBreaches(client, context) {
         "Lead has exceeded its stage SLA",
         `${row.full_name || "A Lead"} has been in ${row.stage_name} longer than the configured limit.`,
         href,
+        row.id,
       );
       const managerUserId = await resolveOwnerManager(client, context.organizationId, row.owner_user_id);
       if (managerUserId) {
@@ -79,6 +75,7 @@ export async function scanLeadStageDwellBreaches(client, context) {
           "A team member's Lead has exceeded its stage SLA",
           `${row.full_name || "A Lead"} owned by a member of your team has been in ${row.stage_name} longer than the configured limit.`,
           href,
+          row.id,
         );
       }
     }

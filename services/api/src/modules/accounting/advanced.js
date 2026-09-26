@@ -21,6 +21,7 @@ import {
   uuid,
   validateBranch,
 } from "./core.js";
+import { createApprovalRequest, finalizeApprovalRequest } from "../../core/platform/approvals/index.js";
 import { createJournalEntry, postJournalEntry } from "./journals.js";
 import { div } from "./money.js";
 
@@ -264,16 +265,17 @@ export async function submitBudget(client, context, budgetIdValue, assignedTo = 
   const result = await client.query(`SELECT * FROM tenant.accounting_budgets WHERE organization_id=$1 AND id=$2 FOR UPDATE`, [context.organizationId, budgetId]);
   const budget = result.rows[0];
   if (!budget || budget.status !== "draft") throw new AccountingError(409, "Only a draft budget can be submitted.");
-  const approval = await client.query(
-    `INSERT INTO public.approval_requests (
-      organization_id,entity_type,entity_id,title,status,requested_by,assigned_to,command_key,command_payload
-    ) VALUES ($1,'accounting_budget',$2,$3,'pending',$4,$5,'accounting.budget.approve',$6::jsonb)
-    RETURNING id,status,version`,
-    [context.organizationId, budget.id, `Approve budget ${budget.code} version ${budget.version_number}`, context.userId,
-      assignedTo ? uuid(assignedTo, "Approver") : null, JSON.stringify({ budgetId: budget.id })],
-  );
-  await client.query(`UPDATE tenant.accounting_budgets SET status='pending_approval',approval_request_id=$3,updated_by=$4 WHERE organization_id=$1 AND id=$2`, [context.organizationId, budget.id, approval.rows[0].id, context.userId]);
-  return approval.rows[0];
+  const approval = await createApprovalRequest(client, {
+    organizationId: context.organizationId,
+    commandKey: "accounting.budget.approve",
+    entityId: budget.id,
+    title: `Approve budget ${budget.code} version ${budget.version_number}`,
+    requestedBy: context.userId,
+    assignedTo: assignedTo ? uuid(assignedTo, "Approver") : null,
+    payload: { budgetId: budget.id },
+  });
+  await client.query(`UPDATE tenant.accounting_budgets SET status='pending_approval',approval_request_id=$3,updated_by=$4 WHERE organization_id=$1 AND id=$2`, [context.organizationId, budget.id, approval.id, context.userId]);
+  return { id: approval.id, status: approval.status, version: approval.version };
 }
 
 export async function approveBudget(client, context, budgetIdValue) {
@@ -284,6 +286,10 @@ export async function approveBudget(client, context, budgetIdValue) {
   if (!budget || budget.status !== "pending_approval") throw new AccountingError(409, "Budget is not awaiting approval.");
   if (budget.created_by === context.userId) throw new AccountingError(409, "The budget creator cannot approve the same budget.");
   await client.query(`UPDATE tenant.accounting_budgets SET status='approved',updated_by=$3 WHERE organization_id=$1 AND id=$2`, [context.organizationId, budget.id, context.userId]);
+  await finalizeApprovalRequest(client, {
+    organizationId: context.organizationId, commandKey: "accounting.budget.approve", entityId: budget.id,
+    approvalRequestId: budget.approval_request_id, decision: "approved", actorUserId: context.userId,
+  });
   return { id: budget.id, status: "approved" };
 }
 
@@ -291,6 +297,11 @@ export async function rejectBudgetApproval(client, context, budgetIdValue) {
   requirePermission(context, ACCOUNTING_PERMISSIONS.budgetManage);
   const budgetId = uuid(budgetIdValue, "Budget");
   const result = await client.query(`UPDATE tenant.accounting_budgets SET status='draft',approval_request_id=NULL,updated_by=$3 WHERE organization_id=$1 AND id=$2 AND status='pending_approval' RETURNING id,status`, [context.organizationId, budgetId, context.userId]);
+  if (result.rows[0]) {
+    await finalizeApprovalRequest(client, {
+      organizationId: context.organizationId, commandKey: "accounting.budget.approve", entityId: budgetId, decision: "rejected", actorUserId: context.userId,
+    });
+  }
   return result.rows[0] || { id: budgetId, status: "draft" };
 }
 

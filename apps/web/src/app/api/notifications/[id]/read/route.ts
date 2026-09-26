@@ -1,22 +1,13 @@
-import { assertSameOriginOrMobile, markNotificationRead } from "@vercentlabs/api";
+import { markNotificationRead } from "@vercentlabs/api";
 
-import { withClient } from "@/core/db";
-import { errorResponse, ok } from "@/core/http";
-import { requireWorkspace } from "@/core/session";
+import { ok } from "@/core/http";
+import { workspaceRoute } from "@/core/workspace-route";
 
-export async function PATCH(
-  request: Request,
-  context: { params: Promise<{ id: string }> },
-) {
-  try {
-    assertSameOriginOrMobile(request, process.env);
-    const session = await requireWorkspace();
+// Mark one of the caller's own notifications read (another user's or another
+// organisation's id answers "not found"). Never billing-gated.
+export async function PATCH(request: Request, context: { params: Promise<{ id: string }> }) {
+  return workspaceRoute(request, { action: "notifications.mark_read", transaction: "platform" }, async ({ client, session }) => {
     const { id } = await context.params;
-    const result = await withClient((client) =>
-      markNotificationRead(client, session, id),
-    );
-    return ok({ notification: result });
-  } catch (error) {
-    return errorResponse(error);
-  }
+    return ok({ notification: await markNotificationRead(client, session, id) });
+  });
 }

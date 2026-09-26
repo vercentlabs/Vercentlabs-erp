@@ -228,15 +228,83 @@ authentication tables piecemeal.
 | Settings access UX | `apps/web/e2e/settings-shared-access.spec.ts` | `pnpm --filter @vercentlabs/web exec playwright test settings-shared-access.spec.ts` |
 | SaaS billing rules, provider isolation, worker wiring | `scripts/validation/verify-billing-architecture.mjs`, `services/api/tests/billing/` | `pnpm verify:billing` |
 | Real PostgreSQL billing sagas, webhooks, leasing, recovery, entitlements | `tests/integration/billing/` (local Razorpay stand-in) | `pnpm test:billing:db` (fails on skip) |
+| Shared Runtime ownership rules + unit tests | `scripts/validation/verify-shared-runtime.mjs`, `services/api/tests/shared-runtime/` | `pnpm verify:shared-runtime` |
+| Real PostgreSQL notifications, approvals (Accounting/Sales/POS), audit, search, jobs | `tests/integration/shared-runtime/` | `pnpm test:shared-runtime:db` (fails on skip) |
+| Shared Runtime browser journeys | `apps/web/e2e/shared-runtime.spec.ts` | `pnpm test:e2e:shared-runtime` (own server) |
 | Billing browser journeys | `apps/web/e2e/billing-saas.spec.ts`, `billing-expired-subscription.spec.ts` | `pnpm test:e2e:billing` (own server + stand-in) |
 | Adversarial tenant/security | `tests/security/` | `pnpm test:security` |
 | Browser behaviour | `apps/web/e2e/` | `pnpm test:e2e:erp` |
 
-CI: `erp-ci.yml` runs `verify:access` and `verify:billing` in the main job and a
-dedicated `shared-access-db` job (PostgreSQL 16, migrations, restricted runtime
-role, `test:access:db`, `test:billing:db`).
+CI: `erp-ci.yml` runs `verify:access`, `verify:billing` and `verify:shared-runtime`
+in the main job and a dedicated `shared-access-db` job (PostgreSQL 16, migrations,
+restricted runtime role, `test:access:db`, `test:billing:db`, `test:shared-runtime:db`).
 
-## 10. Known gaps (closed in later prompts)
+## 10. Shared Runtime
+
+Five cross-module runtime capabilities are Shared Platform services. Each has
+one authoritative implementation; modules call it and never keep a second copy.
+
+| Capability | Platform owns (`services/api/src/core/platform/`) | Orchestration connects (`services/api/src/orchestration/`) | Modules own |
+|---|---|---|---|
+| Notifications | `notifications/`: `createNotification` (the only writer), category registry, preferences, list/unread/mark-read, read-time projection | `notifications/visibility.js`: record-visibility adapters (CRM) | when to notify and the text |
+| Approvals | `approvals/`: command catalogue, `createApprovalRequest` (one pending request per target), `finalizeApprovalRequest`, `recordApprovalDecision`, decision evidence, SoD, cancellation, viewer visibility | `approvals/registry.js` (command → module function) and `inbox.js` (validate → dispatch → finalize, one transaction) | the business decision and document state |
+| Audit | `audit/reader.js`: read model over the append-only `audit_events` | — | what to audit (written through `core/security.js`) |
+| Search | — | `search/providers.js` (the one provider registry) and `service.js` | the list functions the providers reuse |
+| Background jobs | `jobs/`: presentation registry, viewer service | — | job handlers (`services/worker`) |
+
+**Notifications.** In-app is the only delivered channel: there are no push or
+email settings, and security email (verification, password reset, MFA) is
+not governed by notification preferences. A category must be registered in
+`notifications/categories.js` before anything can send it. Each row stores its
+category, module and record; what is *shown* is projected at read time
+against the viewer's current access. If the module is no longer accessible,
+or the module's adapter says the record is not, the item becomes a neutral
+stub (no text, no link). It is never dropped, so the unread badge and the
+list always agree. Routes are never billing-gated.
+
+**Approvals.** Oversight (`approvals.manage`) means seeing and cancelling, not
+business authority: approving or rejecting always needs the command's own
+business permission and module access, and the requester can never decide
+their own request. A decision made on the module's own screen closes the
+shared request in the same transaction (Accounting invoices, bills, payments,
+journals and budgets; Sales quotations, orders and amendments; POS discounts
+and payment overrides). A decision made in the inbox dispatches to the module
+through the registry, and the platform then records it idempotently. If the
+business transition fails, the whole transaction rolls back and the request
+stays pending. A command without a registered handler fails closed. The
+inbox shows labels and names, never raw keys or ids, and links only to modules
+the viewer can open.
+
+**Audit.** Read-only (no edit/delete API; the table rejects updates),
+organisation-scoped, `audit.view` required. Keyset pagination on
+`(created_at, id)` stays stable when timestamps collide. Payloads are redacted
+again on read and size-capped. The UI maps event types through one label
+table; unknown events render as "System activity".
+
+**Search.** `GET /api/search` runs only the providers whose module is
+released, enabled and entitled for the organisation and whose permission the
+caller holds (from the request's WorkspaceAccessSnapshot). Each provider
+reuses the module's own list function, so company/branch scope, record
+ownership and field rules still apply. **Search never bypasses
+authorization.** Results are a small DTO (title, detail, link). Queries are
+2–100 characters with wildcards neutralised, and results are capped per
+source and in total. Each provider runs in its own savepoint, so one failure
+shows that source as unavailable without breaking the rest. The browser holds
+no record providers.
+
+**Background jobs.** Users see their own user-started jobs; `automation.view`
+holders see the organisation, including scheduler work. Payloads are never
+returned; progress and results are reduced to counters. Users get a curated
+failure message and operations viewers get a redacted one. There is
+deliberately no cancel/retry, because not every handler can stop its side
+effects safely.
+
+Enforced by `pnpm verify:shared-runtime`: one writer per table, the platform
+never imports modules, the catalogue matches the registry, every worker job
+type is presented, routes use `workspaceRoute`, and audit and job routes are
+read-only.
+
+## 11. Known gaps (closed in later prompts)
 
 1. Department/team access exists in foundations but is not productized or universally wired (needs the HR/organisation-structure ownership decision).
 2. Record access stays domain-specific by design; field security is uneven across modules.
@@ -245,3 +313,4 @@ role, `test:access:db`, `test:billing:db`).
 5. Deprecated invitation columns (`role_id`, `company_ids`, `branch_ids`) are still mirrored for the rollout window; drop them once no older instance can run.
 6. `docs/frontend-rebuild/recovered-platform-code` is still read by `verify:t01` for two unported slices (reporting dataset permissions, workflow-run engine).
 7. Billing: Vercentlabs GST tax invoices are not generated (provider invoices/receipts only; fails closed until the legal configuration exists); Custom contracts are provisioned by an operator script, with no internal admin UI yet; moving legacy v1 Standard subscriptions (3 included users) to v2 terms needs a deliberate provider plan change.
+8. Shared Runtime: notification categories are registered only where a module emits today (CRM); search covers CRM (leads, accounts, contacts, opportunities) and Sales (customers, products) only; background jobs have no cancel/retry; notifications are in-app only (no push/email delivery).

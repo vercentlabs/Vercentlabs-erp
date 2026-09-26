@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { createTagDefinition, assignEntityTag, TagError } from "../src/core/tags.js";
-import { setNotificationPreference, NotificationPreferenceError } from "../src/core/notification-preferences.js";
+import { setNotificationPreference, NotificationPreferenceError } from "../src/core/platform/notifications/index.js";
 
 test("createTagDefinition rejects a non-hex-color value", async () => {
   const client = { query: async () => ({ rows: [{}] }) };

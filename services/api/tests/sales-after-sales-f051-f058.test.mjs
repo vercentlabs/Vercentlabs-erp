@@ -130,6 +130,8 @@ test("F058: terms longer than the customer's default send the order for approval
     ["max(line.discount_percent)", [{ grand_total: "1000", subtotal: "1000", discount_total: "0", margin_percent: "30", max_line_discount: "0", line_discount_total: "0" }]],
     ["SELECT order_approval_amount", [{ order_approval_amount: "0", quotation_approval_discount: "10", minimum_margin_percent: "0" }]],
     ["AS document_days", [{ document_days: 60, customer_days: 30 }]],
+    // The shared approval lifecycle checks the assigned approver is an active member.
+    ["SELECT 1 FROM organization_memberships", [{ 1: 1 }]],
   ]);
   const result = await submitSalesOrder(c, context, orderId, otherUser);
   assert.equal(result.approvalRequired, true);

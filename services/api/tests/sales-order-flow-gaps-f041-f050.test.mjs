@@ -55,6 +55,11 @@ function client(o = {}) {
       if (sql.includes("SELECT id,sales_order_id,status,delivered_at FROM tenant.sales_fulfillment_requests")) return { rows: [{ id: requestId, sales_order_id: orderId, status: o.requestStatus ?? "pending", delivered_at: null }] };
       if (sql.includes("SELECT id,sales_order_id,shipped_at,delivered_at FROM tenant.sales_fulfillment_requests")) return { rows: [{ id: requestId, sales_order_id: orderId, shipped_at: o.shippedAt ?? null, delivered_at: null }] };
       if (sql.includes("FROM public.organization_memberships WHERE organization_id=$1 AND status='active' AND user_id = ANY")) return { rows: [{ user_id: approver }, { user_id: delegate }] };
+      // Shared approval lifecycle (core/platform/approvals).
+      if (sql.includes("SELECT 1 FROM organization_memberships")) return { rows: [{ 1: 1 }] };
+      if (sql.includes("INSERT INTO public.approval_requests")) return { rows: [{ id: "a1", status: "pending", version: 1 }] };
+      if (sql.includes("SELECT * FROM public.approval_requests")) return { rows: o.pendingApproval ? [{ id: "a1", organization_id: org, status: "pending", version: 1 }] : [] };
+      if (sql.includes("UPDATE public.approval_requests")) return { rows: [{ id: "a1", status: values[2], version: 2 }] };
       if (sql.includes("FROM tenant.sales_approval_delegations WHERE organization_id=$1 AND delegator_user_id=$2 AND status='active' AND starts_on<=$4")) return { rows: o.overlap ? [{ 1: 1 }] : [] };
       // Availability orchestration
       if (sql.includes("SELECT line.id,line.item_id,line.warehouse_id,line.quantity,line.conversion_factor"))
@@ -85,16 +90,17 @@ test("F041: an approver away on delegation has the request routed to their deleg
   const c = client({ delegation: true });
   await submitSalesOrder(c, context, orderId, approver);
   const insert = c.calls.find((call) => call.sql.includes("INSERT INTO public.approval_requests"));
-  assert.equal(insert.values[5], delegate);
+  assert.equal(insert.values[6], delegate, "assigned_to");
   const submitted = c.calls.find((call) => call.sql.includes("INSERT INTO tenant.sales_document_events") && call.values.includes("sales_order.submitted"));
   assert.equal(JSON.parse(submitted.values[6]).delegatedFrom, approver);
 });
 
 test("F041: a rejection records its reason on the inbox request and the order trail", async () => {
-  const c = client({ order: { lifecycle_status: "pending_approval" } });
+  const c = client({ order: { lifecycle_status: "pending_approval" }, pendingApproval: true });
   await rejectSalesOrderApproval(c, context, orderId, "Discount above policy for this customer");
   const close = c.calls.find((call) => call.sql.includes("UPDATE public.approval_requests"));
-  assert.equal(close.values[5], "Discount above policy for this customer");
+  assert.equal(close.values[2], "rejected");
+  assert.equal(close.values[4], "Discount above policy for this customer", "decision_note");
 });
 
 test("F041: overlapping delegations for one approver are refused", async () => {

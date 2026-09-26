@@ -1,27 +1,6 @@
-// Prompt 6 (CRM-CAP-004): the shared in-app notification helper. This
-// exact INSERT shape (organization/active-membership check + per-category
-// notification_preferences gate) was previously copy-pasted three times
-// (services/api/src/modules/crm/index.js's notifyLeadAssignmentOwner, the
-// crm.automation "notification" action, and shared-platform.ts's workflow
-// "notify" action) — factored out here as F016's reminder/escalation
-// delivery is a fourth call site. Real, working in-app delivery; email
-// delivery is a separate, explicit function (see sendReminderEmail in
-// follow-up-operations.js) since email uses a different transport, and
-// there is no platform push-notification mechanism (no device-token
-// table exists) — push is deliberately not offered as a channel.
-export async function createInAppNotification(client, context, { userId, type, category, title, message, href = null }) {
-  if (!userId) return false;
-  const result = await client.query(
-    `INSERT INTO notifications(organization_id,user_id,type,title,message,href)
-     SELECT $1,$2,$3,$4,$5,$6
-     WHERE EXISTS(SELECT 1 FROM organization_memberships WHERE organization_id=$1 AND user_id=$2 AND status='active')
-       AND COALESCE((SELECT enabled FROM notification_preferences
-         WHERE organization_id=$1 AND user_id=$2 AND channel='in_app' AND category=$7),true)
-     RETURNING id`,
-    [context.organizationId, userId, type, title, message, href, category],
-  );
-  return Boolean(result.rows[0]);
-}
+// In-app notifications are written by the Shared Platform service
+// (core/platform/notifications: createNotification). This file keeps only the
+// CRM-specific escalation lookup.
 
 // Resolves the escalation target for a user: their active sales-team
 // membership's manager (crm_sales_team_members -> crm_sales_teams.

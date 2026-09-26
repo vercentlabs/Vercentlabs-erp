@@ -7,6 +7,7 @@ import { liveCheckoutForOrganization } from "./checkout.js";
 import { getSeatStatus, SEAT_OVERAGE_GRACE_DAYS } from "./seats.js";
 import { billingStateKey } from "./state.js";
 import { billingAudit, subscriptionRow } from "./shared.js";
+import { queryAuditEvents } from "../platform/audit/index.js";
 
 const iso = (value) => (value ? new Date(value).toISOString() : null);
 
@@ -175,12 +176,11 @@ export async function getBillingHealth(client, organizationId) {
   ).rows[0];
   const lastEvent = (await client.query(`SELECT event_type, processing_status, provider_created_at FROM billing_webhook_events WHERE organization_id=$1 ORDER BY created_at DESC LIMIT 1`, [organizationId])).rows[0] || null;
   const seatOps = (await client.query(`SELECT status, operation, to_paid_seats, attempts, last_error IS NOT NULL AS has_error FROM billing_seat_changes WHERE organization_id=$1 AND status IN ('provider_pending','pending')`, [organizationId])).rows;
-  const recentAudit = (
-    await client.query(
-      `SELECT event_type, created_at, actor_user_id IS NOT NULL AS by_user FROM audit_events WHERE organization_id=$1 AND entity_type='billing' ORDER BY created_at DESC LIMIT 10`,
-      [organizationId],
-    )
-  ).rows;
+  const recentAudit = (await queryAuditEvents(client, organizationId, { entityType: "billing", limit: 10 })).events.map((event) => ({
+    event_type: event.eventType,
+    created_at: event.createdAt,
+    by_user: Boolean(event.actorUserId),
+  }));
   const needsAttention = Boolean(sub.reconciliation_required_at) || checkouts.some((row) => row.attention) || webhooks.dead_lettered > 0 || sub.cancellation_state === "failed";
   return {
     needsAttention,

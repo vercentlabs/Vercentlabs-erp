@@ -1,3 +1,4 @@
+import { createNotification } from "../../../core/platform/notifications/index.js";
 import { projectLeadForContext } from "./lead-security.js";
 import { assertEligibleLeadAssignee } from "./lead-governance.js";
 import { CrmError } from "../crm-data-operations-and-customization/errors.js";
@@ -15,20 +16,16 @@ import { assertLeadExpectedVersion } from "../crm-data-operations-and-customizat
 // action in shared-platform.ts) — no separate CRM notification channel.
 async function notifyLeadAssignmentOwner(client, context, { ownerUserId, leadId, leadName, reason }) {
   if (!ownerUserId || ownerUserId === context.userId) return;
-  await client.query(
-    `INSERT INTO notifications(organization_id,user_id,type,title,message,href)
-     SELECT $1,$2,'crm_assignment',$3,$4,$5
-     WHERE EXISTS(SELECT 1 FROM organization_memberships WHERE organization_id=$1 AND user_id=$2 AND status='active')
-       AND COALESCE((SELECT enabled FROM notification_preferences
-         WHERE organization_id=$1 AND user_id=$2 AND channel='in_app' AND category='crm_assignment'),true)`,
-    [
-      context.organizationId,
-      ownerUserId,
-      "New Lead assigned to you",
-      `${leadName || "A Lead"} was assigned to you (${reason || "manual"}).`,
-      `/crm/leads/${leadId}`,
-    ],
-  );
+  await createNotification(client, {
+    organizationId: context.organizationId,
+    userId: ownerUserId,
+    category: "crm_assignment",
+    title: "New Lead assigned to you",
+    message: `${leadName || "A Lead"} was assigned to you (${reason || "manual"}).`,
+    href: `/crm/leads/${leadId}`,
+    entityType: "crm_lead",
+    entityId: leadId,
+  });
 }
 
 

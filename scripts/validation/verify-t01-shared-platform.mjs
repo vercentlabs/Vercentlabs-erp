@@ -57,7 +57,7 @@ for (const relative of [
   "services/api/src/core/auth-mailer.js",
   "services/api/src/core/api-keys.js",
   "services/api/src/core/oauth.js",
-  "services/api/src/core/notification-preferences.js",
+  "services/api/src/core/platform/notifications/service.js",
   "services/api/src/core/inbound-mail.js",
   "services/api/src/core/tags.js",
   "services/api/src/core/configuration.js",

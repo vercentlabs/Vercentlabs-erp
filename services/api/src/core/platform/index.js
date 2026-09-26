@@ -1,4 +1,4 @@
-// Shared Platform — platform boundary.
+// Shared Platform ï¿½ platform boundary.
 // Shared platform services: configuration, numbering, idempotency, notifications, approvals, background jobs, tags, inbound mail, AI governance, references.
 //
 // Compatibility barrel: implementations still live in the flat
@@ -7,10 +7,10 @@
 export * from "../configuration.js";
 export * from "../document-numbering.js";
 export * from "../idempotency.js";
-export * from "../notifications.js";
-export * from "../notification-preferences.js";
-export * from "../approvals.js";
-export * from "../background-jobs.js";
+export * from "./notifications/index.js";
+export * from "./approvals/index.js";
+export * from "./jobs/index.js";
+export * from "./audit/index.js";
 export * from "../tags.js";
 export * from "../inbound-mail.js";
 export * from "../ai-governance.js";
