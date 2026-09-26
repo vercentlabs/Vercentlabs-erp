@@ -80,11 +80,11 @@ export const API_CORE_DOMAINS = Object.freeze(["access", "auth", "organization",
 // incrementally. New core code must be created inside a domain directory.
 export const LEGACY_FLAT_CORE_FILES = Object.freeze([
   "access-administration", "access-control-runtime", "ai-governance", "api-keys", "approvals", "attachment-security",
-  "audit-redaction", "auth-lifecycle", "auth-mailer", "background-jobs", "billing", "configuration", "decimal",
-  "document-numbering", "entitlements", "field-visibility", "idempotency", "inbound-mail", "inventory-lock",
+  "audit-redaction", "auth-lifecycle", "auth-mailer", "background-jobs", "configuration", "decimal",
+  "document-numbering", "field-visibility", "idempotency", "inbound-mail", "inventory-lock",
   "master-data", "mfa", "module-entitlements", "notification-preferences", "notifications", "oauth",
-  "organization-administration", "organization-registration", "password-policy", "privacy", "razorpay",
-  "references", "security", "session", "subscription-billing", "tags", "tax-engine",
+  "organization-administration", "organization-registration", "password-policy", "privacy",
+  "references", "security", "session", "tags", "tax-engine",
 ]);
 
 export function checkApiCoreLayout(entries) {
@@ -109,6 +109,16 @@ export function checkApiCoreLayout(entries) {
 
 // Security primitives with exactly one definition in the repository.
 export const CANONICAL_DEFINITIONS = Object.freeze({
+  // SaaS billing: one implementation of each rule, behind core/billing/.
+  hasWriteAccess: "services/api/src/core/billing/state.js",
+  calculateSeatCharge: "services/api/src/core/billing/catalogue.js",
+  getSeatStatus: "services/api/src/core/billing/seats.js",
+  getBillingSummary: "services/api/src/core/billing/entitlements.js",
+  requireBillingWriteAccess: "services/api/src/core/billing/entitlements.js",
+  verifyWebhookSignature: "services/api/src/core/billing/providers/razorpay.js",
+  verifyCheckoutSignature: "services/api/src/core/billing/providers/razorpay.js",
+  createRazorpayProvider: "services/api/src/core/billing/providers/razorpay.js",
+  reconcileSubscription: "services/api/src/core/billing/reconciliation.js",
   resolveSessionContext: "services/api/src/core/session.js",
   tokenHash: "services/api/src/core/session.js",
   hashPassword: "services/api/src/core/session.js",

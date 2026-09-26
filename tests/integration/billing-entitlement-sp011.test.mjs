@@ -31,9 +31,9 @@ import test from "node:test";
 import { randomUUID } from "node:crypto";
 
 import { Client } from "pg";
-import { getBillingSummary, requireBillingWriteAccess, EntitlementError } from "../../services/api/src/core/entitlements.js";
+import { getBillingSummary, requireBillingWriteAccess, EntitlementError } from "../../services/api/src/core/billing/index.js";
 import { hasWriteAccess as barrelHasWriteAccess } from "../../services/api/src/index.js";
-import { hasWriteAccess } from "../../services/api/src/core/billing.js";
+import { hasWriteAccess } from "../../services/api/src/core/billing/index.js";
 
 const adminConnectionString = process.env.MIGRATION_DATABASE_URL || "";
 
@@ -71,7 +71,7 @@ test("SP011: subscription-access entitlement policy against a real database", as
     assert.equal(hasWriteAccess({ status: "past_due", graceEndsAt: "2026-07-01T00:00:00Z" }, now), true, "in grace period");
     assert.equal(hasWriteAccess({ status: "past_due", graceEndsAt: "2026-06-01T00:00:00Z" }, now), false, "grace period elapsed");
     assert.equal(hasWriteAccess({ status: "past_due" }, now), false, "past_due with no grace end at all");
-    assert.equal(hasWriteAccess({ status: "halted", graceEndsAt: "2026-07-01T00:00:00Z" }, now), true, "halted still within its own grace window");
+    assert.equal(hasWriteAccess({ status: "halted", graceEndsAt: "2026-07-01T00:00:00Z" }, now), false, "halted: retries exhausted, business writes stop regardless of any leftover grace date");
     assert.equal(hasWriteAccess({ status: "checkout_pending" }, now), false);
     // Bug #2 fixed: a stale future trialEndsAt on a status that is NOT
     // "trialing" must never grant access.

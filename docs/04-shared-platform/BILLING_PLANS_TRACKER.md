@@ -1,5 +1,11 @@
 # Billing plans and seats: implementation tracker
 
+> **Superseded (Prompt 3).** The current model is Free = 1 user, Standard = first user included then ₹1,000
+> per additional user per month, Custom = contracted (never self-serve). The current design, tests and
+> operations are documented in [SAAS_BILLING_ARCHITECTURE.md](../01-standards/SAAS_BILLING_ARCHITECTURE.md).
+> This file is kept as the history of the earlier 3-user build; the tests it names were replaced by
+> `tests/integration/billing/` and `apps/web/e2e/billing-saas.spec.ts`, and `/api/billing/retry` was retired.
+
 Status legend: **Verified** = real-PostgreSQL integration test and/or browser spec; **Partial**; **Not built**.
 
 ## Commercial model built

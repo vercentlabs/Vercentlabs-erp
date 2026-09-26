@@ -11,6 +11,9 @@ export type WorkerConfig = {
     leaseMilliseconds: number;
     batchSize: number;
     schedulerTickMilliseconds: number;
+    billingMaintenanceEnabled: boolean;
+    billingMaintenanceIntervalMilliseconds: number;
+    billingBatchSize: number;
     webhookTimeoutMilliseconds: number;
     allowPrivateWebhookTargets: boolean;
   };
@@ -82,3 +85,5 @@ export type Worker = {
 export declare function createWorker(config: WorkerConfig, options?: { workerId?: string }): Worker;
 export declare function generateWorkerId(): string;
 export declare function registerBuiltinHandlers(): void;
+export declare function runBillingMaintenanceTick(pool: any, config: WorkerConfig, options: { workerId: string; provider?: any; steps?: string[] | null }): Promise<Record<string, any>>;
+export declare function createBillingMaintenanceLoop(getPool: () => Promise<any>, config: WorkerConfig, options: { workerId: string; provider?: any }): { start(): void; stop(): Promise<void> };

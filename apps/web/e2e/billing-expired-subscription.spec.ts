@@ -118,11 +118,12 @@ test("journey #13: an expired subscription blocks a real CRM write but never blo
       page.waitForResponse((res) => res.url().includes("/api/auth/login")),
       page.getByRole("button", { name: /sign in|log in/i }).click(),
     ]);
-    await page.waitForURL((url) => !url.pathname.startsWith("/login"), { timeout: 10_000 });
+    // Generous: this spec runs first on its own fresh server (playwright.config.billing.ts), so pages compile on first hit.
+    await page.waitForURL((url) => !url.pathname.startsWith("/login"), { timeout: 180_000 });
 
     // READ must work -- the leads list loads with zero errors.
     await page.goto("/crm/leads", { waitUntil: "networkidle" });
-    await expect(page.getByRole("heading", { name: "Leads" })).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByRole("heading", { name: "Leads" })).toBeVisible({ timeout: 180_000 });
     await expect(page.getByText(/subscription|billing|entitle/i)).not.toBeVisible();
 
     // WRITE must be blocked, with a clear, real error message -- not a

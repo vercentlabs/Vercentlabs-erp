@@ -14,7 +14,7 @@ import { moduleAccessPermission } from "@vercentlabs/permissions";
 import { ERP_MODULE_CATALOG } from "@vercentlabs/shared-types";
 
 import { hasSessionPermission, requireSessionPermission } from "../access-control-runtime.js";
-import { getBillingSummary } from "../entitlements.js";
+import { getBillingSummary } from "../billing/index.js";
 import { entitlementFromBillingSummary } from "../module-entitlements.js";
 import { audit } from "../security.js";
 

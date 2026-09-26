@@ -1,13 +1,22 @@
 import { z } from "zod";
 
 import { changeSubscriptionSeats } from "@vercentlabs/api";
+import { BILLING_PERMISSIONS } from "@vercentlabs/permissions";
 
-import { BILLING_PERMISSIONS, billingWrite } from "@/features/billing/server";
+import { ok, readJson } from "@/core/http";
+import { workspaceRoute } from "@/core/workspace-route";
+import { billingProvider } from "@/features/billing/provider";
 
 const schema = z.object({ users: z.number().int().min(1).max(500) });
 
 export async function POST(request: Request) {
-  return billingWrite(request, BILLING_PERMISSIONS.manage, (body) => schema.parse(body), async (client, session, input, provider) => ({
-    ...(await changeSubscriptionSeats(client, { organizationId: session.organizationId, userId: session.userId, email: session.email }, input as { users: number }, provider)),
-  }));
+  return workspaceRoute(
+    request,
+    { permission: BILLING_PERMISSIONS.manage, action: "billing.seats.change", transaction: "none", auditDenial: true },
+    async ({ client, session }) => {
+      const body = schema.parse(await readJson(request));
+      const ctx = { organizationId: session.organizationId, userId: session.userId, email: session.email };
+      return ok(await changeSubscriptionSeats(client, ctx, body, billingProvider()));
+    },
+  );
 }

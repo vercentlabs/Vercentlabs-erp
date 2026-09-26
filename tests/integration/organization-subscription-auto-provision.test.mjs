@@ -21,7 +21,7 @@ import test from "node:test";
 import { randomUUID } from "node:crypto";
 
 import { Client } from "pg";
-import { hasWriteAccess } from "../../services/api/src/core/billing.js";
+import { hasWriteAccess } from "../../services/api/src/core/billing/index.js";
 
 const adminConnectionString = process.env.MIGRATION_DATABASE_URL || "";
 
@@ -44,7 +44,7 @@ test("migration 052: new organizations get a real trial, never an automatic Foun
   }
 
   try {
-    await t.test("inserting a new organization provisions an active Free plan subscription (3 users), NOT Founder Preview", async () => {
+    await t.test("inserting a new organization provisions an active Free plan subscription (1 user), NOT Founder Preview", async () => {
       const orgId = randomUUID();
       const ownerId = randomUUID();
       try {
@@ -75,7 +75,7 @@ test("migration 052: new organizations get a real trial, never an automatic Foun
         assert.equal(row.plan_code, "free");
         assert.equal(row.source, "organizations_ensure_subscription_trigger");
         assert.equal(row.trial_ends_at, null);
-        assert.equal(row.included_users_snapshot, 3, "Free includes 3 users");
+        assert.equal(row.included_users_snapshot, 1, "Free includes 1 user (migration 061)");
         assert.equal(hasWriteAccess({ status: row.status }, new Date()), true);
         assert.ok(Array.isArray(row.modules_snapshot) && row.modules_snapshot.length > 0, "the plan carries a real module entitlement");
         assert.notEqual(row.limits_snapshot.companies, 25, "Free uses its own limits, not founder-preview's generous ones");

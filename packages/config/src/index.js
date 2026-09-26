@@ -114,6 +114,10 @@ export function validateRuntimeEnvironment(target, environment = process.env) {
         schedulerTickMilliseconds: integerValue(environment, "WORKER_SCHEDULER_TICK_MS", { defaultValue: 300_000, minimum: 30_000, maximum: 3_600_000 }),
         webhookTimeoutMilliseconds: integerValue(environment, "WORKER_WEBHOOK_TIMEOUT_MS", { defaultValue: 10_000, minimum: 1_000, maximum: 60_000 }),
         allowPrivateWebhookTargets: booleanValue(environment, "WORKER_ALLOW_PRIVATE_WEBHOOK_TARGETS", false),
+        // Platform billing maintenance (webhook processing, checkout/seat/cancellation recovery, reconciliation).
+        billingMaintenanceEnabled: booleanValue(environment, "BILLING_MAINTENANCE_ENABLED", true),
+        billingMaintenanceIntervalMilliseconds: integerValue(environment, "BILLING_MAINTENANCE_INTERVAL_MS", { defaultValue: 15_000, minimum: 1_000, maximum: 600_000 }),
+        billingBatchSize: integerValue(environment, "BILLING_MAINTENANCE_BATCH_SIZE", { defaultValue: 20, minimum: 1, maximum: 100 }),
       };
     }
   } else if (target === "landing") {

@@ -1,27 +1,15 @@
-// Ported from docs/frontend-rebuild/recovered-platform-code/apps/web/src/
-// core/billing.ts. Named "entitlements.js" (not "billing.js") to avoid
-// colliding with the existing services/api/src/core/billing.js, which
-// handles Razorpay plan/status-mapping only — a distinct concern from the
-// usage/entitlement policy ported here.
+// Plan entitlements, usage limits and the business write gate.
 //
-// Security/business properties preserved: enforcement-mode awareness
-// (observe vs enforce, defaulting to enforce only in production) so a
-// billing lookup failure never silently blocks in non-production;
-// idempotency-key-checked usage increments with divergence detection;
-// advisory-lock-serialized organization-limit checks (companies/branches)
-// to prevent a race from exceeding a plan's seat/company limit.
-//
-// hasWriteAccess is imported from billing.js, not redefined here -- this
-// file's own port originally DID redefine it, and because both modules
-// are re-exported with `export *` from the same services/api barrel
-// (index.js), the two same-named bindings collided: whichever module's
-// `export *` Node resolves last silently wins the whole app's actual
-// behavior, with no error and no indication the other definition was ever
-// dead. Confirmed empirically, not assumed -- importing hasWriteAccess
-// from "@vercentlabs/api" resolved to billing.js's version regardless of
-// what entitlements.js's own copy said, which is exactly "a competing
-// billing status predicate" this file must never have.
-import { hasWriteAccess } from "./billing.js";
+// Subscription -> plan entitlements (modules/limits snapshot) -> organisation
+// module enablement -> user permission. This file owns the first layer only;
+// organization_modules and permissions are separate (Shared Access).
+// Billing routes never call requireBillingWriteAccess: billing fixes billing.
+import { billingEnforcementMode } from "./enforcement.js";
+import { hasWriteAccess } from "./state.js";
+import { SEAT_OVERAGE_GRACE_DAYS } from "./seats.js";
+
+export { billingEnforcementMode };
+
 
 export class EntitlementError extends Error {
   constructor(status, message, code = "ENTITLEMENT_ERROR") {
@@ -32,7 +20,6 @@ export class EntitlementError extends Error {
   }
 }
 
-const SEAT_OVERAGE_GRACE_DAYS = 14;
 
 const DEFAULT_LIMITS = Object.freeze({
   companies: 1,
@@ -53,11 +40,6 @@ function iso(value) {
   return value ? new Date(value).toISOString() : null;
 }
 
-export function billingEnforcementMode(env = process.env) {
-  const configured = env.BILLING_ENFORCEMENT_MODE?.toLowerCase();
-  if (configured === "observe" || configured === "enforce") return configured;
-  return env.NODE_ENV === "production" ? "enforce" : "observe";
-}
 
 export async function getBillingSummary(client, organizationId, env = process.env) {
   const rows = await client.query(
@@ -65,6 +47,7 @@ export async function getBillingSummary(client, organizationId, env = process.en
         subscription.status,
         plan.code AS plan_code,
         plan.name AS plan_name,
+        plan.pricing_model,
         subscription.billing_period,
         subscription.current_period_ends_at,
         subscription.trial_ends_at,
@@ -131,6 +114,7 @@ export async function getBillingSummary(client, organizationId, env = process.en
     status: row.status,
     planCode: row.plan_code,
     planName: row.plan_name,
+    pricingModel: row.pricing_model,
     billingPeriod: row.billing_period,
     currentPeriodEndsAt: iso(row.current_period_ends_at),
     trialEndsAt: iso(row.trial_ends_at),
@@ -146,6 +130,8 @@ export async function getBillingSummary(client, organizationId, env = process.en
       !seatLocked &&
       hasWriteAccess({
         status: row.status,
+        pricingModel: row.pricing_model,
+        contractEndsAt: row.pricing_model === "custom" ? row.current_period_ends_at : null,
         trialEndsAt: row.trial_ends_at,
         graceEndsAt: row.grace_ends_at,
       }),

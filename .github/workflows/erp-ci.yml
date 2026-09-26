@@ -91,6 +91,9 @@ jobs:
       - name: Shared Access verification (static rules, catalogue integrity, access unit tests, route security)
         run: pnpm verify:access
 
+      - name: SaaS billing verification (architecture rules, provider isolation, billing unit tests, worker wiring)
+        run: pnpm verify:billing
+
       - name: Database structure verification
         run: pnpm verify:db
 
@@ -140,10 +143,13 @@ jobs:
   # above has no database, so its integration tests skip their DB cases;
   # this job provisions PostgreSQL 16 with SEPARATE migration and restricted
   # runtime roles and runs `pnpm test:access:db`, which fails if the database
-  # is unreachable or if any access test is skipped. Deliberately focused:
-  # no Playwright, no full integration suite.
+  # is unreachable or if any access test is skipped. The same database then
+  # runs `pnpm test:billing:db` (SaaS billing sagas, webhooks, leasing,
+  # recovery, entitlements) against a local Razorpay stand-in: no real
+  # Razorpay credentials, zero skips. Deliberately focused: no Playwright, no
+  # full integration suite.
   shared-access-db:
-    name: Shared Access + tenant isolation (real PostgreSQL 16)
+    name: Shared Access, tenant isolation + SaaS billing (real PostgreSQL 16)
     runs-on: ubuntu-latest
     timeout-minutes: 30
     services:
@@ -185,3 +191,6 @@ jobs:
 
       - name: Shared Access + RLS/tenant-isolation tests against PostgreSQL (zero skips allowed)
         run: pnpm test:access:db
+
+      - name: SaaS billing tests against PostgreSQL and a local Razorpay stand-in (zero skips allowed)
+        run: pnpm test:billing:db

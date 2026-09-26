@@ -17,7 +17,7 @@ authoritative for security.
 | Access | `services/api/src/core/access/` → `@vercentlabs/api/access` | Principal, WorkspaceAccessSnapshot, `authorize()`, module/scope/field checks, stable error codes, denial logging/audit. |
 | Auth | `services/api/src/core/auth/` | Sessions, passwords, email verification, MFA/TOTP, recovery codes, OAuth, rate-limited login. |
 | Organization | `services/api/src/core/organization/` | Organizations, companies, branches, memberships, invitations, registration. |
-| Billing | `services/api/src/core/billing/` | Subscriptions, plan entitlements, seats, usage limits, billing write gate. |
+| Billing | `services/api/src/core/billing/` | Vercentlabs SaaS billing (never tenant Accounting): commercial catalogue and immutable price versions, subscription state model, seats, checkout/seat/cancellation sagas, Razorpay adapter, webhook ingestion + worker processing, reconciliation, plan entitlements, business write gate. See [SAAS_BILLING_ARCHITECTURE.md](SAAS_BILLING_ARCHITECTURE.md). |
 | Security | `services/api/src/core/security/` | Origin/CSRF, rate limits, audit writer + redaction, attachment security, API keys, privacy. |
 | Platform | `services/api/src/core/platform/` | Configuration, numbering, idempotency, notifications, approvals, background jobs, tags, inbound mail, AI governance. |
 | Business modules | `services/api/src/modules/<module>/` | Domain logic and **record policies** (CRM owner/team, POS store/terminal, HR self/manager, Support queue, Projects membership, Stock warehouse). |
@@ -226,12 +226,15 @@ authentication tables piecemeal.
 | Architecture rules | `scripts/validation/architecture-rules.test.mjs` | `pnpm verify:access` |
 | Real PostgreSQL access/RLS, delegated admin matrix, invitations, modules, role sync | `tests/integration/access/` + listed isolation suites | `pnpm test:access:db` (fails on skip) |
 | Settings access UX | `apps/web/e2e/settings-shared-access.spec.ts` | `pnpm --filter @vercentlabs/web exec playwright test settings-shared-access.spec.ts` |
+| SaaS billing rules, provider isolation, worker wiring | `scripts/validation/verify-billing-architecture.mjs`, `services/api/tests/billing/` | `pnpm verify:billing` |
+| Real PostgreSQL billing sagas, webhooks, leasing, recovery, entitlements | `tests/integration/billing/` (local Razorpay stand-in) | `pnpm test:billing:db` (fails on skip) |
+| Billing browser journeys | `apps/web/e2e/billing-saas.spec.ts`, `billing-expired-subscription.spec.ts` | `pnpm test:e2e:billing` (own server + stand-in) |
 | Adversarial tenant/security | `tests/security/` | `pnpm test:security` |
 | Browser behaviour | `apps/web/e2e/` | `pnpm test:e2e:erp` |
 
-CI: `erp-ci.yml` runs `verify:access` in the main job and a dedicated
-`shared-access-db` job (PostgreSQL 16, migrations, restricted runtime role,
-`test:access:db`).
+CI: `erp-ci.yml` runs `verify:access` and `verify:billing` in the main job and a
+dedicated `shared-access-db` job (PostgreSQL 16, migrations, restricted runtime
+role, `test:access:db`, `test:billing:db`).
 
 ## 10. Known gaps (closed in later prompts)
 
@@ -241,4 +244,4 @@ CI: `erp-ci.yml` runs `verify:access` in the main job and a dedicated
 4. Business-module routes still use per-module `require<Module>Access` helpers instead of `workspaceRoute`; organisation profile/security settings routes are listed exceptions.
 5. Deprecated invitation columns (`role_id`, `company_ids`, `branch_ids`) are still mirrored for the rollout window; drop them once no older instance can run.
 6. `docs/frontend-rebuild/recovered-platform-code` is still read by `verify:t01` for two unported slices (reporting dataset permissions, workflow-run engine).
-7. Billing/plan administration and seat purchase flows are unchanged here (next prompt).
+7. Billing: Vercentlabs GST tax invoices are not generated (provider invoices/receipts only; fails closed until the legal configuration exists); Custom contracts are provisioned by an operator script, with no internal admin UI yet; moving legacy v1 Standard subscriptions (3 included users) to v2 terms needs a deliberate provider plan change.

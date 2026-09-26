@@ -11,6 +11,7 @@ import { findMatchingSubscriptions, deliverOutboxEvent } from "./handlers/crm-we
 import { webhookBackoff, internalJobBackoff } from "./backoff.js";
 import { buildSystemContext } from "./system-context.js";
 import { runSchedulerTick } from "./scheduler.js";
+import { createBillingMaintenanceLoop } from "./billing-maintenance.js";
 
 const logger = createLogger("worker");
 
@@ -138,8 +139,10 @@ async function processOrganization(pool, workerId, config, organizationId) {
 // 86) — this is the standalone entrypoint every deployment path
 // (pnpm dev:worker, pnpm start:worker, the Kubernetes Deployment) runs as
 // its own long-lived process.
-export function createWorker(config, { workerId = generateWorkerId() } = {}) {
+export function createWorker(config, { workerId = generateWorkerId(), billingProvider } = {}) {
   let stopped = false;
+  // Platform billing runs on its own loop and connections, never inside tenant job transactions.
+  const billing = createBillingMaintenanceLoop(getPool, config, { workerId, provider: billingProvider });
   let stopRequested = false;
   let pollTimer;
   let schedulerTimer;
@@ -189,6 +192,7 @@ export function createWorker(config, { workerId = generateWorkerId() } = {}) {
       };
       await tick();
       schedulerTimer = setInterval(schedule, config.worker.schedulerTickMilliseconds);
+      billing.start();
       logger.info("worker started", { workerId });
     },
     // Graceful shutdown (Part 13): stop claiming new work, let the
@@ -202,6 +206,7 @@ export function createWorker(config, { workerId = generateWorkerId() } = {}) {
       clearTimeout(pollTimer);
       clearInterval(schedulerTimer);
       await activePoll.catch(() => {});
+      await billing.stop();
       await closePool();
       stopped = true;
       logger.info("worker stopped", { workerId });

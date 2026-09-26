@@ -104,8 +104,13 @@ jobs:
           node scripts/qa/run-e2e-per-spec.mjs
           crm-regression.spec.ts crm-authorization.spec.ts crm-uiux.spec.ts crm-settings-setup.spec.ts
           crm-public-booking.spec.ts opportunity-stage-transition.spec.ts restricted-role-authorization.spec.ts
-          platform-security.spec.ts platform-surfaces.spec.ts accounting-schedule-views.spec.ts billing-plans.spec.ts
+          platform-security.spec.ts platform-surfaces.spec.ts accounting-schedule-views.spec.ts
           accessibility.spec.ts responsive-layout.spec.ts
+
+      # SaaS billing journeys start their OWN isolated web server (enforce mode, checkout on) and a local
+      # Razorpay stand-in; no real Razorpay credentials. See apps/web/playwright.config.billing.ts.
+      - name: Run the SaaS billing journeys
+        run: pnpm --filter @vercentlabs/web test:e2e:billing
 
       - name: Run the full suite
         if: ${{ github.event_name == 'schedule' || inputs.full }}

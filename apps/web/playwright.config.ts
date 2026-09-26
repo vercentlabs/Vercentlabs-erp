@@ -5,6 +5,8 @@ const BASE_URL = process.env.QA_BASE_URL ?? `http://localhost:${PORT}`;
 
 export default defineConfig({
   testDir: "./e2e",
+  // Billing journeys need their own enforce-mode server and Razorpay stand-in: playwright.config.billing.ts.
+  testIgnore: ["billing-saas.spec.ts", "billing-expired-subscription.spec.ts"],
   fullyParallel: false,
   workers: 1,
   retries: 0,

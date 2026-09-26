@@ -33,7 +33,7 @@ import { randomUUID } from "node:crypto";
 import { execFileSync } from "node:child_process";
 
 import { Client } from "pg";
-import { requireBillingWriteAccess, EntitlementError } from "../../services/api/src/core/entitlements.js";
+import { requireBillingWriteAccess, EntitlementError } from "../../services/api/src/core/billing/index.js";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(here, "../..");

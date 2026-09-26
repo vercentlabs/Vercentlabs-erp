@@ -1,7 +1,13 @@
 import { listPlanCatalogue } from "@vercentlabs/api";
+import { BILLING_PERMISSIONS } from "@vercentlabs/permissions";
 
-import { BILLING_PERMISSIONS, billingRead } from "@/features/billing/server";
+import { ok } from "@/core/http";
+import { workspaceRoute } from "@/core/workspace-route";
 
-export async function GET() {
-  return billingRead(BILLING_PERMISSIONS.view, async (client, session) => ({ plans: await listPlanCatalogue(client, session.organizationId, process.env) }));
+export async function GET(request: Request) {
+  return workspaceRoute(
+    request,
+    { permission: BILLING_PERMISSIONS.view, action: "billing.plans", transaction: "none" },
+    async ({ client, session }) => ok({ plans: await listPlanCatalogue(client, session.organizationId, process.env) }),
+  );
 }

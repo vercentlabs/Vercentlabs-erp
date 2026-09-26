@@ -1,10 +1,16 @@
 import { syncSubscriptionFromProvider } from "@vercentlabs/api";
+import { BILLING_PERMISSIONS } from "@vercentlabs/permissions";
 
-import { BILLING_PERMISSIONS, billingWrite } from "@/features/billing/server";
+import { ok } from "@/core/http";
+import { workspaceRoute } from "@/core/workspace-route";
+import { billingProvider } from "@/features/billing/provider";
 
-// Pulls the subscription's current state from the payment provider, for when a webhook is delayed.
+// "Refresh status": finish a pending verification and reconcile with the provider.
 export async function POST(request: Request) {
-  return billingWrite(request, BILLING_PERMISSIONS.manage, () => ({}), async (client, session, _input, provider) => ({
-    ...(await syncSubscriptionFromProvider(client, { organizationId: session.organizationId, userId: session.userId }, provider)),
-  }));
+  return workspaceRoute(
+    request,
+    { permission: BILLING_PERMISSIONS.manage, action: "billing.reconcile", transaction: "none" },
+    async ({ client, session }) =>
+      ok(await syncSubscriptionFromProvider(client, { organizationId: session.organizationId, userId: session.userId }, billingProvider())),
+  );
 }

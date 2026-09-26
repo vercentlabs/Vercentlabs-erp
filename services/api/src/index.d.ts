@@ -286,7 +286,6 @@ export * from "./modules/crm/prospect-and-relationship-master-data/account-opera
 export * from "./modules/crm/prospect-and-relationship-master-data/contact-operations.js";
 export * from "./modules/crm/prospect-and-relationship-master-data/lead-source-operations.js";
 export * from "./modules/crm/lead-lifecycle-qualification-and-prioritization/lead-qualification.js";
-export * from "./core/billing.js";
 export * from "./modules/sales/index.js";
 
 export * from "./modules/accounting/index.js";
@@ -719,9 +718,7 @@ export * from "./core/access/index.js";
 export * from "./core/access-control-runtime.js";
 export * from "./core/session.js";
 export * from "./core/access-administration.js";
-export * from "./core/entitlements.js";
-export * from "./core/razorpay.js";
-export * from "./core/subscription-billing.js";
+export * from "./core/billing/index.js";
 export * from "./core/module-entitlements.js";
 export * from "./core/audit-redaction.js";
 export * from "./core/security.js";

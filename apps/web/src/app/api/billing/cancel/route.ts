@@ -1,13 +1,16 @@
-import { z } from "zod";
-
 import { cancelPaidSubscription } from "@vercentlabs/api";
+import { BILLING_PERMISSIONS } from "@vercentlabs/permissions";
 
-import { BILLING_PERMISSIONS, billingWrite } from "@/features/billing/server";
+import { ok } from "@/core/http";
+import { workspaceRoute } from "@/core/workspace-route";
+import { billingProvider } from "@/features/billing/provider";
 
-const schema = z.object({ cancelAtCycleEnd: z.boolean().default(true) });
-
+// Self-service cancellation is always at the end of the paid period.
 export async function POST(request: Request) {
-  return billingWrite(request, BILLING_PERMISSIONS.manage, (body) => schema.parse(body ?? {}), async (client, session, input, provider) => ({
-    ...(await cancelPaidSubscription(client, { organizationId: session.organizationId, userId: session.userId, email: session.email }, input as { cancelAtCycleEnd: boolean }, provider)),
-  }));
+  return workspaceRoute(
+    request,
+    { permission: BILLING_PERMISSIONS.manage, action: "billing.cancel", transaction: "none", auditDenial: true },
+    async ({ client, session }) =>
+      ok(await cancelPaidSubscription(client, { organizationId: session.organizationId, userId: session.userId }, billingProvider())),
+  );
 }

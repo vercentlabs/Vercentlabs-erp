@@ -115,7 +115,7 @@ test("SP004: self-serve organization registration against a real database", asyn
       const sub = await admin.query(`SELECT status, included_users_snapshot FROM organization_subscriptions WHERE organization_id=$1`, [firstOrgId]);
       assert.equal(sub.rows[0].status, "active");
       assert.notEqual(sub.rows[0].status, "internal");
-      assert.equal(sub.rows[0].included_users_snapshot, 3, "a self-serve signup starts on Free with 3 users");
+      assert.equal(sub.rows[0].included_users_snapshot, 1, "a self-serve signup starts on Free with 1 user (migration 061)");
     });
 
     await t.test("a new organization can create its first account: numbering series and the base currency exist from the start", async () => {

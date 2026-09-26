@@ -1,8 +1,11 @@
 import { z } from "zod";
 
-import { confirmSeatCheckout, syncSubscriptionFromProvider } from "@vercentlabs/api";
+import { confirmSeatCheckout } from "@vercentlabs/api";
+import { BILLING_PERMISSIONS } from "@vercentlabs/permissions";
 
-import { BILLING_PERMISSIONS, billingWrite } from "@/features/billing/server";
+import { ok, readJson } from "@/core/http";
+import { workspaceRoute } from "@/core/workspace-route";
+import { billingProvider } from "@/features/billing/provider";
 
 const schema = z.object({
   checkoutSessionId: z.string().uuid(),
@@ -11,12 +14,16 @@ const schema = z.object({
   razorpay_signature: z.string().min(1).max(200),
 });
 
+// Signature checked against the server-stored subscription id; entitlement
+// changes only after the provider confirms. Returns state "active" or "pending".
 export async function POST(request: Request) {
-  return billingWrite(request, BILLING_PERMISSIONS.checkout, (body) => schema.parse(body), async (client, session, input, provider) => {
-    const ctx = { organizationId: session.organizationId, userId: session.userId, email: session.email };
-    const confirmed = await confirmSeatCheckout(client, ctx, input, provider);
-    // Bring the plan up to date now rather than waiting for the webhook; a failure here is not a failed payment.
-    const synced = await syncSubscriptionFromProvider(client, ctx, provider).catch(() => ({ synced: false }));
-    return { ...confirmed, synced: synced.synced, message: "Your subscription is confirmed." };
-  });
+  return workspaceRoute(
+    request,
+    { permission: BILLING_PERMISSIONS.checkout, action: "billing.checkout.verify", transaction: "none", auditDenial: true },
+    async ({ client, session }) => {
+      const body = schema.parse(await readJson(request));
+      const ctx = { organizationId: session.organizationId, userId: session.userId, email: session.email };
+      return ok(await confirmSeatCheckout(client, ctx, body, billingProvider()));
+    },
+  );
 }

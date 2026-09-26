@@ -1,7 +1,15 @@
 import { getBillingOverview } from "@vercentlabs/api";
+import { BILLING_PERMISSIONS } from "@vercentlabs/permissions";
 
-import { BILLING_PERMISSIONS, billingRead } from "@/features/billing/server";
+import { ok } from "@/core/http";
+import { workspaceRoute } from "@/core/workspace-route";
 
-export async function GET() {
-  return billingRead(BILLING_PERMISSIONS.view, async (client, session) => ({ overview: await getBillingOverview(client, session.organizationId, process.env) }));
+// Billing is never behind the billing write gate: an expired or over-limit
+// organisation must still be able to open Billing and fix it.
+export async function GET(request: Request) {
+  return workspaceRoute(
+    request,
+    { permission: BILLING_PERMISSIONS.view, action: "billing.summary", transaction: "none" },
+    async ({ client, session }) => ok({ overview: await getBillingOverview(client, session.organizationId, process.env) }),
+  );
 }

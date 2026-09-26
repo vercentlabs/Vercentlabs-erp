@@ -5,7 +5,6 @@ export * from "./core/idempotency.js";
 export * from "./core/inventory-lock.js";
 export * from "./core/references.js";
 export * from "./modules/crm/index.js";
-export * from "./core/billing.js";
 export * from "./modules/sales/index.js";
 
 export * from "./modules/accounting/index.js";
@@ -153,9 +152,7 @@ export * from "./core/access/index.js";
 export * from "./core/access-control-runtime.js";
 export * from "./core/session.js";
 export * from "./core/access-administration.js";
-export * from "./core/entitlements.js";
-export * from "./core/razorpay.js";
-export * from "./core/subscription-billing.js";
+export * from "./core/billing/index.js";
 export * from "./core/module-entitlements.js";
 export * from "./core/audit-redaction.js";
 export * from "./core/security.js";

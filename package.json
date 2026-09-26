@@ -97,7 +97,10 @@
     "verify:crm": "npx --yes pnpm@11.21.0 verify:crm:backend && npx --yes pnpm@11.21.0 test:api",
     "design:generate": "node scripts/design/generate-theme.mjs && node scripts/design/generate-tailwind-theme.mjs",
     "design:check": "node scripts/design/generate-theme.mjs --check && node scripts/design/generate-tailwind-theme.mjs --check",
-    "deadcode:check": "npx --yes pnpm@11.21.0 exec knip"
+    "deadcode:check": "npx --yes pnpm@11.21.0 exec knip",
+    "test:billing:db": "node scripts/billing/run-db-tests.mjs",
+    "verify:billing": "node scripts/validation/verify-billing-architecture.mjs && node --test services/api/tests/billing/*.test.mjs services/worker/tests/billing-maintenance.test.mjs",
+    "test:e2e:billing": "npx --yes pnpm@11.21.0 --filter @vercentlabs/web test:e2e:billing"
   },
   "engines": {
     "node": ">=24 <25",

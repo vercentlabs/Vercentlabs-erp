@@ -17,7 +17,8 @@
     "test:e2e:erp": "playwright test",
     "verify:tokens": "node ../../scripts/design/generate-tailwind-theme.mjs --check",
     "verify:no-legacy-frontend": "node ../../scripts/validation/verify-no-legacy-frontend.mjs",
-    "verify:routes": "node scripts/verify-routes.mjs"
+    "verify:routes": "node scripts/verify-routes.mjs",
+    "test:e2e:billing": "playwright test -c playwright.config.billing.ts"
   },
   "dependencies": {
     "@swc/helpers": "0.5.15",

@@ -13,3 +13,4 @@ export { buildSystemContext, SYSTEM_ACTOR_ROLE_SLUG } from "./system-context.js"
 export { runSchedulerTick } from "./scheduler.js";
 export { createWorker, generateWorkerId } from "./worker.js";
 export { registerBuiltinHandlers } from "./handlers/index.js";
+export { runBillingMaintenanceTick, createBillingMaintenanceLoop } from "./billing-maintenance.js";

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { billingEnforcementMode, getBillingSummary, EntitlementError, incrementBillingUsage } from "../src/core/entitlements.js";
+import { billingEnforcementMode, getBillingSummary, EntitlementError, incrementBillingUsage } from "../src/core/billing/index.js";
 
 test("billingEnforcementMode defaults to enforce in production and observe elsewhere unless explicitly configured", () => {
   assert.equal(billingEnforcementMode({ NODE_ENV: "production" }), "enforce");

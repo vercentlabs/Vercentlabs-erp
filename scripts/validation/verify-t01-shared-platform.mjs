@@ -48,7 +48,7 @@ for (const relative of [
   "services/api/src/core/access-control-runtime.js",
   "services/api/src/core/session.js",
   "services/api/src/core/access-administration.js",
-  "services/api/src/core/entitlements.js",
+  "services/api/src/core/billing/entitlements.js",
   "services/api/src/core/module-entitlements.js",
   "services/api/src/core/security.js",
   "services/api/src/core/audit-redaction.js",

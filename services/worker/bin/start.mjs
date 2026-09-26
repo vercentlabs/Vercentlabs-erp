@@ -3,6 +3,7 @@
 // dev:worker). Deliberately a standalone process, never started via a
 // Next.js route/layout/module import (Part 86) — this file is the only
 // thing that ever calls createWorker().start().
+import { validateRazorpayConfig } from "@vercentlabs/api";
 import { createLogger } from "@vercentlabs/observability";
 
 import { getWorkerConfig } from "../src/db.js";
@@ -16,6 +17,12 @@ async function main() {
   if (!config.worker.enabled) {
     logger.info("WORKER_ENABLED is false — exiting without starting.");
     return;
+  }
+  // Billing maintenance talks to Razorpay: refuse to start in production with an unsafe configuration.
+  const billingProblems = validateRazorpayConfig(process.env);
+  if (billingProblems.length) {
+    logger.error("billing provider configuration problems", { problems: billingProblems });
+    if (config.production) throw new Error("Refusing to start: billing provider configuration is invalid.");
   }
   registerBuiltinHandlers();
   const worker = createWorker(config);

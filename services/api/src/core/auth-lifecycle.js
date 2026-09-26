@@ -22,7 +22,7 @@ import {
   validateScopeGrantCeiling,
 } from "./access-administration.js";
 import { ACCESS_EVIDENCE_EVENTS, recordAccessAssignmentEvent } from "./access/index.js";
-import { assertSeatAvailable, withSeatLock } from "./subscription-billing.js";
+import { assertSeatAvailable, withSeatLock } from "./billing/index.js";
 
 export class AuthLifecycleError extends Error {
   constructor(status, message, code) {
