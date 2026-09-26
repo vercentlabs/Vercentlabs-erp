@@ -11,7 +11,7 @@
 import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 
 import { getDomainEvent, projectDomainEvent } from "../../events/index.js";
-import { audit } from "../../../security.js";
+import { audit } from "../../../security/request-security.js";
 import { decryptSecret, encryptSecret } from "../../secrets/index.js";
 import { validateWebhookUrl } from "./ssrf.js";
 

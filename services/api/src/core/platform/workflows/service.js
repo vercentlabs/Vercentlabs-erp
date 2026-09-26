@@ -20,7 +20,7 @@
 import { getDomainEvent, projectDomainEvent } from "../events/index.js";
 import { isFeatureFlagEnabled } from "../configuration/index.js";
 import { createNotification } from "../notifications/index.js";
-import { audit } from "../../security.js";
+import { audit } from "../../security/request-security.js";
 import { CONDITION_OPERATORS, WORKFLOW_ACTIONS, WORKFLOW_ENTITY_LINKS, WORKFLOW_LIMITS, WORKFLOW_NOTIFICATION_CATEGORY } from "./registry.js";
 
 export class WorkflowError extends Error {

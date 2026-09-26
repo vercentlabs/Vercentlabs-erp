@@ -13,7 +13,7 @@ import {
 import { createLogger, runWithContext } from "@vercentlabs/observability";
 import type { PoolClient } from "pg";
 
-import { tenantTransaction } from "@/core/db";
+import { organizationConnection, tenantTransaction } from "@/core/db";
 import { errorResponse } from "@/core/http";
 import { requireApiWorkspace, type WorkspaceSessionContext } from "@/core/session";
 
@@ -62,6 +62,7 @@ export async function workspaceRoute(
     assertOrigin: (incoming) => assertSameOriginOrMobile(incoming, process.env),
     requireSession: () => requireApiWorkspace(),
     runTenant: (organizationId, work) => tenantTransaction(organizationId, work),
+    runOrganizationConnection: (organizationId, work) => organizationConnection(organizationId, work),
     createPrincipal: (session) => createAccessPrincipal(session),
     buildSnapshot: (client, session) => buildWorkspaceAccessSnapshot(client, session, { env: process.env }),
     authorize: (input) => authorize(input),

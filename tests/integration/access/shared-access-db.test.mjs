@@ -22,8 +22,8 @@ import { Client } from "pg";
 import { ALL_PERMISSIONS, ROLE_TEMPLATES } from "../../../packages/permissions/src/index.js";
 import { ERP_MODULE_CATALOG } from "../../../packages/shared-types/src/modules.js";
 import { runTenantTransaction } from "../../../packages/database/src/index.js";
-import { bootstrapOrganizationRoles } from "../../../services/api/src/core/organization-registration.js";
-import { createSession, resolveSessionContext } from "../../../services/api/src/core/session.js";
+import { bootstrapOrganizationRoles } from "../../../services/api/src/core/organization/registration.js";
+import { createSession, resolveSessionContext } from "../../../services/api/src/core/auth/session.js";
 import { authorize, buildWorkspaceAccessSnapshot } from "../../../services/api/src/core/access/index.js";
 
 const migrationUrl = process.env.MIGRATION_DATABASE_URL || "";

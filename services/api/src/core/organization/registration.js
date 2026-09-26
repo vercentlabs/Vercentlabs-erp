@@ -23,8 +23,8 @@ import { setTenantContext } from "@vercentlabs/database";
 
 import { ROLE_TEMPLATES } from "@vercentlabs/permissions";
 
-import { hashPassword } from "./session.js";
-import { passwordPolicyIssues } from "./password-policy.js";
+import { hashPassword } from "../auth/session.js";
+import { passwordPolicyIssues } from "../auth/password-policy.js";
 
 export class OrganizationRegistrationError extends Error {
   constructor(status, message, code = "ORG_REGISTRATION_ERROR", details) {

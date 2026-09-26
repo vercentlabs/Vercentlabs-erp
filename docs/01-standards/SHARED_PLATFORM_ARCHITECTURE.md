@@ -109,6 +109,14 @@ module view permission) → billing write gate → handler (validation, domain
 call, audit) with the request/correlation ids and organisation in the log
 context.
 
+The only exception to the single request transaction is `transaction:
+"none"`, used by the billing routes whose saga must commit its intent before
+calling the payment provider: the handler gets one connection whose
+organisation context is a connection setting (it survives the saga's own
+short transactions) and is always reset before the connection returns to the
+pool (`runWithOrganizationConnection` in `@vercentlabs/database`).
+`pnpm verify:billing` requires it on those routes.
+
 Every authenticated business and administration route uses it — directly or
 through a module route helper (`features/<module>/shared/route-helpers.ts`,
 audited at scan time to call `workspaceRoute` and, for mutations, set
@@ -265,7 +273,7 @@ one authoritative implementation; modules call it and never keep a second copy.
 |---|---|---|---|
 | Notifications | `notifications/`: `createNotification` (the only writer), category registry, preferences, list/unread/mark-read, read-time projection | `notifications/visibility.js`: record-visibility adapters (CRM) | when to notify and the text |
 | Approvals | `approvals/`: command catalogue, `createApprovalRequest` (one pending request per target), `finalizeApprovalRequest`, `recordApprovalDecision`, decision evidence, SoD, cancellation, viewer visibility | `approvals/registry.js` (command → module function) and `inbox.js` (validate → dispatch → finalize, one transaction) | the business decision and document state |
-| Audit | `audit/reader.js`: read model over the append-only `audit_events` | — | what to audit (written through `core/security.js`) |
+| Audit | `audit/reader.js`: read model over the append-only `audit_events` | — | what to audit (written through `core/security/request-security.js`) |
 | Search | — | `search/providers.js` (the one provider registry) and `service.js` | the list functions the providers reuse |
 | Background jobs | `jobs/`: presentation registry, viewer service | — | job handlers (`services/worker`) |
 
@@ -462,14 +470,43 @@ Enforced by `pnpm verify:platform-services` (static rules and unit tests) and
 journeys: `pnpm test:e2e:platform-services`, which runs its own web server and
 the OAuth stand-in.
 
-## 12. Known gaps (closed in later prompts)
+## 12. Known gaps
 
-1. Department/team access exists in foundations but is not productized or universally wired (needs the HR/organisation-structure ownership decision).
-2. Record access stays domain-specific by design; field security is uneven across modules.
-3. Organization-scoped public/platform tables lack an RLS safety net (§6).
-4. Business-module routes still use per-module `require<Module>Access` helpers instead of `workspaceRoute`; organisation profile/security settings routes are listed exceptions.
-5. Deprecated invitation columns (`role_id`, `company_ids`, `branch_ids`) are still mirrored for the rollout window; drop them once no older instance can run.
-6. Billing: Vercentlabs GST tax invoices are not generated (provider invoices/receipts only; fails closed until the legal configuration exists); Custom contracts are provisioned by an operator script, with no internal admin UI yet; moving legacy v1 Standard subscriptions (3 included users) to v2 terms needs a deliberate provider plan change.
-7. Shared Runtime: notification categories are registered only where a module emits today (CRM); search covers CRM (leads, accounts, contacts, opportunities) and Sales (customers, products) only; background jobs have no cancel/retry; notifications are in-app only (no push/email delivery).
-8. Platform services (Prompt 6): organisation-scoped platform tables (`attachments`, `api_keys`, `oauth_connections`, `inbound_mail_*`, workflow and report tables) still lack RLS; integration secrets use one environment key with no KMS or rotation tooling; a cloud object-storage provider is not implemented (production file storage fails closed); retired tables (`numbering_series`, `crm_webhook_subscriptions`, `crm_outbox_events`) are commented as retired but not dropped.
-9. Platform services scope: the only v1 endpoint is `GET /api/v1/platform/context`; workflows have one action (in-app notification) and CRM triggers only; report datasets are CRM leads and Sales orders, without scheduling; no AI tools are registered; tags have no Settings admin page.
+Closed by Prompt 6: platform-table RLS with one classification and three
+database authorities; every business route on `workspaceRoute`; no
+per-module access helpers, web SQL or cross-feature import exceptions; the
+field-security registry and cross-channel checks
+(`packages/permissions/src/field-security.js`); department/team scope in
+access administration and invitations; KMS envelope encryption with
+rotation; Cloud Storage with legacy migration and reconciliation; retired
+tables and legacy invitation columns removed by contract migrations; the
+Google Cloud deployment (`infrastructure/`, `docs/operations/`).
+
+Remaining, deliberately out of scope so far:
+
+1. Contract migrations are shipped but run only as an explicit release step
+   (`RELEASE_RUNBOOK.md` §2) once `ops:status` shows no blockers in each
+   environment.
+2. Record access stays domain-specific by design. Membership department/team
+   scope is administered, validated and stored centrally (users, invitations),
+   but it is not yet part of the access principal and no module record policy
+   filters records by it; company/branch scope and each module's own ownership
+   rules remain the record boundary.
+3. Field-level rules exist where the repository has a sensitive-field
+   permission (see the registry); Assets, Stock and Quality have none.
+4. Billing: Vercentlabs GST tax invoices are not generated (provider
+   invoices/receipts only; fails closed until the legal configuration exists);
+   Custom contracts are provisioned by an operator script, with no internal
+   admin UI; moving legacy v1 Standard subscriptions to v2 terms needs a
+   deliberate provider plan change.
+5. Shared Runtime: notification categories are registered only where a
+   module emits today (CRM); search covers CRM and Sales; background jobs have
+   no cancel/retry; notifications are in-app only.
+6. Platform services scope: the only v1 endpoint is
+   `GET /api/v1/platform/context`; workflows have one action (in-app
+   notification) and CRM triggers only; report datasets are CRM leads and
+   Sales orders, without scheduling; no AI tools are registered.
+7. The ERP CSP keeps `'unsafe-inline'` for scripts/styles (Next.js App Router
+   inline bootstrap and Razorpay Checkout); removing it needs a nonce-based,
+   fully dynamic CSP proven by E2E. `'unsafe-eval'` is never allowed in
+   production.

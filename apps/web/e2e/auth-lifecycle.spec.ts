@@ -24,7 +24,7 @@ function loadDbUrlFromEnvLocal(): string | undefined {
  * Real-browser, real-database proof of the authentication lifecycle work
  * built in Checkpoint B (ERP completion gap audit): email verification,
  * password reset, and organization invitations. This app's own domain
- * functions (services/api/src/core/auth-lifecycle.js) never return a raw
+ * functions (services/api/src/core/auth/lifecycle.js) never return a raw
  * token over the API by design — only the mailer sees it — so these specs
  * read the DB directly to recover the token a real email would have
  * carried, exactly the way a real user clicking a real email link would

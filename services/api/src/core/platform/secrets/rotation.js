@@ -1,7 +1,7 @@
 // Every column that stores an encrypted secret. `verify:production` fails if a
 // migration adds an encrypted column that is not registered here, so the
 // re-encryption commands can never silently skip data.
-import { audit } from "../../security.js";
+import { audit } from "../../security/request-security.js";
 import { decryptSecret, encryptSecret, isEnvelope, isLegacyPayload, resolveSecretsProvider } from "./envelope.js";
 
 export const ENCRYPTED_COLUMNS = Object.freeze([

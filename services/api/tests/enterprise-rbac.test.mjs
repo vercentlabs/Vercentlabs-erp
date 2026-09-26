@@ -7,7 +7,7 @@
 //
 // This version exercises the LIVE code the parked snapshot was ported
 // into: packages/permissions/src/roles.js (role templates, SoD policy)
-// and services/api/src/core/access-administration.js (delegated-admin
+// and services/api/src/core/access/administration-service.js (delegated-admin
 // scope containment, grant-ceiling enforcement). See
 // docs/frontend-rebuild/PLATFORM_PORT_REGISTER.csv for the full mapping.
 // Deeper per-symbol coverage of each already lives in
@@ -29,7 +29,7 @@ import {
   hasUnrestrictedAccessAdministration,
   AccessAdministrationError,
   assertUserWithinAdministrationScope,
-} from "../src/core/access-administration.js";
+} from "../src/core/access/administration-service.js";
 
 const assignableRoleSlugs = [
   "system_administrator", "company_administrator", "employee", "auditor", "read_only",

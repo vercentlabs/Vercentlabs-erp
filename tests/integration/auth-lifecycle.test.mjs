@@ -23,9 +23,9 @@ import {
   revokeOrganizationInvitation,
   resendOrganizationInvitation,
   AuthLifecycleError,
-} from "../../services/api/src/core/auth-lifecycle.js";
-import { AccessAdministrationError } from "../../services/api/src/core/access-administration.js";
-import { hashPassword, verifyPassword, createOpaqueToken, tokenHash, createSession } from "../../services/api/src/core/session.js";
+} from "../../services/api/src/core/auth/lifecycle.js";
+import { AccessAdministrationError } from "../../services/api/src/core/access/administration-service.js";
+import { hashPassword, verifyPassword, createOpaqueToken, tokenHash, createSession } from "../../services/api/src/core/auth/session.js";
 import { applyOfflineMail } from "../support/offline-mail.mjs";
 
 applyOfflineMail(process.env);

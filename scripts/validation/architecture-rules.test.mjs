@@ -42,7 +42,9 @@ test("features import each other only through public boundaries", () => {
 
 test("new flat services/api/src/core files and unknown domains are rejected", () => {
   const domains = ["access", "auth", "organization", "billing", "platform", "security"].map((name) => ({ name, isDirectory: true }));
-  assert.deepEqual(checkApiCoreLayout([...domains, { name: "session.js", isDirectory: false }, { name: "session.d.ts", isDirectory: false }]), []);
+  assert.deepEqual(checkApiCoreLayout([...domains, { name: "decimal.js", isDirectory: false }, { name: "decimal.d.ts", isDirectory: false }]), []);
+  // Auth primitives moved behind the auth boundary: a flat session.js is new code now.
+  assert.match(checkApiCoreLayout([...domains, { name: "session.js", isDirectory: false }])[0], /inside a domain directory/);
   assert.match(checkApiCoreLayout([...domains, { name: "new-auth-helper.js", isDirectory: false }])[0], /inside a domain directory/);
   assert.match(checkApiCoreLayout([...domains, { name: "misc", isDirectory: true }])[0], /not a Shared Platform domain/);
   assert.match(checkApiCoreLayout(domains.filter((entry) => entry.name !== "access"))[0], /access\/ boundary is missing/);
@@ -52,7 +54,7 @@ test("duplicate auth helpers, role registries and module catalogues are rejected
   assert.equal(checkCanonicalDefinitions([file("services/api/src/modules/crm/x.js", "export function hasSessionPermission(s, p) { return true; }")]).length, 1);
   assert.equal(checkCanonicalDefinitions([file("apps/web/src/features/crm/roles.ts", "export const ROLE_TEMPLATES = [];")]).length, 1);
   assert.deepEqual(checkCanonicalDefinitions([file("services/api/src/core/oauth.js", "function f() {\n  const authorize = new URL(x);\n}")]), [], "local variables are not definitions");
-  assert.deepEqual(checkCanonicalDefinitions([file("services/api/src/core/session.js", "export async function resolveSessionContext() {}")]), []);
+  assert.deepEqual(checkCanonicalDefinitions([file("services/api/src/core/auth/session.js", "export async function resolveSessionContext() {}")]), []);
   const keys = ["crm", "sales", "accounting", "procurement", "stock", "manufacturing", "projects", "assets", "point-of-sale", "quality", "support", "hr-payroll"];
   const copy = `const MODULES = [${keys.map((key) => `"${key}"`).join(", ")}];`;
   assert.equal(checkModuleCatalogueCopies([file("apps/web/src/features/x/modules.ts", copy)], keys).length, 1);
@@ -90,7 +92,7 @@ test("organizationId from JSON, query, path or schema is rejected", () => {
 });
 
 test("the Shared Access boundary cannot be bypassed", () => {
-  assert.equal(checkAccessBoundaryUse([file("apps/web/src/app/api/x/route.ts", 'import { x } from "@vercentlabs/api/src/core/session.js";')]).length, 1);
+  assert.equal(checkAccessBoundaryUse([file("apps/web/src/app/api/x/route.ts", 'import { x } from "@vercentlabs/api/src/core/auth/session.js";')]).length, 1);
   assert.equal(checkAccessBoundaryUse([file("apps/web/src/app/api/x/route.ts", 'import { x } from "../../../../../services/api/src/index.js";')]).length, 1);
   assert.equal(checkAccessBoundaryUse([file("services/api/src/modules/crm/x.js", 'import { authorize } from "../../core/access/authorization.js";')]).length, 1);
   assert.deepEqual(checkAccessBoundaryUse([file("services/api/src/modules/crm/x.js", 'import { authorize } from "../../core/access/index.js";')]), []);

@@ -16,7 +16,7 @@ import {
   projectFields,
   requireAuthorization,
 } from "../../src/core/access/index.js";
-import { getAccessibleModules } from "../../src/core/module-entitlements.js";
+import { getAccessibleModules } from "../../src/core/access/module-entitlements.js";
 
 const ORG = "11111111-1111-4111-8111-111111111111";
 const OTHER_ORG = "22222222-2222-4222-8222-222222222222";

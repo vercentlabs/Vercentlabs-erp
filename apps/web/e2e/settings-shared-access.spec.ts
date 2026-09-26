@@ -5,7 +5,7 @@ import path from "node:path";
 import { expect, test, type Browser, type Locator, type Page } from "@playwright/test";
 import { Client } from "pg";
 
-import { hashPassword } from "../../../services/api/src/core/session.js";
+import { hashPassword } from "../../../services/api/src/core/auth/session.js";
 import { fixtures } from "./fixtures";
 
 // Shared Access administration in a real browser against the real database:

@@ -8,8 +8,8 @@
 import { ERP_MODULE_CATALOG } from "@vercentlabs/shared-types";
 
 import { getBillingSummary } from "../billing/index.js";
-import { evaluateModuleAccess, getEnabledModuleKeys, isModulePermitted } from "../module-entitlements.js";
-import { listAccessibleCompanies } from "../session.js";
+import { evaluateModuleAccess, getEnabledModuleKeys, isModulePermitted } from "./module-entitlements.js";
+import { listAccessibleCompanies } from "../auth/session.js";
 import { createAccessPrincipal } from "./principal.js";
 
 function subscriptionView(summary) {

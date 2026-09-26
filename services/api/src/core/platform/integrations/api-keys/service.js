@@ -9,7 +9,7 @@ import { createHash, randomBytes } from "node:crypto";
 
 import { setTenantContext } from "@vercentlabs/database";
 
-import { audit } from "../../../security.js";
+import { audit } from "../../../security/request-security.js";
 import { API_SCOPES, getApiScope } from "./scopes.js";
 
 const API_KEY_PREFIX = "vlk_live_";

@@ -19,8 +19,8 @@
 import { moduleAccessPermission } from "@vercentlabs/permissions";
 import { ERP_MODULE_CATALOG } from "@vercentlabs/shared-types";
 
-import { hasSessionPermission, PERMISSIONS } from "./access-control-runtime.js";
-import { getBillingSummary } from "./billing/index.js";
+import { hasSessionPermission, PERMISSIONS } from "./control-runtime.js";
+import { getBillingSummary } from "../billing/index.js";
 
 export function getModuleDefinition(moduleId) {
   return ERP_MODULE_CATALOG.find((module) => module.key === moduleId) ?? null;

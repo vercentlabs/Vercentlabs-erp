@@ -1,7 +1,7 @@
 import { createHash, randomUUID } from "node:crypto";
 
 import { add, allocate, decimal, format, mul } from "./money.js";
-import { hasAnyOwnField, omitFields } from "../../core/field-visibility.js";
+import { hasAnyOwnField, omitFields } from "../../core/access/index.js";
 import { nextDocumentNumber } from "../../core/platform/numbering/index.js";
 
 // Supplier banking/financial-account keys inside tenant.procurement_suppliers'

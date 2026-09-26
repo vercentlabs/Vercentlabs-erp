@@ -3,7 +3,7 @@ import { ERP_MODULE_CATALOG } from "@vercentlabs/shared-types";
 
 // What a person can do once their roles are combined — for display only.
 // Session permissions are the UNION of every active role
-// (services/api/src/core/session.js), so this mirrors that rule, never the
+// (services/api/src/core/auth/session.js), so this mirrors that rule, never the
 // primary role alone. Every decision is still made on the server; this is a
 // readable summary, not an authorization engine, and deliberately not a
 // 290-permission wall (the full list stays in advanced role editing).

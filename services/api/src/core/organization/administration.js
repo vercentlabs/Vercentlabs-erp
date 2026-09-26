@@ -8,10 +8,10 @@
 // explicit, named requirement.
 import { randomUUID } from "node:crypto";
 
-import { requireSessionPermission } from "./access-control-runtime.js";
-import { assertUserWithinAdministrationScope, hasUnrestrictedAccessAdministration, memberWithinAdministrationScopeSql } from "./access-administration.js";
-import { ACCESS_EVIDENCE_EVENTS, recordAccessAssignmentEvent } from "./access/index.js";
-import { assertSeatAvailable, reconcileSeatOverage, withSeatLock } from "./billing/index.js";
+import { requireSessionPermission } from "../access/index.js";
+import { assertUserWithinAdministrationScope, hasUnrestrictedAccessAdministration, memberWithinAdministrationScopeSql } from "../access/index.js";
+import { ACCESS_EVIDENCE_EVENTS, recordAccessAssignmentEvent } from "../access/index.js";
+import { assertSeatAvailable, reconcileSeatOverage, withSeatLock } from "../billing/index.js";
 
 export class OrganizationAdministrationError extends Error {
   constructor(status, message, code = "ORG_ADMIN_ERROR") {

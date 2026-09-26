@@ -94,7 +94,7 @@ test("notifications: one writer, own rows only, preferences, read-time visibilit
 
     await t.test("security email is not governed by notification preferences", async () => {
       await kit.tenant(alice.organizationId, (client) => setNotificationPreference(client, alice, { category: "crm_assignment", enabled: false }));
-      const { buildAuthEmail } = await import("../../../services/api/src/core/auth-mailer.js").catch(() => ({}));
+      const { buildAuthEmail } = await import("../../../services/api/src/core/auth/mailer.js").catch(() => ({}));
       // Auth mail has its own transport; preferences only ever gate in-app categories.
       const preferenceCategories = (await kit.tenant(alice.organizationId, (client) => listNotificationPreferences(client, alice))).map((preference) => preference.category);
       assert.ok(preferenceCategories.every((category) => !/auth|password|mfa|security/.test(category)));

@@ -13,8 +13,8 @@
 // crypto/auth library anywhere in services/api.
 import { createHash, createHmac, randomBytes, randomUUID, timingSafeEqual } from "node:crypto";
 
-import { decryptSecret, encryptSecret } from "./platform/secrets/index.js";
-import { requireSessionPermission } from "./access-control-runtime.js";
+import { decryptSecret, encryptSecret } from "../platform/secrets/index.js";
+import { requireSessionPermission } from "../access/index.js";
 
 export class MfaError extends Error {
   constructor(status, message, code) {

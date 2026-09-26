@@ -28,7 +28,8 @@
     "apps/web": {
       "entry": [
         "src/app/**/{page,layout,route,loading,error,global-error,not-found,template,default,sitemap,robots,manifest}.{ts,tsx}",
-        "src/middleware.ts",
+        "src/proxy.ts",
+        "src/instrumentation.ts",
         "e2e/**/*.{spec,setup}.ts",
         "e2e/*.ts",
         "scripts/**/*.mjs"

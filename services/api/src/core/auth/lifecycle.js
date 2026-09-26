@@ -13,9 +13,9 @@ import { randomUUID } from "node:crypto";
 
 import { setTenantContext } from "@vercentlabs/database";
 
-import { audit } from "./security.js";
+import { audit } from "../security/request-security.js";
 import { createOpaqueToken, createSession, hashPassword, setSessionOrganization, tokenHash } from "./session.js";
-import { deliverAuthMessage } from "./auth-mailer.js";
+import { deliverAuthMessage } from "./mailer.js";
 import {
   assertInvitationWithinAdministrationScope,
   hasUnrestrictedAccessAdministration,
@@ -24,9 +24,9 @@ import {
   validateRoleSelection,
   validateDepartmentTeamScope,
   validateScopeGrantCeiling,
-} from "./access-administration.js";
-import { ACCESS_EVIDENCE_EVENTS, recordAccessAssignmentEvent } from "./access/index.js";
-import { assertSeatAvailable, withSeatLock } from "./billing/index.js";
+} from "../access/index.js";
+import { ACCESS_EVIDENCE_EVENTS, recordAccessAssignmentEvent } from "../access/index.js";
+import { assertSeatAvailable, withSeatLock } from "../billing/index.js";
 
 export class AuthLifecycleError extends Error {
   constructor(status, message, code) {

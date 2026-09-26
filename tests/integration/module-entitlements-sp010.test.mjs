@@ -13,7 +13,7 @@ import test from "node:test";
 import { randomUUID } from "node:crypto";
 
 import { Client } from "pg";
-import { resolveModuleAccess, assertModuleAccessible, canUserAccessModule, ModuleAccessError } from "../../services/api/src/core/module-entitlements.js";
+import { resolveModuleAccess, assertModuleAccessible, canUserAccessModule, ModuleAccessError } from "../../services/api/src/core/access/module-entitlements.js";
 
 const adminConnectionString = process.env.MIGRATION_DATABASE_URL || "";
 

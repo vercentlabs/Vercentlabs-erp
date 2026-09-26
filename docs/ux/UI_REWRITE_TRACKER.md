@@ -1127,7 +1127,7 @@ matters — is the responsibility of whichever prompt builds that screen.
 session resolution already *preferred* `user_preferences.active_company_id`/
 `active_branch_id` when present (Prompt 2 didn't notice this) — so
 switching only needed `listAccessibleCompanies`/`switchActiveCompany`
-(`services/api/src/core/session.js`), re-validated against the exact same
+(`services/api/src/core/auth/session.js`), re-validated against the exact same
 unrestricted-role-or-explicit-membership predicate session resolution
 itself uses, never a browser-supplied id taken on trust. Wired through
 `ContextSwitcher.tsx` (top bar, both desktop and mobile) with a real

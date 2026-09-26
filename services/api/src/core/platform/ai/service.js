@@ -4,7 +4,7 @@
 // workflow — AI can never self-approve its own execution.
 import { createHash } from "node:crypto";
 
-import { audit } from "../../security.js";
+import { audit } from "../../security/request-security.js";
 import { getPrivacyDataClass, PRIVACY_DATA_CLASSES } from "../privacy/index.js";
 import { AI_POLICY_KEYS, AI_TOOLS, getAiTool } from "./registry.js";
 

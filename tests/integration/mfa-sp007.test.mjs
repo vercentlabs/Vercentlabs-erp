@@ -1,6 +1,6 @@
 // Real PostgreSQL integration test — proves SP007 (MFA, account recovery
 // and step-up authentication) against the real schema (migration
-// 047_mfa_totp.sql) and the real services/api/src/core/mfa.js domain
+// 047_mfa_totp.sql) and the real services/api/src/core/auth/mfa.js domain
 // functions, not mocks. Covers: enrollment (start/confirm, wrong code,
 // expiry, double-enrollment), login-time step-up verification via
 // resolveSessionContext's mfaEnrolled/mfaPolicyRequired/mfaVerified fields,
@@ -23,9 +23,9 @@ import {
   setOrganizationMfaEnforcement,
   MfaError,
   __internal,
-} from "../../services/api/src/core/mfa.js";
-import { PermissionDeniedError } from "../../services/api/src/core/access-control-runtime.js";
-import { createSession, resolveSessionContext } from "../../services/api/src/core/session.js";
+} from "../../services/api/src/core/auth/mfa.js";
+import { PermissionDeniedError } from "../../services/api/src/core/access/control-runtime.js";
+import { createSession, resolveSessionContext } from "../../services/api/src/core/auth/session.js";
 
 const repoRoot = pathJoin(pathDirname(fileURLToPath(import.meta.url)), "../..");
 const adminConnectionString = process.env.MIGRATION_DATABASE_URL || "";

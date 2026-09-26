@@ -11,7 +11,7 @@ import test from "node:test";
 import { fileURLToPath } from "node:url";
 
 import { createMemoryObjectStorage } from "../../../packages/document-engine/src/index.js";
-import { enforceRateLimit } from "../../../services/api/src/core/security.js";
+import { enforceRateLimit } from "../../../services/api/src/core/security/request-security.js";
 import { publishDomainEvent } from "../../../services/api/src/core/platform/events/index.js";
 import { setObjectStorageForTests } from "../../../services/api/src/core/platform/files/index.js";
 import {

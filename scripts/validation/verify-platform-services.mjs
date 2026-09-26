@@ -110,7 +110,7 @@ section("export files are artifacts, not job JSON", [
 
 // 8. One numbering system.
 section("one numbering implementation", [
-  ...matching(/\bnumbering_series\b/, ["services/api/src/core/organization-registration.js"]).filter((file) => file.startsWith("services/") || file.startsWith("apps/")).map((file) => `${file} still uses public.numbering_series`),
+  ...matching(/\bnumbering_series\b/, ["services/api/src/core/organization/registration.js"]).filter((file) => file.startsWith("services/") || file.startsWith("apps/")).map((file) => `${file} still uses public.numbering_series`),
   ...matching(/INSERT\s+INTO\s+tenant\.document_sequences/i, [`${P}/numbering/service.js`]).map((file) => `${file} allocates numbers outside the numbering service`),
 ]);
 

@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { passwordPolicyIssues } from "../src/core/password-policy.js";
-import { deliverAuthMessage } from "../src/core/auth-mailer.js";
+import { passwordPolicyIssues } from "../src/core/auth/password-policy.js";
+import { deliverAuthMessage } from "../src/core/auth/mailer.js";
 
 test("passwordPolicyIssues rejects short, all-numeric, letter-or-number-missing, and email-containing passwords", () => {
   assert.ok(passwordPolicyIssues("short1").length > 0);

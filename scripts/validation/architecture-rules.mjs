@@ -63,16 +63,13 @@ export function checkCrossFeatureImports(files) {
 
 export const API_CORE_DOMAINS = Object.freeze(["access", "auth", "organization", "billing", "platform", "security", "release"]);
 
-// Flat files that predate the domain boundaries. They stay importable (the
-// domain index.js files re-export them) and move behind their boundary
-// incrementally. New core code must be created inside a domain directory.
+// Generic cross-module helpers that intentionally stay flat in core/ (no
+// owning Shared Platform domain): money/decimal maths, idempotency keys,
+// inventory row locks, master-data lookups, document references, tags and
+// the tax engine. Auth, organisation, security and access implementations
+// live behind their domain directories. New core code goes in a domain.
 export const LEGACY_FLAT_CORE_FILES = Object.freeze([
-  "access-administration", "access-control-runtime", "ai-governance", "api-keys", "attachment-security",
-  "audit-redaction", "auth-lifecycle", "auth-mailer", "configuration", "decimal",
-  "field-visibility", "idempotency", "inbound-mail", "inventory-lock",
-  "master-data", "mfa", "module-entitlements", "oauth",
-  "organization-administration", "organization-registration", "password-policy", "privacy",
-  "references", "security", "session", "tags", "tax-engine",
+  "decimal", "idempotency", "inventory-lock", "master-data", "references", "tags", "tax-engine",
 ]);
 
 export function checkApiCoreLayout(entries) {
@@ -107,12 +104,12 @@ export const CANONICAL_DEFINITIONS = Object.freeze({
   verifyCheckoutSignature: "services/api/src/core/billing/providers/razorpay.js",
   createRazorpayProvider: "services/api/src/core/billing/providers/razorpay.js",
   reconcileSubscription: "services/api/src/core/billing/reconciliation.js",
-  resolveSessionContext: "services/api/src/core/session.js",
-  tokenHash: "services/api/src/core/session.js",
-  hashPassword: "services/api/src/core/session.js",
-  verifyPassword: "services/api/src/core/session.js",
-  hasSessionPermission: "services/api/src/core/access-control-runtime.js",
-  requireSessionPermission: "services/api/src/core/access-control-runtime.js",
+  resolveSessionContext: "services/api/src/core/auth/session.js",
+  tokenHash: "services/api/src/core/auth/session.js",
+  hashPassword: "services/api/src/core/auth/session.js",
+  verifyPassword: "services/api/src/core/auth/session.js",
+  hasSessionPermission: "services/api/src/core/access/control-runtime.js",
+  requireSessionPermission: "services/api/src/core/access/control-runtime.js",
   createAccessPrincipal: "services/api/src/core/access/principal.js",
   principalHasPermission: "services/api/src/core/access/principal.js",
   buildWorkspaceAccessSnapshot: "services/api/src/core/access/access-snapshot.js",
@@ -127,9 +124,9 @@ export const CANONICAL_DEFINITIONS = Object.freeze({
   requireApiUser: "apps/web/src/core/session.ts",
   workspaceRoute: "apps/web/src/core/workspace-route.ts",
   // Shared Access administration: one implementation each.
-  setUserAccessScope: "services/api/src/core/access-administration.js",
-  listGrantableRolesForActor: "services/api/src/core/access-administration.js",
-  listGrantableScope: "services/api/src/core/access-administration.js",
+  setUserAccessScope: "services/api/src/core/access/administration-service.js",
+  listGrantableRolesForActor: "services/api/src/core/access/administration-service.js",
+  listGrantableScope: "services/api/src/core/access/administration-service.js",
   setOrganizationModuleEnabled: "services/api/src/core/platform/module-administration.js",
   recordAccessAssignmentEvent: "services/api/src/core/access/audit.js",
   COMPANY_ADMINISTRATOR_PERMISSIONS: "packages/permissions/src/roles.js",
@@ -298,21 +295,21 @@ export function checkRetiredDefinitions(files) {
 }
 
 // Tables holding access state, and the ONLY files allowed to write them.
-// (services/api/src/core/access-administration.js also writes the
+// (services/api/src/core/access/administration-service.js also writes the
 // membership_* tables through setUserAccessScope's table map.)
 export const ACCESS_STATE_WRITERS = Object.freeze({
   organization_modules: ["services/api/src/core/platform/module-administration.js"],
-  membership_company_access: ["services/api/src/core/access-administration.js", "services/api/src/core/auth-lifecycle.js"],
+  membership_company_access: ["services/api/src/core/access/administration-service.js", "services/api/src/core/auth/lifecycle.js"],
   membership_branch_access: [
-    "services/api/src/core/access-administration.js",
-    "services/api/src/core/auth-lifecycle.js",
+    "services/api/src/core/access/administration-service.js",
+    "services/api/src/core/auth/lifecycle.js",
     // createBranch grants the delegated creator the branch it just created.
-    "services/api/src/core/organization-administration.js",
+    "services/api/src/core/organization/administration.js",
   ],
-  organization_invitations: ["services/api/src/core/auth-lifecycle.js"],
-  organization_invitation_roles: ["services/api/src/core/auth-lifecycle.js"],
-  organization_invitation_company_access: ["services/api/src/core/auth-lifecycle.js"],
-  organization_invitation_branch_access: ["services/api/src/core/auth-lifecycle.js"],
+  organization_invitations: ["services/api/src/core/auth/lifecycle.js"],
+  organization_invitation_roles: ["services/api/src/core/auth/lifecycle.js"],
+  organization_invitation_company_access: ["services/api/src/core/auth/lifecycle.js"],
+  organization_invitation_branch_access: ["services/api/src/core/auth/lifecycle.js"],
 });
 
 export function checkAccessStateWriters(files) {

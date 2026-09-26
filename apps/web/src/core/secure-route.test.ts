@@ -35,6 +35,10 @@ function harness(overrides: Partial<SecureRouteDeps<Session, Client>> & { allow?
       calls.push(`tenant:${organizationId}`);
       return work({ id: "tenant-client" });
     },
+    runOrganizationConnection: async (organizationId, work) => {
+      calls.push(`connection:${organizationId}`);
+      return work({ id: "organization-connection" });
+    },
     createPrincipal: () => {
       calls.push("principal");
       return principal;
@@ -199,4 +203,22 @@ test("auditDenial is opt-in and never records unauthenticated requests", async (
   const response = await anonymous.route(post(), { auditDenial: true }, async () => new Response("ok"));
   assert.equal(response.status, 401);
   assert.deepEqual(recorded, []);
+});
+
+test("transaction \"none\" runs the handler on an organisation connection without a request transaction (billing sagas)", async () => {
+  const { route, calls } = harness();
+  let client: Client | null = null;
+  const response = await route(
+    new Request("https://erp.example/api/billing/checkout", { method: "POST", headers: { origin: "https://erp.example" } }),
+    { permission: "billing.checkout", transaction: "none", billingWrite: true },
+    async (context) => {
+      client = context.client;
+      return new Response("ok");
+    },
+  );
+  assert.equal(response.status, 200);
+  assert.deepEqual(client, { id: "organization-connection" });
+  assert.ok(calls.includes(`connection:${ORG}`));
+  assert.ok(!calls.some((call) => call.startsWith("tenant:")), "no request-wide transaction");
+  assert.ok(calls.indexOf("origin") < calls.indexOf(`connection:${ORG}`), "origin is still checked first");
 });

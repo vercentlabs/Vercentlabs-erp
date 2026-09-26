@@ -2,7 +2,7 @@
 // company and branch administration). Proves the real gap this pass
 // closed: companies/branches tables existed since migration 001 with no
 // create/update path anywhere in the codebase before
-// services/api/src/core/organization-administration.js.
+// services/api/src/core/organization/administration.js.
 import assert from "node:assert/strict";
 import test from "node:test";
 import { randomUUID } from "node:crypto";
@@ -20,9 +20,9 @@ import {
   updateBranch,
   listOrganizationMembers,
   setMemberStatus,
-} from "../../services/api/src/core/organization-administration.js";
-import { AccessAdministrationError, setUserAccessScope } from "../../services/api/src/core/access-administration.js";
-import { PermissionDeniedError } from "../../services/api/src/core/access-control-runtime.js";
+} from "../../services/api/src/core/organization/administration.js";
+import { AccessAdministrationError, setUserAccessScope } from "../../services/api/src/core/access/administration-service.js";
+import { PermissionDeniedError } from "../../services/api/src/core/access/control-runtime.js";
 
 const adminConnectionString = process.env.MIGRATION_DATABASE_URL || "";
 
@@ -214,7 +214,7 @@ test("SP001/SP002/SP003: organization/company/branch administration against a re
     });
 
     await t.test("setMemberStatus: disabling revokes live sessions and blocks self-targeting", async () => {
-      const { createSession } = await import("../../services/api/src/core/session.js");
+      const { createSession } = await import("../../services/api/src/core/auth/session.js");
       const memberSession = await createSession(admin, { userId: memberId, ipAddress: "127.0.0.1", userAgent: "test", env: {} });
 
       await assert.rejects(

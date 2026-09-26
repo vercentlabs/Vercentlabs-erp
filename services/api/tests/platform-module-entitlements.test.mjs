@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { resolveModuleAccess, assertModuleAccessible, ModuleAccessError, isModuleReleased } from "../src/core/module-entitlements.js";
+import { resolveModuleAccess, assertModuleAccessible, ModuleAccessError, isModuleReleased } from "../src/core/access/module-entitlements.js";
 
 function clientReturning({ enabledRows = [], billingRows = [], usageRows = [], overrideRows = [] } = {}) {
   return {

@@ -5,7 +5,7 @@ import path from "node:path";
 
 // Real-browser, real-database proof of SP008 (role creation/editing) end
 // to end, against the ACTUAL /settings/roles screen and its real backend
-// (createRole/updateRole, services/api/src/core/access-administration.js)
+// (createRole/updateRole, services/api/src/core/access/administration-service.js)
 // -- not a mock, not a screenshot. Uses the already-authenticated e2e
 // owner session (see auth.setup.ts) rather than provisioning a fresh user,
 // since this screen's own backend already has exhaustive adversarial

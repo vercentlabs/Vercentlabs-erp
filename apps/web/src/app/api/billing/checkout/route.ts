@@ -14,7 +14,7 @@ const schema = z.object({ planPriceId: z.string().uuid().optional(), users: z.nu
 export async function POST(request: Request) {
   return workspaceRoute(
     request,
-    { permission: BILLING_PERMISSIONS.checkout, action: "billing.checkout.start", auditDenial: true },
+    { permission: BILLING_PERMISSIONS.checkout, transaction: "none", action: "billing.checkout.start", auditDenial: true },
     async ({ client, session }) => {
       const body = schema.parse(await readJson(request));
       const ctx = { organizationId: session.organizationId, userId: session.userId, email: session.email };

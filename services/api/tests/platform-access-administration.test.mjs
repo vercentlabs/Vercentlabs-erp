@@ -6,7 +6,7 @@ import {
   hasUnrestrictedAccessAdministration,
   validateRoleSelection,
   assertUserWithinAdministrationScope,
-} from "../src/core/access-administration.js";
+} from "../src/core/access/administration-service.js";
 
 test("hasUnrestrictedAccessAdministration recognizes only owner/system_administrator as unrestricted", () => {
   assert.equal(hasUnrestrictedAccessAdministration(["organization_owner"]), true);

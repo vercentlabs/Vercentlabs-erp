@@ -17,9 +17,9 @@ import test from "node:test";
 import { randomUUID } from "node:crypto";
 
 import { Client } from "pg";
-import { registerOrganization, bootstrapOrganizationRoles, OrganizationRegistrationError } from "../../services/api/src/core/organization-registration.js";
+import { registerOrganization, bootstrapOrganizationRoles, OrganizationRegistrationError } from "../../services/api/src/core/organization/registration.js";
 import { ROLE_TEMPLATES } from "../../packages/permissions/src/roles.js";
-import { hasSessionPermission } from "../../services/api/src/core/access-control-runtime.js";
+import { hasSessionPermission } from "../../services/api/src/core/access/control-runtime.js";
 
 const adminConnectionString = process.env.MIGRATION_DATABASE_URL || "";
 

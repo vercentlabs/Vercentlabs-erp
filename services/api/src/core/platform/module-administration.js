@@ -13,10 +13,10 @@
 import { moduleAccessPermission } from "@vercentlabs/permissions";
 import { ERP_MODULE_CATALOG } from "@vercentlabs/shared-types";
 
-import { hasSessionPermission, requireSessionPermission } from "../access-control-runtime.js";
+import { hasSessionPermission, requireSessionPermission } from "../access/index.js";
 import { getBillingSummary } from "../billing/index.js";
-import { entitlementFromBillingSummary } from "../module-entitlements.js";
-import { audit } from "../security.js";
+import { entitlementFromBillingSummary } from "../access/index.js";
+import { audit } from "../security/request-security.js";
 
 export class ModuleAdministrationError extends Error {
   constructor(status, message, code) {

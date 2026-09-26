@@ -20,7 +20,7 @@ export const getAccountingWorld = () => (worldPromise ??= buildWorld());
 async function buildWorld(): Promise<AccountingWorld> {
   const client = new Client({ connectionString: MIGRATION_DATABASE_URL });
   await client.connect();
-  const { hashPassword } = await import("../../../services/api/src/core/session.js");
+  const { hashPassword } = await import("../../../services/api/src/core/auth/session.js");
   // @ts-expect-error -- plain JS domain module without a declaration file; called with the documented shape
   const { initializeAccountingCompany } = await import("../../../services/api/src/modules/accounting/foundation.js");
   try {

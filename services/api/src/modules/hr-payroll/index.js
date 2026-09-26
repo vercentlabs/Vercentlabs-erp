@@ -1,5 +1,5 @@
 import { nextDocumentNumber } from "../../core/platform/numbering/index.js";
-import { omitFields, omitFieldsFromRows } from "../../core/field-visibility.js";
+import { omitFields, omitFieldsFromRows } from "../../core/access/index.js";
 import { requireCompanyRecord } from "../../core/references.js";
 
 // Personal/financial PII on tenant.hr_employees gated behind

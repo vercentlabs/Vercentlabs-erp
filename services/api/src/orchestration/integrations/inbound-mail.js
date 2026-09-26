@@ -26,7 +26,7 @@ import {
   routeSigningSecret,
   verifyInboundMailSignature,
 } from "../../core/platform/integrations/inbound-mail/index.js";
-import { entitlementFromBillingSummary, getEnabledModuleKeys } from "../../core/module-entitlements.js";
+import { entitlementFromBillingSummary, getEnabledModuleKeys } from "../../core/access/index.js";
 import { addAttachment, addCommunication, createTicket } from "../../modules/support/tickets.js";
 
 const CLOSED = new Set(["closed", "cancelled", "merged"]);

@@ -5,7 +5,7 @@
 // Wraps the existing ../field-visibility.js primitives (used by HR/Support/
 // Procurement) rather than replacing them; module-specific projections
 // (e.g. CRM sensitive contact data) keep their own richer implementations.
-import { hasAnyOwnField, omitFields, omitFieldsFromRows } from "../field-visibility.js";
+import { hasAnyOwnField, omitFields, omitFieldsFromRows } from "./field-visibility.js";
 import { ACCESS_ERROR_CODES, AccessDeniedError } from "./errors.js";
 import { principalHasPermission } from "./principal.js";
 

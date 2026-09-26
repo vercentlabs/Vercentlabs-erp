@@ -64,7 +64,7 @@ test.afterAll(async () => {
 });
 
 async function freeOwner(browser: Parameters<typeof openSalesSession>[0], members = 1) {
-  const { registerOrganization } = await import("../../../services/api/src/core/organization-registration.js");
+  const { registerOrganization } = await import("../../../services/api/src/core/organization/registration.js");
   const suffix = randomUUID().slice(0, 8);
   const email = `billing-e2e-${suffix}@crm-e2e-fixture.test`;
   const password = "BillingE2E!2026Secure";
@@ -221,7 +221,7 @@ test("verification pending is shown honestly and completed by the worker; a fail
 
   const memberId = randomUUID();
   const memberEmail = `billing-member-${owner.suffix}@crm-e2e-fixture.test`;
-  const { hashPassword } = await import("../../../services/api/src/core/session.js");
+  const { hashPassword } = await import("../../../services/api/src/core/auth/session.js");
   await db.query(`INSERT INTO users(id,email,full_name,password_hash,status,email_verified_at) VALUES ($1,$2,'Plain Member',$3,'active',now())`, [memberId, memberEmail, await hashPassword(owner.password)]);
   await db.query(`INSERT INTO organization_memberships(organization_id,user_id,role,status) VALUES ($1,$2,'member','active')`, [owner.organizationId, memberId]);
   const employee = (await db.query(`SELECT id FROM roles WHERE organization_id=$1 AND slug='employee'`, [owner.organizationId])).rows[0];

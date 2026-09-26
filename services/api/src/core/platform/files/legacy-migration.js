@@ -16,7 +16,7 @@
 // Re-running is idempotent: already-migrated rows are simply not selected.
 import { attachmentStorageKey, sha256 } from "@vercentlabs/document-engine";
 
-import { audit } from "../../security.js";
+import { audit } from "../../security/request-security.js";
 import { resolveObjectStorage } from "./storage.js";
 
 const DEFAULT_BATCH = 50;

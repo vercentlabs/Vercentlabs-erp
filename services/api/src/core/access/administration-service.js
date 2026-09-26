@@ -21,9 +21,9 @@ import {
   permissionsOutsideGrantCeiling,
 } from "@vercentlabs/permissions";
 
-import { hasSessionPermission, requireSessionPermission } from "./access-control-runtime.js";
-import { ACCESS_EVIDENCE_EVENTS, recordAccessAssignmentEvent } from "./access/index.js";
-import { audit } from "./security.js";
+import { hasSessionPermission, requireSessionPermission } from "./control-runtime.js";
+import { ACCESS_EVIDENCE_EVENTS, recordAccessAssignmentEvent } from "./index.js";
+import { audit } from "../security/request-security.js";
 
 export class AccessAdministrationError extends Error {
   constructor(status, message, code = "ACCESS_ADMINISTRATION_ERROR") {

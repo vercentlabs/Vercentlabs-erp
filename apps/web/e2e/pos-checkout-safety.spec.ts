@@ -27,7 +27,7 @@ test.describe("POS checkout safety", () => {
       ]);
       const pricedCart = (await addLineResponse.json()).cart as { id: string; version: number; grand_total: string };
 
-      // services/api/src/core/security.js's assertSameOrigin requires a
+      // services/api/src/core/security/request-security.js's assertSameOrigin requires a
       // real Origin/Referer header, which a genuine browser fetch always
       // sends but Playwright's APIRequestContext does not add on its own
       // -- set it explicitly to what this same page would send.

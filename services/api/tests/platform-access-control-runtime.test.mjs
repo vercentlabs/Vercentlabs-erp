@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { hasSessionPermission, requireSessionPermission, PermissionDeniedError, PERMISSIONS } from "../src/core/access-control-runtime.js";
+import { hasSessionPermission, requireSessionPermission, PermissionDeniedError, PERMISSIONS } from "../src/core/access/control-runtime.js";
 
 test("hasSessionPermission grants organization_owner everything regardless of permissions array", () => {
   assert.equal(hasSessionPermission({ roleSlugs: ["organization_owner"], permissions: [] }, "anything.manage"), true);

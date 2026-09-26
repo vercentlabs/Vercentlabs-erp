@@ -45,3 +45,11 @@ export { assertWritableFields, hiddenFieldsFor, projectFields } from "./field-ac
 export { authorize, requireAuthorization } from "./authorization.js";
 export { assertNoBlockingSodConflict } from "./administration.js";
 export { ACCESS_EVIDENCE_EVENTS, accessLogFields, logAccessDenial, recordAccessAssignmentEvent, recordAccessDenial } from "./audit.js";
+
+// Implementation services behind the boundary (moved from the flat core/ files):
+// session permission checks, module entitlements, access administration and
+// the field-visibility primitives used by module projections.
+export * from "./control-runtime.js";
+export * from "./module-entitlements.js";
+export * from "./administration-service.js";
+export { hasAnyOwnField, omitFields, omitFieldsFromRows } from "./field-visibility.js";

@@ -5,7 +5,7 @@
 // enforced via assertPrivacyTransition on every transition, including
 // inside the row-locked DB transaction — illegal jumps are rejected, not
 // silently coerced.
-import { audit } from "../../security.js";
+import { audit } from "../../security/request-security.js";
 import { getPrivacyDataClass, PRIVACY_DATA_CLASSES } from "./data-classes.js";
 
 export class PrivacyError extends Error {

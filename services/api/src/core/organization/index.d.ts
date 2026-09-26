@@ -1,2 +1,2 @@
-export * from "../organization-administration.js";
-export * from "../organization-registration.js";
+export * from "./administration.js";
+export * from "./registration.js";

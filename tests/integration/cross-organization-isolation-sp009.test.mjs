@@ -29,7 +29,7 @@ import {
   setUserRoles,
   setUserAccessScope,
   AccessAdministrationError,
-} from "../../services/api/src/core/access-administration.js";
+} from "../../services/api/src/core/access/administration-service.js";
 import {
   createCompany,
   updateCompany,
@@ -37,7 +37,7 @@ import {
   updateBranch,
   setMemberStatus,
   OrganizationAdministrationError,
-} from "../../services/api/src/core/organization-administration.js";
+} from "../../services/api/src/core/organization/administration.js";
 import { ALL_PERMISSIONS } from "../../packages/permissions/src/catalog.js";
 
 const adminConnectionString = process.env.MIGRATION_DATABASE_URL || "";

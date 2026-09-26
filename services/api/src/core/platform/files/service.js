@@ -9,7 +9,7 @@
 // written before migration 063 ("database_legacy") stay readable.
 import { attachmentStorageKey, sha256, validateAttachment } from "@vercentlabs/document-engine";
 
-import { AttachmentSecurityError, scanAttachmentForUpload } from "../../attachment-security.js";
+import { AttachmentSecurityError, scanAttachmentForUpload } from "../../security/attachment-security.js";
 import { getFileEntityType } from "./registry.js";
 import { resolveObjectStorage } from "./storage.js";
 import { createLogger } from "@vercentlabs/observability";

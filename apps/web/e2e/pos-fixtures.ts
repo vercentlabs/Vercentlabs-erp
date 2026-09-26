@@ -123,7 +123,7 @@ async function buildPosWorld(): Promise<PosWorld> {
   const client = new Client({ connectionString: MIGRATION_DATABASE_URL });
   await client.connect();
 
-  const { hashPassword } = await import("../../../services/api/src/core/session.js");
+  const { hashPassword } = await import("../../../services/api/src/core/auth/session.js");
   const { openShift } = await import("../../../services/api/src/index.js");
 
   try {

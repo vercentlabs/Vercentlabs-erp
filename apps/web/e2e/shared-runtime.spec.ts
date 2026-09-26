@@ -5,7 +5,7 @@ import pg from "pg";
 
 import { setTenantContext } from "../../../packages/database/src/index.js";
 import { createNotification, NOTIFICATION_CATEGORIES } from "../../../services/api/src/core/platform/notifications/index.js";
-import { hashPassword } from "../../../services/api/src/core/session.js";
+import { hashPassword } from "../../../services/api/src/core/auth/session.js";
 import { createCrmRecord, createJournalEntry, initializeAccountingCompany, submitJournalEntry } from "../../../services/api/src/index.js";
 import { MIGRATION_DATABASE_URL } from "./pos-fixtures";
 import { openSalesSession } from "./sales-fixtures";
@@ -48,7 +48,7 @@ async function open(page: Page, path: string, heading: string | RegExp) {
 
 test.beforeAll(async () => {
   await db.connect();
-  const { registerOrganization } = await import("../../../services/api/src/core/organization-registration.js");
+  const { registerOrganization } = await import("../../../services/api/src/core/organization/registration.js");
   world.ownerEmail = `runtime-owner-${suffix}@crm-e2e-fixture.test`;
   world.memberEmail = `runtime-member-${suffix}@crm-e2e-fixture.test`;
   const registered = await registerOrganization(db, { fullName: "Riya Owner", email: world.ownerEmail, password, organizationName: `Runtime E2E ${suffix}`, countryCode: "IN", baseCurrency: "INR", timezone: "Asia/Kolkata" });

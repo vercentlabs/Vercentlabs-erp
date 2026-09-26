@@ -5,7 +5,7 @@
 // Payloads are never returned; errors and manifests are projected safely.
 // There is deliberately no cancel/retry here: not every handler can stop its
 // side effects safely once running.
-import { redactAuditPayload } from "../../audit-redaction.js";
+import { redactAuditPayload } from "../../security/audit-redaction.js";
 import { jobPresentation, USER_VISIBLE_JOB_TYPES } from "./presentation.js";
 
 export class BackgroundJobError extends Error {

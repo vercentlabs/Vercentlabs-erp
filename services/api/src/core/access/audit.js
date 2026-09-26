@@ -8,7 +8,7 @@
 // audit_events writer (../security.js), which already redacts payloads.
 import { createLogger } from "@vercentlabs/observability";
 
-import { audit } from "../security.js";
+import { audit } from "../security/request-security.js";
 
 const accessLogger = createLogger("shared-access");
 

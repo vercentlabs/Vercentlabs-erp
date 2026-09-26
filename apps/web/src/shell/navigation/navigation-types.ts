@@ -34,7 +34,7 @@ export type ModuleNavigation = {
   moduleKey: string;
   label: string;
   icon: NavIcon;
-  /** The module's base view permission, matching services/api/src/core/module-entitlements.js. */
+  /** The module's base view permission, matching services/api/src/core/access/module-entitlements.js. */
   requiredPermission: string;
   sections: SecondaryNavSection[];
 };

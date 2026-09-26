@@ -24,6 +24,25 @@ export async function setUserContext(client, userId) {
   await client.query("SELECT set_config('app.current_user_id', $1, true)", [userId]);
 }
 
+// Organisation context for a whole checked-out connection, for work that
+// manages its own short transactions (billing sagas commit before calling a
+// payment provider, so a request-wide transaction is impossible). The context
+// is a session setting (survives each COMMIT) and is ALWAYS reset before the
+// connection returns to the pool.
+export async function runWithOrganizationConnection(client, organizationId, work) {
+  if (!UUID_PATTERN.test(String(organizationId || ""))) {
+    throw new TypeError("A valid organizationId is required for tenant context.");
+  }
+  await client.query("SELECT set_config('app.current_organization_id', $1, false)", [organizationId]);
+  try {
+    return await work(client);
+  } finally {
+    // A failed saga step may leave an aborted transaction: end it first.
+    await client.query("ROLLBACK").catch(() => undefined);
+    await client.query("SELECT set_config('app.current_organization_id', '', false)");
+  }
+}
+
 // The one tenant transaction sequence (docs/01-standards/
 // TENANT_TRANSACTION_RLS_STANDARD.md): on ONE checked-out client,
 // BEGIN -> transaction-local tenant context (parameterized) -> work ->

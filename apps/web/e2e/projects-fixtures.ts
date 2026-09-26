@@ -16,7 +16,7 @@ export const getProjectsWorld = () => (worldPromise ??= buildWorld());
 async function buildWorld(): Promise<ProjectsWorld> {
   const client = new Client({ connectionString: MIGRATION_DATABASE_URL });
   await client.connect();
-  const { hashPassword } = await import("../../../services/api/src/core/session.js");
+  const { hashPassword } = await import("../../../services/api/src/core/auth/session.js");
   try {
     const owner = await client.query(`SELECT id FROM public.users WHERE email=$1`, [fixtures.ownerEmail]);
     const organizationId = (await client.query(`SELECT organization_id FROM organization_memberships WHERE user_id=$1 AND status='active' ORDER BY created_at LIMIT 1`, [owner.rows[0].id])).rows[0].organization_id as string;

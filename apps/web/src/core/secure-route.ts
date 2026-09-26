@@ -43,6 +43,13 @@ export type SecureRouteOptions = {
    * waived. The domain function must scope everything to the caller.
    */
   selfService?: boolean;
+  /**
+   * "request" (default): one transaction for the whole request.
+   * "none": one connection under the organisation context and NO request
+   * transaction; the domain opens its own short transactions. Only for sagas
+   * that must commit before calling an external provider (billing).
+   */
+  transaction?: "request" | "none";
   /** Build the full WorkspaceAccessSnapshot even without a module check. */
   snapshot?: boolean;
   /**
@@ -90,6 +97,8 @@ export type SecureRouteDeps<Session extends { organizationId: string }, Client> 
   assertOrigin(request: Request): void;
   requireSession(): Promise<Session>;
   runTenant<T>(organizationId: string, work: (client: Client) => Promise<T>): Promise<T>;
+  /** Organisation-context connection without a request transaction (transaction: "none"). */
+  runOrganizationConnection<T>(organizationId: string, work: (client: Client) => Promise<T>): Promise<T>;
   createPrincipal(session: Session): AccessPrincipal;
   buildSnapshot(client: Client, session: Session): Promise<WorkspaceAccessSnapshot>;
   authorize(input: AuthorizeInput): AccessDecision;
@@ -129,7 +138,8 @@ export function createSecureRoute<Session extends { organizationId: string }, Cl
       // One transaction per request, always under the session's organisation
       // context: tenant tables AND organisation-scoped platform tables are
       // row-level-security protected (packages/database/src/table-classification.js).
-      return await deps.runTenant(session.organizationId, async (client) => {
+      const run = options.transaction === "none" ? deps.runOrganizationConnection : deps.runTenant;
+      return await run(session.organizationId, async (client) => {
         const snapshot = options.module || options.snapshot ? await deps.buildSnapshot(client, session) : null;
         principal = snapshot?.principal ?? deps.createPrincipal(session);
         const decision = deps.authorize({

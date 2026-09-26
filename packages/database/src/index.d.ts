@@ -45,3 +45,5 @@ export const DEFINER_FUNCTIONS: Readonly<Record<string, { web?: boolean; worker?
 export function classifyPublicTable(name: string): TableClassEntry | null;
 export function organizationScopedTables(): string[];
 export function runtimePrivileges(role: "web" | "worker", table: string, entry: TableClassEntry | null): readonly string[];
+
+export declare function runWithOrganizationConnection<T>(client: { query(text: string, values?: unknown[]): Promise<unknown> }, organizationId: string, work: (client: any) => Promise<T>): Promise<T>;

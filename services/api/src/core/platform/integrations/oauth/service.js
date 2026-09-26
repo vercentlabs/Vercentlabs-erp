@@ -14,7 +14,7 @@
 // Connections are owned by the user who connected them.
 import { createHash, randomBytes } from "node:crypto";
 
-import { audit, canonicalAppOrigin } from "../../../security.js";
+import { audit, canonicalAppOrigin } from "../../../security/request-security.js";
 import { decryptSecret, encryptSecret } from "../../secrets/index.js";
 import { getOAuthProfile, OAUTH_PROFILES, OAUTH_RETURN_PREFIXES } from "./profiles.js";
 

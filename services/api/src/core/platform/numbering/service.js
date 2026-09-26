@@ -11,7 +11,7 @@
 // move forward: there is no way to lower a next number.
 import { fiscalYearFor } from "@vercentlabs/localization";
 
-import { audit } from "../../security.js";
+import { audit } from "../../security/request-security.js";
 import { DOCUMENT_TYPES, getDocumentType, RESET_POLICIES } from "./registry.js";
 
 export class DocumentNumberError extends Error {

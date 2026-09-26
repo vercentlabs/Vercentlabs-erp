@@ -9,7 +9,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { config as loadDotEnv } from "dotenv";
 import { Client } from "pg";
-import { hashPassword } from "../../services/api/src/core/session.js";
+import { hashPassword } from "../../services/api/src/core/auth/session.js";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(here, "../..");

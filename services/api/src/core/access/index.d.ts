@@ -1,4 +1,4 @@
-import type { ModuleAccess } from "../module-entitlements.js";
+import type { ModuleAccess } from "./module-entitlements.js";
 
 export type AccessErrorCode =
   | "AUTH_REQUIRED"
@@ -241,3 +241,7 @@ export declare function recordAccessAssignmentEvent(
     afterState?: unknown;
   },
 ): Promise<void>;
+
+export * from "./control-runtime.js";
+export * from "./module-entitlements.js";
+export * from "./administration-service.js";

@@ -9,7 +9,7 @@
 // approvals.manage is oversight (see and cancel), never business authority.
 import { ERP_MODULE_CATALOG } from "@vercentlabs/shared-types";
 
-import { hasSessionPermission } from "../../core/access-control-runtime.js";
+import { hasSessionPermission } from "../../core/access/index.js";
 import { requireBillingWriteAccess } from "../../core/billing/index.js";
 import {
   APPROVAL_COMMANDS,

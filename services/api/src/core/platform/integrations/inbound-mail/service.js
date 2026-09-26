@@ -12,7 +12,7 @@ import { createHash, createHmac, randomBytes, timingSafeEqual } from "node:crypt
 
 import { setTenantContext } from "@vercentlabs/database";
 
-import { audit } from "../../../security.js";
+import { audit } from "../../../security/request-security.js";
 import { decryptSecret, encryptSecret } from "../../secrets/index.js";
 
 export const PLATFORM_INBOUND_MAIL_IDEMPOTENCY_CONFLICT = "PLATFORM_INBOUND_MAIL_IDEMPOTENCY_CONFLICT";

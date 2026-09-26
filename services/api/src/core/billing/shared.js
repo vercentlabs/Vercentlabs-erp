@@ -1,5 +1,5 @@
 // Internal helpers shared by the billing modules (not exported from the boundary).
-import { redactAuditPayload } from "../audit-redaction.js";
+import { redactAuditPayload } from "../security/audit-redaction.js";
 
 // Short local transaction on a dedicated client. Billing sagas commit BEFORE
 // any provider HTTP call, so a transaction (and its row/advisory locks) is

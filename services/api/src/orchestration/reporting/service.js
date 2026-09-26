@@ -10,11 +10,11 @@
 import { rowsToCsv } from "@vercentlabs/reporting-engine";
 
 import { buildWorkspaceAccessSnapshot } from "../../core/access/index.js";
-import { hasSessionPermission } from "../../core/access-control-runtime.js";
+import { hasSessionPermission } from "../../core/access/index.js";
 import { getConfigurationValue } from "../../core/platform/configuration/index.js";
 import { prepareFileUpload, readFileContent, storeFile } from "../../core/platform/files/index.js";
 import { resolveMemberExecutionContext } from "../../core/platform/reporting/execution-context.js";
-import { audit } from "../../core/security.js";
+import { audit } from "../../core/security/request-security.js";
 import { getReportDataset, REPORT_DATASETS } from "./datasets.js";
 
 export const REPORT_RUN_JOB_TYPE = "platform.reports.run";

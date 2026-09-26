@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { switchActiveCompany, ContextSwitchError } from "../src/core/session.js";
+import { switchActiveCompany, ContextSwitchError } from "../src/core/auth/session.js";
 
 function baseSession() {
   return { organizationId: "org-1", userId: "user-1" };

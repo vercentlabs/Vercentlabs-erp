@@ -48,7 +48,7 @@ async function tenantTx<T>(client: Client, organizationId: string, fn: () => Pro
 async function buildSalesWorld(): Promise<SalesWorld> {
   const client = new Client({ connectionString: MIGRATION_DATABASE_URL });
   await client.connect();
-  const { hashPassword } = await import("../../../services/api/src/core/session.js");
+  const { hashPassword } = await import("../../../services/api/src/core/auth/session.js");
   try {
     const owner = await client.query(`SELECT id FROM public.users WHERE email=$1`, [fixtures.ownerEmail]);
     const ownerUserId = owner.rows[0].id as string;

@@ -4,7 +4,7 @@ import { expect, test, type Page } from "@playwright/test";
 import pg from "pg";
 
 import { setTenantContext } from "../../../packages/database/src/index.js";
-import { hashPassword } from "../../../services/api/src/core/session.js";
+import { hashPassword } from "../../../services/api/src/core/auth/session.js";
 import { createCrmRecord, executeReportRun } from "../../../services/api/src/index.js";
 // @ts-expect-error -- plain JS domain module without a declaration file; called with the documented shape
 import { recordLeadAssignment } from "../../../services/api/src/modules/crm/lead-lifecycle-qualification-and-prioritization/lead-assignment.js";
@@ -70,7 +70,7 @@ async function owner(browser: import("@playwright/test").Browser) {
 
 test.beforeAll(async () => {
   await db.connect();
-  const { registerOrganization } = await import("../../../services/api/src/core/organization-registration.js");
+  const { registerOrganization } = await import("../../../services/api/src/core/organization/registration.js");
   world.ownerEmail = `platform-owner-${suffix}@crm-e2e-fixture.test`;
   world.memberEmail = `platform-member-${suffix}@crm-e2e-fixture.test`;
   const registered = await registerOrganization(db, { fullName: "Priya Owner", email: world.ownerEmail, password, organizationName: `Platform E2E ${suffix}`, countryCode: "IN", baseCurrency: "INR", timezone: "Asia/Kolkata" });

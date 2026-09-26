@@ -3,7 +3,7 @@
 // by Phase 4's verify-email / reset-password / invitation flows.
 import { WORKSPACE_EMAILS } from "@vercentlabs/config";
 
-import { escapeHtml, getMailTransport, smtpConfiguration } from "./platform/mail/index.js";
+import { escapeHtml, getMailTransport, smtpConfiguration } from "../platform/mail/index.js";
 
 const emailContent = {
   "verify-email": {

@@ -3,7 +3,7 @@
 // (default true; false = STARTTLS required), SMTP_USER, SMTP_PASSWORD,
 // AUTH_EMAIL_FROM, AUTH_EMAIL_REPLY_TO. TLS 1.2+, bounded timeouts.
 //
-// Security/auth mail (core/auth-mailer.js) and business transactional mail
+// Security/auth mail (core/auth/mailer.js) and business transactional mail
 // use different templates but this same transport. Mail is never governed by
 // in-app notification preferences, and not every notification is emailable:
 // a feature sends mail only where its own domain explicitly supports email.

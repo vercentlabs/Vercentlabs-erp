@@ -5,7 +5,7 @@ import { databaseConfig } from "@vercentlabs/config";
 import { createLogger, monitorPool } from "@vercentlabs/observability";
 
 import { resolveDbSsl } from "./db-ssl.ts";
-import { runTenantTransaction, setTenantContext, setUserContext } from "@vercentlabs/database";
+import { runTenantTransaction, runWithOrganizationConnection, setTenantContext, setUserContext } from "@vercentlabs/database";
 
 // The one connection pool for the ERP web server process (Next.js Route
 // Handlers / Server Components — never imported by a Client Component,
@@ -62,6 +62,19 @@ export async function workspaceTransaction<T>(
   handler: (client: PoolClient) => Promise<T>,
 ): Promise<T> {
   return tenantTransaction(principal.organizationId, handler);
+}
+
+// One connection under the organisation's context WITHOUT a request-wide
+// transaction: the handler opens its own short transactions (billing sagas,
+// which must commit before calling the payment provider). The context is reset
+// before the connection is released.
+export async function organizationConnection<T>(organizationId: string, handler: (client: PoolClient) => Promise<T>): Promise<T> {
+  const client = await getPool().connect();
+  try {
+    return await runWithOrganizationConnection(client, organizationId, handler);
+  } finally {
+    client.release();
+  }
 }
 
 // Authenticated self-service outside a full workspace (MFA, sessions,

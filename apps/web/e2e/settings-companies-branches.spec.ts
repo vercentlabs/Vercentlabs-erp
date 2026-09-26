@@ -7,7 +7,7 @@ import path from "node:path";
 // and editing", "Branch creation and editing") through the actual
 // /settings/companies and /settings/branches screens and their real
 // backend (createCompany/updateCompany/createBranch/updateBranch,
-// services/api/src/core/organization-administration.js).
+// services/api/src/core/organization/administration.js).
 
 function loadDbUrlFromEnvLocal(): string | undefined {
   if (process.env.MIGRATION_DATABASE_URL) return process.env.MIGRATION_DATABASE_URL;

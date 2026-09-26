@@ -9,7 +9,7 @@ import {
   tokenHash,
   createSession,
   setSessionOrganization,
-} from "../src/core/session.js";
+} from "../src/core/auth/session.js";
 
 test("hashPassword + verifyPassword round-trip and reject a wrong password", async () => {
   const stored = await hashPassword("correct horse battery staple 42!");

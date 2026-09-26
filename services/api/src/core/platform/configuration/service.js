@@ -7,7 +7,7 @@
 //
 // Both kinds are stored in configuration_versions (the older feature_flags
 // table remains for existing rows and is read by nothing new).
-import { audit } from "../../security.js";
+import { audit } from "../../security/request-security.js";
 import { CONFIGURATION_DEFINITIONS, getConfigurationDefinition } from "./registry.js";
 
 export class ConfigurationError extends Error {

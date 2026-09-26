@@ -23,7 +23,7 @@ import {
   setUserAccessScope,
   setUserRoles,
   updateRole,
-} from "../../../services/api/src/core/access-administration.js";
+} from "../../../services/api/src/core/access/administration-service.js";
 import { authorize, buildWorkspaceAccessSnapshot } from "../../../services/api/src/core/access/index.js";
 import {
   acceptOrganizationInvitation,
@@ -31,7 +31,7 @@ import {
   listOrganizationInvitations,
   resendOrganizationInvitation,
   revokeOrganizationInvitation,
-} from "../../../services/api/src/core/auth-lifecycle.js";
+} from "../../../services/api/src/core/auth/lifecycle.js";
 import {
   createBranch,
   createCompany,
@@ -41,10 +41,10 @@ import {
   setMemberStatus,
   updateBranch,
   updateCompany,
-} from "../../../services/api/src/core/organization-administration.js";
-import { bootstrapOrganizationRoles } from "../../../services/api/src/core/organization-registration.js";
+} from "../../../services/api/src/core/organization/administration.js";
+import { bootstrapOrganizationRoles } from "../../../services/api/src/core/organization/registration.js";
 import { listModuleAdministration, setOrganizationModuleEnabled } from "../../../services/api/src/core/platform/module-administration.js";
-import { tokenHash } from "../../../services/api/src/core/session.js";
+import { tokenHash } from "../../../services/api/src/core/auth/session.js";
 
 const migrationUrl = process.env.MIGRATION_DATABASE_URL || "";
 const runtimeUrl = process.env.DATABASE_URL || "";

@@ -24,7 +24,7 @@ import {
   setUserRoles,
   listOrganizationRolesDetailed,
   AccessAdministrationError,
-} from "../../services/api/src/core/access-administration.js";
+} from "../../services/api/src/core/access/administration-service.js";
 import { ALL_PERMISSIONS } from "../../packages/permissions/src/catalog.js";
 
 const adminConnectionString = process.env.MIGRATION_DATABASE_URL || "";

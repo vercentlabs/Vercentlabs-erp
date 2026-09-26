@@ -3,7 +3,7 @@
 import { ERP_MODULE_CATALOG } from "@vercentlabs/shared-types";
 
 import { getBillingSummary } from "../../../billing/index.js";
-import { entitlementFromBillingSummary, getEnabledModuleKeys, isModuleReleased } from "../../../module-entitlements.js";
+import { entitlementFromBillingSummary, getEnabledModuleKeys, isModuleReleased } from "../../../access/index.js";
 import { API_VERSION } from "./scopes.js";
 
 export async function getApiPlatformContext(client, principal, env = process.env) {

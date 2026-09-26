@@ -9,7 +9,7 @@
 // surrounding tenant transaction).
 import { createLogger, redact } from "@vercentlabs/observability";
 
-import { hasSessionPermission } from "../../core/access-control-runtime.js";
+import { hasSessionPermission } from "../../core/access/index.js";
 import { SEARCH_PROVIDERS } from "./providers.js";
 
 const logger = createLogger("global-search");

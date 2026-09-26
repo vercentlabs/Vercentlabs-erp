@@ -8,7 +8,7 @@ export {
   evaluateModuleAccess,
   getModuleDefinition,
   isModuleReleased,
-} from "../module-entitlements.js";
+} from "./module-entitlements.js";
 export { MODULE_ACCESS_PERMISSIONS, moduleAccessPermission } from "@vercentlabs/permissions";
 
 import { ACCESS_ERROR_CODES } from "./errors.js";

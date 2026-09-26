@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { assertSameOrigin, assertSameOriginOrMobile, clientIp, enforceRateLimit, SecurityError } from "../src/core/security.js";
+import { assertSameOrigin, assertSameOriginOrMobile, clientIp, enforceRateLimit, SecurityError } from "../src/core/security/request-security.js";
 
 const ENV = { APP_URL: "https://app.example.com", NODE_ENV: "production" };
 

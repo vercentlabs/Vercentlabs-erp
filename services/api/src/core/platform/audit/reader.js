@@ -1,10 +1,10 @@
 // The organisation audit read model over the existing append-only
-// audit_events table (written by core/security.js audit()). There is no
+// audit_events table (written by core/security/request-security.js audit()). There is no
 // second audit store and no API to edit or delete audit events.
 //
 // Always scoped to the caller's organisation; callers must hold audit.view.
 // Pagination is keyset on (created_at, id), stable when timestamps collide.
-import { redactAuditPayload } from "../../audit-redaction.js";
+import { redactAuditPayload } from "../../security/audit-redaction.js";
 
 export class AuditQueryError extends Error {
   constructor(status, message, code = "AUDIT_QUERY_INVALID") {

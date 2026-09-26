@@ -14,7 +14,7 @@ import { config as loadDotEnv } from "dotenv";
 import { Client } from "pg";
 
 import { createCrmAccount, createCrmContact, createCrmRecord, createSalesStage, registerOrganization } from "../../services/api/src/index.js";
-import { hashPassword } from "../../services/api/src/core/session.js";
+import { hashPassword } from "../../services/api/src/core/auth/session.js";
 import { setTenantContext } from "../../packages/database/src/index.js";
 
 const here = path.dirname(fileURLToPath(import.meta.url));

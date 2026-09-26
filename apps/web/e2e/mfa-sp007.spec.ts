@@ -66,7 +66,7 @@ function totpNow(secretBase32: string): string {
     ((hmac[offset] & 0x7f) << 24) | ((hmac[offset + 1] & 0xff) << 16) | ((hmac[offset + 2] & 0xff) << 8) | (hmac[offset + 3] & 0xff);
   return String(binary % 1_000_000).padStart(6, "0");
 }
-// migration 050's replay protection (services/api/src/core/mfa.js) rejects
+// migration 050's replay protection (services/api/src/core/auth/mfa.js) rejects
 // reusing the same TOTP step twice for a given user, matching how a real
 // authenticator app is never asked to produce two codes for one step --
 // correct, intentional behavior, not a bug. This test uses the setup key
