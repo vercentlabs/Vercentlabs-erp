@@ -202,7 +202,7 @@ test("organization invitation: a real invitation can be accepted end-to-end and 
       const resp = await fetch("/api/auth/invitations", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, roleId }),
+        body: JSON.stringify({ email, roleIds: [roleId], primaryRoleId: roleId }),
       });
       return { status: resp.status, body: await resp.json() };
     },
@@ -296,7 +296,7 @@ test("organization invitation: the URL a real invitee would receive by email is 
         const resp = await fetch("/api/auth/invitations", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ email, roleId }),
+          body: JSON.stringify({ email, roleIds: [roleId], primaryRoleId: roleId }),
         });
         return { status: resp.status, body: await resp.json() };
       },

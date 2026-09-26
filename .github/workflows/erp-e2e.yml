@@ -54,11 +54,17 @@ jobs:
       ENFORCE_RESTRICTED_DB_ROLE: "true"
       DATABASE_SSL: "false"
       SESSION_COOKIE_NAME: vercent_session
-      INTEGRATION_TOKEN_ENCRYPTION_KEY: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+      # Test-only local envelope-encryption master key (production uses Cloud KMS).
+      SECRETS_ENCRYPTION_PROVIDER: local
+      SECRETS_LOCAL_MASTER_KEY: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
       BILLING_ENFORCEMENT_MODE: observe
       BILLING_CHECKOUT_ENABLED: "false"
       QA_PORT: "3001"
       E2E_SEED_ALLOW_REMOTE: "1"
+      # Test-support email capture (dev server only; hard-blocked when
+      # NODE_ENV=production): auth E2E follows the exact emailed URL.
+      AUTH_EMAIL_CAPTURE_ENABLED: "1"
+      AUTH_EMAIL_WEBHOOK_URL: http://localhost:3001/api/test-support/email-capture
     steps:
       - uses: actions/checkout@v6
 
@@ -106,11 +112,20 @@ jobs:
           crm-public-booking.spec.ts opportunity-stage-transition.spec.ts restricted-role-authorization.spec.ts
           platform-security.spec.ts platform-surfaces.spec.ts accounting-schedule-views.spec.ts
           accessibility.spec.ts responsive-layout.spec.ts
+          auth-lifecycle.spec.ts mfa-sp007.spec.ts settings-shared-access.spec.ts
 
       # SaaS billing journeys start their OWN isolated web server (enforce mode, checkout on) and a local
       # Razorpay stand-in; no real Razorpay credentials. See apps/web/playwright.config.billing.ts.
       - name: Run the SaaS billing journeys
         run: pnpm --filter @vercentlabs/web test:e2e:billing
+
+      # Notifications, approvals, audit, search and jobs (own web server).
+      - name: Run the Shared Runtime journeys
+        run: pnpm --filter @vercentlabs/web test:e2e:shared-runtime
+
+      # Integrations (OAuth stand-in, webhooks, API keys), files, privacy, automations and reports (own web server).
+      - name: Run the Shared Platform services journeys
+        run: pnpm --filter @vercentlabs/web test:e2e:platform-services
 
       - name: Run the full suite
         if: ${{ github.event_name == 'schedule' || inputs.full }}
