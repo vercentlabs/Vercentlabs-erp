@@ -6,7 +6,9 @@ import test from "node:test";
 
 import { CONTROLLER, MEMBER, PM, PMO, buildProjectsWorld, connectAdmin } from "./projects-test-kit.mjs";
 
-const ROLES = { pm: PM, pmo: PMO, controller: CONTROLLER, dev1: MEMBER, dev2: MEMBER, outsider: ["projects.view"] };
+// commercial: a project manager who may also set the contracted revenue and budget (the built-in
+// project_manager role holds these finance permissions; the plain PM set here does not).
+const ROLES = { pm: PM, pmo: PMO, controller: CONTROLLER, dev1: MEMBER, dev2: MEMBER, outsider: ["projects.view"], commercial: [...PM, "projects.budget.manage", "projects.billing.manage"] };
 
 test("Project setup, templates, lifecycle and team against real PostgreSQL", async (t) => {
   const admin = await connectAdmin();
@@ -42,12 +44,15 @@ test("Project setup, templates, lifecycle and team against real PostgreSQL", asy
       assert.equal(noCustomer.code, "PROJECT_FIELD_REQUIRED");
       const internalWithCustomer = await run("pm", (c, x) => api.createProjectRecord(c, x, { name: "Internal", projectType: "internal", customerId: w.customerId })).catch((e) => e);
       assert.equal(internalWithCustomer.status, 400);
-      const internal = await run("pm", (c, x) => api.createProjectRecord(c, x, { name: "Office move", projectType: "internal", contractedRevenue: 5000, plannedStartDate: "2026-02-02", plannedEndDate: "2026-03-30" }));
+      // Field write protection: without a finance permission the hidden revenue cannot be submitted.
+      const hiddenWrite = await run("pm", (c, x) => api.createProjectRecord(c, x, { name: "Office move", projectType: "internal", contractedRevenue: 5000 })).catch((e) => e);
+      assert.equal(hiddenWrite.code, "FIELD_ACCESS_DENIED");
+      const internal = await run("commercial", (c, x) => api.createProjectRecord(c, x, { name: "Office move", projectType: "internal", contractedRevenue: 5000, projectManagerId: users.pm, plannedStartDate: "2026-02-02", plannedEndDate: "2026-03-30" }));
       assert.equal(internal.billing_method, "non_billable");
       assert.equal(internal.billable, false);
       assert.equal(Number((await sql(`SELECT contracted_revenue FROM tenant.projects WHERE id=$1`, [internal.id]))[0].contracted_revenue), 0, "an internal project earns nothing");
       ids.internal = internal.id;
-      const p = await run("pm", (c, x) => api.createProjectRecord(c, x, { name: "ERP rollout", customerId: w.customerId, templateId: ids.template, plannedStartDate: "2026-03-02", contractedRevenue: 100000, projectManagerId: users.pm }));
+      const p = await run("commercial", (c, x) => api.createProjectRecord(c, x, { name: "ERP rollout", customerId: w.customerId, templateId: ids.template, plannedStartDate: "2026-03-02", contractedRevenue: 100000, projectManagerId: users.pm }));
       assert.equal(p.status, "draft");
       ids.p = p.id;
       const wbs = await run("pm", (c, x) => api.getProjectWbs(c, x, p.id));

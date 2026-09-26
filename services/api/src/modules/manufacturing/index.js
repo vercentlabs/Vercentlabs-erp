@@ -4,18 +4,6 @@ import { nextDocumentNumber } from "../../core/platform/numbering/index.js";
 import { beginIdempotentOperation, completeIdempotentOperation } from "../../core/idempotency.js";
 import { postStockMovement as postCanonicalStockMovement } from "../stock/index.js";
 
-const RESOURCE_TABLES = Object.freeze({
-  boms: "manufacturing_boms",
-  routings: "manufacturing_routings",
-  "work-centers": "manufacturing_work_centers",
-  "work-orders": "manufacturing_work_orders",
-  operations: "manufacturing_work_order_operations",
-  "material-requirements": "manufacturing_material_requirements",
-  "production-postings": "manufacturing_production_postings",
-  scrap: "manufacturing_production_postings",
-  "planning-runs": "manufacturing_planning_runs",
-});
-
 function assertPermission(context, permission) {
   if (
     !context.roleSlugs?.includes("organization_owner") &&
@@ -25,16 +13,6 @@ function assertPermission(context, permission) {
     error.code = "FORBIDDEN";
     throw error;
   }
-}
-
-function tableFor(resource) {
-  const table = RESOURCE_TABLES[resource];
-  if (!table) {
-    const error = new Error("Unsupported manufacturing resource.");
-    error.code = "INVALID_RESOURCE";
-    throw error;
-  }
-  return table;
 }
 
 function contentHash(value) {
@@ -94,28 +72,6 @@ export async function getManufacturingDashboard(client, context) {
     ...result.rows[0],
     shortage_count: shortages.rows[0].shortage_count,
   };
-}
-
-export async function listManufacturingResource(
-  client,
-  context,
-  resource,
-  { limit = 100, offset = 0 } = {},
-) {
-  assertPermission(context, "manufacturing.view");
-  const table = tableFor(resource);
-  const result = await client.query(
-    `SELECT * FROM tenant.${table}
-     WHERE organization_id=$1
-     ORDER BY created_at DESC NULLS LAST, id DESC
-     LIMIT $2 OFFSET $3`,
-    [
-      context.organizationId,
-      Math.min(Number(limit) || 100, 200),
-      Number(offset) || 0,
-    ],
-  );
-  return result.rows;
 }
 
 export async function createBillOfMaterial(client, context, input) {

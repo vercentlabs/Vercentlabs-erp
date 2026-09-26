@@ -11,13 +11,6 @@ export declare function getManufacturingDashboard(
   context: ManufacturingContext,
 ): Promise<Record<string, unknown>>;
 
-export declare function listManufacturingResource(
-  client: { query(...args: unknown[]): Promise<{ rows: any[] }> },
-  context: ManufacturingContext,
-  resource: string,
-  options?: { limit?: number; offset?: number },
-): Promise<any[]>;
-
 export declare function createBillOfMaterial(
   client: any,
   context: ManufacturingContext,

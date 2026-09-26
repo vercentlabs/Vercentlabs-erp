@@ -6,7 +6,7 @@ import test from "node:test";
 
 import { CONTROLLER, MEMBER, PM, PMO, buildProjectsWorld, connectAdmin } from "./projects-test-kit.mjs";
 
-const ROLES = { pm: PM, pmo: PMO, controller: CONTROLLER, controller2: CONTROLLER, dev1: MEMBER };
+const ROLES = { pm: PM, pmo: PMO, controller: CONTROLLER, controller2: CONTROLLER, dev1: MEMBER, commercial: [...PM, "projects.budget.manage", "projects.billing.manage"] };
 
 test("Project budgets, profitability and billing against real PostgreSQL", async (t) => {
   const admin = await connectAdmin();
@@ -17,7 +17,7 @@ test("Project budgets, profitability and billing against real PostgreSQL", async
   const day = (offset) => new Date(Date.now() - offset * 86400000).toISOString().slice(0, 10);
 
   async function mkProject(name, billingMethod, revenue, extra = {}) {
-    const p = await run("pm", (c, x) => api.createProjectRecord(c, x, { name, customerId: w.customerId, billingMethod, contractedRevenue: revenue, projectManagerId: users.pm, plannedStartDate: "2026-01-05", ...extra }));
+    const p = await run("commercial", (c, x) => api.createProjectRecord(c, x, { name, customerId: w.customerId, billingMethod, contractedRevenue: revenue, projectManagerId: users.pm, plannedStartDate: "2026-01-05", ...extra }));
     await run("pm", (c, x) => api.saveProjectMember(c, x, p.id, { userId: users.dev1, roleName: "Engineer", allocationPercent: 50, costRate: 400, billRate: 1000, allowOverAllocation: true }));
     await run("pm", (c, x) => api.changeProjectStatus(c, x, p.id, "plan"));
     await run("pmo", (c, x) => api.approveProjectRecord(c, x, p.id));
@@ -196,7 +196,7 @@ test("Project budgets, profitability and billing against real PostgreSQL", async
     await t.test("close checks: unbilled queued lines and unapproved cost block completion; contract cannot fall below what is billed", async () => {
       const lower = await run("controller", (c, x) => api.getProjectProfitabilityDesk(c, x, ids.fixed));
       assert.ok(lower);
-      const tooLow = await run("pm", (c, x) => c && api.updateProjectRecord(c, x, ids.fixed, { contractedRevenue: 1000 })).catch((e) => e);
+      const tooLow = await run("commercial", (c, x) => c && api.updateProjectRecord(c, x, ids.fixed, { contractedRevenue: 1000 })).catch((e) => e);
       assert.ok(["PROJECT_REVENUE_BELOW_BILLED", "PROJECT_FORBIDDEN"].includes(tooLow.code));
       const blockers = await run("pmo", (c, x) => api.getCloseBlockers(c, x, ids.fixed));
       assert.ok(blockers.blockers.some((b) => b.code === "unapproved_expenses"), "the draft expense blocks completion");

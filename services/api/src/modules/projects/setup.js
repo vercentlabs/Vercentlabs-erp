@@ -10,6 +10,15 @@ import { instantiateTemplate } from "./planning.js";
 const BILLING = ["fixed_price", "time_and_material", "milestone", "non_billable"];
 const PRIORITIES = ["low", "normal", "high", "urgent"];
 const FIN_FIELDS = ["approved_budget", "contracted_revenue"];
+const FIN_INPUT_FIELDS = ["approvedBudget", "contractedRevenue"];
+
+// Field write protection: the budget and contracted revenue are hidden from
+// callers without a project finance permission (maskProject), so such a
+// caller may not submit them either; refused, never silently ignored.
+function assertFinanceFieldsWritable(c, input) {
+  if (canSeeFinance(c) || !FIN_INPUT_FIELDS.some((field) => input?.[field] !== undefined)) return;
+  throw new ProjectError(403, "You do not have permission to change one or more of these fields.", "FIELD_ACCESS_DENIED");
+}
 
 export function maskProject(c, row) {
   if (canSeeFinance(c)) return row;
@@ -166,6 +175,7 @@ async function requireCustomer(client, c, customerId) {
 
 export async function createProjectRecord(client, c, input) {
   need(c, "projects.create");
+  assertFinanceFieldsWritable(c, input);
   const settings = await loadSettings(client, c);
   let template = null;
   if (input.templateId) template = (await getProjectTemplate(client, c, input.templateId));
@@ -215,6 +225,7 @@ export async function createProjectRecord(client, c, input) {
 
 export async function updateProjectRecord(client, c, projectId, input) {
   need(c, "projects.manage");
+  assertFinanceFieldsWritable(c, input);
   const p = await loadProject(client, c, projectId, { lock: true });
   if (["completed", "cancelled"].includes(p.status)) throw new ProjectError(409, `This project is ${p.status}; reopen it before editing.`, "PROJECT_CLOSED");
   const sets = [];

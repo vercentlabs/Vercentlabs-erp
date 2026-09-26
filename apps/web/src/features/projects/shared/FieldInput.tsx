@@ -19,6 +19,8 @@ export type FieldDef = {
   step?: number;
   showIf?: (values: Record<string, FieldValue>) => boolean;
   createOnly?: boolean;
+  /** Shown only to callers holding any of these permissions (the domain refuses the field otherwise). */
+  anyPermission?: string[];
   min?: number;
   rowKey?: string;
 };

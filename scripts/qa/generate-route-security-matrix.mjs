@@ -165,6 +165,15 @@ function literal(options, key) {
   return value ? value.replace(/"/g, "") : "";
 }
 
+// The permission a route passes to a module helper: salesRead/salesMutation
+// take it as the second argument; the other helpers as their last argument.
+function helperPermission(body, name) {
+  const second = body.match(new RegExp(`\\b${name}\\(\\s*request,\\s*("[a-z_]+(?:\\.[a-z_]+)+"|[A-Z_]+\\.[A-Za-z]+)`));
+  if (second) return second[1].replace(/"/g, "");
+  const last = body.match(/,\s*("[a-z_]+(?:\.[a-z_]+)+")\s*,?\s*\)\s*;?\s*\}\s*$/);
+  return last ? last[1].replace(/"/g, "") : null;
+}
+
 function classifyWorkspace(body, source, helpers) {
   const direct = body.match(/workspaceRoute\(\s*request,\s*([\s\S]*?),\s*async\s*\(/);
   if (direct) {
@@ -186,7 +195,7 @@ function classifyWorkspace(body, source, helpers) {
     return {
       via: name,
       module: helper.module,
-      permission: helper.defaultPermission ? `${helper.defaultPermission} (helper default; route may narrow)` : "(route-specified)",
+      permission: helperPermission(body, name) ?? (helper.defaultPermission ? `${helper.defaultPermission} (helper default; route may narrow)` : "(route-specified)"),
       billingWrite: helper.mutation,
       selfService: helper.selfService && /SELF_SERVICE|""/.test(body) ? "when self-service" : false,
     };

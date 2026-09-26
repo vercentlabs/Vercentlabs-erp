@@ -260,6 +260,7 @@ export const MODULE_LIST_EXCEPTIONS = Object.freeze({
   "packages/permissions/src/roles.js": "CURRENT_MODULE_KEYS + per-module role templates",
   "packages/permissions/src/roles.d.ts": "types for CURRENT_MODULE_KEYS",
   "packages/permissions/src/module-access.js": "canonical module → view permission map",
+  "packages/permissions/src/field-security.js": "per-module field-security audit keyed by the catalogue (not a catalogue); verify-field-security checks every catalogue module is covered",
   "apps/web/src/shell/navigation/module-navigation-registry.ts": "per-module navigation config keyed by the catalogue (UI, not a catalogue)",
   "services/api/src/core/platform/numbering/registry.js": "document types and their owning module (not a catalogue); verify:platform-services checks every key against ERP_MODULE_CATALOG",
 });

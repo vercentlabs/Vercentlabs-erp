@@ -5,6 +5,9 @@ import type { FieldDef } from "@/features/projects/shared/FieldInput";
 import type { RegisterConfig, RowAction } from "@/features/projects/shared/Register";
 import { badge, calendarDate, col, dateTime, money, opts, quantity, strong, text } from "@/features/projects/shared/helpers";
 
+// Project finance authority (services/api projects canSeeFinance): only these see or set the budget and revenue.
+const PROJECT_FINANCE_PERMISSIONS = ["projects.budget.manage", "projects.billing.manage", "projects.profitability.view", "projects.approve", "projects.reports.view"];
+
 const BILLING = opts("fixed_price", "time_and_material", "milestone", "non_billable");
 const PRIORITY = opts("low", "normal", "high", "urgent");
 const SEVERITY = opts("low", "medium", "high", "critical");
@@ -34,7 +37,7 @@ const projects: RegisterConfig = {
     { name: "templateId", label: "From template", kind: "select", options: "templates", createOnly: true },
     { name: "customerId", label: "Customer", kind: "select", options: "customers", rowKey: "customer_id" },
     { name: "billingMethod", label: "Billing method", kind: "select", options: BILLING, defaultValue: "non_billable", rowKey: "billing_method" },
-    { name: "contractedRevenue", label: "Contracted revenue", kind: "number", step: 0.01, rowKey: "contracted_revenue" },
+    { name: "contractedRevenue", label: "Contracted revenue", kind: "number", step: 0.01, rowKey: "contracted_revenue", anyPermission: PROJECT_FINANCE_PERMISSIONS },
     { name: "plannedStartDate", label: "Planned start", kind: "date", rowKey: "planned_start_date" },
     { name: "plannedEndDate", label: "Planned end", kind: "date", rowKey: "planned_end_date" },
     { name: "projectManagerId", label: "Project manager", kind: "select", options: "users", rowKey: "project_manager_id" },

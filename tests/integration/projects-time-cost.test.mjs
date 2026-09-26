@@ -6,7 +6,7 @@ import test from "node:test";
 
 import { CONTROLLER, MEMBER, PM, PMO, buildProjectsWorld, connectAdmin } from "./projects-test-kit.mjs";
 
-const ROLES = { pm: PM, pmo: PMO, pmo2: PMO, controller: CONTROLLER, dev1: MEMBER, dev2: MEMBER, outsider: MEMBER, lead: [...MEMBER, "projects.time.approve"] };
+const ROLES = { pm: PM, pmo: PMO, pmo2: PMO, controller: CONTROLLER, dev1: MEMBER, dev2: MEMBER, outsider: MEMBER, lead: [...MEMBER, "projects.time.approve"], commercial: [...PM, "projects.budget.manage", "projects.billing.manage"] };
 
 test("Project time, expenses, materials and procurement against real PostgreSQL", async (t) => {
   const admin = await connectAdmin();
@@ -18,7 +18,7 @@ test("Project time, expenses, materials and procurement against real PostgreSQL"
   const mondayOfToday = () => { const d = new Date(); d.setUTCDate(d.getUTCDate() - ((d.getUTCDay() + 6) % 7)); return d.toISOString().slice(0, 10); };
 
   try {
-    const p = await run("pm", (c, x) => api.createProjectRecord(c, x, { name: "Field service", customerId: w.customerId, billingMethod: "time_and_material", contractedRevenue: 0, projectManagerId: users.pm, plannedStartDate: "2026-01-05" }));
+    const p = await run("commercial", (c, x) => api.createProjectRecord(c, x, { name: "Field service", customerId: w.customerId, billingMethod: "time_and_material", contractedRevenue: 0, projectManagerId: users.pm, plannedStartDate: "2026-01-05" }));
     ids.p = p.id;
     await run("pm", (c, x) => api.saveProjectMember(c, x, p.id, { userId: users.dev1, roleName: "Engineer", allocationPercent: 50, costRate: 400, billRate: 1000 }));
     await run("pm", (c, x) => api.changeProjectStatus(c, x, p.id, "plan"));

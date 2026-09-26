@@ -261,7 +261,8 @@ function NoteDialog({ action, onClose, onConfirm, isPending, error, options }: {
 }
 
 function FormDialog({ config, mode, row, options, onClose, onSaved }: { config: RegisterConfig; mode: "create" | "edit"; row?: Row; options: ProjectsOptions | undefined; onClose: () => void; onSaved: (message: string) => void }) {
-  const fields = (config.fields ?? []).filter((field) => mode === "create" || !field.createOnly);
+  const can = useCan();
+  const fields = (config.fields ?? []).filter((field) => (mode === "create" || !field.createOnly) && (!field.anyPermission || field.anyPermission.some((permission) => can(permission))));
   const [start] = useState(() => initial(fields, row));
   const [values, setValues] = useState<Record<string, FieldValue>>(start);
   // One key per opening of the dialog: a double-click or a retry replays the same operation.
