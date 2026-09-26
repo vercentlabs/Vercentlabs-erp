@@ -101,7 +101,7 @@ const liveChecks = [
   ["services/api/src/core/platform/integrations/api-keys/service.js", ["createTenantApiKeyMaterial", "authenticateApiKey", "requireApiScope"]],
   ["services/api/src/core/platform/integrations/api-keys/scopes.js", ["API_SCOPES", "platform.context.read"]],
   ["services/api/src/core/platform/integrations/oauth/service.js", ["code_challenge_method", "consumeOAuthState", "oauthCallbackUri"]],
-  ["services/api/src/core/platform/integrations/secrets.js", ["encryptIntegrationCredentials", "aes-256-gcm"]],
+  ["services/api/src/core/platform/secrets/envelope.js", ["encryptSecret", "decryptSecret", "aes-256-gcm", "gcp-kms"]],
   ["services/api/src/core/platform/integrations/inbound-mail/service.js", ["verifyInboundMailSignature", "PLATFORM_INBOUND_MAIL_IDEMPOTENCY_CONFLICT", "resolveInboundMailRoute"]],
   ["services/api/src/core/platform/configuration/service.js", ["pg_advisory_xact_lock", "isFeatureFlagEnabled", "setTenantConfiguration"]],
   ["services/api/src/core/platform/privacy/service.js", ["assertPrivacyTransition"]],

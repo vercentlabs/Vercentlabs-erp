@@ -60,6 +60,8 @@ test("Sales quotation lifecycle against real PostgreSQL", async (t) => {
   const priceListId = randomUUID();
   const itemId = randomUUID();
   const customerId = randomUUID();
+  // GST needs the buyer's state: the customer's billing address carries it.
+  const billingAddressId = randomUUID();
 
   const sellerContext = {
     organizationId: orgId,
@@ -92,6 +94,7 @@ test("Sales quotation lifecycle against real PostgreSQL", async (t) => {
 
   const baseDocument = () => ({
     partyId: customerId,
+    billingAddressId,
     currencyCode: "INR",
     priceListId,
     validUntil: new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10),
@@ -148,6 +151,10 @@ test("Sales quotation lifecycle against real PostgreSQL", async (t) => {
     await admin.query(
       `INSERT INTO tenant.business_parties(id,organization_id,company_id,code,party_type,display_name,status,created_by) VALUES ($1,$2,$3,'CUST1','customer','Acme Retail','active',$4)`,
       [customerId, orgId, companyId, sellerId],
+    );
+    await admin.query(
+      `INSERT INTO tenant.addresses(id,organization_id,party_id,address_type,line1,city,state,state_code,postal_code,country_code,is_primary) VALUES ($1,$2,$3,'billing','1 MG Road','Bengaluru','Karnataka','KA','560001','IN',true)`,
+      [billingAddressId, orgId, customerId],
     );
 
     let quotation;

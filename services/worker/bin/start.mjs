@@ -7,6 +7,7 @@ import { validateRazorpayConfig } from "@vercentlabs/api";
 import { createLogger } from "@vercentlabs/observability";
 
 import { getWorkerConfig } from "../src/db.js";
+import { startWorkerHealthServer } from "../src/health.js";
 import { createWorker } from "../src/worker.js";
 import { registerBuiltinHandlers } from "../src/handlers/index.js";
 
@@ -26,6 +27,8 @@ async function main() {
   }
   registerBuiltinHandlers();
   const worker = createWorker(config);
+  // Probes come up first so Kubernetes sees "starting" rather than a refused port.
+  const probes = startWorkerHealthServer(worker.health, config);
   await worker.start();
 
   let shuttingDown = false;
@@ -33,8 +36,12 @@ async function main() {
     if (shuttingDown) return;
     shuttingDown = true;
     logger.info("received shutdown signal", { signal });
+    // Readiness flips to "stopping" at once; in-flight jobs finish (or their
+    // leases expire for another replica) within the shutdown deadline, which
+    // is shorter than the pod's terminationGracePeriodSeconds.
     worker
       .stop()
+      .then(() => probes.close())
       .then(() => process.exit(0))
       .catch((error) => {
         logger.error("error during shutdown", { error: String(error?.message || error) });
@@ -44,7 +51,7 @@ async function main() {
     setTimeout(() => {
       logger.error("graceful shutdown timed out — forcing exit");
       process.exit(1);
-    }, 30_000).unref();
+    }, config.worker.shutdownDeadlineMilliseconds).unref();
   };
   process.on("SIGTERM", () => shutdown("SIGTERM"));
   process.on("SIGINT", () => shutdown("SIGINT"));

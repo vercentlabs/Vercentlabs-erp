@@ -34,7 +34,7 @@ import {
   revokeOAuthConnection,
   saveOAuthConnection,
 } from "../../../services/api/src/core/platform/integrations/oauth/index.js";
-import { decryptIntegrationCredentials } from "../../../services/api/src/core/platform/integrations/secrets.js";
+import { decryptSecret } from "../../../services/api/src/core/platform/secrets/index.js";
 import {
   createWebhookSubscription,
   listWebhookDeliveries,
@@ -241,7 +241,7 @@ test("OAuth: PKCE flow, encrypted tokens, refresh, rotation, reconnect", async (
       assert.notEqual(token2, token1);
       const after = (await kit.owner.query(`SELECT credential_version, encrypted_credentials, last_refreshed_at FROM oauth_connections WHERE id=$1`, [connectionId])).rows[0];
       assert.equal(after.credential_version, before.credential_version + 1);
-      assert.notEqual(decryptIntegrationCredentials(after.encrypted_credentials, env).refreshToken, decryptIntegrationCredentials(before.encrypted_credentials, env).refreshToken);
+      assert.notEqual((await decryptSecret(after.encrypted_credentials, env)).refreshToken, (await decryptSecret(before.encrypted_credentials, env)).refreshToken);
       assert.ok(after.last_refreshed_at);
     });
 

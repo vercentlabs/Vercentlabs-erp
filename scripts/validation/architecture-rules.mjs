@@ -11,6 +11,8 @@
 // ---------------------------------------------------------------- frontend
 
 export const WEB_SRC_ENTRIES = Object.freeze(["app", "core", "features", "shell", "shared"]);
+// Files Next.js only recognises at the src root (framework entry points).
+export const WEB_SRC_FRAMEWORK_FILES = Object.freeze(["instrumentation.ts"]);
 const RETIRED_WEB_ENTRIES = Object.freeze({
   components: "reusable UI belongs in @vercentlabs/design-system or apps/web/src/shared",
   lib: "helpers belong in apps/web/src/core (protected runtime) or apps/web/src/shared (generic)",
@@ -23,7 +25,7 @@ const RETIRED_WEB_ENTRIES = Object.freeze({
 export function checkWebTopLevel(entries) {
   const problems = [];
   for (const entry of entries) {
-    if (WEB_SRC_ENTRIES.includes(entry)) continue;
+    if (WEB_SRC_ENTRIES.includes(entry) || WEB_SRC_FRAMEWORK_FILES.includes(entry)) continue;
     const hint = RETIRED_WEB_ENTRIES[entry];
     problems.push(`apps/web/src/${entry} is not part of the frontend architecture${hint ? ` — ${hint}` : ` (allowed: ${WEB_SRC_ENTRIES.join(", ")})`}`);
   }

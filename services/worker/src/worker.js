@@ -101,23 +101,36 @@ export function createWorker(config, { workerId = generateWorkerId(), billingPro
   let pollTimer;
   let schedulerTimer;
   let activePoll = Promise.resolve();
+  // Health state for the probe server (services/worker/src/health.js).
+  const health = { startedAt: null, pollStartedAt: null, pollCompletedAt: null, lastPollError: null, stopping: false };
 
+  // WORKER_CONCURRENCY organisations are processed in parallel per cycle;
+  // within one organisation jobs stay sequential. Every job is leased
+  // (FOR UPDATE SKIP LOCKED), so parallel lanes and parallel replicas never
+  // run the same job twice. The pool must hold the lanes plus the
+  // maintenance loops (checked by getWorkerConfig).
   async function pollOnce() {
     if (stopRequested) return;
+    health.pollStartedAt = Date.now();
     const pool = await getPool();
-    const organizationIds = await listActiveOrganizationIds(pool);
+    const pending = await listActiveOrganizationIds(pool);
     let totalJobs = 0;
     let totalEvents = 0;
-    for (const organizationId of organizationIds) {
-      if (stopRequested) break;
-      try {
-        const { jobsClaimed, eventsClaimed } = await processOrganization(pool, workerId, config, organizationId);
-        totalJobs += jobsClaimed;
-        totalEvents += eventsClaimed;
-      } catch (error) {
-        logger.error("organization poll failed", { organizationId, error: redact(String(error?.message || error)) });
+    const lanes = Array.from({ length: Math.min(config.worker.concurrency, pending.length) }, async () => {
+      while (pending.length && !stopRequested) {
+        const organizationId = pending.shift();
+        try {
+          const { jobsClaimed, eventsClaimed } = await processOrganization(pool, workerId, config, organizationId);
+          totalJobs += jobsClaimed;
+          totalEvents += eventsClaimed;
+        } catch (error) {
+          logger.error("organization poll failed", { organizationId, error: redact(String(error?.message || error)) });
+        }
       }
-    }
+    });
+    await Promise.all(lanes);
+    health.pollCompletedAt = Date.now();
+    health.lastPollError = null;
     if (totalJobs > 0 || totalEvents > 0) {
       logger.info("poll cycle complete", { organizations: organizationIds.length, jobsClaimed: totalJobs, eventsClaimed: totalEvents });
     }
@@ -135,12 +148,16 @@ export function createWorker(config, { workerId = generateWorkerId(), billingPro
 
   return {
     workerId,
+    health,
     async start() {
       logger.info("worker starting", { workerId, concurrency: config.worker.concurrency, pollIntervalMs: config.worker.pollIntervalMilliseconds });
       await getPool();
       const tick = async () => {
         if (stopRequested) return;
-        activePoll = pollOnce().catch((error) => logger.error("poll crashed", { error: redact(String(error?.message || error)) }));
+        activePoll = pollOnce().catch((error) => {
+          health.lastPollError = Date.now();
+          logger.error("poll crashed", { error: redact(String(error?.message || error)) });
+        });
         await activePoll;
         if (!stopRequested) pollTimer = setTimeout(tick, config.worker.pollIntervalMilliseconds);
       };
@@ -148,6 +165,7 @@ export function createWorker(config, { workerId = generateWorkerId(), billingPro
       schedulerTimer = setInterval(schedule, config.worker.schedulerTickMilliseconds);
       billing.start();
       platform.start();
+      health.startedAt = Date.now();
       logger.info("worker started", { workerId });
     },
     // Graceful shutdown (Part 13): stop claiming new work, let the
@@ -157,6 +175,7 @@ export function createWorker(config, { workerId = generateWorkerId(), billingPro
     async stop() {
       if (stopped) return;
       stopRequested = true;
+      health.stopping = true;
       logger.info("worker stopping — waiting for in-flight work to finish", { workerId });
       clearTimeout(pollTimer);
       clearInterval(schedulerTimer);

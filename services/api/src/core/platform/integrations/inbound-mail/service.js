@@ -11,7 +11,7 @@
 import { createHash, createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 
 import { audit } from "../../../security.js";
-import { decryptIntegrationCredentials, encryptIntegrationCredentials } from "../secrets.js";
+import { decryptSecret, encryptSecret } from "../../secrets/index.js";
 
 export const PLATFORM_INBOUND_MAIL_IDEMPOTENCY_CONFLICT = "PLATFORM_INBOUND_MAIL_IDEMPOTENCY_CONFLICT";
 export const INBOUND_MAIL_TARGETS = Object.freeze([
@@ -80,7 +80,7 @@ export async function createInboundMailRoute(client, session, input, env = proce
   const { rows } = await client.query(
     `INSERT INTO inbound_mail_routes (organization_id, name, route_key_hash, route_key_prefix, target, company_id, recorded_as_user_id, encrypted_signing_secret, created_by)
      VALUES ($1,$2,$3,$4,$5,$6,$7,$8::jsonb,$9) RETURNING *`,
-    [session.organizationId, name, hash(routeKey), routeKey.slice(0, 12), input.target, input.companyId, recordedAs, JSON.stringify(encryptIntegrationCredentials({ secret: signingSecret }, env)), session.userId],
+    [session.organizationId, name, hash(routeKey), routeKey.slice(0, 12), input.target, input.companyId, recordedAs, JSON.stringify(await encryptSecret({ secret: signingSecret }, env)), session.userId],
   );
   await audit(client, { organizationId: session.organizationId, actorUserId: session.userId, eventType: "integration.inbound_route_created", entityType: "inbound_mail_route", entityId: rows[0].id, afterData: { name, target: input.target, companyId: input.companyId } });
   return { route: routeDto(rows[0]), routeKey, signingSecret };
@@ -138,8 +138,8 @@ export function verifyInboundMailSignature(rawBody, signatureValue, secret) {
   }
 }
 
-export function routeSigningSecret(route, env = process.env) {
-  return decryptIntegrationCredentials(route.encrypted_signing_secret, env).secret;
+export async function routeSigningSecret(route, env = process.env) {
+  return (await decryptSecret(route.encrypted_signing_secret, env)).secret;
 }
 
 const text = (value, max) => (value === undefined || value === null ? null : String(value).slice(0, max));

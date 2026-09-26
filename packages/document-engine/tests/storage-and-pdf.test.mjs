@@ -16,7 +16,7 @@ test("storage keys are opaque internal identifiers; traversal and odd keys are r
 test("memory storage: put, head, get, remove", async () => {
   const storage = createMemoryObjectStorage();
   await storage.put("k/one.txt", Buffer.from("hello"), { contentType: "text/plain" });
-  assert.deepEqual(await storage.head("k/one.txt"), { size: 5, contentType: "text/plain" });
+  assert.deepEqual(await storage.head("k/one.txt"), { size: 5, contentType: "text/plain", sha256: "2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824" });
   assert.equal((await storage.get("k/one.txt")).toString(), "hello");
   await storage.remove("k/one.txt");
   assert.equal(await storage.head("k/one.txt"), null);
@@ -52,4 +52,50 @@ test("PDF: renders a validated model; refuses malformed ones; safe file names", 
   assert.equal(safePdfFileName("sales-order-SO/00001"), "sales-order-SO-00001.pdf");
   assert.equal(safePdfFileName("../../etc/passwd"), "etc-passwd.pdf");
   assert.equal(safePdfFileName(""), "document.pdf");
+});
+
+import { createGcsObjectStorage } from "../src/gcs.js";
+
+// A fake of the @google-cloud/storage surface the adapter uses: no network.
+function fakeGcsClient() {
+  const objects = new Map();
+  const calls = [];
+  const file = (name) => ({
+    async save(bytes, options) {
+      calls.push({ op: "save", name, options });
+      objects.set(name, { bytes: Buffer.from(bytes), contentType: options.contentType, sha256: options.metadata.metadata.sha256 });
+    },
+    async download() {
+      if (!objects.has(name)) throw Object.assign(new Error("No such object"), { code: 404 });
+      return [objects.get(name).bytes];
+    },
+    async delete() {
+      objects.delete(name);
+    },
+    async getMetadata() {
+      const object = objects.get(name);
+      if (!object) throw Object.assign(new Error("No such object"), { code: 404 });
+      return [{ size: String(object.bytes.length), contentType: object.contentType, metadata: object.sha256 ? { sha256: object.sha256 } : {} }];
+    },
+  });
+  return { client: { bucket: (bucket) => ({ file: (name) => file(`${bucket}:${name}`) }) }, objects, calls };
+}
+
+test("GCS adapter: private objects under a prefix, sha256 metadata, 404 mapping, probe", async () => {
+  const fake = fakeGcsClient();
+  const storage = await createGcsObjectStorage({ bucket: "erp-files", prefix: "prod", client: fake.client });
+  await storage.put("organizations/o/attachments/a.txt", Buffer.from("abc"), { contentType: "text/plain", sha256: "d".repeat(64) });
+  assert.ok(fake.objects.has("erp-files:prod/organizations/o/attachments/a.txt"));
+  assert.equal(fake.calls[0].options.metadata.cacheControl, "private, no-store");
+  assert.equal(fake.calls[0].options.resumable, false);
+  assert.deepEqual(await storage.head("organizations/o/attachments/a.txt"), { size: 3, contentType: "text/plain", sha256: "d".repeat(64) });
+  assert.equal((await storage.get("organizations/o/attachments/a.txt")).toString(), "abc");
+  assert.equal(await storage.head("organizations/o/attachments/missing.txt"), null);
+  await assert.rejects(storage.get("organizations/o/attachments/missing.txt"), (error) => error.code === "OBJECT_NOT_FOUND");
+  await assert.rejects(storage.get("../escape"));
+  assert.equal(await storage.probe(), true, "a missing probe object means reachable and authorized");
+  await storage.remove("organizations/o/attachments/a.txt");
+  assert.equal(fake.objects.size, 0);
+  await assert.rejects(createGcsObjectStorage({ bucket: "", client: fake.client }), /bucket/);
+  await assert.rejects(createGcsObjectStorage({ bucket: "b", prefix: "../x", client: fake.client }), /prefix/);
 });

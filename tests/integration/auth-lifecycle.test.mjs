@@ -26,6 +26,9 @@ import {
 } from "../../services/api/src/core/auth-lifecycle.js";
 import { AccessAdministrationError } from "../../services/api/src/core/access-administration.js";
 import { hashPassword, verifyPassword, createOpaqueToken, tokenHash, createSession } from "../../services/api/src/core/session.js";
+import { applyOfflineMail } from "../support/offline-mail.mjs";
+
+applyOfflineMail(process.env);
 
 const adminConnectionString = process.env.MIGRATION_DATABASE_URL || "";
 
@@ -40,8 +43,8 @@ async function connectOrNull(connectionString) {
   }
 }
 
-// deliverAuthMessage hits real SMTP/webhook config (absent in this test
-// environment) and returns false when neither is configured — every
+// Mail is forced offline (tests/support/offline-mail.mjs) so deliverAuthMessage
+// returns false without contacting any server — every
 // assertion below checks DATABASE state (tokens, users, memberships), not
 // email delivery, so that's expected and fine, not a workaround.
 

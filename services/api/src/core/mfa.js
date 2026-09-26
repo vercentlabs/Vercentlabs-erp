@@ -9,11 +9,11 @@
 //
 // Deliberately hand-rolled on node:crypto rather than a TOTP dependency --
 // matches this module's own established convention (session.js's scrypt
-// password hashing, platform/integrations/secrets.js's AES-256-GCM envelope) of no external
+// password hashing, platform/secrets' envelope encryption) of no external
 // crypto/auth library anywhere in services/api.
 import { createHash, createHmac, randomBytes, randomUUID, timingSafeEqual } from "node:crypto";
 
-import { encryptIntegrationCredentials, decryptIntegrationCredentials } from "./platform/integrations/secrets.js";
+import { decryptSecret, encryptSecret } from "./platform/secrets/index.js";
 import { requireSessionPermission } from "./access-control-runtime.js";
 
 export class MfaError extends Error {
@@ -216,7 +216,7 @@ export async function beginMfaEnrollment(client, userId, env = process.env) {
 
   const secretBuffer = randomBytes(20); // 160-bit, RFC 4226's recommended HOTP secret length
   const secretBase32 = base32Encode(secretBuffer);
-  const encrypted = encryptIntegrationCredentials({ secretBase32 }, env);
+  const encrypted = await encryptSecret({ secretBase32 }, env);
 
   await client.query(
     `UPDATE users
@@ -253,13 +253,13 @@ export async function confirmMfaEnrollment(client, userId, code, env = process.e
     throw new MfaError(400, "This enrollment attempt expired. Start enrollment again.", "MFA_ENROLLMENT_EXPIRED");
   }
 
-  const { secretBase32 } = decryptIntegrationCredentials(user.mfa_pending_secret_encrypted, env);
+  const { secretBase32 } = await decryptSecret(user.mfa_pending_secret_encrypted, env);
   const secretBuffer = base32Decode(secretBase32);
   if (!(await verifyAndClaimTotpCode(client, userId, secretBuffer, code))) {
     throw new MfaError(400, "That code is incorrect or expired. Check your authenticator app and try again.", "MFA_CODE_INVALID");
   }
 
-  const activeEncrypted = encryptIntegrationCredentials({ secretBase32 }, env);
+  const activeEncrypted = await encryptSecret({ secretBase32 }, env);
   await client.query(
     `UPDATE users
         SET mfa_secret_encrypted = $2,
@@ -291,7 +291,7 @@ export async function verifyMfaForSession(client, { sessionId, userId, code }, e
   const normalizedCode = String(code || "").trim();
   let verified = false;
   if (/^\d{6}$/.test(normalizedCode.replace(/\s+/g, ""))) {
-    const { secretBase32 } = decryptIntegrationCredentials(user.mfa_secret_encrypted, env);
+    const { secretBase32 } = await decryptSecret(user.mfa_secret_encrypted, env);
     verified = await verifyAndClaimTotpCode(client, userId, base32Decode(secretBase32), normalizedCode);
   } else {
     verified = await consumeRecoveryCode(client, userId, normalizedCode);
@@ -323,7 +323,7 @@ async function requireFreshMfaProof(client, userId, code, env) {
   const normalizedCode = String(code || "").trim();
   let verified = false;
   if (/^\d{6}$/.test(normalizedCode.replace(/\s+/g, ""))) {
-    const { secretBase32 } = decryptIntegrationCredentials(user.mfa_secret_encrypted, env);
+    const { secretBase32 } = await decryptSecret(user.mfa_secret_encrypted, env);
     verified = await verifyAndClaimTotpCode(client, userId, base32Decode(secretBase32), normalizedCode);
   } else {
     verified = await consumeRecoveryCode(client, userId, normalizedCode);

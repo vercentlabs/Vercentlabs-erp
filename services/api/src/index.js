@@ -165,7 +165,7 @@ export * from "./core/organization-administration.js";
 export * from "./core/organization-registration.js";
 export * from "./core/platform/integrations/api-keys/index.js";
 export * from "./core/platform/integrations/oauth/index.js";
-export * from "./core/platform/integrations/secrets.js";
+export * from "./core/platform/secrets/index.js";
 export * from "./core/platform/integrations/inbound-mail/index.js";
 export * from "./orchestration/integrations/inbound-mail.js";
 export * from "./core/tags.js";
@@ -211,3 +211,4 @@ export { listPayrollInputs, createPayrollInput, bulkCreatePayrollInputs, decideP
 export { listFinalSettlements, getFinalSettlement, calculateFinalSettlement, submitFinalSettlement, decideFinalSettlement, paySettlement, listBankFiles, getBankFile, generateBankFile, acknowledgeBankFile, postPayrollToAccounting, getPayrollReconciliation } from "./modules/hr-payroll/payroll-close.js";
 export { listStatutoryComponents, getStatutoryComponent, saveStatutoryComponent, setStatutorySlab, removeStatutorySlab, deactivateStatutoryComponent, estimateGratuity, listGratuityRecords, gratuitySettlementLine, getStatutoryReport, getComplianceReport } from "./modules/hr-payroll/statutory.js";
 export { listGoals, saveGoal, checkInGoal, closeGoal, listReviewCycles, saveReviewCycle, openReviewCycle, closeReviewCycle, listAppraisals, getAppraisal, submitSelfReview, submitPeerFeedback, submitManagerReview, calibrateAppraisal, listSkills, saveSkill, listEmployeeSkills, setEmployeeSkill, listCourses, saveCourse, listTrainingSessions, scheduleTrainingSession, cancelTrainingSession, listTrainingEnrolments, enrollInTraining, recordTrainingCompletion, getPerformanceDashboard } from "./modules/hr-payroll/performance.js";
+export * from "./core/platform/health/index.js";

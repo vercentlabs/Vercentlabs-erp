@@ -1,5 +1,6 @@
 import { defineConfig, devices } from "@playwright/test";
 
+import { offlineMailEnv } from "./e2e/offline-mail-env";
 import { FILE_STORAGE_LOCAL_ROOT, OAUTH_CLIENTS, OAUTH_STANDIN_PORT } from "./e2e/platform-services-env";
 
 // Focused Shared Platform services journeys (developer API, webhooks, OAuth,
@@ -43,6 +44,7 @@ export default defineConfig({
       reuseExistingServer: false,
       timeout: 240_000,
       env: {
+        ...offlineMailEnv(BASE_URL),
         APP_URL: BASE_URL,
         FORM_ALLOWED_ORIGINS: BASE_URL,
         NEXT_DIST_DIR: ".next/platform-e2e",

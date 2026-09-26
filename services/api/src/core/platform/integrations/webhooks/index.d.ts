@@ -67,7 +67,7 @@ export function listWebhookDeliveries(client: Client, organizationId: string, op
 export function redeliverWebhookDelivery(client: Client, session: Session, deliveryId: string): Promise<{ id: string; status: "pending" }>;
 export function fanOutWebhookDeliveries(client: Client, event: Record<string, any>): Promise<void>;
 export function claimWebhookDeliveries(client: Client, organizationId: string, options: { workerId: string; leaseMilliseconds: number; batchSize?: number }): Promise<Array<Record<string, any>>>;
-export function buildWebhookRequest(claimed: Record<string, any>, options?: { env?: Env; now?: Date }): { url: string; body: string; headers: Record<string, string>; deliveryId: string };
+export function buildWebhookRequest(claimed: Record<string, any>, options?: { env?: Env; now?: Date }): Promise<{ url: string; body: string; headers: Record<string, string>; deliveryId: string }>;
 export function completeWebhookDelivery(client: Client, deliveryId: string, workerId: string, result?: { statusCode?: number | null; responseSummary?: string | null }): Promise<boolean>;
 export function failWebhookDelivery(
   client: Client,

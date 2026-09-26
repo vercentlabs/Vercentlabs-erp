@@ -36,7 +36,7 @@ export function listInboundMailEvents(client: Client, organizationId: string, op
 >;
 export function resolveInboundMailRoute(client: Client, routeKey: string): Promise<Record<string, any>>;
 export function verifyInboundMailSignature(rawBody: string, signatureValue: string | null, secret: string): void;
-export function routeSigningSecret(route: Record<string, any>, env?: Env): string;
+export function routeSigningSecret(route: Record<string, any>, env?: Env): Promise<string>;
 export function normalizeInboundMessage(payload: unknown): {
   provider: string;
   messageId: string;

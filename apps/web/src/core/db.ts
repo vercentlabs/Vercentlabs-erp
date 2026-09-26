@@ -1,6 +1,8 @@
 import "server-only";
 
 import { Pool, type PoolClient, type QueryResultRow } from "pg";
+import { databaseConfig } from "@vercentlabs/config";
+
 import { resolveDbSsl } from "./db-ssl.ts";
 import { runTenantTransaction } from "@vercentlabs/database";
 
@@ -15,13 +17,17 @@ let pool: Pool | null = null;
 
 function getPool() {
   if (!pool) {
-    const connectionString = process.env.DATABASE_URL;
-    if (!connectionString) {
-      throw new Error("DATABASE_URL is not configured.");
-    }
+    // Same bounds as the worker: pool size, connect/idle timeouts, and a
+    // server-side statement timeout so one slow query cannot pin a connection.
+    const config = databaseConfig(process.env, { defaultPoolMaximum: 10 });
     pool = new Pool({
-      connectionString,
-      max: Number(process.env.DATABASE_POOL_MAX || "10"),
+      connectionString: config.connectionString,
+      max: config.poolMaximum,
+      idleTimeoutMillis: config.idleTimeoutMilliseconds,
+      connectionTimeoutMillis: config.connectionTimeoutMilliseconds,
+      query_timeout: config.queryTimeoutMilliseconds,
+      statement_timeout: config.statementTimeoutMilliseconds,
+      application_name: "vercentlabs-web",
       ssl: resolveDbSsl(process.env),
     });
   }
@@ -91,3 +97,9 @@ export async function withClient<T>(
     client.release();
   }
 }
+
+// A pg-compatible queryable over the pool for platform checks (readiness):
+// one statement per call, no transaction, no tenant context.
+export const runtimeQueryable = {
+  query: <T extends QueryResultRow = QueryResultRow>(text: string, values?: unknown[]) => getPool().query<T>(text, values),
+};

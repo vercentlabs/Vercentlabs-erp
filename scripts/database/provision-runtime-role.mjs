@@ -71,7 +71,11 @@ async function main() {
   }
 
   const history = await client.query("SELECT to_regclass('public.schema_migrations') AS relation");
-  if (history.rows[0]?.relation) await client.query(`REVOKE ALL ON public.schema_migrations FROM ${role}`);
+  // Read-only: readiness compares applied migrations with the build (never writes history).
+  if (history.rows[0]?.relation) {
+    await client.query(`REVOKE ALL ON public.schema_migrations FROM ${role}`);
+    await client.query(`GRANT SELECT ON public.schema_migrations TO ${role}`);
+  }
 
   const ownership = await client.query(
     `SELECT count(*)::int AS count

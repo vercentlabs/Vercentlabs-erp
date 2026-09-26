@@ -36,7 +36,7 @@ export async function dispatchOrganizationEvents(pool, organizationId, { limit =
 export async function processWebhookDelivery(pool, workerId, config, organizationId, claimed, { deliver = deliverWebhook, env = process.env } = {}) {
   let request;
   try {
-    request = buildWebhookRequest(claimed, { env });
+    request = await buildWebhookRequest(claimed, { env });
   } catch (error) {
     await withTenantClient(pool, organizationId, (client) =>
       failWebhookDelivery(client, claimed.id, workerId, { error: String(error?.message || error), retryable: false }),

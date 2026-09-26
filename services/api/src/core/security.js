@@ -108,8 +108,12 @@ export function clientIp(request, env = process.env) {
   const rawValue = request.headers.get(configuredHeader);
   if (!rawValue) return "unavailable";
 
-  const index = Math.max(0, Number.parseInt(env.TRUSTED_PROXY_CLIENT_INDEX || "0", 10) || 0);
-  const candidate = rawValue.split(",").map((value) => value.trim()).filter(Boolean)[index];
+  // A negative index counts from the right: behind the Google Cloud load
+  // balancer X-Forwarded-For is "<client-supplied...>, <client-ip>, <lb-ip>",
+  // so -2 is the address the load balancer itself observed (unspoofable).
+  const index = Number.parseInt(env.TRUSTED_PROXY_CLIENT_INDEX || "0", 10) || 0;
+  const hops = rawValue.split(",").map((value) => value.trim()).filter(Boolean);
+  const candidate = index < 0 ? hops[hops.length + index] : hops[index];
   return candidate && isIP(candidate) ? candidate : "unavailable";
 }
 

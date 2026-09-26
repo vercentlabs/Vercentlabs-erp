@@ -144,7 +144,7 @@ async function deliverToSupport(client, route, message, prepared) {
 export async function receiveInboundMail({ runPlatform, runTenant }, { routeKey, rawBody, signature }, env = process.env) {
   if (Buffer.byteLength(rawBody) > MAX_RAW_BODY) throw new InboundMailError(413, "The inbound message is too large.", "PLATFORM_INBOUND_MAIL_TOO_LARGE");
   const route = await runPlatform((client) => resolveInboundMailRoute(client, routeKey));
-  verifyInboundMailSignature(rawBody, signature, routeSigningSecret(route, env));
+  verifyInboundMailSignature(rawBody, signature, await routeSigningSecret(route, env));
   let payload;
   try {
     payload = JSON.parse(rawBody);

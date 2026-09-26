@@ -15,10 +15,13 @@ import { fileURLToPath } from "node:url";
 import { config as loadDotEnv } from "dotenv";
 import pg from "pg";
 
+import { applyOfflineMail } from "../../tests/support/offline-mail.mjs";
+
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 for (const file of [path.join(root, "apps/web/.env.local"), path.join(root, ".env")]) {
   if (fs.existsSync(file)) loadDotEnv({ path: file, override: false, quiet: true });
 }
+applyOfflineMail(process.env);
 
 // Every suite here must talk to PostgreSQL; add new shared runtime DB tests here.
 export const SHARED_RUNTIME_DB_TEST_FILES = Object.freeze([

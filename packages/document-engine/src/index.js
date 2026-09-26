@@ -36,8 +36,11 @@ export function assertAttachmentTransition(current, next) {
 //
 // PostgreSQL stores file metadata; bytes live behind this contract. Keys are
 // opaque internal identifiers, never public URLs: every download goes through
-// the application's authorization first. The production provider (S3-style)
-// is selected in Prompt 6; it implements the same four methods.
+// the application's authorization first. Production uses Google Cloud Storage
+// (./gcs.js); every adapter implements the same methods:
+//   put(key, bytes, { contentType, sha256 })  sha256 is kept as object metadata
+//   get(key)  head(key) -> { size, contentType, sha256 } | null  remove(key)
+//   probe()   cheap reachability/authorization check for readiness
 const STORAGE_KEY = /^[a-z0-9][a-z0-9/_.-]{0,400}$/i;
 
 export function assertStorageKey(key) {
@@ -45,6 +48,8 @@ export function assertStorageKey(key) {
   if (!STORAGE_KEY.test(value) || value.includes("..") || value.includes("//")) throw new TypeError("Invalid storage key.");
   return value;
 }
+
+export const STORAGE_PROBE_KEY = "health/readiness-probe";
 
 export function defineObjectStorage(adapter) {
   for (const method of ["put", "get", "remove", "head"]) if (typeof adapter?.[method] !== "function") throw new TypeError(`Object storage must implement ${method}.`);
@@ -56,6 +61,12 @@ export function defineObjectStorage(adapter) {
     get: async (key) => adapter.get(assertStorageKey(key)),
     remove: async (key) => adapter.remove(assertStorageKey(key)),
     head: async (key) => adapter.head(assertStorageKey(key)),
+    // A missing probe object is fine (reachable and authorized); an error is not.
+    probe: async () => {
+      if (adapter.probe) return adapter.probe();
+      await adapter.head(STORAGE_PROBE_KEY);
+      return true;
+    },
   });
 }
 
@@ -64,8 +75,8 @@ export function createMemoryObjectStorage() {
   const objects = new Map();
   return defineObjectStorage({
     name: "memory",
-    async put(key, bytes, { contentType = "application/octet-stream" } = {}) {
-      objects.set(key, { bytes: Buffer.from(bytes), contentType });
+    async put(key, bytes, { contentType = "application/octet-stream", sha256: digest = null } = {}) {
+      objects.set(key, { bytes: Buffer.from(bytes), contentType, sha256: digest });
       return { key, size: bytes.length };
     },
     async get(key) {
@@ -78,7 +89,7 @@ export function createMemoryObjectStorage() {
     },
     async head(key) {
       const object = objects.get(key);
-      return object ? { size: object.bytes.length, contentType: object.contentType } : null;
+      return object ? { size: object.bytes.length, contentType: object.contentType, sha256: object.sha256 ?? sha256(object.bytes) } : null;
     },
   });
 }
@@ -118,8 +129,9 @@ export async function createLocalObjectStorage({ root }) {
     },
     async head(key) {
       try {
-        const info = await stat(resolve(key));
-        return { size: info.size, contentType: null };
+        const target = resolve(key);
+        const info = await stat(target);
+        return { size: info.size, contentType: null, sha256: sha256(await readFile(target)) };
       } catch (error) {
         if (error?.code === "ENOENT") return null;
         throw error;

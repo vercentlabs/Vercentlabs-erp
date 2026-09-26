@@ -98,7 +98,7 @@ export async function storeFile(client, input, { storage, env = process.env } = 
 
   const id = (await client.query(`SELECT gen_random_uuid() AS id`)).rows[0].id;
   const storageKey = attachmentStorageKey({ organizationId, attachmentId: id, fileName: prepared.fileName });
-  await store.put(storageKey, prepared.bytes, { contentType: prepared.mimeType });
+  await store.put(storageKey, prepared.bytes, { contentType: prepared.mimeType, sha256: prepared.contentSha256 });
   const row = (
     await client.query(
       `INSERT INTO public.attachments (

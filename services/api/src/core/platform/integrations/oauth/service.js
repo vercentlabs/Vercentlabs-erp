@@ -15,7 +15,7 @@
 import { createHash, randomBytes } from "node:crypto";
 
 import { audit, canonicalAppOrigin } from "../../../security.js";
-import { decryptIntegrationCredentials, encryptIntegrationCredentials } from "../secrets.js";
+import { decryptSecret, encryptSecret } from "../../secrets/index.js";
 import { getOAuthProfile, OAUTH_PROFILES, OAUTH_RETURN_PREFIXES } from "./profiles.js";
 
 const OAUTH_STATE_TTL_MS = 10 * 60 * 1000;
@@ -90,7 +90,7 @@ export async function beginOAuthConnection(client, session, input, env = process
     `INSERT INTO oauth_states (organization_id, user_id, provider, state_hash, redirect_uri, requested_scopes, expires_at, profile_key, encrypted_code_verifier, return_path)
      VALUES ($1,$2,$3,$4,$5,$6::text[],$7,$8,$9::jsonb,$10)`,
     [session.organizationId, session.userId, profile.provider, hash(state), redirectUri, [...profile.scopes], new Date(Date.now() + OAUTH_STATE_TTL_MS), profile.key,
-      JSON.stringify(encryptIntegrationCredentials({ verifier }, env)), safeReturnPath(input?.returnPath)],
+      JSON.stringify(await encryptSecret({ verifier }, env)), safeReturnPath(input?.returnPath)],
   );
   const authorize = new URL(config.authorizeUrl);
   authorize.searchParams.set("client_id", config.clientId);
@@ -133,7 +133,7 @@ export async function consumeOAuthState(client, session, provider, stateValue, e
     profileKey: row.profile_key,
     redirectUri: row.redirect_uri,
     returnPath: safeReturnPath(row.return_path),
-    codeVerifier: decryptIntegrationCredentials(row.verifier, env).verifier,
+    codeVerifier: (await decryptSecret(row.verifier, env)).verifier,
   };
 }
 
@@ -205,7 +205,7 @@ export async function exchangeOAuthCode(profileKey, { code, redirectUri, codeVer
 
 /** Step 3 of the callback (its own short transaction): store the connection. */
 export async function saveOAuthConnection(client, session, exchanged, env = process.env) {
-  const encrypted = encryptIntegrationCredentials(exchanged.tokens, env);
+  const encrypted = await encryptSecret(exchanged.tokens, env);
   const { rows } = await client.query(
     `INSERT INTO oauth_connections (organization_id, user_id, provider, profile_key, provider_account_id, provider_account_label, scopes, encrypted_credentials, expires_at, status)
      VALUES ($1,$2,$3,$4,$5,$6,$7::text[],$8::jsonb,$9,'active')
@@ -286,7 +286,7 @@ export async function getOAuthAccessToken(withClient, { organizationId, connecti
   );
   if (!read || read.status === "revoked") throw new OAuthError(404, "Connection not found.", "PLATFORM_OAUTH_CONNECTION_NOT_FOUND");
   if (read.status === "reconnect_required" || read.profile_key === "legacy") throw new OAuthError(409, "Reconnect this account.", "PLATFORM_OAUTH_RECONNECT_REQUIRED");
-  const credentials = decryptIntegrationCredentials(read.encrypted_credentials, env);
+  const credentials = await decryptSecret(read.encrypted_credentials, env);
   if (!read.expires_at || new Date(read.expires_at).getTime() - REFRESH_MARGIN_MS > Date.now()) return credentials.accessToken;
   if (!credentials.refreshToken) {
     await withClient((client) => client.query(`UPDATE oauth_connections SET status='reconnect_required', last_error='No refresh token', last_error_at=now(), updated_at=now() WHERE id=$1`, [read.id]));
@@ -315,12 +315,13 @@ export async function getOAuthAccessToken(withClient, { organizationId, connecti
     receivedAt: new Date().toISOString(),
   };
   const expiresAt = Number(result.payload.expires_in) > 0 ? new Date(Date.now() + Number(result.payload.expires_in) * 1000) : null;
+  const sealed = JSON.stringify(await encryptSecret(tokens, env));
   const stored = await withClient((client) =>
     client.query(
       `UPDATE oauth_connections SET encrypted_credentials=$2::jsonb, credential_version=credential_version+1, expires_at=$3, last_refreshed_at=now(),
               status='active', last_error=NULL, last_error_at=NULL, updated_at=now()
         WHERE id=$1 AND credential_version=$4 AND status<>'revoked' RETURNING id`,
-      [read.id, JSON.stringify(encryptIntegrationCredentials(tokens, env)), expiresAt, read.credential_version],
+      [read.id, sealed, expiresAt, read.credential_version],
     ),
   );
   if (!stored.rows[0]) throw new OAuthError(409, "The connection changed while refreshing. Try again.", "PLATFORM_OAUTH_REFRESH_CONFLICT");

@@ -83,6 +83,8 @@ test("Sales order lifecycle against real PostgreSQL", async (t) => {
   const priceListId = randomUUID();
   const itemId = randomUUID();
   const customerId = randomUUID();
+  // GST needs the buyer's state: the customer's billing address carries it.
+  const billingAddressId = randomUUID();
 
   const base = {
     organizationId: orgId,
@@ -117,6 +119,7 @@ test("Sales order lifecycle against real PostgreSQL", async (t) => {
 
   const document = (quantity = 2) => ({
     partyId: customerId,
+    billingAddressId,
     currencyCode: "INR",
     priceListId,
     lines: [{ itemId, quantity }],
@@ -160,6 +163,7 @@ test("Sales order lifecycle against real PostgreSQL", async (t) => {
     await admin.query(`INSERT INTO tenant.items(id,organization_id,code,name,item_type,uom_id,tax_category_id,sales_price,standard_cost,status) VALUES ($1,$2,'ITEM1','Widget','product',$3,$4,100,60,'active')`, [itemId, orgId, uomId, taxCategoryId]);
     await admin.query(`INSERT INTO tenant.price_list_items(organization_id,price_list_id,item_id,minimum_quantity,rate,status) VALUES ($1,$2,$3,1,100,'active')`, [orgId, priceListId, itemId]);
     await admin.query(`INSERT INTO tenant.business_parties(id,organization_id,company_id,code,party_type,display_name,status,created_by) VALUES ($1,$2,$3,'CUST1','customer','Acme Retail','active',$4)`, [customerId, orgId, companyId, sellerId]);
+    await admin.query(`INSERT INTO tenant.addresses(id,organization_id,party_id,address_type,line1,city,state,state_code,postal_code,country_code,is_primary) VALUES ($1,$2,$3,'billing','1 MG Road','Bengaluru','Karnataka','KA','560001','IN',true)`, [billingAddressId, orgId, customerId]);
 
     await admin.query(`INSERT INTO tenant.business_parties(id,organization_id,company_id,code,party_type,display_name,status,created_by) VALUES ($1,$2,$3,'SUP1','supplier','Acme Supplies','active',$4)`, [supplierId, orgId, companyId, sellerId]);
 
@@ -301,9 +305,11 @@ test("Sales order lifecycle against real PostgreSQL", async (t) => {
 
     await t.test("F055: credit notes and refunds need a valid type, a reason, and cannot exceed the order", async () => {
       await assert.rejects(() => tx((c) => requestSalesCreditAdjustment(c, sellerContext, { salesOrderId: confirmed.id, adjustmentType: "gift", amount: 5, reason: "x" })), (e) => e.code === "SALES_ADJUSTMENT_TYPE_INVALID");
-      await assert.rejects(() => tx((c) => requestSalesCreditAdjustment(c, sellerContext, { salesOrderId: confirmed.id, adjustmentType: "refund", amount: 99999, reason: "x" })), (e) => e.code === "SALES_ADJUSTMENT_EXCEEDS_ORDER");
+      await assert.rejects(() => tx((c) => requestSalesCreditAdjustment(c, sellerContext, { salesOrderId: confirmed.id, adjustmentType: "refund", amount: 99999, reason: "x" })), (e) => /^SALES_ADJUSTMENT_EXCEEDS_/.test(e.code));
       await assert.rejects(() => tx((c) => requestSalesCreditAdjustment(c, sellerContext, { salesOrderId: confirmed.id, adjustmentType: "refund", amount: 5, reason: "" })), (e) => e.code === "SALES_ADJUSTMENT_REASON_REQUIRED");
-      const ok = await tx((c) => requestSalesCreditAdjustment(c, sellerContext, { salesOrderId: confirmed.id, adjustmentType: "credit_note", amount: 100, reason: "Damaged goods" }));
+      // A credit note needs an invoice to credit; a refund is capped by what was paid (the F052 advance).
+      await assert.rejects(() => tx((c) => requestSalesCreditAdjustment(c, sellerContext, { salesOrderId: confirmed.id, adjustmentType: "credit_note", amount: 100, reason: "Damaged goods" })), (e) => e.code === "SALES_ADJUSTMENT_NOTHING_INVOICED");
+      const ok = await tx((c) => requestSalesCreditAdjustment(c, sellerContext, { salesOrderId: confirmed.id, adjustmentType: "refund", amount: 50, reason: "Damaged goods" }));
       assert.equal(ok.status, "pending");
       assert.ok((await tx((c) => listSalesPass1Operations(c, sellerContext, { kind: "adjustments" }))).some((r) => r.id === ok.id));
     });
@@ -444,11 +450,11 @@ test("Sales order lifecycle against real PostgreSQL", async (t) => {
       assert.ok(listed.rows.some((row) => row.displayName === "Master Test Co Ltd"));
 
       // an order can be raised for the active customer...
-      const order = await tx((c) => createSalesOrder(c, sellerContext, { ...document(), partyId: customer.id }));
+      const order = await tx((c) => createSalesOrder(c, sellerContext, { ...document(), partyId: customer.id, billingAddressId: address.id }));
       assert.ok(order.id);
       // ...but not once it is archived
       await tx((c) => archiveBusinessDataRecord(c, master, "parties", customer.id));
-      await assert.rejects(() => tx((c) => createSalesOrder(c, sellerContext, { ...document(), partyId: customer.id })), (e) => e.status >= 400 && e.status < 500);
+      await assert.rejects(() => tx((c) => createSalesOrder(c, sellerContext, { ...document(), partyId: customer.id, billingAddressId: address.id })), (e) => e.status >= 400 && e.status < 500);
       const after = await tx((c) => getSalesOptions(c, sellerContext));
       assert.ok(!after.parties.some((party) => party.id === customer.id), "archived customers drop out of the selling pick-lists");
     });

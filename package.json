@@ -65,7 +65,7 @@
     "verify:pos-acceptance-register": "node scripts/qa/validate-pos-acceptance-register.mjs",
     "verify:web": "npx --yes pnpm@11.21.0 verify:experience && npx --yes pnpm@11.21.0 verify:fast && npx --yes pnpm@11.21.0 verify:routes && npx --yes pnpm@11.21.0 build:web",
     "verify:mobile": "npx --yes pnpm@11.21.0 typecheck:mobile && npx --yes pnpm@11.21.0 lint:mobile",
-    "verify:db": "node scripts/validation/verify-db-structure.mjs",
+    "verify:db": "node scripts/database/generate-migration-manifest.mjs --check && node scripts/validation/verify-db-structure.mjs",
     "verify:no-legacy-frontend": "node scripts/validation/verify-no-legacy-frontend.mjs",
     "export:source": "node scripts/export/export-source.mjs",
     "verify:source-export": "node scripts/export/verify-source-export.mjs",
@@ -106,7 +106,15 @@
     "test:e2e:shared-runtime": "npx --yes pnpm@11.21.0 --filter @vercentlabs/web test:e2e:shared-runtime",
     "test:platform-services:db": "node scripts/platform-services/run-db-tests.mjs",
     "verify:platform-services": "node scripts/validation/verify-platform-services.mjs && node --test services/api/tests/platform-services/*.test.mjs services/api/tests/platform-configuration.test.mjs services/api/tests/platform-privacy.test.mjs packages/document-engine/tests/*.test.mjs",
-    "test:e2e:platform-services": "npx --yes pnpm@11.21.0 --filter @vercentlabs/web test:e2e:platform-services"
+    "test:e2e:platform-services": "npx --yes pnpm@11.21.0 --filter @vercentlabs/web test:e2e:platform-services",
+    "db:manifest": "node scripts/database/generate-migration-manifest.mjs",
+    "db:migrate:contract:plan": "node scripts/database/migrate.mjs platform --contract --plan && node scripts/database/migrate.mjs tenant --contract --plan",
+    "db:migrate:contract": "node scripts/database/migrate.mjs platform --contract --confirm && node scripts/database/migrate.mjs tenant --contract --confirm",
+    "files:migrate-legacy": "node scripts/operations/files-migrate-legacy.mjs",
+    "files:reconcile": "node scripts/operations/files-reconcile.mjs",
+    "secrets:reencrypt": "node scripts/operations/secrets-reencrypt.mjs",
+    "secrets:migrate-legacy": "node scripts/operations/secrets-reencrypt.mjs --legacy",
+    "ops:status": "node scripts/operations/status.mjs"
   },
   "engines": {
     "node": ">=24 <25",

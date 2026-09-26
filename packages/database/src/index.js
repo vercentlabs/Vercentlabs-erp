@@ -39,3 +39,20 @@ export async function runTenantTransaction(client, organizationId, work) {
     throw error;
   }
 }
+
+export { readMigrationStatus, restrictedRoleRequired, RuntimeCheckError, verifyRestrictedRuntimeRole } from "./runtime-checks.js";
+export { EXPECTED_MIGRATIONS } from "./migration-manifest.js";
+
+// Database TLS policy (web and worker). Off unless DATABASE_SSL=true: in GKE
+// the app talks plaintext to the Cloud SQL Auth Proxy sidecar on loopback and
+// the proxy owns the encrypted, IAM-authenticated connection. Certificate
+// verification is always on in production; DATABASE_SSL_INSECURE only relaxes
+// it for local development and test.
+export function resolveDbSsl(env = process.env) {
+  if (env.DATABASE_SSL !== "true") return undefined;
+  const production = env.NODE_ENV === "production";
+  const insecure = env.DATABASE_SSL_INSECURE === "true";
+  if (production && insecure) throw new Error("DATABASE_SSL_INSECURE is not allowed in production. Provide DATABASE_SSL_CA instead.");
+  const ca = env.DATABASE_SSL_CA ? env.DATABASE_SSL_CA.replace(/\n/g, "\n") : undefined;
+  return { rejectUnauthorized: !insecure, ...(ca ? { ca } : {}) };
+}

@@ -1,6 +1,7 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
+import { Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow } from "@vercentlabs/design-system";
 
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
@@ -48,29 +49,29 @@ export function DuplicateComparison({
   const candidate = query.data.record as Record<string, unknown>;
   const rows = fields.filter((field) => current[field.key] || candidate[field.key]);
   return (
-    <table className="w-full table-fixed border-collapse text-sm" aria-label="Side-by-side comparison">
-      <thead>
-        <tr className="text-left text-xs text-text-muted">
-          <th className="w-1/4 py-1 font-medium">Field</th>
-          <th className="py-1 font-medium">{currentTitle}</th>
-          <th className="py-1 font-medium">{candidateTitle}</th>
-        </tr>
-      </thead>
-      <tbody>
+    <Table className="table-fixed border-collapse" caption="Side-by-side comparison">
+      <TableHead>
+        <TableRow className="text-left text-xs text-text-muted">
+          <TableHeaderCell className="w-1/4 py-1 font-medium">Field</TableHeaderCell>
+          <TableHeaderCell className="py-1 font-medium">{currentTitle}</TableHeaderCell>
+          <TableHeaderCell className="py-1 font-medium">{candidateTitle}</TableHeaderCell>
+        </TableRow>
+      </TableHead>
+      <TableBody>
         {rows.map((field) => {
           const same = normalized(current[field.key]) !== "" && normalized(current[field.key]) === normalized(candidate[field.key]);
           return (
-            <tr key={field.key} className="border-t border-border align-top">
-              <td className="py-1 text-text-muted">{field.label}</td>
-              <td className={`py-1 break-words ${same ? "font-medium text-text" : "text-text-secondary"}`}>{display(current[field.key], field.format)}</td>
-              <td className={`py-1 break-words ${same ? "font-medium text-text" : "text-text-secondary"}`}>
+            <TableRow key={field.key} className="border-t border-border align-top">
+              <TableCell className="py-1 text-text-muted">{field.label}</TableCell>
+              <TableCell className={`py-1 break-words ${same ? "font-medium text-text" : "text-text-secondary"}`}>{display(current[field.key], field.format)}</TableCell>
+              <TableCell className={`py-1 break-words ${same ? "font-medium text-text" : "text-text-secondary"}`}>
                 {display(candidate[field.key], field.format)}
                 {same && <span className="ml-1.5 rounded-full bg-warning-soft px-1.5 text-xs text-warning">same</span>}
-              </td>
-            </tr>
+              </TableCell>
+            </TableRow>
           );
         })}
-      </tbody>
-    </table>
+      </TableBody>
+    </Table>
   );
 }

@@ -14,7 +14,6 @@ import {
   requireApiScope,
 } from "../../src/core/platform/integrations/api-keys/index.js";
 import { beginOAuthConnection, consumeOAuthState, OAUTH_PROFILES, oauthCallbackUri, safeReturnPath } from "../../src/core/platform/integrations/oauth/index.js";
-import { decryptIntegrationCredentials, encryptIntegrationCredentials } from "../../src/core/platform/integrations/secrets.js";
 import { createWebhookSecret, signWebhookPayload, verifyOutboundWebhookSignature } from "../../src/core/platform/integrations/webhooks/index.js";
 
 const ENV = {
@@ -86,7 +85,9 @@ test("OAuth: fixed server callback, registered profiles only, PKCE S256, no brow
   const insert = calls[0];
   assert.equal(insert.values[4], oauthCallbackUri("google", ENV));
   assert.ok(!JSON.stringify(insert.values).includes(url.searchParams.get("state")), "only the state hash is stored");
-  assert.equal(JSON.parse(insert.values[8]).algorithm, "A256GCM", "the PKCE verifier is stored encrypted");
+  const sealedVerifier = JSON.parse(insert.values[8]);
+  assert.equal(sealedVerifier.v, 1, "the PKCE verifier is stored as an encryption envelope");
+  assert.ok(sealedVerifier.kek && sealedVerifier.dek && sealedVerifier.ciphertext);
   await assert.rejects(beginOAuthConnection(client, SESSION, { profile: "google.mail.readwrite" }, ENV), rejectsWith("PLATFORM_OAUTH_PROFILE_UNKNOWN"));
   await assert.rejects(beginOAuthConnection(client, SESSION, { profile: "google.identity" }, { ...ENV, GOOGLE_OAUTH_CLIENT_ID: "" }), rejectsWith("PLATFORM_OAUTH_NOT_CONFIGURED"));
   await assert.rejects(beginOAuthConnection(client, SESSION, { profile: "google.identity" }, { ...ENV, NODE_ENV: "production", OAUTH_STANDIN_URL: "http://127.0.0.1:1" }), rejectsWith("PLATFORM_OAUTH_NOT_CONFIGURED"));
@@ -105,15 +106,6 @@ test("OAuth: return paths are internal and allow-listed", () => {
 test("OAuth: an unknown, used or expired state is refused before any provider call", async () => {
   await assert.rejects(consumeOAuthState({ query: async () => ({ rows: [] }) }, SESSION, "google", "some-state", ENV), rejectsWith("PLATFORM_OAUTH_STATE_INVALID"));
   await assert.rejects(consumeOAuthState({ query: async () => ({ rows: [] }) }, SESSION, "google", "", ENV), rejectsWith("PLATFORM_OAUTH_STATE_INVALID"));
-});
-
-test("integration secrets: AES-256-GCM round trip; a missing key fails closed", () => {
-  const sealed = encryptIntegrationCredentials({ accessToken: "secret-token" }, ENV);
-  assert.equal(sealed.algorithm, "A256GCM");
-  assert.ok(!JSON.stringify(sealed).includes("secret-token"));
-  assert.deepEqual(decryptIntegrationCredentials(sealed, ENV), { accessToken: "secret-token" });
-  assert.throws(() => encryptIntegrationCredentials({ a: 1 }, {}), rejectsWith("PLATFORM_TOKEN_ENCRYPTION_NOT_CONFIGURED"));
-  assert.throws(() => decryptIntegrationCredentials({ ...sealed, ciphertext: Buffer.from("tampered").toString("base64") }, ENV));
 });
 
 test("webhook signatures: deterministic v1 HMAC over delivery id, timestamp and raw body", () => {

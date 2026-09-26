@@ -1,6 +1,6 @@
 import pg from "pg";
-import { validateRuntimeEnvironment } from "@vercentlabs/config";
-import { runTenantTransaction } from "@vercentlabs/database";
+import { loadSecretFiles, validateRuntimeEnvironment } from "@vercentlabs/config";
+import { resolveDbSsl, restrictedRoleRequired, runTenantTransaction, verifyRestrictedRuntimeRole } from "@vercentlabs/database";
 import { createLogger } from "@vercentlabs/observability";
 
 const { Pool } = pg;
@@ -9,95 +9,16 @@ const logger = createLogger("worker-db");
 let pool;
 let roleVerified;
 
-// Mirrors apps/web/src/core/db.ts's own verifyRuntimeRole() check
-// independently rather than importing it, because the worker is a
-// genuinely separate deployable process with its own DATABASE_URL/
-// credential in production — trusting apps/web to have already checked
-// its own connection tells us nothing about the worker's. A worker
-// running with a superuser/BYPASSRLS credential is exactly as dangerous
-// as apps/web running with one.
+// The worker is a separate deployable with its own database authority
+// (WORKER_DATABASE_URL in production), so it verifies its own connection: a
+// worker running as a superuser/BYPASSRLS role is as dangerous as the web.
 async function verifyRuntimeRole(runtimePool) {
-  if (
-    process.env.NODE_ENV !== "production" &&
-    process.env.ENFORCE_RESTRICTED_DB_ROLE !== "true"
-  ) {
-    return;
-  }
-
-  const { rows } = await runtimePool.query(`
-    SELECT
-      current_user AS role_name,
-      role.rolsuper AS is_superuser,
-      role.rolbypassrls AS bypasses_rls,
-      role.rolinherit AS inherits_roles,
-      role.rolcreatedb AS can_create_database,
-      role.rolcreaterole AS can_create_roles,
-      role.rolreplication AS can_replicate,
-
-      EXISTS (
-        SELECT 1
-        FROM pg_class relation
-        JOIN pg_namespace namespace
-          ON namespace.oid = relation.relnamespace
-        WHERE relation.relowner = role.oid
-          AND namespace.nspname IN ('public', 'tenant')
-      ) AS owns_relations,
-
-      EXISTS (
-        SELECT 1
-        FROM pg_namespace namespace
-        WHERE namespace.nspname IN ('public', 'tenant')
-          AND has_schema_privilege(
-            current_user,
-            namespace.oid,
-            'CREATE'
-          )
-      ) AS can_create_schema_objects,
-
-      EXISTS (
-        SELECT 1
-        FROM pg_auth_members membership
-        JOIN pg_roles granted_role
-          ON granted_role.oid = membership.roleid
-        WHERE membership.member = role.oid
-          AND (
-            granted_role.rolsuper
-            OR granted_role.rolbypassrls
-            OR granted_role.rolcreatedb
-            OR granted_role.rolcreaterole
-            OR granted_role.rolreplication
-          )
-      ) AS has_dangerous_membership
-
-    FROM pg_roles role
-    WHERE role.rolname = current_user
-  `);
-
-  const role = rows[0];
-
-  if (
-    !role ||
-    role.is_superuser ||
-    role.bypasses_rls ||
-    role.inherits_roles ||
-    role.can_create_database ||
-    role.can_create_roles ||
-    role.can_replicate ||
-    role.owns_relations ||
-    role.can_create_schema_objects ||
-    role.has_dangerous_membership
-  ) {
-    throw new Error(
-      'WORKER DATABASE_URL must use a restricted ' +
-      'NOINHERIT, NOSUPERUSER, NOBYPASSRLS runtime role ' +
-      'that owns no application relations, has no CREATE ' +
-      'privilege on public/tenant schemas, and has no ' +
-      'privileged role memberships.',
-    );
-  }
+  if (!restrictedRoleRequired(process.env)) return;
+  await verifyRestrictedRuntimeRole(runtimePool, "The worker database URL");
 }
 
 export function getWorkerConfig(environment = process.env) {
+  loadSecretFiles(environment);
   return validateRuntimeEnvironment("worker", environment);
 }
 
@@ -112,7 +33,7 @@ export async function getPool() {
     query_timeout: config.database.queryTimeoutMilliseconds,
     statement_timeout: config.database.statementTimeoutMilliseconds,
     application_name: "vercentlabs-worker",
-    ssl: process.env.NODE_ENV === "production" && !config.database.connectionString.includes("localhost") ? { rejectUnauthorized: true } : undefined,
+    ssl: resolveDbSsl(process.env),
   });
   pool.on("error", (error) => logger.error("idle client error", { error: String(error?.message || error) }));
   if (!roleVerified) {

@@ -17,7 +17,9 @@
     "test": "node --test"
   },
   "dependencies": {
+    "@google-cloud/kms": "^5.7.0",
     "@vercentlabs/config": "workspace:*",
+    "@vercentlabs/database": "workspace:*",
     "@vercentlabs/document-engine": "workspace:*",
     "@vercentlabs/localization": "workspace:*",
     "@vercentlabs/observability": "workspace:*",

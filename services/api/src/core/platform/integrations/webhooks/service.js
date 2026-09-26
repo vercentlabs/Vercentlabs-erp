@@ -12,7 +12,7 @@ import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 
 import { getDomainEvent, projectDomainEvent } from "../../events/index.js";
 import { audit } from "../../../security.js";
-import { decryptIntegrationCredentials, encryptIntegrationCredentials } from "../secrets.js";
+import { decryptSecret, encryptSecret } from "../../secrets/index.js";
 import { validateWebhookUrl } from "./ssrf.js";
 
 export const WEBHOOK_MAX_ATTEMPTS = 8;
@@ -125,7 +125,7 @@ export async function createWebhookSubscription(client, session, input, env = pr
   const { rows } = await client.query(
     `INSERT INTO tenant.webhook_subscriptions (organization_id, name, endpoint_url, event_types, encrypted_signing_secret, secret_rotated_at, created_by, updated_by)
      VALUES ($1,$2,$3,$4::text[],$5::jsonb,now(),$6,$6) RETURNING *`,
-    [session.organizationId, name, url, types, JSON.stringify(encryptIntegrationCredentials({ secret }, env)), session.userId],
+    [session.organizationId, name, url, types, JSON.stringify(await encryptSecret({ secret }, env)), session.userId],
   );
   await audit(client, { organizationId: session.organizationId, actorUserId: session.userId, eventType: "integration.webhook_created", entityType: "webhook_subscription", entityId: rows[0].id, afterData: { name, endpointUrl: url, eventTypes: types } });
   return { subscription: subscriptionDto(rows[0]), signingSecret: secret };
@@ -164,7 +164,7 @@ export async function rotateWebhookSecret(client, session, id, env = process.env
   const { rows } = await client.query(
     `UPDATE tenant.webhook_subscriptions SET encrypted_signing_secret=$2::jsonb, secret_version=secret_version+1, secret_rotated_at=now(), updated_by=$3, updated_at=now()
       WHERE id=$1 RETURNING *`,
-    [current.id, JSON.stringify(encryptIntegrationCredentials({ secret }, env)), session.userId],
+    [current.id, JSON.stringify(await encryptSecret({ secret }, env)), session.userId],
   );
   await audit(client, { organizationId: session.organizationId, actorUserId: session.userId, eventType: "integration.webhook_secret_rotated", entityType: "webhook_subscription", entityId: current.id, metadata: { secretVersion: rows[0].secret_version } });
   return { subscription: subscriptionDto(rows[0]), signingSecret: secret };
@@ -261,7 +261,7 @@ export async function claimWebhookDeliveries(client, organizationId, { workerId,
 }
 
 /** The exact request for one claimed delivery (no I/O besides decryption). */
-export function buildWebhookRequest(claimed, { env = process.env, now = new Date() } = {}) {
+export async function buildWebhookRequest(claimed, { env = process.env, now = new Date() } = {}) {
   const envelope = projectDomainEvent(claimed.detail);
   if (!envelope) throw new WebhookError(500, "The event type is no longer registered.", "PLATFORM_WEBHOOK_EVENT_UNKNOWN");
   const body = JSON.stringify(envelope);
@@ -273,7 +273,7 @@ export function buildWebhookRequest(claimed, { env = process.env, now = new Date
     "x-vercentlabs-timestamp": timestamp,
   };
   if (claimed.detail.encrypted_signing_secret) {
-    const { secret } = decryptIntegrationCredentials(claimed.detail.encrypted_signing_secret, env);
+    const { secret } = await decryptSecret(claimed.detail.encrypted_signing_secret, env);
     headers["x-vercentlabs-signature"] = `v1=${signWebhookPayload(secret, { deliveryId: claimed.id, timestamp, body })}`;
   }
   return { url: claimed.detail.endpoint_url, body, headers, deliveryId: claimed.id };

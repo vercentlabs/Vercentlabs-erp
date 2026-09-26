@@ -1,5 +1,7 @@
 import { defineConfig, devices } from "@playwright/test";
 
+import { offlineMailEnv } from "./e2e/offline-mail-env";
+
 // Focused SaaS billing browser journeys against a temporary, isolated web
 // server (port 3107) with billing enforcement ON and online checkout enabled,
 // talking to a local Razorpay stand-in (port 3199). No real Razorpay
@@ -52,6 +54,7 @@ export default defineConfig({
       timeout: 240_000,
       env: {
         ...BILLING_E2E_ENV,
+        ...offlineMailEnv(BASE_URL),
         APP_URL: BASE_URL,
         FORM_ALLOWED_ORIGINS: BASE_URL,
         BILLING_CHECKOUT_ENABLED: "true",
