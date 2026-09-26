@@ -134,7 +134,9 @@ function auditCoreWrappers() {
     [secure, /if \(mutation\) deps\.assertOrigin\(request\)/, "secure-route checks the origin on every mutation"],
     [secure, /deps\.authorize\(\{/, "secure-route authorizes before the handler"],
     [secure, /if \(options\.billingWrite\) await deps\.requireBillingWrite\(/, "secure-route runs the billing write gate"],
-    [secure, /deps\.runTenant\(session\.organizationId/, "secure-route runs under the session organisation context"],
+    [secure, /const run = options\.transaction === "none" \? deps\.runOrganizationConnection : deps\.runTenant;/, "secure-route chooses the request transaction or the organisation connection"],
+    [secure, /await run\(session\.organizationId,/, "secure-route runs under the session organisation context"],
+    [workspace, /runOrganizationConnection: \(organizationId, work\) => organizationConnection\(organizationId, work\)/, "workspaceRoute wires the organisation connection"],
     [apiKey, /authenticateApiKey\(/, "apiKeyRoute authenticates the key"],
   ];
   for (const [source, pattern, label] of required) if (!pattern.test(source)) throw new Error(`core route composition changed: ${label} (${pattern}) not found.`);

@@ -3,8 +3,8 @@ api/accounting/actions/[action]/route.ts,POST,WORKSPACE_MODULE,accounting,accoun
 api/accounting/view/[kind]/route.ts,GET,WORKSPACE_MODULE,accounting,accounting.view,active company; segregation of duties (no self-approval) in the domain,bank_accounts: accounting.view,no,denials logged
 api/approvals/[id]/decide/route.ts,POST,WORKSPACE_PLATFORM,,,organisation (RLS) + the route permission; domain scoping per the protection note,,no,denials audited
 api/approvals/route.ts,GET,WORKSPACE_PLATFORM,,,organisation (RLS) + the route permission; domain scoping per the protection note,,no,denials logged
-api/assets/actions/[action]/route.ts,POST,WORKSPACE_MODULE,assets,assets.view,active company; custodian rules in the domain,,yes,denials logged
-api/assets/view/[kind]/route.ts,GET,WORKSPACE_MODULE,assets,assets.view,active company; custodian rules in the domain,,no,denials logged
+api/assets/actions/[action]/route.ts,POST,WORKSPACE_MODULE,assets,assets.view,active company; custodian rules in the domain,assets: assets.reports.view,yes,denials logged
+api/assets/view/[kind]/route.ts,GET,WORKSPACE_MODULE,assets,assets.view,active company; custodian rules in the domain,assets: assets.reports.view,no,denials logged
 api/auth/forgot-password/route.ts,POST,PUBLIC_AUTH,,n/a,Account-enumeration-safe identical response; same-origin; rate limited.,,no,n/a
 api/auth/invitations/[token]/accept/route.ts,POST,PUBLIC_AUTH,,n/a,Hashed invitation token; an existing account must also hold a matching session; same-origin.,,no,n/a
 api/auth/invitations/[token]/route.ts,GET,PUBLIC_AUTH,,n/a,Read-only lookup by hashed invitation token through a narrow definer function.,,no,n/a
@@ -246,11 +246,11 @@ api/documents/[document]/[id]/pdf/route.ts,GET,WORKSPACE_MODULE,renderer.moduleK
 api/health/route.ts,GET,PROBE,,n/a,"Liveness only; no database, no tenant data.",,no,n/a
 api/hr/actions/[action]/route.ts,POST,WORKSPACE_MODULE,hr-payroll,hr_payroll.view (helper default; route may narrow),active company; own employee record for self-service; manager chain for approvals,employees: hr_payroll.sensitive.view; compensation: hr_payroll.sensitive.view,yes,denials logged
 api/hr/view/[kind]/route.ts,GET,WORKSPACE_MODULE,hr-payroll,hr_payroll.view (helper default; route may narrow),active company; own employee record for self-service; manager chain for approvals,employees: hr_payroll.sensitive.view; compensation: hr_payroll.sensitive.view,no,denials logged
-api/inventory/actions/[action]/route.ts,POST,WORKSPACE_MODULE,stock,stock.view (helper default; route may narrow),active company and warehouse,,yes,denials logged
-api/inventory/master/[resource]/[id]/route.ts,PATCH,WORKSPACE_MODULE,stock,stock.view (helper default; route may narrow),active company and warehouse,,yes,denials logged
-api/inventory/master/[resource]/route.ts,GET,WORKSPACE_MODULE,stock,stock.view (helper default; route may narrow),active company and warehouse,,no,denials logged
-api/inventory/master/[resource]/route.ts,POST,WORKSPACE_MODULE,stock,stock.view (helper default; route may narrow),active company and warehouse,,yes,denials logged
-api/inventory/stock/[kind]/route.ts,GET,WORKSPACE_MODULE,stock,stock.view (helper default; route may narrow),active company and warehouse,,no,denials logged
+api/inventory/actions/[action]/route.ts,POST,WORKSPACE_MODULE,stock,stock.view (helper default; route may narrow),active company and warehouse,valuation: stock.valuation.view,yes,denials logged
+api/inventory/master/[resource]/[id]/route.ts,PATCH,WORKSPACE_MODULE,stock,stock.view (helper default; route may narrow),active company and warehouse,valuation: stock.valuation.view,yes,denials logged
+api/inventory/master/[resource]/route.ts,GET,WORKSPACE_MODULE,stock,stock.view (helper default; route may narrow),active company and warehouse,valuation: stock.valuation.view,no,denials logged
+api/inventory/master/[resource]/route.ts,POST,WORKSPACE_MODULE,stock,stock.view (helper default; route may narrow),active company and warehouse,valuation: stock.valuation.view,yes,denials logged
+api/inventory/stock/[kind]/route.ts,GET,WORKSPACE_MODULE,stock,stock.view (helper default; route may narrow),active company and warehouse,valuation: stock.valuation.view,no,denials logged
 api/jobs/[id]/route.ts,GET,WORKSPACE_PLATFORM,,,organisation (RLS) + the route permission; domain scoping per the protection note,,no,denials logged
 api/jobs/route.ts,GET,WORKSPACE_PLATFORM,,,organisation (RLS) + the route permission; domain scoping per the protection note,,no,denials logged
 api/manufacturing/actions/[action]/route.ts,POST,WORKSPACE_MODULE,manufacturing,manufacturing.view (helper default; route may narrow),active company,costing: manufacturing.costing.view,yes,denials logged
