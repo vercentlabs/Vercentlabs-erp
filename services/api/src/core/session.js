@@ -1,4 +1,4 @@
-// Ported from docs/frontend-rebuild/recovered-platform-code/apps/web/src/
+// Ported from the recovered pre-rebuild snapshot (last present at commit d4df5eb1), apps/web/src/
 // core/auth.ts. Split per PLATFORM_PORT_REGISTER.csv: this file keeps only
 // the DB-facing, framework-agnostic session lifecycle (password hashing,
 // opaque tokens, session CRUD, workspace/company/branch resolution). The

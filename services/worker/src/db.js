@@ -1,7 +1,7 @@
 import pg from "pg";
 import { loadSecretFiles, validateRuntimeEnvironment } from "@vercentlabs/config";
 import { resolveDbSsl, restrictedRoleRequired, runTenantTransaction, verifyRestrictedRuntimeRole } from "@vercentlabs/database";
-import { createLogger } from "@vercentlabs/observability";
+import { createLogger, monitorPool } from "@vercentlabs/observability";
 
 const { Pool } = pg;
 const logger = createLogger("worker-db");
@@ -35,7 +35,7 @@ export async function getPool() {
     application_name: "vercentlabs-worker",
     ssl: resolveDbSsl(process.env),
   });
-  pool.on("error", (error) => logger.error("idle client error", { error: String(error?.message || error) }));
+  monitorPool(pool, logger, { name: "worker", maximum: config.database.poolMaximum });
   if (!roleVerified) {
     roleVerified = verifyRuntimeRole(pool);
   }

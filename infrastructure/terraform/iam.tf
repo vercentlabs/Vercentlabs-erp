@@ -92,19 +92,22 @@ resource "google_iam_workload_identity_pool_provider" "github" {
     "attribute.workflow_ref" = "assertion.job_workflow_ref"
   }
 
-  # Only this repository, only the deploy ref, only from the matching GitHub
-  # environment (which carries the required-reviewer protection).
-  attribute_condition = "assertion.repository == '${var.github_repository}' && assertion.ref == '${var.github_deploy_ref}' && assertion.environment == '${var.environment}'"
+  # Only this repository, only the deploy ref, only from this environment's
+  # GitHub environments (both carry required-reviewer protection): the
+  # deployment environment and its restore-rehearsal environment.
+  attribute_condition = "assertion.repository == '${var.github_repository}' && assertion.ref == '${var.github_deploy_ref}' && assertion.environment in ['${var.environment}', '${var.environment}-restore']"
 
   oidc {
     issuer_uri = "https://token.actions.githubusercontent.com"
   }
 }
 
+# Bound per GitHub environment (not per repository): a token issued for the
+# restore environment cannot impersonate the deployer, and vice versa.
 resource "google_service_account_iam_member" "deployer_federation" {
   service_account_id = google_service_account.deployer.name
   role               = "roles/iam.workloadIdentityUser"
-  member             = "principalSet://iam.googleapis.com/${google_iam_workload_identity_pool.github.name}/attribute.repository/${var.github_repository}"
+  member             = "principalSet://iam.googleapis.com/${google_iam_workload_identity_pool.github.name}/attribute.environment/${var.environment}"
 }
 
 # Push images to this repository only.
@@ -152,4 +155,58 @@ resource "google_artifact_registry_repository_iam_member" "nodes_pull" {
   repository = google_artifact_registry_repository.images.name
   role       = "roles/artifactregistry.reader"
   member     = "serviceAccount:${google_service_account.nodes.email}"
+}
+
+# ------------------------------------------------------ restore rehearsal
+# .github/workflows/restore-rehearsal.yml: clone the database (backup/PITR)
+# into a temporary "<instance>-restore-<run>" instance, verify it in-cluster
+# with the restore-verify operations Job, delete it. The operator can clone
+# and read instances, but can only change or delete restore clones.
+
+resource "google_service_account" "restore" {
+  account_id   = "${var.name_prefix}-restore"
+  display_name = "Restore rehearsal operator (${var.environment})"
+}
+
+resource "google_service_account_iam_member" "restore_federation" {
+  service_account_id = google_service_account.restore.name
+  role               = "roles/iam.workloadIdentityUser"
+  member             = "principalSet://iam.googleapis.com/${google_iam_workload_identity_pool.github.name}/attribute.environment/${var.environment}-restore"
+}
+
+resource "google_project_iam_custom_role" "restore_clone" {
+  role_id     = "vercentErpRestoreClone_${var.environment}"
+  title       = "ERP restore rehearsal: clone"
+  permissions = ["cloudsql.instances.get", "cloudsql.instances.list", "cloudsql.instances.clone", "cloudsql.instances.create", "cloudsql.backupRuns.get", "cloudsql.backupRuns.list"]
+}
+
+resource "google_project_iam_custom_role" "restore_cleanup" {
+  role_id     = "vercentErpRestoreCleanup_${var.environment}"
+  title       = "ERP restore rehearsal: clean up clones"
+  permissions = ["cloudsql.instances.update", "cloudsql.instances.delete"]
+}
+
+resource "google_project_iam_member" "restore_clone" {
+  project = var.project_id
+  role    = google_project_iam_custom_role.restore_clone.id
+  member  = "serviceAccount:${google_service_account.restore.email}"
+}
+
+resource "google_project_iam_member" "restore_cleanup" {
+  project = var.project_id
+  role    = google_project_iam_custom_role.restore_cleanup.id
+  member  = "serviceAccount:${google_service_account.restore.email}"
+  condition {
+    title       = "restore clones only"
+    description = "Update/delete only instances named <instance>-restore-*; never the live instance."
+    expression  = "resource.name.startsWith(\"projects/${var.project_id}/instances/${google_sql_database_instance.erp.name}-restore-\")"
+  }
+}
+
+# Run the restore-verify operations Job in the cluster.
+resource "google_project_iam_member" "restore_gke" {
+  for_each = toset(["roles/container.developer", "roles/container.clusterViewer"])
+  project  = var.project_id
+  role     = each.value
+  member   = "serviceAccount:${google_service_account.restore.email}"
 }

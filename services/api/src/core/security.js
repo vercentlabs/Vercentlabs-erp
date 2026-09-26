@@ -1,4 +1,4 @@
-// Ported from docs/frontend-rebuild/recovered-platform-code/apps/web/src/
+// Ported from the recovered pre-rebuild snapshot (last present at commit d4df5eb1), apps/web/src/
 // core/security.ts. Origin/IP helpers are pure (no client param); audit,
 // login-event recording and rate-limiting are client-injected, following
 // this package's existing convention.
@@ -12,7 +12,20 @@
 import { createHash, createHmac, randomUUID, timingSafeEqual } from "node:crypto";
 import { isIP } from "node:net";
 
+import { createLogger, currentContext } from "@vercentlabs/observability";
+
 import { redactAuditPayload } from "./audit-redaction.js";
+
+const securityLogger = createLogger("security");
+
+// The request and correlation ids of the current request (proxy.ts sets
+// them; workspaceRoute puts them in the log context) for audit evidence.
+function requestTrace(request) {
+  const context = currentContext();
+  const requestId = context.requestId || request?.headers?.get?.("x-request-id") || null;
+  const correlationId = context.correlationId || request?.headers?.get?.("x-correlation-id") || null;
+  return requestId ? { requestId, ...(correlationId ? { correlationId } : {}) } : {};
+}
 
 export class SecurityError extends Error {
   constructor(status, message, code) {
@@ -175,6 +188,9 @@ export async function enforceRateLimit(client, key, maximum, windowSeconds) {
     [key, windowSeconds],
   );
   if ((result.rows[0]?.attempts || 0) > maximum) {
+    // Aggregated signal only: the bucket kind (login, register, ...), never
+    // the key itself (it holds an IP or email address).
+    securityLogger.event("auth.rate_limited", { bucket: String(key).split(":")[0] }, "warn");
     throw new SecurityError(429, "Too many attempts. Try again later.");
   }
 }
@@ -193,7 +209,7 @@ export async function audit(client, input) {
     input.eventType,
     input.entityType,
     input.entityId || null,
-    JSON.stringify(redactAuditPayload(input.metadata || {})),
+    JSON.stringify(redactAuditPayload({ ...(input.metadata || {}), ...requestTrace(input.request) })),
     input.beforeData === undefined ? null : JSON.stringify(redactAuditPayload(input.beforeData)),
     input.afterData === undefined ? null : JSON.stringify(redactAuditPayload(input.afterData)),
     input.request ? clientIp(input.request, input.env) : null,
@@ -203,6 +219,7 @@ export async function audit(client, input) {
 }
 
 export async function recordLoginEvent(client, input) {
+  if (!input.succeeded) securityLogger.event("auth.login.failed", { reason: input.reason || "unknown" }, "info");
   await client.query(
     `INSERT INTO login_events (id, user_id, email, succeeded, reason, ip_address, user_agent)
      VALUES ($1, $2, $3, $4, $5, $6, $7)`,

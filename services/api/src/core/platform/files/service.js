@@ -12,6 +12,15 @@ import { attachmentStorageKey, sha256, validateAttachment } from "@vercentlabs/d
 import { AttachmentSecurityError, scanAttachmentForUpload } from "../../attachment-security.js";
 import { getFileEntityType } from "./registry.js";
 import { resolveObjectStorage } from "./storage.js";
+import { createLogger } from "@vercentlabs/observability";
+
+const filesLogger = createLogger("files");
+
+// Object storage failures are operational signals (alert storage-failure);
+// only the operation and error code are logged, never file names or bytes.
+function storageFailed(operation, organizationId, error) {
+  filesLogger.event("files.storage.failed", { operation, organizationId, code: error?.code || null, error: String(error?.message || error) }, "error");
+}
 
 export class FileError extends Error {
   constructor(status, message, code = "FILE_ERROR") {
@@ -98,7 +107,12 @@ export async function storeFile(client, input, { storage, env = process.env } = 
 
   const id = (await client.query(`SELECT gen_random_uuid() AS id`)).rows[0].id;
   const storageKey = attachmentStorageKey({ organizationId, attachmentId: id, fileName: prepared.fileName });
-  await store.put(storageKey, prepared.bytes, { contentType: prepared.mimeType, sha256: prepared.contentSha256 });
+  try {
+    await store.put(storageKey, prepared.bytes, { contentType: prepared.mimeType, sha256: prepared.contentSha256 });
+  } catch (error) {
+    storageFailed("put", organizationId, error);
+    throw error;
+  }
   const row = (
     await client.query(
       `INSERT INTO public.attachments (
@@ -172,7 +186,13 @@ export async function readFileContent(client, { organizationId, entityType, enti
     try {
       body = await store.get(row.storage_key);
     } catch (error) {
-      if (error?.code === "OBJECT_NOT_FOUND") throw notFound();
+      if (error?.code === "OBJECT_NOT_FOUND") {
+        // Metadata says the object exists: a missing object is a storage
+        // integrity problem (files:reconcile), not a user error.
+        filesLogger.event("files.object.missing", { organizationId, attachmentId: row.id }, "error");
+        throw notFound();
+      }
+      storageFailed("get", organizationId, error);
       throw error;
     }
   }

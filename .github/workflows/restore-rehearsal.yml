@@ -1,0 +1,143 @@
+name: Restore rehearsal
+
+# Backup/PITR restore rehearsal (docs/operations/DISASTER_RECOVERY_RUNBOOK.md):
+#   1. clone the Cloud SQL instance (latest state, or a point in time) into a
+#      temporary "<instance>-restore-<run>" instance — the live instance is
+#      only read, never changed;
+#   2. run the restore-verify operations Job against the clone (schema level,
+#      classification, forced RLS, behavioural tenant isolation as the web
+#      role, data consistency) — no traffic is ever pointed at it;
+#   3. delete the clone (unless keep_clone) and keep the evidence.
+# The restore operator may only update/delete instances named *-restore-*
+# (terraform/iam.tf). Manual only; needs an explicit confirmation phrase and
+# the "<environment>-restore" GitHub environment (required reviewers).
+#
+# GitHub environment "<environment>-restore":
+#   vars.GCP_WORKLOAD_IDENTITY_PROVIDER, vars.GCP_RESTORE_SERVICE_ACCOUNT,
+#   vars.GCP_REGION, vars.GKE_CLUSTER, vars.SQL_INSTANCE, vars.DEPLOY_VALUES_JSON
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        type: choice
+        options: [staging, production]
+      point_in_time:
+        description: "Optional RFC 3339 UTC timestamp (e.g. 2026-09-26T10:00:00Z); empty = latest"
+        type: string
+        default: ""
+      confirm:
+        description: 'Type "rehearse-restore-<environment>"'
+        type: string
+        required: true
+      keep_clone:
+        description: "Keep the clone for manual inspection (delete it afterwards!)"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: restore-rehearsal-${{ inputs.environment }}
+  cancel-in-progress: false
+
+jobs:
+  rehearse:
+    name: Restore rehearsal (${{ inputs.environment }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    environment: ${{ inputs.environment }}-restore
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      ENVIRONMENT: ${{ inputs.environment }}
+      SOURCE_INSTANCE: ${{ vars.SQL_INSTANCE }}
+      CLONE_INSTANCE: ${{ vars.SQL_INSTANCE }}-restore-${{ github.run_id }}
+      POINT_IN_TIME: ${{ inputs.point_in_time }}
+    steps:
+      - name: Confirmation and ref
+        env:
+          CONFIRM: ${{ inputs.confirm }}
+        run: |
+          test "${{ github.ref }}" = "refs/heads/main" || { echo "main only"; exit 1; }
+          test "$CONFIRM" = "rehearse-restore-$ENVIRONMENT" || { echo "Confirmation phrase mismatch."; exit 1; }
+          case "$CLONE_INSTANCE" in *-restore-*) ;; *) echo "Unsafe clone name"; exit 1 ;; esac
+          if [ -n "$POINT_IN_TIME" ] && ! [[ "$POINT_IN_TIME" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\.[0-9]+)?Z$ ]]; then
+            echo "point_in_time must be RFC 3339 UTC"; exit 1
+          fi
+
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+
+      - uses: google-github-actions/auth@v3
+        with:
+          workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.GCP_RESTORE_SERVICE_ACCOUNT }}
+
+      - uses: google-github-actions/setup-gcloud@v3
+
+      - uses: google-github-actions/get-gke-credentials@v3
+        with:
+          cluster_name: ${{ vars.GKE_CLUSTER }}
+          location: ${{ vars.GCP_REGION }}
+
+      - name: Clone the database (backup / point in time)
+        run: |
+          set -euo pipefail
+          args=()
+          [ -n "$POINT_IN_TIME" ] && args+=(--point-in-time "$POINT_IN_TIME")
+          started=$(date -u +%s)
+          gcloud sql instances clone "$SOURCE_INSTANCE" "$CLONE_INSTANCE" "${args[@]}"
+          echo "CLONE_SECONDS=$(( $(date -u +%s) - started ))" >> "$GITHUB_ENV"
+          echo "CLONE_CONNECTION=$(gcloud sql instances describe "$CLONE_INSTANCE" --format='value(connectionName)')" >> "$GITHUB_ENV"
+
+      - name: Verify the restored clone (restore-verify Job)
+        env:
+          DEPLOY_VALUES_JSON: ${{ vars.DEPLOY_VALUES_JSON }}
+        run: |
+          set -euo pipefail
+          printf '%s' "$DEPLOY_VALUES_JSON" > "$RUNNER_TEMP/deploy-values.json"
+          export OPERATION=restore-verify RELEASE_ID="restore-${GITHUB_RUN_ID}" SQL_CONNECTION_NAME="$CLONE_CONNECTION" RELEASE_SHA="${GITHUB_SHA}"
+          node scripts/deploy/render-manifests.mjs --target operations --values "$RUNNER_TEMP/deploy-values.json" --out "$RUNNER_TEMP/restore-verify.yaml"
+          kubectl apply -f "$RUNNER_TEMP/restore-verify.yaml"
+          job="ops-restore-verify-$RELEASE_ID"
+          status=0
+          kubectl -n vercentlabs wait --for=condition=complete "job/$job" --timeout=45m || status=1
+          kubectl -n vercentlabs logs "job/$job" -c operation > "$RUNNER_TEMP/restore-evidence.json" || true
+          cat "$RUNNER_TEMP/restore-evidence.json"
+          exit $status
+
+      - name: Delete the clone
+        if: always() && !inputs.keep_clone
+        run: |
+          case "$CLONE_INSTANCE" in *-restore-*) ;; *) echo "refusing to delete $CLONE_INSTANCE"; exit 1 ;; esac
+          if gcloud sql instances describe "$CLONE_INSTANCE" >/dev/null 2>&1; then
+            gcloud sql instances patch "$CLONE_INSTANCE" --no-deletion-protection --quiet
+            gcloud sql instances delete "$CLONE_INSTANCE" --quiet
+          fi
+
+      - name: Evidence summary
+        if: always()
+        run: |
+          {
+            echo "environment=$ENVIRONMENT"
+            echo "source=$SOURCE_INSTANCE"
+            echo "clone=$CLONE_INSTANCE (kept: ${{ inputs.keep_clone }})"
+            echo "point_in_time=${POINT_IN_TIME:-latest}"
+            echo "clone_seconds=${CLONE_SECONDS:-n/a}"
+            echo "run=${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+          } > "$RUNNER_TEMP/restore-summary.txt"
+          cat "$RUNNER_TEMP/restore-summary.txt"
+
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: restore-rehearsal-${{ inputs.environment }}-${{ github.run_id }}
+          path: |
+            ${{ runner.temp }}/restore-evidence.json
+            ${{ runner.temp }}/restore-summary.txt
+          retention-days: 400

@@ -30,6 +30,8 @@ export function createLogger(
   info(message: string, fields?: Record<string, unknown>): unknown;
   warn(message: string, fields?: Record<string, unknown>): unknown;
   error(message: string, fields?: Record<string, unknown>): unknown;
+  /** Named, countable event (`event` field): the key log-based metrics and alerts use. */
+  event(name: string, fields?: Record<string, unknown>, level?: "debug" | "info" | "warn" | "error"): unknown;
 }>;
 
 export type MetricLabels = Record<string, string | number | boolean | null | undefined>;
@@ -80,3 +82,9 @@ export function reportError(
   error: unknown,
   fields?: Record<string, unknown>,
 ): ReturnType<typeof normalizeError>;
+
+export function monitorPool(
+  pool: { totalCount: number; idleCount: number; waitingCount: number; on?(event: "error", listener: (error: Error) => void): unknown },
+  logger: { event(name: string, fields?: Record<string, unknown>, level?: "debug" | "info" | "warn" | "error"): unknown },
+  options?: { name?: string; maximum?: number | null; intervalMilliseconds?: number },
+): Readonly<{ snapshot(): Record<string, number | string>; stop(): void }>;

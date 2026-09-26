@@ -1,7 +1,7 @@
 # One-off operations Job with the migration authority (read by operators,
 # the deploy workflow's post-rollout status step, and the release runbook):
 #   ops:status, files:migrate-legacy, files:reconcile, secrets:reencrypt,
-#   secrets:migrate-legacy.
+#   secrets:migrate-legacy, restore-verify (against a restored clone).
 # Rendered with OPERATION=<name> (and OPERATION_FLAGS="--dry-run" or "").
 # Needs the migration Google service account's Cloud Storage and KMS access
 # for the file and secret operations (infrastructure/terraform/iam.tf).
@@ -61,6 +61,8 @@ spec:
           env:
             - { name: NODE_ENV, value: production }
             - { name: MIGRATION_DATABASE_URL_FILE, value: /var/run/secrets/vercentlabs/MIGRATION_DATABASE_URL }
+            # restore-verify checks tenant isolation as the restricted web role.
+            - { name: DATABASE_URL_FILE, value: /var/run/secrets/vercentlabs/DATABASE_URL }
             - { name: DATABASE_SSL, value: "false" }
             - { name: FILE_STORAGE_DRIVER, value: gcs }
             - { name: FILE_STORAGE_GCS_BUCKET, value: "${FILES_BUCKET}" }

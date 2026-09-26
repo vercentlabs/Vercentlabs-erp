@@ -54,16 +54,11 @@ export async function enqueueJob(client, organizationId, input) {
 // skipped, never double-claimed and never blocked on.
 export async function claimJobs(client, organizationId, { workerId, leaseMilliseconds, batchSize = 10 }) {
   if (!workerId) throw new QueueError("workerId is required to claim jobs.", "INVALID_CLAIM");
+  // previous_status tells a normal claim from a lease recovery (a job whose
+  // worker died mid-run), which the worker reports as worker.lease.recovered.
   const { rows } = await client.query(
-    `UPDATE tenant.background_jobs
-        SET status = 'processing',
-            locked_by = $2,
-            locked_at = now(),
-            lease_expires_at = now() + ($3 || ' milliseconds')::interval,
-            attempts = attempts + 1,
-            updated_at = now()
-      WHERE id IN (
-        SELECT id FROM tenant.background_jobs
+    `WITH candidates AS (
+        SELECT id, status AS previous_status FROM tenant.background_jobs
          WHERE organization_id = $1
            AND (
              (status = 'pending' AND run_at <= now())
@@ -72,8 +67,19 @@ export async function claimJobs(client, organizationId, { workerId, leaseMillise
          ORDER BY priority ASC, run_at ASC
          LIMIT $4
          FOR UPDATE SKIP LOCKED
+      ), claimed AS (
+      UPDATE tenant.background_jobs job
+         SET status = 'processing',
+             locked_by = $2,
+             locked_at = now(),
+             lease_expires_at = now() + ($3 || ' milliseconds')::interval,
+             attempts = job.attempts + 1,
+             updated_at = now()
+        FROM candidates
+       WHERE job.id = candidates.id
+      RETURNING job.*, candidates.previous_status
       )
-      RETURNING *`,
+      SELECT * FROM claimed ORDER BY priority ASC, run_at ASC`,
     [organizationId, workerId, String(leaseMilliseconds), batchSize],
   );
   return rows;

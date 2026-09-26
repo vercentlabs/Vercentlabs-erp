@@ -186,16 +186,6 @@ variable "storage_noncurrent_version_days" {
   default     = 30
 }
 
-variable "storage_temporary_prefix" {
-  description = "Object prefix for temporary artifacts (report exports); deleted by lifecycle."
-  type        = string
-  default     = "tmp/"
-}
-
-variable "storage_temporary_days" {
-  type    = number
-  default = 7
-}
 
 # ------------------------------------------------------------------ KMS
 

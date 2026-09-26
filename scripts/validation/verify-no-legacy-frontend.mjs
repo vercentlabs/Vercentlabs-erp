@@ -72,7 +72,7 @@ const SCAN_EXTENSIONS = new Set([".ts", ".tsx", ".js", ".jsx", ".css", ".mjs", "
 
 // Files allowed to name retired systems verbatim because they exist
 // specifically to document the retirement — not active code/config.
-const DOCUMENTATION_EXEMPT_FILES = new Set([path.relative(repoRoot, SELF_PATH), "docs/frontend-rebuild/recovered-platform-code"]);
+const DOCUMENTATION_EXEMPT_FILES = new Set([path.relative(repoRoot, SELF_PATH)]);
 
 function isExempt(relPath) {
   const posixRel = relPath.split(path.sep).join("/");

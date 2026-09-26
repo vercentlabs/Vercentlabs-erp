@@ -73,7 +73,9 @@ export async function processWebhookDelivery(pool, workerId, config, organizatio
       maxAttempts: await getConfigurationValue(client, organizationId, "platform.webhooks", "max_delivery_attempts"),
     }),
   );
-  logger.warn("webhook delivery failed", { deliveryId: claimed.id, organizationId, status, error: redact(outcome.error) });
+  const fields = { deliveryId: claimed.id, organizationId, status, statusCode: outcome.statusCode ?? null, error: redact(outcome.error) };
+  if (status === "dead") logger.event("webhook.delivery.dead", fields, "error");
+  else logger.event("webhook.delivery.failed", fields, "warn");
   return status;
 }
 

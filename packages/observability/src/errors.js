@@ -25,9 +25,13 @@ export function reportError(logger, error, fields = {}) {
   }
 
   const normalized = normalizeError(error);
+  // Error Reporting groups by stack trace; the stack names code locations
+  // only (never request data), so it is kept in production too.
+  const stack = error instanceof Error && error.stack ? String(error.stack).slice(0, 12_000) : undefined;
   logger.error(normalized.message, {
     ...redact(fields),
     error: normalized,
+    ...(stack ? { stack_trace: stack } : {}),
   });
 
   return normalized;

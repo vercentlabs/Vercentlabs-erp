@@ -1,8 +1,11 @@
 # Private attachment/document bucket: uniform bucket-level access, public
 # access prevention enforced, object versioning + soft delete for accidental
-# deletion recovery, lifecycle removal of old noncurrent versions and of
-# temporary exports. Only the web and worker service accounts get object
-# access (iam.tf); objects are addressed by opaque server-generated keys.
+# deletion recovery, lifecycle removal of old noncurrent versions.
+# Temporary artifacts (report outputs, exports) are attachments with an
+# expiry: the worker deletes the object when it expires, and the noncurrent
+# copy is removed by the lifecycle rule below; nothing is kept forever.
+# Only the web, worker and migration (operations Jobs) service accounts get
+# object access (iam.tf); objects are addressed by opaque server-generated keys.
 
 resource "google_storage_bucket" "files" {
   name     = "${var.project_id}-${local.name}-files"
@@ -24,16 +27,6 @@ resource "google_storage_bucket" "files" {
     condition {
       days_since_noncurrent_time = var.storage_noncurrent_version_days
       with_state                 = "ARCHIVED"
-    }
-    action {
-      type = "Delete"
-    }
-  }
-
-  lifecycle_rule {
-    condition {
-      age            = var.storage_temporary_days
-      matches_prefix = [var.storage_temporary_prefix]
     }
     action {
       type = "Delete"

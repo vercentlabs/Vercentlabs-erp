@@ -10,11 +10,15 @@ import { defineObjectStorage, STORAGE_PROBE_KEY } from "./index.js";
 const notFound = () => Object.assign(new Error("Object not found."), { code: "OBJECT_NOT_FOUND" });
 const isNotFound = (error) => error?.code === 404 || error?.code === "404";
 
-export async function createGcsObjectStorage({ bucket, prefix = "", projectId, client } = {}) {
+// apiEndpoint: an explicit Cloud Storage endpoint (private/restricted Google
+// API endpoints in production; a local stand-in in tests). Unset = the
+// default public endpoint.
+export async function createGcsObjectStorage({ bucket, prefix = "", projectId, apiEndpoint, client } = {}) {
   if (!bucket) throw new TypeError("A Cloud Storage bucket is required.");
   const normalizedPrefix = String(prefix || "").replace(/^\/+|\/+$/g, "");
   if (normalizedPrefix && (!/^[A-Za-z0-9/_-]+$/.test(normalizedPrefix) || normalizedPrefix.includes("//"))) throw new TypeError("Invalid storage prefix.");
-  const storage = client ?? new (await import("@google-cloud/storage")).Storage(projectId ? { projectId } : {});
+  const options = { ...(projectId ? { projectId } : {}), ...(apiEndpoint ? { apiEndpoint } : {}) };
+  const storage = client ?? new (await import("@google-cloud/storage")).Storage(options);
   const target = storage.bucket(bucket);
   const objectName = (key) => (normalizedPrefix ? `${normalizedPrefix}/${key}` : key);
 

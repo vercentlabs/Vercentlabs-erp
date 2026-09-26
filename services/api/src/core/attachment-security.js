@@ -1,5 +1,5 @@
 // Ported verbatim (TS -> JS syntax only) from docs/frontend-rebuild/
-// recovered-platform-code/apps/web/src/core/attachment-security.ts. No DB
+// the recovered pre-rebuild snapshot (last present at commit d4df5eb1), apps/web/src/core/attachment-security.ts. No DB
 // dependency; lowest-risk port in the platform set.
 import { createHash } from "node:crypto";
 

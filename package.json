@@ -115,7 +115,10 @@
     "secrets:reencrypt": "node scripts/operations/secrets-reencrypt.mjs",
     "secrets:migrate-legacy": "node scripts/operations/secrets-reencrypt.mjs --legacy",
     "ops:status": "node scripts/operations/status.mjs",
-    "test:production:db": "node scripts/production/run-db-tests.mjs"
+    "test:production:db": "node scripts/production/run-db-tests.mjs",
+    "verify:production": "node scripts/production/verify-production.mjs",
+    "test:production:smoke": "node scripts/production/production-smoke.mjs",
+    "ops:restore-verify": "node scripts/operations/restore-verify.mjs"
   },
   "engines": {
     "node": ">=24 <25",

@@ -10,6 +10,7 @@ export const PRODUCTION_DB_TEST_FILES = Object.freeze([
   "tests/integration/production/platform-rls-db.test.mjs",
   "tests/integration/production/runtime-roles-db.test.mjs",
   "tests/integration/production/contracts-db.test.mjs",
+  "tests/integration/production/restore-verify-db.test.mjs",
 ]);
 
 await runDbSuite({ name: "Production", files: PRODUCTION_DB_TEST_FILES, requiredUrls: ["MIGRATION_DATABASE_URL", "DATABASE_URL", "WORKER_DATABASE_URL"] });

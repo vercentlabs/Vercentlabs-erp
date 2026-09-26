@@ -60,7 +60,7 @@ if (
 // required here against the old frontend architecture (deleted wholesale
 // in the clean-slate rebuild — see docs/frontend-rebuild/README.md; the
 // real logic that lived in the *.ts files was recovered, not lost, into
-// docs/frontend-rebuild/recovered-platform-code/ pending a real port). The
+// the recovered pre-rebuild snapshot (last present at commit d4df5eb1),  pending a real port). The
 // new apps/web uses src/{app,features,shell,platform,shared,server} per
 // the rebuild brief; re-add the real equivalents once they exist rather
 // than guessing the convention now.

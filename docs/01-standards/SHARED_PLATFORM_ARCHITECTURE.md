@@ -101,17 +101,24 @@ export async function POST(request: Request) {
 
 `workspaceRoute` (`apps/web/src/core/workspace-route.ts`, order proven in
 `secure-route.test.ts`): same-origin check for every non-GET method → MFA-
-satisfied workspace session → transaction (`tenant` default, `platform` for
-public tables, `none` for single-client reads) → snapshot/principal →
-`authorize` → billing write gate → handler (validation, domain call, audit).
-The route-security and billing matrices audit it. Every Shared Access
-administration route (`api/settings/**`, `api/auth/invitations`, invitation
-resend/revoke) uses it (validator-enforced; organisation profile/security and
-self-service sessions are listed exceptions), plus `api/crm/lead-sources` as
-the business-module reference. Business-module routes still use the
-per-module `require<Module>Access` helpers and migrate in later prompts.
-Administration routes run in `transaction: "platform"` (public tables, no
-tenant RLS context) and set `auditDenial: true`: every denial is logged; for
+satisfied workspace session → ONE transaction under the session's
+organisation context (tenant and organisation-scoped platform tables are both
+RLS-protected) → snapshot/principal → `authorize` (module → permission(s),
+or `selfService` for own-records HR/Support portals, which waives only the
+module view permission) → billing write gate → handler (validation, domain
+call, audit) with the request/correlation ids and organisation in the log
+context.
+
+Every authenticated business and administration route uses it — directly or
+through a module route helper (`features/<module>/shared/route-helpers.ts`,
+audited at scan time to call `workspaceRoute` and, for mutations, set
+`billingWrite`). There are no per-module access helpers and no web SQL:
+record lookups live in `@vercentlabs/api`. The non-workspace routes are
+explicit classes in `scripts/qa/generate-route-security-matrix.mjs`
+(PUBLIC_AUTH, PUBLIC_TOKEN, WEBHOOK, SELF_SERVICE, API_KEY, PROBE,
+TEST_SUPPORT); `pnpm verify:access` fails on any UNKNOWN handler, and the
+billing mutation inventory covers all twelve business modules.
+Administration routes set `auditDenial: true`: every denial is logged; for
 these routes an authenticated denial is also written to `audit_events` on a
 separate connection (best-effort, never turning a 403 into a 500). Routine
 business denials are not persisted, so a client cannot flood the audit log.
@@ -162,17 +169,27 @@ business denials are not persisted, so a client cannot flood the audit log.
 
 ## 6. Public/platform vs tenant data
 
-| Public / platform schema (no RLS today) | Tenant schema (`tenant.*`, FORCE RLS) |
+| Public / platform schema | Tenant schema (`tenant.*`, FORCE RLS) |
 |---|---|
-| users, sessions, login/MFA/recovery data, organizations, companies, branches, memberships, invitations, roles, role assignments, role permissions, permission metadata, module enablement, subscriptions/entitlements/seats, platform administration | CRM, Sales, Procurement, Stock, Manufacturing, Projects, Assets, POS, Quality, Support, HR & Payroll, Accounting and all other tenant business data |
+| users, sessions, login/MFA/recovery data, organizations, companies, branches, memberships, invitations, roles, role assignments, role permissions, permission metadata, module enablement, subscriptions/entitlements/seats, platform services (files, API keys, OAuth, inbound mail, workflows, reports, …) | CRM, Sales, Procurement, Stock, Manufacturing, Projects, Assets, POS, Quality, Support, HR & Payroll, Accounting and all other tenant business data |
 
 Every tenant table: `ENABLE` + `FORCE ROW LEVEL SECURITY` with the
-`organization_id = tenant.current_organization_id()` policy (statically
-tested). Public tables rely on explicit `organization_id` predicates in the
-domain layer. **Organization-scoped RLS for public/platform tables is a later
-hardening phase** that first requires classifying each table (global vs
-per-organization vs authentication-critical); do not enable RLS on
-authentication tables piecemeal.
+`organization_id = tenant.current_organization_id()` policy.
+
+Every public table has exactly one class in
+`packages/database/src/table-classification.js` (the provisioner and
+`verify:production` refuse unclassified tables): ORGANIZATION_SCOPED /
+ORGANIZATION_CHILD tables have forced RLS keyed on
+`public.current_organization_id()` (migration 068); AUTH_IDENTITY tables are
+reached through the user context or narrow SECURITY DEFINER functions;
+GLOBAL_CATALOGUE tables are read-only reference data; PROVIDER_INGRESS
+(billing webhooks) stores only what must exist before an organisation is
+known. Runtime roles get exactly the classified privileges, no default
+privileges and EXECUTE only on registered definer functions. Three database
+authorities: web (`DATABASE_URL`), worker (`WORKER_DATABASE_URL`),
+migration (`MIGRATION_DATABASE_URL`, jobs only). The worker lists
+organisation ids from the directory (an explicitly classified global read)
+and processes each organisation in its own organisation-context transaction.
 
 ## 7. Rules for new modules
 
@@ -433,9 +450,12 @@ counters were merged the same way. Newer families are numbered per company.
   `expires_at` (`platform.exports.artifact_retention_hours`). Once expired, a
   read returns 410, and the maintenance loop purges the content and keeps the
   metadata.
-- **Drivers:** `FILE_STORAGE_DRIVER=local` (the development default) or
-  `memory` (single-process tests). Production has no default: without a
-  configured provider, storage returns 503.
+- **Drivers:** `FILE_STORAGE_DRIVER=gcs` (production; private bucket through
+  Workload Identity, SHA-256 metadata, optional `FILE_STORAGE_GCS_API_ENDPOINT`),
+  `local` (the development default) or `memory` (single-process tests).
+  Production refuses local/memory and has no default. Legacy bytes move with
+  `pnpm files:migrate-legacy`; `pnpm files:reconcile` checks metadata against
+  the bucket.
 
 Enforced by `pnpm verify:platform-services` (static rules and unit tests) and
 `pnpm test:platform-services:db` (real PostgreSQL, zero skips allowed). Browser

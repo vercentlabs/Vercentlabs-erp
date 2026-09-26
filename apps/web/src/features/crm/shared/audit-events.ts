@@ -1,4 +1,4 @@
-// Ported from docs/frontend-rebuild/recovered-platform-code/apps/web/src/
+// Ported from the recovered pre-rebuild snapshot (last present at commit d4df5eb1), apps/web/src/
 // modules/crm/crm-data-operations-and-customization/audit-events.ts
 // (unchanged logic). These are pure formatting helpers — never write raw
 // record free-text (subject/description) into the audit trail, only the

@@ -120,6 +120,9 @@ function storageIssues(environment, production, issues) {
     if (!GCS_BUCKET.test(bucket)) issues.push("FILE_STORAGE_GCS_BUCKET must be a valid Cloud Storage bucket name.");
     const prefix = String(environment.FILE_STORAGE_GCS_PREFIX ?? "").trim();
     if (prefix && (!/^[A-Za-z0-9/_-]+$/.test(prefix) || prefix.startsWith("/") || prefix.includes(".."))) issues.push("FILE_STORAGE_GCS_PREFIX may only contain letters, digits, '/', '_' and '-'.");
+    // Optional explicit endpoint (private.googleapis.com / restricted endpoints);
+    // production traffic to it must be TLS.
+    if (production) httpsUrl(environment, "FILE_STORAGE_GCS_API_ENDPOINT", issues);
   }
   const scan = String(environment.ATTACHMENT_SCAN_MODE ?? "").trim().toLowerCase() || (production ? "required" : "local");
   if (!["local", "required"].includes(scan)) issues.push("ATTACHMENT_SCAN_MODE must be local or required.");

@@ -1,4 +1,4 @@
-// Ported from docs/frontend-rebuild/recovered-platform-code/apps/web/src/
+// Ported from the recovered pre-rebuild snapshot (last present at commit d4df5eb1), apps/web/src/
 // core/mailer.ts (TS -> JS syntax only; unchanged logic). Needed directly
 // by Phase 4's verify-email / reset-password / invitation flows.
 import { WORKSPACE_EMAILS } from "@vercentlabs/config";

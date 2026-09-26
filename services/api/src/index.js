@@ -148,7 +148,7 @@ export * from "./orchestration/sales-stock-fulfillment.js";
 // Platform reactivation port (Prompt 2 of 15) — see
 // docs/frontend-rebuild/PLATFORM_PORT_REGISTER.csv for the source mapping.
 // Every symbol below is ported from docs/frontend-rebuild/
-// recovered-platform-code and re-reviewed for the current security
+// recovered pre-rebuild snapshot (last present at commit d4df5eb1) and re-reviewed for the current security
 // standard; none of the ACTIVE code re-exported here reads from that
 // parked directory at runtime.
 // Shared Access public boundary (see core/access/index.js).

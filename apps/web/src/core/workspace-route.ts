@@ -10,6 +10,7 @@ import {
   recordAccessDenial,
   requireBillingWriteAccess,
 } from "@vercentlabs/api";
+import { createLogger, runWithContext } from "@vercentlabs/observability";
 import type { PoolClient } from "pg";
 
 import { tenantTransaction } from "@/core/db";
@@ -17,6 +18,9 @@ import { errorResponse } from "@/core/http";
 import { requireApiWorkspace, type WorkspaceSessionContext } from "@/core/session";
 
 import { createSecureRoute, type DeniedAccessEvent, type SecureRouteContext, type SecureRouteOptions } from "./secure-route.ts";
+
+const logger = createLogger("web");
+const SLOW_REQUEST_MILLISECONDS = 2_000;
 
 function requestIds(request: Request) {
   return { requestId: request.headers.get("x-request-id"), correlationId: request.headers.get("x-correlation-id") };
@@ -87,6 +91,18 @@ export async function workspaceRoute(
       }
     },
     toErrorResponse: (error) => errorResponse(error),
+    withContext: (values, work) => runWithContext({ ...values, userId: values.userId ?? undefined }, work),
   });
-  return secureRoute(request, options, handler);
+  // Log context for everything this request logs (proxy.ts guarantees the ids).
+  // Per-request access logs come from the load balancer; the application logs
+  // server errors and slow requests only.
+  const startedAt = Date.now();
+  return runWithContext(requestIds(request) as { requestId: string; correlationId: string }, async () => {
+    const response = await secureRoute(request, options, handler);
+    const durationMs = Date.now() - startedAt;
+    const fields = { method: request.method, path: new URL(request.url).pathname, status: response.status, durationMs, module: options.module ?? null, action: options.action ?? null };
+    if (response.status >= 500) logger.event("http.server_error", fields, "error");
+    else if (durationMs >= SLOW_REQUEST_MILLISECONDS) logger.event("http.slow_request", fields, "warn");
+    return response;
+  });
 }

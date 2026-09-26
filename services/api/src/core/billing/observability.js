@@ -33,5 +33,5 @@ const WARN = /(failed|dead_lettered|mismatch|intervention_required|provider\.err
 
 export function billingEvent(name, fields = {}, labels = {}) {
   billingMetrics.increment(name, 1, labels);
-  billingLogger[WARN.test(name) ? "warn" : "info"](name, fields);
+  billingLogger.event(name, fields, WARN.test(name) ? "warn" : "info");
 }

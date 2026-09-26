@@ -9,7 +9,7 @@ One root module, one state per environment, split by concern:
 | `network.tf` | Required APIs, private VPC + GKE subnet (pod/service ranges), Cloud Router + NAT, private services access for Cloud SQL, global static IP for the load balancer |
 | `gke.tf` | Regional GKE **Autopilot** cluster: private nodes, Dataplane V2 (NetworkPolicy), Secret Manager add-on, dedicated node service account, maintenance window |
 | `sql.tf` | Cloud SQL for PostgreSQL 16: regional HA (production), private IP only, TLS required, backups + PITR, deletion protection, auto-growing SSD, Query Insights, `max_connections`; the **connection budget** precondition |
-| `storage.tf` | Private files bucket: uniform access, public access prevention, versioning, soft delete, lifecycle for noncurrent versions and `tmp/` exports |
+| `storage.tf` | Private files bucket: uniform access, public access prevention, versioning, soft delete, lifecycle for noncurrent versions |
 | `kms.tf` | Key ring + `integration-secrets` KEK (90-day rotation) for envelope encryption |
 | `secrets.tf` | Secret Manager secret **containers** and per-workload accessor bindings (no values) |
 | `artifact-registry.tf` | Docker repository with immutable tags and cleanup policies |

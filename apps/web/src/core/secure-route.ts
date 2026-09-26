@@ -101,6 +101,8 @@ export type SecureRouteDeps<Session extends { organizationId: string }, Client> 
   recordDeniedAccess?(event: DeniedAccessEvent): Promise<void>;
   /** Structured log for a denial raised by the handler/domain (authorize() denials use onDenied). */
   logDeniedAccess?(event: DeniedAccessEvent): void;
+  /** Run the handler with log context (organisation/user) once the principal is known. */
+  withContext?<T>(values: { organizationId: string; userId: string | null; action: string | null }, work: () => Promise<T>): Promise<T>;
 };
 
 export function isMutationRequest(request: Request) {
@@ -144,7 +146,10 @@ export function createSecureRoute<Session extends { organizationId: string }, Cl
           throw deps.denialToError(decision);
         }
         if (options.billingWrite) await deps.requireBillingWrite(client, principal!.organizationId);
-        return handler({ request, session, principal: principal!, snapshot, client });
+        const run = () => handler({ request, session, principal: principal!, snapshot, client });
+        return deps.withContext
+          ? deps.withContext({ organizationId: principal!.organizationId, userId: principal!.userId ?? null, action: options.action ?? null }, run)
+          : run();
       });
     } catch (error) {
       const denial = principal ? deniedStatus(error) : null;

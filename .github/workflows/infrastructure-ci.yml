@@ -152,3 +152,50 @@ jobs:
           ignore-unfixed: true
           exit-code: "1"
           format: table
+
+  production-smoke:
+    name: Production-configuration smoke (images, strict roles, GCS stand-in)
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: vercentlabs
+          POSTGRES_PASSWORD: ci_owner_password
+          POSTGRES_DB: vercentlabs_control
+        ports:
+          - 5433:5432
+        options: >-
+          --health-cmd "pg_isready -U vercentlabs -d vercentlabs_control"
+          --health-interval 5s --health-timeout 5s --health-retries 20
+    env:
+      MIGRATION_DATABASE_URL: postgresql://vercentlabs:ci_owner_password@localhost:5433/vercentlabs_control
+      DATABASE_URL: postgresql://vercent_app:ci_app_password@localhost:5433/vercentlabs_control
+      WORKER_DATABASE_URL: postgresql://vercent_worker:ci_worker_password@localhost:5433/vercentlabs_control
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: docker/setup-buildx-action@v4
+
+      - name: Build web, worker and migration images
+        run: |
+          for image in web worker migration; do
+            docker buildx build --load --build-arg GIT_SHA=${{ github.sha }} \
+              --cache-from type=gha,scope=$image \
+              -f infrastructure/docker/Dockerfile.$image -t vercent-erp-$image:test .
+          done
+
+      - name: Set up Node and pnpm
+        uses: pnpm/setup@v1
+        with:
+          version: 11.21.0
+          runtime: node@24
+          cache: true
+          install: false
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Production-configuration smoke (throwaway database, removed afterwards)
+        run: pnpm test:production:smoke

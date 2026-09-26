@@ -77,3 +77,13 @@ output "private_services_cidr" {
   description = "Cloud SQL private services range (NetworkPolicy egress to the database)."
   value       = "${google_compute_global_address.private_services.address}/${google_compute_global_address.private_services.prefix_length}"
 }
+
+output "restore_service_account" {
+  description = "GCP_RESTORE_SERVICE_ACCOUNT for the <environment>-restore GitHub environment."
+  value       = google_service_account.restore.email
+}
+
+output "sql_instance_name" {
+  description = "SQL_INSTANCE for the restore rehearsal workflow."
+  value       = google_sql_database_instance.erp.name
+}

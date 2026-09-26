@@ -38,6 +38,7 @@ const DOMAIN_GATED: Record<string, string> = {
   "POST leads/[id]/duplicates/dismiss/route.ts": "canOverrideLeadDuplicate",
   "PATCH public/meetings/bookings/[token]/route.ts": "public booking token (no CRM session)",
   "POST public/meetings/links/[token]/book/route.ts": "public booking token (no CRM session)",
+  "POST public/capture/[key]/route.ts": "public capture-form key (no CRM session); origin allow-list, honeypots and rate limit in captureCrmLead; billing write gate",
 };
 
 function routeFiles(dir: string): string[] {

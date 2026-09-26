@@ -1,4 +1,7 @@
+import { createLogger, reportError } from "@vercentlabs/observability";
 import { ZodError } from "zod";
+
+const logger = createLogger("web");
 
 // Pure error-classification logic, deliberately with zero "next/server"
 // import — next/server's package "exports" map isn't resolvable under
@@ -102,6 +105,6 @@ export function classifyError(error: unknown): ClassifiedError {
       details: "code" in error && error.code ? { code: (error as { code?: string }).code } : undefined,
     };
   }
-  console.error("request_failed", error);
+  reportError(logger, error, { event: "http.unhandled_error" });
   return { status: 500, message: "The request could not be completed." };
 }

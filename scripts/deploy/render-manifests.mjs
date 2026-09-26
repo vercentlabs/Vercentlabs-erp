@@ -78,7 +78,7 @@ export const PLACEHOLDERS = Object.freeze({
   MIGRATION_IMAGE: IMAGE,
   RELEASE_SHA: /^[0-9a-f]{7,40}$/,
   RELEASE_ID: /^[a-z0-9]([-a-z0-9]{0,40}[a-z0-9])?$/,
-  OPERATION: /^(status|files-migrate-legacy|files-reconcile|secrets-reencrypt|secrets-migrate-legacy)$/,
+  OPERATION: /^(status|files-migrate-legacy|files-reconcile|secrets-reencrypt|secrets-migrate-legacy|restore-verify|contract-plan|contract-apply)$/,
   OPERATION_FLAGS: /^(|--dry-run)$/,
 });
 

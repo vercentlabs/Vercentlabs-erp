@@ -1,4 +1,4 @@
-// Ported from docs/frontend-rebuild/recovered-platform-code/apps/web/src/
+// Ported from the recovered pre-rebuild snapshot (last present at commit d4df5eb1), apps/web/src/
 // core/access-admin.ts (unchanged logic; converted from TypeScript to this
 // package's plain-JS + client-injection convention, matching
 // services/api/src/core/master-data.js and idempotency.js).

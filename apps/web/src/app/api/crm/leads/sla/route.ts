@@ -5,7 +5,7 @@ import { HttpError, ok, readJson } from "@/core/http";
 import { crmContext } from "@/features/crm/shared/crm-context";
 import { workspaceRoute } from "@/core/workspace-route";
 
-// Ported from docs/frontend-rebuild/recovered-platform-code/apps/web/src/
+// Ported from the recovered pre-rebuild snapshot (last present at commit d4df5eb1), apps/web/src/
 // app/api/crm/lead-intelligence/sla/route.ts — the underlying
 // openLeadSlaCase/recordLeadResponse/scanLeadSlaBreaches functions already
 // exist live in @vercentlabs/api.

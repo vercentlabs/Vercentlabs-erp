@@ -12,7 +12,7 @@
 
 export const WEB_SRC_ENTRIES = Object.freeze(["app", "core", "features", "shell", "shared"]);
 // Files Next.js only recognises at the src root (framework entry points).
-export const WEB_SRC_FRAMEWORK_FILES = Object.freeze(["instrumentation.ts"]);
+export const WEB_SRC_FRAMEWORK_FILES = Object.freeze(["instrumentation.ts", "proxy.ts"]);
 const RETIRED_WEB_ENTRIES = Object.freeze({
   components: "reusable UI belongs in @vercentlabs/design-system or apps/web/src/shared",
   lib: "helpers belong in apps/web/src/core (protected runtime) or apps/web/src/shared (generic)",

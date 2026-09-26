@@ -2,7 +2,7 @@
 // T01 "shared platform" (SP010-SP036) verification.
 //
 // UPDATED (Prompt 2 of 15 — platform reactivation): the capability set
-// recovered into docs/frontend-rebuild/recovered-platform-code/ has now
+// recovered into the pre-rebuild snapshot (last present at commit d4df5eb1),  has now
 // been ported into services/api/src/core/*.js as framework-agnostic,
 // client-injected modules, re-reviewed against current security
 // standards, and wired into @vercentlabs/api's barrel export. See
@@ -13,7 +13,7 @@
 // workflow engine (core/platform/workflows, executeWorkflowRun) and shared
 // report datasets (orchestration/reporting, dataset permission + module
 // access checks). This script reads ONLY live code; it no longer depends on
-// the parked recovered-platform-code snapshot.
+// the parked recovered pre-rebuild snapshot (last present at commit d4df5eb1).
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";

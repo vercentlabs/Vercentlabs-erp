@@ -1,6 +1,6 @@
 // Rewritten for Prompt 2 of 15 (platform reactivation port). The previous
 // version of this test (still readable at docs/frontend-rebuild/
-// recovered-platform-code/apps/web/tests/enterprise-rbac.test.mjs, now
+// the recovered pre-rebuild snapshot (last present at commit d4df5eb1), apps/web/tests/enterprise-rbac.test.mjs, now
 // retired) transpiled and ran the PARKED access-control.ts snapshot — a
 // preservation check, not evidence RBAC worked in production, since that
 // snapshot was never wired into any active build.

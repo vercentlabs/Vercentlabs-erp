@@ -2,6 +2,7 @@ import "server-only";
 
 import { Pool, type PoolClient, type QueryResultRow } from "pg";
 import { databaseConfig } from "@vercentlabs/config";
+import { createLogger, monitorPool } from "@vercentlabs/observability";
 
 import { resolveDbSsl } from "./db-ssl.ts";
 import { runTenantTransaction, setTenantContext, setUserContext } from "@vercentlabs/database";
@@ -30,6 +31,7 @@ function getPool() {
       application_name: "vercentlabs-web",
       ssl: resolveDbSsl(process.env),
     });
+    monitorPool(pool, createLogger("web-db"), { name: "web", maximum: config.poolMaximum });
   }
   return pool;
 }

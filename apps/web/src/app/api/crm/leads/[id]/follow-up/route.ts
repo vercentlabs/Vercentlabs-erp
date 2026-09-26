@@ -17,7 +17,7 @@ const scheduleLeadFollowUpSchema = z.object({
   dueAt: z.string().datetime(),
 });
 
-// Ported from docs/frontend-rebuild/recovered-platform-code/apps/web/src/
+// Ported from the recovered pre-rebuild snapshot (last present at commit d4df5eb1), apps/web/src/
 // app/api/crm/leads/[id]/follow-up/route.ts (F016). Schedules a call/
 // meeting/generic activity against the lead AND advances the lead's own
 // nextFollowUpAt in the same transaction — a converted/archived lead

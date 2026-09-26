@@ -34,6 +34,10 @@ export async function processGenericJob(pool, workerId, organizationId, job, { l
     );
     return;
   }
+  const startedAt = Date.now();
+  if (job.previous_status === "processing") {
+    logger.event("worker.lease.recovered", { jobId: job.id, jobType: job.job_type, organizationId, attempts: job.attempts }, "warn");
+  }
   try {
     const payload = validatePayload(definition, job.payload);
     let result;
@@ -51,11 +55,11 @@ export async function processGenericJob(pool, workerId, organizationId, job, { l
         return handlerResult;
       });
     }
-    logger.info("job completed", { jobId: job.id, jobType: job.job_type, organizationId, attempts: job.attempts, result: redact(result) });
+    logger.event("worker.job.completed", { jobId: job.id, jobType: job.job_type, organizationId, attempts: job.attempts, durationMs: Date.now() - startedAt, result: redact(result) });
   } catch (error) {
     const terminal = error instanceof HandlerValidationError;
     const backoffMilliseconds = definition.backoff(job.attempts);
-    await withTenantClient(pool, organizationId, (client) =>
+    const failed = await withTenantClient(pool, organizationId, (client) =>
       failJob(client, job.id, workerId, {
         error: String(error?.message || error),
         backoffMilliseconds,
@@ -65,7 +69,10 @@ export async function processGenericJob(pool, workerId, organizationId, job, { l
         ...(terminal ? { dead: true } : {}),
       }),
     );
-    logger.warn("job failed", { jobId: job.id, jobType: job.job_type, organizationId, attempts: job.attempts, terminal, error: redact(String(error?.message || error)) });
+    const fields = { jobId: job.id, jobType: job.job_type, organizationId, attempts: job.attempts, terminal, durationMs: Date.now() - startedAt, error: redact(String(error?.message || error)) };
+    // Dead-lettered: no more retries; operators act on it (alert worker-job-dead).
+    if (failed?.status === "dead") logger.event("worker.job.dead", fields, "error");
+    else logger.event("worker.job.failed", fields, "warn");
   }
 }
 

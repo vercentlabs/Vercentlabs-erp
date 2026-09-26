@@ -40,7 +40,8 @@ export async function resolveObjectStorage(env = process.env) {
   const root = String(env.FILE_STORAGE_LOCAL_ROOT || path.join(os.tmpdir(), "vercentlabs-object-storage"));
   const bucket = String(env.FILE_STORAGE_GCS_BUCKET || "").trim();
   const prefix = String(env.FILE_STORAGE_GCS_PREFIX || "").trim();
-  const key = `${driver}|${root}|${bucket}|${prefix}`;
+  const apiEndpoint = String(env.FILE_STORAGE_GCS_API_ENDPOINT || "").trim();
+  const key = `${driver}|${root}|${bucket}|${prefix}|${apiEndpoint}`;
   if (cached && cachedKey === key) return cached;
   if (!driver) throw new FileStorageError(503, "File storage is not configured for this environment.", "FILE_STORAGE_NOT_CONFIGURED");
   if (driver === "memory") {
@@ -52,7 +53,7 @@ export async function resolveObjectStorage(env = process.env) {
   } else if (driver === "gcs") {
     if (!bucket) throw new FileStorageError(503, "FILE_STORAGE_GCS_BUCKET is required for Cloud Storage.", "FILE_STORAGE_NOT_CONFIGURED");
     const { createGcsObjectStorage } = await import("@vercentlabs/document-engine/gcs");
-    cached = await createGcsObjectStorage({ bucket, prefix, projectId: String(env.GOOGLE_CLOUD_PROJECT || "").trim() || undefined });
+    cached = await createGcsObjectStorage({ bucket, prefix, projectId: String(env.GOOGLE_CLOUD_PROJECT || "").trim() || undefined, apiEndpoint: apiEndpoint || undefined });
   } else {
     throw new FileStorageError(503, `File storage driver "${driver}" is not available.`, "FILE_STORAGE_NOT_CONFIGURED");
   }

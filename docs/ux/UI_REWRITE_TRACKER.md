@@ -948,7 +948,7 @@ Prompt 1B cleanup-pass HEAD, verified clean.
 ### What this session actually built (verified, not asserted)
 
 **Platform port (Phase 1-3).** Audited all 42 files under
-`docs/frontend-rebuild/recovered-platform-code/` and produced
+`the recovered pre-rebuild snapshot (last present at commit d4df5eb1), ` and produced
 `docs/frontend-rebuild/PLATFORM_PORT_REGISTER.csv` classifying every
 capability. Ported the security-critical platform/session/access-control
 logic into `services/api/src/core/*.js` as framework-agnostic,
