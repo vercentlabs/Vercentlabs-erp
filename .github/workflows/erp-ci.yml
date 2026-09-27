@@ -49,6 +49,8 @@ on:
       - ".github/workflows/erp-ci.yml"
   # The deploy workflow runs this whole gate before building release images.
   workflow_call:
+  # Also on demand (e.g. to gate a specific commit on main).
+  workflow_dispatch:
 
 permissions:
   contents: read
