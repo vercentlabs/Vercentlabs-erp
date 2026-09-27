@@ -43,7 +43,9 @@ test("custom fields and tags separates tags, record types and fields", async ({ 
   await expect(page.getByRole("heading", { level: 2, name: "Tags", exact: true })).toBeVisible({ timeout: 90_000 });
   await expect(page.getByRole("heading", { name: "Custom record types", exact: true })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Fields on custom record types" })).toBeVisible();
-  await expect(page.getByRole("link", { name: "Custom Record Fields" })).toHaveAttribute("href", "/crm/settings/record-fields");
+  // The page's own pointer (the CRM settings navigation also lists "Custom Record Fields" once it has loaded).
+  const explainer = page.getByText(/This page has three separate tools/);
+  await expect(explainer.getByRole("link", { name: "Custom Record Fields" })).toHaveAttribute("href", "/crm/settings/record-fields");
 });
 
 test("forecast uses date controls, plain labels and validates the date range", async ({ page }) => {
