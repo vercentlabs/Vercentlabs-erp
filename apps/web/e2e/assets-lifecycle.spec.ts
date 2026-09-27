@@ -22,7 +22,7 @@ test("register, capitalize by someone else, depreciate, and report", async ({ br
     // --- F231: register
     const pa = a.page;
     await open(pa, "/assets/register", "Asset register");
-    await pa.getByRole("button", { name: "Register asset" }).click();
+    await pa.getByRole("button", { name: "Register asset" }).first().click();
     let dlg = pa.getByRole("dialog");
     await dlg.getByLabel("Name").first().fill(name);
     await pick(pa, dlg.getByRole("button", { name: /Select category/ }), new RegExp(world.categoryName));
@@ -56,7 +56,7 @@ test("register, capitalize by someone else, depreciate, and report", async ({ br
     const daysLeft = Math.floor((Date.UTC(end.getUTCFullYear(), 11, 31) - todayUtc) / 86_400_000);
     const cutoff = new Date(todayUtc + Math.floor(Math.random() * (daysLeft + 1)) * 86_400_000).toISOString().slice(0, 10);
     await open(pa, "/assets/depreciation", "Depreciation runs");
-    await pa.getByRole("button", { name: "Prepare run" }).click();
+    await pa.getByRole("button", { name: "Prepare run" }).first().click();
     dlg = pa.getByRole("dialog");
     await dlg.getByLabel("Depreciate up to").fill(cutoff);
     await dlg.getByRole("button", { name: "Save" }).click();

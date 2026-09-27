@@ -88,7 +88,7 @@ test("release, work the routing, issue, backflush, report production, scrap and 
 
     // --- production order (UI)
     await open(m, "/manufacturing/production-orders", "Production orders");
-    await m.getByRole("button", { name: "New production order" }).click();
+    await m.getByRole("button", { name: "New production order" }).first().click();
     const dialog = m.getByRole("dialog", { name: "New production order" });
     await pick(m, dialog.getByRole("button", { name: /Select product/ }), new RegExp(items.finished.code));
     await setNumber(dialog.getByRole("textbox", { name: /^Quantity/ }), "10");

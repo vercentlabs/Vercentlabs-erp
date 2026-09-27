@@ -54,7 +54,7 @@ test("structure, pay, payroll run, maker-checker approval, employee payslip", as
 
     // --- pay: proposed on screen by A, approved on screen by B
     await open(a, "/hr/compensation", "Compensation");
-    await a.getByRole("button", { name: "Propose pay" }).click();
+    await a.getByRole("button", { name: "Propose pay" }).first().click();
     let dlg = a.getByRole("dialog");
     await pick(a, dlg.getByRole("button", { name: /Select employee/ }), new RegExp(`Earner${s}`));
     await pick(a, dlg.getByRole("button", { name: /Select salary structure/ }), new RegExp(`Std ${s}`));
@@ -74,7 +74,7 @@ test("structure, pay, payroll run, maker-checker approval, employee payslip", as
     // --- the payroll: a period, a run for this department only, calculated
     await api(hrA.context, "POST", "/actions/periods-generate", { year });
     await open(a, "/hr/payroll-runs", "Payroll runs");
-    await a.getByRole("button", { name: "Start payroll" }).click();
+    await a.getByRole("button", { name: "Start payroll" }).first().click();
     dlg = a.getByRole("dialog");
     await pick(a, dlg.getByRole("button", { name: /Select payroll period/ }), new RegExp(code));
     await pick(a, dlg.getByRole("button", { name: /Select department/ }), new RegExp(`Pay dept ${s}`));

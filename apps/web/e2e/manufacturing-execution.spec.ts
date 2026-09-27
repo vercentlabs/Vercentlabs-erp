@@ -89,11 +89,11 @@ test("hold, logged time, inspection gate, subcontracting, downtime with a mainte
     const ops = m.getByRole("table", { name: "Operations" });
     await ops.getByRole("row", { name: /10.*Machine.*Ready/ }).getByRole("button", { name: "Start" }).click();
     await expect(m.getByText("Operation started.")).toBeVisible({ timeout: 30_000 });
-    await ops.getByRole("row", { name: /10.*Machine.*In progress/ }).getByRole("button", { name: "Log time" }).click();
+    await ops.getByRole("row", { name: /10.*Machine.*In progress/ }).getByRole("button", { name: "Log time" }).first().click();
     const log = m.getByRole("dialog", { name: /Log time/ });
     await setNumber(log.getByRole("textbox", { name: /^Minutes/ }), "60");
     await log.getByLabel(/^Operator/).fill("Asha");
-    await log.getByRole("button", { name: "Log time" }).click();
+    await log.getByRole("button", { name: "Log time" }).first().click();
     await expect(m.getByText("Time logged.")).toBeVisible({ timeout: 30_000 });
     await ops.getByRole("row", { name: /10.*Machine.*In progress/ }).getByRole("button", { name: "Complete" }).click();
     const done = m.getByRole("dialog", { name: /Complete operation 10/ });
@@ -106,7 +106,7 @@ test("hold, logged time, inspection gate, subcontracting, downtime with a mainte
     await setNumber(fail.getByRole("textbox", { name: /^Quantity inspected/ }), "10");
     await setNumber(fail.getByRole("textbox", { name: /^Quantity rejected/ }), "1");
     await fail.getByLabel(/^Defect/).fill("burr");
-    await fail.getByRole("button", { name: "Record inspection" }).click();
+    await fail.getByRole("button", { name: "Record inspection" }).first().click();
     await expect(m.getByText("Inspection recorded.")).toBeVisible({ timeout: 30_000 });
     await ops.getByRole("row", { name: /10.*Machine/ }).getByRole("button", { name: "Complete" }).click();
     const again = m.getByRole("dialog", { name: /Complete operation 10/ });
@@ -116,7 +116,7 @@ test("hold, logged time, inspection gate, subcontracting, downtime with a mainte
     await ops.getByRole("row", { name: /10.*Machine/ }).getByRole("button", { name: "Inspect" }).click();
     const pass = m.getByRole("dialog", { name: /Inspect operation 10/ });
     await setNumber(pass.getByRole("textbox", { name: /^Quantity inspected/ }), "9");
-    await pass.getByRole("button", { name: "Record inspection" }).click();
+    await pass.getByRole("button", { name: "Record inspection" }).first().click();
     await expect(m.getByText("Inspection recorded.")).toBeVisible({ timeout: 30_000 });
     await ops.getByRole("row", { name: /10.*Machine/ }).getByRole("button", { name: "Complete" }).click();
     const ok = m.getByRole("dialog", { name: /Complete operation 10/ });
@@ -156,7 +156,7 @@ test("hold, logged time, inspection gate, subcontracting, downtime with a mainte
 
     // --- downtime: a breakdown stops the work center and raises a maintenance order in Assets
     await open(m, "/manufacturing/downtime", "Downtime");
-    await m.getByRole("button", { name: "Log downtime" }).click();
+    await m.getByRole("button", { name: "Log downtime" }).first().click();
     const down = m.getByRole("dialog", { name: "Log downtime" });
     await pick(m, down.getByRole("button", { name: /Select work center/ }), new RegExp(`XW-${suffix}`));
     await pick(m, down.getByRole("button", { name: /Take the work center out of service/i }), /Yes/);

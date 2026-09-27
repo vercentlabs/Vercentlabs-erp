@@ -21,6 +21,7 @@ export type SalesWorld = {
   manager: SalesPersona;
   manager2: SalesPersona;
   customerName: string;
+  customerBillingAddressId: string;
   itemName: string;
   itemCode: string;
   unitPrice: number;
@@ -42,6 +43,22 @@ async function tenantTx<T>(client: Client, organizationId: string, fn: () => Pro
   } catch (error) {
     await client.query("ROLLBACK");
     throw error;
+  }
+}
+
+// Duplicate governance is configured per organisation (CRM duplicate rules).
+// Returns the previous blocking flag so a test can restore it.
+export async function setAccountDuplicateRuleBlocking(organizationId: string, signal: string, blocking: boolean): Promise<boolean> {
+  const client = new Client({ connectionString: MIGRATION_DATABASE_URL });
+  await client.connect();
+  try {
+    return await tenantTx(client, organizationId, async () => {
+      const before = await client.query(`SELECT blocking FROM tenant.crm_duplicate_rules WHERE organization_id=$1 AND entity_type='account' AND signal=$2`, [organizationId, signal]);
+      await client.query(`UPDATE tenant.crm_duplicate_rules SET blocking=$3, enabled=true WHERE organization_id=$1 AND entity_type='account' AND signal=$2`, [organizationId, signal, blocking]);
+      return Boolean(before.rows[0]?.blocking);
+    });
+  } finally {
+    await client.end();
   }
 }
 
@@ -87,6 +104,8 @@ async function buildSalesWorld(): Promise<SalesWorld> {
     const stockItemName = "Sales E2E Stocked Widget";
     const warehouseCode = `E2EWH-${suffix}`;
     const { postStockMovement } = await import("../../../services/api/src/index.js");
+    const customerId = crypto.randomUUID();
+    const customerBillingAddressId = crypto.randomUUID();
     await tenantTx(client, organizationId, async () => {
       const uomId = (await client.query(`SELECT id FROM tenant.units_of_measure WHERE organization_id=$1 AND code='EA' AND status='active' LIMIT 1`, [organizationId])).rows[0].id;
       const taxCategoryId = crypto.randomUUID();
@@ -99,7 +118,9 @@ async function buildSalesWorld(): Promise<SalesWorld> {
       await client.query(`INSERT INTO tenant.price_lists(id,organization_id,code,name,price_list_type,currency_code,tax_inclusive,status) VALUES ($1,$2,$3,'Sales E2E Price List','sales','INR',false,'active')`, [priceListId, organizationId, `SPL-${suffix}`]);
       await client.query(`INSERT INTO tenant.items(id,organization_id,code,name,item_type,uom_id,tax_category_id,sales_price,standard_cost,status) VALUES ($1,$2,$3,$4,'product',$5,$6,$7,250,'active')`, [itemId, organizationId, itemCode, itemName, uomId, taxCategoryId, unitPrice]);
       await client.query(`INSERT INTO tenant.price_list_items(organization_id,price_list_id,item_id,minimum_quantity,rate,status) VALUES ($1,$2,$3,1,$4,'active')`, [organizationId, priceListId, itemId, unitPrice]);
-      await client.query(`INSERT INTO tenant.business_parties(id,organization_id,company_id,code,party_type,display_name,status,created_by) VALUES ($1,$2,$3,$4,'customer',$5,'active',$6)`, [crypto.randomUUID(), organizationId, companyId, `SCUST-${suffix}`, customerName, ownerUserId]);
+      await client.query(`INSERT INTO tenant.business_parties(id,organization_id,company_id,code,party_type,display_name,status,created_by) VALUES ($1,$2,$3,$4,'customer',$5,'active',$6)`, [customerId, organizationId, companyId, `SCUST-${suffix}`, customerName, ownerUserId]);
+      // GST needs the buyer's state: the customer's primary billing address carries it (the order form selects it).
+      await client.query(`INSERT INTO tenant.addresses(id,organization_id,party_id,address_type,line1,city,state,state_code,postal_code,country_code,is_primary) VALUES ($1,$2,$3,'billing','1 MG Road','Bengaluru','Karnataka','KA','560001','IN',true)`, [customerBillingAddressId, organizationId, customerId]);
       // A stock-tracked item with opening stock in its own warehouse, so delivery,
       // reservation and backorder flows run against real balances.
       const warehouseId = crypto.randomUUID();
@@ -110,7 +131,7 @@ async function buildSalesWorld(): Promise<SalesWorld> {
       await postStockMovement(client, { organizationId, companyId, userId: ownerUserId, roleSlugs: [], permissions: ["stock.receive", "stock.view"] }, { movementType: "receipt", itemId: stockItemId, warehouseId, quantity: 100, unitCost: 250, idempotencyKey: `e2e-open-${suffix}` });
     });
 
-    return { organizationId, rep, manager, manager2, customerName, itemName, itemCode, unitPrice, stockItemCode, stockItemName, warehouseCode };
+    return { organizationId, rep, manager, manager2, customerName, customerBillingAddressId, itemName, itemCode, unitPrice, stockItemCode, stockItemName, warehouseCode };
   } finally {
     await client.end();
   }

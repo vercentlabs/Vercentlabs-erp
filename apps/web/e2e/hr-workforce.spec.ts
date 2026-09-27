@@ -27,7 +27,7 @@ test("hire, join, transfer, self-service, resign and exit; a user without HR rig
 
     // --- HR creates the employee on screen
     await open(a, "/hr/employees", "Employees");
-    await a.getByRole("button", { name: "New employee" }).click();
+    await a.getByRole("button", { name: "New employee" }).first().click();
     const dialog = a.getByRole("dialog");
     await dialog.getByLabel("First name").fill("Meera");
     await dialog.getByLabel("Last name").fill(surname);
@@ -47,7 +47,7 @@ test("hire, join, transfer, self-service, resign and exit; a user without HR rig
     await row.getByRole("button", { name: "Complete joining" }).click();
     await expect(a.getByRole("alert").filter({ hasText: /documents must be verified/i }).first()).toBeVisible({ timeout: 30_000 });
     await open(a, "/hr/documents", "Employee documents");
-    await a.getByRole("button", { name: "Add document" }).click();
+    await a.getByRole("button", { name: "Add document" }).first().click();
     const doc = a.getByRole("dialog");
     await pick(a, doc.getByRole("button", { name: /Select employee/ }), new RegExp(surname));
     await pick(a, doc.getByRole("button", { name: /Select document type/ }), new RegExp(`Identity ${s}`));

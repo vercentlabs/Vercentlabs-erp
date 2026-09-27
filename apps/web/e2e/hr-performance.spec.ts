@@ -23,7 +23,7 @@ test("goals, an appraisal cycle, a skill rating and training, walked through the
     // --- F448: the manager sets a goal for their report
     const m = mgr.page;
     await open(m, "/hr/team-goals", "Team goals");
-    await m.getByRole("button", { name: "New goal" }).click();
+    await m.getByRole("button", { name: "New goal" }).first().click();
     let dlg = m.getByRole("dialog");
     await pick(m, dlg.getByRole("button", { name: /Select employee/ }), new RegExp(`Report${s}`));
     await dlg.getByLabel("Title").fill(`Ship the ${s} feature`);
@@ -45,7 +45,7 @@ test("goals, an appraisal cycle, a skill rating and training, walked through the
 
     // --- F449/F450: HR runs a review cycle; the report self-reviews, the manager completes it
     await open(hrA.page, "/hr/review-cycles", "Review cycles");
-    await hrA.page.getByRole("button", { name: "New review cycle" }).click();
+    await hrA.page.getByRole("button", { name: "New review cycle" }).first().click();
     dlg = hrA.page.getByRole("dialog");
     await dlg.getByLabel("Code").fill(`RC${s}`.slice(0, 20));
     await dlg.getByLabel("Name").fill(`Cycle ${s}`);
@@ -95,7 +95,7 @@ test("goals, an appraisal cycle, a skill rating and training, walked through the
     const session = await api<Rec>(hrA.context, "POST", "/actions/training-session-schedule", { courseId: course.body.record.id, startsAt: future.toISOString(), endsAt: new Date(future.getTime() + 3600_000).toISOString() });
 
     await open(e, "/hr/my-training", "My training");
-    await e.getByRole("button", { name: "Enrol" }).click();
+    await e.getByRole("button", { name: "Enrol" }).first().click();
     dlg = e.getByRole("dialog");
     await pick(e, dlg.getByRole("button", { name: /Select session/ }), new RegExp(`Course ${s}`));
     await dlg.getByRole("button", { name: "Save" }).click();

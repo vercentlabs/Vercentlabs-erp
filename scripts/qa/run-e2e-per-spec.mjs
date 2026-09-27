@@ -30,9 +30,15 @@ if (!/localhost|127\.0\.0\.1/.test(connectionString) && process.env.E2E_SEED_ALL
 }
 
 const requested = process.argv.slice(2);
+// Specs owned by their own Playwright configs (own servers and stand-ins; run
+// by test:e2e:billing / :shared-runtime / :platform-services) are ignored by
+// the default config, so "every spec" leaves them out.
+const ownConfigSpecs = new Set(
+  JSON.parse(/testIgnore:\s*(\[[^\]]*\])/.exec(fs.readFileSync(path.join(webDir, "playwright.config.ts"), "utf8"))?.[1] ?? "[]"),
+);
 const specs = requested.length
   ? requested
-  : fs.readdirSync(path.join(webDir, "e2e")).filter((name) => name.endsWith(".spec.ts") && !name.startsWith("_")).sort();
+  : fs.readdirSync(path.join(webDir, "e2e")).filter((name) => name.endsWith(".spec.ts") && !name.startsWith("_") && !ownConfigSpecs.has(name)).sort();
 
 async function clearRateLimits() {
   const db = new Client({ connectionString });

@@ -43,7 +43,7 @@ test("calendar, shift, closure, work center, routing, capacity; view-only role i
 
     // --- calendar (UI)
     await open(m, "/manufacturing/calendars", "Shift calendars");
-    await m.getByRole("button", { name: "Add calendar" }).click();
+    await m.getByRole("button", { name: "Add calendar" }).first().click();
     const cal = m.getByRole("dialog", { name: "Add calendar" });
     await cal.getByLabel(/^Code/).fill(`CAL-${suffix}`);
     await cal.getByLabel(/^Name/).fill(`Plant calendar ${suffix}`);
@@ -53,7 +53,7 @@ test("calendar, shift, closure, work center, routing, capacity; view-only role i
 
     // --- shift: an overlapping one is refused
     await open(m, "/manufacturing/shifts", "Shifts");
-    await m.getByRole("button", { name: "Add shift" }).click();
+    await m.getByRole("button", { name: "Add shift" }).first().click();
     const shift = m.getByRole("dialog", { name: "Add shift" });
     await pick(m, shift.getByRole("button", { name: /Select calendar/ }), new RegExp(`CAL-${suffix}`));
     await shift.getByLabel(/^Shift name/).fill("Day");
@@ -63,7 +63,7 @@ test("calendar, shift, closure, work center, routing, capacity; view-only role i
     await shift.getByRole("button", { name: "Save" }).click();
     await expect(m.getByText("Shift added.")).toBeVisible({ timeout: 30_000 });
     await expect(m.getByRole("row", { name: new RegExp(`CAL-${suffix}.*Day.*08:00.*16:00.*60 min.*420 min`) })).toBeVisible({ timeout: 30_000 });
-    await m.getByRole("button", { name: "Add shift" }).click();
+    await m.getByRole("button", { name: "Add shift" }).first().click();
     const overlap = m.getByRole("dialog", { name: "Add shift" });
     await pick(m, overlap.getByRole("button", { name: /Select calendar/ }), new RegExp(`CAL-${suffix}`));
     await overlap.getByLabel(/^Shift name/).fill("Overlap");
@@ -75,7 +75,7 @@ test("calendar, shift, closure, work center, routing, capacity; view-only role i
 
     // --- work center on that calendar: 2 machines at 50% -> 420 minutes a day
     await open(m, "/manufacturing/work-centers", "Work centers");
-    await m.getByRole("button", { name: "Add work center" }).click();
+    await m.getByRole("button", { name: "Add work center" }).first().click();
     const wc = m.getByRole("dialog", { name: "Add work center" });
     await wc.getByLabel(/^Code/).fill(`WC-${suffix}`);
     await wc.getByLabel(/^Name/).fill(`Press ${suffix}`);
@@ -96,7 +96,7 @@ test("calendar, shift, closure, work center, routing, capacity; view-only role i
 
     // --- routing (UI): two operations, then activate
     await open(m, "/manufacturing/routings", "Routings");
-    await m.getByRole("button", { name: "New routing" }).click();
+    await m.getByRole("button", { name: "New routing" }).first().click();
     await expect(m).toHaveURL(/\/manufacturing\/routing\/new$/, { timeout: 60_000 });
     await expect(m.getByRole("heading", { name: "New routing" })).toBeVisible({ timeout: 60_000 });
     await expect(m.getByRole("button", { name: "Create routing" })).toBeDisabled();

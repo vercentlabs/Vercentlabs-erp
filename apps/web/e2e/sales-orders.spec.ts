@@ -5,12 +5,13 @@ import { getSalesWorld, openSalesSession } from "./sales-fixtures";
 const status = (page: Page, text: string) => page.getByText(text, { exact: true }).first();
 
 // Journey across four real users with real role permissions (nobody is a bypass
-// role): a rep records an order and requests fulfilment (they cannot confirm);
-// a manager confirms, holds and releases it and amends it; the amendment can
-// only be approved by a DIFFERENT manager; finally the order is cancelled.
+// role): a rep records an order (they cannot confirm); a manager confirms and
+// amends it; the amendment can only be approved by a DIFFERENT manager; the rep
+// then requests fulfilment (an open request blocks amendments), a manager holds
+// and releases the order, and finally it is cancelled.
 // Every total is the server's own (2 x 400 + 18% GST = 944; 3 x 400 => 1,416).
 test.describe("Sales order journey", () => {
-  test("create -> submit -> confirm -> fulfil -> hold/release -> amend (second approver) -> cancel", async ({ browser }) => {
+  test("create -> submit -> confirm -> amend (second approver) -> fulfil -> hold/release -> cancel", async ({ browser }) => {
     test.setTimeout(480_000);
     const world = await getSalesWorld();
     const rep = await openSalesSession(browser, world.rep);
@@ -50,26 +51,6 @@ test.describe("Sales order journey", () => {
       await m.getByRole("button", { name: "Confirm order" }).click({ timeout: 120_000 });
       await expect(status(m, "Confirmed")).toBeVisible({ timeout: 30_000 });
 
-      // --- rep requests fulfilment; the request shows on the Fulfilment & billing tab
-      await page.reload({ waitUntil: "domcontentloaded" });
-      await page.getByRole("button", { name: "Request fulfilment" }).click({ timeout: 60_000 });
-      await expect(page.getByText("Fulfilment requested.")).toBeVisible({ timeout: 30_000 });
-      await page.getByRole("tab", { name: /Fulfilment & billing/ }).click();
-      await expect(page.getByRole("row", { name: /FUL-/ }).first()).toBeVisible();
-
-      // --- manager places a hold (reason is mandatory), then releases it
-      await m.reload({ waitUntil: "domcontentloaded" });
-      await m.getByRole("button", { name: "Place on hold" }).click({ timeout: 60_000 });
-      const holdDialog = m.getByRole("dialog", { name: "Place order on hold" });
-      await expect(holdDialog.getByRole("button", { name: "Place on hold" })).toBeDisabled();
-      await holdDialog.getByLabel("Reason").fill("Awaiting customer payment");
-      await holdDialog.getByRole("button", { name: "Place on hold" }).click();
-      await expect(status(m, "On hold")).toBeVisible({ timeout: 30_000 });
-      await m.getByRole("tab", { name: /Holds/ }).click();
-      await m.getByRole("button", { name: "Release", exact: true }).click();
-      await m.getByRole("dialog", { name: "Release hold" }).getByRole("button", { name: "Release hold" }).click();
-      await expect(status(m, "Confirmed")).toBeVisible({ timeout: 30_000 });
-
       // --- manager amends to 3 units; the same person cannot approve it
       await m.getByRole("button", { name: "Amend" }).click();
       await expect(m.getByRole("heading", { name: /^Amend SO-/ })).toBeVisible({ timeout: 60_000 });
@@ -96,6 +77,26 @@ test.describe("Sales order journey", () => {
       await m2.getByRole("tab", { name: /Versions/ }).click();
       await expect(m2.getByRole("row", { name: /v2 \(current\)/ })).toBeVisible();
       await expect(m2.getByRole("row", { name: /v1/ }).first()).toBeVisible();
+
+      // --- rep requests fulfilment on version 2 (an open request would block amendments); the request shows on the Fulfilment & billing tab
+      await page.reload({ waitUntil: "domcontentloaded" });
+      await page.getByRole("button", { name: "Request fulfilment" }).click({ timeout: 60_000 });
+      await expect(page.getByText("Fulfilment requested.")).toBeVisible({ timeout: 30_000 });
+      await page.getByRole("tab", { name: /Fulfilment & billing/ }).click();
+      await expect(page.getByRole("row", { name: /FUL-/ }).first()).toBeVisible();
+
+      // --- manager places a hold (reason is mandatory), then releases it
+      await m2.reload({ waitUntil: "domcontentloaded" });
+      await m2.getByRole("button", { name: "Place on hold" }).click({ timeout: 60_000 });
+      const holdDialog = m2.getByRole("dialog", { name: "Place order on hold" });
+      await expect(holdDialog.getByRole("button", { name: "Place on hold" })).toBeDisabled();
+      await holdDialog.getByLabel("Reason").fill("Awaiting customer payment");
+      await holdDialog.getByRole("button", { name: "Place on hold" }).click();
+      await expect(status(m2, "On hold")).toBeVisible({ timeout: 30_000 });
+      await m2.getByRole("tab", { name: /Holds/ }).click();
+      await m2.getByRole("button", { name: "Release", exact: true }).click();
+      await m2.getByRole("dialog", { name: "Release hold" }).getByRole("button", { name: "Release hold" }).click();
+      await expect(status(m2, "Confirmed")).toBeVisible({ timeout: 30_000 });
 
       // --- cancel needs a reason
       await m2.getByRole("button", { name: "Cancel order" }).click();

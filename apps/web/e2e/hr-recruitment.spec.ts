@@ -33,7 +33,7 @@ test("opening, candidate, pipeline, interview feedback, offer, conversion; one c
 
     // --- an opening: prepared by A, approved by B (not by A)
     await open(a, "/hr/openings", "Job openings");
-    await a.getByRole("button", { name: "New opening" }).click();
+    await a.getByRole("button", { name: "New opening" }).first().click();
     let dlg = a.getByRole("dialog");
     await dlg.getByLabel("Title").fill(title);
     await dlg.getByRole("button", { name: "Save" }).click();
@@ -55,7 +55,7 @@ test("opening, candidate, pipeline, interview feedback, offer, conversion; one c
     const email = `cand.${s.toLowerCase()}@mail.test`;
     await open(a, "/hr/candidates", "Candidates");
     for (const attempt of [1, 2]) {
-      await a.getByRole("button", { name: "New candidate" }).click();
+      await a.getByRole("button", { name: "New candidate" }).first().click();
       dlg = a.getByRole("dialog");
       await dlg.getByLabel("First name").fill("Priya");
       await dlg.getByLabel("Last name").fill(surname);
@@ -70,7 +70,7 @@ test("opening, candidate, pipeline, interview feedback, offer, conversion; one c
 
     // --- application, screening, interview scheduled for the ess employee
     await open(a, "/hr/applications", "Recruitment pipeline");
-    await a.getByRole("button", { name: "New application" }).click();
+    await a.getByRole("button", { name: "New application" }).first().click();
     dlg = a.getByRole("dialog");
     await pick(a, dlg.getByRole("button", { name: /Select opening/ }), new RegExp(title));
     await pick(a, dlg.getByRole("button", { name: /Select candidate/ }), new RegExp(surname));
@@ -81,7 +81,7 @@ test("opening, candidate, pipeline, interview feedback, offer, conversion; one c
     await expect(a.getByRole("row", { name: new RegExp(`${surname}.*Screening`) })).toBeVisible({ timeout: 60_000 });
     // an offer cannot come before any interview feedback
     await open(a, "/hr/interviews", "Interviews");
-    await a.getByRole("button", { name: "Schedule interview" }).click();
+    await a.getByRole("button", { name: "Schedule interview" }).first().click();
     dlg = a.getByRole("dialog");
     await pick(a, dlg.getByRole("button", { name: /Select application/ }), new RegExp(surname));
     await pick(a, dlg.getByRole("button", { name: /Select interviewer/ }), new RegExp(`Viewer${s}`));
@@ -90,7 +90,7 @@ test("opening, candidate, pipeline, interview feedback, offer, conversion; one c
     await dlg.getByRole("button", { name: "Save" }).click();
     await expect(a.getByRole("row", { name: new RegExp(`${surname}.*Scheduled`) })).toBeVisible({ timeout: 60_000 });
     // the same interviewer cannot be booked twice at that time
-    await a.getByRole("button", { name: "Schedule interview" }).click();
+    await a.getByRole("button", { name: "Schedule interview" }).first().click();
     dlg = a.getByRole("dialog");
     await pick(a, dlg.getByRole("button", { name: /Select application/ }), new RegExp(surname));
     await pick(a, dlg.getByRole("button", { name: /Select interviewer/ }), new RegExp(`Viewer${s}`));
@@ -119,7 +119,7 @@ test("opening, candidate, pipeline, interview feedback, offer, conversion; one c
     await a.getByRole("row", { name: new RegExp(`${surname}.*Interview`) }).getByRole("button", { name: "To offer" }).click();
     await expect(a.getByRole("row", { name: new RegExp(`${surname}.*Offer`) })).toBeVisible({ timeout: 60_000 });
     await open(a, "/hr/offers", "Offers");
-    await a.getByRole("button", { name: "New offer" }).click();
+    await a.getByRole("button", { name: "New offer" }).first().click();
     dlg = a.getByRole("dialog");
     await pick(a, dlg.getByRole("button", { name: /Select application/ }), new RegExp(surname));
     await dlg.getByRole("textbox", { name: "Annual CTC" }).fill("1200000");

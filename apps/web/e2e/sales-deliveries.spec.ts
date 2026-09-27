@@ -35,7 +35,7 @@ test.describe("Sales deliveries and backorders", () => {
       const priceList = options.options.priceLists.find((p) => p.name === "Sales E2E Price List")!;
       const warehouse = options.options.warehouses.find((w) => w.code === world.warehouseCode)!;
 
-      const created = await api<{ order: { id: string; sales_order_number: string } }>(rep.context, "POST", "/orders", { partyId: party.id, currencyCode: "INR", priceListId: priceList.id, lines: [{ itemId: item.id, quantity: 4, warehouseId: warehouse.id }] });
+      const created = await api<{ order: { id: string; sales_order_number: string } }>(rep.context, "POST", "/orders", { partyId: party.id, billingAddressId: world.customerBillingAddressId, currencyCode: "INR", priceListId: priceList.id, lines: [{ itemId: item.id, quantity: 4, warehouseId: warehouse.id }] });
       const orderId = created.order.id;
       const orderNumber = created.order.sales_order_number;
       await api(rep.context, "POST", `/orders/${orderId}/submit`, {});
@@ -47,8 +47,11 @@ test.describe("Sales deliveries and backorders", () => {
       await expect(r.getByRole("heading", { name: orderNumber })).toBeVisible({ timeout: 120_000 });
       await r.getByRole("button", { name: "Stock", exact: true }).click();
       const stock = r.getByRole("dialog", { name: /Stock for/ });
-      await expect(stock.getByText("4 can be promised from stock.")).toBeVisible({ timeout: 60_000 });
-      await stock.getByRole("button", { name: "Reserve stock" }).click();
+      // The line needs 4 units and they can be promised from stock (F045/F046 availability facts).
+      await expect(stock.getByText(/\(4 units\)/)).toBeVisible({ timeout: 60_000 });
+      const reserveStock = stock.getByRole("button", { name: "Reserve stock" });
+      await expect(reserveStock).toBeEnabled();
+      await reserveStock.click();
       await expect(r.getByText("Stock reserved.")).toBeVisible({ timeout: 30_000 });
 
       // --- request fulfilment, then deliver 3 of 4

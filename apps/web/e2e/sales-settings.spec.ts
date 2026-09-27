@@ -53,7 +53,7 @@ test.describe("Sales settings", () => {
       const party = options.parties.find((p: { display_name: string }) => p.display_name === world.customerName);
       const item = options.items.find((i: { code: string }) => i.code === world.itemCode);
       const priceList = options.priceLists.find((p: { name: string }) => p.name === "Sales E2E Price List");
-      const created = await call(rep.context, "POST", "/orders", { partyId: party.id, currencyCode: "INR", priceListId: priceList.id, lines: [{ itemId: item.id, quantity: 1 }] });
+      const created = await call(rep.context, "POST", "/orders", { partyId: party.id, billingAddressId: world.customerBillingAddressId, currencyCode: "INR", priceListId: priceList.id, lines: [{ itemId: item.id, quantity: 1 }] });
       expect(created.status).toBe(201);
       const submitted = await call(rep.context, "POST", `/orders/${created.body.order.id}/submit`, {});
       expect(submitted.body.result.approvalRequired).toBe(true);

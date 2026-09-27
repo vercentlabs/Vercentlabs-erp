@@ -37,7 +37,7 @@ test.describe("Sales operational registers", () => {
       const item = options.options.items.find((i) => i.code === world.itemCode)!;
       const priceList = options.options.priceLists.find((p) => p.name === "Sales E2E Price List")!;
 
-      const created = await api<{ order: { id: string; sales_order_number: string } }>(rep.context, "POST", "/orders", { partyId: party.id, currencyCode: "INR", priceListId: priceList.id, lines: [{ itemId: item.id, quantity: 2 }] });
+      const created = await api<{ order: { id: string; sales_order_number: string } }>(rep.context, "POST", "/orders", { partyId: party.id, billingAddressId: world.customerBillingAddressId, currencyCode: "INR", priceListId: priceList.id, lines: [{ itemId: item.id, quantity: 2 }] });
       const orderId = created.order.id;
       const orderNumber = created.order.sales_order_number;
       await api(rep.context, "POST", `/orders/${orderId}/submit`, {});
@@ -71,13 +71,16 @@ test.describe("Sales operational registers", () => {
       await dialog.getByRole("button", { name: "Record advance" }).click();
       await expect(r.getByRole("row", { name: new RegExp(`${orderNumber}.*UTR-E2E-${orderNumber}`) })).toBeVisible({ timeout: 30_000 });
 
-      // --- credit adjustment needs a reason
+      // --- credit adjustment needs a reason. Nothing is invoiced yet, so the only
+      // adjustment available is a refund, capped by the advance just paid (100).
       await r.goto("/sales/credit-adjustments", { waitUntil: "domcontentloaded" });
       await r.getByRole("button", { name: "Request adjustment" }).click({ timeout: 120_000 });
       dialog = r.getByRole("dialog", { name: "Request credit adjustment" });
       await pick(r, dialog.getByRole("button", { name: /Select an order/ }), new RegExp(orderNumber));
+      await pick(r, dialog.getByRole("button", { name: /Credit note/ }), /^Refund$/);
       const adjustmentAmount = dialog.getByRole("textbox", { name: "Amount" });
       await adjustmentAmount.click();
+      await adjustmentAmount.press("Control+A");
       await adjustmentAmount.pressSequentially("50");
       await expect(dialog.getByRole("button", { name: "Request adjustment" })).toBeDisabled();
       await dialog.getByLabel("Reason").fill("Damaged in transit");

@@ -1,6 +1,6 @@
 import { test, expect } from "@playwright/test";
 
-import { getSalesWorld, openSalesSession } from "./sales-fixtures";
+import { getSalesWorld, openSalesSession, setAccountDuplicateRuleBlocking } from "./sales-fixtures";
 
 // F031/F032 regression coverage for the customer-360 fixes: a dedicated
 // by-id read (no more 200-row list-and-find), orders filtered by the
@@ -60,14 +60,20 @@ test.describe("Sales customer 360", () => {
     }
   });
 
-  test("creating a customer with a duplicate GSTIN is blocked unless overridden with a reason", async ({ browser }) => {
+  test("creating an exact duplicate customer (same PAN) is blocked unless overridden with a reason", async ({ browser }) => {
     test.setTimeout(360_000);
     const world = await getSalesWorld();
     const rep = await openSalesSession(browser, world.rep);
+    let panWasBlocking: boolean | null = null;
     try {
       const r = rep.page;
       const stamp = Date.now().toString(36);
-      const gstin = `29QWERT${String(Date.now()).slice(-4)}F1Z5`;
+      // GSTIN is unique per organisation in the database, so a same-GSTIN copy can never
+      // be created; the governed duplicate check covers what the database cannot:
+      // the same legal entity (same PAN) under a different code and name. A PAN
+      // match blocks only when the organisation configures it (CRM duplicate rules).
+      panWasBlocking = await setAccountDuplicateRuleBlocking(world.organizationId, "pan", true);
+      const pan = `QWERT${String(Date.now()).slice(-4)}F`;
 
       await r.goto("/sales/customers", { waitUntil: "domcontentloaded" });
       await expect(r.getByRole("heading", { name: "Customers" })).toBeVisible({ timeout: 120_000 });
@@ -83,17 +89,16 @@ test.describe("Sales customer 360", () => {
       const first = await openCreateDialog();
       await first.getByLabel("Code").fill(`DUP1-${stamp}`);
       await first.getByLabel("Display name").fill(`Duplicate Origin ${stamp}`);
-      await first.getByLabel("GSTIN").fill(gstin);
+      await first.getByLabel("PAN", { exact: true }).fill(pan);
       await first.getByRole("button", { name: "Create customer" }).click();
       await expect(r).toHaveURL(/\/sales\/customers\/[0-9a-f-]{36}$/, { timeout: 60_000 });
 
-      // Same GSTIN, different code/name -- the DB's unique constraint alone
-      // would not catch this variant, only the governed duplicate check does.
+      // Same PAN, different code/name -- only the governed duplicate check catches this.
       await r.goto("/sales/customers", { waitUntil: "domcontentloaded" });
       const second = await openCreateDialog();
       await second.getByLabel("Code").fill(`DUP2-${stamp}`);
       await second.getByLabel("Display name").fill(`Duplicate Copy ${stamp}`);
-      await second.getByLabel("GSTIN").fill(gstin);
+      await second.getByLabel("PAN", { exact: true }).fill(pan);
       await second.getByRole("button", { name: "Create customer" }).click();
       await expect(second.getByText(/looks like an exact duplicate/i)).toBeVisible({ timeout: 30_000 });
 
@@ -103,6 +108,7 @@ test.describe("Sales customer 360", () => {
       await expect(r).toHaveURL(/\/sales\/customers\/[0-9a-f-]{36}$/, { timeout: 60_000 });
       await expect(r.getByRole("heading", { name: `Duplicate Copy ${stamp}` })).toBeVisible({ timeout: 60_000 });
     } finally {
+      if (panWasBlocking !== null) await setAccountDuplicateRuleBlocking(world.organizationId, "pan", panWasBlocking);
       await rep.context.close();
     }
   });

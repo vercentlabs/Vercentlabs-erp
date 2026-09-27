@@ -50,7 +50,7 @@ test("BOM definition, second-person approval, multi-level explosion, where-used,
     // --- create the finished-goods BOM in the UI
     const m = manager.page;
     await open(m, "/manufacturing/boms", "Bills of materials");
-    await m.getByRole("button", { name: "New BOM" }).click();
+    await m.getByRole("button", { name: "New BOM" }).first().click();
     await expect(m).toHaveURL(/\/manufacturing\/bom\/new$/, { timeout: 60_000 });
     await expect(m.getByRole("heading", { name: "New BOM" })).toBeVisible({ timeout: 60_000 });
     await expect(m.getByRole("button", { name: "Create BOM" })).toBeDisabled(); // nothing chosen yet

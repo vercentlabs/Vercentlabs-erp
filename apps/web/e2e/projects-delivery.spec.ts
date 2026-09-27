@@ -24,7 +24,7 @@ test("create, approve by someone else, start, plan, log time and approve it", as
 
     // --- F193: create (a draft), then plan it
     await open(pa, "/projects/all", "Projects");
-    await pa.getByRole("button", { name: "New project" }).click();
+    await pa.getByRole("button", { name: "New project" }).first().click();
     let dlg = pa.getByRole("dialog");
     await dlg.getByLabel("Name").first().fill(name);
     await pick(pa, dlg.getByRole("button", { name: /Select type/i }), /Internal/);
@@ -47,7 +47,7 @@ test("create, approve by someone else, start, plan, log time and approve it", as
 
     // --- F197: a task
     await open(pa, "/projects/tasks", "Tasks");
-    await pa.getByRole("button", { name: "New task" }).click();
+    await pa.getByRole("button", { name: "New task" }).first().click();
     dlg = pa.getByRole("dialog");
     await pick(pa, dlg.getByRole("button", { name: /Select project/i }), new RegExp(name));
     await dlg.getByLabel("Name").first().fill(task);
@@ -63,7 +63,7 @@ test("create, approve by someone else, start, plan, log time and approve it", as
     // --- F209: log time yesterday, submit the week
     const yesterday = new Date(Date.now() - 86_400_000).toISOString().slice(0, 10);
     await open(pa, "/projects/time", "Time entries");
-    await pa.getByRole("button", { name: "Log time" }).click();
+    await pa.getByRole("button", { name: "Log time" }).first().click();
     dlg = pa.getByRole("dialog");
     await pick(pa, dlg.getByRole("button", { name: /Select project/i }), new RegExp(name));
     await dlg.getByLabel("Date").fill(yesterday);

@@ -47,7 +47,7 @@ test("pick, short-pick, pack, ship; write-off; quarantined return; batch genealo
     const m = manager.page;
     // --- pick list for 6
     await open(m, "/inventory/pick-lists", "Picking, packing and shipping");
-    await m.getByRole("button", { name: "New pick list" }).click();
+    await m.getByRole("button", { name: "New pick list" }).first().click();
     const dialog = m.getByRole("dialog", { name: "New pick list" });
     await pick(m, dialog.getByRole("button", { name: /Select warehouse/ }), new RegExp(`Out WH ${stamp}`));
     await dialog.getByLabel(/^For order/).fill(`SO-${stamp}`);
@@ -96,7 +96,7 @@ test("pick, short-pick, pack, ship; write-off; quarantined return; batch genealo
 
     // --- write-off of 1
     await open(m, "/inventory/damaged-stock", "Damaged stock");
-    await m.getByRole("button", { name: "Record write-off" }).click();
+    await m.getByRole("button", { name: "Record write-off" }).first().click();
     const wo = m.getByRole("dialog", { name: "Record write-off" });
     await pick(m, wo.getByRole("button", { name: /Select item/ }), new RegExp(itemCode));
     await pick(m, wo.getByRole("button", { name: /Select warehouse/ }), new RegExp(`Out WH ${stamp}`));
@@ -114,7 +114,7 @@ test("pick, short-pick, pack, ship; write-off; quarantined return; batch genealo
 
     // --- a damaged return is refused outside quarantine, accepted into it, and then listed there
     await open(m, "/inventory/returns", "Stock returns");
-    await m.getByRole("button", { name: "Record return" }).click();
+    await m.getByRole("button", { name: "Record return" }).first().click();
     const ret = m.getByRole("dialog", { name: "Record return" });
     await pick(m, ret.getByRole("button", { name: /Select item/ }), new RegExp(itemCode));
     await pick(m, ret.getByRole("button", { name: /Select warehouse/ }), new RegExp(`Out WH ${stamp}`));

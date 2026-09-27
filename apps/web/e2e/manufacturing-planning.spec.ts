@@ -75,7 +75,7 @@ test("MRP recommends make and buy across levels and converts to orders; availabi
     const m = manager.page;
     // --- MRP run (UI)
     await open(m, "/manufacturing/mrp", "MRP");
-    await m.getByRole("button", { name: "Run MRP" }).click();
+    await m.getByRole("button", { name: "Run MRP" }).first().click();
     const dlg = m.getByRole("dialog", { name: "Run MRP" });
     await dlg.getByLabel(/^Note/).fill(`E2E ${suffix}`);
     await dlg.getByRole("button", { name: "Save" }).click();

@@ -48,7 +48,7 @@ test.describe("Inventory foundations", () => {
       // --- warehouses (UI): two, so a transfer has somewhere to go
       await open(m, "/inventory/warehouses", "Warehouses");
       for (const [code, warehouseName] of [[`W1-${stamp}`, `Main ${stamp}`], [`W2-${stamp}`, `Overflow ${stamp}`]]) {
-        await m.getByRole("button", { name: "Add warehouse" }).click();
+        await m.getByRole("button", { name: "Add warehouse" }).first().click();
         const dialog = m.getByRole("dialog", { name: "Add warehouse" });
         await dialog.getByLabel(/^Code/).fill(code);
         await dialog.getByLabel(/^Name/).fill(warehouseName);
@@ -58,7 +58,7 @@ test.describe("Inventory foundations", () => {
 
       // --- item (UI): validation first (a unit is required), then a real save
       await open(m, "/inventory/items", "Items");
-      await m.getByRole("button", { name: "Add item" }).click();
+      await m.getByRole("button", { name: "Add item" }).first().click();
       const itemDialog = m.getByRole("dialog", { name: "Add item" });
       await itemDialog.getByLabel(/^Code/).fill(itemCode);
       await itemDialog.getByLabel(/^Name/).fill(itemName);
@@ -67,7 +67,7 @@ test.describe("Inventory foundations", () => {
       await itemDialog.getByRole("button", { name: "Save" }).click();
       await expect(m.getByRole("row", { name: new RegExp(`${itemCode}.*${itemName}`) })).toBeVisible({ timeout: 30_000 });
       // a duplicate code is refused with a readable message
-      await m.getByRole("button", { name: "Add item" }).click();
+      await m.getByRole("button", { name: "Add item" }).first().click();
       const dup = m.getByRole("dialog", { name: "Add item" });
       await dup.getByLabel(/^Code/).fill(itemCode);
       await dup.getByLabel(/^Name/).fill("Duplicate");
@@ -78,7 +78,7 @@ test.describe("Inventory foundations", () => {
 
       // --- receipt of 20 @ 5 (UI)
       await open(m, "/inventory/receipts", "Stock receipts");
-      await m.getByRole("button", { name: "Record receipt" }).click();
+      await m.getByRole("button", { name: "Record receipt" }).first().click();
       const receipt = m.getByRole("dialog", { name: "Record receipt" });
       await pick(m, receipt.getByRole("button", { name: /Select item/ }), new RegExp(itemCode));
       await pick(m, receipt.getByRole("button", { name: /Select warehouse/ }), new RegExp(`Main ${stamp}`));
@@ -100,7 +100,7 @@ test.describe("Inventory foundations", () => {
 
       // --- issue 5, and an over-issue is refused
       await open(m, "/inventory/issues", "Stock issues");
-      await m.getByRole("button", { name: "Record issue" }).click();
+      await m.getByRole("button", { name: "Record issue" }).first().click();
       const issue = m.getByRole("dialog", { name: "Record issue" });
       await pick(m, issue.getByRole("button", { name: /Select item/ }), new RegExp(itemCode));
       await pick(m, issue.getByRole("button", { name: /Select warehouse/ }), new RegExp(`Main ${stamp}`));
@@ -113,7 +113,7 @@ test.describe("Inventory foundations", () => {
 
       // --- adjustment: reason is mandatory
       await open(m, "/inventory/adjustments", "Stock adjustments");
-      await m.getByRole("button", { name: "Record adjustment" }).click();
+      await m.getByRole("button", { name: "Record adjustment" }).first().click();
       const adjust = m.getByRole("dialog", { name: "Record adjustment" });
       await pick(m, adjust.getByRole("button", { name: /Select item/ }), new RegExp(itemCode));
       await pick(m, adjust.getByRole("button", { name: /Select warehouse/ }), new RegExp(`Main ${stamp}`));
@@ -128,7 +128,7 @@ test.describe("Inventory foundations", () => {
 
       // --- transfer 4 to the other warehouse, then complete it
       await open(m, "/inventory/transfers", "Stock transfers");
-      await m.getByRole("button", { name: "New transfer" }).click();
+      await m.getByRole("button", { name: "New transfer" }).first().click();
       const transfer = m.getByRole("dialog", { name: "New transfer" });
       await pick(m, transfer.getByRole("button", { name: /Select item/ }), new RegExp(itemCode));
       await pick(m, transfer.getByRole("button", { name: /Select from warehouse/ }), new RegExp(`Main ${stamp}`));
@@ -144,7 +144,7 @@ test.describe("Inventory foundations", () => {
 
       // --- reservation of 3 from Main, then release
       await open(m, "/inventory/reservations", "Reservations");
-      await m.getByRole("button", { name: "Reserve stock" }).click();
+      await m.getByRole("button", { name: "Reserve stock" }).first().click();
       const reserve = m.getByRole("dialog", { name: "Reserve stock" });
       await pick(m, reserve.getByRole("button", { name: /Select item/ }), new RegExp(itemCode));
       await pick(m, reserve.getByRole("button", { name: /Select warehouse/ }), new RegExp(`Main ${stamp}`));
@@ -163,7 +163,7 @@ test.describe("Inventory foundations", () => {
       const lotCode = `LOT-${stamp}`;
       await api<Rec>(manager.context, "POST", "/master/items", { code: lotCode, name: `Lotted ${stamp}`, uomId: uom.id, trackingType: "batch" });
       await open(m, "/inventory/lots", "Lots and batches");
-      await m.getByRole("button", { name: "Add batch" }).click();
+      await m.getByRole("button", { name: "Add batch" }).first().click();
       const batch = m.getByRole("dialog", { name: "Add batch" });
       await pick(m, batch.getByRole("button", { name: /Select item/ }), new RegExp(lotCode));
       await batch.getByLabel("Batch / lot number").fill(`B-${stamp}`);
@@ -184,7 +184,7 @@ test.describe("Inventory foundations", () => {
 
       // --- reorder rule -> replenishment
       await open(m, "/inventory/reorder-rules", "Reorder rules");
-      await m.getByRole("button", { name: "Add rule" }).click();
+      await m.getByRole("button", { name: "Add rule" }).first().click();
       const rule = m.getByRole("dialog", { name: "Add rule" });
       await pick(m, rule.getByRole("button", { name: /Select item/ }), new RegExp(itemCode));
       await pick(m, rule.getByRole("button", { name: /Select warehouse/ }), new RegExp(`Main ${stamp}`));
@@ -215,7 +215,7 @@ test.describe("Inventory foundations", () => {
     try {
       // issuer (pos_supervisor): issue + view
       await open(issuer.page, "/inventory/issues", "Stock issues");
-      await expect(issuer.page.getByRole("button", { name: "Record issue" })).toBeVisible();
+      await expect(issuer.page.getByRole("button", { name: "Record issue" }).first()).toBeVisible();
       await open(issuer.page, "/inventory/receipts", "Stock receipts");
       await expect(issuer.page.getByRole("button", { name: "Record receipt" })).toHaveCount(0);
       await open(issuer.page, "/inventory/items", "Items");

@@ -73,7 +73,7 @@ test.describe("Procurement planning, registers and analytics", () => {
       const b = buyer.page;
       await b.goto("/procurement/supplier-prices", { waitUntil: "domcontentloaded" });
       await expect(b.getByRole("heading", { name: "Supplier price lists" })).toBeVisible({ timeout: 180_000 });
-      await b.getByRole("button", { name: "Add price" }).click();
+      await b.getByRole("button", { name: "Add price" }).first().click();
       const price = b.getByRole("dialog", { name: "Add price" });
       await pick(b, price.getByRole("button", { name: /Select supplier/ }), new RegExp(`Planning Supplier ${stamp}`));
       await pick(b, price.getByRole("button", { name: /Select item/ }), new RegExp(world.itemCode));
@@ -102,7 +102,7 @@ test.describe("Procurement planning, registers and analytics", () => {
       const o = owner.page;
       await o.goto("/procurement/landed-cost", { waitUntil: "domcontentloaded" });
       await expect(o.getByRole("heading", { name: "Landed cost" })).toBeVisible({ timeout: 180_000 });
-      await o.getByRole("button", { name: "Add landed cost" }).click();
+      await o.getByRole("button", { name: "Add landed cost" }).first().click();
       const landed = o.getByRole("dialog", { name: "Add landed cost" });
       await landed.getByLabel("Cost type").fill(`Freight ${stamp}`);
       await setNumber(landed.getByRole("textbox", { name: "Amount" }), "150");

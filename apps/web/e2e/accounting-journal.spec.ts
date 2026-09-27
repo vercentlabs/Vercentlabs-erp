@@ -19,7 +19,7 @@ test("a journal entry is prepared, approved by someone else, posted and reported
     const memo = `E2E accrual ${world.suffix}`;
     const a = acc.page;
     await open(a, "/accounting/journals", "Journal entries");
-    await a.getByRole("button", { name: "New journal entry" }).click();
+    await a.getByRole("button", { name: "New journal entry" }).first().click();
     await expect(a.getByRole("heading", { name: "New journal entry" })).toBeVisible({ timeout: 120_000 });
     await pick(a, a.getByRole("button", { name: /Select.../ }).first(), /General/);
     await a.getByLabel("Description").first().fill(memo);

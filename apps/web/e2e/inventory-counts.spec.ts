@@ -45,7 +45,7 @@ test("physical inventory: freeze, count, submit, segregated approval, only the v
 
     const c = counter.page;
     await open(c, "/inventory/physical-inventory", "Physical inventory");
-    await c.getByRole("button", { name: "Start physical inventory" }).click();
+    await c.getByRole("button", { name: "Start physical inventory" }).first().click();
     const dialog = c.getByRole("dialog", { name: "Start physical inventory" });
     await pick(c, dialog.getByRole("button", { name: /Select warehouse/ }), new RegExp(`Count WH ${stamp}`));
     await dialog.getByRole("button", { name: "Save" }).click();

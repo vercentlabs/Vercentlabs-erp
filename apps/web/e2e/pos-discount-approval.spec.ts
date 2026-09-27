@@ -10,20 +10,11 @@ import { getPosWorld, openPersonaSession, resetTerminalCarts, withPosDb } from "
 // requested and decided -- not because the security boundary actually
 // works, so this suite never uses the owner fixture at all.
 //
-// KNOWN GAP documented (not fixed) in the second test below: the
-// platform's generic /approvals inbox (GET /api/approvals) only returns a
-// request to its requester, its `assigned_to`, or someone holding the
-// blanket `approvals.manage` permission (services/api/src/core/
-// approvals.js's listApprovals). POS never sets `assigned_to` when it
-// creates a discount-approval request, and neither pos_supervisor nor
-// pos_manager holds `approvals.manage` (verified against this org's real
-// public.role_permissions) -- so a plain pos_manager cannot actually
-// discover this request by opening /approvals in the real UI today, even
-// though deciding it directly (POST /api/approvals/:id/decide) is fully
-// and correctly authorized. This is a real, reproducible product gap, not
-// a test limitation; left unfixed per this task's scope (out-of-blast-
-// radius change to shared, cross-module approval-listing code) and
-// asserted directly so a future fix is what breaks this test, not silence.
+// The second test covers what used to be a documented gap: the generic
+// /approvals inbox (GET /api/approvals) did not list a POS discount request
+// for a plain pos_manager. The Shared Runtime approval registry
+// (services/api/src/orchestration) routes a request to the users who may
+// decide it, so the manager now discovers it in the inbox and decides it.
 
 test.describe("POS discount maker-checker", () => {
   test("supervisor requests an above-threshold discount; self-approval is blocked; a real, separate manager session must decide it", async ({ browser }) => {
@@ -135,7 +126,7 @@ test.describe("POS discount maker-checker", () => {
     }
   });
 
-  test("DOCUMENTED GAP: a pos_manager without approvals.manage cannot see a pending POS discount request in the generic /approvals inbox list", async ({ browser }) => {
+  test("a pos_manager discovers a pending POS discount request in the generic /approvals inbox and decides it", async ({ browser }) => {
     const world = await getPosWorld();
     await resetTerminalCarts(world.supervisorTerminalId);
 
@@ -155,7 +146,7 @@ test.describe("POS discount maker-checker", () => {
       const pricedCart = (await addLineResp.json()).cart as { id: string; version: number; lines: Array<{ id: string }> };
       const discountResp = await supervisorSession.page.request.post(`/api/pos/carts/${cart.id}/lines/${pricedCart.lines[0].id}/discount`, {
         headers: { origin },
-        data: { type: "percent", value: 50, reason: "e2e gap documentation", expectedVersion: pricedCart.version },
+        data: { type: "percent", value: 50, reason: "e2e inbox discovery", expectedVersion: pricedCart.version },
       });
       expect(discountResp.status()).toBe(200);
       const pendingApproval = await withPosDb((client) =>
@@ -180,13 +171,9 @@ test.describe("POS discount maker-checker", () => {
       const approvals = (await listResp.json()).approvals as Array<{ id: string }>;
       expect(
         approvals.some((a) => a.id === approvalId),
-        "current behavior: the pending request is NOT visible to a plain pos_manager via the generic approvals list (see file header comment)",
-      ).toBe(false);
-
-      // Yet the SAME manager can still decide it directly once they have
-      // the id (e.g. via a notification, or this suite's own DB lookup) --
-      // the decide endpoint's own authorization is correct even though
-      // list discovery isn't wired up for this role.
+        "the pending request is visible to the pos_manager who may decide it",
+      ).toBe(true);
+      // ...and the same manager decides it.
       const decideResp = await managerSession.page.request.post(`/api/approvals/${approvalId}/decide`, { headers: { origin }, data: { decision: "rejected", note: "cleanup" } });
       expect(decideResp.status()).toBe(200);
     } finally {
