@@ -63,6 +63,9 @@ for (const spec of specs) {
   if (run.status !== 0) {
     fs.mkdirSync(failureDir, { recursive: true });
     fs.writeFileSync(path.join(failureDir, spec + ".log"), output);
+    // The failures themselves, so a CI log says why without an artifact.
+    const failures = output.split("\n").filter((line) => /^\s+\d+\) \[|Error:|Expected|Received|^\s+> \d+ \|/.test(line));
+    for (const line of failures.slice(0, 40)) console.log(`      ${line.trim()}`);
   }
 }
 
