@@ -1,6 +1,10 @@
 "use client";
 
-import type { Meeting, MeetingListFilters, MeetingListResponse } from "../types";
+import type {
+  Meeting,
+  MeetingListFilters,
+  MeetingListResponse,
+} from "../types";
 
 export class MeetingApiError extends Error {
   constructor(
@@ -15,21 +19,30 @@ export class MeetingApiError extends Error {
 async function parseResponse<T>(response: Response): Promise<T> {
   const payload = await response.json().catch(() => ({}));
   if (!response.ok || payload.ok === false) {
-    throw new MeetingApiError(payload.message || "The request could not be completed.", response.status, payload.code);
+    throw new MeetingApiError(
+      payload.message || "The request could not be completed.",
+      response.status,
+      payload.code,
+    );
   }
   return payload;
 }
 
-export async function listMeetings(filters: MeetingListFilters): Promise<MeetingListResponse> {
+export async function listMeetings(
+  filters: MeetingListFilters,
+): Promise<MeetingListResponse> {
   const params = new URLSearchParams();
   for (const [key, value] of Object.entries(filters)) {
-    if (value !== undefined && value !== "" && value !== "all") params.set(key, String(value));
+    if (value !== undefined && value !== "" && value !== "all")
+      params.set(key, String(value));
   }
   const response = await fetch(`/api/crm/meetings?${params.toString()}`);
   return parseResponse(response);
 }
 
-export async function createMeeting(input: Record<string, unknown>): Promise<{ record: Meeting }> {
+export async function createMeeting(
+  input: Record<string, unknown>,
+): Promise<{ record: Meeting }> {
   const response = await fetch("/api/crm/meetings", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -38,7 +51,10 @@ export async function createMeeting(input: Record<string, unknown>): Promise<{ r
   return parseResponse(response);
 }
 
-export async function updateMeeting(id: string, input: Record<string, unknown>): Promise<{ record: Meeting }> {
+export async function updateMeeting(
+  id: string,
+  input: Record<string, unknown>,
+): Promise<{ record: Meeting }> {
   const response = await fetch(`/api/crm/meetings/${id}`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
@@ -47,7 +63,11 @@ export async function updateMeeting(id: string, input: Record<string, unknown>):
   return parseResponse(response);
 }
 
-async function action(id: string, path: string, input: Record<string, unknown> = {}): Promise<{ record: Meeting }> {
+async function action(
+  id: string,
+  path: string,
+  input: Record<string, unknown> = {},
+): Promise<{ record: Meeting }> {
   const response = await fetch(`/api/crm/meetings/${id}/${path}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -61,10 +81,16 @@ export async function getMeeting(id: string): Promise<{ record: Meeting }> {
   return parseResponse(response);
 }
 
-export const startMeeting = (id: string, expectedUpdatedAt?: string) => action(id, "start", { expectedUpdatedAt });
-export const completeMeeting = (id: string, outcomeCode: string, outcome?: string, expectedUpdatedAt?: string) =>
-  action(id, "complete", { outcomeCode, outcome, expectedUpdatedAt });
-export const cancelMeeting = (id: string, expectedUpdatedAt?: string) => action(id, "cancel", { expectedUpdatedAt });
+export const startMeeting = (id: string, expectedUpdatedAt?: string) =>
+  action(id, "start", { expectedUpdatedAt });
+export const completeMeeting = (
+  id: string,
+  outcomeCode: string,
+  outcome?: string,
+  expectedUpdatedAt?: string,
+) => action(id, "complete", { outcomeCode, outcome, expectedUpdatedAt });
+export const cancelMeeting = (id: string, expectedUpdatedAt?: string) =>
+  action(id, "cancel", { expectedUpdatedAt });
 
 // F014 gap-closure — listCrmMeetingEvents (the immutable crm_meeting_events
 // lifecycle ledger) existed, tested and exported, but had no route or
@@ -72,7 +98,15 @@ export const cancelMeeting = (id: string, expectedUpdatedAt?: string) => action(
 export type MeetingEvent = {
   id: string;
   activityId: string;
-  eventType: "scheduled" | "logged" | "booked" | "updated" | "rescheduled" | "started" | "completed" | "cancelled";
+  eventType:
+    | "scheduled"
+    | "logged"
+    | "booked"
+    | "updated"
+    | "rescheduled"
+    | "started"
+    | "completed"
+    | "cancelled";
   previousStatus: string | null;
   nextStatus: string | null;
   locationType: "in_person" | "online" | "phone" | "other" | null;
@@ -84,7 +118,9 @@ export type MeetingEvent = {
   changedAt: string;
 };
 
-export async function listMeetingEvents(id: string): Promise<{ rows: MeetingEvent[] }> {
+export async function listMeetingEvents(
+  id: string,
+): Promise<{ rows: MeetingEvent[] }> {
   const response = await fetch(`/api/crm/meetings/${id}/events`);
   return parseResponse(response);
 }

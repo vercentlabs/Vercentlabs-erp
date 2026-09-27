@@ -60,12 +60,18 @@ export function PrimaryNavItem({
     : label;
 
   const triggerRef = useRef<HTMLSpanElement>(null);
-  const [tooltipPosition, setTooltipPosition] = useState<{ top: number; left: number } | null>(null);
+  const [tooltipPosition, setTooltipPosition] = useState<{
+    top: number;
+    left: number;
+  } | null>(null);
 
   function showTooltip() {
     const rect = triggerRef.current?.getBoundingClientRect();
     if (!rect) return;
-    setTooltipPosition({ top: rect.top + rect.height / 2, left: rect.right + 8 });
+    setTooltipPosition({
+      top: rect.top + rect.height / 2,
+      left: rect.right + 8,
+    });
   }
   function hideTooltip() {
     setTooltipPosition(null);
@@ -122,7 +128,14 @@ export function PrimaryNavItem({
 
   if (disabled) {
     return (
-      <span ref={triggerRef} className="relative flex" onMouseEnter={showTooltip} onMouseLeave={hideTooltip} onFocus={showTooltip} onBlur={hideTooltip}>
+      <span
+        ref={triggerRef}
+        className="relative flex"
+        onMouseEnter={showTooltip}
+        onMouseLeave={hideTooltip}
+        onFocus={showTooltip}
+        onBlur={hideTooltip}
+      >
         <button
           type="button"
           aria-disabled="true"
@@ -137,7 +150,14 @@ export function PrimaryNavItem({
   }
 
   return (
-    <span ref={triggerRef} className="relative flex" onMouseEnter={showTooltip} onMouseLeave={hideTooltip} onFocus={showTooltip} onBlur={hideTooltip}>
+    <span
+      ref={triggerRef}
+      className="relative flex"
+      onMouseEnter={showTooltip}
+      onMouseLeave={hideTooltip}
+      onFocus={showTooltip}
+      onBlur={hideTooltip}
+    >
       <Link
         href={href}
         aria-label={badgeCount ? `${label} (${badgeCount})` : label}

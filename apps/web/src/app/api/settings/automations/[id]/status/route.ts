@@ -8,11 +8,26 @@ import { workspaceRoute } from "@/core/workspace-route";
 
 const schema = z.object({ status: z.enum(["active", "inactive"]) });
 
-export async function POST(request: Request, context: { params: Promise<{ id: string }> }) {
+export async function POST(
+  request: Request,
+  context: { params: Promise<{ id: string }> },
+) {
   const { id } = await context.params;
   return workspaceRoute(
     request,
-    { permission: CORE_PERMISSIONS.platformWorkflowsManage, action: "workflows.status", auditDenial: true },
-    async ({ client, session }) => ok({ workflow: await setWorkflowStatus(client, session, id, schema.parse(await readJson(request)).status) }),
+    {
+      permission: CORE_PERMISSIONS.platformWorkflowsManage,
+      action: "workflows.status",
+      auditDenial: true,
+    },
+    async ({ client, session }) =>
+      ok({
+        workflow: await setWorkflowStatus(
+          client,
+          session,
+          id,
+          schema.parse(await readJson(request)).status,
+        ),
+      }),
   );
 }

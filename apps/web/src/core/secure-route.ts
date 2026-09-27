@@ -26,7 +26,6 @@ import type {
 
 const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
 
-
 export type SecureRouteOptions = {
   /** Business module that must be released, enabled, entitled and permitted. */
   module?: string;
@@ -71,16 +70,32 @@ export type DeniedAccessEvent = {
   permission: string | null;
 };
 
-type ErrorShape = { status?: unknown; code?: unknown; deniedCode?: unknown; permission?: unknown };
+type ErrorShape = {
+  status?: unknown;
+  code?: unknown;
+  deniedCode?: unknown;
+  permission?: unknown;
+};
 
-function deniedStatus(error: unknown): { status: number; code: string | null; permission: string | null } | null {
+function deniedStatus(
+  error: unknown,
+): { status: number; code: string | null; permission: string | null } | null {
   if (typeof error !== "object" || error === null) return null;
   const shape = error as ErrorShape;
   const status = typeof shape.status === "number" ? shape.status : null;
-  const code = typeof shape.deniedCode === "string" ? shape.deniedCode : typeof shape.code === "string" ? shape.code : null;
+  const code =
+    typeof shape.deniedCode === "string"
+      ? shape.deniedCode
+      : typeof shape.code === "string"
+        ? shape.code
+        : null;
   const concealed = status === 404 && typeof shape.deniedCode === "string";
   if (status !== 403 && !concealed) return null;
-  return { status, code, permission: typeof shape.permission === "string" ? shape.permission : null };
+  return {
+    status,
+    code,
+    permission: typeof shape.permission === "string" ? shape.permission : null,
+  };
 }
 
 export type SecureRouteContext<Session, Client> = {
@@ -93,17 +108,33 @@ export type SecureRouteContext<Session, Client> = {
 
 type Denial = Extract<AccessDecision, { allowed: false }>;
 
-export type SecureRouteDeps<Session extends { organizationId: string }, Client> = {
+export type SecureRouteDeps<
+  Session extends { organizationId: string },
+  Client,
+> = {
   assertOrigin(request: Request): void;
   requireSession(): Promise<Session>;
-  runTenant<T>(organizationId: string, work: (client: Client) => Promise<T>): Promise<T>;
+  runTenant<T>(
+    organizationId: string,
+    work: (client: Client) => Promise<T>,
+  ): Promise<T>;
   /** Organisation-context connection without a request transaction (transaction: "none"). */
-  runOrganizationConnection<T>(organizationId: string, work: (client: Client) => Promise<T>): Promise<T>;
+  runOrganizationConnection<T>(
+    organizationId: string,
+    work: (client: Client) => Promise<T>,
+  ): Promise<T>;
   createPrincipal(session: Session): AccessPrincipal;
-  buildSnapshot(client: Client, session: Session): Promise<WorkspaceAccessSnapshot>;
+  buildSnapshot(
+    client: Client,
+    session: Session,
+  ): Promise<WorkspaceAccessSnapshot>;
   authorize(input: AuthorizeInput): AccessDecision;
   denialToError(decision: Denial): Error;
-  onDenied?(decision: Denial, principal: AccessPrincipal, request: Request): void;
+  onDenied?(
+    decision: Denial,
+    principal: AccessPrincipal,
+    request: Request,
+  ): void;
   requireBillingWrite(client: Client, organizationId: string): Promise<unknown>;
   toErrorResponse(error: unknown): Response;
   /** Durable audit for auditDenial routes; must use its own connection (the request transaction has rolled back). */
@@ -111,36 +142,54 @@ export type SecureRouteDeps<Session extends { organizationId: string }, Client> 
   /** Structured log for a denial raised by the handler/domain (authorize() denials use onDenied). */
   logDeniedAccess?(event: DeniedAccessEvent): void;
   /** Run the handler with log context (organisation/user) once the principal is known. */
-  withContext?<T>(values: { organizationId: string; userId: string | null; action: string | null }, work: () => Promise<T>): Promise<T>;
+  withContext?<T>(
+    values: {
+      organizationId: string;
+      userId: string | null;
+      action: string | null;
+    },
+    work: () => Promise<T>,
+  ): Promise<T>;
 };
 
 export function isMutationRequest(request: Request) {
   return !SAFE_METHODS.has(String(request.method || "GET").toUpperCase());
 }
 
-export function createSecureRoute<Session extends { organizationId: string }, Client>(
-  deps: SecureRouteDeps<Session, Client>,
-) {
+export function createSecureRoute<
+  Session extends { organizationId: string },
+  Client,
+>(deps: SecureRouteDeps<Session, Client>) {
   return async function secureRoute(
     request: Request,
     options: SecureRouteOptions,
-    handler: (context: SecureRouteContext<Session, Client>) => Promise<Response>,
+    handler: (
+      context: SecureRouteContext<Session, Client>,
+    ) => Promise<Response>,
   ): Promise<Response> {
     let principal: AccessPrincipal | null = null;
     try {
       const mutation = isMutationRequest(request);
       if (mutation) deps.assertOrigin(request);
       if (options.billingWrite && !mutation) {
-        throw new TypeError("secureRoute: billingWrite applies to mutations only.");
+        throw new TypeError(
+          "secureRoute: billingWrite applies to mutations only.",
+        );
       }
 
       const session = await deps.requireSession();
       // One transaction per request, always under the session's organisation
       // context: tenant tables AND organisation-scoped platform tables are
       // row-level-security protected (packages/database/src/table-classification.js).
-      const run = options.transaction === "none" ? deps.runOrganizationConnection : deps.runTenant;
+      const run =
+        options.transaction === "none"
+          ? deps.runOrganizationConnection
+          : deps.runTenant;
       return await run(session.organizationId, async (client) => {
-        const snapshot = options.module || options.snapshot ? await deps.buildSnapshot(client, session) : null;
+        const snapshot =
+          options.module || options.snapshot
+            ? await deps.buildSnapshot(client, session)
+            : null;
         principal = snapshot?.principal ?? deps.createPrincipal(session);
         const decision = deps.authorize({
           principal,
@@ -155,10 +204,25 @@ export function createSecureRoute<Session extends { organizationId: string }, Cl
           deps.onDenied?.(decision, principal!, request);
           throw deps.denialToError(decision);
         }
-        if (options.billingWrite) await deps.requireBillingWrite(client, principal!.organizationId);
-        const run = () => handler({ request, session, principal: principal!, snapshot, client });
+        if (options.billingWrite)
+          await deps.requireBillingWrite(client, principal!.organizationId);
+        const run = () =>
+          handler({
+            request,
+            session,
+            principal: principal!,
+            snapshot,
+            client,
+          });
         return deps.withContext
-          ? deps.withContext({ organizationId: principal!.organizationId, userId: principal!.userId ?? null, action: options.action ?? null }, run)
+          ? deps.withContext(
+              {
+                organizationId: principal!.organizationId,
+                userId: principal!.userId ?? null,
+                action: options.action ?? null,
+              },
+              run,
+            )
           : run();
       });
     } catch (error) {
@@ -173,7 +237,8 @@ export function createSecureRoute<Session extends { organizationId: string }, Cl
           action: options.action ?? null,
           permission: denial.permission ?? options.permission ?? null,
         };
-        if (!(error instanceof Error && error.name === "AccessDeniedError")) deps.logDeniedAccess?.(event);
+        if (!(error instanceof Error && error.name === "AccessDeniedError"))
+          deps.logDeniedAccess?.(event);
         if (options.auditDenial && deps.recordDeniedAccess) {
           // Best-effort: failing to write evidence must never turn the
           // intended 403/404 into an unrelated 500.

@@ -13,20 +13,38 @@ type RouteContext = { params: Promise<{ id: string }> };
 // rejection server-side — this route (and its sibling [dependsOnTaskId]
 // route) is the first UI consumer, not a new authorization surface.
 export async function GET(request: Request, context: RouteContext) {
-  return workspaceRoute(request, { module: "crm", permission: CRM_PERMISSIONS.activitiesManage }, async ({ client, session }) => {
-    const { id } = await context.params;
-    const rows = await listTaskDependencies(client, crmContext(session), id);
-    return ok({ rows });
-  });
+  return workspaceRoute(
+    request,
+    { module: "crm", permission: CRM_PERMISSIONS.activitiesManage },
+    async ({ client, session }) => {
+      const { id } = await context.params;
+      const rows = await listTaskDependencies(client, crmContext(session), id);
+      return ok({ rows });
+    },
+  );
 }
 
 export async function POST(request: Request, context: RouteContext) {
-  return workspaceRoute(request, { module: "crm", permission: CRM_PERMISSIONS.activitiesManage, billingWrite: true }, async ({ client, session }) => {
-    const { id } = await context.params;
-    const input = (await readJson(request)) as Record<string, unknown>;
-    const dependsOnTaskId = String(input.dependsOnTaskId || "");
-    if (!dependsOnTaskId) throw new HttpError(400, "A dependency Task id is required.");
-    const record = await addTaskDependency(client, crmContext(session), id, dependsOnTaskId);
-    return ok({ record }, 201);
-  });
+  return workspaceRoute(
+    request,
+    {
+      module: "crm",
+      permission: CRM_PERMISSIONS.activitiesManage,
+      billingWrite: true,
+    },
+    async ({ client, session }) => {
+      const { id } = await context.params;
+      const input = (await readJson(request)) as Record<string, unknown>;
+      const dependsOnTaskId = String(input.dependsOnTaskId || "");
+      if (!dependsOnTaskId)
+        throw new HttpError(400, "A dependency Task id is required.");
+      const record = await addTaskDependency(
+        client,
+        crmContext(session),
+        id,
+        dependsOnTaskId,
+      );
+      return ok({ record }, 201);
+    },
+  );
 }

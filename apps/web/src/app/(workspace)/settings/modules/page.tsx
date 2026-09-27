@@ -8,5 +8,9 @@ export const metadata = { title: "Modules" };
 
 export default async function ModulesSettingsPage() {
   const session = await requireWorkspace();
-  return <ModulesScreen canManage={hasSessionPermission(session, CORE_PERMISSIONS.modulesManage)} />;
+  return (
+    <ModulesScreen
+      canManage={hasSessionPermission(session, CORE_PERMISSIONS.modulesManage)}
+    />
+  );
 }

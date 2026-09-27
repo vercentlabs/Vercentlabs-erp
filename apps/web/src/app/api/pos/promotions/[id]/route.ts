@@ -26,11 +26,27 @@ const updateSchema = z.object({
   usageLimitPerStore: z.number().int().positive().optional().nullable(),
 });
 
-export async function PATCH(request: Request, context: { params: Promise<{ id: string }> }) {
-  return workspaceRoute(request, { module: "point-of-sale", permission: "pos.settings.manage", billingWrite: true }, async ({ client, session }) => {
-    const { id } = await context.params;
-    const input = updateSchema.parse(await readJson(request));
-    const result = await updatePosPromotion(client, posContext(session), id, input);
-    return ok({ record: result });
-  });
+export async function PATCH(
+  request: Request,
+  context: { params: Promise<{ id: string }> },
+) {
+  return workspaceRoute(
+    request,
+    {
+      module: "point-of-sale",
+      permission: "pos.settings.manage",
+      billingWrite: true,
+    },
+    async ({ client, session }) => {
+      const { id } = await context.params;
+      const input = updateSchema.parse(await readJson(request));
+      const result = await updatePosPromotion(
+        client,
+        posContext(session),
+        id,
+        input,
+      );
+      return ok({ record: result });
+    },
+  );
 }

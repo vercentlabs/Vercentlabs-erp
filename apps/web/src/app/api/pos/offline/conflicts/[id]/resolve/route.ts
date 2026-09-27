@@ -19,12 +19,20 @@ const lineSchema = z.object({
 });
 
 const resolveSchema = z.discriminatedUnion("action", [
-  z.object({ action: z.literal("void"), reason: z.string().trim().min(1).max(1000) }),
+  z.object({
+    action: z.literal("void"),
+    reason: z.string().trim().min(1).max(1000),
+  }),
   z.object({
     action: z.literal("retry"),
     reason: z.string().trim().max(1000).optional(),
     lines: z.array(lineSchema).min(1).optional(),
-    payments: z.array(z.object({ method: z.literal("cash"), amount: z.number().positive() })).min(1).optional(),
+    payments: z
+      .array(
+        z.object({ method: z.literal("cash"), amount: z.number().positive() }),
+      )
+      .min(1)
+      .optional(),
     shiftId: z.string().uuid().optional(),
   }),
 ]);
@@ -34,11 +42,27 @@ const resolveSchema = z.discriminatedUnion("action", [
 // line snapshot -- see resolvePosOfflineSyncConflict (services/api/src/
 // modules/point-of-sale/index.js) for why a retry re-resolves price fresh
 // and uses its own resolution-scoped idempotency key.
-export async function POST(request: Request, context: { params: Promise<{ id: string }> }) {
-  return workspaceRoute(request, { module: "point-of-sale", permission: "pos.offline.resolve", billingWrite: true }, async ({ client, session }) => {
-    const { id } = await context.params;
-    const input = resolveSchema.parse(await readJson(request));
-    const result = await resolvePosOfflineSyncConflict(client, posContext(session), id, input);
-    return ok({ conflict: result });
-  });
+export async function POST(
+  request: Request,
+  context: { params: Promise<{ id: string }> },
+) {
+  return workspaceRoute(
+    request,
+    {
+      module: "point-of-sale",
+      permission: "pos.offline.resolve",
+      billingWrite: true,
+    },
+    async ({ client, session }) => {
+      const { id } = await context.params;
+      const input = resolveSchema.parse(await readJson(request));
+      const result = await resolvePosOfflineSyncConflict(
+        client,
+        posContext(session),
+        id,
+        input,
+      );
+      return ok({ conflict: result });
+    },
+  );
 }

@@ -4,7 +4,8 @@ export type Task = {
   id: string;
   companyId: string | null;
   branchId: string | null;
-  entityType: "lead" | "opportunity" | "party" | "contact" | "campaign" | "general";
+  entityType:
+    "lead" | "opportunity" | "party" | "contact" | "campaign" | "general";
   entityId: string | null;
   subject: string;
   description: string | null;
@@ -37,7 +38,12 @@ export type TaskListFilters = {
   offset?: number;
 };
 
-export type TaskListResponse = { rows: Task[]; total: number; limit: number; offset: number };
+export type TaskListResponse = {
+  rows: Task[];
+  total: number;
+  limit: number;
+  offset: number;
+};
 
 // tenant.crm_task_dependencies rows, joined with the blocking Task's
 // current status/subject (see listTaskDependencies).

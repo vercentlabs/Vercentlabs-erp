@@ -6,6 +6,8 @@ export const metadata = { title: "New account" };
 
 export default async function NewAccountPage() {
   const session = await requireWorkspace();
-  const canManage = session.roleSlugs.includes("organization_owner") || session.permissions.includes(CRM_PERMISSIONS.accountsManage);
+  const canManage =
+    session.roleSlugs.includes("organization_owner") ||
+    session.permissions.includes(CRM_PERMISSIONS.accountsManage);
   return <AccountFormScreen mode="create" canManage={canManage} />;
 }

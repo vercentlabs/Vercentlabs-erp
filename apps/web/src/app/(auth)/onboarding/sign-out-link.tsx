@@ -12,7 +12,11 @@ export function SignOutLink() {
   }
 
   return (
-    <button type="button" onClick={handleSignOut} className="self-start text-sm font-medium text-brand hover:underline">
+    <button
+      type="button"
+      onClick={handleSignOut}
+      className="self-start text-sm font-medium text-brand hover:underline"
+    >
       Sign out
     </button>
   );

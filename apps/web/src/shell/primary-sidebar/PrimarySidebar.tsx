@@ -65,14 +65,16 @@ export function PrimarySidebar({
           of how many icons this region holds. Search, Settings and Profile
           live in WorkspaceTopBar (registry `placement: "topbar"`). */}
       <div className="flex min-h-0 flex-1 flex-col items-center gap-1 overflow-y-auto">
-        {GLOBAL_NAV_TOP.filter((entry) => entry.placement !== "topbar").map((entry) => (
-          <PrimaryNavItem
-            key={entry.key}
-            href={entry.href}
-            label={entry.label}
-            icon={<entry.icon aria-hidden="true" className="size-5" />}
-          />
-        ))}
+        {GLOBAL_NAV_TOP.filter((entry) => entry.placement !== "topbar").map(
+          (entry) => (
+            <PrimaryNavItem
+              key={entry.key}
+              href={entry.href}
+              label={entry.label}
+              icon={<entry.icon aria-hidden="true" className="size-5" />}
+            />
+          ),
+        )}
 
         <div
           aria-hidden="true"
@@ -127,18 +129,20 @@ export function PrimarySidebar({
       </div>
 
       <div className="flex shrink-0 flex-col items-center gap-1 pt-2">
-        {UTILITY_NAV.filter((entry) => entry.placement !== "topbar").map((entry) => (
-          <PrimaryNavItem
-            key={entry.key}
-            href={entry.href}
-            label={entry.label}
-            icon={<entry.icon aria-hidden="true" className="size-5" />}
-            disabled={entry.availability === "planned"}
-            disabledReason={
-              entry.availability === "planned" ? "Coming soon" : undefined
-            }
-          />
-        ))}
+        {UTILITY_NAV.filter((entry) => entry.placement !== "topbar").map(
+          (entry) => (
+            <PrimaryNavItem
+              key={entry.key}
+              href={entry.href}
+              label={entry.label}
+              icon={<entry.icon aria-hidden="true" className="size-5" />}
+              disabled={entry.availability === "planned"}
+              disabledReason={
+                entry.availability === "planned" ? "Coming soon" : undefined
+              }
+            />
+          ),
+        )}
       </div>
     </nav>
   );

@@ -14,7 +14,8 @@ import path from "node:path";
 // asks for, not a mocked substitute for it.
 
 function loadDbUrlFromEnvLocal(): string | undefined {
-  if (process.env.MIGRATION_DATABASE_URL) return process.env.MIGRATION_DATABASE_URL;
+  if (process.env.MIGRATION_DATABASE_URL)
+    return process.env.MIGRATION_DATABASE_URL;
   const filePath = path.resolve(process.cwd(), ".env.local");
   if (!fs.existsSync(filePath)) return undefined;
   const match = fs
@@ -60,10 +61,15 @@ function totpNow(secretBase32: string): string {
   const counter = totpStep();
   const counterBuffer = Buffer.alloc(8);
   counterBuffer.writeBigUInt64BE(BigInt(counter));
-  const hmac = createHmac("sha1", base32Decode(secretBase32)).update(counterBuffer).digest();
+  const hmac = createHmac("sha1", base32Decode(secretBase32))
+    .update(counterBuffer)
+    .digest();
   const offset = hmac[hmac.length - 1] & 0x0f;
   const binary =
-    ((hmac[offset] & 0x7f) << 24) | ((hmac[offset + 1] & 0xff) << 16) | ((hmac[offset + 2] & 0xff) << 8) | (hmac[offset + 3] & 0xff);
+    ((hmac[offset] & 0x7f) << 24) |
+    ((hmac[offset + 1] & 0xff) << 16) |
+    ((hmac[offset + 2] & 0xff) << 8) |
+    (hmac[offset + 3] & 0xff);
   return String(binary % 1_000_000).padStart(6, "0");
 }
 // migration 050's replay protection (services/api/src/core/auth/mfa.js) rejects
@@ -80,7 +86,9 @@ async function waitForFreshTotpStep(previousStep: number) {
   }
 }
 
-test("SP007 end-to-end: enroll MFA through Settings, then a real login requires it", async ({ browser }) => {
+test("SP007 end-to-end: enroll MFA through Settings, then a real login requires it", async ({
+  browser,
+}) => {
   const db = await dbClient();
   const email = `e2e-mfa-${Date.now()}@crm-e2e-fixture.test`;
   const password = "MfaTestP@ssw0rd1";
@@ -139,12 +147,16 @@ test("SP007 end-to-end: enroll MFA through Settings, then a real login requires 
       page.waitForResponse((res) => res.url().includes("/api/auth/login")),
       page.getByRole("button", { name: /sign in|log in/i }).click(),
     ]);
-    await page.waitForURL((url) => !url.pathname.startsWith("/login"), { timeout: 10_000 });
+    await page.waitForURL((url) => !url.pathname.startsWith("/login"), {
+      timeout: 10_000,
+    });
     expect(page.url()).not.toContain("/mfa-verify");
 
     // --- Enroll MFA through the real Settings > Security screen ---
     await page.goto("/settings/security", { waitUntil: "networkidle" });
-    await page.getByRole("button", { name: /enable multi-factor authentication/i }).click();
+    await page
+      .getByRole("button", { name: /enable multi-factor authentication/i })
+      .click();
     const setupKeyLocator = page.getByText(/^[A-Z2-7]{32}$/);
     await expect(setupKeyLocator).toBeVisible({ timeout: 10_000 });
     const secretBase32 = (await setupKeyLocator.textContent())!.trim();
@@ -153,7 +165,9 @@ test("SP007 end-to-end: enroll MFA through Settings, then a real login requires 
     const enrollmentStep = totpStep();
     await page.getByLabel(/6-digit code/i).fill(totpNow(secretBase32));
     await page.getByRole("button", { name: "Enable", exact: true }).click();
-    await expect(page.getByText(/save these recovery codes/i)).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByText(/save these recovery codes/i)).toBeVisible({
+      timeout: 10_000,
+    });
     await page.getByRole("button", { name: "Done" }).click();
     await expect(page.getByText("Enabled", { exact: true })).toBeVisible();
 
@@ -173,7 +187,9 @@ test("SP007 end-to-end: enroll MFA through Settings, then a real login requires 
     // A wrong code is rejected and does not grant access.
     await page.getByLabel(/code/i).fill("000000");
     await page.getByRole("button", { name: "Verify" }).click();
-    await expect(page.getByText(/incorrect or has already been used/i)).toBeVisible({ timeout: 10_000 });
+    await expect(
+      page.getByText(/incorrect or has already been used/i),
+    ).toBeVisible({ timeout: 10_000 });
     expect(page.url()).toContain("/mfa-verify");
 
     // The real current code succeeds and reaches the workspace -- wait for
@@ -184,15 +200,35 @@ test("SP007 end-to-end: enroll MFA through Settings, then a real login requires 
       page.waitForResponse((res) => res.url().includes("/api/auth/mfa/verify")),
       page.getByRole("button", { name: "Verify" }).click(),
     ]);
-    await page.waitForURL((url) => !url.pathname.startsWith("/mfa-verify") && !url.pathname.startsWith("/login"), { timeout: 10_000 });
+    await page.waitForURL(
+      (url) =>
+        !url.pathname.startsWith("/mfa-verify") &&
+        !url.pathname.startsWith("/login"),
+      { timeout: 10_000 },
+    );
   } finally {
     await context.close();
-    await db.query(`DELETE FROM mfa_recovery_codes WHERE user_id = $1`, [userId]).catch(() => undefined);
-    await db.query(`DELETE FROM sessions WHERE user_id = $1`, [userId]).catch(() => undefined);
-    await db.query(`DELETE FROM organization_memberships WHERE organization_id = $1`, [orgId]).catch(() => undefined);
-    await db.query(`DELETE FROM password_reset_tokens WHERE user_id = $1`, [userId]).catch(() => undefined);
-    await db.query(`DELETE FROM organizations WHERE id = $1`, [orgId]).catch(() => undefined);
-    await db.query(`DELETE FROM users WHERE id = $1`, [userId]).catch(() => undefined);
+    await db
+      .query(`DELETE FROM mfa_recovery_codes WHERE user_id = $1`, [userId])
+      .catch(() => undefined);
+    await db
+      .query(`DELETE FROM sessions WHERE user_id = $1`, [userId])
+      .catch(() => undefined);
+    await db
+      .query(
+        `DELETE FROM organization_memberships WHERE organization_id = $1`,
+        [orgId],
+      )
+      .catch(() => undefined);
+    await db
+      .query(`DELETE FROM password_reset_tokens WHERE user_id = $1`, [userId])
+      .catch(() => undefined);
+    await db
+      .query(`DELETE FROM organizations WHERE id = $1`, [orgId])
+      .catch(() => undefined);
+    await db
+      .query(`DELETE FROM users WHERE id = $1`, [userId])
+      .catch(() => undefined);
     await db.end();
   }
 });

@@ -16,8 +16,14 @@ export default async function UsersSettingsPage() {
       currentUserId={session.userId}
       abilities={{
         canView: hasSessionPermission(session, CORE_PERMISSIONS.usersView),
-        canManageUsers: hasSessionPermission(session, CORE_PERMISSIONS.usersManage),
-        canAssignRoles: hasSessionPermission(session, CORE_PERMISSIONS.rolesAssign),
+        canManageUsers: hasSessionPermission(
+          session,
+          CORE_PERMISSIONS.usersManage,
+        ),
+        canAssignRoles: hasSessionPermission(
+          session,
+          CORE_PERMISSIONS.rolesAssign,
+        ),
       }}
     />
   );

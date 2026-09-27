@@ -25,33 +25,65 @@ const ROUTES = [
 ];
 
 fs.mkdirSync(OUT_DIR, { recursive: true });
-const inventory = JSON.parse(fs.readFileSync("scripts/qa/artifacts/screenshot-inventory.json", "utf8"));
+const inventory = JSON.parse(
+  fs.readFileSync("scripts/qa/artifacts/screenshot-inventory.json", "utf8"),
+);
 
 const browser = await chromium.launch();
 for (const viewport of VIEWPORTS) {
-  const context = await browser.newContext({ storageState: STORAGE_STATE, viewport: { width: viewport.width, height: viewport.height } });
+  const context = await browser.newContext({
+    storageState: STORAGE_STATE,
+    viewport: { width: viewport.width, height: viewport.height },
+  });
   const page = await context.newPage();
   const consoleErrors = [];
-  page.on("console", (msg) => { if (msg.type() === "error") consoleErrors.push(msg.text().slice(0, 200)); });
-  page.on("pageerror", (err) => consoleErrors.push(`pageerror: ${err.message}`.slice(0, 200)));
+  page.on("console", (msg) => {
+    if (msg.type() === "error") consoleErrors.push(msg.text().slice(0, 200));
+  });
+  page.on("pageerror", (err) =>
+    consoleErrors.push(`pageerror: ${err.message}`.slice(0, 200)),
+  );
 
   for (const [slug, route, label] of ROUTES) {
     const filePath = path.join(OUT_DIR, `${slug}__${viewport.name}.png`);
     consoleErrors.length = 0;
     try {
-      await page.goto(`${BASE_URL}${route}`, { waitUntil: "networkidle", timeout: 30000 });
+      await page.goto(`${BASE_URL}${route}`, {
+        waitUntil: "networkidle",
+        timeout: 30000,
+      });
       await page.waitForTimeout(2000);
       await page.screenshot({ path: filePath, fullPage: true });
-      inventory.push({ route, viewport: viewport.name, label, file: filePath, url: page.url(), consoleErrors: [...consoleErrors] });
+      inventory.push({
+        route,
+        viewport: viewport.name,
+        label,
+        file: filePath,
+        url: page.url(),
+        consoleErrors: [...consoleErrors],
+      });
       console.log(`OK   ${viewport.name.padEnd(8)} ${route}`);
     } catch (error) {
-      inventory.push({ route, viewport: viewport.name, label, file: filePath, url: page.url(), error: error.message, consoleErrors: [...consoleErrors] });
-      console.log(`FAIL ${viewport.name.padEnd(8)} ${route} -- ${error.message}`);
+      inventory.push({
+        route,
+        viewport: viewport.name,
+        label,
+        file: filePath,
+        url: page.url(),
+        error: error.message,
+        consoleErrors: [...consoleErrors],
+      });
+      console.log(
+        `FAIL ${viewport.name.padEnd(8)} ${route} -- ${error.message}`,
+      );
     }
   }
   await context.close();
 }
 await browser.close();
 
-fs.writeFileSync("scripts/qa/artifacts/screenshot-inventory.json", JSON.stringify(inventory, null, 2));
+fs.writeFileSync(
+  "scripts/qa/artifacts/screenshot-inventory.json",
+  JSON.stringify(inventory, null, 2),
+);
 console.log(`\nTotal inventory entries: ${inventory.length}`);

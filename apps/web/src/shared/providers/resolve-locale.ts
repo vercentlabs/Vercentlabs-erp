@@ -5,7 +5,10 @@ export function resolveLocale(stored: string | null | undefined): string {
   if (!stored) return DEFAULT_LOCALE;
   try {
     const [canonical] = Intl.getCanonicalLocales(stored);
-    return canonical && Intl.NumberFormat.supportedLocalesOf(canonical).length > 0 ? canonical : DEFAULT_LOCALE;
+    return canonical &&
+      Intl.NumberFormat.supportedLocalesOf(canonical).length > 0
+      ? canonical
+      : DEFAULT_LOCALE;
   } catch {
     return DEFAULT_LOCALE;
   }

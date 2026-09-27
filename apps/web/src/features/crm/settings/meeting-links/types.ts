@@ -6,7 +6,16 @@
 // service.js's getCrmRecord/listCrmRecords.
 export type AvailabilityWindow = { start: string; end: string };
 export type MeetingLinkAvailability = Partial<
-  Record<"monday" | "tuesday" | "wednesday" | "thursday" | "friday" | "saturday" | "sunday", AvailabilityWindow[]>
+  Record<
+    | "monday"
+    | "tuesday"
+    | "wednesday"
+    | "thursday"
+    | "friday"
+    | "saturday"
+    | "sunday",
+    AvailabilityWindow[]
+  >
 >;
 
 export type MeetingLink = {
@@ -28,9 +37,17 @@ export type MeetingLink = {
   updatedAt: string;
 };
 
-export type CrmListResponse<T> = { rows: T[]; total: number; limit: number; offset: number };
+export type CrmListResponse<T> = {
+  rows: T[];
+  total: number;
+  limit: number;
+  offset: number;
+};
 
-export const WEEKDAYS: Array<{ key: keyof MeetingLinkAvailability; label: string }> = [
+export const WEEKDAYS: Array<{
+  key: keyof MeetingLinkAvailability;
+  label: string;
+}> = [
   { key: "monday", label: "Mon" },
   { key: "tuesday", label: "Tue" },
   { key: "wednesday", label: "Wed" },

@@ -1,4 +1,8 @@
-import { ingestBillingWebhook, MAX_WEBHOOK_BODY_BYTES, readRequestBytes } from "@vercentlabs/api";
+import {
+  ingestBillingWebhook,
+  MAX_WEBHOOK_BODY_BYTES,
+  readRequestBytes,
+} from "@vercentlabs/api";
 
 import { withIngressClient } from "@/core/db";
 import { errorResponse, ok } from "@/core/http";
@@ -11,11 +15,17 @@ import { billingProvider } from "@/features/billing/provider";
 // A non-2xx response makes the provider retry.
 export async function POST(request: Request) {
   try {
-    const rawBody = Buffer.from(await readRequestBytes(request, MAX_WEBHOOK_BODY_BYTES)).toString("utf8");
+    const rawBody = Buffer.from(
+      await readRequestBytes(request, MAX_WEBHOOK_BODY_BYTES),
+    ).toString("utf8");
     const result = await withIngressClient((client) =>
       ingestBillingWebhook(
         client,
-        { rawBody, signature: request.headers.get("x-razorpay-signature"), eventIdHeader: request.headers.get("x-razorpay-event-id") },
+        {
+          rawBody,
+          signature: request.headers.get("x-razorpay-signature"),
+          eventIdHeader: request.headers.get("x-razorpay-event-id"),
+        },
         billingProvider(),
       ),
     );

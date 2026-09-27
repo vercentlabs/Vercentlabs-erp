@@ -8,8 +8,12 @@ import { workspaceRoute } from "@/core/workspace-route";
 // territories, ...) for every CRM screen — one call, not a per-field
 // browser-side fan-out.
 export async function GET(request: Request) {
-  return workspaceRoute(request, { module: "crm" }, async ({ client, session }) => {
-    const options = await getCrmOptions(client, crmContext(session));
-    return ok({ options });
-  });
+  return workspaceRoute(
+    request,
+    { module: "crm" },
+    async ({ client, session }) => {
+      const options = await getCrmOptions(client, crmContext(session));
+      return ok({ options });
+    },
+  );
 }

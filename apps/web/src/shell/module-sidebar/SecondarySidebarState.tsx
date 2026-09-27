@@ -80,11 +80,19 @@ const SecondarySidebarContext =
 // per-browser) for anyone who wants it permanently in the layout flow
 // instead of floating. Mobile/tablet never mounts this — MobileNav's
 // drawer is a completely separate component tree.
-export function SecondarySidebarProvider({ children }: { children: ReactNode }) {
+export function SecondarySidebarProvider({
+  children,
+}: {
+  children: ReactNode;
+}) {
   const pathname = usePathname();
   const activeModule = findActiveModule(pathname);
 
-  const pinned = useSyncExternalStore(subscribeToPinned, getPinnedSnapshot, getPinnedServerSnapshot);
+  const pinned = useSyncExternalStore(
+    subscribeToPinned,
+    getPinnedSnapshot,
+    getPinnedServerSnapshot,
+  );
   const [hovering, setHovering] = useState(false);
   const [focused, setFocused] = useState(false);
   const [clickOpen, setClickOpen] = useState(false);

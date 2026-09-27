@@ -1,4 +1,9 @@
-import { addAttachment, addMyAttachment, assertSameOriginOrMobile, prepareFileUpload } from "@vercentlabs/api";
+import {
+  addAttachment,
+  addMyAttachment,
+  assertSameOriginOrMobile,
+  prepareFileUpload,
+} from "@vercentlabs/api";
 
 import { errorResponse, HttpError, ok } from "@/core/http";
 import { requireApiWorkspace } from "@/core/session";
@@ -13,8 +18,15 @@ import { supportContext } from "@/features/support/shared/support-context";
 // stores it. Staff need support.view (+ support.communication.manage in the
 // domain); a portal customer (selfService=1) may attach only to their own
 // tickets and never as a private note.
-export async function POST(request: Request, context: { params: Promise<{ ticketId: string }> }) {
-  let upload: { prepared: Awaited<ReturnType<typeof prepareFileUpload>>; selfService: boolean; privateNote: boolean };
+export async function POST(
+  request: Request,
+  context: { params: Promise<{ ticketId: string }> },
+) {
+  let upload: {
+    prepared: Awaited<ReturnType<typeof prepareFileUpload>>;
+    selfService: boolean;
+    privateNote: boolean;
+  };
   try {
     assertSameOriginOrMobile(request, process.env);
     await requireApiWorkspace();
@@ -22,22 +34,45 @@ export async function POST(request: Request, context: { params: Promise<{ ticket
       throw new HttpError(400, "A multipart file upload is required.");
     });
     const file = form.get("file");
-    if (!(file instanceof File)) throw new HttpError(400, "A file is required.");
-    const prepared = await prepareFileUpload({ fileName: file.name, mimeType: file.type, bytes: Buffer.from(await file.arrayBuffer()), maximumBytes: 25 * 1024 * 1024 }, process.env);
-    upload = { prepared, selfService: form.get("selfService") === "1", privateNote: form.get("privateNote") === "1" };
+    if (!(file instanceof File))
+      throw new HttpError(400, "A file is required.");
+    const prepared = await prepareFileUpload(
+      {
+        fileName: file.name,
+        mimeType: file.type,
+        bytes: Buffer.from(await file.arrayBuffer()),
+        maximumBytes: 25 * 1024 * 1024,
+      },
+      process.env,
+    );
+    upload = {
+      prepared,
+      selfService: form.get("selfService") === "1",
+      privateNote: form.get("privateNote") === "1",
+    };
   } catch (error) {
     return errorResponse(error);
   }
   const action = "support.attachment.upload";
   const options = upload.selfService
     ? { module: "support", selfService: true, billingWrite: true, action }
-    : { module: "support", permission: "support.view", billingWrite: true, action };
+    : {
+        module: "support",
+        permission: "support.view",
+        billingWrite: true,
+        action,
+      };
   return workspaceRoute(request, options, async ({ client, session }) => {
     const { ticketId } = await context.params;
     const domain = supportContext(session);
     const record = upload.selfService
-      ? await addMyAttachment(client, domain, ticketId, { prepared: upload.prepared })
-      : await addAttachment(client, domain, ticketId, { prepared: upload.prepared, privateNote: upload.privateNote });
+      ? await addMyAttachment(client, domain, ticketId, {
+          prepared: upload.prepared,
+        })
+      : await addAttachment(client, domain, ticketId, {
+          prepared: upload.prepared,
+          privateNote: upload.privateNote,
+        });
     return ok(toWire({ record }) as Record<string, unknown>, 201);
   });
 }

@@ -7,9 +7,14 @@
 // Coerce defensively here rather than calling .toLocaleString() on what
 // may actually be a string (harmless — String.prototype.toLocaleString()
 // is a no-op — but renders with no thousands separators).
-export function money(currencyCode: string | null | undefined, value: number | string) {
+export function money(
+  currencyCode: string | null | undefined,
+  value: number | string,
+) {
   const numeric = typeof value === "number" ? value : Number(value);
-  const formatted = Number.isFinite(numeric) ? numeric.toLocaleString() : String(value);
+  const formatted = Number.isFinite(numeric)
+    ? numeric.toLocaleString()
+    : String(value);
   return `${currencyCode || ""} ${formatted}`.trim();
 }
 

@@ -2,7 +2,11 @@ import { OrderDetailScreen } from "@/features/manufacturing/screens/OrderDetailS
 
 export const metadata = { title: "Production order" };
 
-export default async function Page({ params }: { params: Promise<{ id: string }> }) {
+export default async function Page({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
   const { id } = await params;
   return <OrderDetailScreen id={id} />;
 }

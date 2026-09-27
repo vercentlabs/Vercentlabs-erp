@@ -13,7 +13,11 @@ export class RolesApiError extends Error {
 async function parseResponse<T>(response: Response): Promise<T> {
   const payload = await response.json().catch(() => ({}));
   if (!response.ok || payload.ok === false) {
-    throw new RolesApiError(payload.message || "The request could not be completed.", response.status, payload.code);
+    throw new RolesApiError(
+      payload.message || "The request could not be completed.",
+      response.status,
+      payload.code,
+    );
   }
   return payload;
 }
@@ -45,7 +49,9 @@ export async function listRoles(): Promise<{ roles: RoleRow[] }> {
   return parseResponse(response);
 }
 
-export async function listPermissionCatalog(): Promise<{ permissions: PermissionCatalogEntry[] }> {
+export async function listPermissionCatalog(): Promise<{
+  permissions: PermissionCatalogEntry[];
+}> {
   const response = await fetch("/api/settings/roles/permissions");
   return parseResponse(response);
 }
@@ -68,7 +74,10 @@ export async function createRole(input: RoleInput): Promise<{ role: RoleRow }> {
   return parseResponse(response);
 }
 
-export async function updateRole(roleId: string, input: Partial<RoleInput>): Promise<{ role: RoleRow }> {
+export async function updateRole(
+  roleId: string,
+  input: Partial<RoleInput>,
+): Promise<{ role: RoleRow }> {
   const response = await fetch(`/api/settings/roles/${roleId}`, {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
@@ -77,8 +86,12 @@ export async function updateRole(roleId: string, input: Partial<RoleInput>): Pro
   return parseResponse(response);
 }
 
-export async function archiveRole(roleId: string): Promise<{ archived: boolean }> {
-  const response = await fetch(`/api/settings/roles/${roleId}`, { method: "DELETE" });
+export async function archiveRole(
+  roleId: string,
+): Promise<{ archived: boolean }> {
+  const response = await fetch(`/api/settings/roles/${roleId}`, {
+    method: "DELETE",
+  });
   return parseResponse(response);
 }
 
@@ -91,7 +104,11 @@ export async function setUserRoles(
   const response = await fetch(`/api/settings/users/${userId}/roles`, {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ roleIds, primaryRoleId, acknowledgeWarningConflicts }),
+    body: JSON.stringify({
+      roleIds,
+      primaryRoleId,
+      acknowledgeWarningConflicts,
+    }),
   });
   return parseResponse(response);
 }

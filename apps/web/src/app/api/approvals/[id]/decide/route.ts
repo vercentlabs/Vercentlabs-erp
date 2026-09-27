@@ -15,10 +15,22 @@ const schema = z.object({
 // orchestration registry) changes its document and closes the shared request;
 // a failure leaves the request pending. Approve/reject apply the business
 // write gate inside decideApproval; cancellation does not.
-export async function POST(request: Request, context: { params: Promise<{ id: string }> }) {
-  return workspaceRoute(request, { snapshot: true, action: "approvals.decide", auditDenial: true }, async ({ client, session, snapshot }) => {
-    const { id } = await context.params;
-    const body = schema.parse(await readJson(request));
-    return ok(await decideApproval(client, session, id, body, { accessibleModules: snapshot?.accessibleModules ?? [], env: process.env }));
-  });
+export async function POST(
+  request: Request,
+  context: { params: Promise<{ id: string }> },
+) {
+  return workspaceRoute(
+    request,
+    { snapshot: true, action: "approvals.decide", auditDenial: true },
+    async ({ client, session, snapshot }) => {
+      const { id } = await context.params;
+      const body = schema.parse(await readJson(request));
+      return ok(
+        await decideApproval(client, session, id, body, {
+          accessibleModules: snapshot?.accessibleModules ?? [],
+          env: process.env,
+        }),
+      );
+    },
+  );
 }

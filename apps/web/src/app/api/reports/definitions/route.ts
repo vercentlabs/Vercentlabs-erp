@@ -1,13 +1,25 @@
 import { z } from "zod";
 
-import { createReportDefinition, listReportDefinitions } from "@vercentlabs/api";
+import {
+  createReportDefinition,
+  listReportDefinitions,
+} from "@vercentlabs/api";
 
 import { ok, readJson } from "@/core/http";
 import { workspaceRoute } from "@/core/workspace-route";
 
 export async function GET(request: Request) {
-  return workspaceRoute(request, { snapshot: true, action: "reports.definitions.list" }, async ({ client, session, snapshot }) =>
-    ok({ definitions: await listReportDefinitions(client, session, snapshot?.accessibleModules ?? []) }),
+  return workspaceRoute(
+    request,
+    { snapshot: true, action: "reports.definitions.list" },
+    async ({ client, session, snapshot }) =>
+      ok({
+        definitions: await listReportDefinitions(
+          client,
+          session,
+          snapshot?.accessibleModules ?? [],
+        ),
+      }),
   );
 }
 
@@ -22,7 +34,20 @@ const schema = z.object({
 });
 
 export async function POST(request: Request) {
-  return workspaceRoute(request, { snapshot: true, action: "reports.definitions.create" }, async ({ client, session, snapshot }) =>
-    ok({ definition: await createReportDefinition(client, session, snapshot?.accessibleModules ?? [], schema.parse(await readJson(request))) }, 201),
+  return workspaceRoute(
+    request,
+    { snapshot: true, action: "reports.definitions.create" },
+    async ({ client, session, snapshot }) =>
+      ok(
+        {
+          definition: await createReportDefinition(
+            client,
+            session,
+            snapshot?.accessibleModules ?? [],
+            schema.parse(await readJson(request)),
+          ),
+        },
+        201,
+      ),
   );
 }

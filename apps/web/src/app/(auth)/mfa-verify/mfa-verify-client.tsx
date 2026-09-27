@@ -8,20 +8,37 @@ import { Button, TextField } from "@vercentlabs/design-system";
 type EnrollStartResponse = { secretBase32: string; otpauthUri: string };
 type EnrollConfirmResponse = { recoveryCodes: string[] };
 
-async function postJson<T>(url: string, body: unknown): Promise<{ ok: boolean; data: T | null; message?: string }> {
+async function postJson<T>(
+  url: string,
+  body: unknown,
+): Promise<{ ok: boolean; data: T | null; message?: string }> {
   const response = await fetch(url, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
   });
-  const payload = (await response.json().catch(() => ({}))) as (T & { ok?: boolean; message?: string }) | { ok?: boolean; message?: string };
+  const payload = (await response.json().catch(() => ({}))) as
+    | (T & { ok?: boolean; message?: string })
+    | { ok?: boolean; message?: string };
   if (!response.ok || (payload as { ok?: boolean }).ok === false) {
-    return { ok: false, data: null, message: (payload as { message?: string }).message || "Something went wrong. Try again." };
+    return {
+      ok: false,
+      data: null,
+      message:
+        (payload as { message?: string }).message ||
+        "Something went wrong. Try again.",
+    };
   }
   return { ok: true, data: payload as T };
 }
 
-export function MfaVerifyClient({ mfaEnrolled, email }: { mfaEnrolled: boolean; email: string }) {
+export function MfaVerifyClient({
+  mfaEnrolled,
+  email,
+}: {
+  mfaEnrolled: boolean;
+  email: string;
+}) {
   const router = useRouter();
 
   // --- Already-enrolled path: just verify a code from the existing authenticator ---
@@ -34,9 +51,14 @@ export function MfaVerifyClient({ mfaEnrolled, email }: { mfaEnrolled: boolean; 
     setVerifyError(null);
     setVerifying(true);
     try {
-      const result = await postJson<{ verified: boolean }>("/api/auth/mfa/verify", { code });
+      const result = await postJson<{ verified: boolean }>(
+        "/api/auth/mfa/verify",
+        { code },
+      );
       if (!result.ok) {
-        setVerifyError(result.message ?? "That code is incorrect or has already been used.");
+        setVerifyError(
+          result.message ?? "That code is incorrect or has already been used.",
+        );
         return;
       }
       router.push("/");
@@ -50,15 +72,28 @@ export function MfaVerifyClient({ mfaEnrolled, email }: { mfaEnrolled: boolean; 
     return (
       <form className="flex flex-col gap-4" onSubmit={handleVerify} noValidate>
         <p className="text-sm text-text-secondary">
-          Enter the 6-digit code from your authenticator app for {email}, or one of your recovery codes.
+          Enter the 6-digit code from your authenticator app for {email}, or one
+          of your recovery codes.
         </p>
-        <TextField label="Code" autoComplete="one-time-code" isRequired value={code} onChange={setCode} />
+        <TextField
+          label="Code"
+          autoComplete="one-time-code"
+          isRequired
+          value={code}
+          onChange={setCode}
+        />
         {verifyError ? (
           <p role="alert" className="text-sm text-danger">
             {verifyError}
           </p>
         ) : null}
-        <Button type="submit" variant="primary" size="standard" isLoading={verifying} className="mt-2">
+        <Button
+          type="submit"
+          variant="primary"
+          size="standard"
+          isLoading={verifying}
+          className="mt-2"
+        >
           Verify
         </Button>
       </form>
@@ -76,7 +111,9 @@ function MfaMandatoryEnrollment({ email }: { email: string }) {
   const router = useRouter();
   const [starting, setStarting] = useState(true);
   const [startError, setStartError] = useState<string | null>(null);
-  const [enrollment, setEnrollment] = useState<EnrollStartResponse | null>(null);
+  const [enrollment, setEnrollment] = useState<EnrollStartResponse | null>(
+    null,
+  );
 
   const [confirmCode, setConfirmCode] = useState("");
   const [confirmError, setConfirmError] = useState<string | null>(null);
@@ -86,7 +123,10 @@ function MfaMandatoryEnrollment({ email }: { email: string }) {
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      const result = await postJson<EnrollStartResponse>("/api/auth/mfa/enroll/start", {});
+      const result = await postJson<EnrollStartResponse>(
+        "/api/auth/mfa/enroll/start",
+        {},
+      );
       if (cancelled) return;
       if (!result.ok || !result.data) {
         setStartError(result.message ?? "Could not start MFA enrollment.");
@@ -105,9 +145,15 @@ function MfaMandatoryEnrollment({ email }: { email: string }) {
     setConfirmError(null);
     setConfirming(true);
     try {
-      const result = await postJson<EnrollConfirmResponse>("/api/auth/mfa/enroll/confirm", { code: confirmCode });
+      const result = await postJson<EnrollConfirmResponse>(
+        "/api/auth/mfa/enroll/confirm",
+        { code: confirmCode },
+      );
       if (!result.ok || !result.data) {
-        setConfirmError(result.message ?? "That code is incorrect. Check your authenticator app and try again.");
+        setConfirmError(
+          result.message ??
+            "That code is incorrect. Check your authenticator app and try again.",
+        );
         return;
       }
       setRecoveryCodes(result.data.recoveryCodes);
@@ -120,8 +166,9 @@ function MfaMandatoryEnrollment({ email }: { email: string }) {
     return (
       <div className="flex flex-col gap-4">
         <p className="text-sm text-text-secondary">
-          Multi-factor authentication is now enabled for {email}. Save these recovery codes somewhere safe — each one
-          can be used once if you lose access to your authenticator app. They will not be shown again.
+          Multi-factor authentication is now enabled for {email}. Save these
+          recovery codes somewhere safe — each one can be used once if you lose
+          access to your authenticator app. They will not be shown again.
         </p>
         <ul className="grid grid-cols-2 gap-2 rounded-[var(--radius-card)] border border-border bg-surface-muted p-4 font-mono text-sm text-text">
           {recoveryCodes.map((recoveryCode) => (
@@ -143,7 +190,12 @@ function MfaMandatoryEnrollment({ email }: { email: string }) {
     );
   }
 
-  if (starting) return <p className="text-sm text-text-secondary">Setting up multi-factor authentication…</p>;
+  if (starting)
+    return (
+      <p className="text-sm text-text-secondary">
+        Setting up multi-factor authentication…
+      </p>
+    );
 
   if (startError || !enrollment) {
     return (
@@ -156,20 +208,37 @@ function MfaMandatoryEnrollment({ email }: { email: string }) {
   return (
     <form className="flex flex-col gap-4" onSubmit={handleConfirm} noValidate>
       <p className="text-sm text-text-secondary">
-        Your organization requires multi-factor authentication. Add this account to an authenticator app (Google
-        Authenticator, 1Password, Authy, or similar) using the key below, then enter the 6-digit code it shows.
+        Your organization requires multi-factor authentication. Add this account
+        to an authenticator app (Google Authenticator, 1Password, Authy, or
+        similar) using the key below, then enter the 6-digit code it shows.
       </p>
       <div className="flex flex-col gap-1 rounded-[var(--radius-card)] border border-border bg-surface-muted p-3">
-        <span className="text-xs font-medium text-text-muted uppercase">Setup key</span>
-        <span className="break-all font-mono text-sm text-text">{enrollment.secretBase32}</span>
+        <span className="text-xs font-medium text-text-muted uppercase">
+          Setup key
+        </span>
+        <span className="break-all font-mono text-sm text-text">
+          {enrollment.secretBase32}
+        </span>
       </div>
-      <TextField label="6-digit code" autoComplete="one-time-code" isRequired value={confirmCode} onChange={setConfirmCode} />
+      <TextField
+        label="6-digit code"
+        autoComplete="one-time-code"
+        isRequired
+        value={confirmCode}
+        onChange={setConfirmCode}
+      />
       {confirmError ? (
         <p role="alert" className="text-sm text-danger">
           {confirmError}
         </p>
       ) : null}
-      <Button type="submit" variant="primary" size="standard" isLoading={confirming} className="mt-2">
+      <Button
+        type="submit"
+        variant="primary"
+        size="standard"
+        isLoading={confirming}
+        className="mt-2"
+      >
         Enable multi-factor authentication
       </Button>
     </form>

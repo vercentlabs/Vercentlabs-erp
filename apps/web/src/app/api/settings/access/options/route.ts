@@ -1,4 +1,8 @@
-import { hasSessionPermission, listGrantableRolesForActor, listGrantableScope } from "@vercentlabs/api";
+import {
+  hasSessionPermission,
+  listGrantableRolesForActor,
+  listGrantableScope,
+} from "@vercentlabs/api";
 import { CORE_PERMISSIONS } from "@vercentlabs/permissions";
 
 import { ok } from "@/core/http";
@@ -12,13 +16,31 @@ import { workspaceRoute } from "@/core/workspace-route";
 export async function GET(request: Request) {
   return workspaceRoute(
     request,
-    { permission: CORE_PERMISSIONS.usersView, action: "settings.access.options" },
+    {
+      permission: CORE_PERMISSIONS.usersView,
+      action: "settings.access.options",
+    },
     async ({ client, session }) => {
-      const canManageUsers = hasSessionPermission(session, CORE_PERMISSIONS.usersManage);
-      const canAssignRoles = hasSessionPermission(session, CORE_PERMISSIONS.rolesAssign);
-      const scope = canManageUsers ? await listGrantableScope(client, session) : null;
-      const roles = canManageUsers || canAssignRoles ? await listGrantableRolesForActor(client, session) : [];
-      return ok({ scope, roles, abilities: { canManageUsers, canAssignRoles } });
+      const canManageUsers = hasSessionPermission(
+        session,
+        CORE_PERMISSIONS.usersManage,
+      );
+      const canAssignRoles = hasSessionPermission(
+        session,
+        CORE_PERMISSIONS.rolesAssign,
+      );
+      const scope = canManageUsers
+        ? await listGrantableScope(client, session)
+        : null;
+      const roles =
+        canManageUsers || canAssignRoles
+          ? await listGrantableRolesForActor(client, session)
+          : [];
+      return ok({
+        scope,
+        roles,
+        abilities: { canManageUsers, canAssignRoles },
+      });
     },
   );
 }

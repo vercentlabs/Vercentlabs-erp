@@ -5,7 +5,18 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Pencil, RotateCcw } from "lucide-react";
-import { Button, ConflictBanner, ErrorState, PermissionState, RecordDetailsPage, StatusBadge, Tab, TabList, TabPanel, Tabs } from "@vercentlabs/design-system";
+import {
+  Button,
+  ConflictBanner,
+  ErrorState,
+  PermissionState,
+  RecordDetailsPage,
+  StatusBadge,
+  Tab,
+  TabList,
+  TabPanel,
+  Tabs,
+} from "@vercentlabs/design-system";
 import { CRM_PERMISSIONS } from "@vercentlabs/permissions";
 import { LoadingState } from "@/shared/ui/LoadingState";
 
@@ -16,22 +27,51 @@ import { RecordTimelinePanel } from "@/features/crm/shared/RecordTimelinePanel";
 import { NotesPanel } from "@/features/crm/shared/NotesPanel";
 import { CrmAttachmentPanel } from "@/features/crm/shared/CrmAttachmentPanel";
 import { CustomFieldsRuntimePanel } from "@/features/crm/shared/CustomFieldsRuntimePanel";
-import { formatDate, formatMoney, humanize, timezoneLabel } from "@/shared/format/human";
+import {
+  formatDate,
+  formatMoney,
+  humanize,
+  timezoneLabel,
+} from "@/shared/format/human";
 import { MoreMenu } from "@/features/crm/shared/ui/MoreMenu";
 import { PropertyList } from "@/features/crm/shared/ui/PropertyList";
 import { getAccount } from "@/features/crm/accounts/api/accounts-api";
 import { listOpportunities } from "@/features/crm/opportunities/api/opportunities-api";
-import { archiveContact, ContactApiError, getContact, listContactOpportunityRoles, reactivateContact } from "../api/contacts-api";
+import {
+  archiveContact,
+  ContactApiError,
+  getContact,
+  listContactOpportunityRoles,
+  reactivateContact,
+} from "../api/contacts-api";
 import { ContactDuplicatesPanel } from "../components/ContactDuplicatesPanel";
 import { ContactRelationshipsPanel } from "../components/ContactRelationshipsPanel";
 
-const LANGUAGES: Record<string, string> = { en: "English", hi: "Hindi", mr: "Marathi", ta: "Tamil", te: "Telugu", bn: "Bengali", gu: "Gujarati", kn: "Kannada", ml: "Malayalam", pa: "Punjabi", ur: "Urdu", fr: "French", de: "German", es: "Spanish", ar: "Arabic" };
+const LANGUAGES: Record<string, string> = {
+  en: "English",
+  hi: "Hindi",
+  mr: "Marathi",
+  ta: "Tamil",
+  te: "Telugu",
+  bn: "Bengali",
+  gu: "Gujarati",
+  kn: "Kannada",
+  ml: "Malayalam",
+  pa: "Punjabi",
+  ur: "Urdu",
+  fr: "French",
+  de: "German",
+  es: "Spanish",
+  ar: "Arabic",
+};
 
 export function ContactDetailScreen({ contactId }: { contactId: string }) {
   const router = useRouter();
   const queryClient = useQueryClient();
   const workspace = useWorkspaceContext();
-  const canManage = workspace.permissions.includes(CRM_PERMISSIONS.accountsManage);
+  const canManage = workspace.permissions.includes(
+    CRM_PERMISSIONS.accountsManage,
+  );
   const [conflictMessage, setConflictMessage] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
 
@@ -42,14 +82,25 @@ export function ContactDetailScreen({ contactId }: { contactId: string }) {
   const contact = contactQuery.data?.record;
 
   const accountQuery = useQuery({
-    queryKey: scopedQueryKey(workspace, "crm", "accounts", contact?.accountId ?? "none"),
+    queryKey: scopedQueryKey(
+      workspace,
+      "crm",
+      "accounts",
+      contact?.accountId ?? "none",
+    ),
     queryFn: () => getAccount(contact!.accountId!),
     enabled: Boolean(contact?.accountId),
   });
   const accountName = accountQuery.data?.record.displayName ?? null;
 
   const dealsQuery = useQuery({
-    queryKey: scopedQueryKey(workspace, "crm", "contacts", contactId, "opportunities"),
+    queryKey: scopedQueryKey(
+      workspace,
+      "crm",
+      "contacts",
+      contactId,
+      "opportunities",
+    ),
     queryFn: () => listOpportunities({ contactId, limit: 50 } as never),
     enabled: Boolean(contact),
   });
@@ -61,26 +112,40 @@ export function ContactDetailScreen({ contactId }: { contactId: string }) {
   // other deals they hold a non-primary role on, per the new
   // tenant.crm_opportunity_contact_roles model.
   const dealRolesQuery = useQuery({
-    queryKey: scopedQueryKey(workspace, "crm", "contacts", contactId, "opportunity-roles"),
+    queryKey: scopedQueryKey(
+      workspace,
+      "crm",
+      "contacts",
+      contactId,
+      "opportunity-roles",
+    ),
     queryFn: () => listContactOpportunityRoles(contactId),
     enabled: Boolean(contact),
   });
   const dealIds = new Set(deals.map((deal) => deal.id));
-  const otherDealRoles = (dealRolesQuery.data?.rows ?? []).filter((role) => !dealIds.has(role.opportunityId));
+  const otherDealRoles = (dealRolesQuery.data?.rows ?? []).filter(
+    (role) => !dealIds.has(role.opportunityId),
+  );
 
   function handleError(error: unknown) {
     if (error instanceof ContactApiError && error.code === "CRM_STALE_WRITE") {
       setConflictMessage(error.message);
       return;
     }
-    setActionError(error instanceof Error ? error.message : "This action could not be completed.");
+    setActionError(
+      error instanceof Error
+        ? error.message
+        : "This action could not be completed.",
+    );
   }
 
   const archiveMutation = useMutation({
     mutationFn: () => archiveContact(contactId, contact!.updatedAt),
     onSuccess: () => {
       setActionError(null);
-      queryClient.invalidateQueries({ queryKey: scopedQueryKey(workspace, "crm", "contacts") });
+      queryClient.invalidateQueries({
+        queryKey: scopedQueryKey(workspace, "crm", "contacts"),
+      });
     },
     onError: handleError,
   });
@@ -89,17 +154,31 @@ export function ContactDetailScreen({ contactId }: { contactId: string }) {
     mutationFn: () => reactivateContact(contactId, contact!.updatedAt),
     onSuccess: () => {
       setActionError(null);
-      queryClient.invalidateQueries({ queryKey: scopedQueryKey(workspace, "crm", "contacts") });
+      queryClient.invalidateQueries({
+        queryKey: scopedQueryKey(workspace, "crm", "contacts"),
+      });
     },
     onError: handleError,
   });
 
-  if (contactQuery.isLoading) return <LoadingState label="Loading contact" rows={3} />;
+  if (contactQuery.isLoading)
+    return <LoadingState label="Loading contact" rows={3} />;
   if (contactQuery.isError) {
-    if (contactQuery.error instanceof ContactApiError && contactQuery.error.status === 403) {
+    if (
+      contactQuery.error instanceof ContactApiError &&
+      contactQuery.error.status === 403
+    ) {
       return <PermissionState title="You don't have access to this Contact" />;
     }
-    return <ErrorState title="Contact not found" action={{ label: "Back to Contacts", onPress: () => router.push("/crm/contacts") }} />;
+    return (
+      <ErrorState
+        title="Contact not found"
+        action={{
+          label: "Back to Contacts",
+          onPress: () => router.push("/crm/contacts"),
+        }}
+      />
+    );
   }
   if (!contact) return null;
 
@@ -108,16 +187,42 @@ export function ContactDetailScreen({ contactId }: { contactId: string }) {
     <RecordDetailsPage
       header={{
         title: `${contact.firstName} ${contact.lastName || ""}`.trim(),
-        status: <StatusBadge tone={active ? "success" : "neutral"}>{contact.status}</StatusBadge>,
+        status: (
+          <StatusBadge tone={active ? "success" : "neutral"}>
+            {contact.status}
+          </StatusBadge>
+        ),
         fields: [
           { label: "Role", value: contact.designation || "Not set" },
-          { label: "Account", value: contact.accountId ? (accountName ?? "…") : "No account" },
-          ...(contact.isPrimary ? [{ label: "Primary contact", value: "Yes" }] : []),
-          { label: "Open deals", value: dealsQuery.isSuccess ? new Set([...deals.filter((d) => d.status === "open").map((d) => d.id), ...otherDealRoles.filter((r) => (r as { status?: string }).status !== "won" && (r as { status?: string }).status !== "lost").map((r) => r.opportunityId)]).size : "…" },
+          {
+            label: "Account",
+            value: contact.accountId ? (accountName ?? "…") : "No account",
+          },
+          ...(contact.isPrimary
+            ? [{ label: "Primary contact", value: "Yes" }]
+            : []),
+          {
+            label: "Open deals",
+            value: dealsQuery.isSuccess
+              ? new Set([
+                  ...deals.filter((d) => d.status === "open").map((d) => d.id),
+                  ...otherDealRoles
+                    .filter(
+                      (r) =>
+                        (r as { status?: string }).status !== "won" &&
+                        (r as { status?: string }).status !== "lost",
+                    )
+                    .map((r) => r.opportunityId),
+                ]).size
+              : "…",
+          },
         ],
         primaryAction:
           canManage && active ? (
-            <Button variant="secondary" onPress={() => router.push(`/crm/contacts/${contactId}/edit`)}>
+            <Button
+              variant="secondary"
+              onPress={() => router.push(`/crm/contacts/${contactId}/edit`)}
+            >
               <Pencil className="size-4" aria-hidden="true" />
               Edit
             </Button>
@@ -126,10 +231,27 @@ export function ContactDetailScreen({ contactId }: { contactId: string }) {
           active ? (
             <MoreMenu
               isBusy={archiveMutation.isPending}
-              items={[{ id: "archive", label: "Archive contact", danger: true, onAction: () => archiveMutation.mutate(), confirm: { title: "Archive this contact?", description: "The contact stops appearing in active lists. Their history and linked records are kept, and you can reactivate them later.", confirmLabel: "Archive" } }]}
+              items={[
+                {
+                  id: "archive",
+                  label: "Archive contact",
+                  danger: true,
+                  onAction: () => archiveMutation.mutate(),
+                  confirm: {
+                    title: "Archive this contact?",
+                    description:
+                      "The contact stops appearing in active lists. Their history and linked records are kept, and you can reactivate them later.",
+                    confirmLabel: "Archive",
+                  },
+                },
+              ]}
             />
           ) : (
-            <Button variant="secondary" onPress={() => reactivateMutation.mutate()} isLoading={reactivateMutation.isPending}>
+            <Button
+              variant="secondary"
+              onPress={() => reactivateMutation.mutate()}
+              isLoading={reactivateMutation.isPending}
+            >
               <RotateCcw className="size-4" aria-hidden="true" />
               Reactivate
             </Button>
@@ -150,24 +272,89 @@ export function ContactDetailScreen({ contactId }: { contactId: string }) {
 
           <TabPanel id="overview">
             <div className="flex flex-col gap-4 py-4">
-              {conflictMessage && <ConflictBanner message={conflictMessage} onReload={() => router.refresh()} />}
+              {conflictMessage && (
+                <ConflictBanner
+                  message={conflictMessage}
+                  onReload={() => router.refresh()}
+                />
+              )}
               {actionError && (
-                <p role="alert" className="rounded-[var(--radius-control)] border border-danger-emphasis/30 bg-danger-soft px-3 py-2 text-sm text-danger">
+                <p
+                  role="alert"
+                  className="rounded-[var(--radius-control)] border border-danger-emphasis/30 bg-danger-soft px-3 py-2 text-sm text-danger"
+                >
                   {actionError}
                 </p>
               )}
               <ContactDuplicatesPanel contact={contact} canManage={canManage} />
               <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-                <PropertyList title="Reach them" items={[
-                  { label: "Email", value: contact.email ? <a className="text-brand hover:underline" href={`mailto:${contact.email}`}>{contact.email}</a> : null },
-                  { label: "Mobile", value: contact.mobile ? <a className="text-brand hover:underline" href={`tel:${contact.mobile}`}>{contact.mobile}</a> : null },
-                  { label: "Phone", value: contact.phone ? <a className="text-brand hover:underline" href={`tel:${contact.phone}`}>{contact.phone}</a> : null },
-                ]} />
-                <PropertyList title="Preferences" items={[
-                  { label: "Preferred language", value: contact.preferredLanguage ? (LANGUAGES[contact.preferredLanguage] ?? humanize(contact.preferredLanguage)) : null },
-                  { label: "Time zone", value: contact.timezone ? timezoneLabel(contact.timezone) : null },
-                  { label: "Account", value: contact.accountId ? <Link className="text-brand hover:underline" href={`/crm/accounts/${contact.accountId}`}>{accountName ?? "View account"}</Link> : null },
-                ]} />
+                <PropertyList
+                  title="Reach them"
+                  items={[
+                    {
+                      label: "Email",
+                      value: contact.email ? (
+                        <a
+                          className="text-brand hover:underline"
+                          href={`mailto:${contact.email}`}
+                        >
+                          {contact.email}
+                        </a>
+                      ) : null,
+                    },
+                    {
+                      label: "Mobile",
+                      value: contact.mobile ? (
+                        <a
+                          className="text-brand hover:underline"
+                          href={`tel:${contact.mobile}`}
+                        >
+                          {contact.mobile}
+                        </a>
+                      ) : null,
+                    },
+                    {
+                      label: "Phone",
+                      value: contact.phone ? (
+                        <a
+                          className="text-brand hover:underline"
+                          href={`tel:${contact.phone}`}
+                        >
+                          {contact.phone}
+                        </a>
+                      ) : null,
+                    },
+                  ]}
+                />
+                <PropertyList
+                  title="Preferences"
+                  items={[
+                    {
+                      label: "Preferred language",
+                      value: contact.preferredLanguage
+                        ? (LANGUAGES[contact.preferredLanguage] ??
+                          humanize(contact.preferredLanguage))
+                        : null,
+                    },
+                    {
+                      label: "Time zone",
+                      value: contact.timezone
+                        ? timezoneLabel(contact.timezone)
+                        : null,
+                    },
+                    {
+                      label: "Account",
+                      value: contact.accountId ? (
+                        <Link
+                          className="text-brand hover:underline"
+                          href={`/crm/accounts/${contact.accountId}`}
+                        >
+                          {accountName ?? "View account"}
+                        </Link>
+                      ) : null,
+                    },
+                  ]}
+                />
               </div>
               <p className="text-xs text-text-muted">{`Added ${formatDate(contact.createdAt)} · Last updated ${formatDate(contact.updatedAt)}`}</p>
             </div>
@@ -181,35 +368,91 @@ export function ContactDetailScreen({ contactId }: { contactId: string }) {
 
           <TabPanel id="deals">
             <div className="flex flex-col gap-4 py-4">
-              {dealsQuery.isLoading && <p className="text-sm text-text-secondary">Loading deals…</p>}
-              {dealsQuery.isSuccess && deals.length === 0 && otherDealRoles.length === 0 && <p className="text-sm text-text-secondary">This contact is not linked to any opportunity yet.</p>}
-              {dealsQuery.isSuccess && deals.length === 0 && otherDealRoles.length > 0 && <p className="text-sm text-text-secondary">Not the main contact on any deal, but has a role on the deals below.</p>}
+              {dealsQuery.isLoading && (
+                <p className="text-sm text-text-secondary">Loading deals…</p>
+              )}
+              {dealsQuery.isSuccess &&
+                deals.length === 0 &&
+                otherDealRoles.length === 0 && (
+                  <p className="text-sm text-text-secondary">
+                    This contact is not linked to any opportunity yet.
+                  </p>
+                )}
+              {dealsQuery.isSuccess &&
+                deals.length === 0 &&
+                otherDealRoles.length > 0 && (
+                  <p className="text-sm text-text-secondary">
+                    Not the main contact on any deal, but has a role on the
+                    deals below.
+                  </p>
+                )}
               {deals.length > 0 && (
                 <ul className="flex flex-col divide-y divide-border rounded-[var(--radius-card)] border border-border">
                   {deals.map((deal) => (
-                    <li key={deal.id} className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 text-sm">
-                      <Link className="font-medium text-brand hover:underline" href={`/crm/opportunities/${deal.id}`}>{deal.name}</Link>
-                      <span className="text-text-secondary">{[deal.stageName, deal.amount !== null ? formatMoney(deal.currencyCode, deal.amount) : null].filter(Boolean).join(" · ")}</span>
+                    <li
+                      key={deal.id}
+                      className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 text-sm"
+                    >
+                      <Link
+                        className="font-medium text-brand hover:underline"
+                        href={`/crm/opportunities/${deal.id}`}
+                      >
+                        {deal.name}
+                      </Link>
+                      <span className="text-text-secondary">
+                        {[
+                          deal.stageName,
+                          deal.amount !== null
+                            ? formatMoney(deal.currencyCode, deal.amount)
+                            : null,
+                        ]
+                          .filter(Boolean)
+                          .join(" · ")}
+                      </span>
                     </li>
                   ))}
                 </ul>
               )}
               {otherDealRoles.length > 0 && (
                 <div className="flex flex-col gap-1">
-                  <h3 className="text-sm font-semibold text-text">Also has a role on</h3>
+                  <h3 className="text-sm font-semibold text-text">
+                    Also has a role on
+                  </h3>
                   <ul className="flex flex-col divide-y divide-border rounded-[var(--radius-card)] border border-border">
                     {otherDealRoles.map((role) => (
-                      <li key={role.id} className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 text-sm">
-                        <Link className="font-medium text-brand hover:underline" href={`/crm/opportunities/${role.opportunityId}`}>{role.opportunityName}</Link>
-                        <span className="text-text-secondary">{[role.role ? humanize(role.role) : null, role.amount !== null ? formatMoney(role.currencyCode, role.amount) : null].filter(Boolean).join(" · ")}</span>
+                      <li
+                        key={role.id}
+                        className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 text-sm"
+                      >
+                        <Link
+                          className="font-medium text-brand hover:underline"
+                          href={`/crm/opportunities/${role.opportunityId}`}
+                        >
+                          {role.opportunityName}
+                        </Link>
+                        <span className="text-text-secondary">
+                          {[
+                            role.role ? humanize(role.role) : null,
+                            role.amount !== null
+                              ? formatMoney(role.currencyCode, role.amount)
+                              : null,
+                          ]
+                            .filter(Boolean)
+                            .join(" · ")}
+                        </span>
                       </li>
                     ))}
                   </ul>
                 </div>
               )}
               <div className="flex flex-col gap-2">
-                <h3 className="text-sm font-semibold text-text">Accounts this person is linked to</h3>
-                <ContactRelationshipsPanel contactId={contactId} canManage={canManage} />
+                <h3 className="text-sm font-semibold text-text">
+                  Accounts this person is linked to
+                </h3>
+                <ContactRelationshipsPanel
+                  contactId={contactId}
+                  canManage={canManage}
+                />
               </div>
             </div>
           </TabPanel>
@@ -234,7 +477,10 @@ export function ContactDetailScreen({ contactId }: { contactId: string }) {
 
           <TabPanel id="more">
             <div className="py-4">
-              <CustomFieldsRuntimePanel entityType="contact" entityId={contactId} />
+              <CustomFieldsRuntimePanel
+                entityType="contact"
+                entityId={contactId}
+              />
             </div>
           </TabPanel>
         </Tabs>

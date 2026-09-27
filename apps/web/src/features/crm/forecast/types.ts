@@ -98,8 +98,26 @@ export type ForecastCalibrationRow = {
 // plain object calculatePredictiveForecast builds directly in JS, so it
 // IS already camelCase.
 export type PredictiveForecastResult = {
-  snapshot: { id: string; forecast_period_id: string | null; model_version: string; predicted_amount: number | string; confidence_percent: number | string; captured_at: string };
-  forecast: { modelVersion: string; pipelineAmount: number; predictedAmount: number; confidence: number; opportunityCount: number };
+  snapshot: {
+    id: string;
+    forecast_period_id: string | null;
+    model_version: string;
+    predicted_amount: number | string;
+    confidence_percent: number | string;
+    captured_at: string;
+  };
+  forecast: {
+    modelVersion: string;
+    pipelineAmount: number;
+    predictedAmount: number;
+    confidence: number;
+    opportunityCount: number;
+  };
 };
 
-export type CrmListResponse<T> = { rows: T[]; total: number; limit: number; offset: number };
+export type CrmListResponse<T> = {
+  rows: T[];
+  total: number;
+  limit: number;
+  offset: number;
+};

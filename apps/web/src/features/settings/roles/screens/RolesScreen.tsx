@@ -45,29 +45,54 @@ const RISK_OPTIONS = [
 ];
 
 // Derived from the one module catalogue (@vercentlabs/shared-types) — never a local list.
-const MODULE_OPTIONS = [{ value: "platform", label: "Platform" }, ...ERP_MODULE_CATALOG.map((module) => ({ value: module.key, label: module.name }))];
-const MODULE_LABEL = new Map(MODULE_OPTIONS.map((option) => [option.value, option.label]));
-const RISK_LABEL = new Map(RISK_OPTIONS.map((option) => [option.value, option.label]));
+const MODULE_OPTIONS = [
+  { value: "platform", label: "Platform" },
+  ...ERP_MODULE_CATALOG.map((module) => ({
+    value: module.key,
+    label: module.name,
+  })),
+];
+const MODULE_LABEL = new Map(
+  MODULE_OPTIONS.map((option) => [option.value, option.label]),
+);
+const RISK_LABEL = new Map(
+  RISK_OPTIONS.map((option) => [option.value, option.label]),
+);
 
 type EditorState = { mode: "create" } | { mode: "edit"; role: RoleRow };
 
-export function RolesScreen({ canManage, canEdit }: { canManage: boolean; canEdit: boolean }) {
+export function RolesScreen({
+  canManage,
+  canEdit,
+}: {
+  canManage: boolean;
+  canEdit: boolean;
+}) {
   const queryClient = useQueryClient();
   const query = useQuery({ queryKey: ROLES_QUERY_KEY, queryFn: listRoles });
-  const permissionsQuery = useQuery({ queryKey: PERMISSIONS_QUERY_KEY, queryFn: listPermissionCatalog, enabled: canEdit });
+  const permissionsQuery = useQuery({
+    queryKey: PERMISSIONS_QUERY_KEY,
+    queryFn: listPermissionCatalog,
+    enabled: canEdit,
+  });
 
   const [editor, setEditor] = useState<EditorState | null>(null);
   const [archiveTarget, setArchiveTarget] = useState<RoleRow | null>(null);
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [moduleKey, setModuleKey] = useState("platform");
-  const [riskLevel, setRiskLevel] = useState<"standard" | "sensitive" | "privileged">("standard");
+  const [riskLevel, setRiskLevel] = useState<
+    "standard" | "sensitive" | "privileged"
+  >("standard");
   const [selectedPermissions, setSelectedPermissions] = useState<string[]>([]);
   const [formError, setFormError] = useState<string | null>(null);
   const [acknowledgeWarnings, setAcknowledgeWarnings] = useState(false);
 
   const permissionsByCategory = useMemo(() => {
-    const groups = new Map<string, { key: string; name: string; description: string }[]>();
+    const groups = new Map<
+      string,
+      { key: string; name: string; description: string }[]
+    >();
     for (const permission of permissionsQuery.data?.permissions ?? []) {
       const list = groups.get(permission.category) ?? [];
       list.push(permission);
@@ -108,7 +133,9 @@ export function RolesScreen({ canManage, canEdit }: { canManage: boolean; canEdi
         permissionKeys: selectedPermissions,
         acknowledgeWarningConflicts: acknowledgeWarnings,
       };
-      return editor?.mode === "edit" ? updateRole(editor.role.id, input) : createRole(input);
+      return editor?.mode === "edit"
+        ? updateRole(editor.role.id, input)
+        : createRole(input);
     },
     onSuccess: () => {
       setEditor(null);
@@ -116,11 +143,20 @@ export function RolesScreen({ canManage, canEdit }: { canManage: boolean; canEdi
       queryClient.invalidateQueries({ queryKey: ROLES_QUERY_KEY });
     },
     onError: (error: unknown) => {
-      if (error instanceof RolesApiError && error.code === "ACCESS_ADMIN_SOD_WARNING") {
-        setFormError(`${error.message} Check "Acknowledge conflicts" and save again if this is intentional.`);
+      if (
+        error instanceof RolesApiError &&
+        error.code === "ACCESS_ADMIN_SOD_WARNING"
+      ) {
+        setFormError(
+          `${error.message} Check "Acknowledge conflicts" and save again if this is intentional.`,
+        );
         return;
       }
-      setFormError(error instanceof RolesApiError ? error.message : "The role could not be saved.");
+      setFormError(
+        error instanceof RolesApiError
+          ? error.message
+          : "The role could not be saved.",
+      );
     },
   });
 
@@ -130,13 +166,21 @@ export function RolesScreen({ canManage, canEdit }: { canManage: boolean; canEdi
       setArchiveTarget(null);
       queryClient.invalidateQueries({ queryKey: ROLES_QUERY_KEY });
     },
-    onError: (error: unknown) => setFormError(error instanceof RolesApiError ? error.message : "The role could not be removed."),
+    onError: (error: unknown) =>
+      setFormError(
+        error instanceof RolesApiError
+          ? error.message
+          : "The role could not be removed.",
+      ),
   });
 
   if (!canManage) {
     return (
       <div className="flex flex-1 flex-col gap-6">
-        <PermissionState title="You don't have access to Roles and permissions" description="Ask an administrator for access to view roles." />
+        <PermissionState
+          title="You don't have access to Roles and permissions"
+          description="Ask an administrator for access to view roles."
+        />
       </div>
     );
   }
@@ -147,7 +191,11 @@ export function RolesScreen({ canManage, canEdit }: { canManage: boolean; canEdi
     <div className="flex flex-1 flex-col gap-6">
       <PageHeader
         title="Roles and permissions"
-        description={canEdit ? "Built-in roles and your custom roles. Role definitions apply to the whole organization." : "The roles in your organization. Only organization owners and system administrators can change role definitions."}
+        description={
+          canEdit
+            ? "Built-in roles and your custom roles. Role definitions apply to the whole organization."
+            : "The roles in your organization. Only organization owners and system administrators can change role definitions."
+        }
         primaryAction={
           canEdit && (
             <Button variant="primary" onPress={openCreate}>
@@ -160,35 +208,69 @@ export function RolesScreen({ canManage, canEdit }: { canManage: boolean; canEdi
       {query.isLoading ? (
         <p className="text-sm text-text-secondary">Loading…</p>
       ) : query.isError ? (
-        <ErrorState title="Could not load roles" description="Something went wrong." action={{ label: "Retry", onPress: () => query.refetch() }} />
+        <ErrorState
+          title="Could not load roles"
+          description="Something went wrong."
+          action={{ label: "Retry", onPress: () => query.refetch() }}
+        />
       ) : roles.length === 0 ? (
         <EmptyState title="No roles yet" />
       ) : (
         <ul className="flex max-w-[860px] flex-col gap-2">
           {roles.map((role) => (
-            <li key={role.id} className="flex flex-col gap-3 rounded-[var(--radius-card)] border border-border bg-surface p-4 sm:flex-row sm:items-center sm:justify-between">
+            <li
+              key={role.id}
+              className="flex flex-col gap-3 rounded-[var(--radius-card)] border border-border bg-surface p-4 sm:flex-row sm:items-center sm:justify-between"
+            >
               <div className="flex min-w-0 flex-col gap-1">
                 <div className="flex flex-wrap items-center gap-2">
-                  <span className="text-sm font-medium text-text">{role.name}</span>
-                  <Badge tone={RISK_TONE[role.risk_level] ?? "success"}>{RISK_LABEL.get(role.risk_level) ?? "Standard"}</Badge>
+                  <span className="text-sm font-medium text-text">
+                    {role.name}
+                  </span>
+                  <Badge tone={RISK_TONE[role.risk_level] ?? "success"}>
+                    {RISK_LABEL.get(role.risk_level) ?? "Standard"}
+                  </Badge>
                   {role.is_system && <Badge tone="neutral">Built-in</Badge>}
-                  {!role.assignable && <Badge tone="neutral">Not directly assignable</Badge>}
+                  {!role.assignable && (
+                    <Badge tone="neutral">Not directly assignable</Badge>
+                  )}
                 </div>
-                {role.description ? <span className="text-xs text-text-muted">{role.description}</span> : null}
+                {role.description ? (
+                  <span className="text-xs text-text-muted">
+                    {role.description}
+                  </span>
+                ) : null}
                 <span className="text-xs text-text-muted">
-                  {MODULE_LABEL.get(role.module_key) ?? "Platform"} · {role.permission_keys.length} permission{role.permission_keys.length === 1 ? "" : "s"} · {role.assigned_user_count} user{role.assigned_user_count === 1 ? "" : "s"} assigned
+                  {MODULE_LABEL.get(role.module_key) ?? "Platform"} ·{" "}
+                  {role.permission_keys.length} permission
+                  {role.permission_keys.length === 1 ? "" : "s"} ·{" "}
+                  {role.assigned_user_count} user
+                  {role.assigned_user_count === 1 ? "" : "s"} assigned
                 </span>
                 {role.is_system && canEdit ? (
-                  <span className="text-xs text-text-muted">Built-in role: its permissions are maintained by the system and cannot be edited. To grant different access, create a custom role.</span>
+                  <span className="text-xs text-text-muted">
+                    Built-in role: its permissions are maintained by the system
+                    and cannot be edited. To grant different access, create a
+                    custom role.
+                  </span>
                 ) : null}
               </div>
               {canEdit && (
                 <div className="flex flex-wrap gap-2 sm:shrink-0">
-                  <Button variant="secondary" size="compact" onPress={() => openEdit(role)} isDisabled={role.is_system}>
+                  <Button
+                    variant="secondary"
+                    size="compact"
+                    onPress={() => openEdit(role)}
+                    isDisabled={role.is_system}
+                  >
                     {role.is_system ? "Built-in" : "Edit"}
                   </Button>
                   {!role.is_system && (
-                    <Button variant="secondary" size="compact" onPress={() => setArchiveTarget(role)}>
+                    <Button
+                      variant="secondary"
+                      size="compact"
+                      onPress={() => setArchiveTarget(role)}
+                    >
                       Remove
                     </Button>
                   )}
@@ -202,19 +284,39 @@ export function RolesScreen({ canManage, canEdit }: { canManage: boolean; canEdi
       <Dialog
         isOpen={Boolean(editor)}
         onOpenChange={(open) => !open && setEditor(null)}
-        title={editor?.mode === "edit" ? `Edit role — ${editor.role.name}` : "New role"}
+        title={
+          editor?.mode === "edit"
+            ? `Edit role — ${editor.role.name}`
+            : "New role"
+        }
       >
         <div className="flex max-h-[70vh] flex-col gap-4 overflow-y-auto">
-          <TextField label="Role name" isRequired value={name} onChange={setName} />
-          <TextField label="Description" value={description} onChange={setDescription} />
+          <TextField
+            label="Role name"
+            isRequired
+            value={name}
+            onChange={setName}
+          />
+          <TextField
+            label="Description"
+            value={description}
+            onChange={setDescription}
+          />
           {editor?.mode === "create" && (
-            <Select label="Module" options={MODULE_OPTIONS} selectedKey={moduleKey} onSelectionChange={(key) => setModuleKey(String(key))} />
+            <Select
+              label="Module"
+              options={MODULE_OPTIONS}
+              selectedKey={moduleKey}
+              onSelectionChange={(key) => setModuleKey(String(key))}
+            />
           )}
           <Select
             label="Risk level"
             options={RISK_OPTIONS}
             selectedKey={riskLevel}
-            onSelectionChange={(key) => setRiskLevel(String(key) as typeof riskLevel)}
+            onSelectionChange={(key) =>
+              setRiskLevel(String(key) as typeof riskLevel)
+            }
           />
 
           <div className="flex flex-col gap-2">
@@ -222,22 +324,39 @@ export function RolesScreen({ canManage, canEdit }: { canManage: boolean; canEdi
               Permissions ({selectedPermissions.length} selected)
             </span>
             {permissionsQuery.isLoading ? (
-              <p className="text-sm text-text-secondary">Loading permissions…</p>
+              <p className="text-sm text-text-secondary">
+                Loading permissions…
+              </p>
             ) : (
               <div className="flex flex-col gap-1">
                 {permissionsByCategory.map(([category, permissions]) => (
-                  <details key={category} className="rounded-[var(--radius-control)] border border-border p-2">
+                  <details
+                    key={category}
+                    className="rounded-[var(--radius-control)] border border-border p-2"
+                  >
                     <summary className="cursor-pointer text-sm font-medium text-text">
-                      {category} ({permissions.filter((p) => selectedPermissions.includes(p.key)).length}/{permissions.length})
+                      {category} (
+                      {
+                        permissions.filter((p) =>
+                          selectedPermissions.includes(p.key),
+                        ).length
+                      }
+                      /{permissions.length})
                     </summary>
                     <div className="mt-2 flex flex-col gap-1 pl-2">
                       {permissions.map((permission) => (
                         <Checkbox
                           key={permission.key}
-                          isSelected={selectedPermissions.includes(permission.key)}
+                          isSelected={selectedPermissions.includes(
+                            permission.key,
+                          )}
                           onChange={(isSelected) =>
                             setSelectedPermissions((current) =>
-                              isSelected ? [...current, permission.key] : current.filter((key) => key !== permission.key),
+                              isSelected
+                                ? [...current, permission.key]
+                                : current.filter(
+                                    (key) => key !== permission.key,
+                                  ),
                             )
                           }
                         >
@@ -257,14 +376,22 @@ export function RolesScreen({ canManage, canEdit }: { canManage: boolean; canEdi
                 {formError}
               </p>
               {formError.includes("Acknowledge conflicts") && (
-                <Checkbox isSelected={acknowledgeWarnings} onChange={setAcknowledgeWarnings}>
+                <Checkbox
+                  isSelected={acknowledgeWarnings}
+                  onChange={setAcknowledgeWarnings}
+                >
                   Acknowledge conflicts and continue
                 </Checkbox>
               )}
             </div>
           ) : null}
 
-          <Button variant="primary" isLoading={saveMutation.isPending} onPress={() => saveMutation.mutate()} className="self-start">
+          <Button
+            variant="primary"
+            isLoading={saveMutation.isPending}
+            onPress={() => saveMutation.mutate()}
+            className="self-start"
+          >
             Save role
           </Button>
         </div>

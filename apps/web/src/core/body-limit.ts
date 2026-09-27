@@ -3,9 +3,13 @@ import { HttpError } from "./http-errors.ts";
 export const MAX_JSON_BYTES = 100_000;
 
 // Bounds the bytes actually received; Content-Length may be absent or false.
-export async function readJsonBody(request: Request, maximumBytes = MAX_JSON_BYTES): Promise<unknown> {
+export async function readJsonBody(
+  request: Request,
+  maximumBytes = MAX_JSON_BYTES,
+): Promise<unknown> {
   const declared = Number(request.headers.get("content-length") || "0");
-  if (declared > maximumBytes) throw new HttpError(413, "The request is too large.");
+  if (declared > maximumBytes)
+    throw new HttpError(413, "The request is too large.");
   const chunks: Uint8Array[] = [];
   let total = 0;
   const reader = request.body?.getReader();

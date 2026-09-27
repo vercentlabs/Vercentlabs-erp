@@ -28,7 +28,10 @@ const lineSchema = z.object({
 // OPERATIONS: NON_CASH_TENDER) -- the enum below intentionally has just
 // one member so a non-cash tender fails Zod validation before it ever
 // reaches syncOfflinePosSale's own (defense-in-depth) cash-only check.
-const paymentSchema = z.object({ method: z.literal("cash"), amount: z.number().positive() });
+const paymentSchema = z.object({
+  method: z.literal("cash"),
+  amount: z.number().positive(),
+});
 
 const transactionSchema = z.object({
   localTransactionId: z.string().uuid(),
@@ -52,29 +55,40 @@ const syncSchema = z.object({
 // gets its own idempotency reservation keyed on its own local transaction
 // id (see syncOfflinePosSale).
 export async function POST(request: Request) {
-  return workspaceRoute(request, { module: "point-of-sale", permission: "pos.offline.sync", billingWrite: true }, async ({ client, session }) => {
-    const input = syncSchema.parse(await readJson(request));
+  return workspaceRoute(
+    request,
+    {
+      module: "point-of-sale",
+      permission: "pos.offline.sync",
+      billingWrite: true,
+    },
+    async ({ client, session }) => {
+      const input = syncSchema.parse(await readJson(request));
 
-    const results = [];
-    for (const transaction of input.transactions) {
-      try {
-    const result = await (async () => {
-          return syncOfflinePosSale(client, posContext(session), transaction);
-    })();
-        results.push(result);
-      } catch (error) {
-        const status = (error as { status?: number })?.status;
-        const code = (error as { code?: string })?.code;
-        const message = error instanceof Error ? error.message : "The offline sale could not be synced.";
-        results.push({
-          outcome: "error",
-          localTransactionId: transaction.localTransactionId,
-          status: status || 500,
-          code: code || "POS_OFFLINE_SYNC_FAILED",
-          detail: message,
-        });
+      const results = [];
+      for (const transaction of input.transactions) {
+        try {
+          const result = await (async () => {
+            return syncOfflinePosSale(client, posContext(session), transaction);
+          })();
+          results.push(result);
+        } catch (error) {
+          const status = (error as { status?: number })?.status;
+          const code = (error as { code?: string })?.code;
+          const message =
+            error instanceof Error
+              ? error.message
+              : "The offline sale could not be synced.";
+          results.push({
+            outcome: "error",
+            localTransactionId: transaction.localTransactionId,
+            status: status || 500,
+            code: code || "POS_OFFLINE_SYNC_FAILED",
+            detail: message,
+          });
+        }
       }
-    }
-    return ok({ results });
-  });
+      return ok({ results });
+    },
+  );
 }

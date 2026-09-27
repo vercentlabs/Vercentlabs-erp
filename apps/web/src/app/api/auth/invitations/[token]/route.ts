@@ -7,10 +7,15 @@ import { errorResponse, ok } from "@/core/http";
 // name and role before the invitee has any session at all. The token
 // itself (a 32-byte random value, never guessable) is the only
 // credential; no email/password is exposed by this lookup.
-export async function GET(_request: Request, context: { params: Promise<{ token: string }> }) {
+export async function GET(
+  _request: Request,
+  context: { params: Promise<{ token: string }> },
+) {
   try {
     const { token } = await context.params;
-    const invitation = await withIngressClient((client) => getInvitationByToken(client, token));
+    const invitation = await withIngressClient((client) =>
+      getInvitationByToken(client, token),
+    );
     return ok({
       organizationName: invitation.organization_name,
       roleName: invitation.role_name,

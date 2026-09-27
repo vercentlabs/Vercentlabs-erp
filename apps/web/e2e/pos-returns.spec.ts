@@ -1,5 +1,10 @@
 import { test, expect } from "@playwright/test";
-import { getPosWorld, openPersonaSession, resetTerminalCarts, withPosDb } from "./pos-fixtures";
+import {
+  getPosWorld,
+  openPersonaSession,
+  resetTerminalCarts,
+  withPosDb,
+} from "./pos-fixtures";
 
 // Task journey #7: find a completed sale by receipt number, request a
 // return, have a genuinely separate, higher-permission session approve and
@@ -12,7 +17,9 @@ import { getPosWorld, openPersonaSession, resetTerminalCarts, withPosDb } from "
 // requester !== approver independent of permissions (F268/F291 test
 // suites), so this needs two real sessions regardless.
 
-test("cashier finds a completed sale, requests a return, and a separate manager approves and completes the refund", async ({ browser }) => {
+test("cashier finds a completed sale, requests a return, and a separate manager approves and completes the refund", async ({
+  browser,
+}) => {
   const world = await getPosWorld();
   test.setTimeout(240_000);
   // unique per run: earlier runs leave returns with the same reason in the shared fixture org, which made the row locator ambiguous
@@ -26,53 +33,90 @@ test("cashier finds a completed sale, requests a return, and a separate manager 
   let stockBefore = 0;
   try {
     await Promise.all([
-      cashierSession.page.waitForResponse((res) => res.url().endsWith("/api/pos/carts") && res.request().method() === "POST"),
-      cashierSession.page.goto("/pos/checkout", { waitUntil: "domcontentloaded" }),
+      cashierSession.page.waitForResponse(
+        (res) =>
+          res.url().endsWith("/api/pos/carts") &&
+          res.request().method() === "POST",
+      ),
+      cashierSession.page.goto("/pos/checkout", {
+        waitUntil: "domcontentloaded",
+      }),
     ]);
 
-    await cashierSession.page.getByLabel("Search products").fill(world.itemCode);
-    const productButton = cashierSession.page.getByRole("button", { name: new RegExp(world.itemName) });
+    await cashierSession.page
+      .getByLabel("Search products")
+      .fill(world.itemCode);
+    const productButton = cashierSession.page.getByRole("button", {
+      name: new RegExp(world.itemName),
+    });
     await expect(productButton).toBeVisible();
     await productButton.click();
-    await expect(cashierSession.page.getByText("INR 250.00 each")).toBeVisible();
+    await expect(
+      cashierSession.page.getByText("INR 250.00 each"),
+    ).toBeVisible();
 
-    const cashTenderedInput = cashierSession.page.getByRole("textbox", { name: "Amount" });
+    const cashTenderedInput = cashierSession.page.getByRole("textbox", {
+      name: "Amount",
+    });
     await cashTenderedInput.click();
     await cashTenderedInput.press("Control+A");
     await cashTenderedInput.pressSequentially("500");
     await cashTenderedInput.blur();
 
     const [completeResponse] = await Promise.all([
-      cashierSession.page.waitForResponse((res) => res.url().includes("/api/pos/carts/") && res.url().endsWith("/complete")),
-      cashierSession.page.getByRole("button", { name: /Complete sale/i }).click(),
+      cashierSession.page.waitForResponse(
+        (res) =>
+          res.url().includes("/api/pos/carts/") &&
+          res.url().endsWith("/complete"),
+      ),
+      cashierSession.page
+        .getByRole("button", { name: /Complete sale/i })
+        .click(),
     ]);
-    const sale = (await completeResponse.json()).sale as { id: string; receipt_number: string };
+    const sale = (await completeResponse.json()).sale as {
+      id: string;
+      receipt_number: string;
+    };
     receiptNumber = sale.receipt_number;
     saleId = sale.id;
     await expect(cashierSession.page.getByText("Sale complete")).toBeVisible();
 
     stockBefore = await withPosDb((client) =>
       client
-        .query(`SELECT quantity FROM tenant.stock_balances WHERE organization_id=$1 AND item_id=$2 AND warehouse_id=$3`, [world.organizationId, world.itemId, world.warehouseId])
+        .query(
+          `SELECT quantity FROM tenant.stock_balances WHERE organization_id=$1 AND item_id=$2 AND warehouse_id=$3`,
+          [world.organizationId, world.itemId, world.warehouseId],
+        )
         .then((r) => Number(r.rows[0].quantity)),
     );
 
     // Real UI journey: find the sale by receipt number and request a
     // return with restock.
-    await cashierSession.page.goto("/pos/returns", { waitUntil: "domcontentloaded" });
-    await cashierSession.page.getByRole("button", { name: "New return" }).first().click();
+    await cashierSession.page.goto("/pos/returns", {
+      waitUntil: "domcontentloaded",
+    });
+    await cashierSession.page
+      .getByRole("button", { name: "New return" })
+      .first()
+      .click();
     await cashierSession.page.getByLabel("Receipt number").fill(receiptNumber);
     const [findResponse] = await Promise.all([
-      cashierSession.page.waitForResponse((res) => res.url().includes("/api/pos/returns/find")),
+      cashierSession.page.waitForResponse((res) =>
+        res.url().includes("/api/pos/returns/find"),
+      ),
       cashierSession.page.getByRole("button", { name: "Find sale" }).click(),
     ]);
     expect(findResponse.status()).toBe(200);
-    await expect(cashierSession.page.getByText(`Receipt ${receiptNumber}`)).toBeVisible();
+    await expect(
+      cashierSession.page.getByText(`Receipt ${receiptNumber}`),
+    ).toBeVisible();
 
     // react-aria's NumberField renders role="textbox" (not "spinbutton")
     // and only picks up a value through real keystroke events -- see
     // pos-checkout.spec.ts's identical note for the cash "Amount" field.
-    const quantityInput = cashierSession.page.getByRole("textbox", { name: /Quantity to return for/i });
+    const quantityInput = cashierSession.page.getByRole("textbox", {
+      name: /Quantity to return for/i,
+    });
     await quantityInput.click();
     await quantityInput.press("Control+A");
     await quantityInput.pressSequentially("1");
@@ -83,14 +127,26 @@ test("cashier finds a completed sale, requests a return, and a separate manager 
     // the test timeout. Clicking the visible label text triggers the
     // native label-for-input toggle instead.
     await cashierSession.page.getByText("Restock", { exact: true }).click();
-    await expect(cashierSession.page.getByRole("checkbox", { name: "Restock" })).toBeChecked();
+    await expect(
+      cashierSession.page.getByRole("checkbox", { name: "Restock" }),
+    ).toBeChecked();
     await cashierSession.page.getByLabel("Reason").fill(returnReason);
 
     const [createReturnResponse] = await Promise.all([
-      cashierSession.page.waitForResponse((res) => res.url().endsWith("/api/pos/returns") && res.request().method() === "POST"),
-      cashierSession.page.getByRole("button", { name: "Request return" }).click(),
+      cashierSession.page.waitForResponse(
+        (res) =>
+          res.url().endsWith("/api/pos/returns") &&
+          res.request().method() === "POST",
+      ),
+      cashierSession.page
+        .getByRole("button", { name: "Request return" })
+        .click(),
     ]);
-    const createdReturn = (await createReturnResponse.json()).posReturn as { id: string; status: string; refund_total: string };
+    const createdReturn = (await createReturnResponse.json()).posReturn as {
+      id: string;
+      status: string;
+      refund_total: string;
+    };
     returnId = createdReturn.id;
     expect(createdReturn.status).toBe("pending_approval");
     expect(createdReturn.refund_total).toBe("295.000000"); // full line: 250 + 18% GST
@@ -103,7 +159,9 @@ test("cashier finds a completed sale, requests a return, and a separate manager 
     // rows sitting in the same list. Scoping to this return's own row (by
     // its unique reason text) makes every status check unambiguous
     // regardless of how many other returns exist in the org.
-    const returnRowLocator = cashierSession.page.getByRole("row", { name: new RegExp(returnReason) });
+    const returnRowLocator = cashierSession.page.getByRole("row", {
+      name: new RegExp(returnReason),
+    });
     await expect(returnRowLocator.getByText("pending approval")).toBeVisible();
   } finally {
     await cashierSession.context.close();
@@ -113,48 +171,83 @@ test("cashier finds a completed sale, requests a return, and a separate manager 
   // and completes the refund.
   const managerSession = await openPersonaSession(browser, world.manager);
   try {
-    await managerSession.page.goto("/pos/returns", { waitUntil: "domcontentloaded" });
-    const managerRowLocator = managerSession.page.getByRole("row", { name: new RegExp(returnReason) });
+    await managerSession.page.goto("/pos/returns", {
+      waitUntil: "domcontentloaded",
+    });
+    const managerRowLocator = managerSession.page.getByRole("row", {
+      name: new RegExp(returnReason),
+    });
     await expect(managerRowLocator.getByText("pending approval")).toBeVisible();
 
     const [approveResponse] = await Promise.all([
-      managerSession.page.waitForResponse((res) => res.url().includes(`/api/pos/returns/${returnId}/approve`)),
+      managerSession.page.waitForResponse((res) =>
+        res.url().includes(`/api/pos/returns/${returnId}/approve`),
+      ),
       managerRowLocator.getByRole("button", { name: "Approve" }).click(),
     ]);
     const approveBody = await approveResponse.json();
     expect(approveResponse.status(), JSON.stringify(approveBody)).toBe(200);
     expect(approveBody.posReturn.status).toBe("approved");
-    await expect(managerRowLocator.getByText("Approved", { exact: true })).toBeVisible();
+    await expect(
+      managerRowLocator.getByText("Approved", { exact: true }),
+    ).toBeVisible();
 
     // Completing a refund is irreversible, so the screen asks for confirmation
     // first: open it from the row, then confirm in the alert dialog.
-    await managerRowLocator.getByRole("button", { name: "Complete refund" }).click();
+    await managerRowLocator
+      .getByRole("button", { name: "Complete refund" })
+      .click();
     const [completeReturnResponse] = await Promise.all([
-      managerSession.page.waitForResponse((res) => res.url().includes(`/api/pos/returns/${returnId}/complete`)),
-      managerSession.page.getByRole("alertdialog").getByRole("button", { name: "Complete refund" }).click(),
+      managerSession.page.waitForResponse((res) =>
+        res.url().includes(`/api/pos/returns/${returnId}/complete`),
+      ),
+      managerSession.page
+        .getByRole("alertdialog")
+        .getByRole("button", { name: "Complete refund" })
+        .click(),
     ]);
     const completeBody = await completeReturnResponse.json();
-    expect(completeReturnResponse.status(), JSON.stringify(completeBody)).toBe(200);
+    expect(completeReturnResponse.status(), JSON.stringify(completeBody)).toBe(
+      200,
+    );
     expect(completeBody.posReturn.status).toBe("completed");
-    await expect(managerRowLocator.getByText("Completed", { exact: true })).toBeVisible();
+    await expect(
+      managerRowLocator.getByText("Completed", { exact: true }),
+    ).toBeVisible();
 
     // Real Postgres facts: return completed, stock restored, sale status
     // reflects the return.
     const returnRow = await withPosDb((client) =>
-      client.query(`SELECT status, refund_total FROM tenant.pos_returns WHERE organization_id=$1 AND id=$2`, [world.organizationId, returnId]).then((r) => r.rows[0]),
+      client
+        .query(
+          `SELECT status, refund_total FROM tenant.pos_returns WHERE organization_id=$1 AND id=$2`,
+          [world.organizationId, returnId],
+        )
+        .then((r) => r.rows[0]),
     );
     expect(returnRow.status).toBe("completed");
 
     const stockAfter = await withPosDb((client) =>
       client
-        .query(`SELECT quantity FROM tenant.stock_balances WHERE organization_id=$1 AND item_id=$2 AND warehouse_id=$3`, [world.organizationId, world.itemId, world.warehouseId])
+        .query(
+          `SELECT quantity FROM tenant.stock_balances WHERE organization_id=$1 AND item_id=$2 AND warehouse_id=$3`,
+          [world.organizationId, world.itemId, world.warehouseId],
+        )
         .then((r) => Number(r.rows[0].quantity)),
     );
-    expect(stockAfter - stockBefore, "the returned unit must be restocked (return was created with restock=true)").toBe(1);
+    expect(
+      stockAfter - stockBefore,
+      "the returned unit must be restocked (return was created with restock=true)",
+    ).toBe(1);
     expect(completeBody.posReturn.saleStatus).toBeTruthy();
 
     const saleRow = await withPosDb((client) =>
-      client.query(`SELECT status FROM tenant.pos_sales WHERE organization_id=$1 AND id=$2`, [world.organizationId, saleId]).then((r) => r.rows[0]),
+      client
+        .query(
+          `SELECT status FROM tenant.pos_sales WHERE organization_id=$1 AND id=$2`,
+          [world.organizationId, saleId],
+        )
+        .then((r) => r.rows[0]),
     );
     expect(saleRow.status).toBe(completeBody.posReturn.saleStatus);
   } finally {

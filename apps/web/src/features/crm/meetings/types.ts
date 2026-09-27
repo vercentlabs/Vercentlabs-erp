@@ -1,12 +1,18 @@
 // crm_activities rows where activity_type='meeting', camelized by
 // meeting-operations.js's dto(). See MEETING_FIELDS for the writable subset.
-export type MeetingAttendee = { contactId?: string | null; name: string; email: string; responseStatus?: "needs_action" | "accepted" | "declined" | "tentative" };
+export type MeetingAttendee = {
+  contactId?: string | null;
+  name: string;
+  email: string;
+  responseStatus?: "needs_action" | "accepted" | "declined" | "tentative";
+};
 
 export type Meeting = {
   id: string;
   companyId: string | null;
   branchId: string | null;
-  entityType: "lead" | "opportunity" | "party" | "contact" | "campaign" | "general";
+  entityType:
+    "lead" | "opportunity" | "party" | "contact" | "campaign" | "general";
   entityId: string | null;
   subject: string;
   description: string | null;
@@ -37,4 +43,9 @@ export type MeetingListFilters = {
   offset?: number;
 };
 
-export type MeetingListResponse = { rows: Meeting[]; total: number; limit: number; offset: number };
+export type MeetingListResponse = {
+  rows: Meeting[];
+  total: number;
+  limit: number;
+  offset: number;
+};

@@ -5,7 +5,24 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Pencil } from "lucide-react";
-import { Button, ConflictBanner, ErrorState, PermissionState, RecordDetailsPage, StatusBadge, Tab, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow, TabList, TabPanel, Tabs } from "@vercentlabs/design-system";
+import {
+  Button,
+  ConflictBanner,
+  ErrorState,
+  PermissionState,
+  RecordDetailsPage,
+  StatusBadge,
+  Tab,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeaderCell,
+  TableRow,
+  TabList,
+  TabPanel,
+  Tabs,
+} from "@vercentlabs/design-system";
 import { CRM_PERMISSIONS } from "@vercentlabs/permissions";
 import { LoadingState } from "@/shared/ui/LoadingState";
 
@@ -16,11 +33,21 @@ import { NotesPanel } from "@/features/crm/shared/NotesPanel";
 import { CrmAttachmentPanel } from "@/features/crm/shared/CrmAttachmentPanel";
 import { CustomFieldsRuntimePanel } from "@/features/crm/shared/CustomFieldsRuntimePanel";
 import { toNumber } from "@/features/crm/shared/format";
-import { countryName, currencyName, formatDate, formatMoney, humanize } from "@/shared/format/human";
+import {
+  countryName,
+  currencyName,
+  formatDate,
+  formatMoney,
+  humanize,
+} from "@/shared/format/human";
 import { MoreMenu } from "@/features/crm/shared/ui/MoreMenu";
 import { PropertyList } from "@/features/crm/shared/ui/PropertyList";
 import { listOpportunities } from "@/features/crm/opportunities/api/opportunities-api";
-import { AccountApiError, archiveAccount, getAccount } from "../api/accounts-api";
+import {
+  AccountApiError,
+  archiveAccount,
+  getAccount,
+} from "../api/accounts-api";
 import { AccountCustomer360Panel } from "../components/AccountCustomer360Panel";
 import { AccountHierarchyPanel } from "../components/AccountHierarchyPanel";
 import { AccountDuplicatesPanel } from "../components/AccountDuplicatesPanel";
@@ -29,7 +56,13 @@ import { AccountContactRelationshipsPanel } from "../components/AccountContactRe
 import { EmailHistoryPanel } from "@/features/crm/shared/EmailHistoryPanel";
 import { AccountPrivacyPanel } from "../components/AccountPrivacyPanel";
 
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
+function Section({
+  title,
+  children,
+}: {
+  title: string;
+  children: React.ReactNode;
+}) {
   return (
     <section className="flex flex-col gap-2">
       <h3 className="text-sm font-semibold text-text">{title}</h3>
@@ -42,7 +75,9 @@ export function AccountDetailScreen({ accountId }: { accountId: string }) {
   const router = useRouter();
   const queryClient = useQueryClient();
   const workspace = useWorkspaceContext();
-  const canManage = workspace.permissions.includes(CRM_PERMISSIONS.accountsManage);
+  const canManage = workspace.permissions.includes(
+    CRM_PERMISSIONS.accountsManage,
+  );
   const [conflictMessage, setConflictMessage] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
 
@@ -53,7 +88,13 @@ export function AccountDetailScreen({ accountId }: { accountId: string }) {
   const account = accountQuery.data?.record;
 
   const opportunitiesQuery = useQuery({
-    queryKey: scopedQueryKey(workspace, "crm", "accounts", accountId, "opportunities"),
+    queryKey: scopedQueryKey(
+      workspace,
+      "crm",
+      "accounts",
+      accountId,
+      "opportunities",
+    ),
     queryFn: () => listOpportunities({ partyId: accountId, limit: 50 }),
     enabled: Boolean(account),
   });
@@ -66,23 +107,45 @@ export function AccountDetailScreen({ accountId }: { accountId: string }) {
     mutationFn: () => archiveAccount(accountId, account!.updatedAt),
     onSuccess: () => {
       setActionError(null);
-      queryClient.invalidateQueries({ queryKey: scopedQueryKey(workspace, "crm", "accounts") });
+      queryClient.invalidateQueries({
+        queryKey: scopedQueryKey(workspace, "crm", "accounts"),
+      });
     },
     onError: (error: unknown) => {
-      if (error instanceof AccountApiError && error.code === "CRM_STALE_WRITE") {
+      if (
+        error instanceof AccountApiError &&
+        error.code === "CRM_STALE_WRITE"
+      ) {
         setConflictMessage(error.message);
         return;
       }
-      setActionError(error instanceof Error ? error.message : "This action could not be completed.");
+      setActionError(
+        error instanceof Error
+          ? error.message
+          : "This action could not be completed.",
+      );
     },
   });
 
-  if (accountQuery.isLoading) return <LoadingState label="Loading account" rows={3} />;
+  if (accountQuery.isLoading)
+    return <LoadingState label="Loading account" rows={3} />;
   if (accountQuery.isError) {
-    if (accountQuery.error instanceof AccountApiError && accountQuery.error.status === 403) {
+    if (
+      accountQuery.error instanceof AccountApiError &&
+      accountQuery.error.status === 403
+    ) {
       return <PermissionState title="You don't have access to this Account" />;
     }
-    return <ErrorState title="Account not found" description="This Account may have been merged or removed." action={{ label: "Back to Accounts", onPress: () => router.push("/crm/accounts") }} />;
+    return (
+      <ErrorState
+        title="Account not found"
+        description="This Account may have been merged or removed."
+        action={{
+          label: "Back to Accounts",
+          onPress: () => router.push("/crm/accounts"),
+        }}
+      />
+    );
   }
   if (!account) return null;
 
@@ -93,16 +156,33 @@ export function AccountDetailScreen({ accountId }: { accountId: string }) {
     <RecordDetailsPage
       header={{
         title: account.displayName,
-        status: <StatusBadge tone={active ? "success" : "neutral"}>{account.status}</StatusBadge>,
+        status: (
+          <StatusBadge tone={active ? "success" : "neutral"}>
+            {account.status}
+          </StatusBadge>
+        ),
         fields: [
           { label: "Industry", value: account.industry || "Not set" },
           { label: "Contacts", value: contacts },
-          { label: "Open opportunities", value: opportunitiesQuery.isSuccess ? open.length : "…" },
-          { label: "Open pipeline", value: opportunitiesQuery.isSuccess ? (open.length ? formatMoney(currency, pipelineValue) : "None") : "…" },
+          {
+            label: "Open opportunities",
+            value: opportunitiesQuery.isSuccess ? open.length : "…",
+          },
+          {
+            label: "Open pipeline",
+            value: opportunitiesQuery.isSuccess
+              ? open.length
+                ? formatMoney(currency, pipelineValue)
+                : "None"
+              : "…",
+          },
         ],
         primaryAction:
           canManage && active ? (
-            <Button variant="secondary" onPress={() => router.push(`/crm/accounts/${accountId}/edit`)}>
+            <Button
+              variant="secondary"
+              onPress={() => router.push(`/crm/accounts/${accountId}/edit`)}
+            >
               <Pencil className="size-4" aria-hidden="true" />
               Edit
             </Button>
@@ -111,7 +191,20 @@ export function AccountDetailScreen({ accountId }: { accountId: string }) {
           canManage && active ? (
             <MoreMenu
               isBusy={archiveMutation.isPending}
-              items={[{ id: "archive", label: "Archive account", danger: true, onAction: () => archiveMutation.mutate(), confirm: { title: "Archive this account?", description: "It stops appearing in active lists and can no longer be edited. Its contacts, opportunities and history are kept.", confirmLabel: "Archive" } }]}
+              items={[
+                {
+                  id: "archive",
+                  label: "Archive account",
+                  danger: true,
+                  onAction: () => archiveMutation.mutate(),
+                  confirm: {
+                    title: "Archive this account?",
+                    description:
+                      "It stops appearing in active lists and can no longer be edited. Its contacts, opportunities and history are kept.",
+                    confirmLabel: "Archive",
+                  },
+                },
+              ]}
             />
           ) : undefined,
       }}
@@ -132,37 +225,89 @@ export function AccountDetailScreen({ accountId }: { accountId: string }) {
 
           <TabPanel id="overview">
             <div className="flex flex-col gap-4 py-4">
-              {conflictMessage && <ConflictBanner message={conflictMessage} onReload={() => router.refresh()} />}
+              {conflictMessage && (
+                <ConflictBanner
+                  message={conflictMessage}
+                  onReload={() => router.refresh()}
+                />
+              )}
               {actionError && (
-                <p role="alert" className="rounded-[var(--radius-control)] border border-danger-emphasis/30 bg-danger-soft px-3 py-2 text-sm text-danger">
+                <p
+                  role="alert"
+                  className="rounded-[var(--radius-control)] border border-danger-emphasis/30 bg-danger-soft px-3 py-2 text-sm text-danger"
+                >
                   {actionError}
                 </p>
               )}
               <AccountDuplicatesPanel account={account} canManage={canManage} />
               <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-                <PropertyList title="Company" items={[
-                  { label: "Legal name", value: account.legalName },
-                  { label: "Industry", value: account.industry },
-                  { label: "Owner", value: account.ownerName ?? "Shared (no owner)" },
-                  { label: "Website", value: account.website ? <a className="text-brand hover:underline" href={account.website.startsWith("http") ? account.website : `https://${account.website}`} target="_blank" rel="noreferrer">{account.website}</a> : null },
-                  { label: "Currency", value: account.currencyCode ? `${currencyName(account.currencyCode)} (${account.currencyCode})` : null },
-                ]} />
-                <PropertyList title="Contact details" items={[
-                  { label: "Email", value: account.email },
-                  { label: "Phone", value: account.phone },
-                ]} />
-                <PropertyList title="Address" items={[
-                  { label: "Street", value: [account.addressLine1, account.addressLine2].filter(Boolean).join(", ") },
-                  { label: "City", value: account.city },
-                  { label: "State", value: account.state },
-                  { label: "Postal code", value: account.postalCode },
-                  { label: "Country", value: countryName(account.countryCode) },
-                ]} />
-                <PropertyList title="Tax" items={[
-                  { label: "GSTIN", value: account.gstin },
-                  { label: "PAN", value: account.pan },
-                  { label: "MSME number", value: account.msmeNumber },
-                ]} />
+                <PropertyList
+                  title="Company"
+                  items={[
+                    { label: "Legal name", value: account.legalName },
+                    { label: "Industry", value: account.industry },
+                    {
+                      label: "Owner",
+                      value: account.ownerName ?? "Shared (no owner)",
+                    },
+                    {
+                      label: "Website",
+                      value: account.website ? (
+                        <a
+                          className="text-brand hover:underline"
+                          href={
+                            account.website.startsWith("http")
+                              ? account.website
+                              : `https://${account.website}`
+                          }
+                          target="_blank"
+                          rel="noreferrer"
+                        >
+                          {account.website}
+                        </a>
+                      ) : null,
+                    },
+                    {
+                      label: "Currency",
+                      value: account.currencyCode
+                        ? `${currencyName(account.currencyCode)} (${account.currencyCode})`
+                        : null,
+                    },
+                  ]}
+                />
+                <PropertyList
+                  title="Contact details"
+                  items={[
+                    { label: "Email", value: account.email },
+                    { label: "Phone", value: account.phone },
+                  ]}
+                />
+                <PropertyList
+                  title="Address"
+                  items={[
+                    {
+                      label: "Street",
+                      value: [account.addressLine1, account.addressLine2]
+                        .filter(Boolean)
+                        .join(", "),
+                    },
+                    { label: "City", value: account.city },
+                    { label: "State", value: account.state },
+                    { label: "Postal code", value: account.postalCode },
+                    {
+                      label: "Country",
+                      value: countryName(account.countryCode),
+                    },
+                  ]}
+                />
+                <PropertyList
+                  title="Tax"
+                  items={[
+                    { label: "GSTIN", value: account.gstin },
+                    { label: "PAN", value: account.pan },
+                    { label: "MSME number", value: account.msmeNumber },
+                  ]}
+                />
               </div>
               <p className="text-xs text-text-muted">{`Created ${formatDate(account.createdAt)} · Last updated ${formatDate(account.updatedAt)}`}</p>
             </div>
@@ -177,10 +322,26 @@ export function AccountDetailScreen({ accountId }: { accountId: string }) {
           <TabPanel id="contacts">
             <div className="flex flex-col gap-4 py-4">
               <div className="flex items-center justify-between gap-3">
-                <p className="text-sm text-text-secondary">{contacts === 0 ? "No contacts are linked to this account yet." : `${contacts} contact${contacts === 1 ? "" : "s"} at this account.`}</p>
+                <p className="text-sm text-text-secondary">
+                  {contacts === 0
+                    ? "No contacts are linked to this account yet."
+                    : `${contacts} contact${contacts === 1 ? "" : "s"} at this account.`}
+                </p>
                 <div className="flex gap-2">
-                  <Link href={`/crm/contacts?accountId=${accountId}`} className="text-sm font-medium text-brand hover:underline">View in Contacts</Link>
-                  {canManage && active && <Link href="/crm/contacts/new" className="text-sm font-medium text-brand hover:underline">Add contact</Link>}
+                  <Link
+                    href={`/crm/contacts?accountId=${accountId}`}
+                    className="text-sm font-medium text-brand hover:underline"
+                  >
+                    View in Contacts
+                  </Link>
+                  {canManage && active && (
+                    <Link
+                      href="/crm/contacts/new"
+                      className="text-sm font-medium text-brand hover:underline"
+                    >
+                      Add contact
+                    </Link>
+                  )}
                 </div>
               </div>
               <AccountContactRelationshipsPanel accountId={accountId} />
@@ -189,23 +350,84 @@ export function AccountDetailScreen({ accountId }: { accountId: string }) {
 
           <TabPanel id="opportunities">
             <div className="flex flex-col gap-3 py-4">
-              {opportunitiesQuery.isLoading && <p className="text-sm text-text-secondary">Loading opportunities…</p>}
-              {opportunitiesQuery.isError && <ErrorState title="Could not load opportunities" action={{ label: "Retry", onPress: () => opportunitiesQuery.refetch() }} />}
-              {opportunitiesQuery.isSuccess && opportunities.length === 0 && <p className="text-sm text-text-secondary">No opportunities for this account yet.</p>}
+              {opportunitiesQuery.isLoading && (
+                <p className="text-sm text-text-secondary">
+                  Loading opportunities…
+                </p>
+              )}
+              {opportunitiesQuery.isError && (
+                <ErrorState
+                  title="Could not load opportunities"
+                  action={{
+                    label: "Retry",
+                    onPress: () => opportunitiesQuery.refetch(),
+                  }}
+                />
+              )}
+              {opportunitiesQuery.isSuccess && opportunities.length === 0 && (
+                <p className="text-sm text-text-secondary">
+                  No opportunities for this account yet.
+                </p>
+              )}
               {opportunities.length > 0 && (
                 <div className="overflow-x-auto rounded-[var(--radius-card)] border border-border">
                   <Table className="w-full text-sm">
                     <TableHead className="bg-canvas-strong text-left text-xs uppercase tracking-wide text-text-muted">
-                      <TableRow><TableHeaderCell className="px-3 py-2">Opportunity</TableHeaderCell><TableHeaderCell className="px-3 py-2">Stage</TableHeaderCell><TableHeaderCell className="px-3 py-2 text-right">Amount</TableHeaderCell><TableHeaderCell className="px-3 py-2">Expected close</TableHeaderCell><TableHeaderCell className="px-3 py-2">Status</TableHeaderCell></TableRow>
+                      <TableRow>
+                        <TableHeaderCell className="px-3 py-2">
+                          Opportunity
+                        </TableHeaderCell>
+                        <TableHeaderCell className="px-3 py-2">
+                          Stage
+                        </TableHeaderCell>
+                        <TableHeaderCell className="px-3 py-2 text-right">
+                          Amount
+                        </TableHeaderCell>
+                        <TableHeaderCell className="px-3 py-2">
+                          Expected close
+                        </TableHeaderCell>
+                        <TableHeaderCell className="px-3 py-2">
+                          Status
+                        </TableHeaderCell>
+                      </TableRow>
                     </TableHead>
                     <TableBody>
                       {opportunities.map((o) => (
                         <TableRow key={o.id} className="border-t border-border">
-                          <TableCell className="px-3 py-2"><Link className="font-medium text-brand hover:underline" href={`/crm/opportunities/${o.id}`}>{o.name}</Link></TableCell>
-                          <TableCell className="px-3 py-2">{o.stageName ?? ""}</TableCell>
-                          <TableCell className="px-3 py-2 text-right tabular-nums">{o.amount !== null ? formatMoney(o.currencyCode, o.amount) : ""}</TableCell>
-                          <TableCell className="px-3 py-2">{formatDate(o.expectedCloseDate)}</TableCell>
-                          <TableCell className="px-3 py-2"><StatusBadge tone={o.status === "won" ? "success" : o.status === "lost" ? "danger" : o.status === "open" ? "info" : "neutral"}>{humanize(o.status)}</StatusBadge></TableCell>
+                          <TableCell className="px-3 py-2">
+                            <Link
+                              className="font-medium text-brand hover:underline"
+                              href={`/crm/opportunities/${o.id}`}
+                            >
+                              {o.name}
+                            </Link>
+                          </TableCell>
+                          <TableCell className="px-3 py-2">
+                            {o.stageName ?? ""}
+                          </TableCell>
+                          <TableCell className="px-3 py-2 text-right tabular-nums">
+                            {o.amount !== null
+                              ? formatMoney(o.currencyCode, o.amount)
+                              : ""}
+                          </TableCell>
+                          <TableCell className="px-3 py-2">
+                            {formatDate(o.expectedCloseDate)}
+                          </TableCell>
+                          <TableCell className="px-3 py-2">
+                            <StatusBadge
+                              tone={
+                                o.status === "won"
+                                  ? "success"
+                                  : o.status === "lost"
+                                    ? "danger"
+                                    : o.status === "open"
+                                      ? "info"
+                                      : "neutral"
+                              }
+                            >
+                              {humanize(o.status)}
+                            </StatusBadge>
+                          </TableCell>
                         </TableRow>
                       ))}
                     </TableBody>
@@ -248,12 +470,21 @@ export function AccountDetailScreen({ accountId }: { accountId: string }) {
           <TabPanel id="more">
             <div className="flex flex-col gap-6 py-4">
               <Section title="Hierarchy">
-                <AccountHierarchyPanel accountId={accountId} canManage={canManage} />
+                <AccountHierarchyPanel
+                  accountId={accountId}
+                  canManage={canManage}
+                />
               </Section>
               <Section title="Custom fields">
-                <CustomFieldsRuntimePanel entityType="party" entityId={accountId} />
+                <CustomFieldsRuntimePanel
+                  entityType="party"
+                  entityId={accountId}
+                />
               </Section>
-              <AccountPrivacyPanel accountId={accountId} accountName={account.displayName} />
+              <AccountPrivacyPanel
+                accountId={accountId}
+                accountName={account.displayName}
+              />
             </div>
           </TabPanel>
         </Tabs>

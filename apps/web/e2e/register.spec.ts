@@ -14,10 +14,14 @@ import path from "node:path";
 // -> full workspace access with real, working entitlements.
 
 function loadDbUrlFromEnvLocal(): string | undefined {
-  if (process.env.MIGRATION_DATABASE_URL) return process.env.MIGRATION_DATABASE_URL;
+  if (process.env.MIGRATION_DATABASE_URL)
+    return process.env.MIGRATION_DATABASE_URL;
   const filePath = path.resolve(process.cwd(), ".env.local");
   if (!fs.existsSync(filePath)) return undefined;
-  const match = fs.readFileSync(filePath, "utf8").split("\n").find((line) => line.startsWith("MIGRATION_DATABASE_URL="));
+  const match = fs
+    .readFileSync(filePath, "utf8")
+    .split("\n")
+    .find((line) => line.startsWith("MIGRATION_DATABASE_URL="));
   return match?.slice("MIGRATION_DATABASE_URL=".length).trim();
 }
 
@@ -27,7 +31,9 @@ async function dbClient() {
   return client;
 }
 
-test("self-serve registration: create an account through the real UI, verify email, reach a real working organization", async ({ browser }) => {
+test("self-serve registration: create an account through the real UI, verify email, reach a real working organization", async ({
+  browser,
+}) => {
   const db = await dbClient();
   const suffix = Date.now();
   const email = `e2e-register-${suffix}@crm-e2e-fixture.test`;
@@ -50,27 +56,43 @@ test("self-serve registration: create an account through the real UI, verify ema
     await page.getByLabel("Timezone").fill("Asia/Kolkata");
 
     await Promise.all([
-      page.waitForResponse((res) => res.url().includes("/api/auth/register") && res.request().method() === "POST"),
+      page.waitForResponse(
+        (res) =>
+          res.url().includes("/api/auth/register") &&
+          res.request().method() === "POST",
+      ),
       page.getByRole("button", { name: "Create account" }).click(),
     ]);
 
     // Real account created: confirm directly in the database before
     // trusting anything about the redirected UI state.
-    const userRow = await db.query(`SELECT id, email_verified_at FROM users WHERE email = $1`, [email]);
+    const userRow = await db.query(
+      `SELECT id, email_verified_at FROM users WHERE email = $1`,
+      [email],
+    );
     expect(userRow.rows.length).toBe(1);
     userId = userRow.rows[0].id;
     expect(userRow.rows[0].email_verified_at).toBeNull();
 
-    const orgRow = await db.query(`SELECT id FROM organizations WHERE created_by = $1`, [userId]);
+    const orgRow = await db.query(
+      `SELECT id FROM organizations WHERE created_by = $1`,
+      [userId],
+    );
     expect(orgRow.rows.length).toBe(1);
     organizationId = orgRow.rows[0].id;
 
     // REGRESSION GUARD for the role-bootstrap gap: a brand-new
     // organization must have the full role catalog, not zero rows.
-    const roleCount = await db.query(`SELECT count(*)::int AS n FROM roles WHERE organization_id = $1 AND is_system = true`, [organizationId]);
+    const roleCount = await db.query(
+      `SELECT count(*)::int AS n FROM roles WHERE organization_id = $1 AND is_system = true`,
+      [organizationId],
+    );
     expect(roleCount.rows[0].n).toBeGreaterThanOrEqual(36);
 
-    const subRow = await db.query(`SELECT status FROM organization_subscriptions WHERE organization_id = $1`, [organizationId]);
+    const subRow = await db.query(
+      `SELECT status FROM organization_subscriptions WHERE organization_id = $1`,
+      [organizationId],
+    );
     expect(subRow.rows[0].status).toBe("active");
 
     // Logged in immediately (a real session cookie was set), but gated at
@@ -86,31 +108,75 @@ test("self-serve registration: create an account through the real UI, verify ema
       `INSERT INTO email_verification_tokens (id, user_id, token_hash, expires_at) VALUES (gen_random_uuid(), $1, $2, now() + interval '2 hours')`,
       [userId, createHash("sha256").update(verifyToken).digest("hex")],
     );
-    await page.goto(`/verify-email?token=${encodeURIComponent(verifyToken)}`, { waitUntil: "networkidle" });
-    await page.waitForURL((url) => !url.pathname.startsWith("/verify-email"), { timeout: 10_000 });
+    await page.goto(`/verify-email?token=${encodeURIComponent(verifyToken)}`, {
+      waitUntil: "networkidle",
+    });
+    await page.waitForURL((url) => !url.pathname.startsWith("/verify-email"), {
+      timeout: 10_000,
+    });
 
     // Full workspace access: the real Settings > Organization screen shows
     // the exact organization this signup created, with the owner's real
     // name -- proving the whole chain (account, org, roles, membership,
     // subscription) is genuinely usable, not just present in the database.
     await page.goto("/settings/organization", { waitUntil: "networkidle" });
-    await expect(page.getByLabel("Organization name")).toHaveValue(organizationName, { timeout: 10_000 });
+    await expect(page.getByLabel("Organization name")).toHaveValue(
+      organizationName,
+      { timeout: 10_000 },
+    );
 
     await page.goto("/settings/roles", { waitUntil: "networkidle" });
-    await expect(page.getByText("Organisation Owner", { exact: true })).toBeVisible({ timeout: 10_000 });
+    await expect(
+      page.getByText("Organisation Owner", { exact: true }),
+    ).toBeVisible({ timeout: 10_000 });
     await expect(page.getByRole("button", { name: "New role" })).toBeVisible();
   } finally {
     if (organizationId && userId) {
-      await db.query(`DELETE FROM user_role_assignments WHERE organization_id=$1`, [organizationId]).catch(() => undefined);
-      await db.query(`DELETE FROM role_permissions WHERE role_id IN (SELECT id FROM roles WHERE organization_id=$1)`, [organizationId]).catch(() => undefined);
-      await db.query(`DELETE FROM roles WHERE organization_id=$1`, [organizationId]).catch(() => undefined);
-      await db.query(`DELETE FROM organization_memberships WHERE organization_id=$1`, [organizationId]).catch(() => undefined);
-      await db.query(`DELETE FROM email_verification_tokens WHERE user_id=$1`, [userId]).catch(() => undefined);
-      await db.query(`DELETE FROM sessions WHERE user_id=$1`, [userId]).catch(() => undefined);
-      await db.query(`DELETE FROM audit_events WHERE organization_id=$1`, [organizationId]).catch(() => undefined);
-      await db.query(`DELETE FROM organization_subscriptions WHERE organization_id=$1`, [organizationId]).catch(() => undefined);
-      await db.query(`DELETE FROM organizations WHERE id=$1`, [organizationId]).catch(() => undefined);
-      await db.query(`DELETE FROM users WHERE id=$1`, [userId]).catch(() => undefined);
+      await db
+        .query(`DELETE FROM user_role_assignments WHERE organization_id=$1`, [
+          organizationId,
+        ])
+        .catch(() => undefined);
+      await db
+        .query(
+          `DELETE FROM role_permissions WHERE role_id IN (SELECT id FROM roles WHERE organization_id=$1)`,
+          [organizationId],
+        )
+        .catch(() => undefined);
+      await db
+        .query(`DELETE FROM roles WHERE organization_id=$1`, [organizationId])
+        .catch(() => undefined);
+      await db
+        .query(
+          `DELETE FROM organization_memberships WHERE organization_id=$1`,
+          [organizationId],
+        )
+        .catch(() => undefined);
+      await db
+        .query(`DELETE FROM email_verification_tokens WHERE user_id=$1`, [
+          userId,
+        ])
+        .catch(() => undefined);
+      await db
+        .query(`DELETE FROM sessions WHERE user_id=$1`, [userId])
+        .catch(() => undefined);
+      await db
+        .query(`DELETE FROM audit_events WHERE organization_id=$1`, [
+          organizationId,
+        ])
+        .catch(() => undefined);
+      await db
+        .query(
+          `DELETE FROM organization_subscriptions WHERE organization_id=$1`,
+          [organizationId],
+        )
+        .catch(() => undefined);
+      await db
+        .query(`DELETE FROM organizations WHERE id=$1`, [organizationId])
+        .catch(() => undefined);
+      await db
+        .query(`DELETE FROM users WHERE id=$1`, [userId])
+        .catch(() => undefined);
     }
     await db.end();
     await context.close();

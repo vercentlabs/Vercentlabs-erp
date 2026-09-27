@@ -1,7 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowRight, BarChart3, FileCheck2, Receipt, ScrollText } from "lucide-react";
+import {
+  ArrowRight,
+  BarChart3,
+  FileCheck2,
+  Receipt,
+  ScrollText,
+} from "lucide-react";
 import { PageHeader } from "@vercentlabs/design-system";
 
 // A CONSOLIDATION screen, not a new financial-calculation surface: F303
@@ -17,32 +23,39 @@ const REPORT_LINKS = [
     href: "/pos/reports/day-end",
     icon: ScrollText,
     title: "Day-end (Z) reports",
-    description: "Generate, review and finalize each shift or business day's immutable sales, tax, returns, tender and cash reconciliation.",
+    description:
+      "Generate, review and finalize each shift or business day's immutable sales, tax, returns, tender and cash reconciliation.",
   },
   {
     href: "/pos/reconciliation",
     icon: FileCheck2,
     title: "Reconciliation",
-    description: "Import settlement evidence and resolve cross-report variance exceptions across every payment method.",
+    description:
+      "Import settlement evidence and resolve cross-report variance exceptions across every payment method.",
   },
   {
     href: "/pos/accounting",
     icon: Receipt,
     title: "Accounting posting",
-    description: "Every completed sale and return's GL posting status, with retry for anything that failed to post.",
+    description:
+      "Every completed sale and return's GL posting status, with retry for anything that failed to post.",
   },
   {
     href: "/pos/analytics",
     icon: BarChart3,
     title: "Analytics",
-    description: "Date-range, store, terminal and cashier drilldown analytics across sales, discounts, returns and tenders.",
+    description:
+      "Date-range, store, terminal and cashier drilldown analytics across sales, discounts, returns and tenders.",
   },
 ] as const;
 
 export function PosReportsHubScreen() {
   return (
     <div className="flex flex-col gap-6">
-      <PageHeader title="Reports" description="Every POS reporting surface in one place — day-end reports, reconciliation, accounting posting and analytics." />
+      <PageHeader
+        title="Reports"
+        description="Every POS reporting surface in one place — day-end reports, reconciliation, accounting posting and analytics."
+      />
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         {REPORT_LINKS.map(({ href, icon: Icon, title, description }) => (
@@ -55,7 +68,10 @@ export function PosReportsHubScreen() {
               <span className="flex size-9 items-center justify-center rounded-[var(--radius-control)] bg-brand-soft text-brand group-hover:bg-surface">
                 <Icon className="size-5" aria-hidden="true" />
               </span>
-              <ArrowRight className="size-4 text-text-muted" aria-hidden="true" />
+              <ArrowRight
+                className="size-4 text-text-muted"
+                aria-hidden="true"
+              />
             </div>
             <div className="flex flex-col gap-1">
               <h2 className="text-sm font-semibold text-text">{title}</h2>

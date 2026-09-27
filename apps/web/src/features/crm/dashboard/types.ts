@@ -68,7 +68,12 @@ export type CrmDashboardScope = "mine" | "team" | "all";
 
 export type CrmDashboard = {
   scope: CrmDashboardScope;
-  period: { from: string; to: string; previousFrom: string; previousTo: string };
+  period: {
+    from: string;
+    to: string;
+    previousFrom: string;
+    previousTo: string;
+  };
   canViewAll: boolean;
   metrics: CrmDashboardMetrics;
   stages: CrmDashboardStage[];

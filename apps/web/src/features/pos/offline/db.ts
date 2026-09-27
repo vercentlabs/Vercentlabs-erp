@@ -12,11 +12,20 @@
 // derivation and its threat model. Non-sensitive bookkeeping fields
 // (status, timestamps, ids) are kept in plaintext alongside the blob so
 // the UI can list/filter the queue without decrypting every row.
-import { clearOfflineKeyCache, deriveOfflineKey, decryptJson, encryptJson, type EncryptedBlob } from "./crypto";
+import {
+  clearOfflineKeyCache,
+  deriveOfflineKey,
+  decryptJson,
+  encryptJson,
+  type EncryptedBlob,
+} from "./crypto";
 import { persistSeed, recoverSeed, type MetaStore } from "./seed-vault.ts";
 import type { PosOfflineQueuedSale, PosOfflineSnapshot } from "./types";
 
-import { OFFLINE_DB_NAME, OFFLINE_SECRETS_CLEARED_EVENT } from "@/shared/offline/offline-store-names";
+import {
+  OFFLINE_DB_NAME,
+  OFFLINE_SECRETS_CLEARED_EVENT,
+} from "@/shared/offline/offline-store-names";
 
 const DB_NAME = OFFLINE_DB_NAME;
 const DB_VERSION = 1;
@@ -29,9 +38,12 @@ function openDb(): Promise<IDBDatabase> {
     const request = indexedDB.open(DB_NAME, DB_VERSION);
     request.onupgradeneeded = () => {
       const db = request.result;
-      if (!db.objectStoreNames.contains(STORE_META)) db.createObjectStore(STORE_META, { keyPath: "key" });
-      if (!db.objectStoreNames.contains(STORE_SNAPSHOTS)) db.createObjectStore(STORE_SNAPSHOTS, { keyPath: "storeId" });
-      if (!db.objectStoreNames.contains(STORE_QUEUE)) db.createObjectStore(STORE_QUEUE, { keyPath: "localTransactionId" });
+      if (!db.objectStoreNames.contains(STORE_META))
+        db.createObjectStore(STORE_META, { keyPath: "key" });
+      if (!db.objectStoreNames.contains(STORE_SNAPSHOTS))
+        db.createObjectStore(STORE_SNAPSHOTS, { keyPath: "storeId" });
+      if (!db.objectStoreNames.contains(STORE_QUEUE))
+        db.createObjectStore(STORE_QUEUE, { keyPath: "localTransactionId" });
     };
     request.onerror = () => reject(request.error);
     request.onsuccess = () => resolve(request.result);
@@ -45,7 +57,11 @@ function reqToPromise<T>(request: IDBRequest<T>): Promise<T> {
   });
 }
 
-async function withStore<T = void>(storeName: string, mode: IDBTransactionMode, fn: (store: IDBObjectStore) => Promise<T> | void): Promise<T> {
+async function withStore<T = void>(
+  storeName: string,
+  mode: IDBTransactionMode,
+  fn: (store: IDBObjectStore) => Promise<T> | void,
+): Promise<T> {
   const db = await openDb();
   try {
     let pending: Promise<T> | undefined;
@@ -70,7 +86,9 @@ async function withStore<T = void>(storeName: string, mode: IDBTransactionMode, 
 async function getOrCreateDeviceSalt(): Promise<Uint8Array> {
   const db = await openDb();
   try {
-    const existing = await new Promise<{ key: string; value: number[] } | undefined>((resolve, reject) => {
+    const existing = await new Promise<
+      { key: string; value: number[] } | undefined
+    >((resolve, reject) => {
       const tx = db.transaction(STORE_META, "readonly");
       const request = tx.objectStore(STORE_META).get("deviceSalt");
       request.onsuccess = () => resolve(request.result);
@@ -81,7 +99,10 @@ async function getOrCreateDeviceSalt(): Promise<Uint8Array> {
     const salt = crypto.getRandomValues(new Uint8Array(16));
     await new Promise<void>((resolve, reject) => {
       const tx = db.transaction(STORE_META, "readwrite");
-      tx.objectStore(STORE_META).put({ key: "deviceSalt", value: Array.from(salt) });
+      tx.objectStore(STORE_META).put({
+        key: "deviceSalt",
+        value: Array.from(salt),
+      });
       tx.oncomplete = () => resolve();
       tx.onerror = () => reject(tx.error);
     });
@@ -102,7 +123,14 @@ if (typeof window !== "undefined") {
 }
 
 const idbMetaStore: MetaStore = {
-  get: async (key) => (await withStore<{ key: string; value: unknown } | undefined>(STORE_META, "readonly", (store) => reqToPromise(store.get(key))))?.value,
+  get: async (key) =>
+    (
+      await withStore<{ key: string; value: unknown } | undefined>(
+        STORE_META,
+        "readonly",
+        (store) => reqToPromise(store.get(key)),
+      )
+    )?.value,
   put: (key, value) =>
     withStore(STORE_META, "readwrite", (store) => {
       store.put({ key, value });
@@ -119,9 +147,13 @@ const idbMetaStore: MetaStore = {
 // memory the wrapped copy is used. Only when neither exists is the device genuinely unable to open its data.
 async function getKey(encryptionSeed?: string): Promise<CryptoKey> {
   let seed = encryptionSeed ?? lastKnownSeed;
-  if (encryptionSeed && encryptionSeed !== lastKnownSeed) await persistSeed(idbMetaStore, encryptionSeed);
+  if (encryptionSeed && encryptionSeed !== lastKnownSeed)
+    await persistSeed(idbMetaStore, encryptionSeed);
   if (!seed) seed = await recoverSeed(idbMetaStore);
-  if (!seed) throw new Error("This device needs to go online once after signing in before it can open offline data.");
+  if (!seed)
+    throw new Error(
+      "This device needs to go online once after signing in before it can open offline data.",
+    );
   lastKnownSeed = seed;
   const salt = await getOrCreateDeviceSalt();
   return deriveOfflineKey(seed, salt);
@@ -132,9 +164,16 @@ async function getKey(encryptionSeed?: string): Promise<CryptoKey> {
 // panel so it never depends on any online-only query (listPosShifts/
 // listPosStores) succeeding. Refreshed by PosCheckoutScreen every time it
 // has a valid open shift while online (see its useEffect).
-export type PosOfflineContext = { storeId: string; terminalId: string | null; shiftId: string; cashierUserId: string };
+export type PosOfflineContext = {
+  storeId: string;
+  terminalId: string | null;
+  shiftId: string;
+  cashierUserId: string;
+};
 
-export async function saveOfflineContext(context: PosOfflineContext): Promise<void> {
+export async function saveOfflineContext(
+  context: PosOfflineContext,
+): Promise<void> {
   await withStore(STORE_META, "readwrite", (store) => {
     store.put({ key: "offlineContext", value: context });
     return undefined;
@@ -142,44 +181,77 @@ export async function saveOfflineContext(context: PosOfflineContext): Promise<vo
 }
 
 export async function loadOfflineContext(): Promise<PosOfflineContext | null> {
-  const record = await withStore<{ key: string; value: PosOfflineContext } | undefined>(STORE_META, "readonly", (store) => reqToPromise(store.get("offlineContext")));
+  const record = await withStore<
+    { key: string; value: PosOfflineContext } | undefined
+  >(STORE_META, "readonly", (store) =>
+    reqToPromise(store.get("offlineContext")),
+  );
   return record?.value ?? null;
 }
 
-export async function saveSnapshot(snapshot: PosOfflineSnapshot): Promise<void> {
+export async function saveSnapshot(
+  snapshot: PosOfflineSnapshot,
+): Promise<void> {
   const key = await getKey(snapshot.encryptionSeed);
   const blob = await encryptJson(key, snapshot);
   await withStore(STORE_SNAPSHOTS, "readwrite", (store) => {
-    store.put({ storeId: snapshot.store.id, version: snapshot.version, generatedAt: snapshot.generatedAt, blob });
+    store.put({
+      storeId: snapshot.store.id,
+      version: snapshot.version,
+      generatedAt: snapshot.generatedAt,
+      blob,
+    });
     return undefined;
   });
 }
 
-export async function loadSnapshot(storeId: string): Promise<PosOfflineSnapshot | null> {
-  const record = await withStore<{ storeId: string; blob: EncryptedBlob } | undefined>(STORE_SNAPSHOTS, "readonly", (store) => reqToPromise(store.get(storeId)));
+export async function loadSnapshot(
+  storeId: string,
+): Promise<PosOfflineSnapshot | null> {
+  const record = await withStore<
+    { storeId: string; blob: EncryptedBlob } | undefined
+  >(STORE_SNAPSHOTS, "readonly", (store) => reqToPromise(store.get(storeId)));
   if (!record) return null;
   const key = await getKey();
   return decryptJson<PosOfflineSnapshot>(key, record.blob);
 }
 
-export async function enqueueOfflineSale(sale: PosOfflineQueuedSale): Promise<void> {
+export async function enqueueOfflineSale(
+  sale: PosOfflineQueuedSale,
+): Promise<void> {
   const key = await getKey();
   const blob = await encryptJson(key, sale);
   await withStore(STORE_QUEUE, "readwrite", (store) => {
-    store.put({ localTransactionId: sale.localTransactionId, status: sale.status, capturedAt: sale.capturedAt, blob });
+    store.put({
+      localTransactionId: sale.localTransactionId,
+      status: sale.status,
+      capturedAt: sale.capturedAt,
+      blob,
+    });
     return undefined;
   });
 }
 
 export async function listOfflineQueue(): Promise<PosOfflineQueuedSale[]> {
-  const records = await withStore<Array<{ localTransactionId: string; blob: EncryptedBlob }>>(STORE_QUEUE, "readonly", (store) => reqToPromise(store.getAll()));
+  const records = await withStore<
+    Array<{ localTransactionId: string; blob: EncryptedBlob }>
+  >(STORE_QUEUE, "readonly", (store) => reqToPromise(store.getAll()));
   const key = await getKey();
-  const decrypted = await Promise.all(records.map((record) => decryptJson<PosOfflineQueuedSale>(key, record.blob)));
+  const decrypted = await Promise.all(
+    records.map((record) =>
+      decryptJson<PosOfflineQueuedSale>(key, record.blob),
+    ),
+  );
   return decrypted.sort((a, b) => a.capturedAt.localeCompare(b.capturedAt));
 }
 
-export async function updateOfflineSale(localTransactionId: string, patch: Partial<PosOfflineQueuedSale>): Promise<void> {
-  const record = await withStore<{ localTransactionId: string; blob: EncryptedBlob } | undefined>(STORE_QUEUE, "readonly", (store) =>
+export async function updateOfflineSale(
+  localTransactionId: string,
+  patch: Partial<PosOfflineQueuedSale>,
+): Promise<void> {
+  const record = await withStore<
+    { localTransactionId: string; blob: EncryptedBlob } | undefined
+  >(STORE_QUEUE, "readonly", (store) =>
     reqToPromise(store.get(localTransactionId)),
   );
   if (!record) return;
@@ -188,22 +260,39 @@ export async function updateOfflineSale(localTransactionId: string, patch: Parti
   const next = { ...current, ...patch };
   const blob = await encryptJson(key, next);
   await withStore(STORE_QUEUE, "readwrite", (store) => {
-    store.put({ localTransactionId, status: next.status, capturedAt: next.capturedAt, blob });
+    store.put({
+      localTransactionId,
+      status: next.status,
+      capturedAt: next.capturedAt,
+      blob,
+    });
     return undefined;
   });
 }
 
-export async function removeOfflineSale(localTransactionId: string): Promise<void> {
+export async function removeOfflineSale(
+  localTransactionId: string,
+): Promise<void> {
   await withStore(STORE_QUEUE, "readwrite", (store) => {
     store.delete(localTransactionId);
     return undefined;
   });
 }
 
-export async function countQueuedOfflineSales(): Promise<{ queued: number; conflict: number }> {
-  const records = await withStore<Array<{ status: string }>>(STORE_QUEUE, "readonly", (store) => reqToPromise(store.getAll()));
+export async function countQueuedOfflineSales(): Promise<{
+  queued: number;
+  conflict: number;
+}> {
+  const records = await withStore<Array<{ status: string }>>(
+    STORE_QUEUE,
+    "readonly",
+    (store) => reqToPromise(store.getAll()),
+  );
   return {
-    queued: records.filter((r) => r.status === "queued" || r.status === "syncing" || r.status === "error").length,
+    queued: records.filter(
+      (r) =>
+        r.status === "queued" || r.status === "syncing" || r.status === "error",
+    ).length,
     conflict: records.filter((r) => r.status === "conflict").length,
   };
 }

@@ -30,12 +30,18 @@ export function ProfileMenu({
   // trigger is the last item in WorkspaceTopBar, so a tooltip above it
   // would be cut off by the viewport top and a centered one by its right
   // edge.
-  const [tooltipPosition, setTooltipPosition] = useState<{ top: number; right: number } | null>(null);
+  const [tooltipPosition, setTooltipPosition] = useState<{
+    top: number;
+    right: number;
+  } | null>(null);
 
   function showTooltip() {
     const rect = triggerRef.current?.getBoundingClientRect();
     if (!rect) return;
-    setTooltipPosition({ top: rect.bottom + 6, right: window.innerWidth - rect.right });
+    setTooltipPosition({
+      top: rect.bottom + 6,
+      right: window.innerWidth - rect.right,
+    });
   }
   function hideTooltip() {
     setTooltipPosition(null);
@@ -65,7 +71,14 @@ export function ProfileMenu({
 
   return (
     <MenuTrigger>
-      <span ref={triggerRef} className="relative flex" onMouseEnter={showTooltip} onMouseLeave={hideTooltip} onFocus={showTooltip} onBlur={hideTooltip}>
+      <span
+        ref={triggerRef}
+        className="relative flex"
+        onMouseEnter={showTooltip}
+        onMouseLeave={hideTooltip}
+        onFocus={showTooltip}
+        onBlur={hideTooltip}
+      >
         <IconButton
           aria-label={`Account menu for ${fullName}`}
           tooltip={false}
@@ -78,7 +91,10 @@ export function ProfileMenu({
           ? createPortal(
               <span
                 role="tooltip"
-                style={{ top: tooltipPosition.top, right: tooltipPosition.right }}
+                style={{
+                  top: tooltipPosition.top,
+                  right: tooltipPosition.right,
+                }}
                 className="pointer-events-none fixed z-50 whitespace-nowrap rounded-[var(--radius-control)] border border-border bg-navigation px-2 py-1 text-xs text-navigation-text shadow-panel"
               >
                 {fullName}

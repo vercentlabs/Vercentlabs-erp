@@ -1,6 +1,11 @@
 import { z } from "zod";
 
-import { assertSameOriginOrMobile, audit, disableMfa, enforceRateLimit } from "@vercentlabs/api";
+import {
+  assertSameOriginOrMobile,
+  audit,
+  disableMfa,
+  enforceRateLimit,
+} from "@vercentlabs/api";
 
 import { sessionTransaction } from "@/core/db";
 import { errorResponse, ok, readJson } from "@/core/http";

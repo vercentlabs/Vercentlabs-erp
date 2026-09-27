@@ -3,7 +3,9 @@ import { chromium } from "@playwright/test";
 const BASE_URL = process.env.QA_BASE_URL || "http://localhost:3001";
 
 const browser = await chromium.launch();
-const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+const context = await browser.newContext({
+  viewport: { width: 1440, height: 900 },
+});
 const page = await context.newPage();
 page.on("console", (msg) => {
   if (msg.type() === "error") console.log("[console.error]", msg.text());
@@ -20,13 +22,21 @@ const [response] = await Promise.all([
   page.getByRole("button", { name: /sign in|log in/i }).click(),
 ]);
 console.log("login response status:", response.status());
-console.log("login response body:", await response.text().catch(() => "<unreadable>"));
+console.log(
+  "login response body:",
+  await response.text().catch(() => "<unreadable>"),
+);
 await page.waitForTimeout(1500);
 console.log("URL right after response:", page.url());
 await page.goto(`${BASE_URL}/crm`, { waitUntil: "networkidle" });
 console.log("URL after navigating to /crm:", page.url());
-await page.screenshot({ path: "scripts/qa/artifacts/01-after-login.png", fullPage: true });
-console.log("storageState will be saved to scripts/qa/artifacts/storage-state.json");
+await page.screenshot({
+  path: "scripts/qa/artifacts/01-after-login.png",
+  fullPage: true,
+});
+console.log(
+  "storageState will be saved to scripts/qa/artifacts/storage-state.json",
+);
 await context.storageState({ path: "scripts/qa/artifacts/storage-state.json" });
 
 await browser.close();

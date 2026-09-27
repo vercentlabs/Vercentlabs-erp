@@ -1,6 +1,14 @@
 import { z } from "zod";
 
-import { assertSameOrigin, clientIp, enforceRateLimit, findUserForSignIn, recordLoginEvent, startUserSession, verifyPasswordOrDummy } from "@vercentlabs/api";
+import {
+  assertSameOrigin,
+  clientIp,
+  enforceRateLimit,
+  findUserForSignIn,
+  recordLoginEvent,
+  startUserSession,
+  verifyPasswordOrDummy,
+} from "@vercentlabs/api";
 
 import { identityTransaction, withIngressClient } from "@/core/db";
 import { errorResponse, HttpError, ok, readJson } from "@/core/http";
@@ -25,7 +33,9 @@ export async function POST(request: Request) {
       ),
     );
 
-    const user = await withIngressClient((client) => findUserForSignIn(client, body.email));
+    const user = await withIngressClient((client) =>
+      findUserForSignIn(client, body.email),
+    );
 
     const passwordOk = await verifyPasswordOrDummy(
       body.password,
@@ -54,7 +64,13 @@ export async function POST(request: Request) {
 
     // Identity context for the user whose password was just verified.
     const session = await identityTransaction(user.id, (client) =>
-      startUserSession(client, { userId: user.id, ipAddress: clientIp(request, process.env), userAgent: request.headers.get("user-agent"), request, env: process.env }),
+      startUserSession(client, {
+        userId: user.id,
+        ipAddress: clientIp(request, process.env),
+        userAgent: request.headers.get("user-agent"),
+        request,
+        env: process.env,
+      }),
     );
 
     const response = ok({ message: "Signed in." });

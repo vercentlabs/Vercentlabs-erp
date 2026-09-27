@@ -12,7 +12,11 @@ import type { WorkspaceSessionContext } from "@/core/session";
 // company_id NOT NULL constraint surface a confusing raw DB error.
 export function posContext(session: WorkspaceSessionContext) {
   if (!session.activeCompanyId) {
-    throw new HttpError(409, "Select an active company before using Point of Sale.", "POS_COMPANY_REQUIRED");
+    throw new HttpError(
+      409,
+      "Select an active company before using Point of Sale.",
+      "POS_COMPANY_REQUIRED",
+    );
   }
   return {
     organizationId: session.organizationId,

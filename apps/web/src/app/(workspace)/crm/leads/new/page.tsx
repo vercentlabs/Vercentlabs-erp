@@ -12,6 +12,8 @@ export const metadata = { title: "New lead" };
 // Permission gating renders inside the client LeadFormScreen instead.
 export default async function NewLeadPage() {
   const session = await requireWorkspace();
-  const canManage = session.roleSlugs.includes("organization_owner") || session.permissions.includes(CRM_PERMISSIONS.leadsManage);
+  const canManage =
+    session.roleSlugs.includes("organization_owner") ||
+    session.permissions.includes(CRM_PERMISSIONS.leadsManage);
   return <LeadFormScreen mode="create" canManage={canManage} />;
 }

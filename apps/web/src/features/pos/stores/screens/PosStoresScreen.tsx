@@ -4,7 +4,22 @@ import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { ColumnDef } from "@tanstack/react-table";
 import { CreditCard, Plus, Power } from "lucide-react";
-import { AlertDialog, Button, Dialog, EnterpriseDataGrid, EnterpriseListPage, ErrorState, IconButton, NoResultsState, PermissionState, SearchField, Select, StatusBadge, TextField, type ActiveFilter } from "@vercentlabs/design-system";
+import {
+  AlertDialog,
+  Button,
+  Dialog,
+  EnterpriseDataGrid,
+  EnterpriseListPage,
+  ErrorState,
+  IconButton,
+  NoResultsState,
+  PermissionState,
+  SearchField,
+  Select,
+  StatusBadge,
+  TextField,
+  type ActiveFilter,
+} from "@vercentlabs/design-system";
 import { POS_PERMISSIONS } from "@vercentlabs/permissions";
 
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
@@ -34,18 +49,30 @@ import {
 export function PosStoresScreen() {
   const workspace = useWorkspaceContext();
   const queryClient = useQueryClient();
-  const canManage = workspace.roleSlugs.includes("organization_owner") || workspace.permissions.includes(POS_PERMISSIONS.storeManage);
+  const canManage =
+    workspace.roleSlugs.includes("organization_owner") ||
+    workspace.permissions.includes(POS_PERMISSIONS.storeManage);
 
   const [error, setError] = useState<string | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
   const [editing, setEditing] = useState<PosStore | null>(null);
-  const [deactivateTarget, setDeactivateTarget] = useState<PosStore | null>(null);
+  const [deactivateTarget, setDeactivateTarget] = useState<PosStore | null>(
+    null,
+  );
   const [paymentTarget, setPaymentTarget] = useState<PosStore | null>(null);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
 
-  const storesQuery = useQuery({ queryKey: scopedQueryKey(workspace, "pos", "stores"), queryFn: listPosStores, enabled: canManage });
-  const optionsQuery = useQuery({ queryKey: scopedQueryKey(workspace, "pos", "store-setup-options"), queryFn: getPosStoreSetupOptions, enabled: canManage });
+  const storesQuery = useQuery({
+    queryKey: scopedQueryKey(workspace, "pos", "stores"),
+    queryFn: listPosStores,
+    enabled: canManage,
+  });
+  const optionsQuery = useQuery({
+    queryKey: scopedQueryKey(workspace, "pos", "store-setup-options"),
+    queryFn: getPosStoreSetupOptions,
+    enabled: canManage,
+  });
   const allRows = storesQuery.data?.rows;
   const rows = useMemo(() => {
     const needle = search.trim().toLowerCase();
@@ -53,14 +80,23 @@ export function PosStoresScreen() {
       if (statusFilter === "active" && !store.active) return false;
       if (statusFilter === "inactive" && store.active) return false;
       if (!needle) return true;
-      return [store.name, store.code].some((value) => String(value ?? "").toLowerCase().includes(needle));
+      return [store.name, store.code].some((value) =>
+        String(value ?? "")
+          .toLowerCase()
+          .includes(needle),
+      );
     });
   }, [allRows, search, statusFilter]);
   const hitPageCeiling = (allRows?.length ?? 0) >= POS_ADMIN_LIST_LIMIT;
   const hasFilters = Boolean(search.trim() || statusFilter);
   const activeFilters: ActiveFilter[] = [];
-  if (statusFilter) activeFilters.push({ id: "status", label: `Status: ${statusLabel(statusFilter)}` });
-  if (search.trim()) activeFilters.push({ id: "search", label: `Search: ${search.trim()}` });
+  if (statusFilter)
+    activeFilters.push({
+      id: "status",
+      label: `Status: ${statusLabel(statusFilter)}`,
+    });
+  if (search.trim())
+    activeFilters.push({ id: "search", label: `Search: ${search.trim()}` });
   function removeFilter(id: string) {
     if (id === "status") setStatusFilter("");
     if (id === "search") setSearch("");
@@ -69,18 +105,33 @@ export function PosStoresScreen() {
     setSearch("");
     setStatusFilter("");
   }
-  const warehouseById = useMemo(() => new Map((optionsQuery.data?.warehouses ?? []).map((w) => [w.id, w.name])), [optionsQuery.data]);
-  const branchById = useMemo(() => new Map((optionsQuery.data?.branches ?? []).map((b) => [b.id, b.name])), [optionsQuery.data]);
+  const warehouseById = useMemo(
+    () =>
+      new Map((optionsQuery.data?.warehouses ?? []).map((w) => [w.id, w.name])),
+    [optionsQuery.data],
+  );
+  const branchById = useMemo(
+    () =>
+      new Map((optionsQuery.data?.branches ?? []).map((b) => [b.id, b.name])),
+    [optionsQuery.data],
+  );
 
   function invalidate() {
-    queryClient.invalidateQueries({ queryKey: scopedQueryKey(workspace, "pos", "stores") });
+    queryClient.invalidateQueries({
+      queryKey: scopedQueryKey(workspace, "pos", "stores"),
+    });
   }
   function handleError(err: unknown) {
-    setError(err instanceof PosApiError ? err.message : "This action could not be completed.");
+    setError(
+      err instanceof PosApiError
+        ? err.message
+        : "This action could not be completed.",
+    );
   }
 
   const toggleActiveMutation = useMutation({
-    mutationFn: (store: PosStore) => setPosStoreActiveRecord(store.id, !store.active),
+    mutationFn: (store: PosStore) =>
+      setPosStoreActiveRecord(store.id, !store.active),
     onSuccess: () => {
       setError(null);
       setDeactivateTarget(null);
@@ -91,17 +142,53 @@ export function PosStoresScreen() {
 
   const columns: ColumnDef<PosStore, unknown>[] = useMemo(
     () => [
-      { id: "name", header: "Name", accessorKey: "name", cell: ({ row }) => <span className="font-medium text-text">{row.original.name}</span> },
+      {
+        id: "name",
+        header: "Name",
+        accessorKey: "name",
+        cell: ({ row }) => (
+          <span className="font-medium text-text">{row.original.name}</span>
+        ),
+      },
       { id: "code", header: "Code", accessorKey: "code" },
-      { id: "branch", header: "Branch", accessorFn: (row) => branchById.get(row.branch_id ?? "") ?? "—" },
-      { id: "warehouse", header: "Warehouse", accessorFn: (row) => warehouseById.get(row.warehouse_id ?? row.warehouseId ?? "") ?? "—" },
-      { id: "currency", header: "Currency", accessorFn: (row) => row.currency_code ?? row.currencyCode ?? "—" },
-      { id: "status", header: "Status", cell: ({ row }) => <StatusBadge tone={statusTone(row.original.active ? "active" : "inactive")}>{statusLabel(row.original.active ? "active" : "inactive")}</StatusBadge> },
+      {
+        id: "branch",
+        header: "Branch",
+        accessorFn: (row) => branchById.get(row.branch_id ?? "") ?? "—",
+      },
+      {
+        id: "warehouse",
+        header: "Warehouse",
+        accessorFn: (row) =>
+          warehouseById.get(row.warehouse_id ?? row.warehouseId ?? "") ?? "—",
+      },
+      {
+        id: "currency",
+        header: "Currency",
+        accessorFn: (row) => row.currency_code ?? row.currencyCode ?? "—",
+      },
+      {
+        id: "status",
+        header: "Status",
+        cell: ({ row }) => (
+          <StatusBadge
+            tone={statusTone(row.original.active ? "active" : "inactive")}
+          >
+            {statusLabel(row.original.active ? "active" : "inactive")}
+          </StatusBadge>
+        ),
+      },
     ],
     [branchById, warehouseById],
   );
 
-  if (!canManage) return <PermissionState title="You don't have access to POS Stores" description="Ask an administrator to grant pos.store.manage." />;
+  if (!canManage)
+    return (
+      <PermissionState
+        title="You don't have access to POS Stores"
+        description="Ask an administrator to grant pos.store.manage."
+      />
+    );
 
   return (
     <div className="flex flex-col gap-4">
@@ -110,9 +197,14 @@ export function PosStoresScreen() {
       <EnterpriseListPage
         header={{
           title: "Stores",
-          description: "Physical or virtual retail locations selling through POS.",
+          description:
+            "Physical or virtual retail locations selling through POS.",
           primaryAction: (
-            <Button variant="primary" onPress={() => setCreateOpen(true)} isDisabled={!optionsQuery.data}>
+            <Button
+              variant="primary"
+              onPress={() => setCreateOpen(true)}
+              isDisabled={!optionsQuery.data}
+            >
               <Plus className="size-4" aria-hidden="true" />
               New store
             </Button>
@@ -121,7 +213,13 @@ export function PosStoresScreen() {
         actionBar={{
           start: (
             <>
-              <SearchField aria-label="Search stores" placeholder="Search name or code…" value={search} onChange={setSearch} className="min-w-[240px]" />
+              <SearchField
+                aria-label="Search stores"
+                placeholder="Search name or code…"
+                value={search}
+                onChange={setSearch}
+                className="min-w-[240px]"
+              />
               <Select
                 aria-label="Status"
                 size="compact"
@@ -136,29 +234,79 @@ export function PosStoresScreen() {
             </>
           ),
         }}
-        filterBar={{ filters: activeFilters, onRemove: removeFilter, onClearAll: hasFilters ? clearFilters : undefined }}
+        filterBar={{
+          filters: activeFilters,
+          onRemove: removeFilter,
+          onClearAll: hasFilters ? clearFilters : undefined,
+        }}
       >
-        {hitPageCeiling && <PosAlert tone="warning">Showing the first {POS_ADMIN_LIST_LIMIT} stores — narrow the list with the filters above.</PosAlert>}
+        {hitPageCeiling && (
+          <PosAlert tone="warning">
+            Showing the first {POS_ADMIN_LIST_LIMIT} stores — narrow the list
+            with the filters above.
+          </PosAlert>
+        )}
         <EnterpriseDataGrid<PosStore>
           aria-label="Stores"
           columns={columns}
           data={rows}
           getRowId={(row) => row.id}
-          state={storesQuery.isError ? "error" : storesQuery.isLoading ? "loading" : rows.length === 0 && hasFilters ? "no-results" : rows.length === 0 ? "empty" : "ready"}
-          emptyContent={<NoResultsState title="No stores yet" description="Create a store to start selling." />}
-          noResultsContent={<NoResultsState title="No stores match these filters" description="Try clearing a filter or broadening your search." action={{ label: "Clear filters", onPress: clearFilters }} />}
-          errorContent={<ErrorState title="Could not load stores" description="Something went wrong fetching the store list." action={{ label: "Retry", onPress: () => storesQuery.refetch() }} />}
+          state={
+            storesQuery.isError
+              ? "error"
+              : storesQuery.isLoading
+                ? "loading"
+                : rows.length === 0 && hasFilters
+                  ? "no-results"
+                  : rows.length === 0
+                    ? "empty"
+                    : "ready"
+          }
+          emptyContent={
+            <NoResultsState
+              title="No stores yet"
+              description="Create a store to start selling."
+            />
+          }
+          noResultsContent={
+            <NoResultsState
+              title="No stores match these filters"
+              description="Try clearing a filter or broadening your search."
+              action={{ label: "Clear filters", onPress: clearFilters }}
+            />
+          }
+          errorContent={
+            <ErrorState
+              title="Could not load stores"
+              description="Something went wrong fetching the store list."
+              action={{ label: "Retry", onPress: () => storesQuery.refetch() }}
+            />
+          }
           onRowClick={(row) => setEditing(row)}
           rowActions={(row) => (
-            <span className="flex items-center gap-1" onClick={(event) => event.stopPropagation()}>
-              <IconButton aria-label={`Payment methods for ${row.name}`} size="compact" variant="ghost" onPress={() => setPaymentTarget(row)}>
+            <span
+              className="flex items-center gap-1"
+              onClick={(event) => event.stopPropagation()}
+            >
+              <IconButton
+                aria-label={`Payment methods for ${row.name}`}
+                size="compact"
+                variant="ghost"
+                onPress={() => setPaymentTarget(row)}
+              >
                 <CreditCard className="size-4" aria-hidden="true" />
               </IconButton>
               <IconButton
-                aria-label={row.active ? `Deactivate ${row.name}` : `Activate ${row.name}`}
+                aria-label={
+                  row.active ? `Deactivate ${row.name}` : `Activate ${row.name}`
+                }
                 size="compact"
                 variant={row.active ? "danger" : "ghost"}
-                onPress={() => (row.active ? setDeactivateTarget(row) : toggleActiveMutation.mutate(row))}
+                onPress={() =>
+                  row.active
+                    ? setDeactivateTarget(row)
+                    : toggleActiveMutation.mutate(row)
+                }
                 isDisabled={toggleActiveMutation.isPending}
               >
                 <Power className="size-4" aria-hidden="true" />
@@ -174,11 +322,18 @@ export function PosStoresScreen() {
           description={`Terminals at ${deactivateTarget?.name ?? "this store"} will no longer be able to complete sales or sync offline transactions until it is reactivated. This is blocked automatically while a shift or cart is still open, so use this only once the store is safely closed out.`}
           confirmLabel="Deactivate"
           isConfirming={toggleActiveMutation.isPending}
-          onConfirm={() => deactivateTarget && toggleActiveMutation.mutate(deactivateTarget)}
+          onConfirm={() =>
+            deactivateTarget && toggleActiveMutation.mutate(deactivateTarget)
+          }
         />
       </EnterpriseListPage>
 
-      {paymentTarget && <StorePaymentDialog store={paymentTarget} onClose={() => setPaymentTarget(null)} />}
+      {paymentTarget && (
+        <StorePaymentDialog
+          store={paymentTarget}
+          onClose={() => setPaymentTarget(null)}
+        />
+      )}
 
       {optionsQuery.data && (
         <CreateStoreDialog
@@ -205,7 +360,11 @@ export function PosStoresScreen() {
   );
 }
 
-type SetupOptions = { branches: { id: string; name: string }[]; warehouses: { id: string; name: string }[]; priceLists: { id: string; name: string; currency_code: string }[] };
+type SetupOptions = {
+  branches: { id: string; name: string }[];
+  warehouses: { id: string; name: string }[];
+  priceLists: { id: string; name: string; currency_code: string }[];
+};
 
 function CreateStoreDialog({
   isOpen,
@@ -228,7 +387,15 @@ function CreateStoreDialog({
   const [currencyCode, setCurrencyCode] = useState("INR");
 
   const mutation = useMutation({
-    mutationFn: () => createPosStore({ name, code, branchId, warehouseId, priceListId: priceListId || undefined, currencyCode }),
+    mutationFn: () =>
+      createPosStore({
+        name,
+        code,
+        branchId,
+        warehouseId,
+        priceListId: priceListId || undefined,
+        currencyCode,
+      }),
     onSuccess: () => {
       onCreated();
       onOpenChange(false);
@@ -246,15 +413,53 @@ function CreateStoreDialog({
       <div className="flex flex-col gap-4">
         <TextField label="Name" isRequired value={name} onChange={setName} />
         <TextField label="Code" isRequired value={code} onChange={setCode} />
-        <Select label="Branch" isRequired options={options.branches.map((b) => ({ value: b.id, label: b.name }))} selectedKey={branchId} onSelectionChange={(key) => setBranchId(String(key ?? ""))} />
-        <Select label="Warehouse" isRequired options={options.warehouses.map((w) => ({ value: w.id, label: w.name }))} selectedKey={warehouseId} onSelectionChange={(key) => setWarehouseId(String(key ?? ""))} />
-        <Select label="Price list (optional)" options={options.priceLists.map((p) => ({ value: p.id, label: p.name }))} selectedKey={priceListId} onSelectionChange={(key) => setPriceListId(String(key ?? ""))} />
-        <TextField label="Currency code" value={currencyCode} onChange={(v) => setCurrencyCode(v.toUpperCase())} maxLength={3} />
+        <Select
+          label="Branch"
+          isRequired
+          options={options.branches.map((b) => ({
+            value: b.id,
+            label: b.name,
+          }))}
+          selectedKey={branchId}
+          onSelectionChange={(key) => setBranchId(String(key ?? ""))}
+        />
+        <Select
+          label="Warehouse"
+          isRequired
+          options={options.warehouses.map((w) => ({
+            value: w.id,
+            label: w.name,
+          }))}
+          selectedKey={warehouseId}
+          onSelectionChange={(key) => setWarehouseId(String(key ?? ""))}
+        />
+        <Select
+          label="Price list (optional)"
+          options={options.priceLists.map((p) => ({
+            value: p.id,
+            label: p.name,
+          }))}
+          selectedKey={priceListId}
+          onSelectionChange={(key) => setPriceListId(String(key ?? ""))}
+        />
+        <TextField
+          label="Currency code"
+          value={currencyCode}
+          onChange={(v) => setCurrencyCode(v.toUpperCase())}
+          maxLength={3}
+        />
         <div className="flex justify-end gap-2">
           <Button variant="secondary" onPress={() => onOpenChange(false)}>
             Cancel
           </Button>
-          <Button variant="primary" onPress={() => mutation.mutate()} isLoading={mutation.isPending} isDisabled={!name.trim() || !code.trim() || !branchId || !warehouseId}>
+          <Button
+            variant="primary"
+            onPress={() => mutation.mutate()}
+            isLoading={mutation.isPending}
+            isDisabled={
+              !name.trim() || !code.trim() || !branchId || !warehouseId
+            }
+          >
             Create store
           </Button>
         </div>
@@ -278,29 +483,73 @@ function EditStoreDialog({
 }) {
   const [name, setName] = useState(store.name);
   const [branchId, setBranchId] = useState(store.branch_id ?? "");
-  const [warehouseId, setWarehouseId] = useState(store.warehouse_id ?? store.warehouseId ?? "");
-  const [priceListId, setPriceListId] = useState(store.price_list_id ?? store.priceListId ?? "");
+  const [warehouseId, setWarehouseId] = useState(
+    store.warehouse_id ?? store.warehouseId ?? "",
+  );
+  const [priceListId, setPriceListId] = useState(
+    store.price_list_id ?? store.priceListId ?? "",
+  );
   const [timezone, setTimezone] = useState(store.timezone ?? "Asia/Kolkata");
 
   const mutation = useMutation({
-    mutationFn: () => updatePosStoreRecord(store.id, { name, branchId, warehouseId, priceListId: priceListId || null, timezone }),
+    mutationFn: () =>
+      updatePosStoreRecord(store.id, {
+        name,
+        branchId,
+        warehouseId,
+        priceListId: priceListId || null,
+        timezone,
+      }),
     onSuccess: onSaved,
     onError,
   });
 
   return (
-    <Dialog isOpen onOpenChange={(open) => !open && onClose()} title={`Edit ${store.name}`}>
+    <Dialog
+      isOpen
+      onOpenChange={(open) => !open && onClose()}
+      title={`Edit ${store.name}`}
+    >
       <div className="flex flex-col gap-4">
         <TextField label="Name" isRequired value={name} onChange={setName} />
-        <Select label="Branch" options={options.branches.map((b) => ({ value: b.id, label: b.name }))} selectedKey={branchId} onSelectionChange={(key) => setBranchId(String(key ?? ""))} />
-        <Select label="Warehouse" options={options.warehouses.map((w) => ({ value: w.id, label: w.name }))} selectedKey={warehouseId} onSelectionChange={(key) => setWarehouseId(String(key ?? ""))} />
-        <Select label="Price list" options={options.priceLists.map((p) => ({ value: p.id, label: p.name }))} selectedKey={priceListId} onSelectionChange={(key) => setPriceListId(String(key ?? ""))} />
+        <Select
+          label="Branch"
+          options={options.branches.map((b) => ({
+            value: b.id,
+            label: b.name,
+          }))}
+          selectedKey={branchId}
+          onSelectionChange={(key) => setBranchId(String(key ?? ""))}
+        />
+        <Select
+          label="Warehouse"
+          options={options.warehouses.map((w) => ({
+            value: w.id,
+            label: w.name,
+          }))}
+          selectedKey={warehouseId}
+          onSelectionChange={(key) => setWarehouseId(String(key ?? ""))}
+        />
+        <Select
+          label="Price list"
+          options={options.priceLists.map((p) => ({
+            value: p.id,
+            label: p.name,
+          }))}
+          selectedKey={priceListId}
+          onSelectionChange={(key) => setPriceListId(String(key ?? ""))}
+        />
         <TextField label="Timezone" value={timezone} onChange={setTimezone} />
         <div className="flex justify-end gap-2">
           <Button variant="secondary" onPress={onClose}>
             Cancel
           </Button>
-          <Button variant="primary" onPress={() => mutation.mutate()} isLoading={mutation.isPending} isDisabled={!name.trim()}>
+          <Button
+            variant="primary"
+            onPress={() => mutation.mutate()}
+            isLoading={mutation.isPending}
+            isDisabled={!name.trim()}
+          >
             Save changes
           </Button>
         </div>

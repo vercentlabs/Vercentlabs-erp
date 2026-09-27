@@ -10,14 +10,26 @@ const putSchema = z.object({ enabled: z.boolean() });
 
 // Organization-wide enablement (modules.manage). Idempotent; audited with
 // before/after; never deletes role assignments or business data.
-export async function PUT(request: Request, context: { params: Promise<{ key: string }> }) {
+export async function PUT(
+  request: Request,
+  context: { params: Promise<{ key: string }> },
+) {
   return workspaceRoute(
     request,
-    { permission: CORE_PERMISSIONS.modulesManage, action: "settings.modules.update", auditDenial: true },
+    {
+      permission: CORE_PERMISSIONS.modulesManage,
+      action: "settings.modules.update",
+      auditDenial: true,
+    },
     async ({ client, session }) => {
       const { key } = await context.params;
       const body = putSchema.parse(await readJson(request));
-      return ok(await setOrganizationModuleEnabled(client, session, key, body.enabled, { request, env: process.env }));
+      return ok(
+        await setOrganizationModuleEnabled(client, session, key, body.enabled, {
+          request,
+          env: process.env,
+        }),
+      );
     },
   );
 }

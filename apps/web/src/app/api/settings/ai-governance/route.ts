@@ -10,8 +10,14 @@ import { workspaceRoute } from "@/core/workspace-route";
 // registered tools and data classes; prompts are never stored or shown (only
 // their hashes exist).
 export async function GET(request: Request) {
-  return workspaceRoute(request, { permission: CORE_PERMISSIONS.platformAiManage, action: "ai.governance.view" }, async ({ client, session }) =>
-    ok(await getAiGovernanceOverview(client, session.organizationId)),
+  return workspaceRoute(
+    request,
+    {
+      permission: CORE_PERMISSIONS.platformAiManage,
+      action: "ai.governance.view",
+    },
+    async ({ client, session }) =>
+      ok(await getAiGovernanceOverview(client, session.organizationId)),
   );
 }
 
@@ -28,7 +34,17 @@ const schema = z.object({
 export async function PUT(request: Request) {
   return workspaceRoute(
     request,
-    { permission: CORE_PERMISSIONS.platformAiManage, action: "ai.policy.write", auditDenial: true },
-    async ({ client, session }) => ok({ policy: await setAiPolicy(client, session, { ...schema.parse(await readJson(request)), policyKey: "organization" }) }),
+    {
+      permission: CORE_PERMISSIONS.platformAiManage,
+      action: "ai.policy.write",
+      auditDenial: true,
+    },
+    async ({ client, session }) =>
+      ok({
+        policy: await setAiPolicy(client, session, {
+          ...schema.parse(await readJson(request)),
+          policyKey: "organization",
+        }),
+      }),
   );
 }

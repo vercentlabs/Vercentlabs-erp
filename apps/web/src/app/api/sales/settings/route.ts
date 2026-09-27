@@ -2,7 +2,10 @@ import { z } from "zod";
 
 import { getSalesSettings, updateSalesSettings } from "@vercentlabs/api";
 
-import { salesMutation, salesRead } from "@/features/sales/shared/route-helpers";
+import {
+  salesMutation,
+  salesRead,
+} from "@/features/sales/shared/route-helpers";
 
 const schema = z.object({
   sellerStateCode: z.string().trim().max(4).nullish(),
@@ -17,11 +20,20 @@ const schema = z.object({
 });
 
 export async function GET(request: Request) {
-  return salesRead(request, "sales.view", async (client, context) => ({ settings: await getSalesSettings(client, context) }));
+  return salesRead(request, "sales.view", async (client, context) => ({
+    settings: await getSalesSettings(client, context),
+  }));
 }
 
 // The domain validates ranges and demands sales.settings.manage; a saved change
 // applies to every later approval decision, so it is a settings-permission write.
 export async function PUT(request: Request) {
-  return salesMutation(request, "sales.settings.manage", schema, async (client, context, input) => ({ settings: await updateSalesSettings(client, context, input) }));
+  return salesMutation(
+    request,
+    "sales.settings.manage",
+    schema,
+    async (client, context, input) => ({
+      settings: await updateSalesSettings(client, context, input),
+    }),
+  );
 }

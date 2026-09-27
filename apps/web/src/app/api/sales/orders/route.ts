@@ -1,6 +1,9 @@
 import { createSalesOrder, listSalesOrders } from "@vercentlabs/api";
 
-import { salesMutation, salesRead } from "@/features/sales/shared/route-helpers";
+import {
+  salesMutation,
+  salesRead,
+} from "@/features/sales/shared/route-helpers";
 import { documentSchema } from "@/features/sales/shared/schemas";
 
 export async function GET(request: Request) {
@@ -12,9 +15,19 @@ export async function GET(request: Request) {
     limit: url.searchParams.get("limit") || undefined,
     offset: url.searchParams.get("offset") || undefined,
   };
-  return salesRead(request, "sales.view", async (client, context) => ({ rows: await listSalesOrders(client, context, filters) }));
+  return salesRead(request, "sales.view", async (client, context) => ({
+    rows: await listSalesOrders(client, context, filters),
+  }));
 }
 
 export async function POST(request: Request) {
-  return salesMutation(request, "sales.order.create", documentSchema, async (client, context, input) => ({ order: await createSalesOrder(client, context, input) }), 201);
+  return salesMutation(
+    request,
+    "sales.order.create",
+    documentSchema,
+    async (client, context, input) => ({
+      order: await createSalesOrder(client, context, input),
+    }),
+    201,
+  );
 }

@@ -1,4 +1,8 @@
-import { publicQuoteTokenHash, resolvePublicQuoteOrganization, resolvePublicQuoteToken } from "@vercentlabs/api";
+import {
+  publicQuoteTokenHash,
+  resolvePublicQuoteOrganization,
+  resolvePublicQuoteToken,
+} from "@vercentlabs/api";
 
 import { tenantTransaction, withIngressClient } from "@/core/db";
 import { errorResponse, ok } from "@/core/http";
@@ -15,9 +19,23 @@ export async function GET(_request: Request, context: RouteContext) {
   try {
     const { token } = await context.params;
     const tokenHash = publicQuoteTokenHash(token);
-    const organizationId = await withIngressClient((client) => resolvePublicQuoteOrganization(client, tokenHash));
-    const result = await tenantTransaction(organizationId, (client) => resolvePublicQuoteToken(client, { organizationId } as never, tokenHash, true));
-    return ok(toWire({ quotation: result.quotation, expiresAt: result.link.expires_at }));
+    const organizationId = await withIngressClient((client) =>
+      resolvePublicQuoteOrganization(client, tokenHash),
+    );
+    const result = await tenantTransaction(organizationId, (client) =>
+      resolvePublicQuoteToken(
+        client,
+        { organizationId } as never,
+        tokenHash,
+        true,
+      ),
+    );
+    return ok(
+      toWire({
+        quotation: result.quotation,
+        expiresAt: result.link.expires_at,
+      }),
+    );
   } catch (error) {
     return errorResponse(error);
   }

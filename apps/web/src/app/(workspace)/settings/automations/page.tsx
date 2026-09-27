@@ -8,5 +8,12 @@ export const metadata = { title: "Automations" };
 
 export default async function AutomationsPage() {
   const session = await requireWorkspace();
-  return <AutomationsScreen canManage={hasSessionPermission(session, CORE_PERMISSIONS.platformWorkflowsManage)} />;
+  return (
+    <AutomationsScreen
+      canManage={hasSessionPermission(
+        session,
+        CORE_PERMISSIONS.platformWorkflowsManage,
+      )}
+    />
+  );
 }

@@ -24,7 +24,12 @@ import { CRM_PERMISSIONS } from "@vercentlabs/permissions";
 
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
-import { cancelMeeting, listMeetings, MeetingApiError, startMeeting } from "../api/meetings-api";
+import {
+  cancelMeeting,
+  listMeetings,
+  MeetingApiError,
+  startMeeting,
+} from "../api/meetings-api";
 import { CompleteMeetingDialog } from "../components/CompleteMeetingDialog";
 import type { Meeting, MeetingListFilters } from "../types";
 import { LoadingState } from "@/shared/ui/LoadingState";
@@ -32,7 +37,10 @@ import { DueCell } from "@/features/crm/shared/ui/DueCell";
 
 const PAGE_SIZE = 25;
 
-const statusTone: Record<string, "neutral" | "info" | "success" | "warning" | "danger"> = {
+const statusTone: Record<
+  string,
+  "neutral" | "info" | "success" | "warning" | "danger"
+> = {
   planned: "neutral",
   overdue: "danger",
   in_progress: "info",
@@ -40,17 +48,22 @@ const statusTone: Record<string, "neutral" | "info" | "success" | "warning" | "d
   cancelled: "neutral",
 };
 
-
 export function MeetingListScreen() {
   const router = useRouter();
   const queryClient = useQueryClient();
   const workspace = useWorkspaceContext();
-  const canManage = workspace.permissions.includes(CRM_PERMISSIONS.activitiesManage);
+  const canManage = workspace.permissions.includes(
+    CRM_PERMISSIONS.activitiesManage,
+  );
 
-  const [filters, setFilters] = useState<MeetingListFilters>({ limit: PAGE_SIZE, offset: 0 });
+  const [filters, setFilters] = useState<MeetingListFilters>({
+    limit: PAGE_SIZE,
+    offset: 0,
+  });
   const [searchInput, setSearchInput] = useState("");
   const [actionError, setActionError] = useState<string | null>(null);
-  const [completeDialogMeeting, setCompleteDialogMeeting] = useState<Meeting | null>(null);
+  const [completeDialogMeeting, setCompleteDialogMeeting] =
+    useState<Meeting | null>(null);
 
   const query = useQuery({
     queryKey: scopedQueryKey(workspace, "crm", "meetings", filters),
@@ -58,7 +71,10 @@ export function MeetingListScreen() {
     placeholderData: (previous) => previous,
   });
 
-  function updateFilter<K extends keyof MeetingListFilters>(key: K, value: MeetingListFilters[K]) {
+  function updateFilter<K extends keyof MeetingListFilters>(
+    key: K,
+    value: MeetingListFilters[K],
+  ) {
     setFilters((current) => ({ ...current, [key]: value, offset: 0 }));
   }
 
@@ -67,19 +83,36 @@ export function MeetingListScreen() {
   }
 
   function invalidate() {
-    queryClient.invalidateQueries({ queryKey: scopedQueryKey(workspace, "crm", "meetings") });
+    queryClient.invalidateQueries({
+      queryKey: scopedQueryKey(workspace, "crm", "meetings"),
+    });
   }
 
   function handleError(error: unknown) {
-    setActionError(error instanceof MeetingApiError ? error.message : "This action could not be completed.");
+    setActionError(
+      error instanceof MeetingApiError
+        ? error.message
+        : "This action could not be completed.",
+    );
     // A stale-write conflict means this row's local updatedAt is already
     // wrong — refetch so the next attempt uses current data instead of
     // failing the same way again.
-    if (error instanceof MeetingApiError && error.code === "CRM_STALE_WRITE") invalidate();
+    if (error instanceof MeetingApiError && error.code === "CRM_STALE_WRITE")
+      invalidate();
   }
 
-  const startMutation = useMutation({ mutationFn: (meeting: Meeting) => startMeeting(meeting.id, meeting.updatedAt), onSuccess: invalidate, onError: handleError });
-  const cancelMutation = useMutation({ mutationFn: (meeting: Meeting) => cancelMeeting(meeting.id, meeting.updatedAt), onSuccess: invalidate, onError: handleError });
+  const startMutation = useMutation({
+    mutationFn: (meeting: Meeting) =>
+      startMeeting(meeting.id, meeting.updatedAt),
+    onSuccess: invalidate,
+    onError: handleError,
+  });
+  const cancelMutation = useMutation({
+    mutationFn: (meeting: Meeting) =>
+      cancelMeeting(meeting.id, meeting.updatedAt),
+    onSuccess: invalidate,
+    onError: handleError,
+  });
 
   const rows = query.data?.rows ?? [];
   const total = query.data?.total ?? 0;
@@ -88,23 +121,46 @@ export function MeetingListScreen() {
 
   const activeFilters: ActiveFilter[] = useMemo(() => {
     const active: ActiveFilter[] = [];
-    if (filters.search) active.push({ id: "search", label: `Search: ${filters.search}` });
-    if (filters.status) active.push({ id: "status", label: `Status: ${filters.status}` });
-    if (filters.due && filters.due !== "all") active.push({ id: "due", label: `Due: ${filters.due}` });
+    if (filters.search)
+      active.push({ id: "search", label: `Search: ${filters.search}` });
+    if (filters.status)
+      active.push({ id: "status", label: `Status: ${filters.status}` });
+    if (filters.due && filters.due !== "all")
+      active.push({ id: "due", label: `Due: ${filters.due}` });
     return active;
   }, [filters]);
 
   const columns: ColumnDef<Meeting, unknown>[] = useMemo(
     () => [
-      { id: "subject", header: "Meeting", accessorKey: "subject", cell: ({ row }) => <span className="font-medium text-text">{row.original.subject}</span> },
-      { id: "locationType", header: "Location", accessorFn: (row) => (row.locationType ? humanize(row.locationType) : "—") },
+      {
+        id: "subject",
+        header: "Meeting",
+        accessorKey: "subject",
+        cell: ({ row }) => (
+          <span className="font-medium text-text">{row.original.subject}</span>
+        ),
+      },
+      {
+        id: "locationType",
+        header: "Location",
+        accessorFn: (row) =>
+          row.locationType ? humanize(row.locationType) : "—",
+      },
       {
         id: "status",
         header: "Status",
         accessorKey: "status",
-        cell: ({ getValue }) => <StatusBadge tone={statusTone[String(getValue())] ?? "neutral"}>{String(getValue())}</StatusBadge>,
+        cell: ({ getValue }) => (
+          <StatusBadge tone={statusTone[String(getValue())] ?? "neutral"}>
+            {String(getValue())}
+          </StatusBadge>
+        ),
       },
-      { id: "assignedName", header: "Organizer", accessorFn: (row) => row.assignedName || "Unassigned" },
+      {
+        id: "assignedName",
+        header: "Organizer",
+        accessorFn: (row) => row.assignedName || "Unassigned",
+      },
       {
         id: "attendeeCount",
         header: "Attendees",
@@ -116,14 +172,26 @@ export function MeetingListScreen() {
           </span>
         ),
       },
-      { id: "startAt", header: "Starts", accessorFn: (row) => row.startAt ?? "", cell: ({ row }) => <DueCell value={row.original.startAt} done={["completed", "cancelled"].includes(row.original.status)} /> },
+      {
+        id: "startAt",
+        header: "Starts",
+        accessorFn: (row) => row.startAt ?? "",
+        cell: ({ row }) => (
+          <DueCell
+            value={row.original.startAt}
+            done={["completed", "cancelled"].includes(row.original.status)}
+          />
+        ),
+      },
     ],
     [],
   );
 
   const gridState = query.isLoading
     ? "loading"
-    : query.isError && query.error instanceof MeetingApiError && query.error.status === 403
+    : query.isError &&
+        query.error instanceof MeetingApiError &&
+        query.error.status === 403
       ? "permission-denied"
       : query.isError
         ? "error"
@@ -135,9 +203,13 @@ export function MeetingListScreen() {
     <EnterpriseListPage
       header={{
         title: "Meetings",
-        description: "Scheduled and logged meetings across your Leads, Accounts and Opportunities.",
+        description:
+          "Scheduled and logged meetings across your Leads, Accounts and Opportunities.",
         primaryAction: canManage ? (
-          <Button variant="primary" onPress={() => router.push("/crm/meetings/new")}>
+          <Button
+            variant="primary"
+            onPress={() => router.push("/crm/meetings/new")}
+          >
             <Plus className="size-4" aria-hidden="true" />
             New meeting
           </Button>
@@ -165,7 +237,9 @@ export function MeetingListScreen() {
                 { value: "cancelled", label: "Cancelled" },
               ]}
               selectedKey={filters.status ?? "all"}
-              onSelectionChange={(key) => updateFilter("status", key === "all" ? undefined : String(key))}
+              onSelectionChange={(key) =>
+                updateFilter("status", key === "all" ? undefined : String(key))
+              }
             />
             <Select
               aria-label="Due"
@@ -177,11 +251,22 @@ export function MeetingListScreen() {
                 { value: "upcoming", label: "Upcoming" },
               ]}
               selectedKey={filters.due ?? "all"}
-              onSelectionChange={(key) => updateFilter("due", key === "all" ? undefined : (String(key) as MeetingListFilters["due"]))}
+              onSelectionChange={(key) =>
+                updateFilter(
+                  "due",
+                  key === "all"
+                    ? undefined
+                    : (String(key) as MeetingListFilters["due"]),
+                )
+              }
             />
           </>
         ),
-        end: <Button variant="secondary" onPress={submitSearch}>Search</Button>,
+        end: (
+          <Button variant="secondary" onPress={submitSearch}>
+            Search
+          </Button>
+        ),
       }}
       filterBar={{
         filters: activeFilters,
@@ -199,7 +284,10 @@ export function MeetingListScreen() {
       }}
     >
       {actionError && (
-        <p role="alert" className="rounded-[var(--radius-control)] border border-danger-emphasis/30 bg-danger-soft px-3 py-2 text-sm text-danger">
+        <p
+          role="alert"
+          className="rounded-[var(--radius-control)] border border-danger-emphasis/30 bg-danger-soft px-3 py-2 text-sm text-danger"
+        >
           {actionError}
         </p>
       )}
@@ -211,27 +299,69 @@ export function MeetingListScreen() {
         onRowClick={(row) => router.push(`/crm/meetings/${row.id}`)}
         state={gridState}
         loadingContent={<LoadingState label="Loading meetings" rows={3} />}
-        emptyContent={<NoResultsState title="No meetings yet" action={canManage ? { label: "New meeting", onPress: () => router.push("/crm/meetings/new") } : undefined} />}
-        errorContent={<ErrorState title="Could not load meetings" action={{ label: "Retry", onPress: () => query.refetch() }} />}
-        permissionDeniedContent={<PermissionState title="You don't have access to Meetings" />}
+        emptyContent={
+          <NoResultsState
+            title="No meetings yet"
+            action={
+              canManage
+                ? {
+                    label: "New meeting",
+                    onPress: () => router.push("/crm/meetings/new"),
+                  }
+                : undefined
+            }
+          />
+        }
+        errorContent={
+          <ErrorState
+            title="Could not load meetings"
+            action={{ label: "Retry", onPress: () => query.refetch() }}
+          />
+        }
+        permissionDeniedContent={
+          <PermissionState title="You don't have access to Meetings" />
+        }
         pageIndex={pageIndex}
         pageSize={PAGE_SIZE}
         pageCount={pageCount}
         totalRowCount={total}
-        onPageChange={(nextIndex) => setFilters((current) => ({ ...current, offset: nextIndex * PAGE_SIZE }))}
+        onPageChange={(nextIndex) =>
+          setFilters((current) => ({
+            ...current,
+            offset: nextIndex * PAGE_SIZE,
+          }))
+        }
         rowActions={(row) => {
           if (["completed", "cancelled"].includes(row.status)) return null;
           return (
-            <span onClick={(event) => event.stopPropagation()} className="flex items-center gap-1">
+            <span
+              onClick={(event) => event.stopPropagation()}
+              className="flex items-center gap-1"
+            >
               {row.status !== "in_progress" && (
-                <IconButton aria-label={`Start ${row.subject}`} size="compact" variant="ghost" onPress={() => startMutation.mutate(row)}>
+                <IconButton
+                  aria-label={`Start ${row.subject}`}
+                  size="compact"
+                  variant="ghost"
+                  onPress={() => startMutation.mutate(row)}
+                >
                   <Play className="size-4" aria-hidden="true" />
                 </IconButton>
               )}
-              <IconButton aria-label={`Complete ${row.subject}`} size="compact" variant="ghost" onPress={() => setCompleteDialogMeeting(row)}>
+              <IconButton
+                aria-label={`Complete ${row.subject}`}
+                size="compact"
+                variant="ghost"
+                onPress={() => setCompleteDialogMeeting(row)}
+              >
                 <CheckCircle2 className="size-4" aria-hidden="true" />
               </IconButton>
-              <IconButton aria-label={`Cancel ${row.subject}`} size="compact" variant="danger" onPress={() => cancelMutation.mutate(row)}>
+              <IconButton
+                aria-label={`Cancel ${row.subject}`}
+                size="compact"
+                variant="danger"
+                onPress={() => cancelMutation.mutate(row)}
+              >
                 <X className="size-4" aria-hidden="true" />
               </IconButton>
             </span>
@@ -241,7 +371,9 @@ export function MeetingListScreen() {
       {completeDialogMeeting && (
         <CompleteMeetingDialog
           meeting={completeDialogMeeting}
-          onOpenChange={(open) => { if (!open) setCompleteDialogMeeting(null); }}
+          onOpenChange={(open) => {
+            if (!open) setCompleteDialogMeeting(null);
+          }}
           onDone={invalidate}
           onError={handleError}
         />

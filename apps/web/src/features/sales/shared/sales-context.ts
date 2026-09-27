@@ -8,7 +8,9 @@ export function salesContext(session: WorkspaceSessionContext) {
     userId: session.userId,
     activeCompanyId: session.activeCompanyId,
     activeBranchId: session.activeBranchId,
-    allowAllCompanies: session.roleSlugs.includes("organization_owner") || session.roleSlugs.includes("system_administrator"),
+    allowAllCompanies:
+      session.roleSlugs.includes("organization_owner") ||
+      session.roleSlugs.includes("system_administrator"),
     permissions: session.permissions,
     roleSlugs: session.roleSlugs,
   };

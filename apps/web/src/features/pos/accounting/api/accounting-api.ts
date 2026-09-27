@@ -14,11 +14,19 @@ export type PosAccountingPostingRow = {
   accounting_posted_at: string | null;
   completed_at: string;
 };
-export type PosAccountingPostingOutcome = { posted: boolean; replayed?: boolean; failed?: boolean; journalEntryId?: string; message?: string };
+export type PosAccountingPostingOutcome = {
+  posted: boolean;
+  replayed?: boolean;
+  failed?: boolean;
+  journalEntryId?: string;
+  message?: string;
+};
 
 // F305
-export const postPosSaleToAccounting = (saleId: string) => post<PosAccountingPostingOutcome>(`/sales/${saleId}/accounting-post`);
-export const postPosReturnToAccounting = (returnId: string) => post<PosAccountingPostingOutcome>(`/returns/${returnId}/accounting-post`);
+export const postPosSaleToAccounting = (saleId: string) =>
+  post<PosAccountingPostingOutcome>(`/sales/${saleId}/accounting-post`);
+export const postPosReturnToAccounting = (returnId: string) =>
+  post<PosAccountingPostingOutcome>(`/returns/${returnId}/accounting-post`);
 export const postPosDayEndReportToAccounting = (reportId: string) =>
   post<{
     reportId: string;
@@ -26,11 +34,15 @@ export const postPosDayEndReportToAccounting = (reportId: string) =>
     alreadyPosted: Array<{ type: string; id: string }>;
     failed: Array<{ type: string; id: string; message: string }>;
   }>(`/reports/day-end/${reportId}/accounting-post`);
-export const listPosAccountingPostingQueue = (query: { status?: string; storeId?: string } = {}) => {
+export const listPosAccountingPostingQueue = (
+  query: { status?: string; storeId?: string } = {},
+) => {
   const params = new URLSearchParams();
   if (query.status) params.set("status", query.status);
   if (query.storeId) params.set("storeId", query.storeId);
-  return request<{ rows: PosAccountingPostingRow[] }>(`/accounting/posting-queue${params.size ? `?${params}` : ""}`);
+  return request<{ rows: PosAccountingPostingRow[] }>(
+    `/accounting/posting-queue${params.size ? `?${params}` : ""}`,
+  );
 };
 
 // F305 gap closure — account-mapping configuration.
@@ -44,8 +56,24 @@ export type PosAccountingMappingRow = {
   accountCode: string | null;
   accountName: string | null;
 };
-export type PosAccountOption = { id: string; code: string; name: string; account_type: string };
-export type PosAccountingMappingConfig = { ledger: { id: string; code: string; name: string } | null; accounts: PosAccountOption[]; mappings: PosAccountingMappingRow[] };
-export const getPosAccountingMappingConfig = () => request<PosAccountingMappingConfig>("/accounting/mappings");
-export const upsertPosAccountingMapping = (mappingKey: string, accountId: string) =>
-  post<{ mapping: Record<string, unknown> }>("/accounting/mappings", { mappingKey, accountId });
+export type PosAccountOption = {
+  id: string;
+  code: string;
+  name: string;
+  account_type: string;
+};
+export type PosAccountingMappingConfig = {
+  ledger: { id: string; code: string; name: string } | null;
+  accounts: PosAccountOption[];
+  mappings: PosAccountingMappingRow[];
+};
+export const getPosAccountingMappingConfig = () =>
+  request<PosAccountingMappingConfig>("/accounting/mappings");
+export const upsertPosAccountingMapping = (
+  mappingKey: string,
+  accountId: string,
+) =>
+  post<{ mapping: Record<string, unknown> }>("/accounting/mappings", {
+    mappingKey,
+    accountId,
+  });

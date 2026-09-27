@@ -11,11 +11,23 @@ const correctionSchema = z.object({
   adjustment: z.array(z.record(z.string(), z.any())).optional(),
 });
 
-export async function POST(request: Request, context: { params: Promise<{ id: string }> }) {
-  return workspaceRoute(request, { module: "point-of-sale", permission: "pos.reconciliation.approve" }, async ({ client, session }) => {
-    const { id } = await context.params;
-    const input = correctionSchema.parse(await readJson(request));
-    const result = await recordPosReconciliationCorrection(client, posContext(session), id, input);
-    return ok({ correction: result }, 201);
-  });
+export async function POST(
+  request: Request,
+  context: { params: Promise<{ id: string }> },
+) {
+  return workspaceRoute(
+    request,
+    { module: "point-of-sale", permission: "pos.reconciliation.approve" },
+    async ({ client, session }) => {
+      const { id } = await context.params;
+      const input = correctionSchema.parse(await readJson(request));
+      const result = await recordPosReconciliationCorrection(
+        client,
+        posContext(session),
+        id,
+        input,
+      );
+      return ok({ correction: result }, 201);
+    },
+  );
 }

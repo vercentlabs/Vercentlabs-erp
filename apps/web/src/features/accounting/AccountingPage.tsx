@@ -3,7 +3,10 @@
 import { REGISTERS } from "@/features/accounting/configs-all";
 import { AccountingDashboardScreen } from "@/features/accounting/screens/DashboardScreen";
 import { DocumentBuilder } from "@/features/accounting/screens/DocumentBuilder";
-import { REPORTS, ReportScreen } from "@/features/accounting/screens/ReportScreen";
+import {
+  REPORTS,
+  ReportScreen,
+} from "@/features/accounting/screens/ReportScreen";
 import { SettlementScreen } from "@/features/accounting/screens/SettlementScreen";
 import { Register } from "@/features/accounting/shared/Register";
 

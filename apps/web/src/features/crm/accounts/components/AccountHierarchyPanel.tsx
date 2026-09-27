@@ -7,7 +7,11 @@ import { Button, Select, type SelectOption } from "@vercentlabs/design-system";
 
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
-import { AccountApiError, getAccountHierarchy, setAccountParent } from "../api/accounts-api";
+import {
+  AccountApiError,
+  getAccountHierarchy,
+  setAccountParent,
+} from "../api/accounts-api";
 import { listAccounts } from "../api/accounts-api";
 
 const dateFormatter = new Intl.DateTimeFormat("en-IN", { dateStyle: "medium" });
@@ -17,7 +21,13 @@ const dateFormatter = new Intl.DateTimeFormat("en-IN", { dateStyle: "medium" });
 // wiring before this pass (confirmed by grep). Ancestors are ordered
 // root-first (depth DESC per the query), so the breadcrumb reads top to
 // bottom naturally without re-sorting here.
-export function AccountHierarchyPanel({ accountId, canManage }: { accountId: string; canManage: boolean }) {
+export function AccountHierarchyPanel({
+  accountId,
+  canManage,
+}: {
+  accountId: string;
+  canManage: boolean;
+}) {
   const workspace = useWorkspaceContext();
   const queryClient = useQueryClient();
   const [error, setError] = useState<string | null>(null);
@@ -25,7 +35,13 @@ export function AccountHierarchyPanel({ accountId, canManage }: { accountId: str
   const [pickerOpen, setPickerOpen] = useState(false);
 
   const hierarchyQuery = useQuery({
-    queryKey: scopedQueryKey(workspace, "crm", "accounts", accountId, "hierarchy"),
+    queryKey: scopedQueryKey(
+      workspace,
+      "crm",
+      "accounts",
+      accountId,
+      "hierarchy",
+    ),
     queryFn: () => getAccountHierarchy(accountId),
   });
   // Candidate parents: the full active Account list minus this account and
@@ -33,14 +49,29 @@ export function AccountHierarchyPanel({ accountId, canManage }: { accountId: str
   // by the cycle guard anyway, but excluding them here avoids offering a
   // choice the server will just reject).
   const candidatesQuery = useQuery({
-    queryKey: scopedQueryKey(workspace, "crm", "accounts", "hierarchy-candidates"),
+    queryKey: scopedQueryKey(
+      workspace,
+      "crm",
+      "accounts",
+      "hierarchy-candidates",
+    ),
     queryFn: () => listAccounts({ status: "active", limit: 200 }),
     enabled: pickerOpen,
   });
 
   function invalidate() {
-    queryClient.invalidateQueries({ queryKey: scopedQueryKey(workspace, "crm", "accounts", accountId, "hierarchy") });
-    queryClient.invalidateQueries({ queryKey: scopedQueryKey(workspace, "crm", "accounts", accountId) });
+    queryClient.invalidateQueries({
+      queryKey: scopedQueryKey(
+        workspace,
+        "crm",
+        "accounts",
+        accountId,
+        "hierarchy",
+      ),
+    });
+    queryClient.invalidateQueries({
+      queryKey: scopedQueryKey(workspace, "crm", "accounts", accountId),
+    });
   }
 
   const setParentMutation = useMutation({
@@ -50,10 +81,16 @@ export function AccountHierarchyPanel({ accountId, canManage }: { accountId: str
       setPickerOpen(false);
       invalidate();
     },
-    onError: (err: unknown) => setError(err instanceof AccountApiError ? err.message : "The parent account could not be updated."),
+    onError: (err: unknown) =>
+      setError(
+        err instanceof AccountApiError
+          ? err.message
+          : "The parent account could not be updated.",
+      ),
   });
 
-  if (hierarchyQuery.isLoading) return <p className="text-sm text-text-secondary">Loading hierarchy…</p>;
+  if (hierarchyQuery.isLoading)
+    return <p className="text-sm text-text-secondary">Loading hierarchy…</p>;
   const hierarchy = hierarchyQuery.data;
   if (!hierarchy) return null;
 
@@ -68,46 +105,99 @@ export function AccountHierarchyPanel({ accountId, canManage }: { accountId: str
   return (
     <div className="flex flex-col gap-3">
       {error && (
-        <p role="alert" className="rounded-[var(--radius-control)] border border-danger-emphasis/30 bg-danger-soft px-3 py-2 text-sm text-danger">
+        <p
+          role="alert"
+          className="rounded-[var(--radius-control)] border border-danger-emphasis/30 bg-danger-soft px-3 py-2 text-sm text-danger"
+        >
           {error}
         </p>
       )}
-      {(hierarchy.ancestors.length > 0 || hierarchy.account.parent_restricted) && (
+      {(hierarchy.ancestors.length > 0 ||
+        hierarchy.account.parent_restricted) && (
         <div className="flex flex-wrap items-center gap-1 text-sm text-text-secondary">
           {hierarchy.ancestors.map((node) => (
             <span key={node.id}>
-              {node.parent_restricted && <span className="text-text-muted">Restricted account / </span>}
-              <Link className="text-brand hover:underline" href={`/crm/accounts/${node.id}`}>{node.display_name}</Link> /
+              {node.parent_restricted && (
+                <span className="text-text-muted">Restricted account / </span>
+              )}
+              <Link
+                className="text-brand hover:underline"
+                href={`/crm/accounts/${node.id}`}
+              >
+                {node.display_name}
+              </Link>{" "}
+              /
             </span>
           ))}
           {/* The direct parent exists but is outside the caller's access: say so, without identity. */}
-          {hierarchy.account.parent_restricted && <span className="text-text-muted">Parent account restricted /</span>}
-          <span className="font-medium text-text">{hierarchy.account.display_name}</span>
+          {hierarchy.account.parent_restricted && (
+            <span className="text-text-muted">Parent account restricted /</span>
+          )}
+          <span className="font-medium text-text">
+            {hierarchy.account.display_name}
+          </span>
         </div>
       )}
       {hierarchy.descendants.length > 0 && (
         <div className="flex flex-col gap-1">
-          <span className="text-xs text-text-muted">{hierarchy.metrics.descendantCount} child account{hierarchy.metrics.descendantCount === 1 ? "" : "s"}</span>
+          <span className="text-xs text-text-muted">
+            {hierarchy.metrics.descendantCount} child account
+            {hierarchy.metrics.descendantCount === 1 ? "" : "s"}
+          </span>
           <ul className="flex flex-col gap-1">
             {hierarchy.descendants.map((node) => (
-              <li key={node.id} className="text-sm text-text" style={{ paddingLeft: `${(node.depth - 1) * 16}px` }}>
-                <Link className="text-brand hover:underline" href={`/crm/accounts/${node.id}`}>{node.display_name}</Link>
-                {node.parent_restricted && <span className="text-xs text-text-muted"> (under a restricted account)</span>}
+              <li
+                key={node.id}
+                className="text-sm text-text"
+                style={{ paddingLeft: `${(node.depth - 1) * 16}px` }}
+              >
+                <Link
+                  className="text-brand hover:underline"
+                  href={`/crm/accounts/${node.id}`}
+                >
+                  {node.display_name}
+                </Link>
+                {node.parent_restricted && (
+                  <span className="text-xs text-text-muted">
+                    {" "}
+                    (under a restricted account)
+                  </span>
+                )}
               </li>
             ))}
           </ul>
         </div>
       )}
-      {hierarchy.ancestors.length === 0 && hierarchy.descendants.length === 0 && !hierarchy.account.parent_restricted && <p className="text-sm text-text-muted">No parent or child accounts.</p>}
+      {hierarchy.ancestors.length === 0 &&
+        hierarchy.descendants.length === 0 &&
+        !hierarchy.account.parent_restricted && (
+          <p className="text-sm text-text-muted">
+            No parent or child accounts.
+          </p>
+        )}
 
       {canManage &&
         (pickerOpen ? (
           <div className="flex items-end gap-2">
-            <Select label="Parent account" options={parentOptions} selectedKey={parentId} onSelectionChange={(key) => setParentId(String(key ?? ""))} />
-            <Button variant="secondary" size="compact" onPress={() => setParentMutation.mutate()} isLoading={setParentMutation.isPending}>
+            <Select
+              label="Parent account"
+              options={parentOptions}
+              selectedKey={parentId}
+              onSelectionChange={(key) => setParentId(String(key ?? ""))}
+            />
+            <Button
+              variant="secondary"
+              size="compact"
+              onPress={() => setParentMutation.mutate()}
+              isLoading={setParentMutation.isPending}
+            >
               Save
             </Button>
-            <Button variant="secondary" size="compact" onPress={() => setPickerOpen(false)}>
+            <Button
+              variant="secondary"
+              size="compact"
+              onPress={() => setPickerOpen(false)}
+            >
               Cancel
             </Button>
           </div>
@@ -131,8 +221,14 @@ export function AccountHierarchyPanel({ accountId, canManage }: { accountId: str
           <ul className="mt-2 flex flex-col gap-1">
             {hierarchy.history.map((event) => (
               <li key={event.id}>
-                {event.action === "parent_cleared" ? "Cleared parent" : `Set parent to ${event.new_parent_name}`}
-                {event.previous_parent_name ? ` (was ${event.previous_parent_name})` : ""} — {event.changed_by_name || "Unknown"}, {dateFormatter.format(new Date(event.changed_at))}
+                {event.action === "parent_cleared"
+                  ? "Cleared parent"
+                  : `Set parent to ${event.new_parent_name}`}
+                {event.previous_parent_name
+                  ? ` (was ${event.previous_parent_name})`
+                  : ""}{" "}
+                — {event.changed_by_name || "Unknown"},{" "}
+                {dateFormatter.format(new Date(event.changed_at))}
               </li>
             ))}
           </ul>

@@ -15,13 +15,26 @@ const MIN_LENGTH = 2;
 // Record search is orchestrated on the server (GET /api/search): it decides
 // which module sources run for this person and each source applies its
 // module's own record access. The browser only renders the groups.
-type Hit = { sourceKey: string; recordId: string; title: string; detail: string | null; href: string };
-type Group = { sourceKey: string; sourceLabel: string; moduleKey: string; status: "ok" | "unavailable"; results: Hit[] };
+type Hit = {
+  sourceKey: string;
+  recordId: string;
+  title: string;
+  detail: string | null;
+  href: string;
+};
+type Group = {
+  sourceKey: string;
+  sourceLabel: string;
+  moduleKey: string;
+  status: "ok" | "unavailable";
+  results: Hit[];
+};
 
 async function fetchSearchResults(term: string): Promise<Group[]> {
   const response = await fetch(`/api/search?q=${encodeURIComponent(term)}`);
   const payload = await response.json().catch(() => ({}));
-  if (!response.ok || payload.ok === false) throw new Error("Search is not available right now.");
+  if (!response.ok || payload.ok === false)
+    throw new Error("Search is not available right now.");
   return payload.groups ?? [];
 }
 
@@ -40,9 +53,16 @@ function GroupResults({ group }: { group: Group }) {
       <ul className="flex flex-col divide-y divide-border rounded-[var(--radius-card)] border border-border bg-surface">
         {group.results.map((hit) => (
           <li key={hit.recordId}>
-            <Link href={hit.href} className="flex flex-col gap-0.5 px-4 py-3 hover:bg-surface-muted focus-visible:outline-2 focus-visible:outline-brand">
+            <Link
+              href={hit.href}
+              className="flex flex-col gap-0.5 px-4 py-3 hover:bg-surface-muted focus-visible:outline-2 focus-visible:outline-brand"
+            >
               <span className="text-sm font-medium text-text">{hit.title}</span>
-              {hit.detail && <span className="text-xs text-text-secondary">{hit.detail}</span>}
+              {hit.detail && (
+                <span className="text-xs text-text-secondary">
+                  {hit.detail}
+                </span>
+              )}
             </Link>
           </li>
         ))}
@@ -65,7 +85,10 @@ export function GlobalSearchScreen() {
       const next = text.trim();
       setTerm(next);
       const current = new URLSearchParams(window.location.search);
-      if ((current.get("q") ?? "") !== next) router.replace(next ? `/search?q=${encodeURIComponent(next)}` : "/search");
+      if ((current.get("q") ?? "") !== next)
+        router.replace(
+          next ? `/search?q=${encodeURIComponent(next)}` : "/search",
+        );
     }, 350);
     return () => clearTimeout(timer);
   }, [text, router]);
@@ -85,24 +108,56 @@ export function GlobalSearchScreen() {
   const pages = useMemo(() => {
     if (!enabled) return [];
     const needle = term.toLowerCase();
-    const found: Array<{ id: string; label: string; module: string; href: string }> = [];
+    const found: Array<{
+      id: string;
+      label: string;
+      module: string;
+      href: string;
+    }> = [];
     for (const area of MODULE_NAVIGATION) {
       if (!workspace.accessibleModuleKeys.includes(area.moduleKey)) continue;
       for (const section of area.sections) {
         for (const item of section.items) {
           if (item.status === "PLANNED") continue;
-          if (item.requiredPermission && !workspace.permissions.includes(item.requiredPermission) && !workspace.roleSlugs.includes("organization_owner")) continue;
-          if (`${item.label} ${area.label}`.toLowerCase().includes(needle)) found.push({ id: `${area.moduleKey}:${item.id}`, label: item.label, module: area.label, href: item.route });
+          if (
+            item.requiredPermission &&
+            !workspace.permissions.includes(item.requiredPermission) &&
+            !workspace.roleSlugs.includes("organization_owner")
+          )
+            continue;
+          if (`${item.label} ${area.label}`.toLowerCase().includes(needle))
+            found.push({
+              id: `${area.moduleKey}:${item.id}`,
+              label: item.label,
+              module: area.label,
+              href: item.route,
+            });
         }
       }
     }
     return found.slice(0, 12);
-  }, [enabled, term, workspace.accessibleModuleKeys, workspace.permissions, workspace.roleSlugs]);
+  }, [
+    enabled,
+    term,
+    workspace.accessibleModuleKeys,
+    workspace.permissions,
+    workspace.roleSlugs,
+  ]);
 
   return (
     <div className="flex flex-col gap-6">
-      <PageHeader title="Search" description="Find records and pages you can open. Results only include what your access allows." />
-      <SearchField aria-label="Search records and pages" placeholder="Search records or a page" value={text} onChange={setText} autoFocus className="max-w-xl" />
+      <PageHeader
+        title="Search"
+        description="Find records and pages you can open. Results only include what your access allows."
+      />
+      <SearchField
+        aria-label="Search records and pages"
+        placeholder="Search records or a page"
+        value={text}
+        onChange={setText}
+        autoFocus
+        className="max-w-xl"
+      />
       {!enabled ? (
         <p className="text-sm text-text-secondary">{`Type at least ${MIN_LENGTH} letters to search the records and pages you have access to.`}</p>
       ) : (
@@ -113,20 +168,36 @@ export function GlobalSearchScreen() {
               <ul className="flex flex-col divide-y divide-border rounded-[var(--radius-card)] border border-border bg-surface">
                 {pages.map((page) => (
                   <li key={page.id}>
-                    <Link href={page.href} className="flex items-baseline justify-between gap-3 px-4 py-3 hover:bg-surface-muted">
-                      <span className="text-sm font-medium text-text">{page.label}</span>
-                      <span className="text-xs text-text-secondary">{page.module}</span>
+                    <Link
+                      href={page.href}
+                      className="flex items-baseline justify-between gap-3 px-4 py-3 hover:bg-surface-muted"
+                    >
+                      <span className="text-sm font-medium text-text">
+                        {page.label}
+                      </span>
+                      <span className="text-xs text-text-secondary">
+                        {page.module}
+                      </span>
                     </Link>
                   </li>
                 ))}
               </ul>
             </section>
           )}
-          {records.isLoading && <p className="text-sm text-text-muted">Searching records…</p>}
+          {records.isLoading && (
+            <p className="text-sm text-text-muted">Searching records…</p>
+          )}
           {records.isError && (
-            <p role="alert" className="flex flex-wrap items-center gap-2 text-sm text-danger">
+            <p
+              role="alert"
+              className="flex flex-wrap items-center gap-2 text-sm text-danger"
+            >
               Records could not be searched right now.
-              <Button variant="secondary" size="compact" onPress={() => void records.refetch()}>
+              <Button
+                variant="secondary"
+                size="compact"
+                onPress={() => void records.refetch()}
+              >
                 Try again
               </Button>
             </p>
@@ -134,12 +205,18 @@ export function GlobalSearchScreen() {
           {groups.map((group) => (
             <GroupResults key={group.sourceKey} group={group} />
           ))}
-          {!records.isLoading && !records.isError && !anyHits && pages.length === 0 && (
-            <p className="text-sm text-text-secondary">{partial ? "No results in the sources that could be searched." : `Nothing matches "${term}". Try a different spelling, or part of a name or code.`}</p>
-          )}
+          {!records.isLoading &&
+            !records.isError &&
+            !anyHits &&
+            pages.length === 0 && (
+              <p className="text-sm text-text-secondary">
+                {partial
+                  ? "No results in the sources that could be searched."
+                  : `Nothing matches "${term}". Try a different spelling, or part of a name or code.`}
+              </p>
+            )}
         </div>
       )}
     </div>
   );
 }
-

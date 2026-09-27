@@ -5,7 +5,12 @@ import { databaseConfig } from "@vercentlabs/config";
 import { createLogger, monitorPool } from "@vercentlabs/observability";
 
 import { resolveDbSsl } from "./db-ssl.ts";
-import { runTenantTransaction, runWithOrganizationConnection, setTenantContext, setUserContext } from "@vercentlabs/database";
+import {
+  runTenantTransaction,
+  runWithOrganizationConnection,
+  setTenantContext,
+  setUserContext,
+} from "@vercentlabs/database";
 
 // The one connection pool for the ERP web server process (Next.js Route
 // Handlers / Server Components — never imported by a Client Component,
@@ -31,7 +36,10 @@ function getPool() {
       application_name: "vercentlabs-web",
       ssl: resolveDbSsl(process.env),
     });
-    monitorPool(pool, createLogger("web-db"), { name: "web", maximum: config.poolMaximum });
+    monitorPool(pool, createLogger("web-db"), {
+      name: "web",
+      maximum: config.poolMaximum,
+    });
   }
   return pool;
 }
@@ -68,7 +76,10 @@ export async function workspaceTransaction<T>(
 // transaction: the handler opens its own short transactions (billing sagas,
 // which must commit before calling the payment provider). The context is reset
 // before the connection is released.
-export async function organizationConnection<T>(organizationId: string, handler: (client: PoolClient) => Promise<T>): Promise<T> {
+export async function organizationConnection<T>(
+  organizationId: string,
+  handler: (client: PoolClient) => Promise<T>,
+): Promise<T> {
   const client = await getPool().connect();
   try {
     return await runWithOrganizationConnection(client, organizationId, handler);
@@ -90,7 +101,8 @@ export async function sessionTransaction<T>(
     await client.query("BEGIN");
     try {
       await setUserContext(client, session.userId);
-      if (session.organizationId) await setTenantContext(client, session.organizationId);
+      if (session.organizationId)
+        await setTenantContext(client, session.organizationId);
       const result = await handler(client);
       await client.query("COMMIT");
       return result;
@@ -105,7 +117,10 @@ export async function sessionTransaction<T>(
 
 // A user whose credentials were JUST verified (login), before a session
 // exists: identity context only.
-export async function identityTransaction<T>(userId: string, handler: (client: PoolClient) => Promise<T>): Promise<T> {
+export async function identityTransaction<T>(
+  userId: string,
+  handler: (client: PoolClient) => Promise<T>,
+): Promise<T> {
   return sessionTransaction({ userId, organizationId: null }, handler);
 }
 
@@ -114,7 +129,9 @@ export async function identityTransaction<T>(userId: string, handler: (client: P
 // their organisation through a narrow database function (migration 068)
 // and then switch to tenantTransaction. Organisation-scoped platform and
 // tenant tables are invisible here by design.
-export async function ingressTransaction<T>(handler: (client: PoolClient) => Promise<T>): Promise<T> {
+export async function ingressTransaction<T>(
+  handler: (client: PoolClient) => Promise<T>,
+): Promise<T> {
   const client = await getPool().connect();
   try {
     await client.query("BEGIN");
@@ -133,7 +150,9 @@ export async function ingressTransaction<T>(handler: (client: PoolClient) => Pro
 
 // One pooled client, no transaction, no context: rate-limit buckets, auth
 // identity reads, and session resolution (which opens its own transaction).
-export async function withIngressClient<T>(handler: (client: PoolClient) => Promise<T>): Promise<T> {
+export async function withIngressClient<T>(
+  handler: (client: PoolClient) => Promise<T>,
+): Promise<T> {
   const client = await getPool().connect();
   try {
     return await handler(client);
@@ -145,5 +164,8 @@ export async function withIngressClient<T>(handler: (client: PoolClient) => Prom
 // A pg-compatible queryable over the pool for platform checks (readiness):
 // one statement per call, no transaction, no tenant context.
 export const runtimeQueryable = {
-  query: <T extends QueryResultRow = QueryResultRow>(text: string, values?: unknown[]) => getPool().query<T>(text, values),
+  query: <T extends QueryResultRow = QueryResultRow>(
+    text: string,
+    values?: unknown[],
+  ) => getPool().query<T>(text, values),
 };

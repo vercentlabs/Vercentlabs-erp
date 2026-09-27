@@ -2,8 +2,21 @@
 
 import { useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Archive, Download, File, History, RefreshCw, Upload } from "lucide-react";
-import { Button, Dialog, IconButton, IconLinkButton, PermissionState } from "@vercentlabs/design-system";
+import {
+  Archive,
+  Download,
+  File,
+  History,
+  RefreshCw,
+  Upload,
+} from "lucide-react";
+import {
+  Button,
+  Dialog,
+  IconButton,
+  IconLinkButton,
+  PermissionState,
+} from "@vercentlabs/design-system";
 
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
@@ -21,7 +34,10 @@ import {
   type CrmAttachmentEntityType,
 } from "./attachments-api";
 
-const dateFormatter = new Intl.DateTimeFormat("en-IN", { dateStyle: "medium", timeStyle: "short" });
+const dateFormatter = new Intl.DateTimeFormat("en-IN", {
+  dateStyle: "medium",
+  timeStyle: "short",
+});
 
 // F017 Attachments, composed into a record 360 the same way Notes is —
 // not a standalone global screen. Governed entirely by
@@ -32,7 +48,13 @@ const dateFormatter = new Intl.DateTimeFormat("en-IN", { dateStyle: "medium", ti
 // route validates+scans synchronously BEFORE any row is ever created, so
 // there is no "pending scan" row to poll for; a rejected upload just
 // surfaces as an error and nothing is persisted.
-export function CrmAttachmentPanel({ entityType, entityId }: { entityType: CrmAttachmentEntityType; entityId: string }) {
+export function CrmAttachmentPanel({
+  entityType,
+  entityId,
+}: {
+  entityType: CrmAttachmentEntityType;
+  entityId: string;
+}) {
   const workspace = useWorkspaceContext();
   const canWrite = canWriteCrmRecordContent(workspace, entityType);
   const queryClient = useQueryClient();
@@ -42,26 +64,58 @@ export function CrmAttachmentPanel({ entityType, entityId }: { entityType: CrmAt
   const [versionsFor, setVersionsFor] = useState<CrmAttachment | null>(null);
 
   const query = useQuery({
-    queryKey: scopedQueryKey(workspace, "crm", "attachments", entityType, entityId),
+    queryKey: scopedQueryKey(
+      workspace,
+      "crm",
+      "attachments",
+      entityType,
+      entityId,
+    ),
     queryFn: () => listAttachments(entityType, entityId),
   });
   const rows = query.data?.rows ?? [];
 
-  const optionsQuery = useQuery({ queryKey: scopedQueryKey(workspace, "crm", "options"), queryFn: getCrmOptions });
+  const optionsQuery = useQuery({
+    queryKey: scopedQueryKey(workspace, "crm", "options"),
+    queryFn: getCrmOptions,
+  });
   const userNames = useMemo(() => {
     const users = optionsQuery.data?.options?.users ?? [];
-    return new Map(users.map((row) => [String(row.id), String(row.fullName || row.name || row.id)]));
+    return new Map(
+      users.map((row) => [
+        String(row.id),
+        String(row.fullName || row.name || row.id),
+      ]),
+    );
   }, [optionsQuery.data]);
 
   function invalidate() {
-    queryClient.invalidateQueries({ queryKey: scopedQueryKey(workspace, "crm", "attachments", entityType, entityId) });
+    queryClient.invalidateQueries({
+      queryKey: scopedQueryKey(
+        workspace,
+        "crm",
+        "attachments",
+        entityType,
+        entityId,
+      ),
+    });
   }
   function handleError(err: unknown) {
-    setError(err instanceof AttachmentApiError ? err.message : "This action could not be completed.");
+    setError(
+      err instanceof AttachmentApiError
+        ? err.message
+        : "This action could not be completed.",
+    );
   }
 
   const uploadMutation = useMutation({
-    mutationFn: ({ file, replacesLogicalId }: { file: File; replacesLogicalId?: string }) => uploadAttachment(entityType, entityId, file, replacesLogicalId),
+    mutationFn: ({
+      file,
+      replacesLogicalId,
+    }: {
+      file: File;
+      replacesLogicalId?: string;
+    }) => uploadAttachment(entityType, entityId, file, replacesLogicalId),
     onSuccess: () => {
       setError(null);
       invalidate();
@@ -70,7 +124,8 @@ export function CrmAttachmentPanel({ entityType, entityId }: { entityType: CrmAt
   });
 
   const deleteMutation = useMutation({
-    mutationFn: (row: CrmAttachment) => deleteAttachment(entityType, entityId, row.id),
+    mutationFn: (row: CrmAttachment) =>
+      deleteAttachment(entityType, entityId, row.id),
     onSuccess: () => {
       setError(null);
       invalidate();
@@ -81,13 +136,22 @@ export function CrmAttachmentPanel({ entityType, entityId }: { entityType: CrmAt
   function handleFileChosen(fileList: FileList | null) {
     const file = fileList?.[0];
     if (!file) return;
-    uploadMutation.mutate({ file, replacesLogicalId: replaceTarget || undefined });
+    uploadMutation.mutate({
+      file,
+      replacesLogicalId: replaceTarget || undefined,
+    });
     setReplaceTarget(null);
     if (fileInputRef.current) fileInputRef.current.value = "";
   }
 
-  if (query.isError && query.error instanceof AttachmentApiError && query.error.status === 403) {
-    return <PermissionState title="You don't have access to attachments on this record" />;
+  if (
+    query.isError &&
+    query.error instanceof AttachmentApiError &&
+    query.error.status === 403
+  ) {
+    return (
+      <PermissionState title="You don't have access to attachments on this record" />
+    );
   }
 
   return (
@@ -99,7 +163,10 @@ export function CrmAttachmentPanel({ entityType, entityId }: { entityType: CrmAt
         onChange={(event) => handleFileChosen(event.target.files)}
       />
       {error && (
-        <p role="alert" className="rounded-[var(--radius-control)] border border-danger-emphasis/30 bg-danger-soft px-3 py-2 text-sm text-danger">
+        <p
+          role="alert"
+          className="rounded-[var(--radius-control)] border border-danger-emphasis/30 bg-danger-soft px-3 py-2 text-sm text-danger"
+        >
           {error}
         </p>
       )}
@@ -111,34 +178,65 @@ export function CrmAttachmentPanel({ entityType, entityId }: { entityType: CrmAt
       ) : (
         <ul className="flex flex-col gap-1">
           {rows.map((row) => (
-            <li key={row.id} className="flex items-center gap-3 rounded-[var(--radius-control)] border border-border px-3 py-2">
-              <File className="size-4 shrink-0 text-text-muted" aria-hidden="true" />
+            <li
+              key={row.id}
+              className="flex items-center gap-3 rounded-[var(--radius-control)] border border-border px-3 py-2"
+            >
+              <File
+                className="size-4 shrink-0 text-text-muted"
+                aria-hidden="true"
+              />
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm text-text">{row.fileName}</p>
                 <p className="text-xs text-text-muted">
-                  {[row.sizeBytes ? formatFileSize(row.sizeBytes) : null, row.uploadedBy ? userNames.get(row.uploadedBy) || "Someone" : "Unknown", dateFormatter.format(new Date(row.createdAt))].filter(Boolean).join(" · ")}
+                  {[
+                    row.sizeBytes ? formatFileSize(row.sizeBytes) : null,
+                    row.uploadedBy
+                      ? userNames.get(row.uploadedBy) || "Someone"
+                      : "Unknown",
+                    dateFormatter.format(new Date(row.createdAt)),
+                  ]
+                    .filter(Boolean)
+                    .join(" · ")}
                   {row.version > 1 ? ` · v${row.version}` : ""}
                 </p>
               </div>
-              <IconButton aria-label={`Version history for ${row.fileName}`} variant="ghost" size="compact" onPress={() => setVersionsFor(row)}>
-                <History className="size-4" aria-hidden="true" />
-              </IconButton>
-              {canWrite && <IconButton
-                aria-label={`Upload a new version of ${row.fileName}`}
+              <IconButton
+                aria-label={`Version history for ${row.fileName}`}
                 variant="ghost"
                 size="compact"
-                onPress={() => {
-                  setReplaceTarget(row.logicalId);
-                  fileInputRef.current?.click();
-                }}
+                onPress={() => setVersionsFor(row)}
               >
-                <RefreshCw className="size-4" aria-hidden="true" />
-              </IconButton>}
-              <IconLinkButton aria-label={`Download ${row.fileName}`} size="compact" href={attachmentDownloadHref(entityType, entityId, row.id)}>
+                <History className="size-4" aria-hidden="true" />
+              </IconButton>
+              {canWrite && (
+                <IconButton
+                  aria-label={`Upload a new version of ${row.fileName}`}
+                  variant="ghost"
+                  size="compact"
+                  onPress={() => {
+                    setReplaceTarget(row.logicalId);
+                    fileInputRef.current?.click();
+                  }}
+                >
+                  <RefreshCw className="size-4" aria-hidden="true" />
+                </IconButton>
+              )}
+              <IconLinkButton
+                aria-label={`Download ${row.fileName}`}
+                size="compact"
+                href={attachmentDownloadHref(entityType, entityId, row.id)}
+              >
                 <Download className="size-4" aria-hidden="true" />
               </IconLinkButton>
               {canWrite && (
-                <IconButton aria-label={`Delete ${row.fileName}`} variant="danger" size="compact" onPress={() => deleteMutation.mutate(row)} isDisabled={deleteMutation.isPending}>
+                <IconButton
+                  aria-label={`Delete ${row.fileName}`}
+                  variant="danger"
+                  size="compact"
+                  onPress={() => deleteMutation.mutate(row)}
+                  isDisabled={deleteMutation.isPending}
+                >
                   <Archive className="size-4" aria-hidden="true" />
                 </IconButton>
               )}
@@ -147,19 +245,21 @@ export function CrmAttachmentPanel({ entityType, entityId }: { entityType: CrmAt
         </ul>
       )}
 
-      {canWrite && <Button
-        variant="secondary"
-        size="compact"
-        className="self-start"
-        isLoading={uploadMutation.isPending && !replaceTarget}
-        onPress={() => {
-          setReplaceTarget(null);
-          fileInputRef.current?.click();
-        }}
-      >
-        <Upload className="size-4" aria-hidden="true" />
-        Upload file
-      </Button>}
+      {canWrite && (
+        <Button
+          variant="secondary"
+          size="compact"
+          className="self-start"
+          isLoading={uploadMutation.isPending && !replaceTarget}
+          onPress={() => {
+            setReplaceTarget(null);
+            fileInputRef.current?.click();
+          }}
+        >
+          <Upload className="size-4" aria-hidden="true" />
+          Upload file
+        </Button>
+      )}
 
       <VersionHistoryDialog
         entityType={entityType}
@@ -187,31 +287,58 @@ function VersionHistoryDialog({
 }) {
   const workspace = useWorkspaceContext();
   const query = useQuery({
-    queryKey: scopedQueryKey(workspace, "crm", "attachment-versions", entityType, entityId, attachment?.logicalId ?? ""),
-    queryFn: () => listAttachmentVersions(entityType, entityId, attachment!.logicalId),
+    queryKey: scopedQueryKey(
+      workspace,
+      "crm",
+      "attachment-versions",
+      entityType,
+      entityId,
+      attachment?.logicalId ?? "",
+    ),
+    queryFn: () =>
+      listAttachmentVersions(entityType, entityId, attachment!.logicalId),
     enabled: Boolean(attachment),
   });
   const rows = query.data?.rows ?? [];
 
   return (
-    <Dialog isOpen={Boolean(attachment)} onOpenChange={(open) => !open && onClose()} title={attachment ? `Versions of ${attachment.fileName}` : "Versions"}>
+    <Dialog
+      isOpen={Boolean(attachment)}
+      onOpenChange={(open) => !open && onClose()}
+      title={attachment ? `Versions of ${attachment.fileName}` : "Versions"}
+    >
       <div className="flex flex-col gap-2">
         {query.isLoading ? (
           <p className="text-sm text-text-secondary">Loading versions…</p>
         ) : (
           <ul className="flex flex-col divide-y divide-border">
             {rows.map((row) => (
-              <li key={row.id} className="flex items-center justify-between gap-3 py-2">
+              <li
+                key={row.id}
+                className="flex items-center justify-between gap-3 py-2"
+              >
                 <div className="flex flex-col">
                   <span className="text-sm text-text">
                     v{row.version}
                     {row.isCurrent ? " (current)" : ""}
                   </span>
                   <span className="text-xs text-text-muted">
-                    {[row.sizeBytes ? formatFileSize(row.sizeBytes) : null, row.uploadedBy ? userNames.get(row.uploadedBy) || "Someone" : "Unknown", dateFormatter.format(new Date(row.createdAt))].filter(Boolean).join(" · ")}
+                    {[
+                      row.sizeBytes ? formatFileSize(row.sizeBytes) : null,
+                      row.uploadedBy
+                        ? userNames.get(row.uploadedBy) || "Someone"
+                        : "Unknown",
+                      dateFormatter.format(new Date(row.createdAt)),
+                    ]
+                      .filter(Boolean)
+                      .join(" · ")}
                   </span>
                 </div>
-                <IconLinkButton aria-label={`Download v${row.version}`} size="compact" href={attachmentDownloadHref(entityType, entityId, row.id)}>
+                <IconLinkButton
+                  aria-label={`Download v${row.version}`}
+                  size="compact"
+                  href={attachmentDownloadHref(entityType, entityId, row.id)}
+                >
                   <Download className="size-4" aria-hidden="true" />
                 </IconLinkButton>
               </li>

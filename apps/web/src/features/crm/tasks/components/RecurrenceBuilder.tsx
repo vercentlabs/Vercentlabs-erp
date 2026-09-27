@@ -37,9 +37,18 @@ function endMode(config: RecurrenceConfig): "never" | "count" | "until" {
 // — {freq, interval, count?, until?, byWeekday?} — not an invented
 // cron/RRULE syntax. recurringRule (free text) is untouched; this builds
 // the machine-readable field generateNextTaskOccurrence actually reads.
-export function RecurrenceBuilder({ value, onChange }: { value: RecurrenceConfig | null; onChange: (value: RecurrenceConfig | null) => void }) {
+export function RecurrenceBuilder({
+  value,
+  onChange,
+}: {
+  value: RecurrenceConfig | null;
+  onChange: (value: RecurrenceConfig | null) => void;
+}) {
   const enabled = Boolean(value);
-  const config = value ?? { freq: "weekly" as RecurrenceFrequency, interval: 1 };
+  const config = value ?? {
+    freq: "weekly" as RecurrenceFrequency,
+    interval: 1,
+  };
 
   function update(patch: Partial<RecurrenceConfig>) {
     onChange({ ...config, ...patch });
@@ -58,7 +67,11 @@ export function RecurrenceBuilder({ value, onChange }: { value: RecurrenceConfig
         <input
           type="checkbox"
           checked={enabled}
-          onChange={(event) => onChange(event.target.checked ? { freq: "weekly", interval: 1 } : null)}
+          onChange={(event) =>
+            onChange(
+              event.target.checked ? { freq: "weekly", interval: 1 } : null,
+            )
+          }
         />
         Repeat this task
       </label>
@@ -66,18 +79,33 @@ export function RecurrenceBuilder({ value, onChange }: { value: RecurrenceConfig
       {enabled && (
         <div className="flex flex-col gap-3 border-t border-border pt-3">
           <div className="flex items-end gap-2">
-            <NumberField label="Every" className="w-24" minValue={1} maxValue={365} value={config.interval} onChange={(interval) => update({ interval })} />
+            <NumberField
+              label="Every"
+              className="w-24"
+              minValue={1}
+              maxValue={365}
+              value={config.interval}
+              onChange={(interval) => update({ interval })}
+            />
             <Select
               aria-label="Frequency unit"
               options={FREQ_OPTIONS}
               selectedKey={config.freq}
-              onSelectionChange={(key) => update({ freq: (key as RecurrenceFrequency) ?? "weekly", byWeekday: key === "weekly" ? config.byWeekday : undefined })}
+              onSelectionChange={(key) =>
+                update({
+                  freq: (key as RecurrenceFrequency) ?? "weekly",
+                  byWeekday: key === "weekly" ? config.byWeekday : undefined,
+                })
+              }
             />
           </div>
 
           {config.freq === "weekly" && (
             <div className="flex flex-col gap-1">
-              <span className="text-xs text-text-muted">On these days (optional — defaults to the due date&apos;s own weekday cadence)</span>
+              <span className="text-xs text-text-muted">
+                On these days (optional — defaults to the due date&apos;s own
+                weekday cadence)
+              </span>
               <div className="flex flex-wrap gap-1">
                 {WEEKDAYS.map((day) => (
                   <button
@@ -85,7 +113,9 @@ export function RecurrenceBuilder({ value, onChange }: { value: RecurrenceConfig
                     type="button"
                     onClick={() => toggleWeekday(day.value)}
                     className={`rounded-[var(--radius-control)] border px-2 py-1 text-xs ${
-                      (config.byWeekday ?? []).includes(day.value) ? "border-accent bg-accent-soft text-accent-emphasis" : "border-border bg-canvas text-text"
+                      (config.byWeekday ?? []).includes(day.value)
+                        ? "border-accent bg-accent-soft text-accent-emphasis"
+                        : "border-border bg-canvas text-text"
                     }`}
                   >
                     {day.label}
@@ -100,13 +130,30 @@ export function RecurrenceBuilder({ value, onChange }: { value: RecurrenceConfig
             options={END_OPTIONS}
             selectedKey={endMode(config)}
             onSelectionChange={(key) => {
-              if (key === "never") onChange({ freq: config.freq, interval: config.interval, byWeekday: config.byWeekday });
-              else if (key === "count") update({ count: config.count ?? 5, until: undefined });
-              else update({ until: config.until ?? new Date().toISOString().slice(0, 10), count: undefined });
+              if (key === "never")
+                onChange({
+                  freq: config.freq,
+                  interval: config.interval,
+                  byWeekday: config.byWeekday,
+                });
+              else if (key === "count")
+                update({ count: config.count ?? 5, until: undefined });
+              else
+                update({
+                  until: config.until ?? new Date().toISOString().slice(0, 10),
+                  count: undefined,
+                });
             }}
           />
           {endMode(config) === "count" && (
-            <NumberField label="Occurrences" className="w-32" minValue={1} maxValue={500} value={config.count ?? 5} onChange={(count) => update({ count })} />
+            <NumberField
+              label="Occurrences"
+              className="w-32"
+              minValue={1}
+              maxValue={500}
+              value={config.count ?? 5}
+              onChange={(count) => update({ count })}
+            />
           )}
           {endMode(config) === "until" && (
             <TextField

@@ -6,7 +6,9 @@
 // rather than asserting one shared row shape across all of them. Shared
 // across every CRM feature area (Leads/Accounts/Contacts/Opportunities/...)
 // so there is one fetch per page load, not one per feature.
-export async function getCrmOptions(): Promise<{ options: Record<string, Array<Record<string, unknown>>> }> {
+export async function getCrmOptions(): Promise<{
+  options: Record<string, Array<Record<string, unknown>>>;
+}> {
   const response = await fetch("/api/crm/options");
   const payload = await response.json().catch(() => ({}));
   if (!response.ok || payload.ok === false) {

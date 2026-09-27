@@ -11,9 +11,17 @@ type RouteContext = { params: Promise<{ id: string }> };
 // Lead is re-scored under the new model — both handled inside
 // activateLeadScoringModel itself, not duplicated here.
 export async function POST(request: Request, context: RouteContext) {
-  return workspaceRoute(request, { module: "crm", billingWrite: true }, async ({ client, session }) => {
-    const { id } = await context.params;
-    const result = await activateLeadScoringModel(client, crmContext(session), id);
-    return ok(result);
-  });
+  return workspaceRoute(
+    request,
+    { module: "crm", billingWrite: true },
+    async ({ client, session }) => {
+      const { id } = await context.params;
+      const result = await activateLeadScoringModel(
+        client,
+        crmContext(session),
+        id,
+      );
+      return ok(result);
+    },
+  );
 }

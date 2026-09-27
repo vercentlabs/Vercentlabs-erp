@@ -33,7 +33,12 @@ export default defineConfig({
     url: `${BASE_URL}/login`,
     reuseExistingServer: false,
     timeout: 240_000,
-    env: { ...offlineMailEnv(BASE_URL), APP_URL: BASE_URL, FORM_ALLOWED_ORIGINS: BASE_URL, NEXT_DIST_DIR: ".next/runtime-e2e" },
+    env: {
+      ...offlineMailEnv(BASE_URL),
+      APP_URL: BASE_URL,
+      FORM_ALLOWED_ORIGINS: BASE_URL,
+      NEXT_DIST_DIR: ".next/runtime-e2e",
+    },
   },
   projects: [{ name: "shared-runtime", use: { ...devices["Desktop Chrome"] } }],
 });

@@ -5,11 +5,27 @@ import "server-only";
 // so the orchestrations get a narrow, purpose-built context: the caller's
 // organisation and user, the RECEIPT'S / MATCH'S own company, and only the exact
 // permissions those two operations need.
-export function stockContextForReceiving(session: { organizationId: string; userId: string }, companyId: string) {
-  return { organizationId: session.organizationId, companyId, userId: session.userId, permissions: ["stock.view", "stock.receive", "stock.issue"], roleSlugs: [] as string[] };
+export function stockContextForReceiving(
+  session: { organizationId: string; userId: string },
+  companyId: string,
+) {
+  return {
+    organizationId: session.organizationId,
+    companyId,
+    userId: session.userId,
+    permissions: ["stock.view", "stock.receive", "stock.issue"],
+    roleSlugs: [] as string[],
+  };
 }
 
-export function accountingContextForVendorBill(session: { organizationId: string; userId: string; activeBranchId?: string | null }, companyId: string) {
+export function accountingContextForVendorBill(
+  session: {
+    organizationId: string;
+    userId: string;
+    activeBranchId?: string | null;
+  },
+  companyId: string,
+) {
   return {
     organizationId: session.organizationId,
     userId: session.userId,

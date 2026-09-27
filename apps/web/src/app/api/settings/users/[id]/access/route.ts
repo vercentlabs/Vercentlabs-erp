@@ -17,14 +17,23 @@ const putSchema = z.object({
 // The one atomic user access-scope mutation: target-in-scope check, grant
 // ceiling, branch→company and department/team validation, diff apply,
 // evidence and audit all happen inside setUserAccessScope.
-export async function PUT(request: Request, context: { params: Promise<{ id: string }> }) {
+export async function PUT(
+  request: Request,
+  context: { params: Promise<{ id: string }> },
+) {
   return workspaceRoute(
     request,
-    { permission: CORE_PERMISSIONS.usersManage, action: "settings.user_access.update", auditDenial: true },
+    {
+      permission: CORE_PERMISSIONS.usersManage,
+      action: "settings.user_access.update",
+      auditDenial: true,
+    },
     async ({ client, session }) => {
       const { id } = await context.params;
       const body = putSchema.parse(await readJson(request));
-      return ok({ access: await setUserAccessScope(client, session, id, body) });
+      return ok({
+        access: await setUserAccessScope(client, session, id, body),
+      });
     },
   );
 }

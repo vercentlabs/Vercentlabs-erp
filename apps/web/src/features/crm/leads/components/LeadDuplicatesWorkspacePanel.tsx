@@ -8,12 +8,27 @@ import { Merge } from "lucide-react";
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import type { Lead } from "../types";
-import { dismissLeadDuplicate, findLeadDuplicates, getLead, mergeLead } from "../api/leads-api";
-import { DuplicateComparison, type ComparisonField } from "@/features/crm/shared/ui/DuplicateComparison";
+import {
+  dismissLeadDuplicate,
+  findLeadDuplicates,
+  getLead,
+  mergeLead,
+} from "../api/leads-api";
+import {
+  DuplicateComparison,
+  type ComparisonField,
+} from "@/features/crm/shared/ui/DuplicateComparison";
 
 const LEAD_FIELDS: ComparisonField[] = [
-  { label: "Name", key: "fullName" }, { label: "Company", key: "companyName" }, { label: "Email", key: "email" }, { label: "Mobile", key: "mobile" },
-  { label: "Phone", key: "phone" }, { label: "Job title", key: "jobTitle" }, { label: "City", key: "city" }, { label: "Owner", key: "ownerName" }, { label: "Created", key: "createdAt", format: "date" },
+  { label: "Name", key: "fullName" },
+  { label: "Company", key: "companyName" },
+  { label: "Email", key: "email" },
+  { label: "Mobile", key: "mobile" },
+  { label: "Phone", key: "phone" },
+  { label: "Job title", key: "jobTitle" },
+  { label: "City", key: "city" },
+  { label: "Owner", key: "ownerName" },
+  { label: "Created", key: "createdAt", format: "date" },
 ];
 
 // F008 Tranche G — a standalone-workspace variant of the same duplicate
@@ -23,7 +38,13 @@ const LEAD_FIELDS: ComparisonField[] = [
 // automation screen under this tranche's time budget — the two share the
 // same backend calls (findLeadDuplicates/dismissLeadDuplicate/mergeLead),
 // just not the same JSX, so there is no behavioral drift risk.
-export function LeadDuplicatesWorkspacePanel({ lead, canManage }: { lead: Lead; canManage: boolean }) {
+export function LeadDuplicatesWorkspacePanel({
+  lead,
+  canManage,
+}: {
+  lead: Lead;
+  canManage: boolean;
+}) {
   const workspace = useWorkspaceContext();
   const queryClient = useQueryClient();
   const [actionError, setActionError] = useState<string | null>(null);
@@ -33,24 +54,54 @@ export function LeadDuplicatesWorkspacePanel({ lead, canManage }: { lead: Lead; 
     queryKey: scopedQueryKey(workspace, "crm", "leads", lead.id, "duplicates"),
     queryFn: () =>
       findLeadDuplicates(
-        { firstName: lead.firstName, lastName: lead.lastName, email: lead.email, mobile: lead.mobile, phone: lead.phone, companyName: lead.companyName },
+        {
+          firstName: lead.firstName,
+          lastName: lead.lastName,
+          email: lead.email,
+          mobile: lead.mobile,
+          phone: lead.phone,
+          companyName: lead.companyName,
+        },
         lead.id,
       ),
   });
 
   function invalidate() {
-    queryClient.invalidateQueries({ queryKey: scopedQueryKey(workspace, "crm", "leads", lead.id, "duplicates") });
+    queryClient.invalidateQueries({
+      queryKey: scopedQueryKey(
+        workspace,
+        "crm",
+        "leads",
+        lead.id,
+        "duplicates",
+      ),
+    });
   }
 
   const dismissMutation = useMutation({
-    mutationFn: (matchedLeadId: string) => dismissLeadDuplicate(lead.id, matchedLeadId, "Reviewed and confirmed not the same Lead."),
+    mutationFn: (matchedLeadId: string) =>
+      dismissLeadDuplicate(
+        lead.id,
+        matchedLeadId,
+        "Reviewed and confirmed not the same Lead.",
+      ),
     onSuccess: invalidate,
-    onError: (err: unknown) => setActionError(err instanceof Error ? err.message : "The dismissal could not be recorded."),
+    onError: (err: unknown) =>
+      setActionError(
+        err instanceof Error
+          ? err.message
+          : "The dismissal could not be recorded.",
+      ),
   });
   const mergeMutation = useMutation({
     mutationFn: (sourceId: string) => mergeLead(lead.id, sourceId),
     onSuccess: invalidate,
-    onError: (err: unknown) => setActionError(err instanceof Error ? err.message : "The merge could not be completed."),
+    onError: (err: unknown) =>
+      setActionError(
+        err instanceof Error
+          ? err.message
+          : "The merge could not be completed.",
+      ),
   });
 
   const duplicates = duplicatesQuery.data?.duplicates ?? [];
@@ -58,32 +109,72 @@ export function LeadDuplicatesWorkspacePanel({ lead, canManage }: { lead: Lead; 
   return (
     <div className="flex flex-col gap-3">
       {actionError && (
-        <p role="alert" className="rounded-[var(--radius-control)] border border-danger-emphasis/30 bg-danger-soft px-3 py-2 text-sm text-danger">
+        <p
+          role="alert"
+          className="rounded-[var(--radius-control)] border border-danger-emphasis/30 bg-danger-soft px-3 py-2 text-sm text-danger"
+        >
           {actionError}
         </p>
       )}
-      {duplicatesQuery.isLoading && <p className="text-sm text-text-secondary">Checking for possible duplicates…</p>}
-      {!duplicatesQuery.isLoading && duplicates.length === 0 && <p className="text-sm text-text-muted">No possible duplicates found for this Lead.</p>}
+      {duplicatesQuery.isLoading && (
+        <p className="text-sm text-text-secondary">
+          Checking for possible duplicates…
+        </p>
+      )}
+      {!duplicatesQuery.isLoading && duplicates.length === 0 && (
+        <p className="text-sm text-text-muted">
+          No possible duplicates found for this Lead.
+        </p>
+      )}
       {duplicates.length > 0 && (
         <ul className="flex flex-col gap-2">
           {duplicates.map((match, i) =>
             match.restricted ? (
-              <li key={i} className="text-sm text-text-secondary">A possible match exists that you don&apos;t have visibility into.</li>
+              <li key={i} className="text-sm text-text-secondary">
+                A possible match exists that you don&apos;t have visibility
+                into.
+              </li>
             ) : (
-              <li key={match.id} className="flex flex-wrap items-center justify-between gap-2 rounded-[var(--radius-control)] border border-warning-emphasis/30 bg-warning-soft px-3 py-2 text-sm text-text-secondary">
+              <li
+                key={match.id}
+                className="flex flex-wrap items-center justify-between gap-2 rounded-[var(--radius-control)] border border-warning-emphasis/30 bg-warning-soft px-3 py-2 text-sm text-text-secondary"
+              >
                 <span className="flex items-center gap-1.5">
                   <Merge className="size-4 text-warning" aria-hidden="true" />
-                  {match.fullName} {match.companyName ? `· ${match.companyName}` : ""} — {match.classification === "exact" ? "exact match" : "probable match"}
+                  {match.fullName}{" "}
+                  {match.companyName ? `· ${match.companyName}` : ""} —{" "}
+                  {match.classification === "exact"
+                    ? "exact match"
+                    : "probable match"}
                 </span>
-                <Button variant="ghost" size="compact" onPress={() => setComparingId(comparingId === match.id ? null : match.id)}>
-                  {comparingId === match.id ? "Hide comparison" : "Compare side by side"}
+                <Button
+                  variant="ghost"
+                  size="compact"
+                  onPress={() =>
+                    setComparingId(comparingId === match.id ? null : match.id)
+                  }
+                >
+                  {comparingId === match.id
+                    ? "Hide comparison"
+                    : "Compare side by side"}
                 </Button>
                 {canManage && (
                   <span className="flex items-center gap-2">
-                    <Button variant="ghost" size="compact" onPress={() => dismissMutation.mutate(match.id)} isLoading={dismissMutation.isPending} isDisabled={match.classification === "exact"}>
+                    <Button
+                      variant="ghost"
+                      size="compact"
+                      onPress={() => dismissMutation.mutate(match.id)}
+                      isLoading={dismissMutation.isPending}
+                      isDisabled={match.classification === "exact"}
+                    >
                       Dismiss
                     </Button>
-                    <Button variant="secondary" size="compact" onPress={() => mergeMutation.mutate(match.id)} isLoading={mergeMutation.isPending}>
+                    <Button
+                      variant="secondary"
+                      size="compact"
+                      onPress={() => mergeMutation.mutate(match.id)}
+                      isLoading={mergeMutation.isPending}
+                    >
                       Merge into this Lead
                     </Button>
                   </span>
@@ -95,7 +186,22 @@ export function LeadDuplicatesWorkspacePanel({ lead, canManage }: { lead: Lead; 
       )}
       {comparingId && (
         <div className="rounded-[var(--radius-control)] border border-border bg-surface p-3">
-          <DuplicateComparison entity="leads" current={{ ...lead, fullName: [lead.firstName, lead.lastName].filter(Boolean).join(" ") } as unknown as Record<string, unknown>} candidateId={comparingId} fields={LEAD_FIELDS} loadCandidate={getLead} currentTitle="This lead" candidateTitle="Possible duplicate" />
+          <DuplicateComparison
+            entity="leads"
+            current={
+              {
+                ...lead,
+                fullName: [lead.firstName, lead.lastName]
+                  .filter(Boolean)
+                  .join(" "),
+              } as unknown as Record<string, unknown>
+            }
+            candidateId={comparingId}
+            fields={LEAD_FIELDS}
+            loadCandidate={getLead}
+            currentTitle="This lead"
+            candidateTitle="Possible duplicate"
+          />
         </div>
       )}
     </div>

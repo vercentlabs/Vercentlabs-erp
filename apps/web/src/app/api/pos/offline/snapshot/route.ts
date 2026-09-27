@@ -15,10 +15,18 @@ const querySchema = z.object({ storeId: z.string().uuid() });
 // and for OFFLINE_UNSUPPORTED_OPERATIONS, which this response always
 // includes so the client can render/enforce it verbatim.
 export async function GET(request: Request) {
-  return workspaceRoute(request, { module: "point-of-sale", permission: "pos.offline.sync" }, async ({ client, session }) => {
-    const { searchParams } = new URL(request.url);
-    const input = querySchema.parse({ storeId: searchParams.get("storeId") });
-    const result = await getPosOfflineSnapshot(client, posContext(session), input);
-    return ok({ snapshot: result });
-  });
+  return workspaceRoute(
+    request,
+    { module: "point-of-sale", permission: "pos.offline.sync" },
+    async ({ client, session }) => {
+      const { searchParams } = new URL(request.url);
+      const input = querySchema.parse({ storeId: searchParams.get("storeId") });
+      const result = await getPosOfflineSnapshot(
+        client,
+        posContext(session),
+        input,
+      );
+      return ok({ snapshot: result });
+    },
+  );
 }

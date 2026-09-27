@@ -18,8 +18,22 @@ export type SalesTeam = {
 // F020: which leads a territory covers. Every filled dimension must match a
 // lead; values within one dimension are alternatives. Empty = no automatic
 // coverage (the territory is used only where a rule names it).
-export type TerritoryCoverage = { countryCodes?: string[]; states?: string[]; cities?: string[]; industries?: string[]; sourceIds?: string[] };
-export const TERRITORY_TYPES = ["geographic", "industry", "account", "product", "channel", "named", "hybrid"] as const;
+export type TerritoryCoverage = {
+  countryCodes?: string[];
+  states?: string[];
+  cities?: string[];
+  industries?: string[];
+  sourceIds?: string[];
+};
+export const TERRITORY_TYPES = [
+  "geographic",
+  "industry",
+  "account",
+  "product",
+  "channel",
+  "named",
+  "hybrid",
+] as const;
 
 export type Territory = {
   id: string;
@@ -77,7 +91,8 @@ export type QuotaPlan = {
   territoryId: string | null;
   userId: string | null;
   name: string;
-  quotaType: "revenue" | "bookings" | "margin" | "quantity" | "new_logo" | "activity";
+  quotaType:
+    "revenue" | "bookings" | "margin" | "quantity" | "new_logo" | "activity";
   periodStart: string;
   periodEnd: string;
   currencyCode: string | null;
@@ -88,4 +103,9 @@ export type QuotaPlan = {
   updatedAt: string;
 };
 
-export type CrmListResponse<T> = { rows: T[]; total: number; limit: number; offset: number };
+export type CrmListResponse<T> = {
+  rows: T[];
+  total: number;
+  limit: number;
+  offset: number;
+};

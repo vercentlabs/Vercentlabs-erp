@@ -18,21 +18,37 @@ const pages = [
 ] as const;
 
 for (const [route, label] of pages) {
-  test(`${label} has no critical/serious accessibility violations`, async ({ page }) => {
+  test(`${label} has no critical/serious accessibility violations`, async ({
+    page,
+  }) => {
     await page.goto(route, { waitUntil: "networkidle" });
-    const results = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa"]).analyze();
-    const blocking = results.violations.filter((v) => v.impact === "critical" || v.impact === "serious");
-    const summary = blocking.map((v) => `${v.id} (${v.impact}): ${v.help} — ${v.nodes.length} node(s)`);
+    const results = await new AxeBuilder({ page })
+      .withTags(["wcag2a", "wcag2aa"])
+      .analyze();
+    const blocking = results.violations.filter(
+      (v) => v.impact === "critical" || v.impact === "serious",
+    );
+    const summary = blocking.map(
+      (v) => `${v.id} (${v.impact}): ${v.help} — ${v.nodes.length} node(s)`,
+    );
     expect(blocking, summary.join("\n")).toEqual([]);
   });
 }
 
-test("New role dialog has no critical/serious accessibility violations", async ({ page }) => {
+test("New role dialog has no critical/serious accessibility violations", async ({
+  page,
+}) => {
   await page.goto("/settings/roles", { waitUntil: "networkidle" });
   await page.getByRole("button", { name: "New role" }).click();
   await expect(page.getByRole("dialog")).toBeVisible();
-  const results = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa"]).analyze();
-  const blocking = results.violations.filter((v) => v.impact === "critical" || v.impact === "serious");
-  const summary = blocking.map((v) => `${v.id} (${v.impact}): ${v.help} — ${v.nodes.length} node(s)`);
+  const results = await new AxeBuilder({ page })
+    .withTags(["wcag2a", "wcag2aa"])
+    .analyze();
+  const blocking = results.violations.filter(
+    (v) => v.impact === "critical" || v.impact === "serious",
+  );
+  const summary = blocking.map(
+    (v) => `${v.id} (${v.impact}): ${v.help} — ${v.nodes.length} node(s)`,
+  );
   expect(blocking, summary.join("\n")).toEqual([]);
 });

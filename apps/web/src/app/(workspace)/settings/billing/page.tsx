@@ -14,7 +14,10 @@ export default async function BillingSettingsPage() {
       abilities={{
         canView: hasSessionPermission(session, BILLING_PERMISSIONS.view),
         canManage: hasSessionPermission(session, BILLING_PERMISSIONS.manage),
-        canCheckout: hasSessionPermission(session, BILLING_PERMISSIONS.checkout),
+        canCheckout: hasSessionPermission(
+          session,
+          BILLING_PERMISSIONS.checkout,
+        ),
         canAudit: hasSessionPermission(session, BILLING_PERMISSIONS.audit),
       }}
     />

@@ -10,7 +10,8 @@ import { classifyError, HttpError } from "./http-errors.ts";
 // `NEXT_REDIRECT;{type};{url};{statusCode};`.
 function redirectError(url: string): Error {
   const error = new Error("NEXT_REDIRECT");
-  (error as Error & { digest: string }).digest = `NEXT_REDIRECT;replace;${url};307;`;
+  (error as Error & { digest: string }).digest =
+    `NEXT_REDIRECT;replace;${url};307;`;
   return error;
 }
 
@@ -21,7 +22,9 @@ test("classifyError: a redirect('/login') from requireUser() becomes a real 401,
 });
 
 test("classifyError: a redirect('/verify-email?...') from requireVerifiedUser() becomes 401 with an email-specific code", () => {
-  const classified = classifyError(redirectError("/verify-email?email=a%40b.com"));
+  const classified = classifyError(
+    redirectError("/verify-email?email=a%40b.com"),
+  );
   assert.equal(classified.status, 401);
   assert.equal(classified.details?.code, "AUTH_EMAIL_UNVERIFIED");
 });
@@ -34,13 +37,16 @@ test("classifyError: a redirect('/onboarding') from requireWorkspace() becomes 4
 
 test("classifyError: an unrelated error with a digest that isn't NEXT_REDIRECT falls through to the generic 500 path", () => {
   const error = new Error("boom");
-  (error as Error & { digest: string }).digest = "SOME_OTHER_FRAMEWORK_SIGNAL;x;y;z;";
+  (error as Error & { digest: string }).digest =
+    "SOME_OTHER_FRAMEWORK_SIGNAL;x;y;z;";
   const classified = classifyError(error);
   assert.equal(classified.status, 500);
 });
 
 test("classifyError: HttpError instances still map to their own status/code, unaffected by the redirect check", () => {
-  const classified = classifyError(new HttpError(403, "Not allowed.", "CRM_FORBIDDEN"));
+  const classified = classifyError(
+    new HttpError(403, "Not allowed.", "CRM_FORBIDDEN"),
+  );
   assert.equal(classified.status, 403);
   assert.equal(classified.message, "Not allowed.");
   assert.equal(classified.details?.code, "CRM_FORBIDDEN");

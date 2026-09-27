@@ -32,7 +32,8 @@ export type CrmCustomObjectDefinition = {
   updatedAt: string;
 };
 
-export type CrmCustomFieldDataType = "text" | "number" | "boolean" | "date" | "select" | "textarea";
+export type CrmCustomFieldDataType =
+  "text" | "number" | "boolean" | "date" | "select" | "textarea";
 
 export type CrmCustomFieldDefinition = {
   id: string;
@@ -51,4 +52,9 @@ export type CrmCustomFieldDefinition = {
   updatedAt: string;
 };
 
-export type CrmListResponse<T> = { rows: T[]; total: number; limit: number; offset: number };
+export type CrmListResponse<T> = {
+  rows: T[];
+  total: number;
+  limit: number;
+  offset: number;
+};

@@ -12,10 +12,23 @@ type RouteContext = { params: Promise<{ id: string }> };
 // the UI must surface that count and let the operator choose a
 // replacement stage rather than silently stranding those Leads.
 export async function POST(request: Request, context: RouteContext) {
-  return workspaceRoute(request, { module: "crm", permission: CRM_PERMISSIONS.settingsManage, billingWrite: true }, async ({ client, session }) => {
-    const { id } = await context.params;
-    const body = (await readJson(request)) as { migrateToStageId?: string };
-    const result = await deactivateLeadStageWithMigration(client, crmContext(session), id, { migrateToStageId: body.migrateToStageId });
-    return ok(result);
-  });
+  return workspaceRoute(
+    request,
+    {
+      module: "crm",
+      permission: CRM_PERMISSIONS.settingsManage,
+      billingWrite: true,
+    },
+    async ({ client, session }) => {
+      const { id } = await context.params;
+      const body = (await readJson(request)) as { migrateToStageId?: string };
+      const result = await deactivateLeadStageWithMigration(
+        client,
+        crmContext(session),
+        id,
+        { migrateToStageId: body.migrateToStageId },
+      );
+      return ok(result);
+    },
+  );
 }

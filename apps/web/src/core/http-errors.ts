@@ -23,7 +23,12 @@ export class HttpError extends Error {
   // generate the assignment code a parameter property needs, and fails
   // with ERR_UNSUPPORTED_TYPESCRIPT_SYNTAX. Same public constructor
   // signature/behavior, just spelled out explicitly.
-  constructor(status: number, message: string, code?: string, details?: Record<string, unknown>) {
+  constructor(
+    status: number,
+    message: string,
+    code?: string,
+    details?: Record<string, unknown>,
+  ) {
     super(message);
     this.status = status;
     this.code = code;
@@ -57,26 +62,47 @@ function hasHttpErrorShape(
 // Error("NEXT_REDIRECT"), ...)` with a `.digest` of
 // `NEXT_REDIRECT;{type};{url};{statusCode};`), not assumed.
 function redirectAuthMessage(url: string): { message: string; code: string } {
-  if (url.startsWith("/login")) return { message: "Authentication required.", code: "AUTH_REQUIRED" };
-  if (url.startsWith("/verify-email")) return { message: "Verify your email address to continue.", code: "AUTH_EMAIL_UNVERIFIED" };
-  if (url.startsWith("/onboarding")) return { message: "Complete organization onboarding to continue.", code: "AUTH_NO_ORGANIZATION" };
+  if (url.startsWith("/login"))
+    return { message: "Authentication required.", code: "AUTH_REQUIRED" };
+  if (url.startsWith("/verify-email"))
+    return {
+      message: "Verify your email address to continue.",
+      code: "AUTH_EMAIL_UNVERIFIED",
+    };
+  if (url.startsWith("/onboarding"))
+    return {
+      message: "Complete organization onboarding to continue.",
+      code: "AUTH_NO_ORGANIZATION",
+    };
   return { message: "Authentication required.", code: "AUTH_REQUIRED" };
 }
 
-function redirectAuthFailure(error: unknown): { message: string; code: string } | null {
-  if (typeof error !== "object" || error === null || !("digest" in error)) return null;
+function redirectAuthFailure(
+  error: unknown,
+): { message: string; code: string } | null {
+  if (typeof error !== "object" || error === null || !("digest" in error))
+    return null;
   const digest = (error as { digest?: unknown }).digest;
-  if (typeof digest !== "string" || !digest.startsWith("NEXT_REDIRECT;")) return null;
+  if (typeof digest !== "string" || !digest.startsWith("NEXT_REDIRECT;"))
+    return null;
   const url = digest.split(";")[2] || "/login";
   return redirectAuthMessage(url);
 }
 
-export type ClassifiedError = { status: number; message: string; details?: Record<string, unknown> };
+export type ClassifiedError = {
+  status: number;
+  message: string;
+  details?: Record<string, unknown>;
+};
 
 export function classifyError(error: unknown): ClassifiedError {
   const redirectFailure = redirectAuthFailure(error);
   if (redirectFailure) {
-    return { status: 401, message: redirectFailure.message, details: { code: redirectFailure.code } };
+    return {
+      status: 401,
+      message: redirectFailure.message,
+      details: { code: redirectFailure.code },
+    };
   }
   if (error instanceof HttpError) {
     return {
@@ -92,7 +118,11 @@ export function classifyError(error: unknown): ClassifiedError {
     };
   }
   if (error instanceof ZodError) {
-    return { status: 400, message: "Review the submitted fields.", details: { errors: error.flatten().fieldErrors } };
+    return {
+      status: 400,
+      message: "Review the submitted fields.",
+      details: { errors: error.flatten().fieldErrors },
+    };
   }
   // Any ported @vercentlabs/api error class (ApiKeyError, OAuthError,
   // EntitlementError, ModuleAccessError, AccessAdministrationError,
@@ -102,7 +132,10 @@ export function classifyError(error: unknown): ClassifiedError {
     return {
       status: error.status,
       message: error.message,
-      details: "code" in error && error.code ? { code: (error as { code?: string }).code } : undefined,
+      details:
+        "code" in error && error.code
+          ? { code: (error as { code?: string }).code }
+          : undefined,
     };
   }
   reportError(logger, error, { event: "http.unhandled_error" });

@@ -5,7 +5,23 @@ import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { ColumnDef } from "@tanstack/react-table";
 import { ArrowLeftRight, Check, Plus, RotateCcw } from "lucide-react";
-import { AlertDialog, Button, Checkbox, Dialog, EnterpriseDataGrid, EnterpriseListPage, ErrorState, NoResultsState, NumberField, PermissionState, SearchField, Select, StatusBadge, TextField, type ActiveFilter } from "@vercentlabs/design-system";
+import {
+  AlertDialog,
+  Button,
+  Checkbox,
+  Dialog,
+  EnterpriseDataGrid,
+  EnterpriseListPage,
+  ErrorState,
+  NoResultsState,
+  NumberField,
+  PermissionState,
+  SearchField,
+  Select,
+  StatusBadge,
+  TextField,
+  type ActiveFilter,
+} from "@vercentlabs/design-system";
 import { POS_PERMISSIONS } from "@vercentlabs/permissions";
 
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
@@ -24,7 +40,10 @@ import {
 import { money, statusLabel } from "@/features/pos/shared/format";
 import { PosAlert } from "@/features/pos/shared/PosUi";
 
-const STATUS_TONE: Record<PosReturn["status"], "success" | "warning" | "neutral" | "danger"> = {
+const STATUS_TONE: Record<
+  PosReturn["status"],
+  "success" | "warning" | "neutral" | "danger"
+> = {
   pending_approval: "warning",
   approved: "neutral",
   completed: "success",
@@ -47,15 +66,26 @@ export function PosReturnsScreen() {
   const workspace = useWorkspaceContext();
   const router = useRouter();
   const queryClient = useQueryClient();
-  const canCreate = workspace.roleSlugs.includes("organization_owner") || workspace.permissions.includes(POS_PERMISSIONS.returnCreate);
-  const canApprove = workspace.roleSlugs.includes("organization_owner") || workspace.permissions.includes(POS_PERMISSIONS.returnApprove);
-  const canView = canCreate || canApprove || workspace.permissions.includes(POS_PERMISSIONS.view);
+  const canCreate =
+    workspace.roleSlugs.includes("organization_owner") ||
+    workspace.permissions.includes(POS_PERMISSIONS.returnCreate);
+  const canApprove =
+    workspace.roleSlugs.includes("organization_owner") ||
+    workspace.permissions.includes(POS_PERMISSIONS.returnApprove);
+  const canView =
+    canCreate ||
+    canApprove ||
+    workspace.permissions.includes(POS_PERMISSIONS.view);
 
   const [error, setError] = useState<string | null>(null);
   const [newReturnOpen, setNewReturnOpen] = useState(false);
   const [completeTarget, setCompleteTarget] = useState<PosReturn | null>(null);
 
-  const query = useQuery({ queryKey: scopedQueryKey(workspace, "pos", "returns"), queryFn: listPosReturns, enabled: canView });
+  const query = useQuery({
+    queryKey: scopedQueryKey(workspace, "pos", "returns"),
+    queryFn: listPosReturns,
+    enabled: canView,
+  });
   const allRows = query.data?.rows;
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
@@ -64,13 +94,22 @@ export function PosReturnsScreen() {
     return (allRows ?? []).filter((row) => {
       if (statusFilter && row.status !== statusFilter) return false;
       if (!needle) return true;
-      return [row.return_number, row.reason].some((value) => String(value ?? "").toLowerCase().includes(needle));
+      return [row.return_number, row.reason].some((value) =>
+        String(value ?? "")
+          .toLowerCase()
+          .includes(needle),
+      );
     });
   }, [allRows, search, statusFilter]);
   const hasFilters = Boolean(search.trim() || statusFilter);
   const activeFilters: ActiveFilter[] = [];
-  if (statusFilter) activeFilters.push({ id: "status", label: `Status: ${statusLabel(statusFilter)}` });
-  if (search.trim()) activeFilters.push({ id: "search", label: `Search: ${search.trim()}` });
+  if (statusFilter)
+    activeFilters.push({
+      id: "status",
+      label: `Status: ${statusLabel(statusFilter)}`,
+    });
+  if (search.trim())
+    activeFilters.push({ id: "search", label: `Search: ${search.trim()}` });
   function removeFilter(id: string) {
     if (id === "status") setStatusFilter("");
     if (id === "search") setSearch("");
@@ -81,10 +120,16 @@ export function PosReturnsScreen() {
   }
 
   function invalidate() {
-    queryClient.invalidateQueries({ queryKey: scopedQueryKey(workspace, "pos", "returns") });
+    queryClient.invalidateQueries({
+      queryKey: scopedQueryKey(workspace, "pos", "returns"),
+    });
   }
   function handleError(err: unknown) {
-    setError(err instanceof PosApiError ? err.message : "This action could not be completed.");
+    setError(
+      err instanceof PosApiError
+        ? err.message
+        : "This action could not be completed.",
+    );
   }
 
   // Idempotency keys here are derived ONLY from the return's own id, not
@@ -100,7 +145,10 @@ export function PosReturnsScreen() {
   // idempotency table never caught the duplicate and correctness fell back
   // entirely on the FOR UPDATE row lock + status re-check further down.
   const approveMutation = useMutation({
-    mutationFn: (posReturn: PosReturn) => approvePosReturn(posReturn.id, { idempotencyKey: `approve-${posReturn.id}` }),
+    mutationFn: (posReturn: PosReturn) =>
+      approvePosReturn(posReturn.id, {
+        idempotencyKey: `approve-${posReturn.id}`,
+      }),
     onSuccess: () => {
       setError(null);
       invalidate();
@@ -108,7 +156,10 @@ export function PosReturnsScreen() {
     onError: handleError,
   });
   const completeMutation = useMutation({
-    mutationFn: (posReturn: PosReturn) => completePosReturn(posReturn.id, { idempotencyKey: `complete-${posReturn.id}` }),
+    mutationFn: (posReturn: PosReturn) =>
+      completePosReturn(posReturn.id, {
+        idempotencyKey: `complete-${posReturn.id}`,
+      }),
     onSuccess: () => {
       setError(null);
       setCompleteTarget(null);
@@ -119,10 +170,31 @@ export function PosReturnsScreen() {
 
   const columns: ColumnDef<PosReturn, unknown>[] = useMemo(
     () => [
-      { id: "number", header: "Return #", accessorKey: "return_number", cell: ({ row }) => <span className="font-mono font-medium text-text">{row.original.return_number}</span> },
+      {
+        id: "number",
+        header: "Return #",
+        accessorKey: "return_number",
+        cell: ({ row }) => (
+          <span className="font-mono font-medium text-text">
+            {row.original.return_number}
+          </span>
+        ),
+      },
       { id: "reason", header: "Reason", accessorKey: "reason" },
-      { id: "refund", header: "Refund", accessorFn: (row) => money("", row.refund_total) },
-      { id: "status", header: "Status", cell: ({ row }) => <StatusBadge tone={STATUS_TONE[row.original.status] ?? "neutral"}>{statusLabel(row.original.status)}</StatusBadge> },
+      {
+        id: "refund",
+        header: "Refund",
+        accessorFn: (row) => money("", row.refund_total),
+      },
+      {
+        id: "status",
+        header: "Status",
+        cell: ({ row }) => (
+          <StatusBadge tone={STATUS_TONE[row.original.status] ?? "neutral"}>
+            {statusLabel(row.original.status)}
+          </StatusBadge>
+        ),
+      },
       {
         id: "actions",
         header: "",
@@ -130,7 +202,12 @@ export function PosReturnsScreen() {
           const r = row.original;
           if (r.status === "pending_approval" && canApprove) {
             return (
-              <Button variant="secondary" size="compact" onPress={() => approveMutation.mutate(r)} isLoading={approveMutation.isPending}>
+              <Button
+                variant="secondary"
+                size="compact"
+                onPress={() => approveMutation.mutate(r)}
+                isLoading={approveMutation.isPending}
+              >
                 <Check className="size-4" aria-hidden="true" />
                 Approve
               </Button>
@@ -139,11 +216,24 @@ export function PosReturnsScreen() {
           if (r.status === "approved" && canApprove) {
             return (
               <div className="flex items-center gap-1.5">
-                <Button variant="primary" size="compact" onPress={() => setCompleteTarget(r)} isLoading={completeMutation.isPending && completeTarget?.id === r.id}>
+                <Button
+                  variant="primary"
+                  size="compact"
+                  onPress={() => setCompleteTarget(r)}
+                  isLoading={
+                    completeMutation.isPending && completeTarget?.id === r.id
+                  }
+                >
                   <RotateCcw className="size-4" aria-hidden="true" />
                   Complete refund
                 </Button>
-                <Button variant="secondary" size="compact" onPress={() => router.push(`/pos/checkout?exchangeReturnId=${r.id}`)}>
+                <Button
+                  variant="secondary"
+                  size="compact"
+                  onPress={() =>
+                    router.push(`/pos/checkout?exchangeReturnId=${r.id}`)
+                  }
+                >
                   <ArrowLeftRight className="size-4" aria-hidden="true" />
                   Exchange
                 </Button>
@@ -157,7 +247,13 @@ export function PosReturnsScreen() {
     [canApprove, approveMutation, completeMutation, completeTarget, router],
   );
 
-  if (!canView) return <PermissionState title="You don't have access to POS Returns" description="Ask an administrator to grant pos.return.create or pos.return.approve." />;
+  if (!canView)
+    return (
+      <PermissionState
+        title="You don't have access to POS Returns"
+        description="Ask an administrator to grant pos.return.create or pos.return.approve."
+      />
+    );
 
   return (
     <div className="flex flex-col gap-4">
@@ -166,7 +262,8 @@ export function PosReturnsScreen() {
       <EnterpriseListPage
         header={{
           title: "Returns",
-          description: "Returns and refunds against a completed sale, refunded back through whichever tender(s) the original sale used.",
+          description:
+            "Returns and refunds against a completed sale, refunded back through whichever tender(s) the original sale used.",
           primaryAction: canCreate ? (
             <Button variant="primary" onPress={() => setNewReturnOpen(true)}>
               <Plus className="size-4" aria-hidden="true" />
@@ -177,7 +274,13 @@ export function PosReturnsScreen() {
         actionBar={{
           start: (
             <>
-              <SearchField aria-label="Search returns" placeholder="Search return number or reason…" value={search} onChange={setSearch} className="min-w-[280px]" />
+              <SearchField
+                aria-label="Search returns"
+                placeholder="Search return number or reason…"
+                value={search}
+                onChange={setSearch}
+                className="min-w-[280px]"
+              />
               <Select
                 aria-label="Status"
                 size="compact"
@@ -195,17 +298,48 @@ export function PosReturnsScreen() {
             </>
           ),
         }}
-        filterBar={{ filters: activeFilters, onRemove: removeFilter, onClearAll: hasFilters ? clearFilters : undefined }}
+        filterBar={{
+          filters: activeFilters,
+          onRemove: removeFilter,
+          onClearAll: hasFilters ? clearFilters : undefined,
+        }}
       >
         <EnterpriseDataGrid<PosReturn>
           aria-label="Returns"
           columns={columns}
           data={rows}
           getRowId={(row) => row.id}
-          state={query.isError ? "error" : query.isLoading ? "loading" : rows.length === 0 && hasFilters ? "no-results" : rows.length === 0 ? "empty" : "ready"}
-          emptyContent={<NoResultsState title="No returns yet" description="Returns filed against completed sales appear here." />}
-          noResultsContent={<NoResultsState title="No returns match these filters" description="Try clearing a filter or broadening your search." action={{ label: "Clear filters", onPress: clearFilters }} />}
-          errorContent={<ErrorState title="Could not load returns" description="Something went wrong fetching the returns list." action={{ label: "Retry", onPress: () => query.refetch() }} />}
+          state={
+            query.isError
+              ? "error"
+              : query.isLoading
+                ? "loading"
+                : rows.length === 0 && hasFilters
+                  ? "no-results"
+                  : rows.length === 0
+                    ? "empty"
+                    : "ready"
+          }
+          emptyContent={
+            <NoResultsState
+              title="No returns yet"
+              description="Returns filed against completed sales appear here."
+            />
+          }
+          noResultsContent={
+            <NoResultsState
+              title="No returns match these filters"
+              description="Try clearing a filter or broadening your search."
+              action={{ label: "Clear filters", onPress: clearFilters }}
+            />
+          }
+          errorContent={
+            <ErrorState
+              title="Could not load returns"
+              description="Something went wrong fetching the returns list."
+              action={{ label: "Retry", onPress: () => query.refetch() }}
+            />
+          }
         />
       </EnterpriseListPage>
 
@@ -227,15 +361,28 @@ export function PosReturnsScreen() {
         description={`This issues a refund of ${completeTarget ? money("", completeTarget.refund_total) : ""} back through the same payment method(s) used on the original sale. This cannot be undone.`}
         confirmLabel="Complete refund"
         isConfirming={completeMutation.isPending}
-        onConfirm={() => completeTarget && completeMutation.mutate(completeTarget)}
+        onConfirm={() =>
+          completeTarget && completeMutation.mutate(completeTarget)
+        }
       />
     </div>
   );
 }
 
-function NewReturnDialog({ onClose, onCreated, onError }: { onClose: () => void; onCreated: () => void; onError: (error: unknown) => void }) {
+function NewReturnDialog({
+  onClose,
+  onCreated,
+  onError,
+}: {
+  onClose: () => void;
+  onCreated: () => void;
+  onError: (error: unknown) => void;
+}) {
   const [receiptNumber, setReceiptNumber] = useState("");
-  const [found, setFound] = useState<{ sale: PosReturnSale; lines: PosReturnSaleLine[] } | null>(null);
+  const [found, setFound] = useState<{
+    sale: PosReturnSale;
+    lines: PosReturnSaleLine[];
+  } | null>(null);
   const [searchError, setSearchError] = useState<string | null>(null);
   const [searching, setSearching] = useState(false);
   const [quantities, setQuantities] = useState<Record<string, number>>({});
@@ -246,7 +393,11 @@ function NewReturnDialog({ onClose, onCreated, onError }: { onClose: () => void;
   // same key instead of minting a new one via Date.now() each time -- the
   // latter would let two duplicate return records (each with its own
   // refund + restock) both go through.
-  const [idempotencyKey] = useState(() => (typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : `return-${Date.now()}-${Math.random()}`));
+  const [idempotencyKey] = useState(() =>
+    typeof crypto !== "undefined" && crypto.randomUUID
+      ? crypto.randomUUID()
+      : `return-${Date.now()}-${Math.random()}`,
+  );
 
   async function search() {
     if (!receiptNumber.trim()) return;
@@ -259,7 +410,11 @@ function NewReturnDialog({ onClose, onCreated, onError }: { onClose: () => void;
       setRestock({});
     } catch (err) {
       setFound(null);
-      setSearchError(err instanceof PosApiError ? err.message : "That receipt could not be found.");
+      setSearchError(
+        err instanceof PosApiError
+          ? err.message
+          : "That receipt could not be found.",
+      );
     } finally {
       setSearching(false);
     }
@@ -268,7 +423,11 @@ function NewReturnDialog({ onClose, onCreated, onError }: { onClose: () => void;
   const returnLines = found
     ? found.lines
         .filter((line) => (quantities[line.id] ?? 0) > 0)
-        .map((line) => ({ saleLineId: line.id, quantity: quantities[line.id], restock: Boolean(restock[line.id]) }))
+        .map((line) => ({
+          saleLineId: line.id,
+          quantity: quantities[line.id],
+          restock: Boolean(restock[line.id]),
+        }))
     : [];
 
   const mutation = useMutation({
@@ -284,44 +443,86 @@ function NewReturnDialog({ onClose, onCreated, onError }: { onClose: () => void;
   });
 
   return (
-    <Dialog isOpen onOpenChange={(open) => !open && onClose()} title="New return">
+    <Dialog
+      isOpen
+      onOpenChange={(open) => !open && onClose()}
+      title="New return"
+    >
       <div className="flex max-h-[70vh] flex-col gap-4 overflow-y-auto pr-1">
         {!found ? (
           <>
             <div className="flex items-end gap-2">
-              <TextField label="Receipt number" value={receiptNumber} onChange={setReceiptNumber} onKeyDown={(event) => event.key === "Enter" && search()} className="flex-1" />
-              <Button variant="secondary" onPress={search} isLoading={searching} isDisabled={!receiptNumber.trim()}>
+              <TextField
+                label="Receipt number"
+                value={receiptNumber}
+                onChange={setReceiptNumber}
+                onKeyDown={(event) => event.key === "Enter" && search()}
+                className="flex-1"
+              />
+              <Button
+                variant="secondary"
+                onPress={search}
+                isLoading={searching}
+                isDisabled={!receiptNumber.trim()}
+              >
                 Find sale
               </Button>
             </div>
-            {searchError && <p className="text-sm text-danger">{searchError}</p>}
+            {searchError && (
+              <p className="text-sm text-danger">{searchError}</p>
+            )}
           </>
         ) : (
           <>
             <div className="rounded-[var(--radius-control)] border border-border p-3 text-sm">
-              <p className="font-medium text-text">Receipt {found.sale.receipt_number}</p>
-              <p className="text-text-secondary">Total: {money(found.sale.currency_code, found.sale.grand_total)}</p>
+              <p className="font-medium text-text">
+                Receipt {found.sale.receipt_number}
+              </p>
+              <p className="text-text-secondary">
+                Total: {money(found.sale.currency_code, found.sale.grand_total)}
+              </p>
             </div>
             <ul className="flex flex-col gap-3">
               {found.lines.map((line) => {
                 const remaining = Number(line.remaining_quantity);
                 return (
-                  <li key={line.id} className="flex flex-col gap-2 rounded-[var(--radius-control)] border border-border p-3">
+                  <li
+                    key={line.id}
+                    className="flex flex-col gap-2 rounded-[var(--radius-control)] border border-border p-3"
+                  >
                     <div className="flex items-center justify-between">
-                      <span className="text-sm font-medium text-text">{line.description}</span>
-                      <span className="text-xs text-text-muted">{remaining} returnable of {line.quantity}</span>
+                      <span className="text-sm font-medium text-text">
+                        {line.description}
+                      </span>
+                      <span className="text-xs text-text-muted">
+                        {remaining} returnable of {line.quantity}
+                      </span>
                     </div>
                     <div className="flex items-center gap-3">
                       <NumberField
                         aria-label={`Quantity to return for ${line.description}`}
                         size="compact"
                         value={quantities[line.id] ?? 0}
-                        onChange={(value) => setQuantities((prev) => ({ ...prev, [line.id]: Math.min(Math.max(0, value), remaining) }))}
+                        onChange={(value) =>
+                          setQuantities((prev) => ({
+                            ...prev,
+                            [line.id]: Math.min(Math.max(0, value), remaining),
+                          }))
+                        }
                         minValue={0}
                         maxValue={remaining}
                         isDisabled={remaining <= 0}
                       />
-                      <Checkbox isSelected={Boolean(restock[line.id])} onChange={(checked) => setRestock((prev) => ({ ...prev, [line.id]: checked }))} isDisabled={remaining <= 0}>
+                      <Checkbox
+                        isSelected={Boolean(restock[line.id])}
+                        onChange={(checked) =>
+                          setRestock((prev) => ({
+                            ...prev,
+                            [line.id]: checked,
+                          }))
+                        }
+                        isDisabled={remaining <= 0}
+                      >
                         Restock
                       </Checkbox>
                     </div>
@@ -329,7 +530,12 @@ function NewReturnDialog({ onClose, onCreated, onError }: { onClose: () => void;
                 );
               })}
             </ul>
-            <TextField label="Reason" isRequired value={reason} onChange={setReason} />
+            <TextField
+              label="Reason"
+              isRequired
+              value={reason}
+              onChange={setReason}
+            />
           </>
         )}
         <div className="flex justify-end gap-2 pt-2">
@@ -337,7 +543,12 @@ function NewReturnDialog({ onClose, onCreated, onError }: { onClose: () => void;
             Cancel
           </Button>
           {found && (
-            <Button variant="primary" onPress={() => mutation.mutate()} isLoading={mutation.isPending} isDisabled={!returnLines.length || !reason.trim()}>
+            <Button
+              variant="primary"
+              onPress={() => mutation.mutate()}
+              isLoading={mutation.isPending}
+              isDisabled={!returnLines.length || !reason.trim()}
+            >
               Request return
             </Button>
           )}

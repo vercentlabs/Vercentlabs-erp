@@ -30,17 +30,35 @@ const createSchema = z.object({
 });
 
 export async function GET(request: Request) {
-  return workspaceRoute(request, { module: "point-of-sale" }, async ({ client, session }) => {
-    const url = new URL(request.url);
-    const rows = await listPosPromotions(client, posContext(session), { status: url.searchParams.get("status") || undefined });
-    return ok({ rows });
-  });
+  return workspaceRoute(
+    request,
+    { module: "point-of-sale" },
+    async ({ client, session }) => {
+      const url = new URL(request.url);
+      const rows = await listPosPromotions(client, posContext(session), {
+        status: url.searchParams.get("status") || undefined,
+      });
+      return ok({ rows });
+    },
+  );
 }
 
 export async function POST(request: Request) {
-  return workspaceRoute(request, { module: "point-of-sale", permission: "pos.settings.manage", billingWrite: true }, async ({ client, session }) => {
-    const input = createSchema.parse(await readJson(request));
-    const result = await createPosPromotion(client, posContext(session), input);
-    return ok({ record: result }, 201);
-  });
+  return workspaceRoute(
+    request,
+    {
+      module: "point-of-sale",
+      permission: "pos.settings.manage",
+      billingWrite: true,
+    },
+    async ({ client, session }) => {
+      const input = createSchema.parse(await readJson(request));
+      const result = await createPosPromotion(
+        client,
+        posContext(session),
+        input,
+      );
+      return ok({ record: result }, 201);
+    },
+  );
 }

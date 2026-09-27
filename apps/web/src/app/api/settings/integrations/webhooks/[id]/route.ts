@@ -13,11 +13,26 @@ const schema = z.object({
   status: z.enum(["active", "disabled"]).optional(),
 });
 
-export async function PATCH(request: Request, context: { params: Promise<{ id: string }> }) {
+export async function PATCH(
+  request: Request,
+  context: { params: Promise<{ id: string }> },
+) {
   const { id } = await context.params;
   return workspaceRoute(
     request,
-    { permission: CORE_PERMISSIONS.integrationsManage, action: "integrations.webhook.update", auditDenial: true },
-    async ({ client, session }) => ok({ subscription: await updateWebhookSubscription(client, session, id, schema.parse(await readJson(request))) }),
+    {
+      permission: CORE_PERMISSIONS.integrationsManage,
+      action: "integrations.webhook.update",
+      auditDenial: true,
+    },
+    async ({ client, session }) =>
+      ok({
+        subscription: await updateWebhookSubscription(
+          client,
+          session,
+          id,
+          schema.parse(await readJson(request)),
+        ),
+      }),
   );
 }

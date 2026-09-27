@@ -13,7 +13,9 @@ import { test, expect } from "@playwright/test";
  * real-server, real-database proof of the same fix).
  */
 
-test("an unmapped CRM resource's mutation is denied by default, not silently allowed at the view floor", async ({ page }) => {
+test("an unmapped CRM resource's mutation is denied by default, not silently allowed at the view floor", async ({
+  page,
+}) => {
   await page.goto("/crm/leads", { waitUntil: "networkidle" });
 
   const denied = await page.evaluate(async () => {
@@ -32,21 +34,29 @@ test("an unmapped CRM resource's mutation is denied by default, not silently all
 
 // Saved views were removed from CRM (82454fec): the resource is now refused like
 // any unknown resource — never silently created.
-test("saved-views (removed) is refused like any unknown CRM resource", async ({ page }) => {
+test("saved-views (removed) is refused like any unknown CRM resource", async ({
+  page,
+}) => {
   await page.goto("/crm/leads", { waitUntil: "networkidle" });
 
   const created = await page.evaluate(async () => {
     const resp = await fetch("/api/crm/saved-views", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ resource: "leads", name: `e2e regression view ${Date.now()}`, filters: {} }),
+      body: JSON.stringify({
+        resource: "leads",
+        name: `e2e regression view ${Date.now()}`,
+        filters: {},
+      }),
     });
     return { status: resp.status };
   });
   expect(created.status).toBe(404);
 });
 
-test("a mapped CRM resource (leads) still requires its documented manage permission, unaffected by the deny-by-default fix", async ({ page }) => {
+test("a mapped CRM resource (leads) still requires its documented manage permission, unaffected by the deny-by-default fix", async ({
+  page,
+}) => {
   // The owner fixture has every permission (organization_owner bypasses
   // requireSessionPermission entirely), so this only proves the mapped
   // path still succeeds end-to-end, not that a lesser role is blocked —
@@ -59,7 +69,10 @@ test("a mapped CRM resource (leads) still requires its documented manage permiss
     const resp = await fetch("/api/crm/leads", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ firstName: `E2E Auth Regression ${Date.now()}`, email: `e2e-auth-regression-${Date.now()}@crm-e2e-fixture.test` }),
+      body: JSON.stringify({
+        firstName: `E2E Auth Regression ${Date.now()}`,
+        email: `e2e-auth-regression-${Date.now()}@crm-e2e-fixture.test`,
+      }),
     });
     return { status: resp.status, body: await resp.json() };
   });

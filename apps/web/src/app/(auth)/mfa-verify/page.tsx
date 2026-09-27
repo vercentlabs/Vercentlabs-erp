@@ -12,16 +12,24 @@ export const metadata = { title: "Verify your identity" };
 // showing a pointless form.
 export default async function MfaVerifyPage() {
   const session = await requireVerifiedUser();
-  const needsMfaStep = (session.mfaEnrolled || session.mfaPolicyRequired) && !session.mfaVerified;
+  const needsMfaStep =
+    (session.mfaEnrolled || session.mfaPolicyRequired) && !session.mfaVerified;
   if (!needsMfaStep) redirect(nextPath(session));
 
   return (
     <div className="flex flex-col gap-6">
       <div className="flex flex-col gap-1">
-        <p className="text-xs font-semibold tracking-wide text-text-muted uppercase">Vercentlabs ERP</p>
-        <h1 className="text-xl font-semibold text-text">Verify your identity</h1>
+        <p className="text-xs font-semibold tracking-wide text-text-muted uppercase">
+          Vercentlabs ERP
+        </p>
+        <h1 className="text-xl font-semibold text-text">
+          Verify your identity
+        </h1>
       </div>
-      <MfaVerifyClient mfaEnrolled={session.mfaEnrolled} email={session.email} />
+      <MfaVerifyClient
+        mfaEnrolled={session.mfaEnrolled}
+        email={session.email}
+      />
     </div>
   );
 }

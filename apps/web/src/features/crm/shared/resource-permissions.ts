@@ -86,7 +86,9 @@ export type CrmMutationPermissionResolution =
 // unconditionally outside Next's server runtime). This function is the one
 // place the actual deny-by-default policy lives, and what
 // resource-permissions.test.ts exercises directly.
-export function resolveCrmMutationPermission(resource: string): CrmMutationPermissionResolution {
+export function resolveCrmMutationPermission(
+  resource: string,
+): CrmMutationPermissionResolution {
   const permission = RESOURCE_MANAGE_PERMISSIONS[resource];
   if (permission) return { kind: "requires-permission", permission };
   if (SELF_SCOPED_CRM_RESOURCES.has(resource)) return { kind: "self-scoped" };

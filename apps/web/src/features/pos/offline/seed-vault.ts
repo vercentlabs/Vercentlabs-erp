@@ -23,19 +23,27 @@ export const WRAPPED_SEED_KEY = "wrappedSeed";
 async function getOrCreateWrapKey(store: MetaStore): Promise<CryptoKey> {
   const existing = (await store.get(SEED_WRAP_KEY)) as CryptoKey | undefined;
   if (existing) return existing;
-  const key = await crypto.subtle.generateKey({ name: "AES-GCM", length: 256 }, false, ["encrypt", "decrypt"]);
+  const key = await crypto.subtle.generateKey(
+    { name: "AES-GCM", length: 256 },
+    false,
+    ["encrypt", "decrypt"],
+  );
   await store.put(SEED_WRAP_KEY, key);
   return key;
 }
 
-export async function persistSeed(store: MetaStore, seed: string): Promise<void> {
+export async function persistSeed(
+  store: MetaStore,
+  seed: string,
+): Promise<void> {
   const key = await getOrCreateWrapKey(store);
   await store.put(WRAPPED_SEED_KEY, await encryptJson(key, seed));
 }
 
 export async function recoverSeed(store: MetaStore): Promise<string | null> {
   const key = (await store.get(SEED_WRAP_KEY)) as CryptoKey | undefined;
-  const wrapped = (await store.get(WRAPPED_SEED_KEY)) as EncryptedBlob | undefined;
+  const wrapped = (await store.get(WRAPPED_SEED_KEY)) as
+    EncryptedBlob | undefined;
   if (!key || !wrapped) return null;
   try {
     return await decryptJson<string>(key, wrapped);

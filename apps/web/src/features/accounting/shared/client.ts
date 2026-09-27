@@ -17,21 +17,30 @@ export class AccountingApiError extends Error {
 
 async function parse<T>(response: Response): Promise<T> {
   const payload = await response.json().catch(() => ({}));
-  if (!response.ok || payload.ok === false) throw new AccountingApiError(payload.message || "The request could not be completed.", response.status, payload.code);
+  if (!response.ok || payload.ok === false)
+    throw new AccountingApiError(
+      payload.message || "The request could not be completed.",
+      response.status,
+      payload.code,
+    );
   return payload;
 }
 
 function call<T>(path: string, init?: RequestInit): Promise<T> {
   return fetch(`/api/accounting${path}`, {
     credentials: "same-origin",
-    headers: { Accept: "application/json", ...(init?.body ? { "Content-Type": "application/json" } : {}) },
+    headers: {
+      Accept: "application/json",
+      ...(init?.body ? { "Content-Type": "application/json" } : {}),
+    },
     ...init,
   }).then(parse<T>);
 }
 
 export const qs = (params: Record<string, string | undefined>) => {
   const search = new URLSearchParams();
-  for (const [key, value] of Object.entries(params)) if (value) search.set(key, value);
+  for (const [key, value] of Object.entries(params))
+    if (value) search.set(key, value);
   const text = search.toString();
   return text ? `?${text}` : "";
 };
@@ -39,13 +48,32 @@ export const qs = (params: Record<string, string | undefined>) => {
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export type Row = { id: string } & Record<string, any>;
 
-export const readView = <T = { rows: Row[] }>(kind: string, params: Record<string, string | undefined> = {}) => call<T>(`/view/${kind}${qs(params)}`);
-export const act = <T = { record: Row }>(action: string, input: Record<string, unknown> = {}) => call<T>(`/actions/${action}`, { method: "POST", body: JSON.stringify(input) });
+export const readView = <T = { rows: Row[] }>(
+  kind: string,
+  params: Record<string, string | undefined> = {},
+) => call<T>(`/view/${kind}${qs(params)}`);
+export const act = <T = { record: Row }>(
+  action: string,
+  input: Record<string, unknown> = {},
+) =>
+  call<T>(`/actions/${action}`, {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
 
-export type AccountingOptions = Partial<Record<OptionKey, Array<{ id: string; code: string; name: string }>>>;
+export type AccountingOptions = Partial<
+  Record<OptionKey, Array<{ id: string; code: string; name: string }>>
+>;
 type OptionKey = import("@/features/accounting/shared/FieldInput").OptionSource;
 
 export function useAccountingOptions() {
   const workspace = useWorkspaceContext();
-  return useQuery({ queryKey: scopedQueryKey(workspace, "accounting", "options"), queryFn: () => readView<{ options: AccountingOptions }>("options").then((r) => r.options), staleTime: 15_000 });
+  return useQuery({
+    queryKey: scopedQueryKey(workspace, "accounting", "options"),
+    queryFn: () =>
+      readView<{ options: AccountingOptions }>("options").then(
+        (r) => r.options,
+      ),
+    staleTime: 15_000,
+  });
 }

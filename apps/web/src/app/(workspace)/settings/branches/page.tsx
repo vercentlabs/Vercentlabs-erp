@@ -7,5 +7,9 @@ export const metadata = { title: "Branches" };
 
 export default async function BranchesSettingsPage() {
   const session = await requireWorkspace();
-  return <BranchesScreen canManage={hasSessionPermission(session, "branch.manage")} />;
+  return (
+    <BranchesScreen
+      canManage={hasSessionPermission(session, "branch.manage")}
+    />
+  );
 }

@@ -12,7 +12,10 @@ export class CompaniesApiError extends Error {
 async function parseResponse<T>(response: Response): Promise<T> {
   const payload = await response.json().catch(() => ({}));
   if (!response.ok || payload.ok === false) {
-    throw new CompaniesApiError(payload.message || "The request could not be completed.", response.status);
+    throw new CompaniesApiError(
+      payload.message || "The request could not be completed.",
+      response.status,
+    );
   }
   return payload;
 }
@@ -54,7 +57,12 @@ export async function createCompany(input: {
 
 export async function updateCompany(
   id: string,
-  updates: { name?: string; legalName?: string; taxId?: string | null; status?: "active" | "inactive" },
+  updates: {
+    name?: string;
+    legalName?: string;
+    taxId?: string | null;
+    status?: "active" | "inactive";
+  },
 ): Promise<{ company: CompanyRow }> {
   const response = await fetch(`/api/settings/companies/${id}`, {
     method: "PUT",

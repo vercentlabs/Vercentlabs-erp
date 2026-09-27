@@ -18,7 +18,9 @@ export async function DELETE(request: Request, context: RouteContext) {
     assertSameOriginOrMobile(request, process.env);
     const session = await requireApiUser();
     const { id } = paramsSchema.parse(await context.params);
-    const revoked = await sessionTransaction(session, (client) => revokeSessionById(client, session.userId, id, "user_revoked"));
+    const revoked = await sessionTransaction(session, (client) =>
+      revokeSessionById(client, session.userId, id, "user_revoked"),
+    );
     if (!revoked) throw new HttpError(404, "Session not found.");
     return ok({ ok: true });
   } catch (error) {

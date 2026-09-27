@@ -1,7 +1,11 @@
 import { defineConfig, devices } from "@playwright/test";
 
 import { offlineMailEnv } from "./e2e/offline-mail-env";
-import { FILE_STORAGE_LOCAL_ROOT, OAUTH_CLIENTS, OAUTH_STANDIN_PORT } from "./e2e/platform-services-env";
+import {
+  FILE_STORAGE_LOCAL_ROOT,
+  OAUTH_CLIENTS,
+  OAUTH_STANDIN_PORT,
+} from "./e2e/platform-services-env";
 
 // Focused Shared Platform services journeys (developer API, webhooks, OAuth,
 // numbering, governance, automations, reports, CRM attachments) against a
@@ -55,5 +59,7 @@ export default defineConfig({
       },
     },
   ],
-  projects: [{ name: "platform-services", use: { ...devices["Desktop Chrome"] } }],
+  projects: [
+    { name: "platform-services", use: { ...devices["Desktop Chrome"] } },
+  ],
 });

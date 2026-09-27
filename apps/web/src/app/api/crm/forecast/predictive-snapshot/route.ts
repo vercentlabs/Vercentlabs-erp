@@ -13,9 +13,23 @@ import { workspaceRoute } from "@/core/workspace-route";
 // so the caller sees it immediately, rather than requiring a separate
 // "latest snapshot" read endpoint this pass doesn't otherwise need.
 export async function POST(request: Request) {
-  return workspaceRoute(request, { module: "crm", permission: CRM_PERMISSIONS.opportunitiesManage, billingWrite: true }, async ({ client, session }) => {
-    const input = (await readJson(request).catch(() => ({}))) as { forecastPeriodId?: string };
-    const result = await capturePredictiveForecast(client, crmContext(session), { forecastPeriodId: input.forecastPeriodId || null });
-    return ok(result, 201);
-  });
+  return workspaceRoute(
+    request,
+    {
+      module: "crm",
+      permission: CRM_PERMISSIONS.opportunitiesManage,
+      billingWrite: true,
+    },
+    async ({ client, session }) => {
+      const input = (await readJson(request).catch(() => ({}))) as {
+        forecastPeriodId?: string;
+      };
+      const result = await capturePredictiveForecast(
+        client,
+        crmContext(session),
+        { forecastPeriodId: input.forecastPeriodId || null },
+      );
+      return ok(result, 201);
+    },
+  );
 }

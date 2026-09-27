@@ -12,11 +12,27 @@ const updateTerminalSchema = z.object({
   storeId: z.string().uuid().optional(),
 });
 
-export async function PATCH(request: Request, context: { params: Promise<{ terminalId: string }> }) {
-  return workspaceRoute(request, { module: "point-of-sale", permission: "pos.terminal.manage", billingWrite: true }, async ({ client, session }) => {
-    const { terminalId } = await context.params;
-    const input = updateTerminalSchema.parse(await readJson(request));
-    const result = await updatePosTerminal(client, posContext(session), terminalId, input);
-    return ok({ terminal: result });
-  });
+export async function PATCH(
+  request: Request,
+  context: { params: Promise<{ terminalId: string }> },
+) {
+  return workspaceRoute(
+    request,
+    {
+      module: "point-of-sale",
+      permission: "pos.terminal.manage",
+      billingWrite: true,
+    },
+    async ({ client, session }) => {
+      const { terminalId } = await context.params;
+      const input = updateTerminalSchema.parse(await readJson(request));
+      const result = await updatePosTerminal(
+        client,
+        posContext(session),
+        terminalId,
+        input,
+      );
+      return ok({ terminal: result });
+    },
+  );
 }

@@ -14,13 +14,25 @@ const schema = z.object({
   expiresAt: z.string().datetime({ offset: true }).nullable().optional(),
 });
 
-export async function POST(request: Request, context: { params: Promise<{ id: string }> }) {
+export async function POST(
+  request: Request,
+  context: { params: Promise<{ id: string }> },
+) {
   const { id } = await context.params;
   return workspaceRoute(
     request,
-    { permission: CORE_PERMISSIONS.integrationsManage, action: "integrations.api_key.create", auditDenial: true },
+    {
+      permission: CORE_PERMISSIONS.integrationsManage,
+      action: "integrations.api_key.create",
+      auditDenial: true,
+    },
     async ({ client, session }) => {
-      const issued = await createApiKey(client, session, id, schema.parse(await readJson(request)));
+      const issued = await createApiKey(
+        client,
+        session,
+        id,
+        schema.parse(await readJson(request)),
+      );
       return ok({ key: issued.key, token: issued.token }, 201);
     },
   );

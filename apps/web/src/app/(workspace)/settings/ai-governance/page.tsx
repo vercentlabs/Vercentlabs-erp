@@ -8,5 +8,12 @@ export const metadata = { title: "AI governance" };
 
 export default async function AiGovernancePage() {
   const session = await requireWorkspace();
-  return <AiGovernanceScreen canManage={hasSessionPermission(session, CORE_PERMISSIONS.platformAiManage)} />;
+  return (
+    <AiGovernanceScreen
+      canManage={hasSessionPermission(
+        session,
+        CORE_PERMISSIONS.platformAiManage,
+      )}
+    />
+  );
 }

@@ -30,18 +30,30 @@ export class NoteApiError extends Error {
 async function parseResponse<T>(response: Response): Promise<T> {
   const payload = await response.json().catch(() => ({}));
   if (!response.ok || payload.ok === false) {
-    throw new NoteApiError(payload.message || "The request could not be completed.", response.status, payload.code);
+    throw new NoteApiError(
+      payload.message || "The request could not be completed.",
+      response.status,
+      payload.code,
+    );
   }
   return payload;
 }
 
-export async function listNotes(entityType: string, entityId: string): Promise<{ notes: CrmNote[] }> {
+export async function listNotes(
+  entityType: string,
+  entityId: string,
+): Promise<{ notes: CrmNote[] }> {
   const params = new URLSearchParams({ entityType, entityId });
   const response = await fetch(`/api/crm/notes?${params.toString()}`);
   return parseResponse(response);
 }
 
-export async function createNote(entityType: string, entityId: string, body: string, visibility: "shared" | "private" = "shared"): Promise<{ note: CrmNote }> {
+export async function createNote(
+  entityType: string,
+  entityId: string,
+  body: string,
+  visibility: "shared" | "private" = "shared",
+): Promise<{ note: CrmNote }> {
   const response = await fetch("/api/crm/notes", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -50,9 +62,17 @@ export async function createNote(entityType: string, entityId: string, body: str
   return parseResponse(response);
 }
 
-export type NotePatch = { body?: string; isPinned?: boolean; visibility?: "shared" | "private" };
+export type NotePatch = {
+  body?: string;
+  isPinned?: boolean;
+  visibility?: "shared" | "private";
+};
 
-export async function updateNote(id: string, patch: NotePatch, expectedVersion: number): Promise<{ note: CrmNote }> {
+export async function updateNote(
+  id: string,
+  patch: NotePatch,
+  expectedVersion: number,
+): Promise<{ note: CrmNote }> {
   const response = await fetch(`/api/crm/notes/${id}`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
@@ -61,8 +81,14 @@ export async function updateNote(id: string, patch: NotePatch, expectedVersion: 
   return parseResponse(response);
 }
 
-export async function archiveNote(id: string, expectedVersion: number): Promise<{ note: CrmNote }> {
-  const response = await fetch(`/api/crm/notes/${id}?expectedVersion=${expectedVersion}`, { method: "DELETE" });
+export async function archiveNote(
+  id: string,
+  expectedVersion: number,
+): Promise<{ note: CrmNote }> {
+  const response = await fetch(
+    `/api/crm/notes/${id}?expectedVersion=${expectedVersion}`,
+    { method: "DELETE" },
+  );
   return parseResponse(response);
 }
 
@@ -79,7 +105,9 @@ export type NoteVersion = {
   createdAt: string;
 };
 
-export async function listNoteVersions(id: string): Promise<{ versions: NoteVersion[] }> {
+export async function listNoteVersions(
+  id: string,
+): Promise<{ versions: NoteVersion[] }> {
   const response = await fetch(`/api/crm/notes/${id}/versions`);
   return parseResponse(response);
 }

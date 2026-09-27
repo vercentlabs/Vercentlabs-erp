@@ -11,7 +11,9 @@ export async function POST(request: Request) {
   try {
     assertSameOriginOrMobile(request, process.env);
     const session = await requireApiUser();
-    const result = await sessionTransaction(session, (client) => beginMfaEnrollment(client, session.userId, process.env));
+    const result = await sessionTransaction(session, (client) =>
+      beginMfaEnrollment(client, session.userId, process.env),
+    );
     return ok(result);
   } catch (error) {
     return errorResponse(error);

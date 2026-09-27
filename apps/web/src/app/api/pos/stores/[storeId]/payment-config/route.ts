@@ -1,6 +1,9 @@
 import { z } from "zod";
 
-import { getPosStorePaymentConfig, setPosStorePaymentConfig } from "@vercentlabs/api";
+import {
+  getPosStorePaymentConfig,
+  setPosStorePaymentConfig,
+} from "@vercentlabs/api";
 
 import { ok, readJson } from "@/core/http";
 import { posContext } from "@/features/pos/shared/pos-context";
@@ -18,19 +21,46 @@ const configSchema = z.object({
   providers: z.record(z.string(), providerSchema).optional(),
 });
 
-export async function GET(request: Request, context: { params: Promise<{ storeId: string }> }) {
-  return workspaceRoute(request, { module: "point-of-sale", permission: "pos.store.manage" }, async ({ client, session }) => {
-    const { storeId } = await context.params;
-    const result = await getPosStorePaymentConfig(client, posContext(session), storeId);
-    return ok({ config: result });
-  });
+export async function GET(
+  request: Request,
+  context: { params: Promise<{ storeId: string }> },
+) {
+  return workspaceRoute(
+    request,
+    { module: "point-of-sale", permission: "pos.store.manage" },
+    async ({ client, session }) => {
+      const { storeId } = await context.params;
+      const result = await getPosStorePaymentConfig(
+        client,
+        posContext(session),
+        storeId,
+      );
+      return ok({ config: result });
+    },
+  );
 }
 
-export async function PUT(request: Request, context: { params: Promise<{ storeId: string }> }) {
-  return workspaceRoute(request, { module: "point-of-sale", permission: "pos.store.manage", billingWrite: true }, async ({ client, session }) => {
-    const { storeId } = await context.params;
-    const input = configSchema.parse(await readJson(request));
-    const result = await setPosStorePaymentConfig(client, posContext(session), storeId, input);
-    return ok({ config: result });
-  });
+export async function PUT(
+  request: Request,
+  context: { params: Promise<{ storeId: string }> },
+) {
+  return workspaceRoute(
+    request,
+    {
+      module: "point-of-sale",
+      permission: "pos.store.manage",
+      billingWrite: true,
+    },
+    async ({ client, session }) => {
+      const { storeId } = await context.params;
+      const input = configSchema.parse(await readJson(request));
+      const result = await setPosStorePaymentConfig(
+        client,
+        posContext(session),
+        storeId,
+        input,
+      );
+      return ok({ config: result });
+    },
+  );
 }

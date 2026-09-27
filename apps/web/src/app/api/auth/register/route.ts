@@ -36,7 +36,14 @@ export async function POST(request: Request) {
   try {
     assertSameOrigin(request, process.env);
     const body = schema.parse(await readJson(request));
-    await withIngressClient((client) => enforceRateLimit(client, `register:${clientIp(request, process.env)}`, 5, 600));
+    await withIngressClient((client) =>
+      enforceRateLimit(
+        client,
+        `register:${clientIp(request, process.env)}`,
+        5,
+        600,
+      ),
+    );
 
     const result = await ingressTransaction(async (client) => {
       const registered = await registerOrganization(client, body);
@@ -46,7 +53,12 @@ export async function POST(request: Request) {
         userAgent: request.headers.get("user-agent"),
         env: process.env,
       });
-      await setSessionOrganization(client, session.sessionId, registered.userId, registered.organizationId);
+      await setSessionOrganization(
+        client,
+        session.sessionId,
+        registered.userId,
+        registered.organizationId,
+      );
       await audit(client, {
         organizationId: registered.organizationId,
         actorUserId: registered.userId,
@@ -64,7 +76,13 @@ export async function POST(request: Request) {
     // this codebase) -- a delivery failure must never roll back a
     // successful signup; the user can always request a fresh link from
     // /verify-email.
-    await withIngressClient((client) => createEmailVerificationToken(client, result.registered.userId, process.env));
+    await withIngressClient((client) =>
+      createEmailVerificationToken(
+        client,
+        result.registered.userId,
+        process.env,
+      ),
+    );
 
     const response = ok({ registered: true }, 201);
     setSessionCookie(response, result.session);

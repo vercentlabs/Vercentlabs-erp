@@ -10,11 +10,23 @@ const resolveSchema = z.object({
   resolutionNotes: z.string().trim().min(1).max(2_000),
 });
 
-export async function POST(request: Request, context: { params: Promise<{ id: string }> }) {
-  return workspaceRoute(request, { module: "point-of-sale", permission: "pos.reconciliation.approve" }, async ({ client, session }) => {
-    const { id } = await context.params;
-    const input = resolveSchema.parse(await readJson(request));
-    const result = await resolvePosReconciliation(client, posContext(session), id, input);
-    return ok({ reconciliation: result });
-  });
+export async function POST(
+  request: Request,
+  context: { params: Promise<{ id: string }> },
+) {
+  return workspaceRoute(
+    request,
+    { module: "point-of-sale", permission: "pos.reconciliation.approve" },
+    async ({ client, session }) => {
+      const { id } = await context.params;
+      const input = resolveSchema.parse(await readJson(request));
+      const result = await resolvePosReconciliation(
+        client,
+        posContext(session),
+        id,
+        input,
+      );
+      return ok({ reconciliation: result });
+    },
+  );
 }

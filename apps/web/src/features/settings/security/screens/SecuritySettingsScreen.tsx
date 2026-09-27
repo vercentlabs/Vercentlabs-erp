@@ -2,24 +2,57 @@
 
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { AlertDialog, Badge, Button, Dialog, EmptyState, ErrorState, PageHeader, TextField } from "@vercentlabs/design-system";
+import {
+  AlertDialog,
+  Badge,
+  Button,
+  Dialog,
+  EmptyState,
+  ErrorState,
+  PageHeader,
+  TextField,
+} from "@vercentlabs/design-system";
 import { Laptop, Smartphone } from "lucide-react";
 
-import { listSessions, revokeOtherSessions, revokeSession, SessionApiError, type SessionRow } from "../api/sessions-api";
-import { confirmMfaEnrollment, disableMfa, MfaApiError, regenerateRecoveryCodes, startMfaEnrollment } from "../api/mfa-api";
+import {
+  listSessions,
+  revokeOtherSessions,
+  revokeSession,
+  SessionApiError,
+  type SessionRow,
+} from "../api/sessions-api";
+import {
+  confirmMfaEnrollment,
+  disableMfa,
+  MfaApiError,
+  regenerateRecoveryCodes,
+  startMfaEnrollment,
+} from "../api/mfa-api";
 
 const SESSIONS_QUERY_KEY = ["settings", "sessions"];
 
-const dateTimeFormatter = new Intl.DateTimeFormat("en-IN", { dateStyle: "medium", timeStyle: "short" });
+const dateTimeFormatter = new Intl.DateTimeFormat("en-IN", {
+  dateStyle: "medium",
+  timeStyle: "short",
+});
 
-export function SecuritySettingsScreen({ initialMfaEnrolled }: { initialMfaEnrolled: boolean }) {
+export function SecuritySettingsScreen({
+  initialMfaEnrolled,
+}: {
+  initialMfaEnrolled: boolean;
+}) {
   const queryClient = useQueryClient();
   const [revokeTarget, setRevokeTarget] = useState<SessionRow | null>(null);
   const [confirmingRevokeOthers, setConfirmingRevokeOthers] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
-  const [revokedOthersCount, setRevokedOthersCount] = useState<number | null>(null);
+  const [revokedOthersCount, setRevokedOthersCount] = useState<number | null>(
+    null,
+  );
 
-  const query = useQuery({ queryKey: SESSIONS_QUERY_KEY, queryFn: listSessions });
+  const query = useQuery({
+    queryKey: SESSIONS_QUERY_KEY,
+    queryFn: listSessions,
+  });
 
   const revokeMutation = useMutation({
     mutationFn: (id: string) => revokeSession(id),
@@ -29,7 +62,11 @@ export function SecuritySettingsScreen({ initialMfaEnrolled }: { initialMfaEnrol
       queryClient.invalidateQueries({ queryKey: SESSIONS_QUERY_KEY });
     },
     onError: (error: unknown) => {
-      setActionError(error instanceof SessionApiError ? error.message : "This session could not be revoked.");
+      setActionError(
+        error instanceof SessionApiError
+          ? error.message
+          : "This session could not be revoked.",
+      );
     },
   });
 
@@ -42,7 +79,11 @@ export function SecuritySettingsScreen({ initialMfaEnrolled }: { initialMfaEnrol
       queryClient.invalidateQueries({ queryKey: SESSIONS_QUERY_KEY });
     },
     onError: (error: unknown) => {
-      setActionError(error instanceof SessionApiError ? error.message : "Other sessions could not be revoked.");
+      setActionError(
+        error instanceof SessionApiError
+          ? error.message
+          : "Other sessions could not be revoked.",
+      );
     },
   });
 
@@ -64,7 +105,9 @@ export function SecuritySettingsScreen({ initialMfaEnrolled }: { initialMfaEnrol
   const [regenerateOpen, setRegenerateOpen] = useState(false);
   const [regenerateCode, setRegenerateCode] = useState("");
   const [regenerateError, setRegenerateError] = useState<string | null>(null);
-  const [regeneratedCodes, setRegeneratedCodes] = useState<string[] | null>(null);
+  const [regeneratedCodes, setRegeneratedCodes] = useState<string[] | null>(
+    null,
+  );
 
   const startEnrollMutation = useMutation({
     mutationFn: startMfaEnrollment,
@@ -73,7 +116,11 @@ export function SecuritySettingsScreen({ initialMfaEnrolled }: { initialMfaEnrol
       setEnrollSecret(result.secretBase32);
     },
     onError: (error: unknown) => {
-      setEnrollError(error instanceof MfaApiError ? error.message : "Could not start MFA enrollment.");
+      setEnrollError(
+        error instanceof MfaApiError
+          ? error.message
+          : "Could not start MFA enrollment.",
+      );
     },
   });
 
@@ -85,7 +132,11 @@ export function SecuritySettingsScreen({ initialMfaEnrolled }: { initialMfaEnrol
       setMfaEnrolled(true);
     },
     onError: (error: unknown) => {
-      setEnrollError(error instanceof MfaApiError ? error.message : "That code is incorrect. Try again.");
+      setEnrollError(
+        error instanceof MfaApiError
+          ? error.message
+          : "That code is incorrect. Try again.",
+      );
     },
   });
 
@@ -99,7 +150,11 @@ export function SecuritySettingsScreen({ initialMfaEnrolled }: { initialMfaEnrol
       queryClient.invalidateQueries({ queryKey: SESSIONS_QUERY_KEY });
     },
     onError: (error: unknown) => {
-      setDisableError(error instanceof MfaApiError ? error.message : "That code is incorrect.");
+      setDisableError(
+        error instanceof MfaApiError
+          ? error.message
+          : "That code is incorrect.",
+      );
     },
   });
 
@@ -110,7 +165,11 @@ export function SecuritySettingsScreen({ initialMfaEnrolled }: { initialMfaEnrol
       setRegeneratedCodes(result.recoveryCodes);
     },
     onError: (error: unknown) => {
-      setRegenerateError(error instanceof MfaApiError ? error.message : "That code is incorrect.");
+      setRegenerateError(
+        error instanceof MfaApiError
+          ? error.message
+          : "That code is incorrect.",
+      );
     },
   });
 
@@ -136,7 +195,10 @@ export function SecuritySettingsScreen({ initialMfaEnrolled }: { initialMfaEnrol
         description="Devices and browsers currently signed in to your account. Revoke any session you don't recognize."
         primaryAction={
           otherSessionCount > 0 ? (
-            <Button variant="secondary" onPress={() => setConfirmingRevokeOthers(true)}>
+            <Button
+              variant="secondary"
+              onPress={() => setConfirmingRevokeOthers(true)}
+            >
               Sign out all other sessions
             </Button>
           ) : undefined
@@ -146,20 +208,34 @@ export function SecuritySettingsScreen({ initialMfaEnrolled }: { initialMfaEnrol
       <div className="flex max-w-[640px] flex-col gap-3 rounded-[var(--radius-card)] border border-border bg-surface p-4">
         <div className="flex items-center justify-between gap-4">
           <div className="flex flex-col gap-0.5">
-            <span className="text-sm font-medium text-text">Multi-factor authentication</span>
+            <span className="text-sm font-medium text-text">
+              Multi-factor authentication
+            </span>
             <span className="text-xs text-text-muted">
-              {mfaEnrolled ? "Enabled — a code from your authenticator app is required at sign-in." : "Not enabled."}
+              {mfaEnrolled
+                ? "Enabled — a code from your authenticator app is required at sign-in."
+                : "Not enabled."}
             </span>
           </div>
-          <Badge tone={mfaEnrolled ? "success" : "neutral"}>{mfaEnrolled ? "Enabled" : "Disabled"}</Badge>
+          <Badge tone={mfaEnrolled ? "success" : "neutral"}>
+            {mfaEnrolled ? "Enabled" : "Disabled"}
+          </Badge>
         </div>
         <div className="flex gap-2">
           {mfaEnrolled ? (
             <>
-              <Button variant="secondary" size="compact" onPress={() => setRegenerateOpen(true)}>
+              <Button
+                variant="secondary"
+                size="compact"
+                onPress={() => setRegenerateOpen(true)}
+              >
                 Regenerate recovery codes
               </Button>
-              <Button variant="secondary" size="compact" onPress={() => setDisableOpen(true)}>
+              <Button
+                variant="secondary"
+                size="compact"
+                onPress={() => setDisableOpen(true)}
+              >
                 Disable
               </Button>
             </>
@@ -179,20 +255,28 @@ export function SecuritySettingsScreen({ initialMfaEnrolled }: { initialMfaEnrol
       </div>
 
       {actionError && (
-        <p role="alert" className="rounded-[var(--radius-control)] border border-danger-emphasis/30 bg-danger-soft px-3 py-2 text-sm text-danger">
+        <p
+          role="alert"
+          className="rounded-[var(--radius-control)] border border-danger-emphasis/30 bg-danger-soft px-3 py-2 text-sm text-danger"
+        >
           {actionError}
         </p>
       )}
       {revokedOthersCount !== null && (
         <p className="rounded-[var(--radius-control)] border border-success-emphasis/30 bg-success-soft px-3 py-2 text-sm text-success">
-          Signed out {revokedOthersCount} other session{revokedOthersCount === 1 ? "" : "s"}.
+          Signed out {revokedOthersCount} other session
+          {revokedOthersCount === 1 ? "" : "s"}.
         </p>
       )}
 
       {query.isLoading ? (
         <p className="text-sm text-text-secondary">Loading sessions…</p>
       ) : query.isError ? (
-        <ErrorState title="Could not load sessions" description="Something went wrong loading your active sessions." action={{ label: "Retry", onPress: () => query.refetch() }} />
+        <ErrorState
+          title="Could not load sessions"
+          description="Something went wrong loading your active sessions."
+          action={{ label: "Retry", onPress: () => query.refetch() }}
+        />
       ) : sessions.length === 0 ? (
         <EmptyState title="No active sessions" />
       ) : (
@@ -212,17 +296,24 @@ export function SecuritySettingsScreen({ initialMfaEnrolled }: { initialMfaEnrol
                 </span>
                 <div className="flex min-w-0 flex-col gap-0.5">
                   <div className="flex flex-wrap items-center gap-2">
-                    <span className="text-sm font-medium text-text">{row.deviceName}</span>
+                    <span className="text-sm font-medium text-text">
+                      {row.deviceName}
+                    </span>
                     {row.isCurrent && <Badge tone="success">This device</Badge>}
                   </div>
                   <span className="text-xs text-text-muted">
                     {row.ipAddress ? `${row.ipAddress} · ` : ""}
-                    Last active {dateTimeFormatter.format(new Date(row.lastSeenAt))}
+                    Last active{" "}
+                    {dateTimeFormatter.format(new Date(row.lastSeenAt))}
                   </span>
                 </div>
               </div>
               {!row.isCurrent && (
-                <Button variant="secondary" size="compact" onPress={() => setRevokeTarget(row)}>
+                <Button
+                  variant="secondary"
+                  size="compact"
+                  onPress={() => setRevokeTarget(row)}
+                >
                   Revoke
                 </Button>
               )}
@@ -251,12 +342,17 @@ export function SecuritySettingsScreen({ initialMfaEnrolled }: { initialMfaEnrol
         onConfirm={() => revokeOthersMutation.mutate()}
       />
 
-      <Dialog isOpen={enrollOpen} onOpenChange={(open) => !open && closeEnrollDialog()} title="Enable multi-factor authentication">
+      <Dialog
+        isOpen={enrollOpen}
+        onOpenChange={(open) => !open && closeEnrollDialog()}
+        title="Enable multi-factor authentication"
+      >
         {recoveryCodes ? (
           <div className="flex flex-col gap-4">
             <p className="text-sm text-text-secondary">
-              Enabled. Save these recovery codes somewhere safe — each can be used once if you lose access to your
-              authenticator app. They will not be shown again.
+              Enabled. Save these recovery codes somewhere safe — each can be
+              used once if you lose access to your authenticator app. They will
+              not be shown again.
             </p>
             <ul className="grid grid-cols-2 gap-2 rounded-[var(--radius-card)] border border-border bg-surface-muted p-4 font-mono text-sm text-text">
               {recoveryCodes.map((recoveryCode) => (
@@ -279,27 +375,46 @@ export function SecuritySettingsScreen({ initialMfaEnrolled }: { initialMfaEnrol
             noValidate
           >
             <p className="text-sm text-text-secondary">
-              Add this account to an authenticator app (Google Authenticator, 1Password, Authy, or similar) using the
-              key below, then enter the 6-digit code it shows.
+              Add this account to an authenticator app (Google Authenticator,
+              1Password, Authy, or similar) using the key below, then enter the
+              6-digit code it shows.
             </p>
             <div className="flex flex-col gap-1 rounded-[var(--radius-card)] border border-border bg-surface-muted p-3">
-              <span className="text-xs font-medium text-text-muted uppercase">Setup key</span>
-              <span className="break-all font-mono text-sm text-text">{enrollSecret}</span>
+              <span className="text-xs font-medium text-text-muted uppercase">
+                Setup key
+              </span>
+              <span className="break-all font-mono text-sm text-text">
+                {enrollSecret}
+              </span>
             </div>
-            <TextField label="6-digit code" autoComplete="one-time-code" isRequired value={enrollCode} onChange={setEnrollCode} />
+            <TextField
+              label="6-digit code"
+              autoComplete="one-time-code"
+              isRequired
+              value={enrollCode}
+              onChange={setEnrollCode}
+            />
             {enrollError ? (
               <p role="alert" className="text-sm text-danger">
                 {enrollError}
               </p>
             ) : null}
-            <Button type="submit" variant="primary" isLoading={confirmEnrollMutation.isPending}>
+            <Button
+              type="submit"
+              variant="primary"
+              isLoading={confirmEnrollMutation.isPending}
+            >
               Enable
             </Button>
           </form>
         )}
       </Dialog>
 
-      <Dialog isOpen={disableOpen} onOpenChange={(open) => !open && setDisableOpen(false)} title="Disable multi-factor authentication">
+      <Dialog
+        isOpen={disableOpen}
+        onOpenChange={(open) => !open && setDisableOpen(false)}
+        title="Disable multi-factor authentication"
+      >
         <form
           className="flex flex-col gap-4"
           onSubmit={(event) => {
@@ -309,27 +424,41 @@ export function SecuritySettingsScreen({ initialMfaEnrolled }: { initialMfaEnrol
           noValidate
         >
           <p className="text-sm text-text-secondary">
-            Enter a current code from your authenticator app (or a recovery code) to confirm. This will sign you out
-            of every device.
+            Enter a current code from your authenticator app (or a recovery
+            code) to confirm. This will sign you out of every device.
           </p>
-          <TextField label="Code" autoComplete="one-time-code" isRequired value={disableCode} onChange={setDisableCode} />
+          <TextField
+            label="Code"
+            autoComplete="one-time-code"
+            isRequired
+            value={disableCode}
+            onChange={setDisableCode}
+          />
           {disableError ? (
             <p role="alert" className="text-sm text-danger">
               {disableError}
             </p>
           ) : null}
-          <Button type="submit" variant="danger" isLoading={disableMutation.isPending}>
+          <Button
+            type="submit"
+            variant="danger"
+            isLoading={disableMutation.isPending}
+          >
             Disable
           </Button>
         </form>
       </Dialog>
 
-      <Dialog isOpen={regenerateOpen} onOpenChange={(open) => !open && closeRegenerateDialog()} title="Regenerate recovery codes">
+      <Dialog
+        isOpen={regenerateOpen}
+        onOpenChange={(open) => !open && closeRegenerateDialog()}
+        title="Regenerate recovery codes"
+      >
         {regeneratedCodes ? (
           <div className="flex flex-col gap-4">
             <p className="text-sm text-text-secondary">
-              Every previous recovery code has been invalidated. Save these new codes somewhere safe — they will not
-              be shown again.
+              Every previous recovery code has been invalidated. Save these new
+              codes somewhere safe — they will not be shown again.
             </p>
             <ul className="grid grid-cols-2 gap-2 rounded-[var(--radius-card)] border border-border bg-surface-muted p-4 font-mono text-sm text-text">
               {regeneratedCodes.map((recoveryCode) => (
@@ -350,16 +479,26 @@ export function SecuritySettingsScreen({ initialMfaEnrolled }: { initialMfaEnrol
             noValidate
           >
             <p className="text-sm text-text-secondary">
-              Enter a current code from your authenticator app to confirm. Every existing recovery code will stop
-              working.
+              Enter a current code from your authenticator app to confirm. Every
+              existing recovery code will stop working.
             </p>
-            <TextField label="Code" autoComplete="one-time-code" isRequired value={regenerateCode} onChange={setRegenerateCode} />
+            <TextField
+              label="Code"
+              autoComplete="one-time-code"
+              isRequired
+              value={regenerateCode}
+              onChange={setRegenerateCode}
+            />
             {regenerateError ? (
               <p role="alert" className="text-sm text-danger">
                 {regenerateError}
               </p>
             ) : null}
-            <Button type="submit" variant="primary" isLoading={regenerateMutation.isPending}>
+            <Button
+              type="submit"
+              variant="primary"
+              isLoading={regenerateMutation.isPending}
+            >
               Regenerate
             </Button>
           </form>

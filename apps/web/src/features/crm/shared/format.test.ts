@@ -30,7 +30,11 @@ test("regression: summing two numeric-column strings with toNumber produces real
   // toNumber(), a reduce() over a page of quota/forecast/opportunity rows
   // whose amount columns are ::numeric would silently corrupt the total
   // instead of summing it.
-  const rows = [{ amount: "5000.00" }, { amount: "3000.00" }, { amount: "1250.50" }];
+  const rows = [
+    { amount: "5000.00" },
+    { amount: "3000.00" },
+    { amount: "1250.50" },
+  ];
   const total = rows.reduce((sum, row) => sum + toNumber(row.amount), 0);
   assert.equal(total, 9250.5);
   assert.notEqual(String(total), "05000.003000.001250.50");
@@ -49,5 +53,8 @@ test("money() renders a numeric-column string with locale grouping, not the raw 
 });
 
 test("money() does not crash on a genuinely non-numeric value, and does not silently zero it either", () => {
-  assert.equal(money("USD", "not-a-number" as unknown as string), "USD not-a-number");
+  assert.equal(
+    money("USD", "not-a-number" as unknown as string),
+    "USD not-a-number",
+  );
 });

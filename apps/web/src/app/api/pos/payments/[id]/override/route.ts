@@ -15,11 +15,26 @@ const overrideSchema = z.object({
   reason: z.string().trim().min(1).max(500),
 });
 
-export async function POST(request: Request, context: { params: Promise<{ id: string }> }) {
-  return workspaceRoute(request, { module: "point-of-sale", permission: "pos.payment.override", billingWrite: true }, async ({ client, session }) => {
-    const { id } = await context.params;
-    const input = overrideSchema.parse(await readJson(request));
-    const result = await requestPosPaymentOverride(client, posContext(session), { paymentId: id, reason: input.reason });
-    return ok(result, 201);
-  });
+export async function POST(
+  request: Request,
+  context: { params: Promise<{ id: string }> },
+) {
+  return workspaceRoute(
+    request,
+    {
+      module: "point-of-sale",
+      permission: "pos.payment.override",
+      billingWrite: true,
+    },
+    async ({ client, session }) => {
+      const { id } = await context.params;
+      const input = overrideSchema.parse(await readJson(request));
+      const result = await requestPosPaymentOverride(
+        client,
+        posContext(session),
+        { paymentId: id, reason: input.reason },
+      );
+      return ok(result, 201);
+    },
+  );
 }

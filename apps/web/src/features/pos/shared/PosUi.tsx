@@ -4,7 +4,12 @@ import { useMemo, type ReactNode } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
-import { EnterpriseDataGrid, SectionHeader, cn, surfaceVariants } from "@vercentlabs/design-system";
+import {
+  EnterpriseDataGrid,
+  SectionHeader,
+  cn,
+  surfaceVariants,
+} from "@vercentlabs/design-system";
 
 // Small POS-side compositions over the design system's own primitives
 // (Surface + SectionHeader), so every POS screen's panels, alerts and mini
@@ -30,8 +35,21 @@ export function PosPanel({
   padding?: "none" | "sm" | "md" | "lg";
 }) {
   return (
-    <section className={cn(surfaceVariants({ padding }), "flex flex-col gap-3", className)}>
-      {(title || actions) && <SectionHeader title={title} description={description} actions={actions} className={padding === "none" ? "px-4 pt-4 pb-3" : undefined} />}
+    <section
+      className={cn(
+        surfaceVariants({ padding }),
+        "flex flex-col gap-3",
+        className,
+      )}
+    >
+      {(title || actions) && (
+        <SectionHeader
+          title={title}
+          description={description}
+          actions={actions}
+          className={padding === "none" ? "px-4 pt-4 pb-3" : undefined}
+        />
+      )}
       {children}
     </section>
   );
@@ -45,9 +63,24 @@ const alertTone = {
 } as const;
 
 /** The inline error/notice banner CRM's screens render above their content. */
-export function PosAlert({ tone = "danger", children, className }: { tone?: keyof typeof alertTone; children: ReactNode; className?: string }) {
+export function PosAlert({
+  tone = "danger",
+  children,
+  className,
+}: {
+  tone?: keyof typeof alertTone;
+  children: ReactNode;
+  className?: string;
+}) {
   return (
-    <div role={tone === "danger" ? "alert" : "status"} className={cn("rounded-[var(--radius-control)] border px-3 py-2 text-sm", alertTone[tone], className)}>
+    <div
+      role={tone === "danger" ? "alert" : "status"}
+      className={cn(
+        "rounded-[var(--radius-control)] border px-3 py-2 text-sm",
+        alertTone[tone],
+        className,
+      )}
+    >
       {children}
     </div>
   );
@@ -55,8 +88,19 @@ export function PosAlert({ tone = "danger", children, className }: { tone?: keyo
 
 /** Label/value pairs in a responsive grid — for the read-only facts in a
  * panel (totals, identifiers, timestamps). */
-export function PosFacts({ items, columns = 3 }: { items: Array<{ label: string; value: ReactNode }>; columns?: 2 | 3 | 4 }) {
-  const cols = columns === 2 ? "sm:grid-cols-2" : columns === 4 ? "sm:grid-cols-2 lg:grid-cols-4" : "sm:grid-cols-2 lg:grid-cols-3";
+export function PosFacts({
+  items,
+  columns = 3,
+}: {
+  items: Array<{ label: string; value: ReactNode }>;
+  columns?: 2 | 3 | 4;
+}) {
+  const cols =
+    columns === 2
+      ? "sm:grid-cols-2"
+      : columns === 4
+        ? "sm:grid-cols-2 lg:grid-cols-4"
+        : "sm:grid-cols-2 lg:grid-cols-3";
   return (
     <dl className={cn("grid grid-cols-1 gap-x-6 gap-y-3", cols)}>
       {items.map((item) => (
@@ -98,18 +142,34 @@ export function PosDataTable<T extends Record<string, unknown>>({
       columns.map((column) => ({
         id: column.key,
         // Numbers read right-aligned under a right-aligned header.
-        header: column.numeric ? () => <span className="block text-right">{column.header}</span> : column.header,
+        header: column.numeric
+          ? () => <span className="block text-right">{column.header}</span>
+          : column.header,
         accessorFn: (row: T) => row[column.key],
         enableSorting: false,
         cell: ({ row }: { row: { original: T } }) => {
-          const content = column.render ? column.render(row.original) : String(row.original[column.key] ?? "—");
-          return column.numeric ? <span className="block text-right tabular-nums">{content}</span> : content;
+          const content = column.render
+            ? column.render(row.original)
+            : String(row.original[column.key] ?? "—");
+          return column.numeric ? (
+            <span className="block text-right tabular-nums">{content}</span>
+          ) : (
+            content
+          );
         },
       })),
     [columns],
   );
   if (!rows.length) return <p className="text-sm text-text-muted">{empty}</p>;
-  return <EnterpriseDataGrid<T> aria-label={caption ?? "Data table"} className="rounded-[var(--radius-control)]" columns={definitions} data={rows} density="compact" />;
+  return (
+    <EnterpriseDataGrid<T>
+      aria-label={caption ?? "Data table"}
+      className="rounded-[var(--radius-control)]"
+      columns={definitions}
+      data={rows}
+      density="compact"
+    />
+  );
 }
 
 export function PosLoading({ label = "Loading…" }: { label?: string }) {
@@ -119,9 +179,18 @@ export function PosLoading({ label = "Loading…" }: { label?: string }) {
 /** "← All shifts" style return link for record pages, rendered above the
  * RecordHeader title. A real link (client-side navigation, middle-click,
  * keyboard) rather than a button that calls router.push. */
-export function PosBackLink({ href, children }: { href: string; children: ReactNode }) {
+export function PosBackLink({
+  href,
+  children,
+}: {
+  href: string;
+  children: ReactNode;
+}) {
   return (
-    <Link href={href} className="inline-flex items-center gap-1 text-sm text-text-muted outline-none hover:text-text focus-visible:underline">
+    <Link
+      href={href}
+      className="inline-flex items-center gap-1 text-sm text-text-muted outline-none hover:text-text focus-visible:underline"
+    >
       <ArrowLeft className="size-3.5" aria-hidden="true" />
       {children}
     </Link>

@@ -24,4 +24,6 @@ export type PosCustomerSaleRow = {
 };
 
 export const listPosCustomerSales = (customerId: string, limit = 50) =>
-  request<{ rows: PosCustomerSaleRow[] }>(`/sales?customerId=${encodeURIComponent(customerId)}&limit=${limit}`);
+  request<{ rows: PosCustomerSaleRow[] }>(
+    `/sales?customerId=${encodeURIComponent(customerId)}&limit=${limit}`,
+  );

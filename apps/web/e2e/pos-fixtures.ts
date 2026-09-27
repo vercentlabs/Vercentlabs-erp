@@ -94,8 +94,13 @@ type MarkerFile = {
   };
 };
 
-async function tx<T>(client: Client, organizationId: string, fn: (client: Client) => Promise<T>): Promise<T> {
-  const { setTenantContext } = await import("../../../packages/database/src/index.js");
+async function tx<T>(
+  client: Client,
+  organizationId: string,
+  fn: (client: Client) => Promise<T>,
+): Promise<T> {
+  const { setTenantContext } =
+    await import("../../../packages/database/src/index.js");
   await client.query("BEGIN");
   try {
     await setTenantContext(client, organizationId);
@@ -123,12 +128,19 @@ async function buildPosWorld(): Promise<PosWorld> {
   const client = new Client({ connectionString: MIGRATION_DATABASE_URL });
   await client.connect();
 
-  const { hashPassword } = await import("../../../services/api/src/core/auth/session.js");
+  const { hashPassword } =
+    await import("../../../services/api/src/core/auth/session.js");
   const { openShift } = await import("../../../services/api/src/index.js");
 
   try {
-    const ownerRes = await client.query(`SELECT id FROM public.users WHERE email = $1`, [fixtures.ownerEmail]);
-    if (!ownerRes.rows[0]) throw new Error(`Seeded E2E owner ${fixtures.ownerEmail} not found -- has .env.e2e.local been bootstrapped?`);
+    const ownerRes = await client.query(
+      `SELECT id FROM public.users WHERE email = $1`,
+      [fixtures.ownerEmail],
+    );
+    if (!ownerRes.rows[0])
+      throw new Error(
+        `Seeded E2E owner ${fixtures.ownerEmail} not found -- has .env.e2e.local been bootstrapped?`,
+      );
     const ownerUserId = ownerRes.rows[0].id as string;
 
     const membershipRes = await client.query(
@@ -137,7 +149,10 @@ async function buildPosWorld(): Promise<PosWorld> {
     );
     const organizationId = membershipRes.rows[0].organization_id as string;
 
-    const companyRes = await client.query(`SELECT id FROM public.companies WHERE organization_id = $1 AND is_primary = true LIMIT 1`, [organizationId]);
+    const companyRes = await client.query(
+      `SELECT id FROM public.companies WHERE organization_id = $1 AND is_primary = true LIMIT 1`,
+      [organizationId],
+    );
     const companyId = companyRes.rows[0].id as string;
 
     const branchRes = await client.query(
@@ -150,28 +165,50 @@ async function buildPosWorld(): Promise<PosWorld> {
       `SELECT slug, id FROM public.roles WHERE organization_id = $1 AND slug IN ('pos_cashier','pos_supervisor','pos_manager')`,
       [organizationId],
     );
-    const roleIdBySlug = Object.fromEntries(roleRes.rows.map((r) => [r.slug as string, r.id as string]));
+    const roleIdBySlug = Object.fromEntries(
+      roleRes.rows.map((r) => [r.slug as string, r.id as string]),
+    );
     for (const slug of ["pos_cashier", "pos_supervisor", "pos_manager"]) {
-      if (!roleIdBySlug[slug]) throw new Error(`Role '${slug}' not found in organization ${organizationId} -- expected a pre-provisioned system role.`);
+      if (!roleIdBySlug[slug])
+        throw new Error(
+          `Role '${slug}' not found in organization ${organizationId} -- expected a pre-provisioned system role.`,
+        );
     }
 
     const suffix = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
     const passwordHash = await hashPassword(PERSONA_PASSWORD);
 
-    async function createPersona(label: "cashier" | "supervisor" | "manager", roleSlug: string): Promise<PosPersona> {
+    async function createPersona(
+      label: "cashier" | "supervisor" | "manager",
+      roleSlug: string,
+    ): Promise<PosPersona> {
       const userId = crypto.randomUUID();
       const email = `e2e-pos-${label}-${suffix}@crm-e2e-fixture.test`;
       await client.query(
         `INSERT INTO public.users(id, email, full_name, password_hash, status, email_verified_at) VALUES ($1,$2,$3,$4,'active',now())`,
-        [userId, email, `E2E POS ${label[0].toUpperCase()}${label.slice(1)}`, passwordHash],
+        [
+          userId,
+          email,
+          `E2E POS ${label[0].toUpperCase()}${label.slice(1)}`,
+          passwordHash,
+        ],
       );
-      await client.query(`INSERT INTO organization_memberships(organization_id, user_id, role, status) VALUES ($1,$2,'member','active')`, [organizationId, userId]);
+      await client.query(
+        `INSERT INTO organization_memberships(organization_id, user_id, role, status) VALUES ($1,$2,'member','active')`,
+        [organizationId, userId],
+      );
       await client.query(
         `INSERT INTO public.user_role_assignments(organization_id, user_id, role_id, is_primary, status, starts_at) VALUES ($1,$2,$3,true,'active',now())`,
         [organizationId, userId, roleIdBySlug[roleSlug]],
       );
-      await client.query(`INSERT INTO membership_company_access(organization_id, user_id, company_id) VALUES ($1,$2,$3)`, [organizationId, userId, companyId]);
-      await client.query(`INSERT INTO membership_branch_access(organization_id, user_id, branch_id) VALUES ($1,$2,$3)`, [organizationId, userId, branchId]);
+      await client.query(
+        `INSERT INTO membership_company_access(organization_id, user_id, company_id) VALUES ($1,$2,$3)`,
+        [organizationId, userId, companyId],
+      );
+      await client.query(
+        `INSERT INTO membership_branch_access(organization_id, user_id, branch_id) VALUES ($1,$2,$3)`,
+        [organizationId, userId, branchId],
+      );
       return { email, password: PERSONA_PASSWORD, userId };
     }
 
@@ -185,9 +222,19 @@ async function buildPosWorld(): Promise<PosWorld> {
     // org had no tenant.sales_settings row at all before this suite ran,
     // so there is nothing to preserve/restore and nothing else in this
     // shared org depends on its absence.
-    const existingSalesSettings = await tx(client, organizationId, (c) => c.query(`SELECT 1 FROM tenant.sales_settings WHERE organization_id = $1`, [organizationId]));
+    const existingSalesSettings = await tx(client, organizationId, (c) =>
+      c.query(
+        `SELECT 1 FROM tenant.sales_settings WHERE organization_id = $1`,
+        [organizationId],
+      ),
+    );
     if (existingSalesSettings.rows.length === 0) {
-      await tx(client, organizationId, (c) => c.query(`INSERT INTO tenant.sales_settings(organization_id, seller_state_code) VALUES ($1,'KA')`, [organizationId]));
+      await tx(client, organizationId, (c) =>
+        c.query(
+          `INSERT INTO tenant.sales_settings(organization_id, seller_state_code) VALUES ($1,'KA')`,
+          [organizationId],
+        ),
+      );
     }
 
     const warehouseId = crypto.randomUUID();
@@ -213,18 +260,27 @@ async function buildPosWorld(): Promise<PosWorld> {
     const customerPhone = `9${String(Math.floor(Math.random() * 1_000_000_000)).padStart(9, "0")}`;
 
     await tx(client, organizationId, async (c) => {
-      const uomRes = await c.query(`SELECT id FROM tenant.units_of_measure WHERE organization_id = $1 AND code = 'EA' AND status = 'active' LIMIT 1`, [organizationId]);
+      const uomRes = await c.query(
+        `SELECT id FROM tenant.units_of_measure WHERE organization_id = $1 AND code = 'EA' AND status = 'active' LIMIT 1`,
+        [organizationId],
+      );
       const uomId = uomRes.rows[0].id as string;
 
       await c.query(
         `INSERT INTO tenant.warehouses(id, organization_id, company_id, branch_id, code, name, status) VALUES ($1,$2,$3,$4,$5,$6,'active')`,
-        [warehouseId, organizationId, companyId, branchId, `WH-${suffix}`, "POS E2E Warehouse"],
+        [
+          warehouseId,
+          organizationId,
+          companyId,
+          branchId,
+          `WH-${suffix}`,
+          "POS E2E Warehouse",
+        ],
       );
-      await c.query(`INSERT INTO tenant.tax_categories(id, organization_id, code, name, status) VALUES ($1,$2,$3,'POS E2E GST','active')`, [
-        taxCategoryId,
-        organizationId,
-        `TAXCAT-${suffix}`,
-      ]);
+      await c.query(
+        `INSERT INTO tenant.tax_categories(id, organization_id, code, name, status) VALUES ($1,$2,$3,'POS E2E GST','active')`,
+        [taxCategoryId, organizationId, `TAXCAT-${suffix}`],
+      );
       await c.query(
         `INSERT INTO tenant.tax_rates(id, organization_id, tax_category_id, name, code, tax_type, rate, status) VALUES ($1,$2,$3,'GST 18%',$4,'gst',18,'active')`,
         [taxRateId, organizationId, taxCategoryId, `GST18-${suffix}`],
@@ -236,7 +292,15 @@ async function buildPosWorld(): Promise<PosWorld> {
       await c.query(
         `INSERT INTO tenant.items(id, organization_id, code, name, item_type, uom_id, tax_category_id, sales_price, standard_cost, status)
          VALUES ($1,$2,$3,$4,'product',$5,$6,$7,100,'active')`,
-        [itemId, organizationId, itemCode, itemName, uomId, taxCategoryId, unitPrice],
+        [
+          itemId,
+          organizationId,
+          itemCode,
+          itemName,
+          uomId,
+          taxCategoryId,
+          unitPrice,
+        ],
       );
       await c.query(
         `INSERT INTO tenant.price_list_items(organization_id, price_list_id, item_id, minimum_quantity, rate, status) VALUES ($1,$2,$3,1,$4,'active')`,
@@ -249,30 +313,49 @@ async function buildPosWorld(): Promise<PosWorld> {
       await c.query(
         `INSERT INTO tenant.pos_stores(id, organization_id, company_id, branch_id, code, name, warehouse_id, price_list_id, currency_code, created_by)
          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,'INR',$9)`,
-        [storeId, organizationId, companyId, branchId, storeCode, storeName, warehouseId, priceListId, ownerUserId],
+        [
+          storeId,
+          organizationId,
+          companyId,
+          branchId,
+          storeCode,
+          storeName,
+          warehouseId,
+          priceListId,
+          ownerUserId,
+        ],
       );
-      await c.query(`INSERT INTO tenant.pos_terminals(id, organization_id, company_id, store_id, code, name, created_by) VALUES ($1,$2,$3,$4,'T1','Terminal 1',$5)`, [
-        terminalId,
-        organizationId,
-        companyId,
-        storeId,
-        ownerUserId,
-      ]);
+      await c.query(
+        `INSERT INTO tenant.pos_terminals(id, organization_id, company_id, store_id, code, name, created_by) VALUES ($1,$2,$3,$4,'T1','Terminal 1',$5)`,
+        [terminalId, organizationId, companyId, storeId, ownerUserId],
+      );
       // A second store, used only by the store-access-denial journey -- no
       // pos_store_access rows exist for this org yet, so access is
       // unrestricted by default until a test opts in for just that case.
       await c.query(
         `INSERT INTO tenant.pos_stores(id, organization_id, company_id, branch_id, code, name, warehouse_id, price_list_id, currency_code, created_by)
          VALUES ($1,$2,$3,$4,$5,'POS E2E Store 2',$6,$7,'INR',$8)`,
-        [secondStoreId, organizationId, companyId, branchId, secondStoreCode, warehouseId, priceListId, ownerUserId],
+        [
+          secondStoreId,
+          organizationId,
+          companyId,
+          branchId,
+          secondStoreCode,
+          warehouseId,
+          priceListId,
+          ownerUserId,
+        ],
       );
-      await c.query(`INSERT INTO tenant.pos_terminals(id, organization_id, company_id, store_id, code, name, created_by) VALUES ($1,$2,$3,$4,'T1','Terminal 1',$5)`, [
-        secondTerminalId,
-        organizationId,
-        companyId,
-        secondStoreId,
-        ownerUserId,
-      ]);
+      await c.query(
+        `INSERT INTO tenant.pos_terminals(id, organization_id, company_id, store_id, code, name, created_by) VALUES ($1,$2,$3,$4,'T1','Terminal 1',$5)`,
+        [
+          secondTerminalId,
+          organizationId,
+          companyId,
+          secondStoreId,
+          ownerUserId,
+        ],
+      );
       // A third store, dedicated to the supervisor persona -- discount-
       // approval journeys need the supervisor to hold their own cart/
       // shift, entirely separate from the cashier's, so neither journey's
@@ -280,19 +363,39 @@ async function buildPosWorld(): Promise<PosWorld> {
       await c.query(
         `INSERT INTO tenant.pos_stores(id, organization_id, company_id, branch_id, code, name, warehouse_id, price_list_id, currency_code, created_by)
          VALUES ($1,$2,$3,$4,$5,'POS E2E Supervisor Store',$6,$7,'INR',$8)`,
-        [supervisorStoreId, organizationId, companyId, branchId, supervisorStoreCode, warehouseId, priceListId, ownerUserId],
+        [
+          supervisorStoreId,
+          organizationId,
+          companyId,
+          branchId,
+          supervisorStoreCode,
+          warehouseId,
+          priceListId,
+          ownerUserId,
+        ],
       );
-      await c.query(`INSERT INTO tenant.pos_terminals(id, organization_id, company_id, store_id, code, name, created_by) VALUES ($1,$2,$3,$4,'T1','Terminal 1',$5)`, [
-        supervisorTerminalId,
-        organizationId,
-        companyId,
-        supervisorStoreId,
-        ownerUserId,
-      ]);
+      await c.query(
+        `INSERT INTO tenant.pos_terminals(id, organization_id, company_id, store_id, code, name, created_by) VALUES ($1,$2,$3,$4,'T1','Terminal 1',$5)`,
+        [
+          supervisorTerminalId,
+          organizationId,
+          companyId,
+          supervisorStoreId,
+          ownerUserId,
+        ],
+      );
       await c.query(
         `INSERT INTO tenant.business_parties(id, organization_id, company_id, code, party_type, display_name, status, currency_code, phone, created_by)
          VALUES ($1,$2,$3,$4,'customer',$5,'active','INR',$6,$7)`,
-        [customerId, organizationId, companyId, `CUST-${suffix}`, customerName, customerPhone, ownerUserId],
+        [
+          customerId,
+          organizationId,
+          companyId,
+          `CUST-${suffix}`,
+          customerName,
+          customerPhone,
+          ownerUserId,
+        ],
       );
       // tenant.pos_store_access: as soon as ANY row exists for this
       // company, store-level access enforcement flips ON company-wide
@@ -305,37 +408,57 @@ async function buildPosWorld(): Promise<PosWorld> {
       // denied on a store they were never assigned to. pos_manager always
       // bypasses via pos.store.manage, so the manager persona needs no
       // grant at all.
-      await c.query(`INSERT INTO tenant.pos_store_access(organization_id, company_id, user_id, store_id, created_by) VALUES ($1,$2,$3,$4,$5)`, [
-        organizationId,
-        companyId,
-        cashier.userId,
-        storeId,
-        ownerUserId,
-      ]);
-      await c.query(`INSERT INTO tenant.pos_store_access(organization_id, company_id, user_id, store_id, created_by) VALUES ($1,$2,$3,$4,$5)`, [
-        organizationId,
-        companyId,
-        supervisor.userId,
-        supervisorStoreId,
-        ownerUserId,
-      ]);
+      await c.query(
+        `INSERT INTO tenant.pos_store_access(organization_id, company_id, user_id, store_id, created_by) VALUES ($1,$2,$3,$4,$5)`,
+        [organizationId, companyId, cashier.userId, storeId, ownerUserId],
+      );
+      await c.query(
+        `INSERT INTO tenant.pos_store_access(organization_id, company_id, user_id, store_id, created_by) VALUES ($1,$2,$3,$4,$5)`,
+        [
+          organizationId,
+          companyId,
+          supervisor.userId,
+          supervisorStoreId,
+          ownerUserId,
+        ],
+      );
     });
 
     const shift = await tx(client, organizationId, (c) =>
-      openShift(c, { organizationId, companyId, userId: cashier.userId, roleSlugs: [], permissions: ["pos.view", "pos.shift.open"] }, {
-        storeId,
-        terminalId,
-        openingCash: 500,
-        idempotencyKey: crypto.randomUUID(),
-      }),
+      openShift(
+        c,
+        {
+          organizationId,
+          companyId,
+          userId: cashier.userId,
+          roleSlugs: [],
+          permissions: ["pos.view", "pos.shift.open"],
+        },
+        {
+          storeId,
+          terminalId,
+          openingCash: 500,
+          idempotencyKey: crypto.randomUUID(),
+        },
+      ),
     );
     const supervisorShift = await tx(client, organizationId, (c) =>
-      openShift(c, { organizationId, companyId, userId: supervisor.userId, roleSlugs: [], permissions: ["pos.view", "pos.shift.open"] }, {
-        storeId: supervisorStoreId,
-        terminalId: supervisorTerminalId,
-        openingCash: 500,
-        idempotencyKey: crypto.randomUUID(),
-      }),
+      openShift(
+        c,
+        {
+          organizationId,
+          companyId,
+          userId: supervisor.userId,
+          roleSlugs: [],
+          permissions: ["pos.view", "pos.shift.open"],
+        },
+        {
+          storeId: supervisorStoreId,
+          terminalId: supervisorTerminalId,
+          openingCash: 500,
+          idempotencyKey: crypto.randomUUID(),
+        },
+      ),
     );
 
     const world: PosWorld = {
@@ -400,9 +523,16 @@ async function buildPosWorld(): Promise<PosWorld> {
 // storageState, so cart/UI state never leaks between tests even though the
 // login itself is shared.
 
-const storageStateCache = new Map<string, Promise<Awaited<ReturnType<BrowserContext["storageState"]>>>>();
+const storageStateCache = new Map<
+  string,
+  Promise<Awaited<ReturnType<BrowserContext["storageState"]>>>
+>();
 
-async function loginAndCaptureStorageState(browser: Browser, email: string, password: string) {
+async function loginAndCaptureStorageState(
+  browser: Browser,
+  email: string,
+  password: string,
+) {
   const context = await browser.newContext({ storageState: undefined });
   const page = await context.newPage();
   try {
@@ -413,7 +543,10 @@ async function loginAndCaptureStorageState(browser: Browser, email: string, pass
       page.waitForResponse((res) => res.url().includes("/api/auth/login")),
       page.getByRole("button", { name: /sign in|log in/i }).click(),
     ]);
-    expect(loginResponse.status(), `login for ${email} must succeed (not rate-limited)`).toBe(200);
+    expect(
+      loginResponse.status(),
+      `login for ${email} must succeed (not rate-limited)`,
+    ).toBe(200);
     await page.goto("/pos", { waitUntil: "domcontentloaded" });
     return await context.storageState();
   } finally {
@@ -425,7 +558,11 @@ export function getPersonaStorageState(browser: Browser, persona: PosPersona) {
   const cacheKey = persona.email;
   let entry = storageStateCache.get(cacheKey);
   if (!entry) {
-    entry = loginAndCaptureStorageState(browser, persona.email, persona.password);
+    entry = loginAndCaptureStorageState(
+      browser,
+      persona.email,
+      persona.password,
+    );
     storageStateCache.set(cacheKey, entry);
   }
   return entry;
@@ -439,7 +576,10 @@ export async function openPersonaSession(
   options: { viewport?: { width: number; height: number } } = {},
 ): Promise<{ context: BrowserContext; page: Page }> {
   const storageState = await getPersonaStorageState(browser, persona);
-  const context = await browser.newContext({ storageState, viewport: options.viewport });
+  const context = await browser.newContext({
+    storageState,
+    viewport: options.viewport,
+  });
   const page = await context.newPage();
   return { context, page };
 }
@@ -448,12 +588,15 @@ export async function openPersonaSession(
  * assertions against real rows (never through the app's own HTTP/domain
  * layer) -- e.g. "exactly one pos_sales row exists," "stock_balances
  * decremented by exactly N." Always closes the connection afterward. */
-export async function withPosDb<T>(fn: (client: Client, organizationId: string) => Promise<T>): Promise<T> {
+export async function withPosDb<T>(
+  fn: (client: Client, organizationId: string) => Promise<T>,
+): Promise<T> {
   const world = await getPosWorld();
   const client = new Client({ connectionString: MIGRATION_DATABASE_URL });
   await client.connect();
   try {
-    const { setTenantContext } = await import("../../../packages/database/src/index.js");
+    const { setTenantContext } =
+      await import("../../../packages/database/src/index.js");
     await setTenantContext(client, world.organizationId);
     return await fn(client, world.organizationId);
   } finally {
@@ -478,7 +621,8 @@ export async function resetTerminalCarts(terminalId: string): Promise<void> {
   const client = new Client({ connectionString: MIGRATION_DATABASE_URL });
   await client.connect();
   try {
-    const { setTenantContext } = await import("../../../packages/database/src/index.js");
+    const { setTenantContext } =
+      await import("../../../packages/database/src/index.js");
     await client.query("BEGIN");
     await setTenantContext(client, world.organizationId);
     await client.query(

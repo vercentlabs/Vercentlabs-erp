@@ -1,10 +1,26 @@
 "use client";
 
-import { NumberField, Select, TextArea, TextField, type SelectOption } from "@vercentlabs/design-system";
+import {
+  NumberField,
+  Select,
+  TextArea,
+  TextField,
+  type SelectOption,
+} from "@vercentlabs/design-system";
 
 import type { MfgOptions } from "@/features/manufacturing/shared/client";
 
-export type OptionSource = "items" | "warehouses" | "uoms" | "boms" | "routings" | "workCenters" | "workOrders" | "calendars" | "salesOrders" | "assets";
+export type OptionSource =
+  | "items"
+  | "warehouses"
+  | "uoms"
+  | "boms"
+  | "routings"
+  | "workCenters"
+  | "workOrders"
+  | "calendars"
+  | "salesOrders"
+  | "assets";
 export type FieldValue = string | number;
 export type FieldDef = {
   name: string;
@@ -26,45 +42,109 @@ export type FieldDef = {
   rowKey?: string;
 };
 
-export function resolveOptions(field: FieldDef, options: MfgOptions | undefined): SelectOption[] {
+export function resolveOptions(
+  field: FieldDef,
+  options: MfgOptions | undefined,
+): SelectOption[] {
   const source = field.options;
-  if (field.kind === "bool") return [{ value: "true", label: "Yes" }, { value: "false", label: "No" }];
+  if (field.kind === "bool")
+    return [
+      { value: "true", label: "Yes" },
+      { value: "false", label: "No" },
+    ];
   if (!source) return [];
   if (Array.isArray(source)) return source;
   switch (source) {
     case "items":
-      return (options?.items ?? []).map((i) => ({ value: i.id, label: `${i.name} (${i.code})` }));
+      return (options?.items ?? []).map((i) => ({
+        value: i.id,
+        label: `${i.name} (${i.code})`,
+      }));
     case "warehouses":
-      return (options?.warehouses ?? []).map((w) => ({ value: w.id, label: `${w.name} (${w.code})` }));
+      return (options?.warehouses ?? []).map((w) => ({
+        value: w.id,
+        label: `${w.name} (${w.code})`,
+      }));
     case "uoms":
-      return (options?.uoms ?? []).map((u) => ({ value: u.id, label: `${u.name} (${u.code})` }));
+      return (options?.uoms ?? []).map((u) => ({
+        value: u.id,
+        label: `${u.name} (${u.code})`,
+      }));
     case "boms":
-      return (options?.boms ?? []).map((b) => ({ value: b.id, label: `${b.code} v${b.version}${b.name ? ` — ${b.name}` : ""}` }));
+      return (options?.boms ?? []).map((b) => ({
+        value: b.id,
+        label: `${b.code} v${b.version}${b.name ? ` — ${b.name}` : ""}`,
+      }));
     case "routings":
-      return (options?.routings ?? []).map((r) => ({ value: r.id, label: `${r.name} (${r.code})` }));
+      return (options?.routings ?? []).map((r) => ({
+        value: r.id,
+        label: `${r.name} (${r.code})`,
+      }));
     case "workCenters":
-      return (options?.workCenters ?? []).map((w) => ({ value: w.id, label: `${w.name} (${w.code})` }));
+      return (options?.workCenters ?? []).map((w) => ({
+        value: w.id,
+        label: `${w.name} (${w.code})`,
+      }));
     case "assets":
-      return (options?.assets ?? []).map((a) => ({ value: a.id, label: `${a.name} (${a.code})` }));
+      return (options?.assets ?? []).map((a) => ({
+        value: a.id,
+        label: `${a.name} (${a.code})`,
+      }));
     case "salesOrders":
-      return (options?.salesOrders ?? []).map((o) => ({ value: o.id, label: o.code }));
+      return (options?.salesOrders ?? []).map((o) => ({
+        value: o.id,
+        label: o.code,
+      }));
     case "calendars":
-      return (options?.calendars ?? []).map((k) => ({ value: k.id, label: `${k.name} (${k.code})` }));
+      return (options?.calendars ?? []).map((k) => ({
+        value: k.id,
+        label: `${k.name} (${k.code})`,
+      }));
     case "workOrders":
-      return (options?.workOrders ?? []).map((w) => ({ value: w.id, label: w.code }));
+      return (options?.workOrders ?? []).map((w) => ({
+        value: w.id,
+        label: w.code,
+      }));
   }
 }
 
 // `values` is part of the props contract every call site passes (kept identical to inventory's FieldInput, which
 // uses it to narrow a dependent picker's options), but no manufacturing field currently declares `dependsOn`, so it
 // is unread here.
-export function FieldInput({ field, value, onChange, options }: { field: FieldDef; value: FieldValue | undefined; onChange: (value: FieldValue) => void; options?: MfgOptions; values: Record<string, FieldValue> }) {
+export function FieldInput({
+  field,
+  value,
+  onChange,
+  options,
+}: {
+  field: FieldDef;
+  value: FieldValue | undefined;
+  onChange: (value: FieldValue) => void;
+  options?: MfgOptions;
+  values: Record<string, FieldValue>;
+}) {
   const label = field.label;
   switch (field.kind) {
     case "textarea":
-      return <TextArea label={label} isRequired={field.required} value={String(value ?? "")} onChange={onChange} />;
+      return (
+        <TextArea
+          label={label}
+          isRequired={field.required}
+          value={String(value ?? "")}
+          onChange={onChange}
+        />
+      );
     case "number":
-      return <NumberField label={label} isRequired={field.required} value={Number(value ?? 0)} onChange={onChange} minValue={field.min ?? 0} step={field.step ?? 1} />;
+      return (
+        <NumberField
+          label={label}
+          isRequired={field.required}
+          value={Number(value ?? 0)}
+          onChange={onChange}
+          minValue={field.min ?? 0}
+          step={field.step ?? 1}
+        />
+      );
     case "select":
     case "bool":
       return (
@@ -72,14 +152,32 @@ export function FieldInput({ field, value, onChange, options }: { field: FieldDe
           label={label}
           isRequired={field.required}
           options={resolveOptions(field, options)}
-          selectedKey={value !== undefined && value !== "" ? String(value) : null}
+          selectedKey={
+            value !== undefined && value !== "" ? String(value) : null
+          }
           onSelectionChange={(key) => onChange(String(key ?? ""))}
           placeholder={field.placeholder ?? `Select ${label.toLowerCase()}`}
         />
       );
     case "date":
-      return <TextField label={label} type="date" isRequired={field.required} value={String(value ?? "")} onChange={onChange} />;
+      return (
+        <TextField
+          label={label}
+          type="date"
+          isRequired={field.required}
+          value={String(value ?? "")}
+          onChange={onChange}
+        />
+      );
     default:
-      return <TextField label={label} isRequired={field.required} value={String(value ?? "")} onChange={onChange} placeholder={field.placeholder} />;
+      return (
+        <TextField
+          label={label}
+          isRequired={field.required}
+          value={String(value ?? "")}
+          onChange={onChange}
+          placeholder={field.placeholder}
+        />
+      );
   }
 }

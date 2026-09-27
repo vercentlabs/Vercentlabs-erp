@@ -1,4 +1,8 @@
-import { assertSameOriginOrMobile, listSessionsForUser, revokeOtherSessions } from "@vercentlabs/api";
+import {
+  assertSameOriginOrMobile,
+  listSessionsForUser,
+  revokeOtherSessions,
+} from "@vercentlabs/api";
 
 import { sessionTransaction } from "@/core/db";
 import { errorResponse, ok } from "@/core/http";
@@ -10,9 +14,14 @@ import { requireApiUser } from "@/core/session";
 export async function GET() {
   try {
     const session = await requireApiUser();
-    const sessions = await sessionTransaction(session, (client) => listSessionsForUser(client, session.userId));
+    const sessions = await sessionTransaction(session, (client) =>
+      listSessionsForUser(client, session.userId),
+    );
     return ok({
-      sessions: sessions.map((row) => ({ ...row, isCurrent: row.id === session.sessionId })),
+      sessions: sessions.map((row) => ({
+        ...row,
+        isCurrent: row.id === session.sessionId,
+      })),
     });
   } catch (error) {
     return errorResponse(error);
@@ -27,7 +36,9 @@ export async function DELETE(request: Request) {
   try {
     assertSameOriginOrMobile(request, process.env);
     const session = await requireApiUser();
-    const revokedCount = await sessionTransaction(session, (client) => revokeOtherSessions(client, session.userId, session.sessionId));
+    const revokedCount = await sessionTransaction(session, (client) =>
+      revokeOtherSessions(client, session.userId, session.sessionId),
+    );
     return ok({ revokedCount });
   } catch (error) {
     return errorResponse(error);

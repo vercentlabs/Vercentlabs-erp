@@ -6,7 +6,10 @@ import { ComboBox } from "@vercentlabs/design-system";
 
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
-import { searchPosCustomers, type PosCustomerMatch } from "@/features/pos/checkout/api/checkout-api";
+import {
+  searchPosCustomers,
+  type PosCustomerMatch,
+} from "@/features/pos/checkout/api/checkout-api";
 
 // Single-select customer search for POS screens that need "pick a customer"
 // (loyalty lookup today) -- the same bounded business_parties search
@@ -54,7 +57,9 @@ export function PosCustomerPicker({
       onInputChange={setInputValue}
       options={options}
       isLoading={searchQuery.isFetching}
-      emptyMessage={debounced.trim() ? "No matching customers" : "Type to search"}
+      emptyMessage={
+        debounced.trim() ? "No matching customers" : "Type to search"
+      }
       allowsEmptyCollection
       onSelectionChange={(key) => {
         if (key == null) return;

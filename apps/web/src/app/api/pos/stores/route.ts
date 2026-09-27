@@ -22,20 +22,41 @@ const createStoreSchema = z.object({
 // dynamic sibling on an unmatched method), so GET has to live here rather
 // than being handled generically.
 export async function GET(request: Request) {
-  return workspaceRoute(request, { module: "point-of-sale" }, async ({ client, session }) => {
-    const url = new URL(request.url);
-    const rows = await listPointOfSaleResource(client, posContext(session), "stores", {
-      limit: url.searchParams.get("limit") ? Number(url.searchParams.get("limit")) : undefined,
-      offset: url.searchParams.get("offset") ? Number(url.searchParams.get("offset")) : undefined,
-    });
-    return ok({ rows });
-  });
+  return workspaceRoute(
+    request,
+    { module: "point-of-sale" },
+    async ({ client, session }) => {
+      const url = new URL(request.url);
+      const rows = await listPointOfSaleResource(
+        client,
+        posContext(session),
+        "stores",
+        {
+          limit: url.searchParams.get("limit")
+            ? Number(url.searchParams.get("limit"))
+            : undefined,
+          offset: url.searchParams.get("offset")
+            ? Number(url.searchParams.get("offset"))
+            : undefined,
+        },
+      );
+      return ok({ rows });
+    },
+  );
 }
 
 export async function POST(request: Request) {
-  return workspaceRoute(request, { module: "point-of-sale", permission: "pos.store.manage", billingWrite: true }, async ({ client, session }) => {
-    const input = createStoreSchema.parse(await readJson(request));
-    const result = await createStore(client, posContext(session), input);
-    return ok({ store: result }, 201);
-  });
+  return workspaceRoute(
+    request,
+    {
+      module: "point-of-sale",
+      permission: "pos.store.manage",
+      billingWrite: true,
+    },
+    async ({ client, session }) => {
+      const input = createStoreSchema.parse(await readJson(request));
+      const result = await createStore(client, posContext(session), input);
+      return ok({ store: result }, 201);
+    },
+  );
 }

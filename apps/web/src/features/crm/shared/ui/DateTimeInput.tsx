@@ -2,12 +2,25 @@
 
 import { TextField } from "@vercentlabs/design-system";
 
-import { browserTimezone, isoToLocalParts, localToIso, timezoneLabel } from "@/shared/format/human";
+import {
+  browserTimezone,
+  isoToLocalParts,
+  localToIso,
+  timezoneLabel,
+} from "@/shared/format/human";
 
 // Date + time entry with the time zone stated. The value it hands back is the ISO instant the backend already
 // stores, so nothing downstream changes; nobody types a timestamp by hand.
 export function DateTimeInput({
-  label, value, onChange, timeZone, isRequired, errorMessage, description, className, hideZone,
+  label,
+  value,
+  onChange,
+  timeZone,
+  isRequired,
+  errorMessage,
+  description,
+  className,
+  hideZone,
 }: {
   label: string;
   value: string;
@@ -21,7 +34,8 @@ export function DateTimeInput({
 }) {
   const zone = timeZone ?? browserTimezone();
   const parts = isoToLocalParts(value, zone);
-  const emit = (date: string, time: string) => onChange(date ? localToIso(date, time || "09:00", zone) : "");
+  const emit = (date: string, time: string) =>
+    onChange(date ? localToIso(date, time || "09:00", zone) : "");
   return (
     <fieldset className={className}>
       <legend className="mb-1 text-sm font-medium text-text">
@@ -29,11 +43,31 @@ export function DateTimeInput({
         {isRequired && <span className="text-danger"> *</span>}
       </legend>
       <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,9rem)] gap-2">
-        <TextField aria-label={`${label} date`} type="date" value={parts.date} onChange={(date) => emit(date, parts.time)} isRequired={isRequired} />
-        <TextField aria-label={`${label} time`} type="time" value={parts.time} onChange={(time) => emit(parts.date, time)} isRequired={isRequired} />
+        <TextField
+          aria-label={`${label} date`}
+          type="date"
+          value={parts.date}
+          onChange={(date) => emit(date, parts.time)}
+          isRequired={isRequired}
+        />
+        <TextField
+          aria-label={`${label} time`}
+          type="time"
+          value={parts.time}
+          onChange={(time) => emit(parts.date, time)}
+          isRequired={isRequired}
+        />
       </div>
-      {errorMessage ? <p role="alert" className="mt-1 text-xs text-danger">{errorMessage}</p> : description ? <p className="mt-1 text-xs text-text-muted">{description}</p> : null}
-      {!hideZone && <p className="mt-1 text-xs text-text-muted">{timezoneLabel(zone)}</p>}
+      {errorMessage ? (
+        <p role="alert" className="mt-1 text-xs text-danger">
+          {errorMessage}
+        </p>
+      ) : description ? (
+        <p className="mt-1 text-xs text-text-muted">{description}</p>
+      ) : null}
+      {!hideZone && (
+        <p className="mt-1 text-xs text-text-muted">{timezoneLabel(zone)}</p>
+      )}
     </fieldset>
   );
 }
@@ -44,7 +78,31 @@ export function DateTimeInput({
 // column across as a real Date instance — RSC serialization preserves it
 // as one, and JSON.stringify never runs to coerce it. Guard the same way
 // shared/format/human.ts's own toDate() already does for the identical reason.
-export function DateInput({ label, value, onChange, isRequired, errorMessage, className }: { label: string; value: string | Date; onChange: (date: string) => void; isRequired?: boolean; errorMessage?: string; className?: string }) {
+export function DateInput({
+  label,
+  value,
+  onChange,
+  isRequired,
+  errorMessage,
+  className,
+}: {
+  label: string;
+  value: string | Date;
+  onChange: (date: string) => void;
+  isRequired?: boolean;
+  errorMessage?: string;
+  className?: string;
+}) {
   const iso = value instanceof Date ? value.toISOString() : value;
-  return <TextField label={label} type="date" value={iso ? iso.slice(0, 10) : ""} onChange={onChange} isRequired={isRequired} errorMessage={errorMessage} className={className} />;
+  return (
+    <TextField
+      label={label}
+      type="date"
+      value={iso ? iso.slice(0, 10) : ""}
+      onChange={onChange}
+      isRequired={isRequired}
+      errorMessage={errorMessage}
+      className={className}
+    />
+  );
 }

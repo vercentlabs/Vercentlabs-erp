@@ -17,13 +17,19 @@ function isActiveRoute(pathname: string, route: string) {
 // highlighted Home AND Leads simultaneously on every leaf page. Only the
 // single longest matching route (the most specific one) is ever active —
 // this resolves the whole module's active item once, not per-item.
-function findActiveItemId(pathname: string, sections: { items: { id: string; route: string; status: string }[] }[]) {
+function findActiveItemId(
+  pathname: string,
+  sections: { items: { id: string; route: string; status: string }[] }[],
+) {
   let bestId: string | null = null;
   let bestLength = -1;
   for (const section of sections) {
     for (const item of section.items) {
       if (item.status !== "AVAILABLE") continue;
-      if (isActiveRoute(pathname, item.route) && item.route.length > bestLength) {
+      if (
+        isActiveRoute(pathname, item.route) &&
+        item.route.length > bestLength
+      ) {
         bestId = item.id;
         bestLength = item.route.length;
       }
@@ -78,7 +84,9 @@ export function SecondarySidebar() {
               // it must always outrank ordinary in-page sticky content.
               "absolute left-16 top-0 bottom-0 z-[var(--z-drawer)] flex w-[240px] flex-col overflow-y-auto border-r border-border bg-surface py-4 shadow-[var(--shadow-subtle)]",
               "transition-transform duration-150 ease-out",
-              open ? "translate-x-0" : "pointer-events-none -translate-x-[calc(100%+4rem)]",
+              open
+                ? "translate-x-0"
+                : "pointer-events-none -translate-x-[calc(100%+4rem)]",
             ].join(" ")
       }
     >

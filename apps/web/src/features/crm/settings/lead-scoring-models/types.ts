@@ -2,7 +2,12 @@
 // model-config.js — the REAL scoring configuration surface
 // (scoring-engine.js's activeModel() reads this exclusively). Raw
 // snake_case rows: model-config.js does not camelize.
-export const SIGNAL_TYPES = ["demographic", "firmographic", "behavioral", "negative"] as const;
+export const SIGNAL_TYPES = [
+  "demographic",
+  "firmographic",
+  "behavioral",
+  "negative",
+] as const;
 export type SignalType = (typeof SIGNAL_TYPES)[number];
 
 export type LeadScoringModelRule = {
@@ -22,8 +27,15 @@ export type LeadScoringModelRule = {
 // crm_leads.qualification_state history instead of admin-authored rules —
 // see predictive-model.js. Its training variables are limited to this
 // allowlist (PREDICTIVE_TRAINING_FIELDS in predictive-model.js).
-export const PREDICTIVE_TRAINING_VARIABLES = ["sourceId", "industry", "countryCode", "rating", "priority"] as const;
-export type PredictiveTrainingVariable = (typeof PREDICTIVE_TRAINING_VARIABLES)[number];
+export const PREDICTIVE_TRAINING_VARIABLES = [
+  "sourceId",
+  "industry",
+  "countryCode",
+  "rating",
+  "priority",
+] as const;
+export type PredictiveTrainingVariable =
+  (typeof PREDICTIVE_TRAINING_VARIABLES)[number];
 
 export type LeadScoringModel = {
   id: string;
@@ -39,7 +51,12 @@ export type LeadScoringModel = {
   training_variables: PredictiveTrainingVariable[];
   minimum_class_size: number;
   trained_at: string | null;
-  training_summary: { qualifiedCount?: number; unqualifiedCount?: number; variables?: string[]; trainedAt?: string };
+  training_summary: {
+    qualifiedCount?: number;
+    unqualifiedCount?: number;
+    variables?: string[];
+    trainedAt?: string;
+  };
   activated_at: string | null;
   created_at: string;
   updated_at: string;

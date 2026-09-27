@@ -1,7 +1,13 @@
 "use client";
 
 import type { RegisterConfig } from "@/features/support/shared/Register";
-import { badge, col, link, opts, text } from "@/features/support/shared/helpers";
+import {
+  badge,
+  col,
+  link,
+  opts,
+  text,
+} from "@/features/support/shared/helpers";
 
 // F371: the customer portal's own ticket list and knowledge browse -- both reuse the same Register
 // component; the server scopes every row to the caller's own linked customer party.
@@ -13,15 +19,45 @@ export const myTickets: RegisterConfig = {
   emptyTitle: "No tickets yet",
   emptyDescription: "Raise a ticket if you need help.",
   source: { kind: "view", view: "my-tickets" },
-  filters: [{ name: "status", label: "Status", options: opts("new", "open", "pending_customer", "pending_internal", "resolved", "closed") }],
+  filters: [
+    {
+      name: "status",
+      label: "Status",
+      options: opts(
+        "new",
+        "open",
+        "pending_customer",
+        "pending_internal",
+        "resolved",
+        "closed",
+      ),
+    },
+  ],
   createLabel: "New ticket",
   save: { action: "my-ticket-create", success: "Ticket created." },
   fields: [
-    { name: "subject", label: "Subject", kind: "text", required: true, wide: true },
-    { name: "description", label: "Description", kind: "textarea", required: true, wide: true },
+    {
+      name: "subject",
+      label: "Subject",
+      kind: "text",
+      required: true,
+      wide: true,
+    },
+    {
+      name: "description",
+      label: "Description",
+      kind: "textarea",
+      required: true,
+      wide: true,
+    },
   ],
   columns: () => [
-    link("ticket", "Ticket", (r) => String(r.ticket_number), (r) => `/support/portal-ticket/${String(r.id)}`),
+    link(
+      "ticket",
+      "Ticket",
+      (r) => String(r.ticket_number),
+      (r) => `/support/portal-ticket/${String(r.id)}`,
+    ),
     col("subject", "Subject", (r) => String(r.subject)),
     badge("status", "Status", (r) => r.status),
     col("created", "Created", (r) => String(r.created_at).slice(0, 10)),
@@ -37,7 +73,16 @@ export const myKnowledge: RegisterConfig = {
   emptyTitle: "No articles yet",
   emptyDescription: "Nothing published yet.",
   source: { kind: "view", view: "my-knowledge-articles" },
-  columns: () => [link("title", "Title", (r) => String(r.title), (r) => `/support/portal-article/${String(r.id)}`), col("summary", "Summary", (r) => String(r.summary ?? "")), col("category", "Category", (r) => String(r.category_name ?? "—"))],
+  columns: () => [
+    link(
+      "title",
+      "Title",
+      (r) => String(r.title),
+      (r) => `/support/portal-article/${String(r.id)}`,
+    ),
+    col("summary", "Summary", (r) => String(r.summary ?? "")),
+    col("category", "Category", (r) => String(r.category_name ?? "—")),
+  ],
   searchText: (r) => text(r, ["title", "summary"]),
 };
 

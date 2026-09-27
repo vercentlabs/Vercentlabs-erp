@@ -9,10 +9,21 @@ import { workspaceRoute } from "@/core/workspace-route";
 // already existed, fully tested (crm-follow-ups-f016.test.mjs), with no
 // frontend consumer — delivery status (pending/dispatching/sent/failed/
 // acknowledged) and failure_reason are real, already-tracked columns.
-export async function GET(request: Request, context: { params: Promise<{ id: string }> }) {
-  return workspaceRoute(request, { module: "crm", permission: CRM_PERMISSIONS.activitiesManage }, async ({ client, session }) => {
-    const { id } = await context.params;
-    const rows = await listRemindersForActivity(client, crmContext(session), id);
-    return ok({ rows });
-  });
+export async function GET(
+  request: Request,
+  context: { params: Promise<{ id: string }> },
+) {
+  return workspaceRoute(
+    request,
+    { module: "crm", permission: CRM_PERMISSIONS.activitiesManage },
+    async ({ client, session }) => {
+      const { id } = await context.params;
+      const rows = await listRemindersForActivity(
+        client,
+        crmContext(session),
+        id,
+      );
+      return ok({ rows });
+    },
+  );
 }

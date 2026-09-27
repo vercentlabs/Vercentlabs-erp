@@ -23,9 +23,21 @@ const initiateSchema = z.object({
 });
 
 export async function POST(request: Request) {
-  return workspaceRoute(request, { module: "point-of-sale", permission: "pos.sale.create", billingWrite: true }, async ({ client, session }) => {
-    const input = initiateSchema.parse(await readJson(request));
-    const result = await initiatePosPayment(client, posContext(session), input);
-    return ok({ payment: result }, 201);
-  });
+  return workspaceRoute(
+    request,
+    {
+      module: "point-of-sale",
+      permission: "pos.sale.create",
+      billingWrite: true,
+    },
+    async ({ client, session }) => {
+      const input = initiateSchema.parse(await readJson(request));
+      const result = await initiatePosPayment(
+        client,
+        posContext(session),
+        input,
+      );
+      return ok({ payment: result }, 201);
+    },
+  );
 }

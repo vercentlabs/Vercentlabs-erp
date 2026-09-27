@@ -21,7 +21,8 @@ import path from "node:path";
 // reads are genuinely unaffected.
 
 function loadDbUrlFromEnvLocal(): string | undefined {
-  if (process.env.MIGRATION_DATABASE_URL) return process.env.MIGRATION_DATABASE_URL;
+  if (process.env.MIGRATION_DATABASE_URL)
+    return process.env.MIGRATION_DATABASE_URL;
   const filePath = path.resolve(process.cwd(), ".env.local");
   if (!fs.existsSync(filePath)) return undefined;
   const match = fs
@@ -37,7 +38,9 @@ async function dbClient() {
   return client;
 }
 
-test("journey #13: an expired subscription blocks a real CRM write but never blocks reading", async ({ browser }) => {
+test("journey #13: an expired subscription blocks a real CRM write but never blocks reading", async ({
+  browser,
+}) => {
   // Fresh, unauthenticated context -- the chromium project's default
   // storageState is the shared e2e-owner session (see auth.setup.ts);
   // this test logs in as its OWN dedicated fresh user, so it must not
@@ -73,15 +76,24 @@ test("journey #13: an expired subscription blocks a real CRM write but never blo
     // CRM (so the module-access gate lets the request through, and the
     // denial we observe is specifically requireBillingWriteAccess, not a
     // different, earlier gate).
-    await db.query(`INSERT INTO billing_plans(id,code,name,trial_days,modules) VALUES($1,$2,'E2E Expired Plan',0,'["crm"]'::jsonb)`, [planId, `e2e-expired-plan-${planId}`]);
-    await db.query(`INSERT INTO billing_plan_prices(id,plan_id,billing_period,amount_paise) VALUES($1,$2,'monthly',100000)`, [priceId, planId]);
+    await db.query(
+      `INSERT INTO billing_plans(id,code,name,trial_days,modules) VALUES($1,$2,'E2E Expired Plan',0,'["crm"]'::jsonb)`,
+      [planId, `e2e-expired-plan-${planId}`],
+    );
+    await db.query(
+      `INSERT INTO billing_plan_prices(id,plan_id,billing_period,amount_paise) VALUES($1,$2,'monthly',100000)`,
+      [priceId, planId],
+    );
     await db.query(
       `INSERT INTO organization_subscriptions(organization_id,plan_price_id,status,billing_period,modules_snapshot)
        VALUES($1,$2,'expired','monthly','["crm"]'::jsonb)
        ON CONFLICT (organization_id) DO UPDATE SET id=$3, plan_price_id=EXCLUDED.plan_price_id, status='expired', billing_period='monthly', modules_snapshot=EXCLUDED.modules_snapshot`,
       [orgId, priceId, subId],
     );
-    await db.query(`INSERT INTO organization_modules(organization_id,module_key,name,status,enabled_at) VALUES ($1,'crm','CRM','enabled',now()) ON CONFLICT (organization_id,module_key) DO UPDATE SET status='enabled', enabled_at=now()`, [orgId]);
+    await db.query(
+      `INSERT INTO organization_modules(organization_id,module_key,name,status,enabled_at) VALUES ($1,'crm','CRM','enabled',now()) ON CONFLICT (organization_id,module_key) DO UPDATE SET status='enabled', enabled_at=now()`,
+      [orgId],
+    );
     // organization_owner role, same minimal setup as mfa-sp007.spec.ts.
     const roleId = randomUUID();
     await db.query(
@@ -90,9 +102,15 @@ test("journey #13: an expired subscription blocks a real CRM write but never blo
     );
     const permRows = await db.query(`SELECT key FROM permissions`);
     for (const row of permRows.rows) {
-      await db.query(`INSERT INTO role_permissions(role_id,permission_key) VALUES ($1,$2) ON CONFLICT DO NOTHING`, [roleId, row.key]);
+      await db.query(
+        `INSERT INTO role_permissions(role_id,permission_key) VALUES ($1,$2) ON CONFLICT DO NOTHING`,
+        [roleId, row.key],
+      );
     }
-    await db.query(`INSERT INTO user_role_assignments(organization_id,user_id,role_id,is_primary,status) VALUES($1,$2,$3,true,'active')`, [orgId, userId, roleId]);
+    await db.query(
+      `INSERT INTO user_role_assignments(organization_id,user_id,role_id,is_primary,status) VALUES($1,$2,$3,true,'active')`,
+      [orgId, userId, roleId],
+    );
 
     // Establish a known password through the real reset-password flow.
     const resetToken = randomBytes(32).toString("base64url");
@@ -103,7 +121,11 @@ test("journey #13: an expired subscription blocks a real CRM write but never blo
     await page.goto("/login", { waitUntil: "networkidle" });
     const establishStatus = await page.evaluate(
       async ({ token, newPassword }) => {
-        const resp = await fetch("/api/auth/reset-password", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ token, password: newPassword }) });
+        const resp = await fetch("/api/auth/reset-password", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ token, password: newPassword }),
+        });
         return resp.status;
       },
       { token: resetToken, newPassword: password },
@@ -119,12 +141,18 @@ test("journey #13: an expired subscription blocks a real CRM write but never blo
       page.getByRole("button", { name: /sign in|log in/i }).click(),
     ]);
     // Generous: this spec runs first on its own fresh server (playwright.config.billing.ts), so pages compile on first hit.
-    await page.waitForURL((url) => !url.pathname.startsWith("/login"), { timeout: 180_000 });
+    await page.waitForURL((url) => !url.pathname.startsWith("/login"), {
+      timeout: 180_000,
+    });
 
     // READ must work -- the leads list loads with zero errors.
     await page.goto("/crm/leads", { waitUntil: "networkidle" });
-    await expect(page.getByRole("heading", { name: "Leads" })).toBeVisible({ timeout: 180_000 });
-    await expect(page.getByText(/subscription|billing|entitle/i)).not.toBeVisible();
+    await expect(page.getByRole("heading", { name: "Leads" })).toBeVisible({
+      timeout: 180_000,
+    });
+    await expect(
+      page.getByText(/subscription|billing|entitle/i),
+    ).not.toBeVisible();
 
     // WRITE must be blocked, with a clear, real error message -- not a
     // silent failure, not a raw stack trace/500.
@@ -132,25 +160,71 @@ test("journey #13: an expired subscription blocks a real CRM write but never blo
     await page.getByLabel(/first name/i).fill("Expired");
     await page.getByLabel(/last name/i).fill("OrgTest");
     const emailField = page.getByLabel(/^email/i).first();
-    if (await emailField.count()) await emailField.fill(`expired-lead-${Date.now()}@example.test`);
-    const response = page.waitForResponse((res) => res.url().includes("/api/crm/leads") && res.request().method() === "POST");
-    await page.getByRole("button", { name: /^(create|save)/i }).first().click();
+    if (await emailField.count())
+      await emailField.fill(`expired-lead-${Date.now()}@example.test`);
+    const response = page.waitForResponse(
+      (res) =>
+        res.url().includes("/api/crm/leads") &&
+        res.request().method() === "POST",
+    );
+    await page
+      .getByRole("button", { name: /^(create|save)/i })
+      .first()
+      .click();
     const res = await response;
     expect(res.status()).toBe(402);
-    await expect(page.getByText(/subscription is not active|renew|billing/i)).toBeVisible({ timeout: 10_000 });
+    await expect(
+      page.getByText(/subscription is not active|renew|billing/i),
+    ).toBeVisible({ timeout: 10_000 });
   } finally {
-    await db.query(`DELETE FROM user_role_assignments WHERE organization_id=$1`, [orgId]).catch(() => undefined);
-    await db.query(`DELETE FROM role_permissions WHERE role_id IN (SELECT id FROM roles WHERE organization_id=$1)`, [orgId]).catch(() => undefined);
-    await db.query(`DELETE FROM roles WHERE organization_id=$1`, [orgId]).catch(() => undefined);
-    await db.query(`DELETE FROM organization_modules WHERE organization_id=$1`, [orgId]).catch(() => undefined);
-    await db.query(`DELETE FROM sessions WHERE user_id=$1`, [userId]).catch(() => undefined);
-    await db.query(`DELETE FROM organization_subscriptions WHERE organization_id=$1`, [orgId]).catch(() => undefined);
-    await db.query(`DELETE FROM billing_plan_prices WHERE id=$1`, [priceId]).catch(() => undefined);
-    await db.query(`DELETE FROM billing_plans WHERE id=$1`, [planId]).catch(() => undefined);
-    await db.query(`DELETE FROM password_reset_tokens WHERE user_id=$1`, [userId]).catch(() => undefined);
-    await db.query(`DELETE FROM organization_memberships WHERE organization_id=$1`, [orgId]).catch(() => undefined);
-    await db.query(`DELETE FROM organizations WHERE id=$1`, [orgId]).catch(() => undefined);
-    await db.query(`DELETE FROM users WHERE id=$1`, [userId]).catch(() => undefined);
+    await db
+      .query(`DELETE FROM user_role_assignments WHERE organization_id=$1`, [
+        orgId,
+      ])
+      .catch(() => undefined);
+    await db
+      .query(
+        `DELETE FROM role_permissions WHERE role_id IN (SELECT id FROM roles WHERE organization_id=$1)`,
+        [orgId],
+      )
+      .catch(() => undefined);
+    await db
+      .query(`DELETE FROM roles WHERE organization_id=$1`, [orgId])
+      .catch(() => undefined);
+    await db
+      .query(`DELETE FROM organization_modules WHERE organization_id=$1`, [
+        orgId,
+      ])
+      .catch(() => undefined);
+    await db
+      .query(`DELETE FROM sessions WHERE user_id=$1`, [userId])
+      .catch(() => undefined);
+    await db
+      .query(
+        `DELETE FROM organization_subscriptions WHERE organization_id=$1`,
+        [orgId],
+      )
+      .catch(() => undefined);
+    await db
+      .query(`DELETE FROM billing_plan_prices WHERE id=$1`, [priceId])
+      .catch(() => undefined);
+    await db
+      .query(`DELETE FROM billing_plans WHERE id=$1`, [planId])
+      .catch(() => undefined);
+    await db
+      .query(`DELETE FROM password_reset_tokens WHERE user_id=$1`, [userId])
+      .catch(() => undefined);
+    await db
+      .query(`DELETE FROM organization_memberships WHERE organization_id=$1`, [
+        orgId,
+      ])
+      .catch(() => undefined);
+    await db
+      .query(`DELETE FROM organizations WHERE id=$1`, [orgId])
+      .catch(() => undefined);
+    await db
+      .query(`DELETE FROM users WHERE id=$1`, [userId])
+      .catch(() => undefined);
     await db.end();
     await context.close();
   }

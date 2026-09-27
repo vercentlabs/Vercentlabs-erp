@@ -3,7 +3,16 @@
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Button, MultiSelect, PermissionState, RecordFormPage, Select, TextArea, TextField, type SelectOption } from "@vercentlabs/design-system";
+import {
+  Button,
+  MultiSelect,
+  PermissionState,
+  RecordFormPage,
+  Select,
+  TextArea,
+  TextField,
+  type SelectOption,
+} from "@vercentlabs/design-system";
 
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
@@ -12,7 +21,11 @@ import { ChipInput } from "@/features/crm/shared/ui/ChipInput";
 import { DateTimeInput } from "@/features/crm/shared/ui/DateTimeInput";
 import { TimezoneSelect } from "@/features/crm/shared/ui/TimezoneSelect";
 import { browserTimezone } from "@/shared/format/human";
-import { NO_RELATION, RelatedRecordPicker, type RelatedValue } from "@/features/crm/shared/ui/RelatedRecordPicker";
+import {
+  NO_RELATION,
+  RelatedRecordPicker,
+  type RelatedValue,
+} from "@/features/crm/shared/ui/RelatedRecordPicker";
 import { createMeeting, MeetingApiError } from "../api/meetings-api";
 
 type FormValues = {
@@ -62,7 +75,11 @@ function toExternalAttendees(emails: string[]) {
   return emails.map((email) => ({ email, name: email }));
 }
 
-export function MeetingFormScreen({ canManage = true }: { canManage?: boolean }) {
+export function MeetingFormScreen({
+  canManage = true,
+}: {
+  canManage?: boolean;
+}) {
   const router = useRouter();
   const queryClient = useQueryClient();
   const workspace = useWorkspaceContext();
@@ -76,12 +93,27 @@ export function MeetingFormScreen({ canManage = true }: { canManage?: boolean })
   }
 
   const contactsQuery = useQuery({
-    queryKey: scopedQueryKey(workspace, "crm", "contacts", "meeting-attendee-candidates"),
+    queryKey: scopedQueryKey(
+      workspace,
+      "crm",
+      "contacts",
+      "meeting-attendee-candidates",
+    ),
     queryFn: () => listContacts({ status: "active", limit: 200 }),
   });
-  const contactsById = useMemo(() => new Map((contactsQuery.data?.rows ?? []).map((row) => [row.id, row])), [contactsQuery.data]);
+  const contactsById = useMemo(
+    () => new Map((contactsQuery.data?.rows ?? []).map((row) => [row.id, row])),
+    [contactsQuery.data],
+  );
   const contactOptions: SelectOption[] = useMemo(
-    () => (contactsQuery.data?.rows ?? []).map((row) => ({ value: row.id, label: [row.firstName, row.lastName].filter(Boolean).join(" ") || row.email || row.id })),
+    () =>
+      (contactsQuery.data?.rows ?? []).map((row) => ({
+        value: row.id,
+        label:
+          [row.firstName, row.lastName].filter(Boolean).join(" ") ||
+          row.email ||
+          row.id,
+      })),
     [contactsQuery.data],
   );
 
@@ -92,7 +124,9 @@ export function MeetingFormScreen({ canManage = true }: { canManage?: boolean })
         throw new Error("Review the highlighted fields.");
       }
       if (related.entityType !== "general" && !related.entityId) {
-        setFieldErrors({ related: "Choose the record this belongs to, or select Nothing." });
+        setFieldErrors({
+          related: "Choose the record this belongs to, or select Nothing.",
+        });
         throw new Error("Choose the related record, or select Nothing.");
       }
       if (values.mode === "schedule" && !values.startAt) {
@@ -112,7 +146,14 @@ export function MeetingFormScreen({ canManage = true }: { canManage?: boolean })
         attendees: [
           ...values.contactAttendeeIds.map((contactId) => {
             const contact = contactsById.get(contactId);
-            return { contactId, name: contact ? [contact.firstName, contact.lastName].filter(Boolean).join(" ") : null };
+            return {
+              contactId,
+              name: contact
+                ? [contact.firstName, contact.lastName]
+                    .filter(Boolean)
+                    .join(" ")
+                : null,
+            };
           }),
           ...toExternalAttendees(values.guestEmails),
         ],
@@ -120,7 +161,9 @@ export function MeetingFormScreen({ canManage = true }: { canManage?: boolean })
       if (values.mode === "schedule") {
         const minutes = values.durationMinutes ?? 30;
         input.startAt = values.startAt;
-        input.endAt = new Date(new Date(values.startAt).getTime() + minutes * 60_000).toISOString();
+        input.endAt = new Date(
+          new Date(values.startAt).getTime() + minutes * 60_000,
+        ).toISOString();
       } else {
         input.occurredAt = values.occurredAt || new Date().toISOString();
         input.durationMinutes = values.durationMinutes ?? 30;
@@ -129,30 +172,54 @@ export function MeetingFormScreen({ canManage = true }: { canManage?: boolean })
       return createMeeting(input);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: scopedQueryKey(workspace, "crm", "meetings") });
+      queryClient.invalidateQueries({
+        queryKey: scopedQueryKey(workspace, "crm", "meetings"),
+      });
       router.push("/crm/meetings");
     },
     onError: (error: Error) => {
-      setServerError(error instanceof MeetingApiError ? error.message : error.message);
+      setServerError(
+        error instanceof MeetingApiError ? error.message : error.message,
+      );
     },
   });
 
-  if (!canManage) return <PermissionState title="You don't have access to create Meetings" />;
+  if (!canManage)
+    return <PermissionState title="You don't have access to create Meetings" />;
 
   return (
     <RecordFormPage
-      header={{ title: "New meeting", description: "Schedule a meeting for later, or log one that already happened." }}
+      header={{
+        title: "New meeting",
+        description:
+          "Schedule a meeting for later, or log one that already happened.",
+      }}
       banner={
         serverError ? (
-          <p role="alert" className="rounded-[var(--radius-control)] border border-danger-emphasis/30 bg-danger-soft px-3 py-2 text-sm text-danger">
+          <p
+            role="alert"
+            className="rounded-[var(--radius-control)] border border-danger-emphasis/30 bg-danger-soft px-3 py-2 text-sm text-danger"
+          >
             {serverError}
           </p>
         ) : null
       }
       formActions={
         <>
-          <Button variant="secondary" onPress={() => router.back()} isDisabled={mutation.isPending}>Cancel</Button>
-          <Button variant="primary" onPress={() => mutation.mutate()} isLoading={mutation.isPending}>{values.mode === "schedule" ? "Schedule meeting" : "Log meeting"}</Button>
+          <Button
+            variant="secondary"
+            onPress={() => router.back()}
+            isDisabled={mutation.isPending}
+          >
+            Cancel
+          </Button>
+          <Button
+            variant="primary"
+            onPress={() => mutation.mutate()}
+            isLoading={mutation.isPending}
+          >
+            {values.mode === "schedule" ? "Schedule meeting" : "Log meeting"}
+          </Button>
         </>
       }
     >
@@ -164,10 +231,19 @@ export function MeetingFormScreen({ canManage = true }: { canManage?: boolean })
             { value: "log", label: "Log a completed meeting" },
           ]}
           selectedKey={values.mode}
-          onSelectionChange={(key) => set("mode", String(key) as FormValues["mode"])}
+          onSelectionChange={(key) =>
+            set("mode", String(key) as FormValues["mode"])
+          }
           className="sm:col-span-2"
         />
-        <TextField label="Subject" isRequired value={values.subject} onChange={(v) => set("subject", v)} errorMessage={fieldErrors.subject} className="sm:col-span-2" />
+        <TextField
+          label="Subject"
+          isRequired
+          value={values.subject}
+          onChange={(v) => set("subject", v)}
+          errorMessage={fieldErrors.subject}
+          className="sm:col-span-2"
+        />
         <Select
           label="Location type"
           options={[
@@ -177,24 +253,66 @@ export function MeetingFormScreen({ canManage = true }: { canManage?: boolean })
             { value: "other", label: "Other" },
           ]}
           selectedKey={values.locationType}
-          onSelectionChange={(key) => set("locationType", String(key) as FormValues["locationType"])}
+          onSelectionChange={(key) =>
+            set("locationType", String(key) as FormValues["locationType"])
+          }
         />
         {values.locationType === "online" ? (
-          <TextField label="Meeting URL" value={values.meetingUrl} onChange={(v) => set("meetingUrl", v)} />
+          <TextField
+            label="Meeting URL"
+            value={values.meetingUrl}
+            onChange={(v) => set("meetingUrl", v)}
+          />
         ) : (
-          <TextField label="Location" value={values.location} onChange={(v) => set("location", v)} />
+          <TextField
+            label="Location"
+            value={values.location}
+            onChange={(v) => set("location", v)}
+          />
         )}
         {values.mode === "schedule" ? (
           <>
-            <DateTimeInput label="Starts" isRequired value={values.startAt} timeZone={values.timezone || undefined} onChange={(v) => set("startAt", v)} errorMessage={fieldErrors.startAt} hideZone />
+            <DateTimeInput
+              label="Starts"
+              isRequired
+              value={values.startAt}
+              timeZone={values.timezone || undefined}
+              onChange={(v) => set("startAt", v)}
+              errorMessage={fieldErrors.startAt}
+              hideZone
+            />
             <div className="grid grid-cols-1 gap-4">
-              <Select label="Duration" options={DURATIONS.map((m) => ({ value: String(m), label: m < 60 ? `${m} minutes` : m === 60 ? "1 hour" : m % 60 === 0 ? `${m / 60} hours` : `${m / 60} hours` }))} selectedKey={String(values.durationMinutes ?? 30)} onSelectionChange={(k) => set("durationMinutes", Number(k))} />
+              <Select
+                label="Duration"
+                options={DURATIONS.map((m) => ({
+                  value: String(m),
+                  label:
+                    m < 60
+                      ? `${m} minutes`
+                      : m === 60
+                        ? "1 hour"
+                        : m % 60 === 0
+                          ? `${m / 60} hours`
+                          : `${m / 60} hours`,
+                }))}
+                selectedKey={String(values.durationMinutes ?? 30)}
+                onSelectionChange={(k) => set("durationMinutes", Number(k))}
+              />
             </div>
-            <TimezoneSelect value={values.timezone || browserTimezone()} onChange={(z) => set("timezone", z)} className="sm:col-span-2" />
+            <TimezoneSelect
+              value={values.timezone || browserTimezone()}
+              onChange={(z) => set("timezone", z)}
+              className="sm:col-span-2"
+            />
           </>
         ) : (
           <>
-            <DateTimeInput label="When it happened" value={values.occurredAt} onChange={(v) => set("occurredAt", v)} description="Leave empty to use the current time." />
+            <DateTimeInput
+              label="When it happened"
+              value={values.occurredAt}
+              onChange={(v) => set("occurredAt", v)}
+              description="Leave empty to use the current time."
+            />
             <Select
               label="Outcome"
               options={[
@@ -208,14 +326,27 @@ export function MeetingFormScreen({ canManage = true }: { canManage?: boolean })
         )}
       </div>
       <RelatedRecordPicker value={related} onChange={setRelated} />
-      <TextArea label="Description" value={values.description} onChange={(v) => set("description", v)} />
+      <TextArea
+        label="Description"
+        value={values.description}
+        onChange={(v) => set("description", v)}
+      />
       <MultiSelect
         label="Contacts to invite"
         options={contactOptions}
         value={values.contactAttendeeIds}
         onChange={(next) => set("contactAttendeeIds", next)}
       />
-      <ChipInput label="Guest emails" values={values.guestEmails} onChange={(v) => set("guestEmails", v)} placeholder="Type an email and press Enter" description="For guests who are not a CRM contact." validate={(v) => (EMAIL.test(v) ? null : `${v} is not a valid email address.`)} />
+      <ChipInput
+        label="Guest emails"
+        values={values.guestEmails}
+        onChange={(v) => set("guestEmails", v)}
+        placeholder="Type an email and press Enter"
+        description="For guests who are not a CRM contact."
+        validate={(v) =>
+          EMAIL.test(v) ? null : `${v} is not a valid email address.`
+        }
+      />
     </RecordFormPage>
   );
 }

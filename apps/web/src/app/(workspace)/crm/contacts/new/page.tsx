@@ -4,9 +4,21 @@ import { ContactFormScreen } from "@/features/crm/contacts/screens/ContactFormSc
 
 export const metadata = { title: "New contact" };
 
-export default async function NewContactPage({ searchParams }: { searchParams: Promise<{ accountId?: string }> }) {
+export default async function NewContactPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ accountId?: string }>;
+}) {
   const session = await requireWorkspace();
-  const canManage = session.roleSlugs.includes("organization_owner") || session.permissions.includes(CRM_PERMISSIONS.accountsManage);
+  const canManage =
+    session.roleSlugs.includes("organization_owner") ||
+    session.permissions.includes(CRM_PERMISSIONS.accountsManage);
   const { accountId } = await searchParams;
-  return <ContactFormScreen mode="create" canManage={canManage} defaultAccountId={accountId} />;
+  return (
+    <ContactFormScreen
+      mode="create"
+      canManage={canManage}
+      defaultAccountId={accountId}
+    />
+  );
 }

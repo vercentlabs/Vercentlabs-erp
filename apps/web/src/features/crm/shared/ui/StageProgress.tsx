@@ -2,7 +2,15 @@
 
 // A record's position in an ordered set of stages. Current stage is named in text and marked, so the state is never
 // carried by colour alone.
-export function StageProgress({ stages, currentId, label = "Stage progress" }: { stages: Array<{ id: string; name: string; isClosed?: boolean }>; currentId: string | null | undefined; label?: string }) {
+export function StageProgress({
+  stages,
+  currentId,
+  label = "Stage progress",
+}: {
+  stages: Array<{ id: string; name: string; isClosed?: boolean }>;
+  currentId: string | null | undefined;
+  label?: string;
+}) {
   const index = stages.findIndex((s) => s.id === currentId);
   if (stages.length === 0) return null;
   return (
@@ -18,7 +26,13 @@ export function StageProgress({ stages, currentId, label = "Stage progress" }: {
           >
             <span aria-hidden="true">{done ? "✓" : current ? "●" : "○"}</span>
             {stage.name}
-            <span className="sr-only">{current ? " (current stage)" : done ? " (completed)" : " (upcoming)"}</span>
+            <span className="sr-only">
+              {current
+                ? " (current stage)"
+                : done
+                  ? " (completed)"
+                  : " (upcoming)"}
+            </span>
           </li>
         );
       })}

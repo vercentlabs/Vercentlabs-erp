@@ -59,7 +59,10 @@ export function LoginForm() {
         value={password}
         onChange={setPassword}
       />
-      <Link href="/forgot-password" className="self-end text-sm font-medium text-brand hover:underline">
+      <Link
+        href="/forgot-password"
+        className="self-end text-sm font-medium text-brand hover:underline"
+      >
         Forgot password?
       </Link>
       {error ? (
@@ -78,7 +81,10 @@ export function LoginForm() {
       </Button>
       <p className="text-center text-sm text-text-secondary">
         New to Vercentlabs ERP?{" "}
-        <Link href="/register" className="font-medium text-brand hover:underline">
+        <Link
+          href="/register"
+          className="font-medium text-brand hover:underline"
+        >
           Create an account
         </Link>
       </p>

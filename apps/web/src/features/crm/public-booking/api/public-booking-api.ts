@@ -13,7 +13,11 @@ export class PublicBookingApiError extends Error {
 async function parseResponse<T>(response: Response): Promise<T> {
   const payload = await response.json().catch(() => ({}));
   if (!response.ok || payload.ok === false) {
-    throw new PublicBookingApiError(payload.message || "The request could not be completed.", response.status, payload.code);
+    throw new PublicBookingApiError(
+      payload.message || "The request could not be completed.",
+      response.status,
+      payload.code,
+    );
   }
   return payload;
 }
@@ -31,19 +35,32 @@ export type PublicMeetingLinkInfo = {
 
 export type PublicMeetingSlot = { startsAt: string; endsAt: string };
 
-export async function getPublicMeetingLink(token: string): Promise<{ link: PublicMeetingLinkInfo }> {
+export async function getPublicMeetingLink(
+  token: string,
+): Promise<{ link: PublicMeetingLinkInfo }> {
   const response = await fetch(`/api/crm/public/meetings/links/${token}`);
   return parseResponse(response);
 }
 
-export async function getPublicMeetingAvailability(token: string, date: string): Promise<{ slots: PublicMeetingSlot[] }> {
-  const response = await fetch(`/api/crm/public/meetings/links/${token}/availability?date=${date}`);
+export async function getPublicMeetingAvailability(
+  token: string,
+  date: string,
+): Promise<{ slots: PublicMeetingSlot[] }> {
+  const response = await fetch(
+    `/api/crm/public/meetings/links/${token}/availability?date=${date}`,
+  );
   return parseResponse(response);
 }
 
 export async function bookPublicMeeting(
   token: string,
-  input: { startsAt: string; guestName: string; guestEmail: string; guestTimezone: string; notes?: string },
+  input: {
+    startsAt: string;
+    guestName: string;
+    guestEmail: string;
+    guestTimezone: string;
+    notes?: string;
+  },
 ): Promise<{ booking: Record<string, unknown> }> {
   const response = await fetch(`/api/crm/public/meetings/links/${token}/book`, {
     method: "POST",
@@ -64,12 +81,17 @@ export type PublicMeetingBookingDetail = {
   canReschedule: boolean;
 };
 
-export async function getPublicMeetingBooking(token: string): Promise<{ booking: PublicMeetingBookingDetail }> {
+export async function getPublicMeetingBooking(
+  token: string,
+): Promise<{ booking: PublicMeetingBookingDetail }> {
   const response = await fetch(`/api/crm/public/meetings/bookings/${token}`);
   return parseResponse(response);
 }
 
-export async function cancelPublicMeetingBooking(token: string, reason?: string): Promise<{ booking: Record<string, unknown> }> {
+export async function cancelPublicMeetingBooking(
+  token: string,
+  reason?: string,
+): Promise<{ booking: Record<string, unknown> }> {
   const response = await fetch(`/api/crm/public/meetings/bookings/${token}`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
@@ -78,7 +100,11 @@ export async function cancelPublicMeetingBooking(token: string, reason?: string)
   return parseResponse(response);
 }
 
-export async function reschedulePublicMeetingBooking(token: string, startsAt: string, guestTimezone: string): Promise<{ booking: Record<string, unknown> }> {
+export async function reschedulePublicMeetingBooking(
+  token: string,
+  startsAt: string,
+  guestTimezone: string,
+): Promise<{ booking: Record<string, unknown> }> {
   const response = await fetch(`/api/crm/public/meetings/bookings/${token}`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
@@ -87,7 +113,12 @@ export async function reschedulePublicMeetingBooking(token: string, startsAt: st
   return parseResponse(response);
 }
 
-export async function getRescheduleAvailability(token: string, date: string): Promise<{ slots: PublicMeetingSlot[] }> {
-  const response = await fetch(`/api/crm/public/meetings/bookings/${token}/availability?date=${date}`);
+export async function getRescheduleAvailability(
+  token: string,
+  date: string,
+): Promise<{ slots: PublicMeetingSlot[] }> {
+  const response = await fetch(
+    `/api/crm/public/meetings/bookings/${token}/availability?date=${date}`,
+  );
   return parseResponse(response);
 }

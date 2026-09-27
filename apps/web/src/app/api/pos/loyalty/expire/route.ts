@@ -10,8 +10,16 @@ import { workspaceRoute } from "@/core/workspace-route";
 // supplied, so a caller cannot expire points early by sending a made-up date.
 // Safe to call repeatedly -- see expirePosLoyaltyPoints's idempotency note.
 export async function POST(request: Request) {
-  return workspaceRoute(request, { module: "point-of-sale", permission: "pos.loyalty.manage", billingWrite: true }, async ({ client, session }) => {
-    const result = await expirePosLoyaltyPoints(client, posContext(session));
-    return ok({ result });
-  });
+  return workspaceRoute(
+    request,
+    {
+      module: "point-of-sale",
+      permission: "pos.loyalty.manage",
+      billingWrite: true,
+    },
+    async ({ client, session }) => {
+      const result = await expirePosLoyaltyPoints(client, posContext(session));
+      return ok({ result });
+    },
+  );
 }

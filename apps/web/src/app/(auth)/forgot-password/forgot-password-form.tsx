@@ -21,7 +21,10 @@ export function ForgotPasswordForm() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email }),
       });
-      const payload = (await response.json().catch(() => ({}))) as { ok?: boolean; message?: string };
+      const payload = (await response.json().catch(() => ({}))) as {
+        ok?: boolean;
+        message?: string;
+      };
       if (!response.ok || payload.ok === false) {
         setError(payload.message || "Something went wrong. Try again.");
         return;
@@ -41,9 +44,13 @@ export function ForgotPasswordForm() {
     return (
       <div className="flex flex-col gap-4">
         <p className="text-sm text-text">
-          If an account exists for <strong>{email}</strong>, a password reset link is on its way. The link expires in 2 hours.
+          If an account exists for <strong>{email}</strong>, a password reset
+          link is on its way. The link expires in 2 hours.
         </p>
-        <Link href="/login" className="text-sm font-medium text-brand hover:underline">
+        <Link
+          href="/login"
+          className="text-sm font-medium text-brand hover:underline"
+        >
           Back to sign in
         </Link>
       </div>
@@ -52,16 +59,32 @@ export function ForgotPasswordForm() {
 
   return (
     <form className="flex flex-col gap-4" onSubmit={handleSubmit} noValidate>
-      <TextField label="Email" type="email" autoComplete="email" isRequired value={email} onChange={setEmail} />
+      <TextField
+        label="Email"
+        type="email"
+        autoComplete="email"
+        isRequired
+        value={email}
+        onChange={setEmail}
+      />
       {error ? (
         <p role="alert" className="text-sm text-danger">
           {error}
         </p>
       ) : null}
-      <Button type="submit" variant="primary" size="standard" isLoading={submitting} className="mt-2">
+      <Button
+        type="submit"
+        variant="primary"
+        size="standard"
+        isLoading={submitting}
+        className="mt-2"
+      >
         Send reset link
       </Button>
-      <Link href="/login" className="text-center text-sm font-medium text-brand hover:underline">
+      <Link
+        href="/login"
+        className="text-center text-sm font-medium text-brand hover:underline"
+      >
         Back to sign in
       </Link>
     </form>

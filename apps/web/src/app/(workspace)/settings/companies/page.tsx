@@ -7,5 +7,9 @@ export const metadata = { title: "Companies" };
 
 export default async function CompaniesSettingsPage() {
   const session = await requireWorkspace();
-  return <CompaniesScreen canManage={hasSessionPermission(session, "company.manage")} />;
+  return (
+    <CompaniesScreen
+      canManage={hasSessionPermission(session, "company.manage")}
+    />
+  );
 }

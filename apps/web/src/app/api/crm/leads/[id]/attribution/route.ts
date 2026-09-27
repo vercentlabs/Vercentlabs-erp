@@ -8,12 +8,24 @@ import { workspaceRoute } from "@/core/workspace-route";
 // lead-attribution.js). getLeadAttributionTimeline already scopes to what
 // this caller may see via leadScopeSql (company/branch/owner) — this route
 // only enforces the module-access layer, same as leads/[id]/score.
-export async function GET(request: Request, context: { params: Promise<{ id: string }> }) {
-  return workspaceRoute(request, { module: "crm" }, async ({ client, session }) => {
-    const { id } = await context.params;
-    const url = new URL(request.url);
-    const model = url.searchParams.get("model") || undefined;
-    const timeline = await getLeadAttributionTimeline(client, crmContext(session), id, { model });
-    return ok({ timeline });
-  });
+export async function GET(
+  request: Request,
+  context: { params: Promise<{ id: string }> },
+) {
+  return workspaceRoute(
+    request,
+    { module: "crm" },
+    async ({ client, session }) => {
+      const { id } = await context.params;
+      const url = new URL(request.url);
+      const model = url.searchParams.get("model") || undefined;
+      const timeline = await getLeadAttributionTimeline(
+        client,
+        crmContext(session),
+        id,
+        { model },
+      );
+      return ok({ timeline });
+    },
+  );
 }

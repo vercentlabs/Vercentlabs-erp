@@ -1,8 +1,24 @@
 // "Add to calendar" without any third party: a standards-compliant .ics file and a Google Calendar link.
-const stamp = (iso: string) => new Date(iso).toISOString().replace(/[-:]/g, "").replace(/\.\d{3}/, "");
-const escapeText = (value: string) => value.replace(/\\/g, "\\\\").replace(/;/g, "\\;").replace(/,/g, "\\,").replace(/\r?\n/g, "\\n");
+const stamp = (iso: string) =>
+  new Date(iso)
+    .toISOString()
+    .replace(/[-:]/g, "")
+    .replace(/\.\d{3}/, "");
+const escapeText = (value: string) =>
+  value
+    .replace(/\\/g, "\\\\")
+    .replace(/;/g, "\\;")
+    .replace(/,/g, "\\,")
+    .replace(/\r?\n/g, "\\n");
 
-export type CalendarEvent = { title: string; startsAt: string; endsAt: string; description?: string; location?: string; uid: string };
+export type CalendarEvent = {
+  title: string;
+  startsAt: string;
+  endsAt: string;
+  description?: string;
+  location?: string;
+  uid: string;
+};
 
 export function buildIcs(event: CalendarEvent): string {
   return [
@@ -27,14 +43,20 @@ export function buildIcs(event: CalendarEvent): string {
 }
 
 export function googleCalendarUrl(event: CalendarEvent): string {
-  const params = new URLSearchParams({ action: "TEMPLATE", text: event.title, dates: `${stamp(event.startsAt)}/${stamp(event.endsAt)}` });
+  const params = new URLSearchParams({
+    action: "TEMPLATE",
+    text: event.title,
+    dates: `${stamp(event.startsAt)}/${stamp(event.endsAt)}`,
+  });
   if (event.description) params.set("details", event.description);
   if (event.location) params.set("location", event.location);
   return `https://calendar.google.com/calendar/render?${params.toString()}`;
 }
 
 export function downloadIcs(event: CalendarEvent) {
-  const blob = new Blob([buildIcs(event)], { type: "text/calendar;charset=utf-8" });
+  const blob = new Blob([buildIcs(event)], {
+    type: "text/calendar;charset=utf-8",
+  });
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
   link.href = url;

@@ -18,15 +18,21 @@ export function scaledToDecimalString(value: bigint): string {
 }
 
 export function toWire<T>(value: T): T {
-  if (typeof value === "bigint") return scaledToDecimalString(value) as unknown as T;
+  if (typeof value === "bigint")
+    return scaledToDecimalString(value) as unknown as T;
   if (Array.isArray(value)) return value.map(toWire) as unknown as T;
   // Duck-typed, not `instanceof Date`: a Date created by the pg driver can come
   // from a different realm than this module under Next's server runtime, where
   // instanceof is false and the generic object branch below would flatten it to {}.
-  if (value && typeof (value as { toISOString?: unknown }).toISOString === "function") return (value as unknown as Date).toISOString() as unknown as T;
+  if (
+    value &&
+    typeof (value as { toISOString?: unknown }).toISOString === "function"
+  )
+    return (value as unknown as Date).toISOString() as unknown as T;
   if (value && typeof value === "object") {
     const output: Record<string, unknown> = {};
-    for (const [key, item] of Object.entries(value as Record<string, unknown>)) output[key] = toWire(item);
+    for (const [key, item] of Object.entries(value as Record<string, unknown>))
+      output[key] = toWire(item);
     return output as T;
   }
   return value;

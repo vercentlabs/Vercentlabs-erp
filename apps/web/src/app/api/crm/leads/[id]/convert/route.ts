@@ -12,11 +12,30 @@ import { workspaceRoute } from "@/core/workspace-route";
 // crm-lead-conversion-duplicate-reuse-f022.test.mjs) — this route never
 // re-derives any of that. convertCrmLead does not check a permission
 // internally, so this route enforces crm.leads.manage itself.
-export async function POST(request: Request, context: { params: Promise<{ id: string }> }) {
-  return workspaceRoute(request, { module: "crm", permission: CRM_PERMISSIONS.leadsManage, billingWrite: true }, async ({ client, session }) => {
-    const { id } = await context.params;
-    const input = (await readJson(request).catch(() => ({}))) as Record<string, unknown>;
-    const result = await convertCrmLead(client, crmContext(session), id, input);
-    return ok({ result });
-  });
+export async function POST(
+  request: Request,
+  context: { params: Promise<{ id: string }> },
+) {
+  return workspaceRoute(
+    request,
+    {
+      module: "crm",
+      permission: CRM_PERMISSIONS.leadsManage,
+      billingWrite: true,
+    },
+    async ({ client, session }) => {
+      const { id } = await context.params;
+      const input = (await readJson(request).catch(() => ({}))) as Record<
+        string,
+        unknown
+      >;
+      const result = await convertCrmLead(
+        client,
+        crmContext(session),
+        id,
+        input,
+      );
+      return ok({ result });
+    },
+  );
 }

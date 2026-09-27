@@ -7,7 +7,12 @@ import { z } from "zod";
 export const leadFormSchema = z.object({
   firstName: z.string().trim().min(1, "First name is required.").max(120),
   lastName: z.string().trim().max(120).optional().or(z.literal("")),
-  email: z.string().trim().email("Enter a valid email address.").optional().or(z.literal("")),
+  email: z
+    .string()
+    .trim()
+    .email("Enter a valid email address.")
+    .optional()
+    .or(z.literal("")),
   phone: z.string().trim().max(40).optional().or(z.literal("")),
   mobile: z.string().trim().max(40).optional().or(z.literal("")),
   companyName: z.string().trim().max(200).optional().or(z.literal("")),
@@ -61,7 +66,9 @@ export const leadFormDefaults: LeadFormValues = {
 // Strips empty-string optionals to null/undefined before sending to the
 // API — the form keeps "" for controlled-input ergonomics, the backend
 // resource-registry expects null for "no value".
-export function leadFormValuesToInput(values: LeadFormValues): Record<string, unknown> {
+export function leadFormValuesToInput(
+  values: LeadFormValues,
+): Record<string, unknown> {
   const input: Record<string, unknown> = { ...values };
   for (const key of Object.keys(input)) {
     if (input[key] === "") input[key] = null;

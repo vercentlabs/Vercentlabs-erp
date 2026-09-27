@@ -8,7 +8,8 @@ const EVENT_LABELS: Record<string, string> = {
   "auth.mfa.disabled": "Turned off two-step verification",
   "auth.mfa.verified": "Completed two-step verification",
   "auth.mfa.recovery_codes_regenerated": "Created new recovery codes",
-  "auth.mfa.organization_policy_changed": "Changed the two-step verification policy",
+  "auth.mfa.organization_policy_changed":
+    "Changed the two-step verification policy",
   "auth.invitation.resent": "Resent an invitation",
   "auth.invitation.revoked": "Revoked an invitation",
   "access.denied": "Was denied access",
@@ -29,7 +30,8 @@ const EVENT_LABELS: Record<string, string> = {
   "billing.profile.updated": "Updated billing details",
   "billing.checkout.started": "Started a subscription checkout",
   "billing.checkout.confirmed": "Confirmed a subscription",
-  "billing.checkout.intervention_required": "Checkout needs billing support review",
+  "billing.checkout.intervention_required":
+    "Checkout needs billing support review",
   "billing.checkout.superseded_cancelled": "Cancelled an unused checkout",
   "billing.seats.increased": "Added users to the plan",
   "billing.seats.reduction_scheduled": "Scheduled fewer users at renewal",
@@ -40,7 +42,8 @@ const EVENT_LABELS: Record<string, string> = {
   "billing.cancel.failed": "A cancellation was not accepted",
   "billing.reverted_to_free": "Moved to the Free plan",
   "billing.custom.provisioned": "Set up a Custom contract",
-  "billing.reconciliation.intervention_required": "Billing needs support review",
+  "billing.reconciliation.intervention_required":
+    "Billing needs support review",
   "billing.synced_from_provider": "Refreshed billing status",
   "crm.report.exported": "Exported a CRM report",
   "crm.lead.followup.scheduled": "Scheduled a lead follow-up",
@@ -62,7 +65,8 @@ const EVENT_LABELS: Record<string, string> = {
   "numbering.counter_advanced": "Moved a document number sequence forward",
   "configuration.version_created": "Changed a feature setting",
   "configuration.schedule_cancelled": "Cancelled a scheduled setting change",
-  "configuration.operator_version_created": "Operator changed a rollout control",
+  "configuration.operator_version_created":
+    "Operator changed a rollout control",
   "privacy.request_created": "Recorded a privacy request",
   "privacy.request_transitioned": "Updated a privacy request",
   "privacy.retention_policy_versioned": "Changed a retention policy",
@@ -157,7 +161,10 @@ export function auditEntityLabel(entityType: string) {
 
 export function auditFieldLabel(key: string) {
   if (FIELD_LABELS[key]) return FIELD_LABELS[key];
-  const spaced = key.replace(/_/g, " ").replace(/([a-z])([A-Z])/g, "$1 $2").toLowerCase();
+  const spaced = key
+    .replace(/_/g, " ")
+    .replace(/([a-z])([A-Z])/g, "$1 $2")
+    .toLowerCase();
   return spaced.charAt(0).toUpperCase() + spaced.slice(1);
 }
 
@@ -165,7 +172,9 @@ export function auditFieldLabel(key: string) {
 export function auditValueText(value: unknown): string {
   if (value === null || value === undefined || value === "") return "—";
   if (typeof value === "boolean") return value ? "Yes" : "No";
-  if (Array.isArray(value)) return value.length ? value.map(auditValueText).join(", ") : "None";
-  if (typeof value === "object") return `${Object.keys(value as object).length} fields`;
+  if (Array.isArray(value))
+    return value.length ? value.map(auditValueText).join(", ") : "None";
+  if (typeof value === "object")
+    return `${Object.keys(value as object).length} fields`;
   return String(value);
 }

@@ -16,7 +16,13 @@ export type CrmPipeline = {
 // operations.js module.
 export type CrmStageType = "open" | "won" | "lost";
 
-export const FORECAST_CATEGORIES = ["omitted", "pipeline", "best_case", "committed", "closed"] as const;
+export const FORECAST_CATEGORIES = [
+  "omitted",
+  "pipeline",
+  "best_case",
+  "committed",
+  "closed",
+] as const;
 
 export type CrmSalesStage = {
   id: string;
@@ -35,4 +41,9 @@ export type CrmSalesStage = {
   openOpportunityCount?: number;
 };
 
-export type CrmListResponse<T> = { rows: T[]; total: number; limit: number; offset: number };
+export type CrmListResponse<T> = {
+  rows: T[];
+  total: number;
+  limit: number;
+  offset: number;
+};

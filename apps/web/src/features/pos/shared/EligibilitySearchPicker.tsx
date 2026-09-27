@@ -57,7 +57,10 @@ export function EligibilitySearchPicker({
   });
 
   const results = searchQuery.data ?? [];
-  const options = results.map((result) => ({ value: result.id, label: result.label }));
+  const options = results.map((result) => ({
+    value: result.id,
+    label: result.label,
+  }));
 
   function add(id: string) {
     const match = results.find((result) => result.id === id);
@@ -88,9 +91,17 @@ export function EligibilitySearchPicker({
       {selectedIds.length > 0 && (
         <ul className="flex flex-wrap gap-1.5">
           {selectedIds.map((id) => (
-            <li key={id} className="flex items-center gap-1 rounded-[var(--radius-control)] bg-surface-muted px-2 py-1 text-xs text-text">
+            <li
+              key={id}
+              className="flex items-center gap-1 rounded-[var(--radius-control)] bg-surface-muted px-2 py-1 text-xs text-text"
+            >
               <span>{knownLabels[id] ?? `#${id.slice(0, 8)}`}</span>
-              <button type="button" aria-label={`Remove ${knownLabels[id] ?? id}`} onClick={() => remove(id)} className="text-text-muted hover:text-text">
+              <button
+                type="button"
+                aria-label={`Remove ${knownLabels[id] ?? id}`}
+                onClick={() => remove(id)}
+                className="text-text-muted hover:text-text"
+              >
                 <X className="size-3" aria-hidden="true" />
               </button>
             </li>

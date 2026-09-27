@@ -12,11 +12,20 @@ type RouteContext = { params: Promise<{ id: string }> };
 // @vercentlabs/api package since call-operations.js was first written, but
 // had zero routes or frontend callers anywhere in apps/web.
 export async function GET(request: Request, context: RouteContext) {
-  return workspaceRoute(request, { module: "crm", permission: CRM_PERMISSIONS.activitiesManage }, async ({ client, session }) => {
-    const { id } = await context.params;
-    const url = new URL(request.url);
-    const limit = url.searchParams.get("limit");
-    const rows = await listCrmCallEvents(client, crmContext(session), id, limit ? Number(limit) : undefined);
-    return ok({ rows });
-  });
+  return workspaceRoute(
+    request,
+    { module: "crm", permission: CRM_PERMISSIONS.activitiesManage },
+    async ({ client, session }) => {
+      const { id } = await context.params;
+      const url = new URL(request.url);
+      const limit = url.searchParams.get("limit");
+      const rows = await listCrmCallEvents(
+        client,
+        crmContext(session),
+        id,
+        limit ? Number(limit) : undefined,
+      );
+      return ok({ rows });
+    },
+  );
 }

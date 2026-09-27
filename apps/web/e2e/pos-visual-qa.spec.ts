@@ -1,7 +1,12 @@
 import fs from "node:fs";
 import path from "node:path";
 import { expect, test, type Page } from "@playwright/test";
-import { getPosWorld, openPersonaSession, withPosDb, type PosWorld } from "./pos-fixtures";
+import {
+  getPosWorld,
+  openPersonaSession,
+  withPosDb,
+  type PosWorld,
+} from "./pos-fixtures";
 
 // Visual QA capture pass — not a functional assertion suite. Seeds richer
 // supplementary data on top of pos-fixtures.ts's base world (a completed
@@ -33,7 +38,14 @@ const VIEWPORTS: Record<string, { width: number; height: number }> = {
 // admin/back-office screens were never designed to be touch-first, and a
 // laptop/tablet-768 pair rarely diverges in a way 1440/1024 doesn't
 // already reveal for a single-column admin layout.
-const FULL_SWEEP_VIEWPORTS = ["desktop-1440", "laptop-1280", "tablet-1024", "tablet-768", "mobile-390", "mobile-360"];
+const FULL_SWEEP_VIEWPORTS = [
+  "desktop-1440",
+  "laptop-1280",
+  "tablet-1024",
+  "tablet-768",
+  "mobile-390",
+  "mobile-360",
+];
 const SAMPLE_VIEWPORTS = ["desktop-1440", "tablet-1024", "mobile-390"];
 
 let world: PosWorld;
@@ -79,79 +91,193 @@ test.beforeAll(async () => {
       initializeAccountingCompany,
     } = await import("../../../services/api/src/index.js");
 
-    const cashierContext = { organizationId, companyId: world.companyId, userId: world.cashier.userId, roleSlugs: [], permissions: ["pos.view", "pos.operate", "pos.sale.create", "pos.return.create", "pos.shift.close", "pos.invoice.generate", "pos.invoice.view"] };
-    const supervisorContext = {
-      organizationId, companyId: world.companyId, userId: world.supervisor.userId, roleSlugs: [],
+    const cashierContext = {
+      organizationId,
+      companyId: world.companyId,
+      userId: world.cashier.userId,
+      roleSlugs: [],
       permissions: [
-        "pos.view", "pos.settings.manage", "pos.return.approve", "pos.payment.refund", "pos.shift.close",
-        "pos.report.generate", "pos.report.view", "pos.reconciliation.manage", "pos.reconciliation.view",
-        "pos.accounting.post", "pos.accounting.view", "pos.analytics.view", "pos.loyalty.manage", "pos.loyalty.redeem",
+        "pos.view",
+        "pos.operate",
+        "pos.sale.create",
+        "pos.return.create",
+        "pos.shift.close",
+        "pos.invoice.generate",
+        "pos.invoice.view",
+      ],
+    };
+    const supervisorContext = {
+      organizationId,
+      companyId: world.companyId,
+      userId: world.supervisor.userId,
+      roleSlugs: [],
+      permissions: [
+        "pos.view",
+        "pos.settings.manage",
+        "pos.return.approve",
+        "pos.payment.refund",
+        "pos.shift.close",
+        "pos.report.generate",
+        "pos.report.view",
+        "pos.reconciliation.manage",
+        "pos.reconciliation.view",
+        "pos.accounting.post",
+        "pos.accounting.view",
+        "pos.analytics.view",
+        "pos.loyalty.manage",
+        "pos.loyalty.redeem",
       ],
     };
     const managerContext = {
-      organizationId, companyId: world.companyId, userId: world.manager.userId, roleSlugs: [],
-      permissions: ["pos.view", "pos.store.manage", "pos.report.finalize", "pos.report.view", "pos.reconciliation.approve", "pos.accounting.post", "pos.accounting.view"],
+      organizationId,
+      companyId: world.companyId,
+      userId: world.manager.userId,
+      roleSlugs: [],
+      permissions: [
+        "pos.view",
+        "pos.store.manage",
+        "pos.report.finalize",
+        "pos.report.view",
+        "pos.reconciliation.approve",
+        "pos.accounting.post",
+        "pos.accounting.view",
+      ],
     };
 
     // Loyalty program (idempotent-ish: safe to call again if already seeded).
-    await upsertPosLoyaltyProgram(client, supervisorContext, { name: "Visual QA Loyalty", earnRatePointsPerCurrency: 0.1, redemptionValuePerPoint: 1 }).catch(() => undefined);
+    await upsertPosLoyaltyProgram(client, supervisorContext, {
+      name: "Visual QA Loyalty",
+      earnRatePointsPerCurrency: 0.1,
+      redemptionValuePerPoint: 1,
+    }).catch(() => undefined);
 
     // A promotion and a coupon for the admin list screens. Tracked so
     // afterAll below can deactivate them -- see the top-of-file note on
     // why this matters beyond just tidiness.
     const promotion = await createPosPromotion(client, supervisorContext, {
-      code: `VQAPROMO-${Date.now()}`, name: "Visual QA Promotion", discountType: "percent", discountValue: 10, priority: 100,
+      code: `VQAPROMO-${Date.now()}`,
+      name: "Visual QA Promotion",
+      discountType: "percent",
+      discountValue: 10,
+      priority: 100,
     }).catch(() => undefined);
     seededPromotionId = promotion?.id;
     const coupon = await createPosCoupon(client, supervisorContext, {
-      code: `VQACOUPON${Date.now()}`, discountType: "amount", discountValue: 25,
+      code: `VQACOUPON${Date.now()}`,
+      discountType: "amount",
+      discountValue: 25,
     }).catch(() => undefined);
     seededCouponId = coupon?.id;
 
     // A completed sale with a real customer (so the receipt/invoice
     // screens have something to render).
-    let cart = await createPosCart(client, cashierContext, { storeId: world.storeId, terminalId: world.terminalId, shiftId: world.shiftId });
-    cart = await addPosCartLine(client, cashierContext, cart.id, { itemId: world.itemId, quantity: 2 });
-    cart = await setPosCartCustomer(client, cashierContext, cart.id, { customerId: world.customerId, expectedVersion: cart.version });
-    const sale = await completePosCart(client, cashierContext, cart.id, { idempotencyKey: `vqa-sale-${Date.now()}`, payments: [{ method: "cash", amount: Number(cart.grand_total) }] });
+    let cart = await createPosCart(client, cashierContext, {
+      storeId: world.storeId,
+      terminalId: world.terminalId,
+      shiftId: world.shiftId,
+    });
+    cart = await addPosCartLine(client, cashierContext, cart.id, {
+      itemId: world.itemId,
+      quantity: 2,
+    });
+    cart = await setPosCartCustomer(client, cashierContext, cart.id, {
+      customerId: world.customerId,
+      expectedVersion: cart.version,
+    });
+    const sale = await completePosCart(client, cashierContext, cart.id, {
+      idempotencyKey: `vqa-sale-${Date.now()}`,
+      payments: [{ method: "cash", amount: Number(cart.grand_total) }],
+    });
     saleId = sale.id;
 
     // A second sale + full return + refund, so the returns screen and
     // accounting-posting queue have real completed/refunded rows.
-    let cart2 = await createPosCart(client, cashierContext, { storeId: world.storeId, terminalId: world.terminalId, shiftId: world.shiftId });
-    cart2 = await addPosCartLine(client, cashierContext, cart2.id, { itemId: world.itemId, quantity: 1 });
-    const sale2 = await completePosCart(client, cashierContext, cart2.id, { idempotencyKey: `vqa-sale2-${Date.now()}`, payments: [{ method: "cash", amount: Number(cart2.grand_total) }] });
-    const saleLines = await client.query(`SELECT id,quantity FROM tenant.pos_sale_lines WHERE organization_id=$1 AND sale_id=$2`, [organizationId, sale2.id]);
-    const returnRecord = await createPointOfSaleReturn(client, cashierContext, {
-      saleId: sale2.id, reason: "Visual QA return", idempotencyKey: `vqa-return-${Date.now()}`,
-      lines: saleLines.rows.map((row: { id: string; quantity: string }) => ({ saleLineId: row.id, quantity: row.quantity, restock: true })),
+    let cart2 = await createPosCart(client, cashierContext, {
+      storeId: world.storeId,
+      terminalId: world.terminalId,
+      shiftId: world.shiftId,
     });
-    await approvePointOfSaleReturn(client, supervisorContext, returnRecord.id, { idempotencyKey: `vqa-return-approve-${Date.now()}` });
-    await completePointOfSaleReturn(client, supervisorContext, returnRecord.id, { idempotencyKey: `vqa-return-complete-${Date.now()}` });
+    cart2 = await addPosCartLine(client, cashierContext, cart2.id, {
+      itemId: world.itemId,
+      quantity: 1,
+    });
+    const sale2 = await completePosCart(client, cashierContext, cart2.id, {
+      idempotencyKey: `vqa-sale2-${Date.now()}`,
+      payments: [{ method: "cash", amount: Number(cart2.grand_total) }],
+    });
+    const saleLines = await client.query(
+      `SELECT id,quantity FROM tenant.pos_sale_lines WHERE organization_id=$1 AND sale_id=$2`,
+      [organizationId, sale2.id],
+    );
+    const returnRecord = await createPointOfSaleReturn(client, cashierContext, {
+      saleId: sale2.id,
+      reason: "Visual QA return",
+      idempotencyKey: `vqa-return-${Date.now()}`,
+      lines: saleLines.rows.map((row: { id: string; quantity: string }) => ({
+        saleLineId: row.id,
+        quantity: row.quantity,
+        restock: true,
+      })),
+    });
+    await approvePointOfSaleReturn(client, supervisorContext, returnRecord.id, {
+      idempotencyKey: `vqa-return-approve-${Date.now()}`,
+    });
+    await completePointOfSaleReturn(
+      client,
+      supervisorContext,
+      returnRecord.id,
+      { idempotencyKey: `vqa-return-complete-${Date.now()}` },
+    );
 
     // Accounting foundation + posting (leave sale2/return accounting
     // posting UNATTEMPTED deliberately -- the posting-queue screen should
     // show a real "pending" row, not just "posted"/"failed").
-    await initializeAccountingCompany(client, { organizationId, companyId: world.companyId, userId: world.manager.userId }).catch(() => undefined);
-    await postPosSaleToAccounting(client, supervisorContext, sale.id).catch(() => undefined);
+    await initializeAccountingCompany(client, {
+      organizationId,
+      companyId: world.companyId,
+      userId: world.manager.userId,
+    }).catch(() => undefined);
+    await postPosSaleToAccounting(client, supervisorContext, sale.id).catch(
+      () => undefined,
+    );
 
     // Close the supervisor's own dedicated shift (opened by pos-fixtures.ts)
     // and generate/review/finalize a real Z report + reconciliation, so
     // the day-end/reconciliation screens have real closed data.
-    const closed = await closeShift(client, supervisorContext, world.supervisorShiftId, { countedCash: 500 }).catch(() => null);
+    const closed = await closeShift(
+      client,
+      supervisorContext,
+      world.supervisorShiftId,
+      { countedCash: 500 },
+    ).catch(() => null);
     if (closed) {
-      const draft = await generatePosDayEndReport(client, supervisorContext, { storeId: world.supervisorStoreId, scopeType: "shift", shiftId: world.supervisorShiftId });
+      const draft = await generatePosDayEndReport(client, supervisorContext, {
+        storeId: world.supervisorStoreId,
+        scopeType: "shift",
+        shiftId: world.supervisorShiftId,
+      });
       dayEndReportId = draft.id;
       await reviewPosDayEndReport(client, supervisorContext, draft.id);
-      const finalReport = await finalizePosDayEndReport(client, managerContext, draft.id);
-      await generatePosReconciliation(client, supervisorContext, finalReport.id).catch(() => undefined);
+      const finalReport = await finalizePosDayEndReport(
+        client,
+        managerContext,
+        draft.id,
+      );
+      await generatePosReconciliation(
+        client,
+        supervisorContext,
+        finalReport.id,
+      ).catch(() => undefined);
     }
   }).catch((error) => {
     // Seeding is best-effort for visual QA purposes -- a screen this
     // couldn't populate still gets screenshotted in whatever state it's
     // actually in (a real empty/error state is itself useful evidence),
     // logged loudly rather than silently swallowed.
-    console.error("Visual QA seeding encountered an error (continuing with whatever succeeded):", error);
+    console.error(
+      "Visual QA seeding encountered an error (continuing with whatever succeeded):",
+      error,
+    );
   });
 });
 
@@ -163,19 +289,48 @@ test.beforeAll(async () => {
 test.afterAll(async () => {
   if (!seededPromotionId && !seededCouponId) return;
   await withPosDb(async (client, organizationId) => {
-    const { setPosPromotionActive, setPosCouponActive } = await import("../../../services/api/src/index.js");
-    const supervisorContext = { organizationId, companyId: world.companyId, userId: world.supervisor.userId, roleSlugs: [], permissions: ["pos.view", "pos.settings.manage"] };
-    if (seededPromotionId) await setPosPromotionActive(client, supervisorContext, seededPromotionId, false).catch(() => undefined);
-    if (seededCouponId) await setPosCouponActive(client, supervisorContext, seededCouponId, false).catch(() => undefined);
+    const { setPosPromotionActive, setPosCouponActive } =
+      await import("../../../services/api/src/index.js");
+    const supervisorContext = {
+      organizationId,
+      companyId: world.companyId,
+      userId: world.supervisor.userId,
+      roleSlugs: [],
+      permissions: ["pos.view", "pos.settings.manage"],
+    };
+    if (seededPromotionId)
+      await setPosPromotionActive(
+        client,
+        supervisorContext,
+        seededPromotionId,
+        false,
+      ).catch(() => undefined);
+    if (seededCouponId)
+      await setPosCouponActive(
+        client,
+        supervisorContext,
+        seededCouponId,
+        false,
+      ).catch(() => undefined);
   }).catch((error) => {
-    console.error("Visual QA promotion/coupon cleanup failed (non-fatal):", error);
+    console.error(
+      "Visual QA promotion/coupon cleanup failed (non-fatal):",
+      error,
+    );
   });
 });
 
-async function shoot(page: Page, route: string, name: string, viewportKeys: string[]) {
+async function shoot(
+  page: Page,
+  route: string,
+  name: string,
+  viewportKeys: string[],
+) {
   for (const key of viewportKeys) {
     await page.setViewportSize(VIEWPORTS[key]);
-    await page.goto(route, { waitUntil: "networkidle" }).catch(() => page.goto(route, { waitUntil: "domcontentloaded" }));
+    await page
+      .goto(route, { waitUntil: "networkidle" })
+      .catch(() => page.goto(route, { waitUntil: "domcontentloaded" }));
     // networkidle covers the document/JS bundle, not the client-side
     // React Query waterfalls that only start firing after hydration -- each
     // page.goto here is a full navigation (fresh QueryClient, empty cache),
@@ -205,7 +360,9 @@ test.describe("POS visual QA capture", () => {
     }
   });
 
-  test("capture overview, stores, terminals, cashiers (manager)", async ({ browser }) => {
+  test("capture overview, stores, terminals, cashiers (manager)", async ({
+    browser,
+  }) => {
     const { context, page } = await openPersonaSession(browser, world.manager);
     try {
       await shoot(page, "/pos", "overview", SAMPLE_VIEWPORTS);
@@ -217,8 +374,13 @@ test.describe("POS visual QA capture", () => {
     }
   });
 
-  test("capture promotions, coupons, loyalty (supervisor)", async ({ browser }) => {
-    const { context, page } = await openPersonaSession(browser, world.supervisor);
+  test("capture promotions, coupons, loyalty (supervisor)", async ({
+    browser,
+  }) => {
+    const { context, page } = await openPersonaSession(
+      browser,
+      world.supervisor,
+    );
     try {
       await shoot(page, "/pos/promotions", "promotions", SAMPLE_VIEWPORTS);
       await shoot(page, "/pos/coupons", "coupons", SAMPLE_VIEWPORTS);
@@ -232,28 +394,59 @@ test.describe("POS visual QA capture", () => {
     const { context, page } = await openPersonaSession(browser, world.cashier);
     try {
       await shoot(page, "/pos/returns", "returns", SAMPLE_VIEWPORTS);
-      if (saleId) await shoot(page, `/pos/receipts/${saleId}`, "receipt", SAMPLE_VIEWPORTS);
+      if (saleId)
+        await shoot(
+          page,
+          `/pos/receipts/${saleId}`,
+          "receipt",
+          SAMPLE_VIEWPORTS,
+        );
       await shoot(page, "/pos/invoices", "invoices", SAMPLE_VIEWPORTS);
     } finally {
       await context.close();
     }
   });
 
-  test("capture day-end reports, reconciliation, accounting, analytics (manager)", async ({ browser }) => {
+  test("capture day-end reports, reconciliation, accounting, analytics (manager)", async ({
+    browser,
+  }) => {
     const { context, page } = await openPersonaSession(browser, world.manager);
     try {
-      await shoot(page, "/pos/reports/day-end", "day-end-list", SAMPLE_VIEWPORTS);
-      if (dayEndReportId) await shoot(page, `/pos/reports/day-end/${dayEndReportId}`, "day-end-detail", SAMPLE_VIEWPORTS);
-      await shoot(page, "/pos/reconciliation", "reconciliation", SAMPLE_VIEWPORTS);
+      await shoot(
+        page,
+        "/pos/reports/day-end",
+        "day-end-list",
+        SAMPLE_VIEWPORTS,
+      );
+      if (dayEndReportId)
+        await shoot(
+          page,
+          `/pos/reports/day-end/${dayEndReportId}`,
+          "day-end-detail",
+          SAMPLE_VIEWPORTS,
+        );
+      await shoot(
+        page,
+        "/pos/reconciliation",
+        "reconciliation",
+        SAMPLE_VIEWPORTS,
+      );
       await shoot(page, "/pos/accounting", "accounting", SAMPLE_VIEWPORTS);
       await shoot(page, "/pos/analytics", "analytics", FULL_SWEEP_VIEWPORTS);
-      await shoot(page, "/pos/offline-sync-conflicts", "offline-sync-conflicts", SAMPLE_VIEWPORTS);
+      await shoot(
+        page,
+        "/pos/offline-sync-conflicts",
+        "offline-sync-conflicts",
+        SAMPLE_VIEWPORTS,
+      );
     } finally {
       await context.close();
     }
   });
 
-  test("capture empty states (a brand-new, never-used login has none of the above seeded data)", async ({ browser }) => {
+  test("capture empty states (a brand-new, never-used login has none of the above seeded data)", async ({
+    browser,
+  }) => {
     // Re-use the cashier session but hit a screen that's genuinely empty
     // for THEM specifically (they don't hold pos.settings.manage, so
     // promotions/coupons render a PermissionState, not an empty list --
@@ -262,8 +455,18 @@ test.describe("POS visual QA capture", () => {
     // permission-denied state, itself a real, important state to review).
     const { context, page } = await openPersonaSession(browser, world.cashier);
     try {
-      await shoot(page, "/pos/promotions", "promotions-permission-denied", SAMPLE_VIEWPORTS);
-      await shoot(page, "/pos/accounting", "accounting-permission-denied", SAMPLE_VIEWPORTS);
+      await shoot(
+        page,
+        "/pos/promotions",
+        "promotions-permission-denied",
+        SAMPLE_VIEWPORTS,
+      );
+      await shoot(
+        page,
+        "/pos/accounting",
+        "accounting-permission-denied",
+        SAMPLE_VIEWPORTS,
+      );
     } finally {
       await context.close();
     }

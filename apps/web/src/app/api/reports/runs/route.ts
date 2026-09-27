@@ -6,7 +6,12 @@ import { ok, readJson } from "@/core/http";
 import { workspaceRoute } from "@/core/workspace-route";
 
 export async function GET(request: Request) {
-  return workspaceRoute(request, { action: "reports.runs.list" }, async ({ client, session }) => ok({ runs: await listReportRuns(client, session) }));
+  return workspaceRoute(
+    request,
+    { action: "reports.runs.list" },
+    async ({ client, session }) =>
+      ok({ runs: await listReportRuns(client, session) }),
+  );
 }
 
 // Queues a background run (tenant transaction: the job is tenant data). The
@@ -19,7 +24,20 @@ const schema = z.object({
 });
 
 export async function POST(request: Request) {
-  return workspaceRoute(request, { snapshot: true, action: "reports.runs.create" }, async ({ client, session, snapshot }) =>
-    ok({ run: await requestReportRun(client, session, snapshot?.accessibleModules ?? [], schema.parse(await readJson(request))) }, 201),
+  return workspaceRoute(
+    request,
+    { snapshot: true, action: "reports.runs.create" },
+    async ({ client, session, snapshot }) =>
+      ok(
+        {
+          run: await requestReportRun(
+            client,
+            session,
+            snapshot?.accessibleModules ?? [],
+            schema.parse(await readJson(request)),
+          ),
+        },
+        201,
+      ),
   );
 }

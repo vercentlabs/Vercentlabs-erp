@@ -8,12 +8,18 @@ export const categoriesList: ListConfig = {
   description: "How suppliers and spend are grouped.",
   searchLabel: "Search categories",
   statuses: ["active"],
-  columns: () => [col("code", "Code", (r) => String(r.code ?? "—")), boldCol("name", "Category", (r) => String(r.name ?? "—")), col("desc", "Description", (r) => String(r.description ?? "—")), statusCol()],
+  columns: () => [
+    col("code", "Code", (r) => String(r.code ?? "—")),
+    boldCol("name", "Category", (r) => String(r.name ?? "—")),
+    col("desc", "Description", (r) => String(r.description ?? "—")),
+    statusCol(),
+  ],
   newHref: "/procurement/categories/new",
   newLabel: "New category",
   createPermission: "procurement.settings.manage",
   emptyTitle: "No categories yet",
-  emptyDescription: "Create categories such as Raw materials, Packaging or Services.",
+  emptyDescription:
+    "Create categories such as Raw materials, Packaging or Services.",
 };
 
 export const categoryForm: FormConfig = {

@@ -11,11 +11,27 @@ const approveReturnSchema = z.object({
   idempotencyKey: z.string().trim().min(1).max(200),
 });
 
-export async function POST(request: Request, context: { params: Promise<{ id: string }> }) {
-  return workspaceRoute(request, { module: "point-of-sale", permission: "pos.return.approve", billingWrite: true }, async ({ client, session }) => {
-    const { id } = await context.params;
-    const input = approveReturnSchema.parse(await readJson(request));
-    const result = await approvePointOfSaleReturn(client, posContext(session), id, input);
-    return ok({ posReturn: result });
-  });
+export async function POST(
+  request: Request,
+  context: { params: Promise<{ id: string }> },
+) {
+  return workspaceRoute(
+    request,
+    {
+      module: "point-of-sale",
+      permission: "pos.return.approve",
+      billingWrite: true,
+    },
+    async ({ client, session }) => {
+      const { id } = await context.params;
+      const input = approveReturnSchema.parse(await readJson(request));
+      const result = await approvePointOfSaleReturn(
+        client,
+        posContext(session),
+        id,
+        input,
+      );
+      return ok({ posReturn: result });
+    },
+  );
 }

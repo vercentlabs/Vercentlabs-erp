@@ -1,8 +1,14 @@
 import { z } from "zod";
 
-import { createSalesApprovalDelegation, listSalesApprovalDelegations } from "@vercentlabs/api";
+import {
+  createSalesApprovalDelegation,
+  listSalesApprovalDelegations,
+} from "@vercentlabs/api";
 
-import { salesMutation, salesRead } from "@/features/sales/shared/route-helpers";
+import {
+  salesMutation,
+  salesRead,
+} from "@/features/sales/shared/route-helpers";
 
 const schema = z.object({
   delegatorUserId: z.string().uuid().nullish(),
@@ -14,8 +20,18 @@ const schema = z.object({
 
 // F041: approval delegation while an approver is away.
 export async function GET(request: Request) {
-  return salesRead(request, "sales.view", async (client, context) => ({ rows: await listSalesApprovalDelegations(client, context) }));
+  return salesRead(request, "sales.view", async (client, context) => ({
+    rows: await listSalesApprovalDelegations(client, context),
+  }));
 }
 export async function POST(request: Request) {
-  return salesMutation(request, "sales.view", schema, async (client, context, input) => ({ delegation: await createSalesApprovalDelegation(client, context, input) }), 201);
+  return salesMutation(
+    request,
+    "sales.view",
+    schema,
+    async (client, context, input) => ({
+      delegation: await createSalesApprovalDelegation(client, context, input),
+    }),
+    201,
+  );
 }

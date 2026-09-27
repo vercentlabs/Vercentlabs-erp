@@ -4,9 +4,22 @@
 // a direct SQL row (account-intelligence.js does not camelize); camelCase
 // where the source is a generic resource row (resource-mutation-service.js
 // does camelize those).
-export type PrivacyRequestType = "access" | "export" | "correction" | "deletion" | "restriction" | "objection" | "consent_withdrawal";
+export type PrivacyRequestType =
+  | "access"
+  | "export"
+  | "correction"
+  | "deletion"
+  | "restriction"
+  | "objection"
+  | "consent_withdrawal";
 export type PrivacySubjectType = "lead" | "contact" | "party";
-export type PrivacyRequestStatus = "received" | "verification_pending" | "in_progress" | "completed" | "rejected" | "cancelled";
+export type PrivacyRequestStatus =
+  | "received"
+  | "verification_pending"
+  | "in_progress"
+  | "completed"
+  | "rejected"
+  | "cancelled";
 
 export const PRIVACY_REQUEST_TYPES: PrivacyRequestType[] = [
   "access",
@@ -69,8 +82,24 @@ export type PrivacyRetentionPolicy = {
 
 export type PrivacyRetentionDashboard = {
   policies: PrivacyRetentionPolicy[];
-  runs: Array<{ id: string; subject_type: string; subject_id: string; operation: string; status: string; executed_at: string }>;
-  metrics: { activePolicies: number; completedRuns: number; failedRuns: number };
+  runs: Array<{
+    id: string;
+    subject_type: string;
+    subject_id: string;
+    operation: string;
+    status: string;
+    executed_at: string;
+  }>;
+  metrics: {
+    activePolicies: number;
+    completedRuns: number;
+    failedRuns: number;
+  };
 };
 
-export type CrmListResponse<T> = { rows: T[]; total: number; limit: number; offset: number };
+export type CrmListResponse<T> = {
+  rows: T[];
+  total: number;
+  limit: number;
+  offset: number;
+};

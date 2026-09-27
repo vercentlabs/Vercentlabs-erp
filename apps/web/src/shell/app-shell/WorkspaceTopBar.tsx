@@ -43,12 +43,18 @@ function TopBarIconLink({
   active: boolean;
 }) {
   const triggerRef = useRef<HTMLSpanElement>(null);
-  const [tooltipPosition, setTooltipPosition] = useState<{ top: number; right: number } | null>(null);
+  const [tooltipPosition, setTooltipPosition] = useState<{
+    top: number;
+    right: number;
+  } | null>(null);
 
   function showTooltip() {
     const rect = triggerRef.current?.getBoundingClientRect();
     if (!rect) return;
-    setTooltipPosition({ top: rect.bottom + 6, right: window.innerWidth - rect.right });
+    setTooltipPosition({
+      top: rect.bottom + 6,
+      right: window.innerWidth - rect.right,
+    });
   }
   function hideTooltip() {
     setTooltipPosition(null);
@@ -118,7 +124,9 @@ export function WorkspaceTopBar() {
           <Link
             href={SEARCH_ENTRY.href}
             aria-label={SEARCH_ENTRY.label}
-            aria-current={isActive(pathname, SEARCH_ENTRY.href) ? "page" : undefined}
+            aria-current={
+              isActive(pathname, SEARCH_ENTRY.href) ? "page" : undefined
+            }
             className="hidden h-9 w-56 items-center gap-2 rounded-[var(--radius-control)] border border-border bg-canvas px-3 text-sm text-text-muted outline-none transition-colors hover:border-border-strong hover:bg-surface-muted focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2 lg:flex"
           >
             <SEARCH_ENTRY.icon aria-hidden="true" className="size-4 shrink-0" />
@@ -131,7 +139,9 @@ export function WorkspaceTopBar() {
             <TopBarIconLink
               href={SETTINGS_ENTRY.href}
               label={SETTINGS_ENTRY.label}
-              icon={<SETTINGS_ENTRY.icon aria-hidden="true" className="size-5" />}
+              icon={
+                <SETTINGS_ENTRY.icon aria-hidden="true" className="size-5" />
+              }
               active={isActive(pathname, SETTINGS_ENTRY.href)}
             />
           ) : null}

@@ -1,5 +1,10 @@
 import { test, expect, type Page } from "@playwright/test";
-import { getPosWorld, openPersonaSession, resetTerminalCarts, withPosDb } from "./pos-fixtures";
+import {
+  getPosWorld,
+  openPersonaSession,
+  resetTerminalCarts,
+  withPosDb,
+} from "./pos-fixtures";
 
 // F297/F298 — the complete supported offline-to-online browser journey
 // (POS Completion Program Prompt 3, Section 10). useOnlineStatus.ts's own
@@ -44,20 +49,34 @@ import { getPosWorld, openPersonaSession, resetTerminalCarts, withPosDb } from "
 // could get permanently stuck even though the SAME failure mode (an
 // aborted in-flight request) is genuinely possible in production too
 // (tab close, browser crash, connection drop mid-request).
-async function waitForOfflineSyncToLand(page: Page, organizationId: string, storeId: string, salesCountBefore: number): Promise<void> {
+async function waitForOfflineSyncToLand(
+  page: Page,
+  organizationId: string,
+  storeId: string,
+  salesCountBefore: number,
+): Promise<void> {
   for (let attempt = 0; attempt < 6; attempt += 1) {
     await page.reload({ waitUntil: "domcontentloaded" }).catch(() => undefined);
     await page.waitForTimeout(3000);
     const count = await withPosDb((client) =>
-      client.query(`SELECT count(*)::int AS n FROM tenant.pos_sales WHERE organization_id=$1 AND store_id=$2`, [organizationId, storeId]).then((r) => r.rows[0].n as number),
+      client
+        .query(
+          `SELECT count(*)::int AS n FROM tenant.pos_sales WHERE organization_id=$1 AND store_id=$2`,
+          [organizationId, storeId],
+        )
+        .then((r) => r.rows[0].n as number),
     );
     if (count > salesCountBefore) return;
   }
-  throw new Error("Offline sync never produced a real server sale after six reload/retry attempts.");
+  throw new Error(
+    "Offline sync never produced a real server sale after six reload/retry attempts.",
+  );
 }
 
 test.describe("POS offline-to-online sync (real browser)", () => {
-  test("cashier captures a sale while offline, and it syncs automatically once back online, surviving a real page reload", async ({ browser }) => {
+  test("cashier captures a sale while offline, and it syncs automatically once back online, surviving a real page reload", async ({
+    browser,
+  }) => {
     const world = await getPosWorld();
     await resetTerminalCarts(world.terminalId);
 
@@ -65,11 +84,19 @@ test.describe("POS offline-to-online sync (real browser)", () => {
     try {
       const stockBefore = await withPosDb((client) =>
         client
-          .query(`SELECT quantity FROM tenant.stock_balances WHERE organization_id=$1 AND item_id=$2 AND warehouse_id=$3`, [world.organizationId, world.itemId, world.warehouseId])
+          .query(
+            `SELECT quantity FROM tenant.stock_balances WHERE organization_id=$1 AND item_id=$2 AND warehouse_id=$3`,
+            [world.organizationId, world.itemId, world.warehouseId],
+          )
           .then((r) => Number(r.rows[0].quantity)),
       );
       const salesBefore = await withPosDb((client) =>
-        client.query(`SELECT count(*)::int AS n FROM tenant.pos_sales WHERE organization_id=$1 AND store_id=$2`, [world.organizationId, world.storeId]).then((r) => r.rows[0].n as number),
+        client
+          .query(
+            `SELECT count(*)::int AS n FROM tenant.pos_sales WHERE organization_id=$1 AND store_id=$2`,
+            [world.organizationId, world.storeId],
+          )
+          .then((r) => r.rows[0].n as number),
       );
 
       // Step 1-2: online login + authorized offline snapshot capture. The
@@ -80,7 +107,11 @@ test.describe("POS offline-to-online sync (real browser)", () => {
       // inside the page) for the persisted record is the real,
       // deterministic signal that the write actually landed on disk.
       await page.goto("/pos/checkout", { waitUntil: "domcontentloaded" });
-      await page.waitForResponse((res) => res.url().includes("/api/pos/offline/snapshot") && res.status() === 200);
+      await page.waitForResponse(
+        (res) =>
+          res.url().includes("/api/pos/offline/snapshot") &&
+          res.status() === 200,
+      );
       await expect(page.getByText("Online", { exact: true })).toBeVisible();
 
       async function offlineSnapshotIsPersisted(): Promise<boolean> {
@@ -91,17 +122,27 @@ test.describe("POS offline-to-online sync (real browser)", () => {
               request.onerror = () => resolve(false);
               request.onsuccess = () => {
                 const db = request.result;
-                if (!db.objectStoreNames.contains("snapshots") || !db.objectStoreNames.contains("meta")) {
+                if (
+                  !db.objectStoreNames.contains("snapshots") ||
+                  !db.objectStoreNames.contains("meta")
+                ) {
                   db.close();
                   resolve(false);
                   return;
                 }
                 const tx = db.transaction(["snapshots", "meta"], "readonly");
-                const snapshotRequest = tx.objectStore("snapshots").get(storeId);
-                const contextRequest = tx.objectStore("meta").get("offlineContext");
+                const snapshotRequest = tx
+                  .objectStore("snapshots")
+                  .get(storeId);
+                const contextRequest = tx
+                  .objectStore("meta")
+                  .get("offlineContext");
                 tx.oncomplete = () => {
                   db.close();
-                  resolve(Boolean(snapshotRequest.result) && Boolean(contextRequest.result));
+                  resolve(
+                    Boolean(snapshotRequest.result) &&
+                      Boolean(contextRequest.result),
+                  );
                 };
                 tx.onerror = () => {
                   db.close();
@@ -112,38 +153,57 @@ test.describe("POS offline-to-online sync (real browser)", () => {
           world.storeId,
         );
       }
-      await expect.poll(offlineSnapshotIsPersisted, { timeout: 15_000, intervals: [250, 500, 750] }).toBe(true);
+      await expect
+        .poll(offlineSnapshotIsPersisted, {
+          timeout: 15_000,
+          intervals: [250, 500, 750],
+        })
+        .toBe(true);
 
       // Step 3: network disconnection.
       await context.setOffline(true);
-      await expect(page.getByText(`Offline — ${world.storeName}`)).toBeVisible({ timeout: 10_000 });
+      await expect(page.getByText(`Offline — ${world.storeName}`)).toBeVisible({
+        timeout: 10_000,
+      });
 
       // The disclosed unsupported-while-offline list must render
       // verbatim, not silently omit anything.
       await expect(page.getByText("Unsupported while offline:")).toBeVisible();
       await expect(page.getByText("Automatic promotions")).toBeVisible();
-      await expect(page.getByText("Attaching a customer to the sale")).toBeVisible();
+      await expect(
+        page.getByText("Attaching a customer to the sale"),
+      ).toBeVisible();
 
       // Step 4-5: offline transaction creation + local persistence.
       await page.getByLabel("Search offline catalog").fill(world.itemCode);
-      const offlineProductButton = page.getByRole("button", { name: new RegExp(world.itemName) });
+      const offlineProductButton = page.getByRole("button", {
+        name: new RegExp(world.itemName),
+      });
       await expect(offlineProductButton).toBeVisible();
       await offlineProductButton.click();
 
-      const cashTenderedInput = page.getByRole("textbox", { name: "Cash tendered" });
+      const cashTenderedInput = page.getByRole("textbox", {
+        name: "Cash tendered",
+      });
       await cashTenderedInput.click();
       await cashTenderedInput.press("Control+A");
       await cashTenderedInput.pressSequentially("500");
       await cashTenderedInput.blur();
 
-      const queueButton = page.getByRole("button", { name: /Queue cash sale \(offline\)/i });
+      const queueButton = page.getByRole("button", {
+        name: /Queue cash sale \(offline\)/i,
+      });
       await expect(queueButton).toBeEnabled();
       await queueButton.click();
 
-      const confirmationHeading = page.getByRole("heading", { name: /^Queued transaction/i });
+      const confirmationHeading = page.getByRole("heading", {
+        name: /^Queued transaction/i,
+      });
       await expect(confirmationHeading).toBeVisible();
       await expect(page.getByText("Sale queued (offline)")).toBeVisible();
-      const localTransactionShortId = (await confirmationHeading.textContent())?.replace("Queued transaction ", "").trim();
+      const localTransactionShortId = (await confirmationHeading.textContent())
+        ?.replace("Queued transaction ", "")
+        .trim();
       expect(localTransactionShortId).toBeTruthy();
 
       // Step 7: reconnection.
@@ -154,7 +214,12 @@ test.describe("POS offline-to-online sync (real browser)", () => {
       // and a fresh mount, which re-triggers auto-sync of whatever is
       // still queued -- proving the queued record survives a full
       // JS-heap/IndexedDB-connection teardown, not merely React state.
-      await waitForOfflineSyncToLand(page, world.organizationId, world.storeId, salesBefore);
+      await waitForOfflineSyncToLand(
+        page,
+        world.organizationId,
+        world.storeId,
+        salesBefore,
+      );
 
       // Steps 8-9, 12-13: duplicate sync safety + authoritative
       // finalization + real stock movement, verified against actual
@@ -162,26 +227,40 @@ test.describe("POS offline-to-online sync (real browser)", () => {
       // verified against actual Postgres rows, not the UI's own claim.
       const salesAfter = await withPosDb((client) =>
         client
-          .query(`SELECT id, status, grand_total, store_id, terminal_id FROM tenant.pos_sales WHERE organization_id=$1 AND store_id=$2 ORDER BY created_at DESC LIMIT 1`, [
-            world.organizationId,
-            world.storeId,
-          ])
+          .query(
+            `SELECT id, status, grand_total, store_id, terminal_id FROM tenant.pos_sales WHERE organization_id=$1 AND store_id=$2 ORDER BY created_at DESC LIMIT 1`,
+            [world.organizationId, world.storeId],
+          )
           .then((r) => r.rows[0]),
       );
       const salesCountAfter = await withPosDb((client) =>
-        client.query(`SELECT count(*)::int AS n FROM tenant.pos_sales WHERE organization_id=$1 AND store_id=$2`, [world.organizationId, world.storeId]).then((r) => r.rows[0].n as number),
+        client
+          .query(
+            `SELECT count(*)::int AS n FROM tenant.pos_sales WHERE organization_id=$1 AND store_id=$2`,
+            [world.organizationId, world.storeId],
+          )
+          .then((r) => r.rows[0].n as number),
       );
-      expect(salesCountAfter, "exactly one new sale must have been created by this offline sync, not zero and not more than one").toBe(salesBefore + 1);
+      expect(
+        salesCountAfter,
+        "exactly one new sale must have been created by this offline sync, not zero and not more than one",
+      ).toBe(salesBefore + 1);
       expect(salesAfter.status).toBe("completed");
       expect(salesAfter.store_id).toBe(world.storeId);
       expect(salesAfter.terminal_id).toBe(world.terminalId);
 
       const stockAfter = await withPosDb((client) =>
         client
-          .query(`SELECT quantity FROM tenant.stock_balances WHERE organization_id=$1 AND item_id=$2 AND warehouse_id=$3`, [world.organizationId, world.itemId, world.warehouseId])
+          .query(
+            `SELECT quantity FROM tenant.stock_balances WHERE organization_id=$1 AND item_id=$2 AND warehouse_id=$3`,
+            [world.organizationId, world.itemId, world.warehouseId],
+          )
           .then((r) => Number(r.rows[0].quantity)),
       );
-      expect(stockBefore - stockAfter, "the offline sale must decrement real stock by exactly the quantity sold (1)").toBe(1);
+      expect(
+        stockBefore - stockAfter,
+        "the offline sale must decrement real stock by exactly the quantity sold (1)",
+      ).toBe(1);
     } finally {
       await context.setOffline(false);
       await context.close();

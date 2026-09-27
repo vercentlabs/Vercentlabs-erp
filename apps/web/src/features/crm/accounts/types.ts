@@ -47,7 +47,11 @@ export type AccountListResponse = {
   total: number;
   limit: number;
   offset: number;
-  filters: { industries: string[]; countries: string[]; owners?: Array<{ id: string; name: string }> };
+  filters: {
+    industries: string[];
+    countries: string[];
+    owners?: Array<{ id: string; name: string }>;
+  };
 };
 
 // account-intelligence.js (getAccountHierarchy/previewAccountMergeForCaller)
@@ -77,11 +81,20 @@ export type AccountHierarchyEvent = {
 };
 
 export type AccountHierarchy = {
-  account: Record<string, unknown> & { id: string; display_name: string; parent_party_id: string | null; parent_restricted?: boolean };
+  account: Record<string, unknown> & {
+    id: string;
+    display_name: string;
+    parent_party_id: string | null;
+    parent_restricted?: boolean;
+  };
   ancestors: AccountHierarchyNode[];
   descendants: AccountHierarchyNode[];
   history: AccountHierarchyEvent[];
-  metrics: { ancestorCount: number; descendantCount: number; hierarchyDepth: number };
+  metrics: {
+    ancestorCount: number;
+    descendantCount: number;
+    hierarchyDepth: number;
+  };
 };
 
 export type AccountDuplicateMatch = {
@@ -145,7 +158,12 @@ export type AccountStakeholder = {
   updatedAt: string;
 };
 
-export type CrmListResponse<T> = { rows: T[]; total: number; limit: number; offset: number };
+export type CrmListResponse<T> = {
+  rows: T[];
+  total: number;
+  limit: number;
+  offset: number;
+};
 
 // getCustomer360ForCaller (account-intelligence.js) — RAW snake_case rows
 // for `account`/`contacts`/`timeline`, same convention as AccountHierarchy
@@ -153,7 +171,15 @@ export type CrmListResponse<T> = { rows: T[]; total: number; limit: number; offs
 // read paths. sensitiveDataRestricted appears on `account`/each contact only
 // when the caller lacks crm.accounts.view_sensitive / crm.contacts.view_sensitive.
 export type Customer360TimelineEntry = {
-  entry_type: "activity" | "communication" | "opportunity" | "quotation" | "sales_order" | "invoice" | "receipt" | "support";
+  entry_type:
+    | "activity"
+    | "communication"
+    | "opportunity"
+    | "quotation"
+    | "sales_order"
+    | "invoice"
+    | "receipt"
+    | "support";
   entry_id: string;
   occurred_at: string;
   title: string | null;
@@ -164,9 +190,17 @@ export type Customer360TimelineEntry = {
 };
 
 export type Customer360 = {
-  account: Record<string, unknown> & { id: string; display_name: string; sensitiveDataRestricted?: boolean };
+  account: Record<string, unknown> & {
+    id: string;
+    display_name: string;
+    sensitiveDataRestricted?: boolean;
+  };
   hierarchy: AccountHierarchy;
-  contacts: (Record<string, unknown> & { id: string; first_name: string; sensitiveDataRestricted?: boolean })[];
+  contacts: (Record<string, unknown> & {
+    id: string;
+    first_name: string;
+    sensitiveDataRestricted?: boolean;
+  })[];
   metrics: {
     opportunities: number;
     quotations: number;
@@ -176,6 +210,12 @@ export type Customer360 = {
     open_service_cases: number;
   };
   timeline: Customer360TimelineEntry[];
-  sourceCoverage: { crm: boolean; quotations: boolean; orders: boolean; invoices: boolean; support: boolean; supportMode: string };
+  sourceCoverage: {
+    crm: boolean;
+    quotations: boolean;
+    orders: boolean;
+    invoices: boolean;
+    support: boolean;
+    supportMode: string;
+  };
 };
-

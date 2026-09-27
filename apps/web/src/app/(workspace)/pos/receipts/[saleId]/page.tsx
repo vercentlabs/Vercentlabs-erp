@@ -2,7 +2,11 @@ import { PosReceiptScreen } from "@/features/pos/receipts/screens/PosReceiptScre
 
 export const metadata = { title: "POS Receipt" };
 
-export default async function PosReceiptPage({ params }: { params: Promise<{ saleId: string }> }) {
+export default async function PosReceiptPage({
+  params,
+}: {
+  params: Promise<{ saleId: string }>;
+}) {
   const { saleId } = await params;
   return <PosReceiptScreen saleId={saleId} />;
 }

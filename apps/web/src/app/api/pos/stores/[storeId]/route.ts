@@ -15,11 +15,27 @@ const updateStoreSchema = z.object({
   timezone: z.string().trim().min(1).max(60).optional(),
 });
 
-export async function PATCH(request: Request, context: { params: Promise<{ storeId: string }> }) {
-  return workspaceRoute(request, { module: "point-of-sale", permission: "pos.store.manage", billingWrite: true }, async ({ client, session }) => {
-    const { storeId } = await context.params;
-    const input = updateStoreSchema.parse(await readJson(request));
-    const result = await updatePosStore(client, posContext(session), storeId, input);
-    return ok({ store: result });
-  });
+export async function PATCH(
+  request: Request,
+  context: { params: Promise<{ storeId: string }> },
+) {
+  return workspaceRoute(
+    request,
+    {
+      module: "point-of-sale",
+      permission: "pos.store.manage",
+      billingWrite: true,
+    },
+    async ({ client, session }) => {
+      const { storeId } = await context.params;
+      const input = updateStoreSchema.parse(await readJson(request));
+      const result = await updatePosStore(
+        client,
+        posContext(session),
+        storeId,
+        input,
+      );
+      return ok({ store: result });
+    },
+  );
 }

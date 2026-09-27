@@ -1,7 +1,11 @@
 // Field targets lead-acquisition.js's ALLOWED_IMPORT_FIELDS accepts for
 // mapping (normalizeLeadFieldMapping throws for anything outside this
 // list) — kept in sync with that set, not invented independently.
-export const LEAD_IMPORT_FIELDS: Array<{ target: string; label: string; required?: boolean }> = [
+export const LEAD_IMPORT_FIELDS: Array<{
+  target: string;
+  label: string;
+  required?: boolean;
+}> = [
   { target: "firstName", label: "First name", required: true },
   { target: "lastName", label: "Last name" },
   { target: "email", label: "Email" },
@@ -40,8 +44,15 @@ export type LeadImportBatch = {
   created_at: string;
 };
 
-export type LeadImportPreviewResult = { batch: LeadImportBatch; rows: LeadImportRowResult[]; idempotent: boolean };
-export type LeadImportRollbackResult = { rolledBack: number; protected: number };
+export type LeadImportPreviewResult = {
+  batch: LeadImportBatch;
+  rows: LeadImportRowResult[];
+  idempotent: boolean;
+};
+export type LeadImportRollbackResult = {
+  rolledBack: number;
+  protected: number;
+};
 
 // tenant.background_jobs row for job_type='crm.leads.export' — see
 // getCrmLeadExportJob (lead-export.js). manifest never carries the CSV
@@ -49,8 +60,20 @@ export type LeadImportRollbackResult = { rolledBack: number; protected: number }
 export type LeadExportJob = {
   id: string;
   status: "pending" | "processing" | "completed" | "dead" | "cancelled";
-  progress: { rowCount?: number; truncated?: boolean; generatedAt?: string; expiresAt?: string; columns?: string[] };
-  manifest: { rowCount?: number; truncated?: boolean; generatedAt?: string; expiresAt?: string; columns?: string[] };
+  progress: {
+    rowCount?: number;
+    truncated?: boolean;
+    generatedAt?: string;
+    expiresAt?: string;
+    columns?: string[];
+  };
+  manifest: {
+    rowCount?: number;
+    truncated?: boolean;
+    generatedAt?: string;
+    expiresAt?: string;
+    columns?: string[];
+  };
   lastError: string | null;
   createdAt: string;
   completedAt: string | null;

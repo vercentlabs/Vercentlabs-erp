@@ -15,9 +15,17 @@ type RouteContext = { params: Promise<{ id: string }> };
 // the hierarchy route's convention exactly: GET is module-access-only, the
 // underlying service does its own not-found/scope handling.
 export async function GET(request: Request, context: RouteContext) {
-  return workspaceRoute(request, { module: "crm" }, async ({ client, session }) => {
-    const { id } = await context.params;
-    const view = await getCustomer360ForCaller(client, crmContext(session), id);
-    return ok({ view });
-  });
+  return workspaceRoute(
+    request,
+    { module: "crm" },
+    async ({ client, session }) => {
+      const { id } = await context.params;
+      const view = await getCustomer360ForCaller(
+        client,
+        crmContext(session),
+        id,
+      );
+      return ok({ view });
+    },
+  );
 }

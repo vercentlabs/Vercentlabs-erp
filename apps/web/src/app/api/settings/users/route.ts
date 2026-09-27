@@ -10,6 +10,7 @@ export async function GET(request: Request) {
   return workspaceRoute(
     request,
     { permission: CORE_PERMISSIONS.usersView, action: "settings.users.list" },
-    async ({ client, session }) => ok({ members: await listOrganizationMembers(client, session) }),
+    async ({ client, session }) =>
+      ok({ members: await listOrganizationMembers(client, session) }),
   );
 }

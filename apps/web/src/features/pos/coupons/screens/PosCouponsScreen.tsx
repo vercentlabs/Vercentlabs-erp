@@ -4,15 +4,35 @@ import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { ColumnDef } from "@tanstack/react-table";
 import { Plus, Power } from "lucide-react";
-import { Button, Dialog, EnterpriseDataGrid, EnterpriseListPage, ErrorState, IconButton, NumberField, PermissionState, Select, StatusBadge, TextField } from "@vercentlabs/design-system";
+import {
+  Button,
+  Dialog,
+  EnterpriseDataGrid,
+  EnterpriseListPage,
+  ErrorState,
+  IconButton,
+  NumberField,
+  PermissionState,
+  Select,
+  StatusBadge,
+  TextField,
+} from "@vercentlabs/design-system";
 import type { PosCoupon } from "@vercentlabs/api";
 import { POS_PERMISSIONS } from "@vercentlabs/permissions";
 
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import { PosApiError } from "@/features/pos/shared/http";
-import { createPosCoupon, listPosCoupons, setPosCouponActive, updatePosCoupon } from "@/features/pos/coupons/api/coupons-api";
-import { searchPosProducts, searchPosCustomers } from "@/features/pos/checkout/api/checkout-api";
+import {
+  createPosCoupon,
+  listPosCoupons,
+  setPosCouponActive,
+  updatePosCoupon,
+} from "@/features/pos/coupons/api/coupons-api";
+import {
+  searchPosProducts,
+  searchPosCustomers,
+} from "@/features/pos/checkout/api/checkout-api";
 import { listPosStores } from "@/features/pos/stores/api/stores-api";
 import { EligibilitySearchPicker } from "@/features/pos/shared/EligibilitySearchPicker";
 
@@ -24,7 +44,9 @@ import { EligibilitySearchPicker } from "@/features/pos/shared/EligibilitySearch
 export function PosCouponsScreen() {
   const workspace = useWorkspaceContext();
   const queryClient = useQueryClient();
-  const canManage = workspace.roleSlugs.includes("organization_owner") || workspace.permissions.includes(POS_PERMISSIONS.settingsManage);
+  const canManage =
+    workspace.roleSlugs.includes("organization_owner") ||
+    workspace.permissions.includes(POS_PERMISSIONS.settingsManage);
 
   const [error, setError] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<string>("all");
@@ -33,20 +55,28 @@ export function PosCouponsScreen() {
 
   const query = useQuery({
     queryKey: scopedQueryKey(workspace, "pos", "coupons", statusFilter),
-    queryFn: () => listPosCoupons(statusFilter === "all" ? undefined : statusFilter),
+    queryFn: () =>
+      listPosCoupons(statusFilter === "all" ? undefined : statusFilter),
     enabled: canManage,
   });
   const rows = query.data?.rows ?? [];
 
   function invalidate() {
-    queryClient.invalidateQueries({ queryKey: scopedQueryKey(workspace, "pos", "coupons") });
+    queryClient.invalidateQueries({
+      queryKey: scopedQueryKey(workspace, "pos", "coupons"),
+    });
   }
   function handleError(err: unknown) {
-    setError(err instanceof PosApiError ? err.message : "This action could not be completed.");
+    setError(
+      err instanceof PosApiError
+        ? err.message
+        : "This action could not be completed.",
+    );
   }
 
   const toggleActiveMutation = useMutation({
-    mutationFn: (coupon: PosCoupon) => setPosCouponActive(coupon.id, coupon.status !== "active"),
+    mutationFn: (coupon: PosCoupon) =>
+      setPosCouponActive(coupon.id, coupon.status !== "active"),
     onSuccess: () => {
       setError(null);
       invalidate();
@@ -56,18 +86,53 @@ export function PosCouponsScreen() {
 
   const columns: ColumnDef<PosCoupon, unknown>[] = useMemo(
     () => [
-      { id: "code", header: "Code", accessorKey: "code", cell: ({ row }) => <span className="font-mono font-medium text-text">{row.original.code}</span> },
+      {
+        id: "code",
+        header: "Code",
+        accessorKey: "code",
+        cell: ({ row }) => (
+          <span className="font-mono font-medium text-text">
+            {row.original.code}
+          </span>
+        ),
+      },
       { id: "name", header: "Name", accessorFn: (row) => row.name ?? "—" },
-      { id: "discount", header: "Discount", accessorFn: (row) => (row.discount_type === "percent" ? `${row.discount_value}%` : row.discount_value) },
-      { id: "redemptions", header: "Redemptions", accessorFn: (row) => `${row.committed_count ?? 0}${row.usage_limit_total ? ` / ${row.usage_limit_total}` : ""}` },
-      { id: "status", header: "Status", cell: ({ row }) => <StatusBadge tone={row.original.status === "active" ? "success" : "neutral"}>{row.original.status}</StatusBadge> },
+      {
+        id: "discount",
+        header: "Discount",
+        accessorFn: (row) =>
+          row.discount_type === "percent"
+            ? `${row.discount_value}%`
+            : row.discount_value,
+      },
+      {
+        id: "redemptions",
+        header: "Redemptions",
+        accessorFn: (row) =>
+          `${row.committed_count ?? 0}${row.usage_limit_total ? ` / ${row.usage_limit_total}` : ""}`,
+      },
+      {
+        id: "status",
+        header: "Status",
+        cell: ({ row }) => (
+          <StatusBadge
+            tone={row.original.status === "active" ? "success" : "neutral"}
+          >
+            {row.original.status}
+          </StatusBadge>
+        ),
+      },
       {
         id: "actions",
         header: "",
         cell: ({ row }) => (
           <span onClick={(event) => event.stopPropagation()}>
             <IconButton
-              aria-label={row.original.status === "active" ? `Deactivate ${row.original.code}` : `Activate ${row.original.code}`}
+              aria-label={
+                row.original.status === "active"
+                  ? `Deactivate ${row.original.code}`
+                  : `Activate ${row.original.code}`
+              }
               size="compact"
               variant={row.original.status === "active" ? "danger" : "ghost"}
               onPress={() => toggleActiveMutation.mutate(row.original)}
@@ -82,12 +147,21 @@ export function PosCouponsScreen() {
     [toggleActiveMutation],
   );
 
-  if (!canManage) return <PermissionState title="You don't have access to Coupon settings" description="Ask an administrator to grant pos.settings.manage." />;
+  if (!canManage)
+    return (
+      <PermissionState
+        title="You don't have access to Coupon settings"
+        description="Ask an administrator to grant pos.settings.manage."
+      />
+    );
 
   return (
     <div className="flex flex-col gap-4">
       {error && (
-        <p role="alert" className="rounded-[var(--radius-control)] border border-danger-emphasis/30 bg-danger-soft px-3 py-2 text-sm text-danger">
+        <p
+          role="alert"
+          className="rounded-[var(--radius-control)] border border-danger-emphasis/30 bg-danger-soft px-3 py-2 text-sm text-danger"
+        >
           {error}
         </p>
       )}
@@ -95,7 +169,8 @@ export function PosCouponsScreen() {
       <EnterpriseListPage
         header={{
           title: "Coupons",
-          description: "Codes a cashier or customer can apply at checkout for a discount.",
+          description:
+            "Codes a cashier or customer can apply at checkout for a discount.",
           primaryAction: (
             <Button variant="primary" onPress={() => setCreateOpen(true)}>
               <Plus className="size-4" aria-hidden="true" />
@@ -124,13 +199,32 @@ export function PosCouponsScreen() {
           columns={columns}
           data={rows}
           getRowId={(row) => row.id}
-          state={query.isError ? "error" : query.isLoading ? "loading" : rows.length === 0 ? "empty" : "ready"}
-          errorContent={<ErrorState title="Could not load coupons" description="Something went wrong fetching the coupon list." action={{ label: "Retry", onPress: () => query.refetch() }} />}
+          state={
+            query.isError
+              ? "error"
+              : query.isLoading
+                ? "loading"
+                : rows.length === 0
+                  ? "empty"
+                  : "ready"
+          }
+          errorContent={
+            <ErrorState
+              title="Could not load coupons"
+              description="Something went wrong fetching the coupon list."
+              action={{ label: "Retry", onPress: () => query.refetch() }}
+            />
+          }
           onRowClick={(row) => setEditing(row)}
         />
       </EnterpriseListPage>
 
-      <CouponFormDialog isOpen={createOpen} onOpenChange={setCreateOpen} onSaved={invalidate} onError={handleError} />
+      <CouponFormDialog
+        isOpen={createOpen}
+        onOpenChange={setCreateOpen}
+        onSaved={invalidate}
+        onError={handleError}
+      />
       {editing && (
         <CouponFormDialog
           isOpen
@@ -163,19 +257,44 @@ function CouponFormDialog({
   const isEdit = Boolean(coupon);
   const [code, setCode] = useState(coupon?.code ?? "");
   const [name, setName] = useState((coupon?.name as string) ?? "");
-  const [discountType, setDiscountType] = useState<string>((coupon?.discount_type as string) ?? "amount");
-  const [discountValue, setDiscountValue] = useState(Number(coupon?.discount_value ?? 5));
-  const [maxDiscountAmount, setMaxDiscountAmount] = useState(Number(coupon?.max_discount_amount ?? 0));
-  const [minBasketAmount, setMinBasketAmount] = useState(Number(coupon?.min_basket_amount ?? 0));
-  const [usageLimitTotal, setUsageLimitTotal] = useState(Number(coupon?.usage_limit_total ?? 0));
-  const [usageLimitPerCustomer, setUsageLimitPerCustomer] = useState(Number(coupon?.usage_limit_per_customer ?? 0));
-  const [usageLimitPerStore, setUsageLimitPerStore] = useState(Number(coupon?.usage_limit_per_store ?? 0));
-  const [effectiveFrom, setEffectiveFrom] = useState((coupon?.effective_from as string) ?? "");
-  const [effectiveTo, setEffectiveTo] = useState((coupon?.effective_to as string) ?? "");
-  const [eligibleItemIds, setEligibleItemIds] = useState<string[]>((coupon?.eligible_item_ids as string[]) ?? []);
-  const [eligibleCustomerIds, setEligibleCustomerIds] = useState<string[]>((coupon?.eligible_customer_ids as string[]) ?? []);
+  const [discountType, setDiscountType] = useState<string>(
+    (coupon?.discount_type as string) ?? "amount",
+  );
+  const [discountValue, setDiscountValue] = useState(
+    Number(coupon?.discount_value ?? 5),
+  );
+  const [maxDiscountAmount, setMaxDiscountAmount] = useState(
+    Number(coupon?.max_discount_amount ?? 0),
+  );
+  const [minBasketAmount, setMinBasketAmount] = useState(
+    Number(coupon?.min_basket_amount ?? 0),
+  );
+  const [usageLimitTotal, setUsageLimitTotal] = useState(
+    Number(coupon?.usage_limit_total ?? 0),
+  );
+  const [usageLimitPerCustomer, setUsageLimitPerCustomer] = useState(
+    Number(coupon?.usage_limit_per_customer ?? 0),
+  );
+  const [usageLimitPerStore, setUsageLimitPerStore] = useState(
+    Number(coupon?.usage_limit_per_store ?? 0),
+  );
+  const [effectiveFrom, setEffectiveFrom] = useState(
+    (coupon?.effective_from as string) ?? "",
+  );
+  const [effectiveTo, setEffectiveTo] = useState(
+    (coupon?.effective_to as string) ?? "",
+  );
+  const [eligibleItemIds, setEligibleItemIds] = useState<string[]>(
+    (coupon?.eligible_item_ids as string[]) ?? [],
+  );
+  const [eligibleCustomerIds, setEligibleCustomerIds] = useState<string[]>(
+    (coupon?.eligible_customer_ids as string[]) ?? [],
+  );
 
-  const storesQuery = useQuery({ queryKey: ["pos", "eligibility-picker-stores"], queryFn: listPosStores });
+  const storesQuery = useQuery({
+    queryKey: ["pos", "eligibility-picker-stores"],
+    queryFn: listPosStores,
+  });
   const anchorStoreId = storesQuery.data?.rows.find((s) => s.active)?.id;
 
   const payload = {
@@ -183,7 +302,8 @@ function CouponFormDialog({
     maxDiscountAmount: maxDiscountAmount > 0 ? maxDiscountAmount : null,
     minBasketAmount: minBasketAmount > 0 ? minBasketAmount : null,
     usageLimitTotal: usageLimitTotal > 0 ? usageLimitTotal : null,
-    usageLimitPerCustomer: usageLimitPerCustomer > 0 ? usageLimitPerCustomer : null,
+    usageLimitPerCustomer:
+      usageLimitPerCustomer > 0 ? usageLimitPerCustomer : null,
     usageLimitPerStore: usageLimitPerStore > 0 ? usageLimitPerStore : null,
     effectiveFrom: effectiveFrom || null,
     effectiveTo: effectiveTo || null,
@@ -193,7 +313,10 @@ function CouponFormDialog({
   };
 
   const mutation = useMutation({
-    mutationFn: () => (isEdit ? updatePosCoupon(coupon!.id, payload) : createPosCoupon({ code, discountType, discountValue, ...payload })),
+    mutationFn: () =>
+      isEdit
+        ? updatePosCoupon(coupon!.id, payload)
+        : createPosCoupon({ code, discountType, discountValue, ...payload }),
     onSuccess: () => {
       onSaved();
       onOpenChange(false);
@@ -202,9 +325,20 @@ function CouponFormDialog({
   });
 
   return (
-    <Dialog isOpen={isOpen} onOpenChange={onOpenChange} title={isEdit ? `Edit ${coupon!.code}` : "New coupon"}>
+    <Dialog
+      isOpen={isOpen}
+      onOpenChange={onOpenChange}
+      title={isEdit ? `Edit ${coupon!.code}` : "New coupon"}
+    >
       <div className="flex max-h-[70vh] flex-col gap-4 overflow-y-auto pr-1">
-        {!isEdit && <TextField label="Code" isRequired value={code} onChange={(v) => setCode(v.toUpperCase())} />}
+        {!isEdit && (
+          <TextField
+            label="Code"
+            isRequired
+            value={code}
+            onChange={(v) => setCode(v.toUpperCase())}
+          />
+        )}
         <TextField label="Name (optional)" value={name} onChange={setName} />
         <div className="grid grid-cols-2 gap-3">
           {!isEdit && (
@@ -215,32 +349,77 @@ function CouponFormDialog({
                 { value: "percent", label: "Percent off" },
               ]}
               selectedKey={discountType}
-              onSelectionChange={(key) => setDiscountType(String(key ?? "amount"))}
+              onSelectionChange={(key) =>
+                setDiscountType(String(key ?? "amount"))
+              }
             />
           )}
-          <NumberField label={discountType === "percent" ? "Discount %" : "Discount amount"} value={discountValue} onChange={setDiscountValue} minValue={0} />
+          <NumberField
+            label={
+              discountType === "percent" ? "Discount %" : "Discount amount"
+            }
+            value={discountValue}
+            onChange={setDiscountValue}
+            minValue={0}
+          />
         </div>
         <div className="grid grid-cols-2 gap-3">
-          <NumberField label="Max discount amount (0 = no cap)" value={maxDiscountAmount} onChange={setMaxDiscountAmount} minValue={0} />
-          <NumberField label="Min basket amount (0 = none)" value={minBasketAmount} onChange={setMinBasketAmount} minValue={0} />
+          <NumberField
+            label="Max discount amount (0 = no cap)"
+            value={maxDiscountAmount}
+            onChange={setMaxDiscountAmount}
+            minValue={0}
+          />
+          <NumberField
+            label="Min basket amount (0 = none)"
+            value={minBasketAmount}
+            onChange={setMinBasketAmount}
+            minValue={0}
+          />
         </div>
         <div className="grid grid-cols-2 gap-3">
-          <NumberField label="Total usage limit (0 = unlimited)" value={usageLimitTotal} onChange={setUsageLimitTotal} minValue={0} />
-          <NumberField label="Per-customer usage limit (0 = unlimited)" value={usageLimitPerCustomer} onChange={setUsageLimitPerCustomer} minValue={0} />
+          <NumberField
+            label="Total usage limit (0 = unlimited)"
+            value={usageLimitTotal}
+            onChange={setUsageLimitTotal}
+            minValue={0}
+          />
+          <NumberField
+            label="Per-customer usage limit (0 = unlimited)"
+            value={usageLimitPerCustomer}
+            onChange={setUsageLimitPerCustomer}
+            minValue={0}
+          />
         </div>
-        <NumberField label="Per-store usage limit (0 = unlimited)" value={usageLimitPerStore} onChange={setUsageLimitPerStore} minValue={0} />
+        <NumberField
+          label="Per-store usage limit (0 = unlimited)"
+          value={usageLimitPerStore}
+          onChange={setUsageLimitPerStore}
+          minValue={0}
+        />
         <div className="grid grid-cols-2 gap-3">
-          <TextField label="Effective from (YYYY-MM-DD)" value={effectiveFrom} onChange={setEffectiveFrom} />
-          <TextField label="Effective to (YYYY-MM-DD)" value={effectiveTo} onChange={setEffectiveTo} />
+          <TextField
+            label="Effective from (YYYY-MM-DD)"
+            value={effectiveFrom}
+            onChange={setEffectiveFrom}
+          />
+          <TextField
+            label="Effective to (YYYY-MM-DD)"
+            value={effectiveTo}
+            onChange={setEffectiveTo}
+          />
         </div>
         {isEdit && (
           <p className="text-xs text-text-muted">
-            {coupon!.committed_count ?? 0} redemption(s) already committed. Historical redemption facts cannot be edited here.
+            {coupon!.committed_count ?? 0} redemption(s) already committed.
+            Historical redemption facts cannot be edited here.
           </p>
         )}
 
         <div className="flex flex-col gap-3 border-t border-border pt-3">
-          <p className="text-sm font-medium text-text">Eligibility (blank = every item/customer)</p>
+          <p className="text-sm font-medium text-text">
+            Eligibility (blank = every item/customer)
+          </p>
           <EligibilitySearchPicker
             label="Eligible items"
             placeholder="Search items by name, code or barcode…"
@@ -250,7 +429,10 @@ function CouponFormDialog({
             search={async (query) => {
               if (!anchorStoreId || !query.trim()) return [];
               const result = await searchPosProducts(anchorStoreId, query);
-              return result.rows.map((row) => ({ id: row.itemId, label: `${row.name} (${row.code})` }));
+              return result.rows.map((row) => ({
+                id: row.itemId,
+                label: `${row.name} (${row.code})`,
+              }));
             }}
           />
           <EligibilitySearchPicker
@@ -262,7 +444,13 @@ function CouponFormDialog({
             search={async (query) => {
               if (!query.trim()) return [];
               const result = await searchPosCustomers(query);
-              return result.rows.map((row) => ({ id: row.id, label: row.phone || row.email ? `${row.displayName} · ${row.phone || row.email}` : row.displayName }));
+              return result.rows.map((row) => ({
+                id: row.id,
+                label:
+                  row.phone || row.email
+                    ? `${row.displayName} · ${row.phone || row.email}`
+                    : row.displayName,
+              }));
             }}
           />
         </div>
@@ -271,7 +459,12 @@ function CouponFormDialog({
           <Button variant="secondary" onPress={() => onOpenChange(false)}>
             Cancel
           </Button>
-          <Button variant="primary" onPress={() => mutation.mutate()} isLoading={mutation.isPending} isDisabled={(!isEdit && !code.trim()) || discountValue <= 0}>
+          <Button
+            variant="primary"
+            onPress={() => mutation.mutate()}
+            isLoading={mutation.isPending}
+            isDisabled={(!isEdit && !code.trim()) || discountValue <= 0}
+          >
             {isEdit ? "Save changes" : "Create coupon"}
           </Button>
         </div>

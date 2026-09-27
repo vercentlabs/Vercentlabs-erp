@@ -21,7 +21,9 @@ export function crmAuditSnapshot(
       contactId: record.contactId,
       pipelineId: record.pipelineId,
       stageId: record.stageId,
-      ...(changedFields ? { changedFields: [...new Set(changedFields)].sort() } : {}),
+      ...(changedFields
+        ? { changedFields: [...new Set(changedFields)].sort() }
+        : {}),
     };
   }
   if (resource !== "leads") return record;
@@ -32,7 +34,9 @@ export function crmAuditSnapshot(
     ownerUserId: record.ownerUserId,
     companyId: record.companyId,
     branchId: record.branchId,
-    ...(changedFields ? { changedFields: [...new Set(changedFields)].sort() } : {}),
+    ...(changedFields
+      ? { changedFields: [...new Set(changedFields)].sort() }
+      : {}),
   };
 }
 

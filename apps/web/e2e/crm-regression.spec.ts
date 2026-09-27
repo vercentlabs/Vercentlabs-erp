@@ -26,35 +26,55 @@ for (const route of listRoutes) {
 
     const response = await page.goto(route, { waitUntil: "networkidle" });
     expect(response?.status(), `${route} should not 5xx`).toBeLessThan(500);
-    expect(errors, `console errors on ${route}: ${errors.join(" | ")}`).toEqual([]);
+    expect(errors, `console errors on ${route}: ${errors.join(" | ")}`).toEqual(
+      [],
+    );
   });
 }
 
 test("opportunity 360 header shows real Stage value", async ({ page }) => {
   // stage_id is NOT NULL by schema, so every opportunity has a real stage —
   // this is what commit 8e201708 fixed regressing to "Stage —".
-  await page.goto(`/crm/opportunities/${fixtures.opportunityId}`, { waitUntil: "networkidle" });
+  await page.goto(`/crm/opportunities/${fixtures.opportunityId}`, {
+    waitUntil: "networkidle",
+  });
   const stageField = page.getByText("Stage", { exact: true }).locator("..");
   await expect(stageField).not.toHaveText(/—$/);
 });
 
-test("opportunity 360 header shows real Account value when a party relation exists", async ({ page, request }) => {
+test("opportunity 360 header shows real Account value when a party relation exists", async ({
+  page,
+  request,
+}) => {
   // party_id is nullable, so find a list row that actually has one rather than
   // assuming any single fixture does.
   const listResp = await request.get("/api/crm/opportunities?offset=0", {
-    headers: { cookie: (await page.context().cookies()).map((c) => `${c.name}=${c.value}`).join("; ") },
+    headers: {
+      cookie: (await page.context().cookies())
+        .map((c) => `${c.name}=${c.value}`)
+        .join("; "),
+    },
   });
   const { rows } = await listResp.json();
-  const withParty = (rows as Array<{ id: string; partyName: string | null }>).find((r) => r.partyName);
-  test.skip(!withParty, "No opportunity with a party relation found on the first page of results");
+  const withParty = (
+    rows as Array<{ id: string; partyName: string | null }>
+  ).find((r) => r.partyName);
+  test.skip(
+    !withParty,
+    "No opportunity with a party relation found on the first page of results",
+  );
 
-  await page.goto(`/crm/opportunities/${withParty!.id}`, { waitUntil: "networkidle" });
+  await page.goto(`/crm/opportunities/${withParty!.id}`, {
+    waitUntil: "networkidle",
+  });
   const accountField = page.getByText("Account", { exact: true }).locator("..");
   await expect(accountField).not.toHaveText(/—$/);
   await expect(accountField).toContainText(withParty!.partyName!);
 });
 
-test("opportunity 360 Activity tab (communications/notes/timeline) loads without 500", async ({ page }) => {
+test("opportunity 360 Activity tab (communications/notes/timeline) loads without 500", async ({
+  page,
+}) => {
   const errors: string[] = [];
   page.on("console", (msg) => {
     if (msg.type() === "error") errors.push(msg.text());
@@ -65,7 +85,9 @@ test("opportunity 360 Activity tab (communications/notes/timeline) loads without
     }
   });
 
-  await page.goto(`/crm/opportunities/${fixtures.opportunityId}`, { waitUntil: "networkidle" });
+  await page.goto(`/crm/opportunities/${fixtures.opportunityId}`, {
+    waitUntil: "networkidle",
+  });
   await page.getByRole("tab", { name: "Activity" }).click();
   await page.waitForLoadState("networkidle");
 
@@ -80,7 +102,9 @@ test("opportunity 360 Notes tab loads without 500", async ({ page }) => {
     }
   });
 
-  await page.goto(`/crm/opportunities/${fixtures.opportunityId}`, { waitUntil: "networkidle" });
+  await page.goto(`/crm/opportunities/${fixtures.opportunityId}`, {
+    waitUntil: "networkidle",
+  });
   await page.getByRole("tab", { name: "Notes" }).click();
   await page.waitForLoadState("networkidle");
 

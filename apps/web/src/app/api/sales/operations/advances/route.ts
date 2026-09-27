@@ -13,5 +13,13 @@ const schema = z.object({
 });
 
 export async function POST(request: Request) {
-  return salesMutation(request, "sales.invoice.request", schema, async (client, context, input) => ({ advance: await recordSalesAdvancePayment(client, context, input) }), 201);
+  return salesMutation(
+    request,
+    "sales.invoice.request",
+    schema,
+    async (client, context, input) => ({
+      advance: await recordSalesAdvancePayment(client, context, input),
+    }),
+    201,
+  );
 }

@@ -16,10 +16,17 @@ const putSchema = z.object({
 
 // Role definitions are organization-global: roles.manage (Owner / System
 // Administrator). Built-in roles stay read-only (enforced in updateRole).
-export async function PUT(request: Request, context: { params: Promise<{ id: string }> }) {
+export async function PUT(
+  request: Request,
+  context: { params: Promise<{ id: string }> },
+) {
   return workspaceRoute(
     request,
-    { permission: CORE_PERMISSIONS.rolesManage, action: "settings.roles.update", auditDenial: true },
+    {
+      permission: CORE_PERMISSIONS.rolesManage,
+      action: "settings.roles.update",
+      auditDenial: true,
+    },
     async ({ client, session }) => {
       const { id } = await context.params;
       const body = putSchema.parse(await readJson(request));
@@ -28,10 +35,17 @@ export async function PUT(request: Request, context: { params: Promise<{ id: str
   );
 }
 
-export async function DELETE(request: Request, context: { params: Promise<{ id: string }> }) {
+export async function DELETE(
+  request: Request,
+  context: { params: Promise<{ id: string }> },
+) {
   return workspaceRoute(
     request,
-    { permission: CORE_PERMISSIONS.rolesManage, action: "settings.roles.archive", auditDenial: true },
+    {
+      permission: CORE_PERMISSIONS.rolesManage,
+      action: "settings.roles.archive",
+      auditDenial: true,
+    },
     async ({ client, session }) => {
       const { id } = await context.params;
       await archiveRole(client, session, id);

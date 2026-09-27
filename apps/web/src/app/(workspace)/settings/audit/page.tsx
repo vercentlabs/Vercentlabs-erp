@@ -8,5 +8,9 @@ export const metadata = { title: "Audit" };
 
 export default async function AuditPage() {
   const session = await requireWorkspace();
-  return <AuditScreen canView={hasSessionPermission(session, CORE_PERMISSIONS.auditView)} />;
+  return (
+    <AuditScreen
+      canView={hasSessionPermission(session, CORE_PERMISSIONS.auditView)}
+    />
+  );
 }

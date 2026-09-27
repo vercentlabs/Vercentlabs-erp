@@ -1,13 +1,30 @@
 "use client";
 
 import { useEffect, useMemo, useState, type DragEvent } from "react";
-import { useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  useMutation,
+  useQueries,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
 import { CheckCircle2, GripVertical, Users } from "lucide-react";
-import { Badge, Button, Dialog, Select, type SelectOption } from "@vercentlabs/design-system";
+import {
+  Badge,
+  Button,
+  Dialog,
+  Select,
+  type SelectOption,
+} from "@vercentlabs/design-system";
 
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
-import { getLeadStageReasons, getLeadTransitionGraph, LeadApiError, listLeads, transitionLeadStage } from "../api/leads-api";
+import {
+  getLeadStageReasons,
+  getLeadTransitionGraph,
+  LeadApiError,
+  listLeads,
+  transitionLeadStage,
+} from "../api/leads-api";
 import type { Lead, LeadListFilters } from "../types";
 
 export type LeadStageOption = { id: string; code: string; name: string };
@@ -19,7 +36,10 @@ export type LeadStageOption = { id: string; code: string; name: string };
 // column tracks its own "how many to show" independently and can expand.
 const COLUMN_PAGE_SIZE = 100;
 
-const priorityTone: Record<string, "neutral" | "info" | "success" | "warning" | "danger"> = {
+const priorityTone: Record<
+  string,
+  "neutral" | "info" | "success" | "warning" | "danger"
+> = {
   low: "neutral",
   medium: "info",
   high: "warning",
@@ -50,10 +70,16 @@ function ReasonPromptDialog({
     queryKey: ["crm", "leads", lead.id, "stage-reasons", stage.id],
     queryFn: () => getLeadStageReasons(lead.id, stage.id),
   });
-  const reasonOptions: SelectOption[] = (reasonsQuery.data?.reasons ?? []).map((r) => ({ value: r.code, label: r.label }));
+  const reasonOptions: SelectOption[] = (reasonsQuery.data?.reasons ?? []).map(
+    (r) => ({ value: r.code, label: r.label }),
+  );
 
   return (
-    <Dialog isOpen title={`Move ${leadDisplayName(lead)} to ${stage.name}`} onOpenChange={(open) => !open && onCancel()}>
+    <Dialog
+      isOpen
+      title={`Move ${leadDisplayName(lead)} to ${stage.name}`}
+      onOpenChange={(open) => !open && onCancel()}
+    >
       <div className="flex flex-col gap-4">
         <Select
           aria-label="Reason for this move"
@@ -61,14 +87,21 @@ function ReasonPromptDialog({
           options={reasonOptions}
           selectedKey={reasonCode}
           onSelectionChange={(key) => setReasonCode(String(key ?? ""))}
-          placeholder={reasonsQuery.isLoading ? "Loading reasons…" : "Choose a reason…"}
+          placeholder={
+            reasonsQuery.isLoading ? "Loading reasons…" : "Choose a reason…"
+          }
           isDisabled={reasonsQuery.isLoading}
         />
         <div className="flex justify-end gap-2">
           <Button variant="secondary" onPress={onCancel} isDisabled={isPending}>
             Cancel
           </Button>
-          <Button variant="primary" onPress={() => reasonCode && onConfirm(reasonCode)} isDisabled={!reasonCode} isLoading={isPending}>
+          <Button
+            variant="primary"
+            onPress={() => reasonCode && onConfirm(reasonCode)}
+            isDisabled={!reasonCode}
+            isLoading={isPending}
+          >
             Move
           </Button>
         </div>
@@ -145,14 +178,26 @@ function LeadKanbanCard({
         >
           <GripVertical className="mt-0.5 size-3.5 shrink-0 text-text-muted" />
         </span>
-        <button type="button" className="text-left text-sm font-medium text-text hover:underline" onClick={() => onOpen(lead.id)}>
+        <button
+          type="button"
+          className="text-left text-sm font-medium text-text hover:underline"
+          onClick={() => onOpen(lead.id)}
+        >
           {displayName}
         </button>
       </div>
-      {lead.companyName && <span className="pl-5 text-xs text-text-muted">{lead.companyName}</span>}
+      {lead.companyName && (
+        <span className="pl-5 text-xs text-text-muted">{lead.companyName}</span>
+      )}
       <div className="flex flex-wrap items-center gap-1.5 pl-5">
-        <Badge tone={priorityTone[lead.priority] ?? "neutral"}>{lead.priority}</Badge>
-        {lead.score !== null && <span className="text-xs tabular-nums text-text-muted">Score {lead.score}</span>}
+        <Badge tone={priorityTone[lead.priority] ?? "neutral"}>
+          {lead.priority}
+        </Badge>
+        {lead.score !== null && (
+          <span className="text-xs tabular-nums text-text-muted">
+            Score {lead.score}
+          </span>
+        )}
       </div>
       <div className="flex items-center gap-1.5 pl-5 text-xs text-text-muted">
         <Users className="size-3.5 shrink-0" aria-hidden="true" />
@@ -167,7 +212,9 @@ function LeadKanbanCard({
         <Select
           aria-label={`Move ${displayName} to stage`}
           size="compact"
-          options={stages.filter((s) => s.code !== lead.status).map((s) => ({ value: s.id, label: s.name }))}
+          options={stages
+            .filter((s) => s.code !== lead.status)
+            .map((s) => ({ value: s.id, label: s.name }))}
           selectedKey={targetStageId}
           onSelectionChange={(key) => setTargetStageId(String(key ?? ""))}
           placeholder="Move to…"
@@ -206,8 +253,14 @@ export function LeadKanbanBoard({
   const [draggingLeadId, setDraggingLeadId] = useState<string | null>(null);
   const [dragOverStageId, setDragOverStageId] = useState<string | null>(null);
   const [pendingLeadId, setPendingLeadId] = useState<string | null>(null);
-  const [moveError, setMoveError] = useState<{ leadId: string; message: string } | null>(null);
-  const [reasonPrompt, setReasonPrompt] = useState<{ lead: Lead; stage: LeadStageOption } | null>(null);
+  const [moveError, setMoveError] = useState<{
+    leadId: string;
+    message: string;
+  } | null>(null);
+  const [reasonPrompt, setReasonPrompt] = useState<{
+    lead: Lead;
+    stage: LeadStageOption;
+  } | null>(null);
   const [columnLimits, setColumnLimits] = useState<Record<string, number>>({});
 
   const transitionGraphQuery = useQuery({
@@ -220,35 +273,67 @@ export function LeadKanbanBoard({
     queries: stages.map((stage) => {
       const limit = columnLimits[stage.id] ?? COLUMN_PAGE_SIZE;
       return {
-        queryKey: scopedQueryKey(workspace, "crm", "leads", "kanban", stage.code, filters, limit),
-        queryFn: () => listLeads({ ...filters, status: stage.code, limit, offset: 0 }),
+        queryKey: scopedQueryKey(
+          workspace,
+          "crm",
+          "leads",
+          "kanban",
+          stage.code,
+          filters,
+          limit,
+        ),
+        queryFn: () =>
+          listLeads({ ...filters, status: stage.code, limit, offset: 0 }),
       };
     }),
   });
   const isLoading = stageQueries.some((q) => q.isLoading);
-  const allLoadedLeads = useMemo(() => stageQueries.flatMap((q) => q.data?.rows ?? []), [stageQueries]);
+  const allLoadedLeads = useMemo(
+    () => stageQueries.flatMap((q) => q.data?.rows ?? []),
+    [stageQueries],
+  );
 
   const moveMutation = useMutation({
-    mutationFn: ({ leadId, stageId, reasonCode, expectedUpdatedAt }: { leadId: string; stageId: string; reasonCode?: string; expectedUpdatedAt: string }) =>
+    mutationFn: ({
+      leadId,
+      stageId,
+      reasonCode,
+      expectedUpdatedAt,
+    }: {
+      leadId: string;
+      stageId: string;
+      reasonCode?: string;
+      expectedUpdatedAt: string;
+    }) =>
       transitionLeadStage(leadId, { stageId, reasonCode, expectedUpdatedAt }),
     onMutate: ({ leadId }) => {
       setPendingLeadId(leadId);
       setMoveError(null);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: scopedQueryKey(workspace, "crm", "leads") });
+      queryClient.invalidateQueries({
+        queryKey: scopedQueryKey(workspace, "crm", "leads"),
+      });
     },
     onError: (err: unknown, variables) => {
       setMoveError({
         leadId: variables.leadId,
-        message: err instanceof LeadApiError ? err.message : "This move could not be completed.",
+        message:
+          err instanceof LeadApiError
+            ? err.message
+            : "This move could not be completed.",
       });
     },
     onSettled: () => setPendingLeadId(null),
   });
 
   function isReasonRequired(fromStageCode: string, toStageId: string) {
-    return transitions.some((edge) => edge.fromStageCode === fromStageCode && edge.toStageId === toStageId && edge.reasonRequired);
+    return transitions.some(
+      (edge) =>
+        edge.fromStageCode === fromStageCode &&
+        edge.toStageId === toStageId &&
+        edge.reasonRequired,
+    );
   }
 
   function attemptMove(lead: Lead, targetStageId: string) {
@@ -258,7 +343,11 @@ export function LeadKanbanBoard({
       setReasonPrompt({ lead, stage: targetStage });
       return;
     }
-    moveMutation.mutate({ leadId: lead.id, stageId: targetStageId, expectedUpdatedAt: lead.updatedAt });
+    moveMutation.mutate({
+      leadId: lead.id,
+      stageId: targetStageId,
+      expectedUpdatedAt: lead.updatedAt,
+    });
   }
 
   function handleDragStart(event: DragEvent<HTMLDivElement>, lead: Lead) {
@@ -272,11 +361,18 @@ export function LeadKanbanBoard({
     // clean single-card preview every time.
     const card = event.currentTarget;
     const rect = card.getBoundingClientRect();
-    event.dataTransfer.setDragImage(card, event.clientX - rect.left, event.clientY - rect.top);
+    event.dataTransfer.setDragImage(
+      card,
+      event.clientX - rect.left,
+      event.clientY - rect.top,
+    );
     setDraggingLeadId(lead.id);
   }
 
-  function handleDrop(event: DragEvent<HTMLDivElement>, stage: LeadStageOption) {
+  function handleDrop(
+    event: DragEvent<HTMLDivElement>,
+    stage: LeadStageOption,
+  ) {
     event.preventDefault();
     setDragOverStageId(null);
     const leadId = event.dataTransfer.getData(DRAG_MIME);
@@ -287,7 +383,9 @@ export function LeadKanbanBoard({
   }
 
   if (isLoading) {
-    return <p className="px-1 text-sm text-text-secondary">Loading pipeline…</p>;
+    return (
+      <p className="px-1 text-sm text-text-secondary">Loading pipeline…</p>
+    );
   }
 
   return (
@@ -307,15 +405,21 @@ export function LeadKanbanBoard({
                 event.dataTransfer.dropEffect = "move";
                 setDragOverStageId(stage.id);
               }}
-              onDragLeave={() => setDragOverStageId((id) => (id === stage.id ? null : id))}
+              onDragLeave={() =>
+                setDragOverStageId((id) => (id === stage.id ? null : id))
+              }
               onDrop={(event) => handleDrop(event, stage)}
               className={`flex w-72 shrink-0 flex-col gap-2 rounded-[var(--radius-card)] border p-3 transition-colors ${
-                isDragTarget ? "border-brand bg-brand-soft/40" : "border-border bg-surface-muted"
+                isDragTarget
+                  ? "border-brand bg-brand-soft/40"
+                  : "border-border bg-surface-muted"
               }`}
             >
               <div className="flex items-center justify-between px-0.5">
                 <p className="text-sm font-semibold text-text">{stage.name}</p>
-                <span className="text-xs tabular-nums text-text-muted">{total}</span>
+                <span className="text-xs tabular-nums text-text-muted">
+                  {total}
+                </span>
               </div>
               <div className="flex flex-col gap-2">
                 {cards.map((lead) => (
@@ -324,22 +428,38 @@ export function LeadKanbanBoard({
                     lead={lead}
                     stages={stages}
                     isPending={pendingLeadId === lead.id}
-                    error={moveError?.leadId === lead.id ? moveError.message : undefined}
+                    error={
+                      moveError?.leadId === lead.id
+                        ? moveError.message
+                        : undefined
+                    }
                     onOpen={onOpen}
                     onRequestMove={attemptMove}
                     onDragStart={handleDragStart}
                     onDragEnd={() => setDraggingLeadId(null)}
                   />
                 ))}
-                {cards.length === 0 && <p className="px-0.5 text-xs text-text-muted">No leads in this stage.</p>}
+                {cards.length === 0 && (
+                  <p className="px-0.5 text-xs text-text-muted">
+                    No leads in this stage.
+                  </p>
+                )}
                 {hasMore && (
                   <Button
                     variant="secondary"
                     size="compact"
-                    onPress={() => setColumnLimits((current) => ({ ...current, [stage.id]: (current[stage.id] ?? COLUMN_PAGE_SIZE) + COLUMN_PAGE_SIZE }))}
+                    onPress={() =>
+                      setColumnLimits((current) => ({
+                        ...current,
+                        [stage.id]:
+                          (current[stage.id] ?? COLUMN_PAGE_SIZE) +
+                          COLUMN_PAGE_SIZE,
+                      }))
+                    }
                     isLoading={stageQuery.isFetching}
                   >
-                    Show {Math.min(COLUMN_PAGE_SIZE, total - cards.length)} more ({total - cards.length} remaining)
+                    Show {Math.min(COLUMN_PAGE_SIZE, total - cards.length)} more
+                    ({total - cards.length} remaining)
                   </Button>
                 )}
               </div>
@@ -355,7 +475,12 @@ export function LeadKanbanBoard({
           onCancel={() => setReasonPrompt(null)}
           onConfirm={(reasonCode) => {
             moveMutation.mutate(
-              { leadId: reasonPrompt.lead.id, stageId: reasonPrompt.stage.id, reasonCode, expectedUpdatedAt: reasonPrompt.lead.updatedAt },
+              {
+                leadId: reasonPrompt.lead.id,
+                stageId: reasonPrompt.stage.id,
+                reasonCode,
+                expectedUpdatedAt: reasonPrompt.lead.updatedAt,
+              },
               { onSuccess: () => setReasonPrompt(null) },
             );
           }}

@@ -3,7 +3,12 @@
 // lead-governance.js's resolveLeadAssignment reads at Lead-create/assign
 // time. Deliberately not the generic "assignment-rules" resource
 // (tenant.crm_assignment_rules) — a different, unused table.
-export const ASSIGNMENT_MODES = ["fixed", "round_robin", "workload", "territory"] as const;
+export const ASSIGNMENT_MODES = [
+  "fixed",
+  "round_robin",
+  "workload",
+  "territory",
+] as const;
 export type AssignmentMode = (typeof ASSIGNMENT_MODES)[number];
 
 export type LeadAssignmentCriteria = {

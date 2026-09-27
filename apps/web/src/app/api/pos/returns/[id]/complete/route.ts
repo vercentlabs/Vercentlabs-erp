@@ -19,11 +19,27 @@ const completeReturnSchema = z.object({
 // permission that gates approving the return) — completing the refund is
 // treated as part of the same supervisor-level action as approving it, not
 // a separate cashier action.
-export async function POST(request: Request, context: { params: Promise<{ id: string }> }) {
-  return workspaceRoute(request, { module: "point-of-sale", permission: "pos.return.approve", billingWrite: true }, async ({ client, session }) => {
-    const { id } = await context.params;
-    const input = completeReturnSchema.parse(await readJson(request));
-    const result = await completePointOfSaleReturn(client, posContext(session), id, input);
-    return ok({ posReturn: result });
-  });
+export async function POST(
+  request: Request,
+  context: { params: Promise<{ id: string }> },
+) {
+  return workspaceRoute(
+    request,
+    {
+      module: "point-of-sale",
+      permission: "pos.return.approve",
+      billingWrite: true,
+    },
+    async ({ client, session }) => {
+      const { id } = await context.params;
+      const input = completeReturnSchema.parse(await readJson(request));
+      const result = await completePointOfSaleReturn(
+        client,
+        posContext(session),
+        id,
+        input,
+      );
+      return ok({ posReturn: result });
+    },
+  );
 }

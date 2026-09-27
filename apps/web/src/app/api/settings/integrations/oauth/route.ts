@@ -8,7 +8,16 @@ import { workspaceRoute } from "@/core/workspace-route";
 // configured them) plus the organisation's connection inventory. Credentials
 // are never part of any response.
 export async function GET(request: Request) {
-  return workspaceRoute(request, { permission: CORE_PERMISSIONS.integrationsView, action: "integrations.oauth.list" }, async ({ client, session }) =>
-    ok({ profiles: oauthProfilesStatus(), connections: await listOAuthConnections(client, session.organizationId) }),
+  return workspaceRoute(
+    request,
+    {
+      permission: CORE_PERMISSIONS.integrationsView,
+      action: "integrations.oauth.list",
+    },
+    async ({ client, session }) =>
+      ok({
+        profiles: oauthProfilesStatus(),
+        connections: await listOAuthConnections(client, session.organizationId),
+      }),
   );
 }

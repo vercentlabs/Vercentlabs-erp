@@ -2,7 +2,12 @@ import "server-only";
 
 import { randomUUID } from "node:crypto";
 
-import { authenticateApiKey, enforceRateLimit, requireApiScope, type ApiPrincipal } from "@vercentlabs/api";
+import {
+  authenticateApiKey,
+  enforceRateLimit,
+  requireApiScope,
+  type ApiPrincipal,
+} from "@vercentlabs/api";
 import type { PoolClient } from "pg";
 import { ZodError } from "zod";
 
@@ -33,7 +38,11 @@ export type ApiKeyRouteOptions = {
   maxBodyBytes?: number;
 };
 
-export type ApiKeyRouteContext = { client: PoolClient; principal: ApiPrincipal; requestId: string };
+export type ApiKeyRouteContext = {
+  client: PoolClient;
+  principal: ApiPrincipal;
+  requestId: string;
+};
 
 const DEFAULT_MAX_BODY = 256 * 1024;
 const RATE_WINDOW_SECONDS = 60;
@@ -49,46 +58,130 @@ function resolveRequestId(request: Request) {
 }
 
 function headers(requestId: string, extra: Record<string, string> = {}) {
-  return { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store", "X-Request-Id": requestId, ...extra };
+  return {
+    "Content-Type": "application/json; charset=utf-8",
+    "Cache-Control": "no-store",
+    "X-Request-Id": requestId,
+    ...extra,
+  };
 }
 
-export function apiOk(requestId: string, data: Record<string, unknown>, status = 200) {
-  return new Response(JSON.stringify({ ok: true, requestId, ...data }), { status, headers: headers(requestId) });
+export function apiOk(
+  requestId: string,
+  data: Record<string, unknown>,
+  status = 200,
+) {
+  return new Response(JSON.stringify({ ok: true, requestId, ...data }), {
+    status,
+    headers: headers(requestId),
+  });
 }
 
-export function apiError(requestId: string, status: number, code: string, message: string, extraHeaders: Record<string, string> = {}) {
-  return new Response(JSON.stringify({ ok: false, code, message, requestId }), { status, headers: headers(requestId, extraHeaders) });
+export function apiError(
+  requestId: string,
+  status: number,
+  code: string,
+  message: string,
+  extraHeaders: Record<string, string> = {},
+) {
+  return new Response(JSON.stringify({ ok: false, code, message, requestId }), {
+    status,
+    headers: headers(requestId, extraHeaders),
+  });
 }
 
 function toApiError(requestId: string, error: unknown, action: string) {
-  if (error instanceof ZodError) return apiError(requestId, 400, "VALIDATION_FAILED", "The request is not valid.");
-  const shaped = error as { status?: unknown; code?: unknown; message?: unknown };
-  if (typeof shaped?.status === "number" && shaped.status >= 400 && shaped.status < 500 && typeof shaped.message === "string") {
-    if (shaped.status === 429) return apiError(requestId, 429, "RATE_LIMITED", "Too many requests for this API key. Slow down and retry.", { "Retry-After": String(RATE_WINDOW_SECONDS) });
-    return apiError(requestId, shaped.status, typeof shaped.code === "string" ? shaped.code : "REQUEST_REJECTED", shaped.message);
+  if (error instanceof ZodError)
+    return apiError(
+      requestId,
+      400,
+      "VALIDATION_FAILED",
+      "The request is not valid.",
+    );
+  const shaped = error as {
+    status?: unknown;
+    code?: unknown;
+    message?: unknown;
+  };
+  if (
+    typeof shaped?.status === "number" &&
+    shaped.status >= 400 &&
+    shaped.status < 500 &&
+    typeof shaped.message === "string"
+  ) {
+    if (shaped.status === 429)
+      return apiError(
+        requestId,
+        429,
+        "RATE_LIMITED",
+        "Too many requests for this API key. Slow down and retry.",
+        { "Retry-After": String(RATE_WINDOW_SECONDS) },
+      );
+    return apiError(
+      requestId,
+      shaped.status,
+      typeof shaped.code === "string" ? shaped.code : "REQUEST_REJECTED",
+      shaped.message,
+    );
   }
-  console.error("api_v1_request_failed", { action, requestId, error: error instanceof Error ? error.name : "unknown" });
-  return apiError(requestId, 500, "INTERNAL_ERROR", "The request could not be completed.");
+  console.error("api_v1_request_failed", {
+    action,
+    requestId,
+    error: error instanceof Error ? error.name : "unknown",
+  });
+  return apiError(
+    requestId,
+    500,
+    "INTERNAL_ERROR",
+    "The request could not be completed.",
+  );
 }
 
-export async function apiKeyRoute(request: Request, options: ApiKeyRouteOptions, handler: (context: ApiKeyRouteContext) => Promise<Response>): Promise<Response> {
+export async function apiKeyRoute(
+  request: Request,
+  options: ApiKeyRouteOptions,
+  handler: (context: ApiKeyRouteContext) => Promise<Response>,
+): Promise<Response> {
   const requestId = resolveRequestId(request);
   try {
     const declared = Number(request.headers.get("content-length") || 0);
-    if (declared > (options.maxBodyBytes ?? DEFAULT_MAX_BODY)) return apiError(requestId, 413, "REQUEST_TOO_LARGE", "The request body is too large.");
-    const match = /^Bearer\s+(\S+)$/i.exec(request.headers.get("authorization")?.trim() ?? "");
-    if (!match) return apiError(requestId, 401, "PLATFORM_API_KEY_REQUIRED", "Send an API key as 'Authorization: Bearer <key>'.", { "WWW-Authenticate": "Bearer" });
+    if (declared > (options.maxBodyBytes ?? DEFAULT_MAX_BODY))
+      return apiError(
+        requestId,
+        413,
+        "REQUEST_TOO_LARGE",
+        "The request body is too large.",
+      );
+    const match = /^Bearer\s+(\S+)$/i.exec(
+      request.headers.get("authorization")?.trim() ?? "",
+    );
+    if (!match)
+      return apiError(
+        requestId,
+        401,
+        "PLATFORM_API_KEY_REQUIRED",
+        "Send an API key as 'Authorization: Bearer <key>'.",
+        { "WWW-Authenticate": "Bearer" },
+      );
 
     // Every authenticated request counts, including ones the scope check refuses.
     const principal = await ingressTransaction(async (client) => {
       const authenticated = await authenticateApiKey(client, match[1]);
-      await enforceRateLimit(client, `api-key:${authenticated.apiKeyId}`, rateLimitPerMinute(), RATE_WINDOW_SECONDS);
+      await enforceRateLimit(
+        client,
+        `api-key:${authenticated.apiKeyId}`,
+        rateLimitPerMinute(),
+        RATE_WINDOW_SECONDS,
+      );
       return authenticated;
     });
     requireApiScope(principal, options.scope);
 
     // The handler runs under the key's organisation (platform and tenant RLS).
-    return await tenantTransaction(principal.organizationId, (client: PoolClient) => handler({ client, principal, requestId }));
+    return await tenantTransaction(
+      principal.organizationId,
+      (client: PoolClient) => handler({ client, principal, requestId }),
+    );
   } catch (error) {
     return toApiError(requestId, error, options.action);
   }

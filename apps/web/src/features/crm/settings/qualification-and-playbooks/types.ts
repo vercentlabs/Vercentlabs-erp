@@ -10,7 +10,11 @@ export type QualificationTier = (typeof QUALIFICATION_TIERS)[number];
 // minimum, closing the one gap the "top ERPs" benchmark found: every rival
 // ships some ML/rule-based score as a qualification input, but Vercentlabs'
 // score→qualification relationship was previously one-directional.
-export const QUALIFICATION_CHECK_TYPES = ["non_empty_any", "positive_number", "minimum_threshold"] as const;
+export const QUALIFICATION_CHECK_TYPES = [
+  "non_empty_any",
+  "positive_number",
+  "minimum_threshold",
+] as const;
 export type QualificationCheckType = (typeof QUALIFICATION_CHECK_TYPES)[number];
 
 // The fixed allowlist a criterion's fieldKeys may reference
@@ -67,4 +71,9 @@ export type CrmPlaybook = {
   updatedAt: string;
 };
 
-export type CrmListResponse<T> = { rows: T[]; total: number; limit: number; offset: number };
+export type CrmListResponse<T> = {
+  rows: T[];
+  total: number;
+  limit: number;
+  offset: number;
+};

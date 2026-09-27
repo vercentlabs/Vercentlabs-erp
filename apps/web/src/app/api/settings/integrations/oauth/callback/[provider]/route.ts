@@ -1,4 +1,9 @@
-import { consumeOAuthState, exchangeOAuthCode, saveOAuthConnection, safeReturnPath } from "@vercentlabs/api";
+import {
+  consumeOAuthState,
+  exchangeOAuthCode,
+  saveOAuthConnection,
+  safeReturnPath,
+} from "@vercentlabs/api";
 import { CORE_PERMISSIONS } from "@vercentlabs/permissions";
 
 import { tenantTransaction } from "@/core/db";
@@ -10,30 +15,58 @@ import { workspaceRoute } from "@/core/workspace-route";
 //   2. redeem the code with the PKCE verifier (provider call, no transaction);
 //   3. store the encrypted credentials (own transaction).
 // It always ends on an allow-listed internal page.
-export async function GET(request: Request, context: { params: Promise<{ provider: string }> }) {
+export async function GET(
+  request: Request,
+  context: { params: Promise<{ provider: string }> },
+) {
   const { provider } = await context.params;
-  return workspaceRoute(request, { permission: CORE_PERMISSIONS.integrationsManage, action: "integrations.oauth.callback" }, async ({ session }) => {
-    const url = new URL(request.url);
-    const land = (path: string, outcome: "connected" | "failed", reason?: string) => {
-      const target = new URL(safeReturnPath(path), url.origin);
-      target.searchParams.set("tab", "connected-accounts");
-      target.searchParams.set("oauth", outcome);
-      if (reason) target.searchParams.set("reason", reason);
-      return Response.redirect(target.toString(), 303);
-    };
-    let attempt;
-    try {
-      attempt = await tenantTransaction(session.organizationId, (client) => consumeOAuthState(client, session, provider, url.searchParams.get("state") ?? ""));
-    } catch {
-      return land("/settings/integrations", "failed", "expired");
-    }
-    if (url.searchParams.get("error")) return land(attempt.returnPath, "failed", "declined");
-    try {
-      const exchanged = await exchangeOAuthCode(attempt.profileKey, { code: url.searchParams.get("code") ?? "", redirectUri: attempt.redirectUri, codeVerifier: attempt.codeVerifier });
-      await tenantTransaction(session.organizationId, (client) => saveOAuthConnection(client, session, exchanged));
-      return land(attempt.returnPath, "connected");
-    } catch {
-      return land(attempt.returnPath, "failed", "provider");
-    }
-  });
+  return workspaceRoute(
+    request,
+    {
+      permission: CORE_PERMISSIONS.integrationsManage,
+      action: "integrations.oauth.callback",
+    },
+    async ({ session }) => {
+      const url = new URL(request.url);
+      const land = (
+        path: string,
+        outcome: "connected" | "failed",
+        reason?: string,
+      ) => {
+        const target = new URL(safeReturnPath(path), url.origin);
+        target.searchParams.set("tab", "connected-accounts");
+        target.searchParams.set("oauth", outcome);
+        if (reason) target.searchParams.set("reason", reason);
+        return Response.redirect(target.toString(), 303);
+      };
+      let attempt;
+      try {
+        attempt = await tenantTransaction(session.organizationId, (client) =>
+          consumeOAuthState(
+            client,
+            session,
+            provider,
+            url.searchParams.get("state") ?? "",
+          ),
+        );
+      } catch {
+        return land("/settings/integrations", "failed", "expired");
+      }
+      if (url.searchParams.get("error"))
+        return land(attempt.returnPath, "failed", "declined");
+      try {
+        const exchanged = await exchangeOAuthCode(attempt.profileKey, {
+          code: url.searchParams.get("code") ?? "",
+          redirectUri: attempt.redirectUri,
+          codeVerifier: attempt.codeVerifier,
+        });
+        await tenantTransaction(session.organizationId, (client) =>
+          saveOAuthConnection(client, session, exchanged),
+        );
+        return land(attempt.returnPath, "connected");
+      } catch {
+        return land(attempt.returnPath, "failed", "provider");
+      }
+    },
+  );
 }

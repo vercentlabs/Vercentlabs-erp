@@ -2,9 +2,17 @@
 // (same rationale as apps/web/src/features/crm/shared/format.ts's money(),
 // duplicated locally rather than cross-imported so POS doesn't depend on
 // CRM's file layout).
-export function money(currencyCode: string | null | undefined, value: number | string | null | undefined) {
+export function money(
+  currencyCode: string | null | undefined,
+  value: number | string | null | undefined,
+) {
   const numeric = typeof value === "number" ? value : Number(value ?? 0);
-  const formatted = Number.isFinite(numeric) ? numeric.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : String(value);
+  const formatted = Number.isFinite(numeric)
+    ? numeric.toLocaleString(undefined, {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+      })
+    : String(value);
   return `${currencyCode || ""} ${formatted}`.trim();
 }
 
@@ -20,7 +28,10 @@ export function calendarDate(value: string | null | undefined) {
   return value.slice(0, 10);
 }
 
-const dateTimeFormatter = new Intl.DateTimeFormat("en-IN", { dateStyle: "medium", timeStyle: "short" });
+const dateTimeFormatter = new Intl.DateTimeFormat("en-IN", {
+  dateStyle: "medium",
+  timeStyle: "short",
+});
 
 // A full timestamp (created_at, closed_at, …) in the same "en-IN" medium
 // date + short time style CRM's lists use, instead of each screen calling
@@ -28,7 +39,9 @@ const dateTimeFormatter = new Intl.DateTimeFormat("en-IN", { dateStyle: "medium"
 export function dateTime(value: string | null | undefined) {
   if (!value) return "—";
   const parsed = new Date(value);
-  return Number.isNaN(parsed.getTime()) ? "—" : dateTimeFormatter.format(parsed);
+  return Number.isNaN(parsed.getTime())
+    ? "—"
+    : dateTimeFormatter.format(parsed);
 }
 
 export type StatusTone = "neutral" | "info" | "success" | "warning" | "danger";
@@ -71,8 +84,12 @@ export function statusTone(status: string | null | undefined): StatusTone {
 // "partially_returned" -> "Partially returned"; acronyms keep their form.
 const ACRONYM_LABELS: Record<string, string> = { upi: "UPI", pos: "POS" };
 export function statusLabel(status: string | null | undefined) {
-  const raw = String(status ?? "").trim().toLowerCase();
+  const raw = String(status ?? "")
+    .trim()
+    .toLowerCase();
   if (ACRONYM_LABELS[raw]) return ACRONYM_LABELS[raw];
-  const text = String(status ?? "").replace(/_/g, " ").trim();
+  const text = String(status ?? "")
+    .replace(/_/g, " ")
+    .trim();
   return text ? text.charAt(0).toUpperCase() + text.slice(1) : "—";
 }

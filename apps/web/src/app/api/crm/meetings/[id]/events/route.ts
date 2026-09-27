@@ -11,11 +11,20 @@ type RouteContext = { params: Promise<{ id: string }> };
 // lifecycle ledger reader) existed, tested and exported at the top-level
 // @vercentlabs/api package, but had zero routes or frontend callers.
 export async function GET(request: Request, context: RouteContext) {
-  return workspaceRoute(request, { module: "crm", permission: CRM_PERMISSIONS.activitiesManage }, async ({ client, session }) => {
-    const { id } = await context.params;
-    const url = new URL(request.url);
-    const limit = url.searchParams.get("limit");
-    const rows = await listCrmMeetingEvents(client, crmContext(session), id, limit ? Number(limit) : undefined);
-    return ok({ rows });
-  });
+  return workspaceRoute(
+    request,
+    { module: "crm", permission: CRM_PERMISSIONS.activitiesManage },
+    async ({ client, session }) => {
+      const { id } = await context.params;
+      const url = new URL(request.url);
+      const limit = url.searchParams.get("limit");
+      const rows = await listCrmMeetingEvents(
+        client,
+        crmContext(session),
+        id,
+        limit ? Number(limit) : undefined,
+      );
+      return ok({ rows });
+    },
+  );
 }

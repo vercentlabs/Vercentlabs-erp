@@ -1,7 +1,12 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
-import { forgetSeed, persistSeed, recoverSeed, type MetaStore } from "./seed-vault.ts";
+import {
+  forgetSeed,
+  persistSeed,
+  recoverSeed,
+  type MetaStore,
+} from "./seed-vault.ts";
 
 function memoryStore(): MetaStore & { rows: Map<string, unknown> } {
   const rows = new Map<string, unknown>();
@@ -23,7 +28,11 @@ test("a cold offline reload recovers the seed from the device store alone", asyn
 test("the seed is not stored in plaintext", async () => {
   const store = memoryStore();
   await persistSeed(store, "server-issued-seed");
-  assert.ok(!JSON.stringify(store.rows.get("wrappedSeed")).includes("server-issued-seed"));
+  assert.ok(
+    !JSON.stringify(store.rows.get("wrappedSeed")).includes(
+      "server-issued-seed",
+    ),
+  );
 });
 
 test("the wrapping key is non-extractable", async () => {

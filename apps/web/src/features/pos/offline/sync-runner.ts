@@ -12,10 +12,15 @@
 // offline/screens/PosOfflineSyncConflictsScreen.tsx), which any authorized
 // device can act on, not necessarily the one that captured the sale.
 import { listOfflineQueue, removeOfflineSale, updateOfflineSale } from "./db";
-import { syncOfflinePosSales, type PosOfflineSyncTransaction } from "@/features/pos/offline/api/offline-api";
+import {
+  syncOfflinePosSales,
+  type PosOfflineSyncTransaction,
+} from "@/features/pos/offline/api/offline-api";
 import type { PosOfflineQueuedSale } from "./types";
 
-function toSyncTransaction(sale: PosOfflineQueuedSale): PosOfflineSyncTransaction {
+function toSyncTransaction(
+  sale: PosOfflineQueuedSale,
+): PosOfflineSyncTransaction {
   return {
     localTransactionId: sale.localTransactionId,
     storeId: sale.storeId,
@@ -35,7 +40,12 @@ function toSyncTransaction(sale: PosOfflineQueuedSale): PosOfflineSyncTransactio
   };
 }
 
-export type OfflineSyncPassResult = { synced: number; conflicts: number; errors: number; total: number };
+export type OfflineSyncPassResult = {
+  synced: number;
+  conflicts: number;
+  errors: number;
+  total: number;
+};
 
 export async function runOfflineSyncPass(): Promise<OfflineSyncPassResult> {
   const queue = await listOfflineQueue();
@@ -52,10 +62,20 @@ export async function runOfflineSyncPass(): Promise<OfflineSyncPassResult> {
   // local transaction id is a safe no-op" guarantee), so there is no
   // double-submission risk in treating a leftover "syncing" status the
   // same as "queued"/"error".
-  const pending = queue.filter((sale) => sale.status === "queued" || sale.status === "error" || sale.status === "syncing");
-  if (pending.length === 0) return { synced: 0, conflicts: 0, errors: 0, total: 0 };
+  const pending = queue.filter(
+    (sale) =>
+      sale.status === "queued" ||
+      sale.status === "error" ||
+      sale.status === "syncing",
+  );
+  if (pending.length === 0)
+    return { synced: 0, conflicts: 0, errors: 0, total: 0 };
 
-  await Promise.all(pending.map((sale) => updateOfflineSale(sale.localTransactionId, { status: "syncing" })));
+  await Promise.all(
+    pending.map((sale) =>
+      updateOfflineSale(sale.localTransactionId, { status: "syncing" }),
+    ),
+  );
 
   let results;
   try {
@@ -65,7 +85,11 @@ export async function runOfflineSyncPass(): Promise<OfflineSyncPassResult> {
     // The batch request itself failed (still offline, or a real server
     // error) -- revert to queued so the next pass retries, rather than
     // stranding these in "syncing" forever.
-    await Promise.all(pending.map((sale) => updateOfflineSale(sale.localTransactionId, { status: "queued" })));
+    await Promise.all(
+      pending.map((sale) =>
+        updateOfflineSale(sale.localTransactionId, { status: "queued" }),
+      ),
+    );
     throw error;
   }
 
@@ -79,10 +103,17 @@ export async function runOfflineSyncPass(): Promise<OfflineSyncPassResult> {
     } else if (result.outcome === "voided") {
       await removeOfflineSale(result.localTransactionId);
     } else if (result.outcome === "conflict") {
-      await updateOfflineSale(result.localTransactionId, { status: "conflict", conflictType: result.conflictType, lastSyncError: result.detail });
+      await updateOfflineSale(result.localTransactionId, {
+        status: "conflict",
+        conflictType: result.conflictType,
+        lastSyncError: result.detail,
+      });
       conflicts += 1;
     } else {
-      await updateOfflineSale(result.localTransactionId, { status: "error", lastSyncError: result.detail });
+      await updateOfflineSale(result.localTransactionId, {
+        status: "error",
+        lastSyncError: result.detail,
+      });
       errors += 1;
     }
   }

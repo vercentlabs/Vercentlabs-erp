@@ -110,7 +110,11 @@ export async function requireVerifiedUser(): Promise<SessionContext> {
 // factor that's never actually checked.
 export async function requireMfaVerifiedUser(): Promise<SessionContext> {
   const session = await requireVerifiedUser();
-  if ((session.mfaEnrolled || session.mfaPolicyRequired) && !session.mfaVerified) redirect("/mfa-verify");
+  if (
+    (session.mfaEnrolled || session.mfaPolicyRequired) &&
+    !session.mfaVerified
+  )
+    redirect("/mfa-verify");
   return session;
 }
 
@@ -129,8 +133,14 @@ export async function requireWorkspace(): Promise<WorkspaceSessionContext> {
 // skipped.
 export async function requireApiUser(): Promise<SessionContext> {
   const session = await getSessionContext();
-  if (!session) throw new HttpError(401, "Authentication is required.", "AUTH_REQUIRED");
-  if (!session.emailVerified) throw new HttpError(403, "Email verification is required.", "AUTH_EMAIL_UNVERIFIED");
+  if (!session)
+    throw new HttpError(401, "Authentication is required.", "AUTH_REQUIRED");
+  if (!session.emailVerified)
+    throw new HttpError(
+      403,
+      "Email verification is required.",
+      "AUTH_EMAIL_UNVERIFIED",
+    );
   return session;
 }
 
@@ -142,13 +152,30 @@ export async function requireApiUser(): Promise<SessionContext> {
 // server-side on every call.
 export async function requireApiWorkspace(): Promise<WorkspaceSessionContext> {
   const session = await getSessionContext();
-  if (!session) throw new HttpError(401, "Authentication is required.", "AUTH_REQUIRED");
-  if (!session.emailVerified) throw new HttpError(403, "Email verification is required.", "AUTH_EMAIL_UNVERIFIED");
-  if ((session.mfaEnrolled || session.mfaPolicyRequired) && !session.mfaVerified) {
-    throw new HttpError(403, "Multi-factor verification is required for this session.", "AUTH_MFA_REQUIRED");
+  if (!session)
+    throw new HttpError(401, "Authentication is required.", "AUTH_REQUIRED");
+  if (!session.emailVerified)
+    throw new HttpError(
+      403,
+      "Email verification is required.",
+      "AUTH_EMAIL_UNVERIFIED",
+    );
+  if (
+    (session.mfaEnrolled || session.mfaPolicyRequired) &&
+    !session.mfaVerified
+  ) {
+    throw new HttpError(
+      403,
+      "Multi-factor verification is required for this session.",
+      "AUTH_MFA_REQUIRED",
+    );
   }
   if (!session.organizationId) {
-    throw new HttpError(403, "An authenticated organisation workspace is required.", "AUTH_NO_WORKSPACE");
+    throw new HttpError(
+      403,
+      "An authenticated organisation workspace is required.",
+      "AUTH_NO_WORKSPACE",
+    );
   }
   return session as WorkspaceSessionContext;
 }
@@ -156,7 +183,11 @@ export async function requireApiWorkspace(): Promise<WorkspaceSessionContext> {
 export function nextPath(session: SessionContext) {
   if (!session.emailVerified)
     return "/verify-email?email=" + encodeURIComponent(session.email);
-  if ((session.mfaEnrolled || session.mfaPolicyRequired) && !session.mfaVerified) return "/mfa-verify";
+  if (
+    (session.mfaEnrolled || session.mfaPolicyRequired) &&
+    !session.mfaVerified
+  )
+    return "/mfa-verify";
   if (!session.organizationId) return "/onboarding";
   return "/";
 }

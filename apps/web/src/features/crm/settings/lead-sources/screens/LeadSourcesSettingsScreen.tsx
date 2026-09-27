@@ -35,7 +35,6 @@ import {
 } from "../api/lead-sources-api";
 import { LEAD_SOURCE_CHANNELS, type LeadSource } from "../types";
 
-
 const CHANNEL_OPTIONS: SelectOption[] = LEAD_SOURCE_CHANNELS.map((value) => ({
   value,
   label: value.replace(/_/g, " ").replace(/^./, (c) => c.toUpperCase()),
@@ -49,25 +48,42 @@ const CHANNEL_OPTIONS: SelectOption[] = LEAD_SOURCE_CHANNELS.map((value) => ({
 export function LeadSourcesSettingsScreen() {
   const workspace = useWorkspaceContext();
   const queryClient = useQueryClient();
-  const canManage = workspace.permissions.includes(CRM_PERMISSIONS.settingsManage);
+  const canManage = workspace.permissions.includes(
+    CRM_PERMISSIONS.settingsManage,
+  );
 
   const [createOpen, setCreateOpen] = useState(false);
   const [editingSource, setEditingSource] = useState<LeadSource | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const query = useQuery({ queryKey: scopedQueryKey(workspace, "crm", "lead-sources"), queryFn: listLeadSources });
+  const query = useQuery({
+    queryKey: scopedQueryKey(workspace, "crm", "lead-sources"),
+    queryFn: listLeadSources,
+  });
   const rows = query.data?.rows ?? [];
 
   function invalidate() {
-    queryClient.invalidateQueries({ queryKey: scopedQueryKey(workspace, "crm", "lead-sources") });
+    queryClient.invalidateQueries({
+      queryKey: scopedQueryKey(workspace, "crm", "lead-sources"),
+    });
   }
   function handleError(err: unknown) {
-    setError(err instanceof LeadSourceApiError ? err.message : "This action could not be completed.");
-    if (err instanceof LeadSourceApiError && err.code === "CRM_STALE_WRITE") invalidate();
+    setError(
+      err instanceof LeadSourceApiError
+        ? err.message
+        : "This action could not be completed.",
+    );
+    if (err instanceof LeadSourceApiError && err.code === "CRM_STALE_WRITE")
+      invalidate();
   }
 
   const toggleActiveMutation = useMutation({
-    mutationFn: (source: LeadSource) => setLeadSourceActive(source.id, source.status !== "active", source.updatedAt),
+    mutationFn: (source: LeadSource) =>
+      setLeadSourceActive(
+        source.id,
+        source.status !== "active",
+        source.updatedAt,
+      ),
     onSuccess: () => {
       setError(null);
       invalidate();
@@ -76,8 +92,20 @@ export function LeadSourcesSettingsScreen() {
   });
 
   // How each source performs comes from the dashboard's own aggregation, matched by source name.
-  const statsQuery = useQuery({ queryKey: scopedQueryKey(workspace, "crm", "dashboard"), queryFn: () => getCrmDashboardData() });
-  const statsByName = useMemo(() => new Map((statsQuery.data?.dashboard.sources ?? []).map((row) => [row.name, row])), [statsQuery.data]);
+  const statsQuery = useQuery({
+    queryKey: scopedQueryKey(workspace, "crm", "dashboard"),
+    queryFn: () => getCrmDashboardData(),
+  });
+  const statsByName = useMemo(
+    () =>
+      new Map(
+        (statsQuery.data?.dashboard.sources ?? []).map((row) => [
+          row.name,
+          row,
+        ]),
+      ),
+    [statsQuery.data],
+  );
 
   const columns: ColumnDef<LeadSource, unknown>[] = useMemo(
     () => [
@@ -88,30 +116,82 @@ export function LeadSourcesSettingsScreen() {
         cell: ({ row }) => (
           <span className="flex items-center gap-2 font-medium text-text">
             {row.original.name}
-            {row.original.isDefault && <StatusBadge tone="info">Default</StatusBadge>}
+            {row.original.isDefault && (
+              <StatusBadge tone="info">Default</StatusBadge>
+            )}
           </span>
         ),
       },
-      { id: "channel", header: "Channel", accessorFn: (row) => (row.channel ? humanize(row.channel) : "Not set") },
+      {
+        id: "channel",
+        header: "Channel",
+        accessorFn: (row) => (row.channel ? humanize(row.channel) : "Not set"),
+      },
       { id: "leadCount", header: "Leads", accessorFn: (row) => row.leadCount },
-      { id: "converted", header: "Converted", accessorFn: (row) => statsByName.get(row.name)?.convertedCount ?? "", cell: ({ row }) => { const st = statsByName.get(row.original.name); return st ? <span className="tabular-nums">{st.convertedCount}</span> : <span className="text-text-muted">{statsQuery.isLoading ? "…" : "None yet"}</span>; } },
-      { id: "conversion", header: "Conversion", accessorFn: (row) => { const st = statsByName.get(row.name); return st && st.leadCount > 0 ? Math.round((st.convertedCount / st.leadCount) * 100) : ""; }, cell: ({ row }) => { const st = statsByName.get(row.original.name); return st && st.leadCount > 0 ? <span className="tabular-nums">{Math.round((st.convertedCount / st.leadCount) * 100)}%</span> : <span className="text-text-muted">No leads</span>; } },
+      {
+        id: "converted",
+        header: "Converted",
+        accessorFn: (row) => statsByName.get(row.name)?.convertedCount ?? "",
+        cell: ({ row }) => {
+          const st = statsByName.get(row.original.name);
+          return st ? (
+            <span className="tabular-nums">{st.convertedCount}</span>
+          ) : (
+            <span className="text-text-muted">
+              {statsQuery.isLoading ? "…" : "None yet"}
+            </span>
+          );
+        },
+      },
+      {
+        id: "conversion",
+        header: "Conversion",
+        accessorFn: (row) => {
+          const st = statsByName.get(row.name);
+          return st && st.leadCount > 0
+            ? Math.round((st.convertedCount / st.leadCount) * 100)
+            : "";
+        },
+        cell: ({ row }) => {
+          const st = statsByName.get(row.original.name);
+          return st && st.leadCount > 0 ? (
+            <span className="tabular-nums">
+              {Math.round((st.convertedCount / st.leadCount) * 100)}%
+            </span>
+          ) : (
+            <span className="text-text-muted">No leads</span>
+          );
+        },
+      },
       {
         id: "status",
         header: "State",
         accessorKey: "status",
-        cell: ({ getValue }) => <StatusBadge tone={getValue() === "active" ? "success" : "neutral"}>{getValue() === "active" ? "Active" : "Inactive"}</StatusBadge>,
+        cell: ({ getValue }) => (
+          <StatusBadge tone={getValue() === "active" ? "success" : "neutral"}>
+            {getValue() === "active" ? "Active" : "Inactive"}
+          </StatusBadge>
+        ),
       },
     ],
     [statsByName, statsQuery.isLoading],
   );
 
-  if (!canManage) return <PermissionState title="You don't have access to CRM Setup" description="Ask an administrator to grant crm.settings.manage." />;
+  if (!canManage)
+    return (
+      <PermissionState
+        title="You don't have access to CRM Setup"
+        description="Ask an administrator to grant crm.settings.manage."
+      />
+    );
 
   return (
     <div className="flex flex-col gap-4">
       {error && (
-        <p role="alert" className="rounded-[var(--radius-control)] border border-danger-emphasis/30 bg-danger-soft px-3 py-2 text-sm text-danger">
+        <p
+          role="alert"
+          className="rounded-[var(--radius-control)] border border-danger-emphasis/30 bg-danger-soft px-3 py-2 text-sm text-danger"
+        >
           {error}
         </p>
       )}
@@ -119,7 +199,8 @@ export function LeadSourcesSettingsScreen() {
       <EnterpriseListPage
         header={{
           title: "Lead sources",
-          description: "Where leads come from and how well each source converts. The default source is used when a lead has none.",
+          description:
+            "Where leads come from and how well each source converts. The default source is used when a lead has none.",
           primaryAction: (
             <Button variant="primary" onPress={() => setCreateOpen(true)}>
               <Plus className="size-4" aria-hidden="true" />
@@ -133,14 +214,30 @@ export function LeadSourcesSettingsScreen() {
           columns={columns}
           data={rows}
           getRowId={(row) => row.id}
-          {...gridStates(query, rows.length, "lead sources", { title: "No lead sources yet", description: "A source says where a lead came from, such as Website, Referral or Trade show. Sources let you see which channels bring in customers." })}
+          {...gridStates(query, rows.length, "lead sources", {
+            title: "No lead sources yet",
+            description:
+              "A source says where a lead came from, such as Website, Referral or Trade show. Sources let you see which channels bring in customers.",
+          })}
           rowActions={(row) => (
-            <span className="flex items-center gap-1" onClick={(event) => event.stopPropagation()}>
-              <IconButton aria-label={`Edit ${row.name}`} size="compact" variant="ghost" onPress={() => setEditingSource(row)}>
+            <span
+              className="flex items-center gap-1"
+              onClick={(event) => event.stopPropagation()}
+            >
+              <IconButton
+                aria-label={`Edit ${row.name}`}
+                size="compact"
+                variant="ghost"
+                onPress={() => setEditingSource(row)}
+              >
                 <Pencil className="size-4" aria-hidden="true" />
               </IconButton>
               <IconButton
-                aria-label={row.status === "active" ? `Deactivate ${row.name}` : `Activate ${row.name}`}
+                aria-label={
+                  row.status === "active"
+                    ? `Deactivate ${row.name}`
+                    : `Activate ${row.name}`
+                }
                 size="compact"
                 variant={row.status === "active" ? "danger" : "ghost"}
                 onPress={() => toggleActiveMutation.mutate(row)}
@@ -153,8 +250,17 @@ export function LeadSourcesSettingsScreen() {
         />
       </EnterpriseListPage>
 
-      <CreateLeadSourceDialog isOpen={createOpen} onOpenChange={setCreateOpen} onCreated={invalidate} onError={handleError} />
-      <EditLeadSourceDialog source={editingSource} onOpenChange={(open) => !open && setEditingSource(null)} onSaved={invalidate} />
+      <CreateLeadSourceDialog
+        isOpen={createOpen}
+        onOpenChange={setCreateOpen}
+        onCreated={invalidate}
+        onError={handleError}
+      />
+      <EditLeadSourceDialog
+        source={editingSource}
+        onOpenChange={(open) => !open && setEditingSource(null)}
+        onSaved={invalidate}
+      />
     </div>
   );
 }
@@ -175,7 +281,8 @@ function CreateLeadSourceDialog({
   const [isDefault, setIsDefault] = useState(false);
 
   const mutation = useMutation({
-    mutationFn: () => createLeadSource({ name, channel: channel || undefined, isDefault }),
+    mutationFn: () =>
+      createLeadSource({ name, channel: channel || undefined, isDefault }),
     onSuccess: () => {
       onCreated();
       onOpenChange(false);
@@ -190,11 +297,25 @@ function CreateLeadSourceDialog({
     <Dialog isOpen={isOpen} onOpenChange={onOpenChange} title="New lead source">
       <div className="flex flex-col gap-4">
         <TextField label="Name" isRequired value={name} onChange={setName} />
-        <Select label="Channel" options={CHANNEL_OPTIONS} selectedKey={channel} onSelectionChange={(key) => setChannel(String(key ?? ""))} />
-        <Checkbox isSelected={isDefault} onChange={setIsDefault}>Make this the default source</Checkbox>
+        <Select
+          label="Channel"
+          options={CHANNEL_OPTIONS}
+          selectedKey={channel}
+          onSelectionChange={(key) => setChannel(String(key ?? ""))}
+        />
+        <Checkbox isSelected={isDefault} onChange={setIsDefault}>
+          Make this the default source
+        </Checkbox>
         <div className="flex justify-end gap-2">
-          <Button variant="secondary" onPress={() => onOpenChange(false)}>Cancel</Button>
-          <Button variant="primary" onPress={() => mutation.mutate()} isLoading={mutation.isPending} isDisabled={!name.trim()}>
+          <Button variant="secondary" onPress={() => onOpenChange(false)}>
+            Cancel
+          </Button>
+          <Button
+            variant="primary"
+            onPress={() => mutation.mutate()}
+            isLoading={mutation.isPending}
+            isDisabled={!name.trim()}
+          >
             Create source
           </Button>
         </div>
@@ -243,32 +364,74 @@ function EditLeadSourceDialog({
     mutationFn: () =>
       updateLeadSource(
         source!.id,
-        { name, description: description || null, channel: channel || undefined, sortOrder, isDefault },
+        {
+          name,
+          description: description || null,
+          channel: channel || undefined,
+          sortOrder,
+          isDefault,
+        },
         source!.updatedAt,
       ),
     onSuccess: () => {
       onSaved();
       onOpenChange(false);
     },
-    onError: (err: unknown) => setError(err instanceof LeadSourceApiError ? err.message : "This action could not be completed."),
+    onError: (err: unknown) =>
+      setError(
+        err instanceof LeadSourceApiError
+          ? err.message
+          : "This action could not be completed.",
+      ),
   });
 
   return (
-    <Dialog isOpen={Boolean(source)} onOpenChange={onOpenChange} title={source ? `Edit ${source.name}` : "Edit source"}>
+    <Dialog
+      isOpen={Boolean(source)}
+      onOpenChange={onOpenChange}
+      title={source ? `Edit ${source.name}` : "Edit source"}
+    >
       <div className="flex flex-col gap-4">
         {error && (
-          <p role="alert" className="rounded-[var(--radius-control)] border border-danger-emphasis/30 bg-danger-soft px-3 py-2 text-sm text-danger">
+          <p
+            role="alert"
+            className="rounded-[var(--radius-control)] border border-danger-emphasis/30 bg-danger-soft px-3 py-2 text-sm text-danger"
+          >
             {error}
           </p>
         )}
         <TextField label="Name" isRequired value={name} onChange={setName} />
-        <TextArea label="Description" value={description} onChange={setDescription} />
-        <Select label="Channel" options={CHANNEL_OPTIONS} selectedKey={channel} onSelectionChange={(key) => setChannel(String(key ?? ""))} />
-        <NumberField label="Display order" value={sortOrder} onChange={setSortOrder} minValue={0} maxValue={10000} />
-        <Checkbox isSelected={isDefault} onChange={setIsDefault}>Make this the default source</Checkbox>
+        <TextArea
+          label="Description"
+          value={description}
+          onChange={setDescription}
+        />
+        <Select
+          label="Channel"
+          options={CHANNEL_OPTIONS}
+          selectedKey={channel}
+          onSelectionChange={(key) => setChannel(String(key ?? ""))}
+        />
+        <NumberField
+          label="Display order"
+          value={sortOrder}
+          onChange={setSortOrder}
+          minValue={0}
+          maxValue={10000}
+        />
+        <Checkbox isSelected={isDefault} onChange={setIsDefault}>
+          Make this the default source
+        </Checkbox>
         <div className="flex justify-end gap-2">
-          <Button variant="secondary" onPress={() => onOpenChange(false)}>Cancel</Button>
-          <Button variant="primary" onPress={() => mutation.mutate()} isLoading={mutation.isPending} isDisabled={!name.trim()}>
+          <Button variant="secondary" onPress={() => onOpenChange(false)}>
+            Cancel
+          </Button>
+          <Button
+            variant="primary"
+            onPress={() => mutation.mutate()}
+            isLoading={mutation.isPending}
+            isDisabled={!name.trim()}
+          >
             Save changes
           </Button>
         </div>

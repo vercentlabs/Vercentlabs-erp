@@ -1,7 +1,19 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { canonicalTimezone, formatMinutes, dueLabel, dueState, formatMoney, humanize, isoToLocalParts, localToIso, reminderLabel, reminderOffsetsLabel, timezoneLabel } from "./human.ts";
+import {
+  canonicalTimezone,
+  formatMinutes,
+  dueLabel,
+  dueState,
+  formatMoney,
+  humanize,
+  isoToLocalParts,
+  localToIso,
+  reminderLabel,
+  reminderOffsetsLabel,
+  timezoneLabel,
+} from "./human.ts";
 
 test("humanize turns stored tokens into product copy", () => {
   assert.equal(humanize("not_reviewed"), "Not reviewed");
@@ -21,22 +33,37 @@ test("reminder minutes map to words and back to the same numbers", () => {
   assert.equal(reminderLabel(2880), "2 days before");
   assert.equal(reminderLabel(10080), "1 week before");
   assert.equal(reminderLabel(45), "45 minutes before");
-  assert.equal(reminderOffsetsLabel([0, 1440, 60]), "1 day before, 1 hour before, At due time");
+  assert.equal(
+    reminderOffsetsLabel([0, 1440, 60]),
+    "1 day before, 1 hour before, At due time",
+  );
   assert.equal(reminderOffsetsLabel([]), "No reminders");
 });
 
 test("the two names for India's time zone read as one", () => {
   assert.equal(canonicalTimezone("Asia/Calcutta"), "Asia/Kolkata");
   assert.equal(timezoneLabel("Asia/Calcutta"), timezoneLabel("Asia/Kolkata"));
-  assert.match(timezoneLabel("Asia/Kolkata"), /India Standard Time \(GMT\+5:30\)/);
+  assert.match(
+    timezoneLabel("Asia/Kolkata"),
+    /India Standard Time \(GMT\+5:30\)/,
+  );
 });
 
 test("wall clock in a zone converts to the stored instant and back", () => {
   const iso = localToIso("2026-11-28", "23:30", "Asia/Kolkata");
   assert.equal(iso, "2026-11-28T18:00:00.000Z");
-  assert.deepEqual(isoToLocalParts(iso, "Asia/Kolkata"), { date: "2026-11-28", time: "23:30" });
-  assert.deepEqual(isoToLocalParts(iso, "UTC"), { date: "2026-11-28", time: "18:00" });
-  assert.equal(localToIso("2026-07-01", "09:00", "America/New_York"), "2026-07-01T13:00:00.000Z");
+  assert.deepEqual(isoToLocalParts(iso, "Asia/Kolkata"), {
+    date: "2026-11-28",
+    time: "23:30",
+  });
+  assert.deepEqual(isoToLocalParts(iso, "UTC"), {
+    date: "2026-11-28",
+    time: "18:00",
+  });
+  assert.equal(
+    localToIso("2026-07-01", "09:00", "America/New_York"),
+    "2026-07-01T13:00:00.000Z",
+  );
   assert.equal(localToIso("", "09:00", "UTC"), "");
 });
 

@@ -10,11 +10,23 @@ const finalizeSchema = z.object({
   closeNotes: z.string().trim().max(2_000).optional().nullable(),
 });
 
-export async function POST(request: Request, context: { params: Promise<{ id: string }> }) {
-  return workspaceRoute(request, { module: "point-of-sale", permission: "pos.report.finalize" }, async ({ client, session }) => {
-    const { id } = await context.params;
-    const input = finalizeSchema.parse(await readJson(request));
-    const result = await finalizePosDayEndReport(client, posContext(session), id, input);
-    return ok({ report: result });
-  });
+export async function POST(
+  request: Request,
+  context: { params: Promise<{ id: string }> },
+) {
+  return workspaceRoute(
+    request,
+    { module: "point-of-sale", permission: "pos.report.finalize" },
+    async ({ client, session }) => {
+      const { id } = await context.params;
+      const input = finalizeSchema.parse(await readJson(request));
+      const result = await finalizePosDayEndReport(
+        client,
+        posContext(session),
+        id,
+        input,
+      );
+      return ok({ report: result });
+    },
+  );
 }

@@ -1,6 +1,7 @@
 "use client";
 
-export type CrmAttachmentEntityType = "lead" | "opportunity" | "party" | "contact" | "campaign";
+export type CrmAttachmentEntityType =
+  "lead" | "opportunity" | "party" | "contact" | "campaign";
 
 export type CrmAttachment = {
   id: string;
@@ -29,18 +30,33 @@ export class AttachmentApiError extends Error {
 async function parseResponse<T>(response: Response): Promise<T> {
   const payload = await response.json().catch(() => ({}));
   if (!response.ok || payload.ok === false) {
-    throw new AttachmentApiError(payload.message || "The request could not be completed.", response.status, payload.code);
+    throw new AttachmentApiError(
+      payload.message || "The request could not be completed.",
+      response.status,
+      payload.code,
+    );
   }
   return payload;
 }
 
-export async function listAttachments(entityType: CrmAttachmentEntityType, entityId: string): Promise<{ rows: CrmAttachment[] }> {
-  const response = await fetch(`/api/crm/attachments/${entityType}/${entityId}`);
+export async function listAttachments(
+  entityType: CrmAttachmentEntityType,
+  entityId: string,
+): Promise<{ rows: CrmAttachment[] }> {
+  const response = await fetch(
+    `/api/crm/attachments/${entityType}/${entityId}`,
+  );
   return parseResponse(response);
 }
 
-export async function listAttachmentVersions(entityType: CrmAttachmentEntityType, entityId: string, logicalId: string): Promise<{ rows: CrmAttachment[] }> {
-  const response = await fetch(`/api/crm/attachments/${entityType}/${entityId}/${logicalId}/versions`);
+export async function listAttachmentVersions(
+  entityType: CrmAttachmentEntityType,
+  entityId: string,
+  logicalId: string,
+): Promise<{ rows: CrmAttachment[] }> {
+  const response = await fetch(
+    `/api/crm/attachments/${entityType}/${entityId}/${logicalId}/versions`,
+  );
   return parseResponse(response);
 }
 
@@ -53,16 +69,30 @@ export async function uploadAttachment(
   const form = new FormData();
   form.set("file", file);
   if (replacesLogicalId) form.set("replacesLogicalId", replacesLogicalId);
-  const response = await fetch(`/api/crm/attachments/${entityType}/${entityId}`, { method: "POST", body: form });
+  const response = await fetch(
+    `/api/crm/attachments/${entityType}/${entityId}`,
+    { method: "POST", body: form },
+  );
   return parseResponse(response);
 }
 
-export async function deleteAttachment(entityType: CrmAttachmentEntityType, entityId: string, id: string): Promise<{ record: CrmAttachment }> {
-  const response = await fetch(`/api/crm/attachments/${entityType}/${entityId}/${id}`, { method: "DELETE" });
+export async function deleteAttachment(
+  entityType: CrmAttachmentEntityType,
+  entityId: string,
+  id: string,
+): Promise<{ record: CrmAttachment }> {
+  const response = await fetch(
+    `/api/crm/attachments/${entityType}/${entityId}/${id}`,
+    { method: "DELETE" },
+  );
   return parseResponse(response);
 }
 
-export function attachmentDownloadHref(entityType: CrmAttachmentEntityType, entityId: string, id: string): string {
+export function attachmentDownloadHref(
+  entityType: CrmAttachmentEntityType,
+  entityId: string,
+  id: string,
+): string {
   return `/api/crm/attachments/${entityType}/${entityId}/${id}/download`;
 }
 

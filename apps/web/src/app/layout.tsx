@@ -24,7 +24,11 @@ export const viewport: Viewport = {
   themeColor: "#f5f6f8",
 };
 
-export default async function RootLayout({ children }: { children: ReactNode }) {
+export default async function RootLayout({
+  children,
+}: {
+  children: ReactNode;
+}) {
   // The signed-in user's saved locale drives <html lang> and formatting; signed-out pages use the default.
   const session = await getSessionContext().catch(() => null);
   const locale = resolveLocale(session?.locale);

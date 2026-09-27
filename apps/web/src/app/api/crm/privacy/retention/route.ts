@@ -11,8 +11,15 @@ import { workspaceRoute } from "@/core/workspace-route";
 // /settings/privacy (services/api/src/core/platform/privacy), which knows
 // nothing about Leads/Contacts/Accounts specifically.
 export async function GET(request: Request) {
-  return workspaceRoute(request, { module: "crm", permission: CRM_PERMISSIONS.privacyManage }, async ({ client, session }) => {
-    const dashboard = await getPrivacyRetentionDashboard(client, crmContext(session));
-    return ok({ dashboard });
-  });
+  return workspaceRoute(
+    request,
+    { module: "crm", permission: CRM_PERMISSIONS.privacyManage },
+    async ({ client, session }) => {
+      const dashboard = await getPrivacyRetentionDashboard(
+        client,
+        crmContext(session),
+      );
+      return ok({ dashboard });
+    },
+  );
 }

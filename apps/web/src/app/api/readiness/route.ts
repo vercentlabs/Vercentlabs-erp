@@ -13,6 +13,13 @@ const logger = createLogger("web-readiness");
 
 export async function GET() {
   const result = await checkReadiness({ queryable: runtimeQueryable });
-  if (!result.ready) logger.event("readiness.failed", { failures: result.failures }, "warn");
-  return Response.json({ status: result.ready ? "ok" : "unavailable", checks: result.checks }, { status: result.ready ? 200 : 503, headers: { "Cache-Control": "no-store" } });
+  if (!result.ready)
+    logger.event("readiness.failed", { failures: result.failures }, "warn");
+  return Response.json(
+    { status: result.ready ? "ok" : "unavailable", checks: result.checks },
+    {
+      status: result.ready ? 200 : 503,
+      headers: { "Cache-Control": "no-store" },
+    },
+  );
 }

@@ -56,7 +56,9 @@ export function AppShell({
               unreadNotificationCount={unreadNotificationCount}
             />
             <WorkspaceTopBar />
-            <main className="flex min-w-0 flex-1 flex-col px-6 py-6 md:px-8">{children}</main>
+            <main className="flex min-w-0 flex-1 flex-col px-6 py-6 md:px-8">
+              {children}
+            </main>
           </div>
         </div>
       </WorkspaceContextProvider>

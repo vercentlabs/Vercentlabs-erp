@@ -20,11 +20,27 @@ const addLineSchema = z.object({
   expectedVersion: z.number().int().optional(),
 });
 
-export async function POST(request: Request, context: { params: Promise<{ id: string }> }) {
-  return workspaceRoute(request, { module: "point-of-sale", permission: "pos.sale.create", billingWrite: true }, async ({ client, session }) => {
-    const { id } = await context.params;
-    const input = addLineSchema.parse(await readJson(request));
-    const result = await addPosCartLine(client, posContext(session), id, input);
-    return ok({ cart: result });
-  });
+export async function POST(
+  request: Request,
+  context: { params: Promise<{ id: string }> },
+) {
+  return workspaceRoute(
+    request,
+    {
+      module: "point-of-sale",
+      permission: "pos.sale.create",
+      billingWrite: true,
+    },
+    async ({ client, session }) => {
+      const { id } = await context.params;
+      const input = addLineSchema.parse(await readJson(request));
+      const result = await addPosCartLine(
+        client,
+        posContext(session),
+        id,
+        input,
+      );
+      return ok({ cart: result });
+    },
+  );
 }

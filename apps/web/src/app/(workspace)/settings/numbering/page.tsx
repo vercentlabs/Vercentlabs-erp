@@ -8,5 +8,12 @@ export const metadata = { title: "Numbering" };
 
 export default async function NumberingPage() {
   const session = await requireWorkspace();
-  return <NumberingScreen canManage={hasSessionPermission(session, CORE_PERMISSIONS.numberingManage)} />;
+  return (
+    <NumberingScreen
+      canManage={hasSessionPermission(
+        session,
+        CORE_PERMISSIONS.numberingManage,
+      )}
+    />
+  );
 }

@@ -6,7 +6,12 @@ import { request } from "@/features/pos/shared/http";
 // POS store's mapped warehouse. See services/api/src/modules/point-of-sale/
 // inventory-and-offline-continuity/inventory-visibility.js for why this
 // never becomes a parallel write path.
-export type PosStoreRef = { id: string; code: string; name: string; warehouse_id: string };
+export type PosStoreRef = {
+  id: string;
+  code: string;
+  name: string;
+  warehouse_id: string;
+};
 
 export type PosStoreInventoryRow = {
   item_id: string;
@@ -26,12 +31,19 @@ export type PosStoreInventoryRow = {
   quality_held: boolean;
 };
 
-export const listPosStoreInventory = (params: { storeId: string; search?: string; limit?: number; offset?: number }) => {
+export const listPosStoreInventory = (params: {
+  storeId: string;
+  search?: string;
+  limit?: number;
+  offset?: number;
+}) => {
   const query = new URLSearchParams({ storeId: params.storeId });
   if (params.search) query.set("search", params.search);
   if (params.limit) query.set("limit", String(params.limit));
   if (params.offset) query.set("offset", String(params.offset));
-  return request<{ store: PosStoreRef; rows: PosStoreInventoryRow[] }>(`/inventory?${query.toString()}`);
+  return request<{ store: PosStoreRef; rows: PosStoreInventoryRow[] }>(
+    `/inventory?${query.toString()}`,
+  );
 };
 
 export type PosStoreStockActivityRow = {
@@ -52,9 +64,15 @@ export type PosStoreStockActivityRow = {
   return_number: string | null;
 };
 
-export const listPosStoreStockActivity = (params: { storeId: string; limit?: number; offset?: number }) => {
+export const listPosStoreStockActivity = (params: {
+  storeId: string;
+  limit?: number;
+  offset?: number;
+}) => {
   const query = new URLSearchParams({ storeId: params.storeId });
   if (params.limit) query.set("limit", String(params.limit));
   if (params.offset) query.set("offset", String(params.offset));
-  return request<{ store: PosStoreRef; rows: PosStoreStockActivityRow[] }>(`/inventory/activity?${query.toString()}`);
+  return request<{ store: PosStoreRef; rows: PosStoreStockActivityRow[] }>(
+    `/inventory/activity?${query.toString()}`,
+  );
 };

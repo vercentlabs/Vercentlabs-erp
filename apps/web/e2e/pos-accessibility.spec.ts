@@ -32,19 +32,37 @@ const cashierPages: Array<[string, string]> = [
   ["/pos/invoices", "POS Invoices"],
 ];
 
-async function checkPage(page: import("@playwright/test").Page, route: string, label: string) {
-  await page.goto(route, { waitUntil: "networkidle" }).catch(() => page.goto(route, { waitUntil: "domcontentloaded" }));
-  const results = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa"]).analyze();
-  const blocking = results.violations.filter((v) => v.impact === "critical" || v.impact === "serious");
-  const summary = blocking.map((v) => `${v.id} (${v.impact}): ${v.help} — ${v.nodes.length} node(s) — ${v.helpUrl}`);
+async function checkPage(
+  page: import("@playwright/test").Page,
+  route: string,
+  label: string,
+) {
+  await page
+    .goto(route, { waitUntil: "networkidle" })
+    .catch(() => page.goto(route, { waitUntil: "domcontentloaded" }));
+  const results = await new AxeBuilder({ page })
+    .withTags(["wcag2a", "wcag2aa"])
+    .analyze();
+  const blocking = results.violations.filter(
+    (v) => v.impact === "critical" || v.impact === "serious",
+  );
+  const summary = blocking.map(
+    (v) =>
+      `${v.id} (${v.impact}): ${v.help} — ${v.nodes.length} node(s) — ${v.helpUrl}`,
+  );
   expect(blocking, `${label} (${route}):\n${summary.join("\n")}`).toEqual([]);
 }
 
 test.describe("POS accessibility (manager)", () => {
   for (const [route, label] of managerPages) {
-    test(`${label} has no critical/serious accessibility violations`, async ({ browser }) => {
+    test(`${label} has no critical/serious accessibility violations`, async ({
+      browser,
+    }) => {
       const world = await getPosWorld();
-      const { context, page } = await openPersonaSession(browser, world.manager);
+      const { context, page } = await openPersonaSession(
+        browser,
+        world.manager,
+      );
       try {
         await checkPage(page, route, label);
       } finally {
@@ -56,9 +74,14 @@ test.describe("POS accessibility (manager)", () => {
 
 test.describe("POS accessibility (supervisor)", () => {
   for (const [route, label] of supervisorPages) {
-    test(`${label} has no critical/serious accessibility violations`, async ({ browser }) => {
+    test(`${label} has no critical/serious accessibility violations`, async ({
+      browser,
+    }) => {
       const world = await getPosWorld();
-      const { context, page } = await openPersonaSession(browser, world.supervisor);
+      const { context, page } = await openPersonaSession(
+        browser,
+        world.supervisor,
+      );
       try {
         await checkPage(page, route, label);
       } finally {
@@ -70,9 +93,14 @@ test.describe("POS accessibility (supervisor)", () => {
 
 test.describe("POS accessibility (cashier)", () => {
   for (const [route, label] of cashierPages) {
-    test(`${label} has no critical/serious accessibility violations`, async ({ browser }) => {
+    test(`${label} has no critical/serious accessibility violations`, async ({
+      browser,
+    }) => {
       const world = await getPosWorld();
-      const { context, page } = await openPersonaSession(browser, world.cashier);
+      const { context, page } = await openPersonaSession(
+        browser,
+        world.cashier,
+      );
       try {
         await checkPage(page, route, label);
       } finally {

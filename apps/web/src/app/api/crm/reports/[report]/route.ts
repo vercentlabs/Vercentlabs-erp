@@ -20,16 +20,28 @@ const FILTER_KEYS = ["from", "to"] as const;
 // ai-governance) — this route only forwards the report key and filters.
 // getCrmReport does not check crm.reports.view internally, so this route
 // enforces it.
-export async function GET(request: Request, context: { params: Promise<{ report: string }> }) {
-  return workspaceRoute(request, { module: "crm", permission: CRM_PERMISSIONS.reportsView }, async ({ client, session }) => {
-    const { report } = await context.params;
-    const url = new URL(request.url);
-    const filters: Record<string, string> = {};
-    for (const key of FILTER_KEYS) {
-      const value = url.searchParams.get(key);
-      if (value) filters[key] = value;
-    }
-    const result = await getCrmReport(client, crmContext(session), report, filters);
-    return ok({ report: result });
-  });
+export async function GET(
+  request: Request,
+  context: { params: Promise<{ report: string }> },
+) {
+  return workspaceRoute(
+    request,
+    { module: "crm", permission: CRM_PERMISSIONS.reportsView },
+    async ({ client, session }) => {
+      const { report } = await context.params;
+      const url = new URL(request.url);
+      const filters: Record<string, string> = {};
+      for (const key of FILTER_KEYS) {
+        const value = url.searchParams.get(key);
+        if (value) filters[key] = value;
+      }
+      const result = await getCrmReport(
+        client,
+        crmContext(session),
+        report,
+        filters,
+      );
+      return ok({ report: result });
+    },
+  );
 }

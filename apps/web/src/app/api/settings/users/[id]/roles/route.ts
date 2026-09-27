@@ -14,10 +14,17 @@ const putSchema = z.object({
 
 // setUserRoles enforces target scope, grant ceiling, SoD and the owner-role
 // prohibition, and writes access evidence.
-export async function PUT(request: Request, context: { params: Promise<{ id: string }> }) {
+export async function PUT(
+  request: Request,
+  context: { params: Promise<{ id: string }> },
+) {
   return workspaceRoute(
     request,
-    { permission: CORE_PERMISSIONS.rolesAssign, action: "settings.user_roles.update", auditDenial: true },
+    {
+      permission: CORE_PERMISSIONS.rolesAssign,
+      action: "settings.user_roles.update",
+      auditDenial: true,
+    },
     async ({ client, session }) => {
       const { id } = await context.params;
       const body = putSchema.parse(await readJson(request));

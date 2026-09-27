@@ -8,10 +8,23 @@ import { workspaceRoute } from "@/core/workspace-route";
 type RouteContext = { params: Promise<{ id: string }> };
 
 export async function POST(request: Request, context: RouteContext) {
-  return workspaceRoute(request, { module: "crm", permission: CRM_PERMISSIONS.settingsManage, billingWrite: true }, async ({ client, session }) => {
-    const { id } = await context.params;
-    const body = (await readJson(request)) as { active?: boolean };
-    const record = await setLeadStageTransitionReasonActive(client, crmContext(session), id, Boolean(body.active));
-    return ok({ record });
-  });
+  return workspaceRoute(
+    request,
+    {
+      module: "crm",
+      permission: CRM_PERMISSIONS.settingsManage,
+      billingWrite: true,
+    },
+    async ({ client, session }) => {
+      const { id } = await context.params;
+      const body = (await readJson(request)) as { active?: boolean };
+      const record = await setLeadStageTransitionReasonActive(
+        client,
+        crmContext(session),
+        id,
+        Boolean(body.active),
+      );
+      return ok({ record });
+    },
+  );
 }

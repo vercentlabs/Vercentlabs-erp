@@ -47,4 +47,9 @@ export type ContactMergePreview = {
   fieldComparison: Record<string, { source: unknown; survivor: unknown }>;
 };
 
-export type ContactListResponse = { rows: Contact[]; total: number; limit: number; offset: number };
+export type ContactListResponse = {
+  rows: Contact[];
+  total: number;
+  limit: number;
+  offset: number;
+};

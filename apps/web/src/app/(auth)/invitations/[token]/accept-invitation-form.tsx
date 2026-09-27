@@ -28,12 +28,18 @@ export function AcceptInvitationForm({
     setError(null);
     setSubmitting(true);
     try {
-      const response = await fetch(`/api/auth/invitations/${encodeURIComponent(token)}/accept`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
-      const payload = (await response.json().catch(() => ({}))) as { ok?: boolean; message?: string };
+      const response = await fetch(
+        `/api/auth/invitations/${encodeURIComponent(token)}/accept`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        },
+      );
+      const payload = (await response.json().catch(() => ({}))) as {
+        ok?: boolean;
+        message?: string;
+      };
       if (!response.ok || payload.ok === false) {
         setError(payload.message || "This invitation could not be accepted.");
         return;
@@ -70,7 +76,8 @@ export function AcceptInvitationForm({
     return (
       <div className="flex flex-col gap-4">
         <p className="text-sm text-text-secondary">
-          An account already exists for this email. Sign in to accept this invitation, then return to this page.
+          An account already exists for this email. Sign in to accept this
+          invitation, then return to this page.
         </p>
         {error ? (
           <p role="alert" className="text-sm text-danger">
@@ -78,7 +85,12 @@ export function AcceptInvitationForm({
           </p>
         ) : null}
         <Link href="/login">
-          <Button type="button" variant="primary" size="standard" className="w-full">
+          <Button
+            type="button"
+            variant="primary"
+            size="standard"
+            className="w-full"
+          >
             Sign in
           </Button>
         </Link>
@@ -95,13 +107,22 @@ export function AcceptInvitationForm({
           void submitAcceptance({});
         }}
       >
-        <p className="text-sm text-text-secondary">You&apos;re signed in as this account. Accept to join this organisation.</p>
+        <p className="text-sm text-text-secondary">
+          You&apos;re signed in as this account. Accept to join this
+          organisation.
+        </p>
         {error ? (
           <p role="alert" className="text-sm text-danger">
             {error}
           </p>
         ) : null}
-        <Button type="submit" variant="primary" size="standard" isLoading={submitting} className="mt-2">
+        <Button
+          type="submit"
+          variant="primary"
+          size="standard"
+          isLoading={submitting}
+          className="mt-2"
+        >
           Accept invitation
         </Button>
       </form>
@@ -110,8 +131,21 @@ export function AcceptInvitationForm({
 
   return (
     <form className="flex flex-col gap-4" onSubmit={handleSubmit} noValidate>
-      <TextField label="Full name" autoComplete="name" isRequired value={fullName} onChange={setFullName} />
-      <TextField label="Password" type="password" autoComplete="new-password" isRequired value={password} onChange={setPassword} />
+      <TextField
+        label="Full name"
+        autoComplete="name"
+        isRequired
+        value={fullName}
+        onChange={setFullName}
+      />
+      <TextField
+        label="Password"
+        type="password"
+        autoComplete="new-password"
+        isRequired
+        value={password}
+        onChange={setPassword}
+      />
       <TextField
         label="Confirm password"
         type="password"
@@ -120,13 +154,21 @@ export function AcceptInvitationForm({
         value={confirmPassword}
         onChange={setConfirmPassword}
       />
-      <p className="text-xs text-text-muted">At least 12 characters, including a letter and a number.</p>
+      <p className="text-xs text-text-muted">
+        At least 12 characters, including a letter and a number.
+      </p>
       {error ? (
         <p role="alert" className="text-sm text-danger">
           {error}
         </p>
       ) : null}
-      <Button type="submit" variant="primary" size="standard" isLoading={submitting} className="mt-2">
+      <Button
+        type="submit"
+        variant="primary"
+        size="standard"
+        isLoading={submitting}
+        className="mt-2"
+      >
         Accept invitation
       </Button>
     </form>

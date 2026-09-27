@@ -1,11 +1,28 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { BadgePercent, Minus, Pause, Plus, Trash2, X } from "lucide-react";
-import { Button, ComboBox, Dialog, IconButton, NumberField, PageHeader, SearchField, Select, StatusBadge, TextField } from "@vercentlabs/design-system";
+import {
+  Button,
+  ComboBox,
+  Dialog,
+  IconButton,
+  NumberField,
+  PageHeader,
+  SearchField,
+  Select,
+  StatusBadge,
+  TextField,
+} from "@vercentlabs/design-system";
 import type { PosCart } from "@vercentlabs/api";
 import { POS_PERMISSIONS } from "@vercentlabs/permissions";
 
@@ -86,8 +103,14 @@ const NON_CASH_METHOD_OPTIONS = [
 // read as a truth claim about payment state, and a real adapter would
 // ignore it entirely.
 const SANDBOX_OUTCOME_OPTIONS = [
-  { value: "immediate_success" as const, label: "Simulate: succeeds immediately" },
-  { value: "immediate_decline" as const, label: "Simulate: declines immediately" },
+  {
+    value: "immediate_success" as const,
+    label: "Simulate: succeeds immediately",
+  },
+  {
+    value: "immediate_decline" as const,
+    label: "Simulate: declines immediately",
+  },
 ];
 
 function newTenderLineId() {
@@ -135,9 +158,15 @@ export function PosCheckoutScreen() {
   // from a URL instead of a search pick.
   const presetCustomerId = searchParams.get("customerId");
   const presetCustomerName = searchParams.get("customerName");
-  const canDiscount = workspace.roleSlugs.includes("organization_owner") || workspace.permissions.includes(POS_PERMISSIONS.discountApply);
-  const canApproveDiscounts = workspace.roleSlugs.includes("organization_owner") || workspace.permissions.includes(POS_PERMISSIONS.discountApprove);
-  const canRedeemLoyalty = workspace.roleSlugs.includes("organization_owner") || workspace.permissions.includes(POS_PERMISSIONS.loyaltyRedeem);
+  const canDiscount =
+    workspace.roleSlugs.includes("organization_owner") ||
+    workspace.permissions.includes(POS_PERMISSIONS.discountApply);
+  const canApproveDiscounts =
+    workspace.roleSlugs.includes("organization_owner") ||
+    workspace.permissions.includes(POS_PERMISSIONS.discountApprove);
+  const canRedeemLoyalty =
+    workspace.roleSlugs.includes("organization_owner") ||
+    workspace.permissions.includes(POS_PERMISSIONS.loyaltyRedeem);
   const online = useOnlineStatus();
 
   const [cart, setCart] = useState<PosCart | null>(null);
@@ -147,16 +176,28 @@ export function PosCheckoutScreen() {
   const [searchTerm, setSearchTerm] = useState("");
   const [barcodeInput, setBarcodeInput] = useState("");
   const [couponCode, setCouponCode] = useState("");
-  const [selectedCustomer, setSelectedCustomer] = useState<PosCustomerMatch | null>(null);
+  const [selectedCustomer, setSelectedCustomer] =
+    useState<PosCustomerMatch | null>(null);
   const [customerSearchInput, setCustomerSearchInput] = useState("");
   const [debouncedCustomerSearch, setDebouncedCustomerSearch] = useState("");
   const [cartDiscountOpen, setCartDiscountOpen] = useState(false);
-  const [lineDiscountLine, setLineDiscountLine] = useState<PosCart["lines"][number] | null>(null);
+  const [lineDiscountLine, setLineDiscountLine] = useState<
+    PosCart["lines"][number] | null
+  >(null);
   const [redeemPointsInput, setRedeemPointsInput] = useState(0);
-  const [tenderLines, setTenderLines] = useState<TenderLine[]>([{ id: newTenderLineId(), method: "cash", amount: 0 }]);
+  const [tenderLines, setTenderLines] = useState<TenderLine[]>([
+    { id: newTenderLineId(), method: "cash", amount: 0 },
+  ]);
   const [completing, setCompleting] = useState(false);
-  const [confirmation, setConfirmation] = useState<{ saleId: string; receiptNumber: string; grandTotal: string; changeTotal: string } | null>(null);
-  const [idempotencyKey, setIdempotencyKey] = useState(() => crypto.randomUUID());
+  const [confirmation, setConfirmation] = useState<{
+    saleId: string;
+    receiptNumber: string;
+    grandTotal: string;
+    changeTotal: string;
+  } | null>(null);
+  const [idempotencyKey, setIdempotencyKey] = useState(() =>
+    crypto.randomUUID(),
+  );
   const [heldCartsOpen, setHeldCartsOpen] = useState(false);
   // This app has no TanStack Query SSR hydration boundary (no dehydrate/
   // HydrationBoundary anywhere), so shiftsQuery.isLoading is not
@@ -170,25 +211,46 @@ export function PosCheckoutScreen() {
   // never mismatch, early enough that a real in-flight fetch (the original
   // bug this replaced: a lingering false "no open shift" on slow first
   // loads) is caught well before a user could read it.
-  const hasMounted = useSyncExternalStore(subscribeNever, getMountedClientSnapshot, getMountedServerSnapshot);
+  const hasMounted = useSyncExternalStore(
+    subscribeNever,
+    getMountedClientSnapshot,
+    getMountedServerSnapshot,
+  );
   // F295 -- one free-text input per tracked cart line, keyed by line id,
   // for the serial/batch number the cashier scans or types before the
   // sale can complete. Not committed until "Set" is pressed (setPosCartLineTracking).
-  const [trackingInputs, setTrackingInputs] = useState<Record<string, string>>({});
+  const [trackingInputs, setTrackingInputs] = useState<Record<string, string>>(
+    {},
+  );
   const queryClient = useQueryClient();
 
-  const storesQuery = useQuery({ queryKey: scopedQueryKey(workspace, "pos", "stores"), queryFn: listPosStores });
-  const terminalsQuery = useQuery({ queryKey: scopedQueryKey(workspace, "pos", "terminals"), queryFn: listPosTerminals });
-  const shiftsQuery = useQuery({ queryKey: scopedQueryKey(workspace, "pos", "shifts"), queryFn: () => listPosShifts() });
+  const storesQuery = useQuery({
+    queryKey: scopedQueryKey(workspace, "pos", "stores"),
+    queryFn: listPosStores,
+  });
+  const terminalsQuery = useQuery({
+    queryKey: scopedQueryKey(workspace, "pos", "terminals"),
+    queryFn: listPosTerminals,
+  });
+  const shiftsQuery = useQuery({
+    queryKey: scopedQueryKey(workspace, "pos", "shifts"),
+    queryFn: () => listPosShifts(),
+  });
 
   const myOpenShift = useMemo(
     () =>
       shiftsQuery.data?.rows.find(
-        (row) => (row as { status: string; cashier_user_id?: string }).status === "open" && (row as { cashier_user_id?: string }).cashier_user_id === workspace.userId,
+        (row) =>
+          (row as { status: string; cashier_user_id?: string }).status ===
+            "open" &&
+          (row as { cashier_user_id?: string }).cashier_user_id ===
+            workspace.userId,
       ) as { id: string; store_id: string; terminal_id: string } | undefined,
     [shiftsQuery.data, workspace.userId],
   );
-  const store = storesQuery.data?.rows.find((s) => s.id === myOpenShift?.store_id);
+  const store = storesQuery.data?.rows.find(
+    (s) => s.id === myOpenShift?.store_id,
+  );
 
   // F297: while online with an open shift, keep this device's bounded
   // offline snapshot + context fresh so the offline checkout path below
@@ -219,7 +281,13 @@ export function PosCheckoutScreen() {
     // should retrigger this refresh -- same rationale as the cart-creation
     // effect above.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [online, myOpenShift?.id, myOpenShift?.terminal_id, store?.id, workspace.userId]);
+  }, [
+    online,
+    myOpenShift?.id,
+    myOpenShift?.terminal_id,
+    store?.id,
+    workspace.userId,
+  ]);
 
   // F298: as soon as the device comes back online, drain the local
   // offline queue automatically rather than waiting for the cashier to
@@ -250,9 +318,21 @@ export function PosCheckoutScreen() {
     if (cartCreationStartedForShiftIdRef.current === myOpenShift.id) return;
     cartCreationStartedForShiftIdRef.current = myOpenShift.id;
     let cancelled = false;
-    createPosCart({ storeId: myOpenShift.store_id, terminalId: myOpenShift.terminal_id, shiftId: myOpenShift.id })
+    createPosCart({
+      storeId: myOpenShift.store_id,
+      terminalId: myOpenShift.terminal_id,
+      shiftId: myOpenShift.id,
+    })
       .then((result) => !cancelled && setCart(result.cart))
-      .catch((err) => !cancelled && setError(err instanceof PosApiError ? err.message : "The cart could not be started."));
+      .catch(
+        (err) =>
+          !cancelled &&
+          setError(
+            err instanceof PosApiError
+              ? err.message
+              : "The cart could not be started.",
+          ),
+      );
     return () => {
       cancelled = true;
     };
@@ -269,7 +349,13 @@ export function PosCheckoutScreen() {
   // redemption (can't redeem more than is on the ledger) and to show the
   // balance/earn preview the cashier and customer both see before completion.
   const loyaltyBalanceQuery = useQuery({
-    queryKey: scopedQueryKey(workspace, "pos", "loyalty", "balance", cart?.customer_id),
+    queryKey: scopedQueryKey(
+      workspace,
+      "pos",
+      "loyalty",
+      "balance",
+      cart?.customer_id,
+    ),
     queryFn: () => getPosCustomerLoyaltyBalance(cart!.customer_id!),
     enabled: Boolean(cart?.customer_id),
   });
@@ -277,19 +363,33 @@ export function PosCheckoutScreen() {
   // F276: debounce the customer search-as-you-type so every keystroke
   // doesn't fire a request — 250ms of no typing before the query updates.
   useEffect(() => {
-    const handle = setTimeout(() => setDebouncedCustomerSearch(customerSearchInput), 250);
+    const handle = setTimeout(
+      () => setDebouncedCustomerSearch(customerSearchInput),
+      250,
+    );
     return () => clearTimeout(handle);
   }, [customerSearchInput]);
 
   const customerSearchQuery = useQuery({
-    queryKey: scopedQueryKey(workspace, "pos", "customer-search", debouncedCustomerSearch),
-    queryFn: ({ signal }) => searchPosCustomers(debouncedCustomerSearch, { signal }),
+    queryKey: scopedQueryKey(
+      workspace,
+      "pos",
+      "customer-search",
+      debouncedCustomerSearch,
+    ),
+    queryFn: ({ signal }) =>
+      searchPosCustomers(debouncedCustomerSearch, { signal }),
     enabled: debouncedCustomerSearch.trim().length > 0,
   });
-  const customerOptions = (customerSearchQuery.data?.rows ?? []).map((customer) => ({
-    value: customer.id,
-    label: customer.phone || customer.email ? `${customer.displayName} · ${customer.phone || customer.email}` : customer.displayName,
-  }));
+  const customerOptions = (customerSearchQuery.data?.rows ?? []).map(
+    (customer) => ({
+      value: customer.id,
+      label:
+        customer.phone || customer.email
+          ? `${customer.displayName} · ${customer.phone || customer.email}`
+          : customer.displayName,
+    }),
+  );
 
   // Poll a non-cash leg while its outcome is still pending/authorized --
   // there is no client-side "it succeeded," only what the server reports
@@ -297,13 +397,29 @@ export function PosCheckoutScreen() {
   // outcomes this UI offers, but polling is what a real async provider's
   // webhook-driven capture would need).
   useEffect(() => {
-    const pendingLines = tenderLines.filter((line) => line.paymentId && (line.status === "pending" || line.status === "authorized" || line.status === "initiated"));
+    const pendingLines = tenderLines.filter(
+      (line) =>
+        line.paymentId &&
+        (line.status === "pending" ||
+          line.status === "authorized" ||
+          line.status === "initiated"),
+    );
     if (!pendingLines.length) return;
     const timer = setInterval(() => {
       pendingLines.forEach((line) => {
         getPosPayment(line.paymentId!)
           .then((result) => {
-            setTenderLines((lines) => lines.map((l) => (l.id === line.id ? { ...l, status: result.payment.status, error: result.payment.failure_reason || undefined } : l)));
+            setTenderLines((lines) =>
+              lines.map((l) =>
+                l.id === line.id
+                  ? {
+                      ...l,
+                      status: result.payment.status,
+                      error: result.payment.failure_reason || undefined,
+                    }
+                  : l,
+              ),
+            );
           })
           .catch(() => undefined);
       });
@@ -315,7 +431,9 @@ export function PosCheckoutScreen() {
   // cart (read-only -- getPosCart never bumps the version) so the cashier sees
   // "approved"/"rejected" the moment it is decided, instead of having to
   // guess and press Complete to find out.
-  const hasPendingDiscountApproval = (cart?.discountApprovals ?? []).some((approval) => approval.status === "pending");
+  const hasPendingDiscountApproval = (cart?.discountApprovals ?? []).some(
+    (approval) => approval.status === "pending",
+  );
   useEffect(() => {
     if (!cart?.id || !hasPendingDiscountApproval) return;
     const cartId = cart.id;
@@ -335,18 +453,28 @@ export function PosCheckoutScreen() {
       setError(null);
       setConflict(null);
     } catch (err) {
-      if (err instanceof PosApiError && (err.code === "POS_CART_VERSION_CONFLICT" || err.code === "POS_PRICE_CONFLICT")) {
+      if (
+        err instanceof PosApiError &&
+        (err.code === "POS_CART_VERSION_CONFLICT" ||
+          err.code === "POS_PRICE_CONFLICT")
+      ) {
         setConflict(err.message);
         if (cart) getPosCart(cart.id).then((result) => setCart(result.cart));
       } else {
-        setError(err instanceof PosApiError ? err.message : "The action could not be completed.");
+        setError(
+          err instanceof PosApiError
+            ? err.message
+            : "The action could not be completed.",
+        );
       }
     } finally {
       setLoading(false);
     }
   }
 
-  const addLine = (itemId: string, variantId: string | null) => cart && run(() => addPosCartLine(cart.id, { itemId, variantId, quantity: 1 }));
+  const addLine = (itemId: string, variantId: string | null) =>
+    cart &&
+    run(() => addPosCartLine(cart.id, { itemId, variantId, quantity: 1 }));
 
   function scanBarcode() {
     if (!barcodeInput.trim() || !store?.id) return;
@@ -355,11 +483,22 @@ export function PosCheckoutScreen() {
         setBarcodeInput("");
         addLine(product.itemId, product.variantId);
       })
-      .catch((err) => setError(err instanceof PosApiError ? err.message : "No product matches this barcode."));
+      .catch((err) =>
+        setError(
+          err instanceof PosApiError
+            ? err.message
+            : "No product matches this barcode.",
+        ),
+      );
   }
 
   const changeQuantity = (lineId: string, quantity: number) =>
-    cart && run(() => (quantity <= 0 ? removePosCartLine(cart.id, lineId, cart.version) : updatePosCartLineQuantity(cart.id, lineId, quantity, cart.version)));
+    cart &&
+    run(() =>
+      quantity <= 0
+        ? removePosCartLine(cart.id, lineId, cart.version)
+        : updatePosCartLineQuantity(cart.id, lineId, quantity, cart.version),
+    );
 
   // F295 -- commit the scanned/typed serial or batch number onto a tracked
   // cart line. Which field (batchId vs serialId) depends on the line's own
@@ -368,23 +507,62 @@ export function PosCheckoutScreen() {
     if (!cart) return;
     const value = trackingInputs[lineId]?.trim();
     if (!value) return;
-    run(() => setPosCartLineTracking(cart.id, lineId, trackingType === "serial" ? { serialId: value, expectedVersion: cart.version } : { batchId: value, expectedVersion: cart.version }));
+    run(() =>
+      setPosCartLineTracking(
+        cart.id,
+        lineId,
+        trackingType === "serial"
+          ? { serialId: value, expectedVersion: cart.version }
+          : { batchId: value, expectedVersion: cart.version },
+      ),
+    );
   }
 
-  const applyCoupon = () => cart && couponCode.trim() && run(() => applyPosCoupon(cart.id, couponCode.trim(), cart.version));
-  const removeCoupon = () => cart && run(() => removePosCoupon(cart.id, cart.version));
+  const applyCoupon = () =>
+    cart &&
+    couponCode.trim() &&
+    run(() => applyPosCoupon(cart.id, couponCode.trim(), cart.version));
+  const removeCoupon = () =>
+    cart && run(() => removePosCoupon(cart.id, cart.version));
   async function redeemLoyalty() {
     if (!cart || redeemPointsInput <= 0) return;
-    await run(() => redeemPosCartLoyaltyPoints(cart.id, redeemPointsInput, cart.version));
+    await run(() =>
+      redeemPosCartLoyaltyPoints(cart.id, redeemPointsInput, cart.version),
+    );
     setRedeemPointsInput(0);
   }
-  const removeLoyaltyRedemption = () => cart && run(() => removePosCartLoyaltyRedemption(cart.id, cart.version));
-  const applyCartDiscount = (input: { type: "percent" | "amount"; value: number; reason: string }) =>
-    cart && run(() => setPosCartDiscount(cart.id, { ...input, expectedVersion: cart.version }));
-  const removeCartDiscount = () => cart && run(() => setPosCartDiscount(cart.id, { type: null, expectedVersion: cart.version }));
-  const applyLineDiscount = (lineId: string, input: { type: "percent" | "amount"; value: number; reason: string }) =>
-    cart && run(() => applyPosLineDiscount(cart.id, lineId, { ...input, expectedVersion: cart.version }));
-  const removeLineDiscount = (lineId: string) => cart && run(() => removePosLineDiscount(cart.id, lineId, cart.version));
+  const removeLoyaltyRedemption = () =>
+    cart && run(() => removePosCartLoyaltyRedemption(cart.id, cart.version));
+  const applyCartDiscount = (input: {
+    type: "percent" | "amount";
+    value: number;
+    reason: string;
+  }) =>
+    cart &&
+    run(() =>
+      setPosCartDiscount(cart.id, { ...input, expectedVersion: cart.version }),
+    );
+  const removeCartDiscount = () =>
+    cart &&
+    run(() =>
+      setPosCartDiscount(cart.id, {
+        type: null,
+        expectedVersion: cart.version,
+      }),
+    );
+  const applyLineDiscount = (
+    lineId: string,
+    input: { type: "percent" | "amount"; value: number; reason: string },
+  ) =>
+    cart &&
+    run(() =>
+      applyPosLineDiscount(cart.id, lineId, {
+        ...input,
+        expectedVersion: cart.version,
+      }),
+    );
+  const removeLineDiscount = (lineId: string) =>
+    cart && run(() => removePosLineDiscount(cart.id, lineId, cart.version));
   function selectCustomer(customer: PosCustomerMatch | null) {
     if (!cart) return;
     setSelectedCustomer(customer);
@@ -403,7 +581,15 @@ export function PosCheckoutScreen() {
     if (appliedPresetCustomerForCartIdRef.current === cart.id) return;
     appliedPresetCustomerForCartIdRef.current = cart.id;
     if (cart.customer_id === presetCustomerId) return;
-    queueMicrotask(() => selectCustomer({ id: presetCustomerId, code: "", displayName: presetCustomerName || "Customer", phone: null, email: null }));
+    queueMicrotask(() =>
+      selectCustomer({
+        id: presetCustomerId,
+        code: "",
+        displayName: presetCustomerName || "Customer",
+        phone: null,
+        email: null,
+      }),
+    );
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cart?.id, presetCustomerId]);
 
@@ -421,10 +607,16 @@ export function PosCheckoutScreen() {
       setSelectedCustomer(null);
       setCouponCode("");
       setIdempotencyKey(crypto.randomUUID());
-      queryClient.invalidateQueries({ queryKey: scopedQueryKey(workspace, "pos", "held-carts") });
+      queryClient.invalidateQueries({
+        queryKey: scopedQueryKey(workspace, "pos", "held-carts"),
+      });
       await startFreshCart();
     } catch (err) {
-      setError(err instanceof PosApiError ? err.message : "The sale could not be held.");
+      setError(
+        err instanceof PosApiError
+          ? err.message
+          : "The sale could not be held.",
+      );
     } finally {
       setLoading(false);
     }
@@ -442,36 +634,64 @@ export function PosCheckoutScreen() {
       setSelectedCustomer(null);
       setError(null);
       setHeldCartsOpen(false);
-      queryClient.invalidateQueries({ queryKey: scopedQueryKey(workspace, "pos", "held-carts") });
+      queryClient.invalidateQueries({
+        queryKey: scopedQueryKey(workspace, "pos", "held-carts"),
+      });
     } catch (err) {
-      setError(err instanceof PosApiError ? err.message : "This held sale could not be resumed.");
+      setError(
+        err instanceof PosApiError
+          ? err.message
+          : "This held sale could not be resumed.",
+      );
     } finally {
       setLoading(false);
     }
   }
 
   // F283/F284/F285/F286 tender-line helpers.
-  const tenderTotal = tenderLines.reduce((sum, line) => sum + (Number.isFinite(line.amount) ? line.amount : 0), 0);
+  const tenderTotal = tenderLines.reduce(
+    (sum, line) => sum + (Number.isFinite(line.amount) ? line.amount : 0),
+    0,
+  );
   const grandTotalNumber = Number(cart?.grand_total ?? 0);
-  const remainingToAllocate = Math.round((grandTotalNumber - tenderTotal) * 100) / 100;
-  const isSingleCashTender = tenderLines.length === 1 && tenderLines[0].method === "cash";
-  const allNonCashCaptured = tenderLines.every((line) => line.method === "cash" || line.status === "captured");
+  const remainingToAllocate =
+    Math.round((grandTotalNumber - tenderTotal) * 100) / 100;
+  const isSingleCashTender =
+    tenderLines.length === 1 && tenderLines[0].method === "cash";
+  const allNonCashCaptured = tenderLines.every(
+    (line) => line.method === "cash" || line.status === "captured",
+  );
   const canComplete =
     Boolean(cart?.lines?.length) &&
     tenderLines.every((line) => line.amount > 0) &&
     allNonCashCaptured &&
-    (isSingleCashTender ? tenderTotal >= grandTotalNumber : remainingToAllocate === 0);
+    (isSingleCashTender
+      ? tenderTotal >= grandTotalNumber
+      : remainingToAllocate === 0);
 
   function updateTenderLine(id: string, patch: Partial<TenderLine>) {
-    setTenderLines((lines) => lines.map((line) => (line.id === id ? { ...line, ...patch } : line)));
+    setTenderLines((lines) =>
+      lines.map((line) => (line.id === id ? { ...line, ...patch } : line)),
+    );
   }
   function addTenderLine() {
-    setTenderLines((lines) => [...lines, { id: newTenderLineId(), method: "card", amount: Math.max(0, remainingToAllocate) }]);
+    setTenderLines((lines) => [
+      ...lines,
+      {
+        id: newTenderLineId(),
+        method: "card",
+        amount: Math.max(0, remainingToAllocate),
+      },
+    ]);
   }
   function removeTenderLine(id: string) {
-    setTenderLines((lines) => (lines.length > 1 ? lines.filter((line) => line.id !== id) : lines));
+    setTenderLines((lines) =>
+      lines.length > 1 ? lines.filter((line) => line.id !== id) : lines,
+    );
   }
-  const [tenderOutcome, setTenderOutcome] = useState<Record<string, string>>({});
+  const [tenderOutcome, setTenderOutcome] = useState<Record<string, string>>(
+    {},
+  );
 
   async function chargeTenderLine(line: TenderLine) {
     if (!cart || line.method === "cash" || line.amount <= 0) return;
@@ -484,9 +704,20 @@ export function PosCheckoutScreen() {
         idempotencyKey: line.id,
         outcome: tenderOutcome[line.id] || "immediate_success",
       });
-      updateTenderLine(line.id, { paymentId: result.payment.id, status: result.payment.status, charging: false, error: result.payment.failure_reason || undefined });
+      updateTenderLine(line.id, {
+        paymentId: result.payment.id,
+        status: result.payment.status,
+        charging: false,
+        error: result.payment.failure_reason || undefined,
+      });
     } catch (err) {
-      updateTenderLine(line.id, { charging: false, error: err instanceof PosApiError ? err.message : "The payment could not be started." });
+      updateTenderLine(line.id, {
+        charging: false,
+        error:
+          err instanceof PosApiError
+            ? err.message
+            : "The payment could not be started.",
+      });
     }
   }
 
@@ -495,7 +726,9 @@ export function PosCheckoutScreen() {
     setCompleting(true);
     try {
       const payments: PosPaymentLeg[] = tenderLines.map((line) =>
-        line.method === "cash" ? { method: "cash", amount: line.amount } : { method: line.method, paymentId: line.paymentId! },
+        line.method === "cash"
+          ? { method: "cash", amount: line.amount }
+          : { method: line.method, paymentId: line.paymentId! },
       );
       // completePosExchange's contract only accepts cash legs (see
       // pos-api.ts) -- the tender UI already hides "add tender line" while
@@ -504,7 +737,10 @@ export function PosCheckoutScreen() {
       const result = exchangeReturnId
         ? await completePosExchange(exchangeReturnId, {
             cartId: cart.id,
-            payments: payments.filter((p): p is { method: "cash"; amount: number } => p.method === "cash"),
+            payments: payments.filter(
+              (p): p is { method: "cash"; amount: number } =>
+                p.method === "cash",
+            ),
             idempotencyKey,
             expectedVersion: cart.version,
             expectedGrandTotal: cart.grand_total,
@@ -515,15 +751,33 @@ export function PosCheckoutScreen() {
             expectedVersion: cart.version,
             expectedGrandTotal: cart.grand_total,
           });
-      const sale = result.sale as { id: string; receipt_number: string; grand_total: string; change_total: string };
-      setConfirmation({ saleId: sale.id, receiptNumber: sale.receipt_number, grandTotal: sale.grand_total, changeTotal: sale.change_total });
+      const sale = result.sale as {
+        id: string;
+        receipt_number: string;
+        grand_total: string;
+        change_total: string;
+      };
+      setConfirmation({
+        saleId: sale.id,
+        receiptNumber: sale.receipt_number,
+        grandTotal: sale.grand_total,
+        changeTotal: sale.change_total,
+      });
       setError(null);
     } catch (err) {
-      if (err instanceof PosApiError && (err.code === "POS_CART_VERSION_CONFLICT" || err.code === "POS_PRICE_CONFLICT")) {
+      if (
+        err instanceof PosApiError &&
+        (err.code === "POS_CART_VERSION_CONFLICT" ||
+          err.code === "POS_PRICE_CONFLICT")
+      ) {
         setConflict(err.message);
         getPosCart(cart.id).then((result) => setCart(result.cart));
       } else {
-        setError(err instanceof PosApiError ? err.message : "The sale could not be completed.");
+        setError(
+          err instanceof PosApiError
+            ? err.message
+            : "The sale could not be completed.",
+        );
       }
     } finally {
       setCompleting(false);
@@ -539,10 +793,18 @@ export function PosCheckoutScreen() {
   async function startFreshCart() {
     if (!myOpenShift) return;
     try {
-      const result = await createPosCart({ storeId: myOpenShift.store_id, terminalId: myOpenShift.terminal_id, shiftId: myOpenShift.id });
+      const result = await createPosCart({
+        storeId: myOpenShift.store_id,
+        terminalId: myOpenShift.terminal_id,
+        shiftId: myOpenShift.id,
+      });
       setCart(result.cart);
     } catch (err) {
-      setError(err instanceof PosApiError ? err.message : "The cart could not be started.");
+      setError(
+        err instanceof PosApiError
+          ? err.message
+          : "The cart could not be started.",
+      );
     }
   }
 
@@ -575,7 +837,9 @@ export function PosCheckoutScreen() {
   if (!myOpenShift) {
     return (
       <div className="flex flex-col items-center justify-center gap-3 p-12 text-center">
-        <p className="text-sm text-text-secondary">No open shift found. Open a shift before starting checkout.</p>
+        <p className="text-sm text-text-secondary">
+          No open shift found. Open a shift before starting checkout.
+        </p>
         <Button variant="primary" onPress={() => router.push("/pos")}>
           Go to Point of Sale
         </Button>
@@ -589,19 +853,33 @@ export function PosCheckoutScreen() {
       <div className="mx-auto flex w-full max-w-lg flex-col gap-4 pt-8">
         <PosPanel padding="lg" className="items-center text-center">
           <StatusBadge tone="success">Sale complete</StatusBadge>
-          <h1 className="text-2xl font-semibold text-text">Receipt {confirmation.receiptNumber}</h1>
+          <h1 className="text-2xl font-semibold text-text">
+            Receipt {confirmation.receiptNumber}
+          </h1>
           <dl className="grid w-full grid-cols-2 gap-3 rounded-[var(--radius-control)] bg-surface-muted p-4">
             <div className="flex flex-col gap-0.5">
               <dt className="text-xs font-medium text-text-muted">Total</dt>
-              <dd className="text-xl font-semibold tabular-nums text-text">{money(currency, confirmation.grandTotal)}</dd>
+              <dd className="text-xl font-semibold tabular-nums text-text">
+                {money(currency, confirmation.grandTotal)}
+              </dd>
             </div>
             <div className="flex flex-col gap-0.5">
-              <dt className="text-xs font-medium text-text-muted">Change due</dt>
-              <dd className="text-xl font-semibold tabular-nums text-text">{money(currency, confirmation.changeTotal)}</dd>
+              <dt className="text-xs font-medium text-text-muted">
+                Change due
+              </dt>
+              <dd className="text-xl font-semibold tabular-nums text-text">
+                {money(currency, confirmation.changeTotal)}
+              </dd>
             </div>
           </dl>
           <div className="flex flex-wrap justify-center gap-2 pt-2">
-            <Button variant="secondary" size="large" onPress={() => router.push(`/pos/receipts/${confirmation.saleId}`)}>
+            <Button
+              variant="secondary"
+              size="large"
+              onPress={() =>
+                router.push(`/pos/receipts/${confirmation.saleId}`)
+              }
+            >
               View / print receipt
             </Button>
             <Button variant="primary" size="large" onPress={startNewSale}>
@@ -614,14 +892,29 @@ export function PosCheckoutScreen() {
   }
 
   const currency = store?.currencyCode ?? store?.currency_code ?? "";
-  const terminal = terminalsQuery.data?.rows.find((candidate) => candidate.id === myOpenShift.terminal_id);
+  const terminal = terminalsQuery.data?.rows.find(
+    (candidate) => candidate.id === myOpenShift.terminal_id,
+  );
   const shiftNumber = (myOpenShift as { shift_number?: string }).shift_number;
   const discountApprovals = cart?.discountApprovals ?? [];
-  const pendingApproval = discountApprovals.some((approval) => approval.status === "pending");
-  const rejectedApproval = discountApprovals.some((approval) => approval.status === "rejected");
-  const approvedApproval = discountApprovals.length > 0 && discountApprovals.every((approval) => approval.status === "approved");
-  const itemCount = (cart?.lines ?? []).reduce((count, line) => count + Number(line.quantity), 0);
-  const trackingIncomplete = (cart?.lines ?? []).some((line) => (line.tracking_type === "serial" && !line.serial_id) || (line.tracking_type === "batch" && !line.batch_id));
+  const pendingApproval = discountApprovals.some(
+    (approval) => approval.status === "pending",
+  );
+  const rejectedApproval = discountApprovals.some(
+    (approval) => approval.status === "rejected",
+  );
+  const approvedApproval =
+    discountApprovals.length > 0 &&
+    discountApprovals.every((approval) => approval.status === "approved");
+  const itemCount = (cart?.lines ?? []).reduce(
+    (count, line) => count + Number(line.quantity),
+    0,
+  );
+  const trackingIncomplete = (cart?.lines ?? []).some(
+    (line) =>
+      (line.tracking_type === "serial" && !line.serial_id) ||
+      (line.tracking_type === "batch" && !line.batch_id),
+  );
   const completeBlockedReason = pendingApproval
     ? "Waiting for supervisor approval of the discount."
     : rejectedApproval
@@ -634,7 +927,15 @@ export function PosCheckoutScreen() {
     <div className="flex flex-col gap-4">
       <PageHeader
         title="Checkout"
-        description={[store?.name, terminal?.name, shiftNumber ? `Shift ${shiftNumber}` : null].filter(Boolean).join(" · ") || undefined}
+        description={
+          [
+            store?.name,
+            terminal?.name,
+            shiftNumber ? `Shift ${shiftNumber}` : null,
+          ]
+            .filter(Boolean)
+            .join(" · ") || undefined
+        }
         secondaryActions={
           <div className="flex items-center gap-2">
             <StatusBadge tone="success">Online</StatusBadge>
@@ -648,11 +949,25 @@ export function PosCheckoutScreen() {
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_24rem] lg:items-start">
         <div className="flex min-w-0 flex-col gap-4">
-          <PosPanel title="Add items" description="Search the catalogue, or scan / type a barcode.">
+          <PosPanel
+            title="Add items"
+            description="Search the catalogue, or scan / type a barcode."
+          >
             <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
-              <SearchField label="Search products" placeholder="Search by name, code, barcode…" value={searchTerm} onChange={setSearchTerm} className="flex-1" />
+              <SearchField
+                label="Search products"
+                placeholder="Search by name, code, barcode…"
+                value={searchTerm}
+                onChange={setSearchTerm}
+                className="flex-1"
+              />
               <div className="flex items-end gap-2">
-                <TextField label="Scan / enter barcode" value={barcodeInput} onChange={setBarcodeInput} onKeyDown={(event) => event.key === "Enter" && scanBarcode()} />
+                <TextField
+                  label="Scan / enter barcode"
+                  value={barcodeInput}
+                  onChange={setBarcodeInput}
+                  onKeyDown={(event) => event.key === "Enter" && scanBarcode()}
+                />
                 <Button variant="secondary" onPress={scanBarcode}>
                   Add
                 </Button>
@@ -669,26 +984,41 @@ export function PosCheckoutScreen() {
                     className="flex min-h-12 w-full items-center justify-between gap-3 border-b border-border px-3 py-2 text-left text-sm last:border-0 hover:bg-surface-muted focus-visible:bg-surface-muted focus-visible:outline-none"
                   >
                     <span>
-                      {product.name} <span className="text-text-muted">({product.code})</span>
+                      {product.name}{" "}
+                      <span className="text-text-muted">({product.code})</span>
                     </span>
                     <span className="shrink-0 tabular-nums text-text-secondary">
-                      {money(currency, product.salesPrice)} · {product.availableQuantity} avail.
+                      {money(currency, product.salesPrice)} ·{" "}
+                      {product.availableQuantity} avail.
                     </span>
                   </button>
                 ))}
-                {searchQuery.isFetched && !(searchQuery.data?.rows ?? []).length && <p className="px-3 py-3 text-sm text-text-muted">No matches.</p>}
+                {searchQuery.isFetched &&
+                  !(searchQuery.data?.rows ?? []).length && (
+                    <p className="px-3 py-3 text-sm text-text-muted">
+                      No matches.
+                    </p>
+                  )}
               </div>
             )}
           </PosPanel>
 
           <PosPanel
             title="Cart"
-            description={cart?.lines?.length ? `${itemCount} item${itemCount === 1 ? "" : "s"}` : undefined}
+            description={
+              cart?.lines?.length
+                ? `${itemCount} item${itemCount === 1 ? "" : "s"}`
+                : undefined
+            }
             padding="none"
             className="gap-0 lg:min-h-[22rem]"
           >
             {!cart?.lines?.length ? (
-              <p className="p-8 text-center text-sm text-text-muted">{loading ? "Loading…" : "Cart is empty — search or scan a product to begin."}</p>
+              <p className="p-8 text-center text-sm text-text-muted">
+                {loading
+                  ? "Loading…"
+                  : "Cart is empty — search or scan a product to begin."}
+              </p>
             ) : (
               <div className="flex flex-col">
                 {cart.lines.map((line) => {
@@ -697,35 +1027,94 @@ export function PosCheckoutScreen() {
                   // by Stock's postStockMovement); this is only the UI nudge to
                   // capture it earlier, at the counter, rather than let the
                   // cashier discover the requirement from a failed checkout.
-                  const needsSerial = line.tracking_type === "serial" && !line.serial_id;
-                  const needsBatch = line.tracking_type === "batch" && !line.batch_id;
-                  const lineApproval = discountApprovals.find((approval) => approval.cart_line_id === line.id);
-                  const hasManualDiscount = Number(line.manual_discount_amount) > 0;
+                  const needsSerial =
+                    line.tracking_type === "serial" && !line.serial_id;
+                  const needsBatch =
+                    line.tracking_type === "batch" && !line.batch_id;
+                  const lineApproval = discountApprovals.find(
+                    (approval) => approval.cart_line_id === line.id,
+                  );
+                  const hasManualDiscount =
+                    Number(line.manual_discount_amount) > 0;
                   return (
-                    <div key={line.id} className="flex flex-col gap-2 border-t border-border px-4 py-3 first:border-t-0">
+                    <div
+                      key={line.id}
+                      className="flex flex-col gap-2 border-t border-border px-4 py-3 first:border-t-0"
+                    >
                       <div className="flex items-center gap-3">
                         <div className="min-w-0 flex-1">
-                          <p className="text-sm font-medium text-text">{line.description}</p>
+                          <p className="text-sm font-medium text-text">
+                            {line.description}
+                          </p>
                           <p className="text-xs text-text-muted">
                             {money(currency, line.unit_price)} each
-                            {Number(line.manual_discount_amount) > 0 && <> · manual −{money(currency, line.manual_discount_amount)}</>}
-                            {Number(line.promotion_discount_amount) > 0 && <> · promo −{money(currency, line.promotion_discount_amount)}</>}
-                            {Number(line.coupon_discount_amount) > 0 && <> · coupon −{money(currency, line.coupon_discount_amount)}</>}
+                            {Number(line.manual_discount_amount) > 0 && (
+                              <>
+                                {" "}
+                                · manual −
+                                {money(currency, line.manual_discount_amount)}
+                              </>
+                            )}
+                            {Number(line.promotion_discount_amount) > 0 && (
+                              <>
+                                {" "}
+                                · promo −
+                                {money(
+                                  currency,
+                                  line.promotion_discount_amount,
+                                )}
+                              </>
+                            )}
+                            {Number(line.coupon_discount_amount) > 0 && (
+                              <>
+                                {" "}
+                                · coupon −
+                                {money(currency, line.coupon_discount_amount)}
+                              </>
+                            )}
                             {line.serial_id && <> · serial set</>}
                             {line.batch_id && <> · batch set</>}
                           </p>
                         </div>
                         <div className="flex items-center gap-1">
-                          <IconButton variant="outline" size="large" onPress={() => changeQuantity(line.id, Number(line.quantity) - 1)} aria-label="Decrease quantity">
+                          <IconButton
+                            variant="outline"
+                            size="large"
+                            onPress={() =>
+                              changeQuantity(line.id, Number(line.quantity) - 1)
+                            }
+                            aria-label="Decrease quantity"
+                          >
                             <Minus className="size-4" aria-hidden="true" />
                           </IconButton>
-                          <span className="w-9 text-center text-base font-medium tabular-nums">{Number(line.quantity)}</span>
-                          <IconButton variant="outline" size="large" onPress={() => changeQuantity(line.id, Number(line.quantity) + 1)} aria-label="Increase quantity">
+                          <span className="w-9 text-center text-base font-medium tabular-nums">
+                            {Number(line.quantity)}
+                          </span>
+                          <IconButton
+                            variant="outline"
+                            size="large"
+                            onPress={() =>
+                              changeQuantity(line.id, Number(line.quantity) + 1)
+                            }
+                            aria-label="Increase quantity"
+                          >
                             <Plus className="size-4" aria-hidden="true" />
                           </IconButton>
                         </div>
-                        <span className="w-24 text-right text-base font-semibold tabular-nums text-text">{money(currency, line.line_total)}</span>
-                        <IconButton variant="ghost" size="large" onPress={() => cart && run(() => removePosCartLine(cart.id, line.id, cart.version))} aria-label="Remove line">
+                        <span className="w-24 text-right text-base font-semibold tabular-nums text-text">
+                          {money(currency, line.line_total)}
+                        </span>
+                        <IconButton
+                          variant="ghost"
+                          size="large"
+                          onPress={() =>
+                            cart &&
+                            run(() =>
+                              removePosCartLine(cart.id, line.id, cart.version),
+                            )
+                          }
+                          aria-label="Remove line"
+                        >
                           <Trash2 className="size-4" aria-hidden="true" />
                         </IconButton>
                       </div>
@@ -735,14 +1124,33 @@ export function PosCheckoutScreen() {
                           {hasManualDiscount ? (
                             <>
                               <StatusBadge tone="warning">{`Discount −${money(currency, line.manual_discount_amount)}`}</StatusBadge>
-                              {lineApproval && <StatusBadge tone={statusTone(lineApproval.status)}>{lineApproval.status === "pending" ? "Awaiting approval" : statusLabel(lineApproval.status)}</StatusBadge>}
-                              <Button variant="ghost" size="compact" onPress={() => removeLineDiscount(line.id)}>
+                              {lineApproval && (
+                                <StatusBadge
+                                  tone={statusTone(lineApproval.status)}
+                                >
+                                  {lineApproval.status === "pending"
+                                    ? "Awaiting approval"
+                                    : statusLabel(lineApproval.status)}
+                                </StatusBadge>
+                              )}
+                              <Button
+                                variant="ghost"
+                                size="compact"
+                                onPress={() => removeLineDiscount(line.id)}
+                              >
                                 Remove discount
                               </Button>
                             </>
                           ) : (
-                            <Button variant="ghost" size="compact" onPress={() => setLineDiscountLine(line)}>
-                              <BadgePercent className="size-3.5" aria-hidden="true" />
+                            <Button
+                              variant="ghost"
+                              size="compact"
+                              onPress={() => setLineDiscountLine(line)}
+                            >
+                              <BadgePercent
+                                className="size-3.5"
+                                aria-hidden="true"
+                              />
                               Add discount
                             </Button>
                           )}
@@ -752,13 +1160,34 @@ export function PosCheckoutScreen() {
                       {(needsSerial || needsBatch) && (
                         <div className="flex items-end gap-2 rounded-[var(--radius-control)] border border-warning-emphasis/30 bg-warning-soft px-3 py-2">
                           <TextField
-                            label={needsSerial ? "Serial number required" : "Batch required"}
-                            placeholder={needsSerial ? "Scan or enter serial" : "Scan or enter batch"}
+                            label={
+                              needsSerial
+                                ? "Serial number required"
+                                : "Batch required"
+                            }
+                            placeholder={
+                              needsSerial
+                                ? "Scan or enter serial"
+                                : "Scan or enter batch"
+                            }
                             value={trackingInputs[line.id] ?? ""}
-                            onChange={(value) => setTrackingInputs((prev) => ({ ...prev, [line.id]: value }))}
+                            onChange={(value) =>
+                              setTrackingInputs((prev) => ({
+                                ...prev,
+                                [line.id]: value,
+                              }))
+                            }
                             className="flex-1"
                           />
-                          <Button variant="secondary" onPress={() => setLineTracking(line.id, needsSerial ? "serial" : "batch")}>
+                          <Button
+                            variant="secondary"
+                            onPress={() =>
+                              setLineTracking(
+                                line.id,
+                                needsSerial ? "serial" : "batch",
+                              )
+                            }
+                          >
                             Set
                           </Button>
                         </div>
@@ -774,37 +1203,70 @@ export function PosCheckoutScreen() {
         <div className="flex flex-col gap-4 lg:sticky lg:top-4 lg:max-h-[calc(100dvh-7rem)] lg:overflow-y-auto lg:pr-1">
           {error && <PosAlert>{error}</PosAlert>}
           {conflict && (
-            <PosAlert tone="warning" className="flex items-center justify-between gap-2">
-              <span>{conflict} — the cart was refreshed with current server totals.</span>
-              <button type="button" onClick={() => setConflict(null)} aria-label="Dismiss">
+            <PosAlert
+              tone="warning"
+              className="flex items-center justify-between gap-2"
+            >
+              <span>
+                {conflict} — the cart was refreshed with current server totals.
+              </span>
+              <button
+                type="button"
+                onClick={() => setConflict(null)}
+                aria-label="Dismiss"
+              >
                 <X className="size-4" />
               </button>
             </PosAlert>
           )}
           {pendingApproval && (
             <PosAlert tone="warning">
-              <p className="font-medium">Waiting for a supervisor to approve the discount.</p>
+              <p className="font-medium">
+                Waiting for a supervisor to approve the discount.
+              </p>
               <p className="text-xs">
                 Leave the cart as it is — any change restarts the approval.{" "}
                 {canApproveDiscounts && (
-                  <Link href="/pos/discount-approvals" className="font-medium underline">
+                  <Link
+                    href="/pos/discount-approvals"
+                    className="font-medium underline"
+                  >
                     Open the approvals queue
                   </Link>
                 )}
               </p>
             </PosAlert>
           )}
-          {rejectedApproval && <PosAlert>A supervisor rejected the discount. Remove it to complete this sale.</PosAlert>}
-          {approvedApproval && <PosAlert tone="success">Discount approved by a supervisor.</PosAlert>}
+          {rejectedApproval && (
+            <PosAlert>
+              A supervisor rejected the discount. Remove it to complete this
+              sale.
+            </PosAlert>
+          )}
+          {approvedApproval && (
+            <PosAlert tone="success">
+              Discount approved by a supervisor.
+            </PosAlert>
+          )}
 
           <PosPanel title="Customer & offers">
             {selectedCustomer ? (
               <div className="flex items-center justify-between gap-2 rounded-[var(--radius-control)] border border-border bg-surface-muted px-3 py-2">
                 <div>
-                  <p className="text-sm font-medium text-text">{selectedCustomer.displayName}</p>
-                  {(selectedCustomer.phone || selectedCustomer.email) && <p className="text-xs text-text-muted">{selectedCustomer.phone || selectedCustomer.email}</p>}
+                  <p className="text-sm font-medium text-text">
+                    {selectedCustomer.displayName}
+                  </p>
+                  {(selectedCustomer.phone || selectedCustomer.email) && (
+                    <p className="text-xs text-text-muted">
+                      {selectedCustomer.phone || selectedCustomer.email}
+                    </p>
+                  )}
                 </div>
-                <IconButton variant="ghost" onPress={() => selectCustomer(null)} aria-label="Clear selected customer">
+                <IconButton
+                  variant="ghost"
+                  onPress={() => selectCustomer(null)}
+                  aria-label="Clear selected customer"
+                >
                   <X className="size-4" aria-hidden="true" />
                 </IconButton>
               </div>
@@ -816,18 +1278,29 @@ export function PosCheckoutScreen() {
                 onInputChange={setCustomerSearchInput}
                 options={customerOptions}
                 isLoading={customerSearchQuery.isFetching}
-                emptyMessage={debouncedCustomerSearch.trim() ? "No matching customers" : "Type to search customers"}
+                emptyMessage={
+                  debouncedCustomerSearch.trim()
+                    ? "No matching customers"
+                    : "Type to search customers"
+                }
                 allowsEmptyCollection
                 onSelectionChange={(key) => {
                   if (key == null) return;
-                  const match = customerSearchQuery.data?.rows.find((row) => row.id === key);
+                  const match = customerSearchQuery.data?.rows.find(
+                    (row) => row.id === key,
+                  );
                   if (match) selectCustomer(match);
                 }}
               />
             )}
 
             <div className="flex items-end gap-2">
-              <TextField label="Coupon code" value={couponCode} onChange={setCouponCode} className="flex-1" />
+              <TextField
+                label="Coupon code"
+                value={couponCode}
+                onChange={setCouponCode}
+                className="flex-1"
+              />
               {cart?.coupon_code ? (
                 <Button variant="secondary" onPress={removeCoupon}>
                   Remove
@@ -838,7 +1311,11 @@ export function PosCheckoutScreen() {
                 </Button>
               )}
             </div>
-            {cart?.coupon_code && <p className="text-xs text-success">Coupon {cart.coupon_code} applied.</p>}
+            {cart?.coupon_code && (
+              <p className="text-xs text-success">
+                Coupon {cart.coupon_code} applied.
+              </p>
+            )}
 
             {canDiscount && (
               <div className="flex flex-col gap-2 border-t border-border pt-3">
@@ -846,16 +1323,31 @@ export function PosCheckoutScreen() {
                 {cart?.cart_discount_type ? (
                   <div className="flex items-center justify-between gap-2 rounded-[var(--radius-control)] border border-border bg-surface-muted px-3 py-2 text-sm">
                     <span className="text-text">
-                      {cart.cart_discount_type === "percent" ? `${Number(cart.cart_discount_value)}% off` : `${money(currency, cart.cart_discount_value)} off`}
-                      {cart.cart_discount_reason ? <span className="text-text-muted"> — {cart.cart_discount_reason}</span> : null}
+                      {cart.cart_discount_type === "percent"
+                        ? `${Number(cart.cart_discount_value)}% off`
+                        : `${money(currency, cart.cart_discount_value)} off`}
+                      {cart.cart_discount_reason ? (
+                        <span className="text-text-muted">
+                          {" "}
+                          — {cart.cart_discount_reason}
+                        </span>
+                      ) : null}
                     </span>
-                    <Button variant="ghost" size="compact" onPress={removeCartDiscount}>
+                    <Button
+                      variant="ghost"
+                      size="compact"
+                      onPress={removeCartDiscount}
+                    >
                       Remove
                     </Button>
                   </div>
                 ) : (
                   <div>
-                    <Button variant="secondary" onPress={() => setCartDiscountOpen(true)} isDisabled={!cart?.lines?.length}>
+                    <Button
+                      variant="secondary"
+                      onPress={() => setCartDiscountOpen(true)}
+                      isDisabled={!cart?.lines?.length}
+                    >
                       <BadgePercent className="size-4" aria-hidden="true" />
                       Add cart discount
                     </Button>
@@ -869,30 +1361,59 @@ export function PosCheckoutScreen() {
                 <p className="text-sm font-medium text-text">Loyalty points</p>
                 {loyaltyBalanceQuery.data && (
                   <p className="text-sm text-text-secondary">
-                    Balance: <span className="tabular-nums">{loyaltyBalanceQuery.data.balance.balance}</span> pts
-                    {cart.loyalty?.pointsToEarn && Number(cart.loyalty.pointsToEarn) > 0 && (
-                      <>
-                        {" "}
-                        · will earn <span className="tabular-nums">{cart.loyalty.pointsToEarn}</span> pts on completion
-                      </>
-                    )}
+                    Balance:{" "}
+                    <span className="tabular-nums">
+                      {loyaltyBalanceQuery.data.balance.balance}
+                    </span>{" "}
+                    pts
+                    {cart.loyalty?.pointsToEarn &&
+                      Number(cart.loyalty.pointsToEarn) > 0 && (
+                        <>
+                          {" "}
+                          · will earn{" "}
+                          <span className="tabular-nums">
+                            {cart.loyalty.pointsToEarn}
+                          </span>{" "}
+                          pts on completion
+                        </>
+                      )}
                   </p>
                 )}
                 {canRedeemLoyalty &&
                   (Number(cart.loyalty_redeem_points ?? 0) > 0 ? (
                     <div className="flex items-center justify-between gap-2">
                       <p className="text-sm text-text-secondary">
-                        Redeeming <span className="tabular-nums">{cart.loyalty_redeem_points}</span> pts
-                        {cart.loyalty?.redeemAmount && <> (−{money(currency, cart.loyalty.redeemAmount)})</>}
+                        Redeeming{" "}
+                        <span className="tabular-nums">
+                          {cart.loyalty_redeem_points}
+                        </span>{" "}
+                        pts
+                        {cart.loyalty?.redeemAmount && (
+                          <> (−{money(currency, cart.loyalty.redeemAmount)})</>
+                        )}
                       </p>
-                      <Button variant="secondary" onPress={removeLoyaltyRedemption}>
+                      <Button
+                        variant="secondary"
+                        onPress={removeLoyaltyRedemption}
+                      >
                         Remove
                       </Button>
                     </div>
                   ) : (
                     <div className="flex items-end gap-2">
-                      <NumberField label="Points to redeem" value={redeemPointsInput} onChange={setRedeemPointsInput} minValue={0} step={1} className="flex-1" />
-                      <Button variant="secondary" onPress={redeemLoyalty} isDisabled={redeemPointsInput <= 0}>
+                      <NumberField
+                        label="Points to redeem"
+                        value={redeemPointsInput}
+                        onChange={setRedeemPointsInput}
+                        minValue={0}
+                        step={1}
+                        className="flex-1"
+                      />
+                      <Button
+                        variant="secondary"
+                        onPress={redeemLoyalty}
+                        isDisabled={redeemPointsInput <= 0}
+                      >
                         Redeem
                       </Button>
                     </div>
@@ -904,46 +1425,69 @@ export function PosCheckoutScreen() {
           <PosPanel title="Payment">
             <div className="flex flex-col gap-1 text-sm">
               <Row label="Subtotal" value={money(currency, cart?.subtotal)} />
-              <Row label="Discounts" value={`−${money(currency, cart?.discount_total)}`} />
+              <Row
+                label="Discounts"
+                value={`−${money(currency, cart?.discount_total)}`}
+              />
               <Row label="Tax" value={money(currency, cart?.tax_total)} />
               <div className="mt-1 flex items-center justify-between border-t border-border pt-2 text-lg font-semibold text-text">
                 <span>Total</span>
-                <span className="tabular-nums">{money(currency, cart?.grand_total)}</span>
+                <span className="tabular-nums">
+                  {money(currency, cart?.grand_total)}
+                </span>
               </div>
             </div>
 
             {exchangeReturnId && (
-              <PosAlert tone="warning">Exchange mode — completing this sale also completes the linked return. Only cash tender is supported for exchanges.</PosAlert>
+              <PosAlert tone="warning">
+                Exchange mode — completing this sale also completes the linked
+                return. Only cash tender is supported for exchanges.
+              </PosAlert>
             )}
 
             <div className="flex flex-col gap-3 border-t border-border pt-3">
               <p className="text-sm font-medium text-text">Tender</p>
               {tenderLines.map((line) => (
-                <div key={line.id} className="flex flex-col gap-2 rounded-[var(--radius-control)] border border-border p-3">
+                <div
+                  key={line.id}
+                  className="flex flex-col gap-2 rounded-[var(--radius-control)] border border-border p-3"
+                >
                   <div className="flex items-end gap-2">
                     {line.method === "cash" ? (
-                      <span className="flex-1 pb-2 text-sm font-medium text-text">Cash</span>
+                      <span className="flex-1 pb-2 text-sm font-medium text-text">
+                        Cash
+                      </span>
                     ) : (
                       <Select
                         label="Method"
                         className="flex-1"
                         options={NON_CASH_METHOD_OPTIONS}
                         selectedKey={line.method}
-                        onSelectionChange={(key) => updateTenderLine(line.id, { method: key as TenderMethod })}
+                        onSelectionChange={(key) =>
+                          updateTenderLine(line.id, {
+                            method: key as TenderMethod,
+                          })
+                        }
                         isDisabled={Boolean(line.paymentId)}
                       />
                     )}
                     <NumberField
                       label="Amount"
                       value={line.amount}
-                      onChange={(value) => updateTenderLine(line.id, { amount: value })}
+                      onChange={(value) =>
+                        updateTenderLine(line.id, { amount: value })
+                      }
                       minValue={0}
                       step={0.01}
                       isDisabled={Boolean(line.paymentId)}
                       className="w-32"
                     />
                     {tenderLines.length > 1 && !line.paymentId && (
-                      <IconButton variant="ghost" onPress={() => removeTenderLine(line.id)} aria-label="Remove tender line">
+                      <IconButton
+                        variant="ghost"
+                        onPress={() => removeTenderLine(line.id)}
+                        aria-label="Remove tender line"
+                      >
                         <Trash2 className="size-4" aria-hidden="true" />
                       </IconButton>
                     )}
@@ -955,50 +1499,115 @@ export function PosCheckoutScreen() {
                           label="Sandbox outcome"
                           className="flex-1"
                           options={SANDBOX_OUTCOME_OPTIONS}
-                          selectedKey={(tenderOutcome[line.id] || "immediate_success") as (typeof SANDBOX_OUTCOME_OPTIONS)[number]["value"]}
-                          onSelectionChange={(key) => setTenderOutcome((prev) => ({ ...prev, [line.id]: String(key) }))}
+                          selectedKey={
+                            (tenderOutcome[line.id] ||
+                              "immediate_success") as (typeof SANDBOX_OUTCOME_OPTIONS)[number]["value"]
+                          }
+                          onSelectionChange={(key) =>
+                            setTenderOutcome((prev) => ({
+                              ...prev,
+                              [line.id]: String(key),
+                            }))
+                          }
                         />
                       )}
                       {!line.paymentId ? (
-                        <Button variant="secondary" onPress={() => chargeTenderLine(line)} isLoading={line.charging} isDisabled={line.amount <= 0}>
+                        <Button
+                          variant="secondary"
+                          onPress={() => chargeTenderLine(line)}
+                          isLoading={line.charging}
+                          isDisabled={line.amount <= 0}
+                        >
                           Charge {line.method}
                         </Button>
                       ) : (
-                        <StatusBadge tone={line.status === "captured" ? "success" : line.status === "failed" ? "danger" : "warning"}>
-                          {line.status === "captured" ? "Captured" : line.status === "failed" ? "Declined" : "Processing…"}
+                        <StatusBadge
+                          tone={
+                            line.status === "captured"
+                              ? "success"
+                              : line.status === "failed"
+                                ? "danger"
+                                : "warning"
+                          }
+                        >
+                          {line.status === "captured"
+                            ? "Captured"
+                            : line.status === "failed"
+                              ? "Declined"
+                              : "Processing…"}
                         </StatusBadge>
                       )}
                     </div>
                   )}
-                  {line.error && <p className="text-xs text-danger">{line.error}</p>}
+                  {line.error && (
+                    <p className="text-xs text-danger">{line.error}</p>
+                  )}
                 </div>
               ))}
               {!exchangeReturnId && (
                 <div>
-                  <Button variant="ghost" size="compact" onPress={addTenderLine}>
+                  <Button
+                    variant="ghost"
+                    size="compact"
+                    onPress={addTenderLine}
+                  >
                     <Plus className="size-3.5" aria-hidden="true" />
                     Add tender line (split payment)
                   </Button>
                 </div>
               )}
               <div className="flex items-center justify-between text-sm">
-                <span className="text-text-secondary">Remaining to allocate</span>
-                <span className={`font-medium tabular-nums ${remainingToAllocate === 0 ? "text-success" : "text-text"}`}>{money(currency, remainingToAllocate)}</span>
+                <span className="text-text-secondary">
+                  Remaining to allocate
+                </span>
+                <span
+                  className={`font-medium tabular-nums ${remainingToAllocate === 0 ? "text-success" : "text-text"}`}
+                >
+                  {money(currency, remainingToAllocate)}
+                </span>
               </div>
-              {isSingleCashTender && <p className="text-sm text-text-secondary">Change: {money(currency, Math.max(0, tenderTotal - grandTotalNumber))}</p>}
+              {isSingleCashTender && (
+                <p className="text-sm text-text-secondary">
+                  Change:{" "}
+                  {money(currency, Math.max(0, tenderTotal - grandTotalNumber))}
+                </p>
+              )}
             </div>
 
             <div className="flex flex-col gap-2 border-t border-border pt-3">
-              <Button variant="primary" size="large" onPress={completeSale} isDisabled={!canComplete || Boolean(completeBlockedReason)} isLoading={completing}>
+              <Button
+                variant="primary"
+                size="large"
+                onPress={completeSale}
+                isDisabled={!canComplete || Boolean(completeBlockedReason)}
+                isLoading={completing}
+              >
                 {exchangeReturnId ? "Complete exchange" : "Complete sale"}
               </Button>
-              {completeBlockedReason && <p className="text-center text-xs text-text-muted">{completeBlockedReason}</p>}
+              {completeBlockedReason && (
+                <p className="text-center text-xs text-text-muted">
+                  {completeBlockedReason}
+                </p>
+              )}
               <div className="grid grid-cols-2 gap-2">
-                <Button variant="secondary" onPress={holdCurrentCart} isDisabled={!cart?.lines?.length} isLoading={loading}>
+                <Button
+                  variant="secondary"
+                  onPress={holdCurrentCart}
+                  isDisabled={!cart?.lines?.length}
+                  isLoading={loading}
+                >
                   <Pause className="size-4" aria-hidden="true" />
                   Hold sale
                 </Button>
-                <Button variant="ghost" onPress={() => cart && run(() => cancelPosCart(cart.id).then((r) => ({ cart: r.cart })))}>
+                <Button
+                  variant="ghost"
+                  onPress={() =>
+                    cart &&
+                    run(() =>
+                      cancelPosCart(cart.id).then((r) => ({ cart: r.cart })),
+                    )
+                  }
+                >
                   Cancel sale
                 </Button>
               </div>
@@ -1007,12 +1616,21 @@ export function PosCheckoutScreen() {
         </div>
       </div>
 
-      {heldCartsOpen && <HeldCartsDialog onClose={() => setHeldCartsOpen(false)} onResume={resumeHeldCart} currency={currency} />}
+      {heldCartsOpen && (
+        <HeldCartsDialog
+          onClose={() => setHeldCartsOpen(false)}
+          onResume={resumeHeldCart}
+          currency={currency}
+        />
+      )}
       {lineDiscountLine && (
         <DiscountDialog
           title={`Discount — ${lineDiscountLine.description}`}
           baseLabel="Line total before discount"
-          baseAmount={money(currency, lineDiscountLine.gross_amount ?? lineDiscountLine.line_total)}
+          baseAmount={money(
+            currency,
+            lineDiscountLine.gross_amount ?? lineDiscountLine.line_total,
+          )}
           onClose={() => setLineDiscountLine(null)}
           onApply={(input) => {
             applyLineDiscount(lineDiscountLine.id, input);
@@ -1053,7 +1671,11 @@ function DiscountDialog({
   baseLabel: string;
   baseAmount: string;
   onClose: () => void;
-  onApply: (input: { type: "percent" | "amount"; value: number; reason: string }) => void;
+  onApply: (input: {
+    type: "percent" | "amount";
+    value: number;
+    reason: string;
+  }) => void;
 }) {
   const [type, setType] = useState<"percent" | "amount">("percent");
   const [value, setValue] = useState(0);
@@ -1062,7 +1684,10 @@ function DiscountDialog({
     <Dialog isOpen onOpenChange={(open) => !open && onClose()} title={title}>
       <div className="flex flex-col gap-4">
         <p className="text-sm text-text-secondary">
-          {baseLabel}: <span className="tabular-nums text-text">{baseAmount}</span>. A larger discount needs a supervisor&apos;s approval before the sale can be completed.
+          {baseLabel}:{" "}
+          <span className="tabular-nums text-text">{baseAmount}</span>. A larger
+          discount needs a supervisor&apos;s approval before the sale can be
+          completed.
         </p>
         <div className="grid grid-cols-2 gap-3">
           <Select
@@ -1072,16 +1697,34 @@ function DiscountDialog({
               { value: "amount", label: "Amount" },
             ]}
             selectedKey={type}
-            onSelectionChange={(key) => setType(key === "amount" ? "amount" : "percent")}
+            onSelectionChange={(key) =>
+              setType(key === "amount" ? "amount" : "percent")
+            }
           />
-          <NumberField label={type === "percent" ? "Percent off" : "Amount off"} value={value} onChange={setValue} minValue={0} maxValue={type === "percent" ? 100 : undefined} step={type === "percent" ? 1 : 0.01} />
+          <NumberField
+            label={type === "percent" ? "Percent off" : "Amount off"}
+            value={value}
+            onChange={setValue}
+            minValue={0}
+            maxValue={type === "percent" ? 100 : undefined}
+            step={type === "percent" ? 1 : 0.01}
+          />
         </div>
-        <TextField label="Reason" isRequired value={reason} onChange={setReason} />
+        <TextField
+          label="Reason"
+          isRequired
+          value={reason}
+          onChange={setReason}
+        />
         <div className="flex justify-end gap-2">
           <Button variant="secondary" onPress={onClose}>
             Cancel
           </Button>
-          <Button variant="primary" isDisabled={value <= 0 || !reason.trim()} onPress={() => onApply({ type, value, reason: reason.trim() })}>
+          <Button
+            variant="primary"
+            isDisabled={value <= 0 || !reason.trim()}
+            onPress={() => onApply({ type, value, reason: reason.trim() })}
+          >
             Apply discount
           </Button>
         </div>
@@ -1090,7 +1733,15 @@ function DiscountDialog({
   );
 }
 
-function HeldCartsDialog({ onClose, onResume, currency }: { onClose: () => void; onResume: (id: string) => void; currency: string }) {
+function HeldCartsDialog({
+  onClose,
+  onResume,
+  currency,
+}: {
+  onClose: () => void;
+  onResume: (id: string) => void;
+  currency: string;
+}) {
   const workspace = useWorkspaceContext();
   const [search, setSearch] = useState("");
   const query = useQuery({
@@ -1101,26 +1752,49 @@ function HeldCartsDialog({ onClose, onResume, currency }: { onClose: () => void;
   const rows = query.data?.rows ?? [];
 
   return (
-    <Dialog isOpen onOpenChange={(open) => !open && onClose()} title="Held sales">
+    <Dialog
+      isOpen
+      onOpenChange={(open) => !open && onClose()}
+      title="Held sales"
+    >
       <div className="flex flex-col gap-3">
-        <SearchField label="Search held sales" placeholder="Store, terminal, or customer…" value={search} onChange={setSearch} />
+        <SearchField
+          label="Search held sales"
+          placeholder="Store, terminal, or customer…"
+          value={search}
+          onChange={setSearch}
+        />
         {query.isLoading ? (
-          <p className="p-4 text-center text-sm text-text-secondary">Loading…</p>
+          <p className="p-4 text-center text-sm text-text-secondary">
+            Loading…
+          </p>
         ) : rows.length === 0 ? (
-          <p className="p-4 text-center text-sm text-text-muted">No held sales right now.</p>
+          <p className="p-4 text-center text-sm text-text-muted">
+            No held sales right now.
+          </p>
         ) : (
           <ul className="flex max-h-96 flex-col divide-y divide-border overflow-y-auto rounded-[var(--radius-control)] border border-border">
             {rows.map((row) => (
-              <li key={row.id} className="flex items-center justify-between gap-3 px-3 py-2">
+              <li
+                key={row.id}
+                className="flex items-center justify-between gap-3 px-3 py-2"
+              >
                 <div>
                   <p className="text-sm font-medium text-text">
-                    {row.customer_name ?? "Walk-in"} · {row.line_count} item{row.line_count === 1 ? "" : "s"}
+                    {row.customer_name ?? "Walk-in"} · {row.line_count} item
+                    {row.line_count === 1 ? "" : "s"}
                   </p>
                   <p className="text-xs text-text-muted">
-                    {row.store_name} / {row.terminal_name} · held {new Date(row.held_at).toLocaleTimeString()} · {money(currency, row.grand_total)}
+                    {row.store_name} / {row.terminal_name} · held{" "}
+                    {new Date(row.held_at).toLocaleTimeString()} ·{" "}
+                    {money(currency, row.grand_total)}
                   </p>
                 </div>
-                <Button variant="secondary" size="compact" onPress={() => onResume(row.id)}>
+                <Button
+                  variant="secondary"
+                  size="compact"
+                  onPress={() => onResume(row.id)}
+                >
                   Resume
                 </Button>
               </li>

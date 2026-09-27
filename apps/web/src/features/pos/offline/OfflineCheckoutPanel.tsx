@@ -21,15 +21,33 @@
 // ESTIMATE for the cashier and customer, never treated as authoritative.
 import { useEffect, useMemo, useState } from "react";
 import { Minus, Plus, Trash2 } from "lucide-react";
-import { Button, NumberField, SearchField, StatusBadge, TextField } from "@vercentlabs/design-system";
+import {
+  Button,
+  NumberField,
+  SearchField,
+  StatusBadge,
+  TextField,
+} from "@vercentlabs/design-system";
 
 import { money } from "@/features/pos/shared/format";
-import { countQueuedOfflineSales, loadOfflineContext, loadSnapshot, enqueueOfflineSale } from "./db";
-import type { PosOfflineLine, PosOfflineQueuedSale, PosOfflineSnapshot } from "./types";
+import {
+  countQueuedOfflineSales,
+  loadOfflineContext,
+  loadSnapshot,
+  enqueueOfflineSale,
+} from "./db";
+import type {
+  PosOfflineLine,
+  PosOfflineQueuedSale,
+  PosOfflineSnapshot,
+} from "./types";
 
 type LocalLine = PosOfflineLine;
 
-function computeTotals(lines: LocalLine[], snapshot: PosOfflineSnapshot | null) {
+function computeTotals(
+  lines: LocalLine[],
+  snapshot: PosOfflineSnapshot | null,
+) {
   let subtotal = 0;
   let discountTotal = 0;
   let taxTotal = 0;
@@ -37,19 +55,29 @@ function computeTotals(lines: LocalLine[], snapshot: PosOfflineSnapshot | null) 
     const lineSubtotal = line.quantity * line.capturedUnitPrice;
     const discount = Math.min(line.discountAmount || 0, lineSubtotal);
     const taxable = Math.max(0, lineSubtotal - discount);
-    const rateRow = snapshot?.taxRatesByCategory.find((row) => row.taxCategoryId === line.taxCategoryId);
-    const taxAmount = rateRow ? Math.round(taxable * (rateRow.rate / 100) * 100) / 100 : 0;
+    const rateRow = snapshot?.taxRatesByCategory.find(
+      (row) => row.taxCategoryId === line.taxCategoryId,
+    );
+    const taxAmount = rateRow
+      ? Math.round(taxable * (rateRow.rate / 100) * 100) / 100
+      : 0;
     subtotal += lineSubtotal;
     discountTotal += discount;
     taxTotal += taxAmount;
   }
-  const grandTotal = Math.round((subtotal - discountTotal + taxTotal) * 100) / 100;
+  const grandTotal =
+    Math.round((subtotal - discountTotal + taxTotal) * 100) / 100;
   return { subtotal, discountTotal, taxTotal, grandTotal };
 }
 
 export function OfflineCheckoutPanel() {
   const [snapshot, setSnapshot] = useState<PosOfflineSnapshot | null>(null);
-  const [context, setContext] = useState<{ storeId: string; terminalId: string | null; shiftId: string; cashierUserId: string } | null>(null);
+  const [context, setContext] = useState<{
+    storeId: string;
+    terminalId: string | null;
+    shiftId: string;
+    cashierUserId: string;
+  } | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [lines, setLines] = useState<LocalLine[]>([]);
@@ -57,7 +85,10 @@ export function OfflineCheckoutPanel() {
   const [discountReason, setDiscountReason] = useState("");
   const [cashTendered, setCashTendered] = useState(0);
   const [committing, setCommitting] = useState(false);
-  const [confirmation, setConfirmation] = useState<{ localTransactionId: string; grandTotal: number } | null>(null);
+  const [confirmation, setConfirmation] = useState<{
+    localTransactionId: string;
+    grandTotal: number;
+  } | null>(null);
   const [queueCounts, setQueueCounts] = useState({ queued: 0, conflict: 0 });
 
   useEffect(() => {
@@ -66,12 +97,18 @@ export function OfflineCheckoutPanel() {
       try {
         const savedContext = await loadOfflineContext();
         if (!savedContext) {
-          if (!cancelled) setLoadError("No offline snapshot has been captured on this device yet. Connect once online at this terminal before going offline.");
+          if (!cancelled)
+            setLoadError(
+              "No offline snapshot has been captured on this device yet. Connect once online at this terminal before going offline.",
+            );
           return;
         }
         const savedSnapshot = await loadSnapshot(savedContext.storeId);
         if (!savedSnapshot) {
-          if (!cancelled) setLoadError("No offline catalog snapshot is available for this store on this device yet.");
+          if (!cancelled)
+            setLoadError(
+              "No offline catalog snapshot is available for this store on this device yet.",
+            );
           return;
         }
         if (!cancelled) {
@@ -79,22 +116,36 @@ export function OfflineCheckoutPanel() {
           setSnapshot(savedSnapshot);
         }
       } catch {
-        if (!cancelled) setLoadError("The offline snapshot could not be read from this device (it may be corrupted or the encryption key changed).");
+        if (!cancelled)
+          setLoadError(
+            "The offline snapshot could not be read from this device (it may be corrupted or the encryption key changed).",
+          );
       }
     }
     load();
-    countQueuedOfflineSales().then((counts) => !cancelled && setQueueCounts(counts));
+    countQueuedOfflineSales().then(
+      (counts) => !cancelled && setQueueCounts(counts),
+    );
     return () => {
       cancelled = true;
     };
   }, []);
 
-  const canDiscount = Boolean(snapshot?.cashierPermissions.includes("pos.discount.apply"));
+  const canDiscount = Boolean(
+    snapshot?.cashierPermissions.includes("pos.discount.apply"),
+  );
 
   const filteredItems = useMemo(() => {
     if (!snapshot || !searchTerm.trim()) return [];
     const term = searchTerm.trim().toLowerCase();
-    return snapshot.items.filter((item) => item.name.toLowerCase().includes(term) || item.code.toLowerCase().includes(term) || item.barcode?.toLowerCase() === term).slice(0, 20);
+    return snapshot.items
+      .filter(
+        (item) =>
+          item.name.toLowerCase().includes(term) ||
+          item.code.toLowerCase().includes(term) ||
+          item.barcode?.toLowerCase() === term,
+      )
+      .slice(0, 20);
   }, [snapshot, searchTerm]);
 
   function addLine(itemId: string) {
@@ -103,23 +154,42 @@ export function OfflineCheckoutPanel() {
     setLines((prev) => {
       const existing = prev.find((line) => line.itemId === itemId);
       if (existing) {
-        return prev.map((line) => (line.itemId === itemId ? boundQuantity(line, item.lastKnownQuantity, line.quantity + 1) : line));
+        return prev.map((line) =>
+          line.itemId === itemId
+            ? boundQuantity(line, item.lastKnownQuantity, line.quantity + 1)
+            : line,
+        );
       }
       return [
         ...prev,
-        { itemId: item.itemId, code: item.code, name: item.name, quantity: 1, capturedUnitPrice: item.unitPrice, taxCategoryId: item.taxCategoryId, description: item.name },
+        {
+          itemId: item.itemId,
+          code: item.code,
+          name: item.name,
+          quantity: 1,
+          capturedUnitPrice: item.unitPrice,
+          taxCategoryId: item.taxCategoryId,
+          description: item.name,
+        },
       ];
     });
     setSearchTerm("");
   }
 
-  function boundQuantity(line: LocalLine, lastKnownQuantity: number, requested: number): LocalLine {
+  function boundQuantity(
+    line: LocalLine,
+    lastKnownQuantity: number,
+    requested: number,
+  ): LocalLine {
     // LIVE_STOCK_TRUTH (unsupported-while-offline): never let the offline
     // UI accept a quantity beyond the snapshot's last-known figure --
     // the server re-validates true current stock again at sync
     // regardless, but there is no reason to let a cashier queue a sale
     // that is already known-impossible against the snapshot itself.
-    const bounded = Math.max(0, Math.min(requested, Math.max(lastKnownQuantity, 0)));
+    const bounded = Math.max(
+      0,
+      Math.min(requested, Math.max(lastKnownQuantity, 0)),
+    );
     return { ...line, quantity: bounded };
   }
 
@@ -127,7 +197,15 @@ export function OfflineCheckoutPanel() {
     const item = snapshot?.items.find((row) => row.itemId === itemId);
     setLines((prev) =>
       prev
-        .map((line) => (line.itemId === itemId ? boundQuantity(line, item?.lastKnownQuantity ?? 0, line.quantity + delta) : line))
+        .map((line) =>
+          line.itemId === itemId
+            ? boundQuantity(
+                line,
+                item?.lastKnownQuantity ?? 0,
+                line.quantity + delta,
+              )
+            : line,
+        )
         .filter((line) => line.quantity > 0),
     );
   }
@@ -137,7 +215,11 @@ export function OfflineCheckoutPanel() {
   }
 
   const perLineDiscount = lines.length > 0 ? discountAmount / lines.length : 0;
-  const linesWithDiscount = lines.map((line) => ({ ...line, discountAmount: canDiscount ? perLineDiscount : 0, discountReason: canDiscount ? discountReason : null }));
+  const linesWithDiscount = lines.map((line) => ({
+    ...line,
+    discountAmount: canDiscount ? perLineDiscount : 0,
+    discountReason: canDiscount ? discountReason : null,
+  }));
   const totalsWithDiscount = computeTotals(linesWithDiscount, snapshot);
 
   async function commitOfflineSale() {
@@ -163,7 +245,10 @@ export function OfflineCheckoutPanel() {
         capturedTotals: totalsWithDiscount,
       };
       await enqueueOfflineSale(sale);
-      setConfirmation({ localTransactionId, grandTotal: totalsWithDiscount.grandTotal });
+      setConfirmation({
+        localTransactionId,
+        grandTotal: totalsWithDiscount.grandTotal,
+      });
       setLines([]);
       setDiscountAmount(0);
       setDiscountReason("");
@@ -192,7 +277,9 @@ export function OfflineCheckoutPanel() {
     return (
       <div className="flex flex-col items-center justify-center gap-3 p-12 text-center">
         <StatusBadge tone="warning">Offline</StatusBadge>
-        <p className="text-sm text-text-muted">Loading the offline catalog snapshot…</p>
+        <p className="text-sm text-text-muted">
+          Loading the offline catalog snapshot…
+        </p>
       </div>
     );
   }
@@ -201,10 +288,16 @@ export function OfflineCheckoutPanel() {
     return (
       <div className="flex flex-col items-center justify-center gap-4 p-12 text-center">
         <StatusBadge tone="warning">Sale queued (offline)</StatusBadge>
-        <h1 className="text-2xl font-semibold text-text">Queued transaction {confirmation.localTransactionId.slice(0, 8)}</h1>
-        <p className="text-lg text-text">Estimated total: {money(snapshot.store.currencyCode, String(confirmation.grandTotal))}</p>
+        <h1 className="text-2xl font-semibold text-text">
+          Queued transaction {confirmation.localTransactionId.slice(0, 8)}
+        </h1>
+        <p className="text-lg text-text">
+          Estimated total:{" "}
+          {money(snapshot.store.currencyCode, String(confirmation.grandTotal))}
+        </p>
         <p className="max-w-md text-sm text-text-secondary">
-          This sale will sync to a real server sale automatically once this device is back online. It is not final until sync confirms it.
+          This sale will sync to a real server sale automatically once this
+          device is back online. It is not final until sync confirms it.
         </p>
         <Button variant="primary" onPress={startNewOfflineSale}>
           New offline sale
@@ -219,11 +312,19 @@ export function OfflineCheckoutPanel() {
         <div className="flex items-center justify-between gap-2">
           <StatusBadge tone="warning">{`Offline — ${snapshot.store.name}`}</StatusBadge>
           <p className="text-xs text-text-muted">
-            {queueCounts.queued} queued{queueCounts.conflict > 0 ? `, ${queueCounts.conflict} needs review` : ""}
+            {queueCounts.queued} queued
+            {queueCounts.conflict > 0
+              ? `, ${queueCounts.conflict} needs review`
+              : ""}
           </p>
         </div>
 
-        <SearchField label="Search offline catalog" placeholder="Search by name, code or barcode…" value={searchTerm} onChange={setSearchTerm} />
+        <SearchField
+          label="Search offline catalog"
+          placeholder="Search by name, code or barcode…"
+          value={searchTerm}
+          onChange={setSearchTerm}
+        />
         {searchTerm.trim() && (
           <div className="max-h-48 overflow-y-auto rounded-[var(--radius-card)] border border-border">
             {filteredItems.map((item) => (
@@ -235,38 +336,77 @@ export function OfflineCheckoutPanel() {
                 className="flex w-full items-center justify-between border-b border-border px-3 py-2 text-left text-sm last:border-0 hover:bg-surface-muted disabled:opacity-40"
               >
                 <span>
-                  {item.name} <span className="text-text-muted">({item.code})</span>
+                  {item.name}{" "}
+                  <span className="text-text-muted">({item.code})</span>
                 </span>
                 <span className="tabular-nums">
-                  {money(snapshot.store.currencyCode, String(item.unitPrice))} · {item.lastKnownQuantity} last known
+                  {money(snapshot.store.currencyCode, String(item.unitPrice))} ·{" "}
+                  {item.lastKnownQuantity} last known
                 </span>
               </button>
             ))}
-            {filteredItems.length === 0 && <p className="px-3 py-2 text-sm text-text-muted">No matches in the offline snapshot.</p>}
+            {filteredItems.length === 0 && (
+              <p className="px-3 py-2 text-sm text-text-muted">
+                No matches in the offline snapshot.
+              </p>
+            )}
           </div>
         )}
 
         <div className="flex-1 overflow-y-auto rounded-[var(--radius-card)] border border-border">
           {lines.length === 0 ? (
-            <p className="p-6 text-center text-sm text-text-muted">Cart is empty — search the offline catalog to begin.</p>
+            <p className="p-6 text-center text-sm text-text-muted">
+              Cart is empty — search the offline catalog to begin.
+            </p>
           ) : (
             lines.map((line) => (
-              <div key={line.itemId} className="flex items-center justify-between gap-3 border-b border-border px-3 py-2 last:border-0">
+              <div
+                key={line.itemId}
+                className="flex items-center justify-between gap-3 border-b border-border px-3 py-2 last:border-0"
+              >
                 <div className="flex-1">
                   <p className="text-sm font-medium text-text">{line.name}</p>
-                  <p className="text-xs text-text-muted">{money(snapshot.store.currencyCode, String(line.capturedUnitPrice))} each (snapshot price)</p>
+                  <p className="text-xs text-text-muted">
+                    {money(
+                      snapshot.store.currencyCode,
+                      String(line.capturedUnitPrice),
+                    )}{" "}
+                    each (snapshot price)
+                  </p>
                 </div>
                 <div className="flex items-center gap-1">
-                  <Button variant="outline" size="compact" onPress={() => changeQuantity(line.itemId, -1)} aria-label="Decrease quantity">
+                  <Button
+                    variant="outline"
+                    size="compact"
+                    onPress={() => changeQuantity(line.itemId, -1)}
+                    aria-label="Decrease quantity"
+                  >
                     <Minus className="size-3.5" aria-hidden="true" />
                   </Button>
-                  <span className="w-8 text-center tabular-nums">{line.quantity}</span>
-                  <Button variant="outline" size="compact" onPress={() => changeQuantity(line.itemId, 1)} aria-label="Increase quantity">
+                  <span className="w-8 text-center tabular-nums">
+                    {line.quantity}
+                  </span>
+                  <Button
+                    variant="outline"
+                    size="compact"
+                    onPress={() => changeQuantity(line.itemId, 1)}
+                    aria-label="Increase quantity"
+                  >
                     <Plus className="size-3.5" aria-hidden="true" />
                   </Button>
                 </div>
-                <span className="w-24 text-right tabular-nums">{money(snapshot.store.currencyCode, String(line.quantity * line.capturedUnitPrice))}</span>
-                <Button variant="ghost" size="compact" onPress={() => removeLine(line.itemId)} aria-label="Remove line">
+                <span className="w-24 text-right tabular-nums">
+                  {money(
+                    snapshot.store.currencyCode,
+                    String(line.quantity * line.capturedUnitPrice),
+                  )}
+                </span>
+                <Button
+                  variant="ghost"
+                  size="compact"
+                  onPress={() => removeLine(line.itemId)}
+                  aria-label="Remove line"
+                >
                   <Trash2 className="size-4" aria-hidden="true" />
                 </Button>
               </div>
@@ -287,34 +427,75 @@ export function OfflineCheckoutPanel() {
 
         {canDiscount && (
           <div className="flex flex-col gap-2 rounded-[var(--radius-control)] border border-border p-3">
-            <p className="text-sm font-medium text-text">Manual discount (amount, split across lines)</p>
-            <NumberField label="Discount amount" value={discountAmount} onChange={setDiscountAmount} minValue={0} step={0.01} />
-            <TextField label="Reason" value={discountReason} onChange={setDiscountReason} />
+            <p className="text-sm font-medium text-text">
+              Manual discount (amount, split across lines)
+            </p>
+            <NumberField
+              label="Discount amount"
+              value={discountAmount}
+              onChange={setDiscountAmount}
+              minValue={0}
+              step={0.01}
+            />
+            <TextField
+              label="Reason"
+              value={discountReason}
+              onChange={setDiscountReason}
+            />
           </div>
         )}
 
         <div className="flex flex-col gap-1 rounded-[var(--radius-card)] border border-border bg-surface p-4 text-sm">
           <div className="flex items-center justify-between text-text-secondary">
             <span>Subtotal (estimate)</span>
-            <span className="tabular-nums">{money(snapshot.store.currencyCode, String(totalsWithDiscount.subtotal))}</span>
+            <span className="tabular-nums">
+              {money(
+                snapshot.store.currencyCode,
+                String(totalsWithDiscount.subtotal),
+              )}
+            </span>
           </div>
           <div className="flex items-center justify-between text-text-secondary">
             <span>Tax (estimate)</span>
-            <span className="tabular-nums">{money(snapshot.store.currencyCode, String(totalsWithDiscount.taxTotal))}</span>
+            <span className="tabular-nums">
+              {money(
+                snapshot.store.currencyCode,
+                String(totalsWithDiscount.taxTotal),
+              )}
+            </span>
           </div>
           <div className="mt-1 flex items-center justify-between border-t border-border pt-2 text-base font-semibold text-text">
             <span>Total (estimate)</span>
-            <span className="tabular-nums">{money(snapshot.store.currencyCode, String(totalsWithDiscount.grandTotal))}</span>
+            <span className="tabular-nums">
+              {money(
+                snapshot.store.currencyCode,
+                String(totalsWithDiscount.grandTotal),
+              )}
+            </span>
           </div>
         </div>
 
-        <NumberField label="Cash tendered" value={cashTendered} onChange={setCashTendered} minValue={0} step={0.01} />
-        <p className="text-sm text-text-secondary">Change (estimate): {money(snapshot.store.currencyCode, String(Math.max(0, cashTendered - totalsWithDiscount.grandTotal)))}</p>
+        <NumberField
+          label="Cash tendered"
+          value={cashTendered}
+          onChange={setCashTendered}
+          minValue={0}
+          step={0.01}
+        />
+        <p className="text-sm text-text-secondary">
+          Change (estimate):{" "}
+          {money(
+            snapshot.store.currencyCode,
+            String(Math.max(0, cashTendered - totalsWithDiscount.grandTotal)),
+          )}
+        </p>
 
         <Button
           variant="primary"
           onPress={commitOfflineSale}
-          isDisabled={lines.length === 0 || cashTendered < totalsWithDiscount.grandTotal}
+          isDisabled={
+            lines.length === 0 || cashTendered < totalsWithDiscount.grandTotal
+          }
           isLoading={committing}
         >
           Queue cash sale (offline)

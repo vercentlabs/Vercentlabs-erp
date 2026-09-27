@@ -39,42 +39,90 @@ import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import { PosApiError } from "@/features/pos/shared/http";
 import { dateTime } from "@/features/pos/shared/format";
 import { listPosStores } from "@/features/pos/stores/api/stores-api";
-import { listPosStoreInventory, listPosStoreStockActivity, type PosStoreInventoryRow, type PosStoreStockActivityRow } from "@/features/pos/inventory/api/inventory-api";
-import { listPosOfflineSyncConflicts, POS_CONFLICT_TYPE_LABEL, type PosOfflineSyncConflict } from "@/features/pos/offline/api/offline-api";
+import {
+  listPosStoreInventory,
+  listPosStoreStockActivity,
+  type PosStoreInventoryRow,
+  type PosStoreStockActivityRow,
+} from "@/features/pos/inventory/api/inventory-api";
+import {
+  listPosOfflineSyncConflicts,
+  POS_CONFLICT_TYPE_LABEL,
+  type PosOfflineSyncConflict,
+} from "@/features/pos/offline/api/offline-api";
 
 function formatQty(value: string | null | undefined) {
   const n = Number(value ?? 0);
-  return Number.isFinite(n) ? n.toLocaleString(undefined, { maximumFractionDigits: 3 }) : String(value);
+  return Number.isFinite(n)
+    ? n.toLocaleString(undefined, { maximumFractionDigits: 3 })
+    : String(value);
 }
 
 export function PosInventoryScreen() {
   const router = useRouter();
   const workspace = useWorkspaceContext();
-  const canResolveOffline = workspace.roleSlugs.includes("organization_owner") || workspace.permissions.includes(POS_PERMISSIONS.offlineResolve);
+  const canResolveOffline =
+    workspace.roleSlugs.includes("organization_owner") ||
+    workspace.permissions.includes(POS_PERMISSIONS.offlineResolve);
 
   const [storeId, setStoreId] = useState("");
   const [search, setSearch] = useState("");
 
-  const storesQuery = useQuery({ queryKey: scopedQueryKey(workspace, "pos", "stores"), queryFn: listPosStores });
-  const stores = useMemo(() => storesQuery.data?.rows ?? [], [storesQuery.data?.rows]);
+  const storesQuery = useQuery({
+    queryKey: scopedQueryKey(workspace, "pos", "stores"),
+    queryFn: listPosStores,
+  });
+  const stores = useMemo(
+    () => storesQuery.data?.rows ?? [],
+    [storesQuery.data?.rows],
+  );
   const activeStoreId = storeId || stores[0]?.id || "";
-  const storeOptions = useMemo(() => stores.map((s) => ({ value: s.id, label: `${s.name} (${s.code})` })), [stores]);
+  const storeOptions = useMemo(
+    () => stores.map((s) => ({ value: s.id, label: `${s.name} (${s.code})` })),
+    [stores],
+  );
 
   const inventoryQuery = useQuery({
-    queryKey: scopedQueryKey(workspace, "pos", "inventory", activeStoreId, search),
-    queryFn: () => listPosStoreInventory({ storeId: activeStoreId, search: search || undefined, limit: 100 }),
+    queryKey: scopedQueryKey(
+      workspace,
+      "pos",
+      "inventory",
+      activeStoreId,
+      search,
+    ),
+    queryFn: () =>
+      listPosStoreInventory({
+        storeId: activeStoreId,
+        search: search || undefined,
+        limit: 100,
+      }),
     enabled: Boolean(activeStoreId),
     placeholderData: (previous) => previous,
   });
   const activityQuery = useQuery({
-    queryKey: scopedQueryKey(workspace, "pos", "inventory-activity", activeStoreId),
-    queryFn: () => listPosStoreStockActivity({ storeId: activeStoreId, limit: 100 }),
+    queryKey: scopedQueryKey(
+      workspace,
+      "pos",
+      "inventory-activity",
+      activeStoreId,
+    ),
+    queryFn: () =>
+      listPosStoreStockActivity({ storeId: activeStoreId, limit: 100 }),
     enabled: Boolean(activeStoreId),
     placeholderData: (previous) => previous,
   });
   const exceptionsQuery = useQuery({
-    queryKey: scopedQueryKey(workspace, "pos", "inventory-exceptions", activeStoreId),
-    queryFn: () => listPosOfflineSyncConflicts({ status: "pending", storeId: activeStoreId }),
+    queryKey: scopedQueryKey(
+      workspace,
+      "pos",
+      "inventory-exceptions",
+      activeStoreId,
+    ),
+    queryFn: () =>
+      listPosOfflineSyncConflicts({
+        status: "pending",
+        storeId: activeStoreId,
+      }),
     enabled: Boolean(activeStoreId) && canResolveOffline,
   });
 
@@ -84,22 +132,62 @@ export function PosInventoryScreen() {
 
   const inventoryColumns: ColumnDef<PosStoreInventoryRow, unknown>[] = useMemo(
     () => [
-      { id: "item_name", header: "Item", accessorFn: (row) => row.item_name, cell: ({ row }) => <span className="font-medium text-text">{row.original.item_name}</span> },
+      {
+        id: "item_name",
+        header: "Item",
+        accessorFn: (row) => row.item_name,
+        cell: ({ row }) => (
+          <span className="font-medium text-text">
+            {row.original.item_name}
+          </span>
+        ),
+      },
       { id: "item_code", header: "Code", accessorKey: "item_code" },
-      { id: "barcode", header: "Barcode", accessorFn: (row) => row.barcode || "—" },
-      { id: "tracking_type", header: "Tracking", accessorFn: (row) => (row.tracking_type === "none" ? "—" : row.tracking_type) },
-      { id: "location_code", header: "Location", accessorFn: (row) => row.location_code || "—" },
-      { id: "batch_number", header: "Batch", accessorFn: (row) => row.batch_number || "—" },
-      { id: "on_hand_quantity", header: "On hand", accessorFn: (row) => formatQty(row.on_hand_quantity) },
-      { id: "reserved_quantity", header: "Reserved", accessorFn: (row) => formatQty(row.reserved_quantity) },
-      { id: "available_quantity", header: "Available", accessorFn: (row) => formatQty(row.available_quantity) },
+      {
+        id: "barcode",
+        header: "Barcode",
+        accessorFn: (row) => row.barcode || "—",
+      },
+      {
+        id: "tracking_type",
+        header: "Tracking",
+        accessorFn: (row) =>
+          row.tracking_type === "none" ? "—" : row.tracking_type,
+      },
+      {
+        id: "location_code",
+        header: "Location",
+        accessorFn: (row) => row.location_code || "—",
+      },
+      {
+        id: "batch_number",
+        header: "Batch",
+        accessorFn: (row) => row.batch_number || "—",
+      },
+      {
+        id: "on_hand_quantity",
+        header: "On hand",
+        accessorFn: (row) => formatQty(row.on_hand_quantity),
+      },
+      {
+        id: "reserved_quantity",
+        header: "Reserved",
+        accessorFn: (row) => formatQty(row.reserved_quantity),
+      },
+      {
+        id: "available_quantity",
+        header: "Available",
+        accessorFn: (row) => formatQty(row.available_quantity),
+      },
       {
         id: "status",
         header: "Status",
         cell: ({ row }) => {
-          if (row.original.quality_held) return <StatusBadge tone="danger">Quality hold</StatusBadge>;
+          if (row.original.quality_held)
+            return <StatusBadge tone="danger">Quality hold</StatusBadge>;
           const available = Number(row.original.available_quantity);
-          if (available <= 0) return <StatusBadge tone="warning">Out of stock</StatusBadge>;
+          if (available <= 0)
+            return <StatusBadge tone="warning">Out of stock</StatusBadge>;
           return <StatusBadge tone="success">Available</StatusBadge>;
         },
       },
@@ -107,66 +195,113 @@ export function PosInventoryScreen() {
     [],
   );
 
-  const activityColumns: ColumnDef<PosStoreStockActivityRow, unknown>[] = useMemo(
-    () => [
-      { id: "occurred_at", header: "When", accessorFn: (row) => dateTime(row.occurred_at) },
-      { id: "movement_type", header: "Type", cell: ({ getValue }) => <StatusBadge tone={String(getValue()) === "issue" ? "warning" : "success"}>{String(getValue())}</StatusBadge>, accessorKey: "movement_type" },
-      { id: "item_name", header: "Item", accessorKey: "item_name" },
-      { id: "quantity", header: "Qty", accessorFn: (row) => formatQty(row.quantity) },
-      { id: "movement_number", header: "Movement #", accessorKey: "movement_number" },
-      {
-        id: "origin",
-        header: "Origin transaction",
-        cell: ({ row }) => {
-          const r = row.original;
-          if (r.reference_type === "pos_sale" && r.sale_id) {
-            return (
-              <button
-                type="button"
-                className="text-brand underline-offset-2 hover:underline"
-                onClick={(event) => {
-                  event.stopPropagation();
-                  router.push(`/pos/transactions/${r.sale_id}`);
-                }}
-              >
-                Sale {r.sale_receipt_number ?? r.sale_id}
-              </button>
-            );
-          }
-          if (r.reference_type === "pos_return" && r.return_id) {
-            return (
-              <button
-                type="button"
-                className="text-brand underline-offset-2 hover:underline"
-                onClick={(event) => {
-                  event.stopPropagation();
-                  router.push("/pos/returns");
-                }}
-              >
-                Return {r.return_number ?? r.return_id}
-              </button>
-            );
-          }
-          return "—";
+  const activityColumns: ColumnDef<PosStoreStockActivityRow, unknown>[] =
+    useMemo(
+      () => [
+        {
+          id: "occurred_at",
+          header: "When",
+          accessorFn: (row) => dateTime(row.occurred_at),
         },
-      },
-    ],
-    [router],
-  );
+        {
+          id: "movement_type",
+          header: "Type",
+          cell: ({ getValue }) => (
+            <StatusBadge
+              tone={String(getValue()) === "issue" ? "warning" : "success"}
+            >
+              {String(getValue())}
+            </StatusBadge>
+          ),
+          accessorKey: "movement_type",
+        },
+        { id: "item_name", header: "Item", accessorKey: "item_name" },
+        {
+          id: "quantity",
+          header: "Qty",
+          accessorFn: (row) => formatQty(row.quantity),
+        },
+        {
+          id: "movement_number",
+          header: "Movement #",
+          accessorKey: "movement_number",
+        },
+        {
+          id: "origin",
+          header: "Origin transaction",
+          cell: ({ row }) => {
+            const r = row.original;
+            if (r.reference_type === "pos_sale" && r.sale_id) {
+              return (
+                <button
+                  type="button"
+                  className="text-brand underline-offset-2 hover:underline"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    router.push(`/pos/transactions/${r.sale_id}`);
+                  }}
+                >
+                  Sale {r.sale_receipt_number ?? r.sale_id}
+                </button>
+              );
+            }
+            if (r.reference_type === "pos_return" && r.return_id) {
+              return (
+                <button
+                  type="button"
+                  className="text-brand underline-offset-2 hover:underline"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    router.push("/pos/returns");
+                  }}
+                >
+                  Return {r.return_number ?? r.return_id}
+                </button>
+              );
+            }
+            return "—";
+          },
+        },
+      ],
+      [router],
+    );
 
-  const exceptionColumns: ColumnDef<PosOfflineSyncConflict, unknown>[] = useMemo(
-    () => [
-      { id: "created_at", header: "Captured", accessorFn: (row) => dateTime(row.created_at) },
-      { id: "conflict_type", header: "Reason", accessorFn: (row) => POS_CONFLICT_TYPE_LABEL[row.conflict_type] ?? row.conflict_type },
-      { id: "detail", header: "Detail", accessorFn: (row) => row.detail || "—" },
-      { id: "status", header: "Status", cell: ({ getValue }) => <StatusBadge tone="warning">{String(getValue())}</StatusBadge>, accessorKey: "status" },
-    ],
-    [],
-  );
+  const exceptionColumns: ColumnDef<PosOfflineSyncConflict, unknown>[] =
+    useMemo(
+      () => [
+        {
+          id: "created_at",
+          header: "Captured",
+          accessorFn: (row) => dateTime(row.created_at),
+        },
+        {
+          id: "conflict_type",
+          header: "Reason",
+          accessorFn: (row) =>
+            POS_CONFLICT_TYPE_LABEL[row.conflict_type] ?? row.conflict_type,
+        },
+        {
+          id: "detail",
+          header: "Detail",
+          accessorFn: (row) => row.detail || "—",
+        },
+        {
+          id: "status",
+          header: "Status",
+          cell: ({ getValue }) => (
+            <StatusBadge tone="warning">{String(getValue())}</StatusBadge>
+          ),
+          accessorKey: "status",
+        },
+      ],
+      [],
+    );
 
   const inventoryState = inventoryQuery.isLoading
     ? "loading"
-    : inventoryQuery.isError && inventoryQuery.error instanceof PosApiError && inventoryQuery.error.status === 403
+    : inventoryQuery.isError &&
+        inventoryQuery.error instanceof PosApiError &&
+        inventoryQuery.error.status === 403
       ? "permission-denied"
       : inventoryQuery.isError
         ? "error"
@@ -176,7 +311,9 @@ export function PosInventoryScreen() {
 
   const activityState = activityQuery.isLoading
     ? "loading"
-    : activityQuery.isError && activityQuery.error instanceof PosApiError && activityQuery.error.status === 403
+    : activityQuery.isError &&
+        activityQuery.error instanceof PosApiError &&
+        activityQuery.error.status === 403
       ? "permission-denied"
       : activityQuery.isError
         ? "error"
@@ -208,7 +345,10 @@ export function PosInventoryScreen() {
       />
 
       {!activeStoreId ? (
-        <NoResultsState title="No POS store available" description="Create a store before viewing its inventory." />
+        <NoResultsState
+          title="No POS store available"
+          description="Create a store before viewing its inventory."
+        />
       ) : (
         <Tabs>
           <TabList aria-label="POS inventory sections">
@@ -219,17 +359,44 @@ export function PosInventoryScreen() {
 
           <TabPanel id="availability">
             <div className="flex flex-col gap-3 py-4">
-              <SearchField aria-label="Search inventory" placeholder="Search item, code or barcode…" value={search} onChange={setSearch} className="max-w-sm" />
+              <SearchField
+                aria-label="Search inventory"
+                placeholder="Search item, code or barcode…"
+                value={search}
+                onChange={setSearch}
+                className="max-w-sm"
+              />
               <EnterpriseDataGrid<PosStoreInventoryRow>
                 aria-label="Store inventory"
                 columns={inventoryColumns}
                 data={inventoryRows}
-                getRowId={(row) => `${row.item_id}:${row.warehouse_location_id ?? ""}:${row.batch_id ?? ""}`}
+                getRowId={(row) =>
+                  `${row.item_id}:${row.warehouse_location_id ?? ""}:${row.batch_id ?? ""}`
+                }
                 state={inventoryState}
-                loadingContent={<p className="px-4 py-8 text-sm text-text-secondary">Loading inventory…</p>}
-                emptyContent={<NoResultsState title="No stock at this store" description="No stock balances were found for the store's warehouse." />}
-                errorContent={<ErrorState title="Could not load inventory" action={{ label: "Retry", onPress: () => inventoryQuery.refetch() }} />}
-                permissionDeniedContent={<PermissionState title="You don't have access to store inventory" />}
+                loadingContent={
+                  <p className="px-4 py-8 text-sm text-text-secondary">
+                    Loading inventory…
+                  </p>
+                }
+                emptyContent={
+                  <NoResultsState
+                    title="No stock at this store"
+                    description="No stock balances were found for the store's warehouse."
+                  />
+                }
+                errorContent={
+                  <ErrorState
+                    title="Could not load inventory"
+                    action={{
+                      label: "Retry",
+                      onPress: () => inventoryQuery.refetch(),
+                    }}
+                  />
+                }
+                permissionDeniedContent={
+                  <PermissionState title="You don't have access to store inventory" />
+                }
               />
             </div>
           </TabPanel>
@@ -242,10 +409,29 @@ export function PosInventoryScreen() {
                 data={activityRows}
                 getRowId={(row) => row.id}
                 state={activityState}
-                loadingContent={<p className="px-4 py-8 text-sm text-text-secondary">Loading stock movements…</p>}
-                emptyContent={<NoResultsState title="No POS-caused stock movements yet" description="Sales and returns at this store will appear here as they post to Stock." />}
-                errorContent={<ErrorState title="Could not load stock activity" action={{ label: "Retry", onPress: () => activityQuery.refetch() }} />}
-                permissionDeniedContent={<PermissionState title="You don't have access to stock activity" />}
+                loadingContent={
+                  <p className="px-4 py-8 text-sm text-text-secondary">
+                    Loading stock movements…
+                  </p>
+                }
+                emptyContent={
+                  <NoResultsState
+                    title="No POS-caused stock movements yet"
+                    description="Sales and returns at this store will appear here as they post to Stock."
+                  />
+                }
+                errorContent={
+                  <ErrorState
+                    title="Could not load stock activity"
+                    action={{
+                      label: "Retry",
+                      onPress: () => activityQuery.refetch(),
+                    }}
+                  />
+                }
+                permissionDeniedContent={
+                  <PermissionState title="You don't have access to stock activity" />
+                }
               />
             </div>
           </TabPanel>
@@ -253,12 +439,21 @@ export function PosInventoryScreen() {
           <TabPanel id="exceptions">
             <div className="flex flex-col gap-3 py-4">
               {!canResolveOffline ? (
-                <PermissionState title="You don't have access to sync exceptions" description="Resolving offline-sync exceptions requires the offline-resolve permission." />
+                <PermissionState
+                  title="You don't have access to sync exceptions"
+                  description="Resolving offline-sync exceptions requires the offline-resolve permission."
+                />
               ) : (
                 <>
                   <p className="text-sm text-text-secondary">
-                    Pending offline-sale sync exceptions for this store (including insufficient-stock conflicts). Resolve them in the{" "}
-                    <button type="button" className="text-brand underline-offset-2 hover:underline" onClick={() => router.push("/pos/offline-sync-conflicts")}>
+                    Pending offline-sale sync exceptions for this store
+                    (including insufficient-stock conflicts). Resolve them in
+                    the{" "}
+                    <button
+                      type="button"
+                      className="text-brand underline-offset-2 hover:underline"
+                      onClick={() => router.push("/pos/offline-sync-conflicts")}
+                    >
                       Offline Sync Conflicts
                     </button>{" "}
                     workspace.
@@ -268,12 +463,39 @@ export function PosInventoryScreen() {
                     columns={exceptionColumns}
                     data={exceptionRows}
                     getRowId={(row) => row.id}
-                    onRowClick={() => router.push("/pos/offline-sync-conflicts")}
-                    state={exceptionsQuery.isLoading ? "loading" : exceptionRows.length === 0 ? "empty" : "ready"}
-                    loadingContent={<p className="px-4 py-8 text-sm text-text-secondary">Loading exceptions…</p>}
-                    emptyContent={<NoResultsState title="No pending sync exceptions" description="Every offline sale from this store has synced cleanly." />}
-                    errorContent={<ErrorState title="Could not load exceptions" action={{ label: "Retry", onPress: () => exceptionsQuery.refetch() }} />}
-                    permissionDeniedContent={<PermissionState title="You don't have access to sync exceptions" />}
+                    onRowClick={() =>
+                      router.push("/pos/offline-sync-conflicts")
+                    }
+                    state={
+                      exceptionsQuery.isLoading
+                        ? "loading"
+                        : exceptionRows.length === 0
+                          ? "empty"
+                          : "ready"
+                    }
+                    loadingContent={
+                      <p className="px-4 py-8 text-sm text-text-secondary">
+                        Loading exceptions…
+                      </p>
+                    }
+                    emptyContent={
+                      <NoResultsState
+                        title="No pending sync exceptions"
+                        description="Every offline sale from this store has synced cleanly."
+                      />
+                    }
+                    errorContent={
+                      <ErrorState
+                        title="Could not load exceptions"
+                        action={{
+                          label: "Retry",
+                          onPress: () => exceptionsQuery.refetch(),
+                        }}
+                      />
+                    }
+                    permissionDeniedContent={
+                      <PermissionState title="You don't have access to sync exceptions" />
+                    }
                   />
                 </>
               )}

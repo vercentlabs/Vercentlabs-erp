@@ -4,14 +4,34 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Plus, Trash2 } from "lucide-react";
-import { Button, ErrorState, IconButton, NumberField, PageHeader, Select, TextArea, TextField, type SelectOption } from "@vercentlabs/design-system";
+import {
+  Button,
+  ErrorState,
+  IconButton,
+  NumberField,
+  PageHeader,
+  Select,
+  TextArea,
+  TextField,
+  type SelectOption,
+} from "@vercentlabs/design-system";
 
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import { SalesApiError } from "@/features/sales/shared/http";
 import { money, statusLabel } from "@/features/sales/shared/format";
-import { BILLING_ADDRESS_TYPES, defaultAddress, SHIPPING_ADDRESS_TYPES, SUPPLY_TYPE_OPTIONS, supplyTypeFor } from "@/features/sales/shared/document-defaults";
-import { SalesAlert, SalesFacts, SalesPanel } from "@/features/sales/shared/SalesUi";
+import {
+  BILLING_ADDRESS_TYPES,
+  defaultAddress,
+  SHIPPING_ADDRESS_TYPES,
+  SUPPLY_TYPE_OPTIONS,
+  supplyTypeFor,
+} from "@/features/sales/shared/document-defaults";
+import {
+  SalesAlert,
+  SalesFacts,
+  SalesPanel,
+} from "@/features/sales/shared/SalesUi";
 import {
   createSalesQuotation,
   getSalesOptions,
@@ -22,13 +42,25 @@ import {
   type SalesQuotationDetail,
 } from "@/features/sales/quotations/api/quotations-api";
 
-type LineDraft = { key: number; itemId: string; variantId: string; uomId: string; quantity: number; discountPercent: number };
-type ChargeDraft = { key: number; label: string; calculationType: "fixed" | "percentage"; value: number };
+type LineDraft = {
+  key: number;
+  itemId: string;
+  variantId: string;
+  uomId: string;
+  quantity: number;
+  discountPercent: number;
+};
+type ChargeDraft = {
+  key: number;
+  label: string;
+  calculationType: "fixed" | "percentage";
+  value: number;
+};
 
 let draftKey = 0;
 const nextKey = () => ++draftKey;
-const isoInDays = (days: number) => new Date(Date.now() + days * 86400000).toISOString().slice(0, 10);
-
+const isoInDays = (days: number) =>
+  new Date(Date.now() + days * 86400000).toISOString().slice(0, 10);
 
 // F036/F037/F039/F040 -- create a quotation, or revise an existing one into a
 // new immutable version. The totals on the right come from the server's own
@@ -53,16 +85,32 @@ export function SalesQuotationFormScreen({
   const queryClient = useQueryClient();
   const revising = Boolean(quotationId);
 
-  const optionsQuery = useQuery({ queryKey: scopedQueryKey(workspace, "sales", "options"), queryFn: () => getSalesOptions().then((r) => r.options) });
+  const optionsQuery = useQuery({
+    queryKey: scopedQueryKey(workspace, "sales", "options"),
+    queryFn: () => getSalesOptions().then((r) => r.options),
+  });
   const existingQuery = useQuery({
     queryKey: scopedQueryKey(workspace, "sales", "quotation", quotationId),
     queryFn: () => getSalesQuotation(quotationId!).then((r) => r.quotation),
     enabled: revising,
   });
 
-  if (optionsQuery.isLoading || (revising && existingQuery.isLoading)) return <p className="px-4 py-8 text-sm text-text-secondary">Loading…</p>;
-  if (optionsQuery.isError || !optionsQuery.data) return <ErrorState title="Could not load the form" action={{ label: "Retry", onPress: () => optionsQuery.refetch() }} />;
-  if (revising && (existingQuery.isError || !existingQuery.data)) return <ErrorState title="Could not load this quotation" action={{ label: "Retry", onPress: () => existingQuery.refetch() }} />;
+  if (optionsQuery.isLoading || (revising && existingQuery.isLoading))
+    return <p className="px-4 py-8 text-sm text-text-secondary">Loading…</p>;
+  if (optionsQuery.isError || !optionsQuery.data)
+    return (
+      <ErrorState
+        title="Could not load the form"
+        action={{ label: "Retry", onPress: () => optionsQuery.refetch() }}
+      />
+    );
+  if (revising && (existingQuery.isError || !existingQuery.data))
+    return (
+      <ErrorState
+        title="Could not load this quotation"
+        action={{ label: "Retry", onPress: () => existingQuery.refetch() }}
+      />
+    );
 
   return (
     <FormBody
@@ -75,11 +123,21 @@ export function SalesQuotationFormScreen({
       initialOpportunityId={initialOpportunityId}
       initialOpportunityName={initialOpportunityName}
       onDone={(id) => {
-        queryClient.invalidateQueries({ queryKey: scopedQueryKey(workspace, "sales", "quotations") });
-        queryClient.invalidateQueries({ queryKey: scopedQueryKey(workspace, "sales", "quotation", id) });
+        queryClient.invalidateQueries({
+          queryKey: scopedQueryKey(workspace, "sales", "quotations"),
+        });
+        queryClient.invalidateQueries({
+          queryKey: scopedQueryKey(workspace, "sales", "quotation", id),
+        });
         router.push(`/sales/quotations/${id}`);
       }}
-      onCancel={() => router.push(quotationId ? `/sales/quotations/${quotationId}` : "/sales/quotations")}
+      onCancel={() =>
+        router.push(
+          quotationId
+            ? `/sales/quotations/${quotationId}`
+            : "/sales/quotations",
+        )
+      }
     />
   );
 }
@@ -95,7 +153,13 @@ function FormBody({
   onDone,
   onCancel,
 }: {
-  options: NonNullable<ReturnType<typeof getSalesOptions> extends Promise<infer R> ? (R extends { options: infer O } ? O : never) : never>;
+  options: NonNullable<
+    ReturnType<typeof getSalesOptions> extends Promise<infer R>
+      ? R extends { options: infer O }
+        ? O
+        : never
+      : never
+  >;
   existing: SalesQuotationDetail | null;
   quotationId?: string;
   initialPartyId?: string;
@@ -107,65 +171,166 @@ function FormBody({
 }) {
   const workspace = useWorkspaceContext();
   const revising = Boolean(quotationId);
-  const baseCurrency = options.currencies.find((currency) => currency.is_base)?.code ?? options.currencies[0]?.code ?? "INR";
+  const baseCurrency =
+    options.currencies.find((currency) => currency.is_base)?.code ??
+    options.currencies[0]?.code ??
+    "INR";
 
-  const [partyId, setPartyId] = useState(existing?.quotation.party_id ?? (options.parties.some((p) => p.id === initialPartyId) ? (initialPartyId ?? "") : ""));
+  const [partyId, setPartyId] = useState(
+    existing?.quotation.party_id ??
+      (options.parties.some((p) => p.id === initialPartyId)
+        ? (initialPartyId ?? "")
+        : ""),
+  );
   // On a fresh quotation opened with a customer already chosen (e.g. "New
   // quotation" from that customer's detail page), partyId is seeded directly
   // above rather than through selectParty() below -- so the same
   // primary-contact/address defaulting has to run here too, not just there.
   const [contactId, setContactId] = useState(() => {
     if (existing) return existing.quotation.contact_id ?? "";
-    if (options.contacts.some((c) => c.id === initialContactId && c.party_id === partyId)) return initialContactId!;
-    return options.contacts.find((c) => c.party_id === partyId && c.is_primary)?.id ?? "";
+    if (
+      options.contacts.some(
+        (c) => c.id === initialContactId && c.party_id === partyId,
+      )
+    )
+      return initialContactId!;
+    return (
+      options.contacts.find((c) => c.party_id === partyId && c.is_primary)
+        ?.id ?? ""
+    );
   });
   const [billingAddressId, setBillingAddressId] = useState(
-    existing?.quotation.billing_address_id ?? defaultAddress(options.addresses.filter((a) => a.party_id === partyId), BILLING_ADDRESS_TYPES),
+    existing?.quotation.billing_address_id ??
+      defaultAddress(
+        options.addresses.filter((a) => a.party_id === partyId),
+        BILLING_ADDRESS_TYPES,
+      ),
   );
   const [shippingAddressId, setShippingAddressId] = useState(
-    existing?.quotation.shipping_address_id ?? defaultAddress(options.addresses.filter((a) => a.party_id === partyId), SHIPPING_ADDRESS_TYPES),
+    existing?.quotation.shipping_address_id ??
+      defaultAddress(
+        options.addresses.filter((a) => a.party_id === partyId),
+        SHIPPING_ADDRESS_TYPES,
+      ),
   );
-  const [currencyCode, setCurrencyCode] = useState(existing?.quotation.currency_code ?? baseCurrency);
-  const [priceListId, setPriceListId] = useState(existing?.quotation.price_list_id ?? options.parties.find((party) => party.id === partyId)?.default_price_list_id ?? "");
-  const [paymentTermId, setPaymentTermId] = useState(existing?.quotation.payment_term_id ?? "");
-  const [validUntil, setValidUntil] = useState(existing?.quotation.valid_until?.slice(0, 10) ?? isoInDays(options.settings?.default_quote_validity_days ?? 30));
+  const [currencyCode, setCurrencyCode] = useState(
+    existing?.quotation.currency_code ?? baseCurrency,
+  );
+  const [priceListId, setPriceListId] = useState(
+    existing?.quotation.price_list_id ??
+      options.parties.find((party) => party.id === partyId)
+        ?.default_price_list_id ??
+      "",
+  );
+  const [paymentTermId, setPaymentTermId] = useState(
+    existing?.quotation.payment_term_id ?? "",
+  );
+  const [validUntil, setValidUntil] = useState(
+    existing?.quotation.valid_until?.slice(0, 10) ??
+      isoInDays(options.settings?.default_quote_validity_days ?? 30),
+  );
   const [headerDiscount, setHeaderDiscount] = useState(0);
-  const [customerNotes, setCustomerNotes] = useState(existing?.quotation.customer_notes ?? "");
-  const [internalNotes, setInternalNotes] = useState(existing?.quotation.internal_notes ?? "");
-  const [terms, setTerms] = useState(existing?.quotation.terms_and_conditions ?? "");
+  const [customerNotes, setCustomerNotes] = useState(
+    existing?.quotation.customer_notes ?? "",
+  );
+  const [internalNotes, setInternalNotes] = useState(
+    existing?.quotation.internal_notes ?? "",
+  );
+  const [terms, setTerms] = useState(
+    existing?.quotation.terms_and_conditions ?? "",
+  );
   const [revisionReason, setRevisionReason] = useState("");
   const initialParty = options.parties.find((party) => party.id === partyId);
-  const [shippingMethod, setShippingMethod] = useState(existing?.quotation.shipping_method ?? initialParty?.default_shipping_method ?? "");
-  const [deliveryTerms, setDeliveryTerms] = useState(existing?.quotation.delivery_terms ?? initialParty?.default_delivery_terms ?? "");
-  const [incoterm, setIncoterm] = useState(existing?.quotation.incoterm ?? initialParty?.default_incoterm ?? "");
-  const [supplyType, setSupplyType] = useState(existing?.quotation.supply_type ?? supplyTypeFor(initialParty?.tax_treatment));
+  const [shippingMethod, setShippingMethod] = useState(
+    existing?.quotation.shipping_method ??
+      initialParty?.default_shipping_method ??
+      "",
+  );
+  const [deliveryTerms, setDeliveryTerms] = useState(
+    existing?.quotation.delivery_terms ??
+      initialParty?.default_delivery_terms ??
+      "",
+  );
+  const [incoterm, setIncoterm] = useState(
+    existing?.quotation.incoterm ?? initialParty?.default_incoterm ?? "",
+  );
+  const [supplyType, setSupplyType] = useState(
+    existing?.quotation.supply_type ??
+      supplyTypeFor(initialParty?.tax_treatment),
+  );
   const [lines, setLines] = useState<LineDraft[]>(() =>
     existing?.lines.length
-      ? existing.lines.map((line) => ({ key: nextKey(), itemId: line.item_id, variantId: line.variant_id ?? "", uomId: line.uom_id ?? "", quantity: Number(line.quantity), discountPercent: Number(line.discount_percent) }))
-      : [{ key: nextKey(), itemId: "", variantId: "", uomId: "", quantity: 1, discountPercent: 0 }],
+      ? existing.lines.map((line) => ({
+          key: nextKey(),
+          itemId: line.item_id,
+          variantId: line.variant_id ?? "",
+          uomId: line.uom_id ?? "",
+          quantity: Number(line.quantity),
+          discountPercent: Number(line.discount_percent),
+        }))
+      : [
+          {
+            key: nextKey(),
+            itemId: "",
+            variantId: "",
+            uomId: "",
+            quantity: 1,
+            discountPercent: 0,
+          },
+        ],
   );
   const [charges, setCharges] = useState<ChargeDraft[]>(() =>
-    (existing?.charges ?? []).map((charge) => ({ key: nextKey(), label: charge.label, calculationType: charge.calculation_type as "fixed" | "percentage", value: Number(charge.value) })),
+    (existing?.charges ?? []).map((charge) => ({
+      key: nextKey(),
+      label: charge.label,
+      calculationType: charge.calculation_type as "fixed" | "percentage",
+      value: Number(charge.value),
+    })),
   );
   const [error, setError] = useState<string | null>(null);
   const [idempotencyKey] = useState(() => crypto.randomUUID());
 
-  const partyOptions: SelectOption[] = options.parties.map((party) => ({ value: party.id, label: `${party.display_name} (${party.code})` }));
+  const partyOptions: SelectOption[] = options.parties.map((party) => ({
+    value: party.id,
+    label: `${party.display_name} (${party.code})`,
+  }));
   // Every top-ERP customer-master comparison (SAP's partner functions,
   // NetSuite's per-transaction ship-to/bill-to) resolves contact/address at
   // the document level, independent of which one the customer has marked
   // primary -- so these list every contact/address that belongs to the
   // chosen customer, not just its primary ones.
-  const partyContacts = options.contacts.filter((contact) => contact.party_id === partyId);
-  const partyAddresses = options.addresses.filter((address) => address.party_id === partyId);
-  const contactOptions: SelectOption[] = [{ value: "", label: "None" }, ...partyContacts.map((contact) => ({ value: contact.id, label: `${contact.first_name} ${contact.last_name ?? ""}`.trim() + (contact.is_primary ? " (primary)" : "") }))];
+  const partyContacts = options.contacts.filter(
+    (contact) => contact.party_id === partyId,
+  );
+  const partyAddresses = options.addresses.filter(
+    (address) => address.party_id === partyId,
+  );
+  const contactOptions: SelectOption[] = [
+    { value: "", label: "None" },
+    ...partyContacts.map((contact) => ({
+      value: contact.id,
+      label:
+        `${contact.first_name} ${contact.last_name ?? ""}`.trim() +
+        (contact.is_primary ? " (primary)" : ""),
+    })),
+  ];
   const addressOptionsFor = (types: string[]): SelectOption[] => [
     { value: "", label: "None" },
-    ...partyAddresses.filter((address) => types.includes(address.address_type)).map((address) => ({ value: address.id, label: `${statusLabel(address.address_type)} — ${address.line1}${address.city ? `, ${address.city}` : ""}` + (address.is_primary ? " (primary)" : "") })),
+    ...partyAddresses
+      .filter((address) => types.includes(address.address_type))
+      .map((address) => ({
+        value: address.id,
+        label:
+          `${statusLabel(address.address_type)} — ${address.line1}${address.city ? `, ${address.city}` : ""}` +
+          (address.is_primary ? " (primary)" : ""),
+      })),
   ];
   const billingAddressOptions = addressOptionsFor(BILLING_ADDRESS_TYPES);
   const shippingAddressOptions = addressOptionsFor(SHIPPING_ADDRESS_TYPES);
-  const itemOptions: SelectOption[] = options.items.map((item) => ({ value: item.id, label: `${item.name} (${item.code})` }));
+  const itemOptions: SelectOption[] = options.items.map((item) => ({
+    value: item.id,
+    label: `${item.name} (${item.code})`,
+  }));
   // F033: expose a line's UOM and variant/SKU context, not just the item --
   // "sell 20 cartons of the Large/Brown box" needs both. The UOM list is
   // scoped to what the item can actually convert to (the server enforces the
@@ -186,16 +351,40 @@ function FormBody({
       .map((uom) => ({ value: uom.id, label: `${uom.name} (${uom.code})` }));
   }
   function variantOptionsFor(itemId: string): SelectOption[] {
-    const variants = options.itemVariants.filter((variant) => variant.item_id === itemId);
-    return [{ value: "", label: "Standard (no variant)" }, ...variants.map((variant) => ({ value: variant.id, label: `${variant.sku} — ${variant.name}` }))];
+    const variants = options.itemVariants.filter(
+      (variant) => variant.item_id === itemId,
+    );
+    return [
+      { value: "", label: "Standard (no variant)" },
+      ...variants.map((variant) => ({
+        value: variant.id,
+        label: `${variant.sku} — ${variant.name}`,
+      })),
+    ];
   }
   function selectLineItem(key: number, itemId: string) {
     const item = options.items.find((candidate) => candidate.id === itemId);
     updateLine(key, { itemId, variantId: "", uomId: item?.uom_id ?? "" });
   }
-  const currencyOptions: SelectOption[] = options.currencies.map((currency) => ({ value: currency.code, label: `${currency.code} — ${currency.name}` }));
-  const priceListOptions: SelectOption[] = [{ value: "", label: "Company default price list" }, ...options.priceLists.filter((list) => list.currency_code === currencyCode).map((list) => ({ value: list.id, label: list.name }))];
-  const paymentTermOptions: SelectOption[] = [{ value: "", label: "Customer default" }, ...options.paymentTerms.map((term) => ({ value: term.id, label: `${term.name} (${term.default_due_days} days)` }))];
+  const currencyOptions: SelectOption[] = options.currencies.map(
+    (currency) => ({
+      value: currency.code,
+      label: `${currency.code} — ${currency.name}`,
+    }),
+  );
+  const priceListOptions: SelectOption[] = [
+    { value: "", label: "Company default price list" },
+    ...options.priceLists
+      .filter((list) => list.currency_code === currencyCode)
+      .map((list) => ({ value: list.id, label: list.name })),
+  ];
+  const paymentTermOptions: SelectOption[] = [
+    { value: "", label: "Customer default" },
+    ...options.paymentTerms.map((term) => ({
+      value: term.id,
+      label: `${term.name} (${term.default_due_days} days)`,
+    })),
+  ];
 
   function selectParty(id: string) {
     setPartyId(id);
@@ -212,8 +401,12 @@ function FormBody({
     // Default to the new customer's primary contact/billing/shipping address
     // (still fully overridable below) -- the previous customer's selections
     // don't carry over.
-    const contacts = options.contacts.filter((contact) => contact.party_id === id);
-    const addresses = options.addresses.filter((address) => address.party_id === id);
+    const contacts = options.contacts.filter(
+      (contact) => contact.party_id === id,
+    );
+    const addresses = options.addresses.filter(
+      (address) => address.party_id === id,
+    );
     setContactId(contacts.find((contact) => contact.is_primary)?.id ?? "");
     setBillingAddressId(defaultAddress(addresses, BILLING_ADDRESS_TYPES));
     setShippingAddressId(defaultAddress(addresses, SHIPPING_ADDRESS_TYPES));
@@ -225,7 +418,8 @@ function FormBody({
     return {
       partyId,
       contactId: contactId || undefined,
-      opportunityId: !revising && initialOpportunityId ? initialOpportunityId : undefined,
+      opportunityId:
+        !revising && initialOpportunityId ? initialOpportunityId : undefined,
       billingAddressId: billingAddressId || undefined,
       shippingAddressId: shippingAddressId || undefined,
       currencyCode,
@@ -241,10 +435,44 @@ function FormBody({
       deliveryTerms: deliveryTerms || undefined,
       incoterm: incoterm || undefined,
       supplyType,
-      lines: validLines.map((line) => ({ itemId: line.itemId, variantId: line.variantId || undefined, uomId: line.uomId || undefined, quantity: line.quantity, discountPercent: line.discountPercent || undefined })),
-      charges: charges.filter((charge) => charge.value > 0).map((charge) => ({ label: charge.label || "Charge", calculationType: charge.calculationType, value: charge.value })),
+      lines: validLines.map((line) => ({
+        itemId: line.itemId,
+        variantId: line.variantId || undefined,
+        uomId: line.uomId || undefined,
+        quantity: line.quantity,
+        discountPercent: line.discountPercent || undefined,
+      })),
+      charges: charges
+        .filter((charge) => charge.value > 0)
+        .map((charge) => ({
+          label: charge.label || "Charge",
+          calculationType: charge.calculationType,
+          value: charge.value,
+        })),
     };
-  }, [partyId, contactId, billingAddressId, shippingAddressId, currencyCode, priceListId, paymentTermId, validUntil, headerDiscount, customerNotes, internalNotes, terms, revisionReason, shippingMethod, deliveryTerms, incoterm, supplyType, validLines, charges, revising, initialOpportunityId]);
+  }, [
+    partyId,
+    contactId,
+    billingAddressId,
+    shippingAddressId,
+    currencyCode,
+    priceListId,
+    paymentTermId,
+    validUntil,
+    headerDiscount,
+    customerNotes,
+    internalNotes,
+    terms,
+    revisionReason,
+    shippingMethod,
+    deliveryTerms,
+    incoterm,
+    supplyType,
+    validLines,
+    charges,
+    revising,
+    initialOpportunityId,
+  ]);
 
   // Debounce so typing a quantity doesn't fire a pricing request per keystroke.
   const inputJson = JSON.stringify(input);
@@ -253,7 +481,10 @@ function FormBody({
     const handle = setTimeout(() => setDebouncedJson(inputJson), 400);
     return () => clearTimeout(handle);
   }, [inputJson]);
-  const previewInput: SalesDocumentInput | null = debouncedJson === "null" ? null : (JSON.parse(debouncedJson) as SalesDocumentInput);
+  const previewInput: SalesDocumentInput | null =
+    debouncedJson === "null"
+      ? null
+      : (JSON.parse(debouncedJson) as SalesDocumentInput);
 
   const previewQuery = useQuery({
     queryKey: scopedQueryKey(workspace, "sales", "preview", debouncedJson),
@@ -265,7 +496,11 @@ function FormBody({
 
   const saveMutation = useMutation({
     mutationFn: async () => {
-      if (!input) throw new SalesApiError("Choose a customer and add at least one item.", 400);
+      if (!input)
+        throw new SalesApiError(
+          "Choose a customer and add at least one item.",
+          400,
+        );
       if (quotationId) {
         await reviseSalesQuotation(quotationId, input);
         return quotationId;
@@ -274,28 +509,56 @@ function FormBody({
       return result.quotation.id;
     },
     onSuccess: (id) => onDone(id),
-    onError: (err) => setError(err instanceof SalesApiError ? err.message : "The quotation could not be saved."),
+    onError: (err) =>
+      setError(
+        err instanceof SalesApiError
+          ? err.message
+          : "The quotation could not be saved.",
+      ),
   });
 
   const preview = previewQuery.data;
-  const previewError = previewQuery.isError ? (previewQuery.error instanceof SalesApiError ? previewQuery.error.message : "Pricing could not be calculated.") : null;
+  const previewError = previewQuery.isError
+    ? previewQuery.error instanceof SalesApiError
+      ? previewQuery.error.message
+      : "Pricing could not be calculated."
+    : null;
 
   function updateLine(key: number, patch: Partial<LineDraft>) {
-    setLines((current) => current.map((line) => (line.key === key ? { ...line, ...patch } : line)));
+    setLines((current) =>
+      current.map((line) => (line.key === key ? { ...line, ...patch } : line)),
+    );
   }
 
   return (
     <div className="flex flex-col gap-6">
       <PageHeader
-        title={revising ? `Revise ${existing?.quotation.quotation_number}` : "New quotation"}
-        description={revising ? "Saving creates a new version. Earlier versions stay exactly as they were sent." : "Build a priced offer. Totals update as you edit and are calculated by the server."}
+        title={
+          revising
+            ? `Revise ${existing?.quotation.quotation_number}`
+            : "New quotation"
+        }
+        description={
+          revising
+            ? "Saving creates a new version. Earlier versions stay exactly as they were sent."
+            : "Build a priced offer. Totals update as you edit and are calculated by the server."
+        }
         secondaryActions={
           <Button variant="secondary" onPress={onCancel}>
             Cancel
           </Button>
         }
         primaryAction={
-          <Button variant="primary" onPress={() => saveMutation.mutate()} isLoading={saveMutation.isPending} isDisabled={!input || Boolean(previewError) || (revising && !revisionReason.trim())}>
+          <Button
+            variant="primary"
+            onPress={() => saveMutation.mutate()}
+            isLoading={saveMutation.isPending}
+            isDisabled={
+              !input ||
+              Boolean(previewError) ||
+              (revising && !revisionReason.trim())
+            }
+          >
             {revising ? "Save new version" : "Save quotation"}
           </Button>
         }
@@ -313,31 +576,127 @@ function FormBody({
         <div className="flex min-w-0 flex-col gap-4">
           <SalesPanel title="Customer & terms">
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-              <Select label="Customer" isRequired options={partyOptions} selectedKey={partyId || null} onSelectionChange={(key) => selectParty(String(key ?? ""))} placeholder="Select a customer" isDisabled={revising} />
-              <Select label="Contact" options={contactOptions} selectedKey={contactId} onSelectionChange={(key) => setContactId(String(key ?? ""))} isDisabled={!partyId} />
-              <Select label="Billing address" options={billingAddressOptions} selectedKey={billingAddressId} onSelectionChange={(key) => setBillingAddressId(String(key ?? ""))} isDisabled={!partyId} />
-              <Select label="Shipping address" options={shippingAddressOptions} selectedKey={shippingAddressId} onSelectionChange={(key) => setShippingAddressId(String(key ?? ""))} isDisabled={!partyId} />
-              <TextField label="Valid until" type="date" isRequired value={validUntil} onChange={setValidUntil} />
-              <Select label="Currency" options={currencyOptions} selectedKey={currencyCode} onSelectionChange={(key) => { setCurrencyCode(String(key ?? baseCurrency)); setPriceListId(""); }} />
-              <Select label="Price list" options={priceListOptions} selectedKey={priceListId} onSelectionChange={(key) => setPriceListId(String(key ?? ""))} />
-              <Select label="Payment terms" options={paymentTermOptions} selectedKey={paymentTermId} onSelectionChange={(key) => setPaymentTermId(String(key ?? ""))} />
-              {revising && <TextField label="Reason for this revision" isRequired value={revisionReason} onChange={setRevisionReason} />}
+              <Select
+                label="Customer"
+                isRequired
+                options={partyOptions}
+                selectedKey={partyId || null}
+                onSelectionChange={(key) => selectParty(String(key ?? ""))}
+                placeholder="Select a customer"
+                isDisabled={revising}
+              />
+              <Select
+                label="Contact"
+                options={contactOptions}
+                selectedKey={contactId}
+                onSelectionChange={(key) => setContactId(String(key ?? ""))}
+                isDisabled={!partyId}
+              />
+              <Select
+                label="Billing address"
+                options={billingAddressOptions}
+                selectedKey={billingAddressId}
+                onSelectionChange={(key) =>
+                  setBillingAddressId(String(key ?? ""))
+                }
+                isDisabled={!partyId}
+              />
+              <Select
+                label="Shipping address"
+                options={shippingAddressOptions}
+                selectedKey={shippingAddressId}
+                onSelectionChange={(key) =>
+                  setShippingAddressId(String(key ?? ""))
+                }
+                isDisabled={!partyId}
+              />
+              <TextField
+                label="Valid until"
+                type="date"
+                isRequired
+                value={validUntil}
+                onChange={setValidUntil}
+              />
+              <Select
+                label="Currency"
+                options={currencyOptions}
+                selectedKey={currencyCode}
+                onSelectionChange={(key) => {
+                  setCurrencyCode(String(key ?? baseCurrency));
+                  setPriceListId("");
+                }}
+              />
+              <Select
+                label="Price list"
+                options={priceListOptions}
+                selectedKey={priceListId}
+                onSelectionChange={(key) => setPriceListId(String(key ?? ""))}
+              />
+              <Select
+                label="Payment terms"
+                options={paymentTermOptions}
+                selectedKey={paymentTermId}
+                onSelectionChange={(key) => setPaymentTermId(String(key ?? ""))}
+              />
+              {revising && (
+                <TextField
+                  label="Reason for this revision"
+                  isRequired
+                  value={revisionReason}
+                  onChange={setRevisionReason}
+                />
+              )}
             </div>
           </SalesPanel>
 
           <SalesPanel title="Delivery & tax">
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-              <TextField label="Shipping method" value={shippingMethod} onChange={setShippingMethod} />
-              <TextField label="Delivery terms" value={deliveryTerms} onChange={setDeliveryTerms} />
-              <TextField label="Incoterm" value={incoterm} onChange={setIncoterm} />
-              <Select label="Supply type" options={SUPPLY_TYPE_OPTIONS} selectedKey={supplyType} onSelectionChange={(key) => setSupplyType(String(key ?? "domestic"))} />
+              <TextField
+                label="Shipping method"
+                value={shippingMethod}
+                onChange={setShippingMethod}
+              />
+              <TextField
+                label="Delivery terms"
+                value={deliveryTerms}
+                onChange={setDeliveryTerms}
+              />
+              <TextField
+                label="Incoterm"
+                value={incoterm}
+                onChange={setIncoterm}
+              />
+              <Select
+                label="Supply type"
+                options={SUPPLY_TYPE_OPTIONS}
+                selectedKey={supplyType}
+                onSelectionChange={(key) =>
+                  setSupplyType(String(key ?? "domestic"))
+                }
+              />
             </div>
           </SalesPanel>
 
           <SalesPanel
             title="Items"
             actions={
-              <Button variant="secondary" size="compact" onPress={() => setLines((current) => [...current, { key: nextKey(), itemId: "", variantId: "", uomId: "", quantity: 1, discountPercent: 0 }])}>
+              <Button
+                variant="secondary"
+                size="compact"
+                onPress={() =>
+                  setLines((current) => [
+                    ...current,
+                    {
+                      key: nextKey(),
+                      itemId: "",
+                      variantId: "",
+                      uomId: "",
+                      quantity: 1,
+                      discountPercent: 0,
+                    },
+                  ])
+                }
+              >
                 <Plus className="size-3.5" aria-hidden="true" />
                 Add item
               </Button>
@@ -345,17 +704,26 @@ function FormBody({
           >
             <div className="flex flex-col gap-3">
               {lines.map((line, index) => {
-                const priced = preview?.lines.find((candidate) => candidate.sequence === validLines.findIndex((v) => v.key === line.key) + 1);
+                const priced = preview?.lines.find(
+                  (candidate) =>
+                    candidate.sequence ===
+                    validLines.findIndex((v) => v.key === line.key) + 1,
+                );
                 const lineVariantOptions = variantOptionsFor(line.itemId);
                 const lineUomOptions = uomOptionsFor(line.itemId);
                 return (
-                  <div key={line.key} className="grid grid-cols-1 items-end gap-2 rounded-[var(--radius-control)] border border-border p-3 sm:grid-cols-[minmax(0,1.6fr)_minmax(0,1.4fr)_minmax(0,0.9fr)_minmax(0,0.7fr)_minmax(0,0.7fr)_auto]">
+                  <div
+                    key={line.key}
+                    className="grid grid-cols-1 items-end gap-2 rounded-[var(--radius-control)] border border-border p-3 sm:grid-cols-[minmax(0,1.6fr)_minmax(0,1.4fr)_minmax(0,0.9fr)_minmax(0,0.7fr)_minmax(0,0.7fr)_auto]"
+                  >
                     <Select
                       aria-label={`Item ${index + 1}`}
                       label={index === 0 ? "Item" : undefined}
                       options={itemOptions}
                       selectedKey={line.itemId || null}
-                      onSelectionChange={(key) => selectLineItem(line.key, String(key ?? ""))}
+                      onSelectionChange={(key) =>
+                        selectLineItem(line.key, String(key ?? ""))
+                      }
                       placeholder="Select an item"
                     />
                     <Select
@@ -363,7 +731,9 @@ function FormBody({
                       label={index === 0 ? "Variant" : undefined}
                       options={lineVariantOptions}
                       selectedKey={line.variantId}
-                      onSelectionChange={(key) => updateLine(line.key, { variantId: String(key ?? "") })}
+                      onSelectionChange={(key) =>
+                        updateLine(line.key, { variantId: String(key ?? "") })
+                      }
                       isDisabled={lineVariantOptions.length <= 1}
                     />
                     <Select
@@ -371,17 +741,54 @@ function FormBody({
                       label={index === 0 ? "UOM" : undefined}
                       options={lineUomOptions}
                       selectedKey={line.uomId || null}
-                      onSelectionChange={(key) => updateLine(line.key, { uomId: String(key ?? "") })}
+                      onSelectionChange={(key) =>
+                        updateLine(line.key, { uomId: String(key ?? "") })
+                      }
                       isDisabled={lineUomOptions.length <= 1}
                     />
-                    <NumberField aria-label={`Quantity ${index + 1}`} label={index === 0 ? "Quantity" : undefined} value={line.quantity} onChange={(value) => updateLine(line.key, { quantity: value })} minValue={0} step={1} />
-                    <NumberField aria-label={`Discount ${index + 1}`} label={index === 0 ? "Discount %" : undefined} value={line.discountPercent} onChange={(value) => updateLine(line.key, { discountPercent: value })} minValue={0} maxValue={100} step={1} />
-                    <IconButton aria-label={`Remove item ${index + 1}`} variant="ghost" isDisabled={lines.length === 1} onPress={() => setLines((current) => current.filter((candidate) => candidate.key !== line.key))}>
+                    <NumberField
+                      aria-label={`Quantity ${index + 1}`}
+                      label={index === 0 ? "Quantity" : undefined}
+                      value={line.quantity}
+                      onChange={(value) =>
+                        updateLine(line.key, { quantity: value })
+                      }
+                      minValue={0}
+                      step={1}
+                    />
+                    <NumberField
+                      aria-label={`Discount ${index + 1}`}
+                      label={index === 0 ? "Discount %" : undefined}
+                      value={line.discountPercent}
+                      onChange={(value) =>
+                        updateLine(line.key, { discountPercent: value })
+                      }
+                      minValue={0}
+                      maxValue={100}
+                      step={1}
+                    />
+                    <IconButton
+                      aria-label={`Remove item ${index + 1}`}
+                      variant="ghost"
+                      isDisabled={lines.length === 1}
+                      onPress={() =>
+                        setLines((current) =>
+                          current.filter(
+                            (candidate) => candidate.key !== line.key,
+                          ),
+                        )
+                      }
+                    >
                       <Trash2 className="size-4" aria-hidden="true" />
                     </IconButton>
                     {priced && (
                       <p className="text-xs text-text-muted sm:col-span-6">
-                        {money(currencyCode, priced.unitPrice)} each · net {money(currencyCode, priced.netAmount)} · tax {money(currencyCode, priced.taxAmount)} · line total <span className="font-medium text-text">{money(currencyCode, priced.lineTotal)}</span>
+                        {money(currencyCode, priced.unitPrice)} each · net{" "}
+                        {money(currencyCode, priced.netAmount)} · tax{" "}
+                        {money(currencyCode, priced.taxAmount)} · line total{" "}
+                        <span className="font-medium text-text">
+                          {money(currencyCode, priced.lineTotal)}
+                        </span>
                       </p>
                     )}
                   </div>
@@ -394,15 +801,43 @@ function FormBody({
             title="Charges & discount"
             description="Freight, handling, or a whole-document discount (which needs price-override permission)."
             actions={
-              <Button variant="secondary" size="compact" onPress={() => setCharges((current) => [...current, { key: nextKey(), label: "", calculationType: "fixed", value: 0 }])}>
+              <Button
+                variant="secondary"
+                size="compact"
+                onPress={() =>
+                  setCharges((current) => [
+                    ...current,
+                    {
+                      key: nextKey(),
+                      label: "",
+                      calculationType: "fixed",
+                      value: 0,
+                    },
+                  ])
+                }
+              >
                 <Plus className="size-3.5" aria-hidden="true" />
                 Add charge
               </Button>
             }
           >
             {charges.map((charge) => (
-              <div key={charge.key} className="grid grid-cols-1 items-end gap-2 sm:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_minmax(0,1fr)_auto]">
-                <TextField aria-label="Charge label" label="Label" value={charge.label} onChange={(value) => setCharges((current) => current.map((c) => (c.key === charge.key ? { ...c, label: value } : c)))} />
+              <div
+                key={charge.key}
+                className="grid grid-cols-1 items-end gap-2 sm:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_minmax(0,1fr)_auto]"
+              >
+                <TextField
+                  aria-label="Charge label"
+                  label="Label"
+                  value={charge.label}
+                  onChange={(value) =>
+                    setCharges((current) =>
+                      current.map((c) =>
+                        c.key === charge.key ? { ...c, label: value } : c,
+                      ),
+                    )
+                  }
+                />
                 <Select
                   aria-label="Charge type"
                   label="Type"
@@ -411,21 +846,74 @@ function FormBody({
                     { value: "percentage", label: "% of subtotal" },
                   ]}
                   selectedKey={charge.calculationType}
-                  onSelectionChange={(key) => setCharges((current) => current.map((c) => (c.key === charge.key ? { ...c, calculationType: key === "percentage" ? "percentage" : "fixed" } : c)))}
+                  onSelectionChange={(key) =>
+                    setCharges((current) =>
+                      current.map((c) =>
+                        c.key === charge.key
+                          ? {
+                              ...c,
+                              calculationType:
+                                key === "percentage" ? "percentage" : "fixed",
+                            }
+                          : c,
+                      ),
+                    )
+                  }
                 />
-                <NumberField aria-label="Charge value" label="Value" value={charge.value} onChange={(value) => setCharges((current) => current.map((c) => (c.key === charge.key ? { ...c, value } : c)))} minValue={0} step={0.01} />
-                <IconButton aria-label="Remove charge" variant="ghost" onPress={() => setCharges((current) => current.filter((c) => c.key !== charge.key))}>
+                <NumberField
+                  aria-label="Charge value"
+                  label="Value"
+                  value={charge.value}
+                  onChange={(value) =>
+                    setCharges((current) =>
+                      current.map((c) =>
+                        c.key === charge.key ? { ...c, value } : c,
+                      ),
+                    )
+                  }
+                  minValue={0}
+                  step={0.01}
+                />
+                <IconButton
+                  aria-label="Remove charge"
+                  variant="ghost"
+                  onPress={() =>
+                    setCharges((current) =>
+                      current.filter((c) => c.key !== charge.key),
+                    )
+                  }
+                >
                   <Trash2 className="size-4" aria-hidden="true" />
                 </IconButton>
               </div>
             ))}
-            <NumberField label="Whole-document discount (%)" value={headerDiscount} onChange={setHeaderDiscount} minValue={0} maxValue={100} step={1} className="sm:max-w-xs" />
+            <NumberField
+              label="Whole-document discount (%)"
+              value={headerDiscount}
+              onChange={setHeaderDiscount}
+              minValue={0}
+              maxValue={100}
+              step={1}
+              className="sm:max-w-xs"
+            />
           </SalesPanel>
 
           <SalesPanel title="Notes & terms">
-            <TextArea label="Notes for the customer" value={customerNotes} onChange={setCustomerNotes} />
-            <TextArea label="Terms and conditions" value={terms} onChange={setTerms} />
-            <TextArea label="Internal notes (never shown to the customer)" value={internalNotes} onChange={setInternalNotes} />
+            <TextArea
+              label="Notes for the customer"
+              value={customerNotes}
+              onChange={setCustomerNotes}
+            />
+            <TextArea
+              label="Terms and conditions"
+              value={terms}
+              onChange={setTerms}
+            />
+            <TextArea
+              label="Internal notes (never shown to the customer)"
+              value={internalNotes}
+              onChange={setInternalNotes}
+            />
           </SalesPanel>
         </div>
 
@@ -434,23 +922,52 @@ function FormBody({
             {previewError ? (
               <SalesAlert tone="warning">{previewError}</SalesAlert>
             ) : !preview ? (
-              <p className="text-sm text-text-muted">Choose a customer and add an item to see pricing.</p>
+              <p className="text-sm text-text-muted">
+                Choose a customer and add an item to see pricing.
+              </p>
             ) : (
               <>
                 <SalesFacts
                   columns={2}
                   items={[
-                    { label: "Subtotal", value: money(currencyCode, preview.totals.subtotal) },
-                    { label: "Discounts", value: money(currencyCode, preview.totals.discountTotal) },
-                    { label: "Charges", value: money(currencyCode, preview.totals.chargeTotal) },
-                    { label: "Tax", value: money(currencyCode, preview.totals.taxTotal) },
-                    { label: "Rounding", value: money(currencyCode, preview.totals.roundingAdjustment) },
-                    ...(preview.totals.marginPercent !== undefined ? [{ label: "Margin", value: `${Number(preview.totals.marginPercent).toFixed(1)}%` }] : []),
+                    {
+                      label: "Subtotal",
+                      value: money(currencyCode, preview.totals.subtotal),
+                    },
+                    {
+                      label: "Discounts",
+                      value: money(currencyCode, preview.totals.discountTotal),
+                    },
+                    {
+                      label: "Charges",
+                      value: money(currencyCode, preview.totals.chargeTotal),
+                    },
+                    {
+                      label: "Tax",
+                      value: money(currencyCode, preview.totals.taxTotal),
+                    },
+                    {
+                      label: "Rounding",
+                      value: money(
+                        currencyCode,
+                        preview.totals.roundingAdjustment,
+                      ),
+                    },
+                    ...(preview.totals.marginPercent !== undefined
+                      ? [
+                          {
+                            label: "Margin",
+                            value: `${Number(preview.totals.marginPercent).toFixed(1)}%`,
+                          },
+                        ]
+                      : []),
                   ]}
                 />
                 <div className="flex items-center justify-between border-t border-border pt-3 text-lg font-semibold text-text">
                   <span>Grand total</span>
-                  <span className="tabular-nums">{money(currencyCode, preview.totals.grandTotal)}</span>
+                  <span className="tabular-nums">
+                    {money(currencyCode, preview.totals.grandTotal)}
+                  </span>
                 </div>
               </>
             )}

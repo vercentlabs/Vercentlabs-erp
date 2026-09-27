@@ -8,23 +8,46 @@ export type DuplicateSignalMethod = "exact" | "normalized" | "fuzzy";
 // enable/reweight. This screen only ever lets an admin pick FROM this
 // list, never type a signal/method freely, matching the backend's own
 // anti-injection design (a rule is structured data, never free SQL).
-export const DUPLICATE_SIGNAL_CATALOG: Record<DuplicateEntityType, Array<{ signal: string; method: DuplicateSignalMethod; label: string }>> = {
+export const DUPLICATE_SIGNAL_CATALOG: Record<
+  DuplicateEntityType,
+  Array<{ signal: string; method: DuplicateSignalMethod; label: string }>
+> = {
   lead: [
     { signal: "email", method: "exact", label: "Email (exact match)" },
-    { signal: "mobile", method: "normalized", label: "Mobile number (normalized, last 15 digits)" },
-    { signal: "name_and_company", method: "normalized", label: "Name + company name (normalized)" },
+    {
+      signal: "mobile",
+      method: "normalized",
+      label: "Mobile number (normalized, last 15 digits)",
+    },
+    {
+      signal: "name_and_company",
+      method: "normalized",
+      label: "Name + company name (normalized)",
+    },
   ],
   contact: [
     { signal: "email", method: "exact", label: "Email (exact match)" },
-    { signal: "mobile", method: "normalized", label: "Mobile/phone (normalized, last 15 digits)" },
+    {
+      signal: "mobile",
+      method: "normalized",
+      label: "Mobile/phone (normalized, last 15 digits)",
+    },
     { signal: "name", method: "normalized", label: "Full name (normalized)" },
     { signal: "name", method: "fuzzy", label: "Full name (fuzzy similarity)" },
   ],
   account: [
     { signal: "gstin", method: "exact", label: "GSTIN (exact match)" },
     { signal: "pan", method: "exact", label: "PAN (exact match)" },
-    { signal: "legal_name", method: "normalized", label: "Legal/company name (normalized)" },
-    { signal: "legal_name", method: "fuzzy", label: "Legal/company name (fuzzy similarity)" },
+    {
+      signal: "legal_name",
+      method: "normalized",
+      label: "Legal/company name (normalized)",
+    },
+    {
+      signal: "legal_name",
+      method: "fuzzy",
+      label: "Legal/company name (fuzzy similarity)",
+    },
   ],
 };
 

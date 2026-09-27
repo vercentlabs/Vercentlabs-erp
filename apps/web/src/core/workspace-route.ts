@@ -15,15 +15,26 @@ import type { PoolClient } from "pg";
 
 import { organizationConnection, tenantTransaction } from "@/core/db";
 import { errorResponse } from "@/core/http";
-import { requireApiWorkspace, type WorkspaceSessionContext } from "@/core/session";
+import {
+  requireApiWorkspace,
+  type WorkspaceSessionContext,
+} from "@/core/session";
 
-import { createSecureRoute, type DeniedAccessEvent, type SecureRouteContext, type SecureRouteOptions } from "./secure-route.ts";
+import {
+  createSecureRoute,
+  type DeniedAccessEvent,
+  type SecureRouteContext,
+  type SecureRouteOptions,
+} from "./secure-route.ts";
 
 const logger = createLogger("web");
 const SLOW_REQUEST_MILLISECONDS = 2_000;
 
 function requestIds(request: Request) {
-  return { requestId: request.headers.get("x-request-id"), correlationId: request.headers.get("x-correlation-id") };
+  return {
+    requestId: request.headers.get("x-request-id"),
+    correlationId: request.headers.get("x-correlation-id"),
+  };
 }
 
 function denialDecision(event: DeniedAccessEvent) {
@@ -39,7 +50,10 @@ function denialDecision(event: DeniedAccessEvent) {
   };
 }
 
-export type WorkspaceRouteContext = SecureRouteContext<WorkspaceSessionContext, PoolClient>;
+export type WorkspaceRouteContext = SecureRouteContext<
+  WorkspaceSessionContext,
+  PoolClient
+>;
 export type { SecureRouteOptions as WorkspaceRouteOptions };
 
 // The preferred protected-route composition (see core/secure-route.ts for
@@ -61,10 +75,13 @@ export async function workspaceRoute(
   const secureRoute = createSecureRoute<WorkspaceSessionContext, PoolClient>({
     assertOrigin: (incoming) => assertSameOriginOrMobile(incoming, process.env),
     requireSession: () => requireApiWorkspace(),
-    runTenant: (organizationId, work) => tenantTransaction(organizationId, work),
-    runOrganizationConnection: (organizationId, work) => organizationConnection(organizationId, work),
+    runTenant: (organizationId, work) =>
+      tenantTransaction(organizationId, work),
+    runOrganizationConnection: (organizationId, work) =>
+      organizationConnection(organizationId, work),
     createPrincipal: (session) => createAccessPrincipal(session),
-    buildSnapshot: (client, session) => buildWorkspaceAccessSnapshot(client, session, { env: process.env }),
+    buildSnapshot: (client, session) =>
+      buildWorkspaceAccessSnapshot(client, session, { env: process.env }),
     authorize: (input) => authorize(input),
     denialToError: (decision) => denialToError(decision),
     onDenied: (decision, principal, incoming) =>
@@ -72,8 +89,14 @@ export async function workspaceRoute(
         requestId: incoming.headers.get("x-request-id"),
         correlationId: incoming.headers.get("x-correlation-id"),
       }),
-    requireBillingWrite: (client, organizationId) => requireBillingWriteAccess(client, organizationId, process.env),
-    logDeniedAccess: (event) => logAccessDenial(denialDecision(event), event.principal, requestIds(event.request)),
+    requireBillingWrite: (client, organizationId) =>
+      requireBillingWriteAccess(client, organizationId, process.env),
+    logDeniedAccess: (event) =>
+      logAccessDenial(
+        denialDecision(event),
+        event.principal,
+        requestIds(event.request),
+      ),
     // Its own short organisation-context transaction: the request transaction
     // has already rolled back, and this evidence must survive it.
     recordDeniedAccess: async (event) => {
@@ -88,22 +111,39 @@ export async function workspaceRoute(
           }),
         );
       } catch (error) {
-        console.error("access_denial_audit_failed", { code: event.code, action: event.action, error: error instanceof Error ? error.message : "unknown" });
+        console.error("access_denial_audit_failed", {
+          code: event.code,
+          action: event.action,
+          error: error instanceof Error ? error.message : "unknown",
+        });
       }
     },
     toErrorResponse: (error) => errorResponse(error),
-    withContext: (values, work) => runWithContext({ ...values, userId: values.userId ?? undefined }, work),
+    withContext: (values, work) =>
+      runWithContext({ ...values, userId: values.userId ?? undefined }, work),
   });
   // Log context for everything this request logs (proxy.ts guarantees the ids).
   // Per-request access logs come from the load balancer; the application logs
   // server errors and slow requests only.
   const startedAt = Date.now();
-  return runWithContext(requestIds(request) as { requestId: string; correlationId: string }, async () => {
-    const response = await secureRoute(request, options, handler);
-    const durationMs = Date.now() - startedAt;
-    const fields = { method: request.method, path: new URL(request.url).pathname, status: response.status, durationMs, module: options.module ?? null, action: options.action ?? null };
-    if (response.status >= 500) logger.event("http.server_error", fields, "error");
-    else if (durationMs >= SLOW_REQUEST_MILLISECONDS) logger.event("http.slow_request", fields, "warn");
-    return response;
-  });
+  return runWithContext(
+    requestIds(request) as { requestId: string; correlationId: string },
+    async () => {
+      const response = await secureRoute(request, options, handler);
+      const durationMs = Date.now() - startedAt;
+      const fields = {
+        method: request.method,
+        path: new URL(request.url).pathname,
+        status: response.status,
+        durationMs,
+        module: options.module ?? null,
+        action: options.action ?? null,
+      };
+      if (response.status >= 500)
+        logger.event("http.server_error", fields, "error");
+      else if (durationMs >= SLOW_REQUEST_MILLISECONDS)
+        logger.event("http.slow_request", fields, "warn");
+      return response;
+    },
+  );
 }

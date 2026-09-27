@@ -14,5 +14,13 @@ const schema = z.object({
 });
 
 export async function POST(request: Request) {
-  return salesMutation(request, "sales.fulfillment.request", schema, async (client, context, input) => ({ dropShip: await createSalesDropShipRequest(client, context, input) }), 201);
+  return salesMutation(
+    request,
+    "sales.fulfillment.request",
+    schema,
+    async (client, context, input) => ({
+      dropShip: await createSalesDropShipRequest(client, context, input),
+    }),
+    201,
+  );
 }

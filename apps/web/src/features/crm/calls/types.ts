@@ -4,7 +4,8 @@ export type Call = {
   id: string;
   companyId: string | null;
   branchId: string | null;
-  entityType: "lead" | "opportunity" | "party" | "contact" | "campaign" | "general";
+  entityType:
+    "lead" | "opportunity" | "party" | "contact" | "campaign" | "general";
   entityId: string | null;
   subject: string;
   description: string | null;
@@ -36,4 +37,9 @@ export type CallListFilters = {
   offset?: number;
 };
 
-export type CallListResponse = { rows: Call[]; total: number; limit: number; offset: number };
+export type CallListResponse = {
+  rows: Call[];
+  total: number;
+  limit: number;
+  offset: number;
+};

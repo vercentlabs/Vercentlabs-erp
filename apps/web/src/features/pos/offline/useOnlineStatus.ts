@@ -17,7 +17,9 @@ export function useOnlineStatus(): boolean {
   // checkout panel server-side and causing a real hydration mismatch
   // against the client's genuine online state. `window` is never defined
   // in Node.js, so it's the safe check.
-  const [online, setOnline] = useState(() => (typeof window === "undefined" ? true : navigator.onLine));
+  const [online, setOnline] = useState(() =>
+    typeof window === "undefined" ? true : navigator.onLine,
+  );
 
   useEffect(() => {
     function handleOnline() {

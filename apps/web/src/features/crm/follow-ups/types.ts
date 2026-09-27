@@ -5,7 +5,8 @@ export type FollowUp = {
   id: string;
   companyId: string | null;
   branchId: string | null;
-  entityType: "lead" | "opportunity" | "party" | "contact" | "campaign" | "general";
+  entityType:
+    "lead" | "opportunity" | "party" | "contact" | "campaign" | "general";
   entityId: string | null;
   subject: string;
   description: string | null;
@@ -14,7 +15,8 @@ export type FollowUp = {
   assignedName?: string | null;
   dueAt: string | null;
   followUpReason: string | null;
-  followUpChannel: "call" | "email" | "meeting" | "whatsapp" | "sms" | "other" | null;
+  followUpChannel:
+    "call" | "email" | "meeting" | "whatsapp" | "sms" | "other" | null;
   followUpSnoozeCount?: number;
   followUpEscalatedAt?: string | null;
   escalateAfterMinutes: number | null;
@@ -31,7 +33,12 @@ export type FollowUpListFilters = {
   offset?: number;
 };
 
-export type FollowUpListResponse = { rows: FollowUp[]; total: number; limit: number; offset: number };
+export type FollowUpListResponse = {
+  rows: FollowUp[];
+  total: number;
+  limit: number;
+  offset: number;
+};
 
 // tenant.crm_activity_reminders rows for one Follow-up (listRemindersForActivity).
 export type FollowUpReminder = {
@@ -40,7 +47,13 @@ export type FollowUpReminder = {
   offsetMinutes: number;
   channel: "in_app" | "email";
   fireAt: string;
-  status: "pending" | "dispatching" | "sent" | "failed" | "acknowledged" | "cancelled";
+  status:
+    | "pending"
+    | "dispatching"
+    | "sent"
+    | "failed"
+    | "acknowledged"
+    | "cancelled";
   failureReason: string | null;
   sentAt: string | null;
   acknowledgedAt: string | null;

@@ -8,9 +8,22 @@ import { workspaceRoute } from "@/core/workspace-route";
 type RouteContext = { params: Promise<{ fromId: string; toId: string }> };
 
 export async function DELETE(request: Request, context: RouteContext) {
-  return workspaceRoute(request, { module: "crm", permission: CRM_PERMISSIONS.settingsManage, billingWrite: true }, async ({ client, session }) => {
-    const { fromId, toId } = await context.params;
-    const result = await removeLeadStageTransition(client, crmContext(session), fromId, toId);
-    return ok(result);
-  });
+  return workspaceRoute(
+    request,
+    {
+      module: "crm",
+      permission: CRM_PERMISSIONS.settingsManage,
+      billingWrite: true,
+    },
+    async ({ client, session }) => {
+      const { fromId, toId } = await context.params;
+      const result = await removeLeadStageTransition(
+        client,
+        crmContext(session),
+        fromId,
+        toId,
+      );
+      return ok(result);
+    },
+  );
 }

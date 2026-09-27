@@ -28,7 +28,13 @@ export function CompleteMeetingDialog({
   const [outcome, setOutcome] = useState("");
 
   const mutation = useMutation({
-    mutationFn: () => completeMeeting(meeting.id, outcomeCode, outcome || undefined, meeting.updatedAt),
+    mutationFn: () =>
+      completeMeeting(
+        meeting.id,
+        outcomeCode,
+        outcome || undefined,
+        meeting.updatedAt,
+      ),
     onSuccess: () => {
       onDone();
       onOpenChange(false);
@@ -37,13 +43,33 @@ export function CompleteMeetingDialog({
   });
 
   return (
-    <Dialog isOpen onOpenChange={onOpenChange} title={`Complete ${meeting.subject}`}>
+    <Dialog
+      isOpen
+      onOpenChange={onOpenChange}
+      title={`Complete ${meeting.subject}`}
+    >
       <div className="flex flex-col gap-4">
-        <Select label="Outcome" options={MEETING_OUTCOME_OPTIONS} selectedKey={outcomeCode} onSelectionChange={(key) => setOutcomeCode(String(key ?? "held"))} />
-        <TextArea label="Notes" placeholder="Optional" value={outcome} onChange={setOutcome} />
+        <Select
+          label="Outcome"
+          options={MEETING_OUTCOME_OPTIONS}
+          selectedKey={outcomeCode}
+          onSelectionChange={(key) => setOutcomeCode(String(key ?? "held"))}
+        />
+        <TextArea
+          label="Notes"
+          placeholder="Optional"
+          value={outcome}
+          onChange={setOutcome}
+        />
         <div className="flex justify-end gap-2">
-          <Button variant="secondary" onPress={() => onOpenChange(false)}>Cancel</Button>
-          <Button variant="primary" onPress={() => mutation.mutate()} isLoading={mutation.isPending}>
+          <Button variant="secondary" onPress={() => onOpenChange(false)}>
+            Cancel
+          </Button>
+          <Button
+            variant="primary"
+            onPress={() => mutation.mutate()}
+            isLoading={mutation.isPending}
+          >
             Complete meeting
           </Button>
         </div>

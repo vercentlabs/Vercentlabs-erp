@@ -13,8 +13,19 @@ const switchSchema = z.object({
 // Switch the active company/branch (validated against the caller's own access
 // by switchActiveCompany).
 export async function PATCH(request: Request) {
-  return workspaceRoute(request, { action: "workspace.context.switch" }, async ({ client, session }) => {
-    const body = switchSchema.parse(await readJson(request));
-    return ok(await switchActiveCompany(client, session, body.companyId, body.branchId ?? null));
-  });
+  return workspaceRoute(
+    request,
+    { action: "workspace.context.switch" },
+    async ({ client, session }) => {
+      const body = switchSchema.parse(await readJson(request));
+      return ok(
+        await switchActiveCompany(
+          client,
+          session,
+          body.companyId,
+          body.branchId ?? null,
+        ),
+      );
+    },
+  );
 }

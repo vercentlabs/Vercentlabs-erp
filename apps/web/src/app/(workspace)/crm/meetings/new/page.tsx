@@ -6,6 +6,8 @@ export const metadata = { title: "New meeting" };
 
 export default async function NewMeetingPage() {
   const session = await requireWorkspace();
-  const canManage = session.roleSlugs.includes("organization_owner") || session.permissions.includes(CRM_PERMISSIONS.activitiesManage);
+  const canManage =
+    session.roleSlugs.includes("organization_owner") ||
+    session.permissions.includes(CRM_PERMISSIONS.activitiesManage);
   return <MeetingFormScreen canManage={canManage} />;
 }

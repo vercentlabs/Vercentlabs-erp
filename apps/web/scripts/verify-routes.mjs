@@ -152,7 +152,9 @@ walk(appRoot, (file, name) => {
   // The Shared Access composition is equivalent when it names the CRM module:
   // workspaceRoute({ module: "crm" }) checks released/enabled/entitled/crm.view
   // through the request's WorkspaceAccessSnapshot, then the named permission.
-  const viaWorkspaceRoute = /\bworkspaceRoute\s*\(/.test(source) && /\bmodule:\s*["']crm["']/.test(source);
+  const viaWorkspaceRoute =
+    /\bworkspaceRoute\s*\(/.test(source) &&
+    /\bmodule:\s*["']crm["']/.test(source);
   if (!/requireCrmAccess\s*\(/.test(source) && !viaWorkspaceRoute) {
     fail(
       `${relative(file)}: no requireCrmAccess(...) or workspaceRoute({ module: "crm" }) call found — this CRM route would only check authentication + organization membership, not module entitlement or action permission`,

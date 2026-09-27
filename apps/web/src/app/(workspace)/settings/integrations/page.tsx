@@ -11,7 +11,16 @@ export default async function IntegrationsPage() {
   const session = await requireWorkspace();
   return (
     <Suspense>
-      <IntegrationsScreen canView={hasSessionPermission(session, CORE_PERMISSIONS.integrationsView)} canManage={hasSessionPermission(session, CORE_PERMISSIONS.integrationsManage)} />
+      <IntegrationsScreen
+        canView={hasSessionPermission(
+          session,
+          CORE_PERMISSIONS.integrationsView,
+        )}
+        canManage={hasSessionPermission(
+          session,
+          CORE_PERMISSIONS.integrationsManage,
+        )}
+      />
     </Suspense>
   );
 }

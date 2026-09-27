@@ -12,7 +12,10 @@ export class UsersApiError extends Error {
 async function parseResponse<T>(response: Response): Promise<T> {
   const payload = await response.json().catch(() => ({}));
   if (!response.ok || payload.ok === false) {
-    throw new UsersApiError(payload.message || "The request could not be completed.", response.status);
+    throw new UsersApiError(
+      payload.message || "The request could not be completed.",
+      response.status,
+    );
   }
   return payload;
 }
@@ -46,7 +49,10 @@ export async function listMembers(): Promise<{ members: MemberRow[] }> {
   return parseResponse(response);
 }
 
-export async function setMemberStatus(userId: string, status: "active" | "disabled"): Promise<{ userId: string; status: string }> {
+export async function setMemberStatus(
+  userId: string,
+  status: "active" | "disabled",
+): Promise<{ userId: string; status: string }> {
   const response = await fetch(`/api/settings/users/${userId}/status`, {
     method: "PUT",
     headers: { "Content-Type": "application/json" },

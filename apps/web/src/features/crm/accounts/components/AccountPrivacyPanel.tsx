@@ -2,7 +2,12 @@
 
 import { useState } from "react";
 import { useMutation } from "@tanstack/react-query";
-import { Button, Dialog, Select, type SelectOption } from "@vercentlabs/design-system";
+import {
+  Button,
+  Dialog,
+  Select,
+  type SelectOption,
+} from "@vercentlabs/design-system";
 import { CORE_PERMISSIONS } from "@vercentlabs/permissions";
 
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
@@ -25,21 +30,38 @@ const REQUEST_TYPE_OPTIONS: SelectOption[] = [
 // disabled) for anyone without the permission, matching this prompt's
 // own "ordinary REP users must not gain privacy-administration
 // authority merely because they can view an Account" instruction.
-export function AccountPrivacyPanel({ accountId, accountName }: { accountId: string; accountName: string }) {
+export function AccountPrivacyPanel({
+  accountId,
+  accountName,
+}: {
+  accountId: string;
+  accountName: string;
+}) {
   const workspace = useWorkspaceContext();
-  const canManage = workspace.permissions.includes(CORE_PERMISSIONS.platformPrivacyManage);
+  const canManage = workspace.permissions.includes(
+    CORE_PERMISSIONS.platformPrivacyManage,
+  );
   const [open, setOpen] = useState(false);
   const [requestType, setRequestType] = useState("access");
   const [error, setError] = useState<string | null>(null);
   const [created, setCreated] = useState(false);
 
   const mutation = useMutation({
-    mutationFn: () => requestJson("/api/privacy/requests", { method: "POST", json: { requestType, subjectReference: `account:${accountId}` } }),
+    mutationFn: () =>
+      requestJson("/api/privacy/requests", {
+        method: "POST",
+        json: { requestType, subjectReference: `account:${accountId}` },
+      }),
     onSuccess: () => {
       setError(null);
       setCreated(true);
     },
-    onError: (err: unknown) => setError(err instanceof RequestError ? err.message : "This request could not be created."),
+    onError: (err: unknown) =>
+      setError(
+        err instanceof RequestError
+          ? err.message
+          : "This request could not be created.",
+      ),
   });
 
   if (!canManage) return null;
@@ -60,18 +82,41 @@ export function AccountPrivacyPanel({ accountId, accountName }: { accountId: str
           Submit privacy request
         </Button>
       </div>
-      <Dialog isOpen={open} onOpenChange={setOpen} title={`Submit a privacy request for ${accountName}`}>
+      <Dialog
+        isOpen={open}
+        onOpenChange={setOpen}
+        title={`Submit a privacy request for ${accountName}`}
+      >
         <div className="flex flex-col gap-4">
-          {error && <p role="alert" className="text-sm text-danger">{error}</p>}
+          {error && (
+            <p role="alert" className="text-sm text-danger">
+              {error}
+            </p>
+          )}
           {created ? (
-            <p className="text-sm text-success">Request recorded. Track it in Settings → Privacy Administration.</p>
+            <p className="text-sm text-success">
+              Request recorded. Track it in Settings → Privacy Administration.
+            </p>
           ) : (
-            <Select label="Request type" options={REQUEST_TYPE_OPTIONS} selectedKey={requestType} onSelectionChange={(key) => setRequestType(String(key ?? "access"))} />
+            <Select
+              label="Request type"
+              options={REQUEST_TYPE_OPTIONS}
+              selectedKey={requestType}
+              onSelectionChange={(key) =>
+                setRequestType(String(key ?? "access"))
+              }
+            />
           )}
           <div className="flex justify-end gap-2">
-            <Button variant="secondary" onPress={() => setOpen(false)}>Close</Button>
+            <Button variant="secondary" onPress={() => setOpen(false)}>
+              Close
+            </Button>
             {!created && (
-              <Button variant="primary" onPress={() => mutation.mutate()} isLoading={mutation.isPending}>
+              <Button
+                variant="primary"
+                onPress={() => mutation.mutate()}
+                isLoading={mutation.isPending}
+              >
                 Submit request
               </Button>
             )}

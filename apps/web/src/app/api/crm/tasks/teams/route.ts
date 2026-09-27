@@ -7,8 +7,12 @@ import { workspaceRoute } from "@/core/workspace-route";
 
 // Teams the caller can queue Tasks against — never every team in the org.
 export async function GET(request: Request) {
-  return workspaceRoute(request, { module: "crm", permission: CRM_PERMISSIONS.activitiesManage }, async ({ client, session }) => {
-    const teams = await listMyTaskTeams(client, crmContext(session));
-    return ok({ teams });
-  });
+  return workspaceRoute(
+    request,
+    { module: "crm", permission: CRM_PERMISSIONS.activitiesManage },
+    async ({ client, session }) => {
+      const teams = await listMyTaskTeams(client, crmContext(session));
+      return ok({ teams });
+    },
+  );
 }

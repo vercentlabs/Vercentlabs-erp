@@ -18,7 +18,10 @@ import { workspaceRoute } from "@/core/workspace-route";
 // server-side and never trusts anything from this request body but the id.
 const paymentLegSchema = z.union([
   z.object({ method: z.literal("cash"), amount: z.number().positive() }),
-  z.object({ method: z.enum(["card", "upi", "wallet", "bank_transfer"]), paymentId: z.string().uuid() }),
+  z.object({
+    method: z.enum(["card", "upi", "wallet", "bank_transfer"]),
+    paymentId: z.string().uuid(),
+  }),
 ]);
 const completeSchema = z.object({
   payments: z.array(paymentLegSchema).min(1),
@@ -27,11 +30,27 @@ const completeSchema = z.object({
   expectedGrandTotal: z.string().optional(),
 });
 
-export async function POST(request: Request, context: { params: Promise<{ id: string }> }) {
-  return workspaceRoute(request, { module: "point-of-sale", permission: "pos.sale.create", billingWrite: true }, async ({ client, session }) => {
-    const { id } = await context.params;
-    const input = completeSchema.parse(await readJson(request));
-    const result = await completePosCart(client, posContext(session), id, input);
-    return ok({ sale: result }, 201);
-  });
+export async function POST(
+  request: Request,
+  context: { params: Promise<{ id: string }> },
+) {
+  return workspaceRoute(
+    request,
+    {
+      module: "point-of-sale",
+      permission: "pos.sale.create",
+      billingWrite: true,
+    },
+    async ({ client, session }) => {
+      const { id } = await context.params;
+      const input = completeSchema.parse(await readJson(request));
+      const result = await completePosCart(
+        client,
+        posContext(session),
+        id,
+        input,
+      );
+      return ok({ sale: result }, 201);
+    },
+  );
 }

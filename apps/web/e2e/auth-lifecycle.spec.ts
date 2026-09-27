@@ -10,7 +10,8 @@ import { fixtures } from "./fixtures";
 // fixtures.ts loads .env.e2e.local, only for the two DB URL keys these
 // specs need to talk to Postgres directly.
 function loadDbUrlFromEnvLocal(): string | undefined {
-  if (process.env.MIGRATION_DATABASE_URL) return process.env.MIGRATION_DATABASE_URL;
+  if (process.env.MIGRATION_DATABASE_URL)
+    return process.env.MIGRATION_DATABASE_URL;
   const filePath = path.resolve(process.cwd(), ".env.local");
   if (!fs.existsSync(filePath)) return undefined;
   const match = fs
@@ -44,7 +45,9 @@ async function dbClient() {
   return client;
 }
 
-test("password reset: a real reset invalidates the old password and any existing session, and the new password actually works", async ({ browser }) => {
+test("password reset: a real reset invalidates the old password and any existing session, and the new password actually works", async ({
+  browser,
+}) => {
   const db = await dbClient();
   const email = `e2e-reset-${Date.now()}@crm-e2e-fixture.test`;
   const originalPassword = "OriginalP@ssw0rd1";
@@ -109,7 +112,9 @@ test("password reset: a real reset invalidates the old password and any existing
     // not a 404, which is the exact catastrophic-lockout bug this
     // checkpoint's work closes.
     await page.waitForURL(/\/onboarding/, { timeout: 10_000 });
-    await expect(page.getByRole("heading", { name: /not part of an organization/i })).toBeVisible();
+    await expect(
+      page.getByRole("heading", { name: /not part of an organization/i }),
+    ).toBeVisible();
 
     // A second, real reset — issued while the user has an active session.
     const secondToken = createOpaqueToken();
@@ -118,7 +123,9 @@ test("password reset: a real reset invalidates the old password and any existing
        VALUES (gen_random_uuid(), $1, $2, now() + interval '2 hours')`,
       [userId, tokenHash(secondToken)],
     );
-    await page.goto(`/reset-password?token=${secondToken}`, { waitUntil: "networkidle" });
+    await page.goto(`/reset-password?token=${secondToken}`, {
+      waitUntil: "networkidle",
+    });
     // Not exact: true — the required-field indicator ("*") is part of the
     // label's accessible name (e.g. "New password *"), so an exact string
     // match against the bare label text never matches anything. Anchor
@@ -127,7 +134,9 @@ test("password reset: a real reset invalidates the old password and any existing
     await page.getByLabel(/^New password/).fill(newPassword);
     await page.getByLabel("Confirm new password").fill(newPassword);
     await page.getByRole("button", { name: "Reset password" }).click();
-    await expect(page.getByText(/other signed-in sessions have been signed out/i)).toBeVisible();
+    await expect(
+      page.getByText(/other signed-in sessions have been signed out/i),
+    ).toBeVisible();
 
     // The pre-reset session must now be dead — a fresh request in the
     // SAME browser context (same cookie) is rejected.
@@ -163,15 +172,30 @@ test("password reset: a real reset invalidates the old password and any existing
     expect(oldPwResp.status()).toBe(401);
     await oldPwContext.close();
   } finally {
-    await db.query(`DELETE FROM sessions WHERE user_id = (SELECT id FROM users WHERE email = $1)`, [email]).catch(() => undefined);
-    await db.query(`DELETE FROM password_reset_tokens WHERE user_id = (SELECT id FROM users WHERE email = $1)`, [email]).catch(() => undefined);
-    await db.query(`DELETE FROM users WHERE email = $1`, [email]).catch(() => undefined);
+    await db
+      .query(
+        `DELETE FROM sessions WHERE user_id = (SELECT id FROM users WHERE email = $1)`,
+        [email],
+      )
+      .catch(() => undefined);
+    await db
+      .query(
+        `DELETE FROM password_reset_tokens WHERE user_id = (SELECT id FROM users WHERE email = $1)`,
+        [email],
+      )
+      .catch(() => undefined);
+    await db
+      .query(`DELETE FROM users WHERE email = $1`, [email])
+      .catch(() => undefined);
     await db.end();
     await context.close();
   }
 });
 
-test("organization invitation: a real invitation can be accepted end-to-end and grants real, working access", async ({ page, browser }) => {
+test("organization invitation: a real invitation can be accepted end-to-end and grants real, working access", async ({
+  page,
+  browser,
+}) => {
   const db = await dbClient();
   const inviteeEmail = `e2e-invitee-${Date.now()}@crm-e2e-fixture.test`;
 
@@ -183,7 +207,10 @@ test("organization invitation: a real invitation can be accepted end-to-end and 
     `SELECT om.organization_id FROM organization_memberships om JOIN users u ON u.id = om.user_id WHERE u.email = $1 AND om.status = 'active' LIMIT 1`,
     [fixtures.ownerEmail],
   );
-  test.skip(!ownerOrg.rows[0], "Could not resolve the owner fixture's organization");
+  test.skip(
+    !ownerOrg.rows[0],
+    "Could not resolve the owner fixture's organization",
+  );
   const organizationRole = await db.query(
     // A fixed, non-privileged built-in role. Ownership can never be granted
     // by an invitation (validateRoleSelection), and the unrestricted
@@ -193,14 +220,21 @@ test("organization invitation: a real invitation can be accepted end-to-end and 
     `SELECT id FROM roles WHERE organization_id = $1 AND status = 'active' AND slug = 'employee' LIMIT 1`,
     [ownerOrg.rows[0]?.organization_id],
   );
-  test.skip(!organizationRole.rows[0], "No role exists in the fixture organization to invite with");
+  test.skip(
+    !organizationRole.rows[0],
+    "No role exists in the fixture organization to invite with",
+  );
 
   const inviteResp = await page.evaluate(
     async ({ email, roleId }) => {
       const resp = await fetch("/api/auth/invitations", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, roleIds: [roleId], primaryRoleId: roleId }),
+        body: JSON.stringify({
+          email,
+          roleIds: [roleId],
+          primaryRoleId: roleId,
+        }),
       });
       return { status: resp.status, body: await resp.json() };
     },
@@ -217,11 +251,16 @@ test("organization invitation: a real invitation can be accepted end-to-end and 
     const invitationId = invitationRow.rows[0].id;
 
     const token = createOpaqueToken();
-    await db.query(`UPDATE organization_invitations SET token_hash = $2 WHERE id = $1`, [invitationId, tokenHash(token)]);
+    await db.query(
+      `UPDATE organization_invitations SET token_hash = $2 WHERE id = $1`,
+      [invitationId, tokenHash(token)],
+    );
 
     const acceptContext = await browser.newContext({ storageState: undefined });
     const acceptPage = await acceptContext.newPage();
-    await acceptPage.goto(`/invitations/${token}`, { waitUntil: "networkidle" });
+    await acceptPage.goto(`/invitations/${token}`, {
+      waitUntil: "networkidle",
+    });
     await expect(acceptPage.getByText(inviteeEmail)).toBeVisible();
 
     await acceptPage.getByLabel("Full name").fill("E2E Invitee");
@@ -231,8 +270,13 @@ test("organization invitation: a real invitation can be accepted end-to-end and 
 
     // Accepting logs the invitee straight into the workspace — a real
     // session, not just a "success" message.
-    await acceptPage.waitForURL((url) => !url.pathname.includes("/invitations"), { timeout: 10_000 });
-    const meCheck = await acceptPage.evaluate(async () => (await fetch("/api/notifications")).status);
+    await acceptPage.waitForURL(
+      (url) => !url.pathname.includes("/invitations"),
+      { timeout: 10_000 },
+    );
+    const meCheck = await acceptPage.evaluate(
+      async () => (await fetch("/api/notifications")).status,
+    );
     expect(meCheck).toBe(200);
     await acceptContext.close();
 
@@ -243,19 +287,40 @@ test("organization invitation: a real invitation can be accepted end-to-end and 
     expect(membership.rows[0]?.status).toBe("active");
   } finally {
     await db
-      .query(`DELETE FROM user_role_assignments WHERE user_id = (SELECT id FROM users WHERE email = $1)`, [inviteeEmail])
+      .query(
+        `DELETE FROM user_role_assignments WHERE user_id = (SELECT id FROM users WHERE email = $1)`,
+        [inviteeEmail],
+      )
       .catch(() => undefined);
     await db
-      .query(`DELETE FROM organization_memberships WHERE user_id = (SELECT id FROM users WHERE email = $1)`, [inviteeEmail])
+      .query(
+        `DELETE FROM organization_memberships WHERE user_id = (SELECT id FROM users WHERE email = $1)`,
+        [inviteeEmail],
+      )
       .catch(() => undefined);
-    await db.query(`DELETE FROM organization_invitations WHERE lower(email) = lower($1)`, [inviteeEmail]).catch(() => undefined);
-    await db.query(`DELETE FROM sessions WHERE user_id = (SELECT id FROM users WHERE email = $1)`, [inviteeEmail]).catch(() => undefined);
-    await db.query(`DELETE FROM users WHERE email = $1`, [inviteeEmail]).catch(() => undefined);
+    await db
+      .query(
+        `DELETE FROM organization_invitations WHERE lower(email) = lower($1)`,
+        [inviteeEmail],
+      )
+      .catch(() => undefined);
+    await db
+      .query(
+        `DELETE FROM sessions WHERE user_id = (SELECT id FROM users WHERE email = $1)`,
+        [inviteeEmail],
+      )
+      .catch(() => undefined);
+    await db
+      .query(`DELETE FROM users WHERE email = $1`, [inviteeEmail])
+      .catch(() => undefined);
     await db.end();
   }
 });
 
-test("organization invitation: the URL a real invitee would receive by email is followed verbatim, never reconstructed, and completes acceptance", async ({ page, browser }) => {
+test("organization invitation: the URL a real invitee would receive by email is followed verbatim, never reconstructed, and completes acceptance", async ({
+  page,
+  browser,
+}) => {
   // Regression guard for the broken invitation link defect (2A):
   // tokenUrl()'s query-string form (?token=) was being used for
   // invitations too, producing a dead link, while every prior E2E test
@@ -274,7 +339,10 @@ test("organization invitation: the URL a real invitee would receive by email is 
     `SELECT om.organization_id FROM organization_memberships om JOIN users u ON u.id = om.user_id WHERE u.email = $1 AND om.status = 'active' LIMIT 1`,
     [fixtures.ownerEmail],
   );
-  test.skip(!ownerOrg.rows[0], "Could not resolve the owner fixture's organization");
+  test.skip(
+    !ownerOrg.rows[0],
+    "Could not resolve the owner fixture's organization",
+  );
   const organizationRole = await db.query(
     // Excludes organization_owner: createOrganizationInvitation now
     // enforces the same grant-ceiling check role assignment uses
@@ -286,7 +354,10 @@ test("organization invitation: the URL a real invitee would receive by email is 
     `SELECT id FROM roles WHERE organization_id = $1 AND status = 'active' AND slug = 'employee' LIMIT 1`,
     [ownerOrg.rows[0]?.organization_id],
   );
-  test.skip(!organizationRole.rows[0], "No role exists in the fixture organization to invite with");
+  test.skip(
+    !organizationRole.rows[0],
+    "No role exists in the fixture organization to invite with",
+  );
 
   try {
     const inviteResp = await page.evaluate(
@@ -294,22 +365,34 @@ test("organization invitation: the URL a real invitee would receive by email is 
         const resp = await fetch("/api/auth/invitations", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ email, roleIds: [roleId], primaryRoleId: roleId }),
+          body: JSON.stringify({
+            email,
+            roleIds: [roleId],
+            primaryRoleId: roleId,
+          }),
         });
         return { status: resp.status, body: await resp.json() };
       },
       { email: inviteeEmail, roleId: organizationRole.rows[0].id },
     );
     expect(inviteResp.status, JSON.stringify(inviteResp.body)).toBe(201);
-    test.skip(inviteResp.body.delivered !== true, "the test-support capture adapter is not wired up in this environment (AUTH_EMAIL_WEBHOOK_URL/AUTH_EMAIL_CAPTURE_ENABLED)");
+    test.skip(
+      inviteResp.body.delivered !== true,
+      "the test-support capture adapter is not wired up in this environment (AUTH_EMAIL_WEBHOOK_URL/AUTH_EMAIL_CAPTURE_ENABLED)",
+    );
 
     const capture = await page.evaluate(async (email) => {
-      const resp = await fetch(`/api/test-support/email-capture?email=${encodeURIComponent(email)}`);
+      const resp = await fetch(
+        `/api/test-support/email-capture?email=${encodeURIComponent(email)}`,
+      );
       return { status: resp.status, body: await resp.json() };
     }, inviteeEmail);
     expect(capture.status, JSON.stringify(capture.body)).toBe(200);
     const capturedUrl = capture.body.message?.url as string | undefined;
-    expect(capturedUrl, "the capture adapter must have received the real invitation message").toBeTruthy();
+    expect(
+      capturedUrl,
+      "the capture adapter must have received the real invitation message",
+    ).toBeTruthy();
     // The defect this guards against: a query-string url here instead of
     // a path segment. Assert the actual shape, not just "some url".
     expect(capturedUrl).toMatch(/\/invitations\/[A-Za-z0-9_-]+$/);
@@ -327,8 +410,13 @@ test("organization invitation: the URL a real invitee would receive by email is 
     await acceptPage.getByLabel("Confirm password").fill("InviteeRealP@ss1");
     await acceptPage.getByRole("button", { name: "Accept invitation" }).click();
 
-    await acceptPage.waitForURL((url) => !url.pathname.includes("/invitations"), { timeout: 10_000 });
-    const meCheck = await acceptPage.evaluate(async () => (await fetch("/api/notifications")).status);
+    await acceptPage.waitForURL(
+      (url) => !url.pathname.includes("/invitations"),
+      { timeout: 10_000 },
+    );
+    const meCheck = await acceptPage.evaluate(
+      async () => (await fetch("/api/notifications")).status,
+    );
     expect(meCheck).toBe(200);
     await acceptContext.close();
 
@@ -339,14 +427,32 @@ test("organization invitation: the URL a real invitee would receive by email is 
     expect(membership.rows[0]?.status).toBe("active");
   } finally {
     await db
-      .query(`DELETE FROM user_role_assignments WHERE user_id = (SELECT id FROM users WHERE email = $1)`, [inviteeEmail])
+      .query(
+        `DELETE FROM user_role_assignments WHERE user_id = (SELECT id FROM users WHERE email = $1)`,
+        [inviteeEmail],
+      )
       .catch(() => undefined);
     await db
-      .query(`DELETE FROM organization_memberships WHERE user_id = (SELECT id FROM users WHERE email = $1)`, [inviteeEmail])
+      .query(
+        `DELETE FROM organization_memberships WHERE user_id = (SELECT id FROM users WHERE email = $1)`,
+        [inviteeEmail],
+      )
       .catch(() => undefined);
-    await db.query(`DELETE FROM organization_invitations WHERE lower(email) = lower($1)`, [inviteeEmail]).catch(() => undefined);
-    await db.query(`DELETE FROM sessions WHERE user_id = (SELECT id FROM users WHERE email = $1)`, [inviteeEmail]).catch(() => undefined);
-    await db.query(`DELETE FROM users WHERE email = $1`, [inviteeEmail]).catch(() => undefined);
+    await db
+      .query(
+        `DELETE FROM organization_invitations WHERE lower(email) = lower($1)`,
+        [inviteeEmail],
+      )
+      .catch(() => undefined);
+    await db
+      .query(
+        `DELETE FROM sessions WHERE user_id = (SELECT id FROM users WHERE email = $1)`,
+        [inviteeEmail],
+      )
+      .catch(() => undefined);
+    await db
+      .query(`DELETE FROM users WHERE email = $1`, [inviteeEmail])
+      .catch(() => undefined);
     await db.end();
   }
 });

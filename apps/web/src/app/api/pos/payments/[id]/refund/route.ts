@@ -15,11 +15,25 @@ const refundSchema = z.object({
   outcome: z.string().trim().max(64).optional(),
 });
 
-export async function POST(request: Request, context: { params: Promise<{ id: string }> }) {
-  return workspaceRoute(request, { module: "point-of-sale", permission: "pos.payment.refund", billingWrite: true }, async ({ client, session }) => {
-    const { id } = await context.params;
-    const input = refundSchema.parse(await readJson(request));
-    const result = await refundPosPayment(client, posContext(session), { ...input, paymentId: id });
-    return ok({ payment: result });
-  });
+export async function POST(
+  request: Request,
+  context: { params: Promise<{ id: string }> },
+) {
+  return workspaceRoute(
+    request,
+    {
+      module: "point-of-sale",
+      permission: "pos.payment.refund",
+      billingWrite: true,
+    },
+    async ({ client, session }) => {
+      const { id } = await context.params;
+      const input = refundSchema.parse(await readJson(request));
+      const result = await refundPosPayment(client, posContext(session), {
+        ...input,
+        paymentId: id,
+      });
+      return ok({ payment: result });
+    },
+  );
 }

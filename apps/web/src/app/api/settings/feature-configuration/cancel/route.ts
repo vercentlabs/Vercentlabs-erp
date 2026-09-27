@@ -7,12 +7,27 @@ import { ok, readJson } from "@/core/http";
 import { workspaceRoute } from "@/core/workspace-route";
 
 // Cancels a scheduled (not yet effective) change.
-const schema = z.object({ namespace: z.string().max(120), key: z.string().max(160), version: z.number().int().min(1) });
+const schema = z.object({
+  namespace: z.string().max(120),
+  key: z.string().max(160),
+  version: z.number().int().min(1),
+});
 
 export async function POST(request: Request) {
   return workspaceRoute(
     request,
-    { permission: CORE_PERMISSIONS.platformConfigurationManage, action: "configuration.cancel_schedule", auditDenial: true },
-    async ({ client, session }) => ok(await cancelScheduledConfiguration(client, session, schema.parse(await readJson(request)))),
+    {
+      permission: CORE_PERMISSIONS.platformConfigurationManage,
+      action: "configuration.cancel_schedule",
+      auditDenial: true,
+    },
+    async ({ client, session }) =>
+      ok(
+        await cancelScheduledConfiguration(
+          client,
+          session,
+          schema.parse(await readJson(request)),
+        ),
+      ),
   );
 }

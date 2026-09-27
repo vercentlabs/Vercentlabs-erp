@@ -29,13 +29,21 @@ const ROUTES = [
   ["communications", "/crm/communications", "Communications"],
   ["duplicates", "/crm/data/duplicates", "Duplicate Management"],
   ["import-export", "/crm/data/import-export", "Import/Export"],
-  ["custom-fields", "/crm/settings/custom-fields-and-tags", "Custom Fields & Tags"],
+  [
+    "custom-fields",
+    "/crm/settings/custom-fields-and-tags",
+    "Custom Fields & Tags",
+  ],
   ["territories", "/crm/settings/territories", "Territories & Sales Teams"],
   ["dashboard", "/crm/dashboard", "Dashboard"],
   ["forecast", "/crm/forecast", "Forecast"],
   ["reports", "/crm/reports", "Reports"],
   ["lead-sources", "/crm/settings/lead-sources", "CRM Settings — Lead Sources"],
-  ["pipeline-stages", "/crm/settings/pipeline-stages", "CRM Settings — Pipeline Stages"],
+  [
+    "pipeline-stages",
+    "/crm/settings/pipeline-stages",
+    "CRM Settings — Pipeline Stages",
+  ],
 ];
 
 fs.mkdirSync(OUT_DIR, { recursive: true });
@@ -53,14 +61,19 @@ for (const viewport of VIEWPORTS) {
   page.on("console", (msg) => {
     if (msg.type() === "error") consoleErrors.push(msg.text().slice(0, 200));
   });
-  page.on("pageerror", (err) => consoleErrors.push(`pageerror: ${err.message}`.slice(0, 200)));
+  page.on("pageerror", (err) =>
+    consoleErrors.push(`pageerror: ${err.message}`.slice(0, 200)),
+  );
 
   for (const [slug, route, label] of ROUTES) {
     const fileName = `${slug}__${viewport.name}.png`;
     const filePath = path.join(OUT_DIR, fileName);
     consoleErrors.length = 0;
     try {
-      await page.goto(`${BASE_URL}${route}`, { waitUntil: "networkidle", timeout: 20000 });
+      await page.goto(`${BASE_URL}${route}`, {
+        waitUntil: "networkidle",
+        timeout: 20000,
+      });
       await page.waitForTimeout(3500);
       await page.screenshot({ path: filePath, fullPage: true });
       inventory.push({
@@ -82,12 +95,17 @@ for (const viewport of VIEWPORTS) {
         error: error.message,
         consoleErrors: [...consoleErrors],
       });
-      console.log(`FAIL ${viewport.name.padEnd(8)} ${route} -- ${error.message}`);
+      console.log(
+        `FAIL ${viewport.name.padEnd(8)} ${route} -- ${error.message}`,
+      );
     }
   }
   await context.close();
 }
 await browser.close();
 
-fs.writeFileSync("scripts/qa/artifacts/screenshot-inventory.json", JSON.stringify(inventory, null, 2));
+fs.writeFileSync(
+  "scripts/qa/artifacts/screenshot-inventory.json",
+  JSON.stringify(inventory, null, 2),
+);
 console.log(`\nWrote ${inventory.length} inventory entries.`);

@@ -124,7 +124,14 @@ export const GLOBAL_NAV_BOTTOM: readonly GlobalNavEntry[] = [
     icon: UserRound,
     requiredPermission: null,
     availability: "implemented",
-    keywords: ["my hr", "my profile", "my leave", "my attendance", "payslip", "self service"],
+    keywords: [
+      "my hr",
+      "my profile",
+      "my leave",
+      "my attendance",
+      "payslip",
+      "self service",
+    ],
   },
   {
     key: "reports",

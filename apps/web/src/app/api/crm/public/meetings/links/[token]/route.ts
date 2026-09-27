@@ -1,4 +1,7 @@
-import { getPublicMeetingLinkView, resolvePublicMeetingLink } from "@vercentlabs/api";
+import {
+  getPublicMeetingLinkView,
+  resolvePublicMeetingLink,
+} from "@vercentlabs/api";
 
 import { tenantTransaction, withIngressClient } from "@/core/db";
 import { errorResponse, ok } from "@/core/http";
@@ -13,8 +16,12 @@ type RouteContext = { params: Promise<{ token: string }> };
 export async function GET(_request: Request, context: RouteContext) {
   try {
     const { token } = await context.params;
-    const link = await withIngressClient((client) => resolvePublicMeetingLink(client, token));
-    const view = await tenantTransaction(link.organization_id, (client) => getPublicMeetingLinkView(client, link));
+    const link = await withIngressClient((client) =>
+      resolvePublicMeetingLink(client, token),
+    );
+    const view = await tenantTransaction(link.organization_id, (client) =>
+      getPublicMeetingLinkView(client, link),
+    );
     return ok({ link: view });
   } catch (error) {
     return errorResponse(error);

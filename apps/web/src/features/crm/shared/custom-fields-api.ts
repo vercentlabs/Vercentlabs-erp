@@ -1,6 +1,7 @@
 "use client";
 
-export type CrmCustomFieldEntityType = "lead" | "opportunity" | "party" | "contact";
+export type CrmCustomFieldEntityType =
+  "lead" | "opportunity" | "party" | "contact";
 
 export type CrmCustomFieldDataType =
   | "text"
@@ -64,31 +65,64 @@ export class CustomFieldApiError extends Error {
 async function parseResponse<T>(response: Response): Promise<T> {
   const payload = await response.json().catch(() => ({}));
   if (!response.ok || payload.ok === false) {
-    throw new CustomFieldApiError(payload.message || "The request could not be completed.", response.status, payload.code);
+    throw new CustomFieldApiError(
+      payload.message || "The request could not be completed.",
+      response.status,
+      payload.code,
+    );
   }
   return payload;
 }
 
-export async function listCustomFieldDefinitions(entityType: CrmCustomFieldEntityType): Promise<{ rows: CrmCustomFieldDefinition[] }> {
-  const response = await fetch(`/api/crm/custom-fields/definitions/${entityType}`);
+export async function listCustomFieldDefinitions(
+  entityType: CrmCustomFieldEntityType,
+): Promise<{ rows: CrmCustomFieldDefinition[] }> {
+  const response = await fetch(
+    `/api/crm/custom-fields/definitions/${entityType}`,
+  );
   return parseResponse(response);
 }
 
-export async function createCustomFieldDefinition(entityType: CrmCustomFieldEntityType, input: Record<string, unknown>): Promise<{ record: CrmCustomFieldDefinition }> {
-  const response = await fetch(`/api/crm/custom-fields/definitions/${entityType}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(input) });
+export async function createCustomFieldDefinition(
+  entityType: CrmCustomFieldEntityType,
+  input: Record<string, unknown>,
+): Promise<{ record: CrmCustomFieldDefinition }> {
+  const response = await fetch(
+    `/api/crm/custom-fields/definitions/${entityType}`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(input),
+    },
+  );
   return parseResponse(response);
 }
 
-export async function setCustomFieldDefinitionActive(id: string, active: boolean): Promise<{ record: CrmCustomFieldDefinition }> {
+export async function setCustomFieldDefinitionActive(
+  id: string,
+  active: boolean,
+): Promise<{ record: CrmCustomFieldDefinition }> {
   // Under .../definitions/by-id/[id]/active, not .../definitions/[id]/active
   // — that would make [entityType] and [id] conflicting dynamic siblings
   // at the same route level (verify:routes' Check 3 catches this).
-  const response = await fetch(`/api/crm/custom-fields/definitions/by-id/${id}/active`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ active }) });
+  const response = await fetch(
+    `/api/crm/custom-fields/definitions/by-id/${id}/active`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ active }),
+    },
+  );
   return parseResponse(response);
 }
 
-export async function getCustomFieldValues(entityType: CrmCustomFieldEntityType, entityId: string): Promise<{ rows: CrmCustomFieldValueRow[] }> {
-  const response = await fetch(`/api/crm/custom-fields/values/${entityType}/${entityId}`);
+export async function getCustomFieldValues(
+  entityType: CrmCustomFieldEntityType,
+  entityId: string,
+): Promise<{ rows: CrmCustomFieldValueRow[] }> {
+  const response = await fetch(
+    `/api/crm/custom-fields/values/${entityType}/${entityId}`,
+  );
   return parseResponse(response);
 }
 
@@ -103,12 +137,28 @@ export type CrmCustomFieldHistoryRow = {
   changedByName: string | null;
 };
 
-export async function getCustomFieldValueHistory(entityType: CrmCustomFieldEntityType, entityId: string): Promise<{ rows: CrmCustomFieldHistoryRow[] }> {
-  const response = await fetch(`/api/crm/custom-fields/values/${entityType}/${entityId}/history`);
+export async function getCustomFieldValueHistory(
+  entityType: CrmCustomFieldEntityType,
+  entityId: string,
+): Promise<{ rows: CrmCustomFieldHistoryRow[] }> {
+  const response = await fetch(
+    `/api/crm/custom-fields/values/${entityType}/${entityId}/history`,
+  );
   return parseResponse(response);
 }
 
-export async function setCustomFieldValues(entityType: CrmCustomFieldEntityType, entityId: string, values: Record<string, unknown>): Promise<{ rows: CrmCustomFieldValueRow[] }> {
-  const response = await fetch(`/api/crm/custom-fields/values/${entityType}/${entityId}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ values }) });
+export async function setCustomFieldValues(
+  entityType: CrmCustomFieldEntityType,
+  entityId: string,
+  values: Record<string, unknown>,
+): Promise<{ rows: CrmCustomFieldValueRow[] }> {
+  const response = await fetch(
+    `/api/crm/custom-fields/values/${entityType}/${entityId}`,
+    {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ values }),
+    },
+  );
   return parseResponse(response);
 }

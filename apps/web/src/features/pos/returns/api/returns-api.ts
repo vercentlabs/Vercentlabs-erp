@@ -13,9 +13,18 @@ export type PosReturnSaleLine = {
   unit_price: string;
   line_total: string;
 };
-export type PosReturnSale = { id: string; receipt_number: string; grand_total: string; currency_code: string; status: string; customer_id: string | null };
+export type PosReturnSale = {
+  id: string;
+  receipt_number: string;
+  grand_total: string;
+  currency_code: string;
+  status: string;
+  customer_id: string | null;
+};
 export const findPosSaleForReturn = (receiptNumber: string) =>
-  request<{ sale: PosReturnSale; lines: PosReturnSaleLine[] }>(`/returns/find?receiptNumber=${encodeURIComponent(receiptNumber)}`);
+  request<{ sale: PosReturnSale; lines: PosReturnSaleLine[] }>(
+    `/returns/find?receiptNumber=${encodeURIComponent(receiptNumber)}`,
+  );
 
 export type PosReturn = {
   id: string;
@@ -36,6 +45,15 @@ export const createPosReturn = (input: {
   reason: string;
   idempotencyKey: string;
 }) => post<{ posReturn: PosReturn }>("/returns", input);
-export const approvePosReturn = (id: string, input: { reason?: string; idempotencyKey: string }) =>
-  post<{ posReturn: PosReturn }>(`/returns/${id}/approve`, input);
-export const completePosReturn = (id: string, input: { idempotencyKey: string }) => post<{ posReturn: PosReturn & { saleStatus: string } }>(`/returns/${id}/complete`, input);
+export const approvePosReturn = (
+  id: string,
+  input: { reason?: string; idempotencyKey: string },
+) => post<{ posReturn: PosReturn }>(`/returns/${id}/approve`, input);
+export const completePosReturn = (
+  id: string,
+  input: { idempotencyKey: string },
+) =>
+  post<{ posReturn: PosReturn & { saleStatus: string } }>(
+    `/returns/${id}/complete`,
+    input,
+  );

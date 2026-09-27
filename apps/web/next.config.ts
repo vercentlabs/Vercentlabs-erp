@@ -14,7 +14,8 @@ const contentSecurityPolicy = [
   "frame-ancestors 'none'",
   "img-src 'self' data: blob: https://*.razorpay.com",
   "object-src 'none'",
-  "script-src 'self' 'unsafe-inline' https://checkout.razorpay.com" + (isProduction ? "" : " 'unsafe-eval'"),
+  "script-src 'self' 'unsafe-inline' https://checkout.razorpay.com" +
+    (isProduction ? "" : " 'unsafe-eval'"),
   "style-src 'self' 'unsafe-inline'",
   "connect-src 'self' https://api.razorpay.com https://lumberjack.razorpay.com",
   "frame-src https://api.razorpay.com https://checkout.razorpay.com",
@@ -38,7 +39,10 @@ const nextConfig: NextConfig = {
   devIndicators: false,
   // The PDF stack (@react-pdf/renderer, pure Node) is loaded at runtime from
   // the document-engine workspace package, never bundled.
-  serverExternalPackages: ["@vercentlabs/document-engine", "@react-pdf/renderer"],
+  serverExternalPackages: [
+    "@vercentlabs/document-engine",
+    "@react-pdf/renderer",
+  ],
   transpilePackages: [
     "@vercentlabs/api",
     "@vercentlabs/database",

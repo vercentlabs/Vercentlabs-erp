@@ -41,4 +41,9 @@ export type LeadSource = {
   updatedAt: string;
 };
 
-export type LeadSourceListResponse = { rows: LeadSource[]; total: number; limit: number; offset: number };
+export type LeadSourceListResponse = {
+  rows: LeadSource[];
+  total: number;
+  limit: number;
+  offset: number;
+};

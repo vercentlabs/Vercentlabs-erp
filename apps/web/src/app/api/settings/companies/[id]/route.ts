@@ -15,10 +15,17 @@ const putSchema = z.object({
 
 // Delegated administrators may update only companies they are granted;
 // anything else answers "not found" (updateCompany).
-export async function PUT(request: Request, context: { params: Promise<{ id: string }> }) {
+export async function PUT(
+  request: Request,
+  context: { params: Promise<{ id: string }> },
+) {
   return workspaceRoute(
     request,
-    { permission: CORE_PERMISSIONS.companyManage, action: "settings.companies.update", auditDenial: true },
+    {
+      permission: CORE_PERMISSIONS.companyManage,
+      action: "settings.companies.update",
+      auditDenial: true,
+    },
     async ({ client, session }) => {
       const { id } = await context.params;
       const body = putSchema.parse(await readJson(request));

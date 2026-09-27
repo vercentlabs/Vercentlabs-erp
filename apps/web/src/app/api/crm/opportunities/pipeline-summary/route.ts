@@ -1,4 +1,8 @@
-import { listOpportunityPipelineStageTotals, listOpportunityStageAges, listOpportunityStageBottlenecks } from "@vercentlabs/api";
+import {
+  listOpportunityPipelineStageTotals,
+  listOpportunityStageAges,
+  listOpportunityStageBottlenecks,
+} from "@vercentlabs/api";
 
 import { HttpError, ok } from "@/core/http";
 import { crmContext } from "@/features/crm/shared/crm-context";
@@ -13,17 +17,21 @@ import { workspaceRoute } from "@/core/workspace-route";
 // a stage holds, and the real per-Opportunity SLA status instead of a
 // client-side approximation.
 export async function GET(request: Request) {
-  return workspaceRoute(request, { module: "crm" }, async ({ client, session }) => {
-    const url = new URL(request.url);
-    const pipelineId = url.searchParams.get("pipelineId");
-    if (!pipelineId) throw new HttpError(400, "pipelineId is required.");
-    const context = crmContext(session);
-    const [stageTotals, stageAges, bottlenecks] = await Promise.all([
-      listOpportunityPipelineStageTotals(client, context, pipelineId),
-      listOpportunityStageAges(client, context, pipelineId),
-      listOpportunityStageBottlenecks(client, context, pipelineId),
-    ]);
-    const result = await { stageTotals, stageAges, bottlenecks };
-    return ok(result);
-  });
+  return workspaceRoute(
+    request,
+    { module: "crm" },
+    async ({ client, session }) => {
+      const url = new URL(request.url);
+      const pipelineId = url.searchParams.get("pipelineId");
+      if (!pipelineId) throw new HttpError(400, "pipelineId is required.");
+      const context = crmContext(session);
+      const [stageTotals, stageAges, bottlenecks] = await Promise.all([
+        listOpportunityPipelineStageTotals(client, context, pipelineId),
+        listOpportunityStageAges(client, context, pipelineId),
+        listOpportunityStageBottlenecks(client, context, pipelineId),
+      ]);
+      const result = await { stageTotals, stageAges, bottlenecks };
+      return ok(result);
+    },
+  );
 }

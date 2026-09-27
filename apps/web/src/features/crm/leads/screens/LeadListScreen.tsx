@@ -4,7 +4,14 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import type { ColumnDef } from "@tanstack/react-table";
-import { Archive, Kanban, Plus, SlidersHorizontal, Table2, Users } from "lucide-react";
+import {
+  Archive,
+  Kanban,
+  Plus,
+  SlidersHorizontal,
+  Table2,
+  Users,
+} from "lucide-react";
 import {
   Badge,
   Button,
@@ -27,9 +34,17 @@ import {
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import { LoadingState } from "@/shared/ui/LoadingState";
-import { dueLabel, dueState, humanize, scoreLabel } from "@/shared/format/human";
+import {
+  dueLabel,
+  dueState,
+  humanize,
+  scoreLabel,
+} from "@/shared/format/human";
 import { CRM_PERMISSIONS } from "@vercentlabs/permissions";
-import { LeadKanbanBoard, type LeadStageOption } from "../components/LeadKanbanBoard";
+import {
+  LeadKanbanBoard,
+  type LeadStageOption,
+} from "../components/LeadKanbanBoard";
 import {
   archiveLead,
   bulkUpdateLeads,
@@ -81,7 +96,10 @@ const BULK_FIELD_OPTIONS: SelectOption[] = [
 
 // F007: the five Lead pipeline stage codes (stable codes; human-facing
 // labels come from the live stage catalogue, not from this map).
-const statusTone: Record<string, "neutral" | "info" | "success" | "warning" | "danger"> = {
+const statusTone: Record<
+  string,
+  "neutral" | "info" | "success" | "warning" | "danger"
+> = {
   new: "info",
   attempting: "info",
   contacted: "info",
@@ -111,14 +129,21 @@ function filtersFromSearchParams(params: URLSearchParams): LeadListFilters {
   if (priority) filters.priority = priority;
   if (rating) filters.rating = rating;
   if (followup) filters.followup = followup as LeadListFilters["followup"];
-  if (qualification) filters.qualification = qualification as LeadListFilters["qualification"];
+  if (qualification)
+    filters.qualification = qualification as LeadListFilters["qualification"];
   if (dwellBreached === "true") filters.dwellBreached = "true";
   if (highPriority === "true") filters.highPriority = "true";
-  for (const key of ["createdFrom", "createdTo", "convertedFrom", "convertedTo"] as const) {
+  for (const key of [
+    "createdFrom",
+    "createdTo",
+    "convertedFrom",
+    "convertedTo",
+  ] as const) {
     const value = params.get(key);
     if (value && /^\d{4}-\d{2}-\d{2}$/.test(value)) filters[key] = value;
   }
-  if (params.get("includeConverted") === "true") filters.includeConverted = "true";
+  if (params.get("includeConverted") === "true")
+    filters.includeConverted = "true";
   if (offset) filters.offset = Number(offset) || 0;
   return filters;
 }
@@ -128,16 +153,23 @@ export function LeadListScreen() {
   const searchParams = useSearchParams();
   const queryClient = useQueryClient();
   const workspace = useWorkspaceContext();
-  const canManageLeads = workspace.permissions.includes(CRM_PERMISSIONS.leadsManage);
+  const canManageLeads = workspace.permissions.includes(
+    CRM_PERMISSIONS.leadsManage,
+  );
 
-  const [filters, setFilters] = useState<LeadListFilters>(() => filtersFromSearchParams(searchParams));
+  const [filters, setFilters] = useState<LeadListFilters>(() =>
+    filtersFromSearchParams(searchParams),
+  );
   const [searchInput, setSearchInput] = useState(filters.search ?? "");
   const [view, setView] = useState<"table" | "kanban">("table");
   const [selection, setSelection] = useState<Record<string, boolean>>({});
   const [bulkField, setBulkField] = useState<string>("priority");
   const [bulkValue, setBulkValue] = useState<string>("");
   const [bulkBusy, setBulkBusy] = useState(false);
-  const [bulkResult, setBulkResult] = useState<{ summary: string; failures: LeadBulkItemResult[] } | null>(null);
+  const [bulkResult, setBulkResult] = useState<{
+    summary: string;
+    failures: LeadBulkItemResult[];
+  } | null>(null);
   const [rowError, setRowError] = useState<string | null>(null);
 
   // URL-addressable list state (Tranche 9): every filter/page change is
@@ -146,9 +178,18 @@ export function LeadListScreen() {
   useEffect(() => {
     const params = new URLSearchParams();
     for (const [key, value] of Object.entries(filters)) {
-      if (value !== undefined && value !== "" && value !== "all" && key !== "limit") params.set(key, String(value));
+      if (
+        value !== undefined &&
+        value !== "" &&
+        value !== "all" &&
+        key !== "limit"
+      )
+        params.set(key, String(value));
     }
-    router.replace(`/crm/leads${params.toString() ? `?${params.toString()}` : ""}`, { scroll: false });
+    router.replace(
+      `/crm/leads${params.toString() ? `?${params.toString()}` : ""}`,
+      { scroll: false },
+    );
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filters]);
 
@@ -163,7 +204,10 @@ export function LeadListScreen() {
     queryFn: getCrmOptions,
   });
 
-  function updateFilter<K extends keyof LeadListFilters>(key: K, value: LeadListFilters[K]) {
+  function updateFilter<K extends keyof LeadListFilters>(
+    key: K,
+    value: LeadListFilters[K],
+  ) {
     setFilters((current) => ({ ...current, [key]: value, offset: 0 }));
   }
 
@@ -173,12 +217,28 @@ export function LeadListScreen() {
 
   const ownerOptions: SelectOption[] = useMemo(() => {
     const rows = optionsQuery.data?.options?.users ?? [];
-    return [{ value: "all", label: "Any owner" }, ...rows.map((row) => ({ value: String(row.id), label: String(row.fullName || row.name || row.id) }))];
+    return [
+      { value: "all", label: "Any owner" },
+      ...rows.map((row) => ({
+        value: String(row.id),
+        label: String(row.fullName || row.name || row.id),
+      })),
+    ];
   }, [optionsQuery.data]);
 
   const stageOptions: SelectOption[] = useMemo(() => {
-    const rows = (optionsQuery.data?.options?.leadStages ?? []) as Array<{ id: string; code: string; name: string; status: string }>;
-    return [{ value: "all", label: "Any stage" }, ...rows.filter((row) => row.status === "active").map((row) => ({ value: row.code, label: row.name }))];
+    const rows = (optionsQuery.data?.options?.leadStages ?? []) as Array<{
+      id: string;
+      code: string;
+      name: string;
+      status: string;
+    }>;
+    return [
+      { value: "all", label: "Any stage" },
+      ...rows
+        .filter((row) => row.status === "active")
+        .map((row) => ({ value: row.code, label: row.name })),
+    ];
   }, [optionsQuery.data]);
 
   // F007: the stage column/cards/filter chip must show the configured
@@ -186,31 +246,80 @@ export function LeadListScreen() {
   // ("attempting") — includes inactive stages so a Lead parked on a
   // since-deactivated stage still renders its real name, not its code.
   const stageNameByCode = useMemo(() => {
-    const rows = (optionsQuery.data?.options?.leadStages ?? []) as Array<{ code: string; name: string }>;
+    const rows = (optionsQuery.data?.options?.leadStages ?? []) as Array<{
+      code: string;
+      name: string;
+    }>;
     return Object.fromEntries(rows.map((row) => [row.code, row.name]));
   }, [optionsQuery.data]);
 
   const activeFilters: ActiveFilter[] = useMemo(() => {
     const active: ActiveFilter[] = [];
-    if (filters.status) active.push({ id: "status", label: `Stage: ${stageNameByCode[filters.status] ?? filters.status}` });
-    if (filters.ownerId) active.push({ id: "ownerId", label: filters.ownerId === "me" ? "Owner: me" : filters.ownerId === "team" ? "Owner: my team" : filters.ownerId === "unassigned" ? "Owner: unassigned" : "Owner filter" });
-    if (filters.priority) active.push({ id: "priority", label: `Priority: ${filters.priority}` });
-    if (filters.rating) active.push({ id: "rating", label: `Rating: ${filters.rating}` });
-    if (filters.followup) active.push({ id: "followup", label: `Follow-up: ${filters.followup}` });
-    if (filters.qualification) active.push({ id: "qualification", label: `Qualification: ${filters.qualification}` });
-    if (filters.dwellBreached) active.push({ id: "dwellBreached", label: "Dwell-breached" });
-    if (filters.highPriority) active.push({ id: "highPriority", label: "Hot or qualified grade" });
-    if (filters.createdFrom || filters.createdTo) active.push({ id: "created", label: `Created ${filters.createdFrom ?? "…"} – ${filters.createdTo ?? "…"}` });
-    if (filters.convertedFrom || filters.convertedTo) active.push({ id: "converted", label: `Converted ${filters.convertedFrom ?? "…"} – ${filters.convertedTo ?? "…"}` });
-    if (filters.includeConverted) active.push({ id: "includeConverted", label: "Including converted" });
-    if (filters.search) active.push({ id: "search", label: `Search: ${filters.search}` });
+    if (filters.status)
+      active.push({
+        id: "status",
+        label: `Stage: ${stageNameByCode[filters.status] ?? filters.status}`,
+      });
+    if (filters.ownerId)
+      active.push({
+        id: "ownerId",
+        label:
+          filters.ownerId === "me"
+            ? "Owner: me"
+            : filters.ownerId === "team"
+              ? "Owner: my team"
+              : filters.ownerId === "unassigned"
+                ? "Owner: unassigned"
+                : "Owner filter",
+      });
+    if (filters.priority)
+      active.push({ id: "priority", label: `Priority: ${filters.priority}` });
+    if (filters.rating)
+      active.push({ id: "rating", label: `Rating: ${filters.rating}` });
+    if (filters.followup)
+      active.push({ id: "followup", label: `Follow-up: ${filters.followup}` });
+    if (filters.qualification)
+      active.push({
+        id: "qualification",
+        label: `Qualification: ${filters.qualification}`,
+      });
+    if (filters.dwellBreached)
+      active.push({ id: "dwellBreached", label: "Dwell-breached" });
+    if (filters.highPriority)
+      active.push({ id: "highPriority", label: "Hot or qualified grade" });
+    if (filters.createdFrom || filters.createdTo)
+      active.push({
+        id: "created",
+        label: `Created ${filters.createdFrom ?? "…"} – ${filters.createdTo ?? "…"}`,
+      });
+    if (filters.convertedFrom || filters.convertedTo)
+      active.push({
+        id: "converted",
+        label: `Converted ${filters.convertedFrom ?? "…"} – ${filters.convertedTo ?? "…"}`,
+      });
+    if (filters.includeConverted)
+      active.push({ id: "includeConverted", label: "Including converted" });
+    if (filters.search)
+      active.push({ id: "search", label: `Search: ${filters.search}` });
     return active;
   }, [filters, stageNameByCode]);
 
   function removeFilter(id: string) {
     if (id === "search") setSearchInput("");
-    if (id === "created") return setFilters((current) => ({ ...current, createdFrom: undefined, createdTo: undefined, offset: 0 }));
-    if (id === "converted") return setFilters((current) => ({ ...current, convertedFrom: undefined, convertedTo: undefined, offset: 0 }));
+    if (id === "created")
+      return setFilters((current) => ({
+        ...current,
+        createdFrom: undefined,
+        createdTo: undefined,
+        offset: 0,
+      }));
+    if (id === "converted")
+      return setFilters((current) => ({
+        ...current,
+        convertedFrom: undefined,
+        convertedTo: undefined,
+        offset: 0,
+      }));
     setFilters((current) => ({ ...current, [id]: undefined, offset: 0 }));
   }
 
@@ -228,10 +337,29 @@ export function LeadListScreen() {
   // (UI refinement addendum #5) — kept out of the always-visible toolbar
   // and grouped behind "More filters" so the default surface stays compact;
   // Stage/Owner/Search are the ones people reach for on every visit.
-  const secondaryFilterCount = [filters.qualification, filters.priority, filters.rating, filters.followup].filter(Boolean).length;
+  const secondaryFilterCount = [
+    filters.qualification,
+    filters.priority,
+    filters.rating,
+    filters.followup,
+  ].filter(Boolean).length;
 
   const selectedIds = Object.keys(selection).filter((id) => selection[id]);
-  const hasFilters = Boolean(filters.search || filters.status || filters.ownerId || filters.priority || filters.rating || filters.followup || filters.qualification || filters.dwellBreached || filters.highPriority || filters.createdFrom || filters.createdTo || filters.convertedFrom || filters.convertedTo);
+  const hasFilters = Boolean(
+    filters.search ||
+    filters.status ||
+    filters.ownerId ||
+    filters.priority ||
+    filters.rating ||
+    filters.followup ||
+    filters.qualification ||
+    filters.dwellBreached ||
+    filters.highPriority ||
+    filters.createdFrom ||
+    filters.createdTo ||
+    filters.convertedFrom ||
+    filters.convertedTo,
+  );
   const filtersWithoutPaging: LeadListFilters = useMemo(() => {
     const rest = { ...filters };
     delete rest.limit;
@@ -240,8 +368,15 @@ export function LeadListScreen() {
   }, [filters]);
 
   const leadStageColumns: LeadStageOption[] = useMemo(() => {
-    const stageRows = (optionsQuery.data?.options?.leadStages ?? []) as Array<{ id: string; code: string; name: string; status: string }>;
-    return stageRows.filter((row) => row.status === "active").map((row) => ({ id: row.id, code: row.code, name: row.name }));
+    const stageRows = (optionsQuery.data?.options?.leadStages ?? []) as Array<{
+      id: string;
+      code: string;
+      name: string;
+      status: string;
+    }>;
+    return stageRows
+      .filter((row) => row.status === "active")
+      .map((row) => ({ id: row.id, code: row.code, name: row.name }));
   }, [optionsQuery.data]);
 
   // F029 — Preview runs every row through the real rules and writes nothing.
@@ -250,40 +385,75 @@ export function LeadListScreen() {
     setBulkBusy(true);
     setBulkResult(null);
     const targets = rows.filter((row) => selection[row.id]);
-    const expectedVersions = Object.fromEntries(targets.map((row) => [row.id, row.updatedAt]));
+    const expectedVersions = Object.fromEntries(
+      targets.map((row) => [row.id, row.updatedAt]),
+    );
     try {
       const result = await bulkUpdateLeads(
         targets.map((row) => row.id),
-        { [bulkField]: bulkField === "nextFollowUpAt" ? bulkValue || null : bulkValue },
+        {
+          [bulkField]:
+            bulkField === "nextFollowUpAt" ? bulkValue || null : bulkValue,
+        },
         expectedVersions,
         `web-${Date.now()}-${Math.random().toString(36).slice(2)}`,
         preview,
       );
       if (result.mode === "synchronous") {
-        const failures = result.items.filter((item) => item.status !== "applied" && item.status !== "would_apply");
-        const done = result.preview ? `Preview: ${result.would_apply ?? 0} of ${result.requested} leads would be updated` : `${result.applied} of ${result.requested} leads updated`;
-        const parts = [result.conflict ? `${result.conflict} changed since you selected them` : "", result.skipped ? `${result.skipped} not available to you` : "", result.failed ? `${result.failed} refused` : ""].filter(Boolean);
-        setBulkResult({ summary: `${done}${parts.length ? `; ${parts.join(", ")}` : ""}.`, failures });
+        const failures = result.items.filter(
+          (item) => item.status !== "applied" && item.status !== "would_apply",
+        );
+        const done = result.preview
+          ? `Preview: ${result.would_apply ?? 0} of ${result.requested} leads would be updated`
+          : `${result.applied} of ${result.requested} leads updated`;
+        const parts = [
+          result.conflict
+            ? `${result.conflict} changed since you selected them`
+            : "",
+          result.skipped ? `${result.skipped} not available to you` : "",
+          result.failed ? `${result.failed} refused` : "",
+        ].filter(Boolean);
+        setBulkResult({
+          summary: `${done}${parts.length ? `; ${parts.join(", ")}` : ""}.`,
+          failures,
+        });
         if (result.preview) return;
       } else {
-        setBulkResult({ summary: `Large selection queued as background job ${result.job.id} (status: ${result.job.status}).`, failures: [] });
+        setBulkResult({
+          summary: `Large selection queued as background job ${result.job.id} (status: ${result.job.status}).`,
+          failures: [],
+        });
       }
     } catch (error) {
-      setBulkResult({ summary: error instanceof LeadApiError ? error.message : "The bulk update could not be completed.", failures: [] });
+      setBulkResult({
+        summary:
+          error instanceof LeadApiError
+            ? error.message
+            : "The bulk update could not be completed.",
+        failures: [],
+      });
     } finally {
       setBulkBusy(false);
     }
     setSelection({});
-    queryClient.invalidateQueries({ queryKey: scopedQueryKey(workspace, "crm", "leads") });
+    queryClient.invalidateQueries({
+      queryKey: scopedQueryKey(workspace, "crm", "leads"),
+    });
   }
 
   async function archiveRow(lead: Lead) {
     setRowError(null);
     try {
       await archiveLead(lead.id, lead.updatedAt);
-      queryClient.invalidateQueries({ queryKey: scopedQueryKey(workspace, "crm", "leads") });
+      queryClient.invalidateQueries({
+        queryKey: scopedQueryKey(workspace, "crm", "leads"),
+      });
     } catch (error) {
-      setRowError(error instanceof LeadApiError ? error.message : "This Lead could not be archived.");
+      setRowError(
+        error instanceof LeadApiError
+          ? error.message
+          : "This Lead could not be archived.",
+      );
     }
   }
 
@@ -292,11 +462,19 @@ export function LeadListScreen() {
       {
         id: "name",
         header: "Lead",
-        accessorFn: (row) => row.fullName || `${row.firstName} ${row.lastName || ""}`.trim(),
+        accessorFn: (row) =>
+          row.fullName || `${row.firstName} ${row.lastName || ""}`.trim(),
         cell: ({ row }) => (
           <div className="flex flex-col">
-            <span className="font-medium text-text">{row.original.fullName || `${row.original.firstName} ${row.original.lastName || ""}`.trim()}</span>
-            {row.original.companyName && <span className="text-xs text-text-muted">{row.original.companyName}</span>}
+            <span className="font-medium text-text">
+              {row.original.fullName ||
+                `${row.original.firstName} ${row.original.lastName || ""}`.trim()}
+            </span>
+            {row.original.companyName && (
+              <span className="text-xs text-text-muted">
+                {row.original.companyName}
+              </span>
+            )}
           </div>
         ),
       },
@@ -306,7 +484,11 @@ export function LeadListScreen() {
         accessorKey: "status",
         cell: ({ getValue }) => {
           const code = String(getValue());
-          return <StatusBadge tone={statusTone[code] ?? "neutral"}>{stageNameByCode[code] ?? code}</StatusBadge>;
+          return (
+            <StatusBadge tone={statusTone[code] ?? "neutral"}>
+              {stageNameByCode[code] ?? code}
+            </StatusBadge>
+          );
         },
       },
       {
@@ -329,7 +511,18 @@ export function LeadListScreen() {
         id: "score",
         header: "Score",
         accessorKey: "score",
-        cell: ({ row }) => <span className="tabular-nums">{row.original.score === null || row.original.score === undefined ? "Not scored" : scoreLabel(row.original.score, 100, humanize(row.original.leadGrade ?? row.original.grade) || null)}</span>,
+        cell: ({ row }) => (
+          <span className="tabular-nums">
+            {row.original.score === null || row.original.score === undefined
+              ? "Not scored"
+              : scoreLabel(
+                  row.original.score,
+                  100,
+                  humanize(row.original.leadGrade ?? row.original.grade) ||
+                    null,
+                )}
+          </span>
+        ),
       },
       {
         id: "nextFollowUpAt",
@@ -337,15 +530,21 @@ export function LeadListScreen() {
         accessorKey: "nextFollowUpAt",
         cell: ({ getValue }) => {
           const value = getValue() as string | null;
-          if (!value) return <span className="text-text-muted">None scheduled</span>;
-          return dueState(value) === "overdue" ? <span className="font-medium text-danger">{`⚠ ${dueLabel(value)}`}</span> : <span>{dateFormatter.format(new Date(value))}</span>;
+          if (!value)
+            return <span className="text-text-muted">None scheduled</span>;
+          return dueState(value) === "overdue" ? (
+            <span className="font-medium text-danger">{`⚠ ${dueLabel(value)}`}</span>
+          ) : (
+            <span>{dateFormatter.format(new Date(value))}</span>
+          );
         },
       },
       {
         id: "updatedAt",
         header: "Updated",
         accessorKey: "updatedAt",
-        cell: ({ getValue }) => dateFormatter.format(new Date(getValue() as string)),
+        cell: ({ getValue }) =>
+          dateFormatter.format(new Date(getValue() as string)),
       },
     ],
     [stageNameByCode],
@@ -353,7 +552,9 @@ export function LeadListScreen() {
 
   const gridState = query.isLoading
     ? "loading"
-    : query.isError && query.error instanceof LeadApiError && query.error.status === 403
+    : query.isError &&
+        query.error instanceof LeadApiError &&
+        query.error.status === 403
       ? "permission-denied"
       : query.isError
         ? "error"
@@ -367,7 +568,8 @@ export function LeadListScreen() {
     <EnterpriseListPage
       header={{
         title: "Leads",
-        description: "Every prospect awaiting qualification, assignment, or follow-up.",
+        description:
+          "Every prospect awaiting qualification, assignment, or follow-up.",
         secondaryActions: (
           <div className="flex items-center rounded-[var(--radius-control)] border border-border bg-surface p-0.5">
             <button
@@ -376,7 +578,9 @@ export function LeadListScreen() {
               onClick={() => setView("table")}
               className={[
                 "flex items-center gap-1.5 rounded-[calc(var(--radius-control)-2px)] px-2.5 py-1.5 text-sm font-medium transition-colors",
-                view === "table" ? "bg-brand-soft text-brand" : "text-text-secondary hover:bg-surface-muted",
+                view === "table"
+                  ? "bg-brand-soft text-brand"
+                  : "text-text-secondary hover:bg-surface-muted",
               ].join(" ")}
             >
               <Table2 className="size-3.5" aria-hidden="true" />
@@ -388,7 +592,9 @@ export function LeadListScreen() {
               onClick={() => setView("kanban")}
               className={[
                 "flex items-center gap-1.5 rounded-[calc(var(--radius-control)-2px)] px-2.5 py-1.5 text-sm font-medium transition-colors",
-                view === "kanban" ? "bg-brand-soft text-brand" : "text-text-secondary hover:bg-surface-muted",
+                view === "kanban"
+                  ? "bg-brand-soft text-brand"
+                  : "text-text-secondary hover:bg-surface-muted",
               ].join(" ")}
             >
               <Kanban className="size-3.5" aria-hidden="true" />
@@ -397,7 +603,10 @@ export function LeadListScreen() {
           </div>
         ),
         primaryAction: canManageLeads ? (
-          <Button variant="primary" onPress={() => router.push("/crm/leads/new")}>
+          <Button
+            variant="primary"
+            onPress={() => router.push("/crm/leads/new")}
+          >
             <Plus className="size-4" aria-hidden="true" />
             New lead
           </Button>
@@ -414,8 +623,24 @@ export function LeadListScreen() {
               onKeyDown={(event) => event.key === "Enter" && submitSearch()}
               className="min-w-[240px]"
             />
-            <Select aria-label="Stage" size="compact" options={stageOptions} selectedKey={filters.status ?? "all"} onSelectionChange={(key) => updateFilter("status", key === "all" ? undefined : String(key))} />
-            <Select aria-label="Owner" size="compact" options={ownerOptions} selectedKey={filters.ownerId ?? "all"} onSelectionChange={(key) => updateFilter("ownerId", key === "all" ? undefined : String(key))} />
+            <Select
+              aria-label="Stage"
+              size="compact"
+              options={stageOptions}
+              selectedKey={filters.status ?? "all"}
+              onSelectionChange={(key) =>
+                updateFilter("status", key === "all" ? undefined : String(key))
+              }
+            />
+            <Select
+              aria-label="Owner"
+              size="compact"
+              options={ownerOptions}
+              selectedKey={filters.ownerId ?? "all"}
+              onSelectionChange={(key) =>
+                updateFilter("ownerId", key === "all" ? undefined : String(key))
+              }
+            />
             <PopoverTrigger>
               <Button variant="secondary" size="compact">
                 <SlidersHorizontal className="size-3.5" aria-hidden="true" />
@@ -428,35 +653,137 @@ export function LeadListScreen() {
               </Button>
               <Popover placement="bottom start">
                 <div className="flex w-64 flex-col gap-3">
-                  <Select label="Qualification" size="compact" options={QUALIFICATION_OPTIONS} selectedKey={filters.qualification ?? "all"} onSelectionChange={(key) => updateFilter("qualification", key === "all" ? undefined : (String(key) as LeadListFilters["qualification"]))} />
-                  <Select label="Priority" size="compact" options={PRIORITY_OPTIONS} selectedKey={filters.priority ?? "all"} onSelectionChange={(key) => updateFilter("priority", key === "all" ? undefined : (String(key) as LeadListFilters["priority"]))} />
-                  <Select label="Rating" size="compact" options={RATING_OPTIONS} selectedKey={filters.rating ?? "all"} onSelectionChange={(key) => updateFilter("rating", key === "all" ? undefined : String(key))} />
-                  <Select label="Follow-up" size="compact" options={FOLLOWUP_OPTIONS} selectedKey={filters.followup ?? "all"} onSelectionChange={(key) => updateFilter("followup", key === "all" ? undefined : (String(key) as LeadListFilters["followup"]))} />
+                  <Select
+                    label="Qualification"
+                    size="compact"
+                    options={QUALIFICATION_OPTIONS}
+                    selectedKey={filters.qualification ?? "all"}
+                    onSelectionChange={(key) =>
+                      updateFilter(
+                        "qualification",
+                        key === "all"
+                          ? undefined
+                          : (String(key) as LeadListFilters["qualification"]),
+                      )
+                    }
+                  />
+                  <Select
+                    label="Priority"
+                    size="compact"
+                    options={PRIORITY_OPTIONS}
+                    selectedKey={filters.priority ?? "all"}
+                    onSelectionChange={(key) =>
+                      updateFilter(
+                        "priority",
+                        key === "all"
+                          ? undefined
+                          : (String(key) as LeadListFilters["priority"]),
+                      )
+                    }
+                  />
+                  <Select
+                    label="Rating"
+                    size="compact"
+                    options={RATING_OPTIONS}
+                    selectedKey={filters.rating ?? "all"}
+                    onSelectionChange={(key) =>
+                      updateFilter(
+                        "rating",
+                        key === "all" ? undefined : String(key),
+                      )
+                    }
+                  />
+                  <Select
+                    label="Follow-up"
+                    size="compact"
+                    options={FOLLOWUP_OPTIONS}
+                    selectedKey={filters.followup ?? "all"}
+                    onSelectionChange={(key) =>
+                      updateFilter(
+                        "followup",
+                        key === "all"
+                          ? undefined
+                          : (String(key) as LeadListFilters["followup"]),
+                      )
+                    }
+                  />
                 </div>
               </Popover>
             </PopoverTrigger>
           </>
         ),
-        end: <Button variant="secondary" onPress={submitSearch}>Search</Button>,
+        end: (
+          <Button variant="secondary" onPress={submitSearch}>
+            Search
+          </Button>
+        ),
       }}
-      filterBar={{ filters: activeFilters, onRemove: removeFilter, onClearAll: activeFilters.length > 0 ? clearAllFilters : undefined }}
+      filterBar={{
+        filters: activeFilters,
+        onRemove: removeFilter,
+        onClearAll: activeFilters.length > 0 ? clearAllFilters : undefined,
+      }}
       bulkActionBar={{
         selectedCount: selectedIds.length,
         onClearSelection: () => setSelection({}),
         actions: (
           <>
-            <Select aria-label="Bulk field" size="compact" options={BULK_FIELD_OPTIONS} selectedKey={bulkField} onSelectionChange={(key) => { setBulkField(String(key)); setBulkValue(""); }} />
+            <Select
+              aria-label="Bulk field"
+              size="compact"
+              options={BULK_FIELD_OPTIONS}
+              selectedKey={bulkField}
+              onSelectionChange={(key) => {
+                setBulkField(String(key));
+                setBulkValue("");
+              }}
+            />
             {bulkField === "priority" ? (
-              <Select aria-label="New priority" size="compact" options={PRIORITY_OPTIONS.filter((o) => o.value !== "all")} selectedKey={bulkValue} onSelectionChange={(key) => setBulkValue(String(key))} placeholder="Choose…" />
+              <Select
+                aria-label="New priority"
+                size="compact"
+                options={PRIORITY_OPTIONS.filter((o) => o.value !== "all")}
+                selectedKey={bulkValue}
+                onSelectionChange={(key) => setBulkValue(String(key))}
+                placeholder="Choose…"
+              />
             ) : bulkField === "rating" ? (
-              <Select aria-label="New rating" size="compact" options={RATING_OPTIONS.filter((o) => o.value !== "all")} selectedKey={bulkValue} onSelectionChange={(key) => setBulkValue(String(key))} placeholder="Choose…" />
+              <Select
+                aria-label="New rating"
+                size="compact"
+                options={RATING_OPTIONS.filter((o) => o.value !== "all")}
+                selectedKey={bulkValue}
+                onSelectionChange={(key) => setBulkValue(String(key))}
+                placeholder="Choose…"
+              />
             ) : (
-              <TextField aria-label="New value" size="compact" placeholder={bulkField === "nextFollowUpAt" ? "YYYY-MM-DD" : "Source id"} value={bulkValue} onChange={setBulkValue} className="w-40" />
+              <TextField
+                aria-label="New value"
+                size="compact"
+                placeholder={
+                  bulkField === "nextFollowUpAt" ? "YYYY-MM-DD" : "Source id"
+                }
+                value={bulkValue}
+                onChange={setBulkValue}
+                className="w-40"
+              />
             )}
-            <Button variant="ghost" size="compact" onPress={() => runBulkUpdate(true)} isLoading={bulkBusy} isDisabled={!canManageLeads}>
+            <Button
+              variant="ghost"
+              size="compact"
+              onPress={() => runBulkUpdate(true)}
+              isLoading={bulkBusy}
+              isDisabled={!canManageLeads}
+            >
               Preview
             </Button>
-            <Button variant="secondary" size="compact" onPress={() => runBulkUpdate(false)} isLoading={bulkBusy} isDisabled={!canManageLeads}>
+            <Button
+              variant="secondary"
+              size="compact"
+              onPress={() => runBulkUpdate(false)}
+              isLoading={bulkBusy}
+              isDisabled={!canManageLeads}
+            >
               Apply to selected
             </Button>
           </>
@@ -464,7 +791,10 @@ export function LeadListScreen() {
       }}
     >
       {rowError && (
-        <p role="alert" className="rounded-[var(--radius-control)] border border-danger-emphasis/30 bg-danger-soft px-3 py-2 text-sm text-danger">
+        <p
+          role="alert"
+          className="rounded-[var(--radius-control)] border border-danger-emphasis/30 bg-danger-soft px-3 py-2 text-sm text-danger"
+        >
           {rowError}
         </p>
       )}
@@ -474,7 +804,9 @@ export function LeadListScreen() {
           {bulkResult.failures.length > 0 && (
             <ul className="list-disc pl-5 text-xs">
               {bulkResult.failures.map((item) => (
-                <li key={item.id}>{item.message || item.code || item.status}</li>
+                <li key={item.id}>
+                  {item.message || item.code || item.status}
+                </li>
               ))}
             </ul>
           )}
@@ -493,19 +825,46 @@ export function LeadListScreen() {
           data={rows}
           getRowId={(row) => row.id}
           state={gridState}
-          loadingContent={<LoadingState label="Loading leads" onRetry={() => query.refetch()} />}
+          loadingContent={
+            <LoadingState
+              label="Loading leads"
+              onRetry={() => query.refetch()}
+            />
+          }
           emptyContent={
             <NoResultsState
               title="No leads yet"
               description="New leads captured from forms, imports, or manual entry will appear here."
-              action={canManageLeads ? { label: "New lead", onPress: () => router.push("/crm/leads/new") } : undefined}
+              action={
+                canManageLeads
+                  ? {
+                      label: "New lead",
+                      onPress: () => router.push("/crm/leads/new"),
+                    }
+                  : undefined
+              }
             />
           }
           noResultsContent={
-            <NoResultsState title="No leads match these filters" description="Try clearing a filter or broadening your search." action={{ label: "Clear filters", onPress: clearAllFilters }} />
+            <NoResultsState
+              title="No leads match these filters"
+              description="Try clearing a filter or broadening your search."
+              action={{ label: "Clear filters", onPress: clearAllFilters }}
+            />
           }
-          errorContent={<ErrorState title="Could not load leads" description="Something went wrong loading this list." action={{ label: "Retry", onPress: () => query.refetch() }} />}
-          permissionDeniedContent={<PermissionState title="You don't have access to Leads" description="Ask an administrator to grant CRM lead access." />}
+          errorContent={
+            <ErrorState
+              title="Could not load leads"
+              description="Something went wrong loading this list."
+              action={{ label: "Retry", onPress: () => query.refetch() }}
+            />
+          }
+          permissionDeniedContent={
+            <PermissionState
+              title="You don't have access to Leads"
+              description="Ask an administrator to grant CRM lead access."
+            />
+          }
           enableRowSelection
           rowSelection={selection}
           onRowSelectionChange={setSelection}
@@ -513,14 +872,25 @@ export function LeadListScreen() {
           pageSize={PAGE_SIZE}
           pageCount={pageCount}
           totalRowCount={total}
-          onPageChange={(nextIndex) => setFilters((current) => ({ ...current, offset: nextIndex * PAGE_SIZE }))}
+          onPageChange={(nextIndex) =>
+            setFilters((current) => ({
+              ...current,
+              offset: nextIndex * PAGE_SIZE,
+            }))
+          }
           onRowClick={(row) => router.push(`/crm/leads/${row.id}`)}
           rowActions={
             canManageLeads
               ? (row) =>
-                  row.recordStatus === "converted" || row.recordStatus === "archived" ? null : (
+                  row.recordStatus === "converted" ||
+                  row.recordStatus === "archived" ? null : (
                     <span onClick={(event) => event.stopPropagation()}>
-                      <IconButton aria-label={`Archive ${row.fullName || row.firstName}`} size="compact" variant="ghost" onPress={() => archiveRow(row)}>
+                      <IconButton
+                        aria-label={`Archive ${row.fullName || row.firstName}`}
+                        size="compact"
+                        variant="ghost"
+                        onPress={() => archiveRow(row)}
+                      >
                         <Archive className="size-4" aria-hidden="true" />
                       </IconButton>
                     </span>
@@ -534,13 +904,23 @@ export function LeadListScreen() {
               className="flex w-full flex-col gap-1.5 border-b border-border px-4 py-3 text-left"
             >
               <div className="flex items-center justify-between gap-2">
-                <span className="font-medium text-text">{row.fullName || `${row.firstName} ${row.lastName || ""}`.trim()}</span>
-                <StatusBadge tone={statusTone[row.status] ?? "neutral"}>{stageNameByCode[row.status] ?? row.status}</StatusBadge>
+                <span className="font-medium text-text">
+                  {row.fullName ||
+                    `${row.firstName} ${row.lastName || ""}`.trim()}
+                </span>
+                <StatusBadge tone={statusTone[row.status] ?? "neutral"}>
+                  {stageNameByCode[row.status] ?? row.status}
+                </StatusBadge>
               </div>
               <div className="flex items-center gap-2 text-xs text-text-muted">
                 <Users className="size-3.5" aria-hidden="true" />
                 <span>{row.ownerName || "Unassigned"}</span>
-                {row.nextFollowUpAt && <span>· Follow up {dateFormatter.format(new Date(row.nextFollowUpAt))}</span>}
+                {row.nextFollowUpAt && (
+                  <span>
+                    · Follow up{" "}
+                    {dateFormatter.format(new Date(row.nextFollowUpAt))}
+                  </span>
+                )}
               </div>
             </button>
           )}

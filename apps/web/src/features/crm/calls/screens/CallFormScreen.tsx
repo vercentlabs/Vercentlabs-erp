@@ -3,13 +3,26 @@
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Button, NumberField, PermissionState, RecordFormPage, Select, TextArea, TextField, type SelectOption } from "@vercentlabs/design-system";
+import {
+  Button,
+  NumberField,
+  PermissionState,
+  RecordFormPage,
+  Select,
+  TextArea,
+  TextField,
+  type SelectOption,
+} from "@vercentlabs/design-system";
 
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import { getCrmOptions } from "@/features/crm/shared/crm-options-api";
 import { DateTimeInput } from "@/features/crm/shared/ui/DateTimeInput";
-import { NO_RELATION, RelatedRecordPicker, type RelatedValue } from "@/features/crm/shared/ui/RelatedRecordPicker";
+import {
+  NO_RELATION,
+  RelatedRecordPicker,
+  type RelatedValue,
+} from "@/features/crm/shared/ui/RelatedRecordPicker";
 import { CallApiError, createCall } from "../api/calls-api";
 import { OUTCOME_OPTIONS } from "../constants";
 
@@ -27,7 +40,19 @@ type FormValues = {
   outcome: string;
 };
 
-const EMPTY: FormValues = { mode: "schedule", subject: "", description: "", direction: "outbound", phoneNumber: "", assignedTo: "", dueAt: "", occurredAt: "", durationSeconds: null, outcomeCode: "connected", outcome: "" };
+const EMPTY: FormValues = {
+  mode: "schedule",
+  subject: "",
+  description: "",
+  direction: "outbound",
+  phoneNumber: "",
+  assignedTo: "",
+  dueAt: "",
+  occurredAt: "",
+  durationSeconds: null,
+  outcomeCode: "connected",
+  outcome: "",
+};
 
 export function CallFormScreen({ canManage = true }: { canManage?: boolean }) {
   const router = useRouter();
@@ -38,10 +63,19 @@ export function CallFormScreen({ canManage = true }: { canManage?: boolean }) {
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [serverError, setServerError] = useState<string | null>(null);
 
-  const optionsQuery = useQuery({ queryKey: scopedQueryKey(workspace, "crm", "options"), queryFn: getCrmOptions });
+  const optionsQuery = useQuery({
+    queryKey: scopedQueryKey(workspace, "crm", "options"),
+    queryFn: getCrmOptions,
+  });
   const assigneeOptions: SelectOption[] = useMemo(() => {
     const rows = optionsQuery.data?.options?.users ?? [];
-    return [{ value: "", label: "Me" }, ...rows.map((row) => ({ value: String(row.id), label: String(row.fullName || row.name || row.id) }))];
+    return [
+      { value: "", label: "Me" },
+      ...rows.map((row) => ({
+        value: String(row.id),
+        label: String(row.fullName || row.name || row.id),
+      })),
+    ];
   }, [optionsQuery.data]);
 
   function set<K extends keyof FormValues>(key: K, value: FormValues[K]) {
@@ -59,7 +93,9 @@ export function CallFormScreen({ canManage = true }: { canManage?: boolean }) {
         throw new Error("Review the highlighted fields.");
       }
       if (related.entityType !== "general" && !related.entityId) {
-        setFieldErrors({ related: "Choose the record this belongs to, or select Nothing." });
+        setFieldErrors({
+          related: "Choose the record this belongs to, or select Nothing.",
+        });
         throw new Error("Choose the related record, or select Nothing.");
       }
       setFieldErrors({});
@@ -84,30 +120,54 @@ export function CallFormScreen({ canManage = true }: { canManage?: boolean }) {
       return createCall(input);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: scopedQueryKey(workspace, "crm", "calls") });
+      queryClient.invalidateQueries({
+        queryKey: scopedQueryKey(workspace, "crm", "calls"),
+      });
       router.push("/crm/calls");
     },
     onError: (error: Error) => {
-      setServerError(error instanceof CallApiError ? error.message : error.message);
+      setServerError(
+        error instanceof CallApiError ? error.message : error.message,
+      );
     },
   });
 
-  if (!canManage) return <PermissionState title="You don't have access to create Calls" />;
+  if (!canManage)
+    return <PermissionState title="You don't have access to create Calls" />;
 
   return (
     <RecordFormPage
-      header={{ title: "New call", description: "Schedule a call for later, or log one that already happened." }}
+      header={{
+        title: "New call",
+        description:
+          "Schedule a call for later, or log one that already happened.",
+      }}
       banner={
         serverError ? (
-          <p role="alert" className="rounded-[var(--radius-control)] border border-danger-emphasis/30 bg-danger-soft px-3 py-2 text-sm text-danger">
+          <p
+            role="alert"
+            className="rounded-[var(--radius-control)] border border-danger-emphasis/30 bg-danger-soft px-3 py-2 text-sm text-danger"
+          >
             {serverError}
           </p>
         ) : null
       }
       formActions={
         <>
-          <Button variant="secondary" onPress={() => router.back()} isDisabled={mutation.isPending}>Cancel</Button>
-          <Button variant="primary" onPress={() => mutation.mutate()} isLoading={mutation.isPending}>{values.mode === "schedule" ? "Schedule call" : "Log call"}</Button>
+          <Button
+            variant="secondary"
+            onPress={() => router.back()}
+            isDisabled={mutation.isPending}
+          >
+            Cancel
+          </Button>
+          <Button
+            variant="primary"
+            onPress={() => mutation.mutate()}
+            isLoading={mutation.isPending}
+          >
+            {values.mode === "schedule" ? "Schedule call" : "Log call"}
+          </Button>
         </>
       }
     >
@@ -119,10 +179,19 @@ export function CallFormScreen({ canManage = true }: { canManage?: boolean }) {
             { value: "log", label: "Log a completed call" },
           ]}
           selectedKey={values.mode}
-          onSelectionChange={(key) => set("mode", String(key) as FormValues["mode"])}
+          onSelectionChange={(key) =>
+            set("mode", String(key) as FormValues["mode"])
+          }
           className="sm:col-span-2"
         />
-        <TextField label="Subject" isRequired value={values.subject} onChange={(v) => set("subject", v)} errorMessage={fieldErrors.subject} className="sm:col-span-2" />
+        <TextField
+          label="Subject"
+          isRequired
+          value={values.subject}
+          onChange={(v) => set("subject", v)}
+          errorMessage={fieldErrors.subject}
+          className="sm:col-span-2"
+        />
         <Select
           label="Direction"
           options={[
@@ -130,22 +199,61 @@ export function CallFormScreen({ canManage = true }: { canManage?: boolean }) {
             { value: "inbound", label: "Inbound" },
           ]}
           selectedKey={values.direction}
-          onSelectionChange={(key) => set("direction", String(key) as FormValues["direction"])}
+          onSelectionChange={(key) =>
+            set("direction", String(key) as FormValues["direction"])
+          }
         />
-        <TextField label="Phone number" value={values.phoneNumber} onChange={(v) => set("phoneNumber", v)} />
-        <Select label="Assignee" options={assigneeOptions} selectedKey={values.assignedTo} onSelectionChange={(key) => set("assignedTo", String(key ?? ""))} />
+        <TextField
+          label="Phone number"
+          value={values.phoneNumber}
+          onChange={(v) => set("phoneNumber", v)}
+        />
+        <Select
+          label="Assignee"
+          options={assigneeOptions}
+          selectedKey={values.assignedTo}
+          onSelectionChange={(key) => set("assignedTo", String(key ?? ""))}
+        />
         {values.mode === "schedule" ? (
-          <DateTimeInput label="Call time" isRequired value={values.dueAt} onChange={(v) => set("dueAt", v)} errorMessage={fieldErrors.dueAt} />
+          <DateTimeInput
+            label="Call time"
+            isRequired
+            value={values.dueAt}
+            onChange={(v) => set("dueAt", v)}
+            errorMessage={fieldErrors.dueAt}
+          />
         ) : (
           <>
-            <DateTimeInput label="When it happened" value={values.occurredAt} onChange={(v) => set("occurredAt", v)} description="Leave empty to use the current time." />
-            <NumberField label="Duration (minutes)" value={Math.round((values.durationSeconds ?? 0) / 60)} onChange={(v) => set("durationSeconds", Math.round((Number(v) || 0) * 60))} minValue={0} maxValue={1440} />
-            <Select label="Outcome" options={OUTCOME_OPTIONS} selectedKey={values.outcomeCode} onSelectionChange={(key) => set("outcomeCode", String(key))} />
+            <DateTimeInput
+              label="When it happened"
+              value={values.occurredAt}
+              onChange={(v) => set("occurredAt", v)}
+              description="Leave empty to use the current time."
+            />
+            <NumberField
+              label="Duration (minutes)"
+              value={Math.round((values.durationSeconds ?? 0) / 60)}
+              onChange={(v) =>
+                set("durationSeconds", Math.round((Number(v) || 0) * 60))
+              }
+              minValue={0}
+              maxValue={1440}
+            />
+            <Select
+              label="Outcome"
+              options={OUTCOME_OPTIONS}
+              selectedKey={values.outcomeCode}
+              onSelectionChange={(key) => set("outcomeCode", String(key))}
+            />
           </>
         )}
       </div>
       <RelatedRecordPicker value={related} onChange={setRelated} />
-      <TextArea label="Description" value={values.description} onChange={(v) => set("description", v)} />
+      <TextArea
+        label="Description"
+        value={values.description}
+        onChange={(v) => set("description", v)}
+      />
     </RecordFormPage>
   );
 }

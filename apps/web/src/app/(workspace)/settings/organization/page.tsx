@@ -7,5 +7,9 @@ export const metadata = { title: "Organization" };
 
 export default async function OrganizationSettingsPage() {
   const session = await requireWorkspace();
-  return <OrganizationProfileScreen canManage={hasSessionPermission(session, "organization.manage")} />;
+  return (
+    <OrganizationProfileScreen
+      canManage={hasSessionPermission(session, "organization.manage")}
+    />
+  );
 }

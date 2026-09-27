@@ -12,7 +12,17 @@ const schema = z.object({
 
 // Credit override is enforced in the domain (it demands sales.credit.override
 // and a reason); this route just carries the intent.
-export async function POST(request: Request, ctx: { params: Promise<{ id: string }> }) {
+export async function POST(
+  request: Request,
+  ctx: { params: Promise<{ id: string }> },
+) {
   const { id } = await ctx.params;
-  return salesMutation(request, "sales.order.confirm", schema, async (client, context, input) => ({ result: await confirmSalesOrderWithCrmSync(client, context, id, input) }));
+  return salesMutation(
+    request,
+    "sales.order.confirm",
+    schema,
+    async (client, context, input) => ({
+      result: await confirmSalesOrderWithCrmSync(client, context, id, input),
+    }),
+  );
 }

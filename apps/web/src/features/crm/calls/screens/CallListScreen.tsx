@@ -24,7 +24,12 @@ import { CRM_PERMISSIONS } from "@vercentlabs/permissions";
 
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
-import { CallApiError, cancelCall, listCalls, startCall } from "../api/calls-api";
+import {
+  CallApiError,
+  cancelCall,
+  listCalls,
+  startCall,
+} from "../api/calls-api";
 import { CompleteCallDialog } from "../components/CompleteCallDialog";
 import type { Call, CallListFilters } from "../types";
 import { LoadingState } from "@/shared/ui/LoadingState";
@@ -32,7 +37,10 @@ import { DueCell } from "@/features/crm/shared/ui/DueCell";
 
 const PAGE_SIZE = 25;
 
-const statusTone: Record<string, "neutral" | "info" | "success" | "warning" | "danger"> = {
+const statusTone: Record<
+  string,
+  "neutral" | "info" | "success" | "warning" | "danger"
+> = {
   planned: "neutral",
   overdue: "danger",
   in_progress: "info",
@@ -40,17 +48,23 @@ const statusTone: Record<string, "neutral" | "info" | "success" | "warning" | "d
   cancelled: "neutral",
 };
 
-
 export function CallListScreen() {
   const router = useRouter();
   const queryClient = useQueryClient();
   const workspace = useWorkspaceContext();
-  const canManage = workspace.permissions.includes(CRM_PERMISSIONS.activitiesManage);
+  const canManage = workspace.permissions.includes(
+    CRM_PERMISSIONS.activitiesManage,
+  );
 
-  const [filters, setFilters] = useState<CallListFilters>({ limit: PAGE_SIZE, offset: 0 });
+  const [filters, setFilters] = useState<CallListFilters>({
+    limit: PAGE_SIZE,
+    offset: 0,
+  });
   const [searchInput, setSearchInput] = useState("");
   const [actionError, setActionError] = useState<string | null>(null);
-  const [completeDialogCall, setCompleteDialogCall] = useState<Call | null>(null);
+  const [completeDialogCall, setCompleteDialogCall] = useState<Call | null>(
+    null,
+  );
 
   const query = useQuery({
     queryKey: scopedQueryKey(workspace, "crm", "calls", filters),
@@ -58,7 +72,10 @@ export function CallListScreen() {
     placeholderData: (previous) => previous,
   });
 
-  function updateFilter<K extends keyof CallListFilters>(key: K, value: CallListFilters[K]) {
+  function updateFilter<K extends keyof CallListFilters>(
+    key: K,
+    value: CallListFilters[K],
+  ) {
     setFilters((current) => ({ ...current, [key]: value, offset: 0 }));
   }
 
@@ -67,19 +84,34 @@ export function CallListScreen() {
   }
 
   function invalidate() {
-    queryClient.invalidateQueries({ queryKey: scopedQueryKey(workspace, "crm", "calls") });
+    queryClient.invalidateQueries({
+      queryKey: scopedQueryKey(workspace, "crm", "calls"),
+    });
   }
 
   function handleError(error: unknown) {
-    setActionError(error instanceof CallApiError ? error.message : "This action could not be completed.");
+    setActionError(
+      error instanceof CallApiError
+        ? error.message
+        : "This action could not be completed.",
+    );
     // A stale-write conflict means this row's local updatedAt is already
     // wrong — refetch so the next attempt uses current data instead of
     // failing the same way again.
-    if (error instanceof CallApiError && error.code === "CRM_STALE_WRITE") invalidate();
+    if (error instanceof CallApiError && error.code === "CRM_STALE_WRITE")
+      invalidate();
   }
 
-  const startMutation = useMutation({ mutationFn: (call: Call) => startCall(call.id, call.updatedAt), onSuccess: invalidate, onError: handleError });
-  const cancelMutation = useMutation({ mutationFn: (call: Call) => cancelCall(call.id, call.updatedAt), onSuccess: invalidate, onError: handleError });
+  const startMutation = useMutation({
+    mutationFn: (call: Call) => startCall(call.id, call.updatedAt),
+    onSuccess: invalidate,
+    onError: handleError,
+  });
+  const cancelMutation = useMutation({
+    mutationFn: (call: Call) => cancelCall(call.id, call.updatedAt),
+    onSuccess: invalidate,
+    onError: handleError,
+  });
 
   const rows = query.data?.rows ?? [];
   const total = query.data?.total ?? 0;
@@ -88,44 +120,94 @@ export function CallListScreen() {
 
   const activeFilters: ActiveFilter[] = useMemo(() => {
     const active: ActiveFilter[] = [];
-    if (filters.search) active.push({ id: "search", label: `Search: ${filters.search}` });
-    if (filters.status) active.push({ id: "status", label: `Status: ${filters.status}` });
-    if (filters.direction) active.push({ id: "direction", label: `Direction: ${filters.direction}` });
-    if (filters.due && filters.due !== "all") active.push({ id: "due", label: `Due: ${filters.due}` });
+    if (filters.search)
+      active.push({ id: "search", label: `Search: ${filters.search}` });
+    if (filters.status)
+      active.push({ id: "status", label: `Status: ${filters.status}` });
+    if (filters.direction)
+      active.push({
+        id: "direction",
+        label: `Direction: ${filters.direction}`,
+      });
+    if (filters.due && filters.due !== "all")
+      active.push({ id: "due", label: `Due: ${filters.due}` });
     return active;
   }, [filters]);
 
   const columns: ColumnDef<Call, unknown>[] = useMemo(
     () => [
-      { id: "subject", header: "Call", accessorKey: "subject", cell: ({ row }) => <span className="font-medium text-text">{row.original.subject}</span> },
+      {
+        id: "subject",
+        header: "Call",
+        accessorKey: "subject",
+        cell: ({ row }) => (
+          <span className="font-medium text-text">{row.original.subject}</span>
+        ),
+      },
       {
         id: "direction",
         header: "Direction",
         accessorFn: (row) => (row.direction ? humanize(row.direction) : "—"),
         cell: ({ getValue }) => (
           <span className="flex items-center gap-1.5">
-            {getValue() === "outbound" ? <PhoneCall className="size-3.5 text-text-muted" aria-hidden="true" /> : <Phone className="size-3.5 text-text-muted" aria-hidden="true" />}
+            {getValue() === "outbound" ? (
+              <PhoneCall
+                className="size-3.5 text-text-muted"
+                aria-hidden="true"
+              />
+            ) : (
+              <Phone className="size-3.5 text-text-muted" aria-hidden="true" />
+            )}
             {String(getValue())}
           </span>
         ),
       },
-      { id: "phoneNumber", header: "Number", accessorFn: (row) => row.phoneNumber || "—" },
+      {
+        id: "phoneNumber",
+        header: "Number",
+        accessorFn: (row) => row.phoneNumber || "—",
+      },
       {
         id: "status",
         header: "Status",
         accessorKey: "status",
-        cell: ({ getValue }) => <StatusBadge tone={statusTone[String(getValue())] ?? "neutral"}>{String(getValue())}</StatusBadge>,
+        cell: ({ getValue }) => (
+          <StatusBadge tone={statusTone[String(getValue())] ?? "neutral"}>
+            {String(getValue())}
+          </StatusBadge>
+        ),
       },
-      { id: "assignedName", header: "Assignee", accessorFn: (row) => row.assignedName || "Unassigned" },
-      { id: "dueAt", header: "Due", accessorFn: (row) => row.dueAt ?? "", cell: ({ row }) => <DueCell value={row.original.dueAt} done={["completed", "cancelled"].includes(row.original.status)} /> },
-      { id: "outcome", header: "Outcome", accessorFn: (row) => (row.outcomeCode ? humanize(row.outcomeCode) : "—") },
+      {
+        id: "assignedName",
+        header: "Assignee",
+        accessorFn: (row) => row.assignedName || "Unassigned",
+      },
+      {
+        id: "dueAt",
+        header: "Due",
+        accessorFn: (row) => row.dueAt ?? "",
+        cell: ({ row }) => (
+          <DueCell
+            value={row.original.dueAt}
+            done={["completed", "cancelled"].includes(row.original.status)}
+          />
+        ),
+      },
+      {
+        id: "outcome",
+        header: "Outcome",
+        accessorFn: (row) =>
+          row.outcomeCode ? humanize(row.outcomeCode) : "—",
+      },
     ],
     [],
   );
 
   const gridState = query.isLoading
     ? "loading"
-    : query.isError && query.error instanceof CallApiError && query.error.status === 403
+    : query.isError &&
+        query.error instanceof CallApiError &&
+        query.error.status === 403
       ? "permission-denied"
       : query.isError
         ? "error"
@@ -137,9 +219,13 @@ export function CallListScreen() {
     <EnterpriseListPage
       header={{
         title: "Calls",
-        description: "Scheduled and logged calls across your Leads, Accounts and Opportunities.",
+        description:
+          "Scheduled and logged calls across your Leads, Accounts and Opportunities.",
         primaryAction: canManage ? (
-          <Button variant="primary" onPress={() => router.push("/crm/calls/new")}>
+          <Button
+            variant="primary"
+            onPress={() => router.push("/crm/calls/new")}
+          >
             <Plus className="size-4" aria-hidden="true" />
             New call
           </Button>
@@ -167,7 +253,9 @@ export function CallListScreen() {
                 { value: "cancelled", label: "Cancelled" },
               ]}
               selectedKey={filters.status ?? "all"}
-              onSelectionChange={(key) => updateFilter("status", key === "all" ? undefined : String(key))}
+              onSelectionChange={(key) =>
+                updateFilter("status", key === "all" ? undefined : String(key))
+              }
             />
             <Select
               aria-label="Direction"
@@ -178,7 +266,14 @@ export function CallListScreen() {
                 { value: "outbound", label: "Outbound" },
               ]}
               selectedKey={filters.direction ?? "all"}
-              onSelectionChange={(key) => updateFilter("direction", key === "all" ? undefined : (String(key) as CallListFilters["direction"]))}
+              onSelectionChange={(key) =>
+                updateFilter(
+                  "direction",
+                  key === "all"
+                    ? undefined
+                    : (String(key) as CallListFilters["direction"]),
+                )
+              }
             />
             <Select
               aria-label="Due"
@@ -190,11 +285,22 @@ export function CallListScreen() {
                 { value: "upcoming", label: "Upcoming" },
               ]}
               selectedKey={filters.due ?? "all"}
-              onSelectionChange={(key) => updateFilter("due", key === "all" ? undefined : (String(key) as CallListFilters["due"]))}
+              onSelectionChange={(key) =>
+                updateFilter(
+                  "due",
+                  key === "all"
+                    ? undefined
+                    : (String(key) as CallListFilters["due"]),
+                )
+              }
             />
           </>
         ),
-        end: <Button variant="secondary" onPress={submitSearch}>Search</Button>,
+        end: (
+          <Button variant="secondary" onPress={submitSearch}>
+            Search
+          </Button>
+        ),
       }}
       filterBar={{
         filters: activeFilters,
@@ -212,7 +318,10 @@ export function CallListScreen() {
       }}
     >
       {actionError && (
-        <p role="alert" className="rounded-[var(--radius-control)] border border-danger-emphasis/30 bg-danger-soft px-3 py-2 text-sm text-danger">
+        <p
+          role="alert"
+          className="rounded-[var(--radius-control)] border border-danger-emphasis/30 bg-danger-soft px-3 py-2 text-sm text-danger"
+        >
           {actionError}
         </p>
       )}
@@ -224,27 +333,69 @@ export function CallListScreen() {
         onRowClick={(row) => router.push(`/crm/calls/${row.id}`)}
         state={gridState}
         loadingContent={<LoadingState label="Loading calls" rows={3} />}
-        emptyContent={<NoResultsState title="No calls yet" action={canManage ? { label: "New call", onPress: () => router.push("/crm/calls/new") } : undefined} />}
-        errorContent={<ErrorState title="Could not load calls" action={{ label: "Retry", onPress: () => query.refetch() }} />}
-        permissionDeniedContent={<PermissionState title="You don't have access to Calls" />}
+        emptyContent={
+          <NoResultsState
+            title="No calls yet"
+            action={
+              canManage
+                ? {
+                    label: "New call",
+                    onPress: () => router.push("/crm/calls/new"),
+                  }
+                : undefined
+            }
+          />
+        }
+        errorContent={
+          <ErrorState
+            title="Could not load calls"
+            action={{ label: "Retry", onPress: () => query.refetch() }}
+          />
+        }
+        permissionDeniedContent={
+          <PermissionState title="You don't have access to Calls" />
+        }
         pageIndex={pageIndex}
         pageSize={PAGE_SIZE}
         pageCount={pageCount}
         totalRowCount={total}
-        onPageChange={(nextIndex) => setFilters((current) => ({ ...current, offset: nextIndex * PAGE_SIZE }))}
+        onPageChange={(nextIndex) =>
+          setFilters((current) => ({
+            ...current,
+            offset: nextIndex * PAGE_SIZE,
+          }))
+        }
         rowActions={(row) => {
           if (["completed", "cancelled"].includes(row.status)) return null;
           return (
-            <span onClick={(event) => event.stopPropagation()} className="flex items-center gap-1">
+            <span
+              onClick={(event) => event.stopPropagation()}
+              className="flex items-center gap-1"
+            >
               {row.status !== "in_progress" && (
-                <IconButton aria-label={`Start ${row.subject}`} size="compact" variant="ghost" onPress={() => startMutation.mutate(row)}>
+                <IconButton
+                  aria-label={`Start ${row.subject}`}
+                  size="compact"
+                  variant="ghost"
+                  onPress={() => startMutation.mutate(row)}
+                >
                   <PhoneCall className="size-4" aria-hidden="true" />
                 </IconButton>
               )}
-              <IconButton aria-label={`Complete ${row.subject}`} size="compact" variant="ghost" onPress={() => setCompleteDialogCall(row)}>
+              <IconButton
+                aria-label={`Complete ${row.subject}`}
+                size="compact"
+                variant="ghost"
+                onPress={() => setCompleteDialogCall(row)}
+              >
                 <CheckCircle2 className="size-4" aria-hidden="true" />
               </IconButton>
-              <IconButton aria-label={`Cancel ${row.subject}`} size="compact" variant="danger" onPress={() => cancelMutation.mutate(row)}>
+              <IconButton
+                aria-label={`Cancel ${row.subject}`}
+                size="compact"
+                variant="danger"
+                onPress={() => cancelMutation.mutate(row)}
+              >
                 <X className="size-4" aria-hidden="true" />
               </IconButton>
             </span>
@@ -254,7 +405,9 @@ export function CallListScreen() {
       {completeDialogCall && (
         <CompleteCallDialog
           call={completeDialogCall}
-          onOpenChange={(open) => { if (!open) setCompleteDialogCall(null); }}
+          onOpenChange={(open) => {
+            if (!open) setCompleteDialogCall(null);
+          }}
           onDone={invalidate}
           onError={handleError}
         />

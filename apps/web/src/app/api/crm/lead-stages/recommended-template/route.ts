@@ -1,6 +1,9 @@
 import { z } from "zod";
 
-import { applyLeadStageTemplateUpgrade, previewLeadStageTemplateUpgrade } from "@vercentlabs/api";
+import {
+  applyLeadStageTemplateUpgrade,
+  previewLeadStageTemplateUpgrade,
+} from "@vercentlabs/api";
 import { CRM_PERMISSIONS } from "@vercentlabs/permissions";
 
 import { ok, readJson } from "@/core/http";
@@ -14,18 +17,37 @@ import { workspaceRoute } from "@/core/workspace-route";
 // { confirm: true } in the body — this is a deliberate, reviewed action,
 // not something a page load can trigger by accident.
 export async function GET(request: Request) {
-  return workspaceRoute(request, { module: "crm", permission: CRM_PERMISSIONS.settingsManage }, async ({ client, session }) => {
-    const result = await previewLeadStageTemplateUpgrade(client, crmContext(session));
-    return ok(result);
-  });
+  return workspaceRoute(
+    request,
+    { module: "crm", permission: CRM_PERMISSIONS.settingsManage },
+    async ({ client, session }) => {
+      const result = await previewLeadStageTemplateUpgrade(
+        client,
+        crmContext(session),
+      );
+      return ok(result);
+    },
+  );
 }
 
 const applyTemplateSchema = z.object({ confirm: z.literal(true) });
 
 export async function POST(request: Request) {
-  return workspaceRoute(request, { module: "crm", permission: CRM_PERMISSIONS.settingsManage, billingWrite: true }, async ({ client, session }) => {
-    const input = applyTemplateSchema.parse(await readJson(request));
-    const result = await applyLeadStageTemplateUpgrade(client, crmContext(session), input);
-    return ok(result);
-  });
+  return workspaceRoute(
+    request,
+    {
+      module: "crm",
+      permission: CRM_PERMISSIONS.settingsManage,
+      billingWrite: true,
+    },
+    async ({ client, session }) => {
+      const input = applyTemplateSchema.parse(await readJson(request));
+      const result = await applyLeadStageTemplateUpgrade(
+        client,
+        crmContext(session),
+        input,
+      );
+      return ok(result);
+    },
+  );
 }

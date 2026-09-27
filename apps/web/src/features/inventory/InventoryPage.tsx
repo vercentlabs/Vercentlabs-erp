@@ -1,8 +1,16 @@
 "use client";
 
 import { REGISTERS } from "@/features/inventory/configs";
-import { GenerateVariantsPanel, InventoryReportsScreen, InventorySettingsScreen, ScanLookup } from "@/features/inventory/screens/InventoryScreens";
-import { GenealogyScreen, QuarantineScreen } from "@/features/inventory/screens/TraceScreens";
+import {
+  GenerateVariantsPanel,
+  InventoryReportsScreen,
+  InventorySettingsScreen,
+  ScanLookup,
+} from "@/features/inventory/screens/InventoryScreens";
+import {
+  GenealogyScreen,
+  QuarantineScreen,
+} from "@/features/inventory/screens/TraceScreens";
 import { Register } from "@/features/inventory/shared/Register";
 
 // Resolves a page name (from the URL) to its screen. Server pages pass only the name, never

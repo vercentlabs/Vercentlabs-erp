@@ -2,13 +2,26 @@
 
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Button, ErrorState, NumberField, PageHeader, PermissionState, Switch, TextField } from "@vercentlabs/design-system";
+import {
+  Button,
+  ErrorState,
+  NumberField,
+  PageHeader,
+  PermissionState,
+  Switch,
+  TextField,
+} from "@vercentlabs/design-system";
 import { POS_PERMISSIONS } from "@vercentlabs/permissions";
 
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import { PosApiError } from "@/features/pos/shared/http";
-import { getPosSettings, updatePosSettings, type PosSettings, type PosSettingsValues } from "@/features/pos/settings/api/settings-api";
+import {
+  getPosSettings,
+  updatePosSettings,
+  type PosSettings,
+  type PosSettingsValues,
+} from "@/features/pos/settings/api/settings-api";
 import { dateTime } from "@/features/pos/shared/format";
 import { PosAlert, PosLoading, PosPanel } from "@/features/pos/shared/PosUi";
 
@@ -31,7 +44,9 @@ function toForm(values: PosSettingsValues): FormState {
   return {
     max_line_discount_percent: Number(values.max_line_discount_percent),
     max_cart_discount_percent: Number(values.max_cart_discount_percent),
-    discount_approval_threshold_percent: Number(values.discount_approval_threshold_percent),
+    discount_approval_threshold_percent: Number(
+      values.discount_approval_threshold_percent,
+    ),
     require_return_approval: values.require_return_approval,
     prohibit_self_return_approval: values.prohibit_self_return_approval,
     allow_negative_stock: values.allow_negative_stock,
@@ -50,33 +65,76 @@ function toForm(values: PosSettingsValues): FormState {
 // mirrors the obvious bounds so the common mistakes are caught before a save.
 export function PosSettingsScreen() {
   const workspace = useWorkspaceContext();
-  const canManage = workspace.roleSlugs.includes("organization_owner") || workspace.permissions.includes(POS_PERMISSIONS.settingsManage);
-  const query = useQuery({ queryKey: scopedQueryKey(workspace, "pos", "settings"), queryFn: getPosSettings, enabled: canManage });
+  const canManage =
+    workspace.roleSlugs.includes("organization_owner") ||
+    workspace.permissions.includes(POS_PERMISSIONS.settingsManage);
+  const query = useQuery({
+    queryKey: scopedQueryKey(workspace, "pos", "settings"),
+    queryFn: getPosSettings,
+    enabled: canManage,
+  });
   // Lives here, not in the form: saving refreshes the data, which remounts the
   // form (it is keyed by the saved timestamp), so a flag held inside it would
   // be wiped the instant the save succeeded.
   const [saved, setSaved] = useState(false);
 
-  if (!canManage) return <PermissionState title="You don't have access to POS settings" description="Ask an administrator to grant pos.settings.manage." />;
+  if (!canManage)
+    return (
+      <PermissionState
+        title="You don't have access to POS settings"
+        description="Ask an administrator to grant pos.settings.manage."
+      />
+    );
   if (query.isLoading) return <PosLoading label="Loading settings…" />;
   if (query.isError || !query.data) {
-    return <ErrorState title="Could not load POS settings" description={query.error instanceof PosApiError ? query.error.message : undefined} action={{ label: "Retry", onPress: () => query.refetch() }} />;
+    return (
+      <ErrorState
+        title="Could not load POS settings"
+        description={
+          query.error instanceof PosApiError ? query.error.message : undefined
+        }
+        action={{ label: "Retry", onPress: () => query.refetch() }}
+      />
+    );
   }
   // Keyed by the saved timestamp so the form always re-initialises from what is
   // actually stored after a save, never from stale local edits.
-  return <SettingsForm key={String(query.data.updatedAt ?? "defaults")} data={query.data} saved={saved} onSaved={() => setSaved(true)} onEdited={() => setSaved(false)} />;
+  return (
+    <SettingsForm
+      key={String(query.data.updatedAt ?? "defaults")}
+      data={query.data}
+      saved={saved}
+      onSaved={() => setSaved(true)}
+      onEdited={() => setSaved(false)}
+    />
+  );
 }
 
-function SettingsForm({ data, saved, onSaved, onEdited }: { data: PosSettings; saved: boolean; onSaved: () => void; onEdited: () => void }) {
+function SettingsForm({
+  data,
+  saved,
+  onSaved,
+  onEdited,
+}: {
+  data: PosSettings;
+  saved: boolean;
+  onSaved: () => void;
+  onEdited: () => void;
+}) {
   const workspace = useWorkspaceContext();
   const queryClient = useQueryClient();
   const initial = toForm(data.settings);
   const [form, setForm] = useState<FormState>(initial);
   const [error, setError] = useState<string | null>(null);
 
-  const dirty = (Object.keys(initial) as Array<keyof FormState>).some((key) => form[key] !== initial[key]);
-  const thresholdTooHigh = form.discount_approval_threshold_percent > form.max_line_discount_percent;
-  const currencyInvalid = !/^[A-Za-z]{3}$/.test(form.default_currency_code.trim());
+  const dirty = (Object.keys(initial) as Array<keyof FormState>).some(
+    (key) => form[key] !== initial[key],
+  );
+  const thresholdTooHigh =
+    form.discount_approval_threshold_percent > form.max_line_discount_percent;
+  const currencyInvalid = !/^[A-Za-z]{3}$/.test(
+    form.default_currency_code.trim(),
+  );
 
   function set<K extends keyof FormState>(key: K) {
     return (value: FormState[K]) => {
@@ -90,18 +148,28 @@ function SettingsForm({ data, saved, onSaved, onEdited }: { data: PosSettings; s
       // Send only what changed, so an untouched setting is never re-written.
       const changes: Record<string, string | number | boolean> = {};
       for (const key of Object.keys(initial) as Array<keyof FormState>) {
-        if (form[key] !== initial[key]) changes[key] = key === "default_currency_code" ? String(form[key]).trim().toUpperCase() : (form[key] as string | number | boolean);
+        if (form[key] !== initial[key])
+          changes[key] =
+            key === "default_currency_code"
+              ? String(form[key]).trim().toUpperCase()
+              : (form[key] as string | number | boolean);
       }
       return updatePosSettings(changes);
     },
     onSuccess: () => {
       setError(null);
       onSaved();
-      queryClient.invalidateQueries({ queryKey: scopedQueryKey(workspace, "pos", "settings") });
+      queryClient.invalidateQueries({
+        queryKey: scopedQueryKey(workspace, "pos", "settings"),
+      });
     },
     onError: (err) => {
       onEdited();
-      setError(err instanceof PosApiError ? err.message : "The settings could not be saved.");
+      setError(
+        err instanceof PosApiError
+          ? err.message
+          : "The settings could not be saved.",
+      );
     },
   });
 
@@ -117,7 +185,12 @@ function SettingsForm({ data, saved, onSaved, onEdited }: { data: PosSettings; s
                 Discard changes
               </Button>
             )}
-            <Button variant="primary" onPress={() => saveMutation.mutate()} isLoading={saveMutation.isPending} isDisabled={!dirty || thresholdTooHigh || currencyInvalid}>
+            <Button
+              variant="primary"
+              onPress={() => saveMutation.mutate()}
+              isLoading={saveMutation.isPending}
+              isDisabled={!dirty || thresholdTooHigh || currencyInvalid}
+            >
               Save settings
             </Button>
           </div>
@@ -127,15 +200,39 @@ function SettingsForm({ data, saved, onSaved, onEdited }: { data: PosSettings; s
       {error && <PosAlert>{error}</PosAlert>}
       {saved && !dirty && <PosAlert tone="success">Settings saved.</PosAlert>}
       {!data.configured && (
-        <PosAlert tone="info">This company has not saved POS settings yet, so the standard defaults below are in effect. Saving creates its own settings.</PosAlert>
+        <PosAlert tone="info">
+          This company has not saved POS settings yet, so the standard defaults
+          below are in effect. Saving creates its own settings.
+        </PosAlert>
       )}
-      {data.updatedAt && <p className="text-xs text-text-muted">Last changed {dateTime(data.updatedAt)}.</p>}
+      {data.updatedAt && (
+        <p className="text-xs text-text-muted">
+          Last changed {dateTime(data.updatedAt)}.
+        </p>
+      )}
 
       <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-2">
-        <PosPanel title="Discounts & approvals" description="Hard limits, and the point above which a supervisor must approve before the sale can complete.">
+        <PosPanel
+          title="Discounts & approvals"
+          description="Hard limits, and the point above which a supervisor must approve before the sale can complete."
+        >
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <NumberField label="Max line discount (%)" value={form.max_line_discount_percent} onChange={set("max_line_discount_percent")} minValue={0} maxValue={100} step={1} />
-            <NumberField label="Max cart discount (%)" value={form.max_cart_discount_percent} onChange={set("max_cart_discount_percent")} minValue={0} maxValue={100} step={1} />
+            <NumberField
+              label="Max line discount (%)"
+              value={form.max_line_discount_percent}
+              onChange={set("max_line_discount_percent")}
+              minValue={0}
+              maxValue={100}
+              step={1}
+            />
+            <NumberField
+              label="Max cart discount (%)"
+              value={form.max_cart_discount_percent}
+              onChange={set("max_cart_discount_percent")}
+              minValue={0}
+              maxValue={100}
+              step={1}
+            />
           </div>
           <NumberField
             label="Supervisor approval above (%)"
@@ -145,41 +242,85 @@ function SettingsForm({ data, saved, onSaved, onEdited }: { data: PosSettings; s
             minValue={0}
             maxValue={100}
             step={1}
-            errorMessage={thresholdTooHigh ? "This cannot be higher than the max line discount — no discount could ever reach it." : undefined}
+            errorMessage={
+              thresholdTooHigh
+                ? "This cannot be higher than the max line discount — no discount could ever reach it."
+                : undefined
+            }
             isInvalid={thresholdTooHigh}
             className="sm:max-w-xs"
           />
         </PosPanel>
 
-        <PosPanel title="Returns" description="How returns and refunds are authorised.">
-          <Switch isSelected={form.require_return_approval} onChange={set("require_return_approval")}>
+        <PosPanel
+          title="Returns"
+          description="How returns and refunds are authorised."
+        >
+          <Switch
+            isSelected={form.require_return_approval}
+            onChange={set("require_return_approval")}
+          >
             Returns need approval before they complete
           </Switch>
-          <Switch isSelected={form.prohibit_self_return_approval} onChange={set("prohibit_self_return_approval")} isDisabled={!form.require_return_approval}>
+          <Switch
+            isSelected={form.prohibit_self_return_approval}
+            onChange={set("prohibit_self_return_approval")}
+            isDisabled={!form.require_return_approval}
+          >
             The person who created a return cannot approve it
           </Switch>
         </PosPanel>
 
-        <PosPanel title="Sales & stock" description="Rules applied while ringing up a sale.">
-          <Switch isSelected={form.allow_negative_stock} onChange={set("allow_negative_stock")}>
+        <PosPanel
+          title="Sales & stock"
+          description="Rules applied while ringing up a sale."
+        >
+          <Switch
+            isSelected={form.allow_negative_stock}
+            onChange={set("allow_negative_stock")}
+          >
             Allow selling stock that is not on hand
           </Switch>
-          <Switch isSelected={form.allow_price_override} onChange={set("allow_price_override")}>
+          <Switch
+            isSelected={form.allow_price_override}
+            onChange={set("allow_price_override")}
+          >
             Allow cashiers to override an item&apos;s price
           </Switch>
-          <NumberField label="Open cart expires after (minutes)" description="5 minutes to 1 week (10,080)." value={form.cart_expiry_minutes} onChange={set("cart_expiry_minutes")} minValue={5} maxValue={10080} step={5} className="sm:max-w-xs" />
+          <NumberField
+            label="Open cart expires after (minutes)"
+            description="5 minutes to 1 week (10,080)."
+            value={form.cart_expiry_minutes}
+            onChange={set("cart_expiry_minutes")}
+            minValue={5}
+            maxValue={10080}
+            step={5}
+            className="sm:max-w-xs"
+          />
         </PosPanel>
 
-        <PosPanel title="Shifts & currency" description="Cash control and the default currency for new stores.">
-          <Switch isSelected={form.require_shift_reconciliation} onChange={set("require_shift_reconciliation")}>
+        <PosPanel
+          title="Shifts & currency"
+          description="Cash control and the default currency for new stores."
+        >
+          <Switch
+            isSelected={form.require_shift_reconciliation}
+            onChange={set("require_shift_reconciliation")}
+          >
             Shifts must be reconciled (counted) when closed
           </Switch>
           <TextField
             label="Default currency code"
             value={form.default_currency_code}
-            onChange={(value) => set("default_currency_code")(value.toUpperCase())}
+            onChange={(value) =>
+              set("default_currency_code")(value.toUpperCase())
+            }
             maxLength={3}
-            errorMessage={currencyInvalid ? "Use a 3-letter currency code, e.g. INR." : undefined}
+            errorMessage={
+              currencyInvalid
+                ? "Use a 3-letter currency code, e.g. INR."
+                : undefined
+            }
             isInvalid={currencyInvalid}
             className="sm:max-w-[10rem]"
           />

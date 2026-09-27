@@ -1,6 +1,10 @@
 import { z } from "zod";
 
-import { audit, createBranch, listOrganizationBranches } from "@vercentlabs/api";
+import {
+  audit,
+  createBranch,
+  listOrganizationBranches,
+} from "@vercentlabs/api";
 import { CORE_PERMISSIONS } from "@vercentlabs/permissions";
 
 import { ok, readJson } from "@/core/http";
@@ -11,10 +15,17 @@ const companyFilter = z.string().uuid().nullable();
 export async function GET(request: Request) {
   return workspaceRoute(
     request,
-    { permission: CORE_PERMISSIONS.branchManage, action: "settings.branches.list" },
+    {
+      permission: CORE_PERMISSIONS.branchManage,
+      action: "settings.branches.list",
+    },
     async ({ client, session }) => {
-      const companyId = companyFilter.parse(new URL(request.url).searchParams.get("companyId"));
-      return ok({ branches: await listOrganizationBranches(client, session, companyId) });
+      const companyId = companyFilter.parse(
+        new URL(request.url).searchParams.get("companyId"),
+      );
+      return ok({
+        branches: await listOrganizationBranches(client, session, companyId),
+      });
     },
   );
 }
@@ -32,7 +43,11 @@ const postSchema = z.object({
 export async function POST(request: Request) {
   return workspaceRoute(
     request,
-    { permission: CORE_PERMISSIONS.branchManage, action: "settings.branches.create", auditDenial: true },
+    {
+      permission: CORE_PERMISSIONS.branchManage,
+      action: "settings.branches.create",
+      auditDenial: true,
+    },
     async ({ client, session }) => {
       const body = postSchema.parse(await readJson(request));
       const branch = await createBranch(client, session, body);
@@ -42,7 +57,11 @@ export async function POST(request: Request) {
         eventType: "branch.created",
         entityType: "branch",
         entityId: branch.id,
-        afterData: { name: branch.name, code: branch.code, companyId: branch.company_id },
+        afterData: {
+          name: branch.name,
+          code: branch.code,
+          companyId: branch.company_id,
+        },
         request,
         env: process.env,
       });

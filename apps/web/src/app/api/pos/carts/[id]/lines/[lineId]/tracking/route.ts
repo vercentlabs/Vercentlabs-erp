@@ -17,11 +17,28 @@ const trackingSchema = z.object({
   expectedVersion: z.number().int().optional(),
 });
 
-export async function POST(request: Request, context: { params: Promise<{ id: string; lineId: string }> }) {
-  return workspaceRoute(request, { module: "point-of-sale", permission: "pos.sale.create", billingWrite: true }, async ({ client, session }) => {
-    const { id, lineId } = await context.params;
-    const input = trackingSchema.parse(await readJson(request));
-    const result = await setPosCartLineTracking(client, posContext(session), id, lineId, input);
-    return ok({ cart: result });
-  });
+export async function POST(
+  request: Request,
+  context: { params: Promise<{ id: string; lineId: string }> },
+) {
+  return workspaceRoute(
+    request,
+    {
+      module: "point-of-sale",
+      permission: "pos.sale.create",
+      billingWrite: true,
+    },
+    async ({ client, session }) => {
+      const { id, lineId } = await context.params;
+      const input = trackingSchema.parse(await readJson(request));
+      const result = await setPosCartLineTracking(
+        client,
+        posContext(session),
+        id,
+        lineId,
+        input,
+      );
+      return ok({ cart: result });
+    },
+  );
 }

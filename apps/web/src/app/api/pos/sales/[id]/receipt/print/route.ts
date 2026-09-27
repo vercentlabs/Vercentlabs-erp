@@ -9,10 +9,21 @@ import { workspaceRoute } from "@/core/workspace-route";
 // parameter (trivially forgeable, proved nothing). See
 // services/api/src/modules/point-of-sale/transaction-continuity-and-documents/receipts.js
 // for exactly what this can and cannot claim.
-export async function POST(request: Request, context: { params: Promise<{ id: string }> }) {
-  return workspaceRoute(request, { module: "point-of-sale", permission: "pos.view", billingWrite: true }, async ({ client, session }) => {
-    const { id } = await context.params;
-    const result = await recordPosReceiptPrintAttempt(client, posContext(session), id);
-    return ok({ printEvent: result }, 201);
-  });
+export async function POST(
+  request: Request,
+  context: { params: Promise<{ id: string }> },
+) {
+  return workspaceRoute(
+    request,
+    { module: "point-of-sale", permission: "pos.view", billingWrite: true },
+    async ({ client, session }) => {
+      const { id } = await context.params;
+      const result = await recordPosReceiptPrintAttempt(
+        client,
+        posContext(session),
+        id,
+      );
+      return ok({ printEvent: result }, 201);
+    },
+  );
 }

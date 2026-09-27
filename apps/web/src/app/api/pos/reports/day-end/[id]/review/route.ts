@@ -10,11 +10,23 @@ const reviewSchema = z.object({
   reviewNotes: z.string().trim().max(2_000).optional().nullable(),
 });
 
-export async function POST(request: Request, context: { params: Promise<{ id: string }> }) {
-  return workspaceRoute(request, { module: "point-of-sale", permission: "pos.report.generate" }, async ({ client, session }) => {
-    const { id } = await context.params;
-    const input = reviewSchema.parse(await readJson(request));
-    const result = await reviewPosDayEndReport(client, posContext(session), id, input);
-    return ok({ report: result });
-  });
+export async function POST(
+  request: Request,
+  context: { params: Promise<{ id: string }> },
+) {
+  return workspaceRoute(
+    request,
+    { module: "point-of-sale", permission: "pos.report.generate" },
+    async ({ client, session }) => {
+      const { id } = await context.params;
+      const input = reviewSchema.parse(await readJson(request));
+      const result = await reviewPosDayEndReport(
+        client,
+        posContext(session),
+        id,
+        input,
+      );
+      return ok({ report: result });
+    },
+  );
 }

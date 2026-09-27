@@ -14,9 +14,14 @@ const viewports = [
 ];
 
 for (const [name, width, height] of viewports) {
-  const context = await browser.newContext({ storageState: "e2e/.auth/owner.json", viewport: { width, height } });
+  const context = await browser.newContext({
+    storageState: "e2e/.auth/owner.json",
+    viewport: { width, height },
+  });
   const page = await context.newPage();
-  await page.goto("http://localhost:3001/crm/leads", { waitUntil: "networkidle" });
+  await page.goto("http://localhost:3001/crm/leads", {
+    waitUntil: "networkidle",
+  });
   await page.waitForTimeout(600);
   await page.screenshot({ path: `${OUT_DIR}/${label}-leads-${name}.png` });
   console.log(`captured ${label}-leads-${name}`);
@@ -24,7 +29,10 @@ for (const [name, width, height] of viewports) {
 }
 
 // Also grab CRM Home for shell/sidebar context at desktop.
-const homeContext = await browser.newContext({ storageState: "e2e/.auth/owner.json", viewport: { width: 1440, height: 900 } });
+const homeContext = await browser.newContext({
+  storageState: "e2e/.auth/owner.json",
+  viewport: { width: 1440, height: 900 },
+});
 const homePage = await homeContext.newPage();
 await homePage.goto("http://localhost:3001/crm", { waitUntil: "networkidle" });
 await homePage.waitForTimeout(600);

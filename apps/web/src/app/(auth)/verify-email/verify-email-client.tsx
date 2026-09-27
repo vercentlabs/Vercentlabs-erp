@@ -8,7 +8,13 @@ import { Button } from "@vercentlabs/design-system";
 
 type Status = "checking" | "verified" | "error" | "pending";
 
-export function VerifyEmailClient({ token, email }: { token?: string; email?: string }) {
+export function VerifyEmailClient({
+  token,
+  email,
+}: {
+  token?: string;
+  email?: string;
+}) {
   const router = useRouter();
   const [status, setStatus] = useState<Status>(token ? "checking" : "pending");
   const [error, setError] = useState<string | null>(null);
@@ -26,11 +32,17 @@ export function VerifyEmailClient({ token, email }: { token?: string; email?: st
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ token }),
         });
-        const payload = (await response.json().catch(() => ({}))) as { ok?: boolean; message?: string };
+        const payload = (await response.json().catch(() => ({}))) as {
+          ok?: boolean;
+          message?: string;
+        };
         if (cancelled) return;
         if (!response.ok || payload.ok === false) {
           setStatus("error");
-          setError(payload.message || "This verification link may be invalid or expired.");
+          setError(
+            payload.message ||
+              "This verification link may be invalid or expired.",
+          );
           return;
         }
         setStatus("verified");
@@ -41,7 +53,9 @@ export function VerifyEmailClient({ token, email }: { token?: string; email?: st
       } catch {
         if (!cancelled) {
           setStatus("error");
-          setError("Something went wrong. Check your connection and try again.");
+          setError(
+            "Something went wrong. Check your connection and try again.",
+          );
         }
       }
     })();
@@ -54,15 +68,25 @@ export function VerifyEmailClient({ token, email }: { token?: string; email?: st
     setResending(true);
     setResendError(null);
     try {
-      const response = await fetch("/api/auth/resend-verification", { method: "POST" });
-      const payload = (await response.json().catch(() => ({}))) as { ok?: boolean; message?: string };
+      const response = await fetch("/api/auth/resend-verification", {
+        method: "POST",
+      });
+      const payload = (await response.json().catch(() => ({}))) as {
+        ok?: boolean;
+        message?: string;
+      };
       if (!response.ok || payload.ok === false) {
-        setResendError(payload.message || "Could not resend the verification email. Try again shortly.");
+        setResendError(
+          payload.message ||
+            "Could not resend the verification email. Try again shortly.",
+        );
         return;
       }
       setResent(true);
     } catch {
-      setResendError("Something went wrong. Check your connection and try again.");
+      setResendError(
+        "Something went wrong. Check your connection and try again.",
+      );
     } finally {
       setResending(false);
     }
@@ -73,7 +97,11 @@ export function VerifyEmailClient({ token, email }: { token?: string; email?: st
   }
 
   if (status === "verified") {
-    return <p className="text-sm text-text">Your email is verified. Taking you to your workspace…</p>;
+    return (
+      <p className="text-sm text-text">
+        Your email is verified. Taking you to your workspace…
+      </p>
+    );
   }
 
   if (status === "error") {
@@ -82,7 +110,13 @@ export function VerifyEmailClient({ token, email }: { token?: string; email?: st
         <p role="alert" className="text-sm text-danger">
           {error}
         </p>
-        <Button type="button" variant="primary" size="standard" isLoading={resending} onPress={handleResend}>
+        <Button
+          type="button"
+          variant="primary"
+          size="standard"
+          isLoading={resending}
+          onPress={handleResend}
+        >
           Send a new verification email
         </Button>
         {resendError ? (
@@ -90,8 +124,15 @@ export function VerifyEmailClient({ token, email }: { token?: string; email?: st
             {resendError}
           </p>
         ) : null}
-        {resent ? <p className="text-sm text-success">A new verification email is on its way.</p> : null}
-        <Link href="/login" className="text-center text-sm font-medium text-brand hover:underline">
+        {resent ? (
+          <p className="text-sm text-success">
+            A new verification email is on its way.
+          </p>
+        ) : null}
+        <Link
+          href="/login"
+          className="text-center text-sm font-medium text-brand hover:underline"
+        >
           Back to sign in
         </Link>
       </div>
@@ -101,10 +142,17 @@ export function VerifyEmailClient({ token, email }: { token?: string; email?: st
   return (
     <div className="flex flex-col gap-4">
       <p className="text-sm text-text">
-        We sent a verification link to {email ? <strong>{email}</strong> : "your email address"}. Click it to activate your
-        account.
+        We sent a verification link to{" "}
+        {email ? <strong>{email}</strong> : "your email address"}. Click it to
+        activate your account.
       </p>
-      <Button type="button" variant="secondary" size="standard" isLoading={resending} onPress={handleResend}>
+      <Button
+        type="button"
+        variant="secondary"
+        size="standard"
+        isLoading={resending}
+        onPress={handleResend}
+      >
         Resend verification email
       </Button>
       {resendError ? (
@@ -112,8 +160,15 @@ export function VerifyEmailClient({ token, email }: { token?: string; email?: st
           {resendError}
         </p>
       ) : null}
-      {resent ? <p className="text-sm text-success">A new verification email is on its way.</p> : null}
-      <Link href="/login" className="text-center text-sm font-medium text-brand hover:underline">
+      {resent ? (
+        <p className="text-sm text-success">
+          A new verification email is on its way.
+        </p>
+      ) : null}
+      <Link
+        href="/login"
+        className="text-center text-sm font-medium text-brand hover:underline"
+      >
         Sign in with a different account
       </Link>
     </div>

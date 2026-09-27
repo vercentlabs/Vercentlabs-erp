@@ -12,7 +12,10 @@ export class OrganizationApiError extends Error {
 async function parseResponse<T>(response: Response): Promise<T> {
   const payload = await response.json().catch(() => ({}));
   if (!response.ok || payload.ok === false) {
-    throw new OrganizationApiError(payload.message || "The request could not be completed.", response.status);
+    throw new OrganizationApiError(
+      payload.message || "The request could not be completed.",
+      response.status,
+    );
   }
   return payload;
 }
@@ -30,7 +33,9 @@ export type OrganizationProfile = {
   updated_at: string;
 };
 
-export async function getOrganizationProfile(): Promise<{ profile: OrganizationProfile }> {
+export async function getOrganizationProfile(): Promise<{
+  profile: OrganizationProfile;
+}> {
   const response = await fetch("/api/settings/organization/profile");
   return parseResponse(response);
 }

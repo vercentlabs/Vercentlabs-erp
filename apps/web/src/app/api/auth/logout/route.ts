@@ -1,6 +1,10 @@
 import { cookies } from "next/headers";
 
-import { assertSameOriginOrMobile, tokenHash, revokeSessionByTokenHash } from "@vercentlabs/api";
+import {
+  assertSameOriginOrMobile,
+  tokenHash,
+  revokeSessionByTokenHash,
+} from "@vercentlabs/api";
 
 import { withIngressClient } from "@/core/db";
 import { errorResponse, ok } from "@/core/http";

@@ -13,14 +13,22 @@ const querySchema = z.object({
 });
 
 export async function GET(request: Request) {
-  return workspaceRoute(request, { module: "point-of-sale", permission: "pos.view" }, async ({ client, session }) => {
-    const { searchParams } = new URL(request.url);
-    const input = querySchema.parse({
-      storeId: searchParams.get("storeId") || undefined,
-      limit: searchParams.get("limit") || undefined,
-      offset: searchParams.get("offset") || undefined,
-    });
-    const result = await listPosStoreStockActivity(client, posContext(session), input);
-    return ok(result);
-  });
+  return workspaceRoute(
+    request,
+    { module: "point-of-sale", permission: "pos.view" },
+    async ({ client, session }) => {
+      const { searchParams } = new URL(request.url);
+      const input = querySchema.parse({
+        storeId: searchParams.get("storeId") || undefined,
+        limit: searchParams.get("limit") || undefined,
+        offset: searchParams.get("offset") || undefined,
+      });
+      const result = await listPosStoreStockActivity(
+        client,
+        posContext(session),
+        input,
+      );
+      return ok(result);
+    },
+  );
 }

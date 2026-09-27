@@ -25,10 +25,14 @@ export function RoleSelector({
   onChange: (next: { roleIds: string[]; primaryRoleId: string }) => void;
 }) {
   const grantable = roles.filter((role) => role.grantable);
-  const unavailable = roles.filter((role) => !role.grantable && role.reason !== "ownership_transfer_only");
+  const unavailable = roles.filter(
+    (role) => !role.grantable && role.reason !== "ownership_transfer_only",
+  );
 
   const toggle = (role: GrantableRole, selected: boolean) => {
-    const next = selected ? [...roleIds, role.id] : roleIds.filter((id) => id !== role.id);
+    const next = selected
+      ? [...roleIds, role.id]
+      : roleIds.filter((id) => id !== role.id);
     let primary = primaryRoleId;
     if (selected && !primary) primary = role.id;
     if (!selected && primary === role.id) primary = next[0] ?? "";
@@ -37,23 +41,45 @@ export function RoleSelector({
 
   return (
     <div className="flex flex-col gap-3">
-      <div className="flex max-h-72 flex-col gap-1.5 overflow-y-auto pr-1" aria-label="Roles">
+      <div
+        className="flex max-h-72 flex-col gap-1.5 overflow-y-auto pr-1"
+        aria-label="Roles"
+      >
         {grantable.map((role) => (
-          <Checkbox key={role.id} isSelected={roleIds.includes(role.id)} onChange={(selected) => toggle(role, selected)}>
+          <Checkbox
+            key={role.id}
+            isSelected={roleIds.includes(role.id)}
+            onChange={(selected) => toggle(role, selected)}
+          >
             <span className="flex flex-wrap items-center gap-2">
               <span>{role.name}</span>
-              {role.risk_level !== "standard" && <Badge tone={role.risk_level === "privileged" ? "danger" : "warning"}>{RISK_LABEL[role.risk_level]}</Badge>}
+              {role.risk_level !== "standard" && (
+                <Badge
+                  tone={role.risk_level === "privileged" ? "danger" : "warning"}
+                >
+                  {RISK_LABEL[role.risk_level]}
+                </Badge>
+              )}
             </span>
           </Checkbox>
         ))}
-        {grantable.length === 0 && <p className="text-sm text-text-secondary">There are no roles you can assign.</p>}
+        {grantable.length === 0 && (
+          <p className="text-sm text-text-secondary">
+            There are no roles you can assign.
+          </p>
+        )}
       </div>
       {roleIds.length > 1 && (
         <Select
           label="Primary role"
-          options={roleIds.map((id) => ({ value: id, label: roles.find((role) => role.id === id)?.name ?? "Role" }))}
+          options={roleIds.map((id) => ({
+            value: id,
+            label: roles.find((role) => role.id === id)?.name ?? "Role",
+          }))}
           selectedKey={primaryRoleId}
-          onSelectionChange={(key) => onChange({ roleIds, primaryRoleId: String(key) })}
+          onSelectionChange={(key) =>
+            onChange({ roleIds, primaryRoleId: String(key) })
+          }
         />
       )}
       {unavailable.length > 0 && (

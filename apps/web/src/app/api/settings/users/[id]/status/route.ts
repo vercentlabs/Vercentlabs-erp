@@ -10,10 +10,17 @@ const putSchema = z.object({ status: z.enum(["active", "disabled"]) });
 
 // setMemberStatus enforces target scope, self-target prohibition, seat
 // limits and session revocation, and writes access evidence.
-export async function PUT(request: Request, context: { params: Promise<{ id: string }> }) {
+export async function PUT(
+  request: Request,
+  context: { params: Promise<{ id: string }> },
+) {
   return workspaceRoute(
     request,
-    { permission: CORE_PERMISSIONS.usersManage, action: "settings.user_status.update", auditDenial: true },
+    {
+      permission: CORE_PERMISSIONS.usersManage,
+      action: "settings.user_status.update",
+      auditDenial: true,
+    },
     async ({ client, session }) => {
       const { id } = await context.params;
       const body = putSchema.parse(await readJson(request));

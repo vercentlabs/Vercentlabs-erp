@@ -1,7 +1,13 @@
 "use client";
 
 import type { ContactOpportunityRoleRow } from "@/features/crm/opportunities/api/opportunity-contact-roles-api";
-import type { Contact, ContactDuplicateMatch, ContactListFilters, ContactListResponse, ContactMergePreview } from "../types";
+import type {
+  Contact,
+  ContactDuplicateMatch,
+  ContactListFilters,
+  ContactListResponse,
+  ContactMergePreview,
+} from "../types";
 
 export class ContactApiError extends Error {
   constructor(
@@ -16,12 +22,18 @@ export class ContactApiError extends Error {
 async function parseResponse<T>(response: Response): Promise<T> {
   const payload = await response.json().catch(() => ({}));
   if (!response.ok || payload.ok === false) {
-    throw new ContactApiError(payload.message || "The request could not be completed.", response.status, payload.code);
+    throw new ContactApiError(
+      payload.message || "The request could not be completed.",
+      response.status,
+      payload.code,
+    );
   }
   return payload;
 }
 
-export async function listContacts(filters: ContactListFilters): Promise<ContactListResponse> {
+export async function listContacts(
+  filters: ContactListFilters,
+): Promise<ContactListResponse> {
   const params = new URLSearchParams();
   for (const [key, value] of Object.entries(filters)) {
     if (value !== undefined && value !== "") params.set(key, String(value));
@@ -35,7 +47,9 @@ export async function getContact(id: string): Promise<{ record: Contact }> {
   return parseResponse(response);
 }
 
-export async function createContact(input: Record<string, unknown>): Promise<{ record: Contact }> {
+export async function createContact(
+  input: Record<string, unknown>,
+): Promise<{ record: Contact }> {
   const response = await fetch("/api/crm/contacts", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -44,7 +58,11 @@ export async function createContact(input: Record<string, unknown>): Promise<{ r
   return parseResponse(response);
 }
 
-export async function updateContact(id: string, input: Record<string, unknown>, expectedUpdatedAt: string): Promise<{ record: Contact }> {
+export async function updateContact(
+  id: string,
+  input: Record<string, unknown>,
+  expectedUpdatedAt: string,
+): Promise<{ record: Contact }> {
   const response = await fetch(`/api/crm/contacts/${id}`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
@@ -53,12 +71,21 @@ export async function updateContact(id: string, input: Record<string, unknown>, 
   return parseResponse(response);
 }
 
-export async function archiveContact(id: string, expectedUpdatedAt: string): Promise<{ record: Contact }> {
-  const response = await fetch(`/api/crm/contacts/${id}?expectedUpdatedAt=${encodeURIComponent(expectedUpdatedAt)}`, { method: "DELETE" });
+export async function archiveContact(
+  id: string,
+  expectedUpdatedAt: string,
+): Promise<{ record: Contact }> {
+  const response = await fetch(
+    `/api/crm/contacts/${id}?expectedUpdatedAt=${encodeURIComponent(expectedUpdatedAt)}`,
+    { method: "DELETE" },
+  );
   return parseResponse(response);
 }
 
-export async function reactivateContact(id: string, expectedUpdatedAt: string): Promise<{ record: Contact }> {
+export async function reactivateContact(
+  id: string,
+  expectedUpdatedAt: string,
+): Promise<{ record: Contact }> {
   const response = await fetch(`/api/crm/contacts/${id}/reactivate`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -70,7 +97,9 @@ export async function reactivateContact(id: string, expectedUpdatedAt: string): 
 // F003 Tranche F — mirrors the Account duplicates/merge client exactly;
 // findContactDuplicates/mergeContactsGoverned were already real,
 // already-tested backend services with zero frontend wiring.
-export async function findContactDuplicates(input: Record<string, unknown>): Promise<{ duplicates: ContactDuplicateMatch[] }> {
+export async function findContactDuplicates(
+  input: Record<string, unknown>,
+): Promise<{ duplicates: ContactDuplicateMatch[] }> {
   const response = await fetch("/api/crm/contacts/duplicates", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -79,7 +108,10 @@ export async function findContactDuplicates(input: Record<string, unknown>): Pro
   return parseResponse(response);
 }
 
-export async function previewContactMerge(sourceId: string, survivorId: string): Promise<ContactMergePreview> {
+export async function previewContactMerge(
+  sourceId: string,
+  survivorId: string,
+): Promise<ContactMergePreview> {
   const response = await fetch("/api/crm/contacts/merge/preview", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -90,8 +122,12 @@ export async function previewContactMerge(sourceId: string, survivorId: string):
 // F003 gap-closure — the Contact-side reverse view of Opportunity Contact
 // Roles (opportunity-contacts.js), so a Contact's Deals tab shows every deal
 // they hold a role on, not only the one where they're the legacy primary.
-export async function listContactOpportunityRoles(contactId: string): Promise<{ rows: ContactOpportunityRoleRow[] }> {
-  const response = await fetch(`/api/crm/contacts/${contactId}/opportunity-roles`);
+export async function listContactOpportunityRoles(
+  contactId: string,
+): Promise<{ rows: ContactOpportunityRoleRow[] }> {
+  const response = await fetch(
+    `/api/crm/contacts/${contactId}/opportunity-roles`,
+  );
   return parseResponse(response);
 }
 

@@ -39,7 +39,9 @@ const body = z.record(z.string(), z.unknown());
 // A manual hold has no source document; give it a stable reference derived from the request's
 // idempotency key so a retry replays the same reservation instead of creating another.
 function manualReference(input: Record<string, unknown>) {
-  const hex = createHash("sha256").update(String(input.idempotencyKey ?? Math.random())).digest("hex");
+  const hex = createHash("sha256")
+    .update(String(input.idempotencyKey ?? Math.random()))
+    .digest("hex");
   return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-4${hex.slice(13, 16)}-8${hex.slice(17, 20)}-${hex.slice(20, 32)}`;
 }
 const idOf = (input: Record<string, unknown>) => {
@@ -51,7 +53,10 @@ const idOf = (input: Record<string, unknown>) => {
 // One mutation endpoint per Inventory operation. Each domain function enforces its OWN permission
 // (stock.receive / issue / adjust / transfer / reserve / manage / settings.manage) and replays an
 // idempotency key, so a double-click or retry never posts twice.
-export async function POST(request: Request, ctx: { params: Promise<{ action: string }> }) {
+export async function POST(
+  request: Request,
+  ctx: { params: Promise<{ action: string }> },
+) {
   const { action } = await ctx.params;
   return inventoryMutation(request, body, async (client, context, input) => {
     switch (action) {
@@ -60,15 +65,35 @@ export async function POST(request: Request, ctx: { params: Promise<{ action: st
       case "transfer":
         return { record: await createStockTransfer(client, context, input) };
       case "transfer-complete":
-        return { record: await completeStockTransfer(client, context, idOf(input)) };
+        return {
+          record: await completeStockTransfer(client, context, idOf(input)),
+        };
       case "reserve":
-        return { record: await reserveStock(client, context, { ...input, referenceType: input.referenceType || "manual_hold", referenceId: input.referenceId || manualReference(input) }) };
+        return {
+          record: await reserveStock(client, context, {
+            ...input,
+            referenceType: input.referenceType || "manual_hold",
+            referenceId: input.referenceId || manualReference(input),
+          }),
+        };
       case "reservation-release":
-        return { record: await releaseStockReservation(client, context, idOf(input), { status: input.status === "cancelled" ? "cancelled" : "released" }) };
+        return {
+          record: await releaseStockReservation(client, context, idOf(input), {
+            status: input.status === "cancelled" ? "cancelled" : "released",
+          }),
+        };
       case "batch":
         return { record: await createStockBatch(client, context, input) };
       case "batch-status":
-        return { record: await setStockBatchStatus(client, context, idOf(input), String(input.status ?? ""), String(input.reason ?? "")) };
+        return {
+          record: await setStockBatchStatus(
+            client,
+            context,
+            idOf(input),
+            String(input.status ?? ""),
+            String(input.reason ?? ""),
+          ),
+        };
       case "serials":
         return { record: await receiveSerializedStock(client, context, input) };
       case "reorder-rule":
@@ -76,19 +101,53 @@ export async function POST(request: Request, ctx: { params: Promise<{ action: st
       case "count-create":
         return { record: await createStockCount(client, context, input) };
       case "count-lines":
-        return { record: await recordStockCountLines(client, context, String(input.countId ?? ""), Array.isArray(input.lines) ? (input.lines as Array<Record<string, unknown>>) : []) };
+        return {
+          record: await recordStockCountLines(
+            client,
+            context,
+            String(input.countId ?? ""),
+            Array.isArray(input.lines)
+              ? (input.lines as Array<Record<string, unknown>>)
+              : [],
+          ),
+        };
       case "count-add-line":
-        return { record: await addStockCountLine(client, context, String(input.countId ?? ""), input) };
+        return {
+          record: await addStockCountLine(
+            client,
+            context,
+            String(input.countId ?? ""),
+            input,
+          ),
+        };
       case "count-submit":
         return { record: await submitStockCount(client, context, idOf(input)) };
       case "count-reject":
-        return { record: await rejectStockCount(client, context, idOf(input), String(input.reason ?? "")) };
+        return {
+          record: await rejectStockCount(
+            client,
+            context,
+            idOf(input),
+            String(input.reason ?? ""),
+          ),
+        };
       case "count-approve":
-        return { record: await approveStockCount(client, context, idOf(input)) };
+        return {
+          record: await approveStockCount(client, context, idOf(input)),
+        };
       case "count-cancel":
-        return { record: await cancelStockCount(client, context, idOf(input), String(input.reason ?? "")) };
+        return {
+          record: await cancelStockCount(
+            client,
+            context,
+            idOf(input),
+            String(input.reason ?? ""),
+          ),
+        };
       case "landed-cost-allocate":
-        return { record: await allocateStockLandedCost(client, context, idOf(input)) };
+        return {
+          record: await allocateStockLandedCost(client, context, idOf(input)),
+        };
       case "damage":
         return { record: await recordDamagedStock(client, context, input) };
       case "return":
@@ -96,17 +155,42 @@ export async function POST(request: Request, ctx: { params: Promise<{ action: st
       case "pick-create":
         return { record: await createPickList(client, context, input) };
       case "pick-record":
-        return { record: await recordPicks(client, context, String(input.listId ?? ""), Array.isArray(input.picks) ? (input.picks as Array<Record<string, unknown>>) : []) };
+        return {
+          record: await recordPicks(
+            client,
+            context,
+            String(input.listId ?? ""),
+            Array.isArray(input.picks)
+              ? (input.picks as Array<Record<string, unknown>>)
+              : [],
+          ),
+        };
       case "pick-complete":
         return { record: await completePicking(client, context, idOf(input)) };
       case "pack-create":
-        return { record: await createPackage(client, context, String(input.listId ?? ""), input) };
+        return {
+          record: await createPackage(
+            client,
+            context,
+            String(input.listId ?? ""),
+            input,
+          ),
+        };
       case "pack-complete":
         return { record: await completePacking(client, context, idOf(input)) };
       case "pick-ship":
-        return { record: await shipPickList(client, context, idOf(input), input) };
+        return {
+          record: await shipPickList(client, context, idOf(input), input),
+        };
       case "pick-cancel":
-        return { record: await cancelPickList(client, context, idOf(input), String(input.reason ?? "")) };
+        return {
+          record: await cancelPickList(
+            client,
+            context,
+            idOf(input),
+            String(input.reason ?? ""),
+          ),
+        };
       case "settings":
         return { record: await updateStockSettings(client, context, input) };
       default:

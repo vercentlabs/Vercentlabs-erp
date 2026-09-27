@@ -6,7 +6,10 @@ import {
   type ModuleAccess,
 } from "@vercentlabs/api";
 
-import { getWorkspaceAccessSnapshot, type WorkspaceAccessSnapshot } from "@/core/access";
+import {
+  getWorkspaceAccessSnapshot,
+  type WorkspaceAccessSnapshot,
+} from "@/core/access";
 import { tenantTransaction } from "@/core/db";
 import { requireWorkspace, type WorkspaceSessionContext } from "@/core/session";
 
@@ -35,8 +38,14 @@ export async function resolveWorkspaceContext(): Promise<WorkspaceContext> {
   const accessibleModules = [...access.modules];
   // Pending approvals this person can act on (or oversee with approvals.manage);
   // the same visibility rule as the approvals inbox.
-  const pendingApprovalCount = await tenantTransaction(session.organizationId, (client) => getActionablePendingApprovalCount(client, session));
-  const unreadNotificationCount = await tenantTransaction(session.organizationId, (client) => getUnreadNotificationCount(client, session));
+  const pendingApprovalCount = await tenantTransaction(
+    session.organizationId,
+    (client) => getActionablePendingApprovalCount(client, session),
+  );
+  const unreadNotificationCount = await tenantTransaction(
+    session.organizationId,
+    (client) => getUnreadNotificationCount(client, session),
+  );
   return {
     session,
     access,

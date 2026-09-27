@@ -1,6 +1,10 @@
 import { z } from "zod";
 
-import { createOrganizationInvitation, getSeatStatus, listOrganizationInvitations } from "@vercentlabs/api";
+import {
+  createOrganizationInvitation,
+  getSeatStatus,
+  listOrganizationInvitations,
+} from "@vercentlabs/api";
 import { CORE_PERMISSIONS } from "@vercentlabs/permissions";
 
 import { ok, readJson } from "@/core/http";
@@ -17,7 +21,10 @@ const schema = z
     teamIds: z.array(z.string().uuid()).max(500).default([]),
     acknowledgeWarningConflicts: z.boolean().optional(),
   })
-  .refine((body) => body.roleIds.includes(body.primaryRoleId), { message: "The primary role must be one of the selected roles.", path: ["primaryRoleId"] });
+  .refine((body) => body.roleIds.includes(body.primaryRoleId), {
+    message: "The primary role must be one of the selected roles.",
+    path: ["primaryRoleId"],
+  });
 
 // Invitation administration (the public accept flow stays in
 // auth/invitations/[token]). Roles and scope are validated by
@@ -26,7 +33,11 @@ const schema = z
 export async function POST(request: Request) {
   return workspaceRoute(
     request,
-    { permission: CORE_PERMISSIONS.usersManage, action: "settings.invitations.create", auditDenial: true },
+    {
+      permission: CORE_PERMISSIONS.usersManage,
+      action: "settings.invitations.create",
+      auditDenial: true,
+    },
     async ({ client, session }) => {
       const body = schema.parse(await readJson(request));
       const result = await createOrganizationInvitation(client, {
@@ -40,9 +51,15 @@ export async function POST(request: Request) {
         departmentIds: body.departmentIds,
         teamIds: body.teamIds,
         acknowledgeWarningConflicts: body.acknowledgeWarningConflicts,
-        inviter: { roleSlugs: session.roleSlugs, permissions: session.permissions },
+        inviter: {
+          roleSlugs: session.roleSlugs,
+          permissions: session.permissions,
+        },
       });
-      return ok({ invitationId: result.invitationId, delivered: result.delivered }, 201);
+      return ok(
+        { invitationId: result.invitationId, delivered: result.delivered },
+        201,
+      );
     },
   );
 }
@@ -50,11 +67,25 @@ export async function POST(request: Request) {
 export async function GET(request: Request) {
   return workspaceRoute(
     request,
-    { permission: CORE_PERMISSIONS.usersManage, action: "settings.invitations.list" },
+    {
+      permission: CORE_PERMISSIONS.usersManage,
+      action: "settings.invitations.list",
+    },
     async ({ client, session }) => {
-      const invitations = await listOrganizationInvitations(client, session.organizationId, { userId: session.userId, roleSlugs: session.roleSlugs });
+      const invitations = await listOrganizationInvitations(
+        client,
+        session.organizationId,
+        { userId: session.userId, roleSlugs: session.roleSlugs },
+      );
       const seats = await getSeatStatus(client, session.organizationId);
-      return ok({ invitations, seats: { used: seats.used, capacity: seats.capacity, available: seats.available } });
+      return ok({
+        invitations,
+        seats: {
+          used: seats.used,
+          capacity: seats.capacity,
+          available: seats.available,
+        },
+      });
     },
   );
 }

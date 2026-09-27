@@ -10,6 +10,7 @@ export async function GET(request: Request) {
   return workspaceRoute(
     request,
     { permission: BILLING_PERMISSIONS.audit, action: "billing.health" },
-    async ({ client, session }) => ok({ health: await getBillingHealth(client, session.organizationId) }),
+    async ({ client, session }) =>
+      ok({ health: await getBillingHealth(client, session.organizationId) }),
   );
 }

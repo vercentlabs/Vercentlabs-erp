@@ -26,7 +26,11 @@ export type PosInvoiceLine = {
   tax_amount: string;
   line_total: string;
 };
-export type PosInvoiceDetail = { invoice: PosInvoice; lines: PosInvoiceLine[]; [key: string]: unknown };
+export type PosInvoiceDetail = {
+  invoice: PosInvoice;
+  lines: PosInvoiceLine[];
+  [key: string]: unknown;
+};
 export type PosInvoiceListRow = {
   sale_id: string;
   receipt_number: string;
@@ -44,13 +48,20 @@ export type PosInvoiceListRow = {
 };
 
 // F290
-export const generatePosSaleInvoice = (saleId: string, input?: { notes?: string | null; idempotencyKey?: string }) =>
-  post<PosInvoiceDetail>(`/sales/${saleId}/invoice`, input ?? {});
-export const getPosSaleInvoice = (saleId: string) => request<PosInvoiceDetail>(`/sales/${saleId}/invoice`);
-export const listPosInvoices = (query: { storeId?: string; customerId?: string; limit?: number } = {}) => {
+export const generatePosSaleInvoice = (
+  saleId: string,
+  input?: { notes?: string | null; idempotencyKey?: string },
+) => post<PosInvoiceDetail>(`/sales/${saleId}/invoice`, input ?? {});
+export const getPosSaleInvoice = (saleId: string) =>
+  request<PosInvoiceDetail>(`/sales/${saleId}/invoice`);
+export const listPosInvoices = (
+  query: { storeId?: string; customerId?: string; limit?: number } = {},
+) => {
   const params = new URLSearchParams();
   if (query.storeId) params.set("storeId", query.storeId);
   if (query.customerId) params.set("customerId", query.customerId);
   if (query.limit) params.set("limit", String(query.limit));
-  return request<{ rows: PosInvoiceListRow[] }>(`/invoices${params.size ? `?${params}` : ""}`);
+  return request<{ rows: PosInvoiceListRow[] }>(
+    `/invoices${params.size ? `?${params}` : ""}`,
+  );
 };

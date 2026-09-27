@@ -14,8 +14,10 @@ function safeId(value: string | null | undefined) {
 }
 
 export function proxy(request: NextRequest) {
-  const requestId = safeId(request.headers.get("x-request-id")) ?? crypto.randomUUID();
-  const correlationId = safeId(request.headers.get("x-correlation-id")) ?? requestId;
+  const requestId =
+    safeId(request.headers.get("x-request-id")) ?? crypto.randomUUID();
+  const correlationId =
+    safeId(request.headers.get("x-correlation-id")) ?? requestId;
   const headers = new Headers(request.headers);
   headers.set("x-request-id", requestId);
   headers.set("x-correlation-id", correlationId);

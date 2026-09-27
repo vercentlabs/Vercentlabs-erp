@@ -9,7 +9,13 @@ import { workspaceRoute } from "@/core/workspace-route";
 export async function GET(request: Request) {
   return workspaceRoute(
     request,
-    { permission: CORE_PERMISSIONS.modulesManage, action: "settings.modules.list" },
-    async ({ client, session }) => ok({ modules: await listModuleAdministration(client, session, process.env) }),
+    {
+      permission: CORE_PERMISSIONS.modulesManage,
+      action: "settings.modules.list",
+    },
+    async ({ client, session }) =>
+      ok({
+        modules: await listModuleAdministration(client, session, process.env),
+      }),
   );
 }

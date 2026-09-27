@@ -2,9 +2,21 @@
 
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Button, ErrorState, PageHeader, PermissionState, Select, TextField } from "@vercentlabs/design-system";
+import {
+  Button,
+  ErrorState,
+  PageHeader,
+  PermissionState,
+  Select,
+  TextField,
+} from "@vercentlabs/design-system";
 
-import { getOrganizationProfile, OrganizationApiError, OrganizationProfile, updateOrganizationProfile } from "../api/organization-api";
+import {
+  getOrganizationProfile,
+  OrganizationApiError,
+  OrganizationProfile,
+  updateOrganizationProfile,
+} from "../api/organization-api";
 
 const PROFILE_QUERY_KEY = ["settings", "organization", "profile"];
 
@@ -23,13 +35,23 @@ const MONTH_OPTIONS = [
   { value: "12", label: "December" },
 ];
 
-export function OrganizationProfileScreen({ canManage }: { canManage: boolean }) {
-  const query = useQuery({ queryKey: PROFILE_QUERY_KEY, queryFn: getOrganizationProfile });
+export function OrganizationProfileScreen({
+  canManage,
+}: {
+  canManage: boolean;
+}) {
+  const query = useQuery({
+    queryKey: PROFILE_QUERY_KEY,
+    queryFn: getOrganizationProfile,
+  });
 
   if (!canManage) {
     return (
       <div className="flex flex-1 flex-col gap-6">
-        <PermissionState title="You don't have access to Organization settings" description="Ask an administrator to grant organization.manage." />
+        <PermissionState
+          title="You don't have access to Organization settings"
+          description="Ask an administrator to grant organization.manage."
+        />
       </div>
     );
   }
@@ -47,7 +69,11 @@ export function OrganizationProfileScreen({ canManage }: { canManage: boolean })
       <div className="flex flex-1 flex-col gap-6">
         <ErrorState
           title="Could not load organization profile"
-          description={query.error instanceof OrganizationApiError ? query.error.message : "Something went wrong."}
+          description={
+            query.error instanceof OrganizationApiError
+              ? query.error.message
+              : "Something went wrong."
+          }
           action={{ label: "Retry", onPress: () => query.refetch() }}
         />
       </div>
@@ -56,7 +82,10 @@ export function OrganizationProfileScreen({ canManage }: { canManage: boolean })
 
   return (
     <div className="flex flex-1 flex-col gap-6">
-      <PageHeader title="Organization" description="Your organization's name, timezone and fiscal year start." />
+      <PageHeader
+        title="Organization"
+        description="Your organization's name, timezone and fiscal year start."
+      />
       <OrganizationProfileForm profile={query.data.profile} />
     </div>
   );
@@ -68,15 +97,26 @@ export function OrganizationProfileScreen({ canManage }: { canManage: boolean })
 // state after the fact (this repo's react-hooks/set-state-in-effect rule
 // forbids that pattern; deriving state at mount time via props is the
 // correct fix, not a workaround).
-function OrganizationProfileForm({ profile }: { profile: OrganizationProfile }) {
+function OrganizationProfileForm({
+  profile,
+}: {
+  profile: OrganizationProfile;
+}) {
   const queryClient = useQueryClient();
   const [name, setName] = useState(profile.name);
   const [timezone, setTimezone] = useState(profile.timezone);
-  const [fiscalMonth, setFiscalMonth] = useState(String(profile.fiscal_year_start_month));
+  const [fiscalMonth, setFiscalMonth] = useState(
+    String(profile.fiscal_year_start_month),
+  );
   const [saved, setSaved] = useState(false);
 
   const mutation = useMutation({
-    mutationFn: () => updateOrganizationProfile({ name, timezone, fiscalYearStartMonth: Number(fiscalMonth) }),
+    mutationFn: () =>
+      updateOrganizationProfile({
+        name,
+        timezone,
+        fiscalYearStartMonth: Number(fiscalMonth),
+      }),
     onSuccess: (result) => {
       setSaved(true);
       queryClient.setQueryData(PROFILE_QUERY_KEY, result);
@@ -93,27 +133,48 @@ function OrganizationProfileForm({ profile }: { profile: OrganizationProfile }) 
       }}
       noValidate
     >
-      <TextField label="Organization name" isRequired value={name} onChange={(value) => { setName(value); setSaved(false); }} />
+      <TextField
+        label="Organization name"
+        isRequired
+        value={name}
+        onChange={(value) => {
+          setName(value);
+          setSaved(false);
+        }}
+      />
       <TextField
         label="Timezone"
         isRequired
         value={timezone}
-        onChange={(value) => { setTimezone(value); setSaved(false); }}
+        onChange={(value) => {
+          setTimezone(value);
+          setSaved(false);
+        }}
         description="IANA timezone name, e.g. Asia/Kolkata."
       />
       <Select
         label="Fiscal year start month"
         options={MONTH_OPTIONS}
         selectedKey={fiscalMonth}
-        onSelectionChange={(key) => { setFiscalMonth(String(key)); setSaved(false); }}
+        onSelectionChange={(key) => {
+          setFiscalMonth(String(key));
+          setSaved(false);
+        }}
       />
       {mutation.isError ? (
         <p role="alert" className="text-sm text-danger">
-          {mutation.error instanceof OrganizationApiError ? mutation.error.message : "The organization could not be updated."}
+          {mutation.error instanceof OrganizationApiError
+            ? mutation.error.message
+            : "The organization could not be updated."}
         </p>
       ) : null}
       {saved ? <p className="text-sm text-success">Saved.</p> : null}
-      <Button type="submit" variant="primary" isLoading={mutation.isPending} className="self-start">
+      <Button
+        type="submit"
+        variant="primary"
+        isLoading={mutation.isPending}
+        className="self-start"
+      >
         Save
       </Button>
     </form>

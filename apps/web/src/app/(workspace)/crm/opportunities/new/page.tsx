@@ -6,6 +6,8 @@ export const metadata = { title: "New opportunity" };
 
 export default async function NewOpportunityPage() {
   const session = await requireWorkspace();
-  const canManage = session.roleSlugs.includes("organization_owner") || session.permissions.includes(CRM_PERMISSIONS.opportunitiesManage);
+  const canManage =
+    session.roleSlugs.includes("organization_owner") ||
+    session.permissions.includes(CRM_PERMISSIONS.opportunitiesManage);
   return <OpportunityFormScreen mode="create" canManage={canManage} />;
 }

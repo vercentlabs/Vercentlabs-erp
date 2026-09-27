@@ -1,6 +1,9 @@
 import { z } from "zod";
 
-import { listTenantConfiguration, setTenantConfiguration } from "@vercentlabs/api";
+import {
+  listTenantConfiguration,
+  setTenantConfiguration,
+} from "@vercentlabs/api";
 import { CORE_PERMISSIONS } from "@vercentlabs/permissions";
 
 import { ok, readJson } from "@/core/http";
@@ -10,8 +13,16 @@ import { workspaceRoute } from "@/core/workspace-route";
 // (operator rollout controls are never listed or writable here). Each change
 // is a new effective-dated version; a future date schedules it.
 export async function GET(request: Request) {
-  return workspaceRoute(request, { permission: CORE_PERMISSIONS.platformConfigurationManage, action: "configuration.list" }, async ({ client, session }) =>
-    ok({ entries: await listTenantConfiguration(client, session.organizationId) }),
+  return workspaceRoute(
+    request,
+    {
+      permission: CORE_PERMISSIONS.platformConfigurationManage,
+      action: "configuration.list",
+    },
+    async ({ client, session }) =>
+      ok({
+        entries: await listTenantConfiguration(client, session.organizationId),
+      }),
   );
 }
 
@@ -25,7 +36,18 @@ const schema = z.object({
 export async function PUT(request: Request) {
   return workspaceRoute(
     request,
-    { permission: CORE_PERMISSIONS.platformConfigurationManage, action: "configuration.write", auditDenial: true },
-    async ({ client, session }) => ok({ version: await setTenantConfiguration(client, session, schema.parse(await readJson(request))) }),
+    {
+      permission: CORE_PERMISSIONS.platformConfigurationManage,
+      action: "configuration.write",
+      auditDenial: true,
+    },
+    async ({ client, session }) =>
+      ok({
+        version: await setTenantConfiguration(
+          client,
+          session,
+          schema.parse(await readJson(request)),
+        ),
+      }),
   );
 }

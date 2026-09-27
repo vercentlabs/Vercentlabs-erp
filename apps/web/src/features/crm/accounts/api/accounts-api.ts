@@ -26,12 +26,18 @@ export class AccountApiError extends Error {
 async function parseResponse<T>(response: Response): Promise<T> {
   const payload = await response.json().catch(() => ({}));
   if (!response.ok || payload.ok === false) {
-    throw new AccountApiError(payload.message || "The request could not be completed.", response.status, payload.code);
+    throw new AccountApiError(
+      payload.message || "The request could not be completed.",
+      response.status,
+      payload.code,
+    );
   }
   return payload;
 }
 
-export async function listAccounts(filters: AccountListFilters): Promise<AccountListResponse> {
+export async function listAccounts(
+  filters: AccountListFilters,
+): Promise<AccountListResponse> {
   const params = new URLSearchParams();
   for (const [key, value] of Object.entries(filters)) {
     if (value !== undefined && value !== "") params.set(key, String(value));
@@ -45,7 +51,9 @@ export async function getAccount(id: string): Promise<{ record: Account }> {
   return parseResponse(response);
 }
 
-export async function createAccount(input: Record<string, unknown>): Promise<{ record: Account }> {
+export async function createAccount(
+  input: Record<string, unknown>,
+): Promise<{ record: Account }> {
   const response = await fetch("/api/crm/accounts", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -54,7 +62,11 @@ export async function createAccount(input: Record<string, unknown>): Promise<{ r
   return parseResponse(response);
 }
 
-export async function updateAccount(id: string, input: Record<string, unknown>, expectedUpdatedAt: string): Promise<{ record: Account }> {
+export async function updateAccount(
+  id: string,
+  input: Record<string, unknown>,
+  expectedUpdatedAt: string,
+): Promise<{ record: Account }> {
   const response = await fetch(`/api/crm/accounts/${id}`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
@@ -63,19 +75,31 @@ export async function updateAccount(id: string, input: Record<string, unknown>, 
   return parseResponse(response);
 }
 
-export async function archiveAccount(id: string, expectedUpdatedAt: string): Promise<{ record: Account }> {
-  const response = await fetch(`/api/crm/accounts/${id}?expectedUpdatedAt=${encodeURIComponent(expectedUpdatedAt)}`, { method: "DELETE" });
+export async function archiveAccount(
+  id: string,
+  expectedUpdatedAt: string,
+): Promise<{ record: Account }> {
+  const response = await fetch(
+    `/api/crm/accounts/${id}?expectedUpdatedAt=${encodeURIComponent(expectedUpdatedAt)}`,
+    { method: "DELETE" },
+  );
   return parseResponse(response);
 }
 
 // F002 Tranche E — hierarchy, duplicates and merge all reuse real,
 // already-tested backend services (account-intelligence.js,
 // duplicate-matching.js) that had no frontend wiring before this pass.
-export async function getAccountHierarchy(id: string): Promise<AccountHierarchy> {
+export async function getAccountHierarchy(
+  id: string,
+): Promise<AccountHierarchy> {
   const response = await fetch(`/api/crm/accounts/${id}/hierarchy`);
   return parseResponse(response);
 }
-export async function setAccountParent(id: string, parentId: string | null, reason?: string): Promise<{ record: Record<string, unknown> }> {
+export async function setAccountParent(
+  id: string,
+  parentId: string | null,
+  reason?: string,
+): Promise<{ record: Record<string, unknown> }> {
   const response = await fetch(`/api/crm/accounts/${id}/hierarchy`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
@@ -84,7 +108,9 @@ export async function setAccountParent(id: string, parentId: string | null, reas
   return parseResponse(response);
 }
 
-export async function findAccountDuplicates(input: Record<string, unknown>): Promise<{ duplicates: AccountDuplicateMatch[] }> {
+export async function findAccountDuplicates(
+  input: Record<string, unknown>,
+): Promise<{ duplicates: AccountDuplicateMatch[] }> {
   const response = await fetch("/api/crm/accounts/duplicates", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -93,7 +119,10 @@ export async function findAccountDuplicates(input: Record<string, unknown>): Pro
   return parseResponse(response);
 }
 
-export async function previewAccountMerge(sourceId: string, survivorId: string): Promise<AccountMergePreview> {
+export async function previewAccountMerge(
+  sourceId: string,
+  survivorId: string,
+): Promise<AccountMergePreview> {
   const response = await fetch("/api/crm/accounts/merge/preview", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -118,36 +147,72 @@ export async function mergeAccounts(
 // account-plans/account-stakeholders/communications all reuse the generic
 // /api/crm/[resource] boundary, scoped by the partyId/accountPlanId filter
 // keys added to buildFilters this same tranche.
-export async function listAccountPlans(partyId: string): Promise<CrmListResponse<AccountPlan>> {
-  const response = await fetch(`/api/crm/account-plans?partyId=${encodeURIComponent(partyId)}&limit=5`);
+export async function listAccountPlans(
+  partyId: string,
+): Promise<CrmListResponse<AccountPlan>> {
+  const response = await fetch(
+    `/api/crm/account-plans?partyId=${encodeURIComponent(partyId)}&limit=5`,
+  );
   return parseResponse(response);
 }
-export async function createAccountPlan(input: Record<string, unknown>): Promise<{ record: AccountPlan }> {
-  const response = await fetch("/api/crm/account-plans", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(input) });
+export async function createAccountPlan(
+  input: Record<string, unknown>,
+): Promise<{ record: AccountPlan }> {
+  const response = await fetch("/api/crm/account-plans", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(input),
+  });
   return parseResponse(response);
 }
-export async function updateAccountPlan(id: string, input: Record<string, unknown>, expectedUpdatedAt: string): Promise<{ record: AccountPlan }> {
-  const response = await fetch(`/api/crm/account-plans/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ input, expectedUpdatedAt }) });
+export async function updateAccountPlan(
+  id: string,
+  input: Record<string, unknown>,
+  expectedUpdatedAt: string,
+): Promise<{ record: AccountPlan }> {
+  const response = await fetch(`/api/crm/account-plans/${id}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ input, expectedUpdatedAt }),
+  });
   return parseResponse(response);
 }
 
-export async function listAccountStakeholders(accountPlanId: string): Promise<CrmListResponse<AccountStakeholder>> {
-  const response = await fetch(`/api/crm/account-stakeholders?accountPlanId=${encodeURIComponent(accountPlanId)}&limit=100`);
+export async function listAccountStakeholders(
+  accountPlanId: string,
+): Promise<CrmListResponse<AccountStakeholder>> {
+  const response = await fetch(
+    `/api/crm/account-stakeholders?accountPlanId=${encodeURIComponent(accountPlanId)}&limit=100`,
+  );
   return parseResponse(response);
 }
-export async function createAccountStakeholder(input: Record<string, unknown>): Promise<{ record: AccountStakeholder }> {
-  const response = await fetch("/api/crm/account-stakeholders", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(input) });
+export async function createAccountStakeholder(
+  input: Record<string, unknown>,
+): Promise<{ record: AccountStakeholder }> {
+  const response = await fetch("/api/crm/account-stakeholders", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(input),
+  });
   return parseResponse(response);
 }
-export async function archiveAccountStakeholder(id: string, expectedUpdatedAt: string): Promise<{ record: AccountStakeholder }> {
-  const response = await fetch(`/api/crm/account-stakeholders/${id}?expectedUpdatedAt=${encodeURIComponent(expectedUpdatedAt)}`, { method: "DELETE" });
+export async function archiveAccountStakeholder(
+  id: string,
+  expectedUpdatedAt: string,
+): Promise<{ record: AccountStakeholder }> {
+  const response = await fetch(
+    `/api/crm/account-stakeholders/${id}?expectedUpdatedAt=${encodeURIComponent(expectedUpdatedAt)}`,
+    { method: "DELETE" },
+  );
   return parseResponse(response);
 }
 
 // getCustomer360 (account-intelligence.js) already existed fully built —
 // unified Account + hierarchy + Contacts + cross-module timeline — but had
 // no route/frontend caller anywhere before this pass.
-export async function getCustomer360(id: string): Promise<{ view: Customer360 }> {
+export async function getCustomer360(
+  id: string,
+): Promise<{ view: Customer360 }> {
   const response = await fetch(`/api/crm/accounts/${id}/customer-360`);
   return parseResponse(response);
 }

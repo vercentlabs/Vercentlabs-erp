@@ -1,6 +1,9 @@
 import { createQuotation, listQuotations } from "@vercentlabs/api";
 
-import { salesMutation, salesRead } from "@/features/sales/shared/route-helpers";
+import {
+  salesMutation,
+  salesRead,
+} from "@/features/sales/shared/route-helpers";
 import { documentSchema } from "@/features/sales/shared/schemas";
 
 export async function GET(request: Request) {
@@ -13,9 +16,19 @@ export async function GET(request: Request) {
     limit: url.searchParams.get("limit") || undefined,
     offset: url.searchParams.get("offset") || undefined,
   };
-  return salesRead(request, "sales.view", async (client, context) => ({ rows: await listQuotations(client, context, filters) }));
+  return salesRead(request, "sales.view", async (client, context) => ({
+    rows: await listQuotations(client, context, filters),
+  }));
 }
 
 export async function POST(request: Request) {
-  return salesMutation(request, "sales.quotation.create", documentSchema, async (client, context, input) => ({ quotation: await createQuotation(client, context, input) }), 201);
+  return salesMutation(
+    request,
+    "sales.quotation.create",
+    documentSchema,
+    async (client, context, input) => ({
+      quotation: await createQuotation(client, context, input),
+    }),
+    201,
+  );
 }

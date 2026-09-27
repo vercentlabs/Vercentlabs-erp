@@ -5,9 +5,12 @@
 // convention every other POS feature folder (day-end-reports, returns,
 // receipts) already uses -- never a translated camelCase DTO.
 
-export type PosTransactionStatus = "draft" | "completed" | "partially_returned" | "returned" | "voided";
-export type PosAccountingPostingStatus = "pending" | "posted" | "failed" | "not_applicable";
-export type PosPaymentMethod = "cash" | "card" | "upi" | "bank_transfer" | "wallet" | "store_credit";
+export type PosTransactionStatus =
+  "draft" | "completed" | "partially_returned" | "returned" | "voided";
+export type PosAccountingPostingStatus =
+  "pending" | "posted" | "failed" | "not_applicable";
+export type PosPaymentMethod =
+  "cash" | "card" | "upi" | "bank_transfer" | "wallet" | "store_credit";
 
 export type PosTransactionRow = {
   id: string;
@@ -123,7 +126,11 @@ export type PosTransactionReturn = {
   completed_at: string | null;
 };
 
-export type PosTransactionPromotionEvidence = { code: string; name: string; discount_amount: string };
+export type PosTransactionPromotionEvidence = {
+  code: string;
+  name: string;
+  discount_amount: string;
+};
 
 export type PosTransactionStockMovement = {
   id: string;

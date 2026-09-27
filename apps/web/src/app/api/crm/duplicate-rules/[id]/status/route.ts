@@ -8,10 +8,23 @@ import { workspaceRoute } from "@/core/workspace-route";
 type RouteContext = { params: Promise<{ id: string }> };
 
 export async function POST(request: Request, context: RouteContext) {
-  return workspaceRoute(request, { module: "crm", permission: CRM_PERMISSIONS.dataQualityManage, billingWrite: true }, async ({ client, session }) => {
-    const { id } = await context.params;
-    const body = (await readJson(request)) as { enabled?: boolean };
-    const record = await setDuplicateRuleEnabled(client, crmContext(session), id, body.enabled === true);
-    return ok({ record });
-  });
+  return workspaceRoute(
+    request,
+    {
+      module: "crm",
+      permission: CRM_PERMISSIONS.dataQualityManage,
+      billingWrite: true,
+    },
+    async ({ client, session }) => {
+      const { id } = await context.params;
+      const body = (await readJson(request)) as { enabled?: boolean };
+      const record = await setDuplicateRuleEnabled(
+        client,
+        crmContext(session),
+        id,
+        body.enabled === true,
+      );
+      return ok({ record });
+    },
+  );
 }

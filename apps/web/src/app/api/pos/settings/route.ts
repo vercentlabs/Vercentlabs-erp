@@ -25,16 +25,32 @@ const updateSchema = z
   .partial();
 
 export async function GET(request: Request) {
-  return workspaceRoute(request, { module: "point-of-sale", permission: "pos.settings.manage" }, async ({ client, session }) => {
-    const result = await getPosSettings(client, posContext(session));
-    return ok(result);
-  });
+  return workspaceRoute(
+    request,
+    { module: "point-of-sale", permission: "pos.settings.manage" },
+    async ({ client, session }) => {
+      const result = await getPosSettings(client, posContext(session));
+      return ok(result);
+    },
+  );
 }
 
 export async function PUT(request: Request) {
-  return workspaceRoute(request, { module: "point-of-sale", permission: "pos.settings.manage", billingWrite: true }, async ({ client, session }) => {
-    const input = updateSchema.parse(await readJson(request));
-    const result = await updatePosSettings(client, posContext(session), input);
-    return ok(result);
-  });
+  return workspaceRoute(
+    request,
+    {
+      module: "point-of-sale",
+      permission: "pos.settings.manage",
+      billingWrite: true,
+    },
+    async ({ client, session }) => {
+      const input = updateSchema.parse(await readJson(request));
+      const result = await updatePosSettings(
+        client,
+        posContext(session),
+        input,
+      );
+      return ok(result);
+    },
+  );
 }

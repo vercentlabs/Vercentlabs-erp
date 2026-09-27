@@ -15,5 +15,13 @@ const schema = z.object({
 });
 
 export async function POST(request: Request) {
-  return salesMutation(request, "sales.settings.manage", schema, async (client, context, input) => ({ rule: await createSalesCommissionRule(client, context, input) }), 201);
+  return salesMutation(
+    request,
+    "sales.settings.manage",
+    schema,
+    async (client, context, input) => ({
+      rule: await createSalesCommissionRule(client, context, input),
+    }),
+    201,
+  );
 }

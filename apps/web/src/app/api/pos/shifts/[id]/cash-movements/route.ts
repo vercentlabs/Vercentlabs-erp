@@ -13,19 +13,42 @@ const movementSchema = z.object({
   idempotencyKey: z.string().trim().min(1).max(200),
 });
 
-export async function GET(request: Request, context: { params: Promise<{ id: string }> }) {
-  return workspaceRoute(request, { module: "point-of-sale" }, async ({ client, session }) => {
-    const { id } = await context.params;
-    const rows = await listPosCashMovements(client, posContext(session), id);
-    return ok({ rows });
-  });
+export async function GET(
+  request: Request,
+  context: { params: Promise<{ id: string }> },
+) {
+  return workspaceRoute(
+    request,
+    { module: "point-of-sale" },
+    async ({ client, session }) => {
+      const { id } = await context.params;
+      const rows = await listPosCashMovements(client, posContext(session), id);
+      return ok({ rows });
+    },
+  );
 }
 
-export async function POST(request: Request, context: { params: Promise<{ id: string }> }) {
-  return workspaceRoute(request, { module: "point-of-sale", permission: "pos.cash.adjust", billingWrite: true }, async ({ client, session }) => {
-    const { id } = await context.params;
-    const input = movementSchema.parse(await readJson(request));
-    const result = await recordPosCashMovement(client, posContext(session), id, input);
-    return ok({ movement: result }, 201);
-  });
+export async function POST(
+  request: Request,
+  context: { params: Promise<{ id: string }> },
+) {
+  return workspaceRoute(
+    request,
+    {
+      module: "point-of-sale",
+      permission: "pos.cash.adjust",
+      billingWrite: true,
+    },
+    async ({ client, session }) => {
+      const { id } = await context.params;
+      const input = movementSchema.parse(await readJson(request));
+      const result = await recordPosCashMovement(
+        client,
+        posContext(session),
+        id,
+        input,
+      );
+      return ok({ movement: result }, 201);
+    },
+  );
 }

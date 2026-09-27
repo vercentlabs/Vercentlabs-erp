@@ -12,7 +12,10 @@ export class InvitationsApiError extends Error {
 async function parseResponse<T>(response: Response): Promise<T> {
   const payload = await response.json().catch(() => ({}));
   if (!response.ok || payload.ok === false) {
-    throw new InvitationsApiError(payload.message || "The request could not be completed.", response.status);
+    throw new InvitationsApiError(
+      payload.message || "The request could not be completed.",
+      response.status,
+    );
   }
   return payload;
 }
@@ -37,9 +40,16 @@ export type InvitationRow = {
   invited_by_name: string;
 };
 
-export type SeatSummary = { used: number; capacity: number | null; available: number | null };
+export type SeatSummary = {
+  used: number;
+  capacity: number | null;
+  available: number | null;
+};
 
-export async function listInvitations(): Promise<{ invitations: InvitationRow[]; seats?: SeatSummary }> {
+export async function listInvitations(): Promise<{
+  invitations: InvitationRow[];
+  seats?: SeatSummary;
+}> {
   const response = await fetch("/api/auth/invitations");
   return parseResponse(response);
 }
@@ -54,7 +64,9 @@ export type InvitationInput = {
   teamIds: string[];
 };
 
-export async function createInvitation(input: InvitationInput): Promise<{ invitationId: string; delivered: boolean }> {
+export async function createInvitation(
+  input: InvitationInput,
+): Promise<{ invitationId: string; delivered: boolean }> {
   const response = await fetch("/api/auth/invitations", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -64,11 +76,17 @@ export async function createInvitation(input: InvitationInput): Promise<{ invita
 }
 
 export async function revokeInvitation(id: string): Promise<{ revoked: true }> {
-  const response = await fetch(`/api/auth/invitations/manage/${id}/revoke`, { method: "POST" });
+  const response = await fetch(`/api/auth/invitations/manage/${id}/revoke`, {
+    method: "POST",
+  });
   return parseResponse(response);
 }
 
-export async function resendInvitation(id: string): Promise<{ delivered: boolean }> {
-  const response = await fetch(`/api/auth/invitations/manage/${id}/resend`, { method: "POST" });
+export async function resendInvitation(
+  id: string,
+): Promise<{ delivered: boolean }> {
+  const response = await fetch(`/api/auth/invitations/manage/${id}/resend`, {
+    method: "POST",
+  });
   return parseResponse(response);
 }

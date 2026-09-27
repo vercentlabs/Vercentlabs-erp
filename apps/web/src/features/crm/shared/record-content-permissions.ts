@@ -10,8 +10,14 @@ const CONTENT_WRITE_PERMISSION: Record<string, string> = {
   campaign: "crm.campaigns.manage",
 };
 
-export function canWriteCrmRecordContent(workspace: { roleSlugs: string[]; permissions: string[] }, entityType: string): boolean {
+export function canWriteCrmRecordContent(
+  workspace: { roleSlugs: string[]; permissions: string[] },
+  entityType: string,
+): boolean {
   if (workspace.roleSlugs.includes("organization_owner")) return true;
   const key = CONTENT_WRITE_PERMISSION[entityType];
-  return Boolean(key && workspace.permissions.includes(key)) || workspace.permissions.includes("crm.activities.manage");
+  return (
+    Boolean(key && workspace.permissions.includes(key)) ||
+    workspace.permissions.includes("crm.activities.manage")
+  );
 }

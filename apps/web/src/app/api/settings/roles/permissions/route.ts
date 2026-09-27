@@ -10,7 +10,11 @@ import { workspaceRoute } from "@/core/workspace-route";
 export async function GET(request: Request) {
   return workspaceRoute(
     request,
-    { permission: CORE_PERMISSIONS.rolesManage, action: "settings.permissions.list" },
-    async ({ client, session }) => ok({ permissions: await listPermissionCatalog(client, session) }),
+    {
+      permission: CORE_PERMISSIONS.rolesManage,
+      action: "settings.permissions.list",
+    },
+    async ({ client, session }) =>
+      ok({ permissions: await listPermissionCatalog(client, session) }),
   );
 }

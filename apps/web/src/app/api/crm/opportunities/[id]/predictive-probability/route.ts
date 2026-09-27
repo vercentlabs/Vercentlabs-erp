@@ -10,10 +10,21 @@ import { workspaceRoute } from "@/core/workspace-route";
 // no accessor pulling one Opportunity's own entry back out. Returns null
 // (not a 404) when no snapshot has ever included this Opportunity yet — an
 // absent prediction, not an error.
-export async function GET(request: Request, context: { params: Promise<{ id: string }> }) {
-  return workspaceRoute(request, { module: "crm" }, async ({ client, session }) => {
-    const { id } = await context.params;
-    const prediction = await getOpportunityPredictiveProbability(client, crmContext(session), id);
-    return ok({ prediction });
-  });
+export async function GET(
+  request: Request,
+  context: { params: Promise<{ id: string }> },
+) {
+  return workspaceRoute(
+    request,
+    { module: "crm" },
+    async ({ client, session }) => {
+      const { id } = await context.params;
+      const prediction = await getOpportunityPredictiveProbability(
+        client,
+        crmContext(session),
+        id,
+      );
+      return ok({ prediction });
+    },
+  );
 }

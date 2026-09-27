@@ -8,5 +8,12 @@ export const metadata = { title: "Feature configuration" };
 
 export default async function FeatureConfigurationPage() {
   const session = await requireWorkspace();
-  return <FeatureConfigurationScreen canManage={hasSessionPermission(session, CORE_PERMISSIONS.platformConfigurationManage)} />;
+  return (
+    <FeatureConfigurationScreen
+      canManage={hasSessionPermission(
+        session,
+        CORE_PERMISSIONS.platformConfigurationManage,
+      )}
+    />
+  );
 }

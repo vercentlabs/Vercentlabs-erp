@@ -1,4 +1,7 @@
-import { listLeadAssignmentPolicies, saveLeadAssignmentPolicy } from "@vercentlabs/api";
+import {
+  listLeadAssignmentPolicies,
+  saveLeadAssignmentPolicy,
+} from "@vercentlabs/api";
 import { CRM_PERMISSIONS } from "@vercentlabs/permissions";
 
 import { ok, readJson } from "@/core/http";
@@ -14,16 +17,35 @@ import { workspaceRoute } from "@/core/workspace-route";
 // table the real engine never reads; confirmed by grep before wiring
 // anything, so as not to build a setup screen for a dead system.
 export async function GET(request: Request) {
-  return workspaceRoute(request, { module: "crm", permission: CRM_PERMISSIONS.settingsManage }, async ({ client, session }) => {
-    const rows = await listLeadAssignmentPolicies(client, crmContext(session));
-    return ok({ rows });
-  });
+  return workspaceRoute(
+    request,
+    { module: "crm", permission: CRM_PERMISSIONS.settingsManage },
+    async ({ client, session }) => {
+      const rows = await listLeadAssignmentPolicies(
+        client,
+        crmContext(session),
+      );
+      return ok({ rows });
+    },
+  );
 }
 
 export async function POST(request: Request) {
-  return workspaceRoute(request, { module: "crm", permission: CRM_PERMISSIONS.settingsManage, billingWrite: true }, async ({ client, session }) => {
-    const input = (await readJson(request)) as Record<string, unknown>;
-    const record = await saveLeadAssignmentPolicy(client, crmContext(session), input);
-    return ok({ record }, 201);
-  });
+  return workspaceRoute(
+    request,
+    {
+      module: "crm",
+      permission: CRM_PERMISSIONS.settingsManage,
+      billingWrite: true,
+    },
+    async ({ client, session }) => {
+      const input = (await readJson(request)) as Record<string, unknown>;
+      const record = await saveLeadAssignmentPolicy(
+        client,
+        crmContext(session),
+        input,
+      );
+      return ok({ record }, 201);
+    },
+  );
 }

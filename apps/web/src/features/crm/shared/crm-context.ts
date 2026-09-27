@@ -44,7 +44,11 @@ export async function loadRecordForEdit<T>(
 ): Promise<{ record: T | null; notFound: boolean }> {
   const { workspaceModuleTransaction } = await import("@/core/access");
   try {
-    const record = await workspaceModuleTransaction(session, { module: "crm" }, load);
+    const record = await workspaceModuleTransaction(
+      session,
+      { module: "crm" },
+      load,
+    );
     return { record, notFound: false };
   } catch (error) {
     const status = (error as { status?: number } | null)?.status;
@@ -58,8 +62,17 @@ export async function loadRecordForEdit<T>(
 // module access): the resource's own manage permission, failing closed for
 // anything not explicitly mapped or self-scoped. Call the billing write gate
 // after this, so a caller without permission is told so first.
-export function assertCrmResourceMutationPermission(session: WorkspaceSessionContext, resource: string) {
+export function assertCrmResourceMutationPermission(
+  session: WorkspaceSessionContext,
+  resource: string,
+) {
   const resolution = resolveCrmMutationPermission(resource);
-  if (resolution.kind === "requires-permission") requireSessionPermission(session, resolution.permission);
-  else if (resolution.kind !== "self-scoped") throw new HttpError(403, "You do not have permission to modify this CRM resource.", "PERMISSION_DENIED");
+  if (resolution.kind === "requires-permission")
+    requireSessionPermission(session, resolution.permission);
+  else if (resolution.kind !== "self-scoped")
+    throw new HttpError(
+      403,
+      "You do not have permission to modify this CRM resource.",
+      "PERMISSION_DENIED",
+    );
 }

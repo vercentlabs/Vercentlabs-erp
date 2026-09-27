@@ -16,10 +16,18 @@ const querySchema = z.object({
 // only makes the pending requests discoverable to the people who hold
 // pos.discount.approve, which the generic approvals inbox never did.
 export async function GET(request: Request) {
-  return workspaceRoute(request, { module: "point-of-sale" }, async ({ client, session }) => {
-    const url = new URL(request.url);
-    const { status } = querySchema.parse({ status: url.searchParams.get("status") ?? undefined });
-    const rows = await listPosDiscountApprovals(client, posContext(session), { status });
-    return ok({ rows });
-  });
+  return workspaceRoute(
+    request,
+    { module: "point-of-sale" },
+    async ({ client, session }) => {
+      const url = new URL(request.url);
+      const { status } = querySchema.parse({
+        status: url.searchParams.get("status") ?? undefined,
+      });
+      const rows = await listPosDiscountApprovals(client, posContext(session), {
+        status,
+      });
+      return ok({ rows });
+    },
+  );
 }

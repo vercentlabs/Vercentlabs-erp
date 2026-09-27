@@ -5,12 +5,35 @@ import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { ColumnDef } from "@tanstack/react-table";
 import { Plus } from "lucide-react";
-import { Button, Dialog, EnterpriseDataGrid, MetricStrip, EnterpriseListPage, ErrorState, NoResultsState, PermissionState, SearchField, Select, TextArea } from "@vercentlabs/design-system";
+import {
+  Button,
+  Dialog,
+  EnterpriseDataGrid,
+  MetricStrip,
+  EnterpriseListPage,
+  ErrorState,
+  NoResultsState,
+  PermissionState,
+  SearchField,
+  Select,
+  TextArea,
+} from "@vercentlabs/design-system";
 
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
-import { act, MfgApiError, readView, useMfgOptions, type MfgOptions, type Row } from "@/features/manufacturing/shared/client";
-import { FieldInput, type FieldDef, type FieldValue } from "@/features/manufacturing/shared/FieldInput";
+import {
+  act,
+  MfgApiError,
+  readView,
+  useMfgOptions,
+  type MfgOptions,
+  type Row,
+} from "@/features/manufacturing/shared/client";
+import {
+  FieldInput,
+  type FieldDef,
+  type FieldValue,
+} from "@/features/manufacturing/shared/FieldInput";
 import { MfgAlert, useCan } from "@/features/manufacturing/shared/MfgUi";
 
 export type RowAction = {
@@ -32,7 +55,11 @@ export type RegisterConfig = {
   emptyDescription: string;
   source: { kind: "view"; view: string; params?: Record<string, string> };
   // Stock views only: a select that becomes a query parameter.
-  filters?: Array<{ name: string; label: string; options: Array<{ value: string; label: string }> }>;
+  filters?: Array<{
+    name: string;
+    label: string;
+    options: Array<{ value: string; label: string }>;
+  }>;
   columns: (options: MfgOptions | undefined) => ColumnDef<Row, unknown>[];
   searchText: (row: Row) => string;
   createLabel?: string;
@@ -40,7 +67,13 @@ export type RegisterConfig = {
   newHref?: string;
   createPermission?: string;
   fields?: FieldDef[];
-  save?: { action: string; fixed?: Record<string, unknown>; idempotent?: boolean; success: string; transform?: (values: Record<string, FieldValue>) => Record<string, unknown> };
+  save?: {
+    action: string;
+    fixed?: Record<string, unknown>;
+    idempotent?: boolean;
+    success: string;
+    transform?: (values: Record<string, FieldValue>) => Record<string, unknown>;
+  };
   // An Edit action per row: the same fields, posted with the row id to this action.
   edit?: { action: string; permission?: string; show?: (row: Row) => boolean };
   rowActions?: RowAction[];
@@ -49,15 +82,37 @@ export type RegisterConfig = {
 };
 
 // CSV of what is on screen: the same values the grid shows, one column per accessor.
-function downloadCsv(name: string, columns: ColumnDef<Row, unknown>[], rows: Row[]) {
-  const cells = columns.filter((column) => "accessorFn" in column && typeof column.header === "string" && column.header);
+function downloadCsv(
+  name: string,
+  columns: ColumnDef<Row, unknown>[],
+  rows: Row[],
+) {
+  const cells = columns.filter(
+    (column) =>
+      "accessorFn" in column &&
+      typeof column.header === "string" &&
+      column.header,
+  );
   const escape = (value: unknown) => {
     const text = String(value ?? "");
     return /[",\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
   };
   const lines = [cells.map((column) => escape(column.header)).join(",")];
-  for (const row of rows) lines.push(cells.map((column, index) => escape((column as { accessorFn: (row: Row, index: number) => unknown }).accessorFn(row, index))).join(","));
-  const url = URL.createObjectURL(new Blob([lines.join("\n")], { type: "text/csv;charset=utf-8" }));
+  for (const row of rows)
+    lines.push(
+      cells
+        .map((column, index) =>
+          escape(
+            (
+              column as { accessorFn: (row: Row, index: number) => unknown }
+            ).accessorFn(row, index),
+          ),
+        )
+        .join(","),
+    );
+  const url = URL.createObjectURL(
+    new Blob([lines.join("\n")], { type: "text/csv;charset=utf-8" }),
+  );
   const link = document.createElement("a");
   link.href = url;
   link.download = `${name}.csv`;
@@ -65,13 +120,25 @@ function downloadCsv(name: string, columns: ColumnDef<Row, unknown>[], rows: Row
   URL.revokeObjectURL(url);
 }
 
-const errorText = (error: unknown) => (error instanceof MfgApiError ? error.message : "This could not be saved.");
+const errorText = (error: unknown) =>
+  error instanceof MfgApiError ? error.message : "This could not be saved.";
 const initial = (fields: FieldDef[], row?: Row): Record<string, FieldValue> =>
   Object.fromEntries(
     fields.map((field) => {
       const existing = row ? row[field.rowKey ?? field.name] : undefined;
-      if (existing !== undefined && existing !== null) return [field.name, field.kind === "bool" ? String(existing) : field.kind === "date" ? String(existing).slice(0, 10) : (existing as FieldValue)];
-      return [field.name, field.defaultValue ?? (field.kind === "number" ? 0 : "")];
+      if (existing !== undefined && existing !== null)
+        return [
+          field.name,
+          field.kind === "bool"
+            ? String(existing)
+            : field.kind === "date"
+              ? String(existing).slice(0, 10)
+              : (existing as FieldValue),
+        ];
+      return [
+        field.name,
+        field.defaultValue ?? (field.kind === "number" ? 0 : ""),
+      ];
     }),
   );
 
@@ -85,39 +152,98 @@ export function Register({ config }: { config: RegisterConfig }) {
   const router = useRouter();
   const options = useMfgOptions();
   const [search, setSearch] = useState("");
-  const [filterValues, setFilterValues] = useState<Record<string, string>>(() => (config.source.kind === "view" ? Object.fromEntries(Object.entries(config.source.params ?? {}).filter(([name]) => config.filters?.some((filter) => filter.name === name))) : {}));
-  const [dialog, setDialog] = useState<{ mode: "create" } | { mode: "edit"; row: Row } | null>(null);
-  const [pending, setPending] = useState<{ action: RowAction; row: Row } | null>(null);
+  const [filterValues, setFilterValues] = useState<Record<string, string>>(
+    () =>
+      config.source.kind === "view"
+        ? Object.fromEntries(
+            Object.entries(config.source.params ?? {}).filter(([name]) =>
+              config.filters?.some((filter) => filter.name === name),
+            ),
+          )
+        : {},
+  );
+  const [dialog, setDialog] = useState<
+    { mode: "create" } | { mode: "edit"; row: Row } | null
+  >(null);
+  const [pending, setPending] = useState<{
+    action: RowAction;
+    row: Row;
+  } | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
 
   const source = config.source;
-  const key = scopedQueryKey(workspace, "manufacturing", config.key, JSON.stringify(filterValues));
+  const key = scopedQueryKey(
+    workspace,
+    "manufacturing",
+    config.key,
+    JSON.stringify(filterValues),
+  );
   const query = useQuery({
     queryKey: key,
-    queryFn: async () => (await readView(source.view, { ...(source.params ?? {}), ...filterValues })).rows,
+    queryFn: async () =>
+      (
+        await readView(source.view, {
+          ...(source.params ?? {}),
+          ...filterValues,
+        })
+      ).rows,
     placeholderData: (previous) => previous,
   });
   const rows = useMemo(() => {
     const all = query.data ?? [];
     const term = search.trim().toLowerCase();
-    return term ? all.filter((row) => config.searchText(row).toLowerCase().includes(term)) : all;
+    return term
+      ? all.filter((row) => config.searchText(row).toLowerCase().includes(term))
+      : all;
   }, [query.data, search, config]);
-  const refresh = () => queryClient.invalidateQueries({ queryKey: scopedQueryKey(workspace, "manufacturing") });
+  const refresh = () =>
+    queryClient.invalidateQueries({
+      queryKey: scopedQueryKey(workspace, "manufacturing"),
+    });
 
-  const denied = query.isError && query.error instanceof MfgApiError && query.error.status === 403;
+  const denied =
+    query.isError &&
+    query.error instanceof MfgApiError &&
+    query.error.status === 403;
 
-  const canCreate = Boolean((config.fields && config.save) || config.newHref) && can(config.createPermission);
-  const startCreate = () => (config.newHref ? router.push(config.newHref) : setDialog({ mode: "create" }));
-  const canEdit = Boolean(config.edit) && Boolean(config.fields) && can(config.edit?.permission ?? config.createPermission);
+  const canCreate =
+    Boolean((config.fields && config.save) || config.newHref) &&
+    can(config.createPermission);
+  const startCreate = () =>
+    config.newHref
+      ? router.push(config.newHref)
+      : setDialog({ mode: "create" });
+  const canEdit =
+    Boolean(config.edit) &&
+    Boolean(config.fields) &&
+    can(config.edit?.permission ?? config.createPermission);
 
   const actions: RowAction[] = [
-    ...(canEdit ? [{ label: "Edit", success: "Saved.", show: config.edit?.show, run: async () => undefined, edit: true } as RowAction & { edit: true }] : []),
+    ...(canEdit
+      ? [
+          {
+            label: "Edit",
+            success: "Saved.",
+            show: config.edit?.show,
+            run: async () => undefined,
+            edit: true,
+          } as RowAction & { edit: true },
+        ]
+      : []),
     ...(config.rowActions ?? []).filter((action) => can(action.permission)),
   ];
 
   const runAction = useMutation({
-    mutationFn: ({ action, row, note }: { action: RowAction; row: Row; note: string }) => action.run(row, note),
+    mutationFn: ({
+      action,
+      row,
+      note,
+    }: {
+      action: RowAction;
+      row: Row;
+      note: string;
+    }) => action.run(row, note),
     onSuccess: (_result, variables) => {
       setPending(null);
       setActionError(null);
@@ -134,9 +260,17 @@ export function Register({ config }: { config: RegisterConfig }) {
     else runAction.mutate({ action, row, note: "" });
   }
 
-  if (denied) return <PermissionState title="You don't have access to Manufacturing" description="Ask an administrator to grant manufacturing.view." />;
+  if (denied)
+    return (
+      <PermissionState
+        title="You don't have access to Manufacturing"
+        description="Ask an administrator to grant manufacturing.view."
+      />
+    );
 
-  const activeFilters = [...(search.trim() ? [`Search: ${search.trim()}`] : [])];
+  const activeFilters = [
+    ...(search.trim() ? [`Search: ${search.trim()}`] : []),
+  ];
   const clear = () => {
     setSearch("");
     setFilterValues({});
@@ -149,13 +283,24 @@ export function Register({ config }: { config: RegisterConfig }) {
           title: config.title,
           description: config.description,
           primaryAction: canCreate ? (
-            <Button variant="primary" onPress={() => { setNotice(null); startCreate(); }}>
+            <Button
+              variant="primary"
+              onPress={() => {
+                setNotice(null);
+                startCreate();
+              }}
+            >
               <Plus className="size-4" aria-hidden="true" />
               {config.createLabel ?? "New"}
             </Button>
           ) : undefined,
           secondaryActions: rows.length ? (
-            <Button variant="secondary" onPress={() => downloadCsv(config.key, config.columns(options.data), rows)}>
+            <Button
+              variant="secondary"
+              onPress={() =>
+                downloadCsv(config.key, config.columns(options.data), rows)
+              }
+            >
               Export CSV
             </Button>
           ) : undefined,
@@ -163,29 +308,95 @@ export function Register({ config }: { config: RegisterConfig }) {
         actionBar={{
           start: (
             <>
-              <SearchField aria-label={config.searchLabel} placeholder="Search…" value={search} onChange={setSearch} className="min-w-[280px]" />
+              <SearchField
+                aria-label={config.searchLabel}
+                placeholder="Search…"
+                value={search}
+                onChange={setSearch}
+                className="min-w-[280px]"
+              />
               {(config.filters ?? []).map((filter) => (
-                <Select key={filter.name} aria-label={filter.label} size="compact" options={[{ value: "", label: `Any ${filter.label.toLowerCase()}` }, ...filter.options]} selectedKey={filterValues[filter.name] ?? ""} onSelectionChange={(k) => setFilterValues((current) => ({ ...current, [filter.name]: String(k ?? "") }))} />
+                <Select
+                  key={filter.name}
+                  aria-label={filter.label}
+                  size="compact"
+                  options={[
+                    { value: "", label: `Any ${filter.label.toLowerCase()}` },
+                    ...filter.options,
+                  ]}
+                  selectedKey={filterValues[filter.name] ?? ""}
+                  onSelectionChange={(k) =>
+                    setFilterValues((current) => ({
+                      ...current,
+                      [filter.name]: String(k ?? ""),
+                    }))
+                  }
+                />
               ))}
             </>
           ),
         }}
-        filterBar={{ filters: activeFilters.map((text) => ({ id: text, label: text })), onRemove: clear, onClearAll: activeFilters.length || Object.values(filterValues).some(Boolean) ? clear : undefined }}
+        filterBar={{
+          filters: activeFilters.map((text) => ({ id: text, label: text })),
+          onRemove: clear,
+          onClearAll:
+            activeFilters.length || Object.values(filterValues).some(Boolean)
+              ? clear
+              : undefined,
+        }}
       >
         <div className="flex flex-col gap-3">
           {notice && <MfgAlert tone="success">{notice}</MfgAlert>}
           {actionError && <MfgAlert>{actionError}</MfgAlert>}
-          {config.summary && rows.length > 0 && <MetricStrip metrics={config.summary(rows)} />}
+          {config.summary && rows.length > 0 && (
+            <MetricStrip metrics={config.summary(rows)} />
+          )}
           <EnterpriseDataGrid<Row>
             aria-label={config.title}
             columns={config.columns(options.data)}
             data={rows}
             getRowId={(row) => row.id}
-            state={query.isLoading ? "loading" : query.isError ? "error" : rows.length === 0 && search.trim() ? "no-results" : rows.length === 0 ? "empty" : "ready"}
-            loadingContent={<p className="px-4 py-8 text-sm text-text-secondary">Loading…</p>}
-            emptyContent={<NoResultsState title={config.emptyTitle} description={config.emptyDescription} action={canCreate ? { label: config.createLabel ?? "New", onPress: startCreate } : undefined} />}
-            noResultsContent={<NoResultsState title="Nothing matches" description="Try clearing a filter or broadening your search." action={{ label: "Clear filters", onPress: clear }} />}
-            errorContent={<ErrorState title={`Could not load ${config.title.toLowerCase()}`} action={{ label: "Retry", onPress: () => query.refetch() }} />}
+            state={
+              query.isLoading
+                ? "loading"
+                : query.isError
+                  ? "error"
+                  : rows.length === 0 && search.trim()
+                    ? "no-results"
+                    : rows.length === 0
+                      ? "empty"
+                      : "ready"
+            }
+            loadingContent={
+              <p className="px-4 py-8 text-sm text-text-secondary">Loading…</p>
+            }
+            emptyContent={
+              <NoResultsState
+                title={config.emptyTitle}
+                description={config.emptyDescription}
+                action={
+                  canCreate
+                    ? {
+                        label: config.createLabel ?? "New",
+                        onPress: startCreate,
+                      }
+                    : undefined
+                }
+              />
+            }
+            noResultsContent={
+              <NoResultsState
+                title="Nothing matches"
+                description="Try clearing a filter or broadening your search."
+                action={{ label: "Clear filters", onPress: clear }}
+              />
+            }
+            errorContent={
+              <ErrorState
+                title={`Could not load ${config.title.toLowerCase()}`}
+                action={{ label: "Retry", onPress: () => query.refetch() }}
+              />
+            }
             rowActions={
               actions.length
                 ? (row) => (
@@ -193,7 +404,12 @@ export function Register({ config }: { config: RegisterConfig }) {
                       {actions
                         .filter((action) => !action.show || action.show(row))
                         .map((action) => (
-                          <Button key={action.label} variant="ghost" size="compact" onPress={() => invoke(action, row)}>
+                          <Button
+                            key={action.label}
+                            variant="ghost"
+                            size="compact"
+                            onPress={() => invoke(action, row)}
+                          >
                             {action.label}
                           </Button>
                         ))}
@@ -223,27 +439,58 @@ export function Register({ config }: { config: RegisterConfig }) {
           action={pending.action}
           isPending={runAction.isPending}
           error={actionError}
-          onClose={() => { setPending(null); setActionError(null); }}
-          onConfirm={(note) => runAction.mutate({ action: pending.action, row: pending.row, note })}
+          onClose={() => {
+            setPending(null);
+            setActionError(null);
+          }}
+          onConfirm={(note) =>
+            runAction.mutate({ action: pending.action, row: pending.row, note })
+          }
         />
       )}
     </>
   );
 }
 
-function NoteDialog({ action, onClose, onConfirm, isPending, error }: { action: RowAction; onClose: () => void; onConfirm: (note: string) => void; isPending: boolean; error: string | null }) {
+function NoteDialog({
+  action,
+  onClose,
+  onConfirm,
+  isPending,
+  error,
+}: {
+  action: RowAction;
+  onClose: () => void;
+  onConfirm: (note: string) => void;
+  isPending: boolean;
+  error: string | null;
+}) {
   const [note, setNote] = useState("");
   const missing = Boolean(action.note?.required) && !note.trim();
   return (
-    <Dialog isOpen onOpenChange={(open) => !open && onClose()} title={action.label}>
+    <Dialog
+      isOpen
+      onOpenChange={(open) => !open && onClose()}
+      title={action.label}
+    >
       <div className="flex flex-col gap-4">
         {error && <MfgAlert>{error}</MfgAlert>}
-        <TextArea label={action.note?.label ?? "Note"} isRequired={action.note?.required} value={note} onChange={setNote} />
+        <TextArea
+          label={action.note?.label ?? "Note"}
+          isRequired={action.note?.required}
+          value={note}
+          onChange={setNote}
+        />
         <div className="flex justify-end gap-2">
           <Button variant="secondary" onPress={onClose}>
             Close
           </Button>
-          <Button variant="primary" onPress={() => onConfirm(note.trim())} isLoading={isPending} isDisabled={missing}>
+          <Button
+            variant="primary"
+            onPress={() => onConfirm(note.trim())}
+            isLoading={isPending}
+            isDisabled={missing}
+          >
             {action.label}
           </Button>
         </div>
@@ -252,36 +499,80 @@ function NoteDialog({ action, onClose, onConfirm, isPending, error }: { action: 
   );
 }
 
-function FormDialog({ config, mode, row, options, onClose, onSaved }: { config: RegisterConfig; mode: "create" | "edit"; row?: Row; options: MfgOptions | undefined; onClose: () => void; onSaved: (message: string) => void }) {
-  const fields = (config.fields ?? []).filter((field) => mode === "create" || !field.createOnly);
+function FormDialog({
+  config,
+  mode,
+  row,
+  options,
+  onClose,
+  onSaved,
+}: {
+  config: RegisterConfig;
+  mode: "create" | "edit";
+  row?: Row;
+  options: MfgOptions | undefined;
+  onClose: () => void;
+  onSaved: (message: string) => void;
+}) {
+  const fields = (config.fields ?? []).filter(
+    (field) => mode === "create" || !field.createOnly,
+  );
   const [start] = useState(() => initial(fields, row));
   const [values, setValues] = useState<Record<string, FieldValue>>(start);
   // One key per opening of the dialog: a double-click or a retry replays the same operation.
-  const [idempotencyKey] = useState(() => (typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : String(Date.now())));
-  const visible = fields.filter((field) => !field.showIf || field.showIf(values));
+  const [idempotencyKey] = useState(() =>
+    typeof crypto !== "undefined" && "randomUUID" in crypto
+      ? crypto.randomUUID()
+      : String(Date.now()),
+  );
+  const visible = fields.filter(
+    (field) => !field.showIf || field.showIf(values),
+  );
 
   const save = useMutation({
     mutationFn: async () => {
       const payload: Record<string, unknown> = {};
       for (const field of visible) {
         const value = values[field.name];
-        if (mode === "create" && (value === "" || value === undefined)) continue;
+        if (mode === "create" && (value === "" || value === undefined))
+          continue;
         // An edit sends only what changed, so a field the caller cannot see (cost) is never overwritten.
-        if (mode === "edit" && String(value) === String(start[field.name])) continue;
+        if (mode === "edit" && String(value) === String(start[field.name]))
+          continue;
         payload[field.name] = field.kind === "bool" ? value === "true" : value;
       }
       const target = config.save;
-      if (mode === "edit" && row && config.edit) return act(config.edit.action, { id: row.id, ...payload });
+      if (mode === "edit" && row && config.edit)
+        return act(config.edit.action, { id: row.id, ...payload });
       if (target) {
         const extra = target.transform ? target.transform(values) : {};
-        return act(target.action, { ...payload, ...extra, ...(target.fixed ?? {}), ...(target.idempotent ? { idempotencyKey } : {}) });
+        return act(target.action, {
+          ...payload,
+          ...extra,
+          ...(target.fixed ?? {}),
+          ...(target.idempotent ? { idempotencyKey } : {}),
+        });
       }
       throw new MfgApiError("Nothing to save.", 400);
     },
-    onSuccess: () => onSaved(mode === "edit" ? "Saved." : config.save && "action" in config.save ? config.save.success : "Saved."),
+    onSuccess: () =>
+      onSaved(
+        mode === "edit"
+          ? "Saved."
+          : config.save && "action" in config.save
+            ? config.save.success
+            : "Saved.",
+      ),
   });
-  const missing = visible.some((field) => field.required && (values[field.name] === "" || values[field.name] === undefined));
-  const title = mode === "edit" ? `Edit ${config.title.toLowerCase().replace(/s$/, "")}` : (config.createLabel ?? "New");
+  const missing = visible.some(
+    (field) =>
+      field.required &&
+      (values[field.name] === "" || values[field.name] === undefined),
+  );
+  const title =
+    mode === "edit"
+      ? `Edit ${config.title.toLowerCase().replace(/s$/, "")}`
+      : (config.createLabel ?? "New");
 
   return (
     <Dialog isOpen onOpenChange={(open) => !open && onClose()} title={title}>
@@ -289,16 +580,29 @@ function FormDialog({ config, mode, row, options, onClose, onSaved }: { config: 
         {save.error && <MfgAlert>{errorText(save.error)}</MfgAlert>}
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           {visible.map((field) => (
-            <div key={field.name} className={field.wide || field.kind === "textarea" ? "sm:col-span-2" : undefined}>
-              <FieldInput field={field} value={values[field.name]} onChange={(value) =>
+            <div
+              key={field.name}
+              className={
+                field.wide || field.kind === "textarea"
+                  ? "sm:col-span-2"
+                  : undefined
+              }
+            >
+              <FieldInput
+                field={field}
+                value={values[field.name]}
+                onChange={(value) =>
                   setValues((current) => {
                     const next = { ...current, [field.name]: value };
                     // a dependent picker (locations of a warehouse, batches of an item) is cleared when its parent changes
-                    for (const other of fields) if (other.dependsOn === field.name) next[other.name] = "";
+                    for (const other of fields)
+                      if (other.dependsOn === field.name) next[other.name] = "";
                     return next;
                   })
                 }
-                options={options} values={values} />
+                options={options}
+                values={values}
+              />
             </div>
           ))}
         </div>
@@ -306,7 +610,12 @@ function FormDialog({ config, mode, row, options, onClose, onSaved }: { config: 
           <Button variant="secondary" onPress={onClose}>
             Close
           </Button>
-          <Button variant="primary" onPress={() => save.mutate()} isLoading={save.isPending} isDisabled={missing}>
+          <Button
+            variant="primary"
+            onPress={() => save.mutate()}
+            isLoading={save.isPending}
+            isDisabled={missing}
+          >
             Save
           </Button>
         </div>

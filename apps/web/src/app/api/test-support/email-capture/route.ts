@@ -16,13 +16,24 @@ import { errorResponse, HttpError, ok, readJson } from "@/core/http";
 // http loopback APP_URL (isProductionRuntime); deployed configuration
 // validation forbids both that profile and the capture flag.
 function guardTestSupportRoute() {
-  if (isProductionRuntime(process.env) || process.env.AUTH_EMAIL_CAPTURE_ENABLED !== "1") {
+  if (
+    isProductionRuntime(process.env) ||
+    process.env.AUTH_EMAIL_CAPTURE_ENABLED !== "1"
+  ) {
     throw new HttpError(404, "Not found.");
   }
 }
 
 const MAX_MESSAGES_PER_EMAIL = 5;
-const captured = new Map<string, Array<{ type: string; url: string; organizationName?: string; capturedAt: string }>>();
+const captured = new Map<
+  string,
+  Array<{
+    type: string;
+    url: string;
+    organizationName?: string;
+    capturedAt: string;
+  }>
+>();
 
 const messageSchema = z.object({
   type: z.string(),
@@ -37,7 +48,12 @@ export async function POST(request: Request) {
     const body = messageSchema.parse(await readJson(request));
     const key = body.email.toLowerCase();
     const list = captured.get(key) ?? [];
-    list.push({ type: body.type, url: body.url, organizationName: body.organizationName, capturedAt: new Date().toISOString() });
+    list.push({
+      type: body.type,
+      url: body.url,
+      organizationName: body.organizationName,
+      capturedAt: new Date().toISOString(),
+    });
     while (list.length > MAX_MESSAGES_PER_EMAIL) list.shift();
     captured.set(key, list);
     return ok({ received: true });

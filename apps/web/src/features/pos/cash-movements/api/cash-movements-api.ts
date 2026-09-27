@@ -17,12 +17,22 @@ export type PosCashMovement = {
   created_at: string;
 };
 
-export const listPosCashMovements = (shiftId: string) => request<{ rows: PosCashMovement[] }>(`/shifts/${shiftId}/cash-movements`);
+export const listPosCashMovements = (shiftId: string) =>
+  request<{ rows: PosCashMovement[] }>(`/shifts/${shiftId}/cash-movements`);
 
 export const recordPosCashMovement = (
   shiftId: string,
-  input: { movementType: "paid_in" | "paid_out"; amount: number; reason: string; idempotencyKey: string },
-) => post<{ movement: PosCashMovement }>(`/shifts/${shiftId}/cash-movements`, input);
+  input: {
+    movementType: "paid_in" | "paid_out";
+    amount: number;
+    reason: string;
+    idempotencyKey: string;
+  },
+) =>
+  post<{ movement: PosCashMovement }>(
+    `/shifts/${shiftId}/cash-movements`,
+    input,
+  );
 
 export type PosCashMovementHistoryFilters = {
   storeId?: string;
@@ -40,10 +50,16 @@ export type PosCashMovementHistoryFilters = {
 // own movements) -- goes through the generic resource-listing endpoint
 // (see resource-registry.js's "cash-movements" table) with withTotal for
 // real server-side pagination.
-export const listPosCashMovementHistory = (query: PosCashMovementHistoryFilters = {}) => {
+export const listPosCashMovementHistory = (
+  query: PosCashMovementHistoryFilters = {},
+) => {
   const params = new URLSearchParams(
-    Object.entries(query).filter(([, v]) => v !== undefined && v !== null && v !== "").map(([k, v]) => [k, String(v)]),
+    Object.entries(query)
+      .filter(([, v]) => v !== undefined && v !== null && v !== "")
+      .map(([k, v]) => [k, String(v)]),
   );
   params.set("withTotal", "1");
-  return request<{ rows: PosCashMovement[]; total: number }>(`/cash-movements?${params}`);
+  return request<{ rows: PosCashMovement[]; total: number }>(
+    `/cash-movements?${params}`,
+  );
 };

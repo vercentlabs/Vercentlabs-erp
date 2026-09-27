@@ -10,9 +10,17 @@ type RouteContext = { params: Promise<{ id: string }> };
 // Account, with their role and primary flag. Same governed
 // contact-relationships.js service, read-only here.
 export async function GET(request: Request, context: RouteContext) {
-  return workspaceRoute(request, { module: "crm" }, async ({ client, session }) => {
-    const { id } = await context.params;
-    const rows = await listAccountContactRelationships(client, crmContext(session), id);
-    return ok({ rows });
-  });
+  return workspaceRoute(
+    request,
+    { module: "crm" },
+    async ({ client, session }) => {
+      const { id } = await context.params;
+      const rows = await listAccountContactRelationships(
+        client,
+        crmContext(session),
+        id,
+      );
+      return ok({ rows });
+    },
+  );
 }

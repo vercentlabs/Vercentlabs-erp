@@ -11,7 +11,10 @@ if (fs.existsSync(repoEnv)) process.loadEnvFile(repoEnv);
 
 // Shared between the Playwright web server and the spec process, so files the
 // spec writes (report output) are readable by the server and vice versa.
-export const FILE_STORAGE_LOCAL_ROOT = path.join(os.tmpdir(), "vercentlabs-platform-e2e-storage");
+export const FILE_STORAGE_LOCAL_ROOT = path.join(
+  os.tmpdir(),
+  "vercentlabs-platform-e2e-storage",
+);
 export const OAUTH_STANDIN_PORT = 3197;
 export const OAUTH_CLIENTS = {
   GOOGLE_OAUTH_CLIENT_ID: "e2e-google-client",

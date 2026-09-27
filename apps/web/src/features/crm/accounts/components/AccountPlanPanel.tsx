@@ -5,7 +5,13 @@ import { humanize } from "@/shared/format/human";
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Archive, Plus } from "lucide-react";
-import { Button, IconButton, Select, TextArea, TextField } from "@vercentlabs/design-system";
+import {
+  Button,
+  IconButton,
+  Select,
+  TextArea,
+  TextField,
+} from "@vercentlabs/design-system";
 
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
@@ -38,7 +44,10 @@ function arrayToLines(value: unknown): string {
   return Array.isArray(value) ? value.join("\n") : "";
 }
 function linesToArray(value: string): string[] {
-  return value.split("\n").map((line) => line.trim()).filter(Boolean);
+  return value
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean);
 }
 function successPlanToText(value: unknown): string {
   if (!value || typeof value !== "object") return "";
@@ -55,7 +64,13 @@ function textToSuccessPlan(value: string): Record<string, unknown> {
 // existed (003_crm_enterprise_core.sql) as registered generic resources
 // with zero frontend wiring before this pass (confirmed by grep — no
 // apps/web file referenced either table/resource).
-export function AccountPlanPanel({ accountId, canManage }: { accountId: string; canManage: boolean }) {
+export function AccountPlanPanel({
+  accountId,
+  canManage,
+}: {
+  accountId: string;
+  canManage: boolean;
+}) {
   const workspace = useWorkspaceContext();
   const queryClient = useQueryClient();
   const [error, setError] = useState<string | null>(null);
@@ -82,7 +97,9 @@ export function AccountPlanPanel({ accountId, canManage }: { accountId: string; 
   }
 
   function invalidate() {
-    queryClient.invalidateQueries({ queryKey: scopedQueryKey(workspace, "crm", "account-plans", accountId) });
+    queryClient.invalidateQueries({
+      queryKey: scopedQueryKey(workspace, "crm", "account-plans", accountId),
+    });
   }
 
   const saveMutation = useMutation({
@@ -94,26 +111,39 @@ export function AccountPlanPanel({ accountId, canManage }: { accountId: string; 
         whiteSpace: linesToArray(draft.whiteSpace ?? ""),
         successPlan: textToSuccessPlan(draft.successPlan ?? ""),
       };
-      return plan ? updateAccountPlan(plan.id, payload, plan.updatedAt) : createAccountPlan({ partyId: accountId, ...payload });
+      return plan
+        ? updateAccountPlan(plan.id, payload, plan.updatedAt)
+        : createAccountPlan({ partyId: accountId, ...payload });
     },
     onSuccess: () => {
       setError(null);
       setDirty(false);
       invalidate();
     },
-    onError: (err: unknown) => setError(err instanceof AccountApiError ? err.message : "The account plan could not be saved."),
+    onError: (err: unknown) =>
+      setError(
+        err instanceof AccountApiError
+          ? err.message
+          : "The account plan could not be saved.",
+      ),
   });
 
-  if (plansQuery.isLoading) return <p className="text-sm text-text-secondary">Loading account plan…</p>;
+  if (plansQuery.isLoading)
+    return <p className="text-sm text-text-secondary">Loading account plan…</p>;
 
   return (
     <div className="flex flex-col gap-4">
       {error && (
-        <p role="alert" className="rounded-[var(--radius-control)] border border-danger-emphasis/30 bg-danger-soft px-3 py-2 text-sm text-danger">
+        <p
+          role="alert"
+          className="rounded-[var(--radius-control)] border border-danger-emphasis/30 bg-danger-soft px-3 py-2 text-sm text-danger"
+        >
           {error}
         </p>
       )}
-      {!plan && !canManage && <p className="text-sm text-text-muted">No account plan yet.</p>}
+      {!plan && !canManage && (
+        <p className="text-sm text-text-muted">No account plan yet.</p>
+      )}
       {(plan || canManage) && (
         <div className="flex flex-col gap-3">
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -123,7 +153,10 @@ export function AccountPlanPanel({ accountId, canManage }: { accountId: string; 
               selectedKey={draft.accountTier ?? ""}
               onSelectionChange={(key) => {
                 setDirty(true);
-                setDraft((current) => ({ ...current, accountTier: String(key ?? "") }));
+                setDraft((current) => ({
+                  ...current,
+                  accountTier: String(key ?? ""),
+                }));
               }}
               isDisabled={!canManage}
             />
@@ -177,18 +210,36 @@ export function AccountPlanPanel({ accountId, canManage }: { accountId: string; 
             isDisabled={!canManage}
           />
           {canManage && (
-            <Button variant="secondary" size="compact" className="self-start" onPress={() => saveMutation.mutate()} isLoading={saveMutation.isPending} isDisabled={!dirty}>
+            <Button
+              variant="secondary"
+              size="compact"
+              className="self-start"
+              onPress={() => saveMutation.mutate()}
+              isLoading={saveMutation.isPending}
+              isDisabled={!dirty}
+            >
               {plan ? "Save plan" : "Create account plan"}
             </Button>
           )}
         </div>
       )}
-      {plan && <AccountStakeholdersList accountPlanId={plan.id} canManage={canManage} />}
+      {plan && (
+        <AccountStakeholdersList
+          accountPlanId={plan.id}
+          canManage={canManage}
+        />
+      )}
     </div>
   );
 }
 
-function AccountStakeholdersList({ accountPlanId, canManage }: { accountPlanId: string; canManage: boolean }) {
+function AccountStakeholdersList({
+  accountPlanId,
+  canManage,
+}: {
+  accountPlanId: string;
+  canManage: boolean;
+}) {
   const workspace = useWorkspaceContext();
   const queryClient = useQueryClient();
   const [name, setName] = useState("");
@@ -196,16 +247,34 @@ function AccountStakeholdersList({ accountPlanId, canManage }: { accountPlanId: 
   const [stakeholderRole, setStakeholderRole] = useState("");
 
   const stakeholdersQuery = useQuery({
-    queryKey: scopedQueryKey(workspace, "crm", "account-stakeholders", accountPlanId),
+    queryKey: scopedQueryKey(
+      workspace,
+      "crm",
+      "account-stakeholders",
+      accountPlanId,
+    ),
     queryFn: () => listAccountStakeholders(accountPlanId),
   });
 
   function invalidate() {
-    queryClient.invalidateQueries({ queryKey: scopedQueryKey(workspace, "crm", "account-stakeholders", accountPlanId) });
+    queryClient.invalidateQueries({
+      queryKey: scopedQueryKey(
+        workspace,
+        "crm",
+        "account-stakeholders",
+        accountPlanId,
+      ),
+    });
   }
 
   const addMutation = useMutation({
-    mutationFn: () => createAccountStakeholder({ accountPlanId, name, title: title || null, stakeholderRole: stakeholderRole || null }),
+    mutationFn: () =>
+      createAccountStakeholder({
+        accountPlanId,
+        name,
+        title: title || null,
+        stakeholderRole: stakeholderRole || null,
+      }),
     onSuccess: () => {
       invalidate();
       setName("");
@@ -214,7 +283,8 @@ function AccountStakeholdersList({ accountPlanId, canManage }: { accountPlanId: 
     },
   });
   const removeMutation = useMutation({
-    mutationFn: (stakeholder: { id: string; updatedAt: string }) => archiveAccountStakeholder(stakeholder.id, stakeholder.updatedAt),
+    mutationFn: (stakeholder: { id: string; updatedAt: string }) =>
+      archiveAccountStakeholder(stakeholder.id, stakeholder.updatedAt),
     onSuccess: invalidate,
   });
 
@@ -223,18 +293,33 @@ function AccountStakeholdersList({ accountPlanId, canManage }: { accountPlanId: 
   return (
     <div className="flex flex-col gap-2 border-t border-border-strong pt-3">
       <p className="text-sm font-medium text-text">Stakeholders</p>
-      {stakeholdersQuery.isLoading && <p className="text-sm text-text-secondary">Loading stakeholders…</p>}
-      {!stakeholdersQuery.isLoading && stakeholders.length === 0 && <p className="text-sm text-text-muted">No stakeholders mapped yet.</p>}
+      {stakeholdersQuery.isLoading && (
+        <p className="text-sm text-text-secondary">Loading stakeholders…</p>
+      )}
+      {!stakeholdersQuery.isLoading && stakeholders.length === 0 && (
+        <p className="text-sm text-text-muted">No stakeholders mapped yet.</p>
+      )}
       {stakeholders.map((stakeholder) => (
-        <div key={stakeholder.id} className="flex items-center justify-between gap-2 rounded-[var(--radius-control)] border border-border-strong px-3 py-2">
+        <div
+          key={stakeholder.id}
+          className="flex items-center justify-between gap-2 rounded-[var(--radius-control)] border border-border-strong px-3 py-2"
+        >
           <div className="flex flex-col text-sm">
             <span className="font-medium text-text">{stakeholder.name}</span>
             <span className="text-text-secondary">
-              {stakeholder.title || "—"} {stakeholder.stakeholderRole ? `· ${humanize(stakeholder.stakeholderRole)}` : ""}
+              {stakeholder.title || "—"}{" "}
+              {stakeholder.stakeholderRole
+                ? `· ${humanize(stakeholder.stakeholderRole)}`
+                : ""}
             </span>
           </div>
           {canManage && (
-            <IconButton aria-label={`Remove ${stakeholder.name}`} size="compact" variant="danger" onPress={() => removeMutation.mutate(stakeholder)}>
+            <IconButton
+              aria-label={`Remove ${stakeholder.name}`}
+              size="compact"
+              variant="danger"
+              onPress={() => removeMutation.mutate(stakeholder)}
+            >
               <Archive className="size-4" aria-hidden="true" />
             </IconButton>
           )}
@@ -244,8 +329,19 @@ function AccountStakeholdersList({ accountPlanId, canManage }: { accountPlanId: 
         <div className="flex flex-wrap items-end gap-2">
           <TextField label="Name" value={name} onChange={setName} />
           <TextField label="Title" value={title} onChange={setTitle} />
-          <TextField label="Role" placeholder="e.g. champion, blocker" value={stakeholderRole} onChange={setStakeholderRole} />
-          <Button variant="secondary" size="compact" onPress={() => addMutation.mutate()} isLoading={addMutation.isPending} isDisabled={!name.trim()}>
+          <TextField
+            label="Role"
+            placeholder="e.g. champion, blocker"
+            value={stakeholderRole}
+            onChange={setStakeholderRole}
+          />
+          <Button
+            variant="secondary"
+            size="compact"
+            onPress={() => addMutation.mutate()}
+            isLoading={addMutation.isPending}
+            isDisabled={!name.trim()}
+          >
             <Plus className="size-4" aria-hidden="true" />
             Add
           </Button>

@@ -4,7 +4,11 @@
 // point-of-sale/index.d.ts) so the payload sent to /api/pos/offline/sync
 // needs no field renaming/translation layer.
 
-export type PosOfflineUnsupportedOperation = { code: string; label: string; reason: string };
+export type PosOfflineUnsupportedOperation = {
+  code: string;
+  label: string;
+  reason: string;
+};
 
 export type PosOfflineSnapshotItem = {
   itemId: string;
@@ -20,7 +24,14 @@ export type PosOfflineSnapshotItem = {
 export type PosOfflineSnapshot = {
   version: string;
   generatedAt: string;
-  store: { id: string; code: string; name: string; warehouseId: string; currencyCode: string; priceListId: string | null };
+  store: {
+    id: string;
+    code: string;
+    name: string;
+    warehouseId: string;
+    currencyCode: string;
+    priceListId: string | null;
+  };
   policy: { allowNegativeStock: boolean; maxLineDiscountPercent: number };
   items: PosOfflineSnapshotItem[];
   itemLimit: number;
@@ -44,7 +55,8 @@ export type PosOfflineLine = {
   description?: string | null;
 };
 
-export type PosOfflineSyncOutcome = "accepted" | "conflict" | "voided" | "error";
+export type PosOfflineSyncOutcome =
+  "accepted" | "conflict" | "voided" | "error";
 
 // The full local queue record. `status` mirrors the task brief's lifecycle:
 // queued -> syncing -> accepted/conflict/rejected -> reconciled. "rejected"
@@ -69,11 +81,40 @@ export type PosOfflineQueuedSale = {
   // as a trusted total to the server (see canonicalOfflineSyncPayload in
   // services/api/src/modules/point-of-sale/index.js, which recomputes
   // every figure fresh from current Postgres state at sync time).
-  capturedTotals: { subtotal: number; taxTotal: number; discountTotal: number; grandTotal: number };
+  capturedTotals: {
+    subtotal: number;
+    taxTotal: number;
+    discountTotal: number;
+    grandTotal: number;
+  };
 };
 
 export type PosOfflineSyncResult =
-  | { outcome: "accepted"; localTransactionId: string; sale: { id: string; receipt_number?: string; grand_total?: string }; replayed: boolean }
-  | { outcome: "conflict"; localTransactionId: string; conflictId: string; conflictType: string; detail: string | null; replayed: boolean }
-  | { outcome: "voided"; localTransactionId: string; conflictId: string; detail: string | null; replayed: boolean }
-  | { outcome: "error"; localTransactionId: string; status: number; code: string; detail: string };
+  | {
+      outcome: "accepted";
+      localTransactionId: string;
+      sale: { id: string; receipt_number?: string; grand_total?: string };
+      replayed: boolean;
+    }
+  | {
+      outcome: "conflict";
+      localTransactionId: string;
+      conflictId: string;
+      conflictType: string;
+      detail: string | null;
+      replayed: boolean;
+    }
+  | {
+      outcome: "voided";
+      localTransactionId: string;
+      conflictId: string;
+      detail: string | null;
+      replayed: boolean;
+    }
+  | {
+      outcome: "error";
+      localTransactionId: string;
+      status: number;
+      code: string;
+      detail: string;
+    };

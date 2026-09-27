@@ -1,6 +1,11 @@
 import { z } from "zod";
 
-import { assertSameOriginOrMobile, audit, enforceRateLimit, verifyMfaForSession } from "@vercentlabs/api";
+import {
+  assertSameOriginOrMobile,
+  audit,
+  enforceRateLimit,
+  verifyMfaForSession,
+} from "@vercentlabs/api";
 
 import { sessionTransaction } from "@/core/db";
 import { errorResponse, ok, readJson } from "@/core/http";
@@ -26,7 +31,15 @@ export async function POST(request: Request) {
       // addresses doesn't bypass it -- mirrors how POST /api/auth/login
       // rate-limits by IP via the same enforceRateLimit primitive.
       await enforceRateLimit(client, `mfa-verify:${session.userId}`, 8, 300);
-      await verifyMfaForSession(client, { sessionId: session.sessionId, userId: session.userId, code: body.code }, process.env);
+      await verifyMfaForSession(
+        client,
+        {
+          sessionId: session.sessionId,
+          userId: session.userId,
+          code: body.code,
+        },
+        process.env,
+      );
       await audit(client, {
         organizationId: session.organizationId,
         actorUserId: session.userId,

@@ -12,9 +12,17 @@ type RouteContext = { params: Promise<{ id: string }> };
 // afterwards (the existing [id]/activate/route.ts) requires trained_at to
 // be set.
 export async function POST(request: Request, context: RouteContext) {
-  return workspaceRoute(request, { module: "crm", billingWrite: true }, async ({ client, session }) => {
-    const { id } = await context.params;
-    const record = await trainLeadScoringModel(client, crmContext(session), id);
-    return ok({ record });
-  });
+  return workspaceRoute(
+    request,
+    { module: "crm", billingWrite: true },
+    async ({ client, session }) => {
+      const { id } = await context.params;
+      const record = await trainLeadScoringModel(
+        client,
+        crmContext(session),
+        id,
+      );
+      return ok({ record });
+    },
+  );
 }

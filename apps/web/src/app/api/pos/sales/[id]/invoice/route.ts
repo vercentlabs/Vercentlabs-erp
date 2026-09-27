@@ -11,19 +11,42 @@ const generateSchema = z.object({
   idempotencyKey: z.string().trim().min(1).max(200).optional(),
 });
 
-export async function GET(request: Request, context: { params: Promise<{ id: string }> }) {
-  return workspaceRoute(request, { module: "point-of-sale", permission: "pos.invoice.view" }, async ({ client, session }) => {
-    const { id } = await context.params;
-    const result = await getPosInvoiceForSale(client, posContext(session), id);
-    return ok(result);
-  });
+export async function GET(
+  request: Request,
+  context: { params: Promise<{ id: string }> },
+) {
+  return workspaceRoute(
+    request,
+    { module: "point-of-sale", permission: "pos.invoice.view" },
+    async ({ client, session }) => {
+      const { id } = await context.params;
+      const result = await getPosInvoiceForSale(
+        client,
+        posContext(session),
+        id,
+      );
+      return ok(result);
+    },
+  );
 }
 
-export async function POST(request: Request, context: { params: Promise<{ id: string }> }) {
-  return workspaceRoute(request, { module: "point-of-sale", permission: "pos.invoice.generate" }, async ({ client, session }) => {
-    const { id } = await context.params;
-    const input = generateSchema.parse(await readJson(request));
-    const result = await generatePosInvoice(client, posContext(session), id, input);
-    return ok(result, 201);
-  });
+export async function POST(
+  request: Request,
+  context: { params: Promise<{ id: string }> },
+) {
+  return workspaceRoute(
+    request,
+    { module: "point-of-sale", permission: "pos.invoice.generate" },
+    async ({ client, session }) => {
+      const { id } = await context.params;
+      const input = generateSchema.parse(await readJson(request));
+      const result = await generatePosInvoice(
+        client,
+        posContext(session),
+        id,
+        input,
+      );
+      return ok(result, 201);
+    },
+  );
 }

@@ -266,7 +266,12 @@ export function MobileNav({
               active={isActive(pathname, "/settings/profile")}
               onNavigate={close}
             />
-            <DrawerActionRow label="Sign out" icon={<LogOut aria-hidden="true" className="size-4" />} onPress={handleSignOut} isLoading={signingOut} />
+            <DrawerActionRow
+              label="Sign out"
+              icon={<LogOut aria-hidden="true" className="size-4" />}
+              onPress={handleSignOut}
+              isLoading={signingOut}
+            />
           </nav>
         )}
       </Drawer>

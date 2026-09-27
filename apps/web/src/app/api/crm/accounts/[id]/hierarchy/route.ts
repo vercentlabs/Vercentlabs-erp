@@ -16,18 +16,43 @@ import { workspaceRoute } from "@/core/workspace-route";
 type RouteContext = { params: Promise<{ id: string }> };
 
 export async function GET(request: Request, context: RouteContext) {
-  return workspaceRoute(request, { module: "crm" }, async ({ client, session }) => {
-    const { id } = await context.params;
-    const hierarchy = await getAccountHierarchy(client, crmContext(session), id);
-    return ok(hierarchy);
-  });
+  return workspaceRoute(
+    request,
+    { module: "crm" },
+    async ({ client, session }) => {
+      const { id } = await context.params;
+      const hierarchy = await getAccountHierarchy(
+        client,
+        crmContext(session),
+        id,
+      );
+      return ok(hierarchy);
+    },
+  );
 }
 
 export async function PATCH(request: Request, context: RouteContext) {
-  return workspaceRoute(request, { module: "crm", permission: CRM_PERMISSIONS.accountsManage, billingWrite: true }, async ({ client, session }) => {
-    const { id } = await context.params;
-    const body = (await readJson(request)) as { parentId?: string | null; reason?: string | null };
-    const record = await setAccountParent(client, crmContext(session), id, body.parentId || null, body.reason || null);
-    return ok({ record });
-  });
+  return workspaceRoute(
+    request,
+    {
+      module: "crm",
+      permission: CRM_PERMISSIONS.accountsManage,
+      billingWrite: true,
+    },
+    async ({ client, session }) => {
+      const { id } = await context.params;
+      const body = (await readJson(request)) as {
+        parentId?: string | null;
+        reason?: string | null;
+      };
+      const record = await setAccountParent(
+        client,
+        crmContext(session),
+        id,
+        body.parentId || null,
+        body.reason || null,
+      );
+      return ok({ record });
+    },
+  );
 }

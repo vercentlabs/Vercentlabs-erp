@@ -1,6 +1,9 @@
 import { errorResponse, fail, ok } from "@/core/http";
 import { tenantTransaction } from "@/core/db";
-import { handlePosPaymentWebhook, resolvePaymentAdapter } from "@vercentlabs/api";
+import {
+  handlePosPaymentWebhook,
+  resolvePaymentAdapter,
+} from "@vercentlabs/api";
 
 // F283/F284/F285/F286 provider webhook. This route is DELIBERATELY NOT
 // session-authenticated: a payment provider's own servers call it
@@ -27,7 +30,10 @@ import { handlePosPaymentWebhook, resolvePaymentAdapter } from "@vercentlabs/api
 // sufficient to prove the real HMAC-verify code path end-to-end, but it is
 // not the per-tenant-secret model a genuine multi-merchant production
 // integration would need once a real provider adapter is built.
-export async function POST(request: Request, context: { params: Promise<{ provider: string }> }) {
+export async function POST(
+  request: Request,
+  context: { params: Promise<{ provider: string }> },
+) {
   try {
     const { provider } = await context.params;
     const rawBody = await request.text();
@@ -35,20 +41,30 @@ export async function POST(request: Request, context: { params: Promise<{ provid
 
     const adapter = resolvePaymentAdapter(provider);
     if (!adapter.verifyWebhookSignature(rawBody, signatureHeader)) {
-      return fail("The webhook signature could not be verified.", 401, { code: "POS_PAYMENT_WEBHOOK_SIGNATURE_INVALID" });
+      return fail("The webhook signature could not be verified.", 401, {
+        code: "POS_PAYMENT_WEBHOOK_SIGNATURE_INVALID",
+      });
     }
     let organizationId: string | undefined;
     try {
       organizationId = adapter.parseWebhookEvent(rawBody).organizationId;
     } catch {
-      return fail("The webhook payload could not be parsed.", 400, { code: "POS_PAYMENT_WEBHOOK_PAYLOAD_INVALID" });
+      return fail("The webhook payload could not be parsed.", 400, {
+        code: "POS_PAYMENT_WEBHOOK_PAYLOAD_INVALID",
+      });
     }
     if (!organizationId) {
-      return fail("The webhook payload is missing an organization id.", 400, { code: "POS_PAYMENT_WEBHOOK_PAYLOAD_INVALID" });
+      return fail("The webhook payload is missing an organization id.", 400, {
+        code: "POS_PAYMENT_WEBHOOK_PAYLOAD_INVALID",
+      });
     }
 
     const result = await tenantTransaction(organizationId, async (client) =>
-      handlePosPaymentWebhook(client, { providerKey: provider, rawBody, signatureHeader }),
+      handlePosPaymentWebhook(client, {
+        providerKey: provider,
+        rawBody,
+        signatureHeader,
+      }),
     );
     return ok(result);
   } catch (error) {

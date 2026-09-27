@@ -10,10 +10,21 @@ import { workspaceRoute } from "@/core/workspace-route";
 // record counts it would touch, without changing anything. Backed by
 // account-intelligence.js's previewPrivacyRequest, which already existed
 // but had no caller.
-export async function GET(request: Request, context: { params: Promise<{ id: string }> }) {
-  return workspaceRoute(request, { module: "crm", permission: CRM_PERMISSIONS.privacyManage }, async ({ client, session }) => {
-    const { id } = await context.params;
-    const preview = await previewPrivacyRequest(client, crmContext(session), id);
-    return ok({ preview });
-  });
+export async function GET(
+  request: Request,
+  context: { params: Promise<{ id: string }> },
+) {
+  return workspaceRoute(
+    request,
+    { module: "crm", permission: CRM_PERMISSIONS.privacyManage },
+    async ({ client, session }) => {
+      const { id } = await context.params;
+      const preview = await previewPrivacyRequest(
+        client,
+        crmContext(session),
+        id,
+      );
+      return ok({ preview });
+    },
+  );
 }

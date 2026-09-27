@@ -28,7 +28,14 @@ const saleLineSchema = z.object({
 });
 
 const salePaymentSchema = z.object({
-  method: z.enum(["cash", "card", "upi", "bank_transfer", "wallet", "store_credit"]),
+  method: z.enum([
+    "cash",
+    "card",
+    "upi",
+    "bank_transfer",
+    "wallet",
+    "store_credit",
+  ]),
   amount: z.number().positive(),
 });
 
@@ -53,33 +60,52 @@ const completeSaleSchema = z.object({
 // pagination. Nothing else in the app called this route's GET before
 // this feature existed, so widening it here is not a breaking change.
 export async function GET(request: Request) {
-  return workspaceRoute(request, { module: "point-of-sale" }, async ({ client, session }) => {
-    const url = new URL(request.url);
-    const params = url.searchParams;
-    const result = await listPosTransactions(client, posContext(session), {
-      search: params.get("search") || undefined,
-      storeId: params.get("storeId") || undefined,
-      terminalId: params.get("terminalId") || undefined,
-      cashierId: params.get("cashierId") || undefined,
-      shiftId: params.get("shiftId") || undefined,
-      customerId: params.get("customerId") || undefined,
-      status: params.get("status") || undefined,
-      dateFrom: params.get("dateFrom") || undefined,
-      dateTo: params.get("dateTo") || undefined,
-      paymentMethod: params.get("paymentMethod") || undefined,
-      sortBy: (params.get("sortBy") as "sale_date" | "grand_total" | "receipt_number" | "status") || undefined,
-      sortDir: (params.get("sortDir") as "asc" | "desc") || undefined,
-      limit: params.get("limit") ? Number(params.get("limit")) : undefined,
-      offset: params.get("offset") ? Number(params.get("offset")) : undefined,
-    });
-    return ok(result);
-  });
+  return workspaceRoute(
+    request,
+    { module: "point-of-sale" },
+    async ({ client, session }) => {
+      const url = new URL(request.url);
+      const params = url.searchParams;
+      const result = await listPosTransactions(client, posContext(session), {
+        search: params.get("search") || undefined,
+        storeId: params.get("storeId") || undefined,
+        terminalId: params.get("terminalId") || undefined,
+        cashierId: params.get("cashierId") || undefined,
+        shiftId: params.get("shiftId") || undefined,
+        customerId: params.get("customerId") || undefined,
+        status: params.get("status") || undefined,
+        dateFrom: params.get("dateFrom") || undefined,
+        dateTo: params.get("dateTo") || undefined,
+        paymentMethod: params.get("paymentMethod") || undefined,
+        sortBy:
+          (params.get("sortBy") as
+            "sale_date" | "grand_total" | "receipt_number" | "status") ||
+          undefined,
+        sortDir: (params.get("sortDir") as "asc" | "desc") || undefined,
+        limit: params.get("limit") ? Number(params.get("limit")) : undefined,
+        offset: params.get("offset") ? Number(params.get("offset")) : undefined,
+      });
+      return ok(result);
+    },
+  );
 }
 
 export async function POST(request: Request) {
-  return workspaceRoute(request, { module: "point-of-sale", permission: "pos.sale.create", billingWrite: true }, async ({ client, session }) => {
-    const input = completeSaleSchema.parse(await readJson(request));
-    const result = await completePointOfSale(client, posContext(session), input);
-    return ok({ sale: result }, 201);
-  });
+  return workspaceRoute(
+    request,
+    {
+      module: "point-of-sale",
+      permission: "pos.sale.create",
+      billingWrite: true,
+    },
+    async ({ client, session }) => {
+      const input = completeSaleSchema.parse(await readJson(request));
+      const result = await completePointOfSale(
+        client,
+        posContext(session),
+        input,
+      );
+      return ok({ sale: result }, 201);
+    },
+  );
 }

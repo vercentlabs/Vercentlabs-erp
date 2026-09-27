@@ -7,7 +7,12 @@ export default defineConfig({
   testDir: "./e2e",
   // Billing journeys need their own enforce-mode server and Razorpay stand-in: playwright.config.billing.ts.
   // Shared Runtime journeys run on their own isolated server: playwright.config.shared-runtime.ts.
-  testIgnore: ["billing-saas.spec.ts", "billing-expired-subscription.spec.ts", "shared-runtime.spec.ts", "platform-services.spec.ts"],
+  testIgnore: [
+    "billing-saas.spec.ts",
+    "billing-expired-subscription.spec.ts",
+    "shared-runtime.spec.ts",
+    "platform-services.spec.ts",
+  ],
   fullyParallel: false,
   workers: 1,
   retries: 0,
@@ -16,7 +21,10 @@ export default defineConfig({
   // files matched -- see pos-global-teardown.ts. A no-op if no POS spec
   // ever ran (it checks for its own marker file first).
   globalTeardown: "./e2e/pos-global-teardown.ts",
-  reporter: [["list"], ["html", { outputFolder: "playwright-report", open: "never" }]],
+  reporter: [
+    ["list"],
+    ["html", { outputFolder: "playwright-report", open: "never" }],
+  ],
   // 45s, not 30s: the POS specs (pos-*.spec.ts) run several multi-step
   // journeys per test against a Next.js DEV server, where the FIRST hit of
   // any not-yet-compiled API route/page can itself take 10-20s of on-demand
@@ -48,7 +56,10 @@ export default defineConfig({
     { name: "setup", testMatch: /auth\.setup\.ts/ },
     {
       name: "chromium",
-      use: { ...devices["Desktop Chrome"], storageState: "e2e/.auth/owner.json" },
+      use: {
+        ...devices["Desktop Chrome"],
+        storageState: "e2e/.auth/owner.json",
+      },
       dependencies: ["setup"],
     },
   ],

@@ -1,4 +1,7 @@
-import { CRM_PERMISSIONS, MODULE_ACCESS_PERMISSIONS } from "@vercentlabs/permissions";
+import {
+  CRM_PERMISSIONS,
+  MODULE_ACCESS_PERMISSIONS,
+} from "@vercentlabs/permissions";
 import { ERP_MODULE_CATALOG } from "@vercentlabs/shared-types";
 
 // What a person can do once their roles are combined — for display only.
@@ -63,20 +66,27 @@ function modulePrefix(viewPermission: string) {
 }
 
 function isReadOnly(key: string) {
-  return /\.(view|reports\.view|view_all|audit\.view)$/.test(key) || key.endsWith(".view") || key.includes(".view_");
+  return (
+    /\.(view|reports\.view|view_all|audit\.view)$/.test(key) ||
+    key.endsWith(".view") ||
+    key.includes(".view_")
+  );
 }
 
 function highRiskLabel(key: string, moduleName: string): string | null {
   if (/sensitive/.test(key)) return `${moduleName}: sensitive data`;
   if (/\.export$/.test(key)) return `${moduleName}: export data`;
   if (/\.import$/.test(key)) return `${moduleName}: import data`;
-  if (/\.(approve|finalize|post)$/.test(key)) return `${moduleName}: approvals and posting`;
+  if (/\.(approve|finalize|post)$/.test(key))
+    return `${moduleName}: approvals and posting`;
   if (/settings\.manage$/.test(key)) return `${moduleName}: module settings`;
   if (/privacy\.manage$/.test(key)) return `${moduleName}: privacy requests`;
   return null;
 }
 
-export function summarizeEffectiveAccess(roles: readonly RoleLike[]): EffectiveAccessSummary {
+export function summarizeEffectiveAccess(
+  roles: readonly RoleLike[],
+): EffectiveAccessSummary {
   const owner = roles.some((role) => role.slug === "organization_owner");
   const permissions = new Set(roles.flatMap((role) => role.permission_keys));
   const has = (key: string) => owner || permissions.has(key);
@@ -84,9 +94,17 @@ export function summarizeEffectiveAccess(roles: readonly RoleLike[]): EffectiveA
 
   const modules = ERP_MODULE_CATALOG.map((module): ModuleAccessSummary => {
     const view = MODULE_ACCESS_PERMISSIONS[module.key];
-    if (!view || !has(view)) return { key: module.key, name: module.name, level: "none", detail: LEVEL_LABEL.none };
+    if (!view || !has(view))
+      return {
+        key: module.key,
+        name: module.name,
+        level: "none",
+        detail: LEVEL_LABEL.none,
+      };
     const prefix = modulePrefix(view);
-    const keys = owner ? ["__owner__"] : [...permissions].filter((key) => key.startsWith(prefix));
+    const keys = owner
+      ? ["__owner__"]
+      : [...permissions].filter((key) => key.startsWith(prefix));
     for (const key of keys) {
       const label = highRiskLabel(key, module.name);
       if (label) highRisk.add(label);
@@ -102,12 +120,15 @@ export function summarizeEffectiveAccess(roles: readonly RoleLike[]): EffectiveA
   });
 
   if (owner) highRisk.add("Everything in every module (Organisation Owner)");
-  for (const [key, label] of ORGANISATION_HIGH_RISK) if (has(key)) highRisk.add(label);
+  for (const [key, label] of ORGANISATION_HIGH_RISK)
+    if (has(key)) highRisk.add(label);
 
   return {
     permissionCount: permissions.size,
     modules,
-    administration: ADMINISTRATION.filter(([key]) => has(key)).map(([, label]) => label),
+    administration: ADMINISTRATION.filter(([key]) => has(key)).map(
+      ([, label]) => label,
+    ),
     highRisk: [...highRisk],
   };
 }

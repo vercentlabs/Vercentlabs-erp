@@ -12,9 +12,17 @@ import { workspaceRoute } from "@/core/workspace-route";
 // gate the rest of this import/export screen already uses — plus the
 // dedicated crm.export permission (checked again in enqueue and worker).
 export async function POST(request: Request) {
-  return workspaceRoute(request, { module: "crm", permission: CRM_PERMISSIONS.export }, async ({ client, session }) => {
-    const input = (await readJson(request)) as { filters?: Record<string, string> };
-    const job = await enqueueCrmLeadExportJob(client, crmContext(session), { filters: input.filters || {} });
-    return ok({ job }, 202);
-  });
+  return workspaceRoute(
+    request,
+    { module: "crm", permission: CRM_PERMISSIONS.export },
+    async ({ client, session }) => {
+      const input = (await readJson(request)) as {
+        filters?: Record<string, string>;
+      };
+      const job = await enqueueCrmLeadExportJob(client, crmContext(session), {
+        filters: input.filters || {},
+      });
+      return ok({ job }, 202);
+    },
+  );
 }

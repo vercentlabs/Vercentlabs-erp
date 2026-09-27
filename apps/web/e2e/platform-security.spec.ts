@@ -15,7 +15,9 @@ import { fixtures } from "./fixtures";
  * ProfileMenu.tsx) it was added alongside.
  */
 
-test("notifications: list, mark-one-read and mark-all-read all still work end-to-end after the same-origin check was added", async ({ page }) => {
+test("notifications: list, mark-one-read and mark-all-read all still work end-to-end after the same-origin check was added", async ({
+  page,
+}) => {
   await page.goto("/notifications", { waitUntil: "networkidle" });
 
   const list = await page.evaluate(async () => {
@@ -34,7 +36,9 @@ test("notifications: list, mark-one-read and mark-all-read all still work end-to
 
   if (list.body.notifications[0]?.id) {
     const one = await page.evaluate(async (id) => {
-      const resp = await fetch(`/api/notifications/${id}/read`, { method: "PATCH" });
+      const resp = await fetch(`/api/notifications/${id}/read`, {
+        method: "PATCH",
+      });
       return { status: resp.status, body: await resp.json() };
     }, list.body.notifications[0].id);
     expect(one.status).toBe(200);
@@ -42,7 +46,9 @@ test("notifications: list, mark-one-read and mark-all-read all still work end-to
   }
 });
 
-test("notifications: a failed mark-read request surfaces an error and does not update the UI as if it had succeeded", async ({ page }) => {
+test("notifications: a failed mark-read request surfaces an error and does not update the UI as if it had succeeded", async ({
+  page,
+}) => {
   // Regression guard for a real bug found during the ERP completion gap
   // audit (Phase 6): notifications-client.tsx's markRead/markAllRead
   // mutationFn awaited fetch() but never checked response.ok, so
@@ -64,18 +70,31 @@ test("notifications: a failed mark-read request surfaces an error and does not u
   };
   // The list is requested as /api/notifications?status=<tab>; a URL glob would
   // not match the query string, so match the path.
-  await page.route((url) => url.pathname === "/api/notifications", (route) => {
-    if (route.request().method() !== "GET") return route.continue();
-    return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: true, notifications: [fakeNotification] }) });
-  });
+  await page.route(
+    (url) => url.pathname === "/api/notifications",
+    (route) => {
+      if (route.request().method() !== "GET") return route.continue();
+      return route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ ok: true, notifications: [fakeNotification] }),
+      });
+    },
+  );
   await page.route("**/api/notifications/*/read", (route) =>
-    route.fulfill({ status: 500, contentType: "application/json", body: JSON.stringify({ ok: false, message: "Simulated failure" }) }),
+    route.fulfill({
+      status: 500,
+      contentType: "application/json",
+      body: JSON.stringify({ ok: false, message: "Simulated failure" }),
+    }),
   );
 
   await page.goto("/notifications", { waitUntil: "networkidle" });
   await expect(page.getByText("E2E synthetic notification")).toBeVisible();
 
-  await page.getByRole("button", { name: `Mark "${fakeNotification.title}" read` }).click();
+  await page
+    .getByRole("button", { name: `Mark "${fakeNotification.title}" read` })
+    .click();
   // Not getByRole("alert") alone — Next's own route announcer
   // (#__next-route-announcer__) also carries role="alert" and matches.
   await expect(page.getByText("Simulated failure")).toBeVisible();
@@ -83,10 +102,14 @@ test("notifications: a failed mark-read request surfaces an error and does not u
   // time), so if the fix regressed and onSuccess fired anyway, the "Mark
   // read" button would disappear on refetch — asserting it's still there
   // is the observable proof the UI didn't treat the failure as success.
-  await expect(page.getByRole("button", { name: `Mark "${fakeNotification.title}" read` })).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: `Mark "${fakeNotification.title}" read` }),
+  ).toBeVisible();
 });
 
-test("approvals: list still works end-to-end after the same-origin check was added to decide", async ({ page }) => {
+test("approvals: list still works end-to-end after the same-origin check was added to decide", async ({
+  page,
+}) => {
   await page.goto("/approvals", { waitUntil: "networkidle" });
   const result = await page.evaluate(async () => {
     const resp = await fetch("/api/approvals?status=pending");
@@ -96,7 +119,9 @@ test("approvals: list still works end-to-end after the same-origin check was add
   expect(Array.isArray(result.body.approvals)).toBe(true);
 });
 
-test("logout still works end-to-end after the same-origin check was added, and the cleared session is actually rejected afterward", async ({ browser }) => {
+test("logout still works end-to-end after the same-origin check was added, and the cleared session is actually rejected afterward", async ({
+  browser,
+}) => {
   // Deliberately its own fresh login, NOT the shared e2e/.auth/owner.json
   // storage state every other spec's project config depends on — this
   // test revokes its session on purpose (that's the point), and doing
@@ -133,7 +158,9 @@ test("logout still works end-to-end after the same-origin check was added, and t
   await context.close();
 });
 
-test("sessions: revoking a specific other session and revoking all other sessions both work end-to-end, and the caller's own session always survives", async ({ browser }) => {
+test("sessions: revoking a specific other session and revoking all other sessions both work end-to-end, and the caller's own session always survives", async ({
+  browser,
+}) => {
   // Phase 3 (SP006): DELETE /api/settings/sessions/[id] and DELETE
   // /api/settings/sessions (revoke-others) both revoke real, live
   // sessions server-side, not just DB rows the caller can't otherwise
@@ -184,12 +211,17 @@ test("sessions: revoking a specific other session and revoking all other session
     // loudly here instead of silently leaving the page logged out and
     // every downstream revoke assertion misreporting a 401 as if it were
     // the revocation behavior under test.
-    expect(loginResponse.status(), "login must succeed (not rate-limited) for this test's assertions to mean anything").toBe(200);
+    expect(
+      loginResponse.status(),
+      "login must succeed (not rate-limited) for this test's assertions to mean anything",
+    ).toBe(200);
     await page.goto("/crm", { waitUntil: "domcontentloaded" });
     return { context, page };
   }
 
-  const currentContext = await browser.newContext({ storageState: "e2e/.auth/owner.json" });
+  const currentContext = await browser.newContext({
+    storageState: "e2e/.auth/owner.json",
+  });
   const currentPage = await currentContext.newPage();
   await currentPage.goto("/crm", { waitUntil: "domcontentloaded" });
   const other = await freshLogin();
@@ -198,19 +230,29 @@ test("sessions: revoking a specific other session and revoking all other session
     const otherSessionId = await other.page.evaluate(async () => {
       const resp = await fetch("/api/settings/sessions");
       const body = await resp.json();
-      return (body.sessions.find((s: { isCurrent: boolean }) => s.isCurrent) as { id: string }).id;
+      return (
+        body.sessions.find((s: { isCurrent: boolean }) => s.isCurrent) as {
+          id: string;
+        }
+      ).id;
     });
 
     // A cannot revoke B's session by a random/foreign id — this only
     // works because "current" and "other" are the same fixture user here;
     // ownership (not identity of caller vs target session) is the gate.
     const specificRevoke = await currentPage.evaluate(async (id) => {
-      const resp = await fetch(`/api/settings/sessions/${id}`, { method: "DELETE" });
+      const resp = await fetch(`/api/settings/sessions/${id}`, {
+        method: "DELETE",
+      });
       return { status: resp.status, body: await resp.json() };
     }, otherSessionId);
-    expect(specificRevoke.status, JSON.stringify(specificRevoke.body)).toBe(200);
+    expect(specificRevoke.status, JSON.stringify(specificRevoke.body)).toBe(
+      200,
+    );
 
-    const otherAfterSpecificRevoke = await other.page.evaluate(async () => (await fetch("/api/notifications")).status);
+    const otherAfterSpecificRevoke = await other.page.evaluate(
+      async () => (await fetch("/api/notifications")).status,
+    );
     expect(otherAfterSpecificRevoke).toBe(401);
 
     // Revoke-all-others: current survives, a brand-new third session does not.
@@ -222,9 +264,13 @@ test("sessions: revoking a specific other session and revoking all other session
     expect(revokeOthers.status, JSON.stringify(revokeOthers.body)).toBe(200);
     expect(revokeOthers.body.revokedCount).toBeGreaterThanOrEqual(1);
 
-    const thirdAfterRevokeOthers = await third.page.evaluate(async () => (await fetch("/api/notifications")).status);
+    const thirdAfterRevokeOthers = await third.page.evaluate(
+      async () => (await fetch("/api/notifications")).status,
+    );
     expect(thirdAfterRevokeOthers).toBe(401);
-    const currentStillWorks = await currentPage.evaluate(async () => (await fetch("/api/notifications")).status);
+    const currentStillWorks = await currentPage.evaluate(
+      async () => (await fetch("/api/notifications")).status,
+    );
     expect(currentStillWorks).toBe(200);
     await third.context.close();
   } finally {

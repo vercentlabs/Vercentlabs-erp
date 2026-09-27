@@ -3,7 +3,10 @@ import assert from "node:assert/strict";
 
 import { CRM_RESOURCE_KEYS } from "@vercentlabs/shared-types";
 
-import { RESOURCE_MANAGE_PERMISSIONS, resolveCrmMutationPermission } from "./resource-permissions.ts";
+import {
+  RESOURCE_MANAGE_PERMISSIONS,
+  resolveCrmMutationPermission,
+} from "./resource-permissions.ts";
 
 // Regression guard for a real gap found in Tranche I: shipping a
 // generic-resource-backed settings screen (account-plans/stakeholders in
@@ -64,8 +67,15 @@ test("resource-permissions: every CRM_RESOURCE_KEYS entry either has a manage pe
   for (const resource of CRM_RESOURCE_KEYS) {
     const resolution = resolveCrmMutationPermission(resource);
     if (RESOURCE_MANAGE_PERMISSIONS[resource]) {
-      assert.equal(resolution.kind, "requires-permission", `${resource} is mapped but resolveCrmMutationPermission didn't return requires-permission`);
-      assert.equal((resolution as { permission: string }).permission, RESOURCE_MANAGE_PERMISSIONS[resource]);
+      assert.equal(
+        resolution.kind,
+        "requires-permission",
+        `${resource} is mapped but resolveCrmMutationPermission didn't return requires-permission`,
+      );
+      assert.equal(
+        (resolution as { permission: string }).permission,
+        RESOURCE_MANAGE_PERMISSIONS[resource],
+      );
     } else {
       assert.notEqual(
         resolution.kind,
@@ -91,5 +101,8 @@ test("resource-permissions: saved-views was removed and is now refused like any 
 });
 
 test("resource-permissions: an entirely unknown resource key is denied, not allow-listed by accident", () => {
-  assert.equal(resolveCrmMutationPermission("not-a-real-crm-resource").kind, "denied");
+  assert.equal(
+    resolveCrmMutationPermission("not-a-real-crm-resource").kind,
+    "denied",
+  );
 });

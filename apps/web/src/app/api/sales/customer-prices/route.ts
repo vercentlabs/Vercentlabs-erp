@@ -1,6 +1,9 @@
 import { z } from "zod";
 
-import { listSalesCustomerPrices, upsertSalesCustomerPrice } from "@vercentlabs/api";
+import {
+  listSalesCustomerPrices,
+  upsertSalesCustomerPrice,
+} from "@vercentlabs/api";
 
 import { ok, readJson } from "@/core/http";
 import { salesContext } from "@/features/sales/shared/sales-context";
@@ -18,21 +21,43 @@ const upsertSchema = z.object({
 });
 
 export async function GET(request: Request) {
-  return workspaceRoute(request, { module: "sales", permission: "sales.view" }, async ({ client, session }) => {
-    const params = new URL(request.url).searchParams;
-    const result = await listSalesCustomerPrices(client, salesContext(session), {
-      partyId: params.get("partyId") || undefined,
-      limit: params.get("limit") ? Number(params.get("limit")) : undefined,
-      offset: params.get("offset") ? Number(params.get("offset")) : undefined,
-    });
-    return ok(result);
-  });
+  return workspaceRoute(
+    request,
+    { module: "sales", permission: "sales.view" },
+    async ({ client, session }) => {
+      const params = new URL(request.url).searchParams;
+      const result = await listSalesCustomerPrices(
+        client,
+        salesContext(session),
+        {
+          partyId: params.get("partyId") || undefined,
+          limit: params.get("limit") ? Number(params.get("limit")) : undefined,
+          offset: params.get("offset")
+            ? Number(params.get("offset"))
+            : undefined,
+        },
+      );
+      return ok(result);
+    },
+  );
 }
 
 export async function POST(request: Request) {
-  return workspaceRoute(request, { module: "sales", permission: "sales.settings.manage", billingWrite: true }, async ({ client, session }) => {
-    const input = upsertSchema.parse(await readJson(request));
-    const rule = await upsertSalesCustomerPrice(client, salesContext(session), input);
-    return ok({ rule }, 201);
-  });
+  return workspaceRoute(
+    request,
+    {
+      module: "sales",
+      permission: "sales.settings.manage",
+      billingWrite: true,
+    },
+    async ({ client, session }) => {
+      const input = upsertSchema.parse(await readJson(request));
+      const rule = await upsertSalesCustomerPrice(
+        client,
+        salesContext(session),
+        input,
+      );
+      return ok({ rule }, 201);
+    },
+  );
 }

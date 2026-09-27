@@ -1,8 +1,15 @@
 import { test, expect, type Browser } from "@playwright/test";
 
 // Badges show the stored token in sentence case, so compare the whole text without regard to case.
-const wholeText = (text: string) => new RegExp(`^${text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`, "i");
-import { getPosWorld, openPersonaSession, resetTerminalCarts, withPosDb, type PosWorld } from "./pos-fixtures";
+const wholeText = (text: string) =>
+  new RegExp(`^${text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`, "i");
+import {
+  getPosWorld,
+  openPersonaSession,
+  resetTerminalCarts,
+  withPosDb,
+  type PosWorld,
+} from "./pos-fixtures";
 
 // Transactions workspace journeys: a cashier rings a real cash sale, a
 // separate pos_manager session finds it in /pos/transactions by receipt
@@ -17,24 +24,38 @@ type CompletedSale = { id: string; receiptNumber: string };
 
 let completedSale: Promise<CompletedSale> | null = null;
 
-function ensureCompletedSale(browser: Browser, world: PosWorld): Promise<CompletedSale> {
+function ensureCompletedSale(
+  browser: Browser,
+  world: PosWorld,
+): Promise<CompletedSale> {
   if (!completedSale) completedSale = completeCashSale(browser, world);
   return completedSale;
 }
 
-async function completeCashSale(browser: Browser, world: PosWorld): Promise<CompletedSale> {
+async function completeCashSale(
+  browser: Browser,
+  world: PosWorld,
+): Promise<CompletedSale> {
   await resetTerminalCarts(world.terminalId);
   const { context, page } = await openPersonaSession(browser, world.cashier);
   try {
     await Promise.all([
-      page.waitForResponse((res) => res.url().endsWith("/api/pos/carts") && res.request().method() === "POST"),
+      page.waitForResponse(
+        (res) =>
+          res.url().endsWith("/api/pos/carts") &&
+          res.request().method() === "POST",
+      ),
       page.goto("/pos/checkout", { waitUntil: "domcontentloaded" }),
     ]);
     await page.getByLabel("Search products").fill(world.itemCode);
-    const productButton = page.getByRole("button", { name: new RegExp(world.itemName) });
+    const productButton = page.getByRole("button", {
+      name: new RegExp(world.itemName),
+    });
     await expect(productButton).toBeVisible({ timeout: 30_000 });
     await productButton.click();
-    await expect(page.getByText("INR 250.00 each")).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByText("INR 250.00 each")).toBeVisible({
+      timeout: 30_000,
+    });
 
     // react-aria's NumberField only picks up a value through real keystrokes
     // (see pos-returns.spec.ts / pos-checkout.spec.ts).
@@ -45,11 +66,20 @@ async function completeCashSale(browser: Browser, world: PosWorld): Promise<Comp
     await cashTenderedInput.blur();
 
     const [completeResponse] = await Promise.all([
-      page.waitForResponse((res) => res.url().includes("/api/pos/carts/") && res.url().endsWith("/complete")),
+      page.waitForResponse(
+        (res) =>
+          res.url().includes("/api/pos/carts/") &&
+          res.url().endsWith("/complete"),
+      ),
       page.getByRole("button", { name: /Complete sale/i }).click(),
     ]);
-    const sale = (await completeResponse.json()).sale as { id: string; receipt_number: string };
-    await expect(page.getByText("Sale complete")).toBeVisible({ timeout: 30_000 });
+    const sale = (await completeResponse.json()).sale as {
+      id: string;
+      receipt_number: string;
+    };
+    await expect(page.getByText("Sale complete")).toBeVisible({
+      timeout: 30_000,
+    });
     return { id: sale.id, receiptNumber: sale.receipt_number };
   } finally {
     await context.close();
@@ -57,7 +87,9 @@ async function completeCashSale(browser: Browser, world: PosWorld): Promise<Comp
 }
 
 test.describe("POS transactions workspace", () => {
-  test("a manager searches for a completed sale, opens its detail, and every reference matches real Postgres state", async ({ browser }) => {
+  test("a manager searches for a completed sale, opens its detail, and every reference matches real Postgres state", async ({
+    browser,
+  }) => {
     test.setTimeout(240_000);
     const world = await getPosWorld();
     const sale = await ensureCompletedSale(browser, world);
@@ -70,7 +102,10 @@ test.describe("POS transactions workspace", () => {
         )
       ).rows[0];
       const payments = (
-        await client.query(`SELECT payment_method, amount, status FROM tenant.pos_payments WHERE organization_id=$1 AND sale_id=$2`, [organizationId, sale.id])
+        await client.query(
+          `SELECT payment_method, amount, status FROM tenant.pos_payments WHERE organization_id=$1 AND sale_id=$2`,
+          [organizationId, sale.id],
+        )
       ).rows;
       const movements = (
         await client.query(
@@ -93,15 +128,25 @@ test.describe("POS transactions workspace", () => {
 
       const searchField = page.getByLabel("Search by receipt number");
       const [listResponse] = await Promise.all([
-        page.waitForResponse((res) => res.url().includes("/api/pos/sales?") && res.url().includes(`search=${encodeURIComponent(sale.receiptNumber)}`)),
+        page.waitForResponse(
+          (res) =>
+            res.url().includes("/api/pos/sales?") &&
+            res
+              .url()
+              .includes(`search=${encodeURIComponent(sale.receiptNumber)}`),
+        ),
         searchField.fill(sale.receiptNumber),
       ]);
       expect(listResponse.status()).toBe(200);
       const listBody = await listResponse.json();
-      expect(listBody.rows.map((row: { id: string }) => row.id)).toContain(sale.id);
+      expect(listBody.rows.map((row: { id: string }) => row.id)).toContain(
+        sale.id,
+      );
       expect(listBody.total).toBeGreaterThanOrEqual(1);
 
-      const row = page.getByRole("row", { name: new RegExp(sale.receiptNumber) });
+      const row = page.getByRole("row", {
+        name: new RegExp(sale.receiptNumber),
+      });
       await expect(row).toBeVisible();
       await expect(row.getByText(world.storeName)).toBeVisible();
 
@@ -115,34 +160,73 @@ test.describe("POS transactions workspace", () => {
 
       await row.click();
       await page.waitForURL(new RegExp(`/pos/transactions/${sale.id}$`));
-      await expect(page.getByRole("heading", { name: sale.receiptNumber })).toBeVisible({ timeout: 30_000 });
+      await expect(
+        page.getByRole("heading", { name: sale.receiptNumber }),
+      ).toBeVisible({ timeout: 30_000 });
 
       // Receipt link.
-      await expect(page.getByRole("button", { name: "View receipt" })).toBeVisible();
+      await expect(
+        page.getByRole("button", { name: "View receipt" }),
+      ).toBeVisible();
 
       // Payment leg matches the persisted pos_payments row.
       const dbPayment = dbState.payments[0];
-      const paymentsSection = page.locator("section", { has: page.getByRole("heading", { name: "Payments" }) });
-      await expect(paymentsSection.getByText(wholeText(dbPayment.payment_method.replace("_", " ")))).toBeVisible();
-      await expect(paymentsSection.getByText(`${dbState.saleRow.currency_code} ${Number(dbPayment.amount).toFixed(2)}`)).toBeVisible();
-      await expect(paymentsSection.getByText(wholeText(dbPayment.status))).toBeVisible();
+      const paymentsSection = page.locator("section", {
+        has: page.getByRole("heading", { name: "Payments" }),
+      });
+      await expect(
+        paymentsSection.getByText(
+          wholeText(dbPayment.payment_method.replace("_", " ")),
+        ),
+      ).toBeVisible();
+      await expect(
+        paymentsSection.getByText(
+          `${dbState.saleRow.currency_code} ${Number(dbPayment.amount).toFixed(2)}`,
+        ),
+      ).toBeVisible();
+      await expect(
+        paymentsSection.getByText(wholeText(dbPayment.status)),
+      ).toBeVisible();
 
       // Stock movement reference matches the real stock_movements row.
-      const stockSection = page.locator("section", { has: page.getByRole("heading", { name: "Stock movement" }) });
-      await expect(stockSection.getByText(dbState.movements[0].movement_number)).toBeVisible();
+      const stockSection = page.locator("section", {
+        has: page.getByRole("heading", { name: "Stock movement" }),
+      });
+      await expect(
+        stockSection.getByText(dbState.movements[0].movement_number),
+      ).toBeVisible();
 
       // Accounting posting status matches the persisted column.
-      const accountingSection = page.locator("section", { has: page.getByRole("heading", { name: "Accounting posting" }) });
-      await expect(accountingSection.getByText(wholeText(dbState.saleRow.accounting_posting_status.replace("_", " ")))).toBeVisible();
+      const accountingSection = page.locator("section", {
+        has: page.getByRole("heading", { name: "Accounting posting" }),
+      });
+      await expect(
+        accountingSection.getByText(
+          wholeText(
+            dbState.saleRow.accounting_posting_status.replace("_", " "),
+          ),
+        ),
+      ).toBeVisible();
 
       // Grand total shown is the persisted one, not recomputed.
-      await expect(page.getByText(`${dbState.saleRow.currency_code} ${Number(dbState.saleRow.grand_total).toFixed(2)}`).first()).toBeVisible();
+      await expect(
+        page
+          .getByText(
+            `${dbState.saleRow.currency_code} ${Number(dbState.saleRow.grand_total).toFixed(2)}`,
+          )
+          .first(),
+      ).toBeVisible();
 
       // Audit trail carries the sale-completed event.
-      const auditSection = page.locator("section", { has: page.getByRole("heading", { name: "Audit trail" }) });
+      const auditSection = page.locator("section", {
+        has: page.getByRole("heading", { name: "Audit trail" }),
+      });
       const dbSaleCompletedEvents = await withPosDb((client, organizationId) =>
         client
-          .query(`SELECT count(*)::int AS count FROM tenant.pos_events WHERE organization_id=$1 AND aggregate_id=$2 AND event_type='pos.sale.completed'`, [organizationId, sale.id])
+          .query(
+            `SELECT count(*)::int AS count FROM tenant.pos_events WHERE organization_id=$1 AND aggregate_id=$2 AND event_type='pos.sale.completed'`,
+            [organizationId, sale.id],
+          )
           .then((r) => r.rows[0].count as number),
       );
       expect(dbSaleCompletedEvents).toBe(1);
@@ -152,14 +236,19 @@ test.describe("POS transactions workspace", () => {
     }
   });
 
-  test("a user assigned only to a different store is denied the transaction by direct URL, enforced server-side", async ({ browser }) => {
+  test("a user assigned only to a different store is denied the transaction by direct URL, enforced server-side", async ({
+    browser,
+  }) => {
     test.setTimeout(240_000);
     const world = await getPosWorld();
     const sale = await ensureCompletedSale(browser, world);
 
     // The supervisor persona is granted access to supervisorStoreId only,
     // never world.storeId where this sale was rung.
-    const { context, page } = await openPersonaSession(browser, world.supervisor);
+    const { context, page } = await openPersonaSession(
+      browser,
+      world.supervisor,
+    );
     try {
       await page.goto("/pos", { waitUntil: "domcontentloaded" });
 
@@ -170,13 +259,19 @@ test.describe("POS transactions workspace", () => {
       expect(JSON.stringify(apiBody)).not.toContain(sale.receiptNumber);
 
       // The list is row-filtered too: the sale never appears for this user.
-      const listResponse = await page.request.get(`/api/pos/sales?search=${encodeURIComponent(sale.receiptNumber)}`);
+      const listResponse = await page.request.get(
+        `/api/pos/sales?search=${encodeURIComponent(sale.receiptNumber)}`,
+      );
       expect(listResponse.status()).toBe(200);
       expect((await listResponse.json()).rows).toHaveLength(0);
 
       // And the UI reflects the denial rather than an empty/blank page.
-      await page.goto(`/pos/transactions/${sale.id}`, { waitUntil: "domcontentloaded" });
-      await expect(page.getByText("You don't have access to this transaction")).toBeVisible();
+      await page.goto(`/pos/transactions/${sale.id}`, {
+        waitUntil: "domcontentloaded",
+      });
+      await expect(
+        page.getByText("You don't have access to this transaction"),
+      ).toBeVisible();
       await expect(page.getByText(sale.receiptNumber)).toHaveCount(0);
     } finally {
       await context.close();

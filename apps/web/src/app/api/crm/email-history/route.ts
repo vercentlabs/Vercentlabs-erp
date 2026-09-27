@@ -9,11 +9,20 @@ import { workspaceRoute } from "@/core/workspace-route";
 // getCrmEmailHistory adds the parent-record gate the raw reader lacks for
 // Opportunity/Account/Contact and applies per-row content projection.
 export async function GET(request: Request) {
-  return workspaceRoute(request, { module: "crm" }, async ({ client, session }) => {
-    const url = new URL(request.url);
-    const entityType = url.searchParams.get("entityType") ?? "";
-    const entityId = url.searchParams.get("entityId") ?? "";
-    const rows = await getCrmEmailHistory(client, crmContext(session), entityType, entityId);
-    return ok({ rows });
-  });
+  return workspaceRoute(
+    request,
+    { module: "crm" },
+    async ({ client, session }) => {
+      const url = new URL(request.url);
+      const entityType = url.searchParams.get("entityType") ?? "";
+      const entityId = url.searchParams.get("entityId") ?? "";
+      const rows = await getCrmEmailHistory(
+        client,
+        crmContext(session),
+        entityType,
+        entityId,
+      );
+      return ok({ rows });
+    },
+  );
 }

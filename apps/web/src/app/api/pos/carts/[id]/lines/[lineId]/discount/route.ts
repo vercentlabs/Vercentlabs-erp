@@ -1,6 +1,9 @@
 import { z } from "zod";
 
-import { applyPosCartLineDiscount, removePosCartLineDiscount } from "@vercentlabs/api";
+import {
+  applyPosCartLineDiscount,
+  removePosCartLineDiscount,
+} from "@vercentlabs/api";
 
 import { ok, readJson } from "@/core/http";
 import { posContext } from "@/features/pos/shared/pos-context";
@@ -19,23 +22,59 @@ const discountSchema = z.object({
   expectedVersion: z.number().int().optional(),
 });
 
-export async function POST(request: Request, context: { params: Promise<{ id: string; lineId: string }> }) {
-  return workspaceRoute(request, { module: "point-of-sale", permission: "pos.discount.apply", billingWrite: true }, async ({ client, session }) => {
-    const { id, lineId } = await context.params;
-    const input = discountSchema.parse(await readJson(request));
-    const result = await applyPosCartLineDiscount(client, posContext(session), id, lineId, input);
-    return ok({ cart: result });
-  });
+export async function POST(
+  request: Request,
+  context: { params: Promise<{ id: string; lineId: string }> },
+) {
+  return workspaceRoute(
+    request,
+    {
+      module: "point-of-sale",
+      permission: "pos.discount.apply",
+      billingWrite: true,
+    },
+    async ({ client, session }) => {
+      const { id, lineId } = await context.params;
+      const input = discountSchema.parse(await readJson(request));
+      const result = await applyPosCartLineDiscount(
+        client,
+        posContext(session),
+        id,
+        lineId,
+        input,
+      );
+      return ok({ cart: result });
+    },
+  );
 }
 
-export async function DELETE(request: Request, context: { params: Promise<{ id: string; lineId: string }> }) {
-  return workspaceRoute(request, { module: "point-of-sale", permission: "pos.discount.apply", billingWrite: true }, async ({ client, session }) => {
-    const { id, lineId } = await context.params;
-    const url = new URL(request.url);
-    const expectedVersion = url.searchParams.get("expectedVersion");
-    const result = await removePosCartLineDiscount(client, posContext(session), id, lineId, {
-      expectedVersion: expectedVersion ? Number(expectedVersion) : undefined,
-    });
-    return ok({ cart: result });
-  });
+export async function DELETE(
+  request: Request,
+  context: { params: Promise<{ id: string; lineId: string }> },
+) {
+  return workspaceRoute(
+    request,
+    {
+      module: "point-of-sale",
+      permission: "pos.discount.apply",
+      billingWrite: true,
+    },
+    async ({ client, session }) => {
+      const { id, lineId } = await context.params;
+      const url = new URL(request.url);
+      const expectedVersion = url.searchParams.get("expectedVersion");
+      const result = await removePosCartLineDiscount(
+        client,
+        posContext(session),
+        id,
+        lineId,
+        {
+          expectedVersion: expectedVersion
+            ? Number(expectedVersion)
+            : undefined,
+        },
+      );
+      return ok({ cart: result });
+    },
+  );
 }

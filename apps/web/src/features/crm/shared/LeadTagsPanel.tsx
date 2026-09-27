@@ -3,16 +3,33 @@
 import { useState } from "react";
 import { X } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Badge, Button, Select, type SelectOption } from "@vercentlabs/design-system";
+import {
+  Badge,
+  Button,
+  Select,
+  type SelectOption,
+} from "@vercentlabs/design-system";
 
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
-import { assignLeadTag, listLeadTags, listTagDefinitions, removeLeadTag, TagApiError } from "./lead-tags-api";
+import {
+  assignLeadTag,
+  listLeadTags,
+  listTagDefinitions,
+  removeLeadTag,
+  TagApiError,
+} from "./lead-tags-api";
 
 // F028 Tranche C — tag ASSIGNMENT on a Lead 360, distinct from the Setup
 // tag-definitions library (CRM Setup > Custom fields and tags). Lead-only:
 // tenant.crm_lead_tags is the only tag-assignment junction the schema has.
-export function LeadTagsPanel({ leadId, canManage }: { leadId: string; canManage: boolean }) {
+export function LeadTagsPanel({
+  leadId,
+  canManage,
+}: {
+  leadId: string;
+  canManage: boolean;
+}) {
   const workspace = useWorkspaceContext();
   const queryClient = useQueryClient();
   const [pendingTagId, setPendingTagId] = useState<string>("");
@@ -35,7 +52,9 @@ export function LeadTagsPanel({ leadId, canManage }: { leadId: string; canManage
     .map((tag) => ({ value: tag.id, label: tag.name }));
 
   function invalidate() {
-    queryClient.invalidateQueries({ queryKey: scopedQueryKey(workspace, "crm", "lead-tags", leadId) });
+    queryClient.invalidateQueries({
+      queryKey: scopedQueryKey(workspace, "crm", "lead-tags", leadId),
+    });
   }
 
   const assignMutation = useMutation({
@@ -45,7 +64,12 @@ export function LeadTagsPanel({ leadId, canManage }: { leadId: string; canManage
       setPendingTagId("");
       invalidate();
     },
-    onError: (err: unknown) => setError(err instanceof TagApiError ? err.message : "That tag could not be added."),
+    onError: (err: unknown) =>
+      setError(
+        err instanceof TagApiError
+          ? err.message
+          : "That tag could not be added.",
+      ),
   });
   const removeMutation = useMutation({
     mutationFn: (tagId: string) => removeLeadTag(leadId, tagId),
@@ -53,22 +77,37 @@ export function LeadTagsPanel({ leadId, canManage }: { leadId: string; canManage
       setError(null);
       invalidate();
     },
-    onError: (err: unknown) => setError(err instanceof TagApiError ? err.message : "That tag could not be removed."),
+    onError: (err: unknown) =>
+      setError(
+        err instanceof TagApiError
+          ? err.message
+          : "That tag could not be removed.",
+      ),
   });
 
-  if (tagsQuery.isLoading) return <p className="text-sm text-text-secondary">Loading tags…</p>;
+  if (tagsQuery.isLoading)
+    return <p className="text-sm text-text-secondary">Loading tags…</p>;
 
   return (
     <div className="flex flex-col gap-2">
       {error && (
-        <p role="alert" className="rounded-[var(--radius-control)] border border-danger-emphasis/30 bg-danger-soft px-3 py-2 text-sm text-danger">
+        <p
+          role="alert"
+          className="rounded-[var(--radius-control)] border border-danger-emphasis/30 bg-danger-soft px-3 py-2 text-sm text-danger"
+        >
           {error}
         </p>
       )}
       <div className="flex flex-wrap items-center gap-1.5">
-        {assigned.length === 0 && <span className="text-sm text-text-muted">No tags</span>}
+        {assigned.length === 0 && (
+          <span className="text-sm text-text-muted">No tags</span>
+        )}
         {assigned.map((tag) => (
-          <Badge key={tag.tagId} className="gap-1" style={{ borderColor: tag.color, color: tag.color }}>
+          <Badge
+            key={tag.tagId}
+            className="gap-1"
+            style={{ borderColor: tag.color, color: tag.color }}
+          >
             {tag.name}
             {canManage && (
               <button

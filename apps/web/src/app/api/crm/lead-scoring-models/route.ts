@@ -1,4 +1,7 @@
-import { createLeadScoringModel, listLeadScoringModels } from "@vercentlabs/api";
+import {
+  createLeadScoringModel,
+  listLeadScoringModels,
+} from "@vercentlabs/api";
 
 import { ok, readJson } from "@/core/http";
 import { crmContext } from "@/features/crm/shared/crm-context";
@@ -15,16 +18,28 @@ import { workspaceRoute } from "@/core/workspace-route";
 // at the route: assertSensitiveLeadIntelligenceAccess/assertConfigPermission
 // gate reads/writes internally.
 export async function GET(request: Request) {
-  return workspaceRoute(request, { module: "crm" }, async ({ client, session }) => {
-    const rows = await listLeadScoringModels(client, crmContext(session));
-    return ok({ rows });
-  });
+  return workspaceRoute(
+    request,
+    { module: "crm" },
+    async ({ client, session }) => {
+      const rows = await listLeadScoringModels(client, crmContext(session));
+      return ok({ rows });
+    },
+  );
 }
 
 export async function POST(request: Request) {
-  return workspaceRoute(request, { module: "crm", billingWrite: true }, async ({ client, session }) => {
-    const input = (await readJson(request)) as Record<string, unknown>;
-    const record = await createLeadScoringModel(client, crmContext(session), input);
-    return ok({ record }, 201);
-  });
+  return workspaceRoute(
+    request,
+    { module: "crm", billingWrite: true },
+    async ({ client, session }) => {
+      const input = (await readJson(request)) as Record<string, unknown>;
+      const record = await createLeadScoringModel(
+        client,
+        crmContext(session),
+        input,
+      );
+      return ok({ record }, 201);
+    },
+  );
 }

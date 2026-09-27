@@ -53,14 +53,28 @@ function fingerprint(seed: string, salt: Uint8Array): string {
   return `${seed}:${Array.from(salt).join(",")}`;
 }
 
-export async function deriveOfflineKey(encryptionSeed: string, deviceSalt: Uint8Array): Promise<CryptoKey> {
+export async function deriveOfflineKey(
+  encryptionSeed: string,
+  deviceSalt: Uint8Array,
+): Promise<CryptoKey> {
   const fp = fingerprint(encryptionSeed, deviceSalt);
   if (cachedKey && cachedKeyFingerprint === fp) return cachedKey;
 
   const encoder = new TextEncoder();
-  const keyMaterial = await crypto.subtle.importKey("raw", encoder.encode(encryptionSeed), "PBKDF2", false, ["deriveKey"]);
+  const keyMaterial = await crypto.subtle.importKey(
+    "raw",
+    encoder.encode(encryptionSeed),
+    "PBKDF2",
+    false,
+    ["deriveKey"],
+  );
   const key = await crypto.subtle.deriveKey(
-    { name: "PBKDF2", salt: deviceSalt as BufferSource, iterations: PBKDF2_ITERATIONS, hash: "SHA-256" },
+    {
+      name: "PBKDF2",
+      salt: deviceSalt as BufferSource,
+      iterations: PBKDF2_ITERATIONS,
+      hash: "SHA-256",
+    },
     keyMaterial,
     { name: "AES-GCM", length: 256 },
     false,
@@ -78,16 +92,30 @@ export function clearOfflineKeyCache(): void {
 
 export type EncryptedBlob = { iv: number[]; data: number[] };
 
-export async function encryptJson(key: CryptoKey, value: unknown): Promise<EncryptedBlob> {
+export async function encryptJson(
+  key: CryptoKey,
+  value: unknown,
+): Promise<EncryptedBlob> {
   const iv = crypto.getRandomValues(new Uint8Array(12));
   const plaintext = new TextEncoder().encode(JSON.stringify(value));
-  const ciphertext = await crypto.subtle.encrypt({ name: "AES-GCM", iv: iv as BufferSource }, key, plaintext);
+  const ciphertext = await crypto.subtle.encrypt(
+    { name: "AES-GCM", iv: iv as BufferSource },
+    key,
+    plaintext,
+  );
   return { iv: Array.from(iv), data: Array.from(new Uint8Array(ciphertext)) };
 }
 
-export async function decryptJson<T>(key: CryptoKey, blob: EncryptedBlob): Promise<T> {
+export async function decryptJson<T>(
+  key: CryptoKey,
+  blob: EncryptedBlob,
+): Promise<T> {
   const iv = new Uint8Array(blob.iv);
   const data = new Uint8Array(blob.data);
-  const plaintext = await crypto.subtle.decrypt({ name: "AES-GCM", iv: iv as BufferSource }, key, data as BufferSource);
+  const plaintext = await crypto.subtle.decrypt(
+    { name: "AES-GCM", iv: iv as BufferSource },
+    key,
+    data as BufferSource,
+  );
   return JSON.parse(new TextDecoder().decode(plaintext)) as T;
 }

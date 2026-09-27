@@ -3,7 +3,15 @@
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { ColumnDef } from "@tanstack/react-table";
-import { Button, EnterpriseDataGrid, EnterpriseListPage, ErrorState, NoResultsState, Select, StatusBadge } from "@vercentlabs/design-system";
+import {
+  Button,
+  EnterpriseDataGrid,
+  EnterpriseListPage,
+  ErrorState,
+  NoResultsState,
+  Select,
+  StatusBadge,
+} from "@vercentlabs/design-system";
 import { POS_PERMISSIONS } from "@vercentlabs/permissions";
 
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
@@ -29,7 +37,10 @@ const STATUS_FILTERS = [
   { value: "posted", label: "Posted" },
 ];
 
-const STATUS_TONE: Record<string, "warning" | "success" | "danger" | "neutral"> = {
+const STATUS_TONE: Record<
+  string,
+  "warning" | "success" | "danger" | "neutral"
+> = {
   pending: "warning",
   posted: "success",
   failed: "danger",
@@ -44,35 +55,65 @@ const STATUS_TONE: Record<string, "warning" | "success" | "danger" | "neutral"> 
 export function PosAccountingPostingScreen() {
   const workspace = useWorkspaceContext();
   const queryClient = useQueryClient();
-  const canConfigure = workspace.roleSlugs.includes("organization_owner") || workspace.permissions.includes(POS_PERMISSIONS.settingsManage);
+  const canConfigure =
+    workspace.roleSlugs.includes("organization_owner") ||
+    workspace.permissions.includes(POS_PERMISSIONS.settingsManage);
   const [status, setStatus] = useState("pending_and_failed");
   const [error, setError] = useState<string | null>(null);
 
   const query = useQuery({
-    queryKey: scopedQueryKey(workspace, "pos", "accounting-posting-queue", status),
-    queryFn: () => listPosAccountingPostingQueue(status === "pending_and_failed" ? {} : { status }),
+    queryKey: scopedQueryKey(
+      workspace,
+      "pos",
+      "accounting-posting-queue",
+      status,
+    ),
+    queryFn: () =>
+      listPosAccountingPostingQueue(
+        status === "pending_and_failed" ? {} : { status },
+      ),
   });
 
   const retryMutation = useMutation({
     mutationFn: (row: { id: string; document_type: string }) =>
-      row.document_type === "pos_sale" ? postPosSaleToAccounting(row.id) : postPosReturnToAccounting(row.id),
+      row.document_type === "pos_sale"
+        ? postPosSaleToAccounting(row.id)
+        : postPosReturnToAccounting(row.id),
     onSuccess: (result) => {
       if (result.failed) {
-        setError(result.message || "Posting failed again — see the error below.");
+        setError(
+          result.message || "Posting failed again — see the error below.",
+        );
       } else {
         setError(null);
       }
-      queryClient.invalidateQueries({ queryKey: scopedQueryKey(workspace, "pos", "accounting-posting-queue") });
+      queryClient.invalidateQueries({
+        queryKey: scopedQueryKey(workspace, "pos", "accounting-posting-queue"),
+      });
     },
-    onError: (err) => setError(err instanceof PosApiError ? err.message : "The posting attempt could not be completed."),
+    onError: (err) =>
+      setError(
+        err instanceof PosApiError
+          ? err.message
+          : "The posting attempt could not be completed.",
+      ),
   });
 
   const rows = query.data?.rows ?? [];
   // A return row carries no currency_code of its own (a sale row does), which
   // rendered "265.50" beside "INR 265.50". Both are in the store's currency.
-  const storesQuery = useQuery({ queryKey: scopedQueryKey(workspace, "pos", "stores"), queryFn: () => listPosStores() });
+  const storesQuery = useQuery({
+    queryKey: scopedQueryKey(workspace, "pos", "stores"),
+    queryFn: () => listPosStores(),
+  });
   const currencyByStore = useMemo(
-    () => new Map((storesQuery.data?.rows ?? []).map((store) => [store.id, store.currencyCode ?? store.currency_code ?? ""])),
+    () =>
+      new Map(
+        (storesQuery.data?.rows ?? []).map((store) => [
+          store.id,
+          store.currencyCode ?? store.currency_code ?? "",
+        ]),
+      ),
     [storesQuery.data],
   );
 
@@ -81,23 +122,54 @@ export function PosAccountingPostingScreen() {
       {
         id: "document",
         header: "Document",
-        accessorFn: (row) => `${row.document_type === "pos_sale" ? "Sale" : "Return"} ${row.document_number}`,
+        accessorFn: (row) =>
+          `${row.document_type === "pos_sale" ? "Sale" : "Return"} ${row.document_number}`,
         cell: ({ row }) => (
           <div className="flex flex-col">
             <span className="font-medium text-text">
-              {row.original.document_type === "pos_sale" ? "Sale" : "Return"} {row.original.document_number}
+              {row.original.document_type === "pos_sale" ? "Sale" : "Return"}{" "}
+              {row.original.document_number}
             </span>
-            {row.original.accounting_posting_error && <span className="max-w-xl whitespace-normal text-xs text-danger">{row.original.accounting_posting_error}</span>}
+            {row.original.accounting_posting_error && (
+              <span className="max-w-xl whitespace-normal text-xs text-danger">
+                {row.original.accounting_posting_error}
+              </span>
+            )}
           </div>
         ),
       },
-      { id: "completed", header: "Completed", accessorFn: (row) => dateTime(row.completed_at) },
-      { id: "posted", header: "Posted", accessorFn: (row) => (row.accounting_posted_at ? dateTime(row.accounting_posted_at) : "—") },
-      { id: "total", header: "Total", accessorFn: (row) => money(row.currency_code ?? currencyByStore.get(row.store_id) ?? "", row.grand_total) },
+      {
+        id: "completed",
+        header: "Completed",
+        accessorFn: (row) => dateTime(row.completed_at),
+      },
+      {
+        id: "posted",
+        header: "Posted",
+        accessorFn: (row) =>
+          row.accounting_posted_at ? dateTime(row.accounting_posted_at) : "—",
+      },
+      {
+        id: "total",
+        header: "Total",
+        accessorFn: (row) =>
+          money(
+            row.currency_code ?? currencyByStore.get(row.store_id) ?? "",
+            row.grand_total,
+          ),
+      },
       {
         id: "status",
         header: "Status",
-        cell: ({ row }) => <StatusBadge tone={STATUS_TONE[row.original.accounting_posting_status] ?? "neutral"}>{statusLabel(row.original.accounting_posting_status)}</StatusBadge>,
+        cell: ({ row }) => (
+          <StatusBadge
+            tone={
+              STATUS_TONE[row.original.accounting_posting_status] ?? "neutral"
+            }
+          >
+            {statusLabel(row.original.accounting_posting_status)}
+          </StatusBadge>
+        ),
       },
     ],
     [currencyByStore],
@@ -108,10 +180,22 @@ export function PosAccountingPostingScreen() {
       {error && <PosAlert>{error}</PosAlert>}
 
       <EnterpriseListPage
-        header={{ title: "Accounting posting", description: "Every completed POS sale/return's general-ledger posting status — retry a failed posting here." }}
+        header={{
+          title: "Accounting posting",
+          description:
+            "Every completed POS sale/return's general-ledger posting status — retry a failed posting here.",
+        }}
         actionBar={{
           start: (
-            <Select aria-label="Posting status" size="compact" options={STATUS_FILTERS} selectedKey={status} onSelectionChange={(key) => setStatus(String(key ?? "pending_and_failed"))} />
+            <Select
+              aria-label="Posting status"
+              size="compact"
+              options={STATUS_FILTERS}
+              selectedKey={status}
+              onSelectionChange={(key) =>
+                setStatus(String(key ?? "pending_and_failed"))
+              }
+            />
           ),
         }}
       >
@@ -120,13 +204,45 @@ export function PosAccountingPostingScreen() {
           columns={columns}
           data={rows}
           getRowId={(row) => row.id}
-          state={query.isLoading ? "loading" : query.isError ? "error" : rows.length === 0 ? "empty" : "ready"}
-          loadingContent={<p className="px-4 py-8 text-sm text-text-secondary">Loading posting queue…</p>}
-          emptyContent={<NoResultsState title="Nothing in this filter" description="Every completed sale and return in this view is already posted." />}
-          errorContent={<ErrorState title="Could not load the posting queue" description="Something went wrong fetching this filter." action={{ label: "Retry", onPress: () => query.refetch() }} />}
+          state={
+            query.isLoading
+              ? "loading"
+              : query.isError
+                ? "error"
+                : rows.length === 0
+                  ? "empty"
+                  : "ready"
+          }
+          loadingContent={
+            <p className="px-4 py-8 text-sm text-text-secondary">
+              Loading posting queue…
+            </p>
+          }
+          emptyContent={
+            <NoResultsState
+              title="Nothing in this filter"
+              description="Every completed sale and return in this view is already posted."
+            />
+          }
+          errorContent={
+            <ErrorState
+              title="Could not load the posting queue"
+              description="Something went wrong fetching this filter."
+              action={{ label: "Retry", onPress: () => query.refetch() }}
+            />
+          }
           rowActions={(row) =>
-            row.accounting_posting_status !== "posted" && row.accounting_posting_status !== "not_applicable" ? (
-              <Button variant="secondary" size="compact" onPress={() => retryMutation.mutate(row)} isLoading={retryMutation.isPending && retryMutation.variables?.id === row.id}>
+            row.accounting_posting_status !== "posted" &&
+            row.accounting_posting_status !== "not_applicable" ? (
+              <Button
+                variant="secondary"
+                size="compact"
+                onPress={() => retryMutation.mutate(row)}
+                isLoading={
+                  retryMutation.isPending &&
+                  retryMutation.variables?.id === row.id
+                }
+              >
                 {row.accounting_posting_status === "failed" ? "Retry" : "Post"}
               </Button>
             ) : null
@@ -152,18 +268,31 @@ function AccountMappingSection() {
   const queryClient = useQueryClient();
   const [error, setError] = useState<string | null>(null);
   const [pendingKey, setPendingKey] = useState<string | null>(null);
-  const [selectedAccountId, setSelectedAccountId] = useState<Record<string, string>>({});
+  const [selectedAccountId, setSelectedAccountId] = useState<
+    Record<string, string>
+  >({});
 
-  const query = useQuery({ queryKey: scopedQueryKey(workspace, "pos", "accounting-mappings"), queryFn: getPosAccountingMappingConfig });
+  const query = useQuery({
+    queryKey: scopedQueryKey(workspace, "pos", "accounting-mappings"),
+    queryFn: getPosAccountingMappingConfig,
+  });
 
   const saveMutation = useMutation({
-    mutationFn: ({ key, accountId }: { key: string; accountId: string }) => upsertPosAccountingMapping(key, accountId),
+    mutationFn: ({ key, accountId }: { key: string; accountId: string }) =>
+      upsertPosAccountingMapping(key, accountId),
     onMutate: ({ key }) => setPendingKey(key),
     onSuccess: () => {
       setError(null);
-      queryClient.invalidateQueries({ queryKey: scopedQueryKey(workspace, "pos", "accounting-mappings") });
+      queryClient.invalidateQueries({
+        queryKey: scopedQueryKey(workspace, "pos", "accounting-mappings"),
+      });
     },
-    onError: (err) => setError(err instanceof PosApiError ? err.message : "This mapping could not be saved."),
+    onError: (err) =>
+      setError(
+        err instanceof PosApiError
+          ? err.message
+          : "This mapping could not be saved.",
+      ),
     onSettled: () => setPendingKey(null),
   });
 
@@ -177,14 +306,24 @@ function AccountMappingSection() {
         query.isLoading ? (
           <PosLoading />
         ) : query.isError ? (
-          <ErrorState title="Could not load account mappings" description="Something went wrong fetching the mapping configuration." action={{ label: "Retry", onPress: () => query.refetch() }} />
+          <ErrorState
+            title="Could not load account mappings"
+            description="Something went wrong fetching the mapping configuration."
+            action={{ label: "Retry", onPress: () => query.refetch() }}
+          />
         ) : (
-          <PosAlert tone="warning">No active Accounting ledger exists for this company yet — configure Accounting before mapping POS accounts.</PosAlert>
+          <PosAlert tone="warning">
+            No active Accounting ledger exists for this company yet — configure
+            Accounting before mapping POS accounts.
+          </PosAlert>
         )
       ) : (
         <div className="flex flex-col divide-y divide-border">
           {query.data.mappings.map((mapping: PosAccountingMappingRow) => (
-            <div key={mapping.key} className="flex flex-wrap items-center justify-between gap-3 py-3">
+            <div
+              key={mapping.key}
+              className="flex flex-wrap items-center justify-between gap-3 py-3"
+            >
               <div className="flex min-w-0 flex-col gap-0.5">
                 <p className="text-sm font-medium text-text">{mapping.label}</p>
                 <p className="text-xs text-text-muted">{mapping.description}</p>
@@ -195,26 +334,58 @@ function AccountMappingSection() {
                 )}
               </div>
               <div className="flex items-center gap-2">
-                <StatusBadge tone={mapping.seeded ? "neutral" : mapping.configured ? "success" : "warning"}>
-                  {mapping.seeded ? "Pre-seeded" : mapping.configured ? "Configured" : "Not configured"}
+                <StatusBadge
+                  tone={
+                    mapping.seeded
+                      ? "neutral"
+                      : mapping.configured
+                        ? "success"
+                        : "warning"
+                  }
+                >
+                  {mapping.seeded
+                    ? "Pre-seeded"
+                    : mapping.configured
+                      ? "Configured"
+                      : "Not configured"}
                 </StatusBadge>
                 {!mapping.seeded && (
                   <>
                     <Select
                       aria-label={`Account for ${mapping.label}`}
                       size="compact"
-                      selectedKey={selectedAccountId[mapping.key] ?? mapping.accountId ?? null}
-                      onSelectionChange={(key) => setSelectedAccountId((prev) => ({ ...prev, [mapping.key]: String(key ?? "") }))}
-                      options={query.data.accounts.map((account) => ({ value: account.id, label: `${account.code} — ${account.name}` }))}
+                      selectedKey={
+                        selectedAccountId[mapping.key] ??
+                        mapping.accountId ??
+                        null
+                      }
+                      onSelectionChange={(key) =>
+                        setSelectedAccountId((prev) => ({
+                          ...prev,
+                          [mapping.key]: String(key ?? ""),
+                        }))
+                      }
+                      options={query.data.accounts.map((account) => ({
+                        value: account.id,
+                        label: `${account.code} — ${account.name}`,
+                      }))}
                       placeholder="Select an account"
                       className="min-w-[220px]"
                     />
                     <Button
                       variant="secondary"
                       size="compact"
-                      isDisabled={!selectedAccountId[mapping.key] || pendingKey === mapping.key}
+                      isDisabled={
+                        !selectedAccountId[mapping.key] ||
+                        pendingKey === mapping.key
+                      }
                       isLoading={pendingKey === mapping.key}
-                      onPress={() => saveMutation.mutate({ key: mapping.key, accountId: selectedAccountId[mapping.key] })}
+                      onPress={() =>
+                        saveMutation.mutate({
+                          key: mapping.key,
+                          accountId: selectedAccountId[mapping.key],
+                        })
+                      }
                     >
                       Save
                     </Button>

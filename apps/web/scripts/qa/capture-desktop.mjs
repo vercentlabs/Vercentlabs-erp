@@ -30,13 +30,21 @@ const ROUTES = [
   ["communications", "/crm/communications", "Communications"],
   ["duplicates", "/crm/data/duplicates", "Duplicate Management"],
   ["import-export", "/crm/data/import-export", "Import/Export"],
-  ["custom-fields", "/crm/settings/custom-fields-and-tags", "Custom Fields & Tags"],
+  [
+    "custom-fields",
+    "/crm/settings/custom-fields-and-tags",
+    "Custom Fields & Tags",
+  ],
   ["territories", "/crm/settings/territories", "Territories & Sales Teams"],
   ["dashboard", "/crm/dashboard", "Dashboard"],
   ["forecast", "/crm/forecast", "Forecast"],
   ["reports", "/crm/reports", "Reports"],
   ["lead-sources", "/crm/settings/lead-sources", "CRM Settings — Lead Sources"],
-  ["pipeline-stages", "/crm/settings/pipeline-stages", "CRM Settings — Pipeline Stages"],
+  [
+    "pipeline-stages",
+    "/crm/settings/pipeline-stages",
+    "CRM Settings — Pipeline Stages",
+  ],
 ];
 
 fs.mkdirSync(OUT_DIR, { recursive: true });
@@ -58,10 +66,15 @@ const inventory = [];
 for (const [slug, route, label] of ROUTES) {
   const filePath = path.join(OUT_DIR, `${slug}__desktop.png`);
   const consoleErrors = [];
-  const handler = (msg) => { if (msg.type() === "error") consoleErrors.push(msg.text().slice(0, 200)); };
+  const handler = (msg) => {
+    if (msg.type() === "error") consoleErrors.push(msg.text().slice(0, 200));
+  };
   page.on("console", handler);
   try {
-    await page.goto(`${BASE_URL}${route}`, { waitUntil: "networkidle", timeout: 20000 });
+    await page.goto(`${BASE_URL}${route}`, {
+      waitUntil: "networkidle",
+      timeout: 20000,
+    });
     await page.waitForTimeout(2000);
     // The app shell scrolls its main content region internally
     // (`overflow-y-auto` on a flex child), not the document body, so
@@ -79,7 +92,10 @@ for (const [slug, route, label] of ROUTES) {
       const MAX_REVEAL_PX = 2000;
       for (const el of document.querySelectorAll("*")) {
         const style = getComputedStyle(el);
-        if ((style.overflowY === "auto" || style.overflowY === "scroll") && el.scrollHeight > el.clientHeight + 2) {
+        if (
+          (style.overflowY === "auto" || style.overflowY === "scroll") &&
+          el.scrollHeight > el.clientHeight + 2
+        ) {
           if (el.scrollHeight - el.clientHeight > MAX_REVEAL_PX) continue;
           el.style.overflow = "visible";
           el.style.height = "auto";
@@ -89,15 +105,31 @@ for (const [slug, route, label] of ROUTES) {
     });
     await page.waitForTimeout(300);
     await page.screenshot({ path: filePath, fullPage: true });
-    inventory.push({ route, label, file: filePath, url: page.url(), consoleErrors: [...consoleErrors] });
+    inventory.push({
+      route,
+      label,
+      file: filePath,
+      url: page.url(),
+      consoleErrors: [...consoleErrors],
+    });
     console.log(`OK   ${route}`);
   } catch (error) {
-    inventory.push({ route, label, file: filePath, url: page.url(), error: error.message, consoleErrors: [...consoleErrors] });
+    inventory.push({
+      route,
+      label,
+      file: filePath,
+      url: page.url(),
+      error: error.message,
+      consoleErrors: [...consoleErrors],
+    });
     console.log(`FAIL ${route} -- ${error.message}`);
   }
   page.off("console", handler);
 }
 
 await browser.close();
-fs.writeFileSync("scripts/qa/artifacts/desktop-inventory.json", JSON.stringify(inventory, null, 2));
+fs.writeFileSync(
+  "scripts/qa/artifacts/desktop-inventory.json",
+  JSON.stringify(inventory, null, 2),
+);
 console.log(`\nWrote ${inventory.length} desktop screenshots.`);

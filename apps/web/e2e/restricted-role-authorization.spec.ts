@@ -1,4 +1,10 @@
-import { test, expect, type Browser, type BrowserContext, type Page } from "@playwright/test";
+import {
+  test,
+  expect,
+  type Browser,
+  type BrowserContext,
+  type Page,
+} from "@playwright/test";
 import { fixtures } from "./fixtures";
 
 /**
@@ -35,7 +41,11 @@ import { fixtures } from "./fixtures";
 // reproducing it directly). Every call after landing on /crm is a
 // page.evaluate(fetch(...)) that needs a live JS context only, never
 // hydration, so domcontentloaded is fine there.
-async function login(browser: Browser, email: string, password: string): Promise<{ context: BrowserContext; page: Page }> {
+async function login(
+  browser: Browser,
+  email: string,
+  password: string,
+): Promise<{ context: BrowserContext; page: Page }> {
   const context = await browser.newContext({ storageState: undefined });
   const page = await context.newPage();
   await page.goto("/login", { waitUntil: "load" });
@@ -45,19 +55,29 @@ async function login(browser: Browser, email: string, password: string): Promise
     page.waitForResponse((res) => res.url().includes("/api/auth/login")),
     page.getByRole("button", { name: /sign in|log in/i }).click(),
   ]);
-  expect(loginResponse.status(), `login for ${email} must succeed (not rate-limited) for this spec's assertions to mean anything`).toBe(200);
+  expect(
+    loginResponse.status(),
+    `login for ${email} must succeed (not rate-limited) for this spec's assertions to mean anything`,
+  ).toBe(200);
   await page.goto("/crm", { waitUntil: "domcontentloaded" });
   return { context, page };
 }
 
 test.describe.serial("restricted role authorization", () => {
-  test.skip(!fixtures.restrictedEmail || !fixtures.restrictedPassword, "ERP_E2E_RESTRICTED_EMAIL/PASSWORD not configured");
+  test.skip(
+    !fixtures.restrictedEmail || !fixtures.restrictedPassword,
+    "ERP_E2E_RESTRICTED_EMAIL/PASSWORD not configured",
+  );
 
   let restrictedContext: BrowserContext;
   let restrictedPage: Page;
 
   test.beforeAll(async ({ browser }) => {
-    const session = await login(browser, fixtures.restrictedEmail, fixtures.restrictedPassword);
+    const session = await login(
+      browser,
+      fixtures.restrictedEmail,
+      fixtures.restrictedPassword,
+    );
     restrictedContext = session.context;
     restrictedPage = session.page;
   });
@@ -71,7 +91,10 @@ test.describe.serial("restricted role authorization", () => {
       const resp = await fetch("/api/auth/invitations", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: "irrelevant@crm-e2e-fixture.test", roleId: "00000000-0000-0000-0000-000000000000" }),
+        body: JSON.stringify({
+          email: "irrelevant@crm-e2e-fixture.test",
+          roleId: "00000000-0000-0000-0000-000000000000",
+        }),
       });
       return { status: resp.status, body: await resp.json() };
     });
@@ -96,35 +119,49 @@ test.describe.serial("restricted role authorization", () => {
     expect(denied.body.code).toBe("PERMISSION_DENIED");
   });
 
-  test("cannot revoke another user's session by id — ownership check, not just a permission gate", async ({ browser }) => {
+  test("cannot revoke another user's session by id — ownership check, not just a permission gate", async ({
+    browser,
+  }) => {
     // Reuses the shared e2e/.auth/owner.json storage state read-only
     // (GET /api/settings/sessions, then confirming it still works
     // afterward) rather than a fresh login — login is rate-limited
     // (10/300s/IP) and this suite already spends that budget several
     // times over before this file runs; nothing here revokes or mutates
     // that session, so sharing it is safe for whatever spec runs next.
-    const ownerContext = await browser.newContext({ storageState: "e2e/.auth/owner.json" });
+    const ownerContext = await browser.newContext({
+      storageState: "e2e/.auth/owner.json",
+    });
     const ownerPage = await ownerContext.newPage();
     await ownerPage.goto("/crm", { waitUntil: "domcontentloaded" });
     try {
       const ownerSessionId = await ownerPage.evaluate(async () => {
         const resp = await fetch("/api/settings/sessions");
         const body = await resp.json();
-        return (body.sessions.find((s: { isCurrent: boolean }) => s.isCurrent) as { id: string }).id;
+        return (
+          body.sessions.find((s: { isCurrent: boolean }) => s.isCurrent) as {
+            id: string;
+          }
+        ).id;
       });
 
       const revokeAttempt = await restrictedPage.evaluate(async (id) => {
-        const resp = await fetch(`/api/settings/sessions/${id}`, { method: "DELETE" });
+        const resp = await fetch(`/api/settings/sessions/${id}`, {
+          method: "DELETE",
+        });
         return { status: resp.status, body: await resp.json() };
       }, ownerSessionId);
       // 404, not 403 — revokeSessionById's WHERE id=$1 AND user_id=$2
       // simply matches zero rows for a session that isn't the caller's
       // own; the route never even learns whose session id it was handed.
-      expect(revokeAttempt.status, JSON.stringify(revokeAttempt.body)).toBe(404);
+      expect(revokeAttempt.status, JSON.stringify(revokeAttempt.body)).toBe(
+        404,
+      );
 
       // And the owner's session is genuinely untouched — proof this
       // wasn't silently accepted and merely reported wrong.
-      const ownerStillWorks = await ownerPage.evaluate(async () => (await fetch("/api/notifications")).status);
+      const ownerStillWorks = await ownerPage.evaluate(
+        async () => (await fetch("/api/notifications")).status,
+      );
       expect(ownerStillWorks).toBe(200);
     } finally {
       await ownerContext.close();

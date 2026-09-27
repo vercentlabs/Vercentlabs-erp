@@ -12,7 +12,10 @@ export class BranchesApiError extends Error {
 async function parseResponse<T>(response: Response): Promise<T> {
   const payload = await response.json().catch(() => ({}));
   if (!response.ok || payload.ok === false) {
-    throw new BranchesApiError(payload.message || "The request could not be completed.", response.status);
+    throw new BranchesApiError(
+      payload.message || "The request could not be completed.",
+      response.status,
+    );
   }
   return payload;
 }
@@ -33,7 +36,13 @@ export async function listBranches(): Promise<{ branches: BranchRow[] }> {
   return parseResponse(response);
 }
 
-export async function createBranch(input: { name: string; code: string; timezone: string; companyId: string; isPrimary?: boolean }): Promise<{ branch: BranchRow }> {
+export async function createBranch(input: {
+  name: string;
+  code: string;
+  timezone: string;
+  companyId: string;
+  isPrimary?: boolean;
+}): Promise<{ branch: BranchRow }> {
   const response = await fetch("/api/settings/branches", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -42,7 +51,10 @@ export async function createBranch(input: { name: string; code: string; timezone
   return parseResponse(response);
 }
 
-export async function updateBranch(id: string, updates: { name?: string; timezone?: string; status?: "active" | "inactive" }): Promise<{ branch: BranchRow }> {
+export async function updateBranch(
+  id: string,
+  updates: { name?: string; timezone?: string; status?: "active" | "inactive" },
+): Promise<{ branch: BranchRow }> {
   const response = await fetch(`/api/settings/branches/${id}`, {
     method: "PUT",
     headers: { "Content-Type": "application/json" },

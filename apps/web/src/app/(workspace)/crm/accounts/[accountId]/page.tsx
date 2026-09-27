@@ -3,7 +3,11 @@ import { AccountDetailScreen } from "@/features/crm/accounts/screens/AccountDeta
 
 export const metadata = { title: "Account" };
 
-export default async function AccountDetailPage({ params }: { params: Promise<{ accountId: string }> }) {
+export default async function AccountDetailPage({
+  params,
+}: {
+  params: Promise<{ accountId: string }>;
+}) {
   await requireWorkspace();
   const { accountId } = await params;
   return <AccountDetailScreen accountId={accountId} />;

@@ -36,4 +36,9 @@ export type CommunicationListFilters = {
   offset?: number;
 };
 
-export type CommunicationListResponse = { rows: Communication[]; total: number; limit: number; offset: number };
+export type CommunicationListResponse = {
+  rows: Communication[];
+  total: number;
+  limit: number;
+  offset: number;
+};

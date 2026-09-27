@@ -16,16 +16,32 @@ const createSchema = z.object({
 });
 
 export async function GET(request: Request) {
-  return workspaceRoute(request, { module: "sales", permission: "sales.view" }, async ({ client, session }) => {
-    const result = await listSalesPriceLists(client, salesContext(session));
-    return ok(result);
-  });
+  return workspaceRoute(
+    request,
+    { module: "sales", permission: "sales.view" },
+    async ({ client, session }) => {
+      const result = await listSalesPriceLists(client, salesContext(session));
+      return ok(result);
+    },
+  );
 }
 
 export async function POST(request: Request) {
-  return workspaceRoute(request, { module: "sales", permission: "sales.settings.manage", billingWrite: true }, async ({ client, session }) => {
-    const input = createSchema.parse(await readJson(request));
-    const priceList = await createSalesPriceList(client, salesContext(session), input);
-    return ok({ priceList }, 201);
-  });
+  return workspaceRoute(
+    request,
+    {
+      module: "sales",
+      permission: "sales.settings.manage",
+      billingWrite: true,
+    },
+    async ({ client, session }) => {
+      const input = createSchema.parse(await readJson(request));
+      const priceList = await createSalesPriceList(
+        client,
+        salesContext(session),
+        input,
+      );
+      return ok({ priceList }, 201);
+    },
+  );
 }

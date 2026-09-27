@@ -2,8 +2,14 @@
 
 import { REGISTERS } from "@/features/manufacturing/configs";
 import { CapacityScreen } from "@/features/manufacturing/screens/RoutingScreens";
-import { ReportsScreen, StandardCostScreen } from "@/features/manufacturing/screens/AnalyticsScreens";
-import { MaterialPlanningScreen, SchedulingScreen } from "@/features/manufacturing/screens/PlanningScreens";
+import {
+  ReportsScreen,
+  StandardCostScreen,
+} from "@/features/manufacturing/screens/AnalyticsScreens";
+import {
+  MaterialPlanningScreen,
+  SchedulingScreen,
+} from "@/features/manufacturing/screens/PlanningScreens";
 import { SettingsScreen } from "@/features/manufacturing/screens/OrderDetailScreen";
 import { WhereUsedScreen } from "@/features/manufacturing/screens/WhereUsedScreen";
 import { Register } from "@/features/manufacturing/shared/Register";

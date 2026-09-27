@@ -138,27 +138,81 @@ export const MODULE_NAVIGATION: readonly ModuleNavigation[] = [
         label: "Setup",
         featureRange: "F029-F030",
         items: [
-          { ...available("Territories & Sales Teams", "/crm/settings/territories"), requiredPermission: "crm.settings.manage" },
-          { ...available("Custom Fields & Tags", "/crm/settings/custom-fields-and-tags"), requiredPermission: "crm.settings.manage" },
-          { ...available("Custom Record Fields", "/crm/settings/record-fields"), requiredPermission: "crm.settings.manage" },
-          { ...available("Lead Sources", "/crm/settings/lead-sources"), requiredPermission: "crm.settings.manage" },
-          { ...available("Assignment Rules", "/crm/settings/assignment"), requiredPermission: "crm.settings.manage" },
-          { ...available("Lead Lifecycle Stages", "/crm/settings/lead-lifecycle"), requiredPermission: "crm.settings.manage" },
-          { ...available("Lead Scoring", "/crm/settings/lead-scoring"), requiredPermission: "crm.settings.manage" },
+          {
+            ...available(
+              "Territories & Sales Teams",
+              "/crm/settings/territories",
+            ),
+            requiredPermission: "crm.settings.manage",
+          },
+          {
+            ...available(
+              "Custom Fields & Tags",
+              "/crm/settings/custom-fields-and-tags",
+            ),
+            requiredPermission: "crm.settings.manage",
+          },
+          {
+            ...available("Custom Record Fields", "/crm/settings/record-fields"),
+            requiredPermission: "crm.settings.manage",
+          },
+          {
+            ...available("Lead Sources", "/crm/settings/lead-sources"),
+            requiredPermission: "crm.settings.manage",
+          },
+          {
+            ...available("Assignment Rules", "/crm/settings/assignment"),
+            requiredPermission: "crm.settings.manage",
+          },
+          {
+            ...available(
+              "Lead Lifecycle Stages",
+              "/crm/settings/lead-lifecycle",
+            ),
+            requiredPermission: "crm.settings.manage",
+          },
+          {
+            ...available("Lead Scoring", "/crm/settings/lead-scoring"),
+            requiredPermission: "crm.settings.manage",
+          },
           // F008 gap-closure — gated by crm.data-quality.manage (the same
           // permission the merge/override actions elsewhere in Duplicate
           // Management already require), not the generic settings-manage
           // permission every other Setup entry uses.
-          { ...available("Duplicate Rules", "/crm/settings/duplicate-rules"), requiredPermission: "crm.data-quality.manage" },
-          { ...available("Pipeline Stages", "/crm/settings/pipeline-stages"), requiredPermission: "crm.settings.manage" },
-          { ...available("Won / Lost Reasons", "/crm/settings/lost-reasons"), requiredPermission: "crm.settings.manage" },
-          { ...available("Qualification / Playbooks", "/crm/settings/playbooks"), requiredPermission: "crm.settings.manage" },
-          { ...available("Meeting Links", "/crm/settings/meeting-links"), requiredPermission: "crm.settings.manage" },
+          {
+            ...available("Duplicate Rules", "/crm/settings/duplicate-rules"),
+            requiredPermission: "crm.data-quality.manage",
+          },
+          {
+            ...available("Pipeline Stages", "/crm/settings/pipeline-stages"),
+            requiredPermission: "crm.settings.manage",
+          },
+          {
+            ...available("Won / Lost Reasons", "/crm/settings/lost-reasons"),
+            requiredPermission: "crm.settings.manage",
+          },
+          {
+            ...available(
+              "Qualification / Playbooks",
+              "/crm/settings/playbooks",
+            ),
+            requiredPermission: "crm.settings.manage",
+          },
+          {
+            ...available("Meeting Links", "/crm/settings/meeting-links"),
+            requiredPermission: "crm.settings.manage",
+          },
           // Consent/GDPR gap-closure — the CRM-specific DSR queue (Leads/
           // Contacts/Accounts), gated by crm.privacy.manage (already seeded,
           // already used by the "privacy" report), distinct from the
           // platform-wide Settings > Privacy and retention page.
-          { ...available("Data Subject Requests", "/crm/settings/data-requests"), requiredPermission: "crm.privacy.manage" },
+          {
+            ...available(
+              "Data Subject Requests",
+              "/crm/settings/data-requests",
+            ),
+            requiredPermission: "crm.privacy.manage",
+          },
         ],
       },
     ],
@@ -172,7 +226,10 @@ export const MODULE_NAVIGATION: readonly ModuleNavigation[] = [
       {
         id: "overview",
         label: "Overview",
-        items: [available("Home", "/sales"), available("Settings", "/sales/settings")],
+        items: [
+          available("Home", "/sales"),
+          available("Settings", "/sales/settings"),
+        ],
       },
       {
         id: "selling",
@@ -245,7 +302,10 @@ export const MODULE_NAVIGATION: readonly ModuleNavigation[] = [
       {
         id: "overview",
         label: "Overview",
-        items: [available("Home", "/procurement"), available("Settings", "/procurement/settings")],
+        items: [
+          available("Home", "/procurement"),
+          available("Settings", "/procurement/settings"),
+        ],
       },
       {
         id: "requests",
@@ -304,15 +364,20 @@ export const MODULE_NAVIGATION: readonly ModuleNavigation[] = [
           available("Categories", "/procurement/categories"),
           available("Price Lists", "/procurement/supplier-prices"),
           available("Lead Times", "/procurement/lead-times"),
-          available("Supplier Performance", "/procurement/supplier-performance"),
+          available(
+            "Supplier Performance",
+            "/procurement/supplier-performance",
+          ),
         ],
       },
       {
         id: "planning",
         label: "Planning",
         featureRange: "F091-F093",
-        items: [available("Procurement Planning", "/procurement/planning"),
-          available("Subcontracting", "/procurement/subcontract")],
+        items: [
+          available("Procurement Planning", "/procurement/planning"),
+          available("Subcontracting", "/procurement/subcontract"),
+        ],
       },
       {
         id: "insights",
@@ -452,7 +517,10 @@ export const MODULE_NAVIGATION: readonly ModuleNavigation[] = [
           available("BOM Versions", "/manufacturing/bom-versions"),
           available("Routings", "/manufacturing/routings"),
           available("Where Used", "/manufacturing/where-used"),
-          available("Engineering Changes", "/manufacturing/engineering-changes"),
+          available(
+            "Engineering Changes",
+            "/manufacturing/engineering-changes",
+          ),
         ],
       },
       {
@@ -500,9 +568,11 @@ export const MODULE_NAVIGATION: readonly ModuleNavigation[] = [
         id: "quality",
         label: "Quality",
         featureRange: "F176-F177",
-        items: [available("Inspections", "/manufacturing/inspections"),
+        items: [
+          available("Inspections", "/manufacturing/inspections"),
           available("Time Tracking", "/manufacturing/time-tracking"),
-          available("Subcontracting", "/manufacturing/subcontracting")],
+          available("Subcontracting", "/manufacturing/subcontracting"),
+        ],
       },
       {
         id: "resources",
@@ -716,7 +786,11 @@ export const MODULE_NAVIGATION: readonly ModuleNavigation[] = [
         items: [
           available("Asset Analytics", "/assets/analytics"),
           available("Reports", "/assets/reports"),
-          adminOnly("Asset Settings", "/assets/settings", "assets.settings.manage"),
+          adminOnly(
+            "Asset Settings",
+            "/assets/settings",
+            "assets.settings.manage",
+          ),
         ],
       },
     ],
@@ -745,10 +819,22 @@ export const MODULE_NAVIGATION: readonly ModuleNavigation[] = [
         label: "Stores",
         featureRange: "F268-F271",
         items: [
-          { ...available("Stores", "/pos/stores"), requiredPermission: "pos.store.manage" },
-          { ...available("Terminals", "/pos/terminals"), requiredPermission: "pos.terminal.manage" },
-          { ...available("Cashiers", "/pos/cashiers"), requiredPermission: "pos.store.manage" },
-          { ...available("Settings", "/pos/settings"), requiredPermission: "pos.settings.manage" },
+          {
+            ...available("Stores", "/pos/stores"),
+            requiredPermission: "pos.store.manage",
+          },
+          {
+            ...available("Terminals", "/pos/terminals"),
+            requiredPermission: "pos.terminal.manage",
+          },
+          {
+            ...available("Cashiers", "/pos/cashiers"),
+            requiredPermission: "pos.store.manage",
+          },
+          {
+            ...available("Settings", "/pos/settings"),
+            requiredPermission: "pos.settings.manage",
+          },
         ],
       },
       {
@@ -756,9 +842,18 @@ export const MODULE_NAVIGATION: readonly ModuleNavigation[] = [
         label: "Discounts",
         featureRange: "F279-F281",
         items: [
-          { ...available("Promotions", "/pos/promotions"), requiredPermission: "pos.settings.manage" },
-          { ...available("Coupons", "/pos/coupons"), requiredPermission: "pos.settings.manage" },
-          { ...available("Discount Approvals", "/pos/discount-approvals"), requiredPermission: "pos.discount.approve" },
+          {
+            ...available("Promotions", "/pos/promotions"),
+            requiredPermission: "pos.settings.manage",
+          },
+          {
+            ...available("Coupons", "/pos/coupons"),
+            requiredPermission: "pos.settings.manage",
+          },
+          {
+            ...available("Discount Approvals", "/pos/discount-approvals"),
+            requiredPermission: "pos.discount.approve",
+          },
         ],
       },
       {
@@ -814,7 +909,13 @@ export const MODULE_NAVIGATION: readonly ModuleNavigation[] = [
           available("POS Inventory", "/pos/inventory"),
           // F297/F298: a real screen for reviewing/resolving offline sales
           // that couldn't sync cleanly (price/stock/shift divergence).
-          { ...available("Offline Sync Conflicts", "/pos/offline-sync-conflicts"), requiredPermission: "pos.offline.resolve" },
+          {
+            ...available(
+              "Offline Sync Conflicts",
+              "/pos/offline-sync-conflicts",
+            ),
+            requiredPermission: "pos.offline.resolve",
+          },
         ],
       },
       {
@@ -829,19 +930,31 @@ export const MODULE_NAVIGATION: readonly ModuleNavigation[] = [
           // F304: cross-report exception queue + settlement-evidence
           // import; generating a report's own reconciliation happens from
           // that report's detail screen.
-          { ...available("Reconciliation", "/pos/reconciliation"), requiredPermission: "pos.reconciliation.view" },
+          {
+            ...available("Reconciliation", "/pos/reconciliation"),
+            requiredPermission: "pos.reconciliation.view",
+          },
           // F305: every completed sale/return's GL posting status, with
           // retry for anything failed.
-          { ...available("Accounting Posting", "/pos/accounting"), requiredPermission: "pos.accounting.view" },
+          {
+            ...available("Accounting Posting", "/pos/accounting"),
+            requiredPermission: "pos.accounting.view",
+          },
           // F307: real date-range/store/terminal/cashier drilldown
           // analytics, replacing the coarse today-only dashboard aggregate.
-          { ...available("Analytics", "/pos/analytics"), requiredPermission: "pos.analytics.view" },
+          {
+            ...available("Analytics", "/pos/analytics"),
+            requiredPermission: "pos.analytics.view",
+          },
           // F295-F307 hub -- a lightweight index page linking out to the
           // four screens above (day-end reports, reconciliation, accounting
           // posting, analytics) plus ad hoc POS reporting access; it computes
           // nothing of its own, so it only needs the general pos.reports.view
           // floor, not any one of those screens' own narrower permission.
-          { ...available("Reports", "/pos/reports"), requiredPermission: "pos.reports.view" },
+          {
+            ...available("Reports", "/pos/reports"),
+            requiredPermission: "pos.reports.view",
+          },
         ],
       },
     ],
@@ -1000,7 +1113,15 @@ export const MODULE_NAVIGATION: readonly ModuleNavigation[] = [
     icon: Landmark,
     requiredPermission: "hr_payroll.view",
     sections: [
-      { id: "overview", label: "Overview", items: [available("Home", "/hr"), available("My Profile", "/hr/me"), available("Settings", "/hr/settings")] },
+      {
+        id: "overview",
+        label: "Overview",
+        items: [
+          available("Home", "/hr"),
+          available("My Profile", "/hr/me"),
+          available("Settings", "/hr/settings"),
+        ],
+      },
       {
         id: "people",
         label: "People",

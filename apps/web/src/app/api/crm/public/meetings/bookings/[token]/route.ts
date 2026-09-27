@@ -1,4 +1,10 @@
-import { cancelMeetingBooking, getPublicMeetingBookingView, publicMeetingContext, rescheduleMeetingBooking, resolvePublicMeetingBooking } from "@vercentlabs/api";
+import {
+  cancelMeetingBooking,
+  getPublicMeetingBookingView,
+  publicMeetingContext,
+  rescheduleMeetingBooking,
+  resolvePublicMeetingBooking,
+} from "@vercentlabs/api";
 
 import { tenantTransaction, withIngressClient } from "@/core/db";
 import { errorResponse, ok, readJson } from "@/core/http";
@@ -11,8 +17,12 @@ type RouteContext = { params: Promise<{ token: string }> };
 export async function GET(_request: Request, context: RouteContext) {
   try {
     const { token } = await context.params;
-    const booking = await withIngressClient((client) => resolvePublicMeetingBooking(client, token));
-    const view = await tenantTransaction(booking.organization_id, (client) => getPublicMeetingBookingView(client, booking));
+    const booking = await withIngressClient((client) =>
+      resolvePublicMeetingBooking(client, token),
+    );
+    const view = await tenantTransaction(booking.organization_id, (client) =>
+      getPublicMeetingBookingView(client, booking),
+    );
     return ok({ booking: view });
   } catch (error) {
     return errorResponse(error);
@@ -24,12 +34,22 @@ export async function GET(_request: Request, context: RouteContext) {
 export async function PATCH(request: Request, context: RouteContext) {
   try {
     const { token } = await context.params;
-    const booking = await withIngressClient((client) => resolvePublicMeetingBooking(client, token));
+    const booking = await withIngressClient((client) =>
+      resolvePublicMeetingBooking(client, token),
+    );
     const input = (await readJson(request)) as Record<string, unknown>;
-    const host = publicMeetingContext({ organizationId: booking.organization_id, hostUserId: booking.host_user_id });
+    const host = publicMeetingContext({
+      organizationId: booking.organization_id,
+      hostUserId: booking.host_user_id,
+    });
     const result = await tenantTransaction(booking.organization_id, (client) =>
       booking.token_type === "cancel"
-        ? cancelMeetingBooking(client, host, booking.booking_id, String(input.reason || ""))
+        ? cancelMeetingBooking(
+            client,
+            host,
+            booking.booking_id,
+            String(input.reason || ""),
+          )
         : rescheduleMeetingBooking(client, host, booking.booking_id, input),
     );
     return ok({ booking: result });

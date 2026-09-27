@@ -7,15 +7,28 @@
 // rejection and keeps serving, so production exits explicitly: a
 // misconfigured pod must crash (visible as a crash loop), never run
 // half-configured.
-import { loadSecretFiles, validateRuntimeEnvironment } from "@vercentlabs/config/production";
+import {
+  loadSecretFiles,
+  validateRuntimeEnvironment,
+} from "@vercentlabs/config/production";
 
 export function validateStartupConfiguration() {
   try {
     loadSecretFiles(process.env);
     validateRuntimeEnvironment("web", process.env);
   } catch (error) {
-    const issues = (error as { issues?: string[] }).issues ?? [String((error as Error)?.message ?? error)];
-    console.error(JSON.stringify({ severity: "CRITICAL", service: "web", event: "startup.configuration_invalid", message: "Invalid runtime configuration", issues }));
+    const issues = (error as { issues?: string[] }).issues ?? [
+      String((error as Error)?.message ?? error),
+    ];
+    console.error(
+      JSON.stringify({
+        severity: "CRITICAL",
+        service: "web",
+        event: "startup.configuration_invalid",
+        message: "Invalid runtime configuration",
+        issues,
+      }),
+    );
     if (process.env.NODE_ENV === "production") process.exit(1);
     throw error;
   }

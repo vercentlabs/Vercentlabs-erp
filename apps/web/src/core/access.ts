@@ -2,13 +2,21 @@ import "server-only";
 
 import { cache } from "react";
 
-import { authorize, buildWorkspaceAccessSnapshot, denialToError, type WorkspaceAccessSnapshot } from "@vercentlabs/api";
+import {
+  authorize,
+  buildWorkspaceAccessSnapshot,
+  denialToError,
+  type WorkspaceAccessSnapshot,
+} from "@vercentlabs/api";
 import type { PoolClient } from "pg";
 
 import { tenantTransaction } from "@/core/db";
 import { requireWorkspace, type WorkspaceSessionContext } from "@/core/session";
 
-export type { AccessPrincipal, WorkspaceAccessSnapshot } from "@vercentlabs/api";
+export type {
+  AccessPrincipal,
+  WorkspaceAccessSnapshot,
+} from "@vercentlabs/api";
 
 // Request-scoped only: React cache() memoizes within one server render and
 // never across requests, so permission/module/subscription changes take
@@ -16,7 +24,9 @@ export type { AccessPrincipal, WorkspaceAccessSnapshot } from "@vercentlabs/api"
 // object.
 const snapshotForSession = cache(
   async (session: WorkspaceSessionContext): Promise<WorkspaceAccessSnapshot> =>
-    tenantTransaction(session.organizationId, (client) => buildWorkspaceAccessSnapshot(client, session, { env: process.env })),
+    tenantTransaction(session.organizationId, (client) =>
+      buildWorkspaceAccessSnapshot(client, session, { env: process.env }),
+    ),
 );
 
 // Server Components/layouts: the workspace access snapshot for the current
@@ -36,8 +46,15 @@ export async function workspaceModuleTransaction<T>(
   handler: (client: PoolClient) => Promise<T>,
 ): Promise<T> {
   return tenantTransaction(session.organizationId, async (client) => {
-    const snapshot = await buildWorkspaceAccessSnapshot(client, session, { env: process.env });
-    const decision = authorize({ principal: snapshot.principal, snapshot, module: options.module, permission: options.permission });
+    const snapshot = await buildWorkspaceAccessSnapshot(client, session, {
+      env: process.env,
+    });
+    const decision = authorize({
+      principal: snapshot.principal,
+      snapshot,
+      module: options.module,
+      permission: options.permission,
+    });
     if (!decision.allowed) throw denialToError(decision);
     return handler(client);
   });

@@ -24,10 +24,18 @@ const schema = z.object({
 export async function PATCH(request: Request) {
   return workspaceRoute(
     request,
-    { permission: BILLING_PERMISSIONS.manage, action: "billing.profile.update", auditDenial: true },
+    {
+      permission: BILLING_PERMISSIONS.manage,
+      action: "billing.profile.update",
+      auditDenial: true,
+    },
     async ({ client, session }) => {
       const body = schema.parse(await readJson(request));
-      const profile = await saveBillingProfile(client, { organizationId: session.organizationId, userId: session.userId }, body);
+      const profile = await saveBillingProfile(
+        client,
+        { organizationId: session.organizationId, userId: session.userId },
+        body,
+      );
       return ok({ profile, message: "Billing details saved." });
     },
   );
