@@ -105,12 +105,13 @@ export function buildProviderPlanPayload(price) {
 
 // Each price version gets exactly one provider plan, linked permanently.
 // Plan creation is an HTTP call made OUTSIDE any transaction; the link is a
-// conditional update, so concurrent first checkouts converge on one plan id
+// conditional link, so concurrent first checkouts converge on one plan id
 // (a losing request's extra provider plan has no subscriptions and costs
-// nothing). The database trigger forbids re-pointing a linked version.
+// nothing). The database trigger forbids re-pointing a linked version. The
+// catalogue is read-only to the runtime roles; the link goes through the one
+// definer function that may set an unset provider plan (platform migration 070).
 export async function ensureProviderPlan(client, provider, price) {
   if (price.provider_plan_id) return price.provider_plan_id;
   const created = await provider.createPlan(buildProviderPlanPayload(price));
-  await client.query(`UPDATE billing_plan_prices SET provider_plan_id = $2 WHERE id = $1 AND provider_plan_id IS NULL`, [price.price_id, created.id]);
-  return (await client.query(`SELECT provider_plan_id FROM billing_plan_prices WHERE id = $1`, [price.price_id])).rows[0].provider_plan_id;
+  return (await client.query(`SELECT public.link_billing_price_provider_plan($1, $2) AS provider_plan_id`, [price.price_id, created.id])).rows[0].provider_plan_id;
 }

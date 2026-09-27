@@ -100,7 +100,7 @@ export async function verifyRestoredDatabase({ ownerUrl, runtimeUrl, sampleTable
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   loadEnvironment();
-  const { loadSecretFiles } = await import("../../packages/config/src/index.js");
+  const { loadSecretFiles } = await import("../../packages/config/src/production.js");
   loadSecretFiles(process.env);
   const ownerUrl = String(process.env.MIGRATION_DATABASE_URL || "").trim();
   const runtimeUrl = String(process.env.DATABASE_URL || "").trim();

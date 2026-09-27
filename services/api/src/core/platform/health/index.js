@@ -4,7 +4,7 @@
 // and never iterates tenants: a provider outage must not take pods out of
 // the load balancer. Results name failed checks only (no configuration
 // details or error text leave the process; those go to the logs).
-import { validateRuntimeEnvironment } from "@vercentlabs/config";
+import { validateRuntimeEnvironment } from "@vercentlabs/config/production";
 import { readMigrationStatus, restrictedRoleRequired, verifyRestrictedRuntimeRole } from "@vercentlabs/database";
 
 import { resolveObjectStorage } from "../files/storage.js";

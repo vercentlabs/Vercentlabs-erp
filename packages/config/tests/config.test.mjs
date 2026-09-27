@@ -23,7 +23,7 @@ test("production origins are canonical HTTPS origins", () => {
   assert.throws(() => originList({ ORIGINS: "http://app.example.com/path" }, "ORIGINS", { httpsOnly: true }), ConfigurationError);
 });
 
-import { loadSecretFiles, validateRuntimeEnvironment } from "../src/index.js";
+import { loadSecretFiles, validateRuntimeEnvironment } from "../src/production.js";
 
 const PRODUCTION_WEB = Object.freeze({
   NODE_ENV: "production",
@@ -87,4 +87,12 @@ test("the production worker uses its own database authority", () => {
 test("development stays lenient for optional features but still rejects partial configuration", () => {
   assert.ok(validateRuntimeEnvironment("web", { DATABASE_URL: "postgresql://u:p@localhost/x" }));
   assert.throws(() => validateRuntimeEnvironment("web", { DATABASE_URL: "postgresql://u:p@localhost/x", SMTP_HOST: "smtp.example.com" }), /partly configured/);
+});
+
+test("the package index stays browser-safe (server-only helpers live at ./production)", async () => {
+  const { readFileSync } = await import("node:fs");
+  const index = readFileSync(new URL("../src/index.js", import.meta.url), "utf8");
+  assert.doesNotMatch(index, /from\s+["'](?:node:)?(?:fs|path|os|child_process)["']|["']\.\/production\.js["']/, "landing client components import this index");
+  const manifest = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8"));
+  assert.equal(manifest.exports["./production"].default, "./src/production.js");
 });

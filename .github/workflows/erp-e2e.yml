@@ -21,12 +21,15 @@ on:
         description: "Run every Playwright spec instead of the critical set"
         type: boolean
         default: false
+  # The deploy workflow requires the CRITICAL set (no "full" input) before
+  # building release images.
+  workflow_call:
 
 permissions:
   contents: read
 
 concurrency:
-  group: erp-e2e-${{ github.ref }}
+  group: erp-e2e-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -50,7 +53,7 @@ jobs:
       APP_URL: http://localhost:3001
       FORM_ALLOWED_ORIGINS: http://localhost:3001
       MIGRATION_DATABASE_URL: postgresql://vercentlabs:ci_owner_password@localhost:5433/vercentlabs_control
-      DATABASE_URL: postgresql://vercent_app:ci_app_password@localhost:5433/vercentlabs_control
+      DATABASE_URL: postgresql://vercent_web:ci_web_password@localhost:5433/vercentlabs_control
       ENFORCE_RESTRICTED_DB_ROLE: "true"
       DATABASE_SSL: "false"
       SESSION_COOKIE_NAME: vercent_session

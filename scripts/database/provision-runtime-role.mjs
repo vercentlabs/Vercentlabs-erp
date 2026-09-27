@@ -16,6 +16,11 @@
 // grant. Refuses to run if any public table or SECURITY DEFINER function is
 // not classified. No default privileges: tables created by a later migration
 // get access only when this script classifies them.
+//
+// Also closes the historical-role bootstrap (scripts/database/historical-roles.mjs):
+// a compatibility role created for immutable migrations is adopted when it is
+// a configured runtime role, otherwise its privileges are revoked and it is
+// dropped.
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -24,6 +29,7 @@ import { config as loadDotEnv } from "dotenv";
 
 import { loadSecretFiles } from "../../packages/config/src/production.js";
 import { DEFINER_FUNCTIONS, PUBLIC_TABLES, runtimePrivileges } from "../../packages/database/src/table-classification.js";
+import { adoptConfiguredHistoricalRoles, removeCompatibilityRoles } from "./historical-roles.mjs";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(here, "../..");
@@ -132,7 +138,9 @@ async function main() {
   await client.query("BEGIN");
   try {
     const inventory = await assertEverythingClassified();
+    await adoptConfiguredHistoricalRoles(client, roles.map((role) => role.name));
     for (const role of roles) await provision(role, inventory);
+    await removeCompatibilityRoles(client);
     await client.query("COMMIT");
   } catch (error) {
     await client.query("ROLLBACK").catch(() => undefined);

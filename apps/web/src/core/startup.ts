@@ -7,7 +7,7 @@
 // rejection and keeps serving, so production exits explicitly: a
 // misconfigured pod must crash (visible as a crash loop), never run
 // half-configured.
-import { loadSecretFiles, validateRuntimeEnvironment } from "@vercentlabs/config";
+import { loadSecretFiles, validateRuntimeEnvironment } from "@vercentlabs/config/production";
 
 export function validateStartupConfiguration() {
   try {

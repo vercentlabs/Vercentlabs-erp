@@ -164,6 +164,7 @@ export const DEFINER_FUNCTIONS = Object.freeze({
   "public.resolve_inbound_mail_route_organization": Object.freeze({ web: true, worker: false, reason: "Inbound email route key -> organisation." }),
   "public.record_billing_audit_event": Object.freeze({ web: true, worker: true, reason: "Billing audit rows across organisations (billing.* only)." }),
   "public.billable_user_count": Object.freeze({ web: true, worker: true, reason: "The billable-user counts for billing reconciliation." }),
+  "public.link_billing_price_provider_plan": Object.freeze({ web: true, worker: true, reason: "Links an unlinked price version to its provider plan, once (the catalogue is otherwise read-only)." }),
   "public.revoke_sessions_after_access_change": Object.freeze({ trigger: true, reason: "Revokes sessions after access changes (trigger)." }),
   "tenant.crm_public_meeting_link": Object.freeze({ web: true, worker: false, reason: "Public booking link token -> organisation." }),
   "tenant.crm_public_meeting_booking": Object.freeze({ web: true, worker: false, reason: "Public booking management token -> organisation." }),

@@ -22,6 +22,8 @@ on:
       - "apps/web/src/app/api/readiness/**"
       - "services/worker/**"
       - "pnpm-lock.yaml"
+      - "pnpm-workspace.yaml"
+      - "**/package.json"
       - ".github/workflows/infrastructure-ci.yml"
       - ".github/workflows/deploy.yml"
   push:
@@ -30,16 +32,27 @@ on:
       - "infrastructure/**"
       - "scripts/deploy/**"
       - "scripts/production/**"
+      - "scripts/database/**"
+      - "scripts/operations/**"
+      - "packages/config/**"
       - ".dockerignore"
+      - "apps/web/next.config.*"
+      - "apps/web/src/app/api/health/**"
+      - "apps/web/src/app/api/readiness/**"
+      - "services/worker/**"
       - "pnpm-lock.yaml"
+      - "pnpm-workspace.yaml"
+      - "**/package.json"
       - ".github/workflows/infrastructure-ci.yml"
       - ".github/workflows/deploy.yml"
+  # The deploy workflow requires this whole gate before building release images.
+  workflow_call:
 
 permissions:
   contents: read
 
 concurrency:
-  group: infrastructure-ci-${{ github.ref }}
+  group: infrastructure-ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -171,7 +184,7 @@ jobs:
           --health-interval 5s --health-timeout 5s --health-retries 20
     env:
       MIGRATION_DATABASE_URL: postgresql://vercentlabs:ci_owner_password@localhost:5433/vercentlabs_control
-      DATABASE_URL: postgresql://vercent_app:ci_app_password@localhost:5433/vercentlabs_control
+      DATABASE_URL: postgresql://vercent_web:ci_web_password@localhost:5433/vercentlabs_control
       WORKER_DATABASE_URL: postgresql://vercent_worker:ci_worker_password@localhost:5433/vercentlabs_control
     steps:
       - uses: actions/checkout@v6

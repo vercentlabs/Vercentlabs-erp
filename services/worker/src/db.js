@@ -1,5 +1,5 @@
 import pg from "pg";
-import { loadSecretFiles, validateRuntimeEnvironment } from "@vercentlabs/config";
+import { loadSecretFiles, validateRuntimeEnvironment } from "@vercentlabs/config/production";
 import { resolveDbSsl, restrictedRoleRequired, runTenantTransaction, verifyRestrictedRuntimeRole } from "@vercentlabs/database";
 import { createLogger, monitorPool } from "@vercentlabs/observability";
 

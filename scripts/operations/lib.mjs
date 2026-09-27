@@ -28,7 +28,7 @@ export function flags(argv = process.argv.slice(2)) {
 }
 
 export async function withOperationsClient(work) {
-  const { loadSecretFiles } = await import("../../packages/config/src/index.js");
+  const { loadSecretFiles } = await import("../../packages/config/src/production.js");
   loadSecretFiles(process.env);
   const { resolveDbSsl } = await import("../../packages/database/src/index.js");
   const connectionString = String(process.env.MIGRATION_DATABASE_URL || "").trim();

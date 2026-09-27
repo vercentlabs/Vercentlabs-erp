@@ -105,6 +105,9 @@ jobs:
       - name: Database structure verification
         run: pnpm verify:db
 
+      - name: Production readiness verification (static; no cloud credentials)
+        run: pnpm verify:production
+
       - name: Web typecheck
         run: pnpm typecheck:web
 
@@ -174,7 +177,7 @@ jobs:
           --health-interval 5s --health-timeout 5s --health-retries 20
     env:
       MIGRATION_DATABASE_URL: postgresql://vercentlabs:ci_owner_password@localhost:5433/vercentlabs_control
-      DATABASE_URL: postgresql://vercent_app:ci_app_password@localhost:5433/vercentlabs_control
+      DATABASE_URL: postgresql://vercent_web:ci_web_password@localhost:5433/vercentlabs_control
       # Separate restricted worker role (three database authorities).
       WORKER_DATABASE_URL: postgresql://vercent_worker:ci_worker_password@localhost:5433/vercentlabs_control
       DATABASE_SSL: "false"

@@ -138,6 +138,10 @@ const secretMount = ["-v", `${secretsDirectory}:/run/secrets/vercentlabs:ro`];
 const certificateDirectory = fs.mkdtempSync(path.join(os.tmpdir(), "vercent-smoke-tls-"));
 const dataDirectory = fs.mkdtempSync(path.join(os.tmpdir(), "vercent-smoke-gcs-"));
 const certificateMount = ["-v", `${certificateDirectory}:/run/certs:ro`];
+// mkdtemp creates 0700 directories owned by the runner user; the images run
+// as UID 10001 and the stand-in as its own user, so on Linux they could not
+// read the throwaway smoke values. Nothing here is a real secret.
+for (const directory of [secretsDirectory, certificateDirectory, dataDirectory]) fs.chmodSync(directory, 0o755);
 let admin;
 
 try {

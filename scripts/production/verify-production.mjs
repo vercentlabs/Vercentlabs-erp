@@ -302,7 +302,18 @@ check("release and deployment workflow structure", () => {
   const plan = read(".github/workflows/terraform-plan.yml");
   if (/^\s*(pull_request|pull_request_target|push):/m.test(deploy)) problems.push("deploy.yml is triggered by pushes or pull requests");
   if (!/github\.ref != 'refs\/heads\/main'/.test(deploy) || !/github\.ref != 'refs\/heads\/main'/.test(environment)) problems.push("deploy workflows do not refuse non-main refs");
-  if (!/uses: \.\/\.github\/workflows\/erp-ci\.yml/.test(deploy)) problems.push("deploy does not run ERP CI first");
+  // Every release gate runs inside the deploy run itself, and the image build
+  // waits for all of them.
+  const e2e = read(".github/workflows/erp-e2e.yml");
+  const gates = { "erp-ci.yml": "ci", "infrastructure-ci.yml": "infrastructure", "erp-e2e.yml": "browser-e2e" };
+  for (const [workflow, job] of Object.entries(gates)) {
+    if (!new RegExp(`\\n  ${job}:\\n(?:    .*\\n)*?    uses: \\./\\.github/workflows/${workflow.replace(".", "\\.")}\\n`).test(deploy)) problems.push(`deploy does not run ${workflow} as job "${job}"`);
+  }
+  const buildNeeds = deploy.match(/\n  build:\n(?:    .*\n)*?    needs: \[([^\]]*)\]/)?.[1]?.split(",").map((value) => value.trim()) ?? [];
+  for (const job of Object.values(gates)) if (!buildNeeds.includes(job)) problems.push(`the release image build does not wait for "${job}"`);
+  for (const [name, text] of [["infrastructure-ci.yml", infrastructure], ["erp-e2e.yml", e2e]]) if (!/^\s{2}workflow_call:/m.test(text)) problems.push(`${name} is not reusable (workflow_call)`);
+  if (!/pnpm verify:production/.test(read(".github/workflows/erp-ci.yml"))) problems.push("ERP CI does not run verify:production");
+  if (!/verify:production/.test(JSON.parse(read("package.json")).scripts["release:gate"] ?? "")) problems.push("release:gate does not run verify:production");
   if (!/environment: \$\{\{ inputs\.environment \}\}/.test(environment)) problems.push("deploy job is not bound to a GitHub environment");
   if (!/google-github-actions\/auth@/.test(environment) || /credentials_json/.test(environment)) problems.push("deploy does not use Workload Identity Federation");
   const migrate = environment.indexOf("Expand migrations");
@@ -316,8 +327,8 @@ check("release and deployment workflow structure", () => {
   return problems;
 });
 
-check("operations runbooks exist", () =>
-  ["docs/operations/PRODUCTION_RUNBOOK.md", "docs/operations/DISASTER_RECOVERY_RUNBOOK.md", "docs/operations/RELEASE_RUNBOOK.md"].filter((file) => !exists(file)).map((file) => `missing ${file}`),
+check("production architecture reference and operations runbooks exist", () =>
+  ["docs/01-standards/PRODUCTION_ARCHITECTURE_GCP.md", "docs/operations/PRODUCTION_RUNBOOK.md", "docs/operations/DISASTER_RECOVERY_RUNBOOK.md", "docs/operations/RELEASE_RUNBOOK.md"].filter((file) => !exists(file)).map((file) => `missing ${file}`),
 );
 
 let failed = 0;

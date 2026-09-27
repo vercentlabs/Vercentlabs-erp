@@ -17,6 +17,7 @@ This directory holds the source of truth for the F001-F510 ERP and the SP001-SP0
 - `04-shared-platform/requirements/SP001-SP036` — shared-platform requirements (tenancy, auth, permissions, billing, workflow, audit, etc.) that every module depends on.
 - `04-cross-module/` — cross-module integration contracts (e.g. `ORDER_TO_CASH.md`, `PROCURE_TO_PAY.md`) describing how modules hand off to each other.
 - `01-standards/` — engineering constitutions (database, API, security, tenancy/RLS, experience kernel, testing) that keep all 12 modules consistent.
+- [01-standards/PRODUCTION_ARCHITECTURE_GCP.md](01-standards/PRODUCTION_ARCHITECTURE_GCP.md) — production architecture on Google Cloud; procedures are in [operations/](operations/PRODUCTION_RUNBOOK.md).
 
 ## Current status
 

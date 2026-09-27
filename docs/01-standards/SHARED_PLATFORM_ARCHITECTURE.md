@@ -480,7 +480,8 @@ field-security registry and cross-channel checks
 access administration and invitations; KMS envelope encryption with
 rotation; Cloud Storage with legacy migration and reconciliation; retired
 tables and legacy invitation columns removed by contract migrations; the
-Google Cloud deployment (`infrastructure/`, `docs/operations/`).
+Google Cloud deployment (`infrastructure/`, `docs/operations/`; architecture
+reference: [PRODUCTION_ARCHITECTURE_GCP.md](PRODUCTION_ARCHITECTURE_GCP.md)).
 
 Remaining, deliberately out of scope so far:
 

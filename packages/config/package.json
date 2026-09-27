@@ -7,6 +7,10 @@
     ".": {
       "types": "./src/index.d.ts",
       "default": "./src/index.js"
+    },
+    "./production": {
+      "types": "./src/production.d.ts",
+      "default": "./src/production.js"
     }
   },
   "scripts": {

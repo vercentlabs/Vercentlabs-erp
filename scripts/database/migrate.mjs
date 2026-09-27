@@ -24,6 +24,7 @@ import { Client } from "pg";
 import { config as loadDotEnv } from "dotenv";
 
 import { loadSecretFiles } from "../../packages/config/src/production.js";
+import { bootstrapHistoricalRoles } from "./historical-roles.mjs";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(here, "../..");
@@ -123,6 +124,10 @@ async function runExpand(applied) {
     console.log(`BASELINED ${scope}: ${expandFiles.length} migration(s)`);
     return;
   }
+  // Immutable historical migrations may GRANT to a role that a fresh cluster
+  // does not have yet (scripts/database/historical-roles.mjs).
+  const pendingSql = expandFiles.filter((filename) => !applied.has(filename)).map((filename) => fs.readFileSync(path.join(expandDirectory, filename), "utf8"));
+  await bootstrapHistoricalRoles(client, pendingSql);
   for (const filename of expandFiles) {
     const sql = fs.readFileSync(path.join(expandDirectory, filename), "utf8");
     const previous = applied.get(filename);

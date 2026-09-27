@@ -27,8 +27,8 @@
     "@vercentlabs/reporting-engine": "workspace:*",
     "@vercentlabs/shared-types": "workspace:*",
     "@vercentlabs/workflows": "workspace:*",
-    "csv-parse": "^5.6.0",
-    "nodemailer": "^9.0.3",
+    "csv-parse": "^7.0.3",
+    "nodemailer": "^9.1.1",
     "undici": "^7.16.0"
   }
 }

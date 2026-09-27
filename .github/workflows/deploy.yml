@@ -2,7 +2,8 @@ name: Deploy
 
 # Release pipeline for Google Cloud (docs/operations/RELEASE_RUNBOOK.md):
 #
-#   ERP CI green -> build + scan images (once) -> staging: push by digest,
+#   ERP CI + Infrastructure CI + critical browser E2E, all green in THIS run
+#   -> build + scan images (once) -> staging: push by digest,
 #   expand migrations (Job), rollout, smoke, ops status -> production
 #   approval (GitHub environment protection) -> production: push by digest,
 #   expand migrations (Job), rollout, smoke, ops status -> release manifest.
@@ -52,14 +53,26 @@ jobs:
           echo "Deployments run only from refs/heads/main (got ${{ github.ref }})."
           exit 1
 
+  # The three release gates run inside this workflow for this exact commit;
+  # nothing relies on a separately triggered run having passed.
   ci:
     name: ERP CI
     needs: guard
     uses: ./.github/workflows/erp-ci.yml
 
+  infrastructure:
+    name: Infrastructure CI
+    needs: guard
+    uses: ./.github/workflows/infrastructure-ci.yml
+
+  browser-e2e:
+    name: Critical ERP browser E2E
+    needs: guard
+    uses: ./.github/workflows/erp-e2e.yml
+
   build:
     name: Build and scan ${{ matrix.image }} (${{ matrix.variant }})
-    needs: ci
+    needs: [ci, infrastructure, browser-e2e]
     runs-on: ubuntu-latest
     timeout-minutes: 45
     strategy:

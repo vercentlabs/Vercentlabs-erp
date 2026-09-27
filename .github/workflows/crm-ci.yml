@@ -63,7 +63,7 @@ jobs:
           --health-interval 5s --health-timeout 5s --health-retries 20
     env:
       MIGRATION_DATABASE_URL: postgresql://vercentlabs:ci_owner_password@localhost:5433/vercentlabs_control
-      DATABASE_URL: postgresql://vercent_app:ci_app_password@localhost:5433/vercentlabs_control
+      DATABASE_URL: postgresql://vercent_web:ci_web_password@localhost:5433/vercentlabs_control
       DATABASE_SSL: "false"
       CRM_ACCESS_DB_REQUIRED: "1"
     steps:
