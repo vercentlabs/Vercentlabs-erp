@@ -81,7 +81,7 @@ test("goals, an appraisal cycle, a skill rating and training, walked through the
     const skillCode = `SK${s}`.slice(0, 20);
     await api<Rec>(hrA.context, "POST", "/actions/skill-save", { code: skillCode, name: `Skill ${s}` });
     await open(e, "/hr/my-skills", "My skills");
-    await e.getByRole("button", { name: "Rate a skill" }).click();
+    await e.getByRole("button", { name: "Rate a skill" }).first().click();
     dlg = e.getByRole("dialog");
     await pick(e, dlg.getByRole("button", { name: /Select skill/ }), new RegExp(`Skill ${s}`));
     await dlg.getByRole("textbox", { name: "Proficiency (1-5)" }).fill("3");

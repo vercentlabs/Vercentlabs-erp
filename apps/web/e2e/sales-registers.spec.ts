@@ -55,26 +55,26 @@ test.describe("Sales operational registers", () => {
 
       // --- advance: over-paying is refused by the server, a valid one appears in the register
       await r.goto("/sales/advances", { waitUntil: "domcontentloaded" });
-      await r.getByRole("button", { name: "Record advance" }).click({ timeout: 120_000 });
+      await r.getByRole("button", { name: "Record advance" }).first().click({ timeout: 120_000 });
       let dialog = r.getByRole("dialog", { name: "Record advance payment" });
       await pick(r, dialog.getByRole("button", { name: /Select an order/ }), new RegExp(orderNumber));
       const amount = dialog.getByRole("textbox", { name: "Amount" });
       await amount.click();
       await amount.pressSequentially("999999");
       await dialog.getByLabel("Payment reference").fill("UTR-E2E-TOO-MUCH");
-      await dialog.getByRole("button", { name: "Record advance" }).click();
+      await dialog.getByRole("button", { name: "Record advance" }).first().click();
       await expect(dialog.getByText(/cannot exceed the Sales order total/i)).toBeVisible({ timeout: 30_000 });
       await amount.click();
       await amount.press("Control+A");
       await amount.pressSequentially("100");
       await dialog.getByLabel("Payment reference").fill(`UTR-E2E-${orderNumber}`);
-      await dialog.getByRole("button", { name: "Record advance" }).click();
+      await dialog.getByRole("button", { name: "Record advance" }).first().click();
       await expect(r.getByRole("row", { name: new RegExp(`${orderNumber}.*UTR-E2E-${orderNumber}`) })).toBeVisible({ timeout: 30_000 });
 
       // --- credit adjustment needs a reason. Nothing is invoiced yet, so the only
       // adjustment available is a refund, capped by the advance just paid (100).
       await r.goto("/sales/credit-adjustments", { waitUntil: "domcontentloaded" });
-      await r.getByRole("button", { name: "Request adjustment" }).click({ timeout: 120_000 });
+      await r.getByRole("button", { name: "Request adjustment" }).first().click({ timeout: 120_000 });
       dialog = r.getByRole("dialog", { name: "Request credit adjustment" });
       await pick(r, dialog.getByRole("button", { name: /Select an order/ }), new RegExp(orderNumber));
       await pick(r, dialog.getByRole("button", { name: /Credit note/ }), /^Refund$/);
@@ -84,7 +84,7 @@ test.describe("Sales operational registers", () => {
       await adjustmentAmount.pressSequentially("50");
       await expect(dialog.getByRole("button", { name: "Request adjustment" })).toBeDisabled();
       await dialog.getByLabel("Reason").fill("Damaged in transit");
-      await dialog.getByRole("button", { name: "Request adjustment" }).click();
+      await dialog.getByRole("button", { name: "Request adjustment" }).first().click();
       await expect(r.getByRole("row", { name: new RegExp(`${orderNumber}.*Damaged in transit`) })).toBeVisible({ timeout: 30_000 });
 
       // --- returns: a rep is not offered the action; a manager is, and the server enforces fulfilled quantity
@@ -94,7 +94,7 @@ test.describe("Sales operational registers", () => {
 
       const m = manager.page;
       await m.goto("/sales/returns", { waitUntil: "domcontentloaded" });
-      await m.getByRole("button", { name: "New return" }).click({ timeout: 120_000 });
+      await m.getByRole("button", { name: "New return" }).first().click({ timeout: 120_000 });
       dialog = m.getByRole("dialog", { name: "New customer return" });
       await pick(m, dialog.getByRole("button", { name: /Select an order/ }), new RegExp(orderNumber));
       await pick(m, dialog.getByRole("button", { name: /Select a line/ }), /.+/);

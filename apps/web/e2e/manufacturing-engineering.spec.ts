@@ -109,7 +109,7 @@ test("BOM definition, second-person approval, multi-level explosion, where-used,
 
     // --- engineering change: propose (manager), decided by a different person, implemented -> v2
     await m.goto(bomUrl, { waitUntil: "domcontentloaded" });
-    await m.getByRole("button", { name: "Propose change" }).click();
+    await m.getByRole("button", { name: "Propose change" }).first().click();
     const propose = m.getByRole("dialog", { name: "Propose change" });
     await propose.getByLabel(/^Title/).fill(`Add a third component ${items.compC.code}`);
     await propose.getByLabel(/^Why is this change needed/).fill("Field failures");

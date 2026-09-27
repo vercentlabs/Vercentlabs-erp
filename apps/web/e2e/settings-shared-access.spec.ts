@@ -74,7 +74,12 @@ test.beforeAll(async () => {
   world.organizationId = owner.rows[0].organization_id;
   const seats = await db.query(`SELECT paid_seats FROM organization_subscriptions WHERE organization_id = $1`, [world.organizationId]);
   world.paidSeatsBefore = Number(seats.rows[0]?.paid_seats ?? 0);
-  await db.query(`UPDATE organization_subscriptions SET paid_seats = paid_seats + 20 WHERE organization_id = $1`, [world.organizationId]);
+  // Headroom above what the shared fixture organisation already uses: earlier
+  // specs in a full run add many members and invitations to it.
+  await db.query(
+    `UPDATE organization_subscriptions SET paid_seats = paid_seats + (SELECT members + pending FROM public.billable_user_count($1, NULL)) + 20 WHERE organization_id = $1`,
+    [world.organizationId],
+  );
   const quality = await db.query(`SELECT status FROM organization_modules WHERE organization_id = $1 AND module_key = 'quality'`, [world.organizationId]);
   world.qualityEnabledBefore = quality.rows[0]?.status === "enabled";
 

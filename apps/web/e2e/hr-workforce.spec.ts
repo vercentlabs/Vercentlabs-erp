@@ -70,7 +70,7 @@ test("hire, join, transfer, self-service, resign and exit; a user without HR rig
 
     // --- a transfer: proposed by one person, approved by another
     await open(a, "/hr/transfers", "Transfers");
-    await a.getByRole("button", { name: "Propose transfer" }).click();
+    await a.getByRole("button", { name: "Propose transfer" }).first().click();
     const tr = a.getByRole("dialog");
     await pick(a, tr.getByRole("button", { name: /Select employee/ }), new RegExp(surname));
     await tr.getByLabel("Effective date").fill(new Date().toISOString().slice(0, 10));

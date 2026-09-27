@@ -46,7 +46,7 @@ test("check in and out, leave with manager approval, cancellation, attendance co
     let monday = addD(today, 14);
     while (dow(monday) !== 1) monday = addD(monday, 1);
     await open(e, "/hr/my-leave", "My leave");
-    await e.getByRole("button", { name: "Apply for leave" }).click();
+    await e.getByRole("button", { name: "Apply for leave" }).first().click();
     let dlg = e.getByRole("dialog");
     await pick(e, dlg.getByRole("button", { name: /Select leave type/ }), new RegExp(`Annual ${s}`));
     await dlg.getByLabel(/^From\*?$/).fill(monday);
@@ -58,7 +58,7 @@ test("check in and out, leave with manager approval, cancellation, attendance co
     // an employee has no approve action on their own request
     await expect(submitted.getByRole("button", { name: "Approve" })).toHaveCount(0);
     // asking again for the same days is refused with the reason
-    await e.getByRole("button", { name: "Apply for leave" }).click();
+    await e.getByRole("button", { name: "Apply for leave" }).first().click();
     dlg = e.getByRole("dialog");
     await pick(e, dlg.getByRole("button", { name: /Select leave type/ }), new RegExp(`Annual ${s}`));
     await dlg.getByLabel(/^From\*?$/).fill(monday);

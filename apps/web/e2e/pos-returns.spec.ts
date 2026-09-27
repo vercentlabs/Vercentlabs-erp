@@ -60,7 +60,7 @@ test("cashier finds a completed sale, requests a return, and a separate manager 
     // Real UI journey: find the sale by receipt number and request a
     // return with restock.
     await cashierSession.page.goto("/pos/returns", { waitUntil: "domcontentloaded" });
-    await cashierSession.page.getByRole("button", { name: "New return" }).click();
+    await cashierSession.page.getByRole("button", { name: "New return" }).first().click();
     await cashierSession.page.getByLabel("Receipt number").fill(receiptNumber);
     const [findResponse] = await Promise.all([
       cashierSession.page.waitForResponse((res) => res.url().includes("/api/pos/returns/find")),

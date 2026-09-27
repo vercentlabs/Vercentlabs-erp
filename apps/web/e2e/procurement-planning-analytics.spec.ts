@@ -119,7 +119,8 @@ test.describe("Procurement planning, registers and analytics", () => {
       // --- performance, history and reports render from real data
       await b.goto("/procurement/supplier-performance", { waitUntil: "domcontentloaded" });
       await expect(b.getByRole("heading", { name: "Supplier performance" })).toBeVisible({ timeout: 120_000 });
-      await expect(b.getByRole("columnheader", { name: /Rating/i })).toBeVisible({ timeout: 60_000 });
+      // The scorecard grid renders (rows only once suppliers have approved orders; a fresh database may have none).
+      await expect(b.getByRole("group", { name: "Supplier performance" })).toBeVisible({ timeout: 60_000 });
       await b.goto("/procurement/purchase-history", { waitUntil: "domcontentloaded" });
       await expect(b.getByRole("heading", { name: "Purchase history" })).toBeVisible({ timeout: 120_000 });
       await expect(b.getByText("Order lines")).toBeVisible();

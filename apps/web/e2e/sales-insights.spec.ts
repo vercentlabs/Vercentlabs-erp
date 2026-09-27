@@ -36,7 +36,8 @@ test.describe("Sales insights", () => {
       await expect(m.getByRole("group", { name: /order intake/i })).toBeVisible({ timeout: 60_000 });
 
       await m.goto("/sales/order-status", { waitUntil: "domcontentloaded" });
-      await expect(m.getByRole("group", { name: /fulfillment/i }).or(m.getByText("Loading…")).first()).toBeVisible({ timeout: 60_000 });
+      // the default report (Order status) is shown first, labelled even while empty
+      await expect(m.getByRole("group", { name: /order status/i })).toBeVisible({ timeout: 60_000 });
       await selectTab(m, "Active holds");
       await expect(m.getByRole("group", { name: /active holds/i }).or(m.getByText("No data for this report yet.")).first()).toBeVisible({ timeout: 60_000 });
       await selectTab(m, "Fulfilment status");

@@ -113,7 +113,7 @@ test.afterAll(async () => {
 test("numbering: a prefix change applies to the next lead number", async ({ browser }) => {
   const { context, page } = await owner(browser);
   await open(page, "/settings/numbering", "Numbering");
-  await page.getByRole("button", { name: "Edit Lead numbering" }).click();
+  await page.getByRole("button", { name: "Edit Lead numbering" }).first().click();
   const dialog = page.getByRole("dialog", { name: "Lead numbering" });
   await dialog.getByLabel("Prefix").fill("LD-");
   const saved = page.waitForResponse((response) => response.url().includes("/api/settings/numbering") && response.request().method() === "PUT");
