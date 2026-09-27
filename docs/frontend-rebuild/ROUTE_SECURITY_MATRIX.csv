@@ -434,7 +434,7 @@ api/sales/operations/options/route.ts,GET,WORKSPACE_MODULE,salesRead,sales,sales
 api/sales/operations/route.ts,GET,WORKSPACE_MODULE,salesRead,sales,sales.view,false,false,false,session + organisation context + Shared Access authorize()
 api/sales/options/route.ts,GET,WORKSPACE_MODULE,salesRead,sales,sales.view,false,false,false,session + organisation context + Shared Access authorize()
 api/sales/order-lines/[lineId]/promise/route.ts,POST,WORKSPACE_MODULE,salesMutation,sales,sales.fulfillment.request,true,false,true,session + organisation context + Shared Access authorize()
-api/sales/orders/[id]/amend/impact/route.ts,POST,WORKSPACE_MODULE,salesMutation,sales,sales.order.create,true,false,true,session + organisation context + Shared Access authorize()
+api/sales/orders/[id]/amend/impact/route.ts,POST,WORKSPACE_MODULE,salesMutation,sales,sales.order.amend,true,false,true,session + organisation context + Shared Access authorize()
 api/sales/orders/[id]/amend/route.ts,POST,WORKSPACE_MODULE,salesMutation,sales,sales.order.amend,true,false,true,session + organisation context + Shared Access authorize()
 api/sales/orders/[id]/approve/route.ts,POST,WORKSPACE_MODULE,salesMutation,sales,sales.order.approve,true,false,true,session + organisation context + Shared Access authorize()
 api/sales/orders/[id]/availability/route.ts,POST,WORKSPACE_MODULE,salesMutation,sales,sales.fulfillment.request,true,false,true,session + organisation context + Shared Access authorize()

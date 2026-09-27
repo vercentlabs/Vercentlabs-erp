@@ -69,7 +69,8 @@ export const EXPECTED_MIGRATIONS = Object.freeze({
     "067_workflows_and_reports.sql",
     "068_platform_row_level_security.sql",
     "069_organization_membership_user_index.sql",
-    "070_link_billing_price_provider_plan.sql"
+    "070_link_billing_price_provider_plan.sql",
+    "071_canonical_system_role_sync.sql"
   ],
   "tenant": [
     "001_business_data_foundation.sql",

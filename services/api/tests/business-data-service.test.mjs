@@ -276,7 +276,7 @@ test("updateBusinessDataRecord omits the version guard when no expectedUpdatedAt
     },
   };
   await updateBusinessDataRecord(client, context, "parties", "id-1", { displayName: "New Name" });
-  assert.doesNotMatch(calls[1].sql, /AND updated_at = \$/);
+  assert.doesNotMatch(calls[1].sql, /updated_at\) = date_trunc/);
 });
 
 test("updateBusinessDataRecord's version guard surfaces a 409 STALE_WRITE on a zero-row update", async () => {
@@ -300,7 +300,7 @@ test("updateBusinessDataRecord's version guard surfaces a 409 STALE_WRITE on a z
       ),
     (error) => error instanceof BusinessDataError && error.status === 409 && error.code === "STALE_WRITE",
   );
-  assert.match(calls[1].sql, /AND updated_at = \$\d+/);
+  assert.match(calls[1].sql, /AND date_trunc\('milliseconds', updated_at\) = date_trunc\('milliseconds', \$\d+::timestamptz\)/);
   assert.ok(calls[1].values.includes("2020-01-01T00:00:00.000Z"));
 });
 
@@ -317,7 +317,7 @@ test("archiveBusinessDataRecord's version guard surfaces a 409 STALE_WRITE on a 
     () => archiveBusinessDataRecord(client, context, "parties", "id-1", { expectedUpdatedAt: "2020-01-01T00:00:00.000Z" }),
     (error) => error instanceof BusinessDataError && error.status === 409 && error.code === "STALE_WRITE",
   );
-  assert.match(calls[1].sql, /AND updated_at = \$\d+/);
+  assert.match(calls[1].sql, /AND date_trunc\('milliseconds', updated_at\) = date_trunc\('milliseconds', \$\d+::timestamptz\)/);
 });
 
 // F031: the customer list route used to filter supplier rows out of the page

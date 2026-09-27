@@ -442,7 +442,16 @@ test("Sales order lifecycle against real PostgreSQL", async (t) => {
       assert.equal(address.postal_code, "560001");
       assert.equal(address.country_code, "IN");
 
-      await tx((c) => updateBusinessDataRecord(c, master, "parties", customer.id, { displayName: "Master Test Co Ltd" }));
+      // Optimistic concurrency with the version a browser holds: JSON carries
+      // milliseconds while PostgreSQL keeps microseconds, so an unchanged record
+      // must still accept its own (millisecond) version, and a stale one must not.
+      const heldVersion = (await tx((c) => listBusinessDataRecords(c, master, "parties", { search: "Master Test Co" }))).rows.find((row) => row.id === customer.id).updatedAt;
+      const browserVersion = new Date(heldVersion).toISOString();
+      await tx((c) => updateBusinessDataRecord(c, master, "parties", customer.id, { displayName: "Master Test Co Ltd" }, { expectedUpdatedAt: browserVersion }));
+      await assert.rejects(
+        () => tx((c) => updateBusinessDataRecord(c, master, "parties", customer.id, { displayName: "Stale edit" }, { expectedUpdatedAt: browserVersion })),
+        (e) => e.code === "STALE_WRITE",
+      );
       const listed = await tx((c) => listBusinessDataRecords(c, master, "parties", { search: "Master Test" }));
       assert.ok(listed.rows.some((row) => row.displayName === "Master Test Co Ltd"));
 

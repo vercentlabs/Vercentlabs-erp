@@ -908,7 +908,7 @@ export async function updateBusinessDataRecord(
     parameters.push(context.userId);
     const updatedByParameter = `$${parameters.length}`;
     const versionGuard = expectations.expectedUpdatedAt
-      ? ` AND updated_at = ${addParameter(parameters, expectations.expectedUpdatedAt)}`
+      ? ` AND date_trunc('milliseconds', updated_at) = date_trunc('milliseconds', ${addParameter(parameters, expectations.expectedUpdatedAt)}::timestamptz)`
       : "";
 
     const result = await client.query(
@@ -993,7 +993,7 @@ export async function archiveBusinessDataRecord(
 
     const parameters = [id, context.organizationId, definition.archiveStatus, context.userId];
     const versionGuard = expectations.expectedUpdatedAt
-      ? ` AND updated_at = ${addParameter(parameters, expectations.expectedUpdatedAt)}`
+      ? ` AND date_trunc('milliseconds', updated_at) = date_trunc('milliseconds', ${addParameter(parameters, expectations.expectedUpdatedAt)}::timestamptz)`
       : "";
 
     const result = await client.query(

@@ -750,6 +750,8 @@ export const ROLE_TEMPLATES = Object.freeze([
       "projects.view",
       "projects.manage",
       "projects.create",
+      // A second project manager approves (the domain forbids approving your own; platform migration 053).
+      "projects.approve",
       "projects.tasks.manage",
       "projects.milestones.manage",
       "projects.resources.manage",

@@ -105,8 +105,14 @@ export function EnterpriseDataGrid<TRow>({
     return cols;
   }, [columns, enableRowSelection, rowActions]);
 
+  // TanStack caches each row's accessor values for as long as the data array
+  // is unchanged. Columns often read other data (a lookup of names by id that
+  // loads after the rows), so new columns must re-derive the rows, or the grid
+  // keeps showing values computed from the old columns (e.g. "…").
+  const tableData = useMemo(() => data.slice(), [data, columns]);
+
   const table = useReactTable({
-    data,
+    data: tableData,
     columns: resolvedColumns,
     getRowId: getRowId ? (row) => getRowId(row) : undefined,
     state: {
@@ -144,9 +150,11 @@ export function EnterpriseDataGrid<TRow>({
   const rowPaddingClass = density === "compact" ? "py-1.5" : "py-2.5";
   const gridId = ariaProps["aria-label"];
 
+  // The grid keeps its accessible name in every state: an empty, loading or
+  // failed report is still that named region to assistive technology.
   if (state !== "ready") {
     return (
-      <div className={cn("rounded-[var(--radius-card)] border border-border bg-surface", className)}>
+      <div className={cn("rounded-[var(--radius-card)] border border-border bg-surface", className)} role={gridId ? "group" : undefined} aria-label={gridId}>
         {state === "loading" && (loadingContent ?? <GridSkeleton columnCount={resolvedColumns.length} />)}
         {state === "empty" && (emptyContent ?? <EmptyState title="No records yet" />)}
         {state === "no-results" && (noResultsContent ?? <NoResultsState title="No matches" />)}
@@ -158,7 +166,7 @@ export function EnterpriseDataGrid<TRow>({
 
   if (rows.length === 0) {
     return (
-      <div className={cn("rounded-[var(--radius-card)] border border-border bg-surface", className)}>
+      <div className={cn("rounded-[var(--radius-card)] border border-border bg-surface", className)} role={gridId ? "group" : undefined} aria-label={gridId}>
         {noResultsContent ?? <NoResultsState title="No matches" />}
       </div>
     );
