@@ -1,6 +1,6 @@
 import { randomBytes, randomUUID } from "node:crypto";
 
-import { test, expect } from "@playwright/test";
+import { test, expect, type Locator, type Page } from "@playwright/test";
 import { Client } from "pg";
 
 import { MIGRATION_DATABASE_URL } from "./pos-fixtures";
@@ -41,6 +41,13 @@ async function withLink<T>(work: (token: string, db: Client) => Promise<T>): Pro
   }
 }
 
+// The chosen day can be up to two months ahead of the current calendar month.
+async function showDay(page: Page, day: Locator) {
+  for (let step = 0; step < 3 && !(await day.isVisible().catch(() => false)); step += 1) {
+    await page.getByRole("button", { name: "Next month" }).click();
+  }
+}
+
 test.describe("public booking", () => {
   test.use({ storageState: { cookies: [], origins: [] }, timezoneId: "Asia/Calcutta", viewport: { width: 390, height: 844 } });
 
@@ -65,7 +72,7 @@ test.describe("public booking", () => {
       const tomorrow = new Date(Date.now() + bookOffset * 86_400_000);
       const label = tomorrow.toLocaleDateString("en-IN", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
       const day = page.getByRole("button", { name: label });
-      if (!(await day.isVisible().catch(() => false))) await page.getByRole("button", { name: "Next month" }).click();
+      await showDay(page, day);
       await day.click();
       const slot = page.getByRole("radio").first();
       await expect(slot).toBeVisible({ timeout: 60_000 });
@@ -123,7 +130,7 @@ test.describe("public booking", () => {
       const newDay = new Date(Date.now() + (bookOffset + 1) * 86_400_000);
       const label = newDay.toLocaleDateString("en-IN", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
       const dayButton = page.getByRole("button", { name: label });
-      if (!(await dayButton.isVisible().catch(() => false))) await page.getByRole("button", { name: "Next month" }).click();
+      await showDay(page, dayButton);
       await dayButton.click();
       await page.getByRole("radio").nth(2).click();
       await page.getByRole("button", { name: "Reschedule meeting" }).click();
