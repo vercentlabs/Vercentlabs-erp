@@ -15,6 +15,7 @@ import { isIP } from "node:net";
 import { createLogger, currentContext } from "@vercentlabs/observability";
 
 import { redactAuditPayload } from "./audit-redaction.js";
+import { isProductionRuntime } from "@vercentlabs/config";
 
 const securityLogger = createLogger("security");
 
@@ -75,7 +76,7 @@ export function canonicalAppOrigin(env = process.env) {
   const raw = String(env.APP_URL || "http://localhost:3001").trim();
   try {
     const url = new URL(raw);
-    if (env.NODE_ENV === "production" && url.protocol !== "https:") {
+    if (isProductionRuntime(env) && url.protocol !== "https:") {
       throw new Error("APP_URL must use HTTPS in production.");
     }
     return url.origin;
@@ -116,7 +117,7 @@ function requestOrigin(request) {
 
 export function clientIp(request, env = process.env) {
   const configuredHeader = env.TRUSTED_PROXY_IP_HEADER?.trim().toLowerCase();
-  if (!configuredHeader) return env.NODE_ENV === "production" ? "unavailable" : "local";
+  if (!configuredHeader) return isProductionRuntime(env) ? "unavailable" : "local";
 
   const rawValue = request.headers.get(configuredHeader);
   if (!rawValue) return "unavailable";

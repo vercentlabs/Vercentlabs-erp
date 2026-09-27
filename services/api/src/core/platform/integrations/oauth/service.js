@@ -17,6 +17,7 @@ import { createHash, randomBytes } from "node:crypto";
 import { audit, canonicalAppOrigin } from "../../../security/request-security.js";
 import { decryptSecret, encryptSecret } from "../../secrets/index.js";
 import { getOAuthProfile, OAUTH_PROFILES, OAUTH_RETURN_PREFIXES } from "./profiles.js";
+import { isProductionRuntime } from "@vercentlabs/config";
 
 const OAUTH_STATE_TTL_MS = 10 * 60 * 1000;
 const PROVIDER_TIMEOUT_MS = 15_000;
@@ -47,7 +48,7 @@ function providerConfig(provider, env) {
   }
   const standin = String(env.OAUTH_STANDIN_URL || "").trim().replace(/\/+$/, "");
   if (standin) {
-    if (env.NODE_ENV === "production") throw new OAuthError(503, "The OAuth stand-in cannot be used in production.", "PLATFORM_OAUTH_NOT_CONFIGURED");
+    if (isProductionRuntime(env)) throw new OAuthError(503, "The OAuth stand-in cannot be used in production.", "PLATFORM_OAUTH_NOT_CONFIGURED");
     return { authorizeUrl: `${standin}/${provider}/authorize`, tokenUrl: `${standin}/${provider}/token`, clientId, clientSecret };
   }
   return provider === "google"

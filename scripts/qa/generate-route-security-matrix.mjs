@@ -42,7 +42,7 @@ const CLASS_EVIDENCE = {
   PUBLIC_TOKEN: { mutation: [], any: [/\bpublic[A-Za-z]*Token|\btoken\b|\bresolvePublic[A-Za-z]*Organization\s*\(/] },
   WEBHOOK: { mutation: [/signature/i], any: [] },
   PROBE: { mutation: [], any: [] },
-  TEST_SUPPORT: { mutation: [], any: [/NODE_ENV/] },
+  TEST_SUPPORT: { mutation: [], any: [/isProductionRuntime\(process\.env\)/] },
 };
 
 // Every non-workspace, non-API-key, non-self-service route, with the actual
@@ -71,7 +71,7 @@ export const EXPLICIT_ROUTES = Object.freeze({
   "api/pos/payments/webhook/[provider]/route.ts": ["WEBHOOK", "Provider HMAC signature over the raw body verified before parsing and again inside the domain transaction."],
   "api/health/route.ts": ["PROBE", "Liveness only; no database, no tenant data."],
   "api/readiness/route.ts": ["PROBE", "Readiness: configuration, database role, migrations and storage status only; no tenant data."],
-  "api/test-support/email-capture/route.ts": ["TEST_SUPPORT", "Returns 404 unless NODE_ENV is not production AND AUTH_EMAIL_CAPTURE_ENABLED is set; production configuration validation forbids the flag."],
+  "api/test-support/email-capture/route.ts": ["TEST_SUPPORT", "Returns 404 in a production runtime (isProductionRuntime) or unless AUTH_EMAIL_CAPTURE_ENABLED is set; production configuration validation forbids the flag and the local profile."],
 });
 
 // Shared Platform workspace routes whose authorization is NOT a single route

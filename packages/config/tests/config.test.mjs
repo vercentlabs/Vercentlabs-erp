@@ -96,3 +96,23 @@ test("the package index stays browser-safe (server-only helpers live at ./produc
   const manifest = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8"));
   assert.equal(manifest.exports["./production"].default, "./src/production.js");
 });
+
+test("the local production-build profile applies only to an http loopback APP_URL", async () => {
+  const { isProductionRuntime, isLocalProductionBuild } = await import("../src/index.js");
+  const local = { NODE_ENV: "production", RUNTIME_PROFILE: "local-production-build", APP_URL: "http://localhost:3001" };
+  assert.equal(isLocalProductionBuild(local), true);
+  assert.equal(isProductionRuntime(local), false);
+  assert.equal(isProductionRuntime({ ...local, APP_URL: "http://127.0.0.1:3001" }), false);
+  for (const APP_URL of ["https://erp.vercentlabs.com", "http://erp.vercentlabs.com", "https://localhost:3001", "http://localhost.evil.test", ""]) {
+    assert.equal(isProductionRuntime({ ...local, APP_URL }), true, `${APP_URL || "(empty)"} stays production`);
+  }
+  assert.equal(isProductionRuntime({ NODE_ENV: "production", APP_URL: "http://localhost:3001" }), true, "no profile: production");
+  assert.equal(isProductionRuntime({ NODE_ENV: "development" }), false);
+});
+
+test("a deployed configuration carrying the local profile is refused", () => {
+  assert.throws(
+    () => validateRuntimeEnvironment("web", { ...PRODUCTION_WEB, RUNTIME_PROFILE: "local-production-build" }),
+    (error) => error instanceof ConfigurationError && error.issues.some((issue) => issue.includes("RUNTIME_PROFILE")),
+  );
+});

@@ -4,7 +4,7 @@
 // partly configured fails loudly here instead of at its first use.
 import fs from "node:fs";
 
-import { booleanValue, ConfigurationError, databaseConfig, integerValue, originList, stringValue } from "./values.js";
+import { booleanValue, ConfigurationError, databaseConfig, integerValue, isLocalProductionBuild, isProductionRuntime, LOCAL_PRODUCTION_BUILD_PROFILE, originList, stringValue } from "./values.js";
 
 // Secret values that may be delivered as files (GKE Secret Manager CSI mounts
 // them under /var/run/secrets/...): NAME_FILE=/path sets NAME from the file.
@@ -206,8 +206,11 @@ function workerSettings(environment, production, issues) {
  * ConfigurationError listing every problem; returns the validated settings.
  */
 export function validateRuntimeEnvironment(target, environment = process.env) {
-  const production = environment.NODE_ENV === "production";
+  const production = isProductionRuntime(environment);
   const issues = [];
+  if (environment.NODE_ENV === "production" && String(environment.RUNTIME_PROFILE ?? "").trim() && !isLocalProductionBuild(environment)) {
+    issues.push(`RUNTIME_PROFILE=${LOCAL_PRODUCTION_BUILD_PROFILE} is only for a production build run locally (APP_URL must be an http loopback URL); remove it from deployed configuration.`);
+  }
   const result = { target, production };
   if (target === "web" || target === "worker") {
     result.database = databaseIssues(target, environment, production, issues);

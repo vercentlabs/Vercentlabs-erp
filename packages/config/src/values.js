@@ -75,3 +75,28 @@ export function databaseConfig(environment, options = {}) {
     queryTimeoutMilliseconds: integerValue(environment, "DATABASE_QUERY_TIMEOUT_MS", { defaultValue: 20_000, minimum: 1_000, maximum: 300_000 }),
   });
 }
+
+// A production BUILD run on a developer machine or a CI runner (the browser
+// E2E job): `next start` forces NODE_ENV=production although nothing is
+// deployed. RUNTIME_PROFILE=local-production-build keeps the development
+// rules (local secrets key, local storage, http loopback URLs) for such a run.
+// It is honoured only with an http loopback APP_URL, which no deployment can
+// have (a deployed APP_URL must be public https), so it can never relax a real
+// environment; manifests never set it (pnpm verify:production).
+export const LOCAL_PRODUCTION_BUILD_PROFILE = "local-production-build";
+const LOOPBACK_HOSTS = new Set(["localhost", "127.0.0.1", "[::1]"]);
+
+export function isLocalProductionBuild(environment) {
+  if (String(environment.RUNTIME_PROFILE ?? "").trim() !== LOCAL_PRODUCTION_BUILD_PROFILE) return false;
+  try {
+    const url = new URL(String(environment.APP_URL ?? "").trim());
+    return url.protocol === "http:" && LOOPBACK_HOSTS.has(url.hostname);
+  } catch {
+    return false;
+  }
+}
+
+// The one "is this a production deployment" decision for runtime rules.
+export function isProductionRuntime(environment) {
+  return environment.NODE_ENV === "production" && !isLocalProductionBuild(environment);
+}

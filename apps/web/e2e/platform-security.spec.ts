@@ -62,7 +62,9 @@ test("notifications: a failed mark-read request surfaces an error and does not u
     read_at: null,
     created_at: new Date().toISOString(),
   };
-  await page.route("**/api/notifications", (route) => {
+  // The list is requested as /api/notifications?status=<tab>; a URL glob would
+  // not match the query string, so match the path.
+  await page.route((url) => url.pathname === "/api/notifications", (route) => {
     if (route.request().method() !== "GET") return route.continue();
     return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: true, notifications: [fakeNotification] }) });
   });
@@ -73,7 +75,7 @@ test("notifications: a failed mark-read request surfaces an error and does not u
   await page.goto("/notifications", { waitUntil: "networkidle" });
   await expect(page.getByText("E2E synthetic notification")).toBeVisible();
 
-  await page.getByRole("button", { name: "Mark read" }).click();
+  await page.getByRole("button", { name: `Mark "${fakeNotification.title}" read` }).click();
   // Not getByRole("alert") alone — Next's own route announcer
   // (#__next-route-announcer__) also carries role="alert" and matches.
   await expect(page.getByText("Simulated failure")).toBeVisible();
@@ -81,7 +83,7 @@ test("notifications: a failed mark-read request surfaces an error and does not u
   // time), so if the fix regressed and onSuccess fired anyway, the "Mark
   // read" button would disappear on refetch — asserting it's still there
   // is the observable proof the UI didn't treat the failure as success.
-  await expect(page.getByRole("button", { name: "Mark read" })).toBeVisible();
+  await expect(page.getByRole("button", { name: `Mark "${fakeNotification.title}" read` })).toBeVisible();
 });
 
 test("approvals: list still works end-to-end after the same-origin check was added to decide", async ({ page }) => {

@@ -2,6 +2,7 @@
 // the recovered pre-rebuild snapshot (last present at commit d4df5eb1), apps/web/src/core/attachment-security.ts. No DB
 // dependency; lowest-risk port in the platform set.
 import { createHash } from "node:crypto";
+import { isProductionRuntime } from "@vercentlabs/config";
 
 export class AttachmentSecurityError extends Error {
   constructor(status, message, code) {
@@ -35,7 +36,7 @@ export function verifyAttachmentContent(bytes, mimeType) {
 
 export async function scanAttachmentForUpload(bytes, mimeType, env = process.env) {
   verifyAttachmentContent(bytes, mimeType);
-  const mode = String(env.ATTACHMENT_SCAN_MODE || (env.NODE_ENV === "production" ? "required" : "local")).toLowerCase();
+  const mode = String(env.ATTACHMENT_SCAN_MODE || (isProductionRuntime(env) ? "required" : "local")).toLowerCase();
   if (mode === "local") return { scanStatus: "clean", scanner: "local-content-policy" };
   if (mode !== "required") throw new AttachmentSecurityError(503, "Attachment scan mode is invalid.", "ATTACHMENT_SCAN_CONFIGURATION_INVALID");
 
@@ -50,7 +51,7 @@ export async function scanAttachmentForUpload(bytes, mimeType, env = process.env
   } catch {
     throw new AttachmentSecurityError(503, "Attachment scan URL is invalid.");
   }
-  if (env.NODE_ENV === "production" && url.protocol !== "https:") {
+  if (isProductionRuntime(env) && url.protocol !== "https:") {
     throw new AttachmentSecurityError(503, "Attachment scan URL must use HTTPS in production.");
   }
   const digest = createHash("sha256").update(bytes).digest("hex");

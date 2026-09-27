@@ -37,7 +37,7 @@ export function AppShell({
   return (
     <QueryProvider>
       <WorkspaceContextProvider value={contextValue}>
-        <div className="flex h-dvh w-full bg-canvas">
+        <div data-app-shell="" className="flex h-dvh w-full bg-canvas">
           <div className="hidden lg:flex">
             <ModuleRail
               organizationName={contextValue.organizationName}

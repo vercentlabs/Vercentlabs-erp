@@ -23,6 +23,7 @@
 // key is configured; new writes always use envelopes, and
 // `pnpm secrets:migrate-legacy` rewrites the old rows.
 import { createCipheriv, createDecipheriv, createHash, randomBytes } from "node:crypto";
+import { isProductionRuntime } from "@vercentlabs/config";
 
 export class SecretEncryptionError extends Error {
   constructor(status, message, code) {
@@ -63,7 +64,7 @@ function gcmDecrypt(key, { iv, tag, ciphertext }) {
 const DEVELOPMENT_MASTER_KEY = createHash("sha256").update("vercentlabs-local-development-secrets-v1").digest();
 
 export function createLocalKeyProvider(env = process.env) {
-  if (env.NODE_ENV === "production") throw notConfigured("The local secrets provider cannot be used in production.");
+  if (isProductionRuntime(env)) throw notConfigured("The local secrets provider cannot be used in production.");
   const master = env.SECRETS_LOCAL_MASTER_KEY ? key32(env.SECRETS_LOCAL_MASTER_KEY, "SECRETS_LOCAL_MASTER_KEY") : DEVELOPMENT_MASTER_KEY;
   const reference = `local:${createHash("sha256").update(master).digest("hex").slice(0, 16)}`;
   return {
@@ -125,7 +126,7 @@ export function setSecretsProviderForTests(provider) {
 
 export function resolveSecretsProvider(env = process.env) {
   if (providerOverride) return providerOverride;
-  const production = env.NODE_ENV === "production";
+  const production = isProductionRuntime(env);
   const kind = String(env.SECRETS_ENCRYPTION_PROVIDER || (production ? "" : "local")).trim().toLowerCase();
   const cacheKey = `${kind}|${env.SECRETS_KMS_KEY_NAME || ""}|${env.SECRETS_LOCAL_MASTER_KEY ? createHash("sha256").update(String(env.SECRETS_LOCAL_MASTER_KEY)).digest("hex") : ""}|${env.NODE_ENV || ""}`;
   if (cachedProvider && cachedProviderKey === cacheKey) return cachedProvider;

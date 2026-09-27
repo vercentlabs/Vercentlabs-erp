@@ -548,8 +548,8 @@ api/support/actions/[action]/route.ts,POST,WORKSPACE_MODULE,support,support.view
 api/support/attachments/[id]/download/route.ts,GET,WORKSPACE_MODULE,support,support.view,active company; own tickets for portal self-service,private_notes_and_attachments: support.sensitive.view,no,denials logged
 api/support/tickets/[ticketId]/attachments/route.ts,POST,WORKSPACE_MODULE,support,support.view,active company; own tickets for portal self-service,private_notes_and_attachments: support.sensitive.view,yes,denials logged
 api/support/view/[kind]/route.ts,GET,WORKSPACE_MODULE,support,support.view (helper default; route may narrow),active company; own tickets for portal self-service,private_notes_and_attachments: support.sensitive.view,no,denials logged
-api/test-support/email-capture/route.ts,GET,TEST_SUPPORT,,n/a,Returns 404 unless NODE_ENV is not production AND AUTH_EMAIL_CAPTURE_ENABLED is set; production configuration validation forbids the flag.,,no,n/a
-api/test-support/email-capture/route.ts,POST,TEST_SUPPORT,,n/a,Returns 404 unless NODE_ENV is not production AND AUTH_EMAIL_CAPTURE_ENABLED is set; production configuration validation forbids the flag.,,no,n/a
+api/test-support/email-capture/route.ts,GET,TEST_SUPPORT,,n/a,Returns 404 in a production runtime (isProductionRuntime) or unless AUTH_EMAIL_CAPTURE_ENABLED is set; production configuration validation forbids the flag and the local profile.,,no,n/a
+api/test-support/email-capture/route.ts,POST,TEST_SUPPORT,,n/a,Returns 404 in a production runtime (isProductionRuntime) or unless AUTH_EMAIL_CAPTURE_ENABLED is set; production configuration validation forbids the flag and the local profile.,,no,n/a
 api/v1/platform/context/route.ts,GET,API_KEY,,platform.context.read,hashed API key + key scopes + organisation context,,no,n/a
 api/workspace/companies/route.ts,GET,WORKSPACE_PLATFORM,,,organisation (RLS) + the route permission; domain scoping per the protection note,,no,denials logged
 api/workspace/context/route.ts,PATCH,WORKSPACE_PLATFORM,,,organisation (RLS) + the route permission; domain scoping per the protection note,,no,denials logged

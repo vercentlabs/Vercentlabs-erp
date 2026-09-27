@@ -16,3 +16,6 @@ export function integerValue(environment: Record<string, string | undefined>, na
 export function booleanValue(environment: Record<string, string | undefined>, name: string, defaultValue?: boolean): boolean;
 export function originList(environment: Record<string, string | undefined>, name: string, options?: { required?: boolean; httpsOnly?: boolean }): string[];
 export function databaseConfig(environment: Record<string, string | undefined>, options?: { name?: string; defaultPoolMaximum?: number }): Readonly<{ connectionString: string; poolMaximum: number; idleTimeoutMilliseconds: number; connectionTimeoutMilliseconds: number; statementTimeoutMilliseconds: number; queryTimeoutMilliseconds: number }>;
+export const LOCAL_PRODUCTION_BUILD_PROFILE: "local-production-build";
+export function isLocalProductionBuild(environment: Record<string, string | undefined>): boolean;
+export function isProductionRuntime(environment: Record<string, string | undefined>): boolean;

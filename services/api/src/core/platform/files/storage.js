@@ -14,6 +14,7 @@ import os from "node:os";
 import path from "node:path";
 
 import { createLocalObjectStorage, createMemoryObjectStorage } from "@vercentlabs/document-engine";
+import { isProductionRuntime } from "@vercentlabs/config";
 
 export class FileStorageError extends Error {
   constructor(status, message, code) {
@@ -35,7 +36,7 @@ export function setObjectStorageForTests(storage) {
 
 export async function resolveObjectStorage(env = process.env) {
   if (override) return override;
-  const production = env.NODE_ENV === "production";
+  const production = isProductionRuntime(env);
   const driver = String(env.FILE_STORAGE_DRIVER || (production ? "" : "local")).trim().toLowerCase();
   const root = String(env.FILE_STORAGE_LOCAL_ROOT || path.join(os.tmpdir(), "vercentlabs-object-storage"));
   const bucket = String(env.FILE_STORAGE_GCS_BUCKET || "").trim();

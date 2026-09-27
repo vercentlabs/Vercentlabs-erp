@@ -73,7 +73,7 @@ test("canonical role templates and module catalogue are exactly what the databas
     const rows = (
       await admin.query(
         `SELECT role.slug, role.is_system, role.module_key, role.assignable, role.risk_level,
-                COALESCE(array_agg(permission.permission_key ORDER BY permission.permission_key) FILTER (WHERE permission.permission_key IS NOT NULL), ARRAY[]::text[]) AS permissions
+                COALESCE(array_agg(permission.permission_key ORDER BY permission.permission_key COLLATE "C") FILTER (WHERE permission.permission_key IS NOT NULL), ARRAY[]::text[]) AS permissions
            FROM roles AS role
            LEFT JOIN role_permissions AS permission ON permission.role_id = role.id
           WHERE role.organization_id = $1

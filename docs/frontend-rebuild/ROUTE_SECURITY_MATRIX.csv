@@ -548,8 +548,8 @@ api/support/actions/[action]/route.ts,POST,WORKSPACE_MODULE,supportMutation,supp
 api/support/attachments/[id]/download/route.ts,GET,WORKSPACE_MODULE,workspaceRoute,support,support.view,false,true,false,session + organisation context + Shared Access authorize()
 api/support/tickets/[ticketId]/attachments/route.ts,POST,WORKSPACE_MODULE,workspaceRoute,support,support.view,true,true,true,session + organisation context + Shared Access authorize()
 api/support/view/[kind]/route.ts,GET,WORKSPACE_MODULE,supportRead,support,support.view (helper default; route may narrow),false,when self-service,false,session + organisation context + Shared Access authorize()
-api/test-support/email-capture/route.ts,GET,TEST_SUPPORT,explicit,,,false,false,false,Returns 404 unless NODE_ENV is not production AND AUTH_EMAIL_CAPTURE_ENABLED is set; production configuration validation forbids the flag.
-api/test-support/email-capture/route.ts,POST,TEST_SUPPORT,explicit,,,false,false,false,Returns 404 unless NODE_ENV is not production AND AUTH_EMAIL_CAPTURE_ENABLED is set; production configuration validation forbids the flag.
+api/test-support/email-capture/route.ts,GET,TEST_SUPPORT,explicit,,,false,false,false,Returns 404 in a production runtime (isProductionRuntime) or unless AUTH_EMAIL_CAPTURE_ENABLED is set; production configuration validation forbids the flag and the local profile.
+api/test-support/email-capture/route.ts,POST,TEST_SUPPORT,explicit,,,false,false,false,Returns 404 in a production runtime (isProductionRuntime) or unless AUTH_EMAIL_CAPTURE_ENABLED is set; production configuration validation forbids the flag and the local profile.
 api/v1/platform/context/route.ts,GET,API_KEY,apiKeyRoute,,platform.context.read,false,false,false,hashed API key + key scopes + organisation context
 api/workspace/companies/route.ts,GET,WORKSPACE_PLATFORM,workspaceRoute,,,false,false,false,Companies inside the caller's own access scope.
 api/workspace/context/route.ts,PATCH,WORKSPACE_PLATFORM,workspaceRoute,,,false,false,true,Switches only to a company/branch inside the caller's own access scope.

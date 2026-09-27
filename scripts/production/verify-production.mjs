@@ -327,6 +327,15 @@ check("release and deployment workflow structure", () => {
   return problems;
 });
 
+// The local production-build profile (packages/config/src/values.js) is for a
+// production build run on a developer machine or CI runner only.
+check("deployments never set the local production-build profile", () =>
+  tracked
+    .filter((file) => /^infrastructure\/(kubernetes|docker|terraform)\//.test(file) || /^infrastructure\/env\/(production|staging)/.test(file) || file === ".github/workflows/deploy-environment.yml")
+    .filter((file) => exists(file) && /RUNTIME_PROFILE/.test(read(file)))
+    .map((file) => `${file} sets RUNTIME_PROFILE`),
+);
+
 check("production architecture reference and operations runbooks exist", () =>
   ["docs/01-standards/PRODUCTION_ARCHITECTURE_GCP.md", "docs/operations/PRODUCTION_RUNBOOK.md", "docs/operations/DISASTER_RECOVERY_RUNBOOK.md", "docs/operations/RELEASE_RUNBOOK.md"].filter((file) => !exists(file)).map((file) => `missing ${file}`),
 );

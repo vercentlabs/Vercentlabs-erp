@@ -1,3 +1,4 @@
+import { isProductionRuntime } from "@vercentlabs/config";
 import { z } from "zod";
 
 import { errorResponse, HttpError, ok, readJson } from "@/core/http";
@@ -7,12 +8,15 @@ import { errorResponse, HttpError, ok, readJson } from "@/core/http";
 // dev/test environment (AUTH_EMAIL_WEBHOOK_URL) so a test can retrieve the
 // EXACT url/content that would have been emailed, without ever
 // reconstructing it or logging real tokens to a shared log stream.
-// Hard-blocked in production by TWO independent checks (NODE_ENV and an
-// explicit opt-in flag) — this route has no authentication of its own,
+// Hard-blocked in production by TWO independent checks (a production runtime
+// and an explicit opt-in flag) — this route has no authentication of its own,
 // so it must be structurally unreachable in a real deployment rather than
-// merely "not used" there.
+// merely "not used" there. A production BUILD on a CI runner counts as
+// non-production only with RUNTIME_PROFILE=local-production-build and an
+// http loopback APP_URL (isProductionRuntime); deployed configuration
+// validation forbids both that profile and the capture flag.
 function guardTestSupportRoute() {
-  if (process.env.NODE_ENV === "production" || process.env.AUTH_EMAIL_CAPTURE_ENABLED !== "1") {
+  if (isProductionRuntime(process.env) || process.env.AUTH_EMAIL_CAPTURE_ENABLED !== "1") {
     throw new HttpError(404, "Not found.");
   }
 }

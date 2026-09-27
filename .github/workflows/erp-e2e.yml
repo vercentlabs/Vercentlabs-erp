@@ -97,7 +97,10 @@ jobs:
       - name: Start the ERP web app
         run: |
           # NODE_ENV is set only here: in the job environment it would make pnpm skip the dev dependencies Playwright needs.
-          NODE_ENV=production nohup pnpm --filter @vercentlabs/web exec next start -p 3001 > web-server.log 2>&1 &
+          # RUNTIME_PROFILE=local-production-build: a production build on a runner (http://localhost, local secrets key
+          # and storage) — honoured only with a loopback APP_URL. The web never receives the migration authority.
+          env -u MIGRATION_DATABASE_URL NODE_ENV=production RUNTIME_PROFILE=local-production-build FILE_STORAGE_DRIVER=local \
+            nohup pnpm --filter @vercentlabs/web exec next start -p 3001 > web-server.log 2>&1 &
           for i in $(seq 1 60); do
             if curl -fsS http://localhost:3001/login > /dev/null; then exit 0; fi
             sleep 2

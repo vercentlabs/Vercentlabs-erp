@@ -518,7 +518,7 @@ test("canonical role sync reconciles drifted built-in roles and leaves custom ro
     await db.query(sync);
 
     const matrix = (await db.query(
-      `SELECT role.id, role.slug, role.is_system, COALESCE(array_agg(grant_row.permission_key ORDER BY grant_row.permission_key) FILTER (WHERE grant_row.permission_key IS NOT NULL), ARRAY[]::text[]) AS permissions
+      `SELECT role.id, role.slug, role.is_system, COALESCE(array_agg(grant_row.permission_key ORDER BY grant_row.permission_key COLLATE "C") FILTER (WHERE grant_row.permission_key IS NOT NULL), ARRAY[]::text[]) AS permissions
          FROM roles role LEFT JOIN role_permissions grant_row ON grant_row.role_id = role.id
         WHERE role.organization_id = $1 GROUP BY role.id`,
       [world.organizationId],

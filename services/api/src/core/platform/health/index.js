@@ -8,6 +8,7 @@ import { validateRuntimeEnvironment } from "@vercentlabs/config/production";
 import { readMigrationStatus, restrictedRoleRequired, verifyRestrictedRuntimeRole } from "@vercentlabs/database";
 
 import { resolveObjectStorage } from "../files/storage.js";
+import { isProductionRuntime } from "@vercentlabs/config";
 
 const withTimeout = (promise, milliseconds) =>
   Promise.race([promise, new Promise((_, reject) => setTimeout(() => reject(new Error("timed out")), milliseconds).unref?.())]);
@@ -45,7 +46,7 @@ export async function checkReadiness({ queryable, env = process.env, target = "w
       if (!status.ready) throw new Error(`database is behind this build (${status.missing.length} migration(s) missing)`);
     });
   }
-  const storageConfigured = env.NODE_ENV === "production" || Boolean(String(env.FILE_STORAGE_DRIVER || "").trim());
+  const storageConfigured = isProductionRuntime(env) || Boolean(String(env.FILE_STORAGE_DRIVER || "").trim());
   if (storageConfigured) {
     await run("objectStorage", async () => {
       if (Date.now() < memo.storageUntil) return;

@@ -30,7 +30,9 @@ test("an unmapped CRM resource's mutation is denied by default, not silently all
   expect(denied.body.code).toBe("PERMISSION_DENIED");
 });
 
-test("saved-views — the one documented self-scoped exemption — can still be created and deleted end-to-end", async ({ page }) => {
+// Saved views were removed from CRM (82454fec): the resource is now refused like
+// any unknown resource — never silently created.
+test("saved-views (removed) is refused like any unknown CRM resource", async ({ page }) => {
   await page.goto("/crm/leads", { waitUntil: "networkidle" });
 
   const created = await page.evaluate(async () => {
@@ -39,22 +41,9 @@ test("saved-views — the one documented self-scoped exemption — can still be 
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ resource: "leads", name: `e2e regression view ${Date.now()}`, filters: {} }),
     });
-    return { status: resp.status, body: await resp.json() };
+    return { status: resp.status };
   });
-  expect(created.status).toBe(201);
-  expect(created.body.record.id).toBeTruthy();
-
-  const deleted = await page.evaluate(
-    async ({ id, expectedUpdatedAt }) => {
-      const resp = await fetch(`/api/crm/saved-views/${id}?expectedUpdatedAt=${encodeURIComponent(expectedUpdatedAt)}`, {
-        method: "DELETE",
-      });
-      return { status: resp.status, body: await resp.json() };
-    },
-    { id: created.body.record.id, expectedUpdatedAt: created.body.record.updatedAt },
-  );
-  expect(deleted.status).toBe(200);
-  expect(deleted.body.record.deleted).toBe(true);
+  expect(created.status).toBe(404);
 });
 
 test("a mapped CRM resource (leads) still requires its documented manage permission, unaffected by the deny-by-default fix", async ({ page }) => {

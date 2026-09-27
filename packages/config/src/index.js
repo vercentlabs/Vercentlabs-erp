@@ -19,6 +19,6 @@ export const WORKSPACE_EMAILS = Object.freeze({
   dmarc: "dmarc@vercentlabs.com",
 });
 
-export { booleanValue, ConfigurationError, databaseConfig, integerValue, originList, stringValue } from "./values.js";
+export { booleanValue, ConfigurationError, databaseConfig, integerValue, isLocalProductionBuild, isProductionRuntime, LOCAL_PRODUCTION_BUILD_PROFILE, originList, stringValue } from "./values.js";
 // Server-only helpers (node:fs) live at "@vercentlabs/config/production" so
 // browser bundles (landing client components) never pull in node built-ins.

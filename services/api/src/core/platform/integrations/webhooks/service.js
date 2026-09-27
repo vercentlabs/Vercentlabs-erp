@@ -14,6 +14,7 @@ import { getDomainEvent, projectDomainEvent } from "../../events/index.js";
 import { audit } from "../../../security/request-security.js";
 import { decryptSecret, encryptSecret } from "../../secrets/index.js";
 import { validateWebhookUrl } from "./ssrf.js";
+import { isProductionRuntime } from "@vercentlabs/config";
 
 export const WEBHOOK_MAX_ATTEMPTS = 8;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -49,7 +50,7 @@ export function verifyOutboundWebhookSignature(secret, { deliveryId, timestamp, 
 // ------------------------------------------------------------ administration
 
 function allowPrivateTargets(env) {
-  return env.NODE_ENV !== "production" && String(env.WEBHOOK_ALLOW_PRIVATE_TARGETS || "").toLowerCase() === "true";
+  return !isProductionRuntime(env) && String(env.WEBHOOK_ALLOW_PRIVATE_TARGETS || "").toLowerCase() === "true";
 }
 
 function endpoint(value, env) {
@@ -57,7 +58,7 @@ function endpoint(value, env) {
   if (!url || url.length > 2000) throw new WebhookError(400, "Enter the endpoint URL.", "PLATFORM_WEBHOOK_ENDPOINT_INVALID");
   try {
     const parsed = validateWebhookUrl(url, { allowPrivate: allowPrivateTargets(env) });
-    if (env.NODE_ENV === "production" && parsed.protocol !== "https:") throw new Error("HTTPS is required.");
+    if (isProductionRuntime(env) && parsed.protocol !== "https:") throw new Error("HTTPS is required.");
     if (parsed.username || parsed.password) throw new Error("Credentials in the URL are not allowed.");
     return parsed.toString();
   } catch (error) {

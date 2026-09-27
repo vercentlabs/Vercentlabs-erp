@@ -49,7 +49,11 @@ const results = [];
 for (const spec of specs) {
   await clearRateLimits();
   const started = Date.now();
-  const run = spawnSync("npx", ["playwright", "test", spec, "--reporter=line"], { cwd: webDir, shell: process.platform === "win32", encoding: "utf8", env: process.env });
+  // Playwright treats the argument as a pattern on the file path, so a bare
+  // "accessibility.spec.ts" would also select "pos-accessibility.spec.ts".
+  // "e2e.<name>" pins it to that exact file ("." matches / or \).
+  const filter = `e2e.${spec.replace(/^e2e[\\/]/, "")}`;
+  const run = spawnSync("npx", ["playwright", "test", filter, "--reporter=line"], { cwd: webDir, shell: process.platform === "win32", encoding: "utf8", env: process.env });
   const output = `${run.stdout ?? ""}${run.stderr ?? ""}`;
   const passed = Number(/(\d+) passed/.exec(output)?.[1] ?? 0);
   const failed = Number(/(\d+) failed/.exec(output)?.[1] ?? 0);

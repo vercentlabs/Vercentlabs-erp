@@ -109,7 +109,7 @@ test("password reset: a real reset invalidates the old password and any existing
     // not a 404, which is the exact catastrophic-lockout bug this
     // checkpoint's work closes.
     await page.waitForURL(/\/onboarding/, { timeout: 10_000 });
-    await expect(page.getByText(/not part of an organization/i)).toBeVisible();
+    await expect(page.getByRole("heading", { name: /not part of an organization/i })).toBeVisible();
 
     // A second, real reset — issued while the user has an active session.
     const secondToken = createOpaqueToken();
@@ -185,14 +185,12 @@ test("organization invitation: a real invitation can be accepted end-to-end and 
   );
   test.skip(!ownerOrg.rows[0], "Could not resolve the owner fixture's organization");
   const organizationRole = await db.query(
-    // Excludes organization_owner: createOrganizationInvitation now
-    // enforces the same grant-ceiling check role assignment uses
-    // (validateRoleSelection), which refuses to let ANY invitation grant
-    // ownership — that's the controlled-transfer flow's job, never a
-    // bare invite. The fixture org's owner role happens to be its
-    // earliest-created role, so an unfiltered "first role" pick would
-    // hit that block.
-    `SELECT id FROM roles WHERE organization_id = $1 AND status = 'active' AND slug != 'organization_owner' ORDER BY created_at ASC LIMIT 1`,
+    // A fixed, non-privileged built-in role. Ownership can never be granted
+    // by an invitation (validateRoleSelection), and the unrestricted
+    // system_administrator carries a blocking SoD conflict that acceptance
+    // refuses. Built-in roles are created in one transaction (identical
+    // created_at), so "the first role" was an arbitrary pick.
+    `SELECT id FROM roles WHERE organization_id = $1 AND status = 'active' AND slug = 'employee' LIMIT 1`,
     [ownerOrg.rows[0]?.organization_id],
   );
   test.skip(!organizationRole.rows[0], "No role exists in the fixture organization to invite with");
@@ -285,7 +283,7 @@ test("organization invitation: the URL a real invitee would receive by email is 
     // bare invite. The fixture org's owner role happens to be its
     // earliest-created role, so an unfiltered "first role" pick would
     // hit that block.
-    `SELECT id FROM roles WHERE organization_id = $1 AND status = 'active' AND slug != 'organization_owner' ORDER BY created_at ASC LIMIT 1`,
+    `SELECT id FROM roles WHERE organization_id = $1 AND status = 'active' AND slug = 'employee' LIMIT 1`,
     [ownerOrg.rows[0]?.organization_id],
   );
   test.skip(!organizationRole.rows[0], "No role exists in the fixture organization to invite with");

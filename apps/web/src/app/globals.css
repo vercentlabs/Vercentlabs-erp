@@ -10,6 +10,13 @@
 html,
 body {
   height: 100%;
+}
+
+/* Only while the workspace AppShell is on the page. Public pages outside it
+   (booking, quotes, sign-in) scroll the document normally — a global lock left
+   a phone unable to reach the booking page's "Continue" button. */
+html:has([data-app-shell]),
+html:has([data-app-shell]) body {
   /* AppShell.tsx locks the whole app to exactly one viewport (`h-dvh`) and
      provides its own single scroll region (the `overflow-y-auto` content
      pane). `height: 100%` alone only sets html/body's own box — it does not
