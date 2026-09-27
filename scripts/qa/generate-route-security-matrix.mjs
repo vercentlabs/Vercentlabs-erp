@@ -97,6 +97,16 @@ export const PLATFORM_DOMAIN_AUTHORIZATION = Object.freeze({
   "api/settings/organization/security/route.ts": "Any member may read whether MFA is enforced; changing it requires platform.security.manage.",
 });
 
+// Source text with formatting removed (whitespace runs collapsed, no padding
+// inside brackets, no trailing commas), so the composition checks below match
+// the code however it is wrapped.
+export function flat(source) {
+  return source
+    .replace(/\s+/g, " ")
+    .replace(/([([]) /g, "$1")
+    .replace(/,? ([)\]])/g, "$1");
+}
+
 // Module route helpers that wrap workspaceRoute. Audited at scan time: the
 // helper must call workspaceRoute, and its Mutation variant must set the
 // billing write gate.
@@ -111,13 +121,13 @@ function moduleHelpers() {
       const name = match[1];
       const start = match.index;
       const next = source.indexOf("\nexport ", start + 10);
-      const body = source.slice(start, next < 0 ? source.length : next);
+      const body = flat(source.slice(start, next < 0 ? source.length : next));
       if (!/\bworkspaceRoute\s*\(/.test(body)) throw new Error(`${file}: ${name} no longer calls workspaceRoute(); routes using it can no longer be treated as protected.`);
       const module = body.match(/module: "([^"]+)"/)?.[1];
       if (!module) throw new Error(`${file}: ${name} has no module option.`);
       const mutation = name.endsWith("Mutation");
       if (mutation && !/billingWrite: true/.test(body)) throw new Error(`${file}: ${name} no longer sets billingWrite.`);
-      const defaultPermission = source.slice(start).match(/permission: string = "([^"]+)"/)?.[1] ?? null;
+      const defaultPermission = flat(source.slice(start)).match(/permission: string = "([^"]+)"/)?.[1] ?? null;
       helpers.set(name, { file: file.replaceAll("\\", "/"), module, mutation, defaultPermission, selfService: /selfService: true/.test(body) });
     }
   }
@@ -125,9 +135,9 @@ function moduleHelpers() {
 }
 
 function auditCoreWrappers() {
-  const workspace = fs.readFileSync("apps/web/src/core/workspace-route.ts", "utf8");
-  const secure = fs.readFileSync("apps/web/src/core/secure-route.ts", "utf8");
-  const apiKey = fs.readFileSync("apps/web/src/core/api-key-route.ts", "utf8");
+  const workspace = flat(fs.readFileSync("apps/web/src/core/workspace-route.ts", "utf8"));
+  const secure = flat(fs.readFileSync("apps/web/src/core/secure-route.ts", "utf8"));
+  const apiKey = flat(fs.readFileSync("apps/web/src/core/api-key-route.ts", "utf8"));
   const required = [
     [workspace, /requireSession: \(\) => requireApiWorkspace\(\)/, "workspaceRoute resolves the workspace session"],
     [workspace, /assertOrigin: \(incoming\) => assertSameOriginOrMobile\(/, "workspaceRoute wires the origin check"],

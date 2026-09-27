@@ -51,6 +51,6 @@ test("API key organisation comes only from the key; platform RLS isolates keys b
       assert.ok(!/searchParams\.get\(\s*["']organization/i.test(source), `${file} reads an organisation from the query`);
       assert.ok(!/body\??\.organization|input\??\.organization|params\??\.organization/i.test(source), `${file} reads an organisation from the body or path`);
     }
-    assert.match(fs.readFileSync(files[0], "utf8"), /tenantTransaction\(principal\.organizationId/, "the handler transaction uses the key's organisation");
+    assert.match(fs.readFileSync(files[0], "utf8"), /tenantTransaction\(\s*principal\.organizationId/, "the handler transaction uses the key's organisation");
   });
 });

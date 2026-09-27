@@ -177,7 +177,7 @@ section("every numbered document type belongs to a catalogue module", await (asy
 section("Settings navigation lists the platform pages as available (and they exist)", (() => {
   const nav = read("apps/web/src/shell/navigation/settings-navigation-registry.ts");
   return ["integrations", "privacy", "feature-configuration", "automations", "ai-governance", "numbering"].flatMap((id) => [
-    ...(!new RegExp(`id: "${id}"[^\\n]*status: "AVAILABLE"`).test(nav) ? [`settings item "${id}" is not AVAILABLE`] : []),
+    ...(!new RegExp(`id: "${id}",[^}]*status: "AVAILABLE"`).test(nav) ? [`settings item "${id}" is not AVAILABLE`] : []),
     ...(!exists(`apps/web/src/app/(workspace)/settings/${id}/page.tsx`) ? [`settings page /settings/${id} is missing`] : []),
   ]);
 })());

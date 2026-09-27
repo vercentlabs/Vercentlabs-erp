@@ -31,6 +31,8 @@ import { execFileSync } from "node:child_process";
 
 import { Client } from "pg";
 import { requireBillingWriteAccess, EntitlementError } from "../../services/api/src/core/billing/index.js";
+// Source text with formatting removed, so the wiring checks do not depend on line wrapping.
+import { flat } from "../../scripts/qa/generate-route-security-matrix.mjs";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(here, "../..");
@@ -43,18 +45,18 @@ function hasImportAndCall(source, importName, calleeName) {
 
 test("SP011 Section 3: billing-write enforcement wiring into real CRM/POS mutation entry points", async (t) => {
   await t.test("workspace-route.ts imports requireBillingWriteAccess and wires it as the billingWrite gate", () => {
-    const source = fs.readFileSync(path.join(repoRoot, "apps/web/src/core/workspace-route.ts"), "utf8");
+    const source = flat(fs.readFileSync(path.join(repoRoot, "apps/web/src/core/workspace-route.ts"), "utf8"));
     assert.ok(
       hasImportAndCall(source, "requireBillingWriteAccess", "requireBillingWriteAccess"),
       "workspace-route.ts must import requireBillingWriteAccess from @vercentlabs/api and actually call it, not just import it",
     );
-    const secure = fs.readFileSync(path.join(repoRoot, "apps/web/src/core/secure-route.ts"), "utf8");
+    const secure = flat(fs.readFileSync(path.join(repoRoot, "apps/web/src/core/secure-route.ts"), "utf8"));
     assert.match(secure, /if \(options\.billingWrite\) await deps\.requireBillingWrite\(/, "secure-route.ts must run the billing gate for billingWrite routes");
   });
 
   await t.test("the generic CRM resource routes (create/update/archive) check the resource permission then the billing write gate", () => {
-    const collectionRoute = fs.readFileSync(path.join(repoRoot, "apps/web/src/app/api/crm/[resource]/route.ts"), "utf8");
-    const itemRoute = fs.readFileSync(path.join(repoRoot, "apps/web/src/app/api/crm/[resource]/[id]/route.ts"), "utf8");
+    const collectionRoute = flat(fs.readFileSync(path.join(repoRoot, "apps/web/src/app/api/crm/[resource]/route.ts"), "utf8"));
+    const itemRoute = flat(fs.readFileSync(path.join(repoRoot, "apps/web/src/app/api/crm/[resource]/[id]/route.ts"), "utf8"));
     for (const [label, source] of [["POST /api/crm/[resource] (create)", collectionRoute], ["PATCH/DELETE /api/crm/[resource]/[id] (update/archive)", itemRoute]]) {
       assert.ok(hasImportAndCall(source, "assertCrmResourceMutationPermission", "assertCrmResourceMutationPermission"), label);
       assert.ok(hasImportAndCall(source, "requireBillingWriteAccess", "requireBillingWriteAccess"), label);
@@ -75,7 +77,7 @@ test("SP011 Section 3: billing-write enforcement wiring into real CRM/POS mutati
   });
 
   await t.test("the POS cart-completion route (the sale-creating mutation) opts into the billing-write check", () => {
-    const source = fs.readFileSync(path.join(repoRoot, "apps/web/src/app/api/pos/carts/[id]/complete/route.ts"), "utf8");
+    const source = flat(fs.readFileSync(path.join(repoRoot, "apps/web/src/app/api/pos/carts/[id]/complete/route.ts"), "utf8"));
     assert.match(source, /workspaceRoute\(request, \{[^}]*\bbillingWrite: true\b[^}]*\}/, "POST /api/pos/carts/[id]/complete must pass billingWrite: true to workspaceRoute");
   });
 
