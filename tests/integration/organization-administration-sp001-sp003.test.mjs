@@ -163,6 +163,12 @@ test("SP001/SP002/SP003: organization/company/branch administration against a re
       branchId = branch.id;
       assert.equal(branch.code, "HQ");
       assert.equal(branch.company_id, companyId);
+      // The primary company's primary branch seeds the organisation's default
+      // master data (lost with the legacy provisioning; restored here).
+      const units = await admin.query(`SELECT code FROM tenant.units_of_measure WHERE organization_id=$1 AND status='active' ORDER BY code`, [orgId]);
+      assert.ok(units.rows.some((row) => row.code === "EA"), "units of measure are seeded");
+      const warehouses = await admin.query(`SELECT count(*)::int AS n FROM tenant.warehouses WHERE organization_id=$1 AND branch_id=$2`, [orgId, branchId]);
+      assert.equal(warehouses.rows[0].n, 1, "the main warehouse is created on the primary branch");
 
       await assert.rejects(
         () => createBranch(admin, owner, { name: "Dup", code: "HQ", timezone: "Asia/Kolkata", companyId }),
@@ -237,6 +243,7 @@ test("SP001/SP002/SP003: organization/company/branch administration against a re
     await admin.query(`DELETE FROM membership_branch_access WHERE organization_id=$1`, [orgId]).catch(() => undefined);
     await admin.query(`DELETE FROM sessions WHERE user_id = ANY($1)`, [[ownerId, memberId]]).catch(() => undefined);
     await admin.query(`DELETE FROM organization_memberships WHERE organization_id=$1`, [orgId]).catch(() => undefined);
+    await admin.query(`DELETE FROM tenant.warehouses WHERE organization_id=$1`, [orgId]).catch(() => undefined);
     await admin.query(`DELETE FROM branches WHERE organization_id=$1`, [orgId]).catch(() => undefined);
     await admin.query(`DELETE FROM companies WHERE organization_id=$1`, [orgId]).catch(() => undefined);
     await admin.query(`DELETE FROM organizations WHERE id=$1`, [orgId]).catch(() => undefined);

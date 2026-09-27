@@ -12,6 +12,7 @@ import { requireSessionPermission } from "../access/index.js";
 import { assertUserWithinAdministrationScope, hasUnrestrictedAccessAdministration, memberWithinAdministrationScopeSql } from "../access/index.js";
 import { ACCESS_EVIDENCE_EVENTS, recordAccessAssignmentEvent } from "../access/index.js";
 import { assertSeatAvailable, reconcileSeatOverage, withSeatLock } from "../billing/index.js";
+import { seedBusinessDataFoundation } from "../master-data.js";
 
 export class OrganizationAdministrationError extends Error {
   constructor(status, message, code = "ORG_ADMIN_ERROR") {
@@ -227,6 +228,13 @@ export async function createBranch(client, session, input) {
       `INSERT INTO membership_branch_access (organization_id, user_id, branch_id) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING`,
       [session.organizationId, session.userId, id],
     );
+  }
+  // The organisation's default master data (currencies, units of measure, tax
+  // categories, payment terms, price lists, main warehouse) needs the primary
+  // company's primary branch; seed it as soon as that exists. Idempotent.
+  if (input.isPrimary) {
+    const primaryCompany = await client.query(`SELECT 1 FROM companies WHERE id = $1 AND organization_id = $2 AND is_primary`, [companyId, session.organizationId]);
+    if (primaryCompany.rows[0]) await seedBusinessDataFoundation(client, { organizationId: session.organizationId, userId: session.userId });
   }
   return (await client.query(`SELECT * FROM branches WHERE id = $1`, [id])).rows[0];
 }

@@ -13,7 +13,7 @@ import { fileURLToPath } from "node:url";
 import { config as loadDotEnv } from "dotenv";
 import { Client } from "pg";
 
-import { createCrmAccount, createCrmContact, createCrmRecord, createSalesStage, registerOrganization } from "../../services/api/src/index.js";
+import { createCrmAccount, createCrmContact, createCrmRecord, createSalesStage, registerOrganization, seedBusinessDataFoundation } from "../../services/api/src/index.js";
 import { hashPassword } from "../../services/api/src/core/auth/session.js";
 import { setTenantContext } from "../../packages/database/src/index.js";
 
@@ -98,10 +98,18 @@ try {
   let branch = (await db.query(`SELECT id FROM branches WHERE company_id=$1 ORDER BY created_at LIMIT 1`, [company.id])).rows[0];
   if (!branch) {
     branch = (await db.query(
-      `INSERT INTO branches(id,organization_id,company_id,name,code,timezone,status) VALUES ($1,$2,$3,'HQ','HQ','Asia/Kolkata','active') RETURNING id`,
+      `INSERT INTO branches(id,organization_id,company_id,name,code,timezone,is_primary,status) VALUES ($1,$2,$3,'HQ','HQ','Asia/Kolkata',true,'active') RETURNING id`,
       [randomUUID(), organizationId, company.id],
     )).rows[0];
   }
+  await db.query(
+    `UPDATE branches SET is_primary=true WHERE id=$1 AND NOT EXISTS (SELECT 1 FROM branches WHERE company_id=$2 AND is_primary)`,
+    [branch.id, company.id],
+  );
+  // The organisation's default master data (currencies, units of measure, tax
+  // categories, payment terms, price lists, main warehouse) — what a real
+  // organisation gets once its primary company and branch exist.
+  await inTenant(organizationId, (client) => seedBusinessDataFoundation(client, { organizationId, userId: owner.id }));
 
   // ---- restricted user: a sales representative who manages their own pipeline and nothing administrative
   let restricted = (await db.query(`SELECT id FROM users WHERE lower(email)=lower($1)`, [RESTRICTED_EMAIL])).rows[0];
