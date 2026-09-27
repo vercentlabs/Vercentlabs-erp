@@ -295,7 +295,14 @@ test("CRM attachments: upload, download and a new version on the shared file ser
   const { context, page } = await owner(browser);
   await open(page, `/crm/leads/${world.leadId}`, /Numbered/);
   await page.getByRole("tab", { name: "Attachments" }).click();
-  await page.locator('input[type="file"]').setInputFiles({ name: "brief.txt", mimeType: "text/plain", buffer: Buffer.from("first version") });
+  // Through the visible control, like a user (and only once the panel is
+  // interactive): setting the hidden input directly could land before the
+  // client attached its change handler, silently dropping the file.
+  const firstChooser = page.waitForEvent("filechooser");
+  await page.getByRole("button", { name: "Upload file" }).click();
+  const uploaded = page.waitForResponse((res) => res.url().includes("/api/crm/attachments/") && res.request().method() === "POST");
+  await (await firstChooser).setFiles({ name: "brief.txt", mimeType: "text/plain", buffer: Buffer.from("first version") });
+  expect((await uploaded).status()).toBe(201);
   await expect(page.getByText("brief.txt")).toBeVisible({ timeout: 60_000 });
   const href = await page.getByRole("link", { name: "Download brief.txt" }).getAttribute("href");
   const first = await page.request.get(href!);
