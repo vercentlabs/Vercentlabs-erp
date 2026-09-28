@@ -257,7 +257,8 @@ export const EXPECTED_MIGRATIONS = Object.freeze({
     "182_support_attachments_shared_files.sql",
     "183_export_artifacts_out_of_job_manifests.sql",
     "184_platform_events_and_webhooks.sql",
-    "185_restrict_definer_function_execute.sql"
+    "185_restrict_definer_function_execute.sql",
+    "186_crm_drop_lead_saved_views.sql"
   ],
   "contracts": {
     "platform": [

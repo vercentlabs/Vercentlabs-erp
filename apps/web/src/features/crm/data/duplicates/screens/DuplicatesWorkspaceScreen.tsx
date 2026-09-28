@@ -292,8 +292,8 @@ export function DuplicatesWorkspaceScreen() {
         {selectedLead && (
           <LeadDuplicatesWorkspacePanel
             lead={selectedLead}
-            canManage={workspace.permissions.includes(
-              CRM_PERMISSIONS.leadsManage,
+            canResolve={workspace.permissions.includes(
+              CRM_PERMISSIONS.dataQualityManage,
             )}
           />
         )}

@@ -21,7 +21,7 @@ export * from "./modules/crm/prospect-and-relationship-master-data/contact-opera
 
 export * from "./modules/crm/prospect-and-relationship-master-data/lead-source-operations.js";
 export * from "./modules/crm/lead-lifecycle-qualification-and-prioritization/lead-qualification.js";
-export * from "./modules/crm/lead-lifecycle-qualification-and-prioritization/lead-lifecycle.js";
+export * from "./modules/crm/lead-lifecycle-qualification-and-prioritization/lifecycle/index.js";
 export * from "./modules/crm/prospect-and-relationship-master-data/lead-duplicates.js";
 export * from "./modules/crm/prospect-and-relationship-master-data/lead-attribution.js";
 

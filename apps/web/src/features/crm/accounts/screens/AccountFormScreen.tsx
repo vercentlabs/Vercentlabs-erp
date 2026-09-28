@@ -20,6 +20,12 @@ import { FormSection } from "@/features/crm/shared/ui/FormSection";
 import { getCrmOptions } from "@/features/crm/shared/crm-options-api";
 import { CountrySelect } from "@/features/crm/shared/ui/CountrySelect";
 import {
+  DUPLICATE_OVERRIDE_REASON_MIN,
+  DuplicateOverridePanel,
+  matchedSignalsText,
+  type DuplicateOverrideMatch,
+} from "@/features/crm/shared/ui/DuplicateOverridePanel";
+import {
   emailProblem,
   gstinPanMismatch,
   gstinProblem,
@@ -105,6 +111,10 @@ export function AccountFormScreen({
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [conflict, setConflict] = useState(false);
   const [serverError, setServerError] = useState<string | null>(null);
+  const [duplicates, setDuplicates] = useState<DuplicateOverrideMatch[] | null>(
+    null,
+  );
+  const [overrideReason, setOverrideReason] = useState("");
 
   // Account owner (optional; empty = shared with everyone who can see the
   // company's Accounts). Offers only people the server accepts
@@ -163,6 +173,24 @@ export function AccountFormScreen({
       if (gst) problems.gstin = gst;
       const pan = panProblem(values.pan);
       if (pan) problems.pan = pan;
+      // An address is kept only when it is complete (street, city, state,
+      // postal code, country); say so instead of dropping part of it.
+      const addressParts = {
+        addressLine1: "Street address",
+        city: "City",
+        state: "State",
+        postalCode: "Postal code",
+        countryCode: "Country",
+      } as const;
+      if (
+        Object.keys(addressParts).some((key) =>
+          values[key as keyof typeof addressParts].trim(),
+        )
+      )
+        for (const [key, label] of Object.entries(addressParts))
+          if (!values[key as keyof typeof addressParts].trim())
+            problems[key] =
+              `${label} is required when an address is entered. Complete the address or clear it.`;
       if (Object.keys(problems).length) {
         setFieldErrors(problems);
         throw new Error("Review the highlighted fields.");
@@ -176,6 +204,10 @@ export function AccountFormScreen({
         values.ownerUserId === (account?.ownerUserId ?? "")
       )
         delete input.ownerUserId;
+      // Present only after an exact-duplicate refusal (anyone who may create
+      // an Account may create a reasoned duplicate).
+      if (duplicates && overrideReason.trim())
+        input.duplicateOverrideReason = overrideReason.trim();
       if (mode === "create") return createAccount(input);
       return updateAccount(account!.id, input, account!.updatedAt);
     },
@@ -191,6 +223,36 @@ export function AccountFormScreen({
         error.code === "CRM_STALE_WRITE"
       ) {
         setConflict(true);
+        return;
+      }
+      if (
+        error instanceof AccountApiError &&
+        error.code === "CRM_ACCOUNT_DUPLICATE_EXACT"
+      ) {
+        const rows = Array.isArray(error.details.matches)
+          ? (error.details.matches as Array<Record<string, unknown>>)
+          : [];
+        setDuplicates(
+          rows.map((row) =>
+            row.restricted
+              ? { restricted: true }
+              : {
+                  id: String(row.id),
+                  label: String(
+                    row.display_name ??
+                      row.displayName ??
+                      row.legal_name ??
+                      "Account",
+                  ),
+                  href: `/crm/accounts/${row.id}`,
+                  detail: matchedSignalsText(
+                    row.matched_signals ?? row.matchedSignals,
+                  ),
+                },
+          ),
+        );
+        // The server's message says what it needs (a longer reason).
+        setServerError(overrideReason.trim() ? error.message : null);
         return;
       }
       setServerError(error.message);
@@ -235,13 +297,26 @@ export function AccountFormScreen({
       banner={
         conflict ? (
           <ConflictBanner onReload={() => router.refresh()} />
-        ) : serverError ? (
-          <p
-            role="alert"
-            className="rounded-[var(--radius-control)] border border-danger-emphasis/30 bg-danger-soft px-3 py-2 text-sm text-danger"
-          >
-            {serverError}
-          </p>
+        ) : serverError || duplicates ? (
+          <div className="flex flex-col gap-3">
+            {serverError && (
+              <p
+                role="alert"
+                className="rounded-[var(--radius-control)] border border-danger-emphasis/30 bg-danger-soft px-3 py-2 text-sm text-danger"
+              >
+                {serverError}
+              </p>
+            )}
+            {duplicates && (
+              <DuplicateOverridePanel
+                noun="account"
+                matches={duplicates}
+                canOverride
+                reason={overrideReason}
+                onReasonChange={setOverrideReason}
+              />
+            )}
+          </div>
         ) : null
       }
       formActions={
@@ -257,8 +332,18 @@ export function AccountFormScreen({
             variant="primary"
             onPress={() => mutation.mutate()}
             isLoading={mutation.isPending}
+            isDisabled={
+              duplicates !== null &&
+              overrideReason.trim().length < DUPLICATE_OVERRIDE_REASON_MIN
+            }
           >
-            {mode === "create" ? "Create account" : "Save changes"}
+            {duplicates
+              ? mode === "create"
+                ? "Create anyway"
+                : "Save anyway"
+              : mode === "create"
+                ? "Create account"
+                : "Save changes"}
           </Button>
         </>
       }
@@ -319,25 +404,30 @@ export function AccountFormScreen({
           value={values.addressLine1}
           onChange={(v) => set("addressLine1", v)}
           className="sm:col-span-2"
+          errorMessage={fieldErrors.addressLine1}
         />
         <TextField
           label="City"
           value={values.city}
           onChange={(v) => set("city", v)}
+          errorMessage={fieldErrors.city}
         />
         <TextField
           label="State"
           value={values.state}
           onChange={(v) => set("state", v)}
+          errorMessage={fieldErrors.state}
         />
         <TextField
           label="Postal code"
           value={values.postalCode}
           onChange={(v) => set("postalCode", v)}
+          errorMessage={fieldErrors.postalCode}
         />
         <CountrySelect
           value={values.countryCode}
           onChange={(code) => set("countryCode", code)}
+          errorMessage={fieldErrors.countryCode}
         />
       </FormSection>
       <FormSection

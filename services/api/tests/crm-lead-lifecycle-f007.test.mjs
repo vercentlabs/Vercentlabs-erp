@@ -5,7 +5,7 @@ import test from "node:test";
 import { createCrmRecord, updateCrmRecord } from "../src/modules/crm/index.js";
 import { bulkUpdateLeads } from "../src/modules/crm/lead-lifecycle-qualification-and-prioritization/lead-operations.js";
 import { applyOfflineMutation } from "../src/modules/crm/crm-data-operations-and-customization/offline-sync.js";
-import { transitionLeadStage } from "../src/modules/crm/lead-lifecycle-qualification-and-prioritization/lead-lifecycle.js";
+import { transitionLeadStage } from "../src/modules/crm/lead-lifecycle-qualification-and-prioritization/lifecycle/index.js";
 
 const context = {
   organizationId: "11111111-1111-4111-8111-111111111111",

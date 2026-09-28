@@ -14,6 +14,8 @@ export class ContactApiError extends Error {
     message: string,
     public readonly status: number,
     public readonly code?: string,
+    // The rest of the error body (e.g. the matches of a duplicate refusal).
+    public readonly details: Record<string, unknown> = {},
   ) {
     super(message);
   }
@@ -26,6 +28,7 @@ async function parseResponse<T>(response: Response): Promise<T> {
       payload.message || "The request could not be completed.",
       response.status,
       payload.code,
+      payload,
     );
   }
   return payload;

@@ -35,6 +35,12 @@ import { toNumber } from "@/features/crm/shared/format";
 import { FormSection } from "@/features/crm/shared/ui/FormSection";
 import { CountrySelect } from "@/features/crm/shared/ui/CountrySelect";
 import { CurrencySelect } from "@/features/crm/shared/ui/CurrencySelect";
+import {
+  DUPLICATE_OVERRIDE_REASON_MIN,
+  DuplicateOverridePanel,
+  matchedSignalsText,
+  type DuplicateOverrideMatch,
+} from "@/features/crm/shared/ui/DuplicateOverridePanel";
 
 const PRIORITY_OPTIONS: SelectOption[] = [
   { value: "low", label: "Low" },
@@ -104,6 +110,11 @@ export function LeadFormScreen({
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [conflict, setConflict] = useState(false);
   const [serverError, setServerError] = useState<string | null>(null);
+  const [duplicate, setDuplicate] = useState<{
+    matches: DuplicateOverrideMatch[];
+    canOverride: boolean;
+  } | null>(null);
+  const [overrideReason, setOverrideReason] = useState("");
 
   const optionsQuery = useQuery({
     queryKey: scopedQueryKey(workspace, "crm", "options"),
@@ -139,7 +150,13 @@ export function LeadFormScreen({
         throw new Error("Review the highlighted fields.");
       }
       setFieldErrors({});
-      const input = leadFormValuesToInput(parsed.data);
+      const input = {
+        ...leadFormValuesToInput(parsed.data),
+        // Present only after an exact-duplicate refusal the caller may override.
+        ...(duplicate?.canOverride && overrideReason.trim()
+          ? { duplicateOverrideReason: overrideReason.trim() }
+          : {}),
+      };
       if (mode === "create") return createLead(input);
       return updateLead(lead!.id, input, lead!.updatedAt);
     },
@@ -152,6 +169,32 @@ export function LeadFormScreen({
     onError: (error: Error) => {
       if (error instanceof LeadApiError && error.code === "CRM_STALE_WRITE") {
         setConflict(true);
+        return;
+      }
+      if (
+        error instanceof LeadApiError &&
+        error.code?.startsWith("CRM_LEAD_DUPLICATE_")
+      ) {
+        const rows = Array.isArray(error.details.matches)
+          ? (error.details.matches as Array<Record<string, unknown>>)
+          : [];
+        setDuplicate({
+          canOverride: error.details.canOverride === true,
+          matches: rows.map((row) =>
+            row.restricted
+              ? { restricted: true }
+              : {
+                  id: String(row.id),
+                  label: [row.name, row.company].filter(Boolean).join(" · "),
+                  href: `/crm/leads/${row.id}`,
+                  detail: matchedSignalsText(row.signals),
+                },
+          ),
+        });
+        // A reason that was sent and refused (too short) is kept for editing.
+        setServerError(
+          error.code === "CRM_LEAD_DUPLICATE_EXACT" ? null : error.message,
+        );
         return;
       }
       setServerError(error.message);
@@ -246,18 +289,31 @@ export function LeadFormScreen({
         description:
           mode === "create"
             ? "Capture a new prospect for qualification and follow-up."
-            : "Changes are saved with an optimistic-concurrency check against the last loaded version.",
+            : "Update this lead's details. If someone else saved changes in the meantime, you'll be asked to reload first.",
       }}
       banner={
         conflict ? (
           <ConflictBanner onReload={() => router.refresh()} />
-        ) : serverError ? (
-          <p
-            role="alert"
-            className="rounded-[var(--radius-control)] border border-danger-emphasis/30 bg-danger-soft px-3 py-2 text-sm text-danger"
-          >
-            {serverError}
-          </p>
+        ) : serverError || duplicate ? (
+          <div className="flex flex-col gap-3">
+            {serverError && (
+              <p
+                role="alert"
+                className="rounded-[var(--radius-control)] border border-danger-emphasis/30 bg-danger-soft px-3 py-2 text-sm text-danger"
+              >
+                {serverError}
+              </p>
+            )}
+            {duplicate && (
+              <DuplicateOverridePanel
+                noun="lead"
+                matches={duplicate.matches}
+                canOverride={duplicate.canOverride}
+                reason={overrideReason}
+                onReasonChange={setOverrideReason}
+              />
+            )}
+          </div>
         ) : null
       }
       formActions={
@@ -273,8 +329,19 @@ export function LeadFormScreen({
             variant="primary"
             onPress={() => mutation.mutate()}
             isLoading={mutation.isPending}
+            isDisabled={
+              duplicate !== null &&
+              (!duplicate.canOverride ||
+                overrideReason.trim().length < DUPLICATE_OVERRIDE_REASON_MIN)
+            }
           >
-            {mode === "create" ? "Create lead" : "Save changes"}
+            {duplicate?.canOverride
+              ? mode === "create"
+                ? "Create anyway"
+                : "Save anyway"
+              : mode === "create"
+                ? "Create lead"
+                : "Save changes"}
           </Button>
         </>
       }

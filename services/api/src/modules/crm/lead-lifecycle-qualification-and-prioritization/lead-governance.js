@@ -2,9 +2,8 @@
 // lead-lifecycle-qualification-and-prioritization/assignment/ as part of
 // CRM vNext Prompt 4 — re-exported below for existing call sites (the
 // package root re-exports this whole module, star-export style). This
-// file now only keeps the Lead-configuration/layout-validation and
-// duplicate-check helpers that are NOT F005-specific.
-import { evaluateLeadDuplicateRisk } from "../prospect-and-relationship-master-data/lead-duplicates.js";
+// file now only keeps the Lead-configuration/layout-validation helpers
+// that are NOT F005-specific. (Duplicate checks: lead-duplicates.js.)
 import { LeadGovernanceError, matches, text } from "./assignment/shared.js";
 
 export * from "./assignment/index.js";
@@ -117,17 +116,4 @@ export async function validateLeadInput(
       });
   }
   return { valid: errors.length === 0, errors, configuration: config };
-}
-
-export async function findLeadDuplicates(
-  client,
-  context,
-  input,
-  excludeId = null,
-) {
-  const evaluation = await evaluateLeadDuplicateRisk(client, context, input, {
-    excludeLeadId: excludeId,
-    lock: false,
-  });
-  return evaluation.matches;
 }

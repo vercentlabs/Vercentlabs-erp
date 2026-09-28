@@ -26,6 +26,13 @@ import {
   updateContact,
 } from "../api/contacts-api";
 import type { Contact } from "../types";
+import { emailProblem } from "@/features/crm/shared/validators";
+import {
+  DUPLICATE_OVERRIDE_REASON_MIN,
+  DuplicateOverridePanel,
+  matchedSignalsText,
+  type DuplicateOverrideMatch,
+} from "@/features/crm/shared/ui/DuplicateOverridePanel";
 
 type FormValues = {
   accountId: string;
@@ -86,6 +93,10 @@ export function ContactFormScreen({
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [conflict, setConflict] = useState(false);
   const [serverError, setServerError] = useState<string | null>(null);
+  const [duplicates, setDuplicates] = useState<DuplicateOverrideMatch[] | null>(
+    null,
+  );
+  const [overrideReason, setOverrideReason] = useState("");
 
   const optionsQuery = useQuery({
     queryKey: scopedQueryKey(workspace, "crm", "options"),
@@ -146,19 +157,19 @@ export function ContactFormScreen({
         setFieldErrors({ firstName: "First name is required." });
         throw new Error("Review the highlighted fields.");
       }
-      if (
-        values.email.trim() &&
-        !/^[^s@]+@[^s@]+.[^s@]+$/.test(values.email.trim())
-      ) {
-        setFieldErrors({
-          email: "Enter a valid email address, for example name@company.com.",
-        });
+      const email = emailProblem(values.email);
+      if (email) {
+        setFieldErrors({ email });
         throw new Error("Review the highlighted fields.");
       }
       setFieldErrors({});
       const input: Record<string, unknown> = { ...values };
       for (const key of Object.keys(input))
         if (input[key] === "") input[key] = null;
+      // Present only after an exact-duplicate refusal (anyone who may create a
+      // Contact may create a reasoned duplicate).
+      if (duplicates && overrideReason.trim())
+        input.duplicateOverrideReason = overrideReason.trim();
       if (mode === "create") return createContact(input);
       return updateContact(contact!.id, input, contact!.updatedAt);
     },
@@ -174,6 +185,36 @@ export function ContactFormScreen({
         error.code === "CRM_STALE_WRITE"
       ) {
         setConflict(true);
+        return;
+      }
+      if (
+        error instanceof ContactApiError &&
+        error.code === "CRM_CONTACT_DUPLICATE_EXACT"
+      ) {
+        const rows = Array.isArray(error.details.matches)
+          ? (error.details.matches as Array<Record<string, unknown>>)
+          : [];
+        setDuplicates(
+          rows.map((row) =>
+            row.restricted
+              ? { restricted: true }
+              : {
+                  id: String(row.id),
+                  label:
+                    [
+                      row.first_name ?? row.firstName,
+                      row.last_name ?? row.lastName,
+                    ]
+                      .filter(Boolean)
+                      .join(" ") || "Contact",
+                  href: `/crm/contacts/${row.id}`,
+                  detail: matchedSignalsText(
+                    row.matched_signals ?? row.matchedSignals,
+                  ),
+                },
+          ),
+        );
+        setServerError(overrideReason.trim() ? error.message : null);
         return;
       }
       setServerError(error.message);
@@ -220,13 +261,26 @@ export function ContactFormScreen({
       banner={
         conflict ? (
           <ConflictBanner onReload={() => router.refresh()} />
-        ) : serverError ? (
-          <p
-            role="alert"
-            className="rounded-[var(--radius-control)] border border-danger-emphasis/30 bg-danger-soft px-3 py-2 text-sm text-danger"
-          >
-            {serverError}
-          </p>
+        ) : serverError || duplicates ? (
+          <div className="flex flex-col gap-3">
+            {serverError && (
+              <p
+                role="alert"
+                className="rounded-[var(--radius-control)] border border-danger-emphasis/30 bg-danger-soft px-3 py-2 text-sm text-danger"
+              >
+                {serverError}
+              </p>
+            )}
+            {duplicates && (
+              <DuplicateOverridePanel
+                noun="contact"
+                matches={duplicates}
+                canOverride
+                reason={overrideReason}
+                onReasonChange={setOverrideReason}
+              />
+            )}
+          </div>
         ) : null
       }
       formActions={
@@ -242,8 +296,18 @@ export function ContactFormScreen({
             variant="primary"
             onPress={() => mutation.mutate()}
             isLoading={mutation.isPending}
+            isDisabled={
+              duplicates !== null &&
+              overrideReason.trim().length < DUPLICATE_OVERRIDE_REASON_MIN
+            }
           >
-            {mode === "create" ? "Create contact" : "Save changes"}
+            {duplicates
+              ? mode === "create"
+                ? "Create anyway"
+                : "Save anyway"
+              : mode === "create"
+                ? "Create contact"
+                : "Save changes"}
           </Button>
         </>
       }

@@ -2607,3 +2607,38 @@ as a defect.
 14. Visual QA at 1440/1024/390
 15. Exact navigation correction
 16. Full traceability certification
+
+## CRM MVP hardening: Leads, Accounts, Contacts, assignment, qualification, lifecycle, duplicates, conversion
+
+Scope: F001, F002, F003, F005, F006, F007, F008, F022. Starting point `92a345dd`.
+Every feature was **kept** (the domain was mature and tested); the defects
+below were found by driving the real screens as real roles and fixed in place.
+
+| Feature | Found | Fixed |
+| --- | --- | --- |
+| F002/F003 | Every Account and Contact edit was refused as "changed since you opened it": the checked write compared PostgreSQL's microsecond `updated_at` with the caller's millisecond version | Guards compare at millisecond precision, as Leads and Opportunities already did; real-PostgreSQL regression test `crm-relationship-versions-db.test.mjs` (in `test:access:db`) |
+| F002 | City/State/Postal code without a street were silently discarded | The form requires a complete address or none, with a message on each missing part |
+| F001/F002/F003/F008 | Domain errors reached the browser without their details, so duplicate refusals could not show the matching records or accept a reason | `classifyError` forwards a client error's details (never a 5xx's); forms show the matches and a "Create anyway" reason (shared `DuplicateOverridePanel`) |
+| F003 | Contact email check used a broken pattern | Uses the shared email validator |
+| F008 | Two Lead duplicate UIs; merge without confirmation; dismissal without reason; actions shown to people the server refuses; merged-away Leads kept being offered again | One panel (`LeadDuplicatesWorkspacePanel`) on Lead 360 and the workspace: reasoned dismissal, confirmed merge, actions only with `crm.data-quality.manage`, converted/archived matches not offered |
+| F022 | An unqualified Lead could be converted; conversion created Accounts/Contacts/Opportunities without checking the caller may create them | Server refuses `CRM_LEAD_NOT_QUALIFIED` and `PERMISSION_DENIED` before any write; the dialog explains and disables Convert |
+
+Cleanup: dead `findLeadDuplicates` in `lead-governance.js`, the
+`lead-lifecycle.js` re-export shim, and the unused `tenant.crm_lead_saved_views`
+(migration `186`; no code, foreign key or view used it). Earlier migrations are
+untouched; a future baseline could fold away `018_crm_lead_operations.sql`'s
+saved-view table, `073_f001_lead_governance_recovery.sql`'s saved-view changes
+and `179`/`186` themselves.
+
+Proof: `apps/web/e2e/crm-mvp.spec.ts` (in `test:e2e:crm` and the critical CI
+journeys) runs as sales representatives, a sales manager, a CRM administrator
+and a marketing manager — no organisation owner: A lifecycle (create, assign,
+stage, qualify, reload, history rows), B Accounts/Contacts (create, edit,
+address, exact-duplicate override, read-back), C duplicates (reasoned
+dismissal, admin override, confirmed merge, survivor/archived/merge record), D
+conversion (blocked before qualification, one Account/Contact/Opportunity,
+retried request replays), and a marketing-role denial through real HTTP.
+
+Known limits: the API still ignores a partial address from non-form callers
+(seed scripts rely on it); duplicate matching at create time still counts
+converted/archived Leads (deliberate: re-capturing a customer is worth a warning).

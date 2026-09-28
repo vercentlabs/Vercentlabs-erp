@@ -354,12 +354,6 @@ export function validateLeadInput(
   input: Record<string, unknown>,
   recordTypeKey?: string,
 ): Promise<Record<string, unknown>>;
-export function findLeadDuplicates(
-  client: QueryClient,
-  context: CrmFoundationContext,
-  input: Record<string, unknown>,
-  excludeId?: string | null,
-): Promise<Array<Record<string, unknown>>>;
 export function resolveLeadOwner(
   client: QueryClient,
   context: CrmFoundationContext,

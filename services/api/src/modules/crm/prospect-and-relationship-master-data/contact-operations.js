@@ -526,7 +526,7 @@ export async function updateCrmContact(
     }
     const updatedBy = addParameter(parameters, context.userId);
     const versionGuard = expectations.expectedUpdatedAt
-      ? ` AND updated_at = ${addParameter(parameters, existing.updatedAt)}`
+      ? ` AND date_trunc('milliseconds', updated_at) = date_trunc('milliseconds', ${addParameter(parameters, existing.updatedAt)}::timestamptz)`
       : "";
     const updateResult = await client.query(
       `UPDATE tenant.contacts
@@ -585,7 +585,7 @@ export async function reactivateCrmContact(client, context, id, expectations = {
       }
       const parameters = [context.organizationId, id, context.userId];
       const versionGuard = expectations.expectedUpdatedAt
-        ? ` AND updated_at = ${addParameter(parameters, existing.updatedAt)}`
+        ? ` AND date_trunc('milliseconds', updated_at) = date_trunc('milliseconds', ${addParameter(parameters, existing.updatedAt)}::timestamptz)`
         : "";
       const reactivateResult = await client.query(
         `UPDATE tenant.contacts
@@ -629,7 +629,7 @@ export async function archiveCrmContact(client, context, id, expectations = {}) 
     if (existing.status !== "inactive") {
       const parameters = [context.organizationId, id, context.userId];
       const versionGuard = expectations.expectedUpdatedAt
-        ? ` AND updated_at = ${addParameter(parameters, existing.updatedAt)}`
+        ? ` AND date_trunc('milliseconds', updated_at) = date_trunc('milliseconds', ${addParameter(parameters, existing.updatedAt)}::timestamptz)`
         : "";
       const archiveResult = await client.query(
         `UPDATE tenant.contacts

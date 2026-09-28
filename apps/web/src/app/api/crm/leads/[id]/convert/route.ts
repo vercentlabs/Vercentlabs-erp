@@ -10,8 +10,9 @@ import { workspaceRoute } from "@/core/workspace-route";
 // (services/api/src/modules/crm/crm-conversion-and-sales-handoff/
 // lead-conversion.js, covered by crm-lead-conversion-f022.test.mjs and
 // crm-lead-conversion-duplicate-reuse-f022.test.mjs) — this route never
-// re-derives any of that. convertCrmLead does not check a permission
-// internally, so this route enforces crm.leads.manage itself.
+// re-derives any of that. This route enforces crm.leads.manage; convertCrmLead
+// additionally requires a qualified Lead and the permission to create each
+// record the conversion would create (Account/Contact, Opportunity).
 export async function POST(
   request: Request,
   context: { params: Promise<{ id: string }> },

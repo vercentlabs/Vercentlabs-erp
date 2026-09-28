@@ -2,7 +2,7 @@ import { findAccountDuplicates, findContactDuplicates } from "../prospect-and-re
 import { CrmError } from "../crm-data-operations-and-customization/errors.js";
 import { createCrmRecord } from "../crm-data-operations-and-customization/resource-mutation-service.js";
 import { queueOutboxEvent } from "../crm-data-operations-and-customization/outbox.js";
-import { recordScope } from "../crm-data-operations-and-customization/record-policy.js";
+import { crmHasPermission, recordScope } from "../crm-data-operations-and-customization/record-policy.js";
 import { nextCode } from "../crm-data-operations-and-customization/resource-query-service.js";
 import { resources } from "../crm-data-operations-and-customization/resource-registry.js";
 import { camelizeRow } from "../crm-data-operations-and-customization/record-utils.js";
@@ -21,6 +21,12 @@ async function assertConversionTargetVisible(client, context, kind, id) {
 
 
 
+
+// A new Account or Contact is Account management (Contacts belong to Accounts).
+function assertCanCreateRelationshipRecords(context) {
+  if (!crmHasPermission(context, "crm.accounts.manage"))
+    throw new CrmError(403, "You do not have permission to create Accounts and Contacts.", "PERMISSION_DENIED");
+}
 
 export function comparable(value) {
   if (value === null || value === undefined) return "";
@@ -64,6 +70,17 @@ export async function convertCrmLead(client, context, leadId, input = {}) {
     throw new CrmError(409, "Archived leads cannot be converted.");
   if (lead.record_status === "converted")
     throw new CrmError(409, "This Lead has already been converted.");
+  // F006-CAP-003 / F022: a successful qualification decision is the
+  // prerequisite for conversion (an authorized override is itself a
+  // qualification decision, recorded with its reason).
+  if (lead.qualification_state !== "qualified")
+    throw new CrmError(409, "Qualify this Lead before converting it.", "CRM_LEAD_NOT_QUALIFIED");
+  // Converting creates records in other CRM resources: each needs the
+  // caller's own permission for that resource (managing Leads alone must not
+  // create Accounts, Contacts or Opportunities). Reusing an existing, visible
+  // Account/Contact needs no create permission. Checked before any write.
+  if (input.createOpportunity !== false && !crmHasPermission(context, "crm.opportunities.manage"))
+    throw new CrmError(403, "You do not have permission to create Opportunities.", "PERMISSION_DENIED");
   // F022 CAP-002/F008 reuse: conversion must resolve to an existing Account
   // through the SAME rule-driven duplicate engine every other Account
   // create/update path uses (findAccountDuplicates), not a hand-rolled
@@ -86,6 +103,7 @@ export async function convertCrmLead(client, context, leadId, input = {}) {
     partyId = candidates.find((row) => row.classification === "exact" && row.in_company_scope !== false)?.id || null;
   }
   if (!partyId) {
+    assertCanCreateRelationshipRecords(context);
     const partyCode = await nextCode(
       client,
       context.organizationId,
@@ -128,6 +146,7 @@ export async function convertCrmLead(client, context, leadId, input = {}) {
       )?.id || null;
   }
   if (!contactId) {
+    assertCanCreateRelationshipRecords(context);
     const contact = await client.query(
       `INSERT INTO tenant.contacts (organization_id, party_id, first_name, last_name, designation, email, phone, mobile, is_primary, created_by, updated_by) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOT EXISTS (SELECT 1 FROM tenant.contacts WHERE organization_id = $1 AND party_id = $2 AND is_primary = true AND status = 'active'), $9, $9) RETURNING id`,
       [

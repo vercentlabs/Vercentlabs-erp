@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Button } from "@vercentlabs/design-system";
+import { Button, Dialog, TextArea } from "@vercentlabs/design-system";
 import { Merge } from "lucide-react";
 
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
@@ -13,6 +13,7 @@ import {
   findLeadDuplicates,
   getLead,
   mergeLead,
+  type LeadDuplicateMatch,
 } from "../api/leads-api";
 import {
   DuplicateComparison,
@@ -31,27 +32,44 @@ const LEAD_FIELDS: ComparisonField[] = [
   { label: "Created", key: "createdAt", format: "date" },
 ];
 
-// F008 Tranche G — a standalone-workspace variant of the same duplicate
-// check/dismiss/merge already embedded in LeadDetailScreen.tsx. Built as
-// its own self-contained component rather than extracting LeadDetailScreen's
-// inline block, to avoid refactoring an already-shipped, untested-by-
-// automation screen under this tranche's time budget — the two share the
-// same backend calls (findLeadDuplicates/dismissLeadDuplicate/mergeLead),
-// just not the same JSX, so there is no behavioral drift risk.
+const REASON_MIN = 10;
+
+type VisibleMatch = Exclude<LeadDuplicateMatch, { restricted: true }>;
+
+// The one Lead duplicate review (Lead 360 and the duplicates workspace):
+// possible duplicates with why they matched, a side-by-side comparison, and —
+// for people who resolve duplicates (crm.data-quality.manage, as the server
+// requires) — a reasoned dismissal or a confirmed merge into this Lead.
 export function LeadDuplicatesWorkspacePanel({
   lead,
-  canManage,
+  canResolve,
+  hideWhenEmpty = false,
+  onMerged,
 }: {
   lead: Lead;
-  canManage: boolean;
+  canResolve: boolean;
+  hideWhenEmpty?: boolean;
+  onMerged?: () => void;
 }) {
   const workspace = useWorkspaceContext();
   const queryClient = useQueryClient();
   const [actionError, setActionError] = useState<string | null>(null);
   const [comparingId, setComparingId] = useState<string | null>(null);
+  const [dismissing, setDismissing] = useState<VisibleMatch | null>(null);
+  const [dismissReason, setDismissReason] = useState("");
+  const [merging, setMerging] = useState<VisibleMatch | null>(null);
+  const closed =
+    lead.recordStatus === "converted" || lead.recordStatus === "archived";
+  const duplicatesKey = scopedQueryKey(
+    workspace,
+    "crm",
+    "leads",
+    lead.id,
+    "duplicates",
+  );
 
   const duplicatesQuery = useQuery({
-    queryKey: scopedQueryKey(workspace, "crm", "leads", lead.id, "duplicates"),
+    queryKey: duplicatesKey,
     queryFn: () =>
       findLeadDuplicates(
         {
@@ -64,28 +82,18 @@ export function LeadDuplicatesWorkspacePanel({
         },
         lead.id,
       ),
+    enabled: !closed,
   });
 
-  function invalidate() {
-    queryClient.invalidateQueries({
-      queryKey: scopedQueryKey(
-        workspace,
-        "crm",
-        "leads",
-        lead.id,
-        "duplicates",
-      ),
-    });
-  }
-
   const dismissMutation = useMutation({
-    mutationFn: (matchedLeadId: string) =>
-      dismissLeadDuplicate(
-        lead.id,
-        matchedLeadId,
-        "Reviewed and confirmed not the same Lead.",
-      ),
-    onSuccess: invalidate,
+    mutationFn: ({ id, reason }: { id: string; reason: string }) =>
+      dismissLeadDuplicate(lead.id, id, reason),
+    onSuccess: () => {
+      setActionError(null);
+      setDismissing(null);
+      setDismissReason("");
+      queryClient.invalidateQueries({ queryKey: duplicatesKey });
+    },
     onError: (err: unknown) =>
       setActionError(
         err instanceof Error
@@ -95,7 +103,15 @@ export function LeadDuplicatesWorkspacePanel({
   });
   const mergeMutation = useMutation({
     mutationFn: (sourceId: string) => mergeLead(lead.id, sourceId),
-    onSuccess: invalidate,
+    onSuccess: () => {
+      setActionError(null);
+      setMerging(null);
+      queryClient.invalidateQueries({ queryKey: duplicatesKey });
+      queryClient.invalidateQueries({
+        queryKey: scopedQueryKey(workspace, "crm", "leads"),
+      });
+      onMerged?.();
+    },
     onError: (err: unknown) =>
       setActionError(
         err instanceof Error
@@ -104,10 +120,24 @@ export function LeadDuplicatesWorkspacePanel({
       ),
   });
 
-  const duplicates = duplicatesQuery.data?.duplicates ?? [];
+  // Review is for Leads that can still be merged or dismissed: a converted
+  // Lead, or one already merged away (archived), is not offered again.
+  const duplicates = (duplicatesQuery.data?.duplicates ?? []).filter(
+    (match) =>
+      match.restricted ||
+      (match.recordStatus !== "converted" && match.recordStatus !== "archived"),
+  );
+  if (
+    closed ||
+    (hideWhenEmpty &&
+      !duplicatesQuery.isLoading &&
+      duplicates.length === 0 &&
+      !actionError)
+  )
+    return null;
 
   return (
-    <div className="flex flex-col gap-3">
+    <section aria-label="Possible duplicates" className="flex flex-col gap-3">
       {actionError && (
         <p
           role="alert"
@@ -116,94 +146,170 @@ export function LeadDuplicatesWorkspacePanel({
           {actionError}
         </p>
       )}
-      {duplicatesQuery.isLoading && (
-        <p className="text-sm text-text-secondary">
-          Checking for possible duplicates…
-        </p>
-      )}
-      {!duplicatesQuery.isLoading && duplicates.length === 0 && (
+      {duplicatesQuery.isLoading ? (
+        !hideWhenEmpty && (
+          <p className="text-sm text-text-secondary">
+            Checking for possible duplicates…
+          </p>
+        )
+      ) : duplicates.length === 0 ? (
         <p className="text-sm text-text-muted">
-          No possible duplicates found for this Lead.
+          No possible duplicates found for this lead.
         </p>
-      )}
-      {duplicates.length > 0 && (
-        <ul className="flex flex-col gap-2">
-          {duplicates.map((match, i) =>
-            match.restricted ? (
-              <li key={i} className="text-sm text-text-secondary">
-                A possible match exists that you don&apos;t have visibility
-                into.
-              </li>
-            ) : (
-              <li
-                key={match.id}
-                className="flex flex-wrap items-center justify-between gap-2 rounded-[var(--radius-control)] border border-warning-emphasis/30 bg-warning-soft px-3 py-2 text-sm text-text-secondary"
-              >
-                <span className="flex items-center gap-1.5">
-                  <Merge className="size-4 text-warning" aria-hidden="true" />
-                  {match.fullName}{" "}
-                  {match.companyName ? `· ${match.companyName}` : ""} —{" "}
-                  {match.classification === "exact"
-                    ? "exact match"
-                    : "probable match"}
-                </span>
-                <Button
-                  variant="ghost"
-                  size="compact"
-                  onPress={() =>
-                    setComparingId(comparingId === match.id ? null : match.id)
-                  }
+      ) : (
+        <div className="flex flex-col gap-2 rounded-[var(--radius-control)] border border-warning-emphasis/30 bg-warning-soft px-3 py-3">
+          <p className="flex items-center gap-1.5 text-sm font-medium text-warning">
+            <Merge className="size-4" aria-hidden="true" />
+            Possible duplicates found
+          </p>
+          <ul className="flex flex-col gap-2">
+            {duplicates.map((match, index) =>
+              match.restricted ? (
+                <li
+                  key={`restricted-${index}`}
+                  className="text-sm text-text-secondary"
                 >
-                  {comparingId === match.id
-                    ? "Hide comparison"
-                    : "Compare side by side"}
-                </Button>
-                {canManage && (
-                  <span className="flex items-center gap-2">
+                  A possible match exists that you can&apos;t open.
+                </li>
+              ) : (
+                <li
+                  key={match.id}
+                  className="flex flex-wrap items-center justify-between gap-2 text-sm text-text-secondary"
+                >
+                  <span>
+                    <span className="font-medium text-text">
+                      {match.fullName}
+                    </span>
+                    {match.companyName ? ` · ${match.companyName}` : ""}
+                    {` — ${match.classification === "exact" ? "exact match" : "possible match"}`}
+                  </span>
+                  <span className="flex flex-wrap items-center gap-2">
                     <Button
                       variant="ghost"
                       size="compact"
-                      onPress={() => dismissMutation.mutate(match.id)}
-                      isLoading={dismissMutation.isPending}
-                      isDisabled={match.classification === "exact"}
+                      onPress={() =>
+                        setComparingId(
+                          comparingId === match.id ? null : match.id,
+                        )
+                      }
                     >
-                      Dismiss
+                      {comparingId === match.id
+                        ? "Hide comparison"
+                        : "Compare side by side"}
                     </Button>
-                    <Button
-                      variant="secondary"
-                      size="compact"
-                      onPress={() => mergeMutation.mutate(match.id)}
-                      isLoading={mergeMutation.isPending}
-                    >
-                      Merge into this Lead
-                    </Button>
+                    {canResolve && (
+                      <>
+                        {match.classification !== "exact" && (
+                          <Button
+                            variant="ghost"
+                            size="compact"
+                            onPress={() => setDismissing(match)}
+                          >
+                            Not a duplicate
+                          </Button>
+                        )}
+                        <Button
+                          variant="secondary"
+                          size="compact"
+                          onPress={() => setMerging(match)}
+                        >
+                          Merge into this lead
+                        </Button>
+                      </>
+                    )}
                   </span>
-                )}
-              </li>
-            ),
+                </li>
+              ),
+            )}
+          </ul>
+          {comparingId && (
+            <div className="rounded-[var(--radius-control)] border border-border bg-surface p-3">
+              <DuplicateComparison
+                entity="leads"
+                current={
+                  {
+                    ...lead,
+                    fullName: [lead.firstName, lead.lastName]
+                      .filter(Boolean)
+                      .join(" "),
+                  } as unknown as Record<string, unknown>
+                }
+                candidateId={comparingId}
+                fields={LEAD_FIELDS}
+                loadCandidate={getLead}
+                currentTitle="This lead"
+                candidateTitle="Possible duplicate"
+              />
+            </div>
           )}
-        </ul>
-      )}
-      {comparingId && (
-        <div className="rounded-[var(--radius-control)] border border-border bg-surface p-3">
-          <DuplicateComparison
-            entity="leads"
-            current={
-              {
-                ...lead,
-                fullName: [lead.firstName, lead.lastName]
-                  .filter(Boolean)
-                  .join(" "),
-              } as unknown as Record<string, unknown>
-            }
-            candidateId={comparingId}
-            fields={LEAD_FIELDS}
-            loadCandidate={getLead}
-            currentTitle="This lead"
-            candidateTitle="Possible duplicate"
-          />
         </div>
       )}
-    </div>
+
+      <Dialog
+        isOpen={dismissing !== null}
+        onOpenChange={(open) => {
+          if (!open) {
+            setDismissing(null);
+            setDismissReason("");
+          }
+        }}
+        title="Not a duplicate"
+      >
+        <div className="flex flex-col gap-4">
+          <p className="text-sm text-text-secondary">
+            {`${dismissing?.fullName ?? "This lead"} will stop being suggested as a duplicate of this lead. Your reason is kept with the decision.`}
+          </p>
+          <TextArea
+            label="Why are these different people?"
+            description={`At least ${REASON_MIN} characters.`}
+            value={dismissReason}
+            onChange={setDismissReason}
+          />
+          <div className="flex justify-end gap-2">
+            <Button variant="secondary" onPress={() => setDismissing(null)}>
+              Cancel
+            </Button>
+            <Button
+              variant="primary"
+              onPress={() =>
+                dismissing &&
+                dismissMutation.mutate({
+                  id: dismissing.id,
+                  reason: dismissReason.trim(),
+                })
+              }
+              isLoading={dismissMutation.isPending}
+              isDisabled={dismissReason.trim().length < REASON_MIN}
+            >
+              Record decision
+            </Button>
+          </div>
+        </div>
+      </Dialog>
+
+      <Dialog
+        isOpen={merging !== null}
+        onOpenChange={(open) => !open && setMerging(null)}
+        title="Merge leads"
+      >
+        <div className="flex flex-col gap-4">
+          <p className="text-sm text-text-secondary">
+            {`${merging?.fullName ?? "The other lead"} will be archived. Its activities, messages, tags and campaign memberships move to this lead, and the merge is recorded. This can't be undone.`}
+          </p>
+          <div className="flex justify-end gap-2">
+            <Button variant="secondary" onPress={() => setMerging(null)}>
+              Cancel
+            </Button>
+            <Button
+              variant="danger"
+              onPress={() => merging && mergeMutation.mutate(merging.id)}
+              isLoading={mergeMutation.isPending}
+            >
+              Merge leads
+            </Button>
+          </div>
+        </div>
+      </Dialog>
+    </section>
   );
 }

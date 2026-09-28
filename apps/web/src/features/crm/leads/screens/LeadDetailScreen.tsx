@@ -6,7 +6,6 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Ban,
   CheckCircle2,
-  Merge,
   Pencil,
   RefreshCw,
   Repeat,
@@ -44,6 +43,7 @@ import { NotesPanel } from "@/features/crm/shared/NotesPanel";
 import { CrmAttachmentPanel } from "@/features/crm/shared/CrmAttachmentPanel";
 import { CustomFieldsRuntimePanel } from "@/features/crm/shared/CustomFieldsRuntimePanel";
 import { LeadTagsPanel } from "@/features/crm/shared/LeadTagsPanel";
+import { LeadDuplicatesWorkspacePanel } from "../components/LeadDuplicatesWorkspacePanel";
 import { money } from "@/features/crm/shared/format";
 import {
   countryName,
@@ -58,8 +58,6 @@ import {
   assignLead,
   convertLead,
   decideLeadQualification,
-  dismissLeadDuplicate,
-  findLeadDuplicates,
   getCrmOptions,
   getLead,
   getLeadAttribution,
@@ -71,7 +69,6 @@ import {
   getLeadStageReasons,
   getLeadTransitionGraph,
   LeadApiError,
-  mergeLead,
   recalculateLeadScore,
   transitionLeadStage,
 } from "../api/leads-api";
@@ -136,6 +133,9 @@ export function LeadDetailScreen({ leadId }: { leadId: string }) {
   const canManageLeads = workspace.permissions.includes(
     CRM_PERMISSIONS.leadsManage,
   );
+  const canResolveDuplicates = workspace.permissions.includes(
+    CRM_PERMISSIONS.dataQualityManage,
+  );
 
   const [conflictMessage, setConflictMessage] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
@@ -177,26 +177,6 @@ export function LeadDetailScreen({ leadId }: { leadId: string }) {
   const optionsQuery = useQuery({
     queryKey: scopedQueryKey(workspace, "crm", "options"),
     queryFn: getCrmOptions,
-  });
-
-  const duplicatesQuery = useQuery({
-    queryKey: scopedQueryKey(workspace, "crm", "leads", leadId, "duplicates"),
-    queryFn: () =>
-      findLeadDuplicates(
-        {
-          firstName: lead!.firstName,
-          lastName: lead!.lastName,
-          email: lead!.email,
-          mobile: lead!.mobile,
-          phone: lead!.phone,
-          companyName: lead!.companyName,
-        },
-        leadId,
-      ),
-    enabled:
-      Boolean(lead) &&
-      lead!.recordStatus !== "converted" &&
-      lead!.recordStatus !== "archived",
   });
 
   const stageDetailQuery = useQuery({
@@ -406,46 +386,6 @@ export function LeadDetailScreen({ leadId }: { leadId: string }) {
       invalidateLead();
       queryClient.invalidateQueries({
         queryKey: scopedQueryKey(workspace, "crm", "leads", leadId, "score"),
-      });
-    },
-    onError: handleActionError,
-  });
-
-  const dismissMutation = useMutation({
-    mutationFn: (matchedLeadId: string) =>
-      dismissLeadDuplicate(
-        leadId,
-        matchedLeadId,
-        "Reviewed and confirmed not the same Lead.",
-      ),
-    onSuccess: () => {
-      setActionError(null);
-      queryClient.invalidateQueries({
-        queryKey: scopedQueryKey(
-          workspace,
-          "crm",
-          "leads",
-          leadId,
-          "duplicates",
-        ),
-      });
-    },
-    onError: handleActionError,
-  });
-
-  const mergeMutation = useMutation({
-    mutationFn: (sourceId: string) => mergeLead(leadId, sourceId),
-    onSuccess: () => {
-      setActionError(null);
-      invalidateLead();
-      queryClient.invalidateQueries({
-        queryKey: scopedQueryKey(
-          workspace,
-          "crm",
-          "leads",
-          leadId,
-          "duplicates",
-        ),
       });
     },
     onError: handleActionError,
@@ -841,65 +781,12 @@ export function LeadDetailScreen({ leadId }: { leadId: string }) {
                   canManage={canManageLeads && !isClosed}
                 />
 
-                {duplicatesQuery.data &&
-                  duplicatesQuery.data.duplicates.length > 0 && (
-                    <div className="flex flex-col gap-3 rounded-[var(--radius-control)] border border-warning-emphasis/30 bg-warning-soft px-3 py-3">
-                      <p className="flex items-center gap-1.5 text-sm font-medium text-warning">
-                        <Merge className="size-4" aria-hidden="true" />
-                        Possible duplicates found
-                      </p>
-                      <ul className="flex flex-col gap-2">
-                        {duplicatesQuery.data.duplicates.map((match, i) =>
-                          match.restricted ? (
-                            <li key={i} className="text-sm text-text-secondary">
-                              A possible match exists that you don&apos;t have
-                              visibility into.
-                            </li>
-                          ) : (
-                            <li
-                              key={match.id}
-                              className="flex flex-wrap items-center justify-between gap-2 text-sm text-text-secondary"
-                            >
-                              <span>
-                                {match.fullName}{" "}
-                                {match.companyName
-                                  ? `· ${match.companyName}`
-                                  : ""}{" "}
-                                — {match.classification} match
-                              </span>
-                              {canManageLeads && (
-                                <span className="flex items-center gap-2">
-                                  <Button
-                                    variant="ghost"
-                                    size="compact"
-                                    onPress={() =>
-                                      dismissMutation.mutate(match.id)
-                                    }
-                                    isLoading={dismissMutation.isPending}
-                                    isDisabled={
-                                      match.classification === "exact"
-                                    }
-                                  >
-                                    Dismiss
-                                  </Button>
-                                  <Button
-                                    variant="secondary"
-                                    size="compact"
-                                    onPress={() =>
-                                      mergeMutation.mutate(match.id)
-                                    }
-                                    isLoading={mergeMutation.isPending}
-                                  >
-                                    Merge into this Lead
-                                  </Button>
-                                </span>
-                              )}
-                            </li>
-                          ),
-                        )}
-                      </ul>
-                    </div>
-                  )}
+                <LeadDuplicatesWorkspacePanel
+                  lead={lead}
+                  canResolve={canResolveDuplicates}
+                  hideWhenEmpty
+                  onMerged={invalidateLead}
+                />
 
                 <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
                   <PropertyList
@@ -1611,7 +1498,15 @@ export function LeadDetailScreen({ leadId }: { leadId: string }) {
         title="Convert this Lead"
       >
         <div className="flex flex-col gap-4">
-          {convertPreviewQuery.isLoading ? (
+          {lead.qualificationState !== "qualified" ? (
+            <p
+              role="status"
+              className="rounded-[var(--radius-control)] border border-warning-emphasis/30 bg-warning-soft px-3 py-2 text-sm text-warning"
+            >
+              Only a qualified Lead can be converted. Record a qualification
+              decision on the Qualification tab first.
+            </p>
+          ) : convertPreviewQuery.isLoading ? (
             <p className="text-sm text-text-secondary">
               Checking for existing Accounts and Contacts…
             </p>
@@ -1668,7 +1563,10 @@ export function LeadDetailScreen({ leadId }: { leadId: string }) {
               variant="primary"
               onPress={() => convertMutation.mutate()}
               isLoading={convertMutation.isPending}
-              isDisabled={convertPreviewQuery.isLoading}
+              isDisabled={
+                lead.qualificationState !== "qualified" ||
+                convertPreviewQuery.isLoading
+              }
             >
               Convert
             </Button>

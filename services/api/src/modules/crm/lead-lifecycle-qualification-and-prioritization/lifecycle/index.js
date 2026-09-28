@@ -1,7 +1,6 @@
 // F007 Lead lifecycle — public barrel for the lead-lifecycle-qualification-
-// and-prioritization capability directory's lifecycle module. This is the
-// canonical implementation location (CRM vNext Prompt 4); the legacy
-// services/api/src/modules/crm/lead-lifecycle.js now only re-exports this.
+// and-prioritization capability directory's lifecycle module, re-exported
+// by services/api/src/index.js.
 export {
   ensureDefaultLeadStages,
   listLeadStages,

@@ -12,8 +12,8 @@ Canonical CRM capability directory, frozen by `docs/03-modules/crm/CRM_VNEXT_IMP
 
 Target location for this capability's domain/application code going forward. No existing
 source was bulk-moved here in Prompt 1 — current implementation still lives in the legacy flat
-`services/api/src/modules/crm/*.js` files (e.g. `lead-lifecycle.js`, `lead-qualification.js`,
-`lead-governance.js`) so public call sites are not broken mid-migration. See the Architecture
+`services/api/src/modules/crm/*.js` files (e.g. `lead-qualification.js`, `lead-governance.js`;
+the lifecycle now lives in `lifecycle/`) so public call sites are not broken mid-migration. See the Architecture
 Migration Map in `CRM_VNEXT_IMPLEMENTATION_REGISTER.md` for the file-by-file plan and owning
 prompt.
 

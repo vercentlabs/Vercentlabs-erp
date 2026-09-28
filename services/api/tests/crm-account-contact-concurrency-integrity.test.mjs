@@ -118,7 +118,13 @@ test("updateCrmAccount: the UPDATE statement itself carries a checked-write WHER
   });
   const updateQuery = client.queries.find((q) => q.sql.includes("UPDATE tenant.business_parties account"));
   assert.ok(updateQuery, "expected the account UPDATE query");
-  assert.match(updateQuery.sql, /AND account\.updated_at = \$\d+/, "must guard the write with the expected version");
+  // Compared at millisecond precision: PostgreSQL stores microseconds, the
+  // caller's version is a JavaScript Date (crm-relationship-versions-db.test.mjs).
+  assert.match(
+    updateQuery.sql,
+    /AND date_trunc\('milliseconds', account\.updated_at\) = date_trunc\('milliseconds', \$\d+::timestamptz\)/,
+    "must guard the write with the expected version",
+  );
   assert.ok(updateQuery.values.includes(freshTimestamp), "the expected timestamp must be bound as a parameter");
 });
 

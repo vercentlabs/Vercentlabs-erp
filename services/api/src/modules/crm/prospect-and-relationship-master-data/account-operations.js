@@ -612,7 +612,7 @@ export async function updateCrmAccount(
       // separate row lock. A zero-row result here means a concurrent writer
       // won that race (existence was already confirmed by getCrmAccount).
       const versionGuard = expectations.expectedUpdatedAt
-        ? ` AND account.updated_at = ${addParameter(parameters, existing.updatedAt)}`
+        ? ` AND date_trunc('milliseconds', account.updated_at) = date_trunc('milliseconds', ${addParameter(parameters, existing.updatedAt)}::timestamptz)`
         : "";
       const updateResult = await client.query(
         `UPDATE tenant.business_parties account
@@ -657,7 +657,7 @@ export async function archiveCrmAccount(client, context, id, expectations = {}) 
     if (existing.status !== "inactive") {
       const parameters = [context.organizationId, id, context.userId];
       const versionGuard = expectations.expectedUpdatedAt
-        ? ` AND updated_at = ${addParameter(parameters, existing.updatedAt)}`
+        ? ` AND date_trunc('milliseconds', updated_at) = date_trunc('milliseconds', ${addParameter(parameters, existing.updatedAt)}::timestamptz)`
         : "";
       const archiveResult = await client.query(
         `UPDATE tenant.business_parties

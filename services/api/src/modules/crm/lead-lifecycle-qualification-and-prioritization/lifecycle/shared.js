@@ -1,8 +1,5 @@
 // F007 Lead lifecycle — shared helpers used across the stage catalogue,
-// transition graph, transition engine and stage-migration modules. Moved
-// here (from the legacy flat lead-lifecycle.js) as part of CRM vNext
-// Prompt 4's directed-transition-graph rebuild; lead-lifecycle.js now
-// re-exports this capability directory's public surface for compatibility.
+// transition graph, transition engine and stage-migration modules.
 import { crmOwnerScopeSql } from "../../crm-data-operations-and-customization/crm-access-scope.js";
 import { CrmError } from "../../crm-data-operations-and-customization/errors.js";
 import { queueOutboxEvent } from "../../crm-data-operations-and-customization/outbox.js";

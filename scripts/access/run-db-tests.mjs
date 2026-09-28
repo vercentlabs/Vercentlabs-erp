@@ -17,6 +17,7 @@ export const ACCESS_DB_TEST_FILES = Object.freeze([
   "tests/integration/mfa-sp007.test.mjs",
   "tests/integration/billing-entitlement-sp011.test.mjs",
   "services/api/tests/crm-access-matrix-db.test.mjs",
+  "services/api/tests/crm-relationship-versions-db.test.mjs",
 ]);
 
 // CRM_ACCESS_DB_REQUIRED=1: the CRM access matrix must run here, never skip.

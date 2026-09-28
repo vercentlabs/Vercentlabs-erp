@@ -31,6 +31,7 @@ function baseLeadRow() {
   return {
     id: leadId,
     record_status: "active",
+    qualification_state: "qualified",
     company_name: "Acme Co",
     full_name: "Rahul Sharma",
     first_name: "Rahul",
@@ -160,6 +161,45 @@ function makeClient({ accountBlocking, contactBlocking }) {
     },
   };
 }
+
+test("F022/F006-CAP-003: a Lead that is not qualified cannot be converted, and nothing is written", async () => {
+  for (const state of ["not_reviewed", "unqualified"]) {
+    const calls = [];
+    const client = {
+      query: async (sql) => {
+        calls.push(sql);
+        if (sql.includes("FROM tenant.crm_leads record")) return { rows: [{ ...baseLeadRow(), qualification_state: state }] };
+        if (sql.includes("FROM tenant.crm_conversion_records")) return { rows: [] };
+        throw new Error(`Unexpected query: ${sql.slice(0, 120)}`);
+      },
+    };
+    await assert.rejects(convertCrmLead(client, context, leadId, {}), (error) => error.status === 409 && error.code === "CRM_LEAD_NOT_QUALIFIED");
+    assert.ok(!calls.some((sql) => /^\s*(INSERT|UPDATE)\b/.test(sql)), `${state}: no write`);
+  }
+});
+
+test("F022: converting needs the permission for each record it creates (Leads management alone is not enough)", async () => {
+  const marketing = { ...context, roleSlugs: ["marketing_manager"], permissions: ["crm.records.view_all", "crm.leads.manage"] };
+  // A new Opportunity needs crm.opportunities.manage: refused before any write.
+  const calls = [];
+  const client = {
+    query: async (sql) => {
+      calls.push(sql);
+      if (sql.includes("FROM tenant.crm_leads record")) return { rows: [baseLeadRow()] };
+      if (sql.includes("FROM tenant.crm_conversion_records")) return { rows: [] };
+      throw new Error(`Unexpected query: ${sql.slice(0, 120)}`);
+    },
+  };
+  await assert.rejects(convertCrmLead(client, marketing, leadId, {}), (error) => error.status === 403 && error.code === "PERMISSION_DENIED");
+  assert.ok(!calls.some((sql) => /^\s*(INSERT|UPDATE)\b/.test(sql)));
+  // Without an Opportunity, a new Account still needs crm.accounts.manage.
+  const probable = makeClient({ accountBlocking: false, contactBlocking: false });
+  await assert.rejects(
+    convertCrmLead(probable, { ...marketing, permissions: [...marketing.permissions, "crm.opportunities.manage"] }, leadId, { createOpportunity: false }),
+    (error) => error.status === 403 && error.code === "PERMISSION_DENIED",
+  );
+  assert.ok(!probable.calls.some((sql) => sql.includes("INSERT INTO tenant.business_parties")));
+});
 
 test("F022: an 'exact' (blocking-rule) Account/Contact duplicate is reused, not recreated", async () => {
   const client = makeClient({ accountBlocking: true, contactBlocking: true });

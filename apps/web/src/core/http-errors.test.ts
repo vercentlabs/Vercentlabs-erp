@@ -73,6 +73,30 @@ test("classifyError: a ported platform error ({status,message,code} shape withou
   assert.equal(classified.details?.code, "CRM_STALE_WRITE");
 });
 
+test("classifyError: a domain refusal's details (e.g. the duplicate matches) reach the caller, and its code cannot be overridden by them", () => {
+  class DomainError extends Error {
+    status = 409;
+    code = "CRM_CONTACT_DUPLICATE_EXACT";
+    details = { matches: [{ id: "c1" }], code: "SPOOFED" };
+  }
+  const classified = classifyError(new DomainError("Looks like a duplicate."));
+  assert.equal(classified.status, 409);
+  assert.deepEqual(classified.details, {
+    matches: [{ id: "c1" }],
+    code: "CRM_CONTACT_DUPLICATE_EXACT",
+  });
+});
+
+test("classifyError: a server-side (5xx) domain error keeps its details to itself", () => {
+  class FailedError extends Error {
+    status = 503;
+    code = "UPSTREAM_DOWN";
+    details = { host: "internal.example" };
+  }
+  const classified = classifyError(new FailedError("Try again later."));
+  assert.deepEqual(classified.details, { code: "UPSTREAM_DOWN" });
+});
+
 test("classifyError: a genuinely unknown error still returns a generic 500 without leaking internals", () => {
   const classified = classifyError(new Error("some internal detail"));
   assert.equal(classified.status, 500);

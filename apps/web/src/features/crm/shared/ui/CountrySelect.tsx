@@ -12,12 +12,14 @@ export function CountrySelect({
   onChange,
   className,
   isRequired,
+  errorMessage,
 }: {
   label?: string;
   value: string;
   onChange: (code: string) => void;
   className?: string;
   isRequired?: boolean;
+  errorMessage?: string;
 }) {
   const options = useMemo(() => {
     const codes =
@@ -37,6 +39,7 @@ export function CountrySelect({
       onSelectionChange={(key) => onChange(key ? String(key) : "")}
       className={className}
       isRequired={isRequired}
+      errorMessage={errorMessage}
     />
   );
 }

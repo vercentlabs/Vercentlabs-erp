@@ -127,15 +127,27 @@ export function classifyError(error: unknown): ClassifiedError {
   // Any ported @vercentlabs/api error class (ApiKeyError, OAuthError,
   // EntitlementError, ModuleAccessError, AccessAdministrationError,
   // SecurityError, PrivacyError, AiGovernanceError, ...) — all share this
-  // {status, message, code?} shape by convention.
+  // {status, message, code?, details?} shape by convention. A client error's
+  // details are written for the caller (field errors, the duplicate matches a
+  // refusal is about, already projected for the caller) and go back with it.
   if (hasHttpErrorShape(error)) {
+    const code =
+      "code" in error && error.code
+        ? (error as { code?: string }).code
+        : undefined;
+    const details =
+      error.status < 500 &&
+      "details" in error &&
+      typeof error.details === "object" &&
+      error.details !== null &&
+      !Array.isArray(error.details)
+        ? (error.details as Record<string, unknown>)
+        : undefined;
     return {
       status: error.status,
       message: error.message,
       details:
-        "code" in error && error.code
-          ? { code: (error as { code?: string }).code }
-          : undefined,
+        code || details ? { ...details, ...(code ? { code } : {}) } : undefined,
     };
   }
   reportError(logger, error, { event: "http.unhandled_error" });
