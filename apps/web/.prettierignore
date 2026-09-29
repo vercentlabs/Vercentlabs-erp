@@ -1,6 +1,7 @@
 .next
 node_modules
 playwright-report
+playwright-report-crm
 test-results
 storybook-static
 src/app/tokens.css

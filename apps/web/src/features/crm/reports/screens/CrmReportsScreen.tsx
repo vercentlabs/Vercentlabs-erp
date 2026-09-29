@@ -21,6 +21,9 @@ import { BarList } from "@/features/crm/shared/ui/BarList";
 import { DateInput } from "@/features/crm/shared/ui/DateTimeInput";
 import { LoadingState } from "@/shared/ui/LoadingState";
 import { CrmReportApiError, getCrmReportData } from "../api/reports-api";
+import { SavedReportsSection } from "../components/SavedReportsSection";
+import type { PipelineFilters } from "@/features/crm/dashboard/api/analytics-api";
+import { MetricDrilldownDialog } from "@/features/crm/dashboard/components/MetricDrilldownDialog";
 import type { CrmReportRow } from "../types";
 
 // The library: what each report answers, grouped by the question a manager is asking. Keys are exactly the ones the
@@ -197,6 +200,35 @@ function formatCell(key: string, value: string | number | null) {
 // Undated drills (pipeline, sources) apply only when no date range narrows the report; a dated drill carries the
 // range into the list with the same predicate the report uses.
 type Range = { from?: string; to?: string };
+// Pipeline and forecast rows are canonical metrics (metric-definitions.js):
+// they open the exact records behind the figure in the metric drill-down,
+// whose total equals the cell.
+const METRIC_DRILL: Record<
+  string,
+  {
+    idKey: string;
+    metric: string;
+    filters: (row: CrmReportRow, range: Range) => PipelineFilters;
+  }
+> = {
+  pipeline: {
+    idKey: "stageId",
+    metric: "open_pipeline",
+    filters: (row) => ({
+      stageId: row.stageId ? String(row.stageId) : undefined,
+    }),
+  },
+  forecast: {
+    idKey: "ownerUserId",
+    metric: "forecast_pipeline",
+    filters: (row, range) => ({
+      ownerId: row.ownerUserId ? String(row.ownerUserId) : "unassigned",
+      from: range.from,
+      to: range.to,
+    }),
+  },
+};
+
 const DRILL_CONFIG: Record<
   string,
   {
@@ -205,31 +237,10 @@ const DRILL_CONFIG: Record<
     buildHref: (row: CrmReportRow, range: Range) => string | null;
   }
 > = {
-  pipeline: {
-    idKey: "stageId",
-    buildHref: (row) =>
-      row.stageId
-        ? `/crm/opportunities?stageId=${row.stageId}&status=open`
-        : null,
-  },
   sources: {
     idKey: "sourceId",
     buildHref: (row) =>
       row.sourceId ? `/crm/leads?sourceId=${row.sourceId}` : null,
-  },
-  // F025/F030 — open pipeline per owner by expected close date (the forecast report's own predicate).
-  forecast: {
-    idKey: "ownerUserId",
-    dated: true,
-    buildHref: (row, range) => {
-      const params = new URLSearchParams({
-        status: "open",
-        ownerId: row.ownerUserId ? String(row.ownerUserId) : "unassigned",
-      });
-      if (range.from) params.set("expectedCloseFrom", range.from);
-      if (range.to) params.set("expectedCloseTo", range.to);
-      return `/crm/opportunities?${params.toString()}`;
-    },
   },
   // F026 — closed deals by actual close date, outcome and reason ("none" = no reason recorded).
   "win-loss": {
@@ -314,6 +325,21 @@ export function CrmReportsScreen() {
     DRILL_CONFIG[report]?.dated || (!applied.from && !applied.to)
       ? DRILL_CONFIG[report]
       : undefined;
+  const metricDrill = METRIC_DRILL[report];
+  // The range the server actually used (canonical reports default to the current month).
+  const resolvedFilters = query.data?.report.filters as Range | undefined;
+  const reportRange: Range = useMemo(
+    () => ({
+      from: resolvedFilters?.from ?? applied.from,
+      to: resolvedFilters?.to ?? applied.to,
+    }),
+    [resolvedFilters?.from, resolvedFilters?.to, applied.from, applied.to],
+  );
+  const [drill, setDrill] = useState<{
+    metric: string;
+    title: string;
+    filters: PipelineFilters;
+  } | null>(null);
 
   const columns: ColumnDef<CrmReportRow, unknown>[] = useMemo(() => {
     const first = rows[0];
@@ -321,6 +347,7 @@ export function CrmReportsScreen() {
     const keys = Object.keys(first).filter(
       (key) =>
         !(drillable && key === drillable.idKey) &&
+        !(metricDrill && key === metricDrill.idKey) &&
         !/(^id$|Id$)/.test(key) &&
         !HIDDEN_COLUMN.test(key),
     );
@@ -339,6 +366,24 @@ export function CrmReportsScreen() {
         const formatted = formatCell(key, value) || (
           <span className="text-text-muted">None</span>
         );
+        if (metricDrill && index === 0) {
+          const drillFilters = metricDrill.filters(row.original, reportRange);
+          return (
+            <button
+              type="button"
+              className="text-left text-brand hover:underline"
+              onClick={() =>
+                setDrill({
+                  metric: metricDrill.metric,
+                  title: `${current.title} · ${String(formatted)}`,
+                  filters: drillFilters,
+                })
+              }
+            >
+              {formatted}
+            </button>
+          );
+        }
         const href =
           drillable && index === 0
             ? drillable.buildHref(row.original, applied)
@@ -361,7 +406,16 @@ export function CrmReportsScreen() {
         );
       },
     }));
-  }, [rows, drillable, router, applied]);
+  }, [
+    rows,
+    drillable,
+    metricDrill,
+    router,
+    applied,
+    reportRange,
+    current.title,
+    setDrill,
+  ]);
 
   // A chart only where the columns are unambiguous: a text label column plus the first numeric column.
   const chart = useMemo(() => {
@@ -411,8 +465,8 @@ export function CrmReportsScreen() {
   if (applied.to) exportParams.set("to", applied.to);
   const exportHref = `/api/crm/reports/${encodeURIComponent(report)}/export${exportParams.toString() ? `?${exportParams.toString()}` : ""}`;
   const context =
-    applied.from || applied.to
-      ? `${applied.from ? formatDate(applied.from) : "The start"} to ${applied.to ? formatDate(applied.to) : "today"}`
+    reportRange.from || reportRange.to
+      ? `${reportRange.from ? formatDate(reportRange.from) : "The start"} to ${reportRange.to ? formatDate(reportRange.to) : "today"}`
       : "All time";
 
   return (
@@ -542,6 +596,22 @@ export function CrmReportsScreen() {
           />
         </div>
       </div>
+      <SavedReportsSection />
+      <MetricDrilldownDialog
+        metric={drill?.metric ?? null}
+        title={drill?.title ?? ""}
+        filters={drill?.filters ?? {}}
+        reportingCurrency={
+          (
+            query.data?.report as
+              { currency?: { reportingCurrency?: string | null } } | undefined
+          )?.currency?.reportingCurrency ?? null
+        }
+        isOpen={drill !== null}
+        onOpenChange={(open) => {
+          if (!open) setDrill(null);
+        }}
+      />
     </div>
   );
 }

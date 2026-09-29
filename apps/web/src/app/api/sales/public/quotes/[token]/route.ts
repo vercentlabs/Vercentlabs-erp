@@ -5,6 +5,7 @@ import {
 } from "@vercentlabs/api";
 
 import { tenantTransaction, withIngressClient } from "@/core/db";
+import { enforcePublicRateLimits } from "@/core/public-rate-limit";
 import { errorResponse, ok } from "@/core/http";
 import { toWire } from "@/features/sales/shared/wire";
 
@@ -15,8 +16,11 @@ type RouteContext = { params: Promise<{ token: string }> };
 // organisation is resolved from that hash alone, then the SAME domain function
 // the authenticated flow uses enforces link expiry, revocation, "a newer
 // revision exists" and the quote's own valid-until.
-export async function GET(_request: Request, context: RouteContext) {
+export async function GET(request: Request, context: RouteContext) {
   try {
+    await enforcePublicRateLimits(request, [
+      { bucket: "sales-quote-view", maximum: 120, windowSeconds: 300 },
+    ]);
     const { token } = await context.params;
     const tokenHash = publicQuoteTokenHash(token);
     const organizationId = await withIngressClient((client) =>

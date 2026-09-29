@@ -29,4 +29,12 @@ export const CRM_PERMISSIONS: Readonly<{
   customizationManage: "crm.customization.manage";
   partnersManage: "crm.partners.manage";
   fieldSalesManage: "crm.field-sales.manage";
+  coverageView: "crm.coverage.view";
+  teamsManage: "crm.teams.manage";
+  territoriesManage: "crm.territories.manage";
+  coverageAssign: "crm.coverage.assign";
+  forecastSubmit: "crm.forecast.submit";
+  forecastReview: "crm.forecast.review";
+  forecastManage: "crm.forecast.manage";
+  reportsSchedule: "crm.reports.schedule";
 }>;

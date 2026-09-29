@@ -19,9 +19,14 @@ export async function POST(
     },
     async ({ client, session }) => {
       const { batchId } = await context.params;
-      return ok({
-        batch: await commitLeadImport(client, crmContext(session), batchId),
-      });
+      // Small imports finish here; large ones return async: true with the
+      // background job that runs them (poll GET .../import/[batchId]).
+      const result = await commitLeadImport(
+        client,
+        crmContext(session),
+        batchId,
+      );
+      return ok(result, result.async ? 202 : 200);
     },
   );
 }

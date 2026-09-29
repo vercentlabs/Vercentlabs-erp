@@ -9,6 +9,8 @@ import { JOB_TYPE as QUOTATION_EXPIRY_SCAN_JOB_TYPE } from "./handlers/sales-quo
 import { JOB_TYPE as PIPELINE_SNAPSHOT_CAPTURE_JOB_TYPE } from "./handlers/crm-pipeline-snapshot-capture.js";
 import { JOB_TYPE as FOLLOW_UP_REMINDER_DISPATCH_JOB_TYPE } from "./handlers/crm-follow-up-reminder-dispatch.js";
 import { JOB_TYPE as NURTURE_QUEUE_DISPATCH_JOB_TYPE } from "./handlers/crm-nurture-queue-dispatch.js";
+import { JOB_TYPE as CALENDAR_SYNC_JOB_TYPE } from "./handlers/crm-calendar-sync.js";
+import { JOB_TYPE as FORECAST_SNAPSHOT_JOB_TYPE } from "./handlers/crm-forecast-snapshot-capture.js";
 
 const logger = createLogger("worker-scheduler");
 
@@ -149,6 +151,36 @@ export async function runSchedulerTick(pool, config) {
       else enqueued += 1;
     } catch (error) {
       logger.error("nurture queue dispatch tick failed for organization", { organizationId, error: String(error?.message || error) });
+    }
+    try {
+      // F014 inbound calendar sync: per tick; the handler claims only
+      // connected accounts not synced in the last CALENDAR_SYNC_INTERVAL_MINUTES.
+      const { deduped: wasDeduped } = await withTenantClient(pool, organizationId, (client) =>
+        enqueueJob(client, organizationId, {
+          jobType: CALENDAR_SYNC_JOB_TYPE,
+          idempotencyKey: `calendar-sync-tick:${bucket}`,
+          maxAttempts: 3,
+        }),
+      );
+      if (wasDeduped) deduped += 1;
+      else enqueued += 1;
+    } catch (error) {
+      logger.error("calendar sync tick failed for organization", { organizationId, error: String(error?.message || error) });
+    }
+    try {
+      // F025 daily forecast snapshot (calendar-date key, like the pipeline snapshot).
+      const { deduped: wasDeduped } = await withTenantClient(pool, organizationId, (client) =>
+        enqueueJob(client, organizationId, {
+          jobType: FORECAST_SNAPSHOT_JOB_TYPE,
+          idempotencyKey: `forecast-snapshot-tick:${snapshotDay}`,
+          payload: { date: snapshotDay },
+          maxAttempts: 3,
+        }),
+      );
+      if (wasDeduped) deduped += 1;
+      else enqueued += 1;
+    } catch (error) {
+      logger.error("forecast snapshot tick failed for organization", { organizationId, error: String(error?.message || error) });
     }
   }
   logger.info("scheduler tick complete", { organizations: organizationIds.length, enqueued, deduped, bucket });

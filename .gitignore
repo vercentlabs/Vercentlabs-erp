@@ -11,6 +11,8 @@ out/
 dist/
 build/
 coverage/
+# ...but a feature or route named "coverage" under the web source tree is code (CRM Sales Coverage).
+!apps/web/src/**/coverage/
 .turbo/
 
 # Environment files

@@ -1,0 +1,10 @@
+type Queryable = { query: (sql: string, values?: unknown[]) => Promise<{ rows: any[] }> };
+export type ReportScheduleInput = { definitionId: string; frequency: "daily" | "weekly" | "monthly"; timeOfDay: string; timezone: string; weekday?: number | null; monthDay?: number | null; recipients: string[] };
+export function zonedTimeToUtc(year: number, month: number, day: number, hour: number, minute: number, timeZone: string): Date;
+export function nextScheduleOccurrence(schedule: Record<string, unknown>, after?: Date): Date;
+export function createReportSchedule(client: Queryable, session: any, accessibleModules: readonly string[], input: ReportScheduleInput, options?: { env?: Record<string, string | undefined>; now?: Date }): Promise<Record<string, any>>;
+export function listReportSchedules(client: Queryable, session: any): Promise<Array<Record<string, any>>>;
+export function setReportScheduleStatus(client: Queryable, session: any, scheduleId: string, status: "active" | "paused" | "cancelled", options?: { now?: Date }): Promise<Record<string, any>>;
+export function enqueueDueReportSchedules(client: Queryable, organizationId: string, options?: { now?: Date; env?: Record<string, string | undefined>; limit?: number }): Promise<{ schedules: number; queued: number; skipped: number }>;
+export function deliverScheduledReportRun(client: Queryable, organizationId: string, runId: string): Promise<{ delivered: boolean }>;
+export function failScheduledReportDelivery(client: Queryable, organizationId: string, runId: string, error: unknown): Promise<void>;

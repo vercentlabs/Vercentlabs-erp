@@ -9,6 +9,8 @@ export type BarItem = {
   display: string;
   secondary?: string;
   href?: string;
+  /** Opens an in-place drill-down instead of navigating. */
+  onSelect?: () => void;
 };
 
 // Horizontal bars over real figures, each with its number written out (the bar is never the only carrier).
@@ -42,7 +44,16 @@ export function BarList({
       ) : (
         <ul className="flex flex-col gap-2.5">
           {items.map((item) => {
-            const label = item.href ? (
+            const label = item.onSelect ? (
+              <button
+                type="button"
+                onClick={item.onSelect}
+                className="truncate text-left text-text hover:underline"
+                aria-label={`${item.label}: ${item.display}. Open the records behind this figure`}
+              >
+                {item.label}
+              </button>
+            ) : item.href ? (
               <Link
                 href={item.href}
                 className="truncate text-text hover:underline"

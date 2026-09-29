@@ -1,5 +1,5 @@
 import {
-  getDataExchangeDefinition,
+  LEAD_IMPORT_LIMITS,
   parseCsvUpload,
   previewLeadImport,
 } from "@vercentlabs/api";
@@ -9,7 +9,7 @@ import { HttpError, ok } from "@/core/http";
 import { workspaceRoute } from "@/core/workspace-route";
 import { crmContext } from "@/features/crm/shared/crm-context";
 
-// F021 Lead import — stage 1 of 2 (preview -> commit). The uploaded file is
+// F021 Lead import — stage 1 of 2 (dry run -> commit). The uploaded file is
 // parsed HERE (Shared Platform CSV parser); previewLeadImport validates every
 // row and stages a snapshot without creating any Lead (not billing-gated;
 // the commit step is).
@@ -22,6 +22,13 @@ export async function POST(request: Request) {
       action: "crm.leads.import.preview",
     },
     async ({ client, session }) => {
+      // Bounded before the multipart body is read into memory.
+      const declared = Number(request.headers.get("content-length") || "0");
+      if (!declared || declared > LEAD_IMPORT_LIMITS.maxBytes + 64 * 1024)
+        throw new HttpError(
+          413,
+          `Upload a CSV file of at most ${LEAD_IMPORT_LIMITS.maxBytes / (1024 * 1024)} MB.`,
+        );
       const form = await request.formData().catch(() => {
         throw new HttpError(400, "Upload a CSV file.");
       });
@@ -34,9 +41,9 @@ export async function POST(request: Request) {
       } catch {
         throw new HttpError(400, "The column mapping is invalid.");
       }
-      const definition = getDataExchangeDefinition("crm.leads.import");
       const parsed = parseCsvUpload(Buffer.from(await file.arrayBuffer()), {
-        maxRows: definition?.maximumRows,
+        maxBytes: LEAD_IMPORT_LIMITS.maxBytes,
+        maxRows: LEAD_IMPORT_LIMITS.maxRows,
       });
       const result = await previewLeadImport(client, crmContext(session), {
         rows: parsed.records,

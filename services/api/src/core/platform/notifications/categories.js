@@ -10,6 +10,16 @@ export const NOTIFICATION_CHANNELS = Object.freeze(["in_app"]);
 
 export const NOTIFICATION_CATEGORIES = Object.freeze([
   {
+    key: "report_delivered",
+    displayName: "Scheduled report ready",
+    description: "When a report scheduled for you has been generated.",
+    // Only CRM datasets are schedulable today (orchestration/reporting/datasets.js
+    // schedulePermission), so a viewer who loses CRM access loses the link too.
+    moduleKey: "crm",
+    defaultInAppEnabled: true,
+    userConfigurable: true,
+  },
+  {
     key: "crm_assignment",
     displayName: "Lead assigned to me",
     description: "When a lead is assigned to you.",

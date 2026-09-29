@@ -110,7 +110,6 @@ export const GENERIC_VERSIONED_RESOURCES = {
   "account-stakeholders": { entityLabel: "Account stakeholder", codePrefix: "CRM_ACCOUNT_STAKEHOLDER" },
   "forecast-periods": { entityLabel: "Forecast period", codePrefix: "CRM_FORECAST_PERIOD" },
   "forecast-submissions": { entityLabel: "Forecast submission", codePrefix: "CRM_FORECAST_SUBMISSION" },
-  "report-definitions": { entityLabel: "Report definition", codePrefix: "CRM_REPORT_DEFINITION" },
   "assignment-rules": { entityLabel: "Assignment rule", codePrefix: "CRM_ASSIGNMENT_RULE" },
   "scoring-rules": { entityLabel: "Scoring rule", codePrefix: "CRM_SCORING_RULE" },
   pipelines: { entityLabel: "Pipeline", codePrefix: "CRM_PIPELINE" },

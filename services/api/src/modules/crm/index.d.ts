@@ -197,6 +197,38 @@ export function getCrmReport(
   report: string,
   filters?: Record<string, unknown>,
 ): Promise<any>;
+export type CrmAnalyticsFilters = {
+  from?: string; to?: string; asOf?: string; scope?: string; pipelineId?: string; stageId?: string; teamId?: string;
+  territoryId?: string; ownerId?: string; sourceId?: string; forecastCategory?: string;
+};
+export function analyticsFiltersFromSearchParams(searchParams: URLSearchParams): CrmAnalyticsFilters;
+export function normalizeAnalyticsFilters(input?: CrmAnalyticsFilters): Required<CrmAnalyticsFilters>;
+export const METRIC_VERSION: string;
+export const PIPELINE_METRICS: Record<string, { label: string; unit: string; population: string; measure: string; timeBasis: string }>;
+export const BREAKDOWN_DIMENSIONS: Record<string, { label: string }>;
+export function listMetricDefinitions(): Array<Record<string, any>>;
+export function getPipelineMetrics(client: QueryClient, context: CrmContext, filters?: CrmAnalyticsFilters): Promise<any>;
+export function getPipelineDashboard(client: QueryClient, context: CrmContext, filters?: CrmAnalyticsFilters): Promise<any>;
+export function getPipelineBreakdown(client: QueryClient, context: CrmContext, input: { metric: string; dimension: string; filters?: CrmAnalyticsFilters }): Promise<any>;
+export function getMetricRollup(client: QueryClient, context: CrmContext, input: { dimension: string; metrics: string[]; filters?: CrmAnalyticsFilters }): Promise<any>;
+export function getMetricDrilldown(client: QueryClient, context: CrmContext, input: { metric: string; filters?: CrmAnalyticsFilters; cursor?: string | null; limit?: number }): Promise<any>;
+export function getQuotaSummary(client: QueryClient, context: CrmContext, filters?: CrmAnalyticsFilters, won?: number | null, closing?: number | null): Promise<any>;
+export function getUserQuotas(client: QueryClient, context: CrmContext, filters?: CrmAnalyticsFilters): Promise<Map<string, number>>;
+export function buildForecastRollup(teams: any[], owners: any[], ownerTeam: Map<string, string | null>): any;
+export function getForecastWorkspace(client: QueryClient, context: CrmContext, input: { periodId: string; asOf?: string }): Promise<any>;
+export function submitForecast(client: QueryClient, context: CrmContext, input: { periodId: string; commitAmount: number; bestCaseAmount?: number; notes?: string; expectedVersion?: number }): Promise<any>;
+export function reviewForecast(client: QueryClient, context: CrmContext, input: { submissionId: string; decision: string; managerAdjustment?: number; reason?: string; expectedVersion?: number }): Promise<any>;
+export function listForecastSubmissionEvents(client: QueryClient, context: CrmContext, submissionId: string): Promise<any[]>;
+export function captureForecastPeriodSnapshot(client: QueryClient, context: CrmContext, input: { periodId: string; source?: string; captureKey?: string | null; asOf?: string | null }): Promise<any>;
+export function captureScheduledForecastSnapshots(client: QueryClient, organizationId: string, input?: { date?: string }): Promise<{ periods: number; captured: number }>;
+export function getForecastSnapshot(client: QueryClient, context: CrmContext, captureId: string): Promise<any>;
+export function setForecastPeriodStatus(client: QueryClient, context: CrmContext, input: { periodId: string; status: string; expectedUpdatedAt?: string }): Promise<any>;
+export function getForecastAccuracy(client: QueryClient, context: CrmContext, input?: { limit?: number; horizonDays?: number; ownerUserId?: string | null }): Promise<any>;
+export const COVERAGE_REASSIGN_LIMIT: number;
+export function getSalesCoverage(client: QueryClient, context: CrmContext, input?: { asOf?: string }): Promise<any>;
+export function listUnassignedRecords(client: QueryClient, context: CrmContext, input: { type: string; cursor?: string | null; limit?: number }): Promise<any>;
+export function reassignCoverage(client: QueryClient, context: CrmContext, input: { type: string; ids: string[]; ownerUserId: string | null; reason: string; expectedUpdatedAt?: Record<string, string> }): Promise<any>;
+export function transferTerritoryCoverage(client: QueryClient, context: CrmContext, territoryId: string, input: { assigneeType: string; assigneeId: string; effectiveFrom?: string; reason: string }): Promise<any>;
 export class LeadDuplicateError extends Error {
   readonly status: number;
   readonly code: string;

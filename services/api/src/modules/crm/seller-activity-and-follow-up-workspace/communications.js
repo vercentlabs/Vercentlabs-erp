@@ -950,9 +950,31 @@ export async function ingestCalendarDelta(
 ) {
   const account = await syncAccount(client, context, syncAccountId);
   const provider = text(input.provider || account.provider).toLowerCase();
-  const events = array(input.events).map((row) =>
+  const normalized = array(input.events).map((row) =>
     normalizeProviderCalendarEvent(provider, row),
   );
+  // Deleted/cancelled provider events (Google sends a bare id with
+  // status=cancelled, Microsoft sends @removed) close the matching row;
+  // events without usable times are skipped and counted, never allowed to
+  // abort the whole page.
+  const cancelledIds = [
+    ...array(input.removedEventIds).map(text),
+    ...normalized.filter((event) => event.providerStatus === "cancelled").map((event) => event.externalEventId),
+  ].filter(Boolean);
+  let cancelled = 0;
+  if (cancelledIds.length) {
+    const closed = await client.query(
+      `UPDATE tenant.crm_calendar_events SET provider_status='cancelled',updated_at=now()
+        WHERE organization_id=$1 AND provider=$2 AND external_event_id = ANY($3::text[]) AND provider_status<>'cancelled'`,
+      [context.organizationId, provider === "google_calendar" ? "gmail" : provider, [...new Set(cancelledIds)]],
+    );
+    cancelled = closed.rowCount || 0;
+  }
+  const validTime = (value) => Boolean(value) && Number.isFinite(Date.parse(value));
+  const events = normalized.filter(
+    (event) => event.providerStatus !== "cancelled" && event.externalEventId && validTime(event.startsAt) && validTime(event.endsAt) && Date.parse(event.endsAt) > Date.parse(event.startsAt),
+  );
+  const skipped = normalized.length - events.length - normalized.filter((event) => event.providerStatus === "cancelled").length;
   let processed = 0;
   for (const event of events) {
     const result = await client.query(
@@ -1024,6 +1046,8 @@ export async function ingestCalendarDelta(
   );
   return {
     processed,
+    cancelled,
+    skipped,
     nextCursor: text(input.nextCursor) || account.calendar_cursor || null,
   };
 }
@@ -1424,23 +1448,43 @@ export async function getMeetingAvailability(
   );
   if (!link.rows[0])
     throw new CrmCommunicationsError(404, "Meeting link not found.");
+  const now = input.now ? new Date(input.now) : new Date();
+  // Booking horizon: nothing before today or beyond maximum_days_ahead, both
+  // in the link's own time zone (the setting was stored and shown to guests
+  // but never enforced, so a guest could book years ahead).
+  if (!isBookableDate(date, now, link.rows[0].timezone, link.rows[0].maximum_days_ahead)) return [];
   // The host day can start the previous UTC day and end the next, so look a day either side for conflicts.
   const dayStart = new Date(new Date(`${date}T00:00:00.000Z`).getTime() - 86_400_000).toISOString();
   const dayEnd = new Date(new Date(`${date}T23:59:59.999Z`).getTime() + 86_400_000).toISOString();
   const excludeBookingId = input.excludeBookingId
     ? assertId(input.excludeBookingId, "Meeting booking")
     : null;
+  // Busy time is the HOST's time only: events on the host's connected
+  // calendars, the host's own CRM meetings, and bookings made with the host.
+  // (Previously every event and booking in the organisation blocked every
+  // host's page, so one seller's diary emptied everyone else's.)
   const busy = await client.query(
-    `SELECT starts_at AS start,ends_at AS end
-       FROM tenant.crm_calendar_events
-      WHERE organization_id=$1 AND starts_at<$3 AND ends_at>$2 AND provider_status<>'cancelled'
-        AND ($4::uuid IS NULL OR meeting_booking_id IS DISTINCT FROM $4::uuid)
+    `SELECT event.starts_at AS start,event.ends_at AS end
+       FROM tenant.crm_calendar_events event
+       JOIN tenant.crm_sync_accounts account
+         ON account.organization_id=event.organization_id AND account.id=event.sync_account_id AND account.user_id=$5
+      WHERE event.organization_id=$1 AND event.starts_at<$3 AND event.ends_at>$2
+        AND event.provider_status NOT IN ('cancelled','cancelling')
+        AND ($4::uuid IS NULL OR event.meeting_booking_id IS DISTINCT FROM $4::uuid)
+     UNION ALL
+     SELECT activity.start_at AS start,activity.end_at AS end
+       FROM tenant.crm_activities activity
+      WHERE activity.organization_id=$1 AND activity.activity_type='meeting' AND activity.assigned_to=$5
+        AND activity.status NOT IN ('cancelled','completed','no_show')
+        AND activity.start_at IS NOT NULL AND activity.end_at IS NOT NULL
+        AND activity.start_at<$3 AND activity.end_at>$2
+        AND ($4::uuid IS NULL OR activity.meeting_booking_id IS DISTINCT FROM $4::uuid)
      UNION ALL
      SELECT starts_at AS start,ends_at AS end
        FROM tenant.crm_meeting_bookings
-      WHERE organization_id=$1 AND starts_at<$3 AND ends_at>$2 AND status='confirmed'
+      WHERE organization_id=$1 AND host_user_id=$5 AND starts_at<$3 AND ends_at>$2 AND status='confirmed'
         AND ($4::uuid IS NULL OR id <> $4::uuid)`,
-    [context.organizationId, dayStart, dayEnd, excludeBookingId],
+    [context.organizationId, dayStart, dayEnd, excludeBookingId, link.rows[0].owner_user_id],
   );
   return calculateMeetingSlots({
     date,
@@ -1451,8 +1495,47 @@ export async function getMeetingAvailability(
     busy: busy.rows,
     minimumNoticeMinutes: link.rows[0].minimum_notice_minutes,
     timeZone: link.rows[0].timezone,
-    now: input.now ? new Date(input.now) : new Date(),
+    now,
   });
+}
+
+// True when `date` (YYYY-MM-DD) lies between today and today + maximumDaysAhead
+// in the link's time zone.
+export function isBookableDate(date, now, timeZone, maximumDaysAhead) {
+  const today = calendarDateInZone(now, timeZone);
+  const days = Math.max(0, Math.trunc(Number(maximumDaysAhead ?? 60)));
+  const last = new Date(Date.parse(`${today}T00:00:00.000Z`) + days * 86_400_000).toISOString().slice(0, 10);
+  return String(date) >= today && String(date) <= last;
+}
+
+const GUEST_NAME_MAX = 200;
+const BOOKING_NOTES_MAX = 2000;
+const CANCELLATION_REASON_MAX = 1000;
+
+function meetingTimeZone(value, fallback = "UTC") {
+  const zone = text(value) || fallback;
+  if (zone.length > 64) throw new CrmCommunicationsError(400, "Time zone is invalid.", "CRM_MEETING_TIMEZONE_INVALID");
+  try {
+    new Intl.DateTimeFormat("en-US", { timeZone: zone });
+  } catch {
+    throw new CrmCommunicationsError(400, "Time zone is invalid.", "CRM_MEETING_TIMEZONE_INVALID");
+  }
+  return zone;
+}
+
+// Everything a guest may type on a public booking page, bounded and checked
+// before any row is written.
+export function normalizeMeetingGuestInput(input = {}) {
+  const guestName = text(input.guestName);
+  if (!guestName || guestName.length > GUEST_NAME_MAX)
+    throw new CrmCommunicationsError(400, `Enter your name (up to ${GUEST_NAME_MAX} characters).`, "CRM_MEETING_GUEST_NAME_INVALID");
+  const rawEmail = text(input.guestEmail);
+  if (rawEmail.length > 254) throw new CrmCommunicationsError(400, "Email address is invalid.", "CRM_EMAIL_INVALID");
+  const guestEmail = normalizeEmailAddress(rawEmail);
+  const notes = text(input.notes);
+  if (notes.length > BOOKING_NOTES_MAX)
+    throw new CrmCommunicationsError(400, `Notes can be up to ${BOOKING_NOTES_MAX} characters.`, "CRM_MEETING_NOTES_TOO_LONG");
+  return { guestName, guestEmail, guestTimezone: meetingTimeZone(input.guestTimezone), notes: notes || null };
 }
 
 export async function bookMeeting(client, context, meetingLinkId, input = {}) {
@@ -1468,7 +1551,8 @@ export async function bookMeeting(client, context, meetingLinkId, input = {}) {
   const startsAt = new Date(text(input.startsAt));
   if (Number.isNaN(startsAt.getTime()))
     throw new CrmCommunicationsError(400, "Meeting start time is invalid.");
-  const guestEmail = normalizeEmailAddress(input.guestEmail);
+  const guest = normalizeMeetingGuestInput(input);
+  const guestEmail = guest.guestEmail;
   const desiredStart = startsAt.toISOString();
   const existing = await client.query(
     `SELECT booking.*,
@@ -1507,12 +1591,12 @@ export async function bookMeeting(client, context, meetingLinkId, input = {}) {
       link.rows[0].company_id || context.activeCompanyId || null,
       link.rows[0].id,
       link.rows[0].owner_user_id,
-      text(input.guestName),
+      guest.guestName,
       guestEmail,
-      text(input.guestTimezone) || "UTC",
+      guest.guestTimezone,
       desiredStart,
       endsAt.toISOString(),
-      text(input.notes) || null,
+      guest.notes,
     ],
   );
   // F014 bridge: every public booking also becomes the canonical CRM Meeting
@@ -1571,13 +1655,13 @@ export async function bookMeeting(client, context, meetingLinkId, input = {}) {
       context.organizationId,
       calendarEventId,
       guestEmail,
-      text(input.guestName),
+      guest.guestName,
     ],
   );
   await client.query(
     `INSERT INTO tenant.crm_activity_attendees(organization_id,activity_id,name,email,response_status)
      VALUES($1,$2,$3,$4,'accepted')`,
-    [context.organizationId, meetingActivity.rows[0].id, text(input.guestName), guestEmail],
+    [context.organizationId, meetingActivity.rows[0].id, guest.guestName, guestEmail],
   );
   await client.query(
     `INSERT INTO tenant.crm_meeting_events(
@@ -1668,16 +1752,47 @@ async function providerJson(fetchImpl, url, accessToken) {
 // via providerJson) and the outbound calendar push below —
 // pushProviderCalendarEvent — rather than a second, near-duplicate fetch
 // wrapper.
-async function providerRequest(fetchImpl, url, accessToken, { method = "GET", body, allowNotFound = false } = {}) {
-  const response = await fetchImpl(url, {
-    method,
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-      Accept: "application/json",
-      ...(body ? { "Content-Type": "application/json" } : {}),
-    },
-    body: body ? JSON.stringify(body) : undefined,
-  });
+// Provider hosts a bearer token may ever be sent to. Delta cursors are stored
+// URLs (Microsoft Graph nextLink/deltaLink) and the mailbox cursor is editable
+// through the sync-accounts resource, so a URL is checked before the token
+// goes anywhere: a tampered cursor cannot exfiltrate the user's token.
+const PROVIDER_HOSTS = new Set(["gmail.googleapis.com", "www.googleapis.com", "graph.microsoft.com"]);
+export const PROVIDER_REQUEST_TIMEOUT_MS = 20_000;
+
+export function assertTrustedProviderUrl(value) {
+  let url;
+  try {
+    url = new URL(String(value));
+  } catch {
+    throw new CrmCommunicationsError(400, "Provider address is invalid.", "CRM_PROVIDER_URL_UNTRUSTED");
+  }
+  if (url.protocol !== "https:" || !PROVIDER_HOSTS.has(url.hostname) || url.username || url.password || url.port)
+    throw new CrmCommunicationsError(400, "Provider address is not an allowed provider endpoint.", "CRM_PROVIDER_URL_UNTRUSTED");
+  return url.toString();
+}
+
+async function providerRequest(fetchImpl, url, accessToken, { method = "GET", body, allowNotFound = false, timeoutMs = PROVIDER_REQUEST_TIMEOUT_MS } = {}) {
+  const target = assertTrustedProviderUrl(url);
+  let response;
+  try {
+    response = await fetchImpl(target, {
+      method,
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        Accept: "application/json",
+        ...(body ? { "Content-Type": "application/json" } : {}),
+      },
+      body: body ? JSON.stringify(body) : undefined,
+      redirect: "error",
+      signal: AbortSignal.timeout(timeoutMs),
+    });
+  } catch (error) {
+    // A hung or unreachable provider is a retryable 503, never a stuck worker.
+    const timedOut = error?.name === "TimeoutError" || error?.name === "AbortError";
+    const failure = new CrmCommunicationsError(503, timedOut ? "Provider request timed out." : "Provider is unreachable.", timedOut ? "CRM_PROVIDER_TIMEOUT" : "CRM_PROVIDER_UNREACHABLE");
+    failure.providerStatus = null;
+    throw failure;
+  }
   // Cancelling an event the provider has already deleted (a prior attempt
   // succeeded but the response was lost, or the guest/host deleted it
   // directly in Gmail/Outlook) must be idempotent success, not a retry
@@ -1686,11 +1801,13 @@ async function providerRequest(fetchImpl, url, accessToken, { method = "GET", bo
   if (allowNotFound && (response.status === 404 || response.status === 410)) return {};
   if (!response.ok) {
     const responseBody = await response.text().catch(() => "");
-    throw new CrmCommunicationsError(
-      response.status >= 500 ? 503 : 502,
+    const failure = new CrmCommunicationsError(
+      response.status >= 500 || response.status === 429 ? 503 : 502,
       `Provider request failed (${response.status}). ${responseBody.slice(0, 240)}`,
       "CRM_PROVIDER_REQUEST_FAILED",
     );
+    failure.providerStatus = response.status;
+    throw failure;
   }
   if (response.status === 204) return {};
   return response.json();
@@ -1809,23 +1926,37 @@ export async function fetchProviderCalendarDelta(account, options = {}) {
     );
     url.searchParams.set("singleEvents", "true");
     url.searchParams.set("maxResults", "250");
-    if (account.calendar_cursor) {
-      url.searchParams.set("syncToken", String(account.calendar_cursor));
+    // Cursor forms: "page:<pageToken>|<timeMin>" continues a multi-page
+    // listing with the same parameters; anything else is a syncToken. (A
+    // nextPageToken used to be stored and replayed as a syncToken, which
+    // Google rejects, so every account with more than one page broke.)
+    const cursor = text(account.calendar_cursor);
+    if (cursor.startsWith("page:")) {
+      const [pageToken, timeMin] = cursor.slice(5).split("|");
+      url.searchParams.set("pageToken", pageToken);
+      if (timeMin) url.searchParams.set("timeMin", timeMin);
+    } else if (cursor) {
+      url.searchParams.set("syncToken", cursor);
     } else {
       url.searchParams.set("timeMin", new Date().toISOString());
     }
-    const page = await providerJson(
-      fetchImpl,
-      url.toString(),
-      credential.accessToken,
-    );
+    let page;
+    try {
+      page = await providerJson(fetchImpl, url.toString(), credential.accessToken);
+    } catch (error) {
+      // 410 Gone = Google expired the sync token: restart from a full window
+      // instead of failing every future sync.
+      if (error?.providerStatus !== 410 || !account.calendar_cursor) throw error;
+      return fetchProviderCalendarDelta({ ...account, calendar_cursor: null }, options);
+    }
     return {
       provider,
       events: array(page.items),
-      nextCursor:
-        text(page.nextSyncToken || page.nextPageToken) ||
-        account.calendar_cursor ||
-        null,
+      nextCursor: page.nextSyncToken
+        ? text(page.nextSyncToken)
+        : page.nextPageToken
+          ? `page:${text(page.nextPageToken)}|${url.searchParams.get("timeMin") || ""}`
+          : account.calendar_cursor || null,
     };
   }
   if (provider === "microsoft365") {
@@ -1838,6 +1969,9 @@ export async function fetchProviderCalendarDelta(account, options = {}) {
     return {
       provider,
       events: array(page.value).filter((row) => !row?.["@removed"]),
+      // Deleted in Outlook: the delta carries only the id. Previously these
+      // were dropped, so a meeting deleted in the provider stayed busy forever.
+      removedEventIds: array(page.value).filter((row) => row?.["@removed"] && text(row?.id)).map((row) => text(row.id)),
       nextCursor:
         text(page["@odata.deltaLink"] || page["@odata.nextLink"]) ||
         account.calendar_cursor ||
@@ -2089,6 +2223,56 @@ export async function enqueueCalendarPushJob(client, context, activityId, action
   );
 }
 
+// F014 scheduled inbound calendar sync, in three short steps so a provider
+// HTTP call never runs while a tenant transaction is open (same shape as the
+// outbound push): claim due accounts (SKIP LOCKED + a lease), fetch the delta
+// outside any transaction, then ingest or record the failure.
+export const CALENDAR_SYNC_INTERVAL_MINUTES = 10;
+
+export async function claimCalendarSyncAccounts(client, context, { limit = 25 } = {}) {
+  const { rows } = await client.query(
+    `WITH due AS (
+       SELECT id FROM tenant.crm_sync_accounts
+        WHERE organization_id=$1 AND provider IN ('gmail','microsoft365')
+          AND sync_direction IN ('inbound','two_way') AND status IN ('connected','error','syncing')
+          AND (sync_lock_until IS NULL OR sync_lock_until < now())
+          AND (last_synced_at IS NULL OR last_synced_at < now() - ($2 * interval '1 minute'))
+        ORDER BY last_synced_at NULLS FIRST, id
+        LIMIT $3
+        FOR UPDATE SKIP LOCKED)
+     UPDATE tenant.crm_sync_accounts account
+        SET status='syncing', sync_lock_until=now()+interval '10 minutes', updated_at=now()
+       FROM due WHERE account.organization_id=$1 AND account.id=due.id
+     RETURNING account.*`,
+    [context.organizationId, CALENDAR_SYNC_INTERVAL_MINUTES, Math.max(1, Math.min(100, Number(limit) || 25))],
+  );
+  return rows;
+}
+
+export async function completeCalendarSync(client, context, account, page) {
+  const result = await ingestCalendarDelta(client, { ...context, userId: account.user_id }, account.id, page);
+  await client.query(
+    `INSERT INTO tenant.crm_provider_sync_jobs(organization_id,sync_account_id,sync_type,cursor_before,cursor_after,status,attempted_count,processed_count,started_at,completed_at,metadata)
+     VALUES($1,$2,'calendar',$3,$4,'completed',1,$5,now(),now(),$6::jsonb)`,
+    [context.organizationId, account.id, account.calendar_cursor || null, result.nextCursor, result.processed, JSON.stringify({ cancelled: result.cancelled, skipped: result.skipped, source: "scheduled" })],
+  );
+  return result;
+}
+
+export async function failCalendarSync(client, context, account, error) {
+  const message = String(error?.message || "Provider sync failed.").slice(0, 500);
+  await client.query(
+    `INSERT INTO tenant.crm_provider_sync_jobs(organization_id,sync_account_id,sync_type,cursor_before,status,attempted_count,failure_count,last_error,next_attempt_at,started_at,completed_at,metadata)
+     VALUES($1,$2,'calendar',$3,'failed',1,1,$4,now()+interval '10 minutes',now(),now(),$5::jsonb)`,
+    [context.organizationId, account.id, account.calendar_cursor || null, message, JSON.stringify({ code: error?.code || null, source: "scheduled" })],
+  );
+  await client.query(
+    `UPDATE tenant.crm_sync_accounts SET status='error',last_error=$3,sync_lock_until=NULL,last_synced_at=now(),updated_at=now() WHERE organization_id=$1 AND id=$2`,
+    [context.organizationId, account.id, message],
+  );
+  return { failed: true, code: error?.code || "CRM_PROVIDER_SYNC_FAILED" };
+}
+
 export async function synchronizeProviderAccount(
   client,
   context,
@@ -2152,7 +2336,10 @@ export async function synchronizeProviderAccount(
       `UPDATE tenant.crm_sync_accounts SET status='error',last_error=$3,sync_lock_until=NULL,updated_at=now() WHERE organization_id=$1 AND id=$2`,
       [context.organizationId, account.id, message],
     );
-    throw error;
+    // Returned, not thrown: the failure rows above must commit with the
+    // caller's transaction (a throw rolled them back, losing the evidence and
+    // leaving the account locked as 'syncing').
+    return { jobId: job.rows[0].id, failed: true, code: error?.code || "CRM_PROVIDER_SYNC_FAILED", retryable: Number(error?.status) >= 500, error: message.slice(0, 500) };
   }
 }
 
@@ -2163,6 +2350,8 @@ export async function cancelMeetingBooking(
   reason = null,
 ) {
   const id = assertId(bookingId, "Meeting booking");
+  if (text(reason).length > CANCELLATION_REASON_MAX)
+    throw new CrmCommunicationsError(400, `A cancellation reason can be up to ${CANCELLATION_REASON_MAX} characters.`, "CRM_MEETING_CANCEL_REASON_TOO_LONG");
   const current = await client.query(
     `SELECT * FROM tenant.crm_meeting_bookings
       WHERE organization_id=$1 AND id=$2 FOR UPDATE`,
@@ -2255,7 +2444,7 @@ export async function rescheduleMeetingBooking(
     throw new CrmCommunicationsError(400, "Meeting start time is invalid.");
   }
   const desiredStart = startsAt.toISOString();
-  const desiredTimezone = text(input.guestTimezone) || current.rows[0].guest_timezone;
+  const desiredTimezone = meetingTimeZone(input.guestTimezone, current.rows[0].guest_timezone);
   if (
     new Date(current.rows[0].starts_at).toISOString() === desiredStart &&
     String(current.rows[0].guest_timezone || "") === desiredTimezone

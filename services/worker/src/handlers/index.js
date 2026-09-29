@@ -16,6 +16,9 @@ import { dispatchNurtureQueueNotificationsHandler, JOB_TYPE as NURTURE_QUEUE_DIS
 import { leadExportHandler, JOB_TYPE as LEAD_EXPORT_JOB_TYPE, payloadSchema as leadExportPayloadSchema } from "./crm-lead-export.js";
 import { duplicateFullScanHandler, JOB_TYPE as DUPLICATE_FULL_SCAN_JOB_TYPE, payloadSchema as duplicateFullScanPayloadSchema } from "./crm-duplicate-full-scan.js";
 import { reportRunHandler, JOB_TYPE as REPORT_RUN_JOB_TYPE, payloadSchema as reportRunPayloadSchema } from "./platform-report-run.js";
+import { leadImportHandler, JOB_TYPE as LEAD_IMPORT_JOB_TYPE, payloadSchema as leadImportPayloadSchema } from "./crm-lead-import.js";
+import { captureForecastSnapshotsHandler, JOB_TYPE as FORECAST_SNAPSHOT_JOB_TYPE, payloadSchema as forecastSnapshotPayloadSchema } from "./crm-forecast-snapshot-capture.js";
+import { syncCalendarAccountsHandler, JOB_TYPE as CALENDAR_SYNC_JOB_TYPE, payloadSchema as calendarSyncPayloadSchema } from "./crm-calendar-sync.js";
 
 // Registers every currently-wired job type. Called once at worker
 // startup (bin/start.mjs) and by tests that need a populated registry.
@@ -158,6 +161,35 @@ export function registerBuiltinHandlers() {
     // and its output is written in the same transaction as the status.
     idempotency: "NATURALLY_IDEMPOTENT",
     maxAttempts: 2,
+    transactionMode: "managed",
+  });
+  registerJobHandler(CALENDAR_SYNC_JOB_TYPE, {
+    schema: calendarSyncPayloadSchema,
+    handler: syncCalendarAccountsHandler,
+    backoff: internalJobBackoff,
+    // Claims accounts with SKIP LOCKED and a lease; provider events upsert on
+    // UNIQUE(organization, provider, external_event_id), so a re-run or an
+    // overlapping tick can never duplicate an event.
+    idempotency: "NATURALLY_IDEMPOTENT",
+    maxAttempts: 3,
+    transactionMode: "managed",
+  });
+  registerJobHandler(FORECAST_SNAPSHOT_JOB_TYPE, {
+    schema: forecastSnapshotPayloadSchema,
+    handler: captureForecastSnapshotsHandler,
+    backoff: internalJobBackoff,
+    idempotency: "NATURALLY_IDEMPOTENT", // UNIQUE(organization, period, capture_key='scheduled:<date>') makes a re-run a no-op
+    maxAttempts: 3,
+  });
+  registerJobHandler(LEAD_IMPORT_JOB_TYPE, {
+    schema: leadImportPayloadSchema,
+    handler: leadImportHandler,
+    backoff: internalJobBackoff,
+    // One job per batch, keyed crm.leads.import:<batch>. Rows are
+    // claimed with SKIP LOCKED and marked processed in the same transaction as
+    // the lead they create, so retries resume without duplicates.
+    idempotency: "IDEMPOTENCY_KEY_REQUIRED",
+    maxAttempts: 5,
     transactionMode: "managed",
   });
 }

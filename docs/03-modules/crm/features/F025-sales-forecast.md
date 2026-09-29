@@ -262,3 +262,14 @@ Pass B decision: **no new canonical F-ID required**; mature behavior expands thi
 - Legacy benchmark rows remain in the evidence register for provenance, but any row classified `REMAP_REQUIRED`, `NEEDS_BETTER_SOURCE`, or `NEEDS_BETTER_FINDING` in `BENCHMARK_EVIDENCE_AUDIT.csv` is non-authoritative.
 - Benchmark sources inform expected enterprise behavior; the Vercentlabs canonical dossier, Pass B semantic scope, Pass C state/flow contracts and explicit architecture decisions remain normative.
 <!-- FINAL-PASS-D:END -->
+
+## Completion pass 2026-09-29 (closing state)
+
+Written after implementation and verification; the evidence is the code and tests named here. Human UAT is pending (`docs/03-modules/crm/CRM_UAT_F001_F030.md`). Full matrix: `docs/03-modules/crm/CRM_F001_F030_COMPLETION_MATRIX.md`.
+
+- Governed submissions (tenant migration 187): versioned submissions, one live submission per owner and period, event history, and review (approve, reject, or adjust commit with a reason; self-review blocked; managers review only their own team).
+- Period lifecycle: planned, then open, then frozen (which can reopen), then closed. Frozen and closed periods refuse submissions (database trigger), closed is final, and freezing or closing captures a snapshot.
+- Immutable snapshots (`crm_forecast_snapshot_captures` plus org/team/owner/deal rows, protected by immutability triggers). They are captured manually, on freeze or close, and daily by the worker (`crm.forecast.capture_snapshots`, idempotent capture keys). Reads are filtered to what the viewer may see.
+- Team-hierarchy rollup, and accuracy measured against canonical won actuals. Org-level accuracy is shown only to view-all users.
+- Generic CRUD on forecast submissions and period status now returns 410 `CRM_FORECAST_API_MOVED`, which closes the unaudited manager-adjustment path. The predictive calibration routes now require `crm.forecast.manage` (previously any CRM viewer could read them).
+- Evidence: `tests/integration/crm/forecast-db.test.mjs`; browser Journey F (submit, adjust, snapshot, lock).

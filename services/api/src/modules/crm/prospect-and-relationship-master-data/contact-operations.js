@@ -193,6 +193,27 @@ function persistenceError(error) {
   );
 }
 
+// The Account's primary active address, for the Account named by
+// `${account}.id`.
+function accountAddressJoin(account = "account") {
+  return `
+    LEFT JOIN LATERAL (
+      SELECT candidate.city, candidate.state, candidate.country_code
+      FROM tenant.addresses candidate
+      WHERE candidate.organization_id = ${account}.organization_id
+        AND candidate.party_id = ${account}.id
+        AND candidate.status = 'active'
+      ORDER BY candidate.is_primary DESC, candidate.created_at
+      LIMIT 1
+    ) address ON true`;
+}
+
+const CONTACT_FROM = `
+    FROM tenant.contacts contact
+    LEFT JOIN tenant.business_parties account
+      ON account.organization_id = contact.organization_id
+     AND account.id = contact.party_id`;
+
 function contactSelect() {
   return `
     SELECT contact.*,
@@ -202,19 +223,8 @@ function contactSelect() {
       address.city AS account_city,
       address.state AS account_state,
       address.country_code AS account_country_code
-    FROM tenant.contacts contact
-    LEFT JOIN tenant.business_parties account
-      ON account.organization_id = contact.organization_id
-     AND account.id = contact.party_id
-    LEFT JOIN LATERAL (
-      SELECT candidate.city, candidate.state, candidate.country_code
-      FROM tenant.addresses candidate
-      WHERE candidate.organization_id = account.organization_id
-        AND candidate.party_id = account.id
-        AND candidate.status = 'active'
-      ORDER BY candidate.is_primary DESC, candidate.created_at
-      LIMIT 1
-    ) address ON true`;
+    ${CONTACT_FROM}
+    ${accountAddressJoin()}`;
 }
 
 async function validateAccountRelationship(client, context, accountId) {
@@ -286,17 +296,36 @@ export async function listCrmContacts(client, context, options = {}) {
     where += ` AND contact.party_id = ${addParameter(parameters, accountId)}`;
   }
 
+  // The count and the page never need the Account address; it is looked up
+  // for the returned page only.
   const count = await client.query(
-    `SELECT count(*)::int AS count FROM (${contactSelect()} ${where}) scoped_contact`,
+    `SELECT count(*)::int AS count ${CONTACT_FROM} ${where}`,
     parameters,
   );
   const listParameters = [...parameters];
   const limitParameter = addParameter(listParameters, limit);
   const offsetParameter = addParameter(listParameters, offset);
+  const order = "updated_at DESC, first_name, last_name, id";
   const result = await client.query(
-    `${contactSelect()} ${where}
-     ORDER BY contact.updated_at DESC, contact.first_name, contact.last_name, contact.id
-     LIMIT ${limitParameter} OFFSET ${offsetParameter}`,
+    `WITH page AS (
+       SELECT contact.*,
+         account.display_name AS account_name,
+         account.status AS account_status,
+         account.company_id AS account_company_id
+       ${CONTACT_FROM} ${where}
+       ORDER BY ${order.replace(/(^|, )/g, "$1contact.")}
+       LIMIT ${limitParameter} OFFSET ${offsetParameter}
+     )
+     SELECT page.*,
+       address.city AS account_city,
+       address.state AS account_state,
+       address.country_code AS account_country_code
+     FROM page
+     LEFT JOIN tenant.business_parties account
+       ON account.organization_id = page.organization_id
+      AND account.id = page.party_id
+     ${accountAddressJoin()}
+     ORDER BY ${order.replace(/(^|, )/g, "$1page.")}`,
     listParameters,
   );
   return {

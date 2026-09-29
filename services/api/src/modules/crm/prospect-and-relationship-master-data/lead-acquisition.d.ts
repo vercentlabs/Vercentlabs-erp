@@ -26,26 +26,6 @@ export function buildLeadFormDefinition(
 export function buildEnrichmentReview(
   input?: Record<string, unknown>,
 ): Record<string, unknown>;
-export function previewLeadImport(
-  client: QueryClient,
-  context: CrmFoundationContext,
-  input?: Record<string, unknown>,
-): Promise<Record<string, unknown>>;
-export function commitLeadImport(
-  client: QueryClient,
-  context: CrmFoundationContext,
-  batchId: string,
-): Promise<Record<string, unknown>>;
-export function rollbackLeadImport(
-  client: QueryClient,
-  context: CrmFoundationContext,
-  batchId: string,
-): Promise<Record<string, unknown>>;
-export function listCrmLeadImportBatches(
-  client: QueryClient,
-  context: CrmFoundationContext,
-  options?: { limit?: number },
-): Promise<Array<Record<string, unknown>>>;
 export function saveLeadForm(
   client: QueryClient,
   context: CrmFoundationContext,
@@ -110,3 +90,4 @@ export function getCrmLeadAcquisitionReadiness(
   client: QueryClient,
   context: CrmFoundationContext,
 ): Promise<Record<string, unknown>>;
+export function createIngestedLead(client: QueryClient, context: CrmFoundationContext, lead: Record<string, unknown>, options?: Record<string, unknown>): Promise<{ leadId: string | null; action: string }>;

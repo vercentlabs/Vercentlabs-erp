@@ -61,9 +61,11 @@ export async function previewLeadImportRequest(input: {
   return parseResponse(response);
 }
 
+// Small imports finish in the request; large ones return async: true and run
+// as a background job (poll getLeadImportBatchRequest).
 export async function commitLeadImportRequest(
   batchId: string,
-): Promise<{ batch: LeadImportBatch }> {
+): Promise<{ batch: LeadImportBatch; async: boolean; jobId?: string }> {
   const response = await fetch(`/api/crm/leads/import/${batchId}/commit`, {
     method: "POST",
   });
@@ -121,4 +123,16 @@ export async function getLeadExportJobRequest(
 
 export function leadExportDownloadUrl(jobId: string): string {
   return `/api/crm/leads/export/${jobId}/download`;
+}
+
+export async function getLeadImportBatchRequest(batchId: string): Promise<{
+  batch: LeadImportBatch;
+  progress: { processed: number; total: number; percent: number };
+}> {
+  const response = await fetch(`/api/crm/leads/import/${batchId}`);
+  return parseResponse(response);
+}
+
+export function leadImportErrorsUrl(batchId: string) {
+  return `/api/crm/leads/import/${batchId}/errors`;
 }

@@ -38,11 +38,11 @@ function fakePool({ existingJobs = new Map() } = {}) {
   };
 }
 
-test("runSchedulerTick: enqueues one overdue-detection job, one Lead SLA scan job, one quotation-expiry scan job, one Lead dwell scan job, one pipeline-snapshot capture job, one follow-up reminder dispatch job and one nurture-queue dispatch job per active organization", async () => {
+test("runSchedulerTick: enqueues one overdue-detection job, one Lead SLA scan job, one quotation-expiry scan job, one Lead dwell scan job, one pipeline-snapshot capture job, one follow-up reminder dispatch job, one nurture-queue dispatch job, one calendar-sync job and one forecast-snapshot job per active organization", async () => {
   const pool = fakePool();
   const result = await runSchedulerTick(pool, { worker: { schedulerTickMilliseconds: 300_000 } });
   assert.equal(result.organizations, 2);
-  assert.equal(result.enqueued, 14); // 2 organizations x 7 scheduled job types (Prompt 6 / F016 added the follow-up reminder dispatch tick, then the nurture-queue dispatch tick closing CRM-VNEXT-052's other half)
+  assert.equal(result.enqueued, 18); // 2 organizations x 9 scheduled job types (F014 calendar sync and F025 daily forecast snapshot added the last two)
   assert.equal(result.deduped, 0);
 });
 
@@ -54,9 +54,9 @@ test("runSchedulerTick: two scheduler instances racing for the same tick bucket 
   const first = await runSchedulerTick(pool, config);
   const second = await runSchedulerTick(pool, config);
 
-  assert.equal(first.enqueued, 14);
+  assert.equal(first.enqueued, 18);
   assert.equal(second.enqueued, 0, "the second concurrent tick within the same time bucket must not create new jobs");
-  assert.equal(second.deduped, 14, "the second tick must resolve to the already-enqueued jobs instead");
+  assert.equal(second.deduped, 18, "the second tick must resolve to the already-enqueued jobs instead");
 });
 
 test("runSchedulerTick: a failure enqueuing for one organization does not prevent enqueueing for the others", async () => {
@@ -72,7 +72,7 @@ test("runSchedulerTick: a failure enqueuing for one organization does not preven
       // seven connect() calls; failing all seven simulates the whole
       // organization's enqueue attempt failing, distinct from org2's which
       // must still succeed.
-      const shouldFail = calls <= 7;
+      const shouldFail = calls <= 9;
       return {
         async query(sql) {
           if (sql === "BEGIN") return {};
@@ -91,5 +91,5 @@ test("runSchedulerTick: a failure enqueuing for one organization does not preven
   };
   const result = await runSchedulerTick(pool, { worker: { schedulerTickMilliseconds: 300_000 } });
   assert.equal(result.organizations, 2);
-  assert.equal(result.enqueued, 7, "org2's seven scheduled jobs must still be enqueued even though org1's failed");
+  assert.equal(result.enqueued, 9, "org2's nine scheduled jobs must still be enqueued even though org1's failed");
 });

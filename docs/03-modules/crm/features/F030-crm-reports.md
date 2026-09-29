@@ -262,3 +262,13 @@ Pass B decision: **no new canonical F-ID required**; mature behavior expands thi
 - Legacy benchmark rows remain in the evidence register for provenance, but any row classified `REMAP_REQUIRED`, `NEEDS_BETTER_SOURCE`, or `NEEDS_BETTER_FINDING` in `BENCHMARK_EVIDENCE_AUDIT.csv` is non-authoritative.
 - Benchmark sources inform expected enterprise behavior; the Vercentlabs canonical dossier, Pass B semantic scope, Pass C state/flow contracts and explicit architecture decisions remain normative.
 <!-- FINAL-PASS-D:END -->
+
+## Completion pass 2026-09-29 (closing state)
+
+Written after implementation and verification; the evidence is the code and tests named here. Human UAT is pending (`docs/03-modules/crm/CRM_UAT_F001_F030.md`). Full matrix: `docs/03-modules/crm/CRM_F001_F030_COMPLETION_MATRIX.md`.
+
+- CRM reports use the shared reporting service: saved definitions over registered CRM datasets (`crm.pipeline_analysis` with grouping, sorting and filters; `crm.opportunity_records`), durable runs, and schedules (daily, weekly or monthly, timezone-aware). Each schedule creates per-recipient runs executed under that recipient's **own** current authority; a recipient who lost access is skipped with a recorded reason. Platform migration 074; `services/api/src/orchestration/reporting/schedules.js`.
+- Figures come from the canonical metric layer (F024), so a saved report matches the dashboard.
+- Delivery is an in-app notification (`report_delivered`) linking to the recipient's own run download. There is no email delivery; the platform has no generic notification email transport.
+- The inert `crm_report_definitions`, `crm_dashboards` and `crm_dashboard_widgets` tables are retired: removed from the application and dropped by tenant contract 003 (precondition: the tables are empty; otherwise export first). This replaces the [SPEC-DATA] entities of the same names.
+- Evidence: `tests/integration/crm/reports-db.test.mjs`, `tests/integration/platform-services/automation-reporting-db.test.mjs`; browser Journey F (save, run in the worker, download CSV).

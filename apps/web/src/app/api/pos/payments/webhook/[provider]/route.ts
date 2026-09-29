@@ -2,6 +2,7 @@ import { errorResponse, fail, ok } from "@/core/http";
 import { tenantTransaction } from "@/core/db";
 import {
   handlePosPaymentWebhook,
+  readRequestBytes,
   resolvePaymentAdapter,
 } from "@vercentlabs/api";
 
@@ -36,7 +37,10 @@ export async function POST(
 ) {
   try {
     const { provider } = await context.params;
-    const rawBody = await request.text();
+    // Provider webhook payloads are small; bound the read (256 KB).
+    const rawBody = new TextDecoder().decode(
+      await readRequestBytes(request, 256 * 1024),
+    );
     const signatureHeader = request.headers.get("x-pos-payment-signature");
 
     const adapter = resolvePaymentAdapter(provider);

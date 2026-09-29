@@ -1,0 +1,174 @@
+{
+  "date": "2026-09-29",
+  "dataset": {
+    "leads": 10000,
+    "accounts": 10000,
+    "opportunities": 3000,
+    "activities": 30000,
+    "sellers": 40
+  },
+  "results": [
+    {
+      "label": "Database round trip (SELECT 1), for scale",
+      "iterations": 30,
+      "p50": 1.4,
+      "p95": 1.7,
+      "p99": 2,
+      "statements": 1,
+      "payloadBytes": 4
+    },
+    {
+      "label": "Leads list, first page of 50 (seller)",
+      "iterations": 30,
+      "p50": 36.7,
+      "p95": 57.9,
+      "p99": 113.3,
+      "statements": 3,
+      "payloadBytes": 81326
+    },
+    {
+      "label": "Leads list, search 'Lead12' (admin)",
+      "iterations": 30,
+      "p50": 58,
+      "p95": 120.2,
+      "p99": 139.4,
+      "statements": 3,
+      "payloadBytes": 82709
+    },
+    {
+      "label": "Contacts list, first page of 50 (admin)",
+      "iterations": 30,
+      "p50": 371.1,
+      "p95": 1137,
+      "p99": 1575.9,
+      "statements": 2,
+      "payloadBytes": 37519
+    },
+    {
+      "label": "CRM home dashboard (admin)",
+      "iterations": 30,
+      "p50": 614.5,
+      "p95": 1606.1,
+      "p99": 1818.5,
+      "statements": 7,
+      "payloadBytes": 15042
+    },
+    {
+      "label": "Pipeline dashboard: KPIs + stages + quota (admin)",
+      "iterations": 30,
+      "p50": 108.2,
+      "p95": 184.2,
+      "p99": 261.3,
+      "statements": 3,
+      "payloadBytes": 4824
+    },
+    {
+      "label": "Pipeline dashboard, team subtree filter (admin)",
+      "iterations": 30,
+      "p50": 201.4,
+      "p95": 489.9,
+      "p99": 656.5,
+      "statements": 3,
+      "payloadBytes": 4852
+    },
+    {
+      "label": "Pipeline dashboard (manager, team visibility)",
+      "iterations": 30,
+      "p50": 55,
+      "p95": 164.3,
+      "p99": 217.1,
+      "statements": 2,
+      "payloadBytes": 4722
+    },
+    {
+      "label": "KPI drill-down, first page of 50 (admin)",
+      "iterations": 30,
+      "p50": 102.7,
+      "p95": 411.4,
+      "p99": 417,
+      "statements": 1,
+      "payloadBytes": 30873
+    },
+    {
+      "label": "Report: pipeline by owner (canonical rollup)",
+      "iterations": 30,
+      "p50": 84.8,
+      "p95": 235.3,
+      "p99": 278,
+      "statements": 1,
+      "payloadBytes": 7010
+    },
+    {
+      "label": "Report: forecast by owner (catalogue)",
+      "iterations": 30,
+      "p50": 125.6,
+      "p95": 328.5,
+      "p99": 397.4,
+      "statements": 2,
+      "payloadBytes": 8018
+    },
+    {
+      "label": "Forecast workspace with hierarchy rollup",
+      "iterations": 30,
+      "p50": 123.2,
+      "p95": 216.6,
+      "p99": 266.8,
+      "statements": 8,
+      "payloadBytes": 24874
+    },
+    {
+      "label": "Forecast snapshot capture (org+teams+owners+deals)",
+      "iterations": 10,
+      "p50": 448.3,
+      "p95": 808.1,
+      "p99": 808.1,
+      "statements": 65,
+      "payloadBytes": 505
+    },
+    {
+      "label": "Forecast accuracy (closed periods)",
+      "iterations": 30,
+      "p50": 19.9,
+      "p95": 30.1,
+      "p99": 33.7,
+      "statements": 1,
+      "payloadBytes": 164
+    },
+    {
+      "label": "Sales coverage overview",
+      "iterations": 30,
+      "p50": 346.9,
+      "p95": 631.8,
+      "p99": 646.8,
+      "statements": 9,
+      "payloadBytes": 12835
+    },
+    {
+      "label": "Unassigned leads queue, first page",
+      "iterations": 30,
+      "p50": 12.2,
+      "p95": 24.4,
+      "p99": 32.7,
+      "statements": 1,
+      "payloadBytes": 11261
+    },
+    {
+      "label": "Lead import dry run, 5,000 rows (stage + duplicates)",
+      "iterations": 5,
+      "p50": 3333.8,
+      "p95": 5511.5,
+      "p99": 5511.5,
+      "statements": 8,
+      "payloadBytes": 3326
+    },
+    {
+      "label": "Lead import worker chunk, 200 rows",
+      "iterations": 3,
+      "p50": 10367.5,
+      "p95": 13952.6,
+      "p99": 13952.6,
+      "statements": 2207,
+      "payloadBytes": 31
+    }
+  ]
+}

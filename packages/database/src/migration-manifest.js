@@ -70,7 +70,10 @@ export const EXPECTED_MIGRATIONS = Object.freeze({
     "068_platform_row_level_security.sql",
     "069_organization_membership_user_index.sql",
     "070_link_billing_price_provider_plan.sql",
-    "071_canonical_system_role_sync.sql"
+    "071_canonical_system_role_sync.sql",
+    "072_crm_coverage_forecast_report_permissions.sql",
+    "073_canonical_system_role_sync.sql",
+    "074_report_schedules_and_deliveries.sql"
   ],
   "tenant": [
     "001_business_data_foundation.sql",
@@ -258,7 +261,11 @@ export const EXPECTED_MIGRATIONS = Object.freeze({
     "183_export_artifacts_out_of_job_manifests.sql",
     "184_platform_events_and_webhooks.sql",
     "185_restrict_definer_function_execute.sql",
-    "186_crm_drop_lead_saved_views.sql"
+    "186_crm_drop_lead_saved_views.sql",
+    "187_crm_forecast_governance.sql",
+    "188_crm_lead_import_jobs.sql",
+    "189_crm_lead_search_trigram.sql",
+    "190_crm_lead_search_function.sql"
   ],
   "contracts": {
     "platform": [
@@ -268,7 +275,8 @@ export const EXPECTED_MIGRATIONS = Object.freeze({
     ],
     "tenant": [
       "001_drop_retired_crm_outbox_and_webhooks.sql",
-      "002_drop_retired_public_definer_functions.sql"
+      "002_drop_retired_public_definer_functions.sql",
+      "003_drop_inert_crm_report_tables.sql"
     ]
   }
 });

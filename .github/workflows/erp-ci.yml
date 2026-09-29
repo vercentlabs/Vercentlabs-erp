@@ -216,5 +216,8 @@ jobs:
       - name: Shared Platform services tests against PostgreSQL and local OAuth/storage stand-ins (zero skips allowed)
         run: pnpm test:platform-services:db
 
+      - name: CRM tests against PostgreSQL (public booking, calendar sync, coverage, pipeline metrics, forecast, lead import, reports, search; zero skips allowed)
+        run: pnpm test:crm:db
+
       - name: Production database suite (tenant + platform RLS, three role authorities, contract plans; zero skips allowed)
         run: pnpm test:production:db

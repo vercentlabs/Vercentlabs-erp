@@ -145,16 +145,16 @@ export function normalizeLeadFieldMapping(mapping = {}) {
   return normalized;
 }
 
-export function validateLeadImportRows(rows, mapping = {}) {
+export function validateLeadImportRows(rows, mapping = {}, { maxRows = 5000 } = {}) {
   if (!Array.isArray(rows) || rows.length === 0)
     throw new CrmLeadAcquisitionError(
       400,
       "At least one import row is required.",
     );
-  if (rows.length > 5000)
+  if (rows.length > maxRows)
     throw new CrmLeadAcquisitionError(
       413,
-      "A lead import is limited to 5,000 rows.",
+      `A lead import is limited to ${maxRows.toLocaleString("en-IN")} rows.`,
     );
   const normalizedMapping = normalizeLeadFieldMapping(mapping);
   return rows.map((source, index) => {
@@ -397,6 +397,17 @@ async function createLead(client, context, lead, options = {}) {
     duplicateEvaluation.classification === "exact"
       ? duplicateEvaluation.internalMatches[0]?.row?.id || null
       : null;
+  // F021: an importer may only skip onto or update a matching Lead they can
+  // see; a match outside their scope is never updated or revealed.
+  if (duplicateId && options.enforceScope) {
+    const values = [context.organizationId, duplicateId];
+    const visible = await client.query(`SELECT 1 FROM tenant.crm_leads lead WHERE lead.organization_id=$1 AND lead.id=$2${leadScopeSql(context, values)}`, values);
+    if (!visible.rows[0]) {
+      if (options.duplicateStrategy === "update")
+        throw new CrmLeadAcquisitionError(409, "A matching lead exists that you cannot update.", "CRM_LEAD_IMPORT_MATCH_OUT_OF_SCOPE");
+      if (["skip", "warn"].includes(options.duplicateStrategy)) return { leadId: null, action: "skip" };
+    }
+  }
   if (duplicateId && options.duplicateStrategy === "block")
     throw new CrmLeadAcquisitionError(
       409,
@@ -536,191 +547,8 @@ async function createLead(client, context, lead, options = {}) {
   return { leadId: inserted.rows[0].id, action: "create", ownerUserId, sourceId };
 }
 
-export async function previewLeadImport(client, context, input = {}) {
-  const rows = validateLeadImportRows(input.rows, input.fieldMapping || {});
-  const contentHash = crmLeadAcquisitionHash({
-    fileName: text(input.fileName || "lead-import.csv", 240),
-    sourceFormat: text(input.sourceFormat || "csv", 20),
-    duplicateStrategy: text(input.duplicateStrategy || "skip", 20),
-    rows: input.rows,
-    fieldMapping: input.fieldMapping || {},
-  });
-  const existing = await client.query(
-    `SELECT * FROM tenant.crm_lead_import_batches WHERE organization_id=$1 AND content_hash=$2`,
-    [context.organizationId, contentHash],
-  );
-  if (existing.rows[0])
-    return { batch: existing.rows[0], rows, idempotent: true };
-  const batch = await client.query(
-    `INSERT INTO tenant.crm_lead_import_batches(organization_id,company_id,branch_id,file_name,source_format,field_mapping,duplicate_strategy,total_rows,valid_rows,invalid_rows,content_hash,created_by)
-     VALUES($1,$2,$3,$4,$5,$6::jsonb,$7,$8,$9,$10,$11,$12) RETURNING *`,
-    [
-      context.organizationId,
-      input.companyId || context.activeCompanyId,
-      input.branchId || context.activeBranchId,
-      text(input.fileName || "lead-import.csv", 240),
-      text(input.sourceFormat || "csv", 20),
-      JSON.stringify(input.fieldMapping || {}),
-      text(input.duplicateStrategy || "skip", 20),
-      rows.length,
-      rows.filter((r) => r.valid).length,
-      rows.filter((r) => !r.valid).length,
-      contentHash,
-      context.userId,
-    ],
-  );
-  for (const row of rows)
-    await client.query(
-      `INSERT INTO tenant.crm_lead_import_rows(organization_id,batch_id,row_number,raw_data,normalized_data,validation_errors,action)
-     VALUES($1,$2,$3,$4::jsonb,$5::jsonb,$6::jsonb,$7)`,
-      [
-        context.organizationId,
-        batch.rows[0].id,
-        row.rowNumber,
-        JSON.stringify(row.raw),
-        JSON.stringify(row.normalized),
-        JSON.stringify(row.errors),
-        row.valid ? "pending" : "error",
-      ],
-    );
-  return { batch: batch.rows[0], rows, idempotent: false };
-}
-
-export async function commitLeadImport(client, context, batchId) {
-  assertUuid(batchId, "Import batch");
-  const batchResult = await client.query(
-    `SELECT * FROM tenant.crm_lead_import_batches WHERE organization_id=$1 AND id=$2 FOR UPDATE`,
-    [context.organizationId, batchId],
-  );
-  const batch = batchResult.rows[0];
-  if (!batch) throw new CrmLeadAcquisitionError(404, "Import batch not found.");
-  if (batch.status !== "previewed")
-    throw new CrmLeadAcquisitionError(
-      409,
-      "Only a previewed import can be committed.",
-    );
-  await client.query(
-    `UPDATE tenant.crm_lead_import_batches SET status='committing',updated_at=now() WHERE organization_id=$1 AND id=$2`,
-    [context.organizationId, batchId],
-  );
-  const rows = await client.query(
-    `SELECT * FROM tenant.crm_lead_import_rows WHERE organization_id=$1 AND batch_id=$2 ORDER BY row_number`,
-    [context.organizationId, batchId],
-  );
-  let created = 0,
-    updated = 0,
-    skipped = 0,
-    failed = 0;
-  for (const row of rows.rows) {
-    if (row.action === "error") {
-      failed++;
-      continue;
-    }
-    try {
-      const result = await createLead(client, context, row.normalized_data, {
-        duplicateStrategy: batch.duplicate_strategy,
-        companyId: batch.company_id,
-        branchId: batch.branch_id,
-      });
-      if (result.action === "create") created++;
-      else if (result.action === "update") updated++;
-      else skipped++;
-      await client.query(
-        `UPDATE tenant.crm_lead_import_rows SET action=$3,result_lead_id=$4,processed_at=now() WHERE organization_id=$1 AND id=$2`,
-        [context.organizationId, row.id, result.action, result.leadId],
-      );
-      if (result.action === "create")
-        await client.query(
-          `INSERT INTO tenant.crm_lead_provenance(organization_id,lead_id,source_channel,source_record_id,provider,external_id,original_payload,content_hash,created_by)
-         VALUES($1,$2,'import',$3,'import',$4,$5::jsonb,$6,$7)`,
-          [
-            context.organizationId,
-            result.leadId,
-            batchId,
-            `${batchId}:${row.row_number}`,
-            JSON.stringify(row.raw_data),
-            crmLeadAcquisitionHash(row.raw_data),
-            context.userId,
-          ],
-        );
-    } catch (error) {
-      failed++;
-      await client.query(
-        `UPDATE tenant.crm_lead_import_rows SET action='error',validation_errors=$3::jsonb,processed_at=now() WHERE organization_id=$1 AND id=$2`,
-        [
-          context.organizationId,
-          row.id,
-          JSON.stringify([{ message: error.message || "Import failed" }]),
-        ],
-      );
-    }
-  }
-  const status = failed ? "completed_with_errors" : "completed";
-  const result = await client.query(
-    `UPDATE tenant.crm_lead_import_batches SET status=$3,created_rows=$4,updated_rows=$5,skipped_rows=$6,committed_at=now(),updated_at=now() WHERE organization_id=$1 AND id=$2 RETURNING *`,
-    [context.organizationId, batchId, status, created, updated, skipped],
-  );
-  return result.rows[0];
-}
-
-export async function rollbackLeadImport(client, context, batchId) {
-  assertUuid(batchId, "Import batch");
-  const batch = await client.query(
-    `SELECT * FROM tenant.crm_lead_import_batches WHERE organization_id=$1 AND id=$2 FOR UPDATE`,
-    [context.organizationId, batchId],
-  );
-  if (!batch.rows[0])
-    throw new CrmLeadAcquisitionError(404, "Import batch not found.");
-  if (!["completed", "completed_with_errors"].includes(batch.rows[0].status))
-    throw new CrmLeadAcquisitionError(
-      409,
-      "Only a completed import can be rolled back.",
-    );
-  const deleted = await client.query(
-    `DELETE FROM tenant.crm_leads lead USING tenant.crm_lead_provenance provenance
-     WHERE provenance.organization_id=$1 AND provenance.source_channel='import' AND provenance.source_record_id=$2
-       AND lead.organization_id=provenance.organization_id AND lead.id=provenance.lead_id
-       AND NOT EXISTS(SELECT 1 FROM tenant.crm_activities activity WHERE activity.organization_id=lead.organization_id AND activity.entity_type='lead' AND activity.entity_id=lead.id)
-     RETURNING lead.id`,
-    [context.organizationId, batchId],
-  );
-  await client.query(
-    `UPDATE tenant.crm_lead_import_batches SET status='rolled_back',rolled_back_at=now(),updated_at=now() WHERE organization_id=$1 AND id=$2`,
-    [context.organizationId, batchId],
-  );
-  return {
-    rolledBack: deleted.rows.length,
-    protected: Math.max(
-      0,
-      Number(batch.rows[0].created_rows) - deleted.rows.length,
-    ),
-  };
-}
-
-// F021 gap-closure — previewLeadImport/commitLeadImport/rollbackLeadImport
-// were only reachable from whatever batch id the import screen still held
-// in local component state; once a user left that screen (or reopened the
-// app), a completed batch had no way back to it at all — not even to see
-// that the import happened, let alone roll it back. This is the missing
-// list: the requester's own recent batches, or every batch for an
-// org-wide view-all holder, newest first — the same authorization rule
-// getCrmLeadExportJob already applies to export jobs.
-export async function listCrmLeadImportBatches(client, context, { limit = 25 } = {}) {
-  const canViewAll = (context.roleSlugs || []).includes("organization_owner") ||
-    (context.permissions || []).includes("crm.records.view_all");
-  const values = [context.organizationId];
-  const clauses = ["organization_id=$1"];
-  if (!canViewAll) {
-    values.push(context.userId);
-    clauses.push(`created_by=$${values.length}`);
-  }
-  values.push(Math.max(1, Math.min(100, Math.trunc(Number(limit)) || 25)));
-  const result = await client.query(
-    `SELECT * FROM tenant.crm_lead_import_batches WHERE ${clauses.join(" AND ")} ORDER BY created_at DESC LIMIT $${values.length}`,
-    values,
-  );
-  return result.rows;
-}
+// F021 preview/commit/rollback/batches live in lead-import.js (durable,
+// chunked, worker-backed for large files).
 
 export async function saveLeadForm(client, context, input = {}) {
   const definition = buildLeadFormDefinition(input.definition || input);
@@ -1345,3 +1173,7 @@ export async function getCrmLeadAcquisitionReadiness(client, context) {
     summary: dashboard.summary,
   };
 }
+
+// F021: the durable import (lead-import.js) creates, skips or updates each row
+// through this same capture path, so imports follow the interactive rules.
+export { createLead as createIngestedLead };

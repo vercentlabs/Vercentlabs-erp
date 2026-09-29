@@ -1,6 +1,11 @@
 // Stable public CRM API boundary. Implementation is owned by the eight canonical capability directories.
 export { completeCrmActivity } from "./seller-activity-and-follow-up-workspace/activity-commands.js";
 export { getCrmDashboard, getCrmReport } from "./pipeline-analytics-and-forecasting/analytics-service.js";
+export { getMetricDrilldown, getMetricRollup, getPipelineBreakdown, getPipelineDashboard, getPipelineMetrics, getQuotaSummary, getUserQuotas } from "./pipeline-analytics-and-forecasting/pipeline-metrics.js";
+export { analyticsFiltersFromSearchParams, normalizeAnalyticsFilters } from "./pipeline-analytics-and-forecasting/opportunity-facts.js";
+export { buildForecastRollup, captureForecastPeriodSnapshot, captureScheduledForecastSnapshots, getForecastAccuracy, getForecastSnapshot, getForecastWorkspace, listForecastSubmissionEvents, reviewForecast, setForecastPeriodStatus, submitForecast } from "./pipeline-analytics-and-forecasting/forecast-service.js";
+export { COVERAGE_REASSIGN_LIMIT, getSalesCoverage, listUnassignedRecords, reassignCoverage, transferTerritoryCoverage } from "./sales-organization-and-coverage/coverage-service.js";
+export { BREAKDOWN_DIMENSIONS, listMetricDefinitions, METRIC_VERSION, PIPELINE_METRICS } from "./pipeline-analytics-and-forecasting/metric-definitions.js";
 export { findCrmDuplicates } from "./prospect-and-relationship-master-data/duplicate-search.js";
 export { CrmError } from "./crm-data-operations-and-customization/errors.js";
 export { assignLeadOwner } from "./lead-lifecycle-qualification-and-prioritization/lead-assignment.js";

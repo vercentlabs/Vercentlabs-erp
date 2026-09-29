@@ -522,6 +522,7 @@ export function getPublicMeetingBookingView(client: QueryClient, booking: Public
 export function getPublicRescheduleAvailability(client: QueryClient, booking: PublicMeetingBookingRow, date: string | null): Promise<any>;
 
 export * from "./modules/crm/prospect-and-relationship-master-data/lead-acquisition.js";
+export * from "./modules/crm/prospect-and-relationship-master-data/lead-import.js";
 export * from "./modules/crm/prospect-and-relationship-master-data/lead-export.js";
 export * from "./modules/crm/lead-lifecycle-qualification-and-prioritization/lead-intelligence.js";
 export function listLeadScoringModels(client: QueryClient, context: any): Promise<any[]>;
@@ -750,6 +751,7 @@ export * from "./orchestration/data-exchange/registry.js";
 export * from "./orchestration/documents/registry.js";
 export * from "./orchestration/reporting/datasets.js";
 export * from "./orchestration/reporting/service.js";
+export * from "./orchestration/reporting/schedules.js";
 export * from "./core/platform/reporting/execution-context.js";
 export * from "./core/platform/events/index.js";
 export * from "./core/platform/workflows/index.js";

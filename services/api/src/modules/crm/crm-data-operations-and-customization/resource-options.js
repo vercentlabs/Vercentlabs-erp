@@ -198,14 +198,6 @@ export async function getCrmOptions(client, context) {
     `SELECT partner.id, partner.name, partner.company_id FROM tenant.crm_partner_accounts partner WHERE partner.organization_id = $1 AND partner.status = 'active' AND ${companyVisible("partner")} ORDER BY partner.name`,
     parameters,
   );
-  const reportDefinitions = await queryOptions(
-    `SELECT definition.id, definition.name, definition.company_id FROM tenant.crm_report_definitions definition WHERE definition.organization_id = $1 AND definition.status = 'active' AND ${companyVisible("definition")} ORDER BY definition.name`,
-    parameters,
-  );
-  const dashboards = await queryOptions(
-    `SELECT dashboard.id, dashboard.name, dashboard.company_id FROM tenant.crm_dashboards dashboard WHERE dashboard.organization_id = $1 AND dashboard.status = 'active' AND ${companyVisible("dashboard")} ORDER BY dashboard.name`,
-    parameters,
-  );
   const customObjects = await queryOptions(
     `SELECT definition.id, definition.plural_label AS name, definition.object_key FROM tenant.crm_custom_object_definitions definition WHERE definition.organization_id = $1 AND definition.status = 'active' ORDER BY definition.plural_label`,
     parameters,
@@ -252,8 +244,6 @@ export async function getCrmOptions(client, context) {
     conversations: map(conversations),
     buyingCommittees: map(buyingCommittees),
     partnerAccounts: map(partnerAccounts),
-    reportDefinitions: map(reportDefinitions),
-    dashboards: map(dashboards),
     customObjects: map(customObjects),
     aiPredictions: map(aiPredictions),
     recommendations: map(recommendations),

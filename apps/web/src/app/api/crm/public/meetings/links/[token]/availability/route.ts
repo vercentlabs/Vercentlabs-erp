@@ -6,7 +6,9 @@ import {
 } from "@vercentlabs/api";
 
 import { tenantTransaction, withIngressClient } from "@/core/db";
+import { enforcePublicRateLimits } from "@/core/public-rate-limit";
 import { errorResponse, ok } from "@/core/http";
+import { publicMeetingLimits } from "@/features/crm/public-booking/public-limits";
 
 type RouteContext = { params: Promise<{ token: string }> };
 
@@ -15,6 +17,7 @@ type RouteContext = { params: Promise<{ token: string }> };
 // host context of the resolved organisation.
 export async function GET(request: Request, context: RouteContext) {
   try {
+    await enforcePublicRateLimits(request, publicMeetingLimits.slots());
     const { token } = await context.params;
     const date = assertPublicDate(
       new URL(request.url).searchParams.get("date"),

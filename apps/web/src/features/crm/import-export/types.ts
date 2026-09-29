@@ -23,12 +23,15 @@ export const LEAD_IMPORT_FIELDS: Array<{
   { target: "currencyCode", label: "Currency code" },
 ];
 
+// The dry run returns rejected rows first (up to 200) and a small sample of
+// the rest; the full list of rejected rows is the errors CSV.
 export type LeadImportRowResult = {
   rowNumber: number;
-  raw: Record<string, unknown>;
-  normalized: Record<string, unknown>;
-  errors: Array<{ field: string; message: string }>;
   valid: boolean;
+  planned: "create" | "update" | "skip" | "error";
+  errors: Array<{ field?: string; message: string }>;
+  duplicateOfRow: number | null;
+  matchesExisting: boolean;
 };
 
 export type LeadImportBatch = {
@@ -41,6 +44,15 @@ export type LeadImportBatch = {
   created_rows?: number;
   updated_rows?: number;
   skipped_rows?: number;
+  failed_rows?: number;
+  processed_rows?: number;
+  dry_run_report?: {
+    inFileDuplicates?: number;
+    existingMatches?: number;
+    plannedCreate?: number;
+    plannedUpdate?: number;
+    plannedSkip?: number;
+  };
   created_at: string;
 };
 

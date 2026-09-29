@@ -96,6 +96,10 @@ export const MODULE_NAVIGATION: readonly ModuleNavigation[] = [
           available("Opportunities", "/crm/opportunities"),
           available("Pipeline", "/crm/pipeline"),
           available("Forecast", "/crm/forecast"),
+          {
+            ...available("Sales Coverage", "/crm/coverage"),
+            requiredPermission: "crm.coverage.view",
+          },
         ],
       },
       {
@@ -143,7 +147,7 @@ export const MODULE_NAVIGATION: readonly ModuleNavigation[] = [
               "Territories & Sales Teams",
               "/crm/settings/territories",
             ),
-            requiredPermission: "crm.settings.manage",
+            requiredPermission: "crm.coverage.view",
           },
           {
             ...available(

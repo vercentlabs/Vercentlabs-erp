@@ -8,6 +8,7 @@ import {
 } from "@vercentlabs/api";
 
 import { tenantTransaction, withIngressClient } from "@/core/db";
+import { enforcePublicRateLimits } from "@/core/public-rate-limit";
 import { errorResponse, ok, readJson } from "@/core/http";
 import { toWire } from "@/features/sales/shared/wire";
 
@@ -36,6 +37,15 @@ const schema = z.object({
 export async function POST(request: Request, context: RouteContext) {
   try {
     const { token } = await context.params;
+    await enforcePublicRateLimits(request, [
+      { bucket: "sales-quote-decision", maximum: 20, windowSeconds: 3600 },
+      {
+        bucket: "sales-quote-decision-link",
+        maximum: 10,
+        windowSeconds: 3600,
+        subject: token,
+      },
+    ]);
     const tokenHash = publicQuoteTokenHash(token);
     const input = schema.parse(await readJson(request));
     const organizationId = await withIngressClient((client) =>

@@ -178,7 +178,17 @@ export async function readRequestBytes(request, maximumBytes) {
   return body;
 }
 
-export async function enforceRateLimit(client, key, maximum, windowSeconds) {
+// Counters live in auth_rate_limits (shared by every web replica), never in
+// process memory. Expired counters are pruned opportunistically, in bounded
+// batches, so public endpoints cannot grow the table without limit: no window
+// in use is longer than a day.
+export async function enforceRateLimit(client, key, maximum, windowSeconds, { pruneProbability = 0.02, random = Math.random } = {}) {
+  if (random() < pruneProbability) {
+    await client.query(
+      `DELETE FROM auth_rate_limits WHERE ctid IN (
+         SELECT ctid FROM auth_rate_limits WHERE window_started_at < now() - interval '1 day' LIMIT 500)`,
+    );
+  }
   const result = await client.query(
     `INSERT INTO auth_rate_limits (key, window_started_at, attempts)
      VALUES ($1, now(), 1)

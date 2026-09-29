@@ -13,10 +13,12 @@ import { workspaceRoute } from "@/core/workspace-route";
 // Compares each CLOSED period's predicted amount (from the real
 // predictive-forecast snapshot, not a recalculation) against the
 // period's actual won revenue.
+// Organisation-wide figures (every won deal, every open deal): forecast
+// governors only (crm.forecast.manage), not every seller.
 export async function GET(request: Request) {
   return workspaceRoute(
     request,
-    { module: "crm", permission: CRM_PERMISSIONS.opportunitiesManage },
+    { module: "crm", permission: CRM_PERMISSIONS.forecastManage },
     async ({ client, session }) => {
       const url = new URL(request.url);
       const limit = url.searchParams.get("limit");

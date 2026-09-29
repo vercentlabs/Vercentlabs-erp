@@ -278,7 +278,11 @@ test("F003: server search, Account filter and pagination stay organization/compa
   assert.equal(result.total, 1);
   assert.equal(result.rows[0].firstName, "Rahul");
   assert.match(calls[0].sql, /to_tsvector/);
-  assert.match(calls[0].sql, /FROM \(\s*SELECT contact\.\*/);
+  // The total counts exactly the scoped, filtered set the page is drawn from.
+  assert.match(calls[0].sql, /SELECT count\(\*\)::int AS count\s+FROM tenant\.contacts contact/);
+  const countWhere = calls[0].sql.slice(calls[0].sql.indexOf("WHERE contact.organization_id"));
+  assert.ok(calls[1].sql.includes(countWhere), "page and total share one WHERE clause");
+  assert.match(calls[1].sql, /LIMIT \$\d+ OFFSET \$\d+/);
   assert.doesNotMatch(calls[0].sql, /count\(\*\)::int AS count\s+SELECT/);
   assert.match(calls[0].sql, /account\.display_name/);
   assert.match(calls[0].sql, /contact\.party_id =/);

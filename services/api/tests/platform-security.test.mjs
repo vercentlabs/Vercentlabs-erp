@@ -60,3 +60,15 @@ test("enforceRateLimit allows the request when under the maximum", async () => {
   const client = { query: async () => ({ rows: [{ attempts: 3 }] }) };
   await assert.doesNotThrow(() => enforceRateLimit(client, "login:user@example.com", 10, 60));
 });
+
+test("enforceRateLimit prunes expired counters in a bounded batch when sampled, and not otherwise", async () => {
+  const statements = [];
+  const client = { query: async (sql) => (statements.push(sql), { rows: [{ attempts: 1 }] }) };
+  await enforceRateLimit(client, "crm-meeting-book:1.2.3.4", 10, 3600, { random: () => 0 });
+  assert.match(statements[0], /DELETE FROM auth_rate_limits/);
+  assert.match(statements[0], /LIMIT 500/);
+  assert.match(statements[1], /INSERT INTO auth_rate_limits/);
+  statements.length = 0;
+  await enforceRateLimit(client, "crm-meeting-book:1.2.3.4", 10, 3600, { random: () => 0.99 });
+  assert.equal(statements.length, 1, "no prune statement when not sampled");
+});

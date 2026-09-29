@@ -15,6 +15,12 @@ on:
       - "apps/mobile/src/**/crm/**"
       - "services/api/src/modules/crm/**"
       - "services/api/tests/crm*"
+      - "tests/integration/crm/**"
+      - "scripts/crm/**"
+      - "services/api/src/orchestration/reporting/**"
+      - "apps/web/src/features/crm/**"
+      - "apps/web/src/app/api/crm/**"
+      - "apps/web/e2e/crm-*"
       - "services/api/src/modules/sales/index.js"
       - "services/api/src/modules/accounting/receivables.js"
       - "apps/web/src/app/api/notifications/**"
@@ -30,6 +36,7 @@ on:
     branches: [main]
     paths:
       - "services/api/src/modules/crm/**"
+      - "tests/integration/crm/**"
       - "database/**/migrations/**crm**"
       - ".github/workflows/crm-ci.yml"
 
@@ -85,5 +92,8 @@ jobs:
         run: pnpm db:setup
       - name: Verify CRM backend/domain (includes the real-database RBAC matrix)
         run: pnpm verify:crm
+
+      - name: CRM tests against PostgreSQL (zero skips allowed)
+        run: pnpm test:crm:db
       - name: Dependency audit
         run: pnpm audit:dependencies

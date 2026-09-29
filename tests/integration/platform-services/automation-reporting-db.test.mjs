@@ -168,13 +168,13 @@ test("reports: registered datasets, module/plan/permission gates, record scope, 
     await kit.crmLead(org, org.ids.peer, "Hidden", "Theirs");
 
     await t.test("datasets follow module access and permissions", async () => {
-      assert.deepEqual(listReportDatasets(rep, await modules(rep)).map((dataset) => dataset.key).sort(), ["crm.leads", "sales.orders"]);
+      assert.deepEqual(listReportDatasets(rep, await modules(rep)).map((dataset) => dataset.key).sort(), ["crm.leads", "crm.opportunity_records", "crm.pipeline_analysis", "sales.orders"]);
       assert.deepEqual(listReportDatasets({ ...rep, permissions: ["crm.view"] }, await modules(rep)), [], "missing report permission");
       await kit.owner.query(`UPDATE organization_modules SET status='disabled' WHERE organization_id=$1 AND module_key='sales'`, [org.organizationId]);
-      assert.deepEqual(listReportDatasets(rep, await modules(rep)).map((dataset) => dataset.key), ["crm.leads"], "disabled module");
+      assert.deepEqual(listReportDatasets(rep, await modules(rep)).map((dataset) => dataset.key).sort(), ["crm.leads", "crm.opportunity_records", "crm.pipeline_analysis"], "disabled module");
       await enableModules(kit, org.organizationId, ["sales"]);
       await kit.owner.query(`INSERT INTO billing_entitlement_overrides (organization_id, entitlement_key, entitlement_value, reason) VALUES ($1,'modules','["crm"]'::jsonb,'rt')`, [org.organizationId]);
-      assert.deepEqual(listReportDatasets(rep, await modules(rep, { BILLING_ENFORCEMENT_MODE: "enforce" })).map((dataset) => dataset.key), ["crm.leads"], "not on the plan");
+      assert.deepEqual(listReportDatasets(rep, await modules(rep, { BILLING_ENFORCEMENT_MODE: "enforce" })).map((dataset) => dataset.key).sort(), ["crm.leads", "crm.opportunity_records", "crm.pipeline_analysis"], "not on the plan");
       await kit.owner.query(`DELETE FROM billing_entitlement_overrides WHERE organization_id=$1`, [org.organizationId]);
     });
 

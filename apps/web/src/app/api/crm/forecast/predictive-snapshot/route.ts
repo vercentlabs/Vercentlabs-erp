@@ -12,12 +12,14 @@ import { workspaceRoute } from "@/core/workspace-route";
 // pattern), never a background job — this returns its result directly
 // so the caller sees it immediately, rather than requiring a separate
 // "latest snapshot" read endpoint this pass doesn't otherwise need.
+// Organisation-wide figures (every won deal, every open deal): forecast
+// governors only (crm.forecast.manage), not every seller.
 export async function POST(request: Request) {
   return workspaceRoute(
     request,
     {
       module: "crm",
-      permission: CRM_PERMISSIONS.opportunitiesManage,
+      permission: CRM_PERMISSIONS.forecastManage,
       billingWrite: true,
     },
     async ({ client, session }) => {

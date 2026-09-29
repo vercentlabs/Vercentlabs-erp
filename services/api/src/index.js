@@ -67,6 +67,7 @@ export * from "./modules/crm/seller-activity-and-follow-up-workspace/communicati
 export * from "./modules/crm/seller-activity-and-follow-up-workspace/public-meetings.js";
 
 export * from "./modules/crm/prospect-and-relationship-master-data/lead-acquisition.js";
+export * from "./modules/crm/prospect-and-relationship-master-data/lead-import.js";
 export * from "./modules/crm/prospect-and-relationship-master-data/lead-export.js";
 export * from "./modules/crm/lead-lifecycle-qualification-and-prioritization/lead-intelligence.js";
 export {
@@ -181,6 +182,7 @@ export * from "./orchestration/data-exchange/registry.js";
 export * from "./orchestration/documents/registry.js";
 export * from "./orchestration/reporting/datasets.js";
 export * from "./orchestration/reporting/service.js";
+export * from "./orchestration/reporting/schedules.js";
 export * from "./core/platform/reporting/execution-context.js";
 export * from "./core/platform/events/index.js";
 export * from "./core/platform/workflows/index.js";

@@ -34,8 +34,9 @@ function createClient() {
 test("F030: the pipeline report selects the real stage id, not name-only", async () => {
   const client = createClient();
   await getCrmReport(client, context, "pipeline", {});
-  const select = client.calls.find(({ sql }) => sql.includes("FROM tenant.crm_pipeline_stages stage"));
-  assert.match(select.sql, /stage\.id AS stage_id/);
+  // Grouped by the stage id (canonical rollup), never by name alone.
+  const select = client.calls.find(({ sql }) => sql.includes("opportunity_facts") && sql.includes("GROUP BY 1, 2"));
+  assert.match(select.sql, /SELECT f\.stage_id::text AS key/);
 });
 
 test("F030: the sources report selects the real source id, not name-only", async () => {

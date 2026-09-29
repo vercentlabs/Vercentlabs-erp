@@ -200,7 +200,7 @@ test("CRM: an elevated manager CAN reassign lead ownership to another user", asy
 function dashboardClient(rows) {
   return {
     async query(sql) {
-      if (/^SELECT\s+\(SELECT organization\.base_currency/.test(sql.trim())) {
+      if (/^WITH lead_counts AS/.test(sql.trim())) {
         return { rows: [{ currency_code: "INR", open_leads: rows.openLeads }] };
       }
       if (/FROM tenant\.crm_pipeline_stages stage/.test(sql)) return { rows: [] };
@@ -220,8 +220,10 @@ test("CRM analytics: a restricted rep's dashboard metrics only count their own r
   let capturedParams;
   const client = {
     async query(sql, params) {
-      capturedParams = params;
-      if (/^SELECT\s+\(SELECT organization\.base_currency/.test(sql.trim())) return { rows: [{}] };
+      if (/^WITH lead_counts AS/.test(sql.trim())) {
+        capturedParams = params;
+        return { rows: [{}] };
+      }
       return { rows: [] };
     },
   };
@@ -232,8 +234,10 @@ test("CRM analytics: a restricted rep's dashboard metrics only count their own r
   let managerParams;
   const managerClient = {
     async query(sql, params) {
-      managerParams = params;
-      if (/^SELECT\s+\(SELECT organization\.base_currency/.test(sql.trim())) return { rows: [{}] };
+      if (/^WITH lead_counts AS/.test(sql.trim())) {
+        managerParams = params;
+        return { rows: [{}] };
+      }
       return { rows: [] };
     },
   };
@@ -241,58 +245,35 @@ test("CRM analytics: a restricted rep's dashboard metrics only count their own r
   assert.equal(managerParams[4], true); // canViewAllCrmRecords(managerContext) === true
 });
 
-test("CRM analytics: the forecast (salesperson performance) report threads owner-scope parameters", async () => {
-  let capturedParams;
-  const client = {
-    async query(sql, params) {
-      capturedParams = params;
-      return { rows: [] };
-    },
-  };
+test("CRM analytics: the forecast (salesperson performance) report threads owner scope into the canonical fact set", async () => {
+  const calls = [];
+  const client = { async query(sql, params) { calls.push({ sql, params }); return { rows: [] }; } };
   await getCrmReport(client, otherRepContext, "forecast", {});
-  assert.equal(capturedParams[6], false); // $7 canViewAllCrmRecords
-  assert.equal(capturedParams[7], otherUser); // $8 context.userId
+  const facts = calls.find((call) => call.sql.includes("opportunity_facts"));
+  // recordScope(opportunities): own + unassigned + managed team, bound to the caller.
+  assert.match(facts.sql, /o\.owner_user_id IS NULL OR o\.owner_user_id = \$\d+/);
+  assert.ok(facts.params.includes(otherUser));
 
-  let managerParams;
-  const managerClient = {
-    async query(sql, params) {
-      managerParams = params;
-      return { rows: [] };
-    },
-  };
+  const managerCalls = [];
+  const managerClient = { async query(sql, params) { managerCalls.push({ sql, params }); return { rows: [] }; } };
   await getCrmReport(managerClient, managerContext, "forecast", {});
-  assert.equal(managerParams[6], true);
+  const managerFacts = managerCalls.find((call) => call.sql.includes("opportunity_facts"));
+  assert.doesNotMatch(managerFacts.sql, /o.owner_user_id IS NULL OR o.owner_user_id = /, "view-all callers get no owner predicate");
 });
 
-// Checkpoint audit (Prompt 3 continuation): before this fix, a Sales
-// Team manager WITHOUT the broad crm.records.view_all grant (i.e. an
-// ordinary rep-level permission set) could only ever forecast their own
-// deals through this report — there was no team-hierarchy-aware rollup
-// anywhere. This test asserts the new team-membership subquery is
-// actually present in the generated SQL (not just that $7/$8 still bind
-// correctly, which the test above already covers) and that it's scoped
-// by crm_sales_teams.manager_user_id / crm_sales_team_members, not a
-// broader grant.
+// A Sales Team manager WITHOUT crm.records.view_all rolls up their team's
+// deals through the shared managed-team tier (crm-access-scope.js), scoped by
+// crm_sales_teams.manager_user_id and active memberships — never a broader grant.
 test("CRM analytics: the forecast report includes a team-hierarchy rollup for a manager without crm.records.view_all", async () => {
-  let capturedSql;
-  let capturedParams;
-  const client = {
-    async query(sql, params) {
-      capturedSql = sql;
-      capturedParams = params;
-      return { rows: [] };
-    },
-  };
-  // A manager with only ordinary rep permissions (no crm.records.view_all) —
-  // exactly the role the pre-existing binary ownerVisible() could not serve.
+  const calls = [];
+  const client = { async query(sql, params) { calls.push({ sql, params }); return { rows: [] }; } };
   const teamManagerContext = baseContext(otherUser, repPermissions);
   await getCrmReport(client, teamManagerContext, "forecast", {});
-  assert.equal(capturedParams[6], false); // $7 canViewAllCrmRecords is still false
-  assert.equal(capturedParams[7], otherUser); // $8 is still the caller
-  assert.match(capturedSql, /crm_sales_team_members/);
-  assert.match(capturedSql, /crm_sales_teams/);
-  assert.match(capturedSql, /team\.manager_user_id\s*=\s*\$8/);
-  assert.match(capturedSql, /member\.status\s*=\s*'active'/);
+  const facts = calls.find((call) => call.sql.includes("opportunity_facts"));
+  assert.match(facts.sql, /crm_sales_team_members team_member/);
+  assert.match(facts.sql, /managed_team\.manager_user_id=\$\d+/);
+  assert.match(facts.sql, /team_member.status='active'/);
+  assert.ok(facts.params.includes(otherUser));
 });
 
 test("CRM: activities are scoped by their own assignee, independent of a parent opportunity's owner (parent/child bypass closed)", async () => {

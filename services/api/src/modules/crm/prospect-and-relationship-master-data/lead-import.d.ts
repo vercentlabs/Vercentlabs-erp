@@ -1,0 +1,12 @@
+type QueryClient = { query: (sql: string, values?: unknown[]) => Promise<{ rows: any[]; rowCount?: number | null }> };
+type Context = Record<string, any>;
+export const LEAD_IMPORT_LIMITS: Readonly<{ maxBytes: number; maxRows: number; syncCommitRows: number; chunkSize: number; insertChunk: number }>;
+export const LEAD_IMPORT_JOB_TYPE: string;
+export function previewLeadImport(client: QueryClient, context: Context, input?: Record<string, unknown>): Promise<Record<string, any>>;
+export function commitLeadImport(client: QueryClient, context: Context, batchId: string): Promise<Record<string, any>>;
+export function processLeadImportChunk(client: QueryClient, context: Context, batchId: string, options?: { limit?: number }): Promise<{ processed: number; remaining: number }>;
+export function finalizeLeadImport(client: QueryClient, context: Context, batchId: string, options?: { failureReason?: string | null }): Promise<Record<string, any> | null>;
+export function getLeadImportBatch(client: QueryClient, context: Context, batchId: string): Promise<Record<string, any>>;
+export function listCrmLeadImportBatches(client: QueryClient, context: Context, options?: { limit?: number }): Promise<Array<Record<string, unknown>>>;
+export function getLeadImportErrorsCsv(client: QueryClient, context: Context, batchId: string): Promise<{ fileName: string; csv: string; rows: number }>;
+export function rollbackLeadImport(client: QueryClient, context: Context, batchId: string): Promise<Record<string, unknown>>;

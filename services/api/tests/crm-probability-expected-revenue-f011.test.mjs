@@ -83,11 +83,15 @@ test("F011 migration makes expected revenue generated and history tenant-safe", 
 });
 
 test("F011 reporting consumes canonical expected revenue and excludes closed deals from open forecast", () => {
-  const service=read("services/api/src/modules/crm/pipeline-analytics-and-forecasting/analytics-service.js");
-  assert.match(service,/sum\(opportunity\.expected_revenue\).*status = 'open'/s);
-  // F025 added an expected-close period predicate after the open-status guard.
-  assert.match(service,/sum\(opportunity\.amount\) FILTER \(WHERE opportunity\.status='open'[ )]/);
-  assert.match(service,/sum\(opportunity\.expected_revenue\) FILTER \(WHERE opportunity\.status='open'[ )]/);
+  // Reporting reads the stored (generated) expected_revenue once, in the
+  // canonical fact set, converted like amount; weighted measures only count
+  // open populations (metric-definitions.js).
+  const facts=read("services/api/src/modules/crm/pipeline-analytics-and-forecasting/opportunity-facts.js");
+  assert.match(facts,/COALESCE\(o\.expected_revenue, 0\) \* \$\{rate\} AS weighted_reporting/);
+  const definitions=read("services/api/src/modules/crm/pipeline-analytics-and-forecasting/metric-definitions.js");
+  assert.match(definitions,/weighted_pipeline: \{[^}]*population: "open", measure: "weighted"/);
+  assert.match(definitions,/weighted_closing: \{[^}]*population: "closing", measure: "weighted"/);
+  assert.match(definitions,/open: \{ label: "Open opportunities", sql: "f\.status='open'"/);
 });
 
 test("F011 expected revenue is derived and cannot be forged through generic create/update", async () => {

@@ -110,6 +110,8 @@ export const PUBLIC_TABLES = Object.freeze({
   workflow_runs: scoped(),
   report_definitions: scoped(),
   report_runs: scoped(),
+  report_schedules: scoped(),
+  report_deliveries: scoped(),
   sales_public_quote_tokens: scoped(),
 
   // Not organisation-RLS protected — every entry states why.
@@ -168,6 +170,7 @@ export const DEFINER_FUNCTIONS = Object.freeze({
   "public.revoke_sessions_after_access_change": Object.freeze({ trigger: true, reason: "Revokes sessions after access changes (trigger)." }),
   "tenant.crm_public_meeting_link": Object.freeze({ web: true, worker: false, reason: "Public booking link token -> organisation." }),
   "tenant.crm_public_meeting_booking": Object.freeze({ web: true, worker: false, reason: "Public booking management token -> organisation." }),
+  "tenant.crm_lead_search_ids": Object.freeze({ web: true, worker: true, reason: "Index-backed lead search ids within the current organisation setting; callers still apply full record scope." }),
   "tenant.crm_public_capture_form": Object.freeze({ web: true, worker: false, reason: "Public lead capture form token -> organisation." }),
   "tenant.crm_seed_duplicate_rules_defaults": Object.freeze({ trigger: true, reason: "Seeds CRM defaults for a new organisation (trigger)." }),
   "tenant.crm_seed_lead_intelligence_defaults": Object.freeze({ trigger: true, reason: "Seeds CRM defaults for a new organisation (trigger)." }),

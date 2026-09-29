@@ -262,3 +262,14 @@ Pass B decision: **no new canonical F-ID required**; mature behavior expands thi
 - Legacy benchmark rows remain in the evidence register for provenance, but any row classified `REMAP_REQUIRED`, `NEEDS_BETTER_SOURCE`, or `NEEDS_BETTER_FINDING` in `BENCHMARK_EVIDENCE_AUDIT.csv` is non-authoritative.
 - Benchmark sources inform expected enterprise behavior; the Vercentlabs canonical dossier, Pass B semantic scope, Pass C state/flow contracts and explicit architecture decisions remain normative.
 <!-- FINAL-PASS-D:END -->
+
+## Completion pass 2026-09-29 (closing state)
+
+Written after implementation and verification; the evidence is the code and tests named here. Human UAT is pending (`docs/03-modules/crm/CRM_UAT_F001_F030.md`). Full matrix: `docs/03-modules/crm/CRM_F001_F030_COMPLETION_MATRIX.md`.
+
+- Imports of more than 100 rows run as a resumable background job (`crm.leads.import`); up to 100 rows commit synchronously. Limits: 20 MB, 50,000 rows, chunks of 200 rows with `SKIP LOCKED` and per-row savepoints (tenant migration 188).
+- The dry run stages rows in bulk (`jsonb_to_recordset`), detects in-file duplicates and scoped existing matches, and reports the planned action per row (create/update/skip). Updating a match outside the importer's scope is refused per row.
+- The worker re-resolves the requester's authority on each chunk; if it was revoked, the remaining rows fail with `AUTH_REVOKED`.
+- Progress endpoint and UI progress bar; rejected rows download as CSV with spreadsheet-formula neutralisation; rollback retained.
+- Evidence: `tests/integration/crm/lead-import-db.test.mjs` (includes a crash mid-run, then resume, with exactly-once results for 687 rows); browser Journey E.
+- Measured on the Docker/Windows dev host: 5,000-row dry run p50 3.3 s; 200-row worker chunk p50 10.4 s (~11 statements per row). Adequate for background execution, but the per-row cost is the main performance risk (see the performance report).

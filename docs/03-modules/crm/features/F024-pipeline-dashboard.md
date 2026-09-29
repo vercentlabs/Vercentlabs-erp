@@ -262,3 +262,15 @@ Pass B decision: **no new canonical F-ID required**; mature behavior expands thi
 - Legacy benchmark rows remain in the evidence register for provenance, but any row classified `REMAP_REQUIRED`, `NEEDS_BETTER_SOURCE`, or `NEEDS_BETTER_FINDING` in `BENCHMARK_EVIDENCE_AUDIT.csv` is non-authoritative.
 - Benchmark sources inform expected enterprise behavior; the Vercentlabs canonical dossier, Pass B semantic scope, Pass C state/flow contracts and explicit architecture decisions remain normative.
 <!-- FINAL-PASS-D:END -->
+
+## Completion pass 2026-09-29 (closing state)
+
+Written after implementation and verification; the evidence is the code and tests named here. Human UAT is pending (`docs/03-modules/crm/CRM_UAT_F001_F030.md`). Full matrix: `docs/03-modules/crm/CRM_F001_F030_COMPLETION_MATRIX.md`.
+
+- One canonical metric layer (`services/api/src/modules/crm/pipeline-analytics-and-forecasting/metric-definitions.js`, `opportunity-facts.js`, `pipeline-metrics.js`, version `crm-metrics-2026.09`). The dashboard, KPI drill-downs, breakdowns, CRM reports and saved reports all read the same fact set. Definitions: `docs/03-modules/crm/CRM_METRIC_DEFINITIONS.md`.
+- Multi-currency: amounts are converted with `tenant.exchange_rates` (close date for won/lost, as-of date for open); unconverted records are counted and disclosed, never silently summed.
+- Filters: period, scope, pipeline, stage, team (subtree), territory (subtree), owner, source and forecast category, all kept in the URL.
+- Drill-down: the KPI's own population with keyset cursors; its summary equals the KPI (browser Journey F checks this equality through the API and the UI).
+- Quota attainment and coverage from quota plans, shown only where the viewer may see them.
+- Evidence: `tests/integration/crm/pipeline-metrics-db.test.mjs` (golden dataset), retargeted unit tests, Journey F.
+- Decision: `crm_dashboards` and `crm_dashboard_widgets` were inert and are retired by tenant contract `003_drop_inert_crm_report_tables.sql`. Configurable dashboards are not part of this release; saved and scheduled reports (F030) cover saved views of the metrics.

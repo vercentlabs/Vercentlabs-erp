@@ -26,12 +26,12 @@ test("F025: Commit sums the governed 'committed' category", async () => {
 });
 
 test("F025: a forecast period uses expected close date for open deals and the won date for won deals — never created_at", async () => {
+  // The report is a rollup of the canonical metric layer (metric-definitions.js).
   const { sql, params } = await forecastSql({ from: "2026-10-01", to: "2026-12-31" });
-  assert.doesNotMatch(sql, /opportunity\.created_at/);
-  assert.match(sql, /opportunity\.status='open' AND \(\$5::date IS NULL OR opportunity\.expected_close_date >= \$5::date\)/);
-  assert.match(sql, /opportunity\.status='won' AND \(\$5::date IS NULL OR opportunity\.actual_close_date >= \$5::date\)/);
-  assert.equal(params[4], "2026-10-01");
-  assert.equal(params[5], "2026-12-31");
+  assert.doesNotMatch(sql, /created_at\s*(>=|<=|<|>|BETWEEN)/, "no period predicate on created_at");
+  assert.match(sql, /f\.status='open' AND f\.expected_close_date BETWEEN \$\d+::date AND \$\d+::date/);
+  assert.match(sql, /f\.status='won' AND f\.actual_close_date BETWEEN \$\d+::date AND \$\d+::date/);
+  assert.ok(params.includes("2026-10-01") && params.includes("2026-12-31"));
 });
 
 test("F025: forecast cells drill into lists using the same expected-close range and category", () => {

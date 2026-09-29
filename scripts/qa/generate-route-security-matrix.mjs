@@ -85,6 +85,8 @@ export const PLATFORM_DOMAIN_AUTHORIZATION = Object.freeze({
   "api/reports/definitions/[id]/status/route.ts": "Owner or reporting manager, enforced by setReportDefinitionStatus.",
   "api/reports/runs/route.ts": "Own runs; requesting a run re-checks the dataset's module and permission against the snapshot.",
   "api/reports/runs/[id]/download/route.ts": "Only the run's requester (readReportRunOutput).",
+  "api/reports/schedules/route.ts": "Own or received schedules; creating one requires the dataset's schedule permission, report ownership and recipients who can run the dataset (createReportSchedule).",
+  "api/reports/schedules/[id]/status/route.ts": "Schedule owner or reporting manager, enforced by setReportScheduleStatus.",
   "api/search/route.ts": "Results limited to the snapshot's accessible modules and the caller's record scope.",
   "api/approvals/route.ts": "Approval inbox limited to steps assigned to the caller in accessible modules.",
   "api/approvals/[id]/decide/route.ts": "Only an assigned approver of an accessible module; segregation of duties in decideApproval; denials audited.",

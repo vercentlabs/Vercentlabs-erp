@@ -35,27 +35,6 @@ const LEAD_SCORE_RECALC_TRIGGER_FIELDS = new Set([
   "sourceId",
 ]);
 
-// F025 Stage A2 §11 — "locked/closed period behavior" was a genuine gap:
-// nothing cross-referenced a forecast-submission against its own
-// tenant.crm_forecast_periods.status, so a submission could be created or
-// edited against an already-closed period through the generic path.
-// 'frozen' is deliberately still mutable — resource-options.js's own
-// period picker already includes 'frozen' alongside 'planned'/'open'
-// when offering periods to submit against, an established convention
-// this reuses rather than inventing a stricter interpretation.
-async function assertForecastPeriodMutable(client, context, periodId) {
-  const result = await client.query(
-    `SELECT status FROM tenant.crm_forecast_periods WHERE organization_id=$1 AND id=$2`,
-    [context.organizationId, periodId],
-  );
-  if (result.rows[0]?.status === "closed")
-    throw new CrmError(
-      409,
-      "This forecast period is closed and can no longer be submitted or adjusted.",
-      "CRM_FORECAST_PERIOD_CLOSED",
-    );
-}
-
 export async function createCrmRecord(client, context, resource, input) {
   if (resource === "activities") {
     const activityType = String(input?.activityType || "").toLowerCase();
@@ -94,8 +73,13 @@ export async function createCrmRecord(client, context, resource, input) {
       "Use the governed Lead Source operations.",
       "CRM_LEAD_SOURCE_API_MOVED",
     );
-  if (resource === "forecast-submissions" && input?.periodId)
-    await assertForecastPeriodMutable(client, context, input.periodId);
+  // F025: submissions change only through forecast-service.js (versioned,
+  // reviewed, period-locked); the generic path could set a seller's own
+  // manager_adjustment and skip review entirely.
+  if (resource === "forecast-submissions")
+    throw new CrmError(410, "Use the governed forecast operations (submit, review, period lifecycle).", "CRM_FORECAST_API_MOVED");
+  if (resource === "forecast-periods" && input && Object.prototype.hasOwnProperty.call(input, "status") && input.status !== "planned" && input.status !== "open")
+    throw new CrmError(410, "Use the governed forecast operations (submit, review, period lifecycle).", "CRM_FORECAST_API_MOVED");
   const definition = definitionFor(resource);
   assertLeadLinkedContentAllowed(context, resource, input);
   if (resource === "leads") {
@@ -432,6 +416,11 @@ export async function updateCrmRecord(
   input,
   expectations = {},
 ) {
+  // F025: submissions and period status change only through forecast-service.js.
+  if (resource === "forecast-submissions")
+    throw new CrmError(410, "Use the governed forecast operations (submit, review, period lifecycle).", "CRM_FORECAST_API_MOVED");
+  if (resource === "forecast-periods" && input && Object.prototype.hasOwnProperty.call(input, "status"))
+    throw new CrmError(410, "Use the governed forecast operations (submit, review, period lifecycle).", "CRM_FORECAST_API_MOVED");
   if (resource === "stages")
     throw new CrmError(
       410,
@@ -462,8 +451,6 @@ export async function updateCrmRecord(
     resource === "leads"
       ? await getLeadRecordForUpdate(client, context, id)
       : await getCrmRecord(client, context, resource, id);
-  if (resource === "forecast-submissions" && before.periodId)
-    await assertForecastPeriodMutable(client, context, before.periodId);
   assertLeadLinkedContentAllowed(context, resource, input, before);
   if (resource === "leads")
     assertLeadExpectedVersion(
@@ -868,6 +855,10 @@ export async function archiveCrmRecord(
   id,
   expectations = {},
 ) {
+  // F025: archiving a submission (superseded) or a period (closed) is a
+  // forecast lifecycle decision, made by forecast-service.js.
+  if (resource === "forecast-submissions" || resource === "forecast-periods")
+    throw new CrmError(410, "Use the governed forecast operations (submit, review, period lifecycle).", "CRM_FORECAST_API_MOVED");
   if (resource === "stages")
     throw new CrmError(
       410,
@@ -1006,9 +997,6 @@ export async function archiveCrmRecord(
     "account-signals": "dismissed",
     "partner-accounts": "archived",
     "partner-deals": "cancelled",
-    "report-definitions": "archived",
-    dashboards: "archived",
-    "dashboard-widgets": "inactive",
     "custom-object-definitions": "archived",
     "custom-field-definitions": "archived",
     "custom-records": "archived",

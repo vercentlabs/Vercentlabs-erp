@@ -6,7 +6,8 @@
 //   dataset's permissions, then the module's own scoped read. Execution uses
 //   the requester's CURRENT authority, rebuilt from the database - a revoked
 //   permission or company access stops a queued run.
-// Scheduling is not available: a definition with a schedule is refused.
+// A definition itself never carries a schedule (an inline schedule is refused);
+// recurring delivery is a separate report_schedules row (schedules.js).
 import { rowsToCsv } from "@vercentlabs/reporting-engine";
 
 import { buildWorkspaceAccessSnapshot } from "../../core/access/index.js";
@@ -16,16 +17,18 @@ import { prepareFileUpload, readFileContent, storeFile } from "../../core/platfo
 import { resolveMemberExecutionContext } from "../../core/platform/reporting/execution-context.js";
 import { audit } from "../../core/security/request-security.js";
 import { getReportDataset, REPORT_DATASETS } from "./datasets.js";
+import { deliverScheduledReportRun, failScheduledReportDelivery } from "./schedules.js";
 
 export const REPORT_RUN_JOB_TYPE = "platform.reports.run";
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export class ReportError extends Error {
-  constructor(status, message, code = "REPORT_ERROR") {
+  constructor(status, message, code = "REPORT_ERROR", details = undefined) {
     super(message);
     this.name = "ReportError";
     this.status = status;
     this.code = code;
+    if (details) this.details = details;
   }
 }
 
@@ -189,11 +192,13 @@ export async function executeReportRun(client, organizationId, payload, { env = 
     { storage, env },
   );
   await client.query(`UPDATE report_runs SET status='succeeded', row_count=$2, output_file_id=$3, completed_at=now() WHERE id=$1`, [run.id, rows.length, file.id]);
+  if (run.schedule_id) await deliverScheduledReportRun(client, organizationId, run.id);
   await audit(client, { organizationId, actorUserId: run.requested_by, eventType: "report.exported", entityType: "report_run", entityId: run.id, metadata: { datasetKey: dataset.key, rowCount: rows.length } });
   return { rowCount: rows.length, fileId: file.id };
 }
 
 export async function failReportRun(client, organizationId, reportRunId, error) {
+  await failScheduledReportDelivery(client, organizationId, reportRunId, error);
   await client.query(`UPDATE report_runs SET status='failed', error_message=$3, completed_at=now() WHERE organization_id=$1 AND id=$2 AND status IN ('queued','running')`, [
     organizationId,
     reportRunId,

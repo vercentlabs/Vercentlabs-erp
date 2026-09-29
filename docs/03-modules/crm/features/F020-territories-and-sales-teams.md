@@ -262,3 +262,12 @@ Pass B decision: **no new canonical F-ID required**; mature behavior expands thi
 - Legacy benchmark rows remain in the evidence register for provenance, but any row classified `REMAP_REQUIRED`, `NEEDS_BETTER_SOURCE`, or `NEEDS_BETTER_FINDING` in `BENCHMARK_EVIDENCE_AUDIT.csv` is non-authoritative.
 - Benchmark sources inform expected enterprise behavior; the Vercentlabs canonical dossier, Pass B semantic scope, Pass C state/flow contracts and explicit architecture decisions remain normative.
 <!-- FINAL-PASS-D:END -->
+
+## Completion pass 2026-09-29 (closing state)
+
+Written after implementation and verification; the evidence is the code and tests named here. Human UAT is pending (`docs/03-modules/crm/CRM_UAT_F001_F030.md`). Full matrix: `docs/03-modules/crm/CRM_F001_F030_COMPLETION_MATRIX.md`.
+
+- Separate permissions: `crm.coverage.view`, `crm.teams.manage`, `crm.territories.manage`, `crm.coverage.assign` (platform migration 072, role sync 073). Setup CRUD for teams and territories now requires the specific permission instead of `crm.settings.manage`.
+- Sales Coverage workspace (`/crm/coverage`): teams with current/scheduled/ended members, territories with their primary assignee, open work per team, gaps (territory without owner, team without manager or members, seller without team), and an unassigned leads/accounts/opportunities queue (keyset paging).
+- Governed reassignment (≤200 records, reason required, owner eligibility checked, per-record result, audit `crm.coverage.reassigned`, outbox) and effective-dated territory transfer (overlaps refused, idempotent, audited).
+- Evidence: `tests/integration/crm/coverage-db.test.mjs`; browser Journey D in `apps/web/e2e/crm-completion.spec.ts`.

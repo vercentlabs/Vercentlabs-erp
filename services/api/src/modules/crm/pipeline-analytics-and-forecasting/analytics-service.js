@@ -4,6 +4,7 @@ import { CrmError } from "../crm-data-operations-and-customization/errors.js";
 import { canViewAllCrmRecords } from "../crm-data-operations-and-customization/record-policy.js";
 import { canViewAllCrmResource, crmAccountAccessSql, crmOwnerScopeSql } from "../crm-data-operations-and-customization/crm-access-scope.js";
 import { camelizeRow, managedTeamMembersSql } from "../crm-data-operations-and-customization/record-utils.js";
+import { getMetricRollup, getPipelineBreakdown, getPipelineMetrics, getUserQuotas } from "./pipeline-metrics.js";
 
 
 
@@ -84,46 +85,40 @@ export async function getCrmDashboard(client, context, options = {}) {
   const orgWide = period.scope === "all" ? "true" : "false";
   // Stage/source/activity lists reference only $1-$6 (no period params).
   const baseParameters = parameters.slice(0, 6);
+  // One pass over the caller's leads and one over their activities (company
+  // and branch applied once; each figure is a FILTER on that pass) instead of
+  // a separate scan per figure.
+  const leadVisible = ownerVisible("lead", "owner_user_id");
+  const activityVisible = ownerVisible("activity", "assigned_to");
   const result = await client.query(
-    `SELECT
+    `WITH lead_counts AS (
+       SELECT
+         count(*) FILTER (WHERE lead.record_status = 'active' AND ${leadVisible})::int AS open_leads,
+         count(*) FILTER (WHERE lead.record_status = 'active' AND lead.qualification_state = 'qualified' AND ${leadVisible})::int AS qualified_leads,
+         count(*) FILTER (WHERE lead.record_status IN ('active','converted') AND ${inPeriod("lead.created_at")} AND ${leadVisible})::int AS leads_in_period,
+         count(*) FILTER (WHERE lead.record_status IN ('active','converted') AND ${inPeriod("lead.created_at", "$9", "$10")} AND ${leadVisible})::int AS leads_previous_period,
+         count(*) FILTER (WHERE lead.record_status = 'converted' AND ${inPeriod("lead.converted_at")} AND ${leadVisible})::int AS conversions_in_period,
+         count(*) FILTER (WHERE lead.record_status = 'converted' AND ${inPeriod("lead.converted_at", "$9", "$10")} AND ${leadVisible})::int AS conversions_previous_period,
+         count(*) FILTER (WHERE lead.record_status = 'active' AND lead.owner_user_id IS NULL AND ${orgWide})::int AS unassigned_leads,
+         count(*) FILTER (WHERE lead.record_status = 'active' AND ${leadVisible} AND EXISTS (
+           SELECT 1 FROM tenant.crm_lead_stages stage
+            WHERE stage.organization_id = lead.organization_id AND stage.code = lead.status AND stage.dwell_breach_hours IS NOT NULL
+              AND lead.stage_entered_at <= now() - (stage.dwell_breach_hours || ' hours')::interval))::int AS dwell_breached_leads,
+         count(*) FILTER (WHERE lead.record_status = 'active' AND lead.qualification_state = 'not_reviewed' AND ${leadVisible})::int AS needs_qualification_leads,
+         count(*) FILTER (WHERE lead.record_status = 'active' AND lead.lead_grade IN ('hot','qualified') AND ${leadVisible})::int AS high_priority_leads
+       FROM tenant.crm_leads lead
+       WHERE lead.organization_id = $1 AND ${companyVisible("lead")} AND ${branchVisible("lead")}
+     ), activity_counts AS (
+       SELECT
+         count(*) FILTER (WHERE ${taskOverdueSql("activity")})::int AS overdue_activities,
+         count(*) FILTER (WHERE activity.activity_type = 'task' AND ${taskOverdueSql("activity")})::int AS overdue_tasks,
+         count(*) FILTER (WHERE activity.status NOT IN ('completed','cancelled') AND activity.due_at >= current_date AND activity.due_at < current_date + interval '1 day')::int AS due_today
+       FROM tenant.crm_activities activity
+       WHERE activity.organization_id = $1 AND ${companyVisible("activity")} AND ${branchVisible("activity")} AND ${activityVisible}
+     )
+     SELECT
       (SELECT organization.base_currency FROM public.organizations organization WHERE organization.id = $1) AS currency_code,
-      (SELECT count(*)::int FROM tenant.crm_leads lead WHERE lead.organization_id = $1 AND lead.record_status='active' AND ${companyVisible("lead")} AND ${branchVisible("lead")} AND ${ownerVisible("lead", "owner_user_id")}) AS open_leads,
-      (SELECT count(*)::int FROM tenant.crm_leads lead WHERE lead.organization_id = $1 AND lead.qualification_state = 'qualified' AND lead.record_status='active' AND ${companyVisible("lead")} AND ${branchVisible("lead")} AND ${ownerVisible("lead", "owner_user_id")}) AS qualified_leads,
-      (SELECT count(*)::int FROM tenant.crm_opportunities opportunity WHERE opportunity.organization_id = $1 AND opportunity.status = 'open' AND ${companyVisible("opportunity")} AND ${branchVisible("opportunity")} AND ${ownerVisible("opportunity", "owner_user_id")}) AS open_opportunities,
-      (SELECT COALESCE(sum(opportunity.amount),0)::numeric FROM tenant.crm_opportunities opportunity WHERE opportunity.organization_id = $1 AND opportunity.status = 'open' AND ${companyVisible("opportunity")} AND ${branchVisible("opportunity")} AND ${ownerVisible("opportunity", "owner_user_id")}) AS pipeline_value,
-      (SELECT COALESCE(sum(opportunity.expected_revenue),0)::numeric FROM tenant.crm_opportunities opportunity WHERE opportunity.organization_id = $1 AND opportunity.status = 'open' AND ${companyVisible("opportunity")} AND ${branchVisible("opportunity")} AND ${ownerVisible("opportunity", "owner_user_id")}) AS weighted_pipeline,
-      (SELECT count(*)::int FROM tenant.crm_activities activity WHERE activity.organization_id = $1 AND ${taskOverdueSql("activity")} AND ${companyVisible("activity")} AND ${branchVisible("activity")} AND ${ownerVisible("activity", "assigned_to")}) AS overdue_activities,
-      (SELECT count(*)::int FROM tenant.crm_activities activity WHERE activity.organization_id = $1 AND activity.activity_type = 'task' AND ${taskOverdueSql("activity")} AND ${companyVisible("activity")} AND ${branchVisible("activity")} AND ${ownerVisible("activity", "assigned_to")}) AS overdue_tasks,
-      (SELECT count(*)::int FROM tenant.crm_activities activity WHERE activity.organization_id = $1 AND activity.status NOT IN ('completed','cancelled') AND activity.due_at >= current_date AND activity.due_at < current_date + interval '1 day' AND ${companyVisible("activity")} AND ${branchVisible("activity")} AND ${ownerVisible("activity", "assigned_to")}) AS due_today,
-      (SELECT count(*)::int FROM tenant.crm_leads lead WHERE lead.organization_id = $1 AND lead.record_status IN ('active','converted') AND ${inPeriod("lead.created_at")} AND ${companyVisible("lead")} AND ${branchVisible("lead")} AND ${ownerVisible("lead", "owner_user_id")}) AS leads_in_period,
-      (SELECT count(*)::int FROM tenant.crm_leads lead WHERE lead.organization_id = $1 AND lead.record_status IN ('active','converted') AND ${inPeriod("lead.created_at", "$9", "$10")} AND ${companyVisible("lead")} AND ${branchVisible("lead")} AND ${ownerVisible("lead", "owner_user_id")}) AS leads_previous_period,
-      (SELECT count(*)::int FROM tenant.crm_leads lead WHERE lead.organization_id = $1 AND lead.record_status = 'converted' AND ${inPeriod("lead.converted_at")} AND ${companyVisible("lead")} AND ${branchVisible("lead")} AND ${ownerVisible("lead", "owner_user_id")}) AS conversions_in_period,
-      (SELECT count(*)::int FROM tenant.crm_leads lead WHERE lead.organization_id = $1 AND lead.record_status = 'converted' AND ${inPeriod("lead.converted_at", "$9", "$10")} AND ${companyVisible("lead")} AND ${branchVisible("lead")} AND ${ownerVisible("lead", "owner_user_id")}) AS conversions_previous_period,
-      (SELECT count(*)::int FROM tenant.crm_opportunities opportunity WHERE opportunity.organization_id = $1 AND opportunity.status = 'won' AND ${inPeriod("opportunity.actual_close_date")} AND ${companyVisible("opportunity")} AND ${branchVisible("opportunity")} AND ${ownerVisible("opportunity", "owner_user_id")}) AS won_in_period,
-      (SELECT COALESCE(sum(opportunity.amount),0)::numeric FROM tenant.crm_opportunities opportunity WHERE opportunity.organization_id = $1 AND opportunity.status = 'won' AND ${inPeriod("opportunity.actual_close_date")} AND ${companyVisible("opportunity")} AND ${branchVisible("opportunity")} AND ${ownerVisible("opportunity", "owner_user_id")}) AS won_amount_in_period,
-      (SELECT COALESCE(sum(opportunity.amount),0)::numeric FROM tenant.crm_opportunities opportunity WHERE opportunity.organization_id = $1 AND opportunity.status = 'won' AND ${inPeriod("opportunity.actual_close_date", "$9", "$10")} AND ${companyVisible("opportunity")} AND ${branchVisible("opportunity")} AND ${ownerVisible("opportunity", "owner_user_id")}) AS won_amount_previous_period,
-      (SELECT count(*)::int FROM tenant.crm_opportunities opportunity WHERE opportunity.organization_id = $1 AND opportunity.status = 'won' AND ${inPeriod("opportunity.actual_close_date", "$9", "$10")} AND ${companyVisible("opportunity")} AND ${branchVisible("opportunity")} AND ${ownerVisible("opportunity", "owner_user_id")}) AS won_previous_period,
-      (SELECT count(*)::int FROM tenant.crm_opportunities opportunity WHERE opportunity.organization_id = $1 AND opportunity.status = 'lost' AND ${inPeriod("opportunity.actual_close_date")} AND ${companyVisible("opportunity")} AND ${branchVisible("opportunity")} AND ${ownerVisible("opportunity", "owner_user_id")}) AS lost_in_period,
-      (SELECT count(*)::int FROM tenant.crm_opportunities opportunity WHERE opportunity.organization_id = $1 AND opportunity.status = 'lost' AND ${inPeriod("opportunity.actual_close_date", "$9", "$10")} AND ${companyVisible("opportunity")} AND ${branchVisible("opportunity")} AND ${ownerVisible("opportunity", "owner_user_id")}) AS lost_previous_period,
-      (SELECT count(*)::int FROM tenant.crm_leads lead WHERE lead.organization_id = $1 AND lead.record_status='active' AND lead.owner_user_id IS NULL AND ${orgWide} AND ${companyVisible("lead")} AND ${branchVisible("lead")}) AS unassigned_leads,
-      (SELECT count(*)::int FROM tenant.crm_leads lead JOIN tenant.crm_lead_stages stage ON stage.organization_id=lead.organization_id AND stage.code=lead.status WHERE lead.organization_id = $1 AND lead.record_status='active' AND stage.dwell_breach_hours IS NOT NULL AND lead.stage_entered_at <= now() - (stage.dwell_breach_hours || ' hours')::interval AND ${companyVisible("lead")} AND ${branchVisible("lead")} AND ${ownerVisible("lead", "owner_user_id")}) AS dwell_breached_leads,
-      -- F024 (Pipeline dashboard) — LAST PROMPT 1/3 closeout: the dossier's
-      -- required "stalled/risk signals" item had no Opportunity-side
-      -- equivalent on the dashboard despite the real per-stage threshold
-      -- (crm_opportunity_stage_sla_policies, falling back to
-      -- crm_pipeline_stages.stale_after_days — see opportunity-and-pipeline-
-      -- governance/stage-aging.js's computeStageAge, already used by the
-      -- pipeline board) already existing; this reuses the identical
-      -- threshold precedence at the SQL level rather than inventing a
-      -- second one.
-      (SELECT count(*)::int FROM tenant.crm_opportunities opportunity
-         LEFT JOIN tenant.crm_pipeline_stages stage ON stage.organization_id=opportunity.organization_id AND stage.id=opportunity.stage_id
-         LEFT JOIN tenant.crm_opportunity_stage_sla_policies policy ON policy.organization_id=opportunity.organization_id AND policy.pipeline_id=opportunity.pipeline_id AND policy.stage_id=opportunity.stage_id AND policy.status='active'
-        WHERE opportunity.organization_id = $1 AND opportunity.status = 'open' AND COALESCE(policy.maximum_days, stage.stale_after_days) IS NOT NULL
-          AND opportunity.stage_entered_at <= now() - (COALESCE(policy.maximum_days, stage.stale_after_days) || ' days')::interval
-          AND ${companyVisible("opportunity")} AND ${branchVisible("opportunity")} AND ${ownerVisible("opportunity", "owner_user_id")}) AS stalled_opportunities,
-      (SELECT count(*)::int FROM tenant.crm_leads lead WHERE lead.organization_id = $1 AND lead.record_status='active' AND lead.qualification_state='not_reviewed' AND ${companyVisible("lead")} AND ${branchVisible("lead")} AND ${ownerVisible("lead", "owner_user_id")}) AS needs_qualification_leads,
-      (SELECT count(*)::int FROM tenant.crm_leads lead WHERE lead.organization_id = $1 AND lead.record_status='active' AND lead.lead_grade IN ('hot','qualified') AND ${companyVisible("lead")} AND ${branchVisible("lead")} AND ${ownerVisible("lead", "owner_user_id")}) AS high_priority_leads,
+      lead_counts.*, activity_counts.*,
       -- F020 (Territories/sales teams) — LAST PROMPT 1/3 closeout: the
       -- dossier's required "coverage gap" signal (a territory with nobody
       -- currently, effectively assigned as its primary owner) had no
@@ -139,12 +134,17 @@ export async function getCrmDashboard(client, context, options = {}) {
                AND assignment.assignment_role = 'primary'
                AND assignment.effective_from <= current_date
                AND (assignment.effective_to IS NULL OR assignment.effective_to >= current_date)
-          )) AS uncovered_territories`,
+          )) AS uncovered_territories
+     FROM lead_counts, activity_counts`,
     parameters,
   );
+  // Stage rows only; each stage's count/amount is the canonical breakdown below.
   const stages = await client.query(
-    `SELECT stage.id, stage.name, stage.sequence, count(opportunity.id)::int AS opportunity_count, COALESCE(sum(opportunity.amount),0)::numeric AS amount FROM tenant.crm_pipeline_stages stage JOIN tenant.crm_pipelines pipeline ON pipeline.id = stage.pipeline_id AND pipeline.organization_id = stage.organization_id LEFT JOIN tenant.crm_opportunities opportunity ON opportunity.stage_id = stage.id AND opportunity.organization_id = stage.organization_id AND opportunity.status = 'open' AND ${companyVisible("opportunity")} AND ${branchVisible("opportunity")} AND ${ownerVisible("opportunity", "owner_user_id")} WHERE stage.organization_id = $1 AND stage.status = 'active' AND NOT stage.is_won AND NOT stage.is_lost AND ${companyVisible("pipeline")} GROUP BY stage.id ORDER BY stage.sequence`,
-    baseParameters,
+    `SELECT stage.id, stage.name, stage.sequence FROM tenant.crm_pipeline_stages stage JOIN tenant.crm_pipelines pipeline ON pipeline.id = stage.pipeline_id AND pipeline.organization_id = stage.organization_id
+      WHERE stage.organization_id = $1 AND stage.status = 'active' AND NOT stage.is_won AND NOT stage.is_lost
+        AND (($2::uuid IS NOT NULL AND (pipeline.company_id IS NULL OR pipeline.company_id = $2)) OR ($2::uuid IS NULL AND $3::boolean))
+      ORDER BY stage.sequence`,
+    [context.organizationId, context.activeCompanyId, Boolean(context.allowAllCompanies)],
   );
   const sources = await client.query(
     `SELECT COALESCE(source.name,'Unspecified') AS name, count(lead.id)::int AS lead_count, count(lead.id) FILTER (WHERE lead.record_status = 'converted')::int AS converted_count FROM tenant.crm_leads lead LEFT JOIN tenant.crm_lead_sources source ON source.id = lead.source_id WHERE lead.organization_id = $1 AND ${companyVisible("lead")} AND ${branchVisible("lead")} AND ${ownerVisible("lead", "owner_user_id")} GROUP BY source.name ORDER BY lead_count DESC LIMIT 10`,
@@ -154,18 +154,84 @@ export async function getCrmDashboard(client, context, options = {}) {
     `SELECT activity.*, user_account.full_name AS assigned_name FROM tenant.crm_activities activity LEFT JOIN public.users user_account ON user_account.id = activity.assigned_to WHERE activity.organization_id = $1 AND activity.status NOT IN ('completed','cancelled') AND ${companyVisible("activity")} AND ${branchVisible("activity")} AND ${ownerVisible("activity", "assigned_to")} ORDER BY activity.due_at ASC NULLS LAST LIMIT 10`,
     baseParameters,
   );
+  // Opportunity figures come from the canonical metric layer (currency
+  // converted, same population as their drill-downs) — never a second formula.
+  const current = await getPipelineMetrics(client, context, { from: period.from, to: period.to, scope: period.scope });
+  const previous = await getPipelineMetrics(client, context, { from: period.previousFrom, to: period.previousTo, scope: period.scope });
+  const byStage = await getPipelineBreakdown(client, context, { metric: "open_pipeline", dimension: "stage", filters: { from: period.from, to: period.to, scope: period.scope } });
+  const stageValue = new Map(byStage.rows.map((row) => [row.key, row]));
   return {
     scope: period.scope,
     period: { from: period.from, to: period.to, previousFrom: period.previousFrom, previousTo: period.previousTo },
     canViewAll: Boolean(canViewAllCrmRecords(context)),
-    metrics: camelizeRow(result.rows[0]),
-    stages: stages.rows.map(camelizeRow),
+    metricVersion: current.metricVersion,
+    currency: current.currency,
+    metrics: {
+      ...camelizeRow(result.rows[0]),
+      openOpportunities: current.metrics.open_opportunities,
+      pipelineValue: current.metrics.open_pipeline,
+      weightedPipeline: current.metrics.weighted_pipeline,
+      wonInPeriod: current.metrics.won_count,
+      wonAmountInPeriod: current.metrics.won_amount,
+      lostInPeriod: current.metrics.lost_count,
+      wonPreviousPeriod: previous.metrics.won_count,
+      wonAmountPreviousPeriod: previous.metrics.won_amount,
+      lostPreviousPeriod: previous.metrics.lost_count,
+      stalledOpportunities: current.metrics.stalled_opportunities,
+    },
+    stages: stages.rows.map((row) => {
+      const stage = camelizeRow(row);
+      const canonical = stageValue.get(String(stage.id));
+      return { ...stage, opportunityCount: canonical?.count ?? 0, amount: canonical?.value ?? 0 };
+    }),
     sources: sources.rows.map(camelizeRow),
     activities: activities.rows.map(camelizeRow),
   };
 }
 
 
+
+// Pipeline, forecast and revenue-operations reports are rows of the canonical
+// metric layer (metric-definitions.js) — the same figures as the dashboard
+// and forecast, in the reporting currency — never their own formulas.
+const CANONICAL_REPORTS = new Set(["pipeline", "forecast", "revenue-operations"]);
+
+async function canonicalReport(client, context, report, { from, to }) {
+  const filters = { from: from ?? undefined, to: to ?? undefined };
+  const summary = await getPipelineMetrics(client, context, filters);
+  let rows;
+  if (report === "pipeline") {
+    const rollup = await getMetricRollup(client, context, { dimension: "stage", metrics: ["open_opportunities", "open_pipeline", "weighted_pipeline"], filters });
+    rows = rollup.rows.map((row) => ({ stageId: row.key, name: row.label, count: row.values.open_opportunities, amount: row.values.open_pipeline, weightedAmount: row.values.weighted_pipeline }));
+  } else if (report === "forecast") {
+    const rollup = await getMetricRollup(client, context, { dimension: "owner", metrics: ["forecast_pipeline", "weighted_closing", "best_case", "commit", "won_amount", "closing_opportunities", "won_count"], filters });
+    rows = rollup.rows.map((row) => ({
+      ownerUserId: row.key, owner: row.label, pipeline: row.values.forecast_pipeline, weighted: row.values.weighted_closing, bestCase: row.values.best_case,
+      commitAmount: row.values.commit, won: row.values.won_amount, openDeals: row.values.closing_opportunities, wonDeals: row.values.won_count,
+    })).sort((a, b) => b.weighted - a.weighted);
+  } else {
+    const rollup = await getMetricRollup(client, context, { dimension: "owner", metrics: ["open_pipeline", "best_case", "commit", "won_amount", "win_rate", "closing_in_period"], filters });
+    const quotas = await getUserQuotas(client, context, filters);
+    const seen = new Set();
+    rows = rollup.rows.map((row) => {
+      seen.add(String(row.key));
+      const quota = quotas.get(String(row.key)) ?? null;
+      return {
+        ownerUserId: row.key, owner: row.label, quota, pipeline: row.values.open_pipeline, bestCase: row.values.best_case, committed: row.values.commit, won: row.values.won_amount,
+        pipelineCoverage: quota ? Math.round((row.values.closing_in_period / quota) * 100) / 100 : null,
+        quotaAttainmentPercent: quota ? Math.round((row.values.won_amount / quota) * 10000) / 100 : null,
+        winRatePercent: row.values.win_rate,
+      };
+    });
+    const names = quotas.size ? await client.query(`SELECT id, full_name FROM public.users WHERE id = ANY($1::uuid[])`, [[...quotas.keys()].filter((id) => !seen.has(id))]) : { rows: [] };
+    for (const user of names.rows)
+      rows.push({ ownerUserId: user.id, owner: user.full_name, quota: quotas.get(String(user.id)), pipeline: 0, bestCase: 0, committed: 0, won: 0, pipelineCoverage: 0, quotaAttainmentPercent: 0, winRatePercent: null });
+    rows.sort((a, b) => b.won - a.won || b.pipeline - a.pipeline);
+  }
+  const reportFilters = { from: summary.filters.from, to: summary.filters.to };
+  const fingerprint = createHash("sha256").update(JSON.stringify({ report, filters: reportFilters, rows })).digest("hex");
+  return { report, rows, filters: reportFilters, currency: summary.currency, metricVersion: summary.metricVersion, generatedAt: new Date().toISOString(), fingerprint };
+}
 
 export async function getCrmReport(client, context, report, filters = {}) {
   const from = filters.from || null;
@@ -205,21 +271,6 @@ export async function getCrmReport(client, context, report, filters = {}) {
   // The shared rule (crm-access-scope.js): every report now includes the
   // managed-team tier, not only the forecast. $7 = view-all, $8 = caller.
   const ownerVisible = (alias, column) => `($7::boolean OR ${resourceVisibleSql(context, alias, column, "$8")})`;
-  // Checkpoint audit (Prompt 3 continuation, F025 re-audit explicitly
-  // requested by the mega-prompt): the plain ownerVisible() above is
-  // binary — either the caller's own records only, or (view-all) every
-  // record in scope. There was no middle tier for "a sales manager sees
-  // their own team's rollup" anywhere in the codebase; a manager without
-  // the broad crm.records.view_all grant could only ever forecast their
-  // own deals, not their team's, even though crm_sales_teams/
-  // crm_sales_team_members (already used by Tasks' team-queue feature)
-  // model exactly that relationship. Scoped to the "forecast" report only
-  // — the one place this was explicitly called out — rather than
-  // retrofitting every report/dashboard metric with a new visibility tier
-  // in the same pass, which would be a much larger, riskier change to
-  // the shared ownerVisible() every other report/dashboard metric still
-  // uses unchanged.
-  const ownerVisibleForForecast = ownerVisible;
   // Child-record tiers for reports built on tables without their own owner:
   // a row counts only when the record it describes is visible to the caller
   // under that record's own rule (crm-access-scope.js) — never company-only.
@@ -246,13 +297,9 @@ export async function getCrmReport(client, context, report, filters = {}) {
   }[report];
   if (rollupAllowed && !rollupAllowed())
     throw new CrmError(403, "This report covers records outside your CRM access.", "CRM_REPORT_SCOPE_FORBIDDEN");
+  if (CANONICAL_REPORTS.has(report)) return canonicalReport(client, context, report, { from, to });
   let sql;
-  if (report === "pipeline")
-    // F030 Stage A2 §12 — added stage.id (previously name-only, not a
-    // safe filter key) so this report's rows can drill into a real,
-    // authorized Opportunities list filtered by the exact same stage.
-    sql = `SELECT stage.id AS stage_id, stage.name, stage.sequence, count(opportunity.id)::int AS count, COALESCE(sum(opportunity.amount),0)::numeric AS amount, COALESCE(sum(opportunity.expected_revenue),0)::numeric AS weighted_amount FROM tenant.crm_pipeline_stages stage JOIN tenant.crm_pipelines pipeline ON pipeline.id = stage.pipeline_id AND pipeline.organization_id = stage.organization_id LEFT JOIN tenant.crm_opportunities opportunity ON opportunity.stage_id = stage.id AND opportunity.organization_id = stage.organization_id AND opportunity.status='open' ${dateClause("opportunity.created_at")} AND ${companyVisible("opportunity")} AND ${branchVisible("opportunity")} AND ${ownerVisible("opportunity", "owner_user_id")} WHERE stage.organization_id = $1 AND NOT stage.is_won AND NOT stage.is_lost AND ${companyVisible("pipeline")} GROUP BY stage.id ORDER BY stage.sequence`;
-  else if (report === "conversion")
+  if (report === "conversion")
     sql = `SELECT date_trunc('month', lead.created_at)::date AS period, count(*)::int AS leads, count(*) FILTER (WHERE lead.record_status='converted')::int AS converted, round((count(*) FILTER (WHERE lead.record_status='converted')::numeric / NULLIF(count(*),0))*100,2) AS conversion_rate FROM tenant.crm_leads lead WHERE lead.organization_id=$1 ${dateClause("lead.created_at")} AND ${companyVisible("lead")} AND ${branchVisible("lead")} AND ${ownerVisible("lead", "owner_user_id")} GROUP BY period ORDER BY period`;
   else if (report === "sources")
     // F030 Stage A2 §12 — added source.id for the same reason as
@@ -260,33 +307,6 @@ export async function getCrmReport(client, context, report, filters = {}) {
     sql = `SELECT source.id AS source_id, COALESCE(source.name,'Unspecified') AS source, count(lead.id)::int AS leads, count(lead.id) FILTER (WHERE lead.record_status='converted')::int AS converted, COALESCE(sum(opportunity.amount) FILTER (WHERE opportunity.status='won'),0)::numeric AS won_revenue FROM tenant.crm_leads lead LEFT JOIN tenant.crm_lead_sources source ON source.id=lead.source_id LEFT JOIN tenant.crm_opportunities opportunity ON opportunity.lead_id=lead.id AND opportunity.organization_id=lead.organization_id AND ${ownerVisible("opportunity", "owner_user_id")} WHERE lead.organization_id=$1 ${dateClause("lead.created_at")} AND ${companyVisible("lead")} AND ${branchVisible("lead")} AND ${ownerVisible("lead", "owner_user_id")} GROUP BY source.id, source.name ORDER BY leads DESC`;
   else if (report === "activities")
     sql = `SELECT activity.activity_type, count(*)::int AS total, count(*) FILTER (WHERE activity.status='completed')::int AS completed, count(*) FILTER (WHERE ${taskOverdueSql("activity")})::int AS overdue FROM tenant.crm_activities activity WHERE activity.organization_id=$1 ${dateClause("activity.created_at")} AND ${companyVisible("activity")} AND ${branchVisible("activity")} AND ${ownerVisible("activity", "assigned_to")} GROUP BY activity.activity_type ORDER BY total DESC`;
-  else if (report === "forecast")
-    // F025 Stage A2 §11 — added best_case/commit category breakdown
-    // columns (the dossier's own named "categories"/"per-category
-    // breakdown" item) alongside the existing per-owner pipeline/
-    // weighted/won totals, rather than a second query/report key —
-    // forecast_category is the same governed field crm_opportunities and
-    // crm_forecast_submissions both already use, not a new concept.
-    {
-    // A forecast period is about when deals CLOSE, not when they were
-    // created: open deals count by expected close date, won deals by the
-    // date they were won. With no range, every open and won deal counts.
-    // Categories use the governed values ('committed', not 'commit').
-    const openInPeriod = "($5::date IS NULL OR opportunity.expected_close_date >= $5::date) AND ($6::date IS NULL OR opportunity.expected_close_date <= $6::date)";
-    const wonInPeriod = "($5::date IS NULL OR opportunity.actual_close_date >= $5::date) AND ($6::date IS NULL OR opportunity.actual_close_date <= $6::date)";
-    sql = `SELECT opportunity.owner_user_id, COALESCE(user_account.full_name,'Unassigned') AS owner,
-      COALESCE(sum(opportunity.amount) FILTER (WHERE opportunity.status='open' AND ${openInPeriod}),0)::numeric AS pipeline,
-      COALESCE(sum(opportunity.expected_revenue) FILTER (WHERE opportunity.status='open' AND ${openInPeriod}),0)::numeric AS weighted,
-      COALESCE(sum(opportunity.amount) FILTER (WHERE opportunity.status='won' AND ${wonInPeriod}),0)::numeric AS won,
-      COALESCE(sum(opportunity.amount) FILTER (WHERE opportunity.status='open' AND ${openInPeriod} AND opportunity.forecast_category='best_case'),0)::numeric AS best_case,
-      COALESCE(sum(opportunity.amount) FILTER (WHERE opportunity.status='open' AND ${openInPeriod} AND opportunity.forecast_category='committed'),0)::numeric AS commit_amount,
-      count(*) FILTER (WHERE opportunity.status='open' AND ${openInPeriod})::int AS open_deals,
-      count(*) FILTER (WHERE opportunity.status='won' AND ${wonInPeriod})::int AS won_deals
-    FROM tenant.crm_opportunities opportunity LEFT JOIN public.users user_account ON user_account.id=opportunity.owner_user_id
-    WHERE opportunity.organization_id=$1 AND ((opportunity.status='open' AND ${openInPeriod}) OR (opportunity.status='won' AND ${wonInPeriod}))
-      AND ${companyVisible("opportunity")} AND ${branchVisible("opportunity")} AND ${ownerVisibleForForecast("opportunity", "owner_user_id")}
-    GROUP BY opportunity.owner_user_id, user_account.full_name ORDER BY weighted DESC`;
-  }
   else if (report === "win-loss")
     // F026 — closed deals by outcome and recorded reason, for the deals won
     // or lost in the period (actual close date) that the caller may see.
@@ -315,49 +335,6 @@ export async function getCrmReport(client, context, report, filters = {}) {
     // org-level rollup the "campaigns" report above has no touch-sequence
     // data to produce.
     sql = `SELECT campaign.name, campaign.attribution_model, count(DISTINCT touchpoint.subject_id)::int AS leads_touched, count(touchpoint.id)::int AS touches, count(touchpoint.id) FILTER (WHERE touchpoint.event_type='converted')::int AS conversions, COALESCE(sum(touchpoint.revenue) FILTER (WHERE touchpoint.event_type='converted'),0)::numeric AS attributed_revenue, count(touchpoint.id) FILTER (WHERE touchpoint.rank_asc=1)::int AS first_touches, count(touchpoint.id) FILTER (WHERE touchpoint.rank_desc=1)::int AS last_touches FROM (SELECT raw.*, row_number() OVER (PARTITION BY raw.subject_id ORDER BY raw.event_at ASC) AS rank_asc, row_number() OVER (PARTITION BY raw.subject_id ORDER BY raw.event_at DESC) AS rank_desc FROM tenant.crm_marketing_touchpoints raw WHERE raw.organization_id=$1 AND raw.subject_type='lead' AND raw.campaign_id IS NOT NULL) touchpoint JOIN tenant.crm_campaigns campaign ON campaign.organization_id=$1 AND campaign.id=touchpoint.campaign_id WHERE campaign.organization_id=$1 ${dateClause("touchpoint.event_at")} AND ${companyVisible("campaign")} GROUP BY campaign.id, campaign.name, campaign.attribution_model ORDER BY attributed_revenue DESC`;
-  else if (report === "revenue-operations")
-    sql = `WITH opportunity_rollup AS (
-      SELECT opportunity.owner_user_id,
-        COALESCE(sum(opportunity.amount) FILTER (WHERE opportunity.status = 'open'),0)::numeric AS pipeline,
-        COALESCE(sum(opportunity.amount) FILTER (WHERE opportunity.status = 'open' AND opportunity.forecast_category = 'best_case'),0)::numeric AS best_case,
-        COALESCE(sum(opportunity.amount) FILTER (WHERE opportunity.status = 'open' AND opportunity.forecast_category = 'committed'),0)::numeric AS committed,
-        COALESCE(sum(opportunity.amount) FILTER (WHERE opportunity.status = 'won'),0)::numeric AS won,
-        count(*) FILTER (WHERE opportunity.status = 'won')::int AS won_deals,
-        count(*) FILTER (WHERE opportunity.status = 'lost')::int AS lost_deals,
-        avg(EXTRACT(epoch FROM (COALESCE(opportunity.actual_close_date::timestamptz, now()) - opportunity.created_at)) / 86400.0) FILTER (WHERE opportunity.status IN ('won','lost')) AS average_sales_cycle_days
-      FROM tenant.crm_opportunities opportunity
-      WHERE opportunity.organization_id = $1 ${dateClause("opportunity.created_at")}
-        AND ${companyVisible("opportunity")} AND ${branchVisible("opportunity")}
-        AND ${ownerVisible("opportunity", "owner_user_id")}
-      GROUP BY opportunity.owner_user_id
-    ), quota_rollup AS (
-      SELECT quota.user_id,
-        COALESCE(sum(quota.target_amount),0)::numeric AS quota
-      FROM tenant.crm_quota_plans quota
-      WHERE quota.organization_id = $1
-        AND quota.status IN ('active','closed')
-        AND ${companyVisible("quota")}
-        AND ($5::date IS NULL OR quota.period_end >= $5::date)
-        AND ($6::date IS NULL OR quota.period_start <= $6::date)
-        AND ($7::boolean OR quota.user_id IS NULL OR quota.user_id = $8)
-      GROUP BY quota.user_id
-    )
-    SELECT COALESCE(user_account.full_name,'Unassigned') AS owner,
-      COALESCE(quota_rollup.quota,0)::numeric AS quota,
-      COALESCE(opportunity_rollup.pipeline,0)::numeric AS pipeline,
-      COALESCE(opportunity_rollup.best_case,0)::numeric AS best_case,
-      COALESCE(opportunity_rollup.committed,0)::numeric AS committed,
-      COALESCE(opportunity_rollup.won,0)::numeric AS won,
-      CASE WHEN COALESCE(quota_rollup.quota,0) > 0 THEN round(COALESCE(opportunity_rollup.pipeline,0) / quota_rollup.quota, 2) ELSE NULL END AS pipeline_coverage,
-      CASE WHEN COALESCE(quota_rollup.quota,0) > 0 THEN round(COALESCE(opportunity_rollup.won,0) / quota_rollup.quota * 100, 2) ELSE NULL END AS quota_attainment_percent,
-      CASE WHEN COALESCE(opportunity_rollup.won_deals,0) + COALESCE(opportunity_rollup.lost_deals,0) > 0 THEN round(opportunity_rollup.won_deals::numeric / (opportunity_rollup.won_deals + opportunity_rollup.lost_deals) * 100, 2) ELSE NULL END AS win_rate_percent,
-      round(COALESCE(opportunity_rollup.average_sales_cycle_days,0)::numeric, 2) AS average_sales_cycle_days
-    FROM opportunity_rollup
-    FULL OUTER JOIN quota_rollup
-      ON COALESCE(quota_rollup.user_id, '00000000-0000-0000-0000-000000000000'::uuid)
-       = COALESCE(opportunity_rollup.owner_user_id, '00000000-0000-0000-0000-000000000000'::uuid)
-    LEFT JOIN public.users user_account ON user_account.id = COALESCE(opportunity_rollup.owner_user_id, quota_rollup.user_id)
-    ORDER BY won DESC, pipeline DESC`;
   else if (report === "account-health")
     sql = `SELECT party.display_name AS account, plan.account_tier, plan.lifecycle_stage, plan.health_status, plan.health_score, plan.annual_revenue, plan.potential_revenue, plan.renewal_date, plan.next_review_at FROM tenant.crm_account_plans plan JOIN tenant.business_parties party ON party.id = plan.party_id AND party.organization_id = plan.organization_id WHERE plan.organization_id = $1 AND plan.status = 'active' AND ${companyVisible("plan")} AND ${accountVisible("plan.party_id")} ORDER BY CASE plan.health_status WHEN 'critical' THEN 1 WHEN 'at_risk' THEN 2 WHEN 'watch' THEN 3 WHEN 'healthy' THEN 4 ELSE 5 END, plan.next_review_at NULLS LAST`;
   else if (report === "privacy")

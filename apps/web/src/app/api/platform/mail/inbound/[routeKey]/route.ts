@@ -1,4 +1,4 @@
-import { receiveInboundMail } from "@vercentlabs/api";
+import { readRequestBytes, receiveInboundMail } from "@vercentlabs/api";
 
 import { ingressTransaction, tenantTransaction } from "@/core/db";
 
@@ -13,7 +13,11 @@ export async function POST(
 ) {
   const { routeKey } = await context.params;
   try {
-    const rawBody = await request.text();
+    // Bounded at the transport (the domain's own 30 MB check ran only after
+    // the whole body was already in memory).
+    const rawBody = new TextDecoder().decode(
+      await readRequestBytes(request, 30 * 1024 * 1024),
+    );
     const result = await receiveInboundMail(
       {
         runPlatform: (work) => ingressTransaction(work),

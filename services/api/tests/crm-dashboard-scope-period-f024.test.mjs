@@ -39,14 +39,17 @@ test("F024: 'mine' restricts every owner-scoped figure to the caller, on top of 
   // "mine" narrows it to the caller (the rep-scoped shape is tested below).
   assert.match(metrics.sql, /\(\$5::boolean OR \(\$6::uuid IS NULL OR true\)\) AND lead\.owner_user_id = \$6/);
   assert.deepEqual(metrics.params.slice(6), ["2026-09-01", "2026-09-30", "2026-08-02", "2026-08-31"]);
-  assert.match(metrics.sql, /AND false AND .*AS unassigned_leads/s, "org-wide signals are suppressed outside the 'all' scope");
+  assert.match(metrics.sql, /owner_user_id IS NULL AND false\)::int AS unassigned_leads/, "org-wide signals are suppressed outside the 'all' scope");
 });
 
 test("F024: 'team' adds members of sales teams the caller manages, still within the permitted scope", async () => {
   const client = capture();
   await getCrmDashboard(client, rep, { scope: "team" });
   const sql = client.calls[0].sql;
-  assert.match(sql, /\(\$5::boolean OR \(\(opportunity\.owner_user_id IS NULL OR opportunity\.owner_user_id = \$6 OR EXISTS \(SELECT 1 FROM tenant\.crm_sales_team_members[\s\S]*?\)\)\)\) AND \(opportunity\.owner_user_id = \$6 OR opportunity\.owner_user_id IN \(SELECT member\.user_id FROM tenant\.crm_sales_team_members member/);
+  assert.match(sql, /\(\$5::boolean OR \(\(lead\.owner_user_id IS NULL OR lead\.owner_user_id = \$6 OR EXISTS \(SELECT 1 FROM tenant\.crm_sales_team_members[\s\S]*?\)\)\)\) AND \(lead\.owner_user_id = \$6 OR lead\.owner_user_id IN \(SELECT member\.user_id FROM tenant\.crm_sales_team_members member/);
+  // Opportunity figures come from the canonical fact set with the same team rule.
+  const facts = client.calls.find((call) => call.sql.includes("opportunity_facts"));
+  assert.match(facts.sql, /o\.owner_user_id IN \(SELECT member\.user_id FROM tenant\.crm_sales_team_members member/);
   assert.match(sql, /team\.manager_user_id = \$6/);
   assert.equal(client.calls[0].params[4], false, "a rep without view-all keeps the narrow permitted scope");
 });
@@ -55,11 +58,17 @@ test("F024: period figures (new leads, conversions, won, lost) and their previou
   const client = capture();
   await getCrmDashboard(client, viewAll, { from: "2026-07-01", to: "2026-09-30" });
   const sql = client.calls[0].sql;
-  for (const alias of ["leads_in_period", "leads_previous_period", "conversions_in_period", "won_in_period", "won_amount_in_period", "won_amount_previous_period", "lost_in_period", "lost_previous_period", "overdue_tasks"])
+  for (const alias of ["leads_in_period", "leads_previous_period", "conversions_in_period", "overdue_tasks"])
     assert.match(sql, new RegExp(`AS ${alias}`));
-  assert.match(sql, /opportunity\.actual_close_date >= \$7::date AND opportunity\.actual_close_date < \$8::date \+ 1/);
+  // Won/lost come from the canonical metric layer: once for the period, once for its twin.
+  const metricCalls = client.calls.filter((call) => call.sql.includes("opportunity_facts") && call.sql.includes("AS won_amount"));
+  assert.equal(metricCalls.length, 2);
+  assert.match(metricCalls[0].sql, /f\.status='won' AND f\.actual_close_date BETWEEN \$\d+::date AND \$\d+::date/);
+  assert.ok(metricCalls[0].params.includes("2026-07-01") && metricCalls[0].params.includes("2026-09-30"));
+  assert.ok(metricCalls[1].params.includes("2026-06-30"), "the previous period ends the day before");
   assert.match(sql, /lead\.converted_at >= \$9::date AND lead\.converted_at < \$10::date \+ 1/);
-  assert.equal(client.calls[1].params.length, 6, "the stage/source/activity queries bind only the parameters they reference");
+  const sourcesCall = client.calls.find((call) => call.sql.includes("crm_lead_sources source") && !call.sql.includes("opportunity_facts"));
+  assert.equal(sourcesCall.params.length, 6, "the source/activity queries bind only the parameters they reference");
 });
 
 test("F024: record-list drill-down honours ownerId=team, closed (won+lost), and the period date ranges", () => {

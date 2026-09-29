@@ -14,7 +14,6 @@ import {
 
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
-import { toNumber } from "@/features/crm/shared/format";
 import { formatDate, formatMoney } from "@/shared/format/human";
 import {
   ActivityGroups,
@@ -23,10 +22,16 @@ import {
 import { BarList } from "@/features/crm/shared/ui/BarList";
 import { LoadingState } from "@/shared/ui/LoadingState";
 import { ViewToggle } from "@/features/crm/shared/ui/ViewToggle";
+import { getCrmOptions } from "@/features/crm/shared/crm-options-api";
 import {
   CrmDashboardApiError,
   getCrmDashboardData,
 } from "../api/dashboard-api";
+import {
+  getPipelineDashboard,
+  type PipelineFilters,
+} from "../api/analytics-api";
+import { MetricDrilldownDialog } from "../components/MetricDrilldownDialog";
 import type { CrmDashboardActivity, CrmDashboardScope } from "../types";
 
 function activityHref(activity: CrmDashboardActivity): string | null {
@@ -103,6 +108,7 @@ type Kpi = {
   label: string;
   value: string;
   href?: string;
+  onSelect?: () => void;
   change?: ReturnType<typeof change>;
 };
 
@@ -137,11 +143,12 @@ function KpiTile({
   );
   const className =
     "flex flex-col gap-1 rounded-[var(--radius-card)] border border-border bg-surface p-4 text-left";
-  if (!kpi.href) return <div className={className}>{body}</div>;
+  if (!kpi.href && !kpi.onSelect)
+    return <div className={className}>{body}</div>;
   return (
     <button
       type="button"
-      onClick={() => onOpen(kpi.href!)}
+      onClick={() => (kpi.onSelect ? kpi.onSelect() : onOpen(kpi.href!))}
       className={`${className} hover:border-brand hover:bg-surface-muted`}
       aria-label={`${kpi.label}: ${kpi.value}. Open the records behind this figure`}
     >
@@ -198,6 +205,61 @@ export function CrmDashboardScreen() {
 
   const dashboard = query.data?.dashboard;
 
+  // F024 pipeline filters (URL state). Opportunity figures, their breakdown
+  // and drill-downs come from the canonical analytics endpoint.
+  const filterKeys = [
+    "pipelineId",
+    "stageId",
+    "teamId",
+    "territoryId",
+    "ownerId",
+    "sourceId",
+  ] as const;
+  const pipelineFilters: PipelineFilters = {
+    from: range.from,
+    to: range.to,
+    scope,
+    ...Object.fromEntries(
+      filterKeys
+        .map((key) => [key, searchParams.get(key) ?? ""])
+        .filter(([, value]) => value),
+    ),
+  };
+  const analytics = useQuery({
+    queryKey: scopedQueryKey(
+      workspace,
+      "crm",
+      "analytics",
+      "pipeline",
+      JSON.stringify(pipelineFilters),
+    ),
+    queryFn: () => getPipelineDashboard(pipelineFilters),
+    placeholderData: (previous) => previous,
+  });
+  const options = useQuery({
+    queryKey: scopedQueryKey(workspace, "crm", "options"),
+    queryFn: () => getCrmOptions(),
+  });
+  const optionList = (key: string, empty: string) => [
+    { value: "", label: empty },
+    ...(options.data?.options[key] ?? []).map((row) => ({
+      value: String(row.id),
+      label: String(row.name ?? row.fullName ?? row.label ?? row.id),
+    })),
+  ];
+  const [drill, setDrill] = useState<{
+    metric: string;
+    title: string;
+    filters: PipelineFilters;
+  } | null>(null);
+  const openDrill = (
+    metric: string,
+    title: string,
+    extra: Partial<PipelineFilters> = {},
+  ) => setDrill({ metric, title, filters: { ...pipelineFilters, ...extra } });
+  const pipeline = analytics.data;
+  const reportingCurrency = pipeline?.currency.reportingCurrency ?? null;
+
   const view = useMemo(() => {
     if (!dashboard) return null;
     const { metrics, period } = dashboard;
@@ -216,65 +278,10 @@ export function CrmDashboardScreen() {
         : dashboard.scope === "team"
           ? "&myTeam=true"
           : "&mine=false";
-    const closed = metrics.wonInPeriod + metrics.lostInPeriod;
-    const winRate =
-      closed > 0 ? Math.round((metrics.wonInPeriod / closed) * 100) : null;
-    const previousClosed =
-      metrics.wonPreviousPeriod + metrics.lostPreviousPeriod;
-    const previousWinRate =
-      previousClosed > 0
-        ? Math.round((metrics.wonPreviousPeriod / previousClosed) * 100)
-        : null;
     const periodQuery = (fromKey: string, toKey: string) =>
       `${fromKey}=${period.from}&${toKey}=${period.to}`;
 
     const kpis: Kpi[] = [
-      {
-        id: "pipeline",
-        label: "Open pipeline",
-        value: formatMoney(cur, metrics.pipelineValue, { compact: true }),
-        href: withOwner("/crm/opportunities?status=open"),
-        change: {
-          direction: "flat",
-          label: `${formatMoney(cur, metrics.weightedPipeline, { compact: true })} weighted · ${metrics.openOpportunities} open deals`,
-          isPositive: true,
-        },
-      },
-      {
-        id: "won",
-        label: "Won in period",
-        value: formatMoney(cur, metrics.wonAmountInPeriod, { compact: true }),
-        href: withOwner(
-          `/crm/opportunities?status=won&${periodQuery("closedFrom", "closedTo")}`,
-        ),
-        change: change(
-          toNumber(metrics.wonAmountInPeriod),
-          toNumber(metrics.wonAmountPreviousPeriod),
-          `${metrics.wonInPeriod} deal${metrics.wonInPeriod === 1 ? "" : "s"} · was ${formatMoney(cur, metrics.wonAmountPreviousPeriod, { compact: true })}`,
-        ),
-      },
-      {
-        id: "win-rate",
-        label: "Win rate",
-        value: winRate === null ? "No closed deals" : `${winRate}%`,
-        href: withOwner(
-          `/crm/opportunities?status=closed&${periodQuery("closedFrom", "closedTo")}`,
-        ),
-        change:
-          winRate === null
-            ? undefined
-            : {
-                direction:
-                  previousWinRate === null || winRate === previousWinRate
-                    ? "flat"
-                    : winRate > previousWinRate
-                      ? "up"
-                      : "down",
-                label: `${metrics.wonInPeriod} won · ${metrics.lostInPeriod} lost${previousWinRate === null ? "" : ` · was ${previousWinRate}%`}`,
-                isPositive:
-                  previousWinRate === null || winRate >= previousWinRate,
-              },
-      },
       {
         id: "new-leads",
         label: "New leads",
@@ -322,13 +329,6 @@ export function CrmDashboardScreen() {
         href: `/crm/tasks?due=overdue${taskScope}`,
         hint: "Tasks past their due time",
         urgent: true,
-      },
-      {
-        id: "stalled",
-        label: "Stalled opportunities",
-        count: metrics.stalledOpportunities,
-        href: withOwner("/crm/opportunities?stalled=true"),
-        hint: "Open deals past their stage's time limit",
       },
       {
         id: "dwell",
@@ -395,7 +395,89 @@ export function CrmDashboardScreen() {
     );
   }
   if (!dashboard || !view) return null;
-  const { stages, sources, activities } = dashboard;
+  const { sources, activities } = dashboard;
+  const m = pipeline?.metrics ?? {};
+  const money = (key: string) =>
+    formatMoney(reportingCurrency, m[key] ?? 0, { compact: true });
+  const count = (key: string) => (m[key] ?? 0).toLocaleString("en-IN");
+  const pipelineKpis: Kpi[] = pipeline
+    ? (
+        [
+          {
+            id: "open_pipeline",
+            label: "Open pipeline",
+            value: money("open_pipeline"),
+            change: {
+              direction: "flat",
+              label: `${count("open_opportunities")} open deals`,
+              isPositive: true,
+            },
+          },
+          {
+            id: "weighted_pipeline",
+            label: "Weighted pipeline",
+            value: money("weighted_pipeline"),
+          },
+          {
+            id: "closing_in_period",
+            label: "Closing in period",
+            value: money("closing_in_period"),
+            change: {
+              direction: "flat",
+              label: `${money("weighted_closing")} weighted`,
+              isPositive: true,
+            },
+          },
+          { id: "commit", label: "Commit", value: money("commit") },
+          { id: "best_case", label: "Best case", value: money("best_case") },
+          {
+            id: "won_amount",
+            label: "Won in period",
+            value: money("won_amount"),
+            change: {
+              direction: "flat",
+              label: `${count("won_count")} deals`,
+              isPositive: true,
+            },
+          },
+          {
+            id: "win_rate",
+            label: "Win rate",
+            value:
+              m.win_rate === null || m.win_rate === undefined
+                ? "No closed deals"
+                : `${m.win_rate}%`,
+            change: {
+              direction: "flat",
+              label: `${count("won_count")} won · ${count("lost_count")} lost`,
+              isPositive: true,
+            },
+          },
+          {
+            id: "lost_amount",
+            label: "Lost in period",
+            value: money("lost_amount"),
+          },
+        ] as Kpi[]
+      ).map((kpi) => ({ ...kpi, onSelect: () => openDrill(kpi.id, kpi.label) }))
+    : [];
+  const pipelineAttention = pipeline
+    ? [
+        {
+          id: "stalled_opportunities",
+          label: "Stalled opportunities",
+          count: m.stalled_opportunities ?? 0,
+          hint: "Open deals past their stage's time limit",
+        },
+        {
+          id: "unassigned_opportunities",
+          label: "Unassigned opportunities",
+          count: m.unassigned_opportunities ?? 0,
+          hint: "Open deals nobody owns",
+        },
+      ].filter((item) => item.count > 0)
+    : [];
+  const quota = pipeline?.quota;
   const activityRows: ActivityRow[] = activities.map((a) => ({
     id: a.id,
     activityType: a.activityType,
@@ -482,6 +564,115 @@ export function CrmDashboardScreen() {
         </p>
       </section>
 
+      <section
+        aria-label="Pipeline filters"
+        className="grid grid-cols-1 gap-3 rounded-[var(--radius-card)] border border-border bg-surface p-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6"
+      >
+        {(
+          [
+            ["pipelineId", "Pipeline", "pipelines", "All pipelines"],
+            ["stageId", "Stage", "stages", "All stages"],
+            ["teamId", "Sales team", "salesTeams", "All teams"],
+            ["territoryId", "Territory", "territories", "All territories"],
+            ["ownerId", "Owner", "users", "All owners"],
+            ["sourceId", "Source", "sources", "All sources"],
+          ] as const
+        ).map(([key, label, optionKey, empty]) => (
+          <Select
+            key={key}
+            label={label}
+            options={
+              key === "ownerId"
+                ? [
+                    ...optionList(optionKey, empty),
+                    { value: "unassigned", label: "Unassigned" },
+                  ]
+                : optionList(optionKey, empty)
+            }
+            selectedKey={searchParams.get(key) ?? ""}
+            onSelectionChange={(value) =>
+              setParams({ [key]: value ? String(value) : null })
+            }
+          />
+        ))}
+      </section>
+
+      {analytics.isError ? (
+        <ErrorState
+          title="Could not load pipeline figures"
+          action={{ label: "Retry", onPress: () => analytics.refetch() }}
+        />
+      ) : (
+        <section aria-label="Pipeline" className="flex flex-col gap-3">
+          <div className="flex flex-wrap items-baseline justify-between gap-2">
+            <h2 className="text-sm font-semibold text-text">Pipeline</h2>
+            <span className="text-xs text-text-muted" role="status">
+              {pipeline
+                ? `Amounts in ${reportingCurrency ?? "the reporting currency"}. Every figure opens its records.`
+                : "Loading pipeline figures…"}
+            </span>
+          </div>
+          {pipeline && pipeline.currency.unconvertedCount > 0 && (
+            <p
+              className="rounded-[var(--radius-control)] border border-border bg-surface-muted px-3 py-2 text-sm text-text"
+              role="note"
+            >
+              {`${pipeline.currency.unconvertedCount} deal(s) in ${pipeline.currency.unconvertedCurrencies.join(", ")} have no exchange rate to ${reportingCurrency} and are left out of the totals. Add the rate under exchange rates to include them.`}
+            </p>
+          )}
+          <div className="grid grid-cols-[repeat(auto-fit,minmax(165px,1fr))] gap-3">
+            {pipelineKpis.map((kpi) => (
+              <KpiTile
+                key={kpi.id}
+                kpi={kpi}
+                onOpen={(href) => router.push(href)}
+              />
+            ))}
+          </div>
+          {quota && (
+            <div className="flex flex-wrap gap-6 rounded-[var(--radius-card)] border border-border bg-surface p-4 text-sm">
+              {!quota.available ? (
+                <span className="text-text-secondary">
+                  Quota for this scope is visible to sales managers. Choose
+                  &quot;Mine&quot; to see your own.
+                </span>
+              ) : quota.quota === null ? (
+                <span className="text-text-secondary">
+                  No quota is set for this scope and period.
+                </span>
+              ) : (
+                <>
+                  <QuotaFigure
+                    label="Quota"
+                    value={formatMoney(reportingCurrency, quota.quota)}
+                  />
+                  <QuotaFigure
+                    label="Attainment"
+                    value={
+                      quota.attainmentPercent === null
+                        ? "—"
+                        : `${quota.attainmentPercent}%`
+                    }
+                  />
+                  <QuotaFigure
+                    label="Remaining"
+                    value={formatMoney(reportingCurrency, quota.remaining)}
+                  />
+                  <QuotaFigure
+                    label="Pipeline coverage of remaining"
+                    value={
+                      quota.coverageRatio === null
+                        ? "—"
+                        : `${quota.coverageRatio}×`
+                    }
+                  />
+                </>
+              )}
+            </div>
+          )}
+        </section>
+      )}
+
       <div className="grid grid-cols-[repeat(auto-fit,minmax(165px,1fr))] gap-3">
         {view.kpis.map((kpi) => (
           <KpiTile
@@ -504,12 +695,31 @@ export function CrmDashboardScreen() {
             Each item opens the exact list behind its number.
           </span>
         </div>
-        {view.attention.length === 0 ? (
+        {view.attention.length === 0 && pipelineAttention.length === 0 ? (
           <p className="text-sm text-text-secondary">
             Nothing needs attention right now.
           </p>
         ) : (
           <ul className="grid grid-cols-1 gap-2 md:grid-cols-2 lg:grid-cols-3">
+            {pipelineAttention.map((item) => (
+              <li key={item.id}>
+                <button
+                  type="button"
+                  onClick={() => openDrill(item.id, item.label)}
+                  className="flex w-full items-start justify-between gap-3 rounded-[var(--radius-control)] border border-border px-3 py-2 text-left hover:bg-surface-muted"
+                >
+                  <span className="flex flex-col">
+                    <span className="text-sm font-medium text-text">
+                      {item.label}
+                    </span>
+                    <span className="text-xs text-text-muted">{item.hint}</span>
+                  </span>
+                  <span className="text-xl font-semibold tabular-nums text-text">
+                    {item.count.toLocaleString("en-IN")}
+                  </span>
+                </button>
+              </li>
+            ))}
             {view.attention.map((item) => (
               <li key={item.id}>
                 <button
@@ -536,15 +746,22 @@ export function CrmDashboardScreen() {
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <BarList
           title="Pipeline by stage"
-          description={`Open deals, by value (${view.cur ?? "your currency"})`}
+          description={`Open deals by value in ${reportingCurrency ?? "your currency"}; the bars add up to Open pipeline`}
           emptyText="No open pipeline in this scope. Create an opportunity to see it here."
-          items={stages.map((stage) => ({
-            id: stage.id,
-            label: stage.name,
-            value: toNumber(stage.amount),
-            display: formatMoney(view.cur, stage.amount, { compact: true }),
-            secondary: `${stage.opportunityCount} deal${stage.opportunityCount === 1 ? "" : "s"}`,
-            href: view.withOwner(`/crm/opportunities?stageId=${stage.id}`),
+          items={(pipeline?.byStage ?? []).map((stage) => ({
+            id: stage.key ?? "none",
+            label: stage.label,
+            value: stage.value,
+            display: formatMoney(reportingCurrency, stage.value, {
+              compact: true,
+            }),
+            secondary: `${stage.count} deal${stage.count === 1 ? "" : "s"}`,
+            onSelect: stage.key
+              ? () =>
+                  openDrill("open_pipeline", `Open pipeline · ${stage.label}`, {
+                    stageId: stage.key!,
+                  })
+              : undefined,
           }))}
         />
         <BarList
@@ -573,6 +790,25 @@ export function CrmDashboardScreen() {
           emptyText="Nothing open right now."
         />
       </section>
+      <MetricDrilldownDialog
+        metric={drill?.metric ?? null}
+        title={drill?.title ?? ""}
+        filters={drill?.filters ?? pipelineFilters}
+        reportingCurrency={reportingCurrency}
+        isOpen={drill !== null}
+        onOpenChange={(open) => {
+          if (!open) setDrill(null);
+        }}
+      />
     </div>
+  );
+}
+
+function QuotaFigure({ label, value }: { label: string; value: string }) {
+  return (
+    <span className="flex flex-col">
+      <span className="text-xs text-text-muted">{label}</span>
+      <span className="font-semibold tabular-nums text-text">{value}</span>
+    </span>
   );
 }

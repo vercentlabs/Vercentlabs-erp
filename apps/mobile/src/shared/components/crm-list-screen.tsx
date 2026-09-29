@@ -1,5 +1,5 @@
 import { Ionicons } from "@expo/vector-icons";
-import { useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { Pressable, RefreshControl, Text, TextInput, View } from "react-native";
 import * as Crypto from "expo-crypto";
 import { router } from "expo-router";
@@ -12,6 +12,7 @@ import { QueryState, StatusPill } from "./crm-states";
 import { Screen } from "./screen";
 
 type Resource = "leads" | "opportunities" | "activities";
+const PAGE_SIZE = 50;
 const text = (row: Record<string, unknown>, keys: string[]) =>
   keys
     .map((key) => row[key])
@@ -46,11 +47,34 @@ export function CrmListScreen({
 }) {
   const { colors, radii, spacing, type } = useTheme();
   const [search, setSearch] = useState("");
+  const [term, setTerm] = useState("");
   const [status, setStatus] = useState("all");
-  const query = useCrmQuery(`${resource}:recent`, () =>
-    mobileApi.listCrm(resource, { limit: 100 }),
+  // Server-side search and paging: large lists are never loaded (or
+  // rendered) in one piece. The first page is cached for offline use.
+  useEffect(() => {
+    const handle = setTimeout(() => setTerm(search.trim()), 350);
+    return () => clearTimeout(handle);
+  }, [search]);
+  const query = useCrmQuery(`${resource}:recent:${term}`, () =>
+    mobileApi.listCrm(resource, { limit: PAGE_SIZE, offset: 0, search: term || undefined }),
   );
-  const rows = useMemo(() => query.data?.rows ?? [], [query.data?.rows]);
+  const [more, setMore] = useState<{ key: string; rows: Record<string, unknown>[] }>({ key: "", rows: [] });
+  const [loadingMore, setLoadingMore] = useState(false);
+  const pageKey = `${resource}:${term}`;
+  const rows = useMemo(
+    () => [...(query.data?.rows ?? []), ...(more.key === pageKey ? more.rows : [])],
+    [query.data?.rows, more, pageKey],
+  );
+  const total = query.data?.total ?? rows.length;
+  async function loadMore() {
+    setLoadingMore(true);
+    try {
+      const page = await mobileApi.listCrm(resource, { limit: PAGE_SIZE, offset: rows.length, search: term || undefined });
+      setMore((current) => ({ key: pageKey, rows: [...(current.key === pageKey ? current.rows : []), ...page.rows] }));
+    } finally {
+      setLoadingMore(false);
+    }
+  }
   const statuses = useMemo(
     () =>
       [
@@ -66,13 +90,10 @@ export function CrmListScreen({
   const visible = useMemo(
     () =>
       rows.filter((row) => {
-        const haystack = JSON.stringify(row).toLowerCase();
-        const matchesSearch =
-          !search.trim() || haystack.includes(search.trim().toLowerCase());
         const rowStatus = String(row.status ?? row.priority ?? "active");
-        return matchesSearch && (status === "all" || rowStatus === status);
+        return status === "all" || rowStatus === status;
       }),
-    [rows, search, status],
+    [rows, status],
   );
   async function complete(row: Record<string, unknown>) {
     const id = String(row.id);
@@ -196,7 +217,7 @@ export function CrmListScreen({
             marginBottom: spacing.md,
           }}
         >
-          {visible.length} of {query.data?.total ?? rows.length} records
+          {visible.length} shown · {total} records
         </Text>
       ) : null}
       {query.isOfflineFallback ? (
@@ -329,6 +350,28 @@ export function CrmListScreen({
           );
         })}
       </View>
+      {rows.length < total ? (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={`Load more ${title.toLowerCase()}`}
+          disabled={loadingMore}
+          onPress={() => void loadMore()}
+          style={{
+            minHeight: 48,
+            marginTop: spacing.md,
+            alignItems: "center",
+            justifyContent: "center",
+            borderRadius: radii.md,
+            borderWidth: 1,
+            borderColor: colors.border,
+            backgroundColor: colors.surface,
+          }}
+        >
+          <Text style={{ ...type.body, color: colors.text }}>
+            {loadingMore ? "Loading…" : `Load more (${total - rows.length} left)`}
+          </Text>
+        </Pressable>
+      ) : null}
     </Screen>
   );
 }

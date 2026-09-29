@@ -96,9 +96,19 @@ function quotaValue(
 export function SalesOrganizationSettingsScreen() {
   const workspace = useWorkspaceContext();
   const queryClient = useQueryClient();
-  const canManage = workspace.permissions.includes(
-    CRM_PERMISSIONS.settingsManage,
+  // F020: team structure, territory structure and targets are separate
+  // authorities; the screen opens for any of them and each section's actions
+  // follow its own permission (the server enforces the same map).
+  const canManageTeams = workspace.permissions.includes(
+    CRM_PERMISSIONS.teamsManage,
   );
+  const canManageTerritories = workspace.permissions.includes(
+    CRM_PERMISSIONS.territoriesManage,
+  );
+  const canManageQuotas = workspace.permissions.includes(
+    CRM_PERMISSIONS.forecastManage,
+  );
+  const canManage = canManageTeams || canManageTerritories || canManageQuotas;
 
   const [teamDialogOpen, setTeamDialogOpen] = useState(false);
   const [editingTeam, setEditingTeam] = useState<SalesTeam | null>(null);
@@ -452,8 +462,8 @@ export function SalesOrganizationSettingsScreen() {
   if (!canManage)
     return (
       <PermissionState
-        title="You don't have access to CRM Setup"
-        description="Ask an administrator to grant crm.settings.manage."
+        title="You don't have access to sales structure setup"
+        description="Ask an administrator for team, territory or quota management."
       />
     );
 
@@ -477,7 +487,7 @@ export function SalesOrganizationSettingsScreen() {
           primaryAction: (
             <Button
               variant="primary"
-              isDisabled={!optionsReady}
+              isDisabled={!optionsReady || !canManageTeams}
               onPress={() => setTeamDialogOpen(true)}
             >
               <Plus className="size-4" aria-hidden="true" />
@@ -540,7 +550,7 @@ export function SalesOrganizationSettingsScreen() {
           primaryAction: (
             <Button
               variant="primary"
-              isDisabled={!optionsReady}
+              isDisabled={!optionsReady || !canManageTerritories}
               onPress={() => setTerritoryDialogOpen(true)}
             >
               <Plus className="size-4" aria-hidden="true" />
@@ -604,7 +614,7 @@ export function SalesOrganizationSettingsScreen() {
           primaryAction: (
             <Button
               variant="primary"
-              isDisabled={!optionsReady}
+              isDisabled={!optionsReady || !canManageQuotas}
               onPress={() => setQuotaDialogOpen(true)}
             >
               <Plus className="size-4" aria-hidden="true" />

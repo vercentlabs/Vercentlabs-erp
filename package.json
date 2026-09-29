@@ -105,6 +105,7 @@
     "verify:shared-runtime": "node scripts/validation/verify-shared-runtime.mjs && node --test services/api/tests/shared-runtime/*.test.mjs",
     "test:e2e:shared-runtime": "npx --yes pnpm@11.21.0 --filter @vercentlabs/web test:e2e:shared-runtime",
     "test:platform-services:db": "node scripts/platform-services/run-db-tests.mjs",
+    "test:crm:db": "node scripts/crm/run-db-tests.mjs",
     "verify:platform-services": "node scripts/validation/verify-platform-services.mjs && node --test services/api/tests/platform-services/*.test.mjs services/api/tests/platform-configuration.test.mjs services/api/tests/platform-privacy.test.mjs packages/document-engine/tests/*.test.mjs",
     "test:e2e:platform-services": "npx --yes pnpm@11.21.0 --filter @vercentlabs/web test:e2e:platform-services",
     "db:manifest": "node scripts/database/generate-migration-manifest.mjs",

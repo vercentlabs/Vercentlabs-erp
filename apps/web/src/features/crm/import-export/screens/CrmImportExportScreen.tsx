@@ -7,6 +7,7 @@ import {
   Button,
   IconButton,
   PageHeader,
+  ProgressBar,
   Select,
   StatusBadge,
   Table,
@@ -26,6 +27,8 @@ import { ImportStepper } from "@/features/crm/shared/ui/ImportStepper";
 import { ViewToggle } from "@/features/crm/shared/ui/ViewToggle";
 import {
   commitLeadImportRequest,
+  getLeadImportBatchRequest,
+  leadImportErrorsUrl,
   getLeadExportJobRequest,
   ImportExportApiError,
   leadExportDownloadUrl,
@@ -225,6 +228,41 @@ export function CrmImportExportScreen() {
           : "The import could not be completed. Nothing further was changed.",
       ),
   });
+
+  // F021: a large import runs in the background; follow it until it ends.
+  const TERMINAL = [
+    "completed",
+    "completed_with_errors",
+    "failed",
+    "rolled_back",
+  ];
+  const progressQuery = useQuery({
+    queryKey: scopedQueryKey(
+      workspace,
+      "crm",
+      "leads",
+      "import-progress",
+      preview?.batch.id ?? "",
+    ),
+    queryFn: () => getLeadImportBatchRequest(preview!.batch.id),
+    enabled:
+      step === "results" &&
+      Boolean(preview) &&
+      ["queued", "processing", "committing"].includes(
+        preview?.batch.status ?? "",
+      ),
+    refetchInterval: (current) =>
+      TERMINAL.includes(current.state.data?.batch.status ?? "") ? false : 2000,
+  });
+  const resultBatch =
+    progressQuery.data?.batch &&
+    progressQuery.data.batch.id === preview?.batch.id
+      ? progressQuery.data.batch
+      : preview?.batch;
+  const running =
+    step === "results" &&
+    Boolean(resultBatch) &&
+    !TERMINAL.includes(resultBatch?.status ?? "");
 
   const rollbackMutation = useMutation({
     mutationFn: () => rollbackLeadImportRequest(preview!.batch.id),
@@ -475,7 +513,8 @@ export function CrmImportExportScreen() {
                   Drop a CSV file here
                 </p>
                 <p className="text-xs text-text-muted">
-                  The first row must be column names. Up to 5,000 rows.
+                  The first row must be column names. Up to 50,000 rows (20 MB);
+                  large files import in the background.
                 </p>
                 <input
                   ref={fileInputRef}
@@ -843,32 +882,45 @@ export function CrmImportExportScreen() {
                   <div className="flex items-center gap-2">
                     <StatusBadge
                       tone={
-                        preview.batch.status === "completed"
+                        resultBatch!.status === "completed"
                           ? "success"
-                          : "warning"
+                          : running
+                            ? "info"
+                            : "warning"
                       }
                     >
-                      {preview.batch.status}
+                      {humanize(resultBatch!.status)}
                     </StatusBadge>
-                    <span className="text-sm text-text">Import finished.</span>
+                    <span className="text-sm text-text">
+                      {running
+                        ? "Importing in the background. You can leave this page; the import continues."
+                        : "Import finished."}
+                    </span>
                   </div>
+                  {running && (
+                    <ProgressBar
+                      label="Rows processed"
+                      value={progressQuery.data?.progress.percent ?? 0}
+                      valueLabel={`${progressQuery.data?.progress.processed ?? 0} of ${progressQuery.data?.progress.total ?? resultBatch!.valid_rows}`}
+                    />
+                  )}
                   <dl className="grid grid-cols-3 gap-3">
                     <div className="rounded-[var(--radius-control)] border border-border p-3">
                       <dt className="text-xs text-text-muted">Created</dt>
                       <dd className="text-xl font-semibold tabular-nums text-text">
-                        {preview.batch.created_rows ?? 0}
+                        {resultBatch!.created_rows ?? 0}
                       </dd>
                     </div>
                     <div className="rounded-[var(--radius-control)] border border-border p-3">
                       <dt className="text-xs text-text-muted">Updated</dt>
                       <dd className="text-xl font-semibold tabular-nums text-text">
-                        {preview.batch.updated_rows ?? 0}
+                        {resultBatch!.updated_rows ?? 0}
                       </dd>
                     </div>
                     <div className="rounded-[var(--radius-control)] border border-border p-3">
                       <dt className="text-xs text-text-muted">Skipped</dt>
                       <dd className="text-xl font-semibold tabular-nums text-text">
-                        {preview.batch.skipped_rows ?? 0}
+                        {resultBatch!.skipped_rows ?? 0}
                       </dd>
                     </div>
                   </dl>
@@ -878,7 +930,16 @@ export function CrmImportExportScreen() {
                 <Button variant="primary" onPress={reset}>
                   Import another file
                 </Button>
-                {!rollbackResult && (
+                {(resultBatch!.invalid_rows > 0 ||
+                  (resultBatch!.failed_rows ?? 0) > 0) && (
+                  <a
+                    href={leadImportErrorsUrl(resultBatch!.id)}
+                    className="inline-flex h-[var(--control-height-standard)] items-center rounded-[var(--radius-control)] border border-border px-4 text-sm font-medium text-text hover:bg-surface-muted"
+                  >
+                    Download rejected rows
+                  </a>
+                )}
+                {!rollbackResult && !running && (
                   <Button
                     variant="secondary"
                     onPress={() => setConfirmRollback(true)}

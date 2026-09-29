@@ -30,7 +30,17 @@ export function buildSearch(
       ? leadSearchColumnsForContext(context, definition.search)
       : definition.search;
   if (!columns.length) return "";
-  const parameter = addParameter(parameters, `%${value}%`);
+  const escaped = value.replaceAll("\\", "\\\\").replaceAll("%", "\\%").replaceAll("_", "\\_");
+  // Leads: one lower-cased text over the searchable columns, matched by the
+  // trigram indexes of migrations 190/191.
+  if (definition.table === "tenant.crm_leads") {
+    const parameter = addParameter(parameters, `%${escaped.toLowerCase()}%`);
+    // Ids come from the index-backed tenant.crm_lead_search_ids (migration 191);
+    // with contact details only when the caller may see them.
+    const withContactDetails = columns.includes("email");
+    return ` AND ${alias}.id IN (SELECT tenant.crm_lead_search_ids(${parameter}, ${withContactDetails}))`;
+  }
+  const parameter = addParameter(parameters, `%${escaped}%`);
   return ` AND (${columns.map((column) => `COALESCE(${alias}.${column}::text, '') ILIKE ${parameter}`).join(" OR ")})`;
 }
 

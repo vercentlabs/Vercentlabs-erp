@@ -24,10 +24,12 @@ export const SELF_SCOPED_CRM_RESOURCES = new Set<string>([]);
 export const RESOURCE_MANAGE_PERMISSIONS: Partial<Record<string, string>> = {
   leads: CRM_PERMISSIONS.leadsManage,
   opportunities: CRM_PERMISSIONS.opportunitiesManage,
-  "sales-teams": CRM_PERMISSIONS.settingsManage,
-  "sales-team-members": CRM_PERMISSIONS.settingsManage,
-  territories: CRM_PERMISSIONS.settingsManage,
-  "territory-assignments": CRM_PERMISSIONS.settingsManage,
+  // F020: team structure and territory structure are separate authorities
+  // (crm.teams.manage / crm.territories.manage), no longer crm.settings.manage.
+  "sales-teams": CRM_PERMISSIONS.teamsManage,
+  "sales-team-members": CRM_PERMISSIONS.teamsManage,
+  territories: CRM_PERMISSIONS.territoriesManage,
+  "territory-assignments": CRM_PERMISSIONS.territoriesManage,
   tags: CRM_PERMISSIONS.settingsManage,
   "custom-object-definitions": CRM_PERMISSIONS.settingsManage,
   "custom-field-definitions": CRM_PERMISSIONS.settingsManage,
@@ -49,8 +51,11 @@ export const RESOURCE_MANAGE_PERMISSIONS: Partial<Record<string, string>> = {
   // this resource already has ownerField scoping (see its own registry
   // comment), so a plain manage permission plus that scoping is the
   // correct floor for a rep submitting their own forecast.
-  "forecast-periods": CRM_PERMISSIONS.settingsManage,
-  "forecast-submissions": CRM_PERMISSIONS.opportunitiesManage,
+  // F025 completion: period governance and submission are explicit forecast
+  // permissions (submissions are also governed by the forecast service's
+  // lifecycle and immutability rules).
+  "forecast-periods": CRM_PERMISSIONS.forecastManage,
+  "forecast-submissions": CRM_PERMISSIONS.forecastSubmit,
   // Stage A2 §5 (F014) — meeting-links config (availability/duration/
   // buffers/provider) is what a public booking page is generated from,
   // so only settings-manage should create/edit one.
@@ -58,7 +63,8 @@ export const RESOURCE_MANAGE_PERMISSIONS: Partial<Record<string, string>> = {
   // Stage A2 §8 (F020) — quota-plans configuration (team/territory/user
   // target amounts) is a settings-manage concern, same as territories
   // themselves.
-  "quota-plans": CRM_PERMISSIONS.settingsManage,
+  // F020/F025 completion: targets are governed with forecast periods.
+  "quota-plans": CRM_PERMISSIONS.forecastManage,
   // Consent/GDPR module — crm_consent_events (immutable evidence log) and
   // crm_privacy_requests (the DSR queue) already have a full backend
   // (account-intelligence.js's preview/executePrivacyRequest and friends)

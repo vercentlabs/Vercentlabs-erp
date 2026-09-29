@@ -7,15 +7,18 @@ import {
 } from "@vercentlabs/api";
 
 import { tenantTransaction, withIngressClient } from "@/core/db";
+import { enforcePublicRateLimits } from "@/core/public-rate-limit";
 import { errorResponse, ok, readJson } from "@/core/http";
+import { publicMeetingLimits } from "@/features/crm/public-booking/public-limits";
 
 type RouteContext = { params: Promise<{ token: string }> };
 
 // F014 manage-booking page. Public by design: the per-booking token (resolved
 // by tenant.crm_public_meeting_booking, no context) says which action it
 // authorizes (token_type), so the UI never has to guess.
-export async function GET(_request: Request, context: RouteContext) {
+export async function GET(request: Request, context: RouteContext) {
   try {
+    await enforcePublicRateLimits(request, publicMeetingLimits.view());
     const { token } = await context.params;
     const booking = await withIngressClient((client) =>
       resolvePublicMeetingBooking(client, token),
@@ -34,6 +37,7 @@ export async function GET(_request: Request, context: RouteContext) {
 export async function PATCH(request: Request, context: RouteContext) {
   try {
     const { token } = await context.params;
+    await enforcePublicRateLimits(request, publicMeetingLimits.manage(token));
     const booking = await withIngressClient((client) =>
       resolvePublicMeetingBooking(client, token),
     );
