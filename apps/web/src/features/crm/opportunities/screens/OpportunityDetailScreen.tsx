@@ -690,7 +690,14 @@ export function OpportunityDetailScreen({
                         setOutcomeReasonId("");
                       }}
                       className="max-w-[260px]"
-                      placeholder="Choose a stage"
+                      // Stages arrive with the CRM options; an empty picker
+                      // would open to nothing.
+                      isDisabled={stageOptions.length === 0}
+                      placeholder={
+                        optionsQuery.isLoading
+                          ? "Loading stages…"
+                          : "Choose a stage"
+                      }
                     />
                     {pendingStageId && requiresOutcome && (
                       <>

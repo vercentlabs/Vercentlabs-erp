@@ -3160,3 +3160,25 @@ is process hygiene for a future pass, not a defect this pass introduced or
 is responsible for fixing blind — an update-snapshots run should be
 reviewed by a human to confirm each changed baseline reflects an
 *intentional* visual change, not silently accepted wholesale.
+
+## Q — CRM F001–F030 completion pass (2026-09-29)
+
+Earlier sections are kept as history. This pass re-audited F001–F030 from the
+code (claims above were treated as claims) and closed the gaps listed in
+`CRM_F001_F030_COMPLETION_MATRIX.md` Part 1. Items this register previously
+recorded as deferred and now resolved:
+
+- F021: synchronous single-transaction import replaced by resumable worker
+  jobs with progress and rejected-row download.
+- F024: dashboard, reports and forecast now share one canonical,
+  currency-converted metric layer; drill-downs are the KPI's own population.
+- F025: forecast snapshots are written (scheduled, on freeze/close, on
+  demand) and immutable; review history and period locks are governed.
+- F030: scheduled reports exist (shared reporting, per-recipient authority);
+  the inert `crm_report_definitions`/`crm_dashboards`/`crm_dashboard_widgets`
+  tables are retired by tenant contract 003.
+- §P.6 (visual-baseline failures of `test:e2e:erp`) was not revisited in this
+  pass; the CI critical journeys were run against a production build instead.
+
+Closing state, evidence and remaining risks: `CRM_F001_F030_COMPLETION_MATRIX.md`
+Part 2. Human UAT: `CRM_UAT_F001_F030.md` (pending).

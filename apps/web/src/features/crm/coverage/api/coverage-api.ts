@@ -74,7 +74,11 @@ export type SalesCoverage = {
   gaps: CoverageGap[];
   quota:
     | { available: false; reason: string }
-    | { available: true; quota: number | null; attainmentPercent: number | null };
+    | {
+        available: true;
+        quota: number | null;
+        attainmentPercent: number | null;
+      };
   permissions: {
     manageTeams: boolean;
     manageTerritories: boolean;
@@ -103,7 +107,12 @@ export type ReassignmentResult = {
     skipped: number;
     failed: number;
   };
-  results: Array<{ id: string; status: string; code?: string; message?: string }>;
+  results: Array<{
+    id: string;
+    status: string;
+    code?: string;
+    message?: string;
+  }>;
 };
 
 async function parse<T>(response: Response): Promise<T> {
@@ -118,7 +127,9 @@ async function parse<T>(response: Response): Promise<T> {
 }
 
 export async function getSalesCoverage(): Promise<SalesCoverage> {
-  return (await parse<{ coverage: SalesCoverage }>(await fetch("/api/crm/coverage"))).coverage;
+  return (
+    await parse<{ coverage: SalesCoverage }>(await fetch("/api/crm/coverage"))
+  ).coverage;
 }
 
 export async function listUnassigned(
@@ -127,7 +138,9 @@ export async function listUnassigned(
 ): Promise<{ records: UnassignedRecord[]; nextCursor: string | null }> {
   const params = new URLSearchParams({ type, limit: "50" });
   if (cursor) params.set("cursor", cursor);
-  return parse(await fetch(`/api/crm/coverage/unassigned?${params.toString()}`));
+  return parse(
+    await fetch(`/api/crm/coverage/unassigned?${params.toString()}`),
+  );
 }
 
 export async function reassignCoverage(input: {

@@ -78,14 +78,38 @@ export async function assertEligibleLeadAssignee(client, context, userId, scope 
   return assignee;
 }
 
-export async function listEligibleLeadAssignees(client, context, input = {}) {
-  const search = text(input.search).slice(0, 120);
-  const limit = Math.min(50, Math.max(1, Number(input.limit) || 20));
-  const offset = Math.min(100000, Math.max(0, Number(input.offset) || 0));
-  const values = [context.organizationId, input.companyId || context.activeCompanyId || null, input.branchId || context.activeBranchId || null, search];
+// Who may own a Lead here: $1 organization, $2 company, $3 branch, $4 search.
+function eligibleAssignees(context, input) {
+  const values = [context.organizationId, input.companyId || context.activeCompanyId || null, input.branchId || context.activeBranchId || null, text(input.search).slice(0, 120)];
   const where = `membership.organization_id=$1 AND membership.status='active'
     AND user_account.status='active' AND ${crmEligibleSql()} ${assigneeScopeSql(2, 3)}
     AND ($4='' OR user_account.full_name ILIKE '%'||$4||'%' OR user_account.email ILIKE '%'||$4||'%')`;
+  return { values, where };
+}
+
+// Every eligible assignee for an owner picker, in one query. The paged search
+// below stops at 50 a page, so a picker built from it silently lost everyone
+// after the 50th name. Capped (truncated=true beyond it) so a huge
+// organization cannot turn one options call into an unbounded payload.
+export const ASSIGNEE_PICKER_MAXIMUM = 1000;
+export async function listEligibleLeadAssigneesForPicker(client, context, input = {}) {
+  const { values, where } = eligibleAssignees(context, { ...input, search: "" });
+  const rows = (
+    await client.query(
+      `SELECT user_account.id,user_account.full_name AS name,user_account.email
+         FROM public.organization_memberships membership
+         JOIN public.users user_account ON user_account.id=membership.user_id
+        WHERE ${where} ORDER BY user_account.full_name,user_account.id LIMIT $5`,
+      [...values, ASSIGNEE_PICKER_MAXIMUM + 1],
+    )
+  ).rows;
+  return { items: rows.slice(0, ASSIGNEE_PICKER_MAXIMUM), truncated: rows.length > ASSIGNEE_PICKER_MAXIMUM };
+}
+
+export async function listEligibleLeadAssignees(client, context, input = {}) {
+  const limit = Math.min(50, Math.max(1, Number(input.limit) || 20));
+  const offset = Math.min(100000, Math.max(0, Number(input.offset) || 0));
+  const { values, where } = eligibleAssignees(context, input);
   // Sequential, not Promise.all — concurrent client.query() on one shared
   // PoolClient can interleave extended-query protocol messages (observed
   // live as Postgres 08P01 "bind message supplies N parameters..."); see

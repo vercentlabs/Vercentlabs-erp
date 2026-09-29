@@ -80,9 +80,7 @@ export function SalesCoverageScreen() {
   const [reassignOpen, setReassignOpen] = useState(false);
   const [transferTarget, setTransferTarget] =
     useState<CoverageTerritory | null>(null);
-  const [lastResult, setLastResult] = useState<ReassignmentResult | null>(
-    null,
-  );
+  const [lastResult, setLastResult] = useState<ReassignmentResult | null>(null);
 
   const unassigned = useInfiniteQuery({
     queryKey: [...coverageKey, "unassigned", type],
@@ -187,8 +185,8 @@ export function SalesCoverageScreen() {
         <h2 className="text-sm font-semibold text-text">Coverage gaps</h2>
         {data.gaps.length === 0 ? (
           <p className="text-sm text-text-secondary">
-            Every active territory has an owner and every team has a manager
-            and members.
+            Every active territory has an owner and every team has a manager and
+            members.
           </p>
         ) : (
           <ul className="flex flex-col gap-1.5">
@@ -431,7 +429,9 @@ function TeamTree({
                       {`${formatDate(member.effectiveFrom)} – ${member.effectiveTo ? formatDate(member.effectiveTo) : "open"}`}
                     </span>
                     {member.state !== "current" && (
-                      <StatusBadge tone={member.state === "ended" ? "neutral" : "info"}>
+                      <StatusBadge
+                        tone={member.state === "ended" ? "neutral" : "info"}
+                      >
                         {humanize(member.state)}
                       </StatusBadge>
                     )}
@@ -481,7 +481,9 @@ function TerritoryTree({
             ) : territory.status === "active" ? (
               <StatusBadge tone="warning">No owner</StatusBadge>
             ) : (
-              <StatusBadge tone="neutral">{humanize(territory.status)}</StatusBadge>
+              <StatusBadge tone="neutral">
+                {humanize(territory.status)}
+              </StatusBadge>
             )}
             {territory.secondaryAssignments > 0 && (
               <span className="text-xs text-text-muted">{`+${territory.secondaryAssignments} overlay`}</span>

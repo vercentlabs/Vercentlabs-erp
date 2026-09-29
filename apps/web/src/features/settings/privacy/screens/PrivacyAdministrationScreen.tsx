@@ -316,7 +316,7 @@ export function PrivacyAdministrationScreen() {
             ) : (
               <div className="overflow-x-auto rounded-[var(--radius-control)] border border-border">
                 <Table className="w-full text-sm">
-                  <TableHead className="bg-canvas-strong text-left text-xs uppercase tracking-wide text-text-muted">
+                  <TableHead className="bg-canvas-strong text-left text-xs uppercase tracking-wide text-text-secondary">
                     <TableRow>
                       <TableHeaderCell className="px-3 py-2">
                         Data

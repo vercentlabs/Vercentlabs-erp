@@ -568,7 +568,7 @@ export function CrmImportExportScreen() {
                 ) : (
                   <div className="overflow-x-auto rounded-[var(--radius-control)] border border-border">
                     <Table className="w-full text-sm">
-                      <TableHead className="bg-canvas-strong text-left text-xs uppercase tracking-wide text-text-muted">
+                      <TableHead className="bg-canvas-strong text-left text-xs uppercase tracking-wide text-text-secondary">
                         <TableRow>
                           <TableHeaderCell className="px-3 py-2">
                             File
@@ -645,7 +645,7 @@ export function CrmImportExportScreen() {
               <p className="text-sm text-text-secondary">{`${fileName}: ${rowCount} row${rowCount === 1 ? "" : "s"}. Match each lead field to a column in your file. First name is required.`}</p>
               <div className="overflow-x-auto rounded-[var(--radius-control)] border border-border">
                 <Table className="w-full text-sm">
-                  <TableHead className="bg-canvas-strong text-left text-xs uppercase tracking-wide text-text-muted">
+                  <TableHead className="bg-canvas-strong text-left text-xs uppercase tracking-wide text-text-secondary">
                     <TableRow>
                       <TableHeaderCell className="px-3 py-2">
                         Lead field

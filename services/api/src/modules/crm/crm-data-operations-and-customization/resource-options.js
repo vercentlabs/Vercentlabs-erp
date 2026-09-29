@@ -1,4 +1,4 @@
-import { listEligibleLeadAssignees } from "../lead-lifecycle-qualification-and-prioritization/lead-governance.js";
+import { listEligibleLeadAssigneesForPicker } from "../lead-lifecycle-qualification-and-prioritization/assignment/eligibility.js";
 import { canViewAllCrmRecords } from "./record-policy.js";
 import { canViewAllCrmResource, crmAccountAccessSql, crmOwnerScopeSql, managedTeamMemberIds } from "./crm-access-scope.js";
 import { camelizeRow } from "./record-utils.js";
@@ -107,7 +107,7 @@ export async function getCrmOptions(client, context) {
     `SELECT campaign.id, campaign.name FROM tenant.crm_campaigns campaign WHERE campaign.organization_id = $1 AND campaign.status IN ('planned','active','paused') AND ${companyVisible("campaign")} ORDER BY campaign.name`,
     parameters,
   );
-  const users = await listEligibleLeadAssignees(client, context, { limit: 50 });
+  const users = await listEligibleLeadAssigneesForPicker(client, context);
   // Whom the caller may make a record owner (assertCrmOwnerAssignable):
   // null = anyone eligible (view-all); otherwise self + managed team members.
   // Lead ownership follows the Lead rule (crm.leads.view_all may route any
@@ -223,6 +223,7 @@ export async function getCrmOptions(client, context) {
     allSources: map(allSources),
     campaigns: map(campaigns),
     users: users.items.map(camelizeRow),
+    usersTruncated: users.truncated,
     assignableOwnerIds,
     assignableLeadOwnerIds,
     members: members.rows.map(camelizeRow),

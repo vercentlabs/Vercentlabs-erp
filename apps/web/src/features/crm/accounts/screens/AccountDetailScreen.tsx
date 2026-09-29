@@ -372,7 +372,7 @@ export function AccountDetailScreen({ accountId }: { accountId: string }) {
               {opportunities.length > 0 && (
                 <div className="overflow-x-auto rounded-[var(--radius-card)] border border-border">
                   <Table className="w-full text-sm">
-                    <TableHead className="bg-canvas-strong text-left text-xs uppercase tracking-wide text-text-muted">
+                    <TableHead className="bg-canvas-strong text-left text-xs uppercase tracking-wide text-text-secondary">
                       <TableRow>
                         <TableHeaderCell className="px-3 py-2">
                           Opportunity
