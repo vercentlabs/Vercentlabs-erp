@@ -3,7 +3,7 @@ import fs from "node:fs";
 
 const PAGES = (
   process.env.AUDIT_PAGES ||
-  "/crm/settings/territories,/crm/calls/new,/crm/follow-ups/new,/crm/meetings/new,/crm/tasks/new,/crm/dashboard,/crm"
+  "/crm/settings/territories,/crm/calls/new,/crm/follow-ups/new,/crm/meetings/new,/crm/tasks/new,/crm"
 ).split(",");
 
 test("capture pages", async ({ page }) => {

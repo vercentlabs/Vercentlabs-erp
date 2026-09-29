@@ -139,7 +139,8 @@ export function formatMoney(
     return new Intl.NumberFormat("en-IN", {
       style: "currency",
       currency: currencyCode.toUpperCase(),
-      maximumFractionDigits: numeric % 1 === 0 ? 0 : 2,
+      // Compact keeps one decimal so 2,50,000 reads "₹2.5L", never a rounded "₹3L".
+      maximumFractionDigits: options.compact ? 1 : numeric % 1 === 0 ? 0 : 2,
       notation: options.compact ? "compact" : "standard",
     }).format(numeric);
   } catch {

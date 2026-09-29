@@ -67,6 +67,18 @@ const content = `/* GENERATED from packages/design-tokens/tokens/theme.json by
   --color-overlay-backdrop: ${theme.alpha.overlayBackdrop};
   --color-overlay-backdrop-strong: ${theme.alpha.overlayBackdropStrong};
 
+  /* Data-visualisation slots (chart.*). Series 1-3 are identity colours in
+     this fixed order (validated together for colour-vision deficiency and
+     >= 3:1 against the surface); the three states are for a record state
+     such as a qualification decision. Charts always pair them with a legend,
+     direct labels or a table, so colour never carries meaning alone. */
+  --color-chart-series-1: ${theme.chart.series1};
+  --color-chart-series-2: ${theme.chart.series2};
+  --color-chart-series-3: ${theme.chart.series3};
+  --color-chart-state-positive: ${theme.chart.statePositive};
+  --color-chart-state-pending: ${theme.chart.statePending};
+  --color-chart-state-neutral: ${theme.chart.stateNeutral};
+
   /* Spacing (4px grid) */
   --spacing-1: ${px(s["1"])};
   --spacing-2: ${px(s["2"])};

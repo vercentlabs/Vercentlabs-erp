@@ -2824,7 +2824,7 @@
   },
   "F024-FR-001": {
     "status": "IMPLEMENTED",
-    "evidence": "CrmDashboardScreen.tsx (/crm/dashboard)",
+    "evidence": "CrmHomeScreen.tsx (/crm; /crm/dashboard redirects there)",
     "notes": null
   },
   "F024-FR-003": {
@@ -2834,7 +2834,7 @@
   },
   "F024-US-001": {
     "status": "IMPLEMENTED",
-    "evidence": "CrmDashboardScreen.tsx (/crm/dashboard)",
+    "evidence": "CrmHomeScreen.tsx (/crm; /crm/dashboard redirects there)",
     "notes": null
   },
   "F024-US-002": {
@@ -2849,7 +2849,7 @@
   },
   "F024-FLOW-002": {
     "status": "IMPLEMENTED",
-    "evidence": "CrmDashboardScreen.tsx (/crm/dashboard)",
+    "evidence": "CrmHomeScreen.tsx (/crm; /crm/dashboard redirects there)",
     "notes": "Loading/error/permission states present."
   },
   "F024-BR-001": {
@@ -2889,12 +2889,12 @@
   },
   "F024-UX-001": {
     "status": "IMPLEMENTED",
-    "evidence": "CrmDashboardScreen.tsx (/crm/dashboard)",
+    "evidence": "CrmHomeScreen.tsx (/crm; /crm/dashboard redirects there)",
     "notes": null
   },
   "F024-UX-002": {
     "status": "IMPLEMENTED",
-    "evidence": "CrmDashboardScreen.tsx (/crm/dashboard)",
+    "evidence": "CrmHomeScreen.tsx (/crm; /crm/dashboard redirects there)",
     "notes": null
   },
   "F024-UX-003": {
@@ -3364,7 +3364,7 @@
   },
   "F024-REP-001": {
     "status": "IMPLEMENTED",
-    "evidence": "CrmDashboardScreen.tsx metrics; all six \"Needs attention\" metrics now drill (F024-CAP-001)",
+    "evidence": "CrmHomeScreen.tsx metrics; every KPI and every \"Needs attention\" item drills into its filtered list (home-view.ts; F024-CAP-001)",
     "notes": "Stage A2 §10 closeout — drill-down coverage completed, each mapping test-verified against the dashboard's own predicate."
   },
   "F025-REP-001": {

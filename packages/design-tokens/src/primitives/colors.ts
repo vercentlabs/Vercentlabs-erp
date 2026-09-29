@@ -6,3 +6,7 @@ export const colors = theme.color;
 
 /** Raw alpha/overlay values (shadows, focus glow, backdrops). */
 export const alpha = theme.alpha;
+
+/** Data-visualisation slots (series order + record states). Charts read
+ * them as CSS variables (--color-chart-*); see generate-tailwind-theme.mjs. */
+export const chartColors = theme.chart;

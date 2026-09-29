@@ -11,7 +11,6 @@ route,label,declared_status,page_exists,e2e_specs,finding
 /crm/meetings,Meetings,AVAILABLE,yes,apps/web/e2e/accessibility.spec.ts;apps/web/e2e/crm-uiux.spec.ts;apps/web/e2e/_ui-audit2.spec.ts,
 /crm/follow-ups,Follow-ups,AVAILABLE,yes,apps/web/e2e/accessibility.spec.ts;apps/web/e2e/crm-uiux.spec.ts;apps/web/e2e/_ui-audit2.spec.ts,
 /crm/communications,Communications,AVAILABLE,yes,apps/web/e2e/accessibility.spec.ts,
-/crm/dashboard,Dashboard,AVAILABLE,yes,apps/web/e2e/accessibility.spec.ts;apps/web/e2e/_ui-audit2.spec.ts,
 /crm/reports,Reports,AVAILABLE,yes,apps/web/e2e/accessibility.spec.ts;apps/web/e2e/responsive-layout.spec.ts,
 /crm/data/import-export,Imports & Exports,AVAILABLE,yes,apps/web/e2e/accessibility.spec.ts,
 /crm/data/duplicates,Duplicate Management,AVAILABLE,yes,apps/web/e2e/accessibility.spec.ts,

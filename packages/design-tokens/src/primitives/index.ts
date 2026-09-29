@@ -1,4 +1,4 @@
-export { colors, alpha } from "./colors.ts";
+export { colors, alpha, chartColors } from "./colors.ts";
 export { spacing } from "./spacing.ts";
 export { radius } from "./radius.ts";
 export { fontFamily, fontSize, nativeTypeScale } from "./typography.ts";

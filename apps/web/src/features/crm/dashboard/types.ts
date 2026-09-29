@@ -40,6 +40,8 @@ export type CrmDashboardStage = {
   sequence: number;
   opportunityCount: number;
   amount: number | string;
+  // sum(expected_revenue) of the same open opportunities.
+  weightedAmount: number | string;
 };
 
 export type CrmDashboardSource = {
@@ -64,6 +66,32 @@ export type CrmDashboardActivity = {
   entityId: string | null;
 };
 
+// Active Leads by qualification decision — always all three keys, in this
+// order, adding up to metrics.openLeads.
+export type CrmDashboardQualification = {
+  key: "qualified" | "not_reviewed" | "unqualified";
+  count: number;
+};
+
+// Six calendar months ending with the current one ("2026-09"), empty months
+// included: leads created in the month, and leads converted in the month.
+export type CrmDashboardLeadTrendMonth = {
+  month: string;
+  created: number;
+  converted: number;
+};
+
+// Leads created in the selected period, by source, with how many of them
+// have converted. The six largest sources are named; the rest are summed
+// into one row with isOther = true (sourceId null, like "Unspecified").
+export type CrmDashboardSourcePerformance = {
+  sourceId: string | null;
+  name: string;
+  leadCount: number;
+  convertedCount: number;
+  isOther: boolean;
+};
+
 export type CrmDashboardScope = "mine" | "team" | "all";
 
 export type CrmDashboard = {
@@ -77,6 +105,10 @@ export type CrmDashboard = {
   canViewAll: boolean;
   metrics: CrmDashboardMetrics;
   stages: CrmDashboardStage[];
+  // All-time lead sources (Lead Sources settings and mobile read this).
   sources: CrmDashboardSource[];
   activities: CrmDashboardActivity[];
+  qualification: CrmDashboardQualification[];
+  leadTrend: CrmDashboardLeadTrendMonth[];
+  sourcePerformance: CrmDashboardSourcePerformance[];
 };

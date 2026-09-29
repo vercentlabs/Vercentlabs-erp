@@ -6,6 +6,7 @@ export interface VercentlabsTheme {
   version: string;
   font: { sans: string };
   color: Record<string, string>;
+  chart: Record<string, string>;
   alpha: Record<string, string>;
   spacing: Record<string, number>;
   radius: Record<string, number>;

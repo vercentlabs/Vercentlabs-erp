@@ -46,7 +46,7 @@ export const CRM_MOBILE_FEATURES: readonly CrmMobileFeature[] = [
   { id: "F021", label: "Lead import & export", group: "Data", support: "web-workspace", description: "Governed CRM data movement.", webPath: "/crm/data/import-export" },
   { id: "F022", label: "Lead conversion", group: "Customers", support: "web-workspace", description: "Convert qualified leads into downstream records.", webPath: "/crm/leads" },
   { id: "F023", label: "Opportunity to quotation", group: "Pipeline", support: "web-workspace", description: "Create sales quotations from opportunities.", webPath: "/crm/opportunities" },
-  { id: "F024", label: "Pipeline dashboard", group: "Insights", support: "native-read", description: "Pipeline health and revenue signals.", nativeHref: "/(protected)/(tabs)/pipeline", webPath: "/crm/dashboard" },
+  { id: "F024", label: "Pipeline dashboard", group: "Insights", support: "native-read", description: "Pipeline health and revenue signals.", nativeHref: "/(protected)/(tabs)/pipeline", webPath: "/crm" },
   { id: "F025", label: "Sales forecast", group: "Insights", support: "web-workspace", description: "Forecast revenue by time and ownership.", webPath: "/crm/forecast" },
   { id: "F026", label: "Won / lost reasons", group: "Setup", support: "web-workspace", description: "Govern deal-outcome reasons.", webPath: "/crm/lost-reasons" },
   { id: "F027", label: "Lead scoring", group: "Setup", support: "web-workspace", description: "Prioritize leads with governed scoring rules.", webPath: "/crm/settings/lead-scoring" },

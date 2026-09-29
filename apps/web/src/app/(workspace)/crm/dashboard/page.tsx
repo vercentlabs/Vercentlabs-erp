@@ -1,9 +1,20 @@
-import { requireWorkspace } from "@/core/session";
-import { CrmDashboardScreen } from "@/features/crm/dashboard/screens/CrmDashboardScreen";
+import { redirect } from "next/navigation";
 
-export const metadata = { title: "CRM Dashboard" };
+// CRM Home (/crm) is the one CRM overview. This old address stays only so
+// bookmarks keep working: it forwards the scope and period it understood.
+const FORWARDED = ["scope", "period", "from", "to"] as const;
 
-export default async function CrmDashboardPage() {
-  await requireWorkspace();
-  return <CrmDashboardScreen />;
+export default async function CrmDashboardRedirect({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
+  const incoming = await searchParams;
+  const params = new URLSearchParams();
+  for (const key of FORWARDED) {
+    const value = incoming[key];
+    if (typeof value === "string" && value) params.set(key, value);
+  }
+  const query = params.toString();
+  redirect(query ? `/crm?${query}` : "/crm");
 }

@@ -6,7 +6,7 @@ import { density } from "./semantic/densityTokens.ts";
 import { controlHeight, touchTarget } from "./semantic/controlTokens.ts";
 
 test("theme.json parses and has every top-level section the generators depend on", () => {
-  for (const key of ["color", "alpha", "spacing", "radius", "control", "layout", "breakpoint", "z", "motion", "webType", "nativeType"]) {
+  for (const key of ["color", "chart", "alpha", "spacing", "radius", "control", "layout", "breakpoint", "z", "motion", "webType", "nativeType"]) {
     assert.ok(key in theme, `theme.json is missing "${key}"`);
   }
 });

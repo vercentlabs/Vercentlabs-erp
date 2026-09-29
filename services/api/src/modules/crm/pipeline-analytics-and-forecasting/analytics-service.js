@@ -143,7 +143,7 @@ export async function getCrmDashboard(client, context, options = {}) {
     parameters,
   );
   const stages = await client.query(
-    `SELECT stage.id, stage.name, stage.sequence, count(opportunity.id)::int AS opportunity_count, COALESCE(sum(opportunity.amount),0)::numeric AS amount FROM tenant.crm_pipeline_stages stage JOIN tenant.crm_pipelines pipeline ON pipeline.id = stage.pipeline_id AND pipeline.organization_id = stage.organization_id LEFT JOIN tenant.crm_opportunities opportunity ON opportunity.stage_id = stage.id AND opportunity.organization_id = stage.organization_id AND opportunity.status = 'open' AND ${companyVisible("opportunity")} AND ${branchVisible("opportunity")} AND ${ownerVisible("opportunity", "owner_user_id")} WHERE stage.organization_id = $1 AND stage.status = 'active' AND NOT stage.is_won AND NOT stage.is_lost AND ${companyVisible("pipeline")} GROUP BY stage.id ORDER BY stage.sequence`,
+    `SELECT stage.id, stage.name, stage.sequence, count(opportunity.id)::int AS opportunity_count, COALESCE(sum(opportunity.amount),0)::numeric AS amount, COALESCE(sum(opportunity.expected_revenue),0)::numeric AS weighted_amount FROM tenant.crm_pipeline_stages stage JOIN tenant.crm_pipelines pipeline ON pipeline.id = stage.pipeline_id AND pipeline.organization_id = stage.organization_id LEFT JOIN tenant.crm_opportunities opportunity ON opportunity.stage_id = stage.id AND opportunity.organization_id = stage.organization_id AND opportunity.status = 'open' AND ${companyVisible("opportunity")} AND ${branchVisible("opportunity")} AND ${ownerVisible("opportunity", "owner_user_id")} WHERE stage.organization_id = $1 AND stage.status = 'active' AND NOT stage.is_won AND NOT stage.is_lost AND ${companyVisible("pipeline")} GROUP BY stage.id ORDER BY stage.sequence`,
     baseParameters,
   );
   const sources = await client.query(
@@ -154,6 +154,46 @@ export async function getCrmDashboard(client, context, options = {}) {
     `SELECT activity.*, user_account.full_name AS assigned_name FROM tenant.crm_activities activity LEFT JOIN public.users user_account ON user_account.id = activity.assigned_to WHERE activity.organization_id = $1 AND activity.status NOT IN ('completed','cancelled') AND ${companyVisible("activity")} AND ${branchVisible("activity")} AND ${ownerVisible("activity", "assigned_to")} ORDER BY activity.due_at ASC NULLS LAST LIMIT 10`,
     baseParameters,
   );
+  // CRM Home charts. Each is one server aggregate under the same company,
+  // branch and owner predicates as the metrics above, so no figure counts a
+  // record the caller could not open, and the browser never receives rows.
+  const leadVisible = `lead.organization_id = $1 AND ${companyVisible("lead")} AND ${branchVisible("lead")} AND ${ownerVisible("lead", "owner_user_id")}`;
+  // Active Leads by qualification decision; the three buckets always come
+  // back (zero included) and add up to metrics.openLeads.
+  const qualification = await client.query(
+    `SELECT state.key, count(lead.id)::int AS count FROM (VALUES ('qualified',1),('not_reviewed',2),('unqualified',3)) AS state(key, sort_order) LEFT JOIN tenant.crm_leads lead ON lead.qualification_state = state.key AND lead.record_status = 'active' AND ${leadVisible} GROUP BY state.key, state.sort_order ORDER BY state.sort_order`,
+    baseParameters,
+  );
+  // Six calendar months ending with the current one, empty months included.
+  // "created" matches leads_in_period (active + converted, by created_at);
+  // "converted" matches conversions_in_period (by converted_at).
+  const leadTrend = await client.query(
+    `SELECT to_char(bucket.month_start, 'YYYY-MM') AS month,
+      (SELECT count(*)::int FROM tenant.crm_leads lead WHERE lead.record_status IN ('active','converted') AND lead.created_at >= bucket.month_start AND lead.created_at < bucket.month_start + interval '1 month' AND ${leadVisible}) AS created,
+      (SELECT count(*)::int FROM tenant.crm_leads lead WHERE lead.record_status = 'converted' AND lead.converted_at >= bucket.month_start AND lead.converted_at < bucket.month_start + interval '1 month' AND ${leadVisible}) AS converted
+    FROM generate_series(date_trunc('month', current_date) - interval '5 months', date_trunc('month', current_date), interval '1 month') AS bucket(month_start)
+    ORDER BY bucket.month_start`,
+    baseParameters,
+  );
+  // Leads acquired in the selected period (created in it; active or since
+  // converted) by source, with how many of them converted. The six largest
+  // sources are named; any others are summed into one "Other" row rather
+  // than dropped. `sources` above stays the all-time list other screens use.
+  const sourcePerformance = await client.query(
+    `WITH per_source AS (
+      SELECT source.id AS source_id, COALESCE(source.name,'Unspecified') AS name, count(lead.id)::int AS lead_count, count(lead.id) FILTER (WHERE lead.record_status = 'converted')::int AS converted_count
+      FROM tenant.crm_leads lead LEFT JOIN tenant.crm_lead_sources source ON source.organization_id = lead.organization_id AND source.id = lead.source_id
+      WHERE lead.record_status IN ('active','converted') AND ${inPeriod("lead.created_at")} AND ${leadVisible}
+      GROUP BY source.id, source.name
+    ), ranked AS (
+      SELECT per_source.*, row_number() OVER (ORDER BY lead_count DESC, name) AS source_rank, count(*) OVER () AS source_total FROM per_source
+    )
+    SELECT source_id, name, lead_count, converted_count, false AS is_other FROM ranked WHERE source_rank <= 6 OR source_total <= 7
+    UNION ALL
+    SELECT NULL, 'Other', sum(lead_count)::int, sum(converted_count)::int, true FROM ranked WHERE source_rank > 6 AND source_total > 7 HAVING count(*) > 0
+    ORDER BY is_other, lead_count DESC, name`,
+    parameters.slice(0, 8),
+  );
   return {
     scope: period.scope,
     period: { from: period.from, to: period.to, previousFrom: period.previousFrom, previousTo: period.previousTo },
@@ -162,6 +202,9 @@ export async function getCrmDashboard(client, context, options = {}) {
     stages: stages.rows.map(camelizeRow),
     sources: sources.rows.map(camelizeRow),
     activities: activities.rows.map(camelizeRow),
+    qualification: qualification.rows.map(camelizeRow),
+    leadTrend: leadTrend.rows.map(camelizeRow),
+    sourcePerformance: sourcePerformance.rows.map(camelizeRow),
   };
 }
 

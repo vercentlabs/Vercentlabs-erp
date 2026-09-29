@@ -9,7 +9,7 @@
 // "Overview"/root item (apps/web/src/app/(workspace)/<module>/page.tsx). CRM's clean rebuild
 // (Prompt 3) has flipped its built screens (Leads/Accounts/Contacts/
 // Opportunities/Pipeline/Tasks/Calls/Meetings/Follow-ups/Communications/
-// Dashboard/Territories & Sales Teams) to AVAILABLE as each was verified
+// Territories & Sales Teams) to AVAILABLE as each was verified
 // working end-to-end; CRM items still PLANNED (Forecast UI, Reports UI,
 // Imports & Exports, Duplicate Management, and the remaining Setup screens)
 // genuinely have no screen yet. PLANNED items render in the secondary
@@ -119,10 +119,9 @@ export const MODULE_NAVIGATION: readonly ModuleNavigation[] = [
         id: "insights",
         label: "Insights",
         featureRange: "F024-F026",
-        items: [
-          available("Dashboard", "/crm/dashboard"),
-          available("Reports", "/crm/reports"),
-        ],
+        // CRM Home (/crm) is the one CRM overview; /crm/dashboard only
+        // redirects there for old bookmarks, so it has no item of its own.
+        items: [available("Reports", "/crm/reports")],
       },
       {
         id: "data",

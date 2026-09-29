@@ -90,3 +90,9 @@ test("minutes read as a duration", () => {
   assert.equal(formatMinutes(2880 + 60), "2 days 1 hour");
   assert.equal(formatMinutes(null), "");
 });
+
+test("compact money keeps one decimal instead of rounding to the nearest unit", () => {
+  assert.equal(formatMoney("INR", 250000, { compact: true }), "₹2.5L");
+  assert.equal(formatMoney("INR", 130000, { compact: true }), "₹1.3L");
+  assert.equal(formatMoney("INR", 300000, { compact: true }), "₹3L");
+});

@@ -36,6 +36,14 @@
     "navigationText": "#FFFFFF",
     "navigationMuted": "#B7C0D0"
   },
+  "chart": {
+    "series1": "#3F46D8",
+    "series2": "#E0712C",
+    "series3": "#12966E",
+    "statePositive": "#087A55",
+    "statePending": "#B86E00",
+    "stateNeutral": "#7B8494"
+  },
   "alpha": {
     "overlayBackdrop": "rgb(15 23 42 / 42%)",
     "overlayBackdropStrong": "rgb(15 23 42 / 52%)",

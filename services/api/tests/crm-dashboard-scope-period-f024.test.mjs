@@ -84,3 +84,30 @@ test("F024: the task list's 'my team' filter mirrors the dashboard's team rule",
   await listCrmTasks(client, viewAll, { myTeam: true, due: "overdue" });
   assert.match(calls[0], /activity\.assigned_to IN \(SELECT member\.user_id FROM tenant\.crm_sales_team_members member/);
 });
+
+test("CRM Home: the chart aggregates are scoped exactly like the metrics and return only aggregates, never lead rows", async () => {
+  const client = capture();
+  const dashboard = await getCrmDashboard(client, rep, { scope: "mine", from: "2026-09-01", to: "2026-09-30" });
+  const find = (pattern) => client.calls.find(({ sql }) => pattern.test(sql));
+  const stages = find(/FROM tenant\.crm_pipeline_stages stage/);
+  assert.match(stages.sql, /COALESCE\(sum\(opportunity\.expected_revenue\),0\)::numeric AS weighted_amount/);
+  const qualification = find(/AS state\(key, sort_order\)/);
+  const trend = find(/generate_series\(date_trunc\('month', current_date\) - interval '5 months'/);
+  const sources = find(/WITH per_source AS/);
+  for (const [name, call] of Object.entries({ qualification, trend, sources })) {
+    assert.ok(call, `${name} query ran`);
+    assert.match(call.sql, /\$2::uuid IS NOT NULL AND \(lead\.company_id IS NULL OR lead\.company_id = \$2\)/, `${name}: active company`);
+    assert.match(call.sql, /\$3::uuid IS NOT NULL AND \(lead\.branch_id IS NULL OR lead\.branch_id = \$3\)/, `${name}: active branch`);
+    assert.match(call.sql, /\(\$5::boolean OR \(\(lead\.owner_user_id IS NULL OR lead\.owner_user_id = \$6/, `${name}: permitted owner scope`);
+    assert.match(call.sql, /AND lead\.owner_user_id = \$6\)/, `${name}: narrowed to 'mine'`);
+    assert.doesNotMatch(call.sql, /SELECT lead\.\*|SELECT \* FROM tenant\.crm_leads/, `${name}: aggregates only`);
+    assert.equal(call.params[4], false, `${name}: a rep's view-all flag stays false`);
+  }
+  assert.equal(qualification.params.length, 6);
+  assert.equal(trend.params.length, 6);
+  // Source performance is the selected period's acquisition.
+  assert.match(sources.sql, /lead\.created_at >= \$7::date AND lead\.created_at < \$8::date \+ 1/);
+  assert.deepEqual(sources.params.slice(6), ["2026-09-01", "2026-09-30"]);
+  assert.match(sources.sql, /SELECT NULL, 'Other', sum\(lead_count\)::int, sum\(converted_count\)::int, true/);
+  for (const key of ["qualification", "leadTrend", "sourcePerformance"]) assert.ok(Array.isArray(dashboard[key]), key);
+});

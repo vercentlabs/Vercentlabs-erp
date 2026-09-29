@@ -35,7 +35,6 @@ const ROUTES = [
     "Custom Fields & Tags",
   ],
   ["territories", "/crm/settings/territories", "Territories & Sales Teams"],
-  ["dashboard", "/crm/dashboard", "Dashboard"],
   ["forecast", "/crm/forecast", "Forecast"],
   ["reports", "/crm/reports", "Reports"],
   ["lead-sources", "/crm/settings/lead-sources", "CRM Settings — Lead Sources"],
