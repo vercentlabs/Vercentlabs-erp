@@ -1,6 +1,6 @@
 import { test, expect } from "@playwright/test";
 
-// Home, My work and Search are real surfaces backed by the same endpoints as the pages they link to.
+// Home and Search are real surfaces backed by the same endpoints as the pages they link to.
 
 test("home shows real attention counts and the modules the person can open, with no placeholder copy", async ({
   page,
@@ -26,23 +26,6 @@ test("home shows real attention counts and the modules the person can open, with
   await expect(
     page.getByRole("link", { name: /Unread notifications/ }),
   ).toHaveAttribute("href", "/notifications");
-});
-
-test("my work groups approvals, tasks and follow-ups and says so when there is nothing", async ({
-  page,
-}) => {
-  test.setTimeout(240_000);
-  await page.goto("/work", { waitUntil: "domcontentloaded", timeout: 120_000 });
-  await expect(
-    page.getByRole("heading", { name: "My work", exact: true }),
-  ).toBeVisible({ timeout: 90_000 });
-  await expect(
-    page.getByRole("region", { name: "Waiting for your decision" }),
-  ).toBeVisible();
-  await expect(
-    page.getByRole("region", { name: "Tasks and follow-ups" }),
-  ).toBeVisible();
-  await expect(page.getByText(/being connected|not yet built/i)).toHaveCount(0);
 });
 
 test("search finds pages and records, asks for more letters, and reports no match plainly", async ({

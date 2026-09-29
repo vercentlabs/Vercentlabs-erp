@@ -69,11 +69,7 @@ export default async function HomePage() {
         <Link href="/search" className="font-medium text-brand hover:underline">
           Search
         </Link>{" "}
-        records and pages, or open{" "}
-        <Link href="/work" className="font-medium text-brand hover:underline">
-          My work
-        </Link>{" "}
-        for what needs you today.
+        records and pages.
       </p>
     </div>
   );

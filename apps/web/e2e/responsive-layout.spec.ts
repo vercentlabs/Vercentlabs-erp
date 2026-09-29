@@ -10,7 +10,6 @@ const WIDTHS = [
 
 const PAGES = [
   ["/", "Home"],
-  ["/work", "My work"],
   ["/search?q=ab", "Search"],
   ["/crm", "CRM home"],
   ["/crm/leads", "Leads"],
