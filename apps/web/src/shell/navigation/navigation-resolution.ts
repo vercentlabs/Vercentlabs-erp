@@ -139,7 +139,7 @@ export function breadcrumbTrail(
     if (group)
       trail.push({
         label: group.label,
-        href: `${workspace.route}?section=${group.id}`,
+        href: `${workspace.route}#${group.id}`,
       });
     trail.push({ label: match.label, href: match.route });
   }

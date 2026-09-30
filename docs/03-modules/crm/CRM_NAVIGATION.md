@@ -35,7 +35,7 @@ Sales Coverage (their `crm.coverage.view`).
 | `/crm/communications` | My Work | Redirects to `/crm/work?view=inbox` |
 | `/crm/tasks/[id]`, `/new` (and the other activity types) | My Work | Unchanged; highlight My Work |
 | `/crm/reports?report=<key>&from=&to=` | Reports | One searchable, grouped Report picker; no report sidebar |
-| `/crm/settings?section=<category>` | CRM Setup | Category cards in the content area; no setup sidebar |
+| `/crm/settings` (`#<category>` or `?section=<category>` jumps to one) | CRM Setup | Every setting listed directly on the page under its category heading; no setup sidebar |
 | `/crm/settings/*`, `/crm/coverage`, `/crm/data/import-export`, `/crm/data/duplicates` | CRM Setup | Unchanged pages; breadcrumb shows the category |
 
 CRM Setup categories (only real pages; a category with nothing the viewer may

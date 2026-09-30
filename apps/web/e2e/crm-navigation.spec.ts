@@ -212,11 +212,15 @@ test("Journey 3 — CRM Setup is a hub in the content area, not a third sidebar"
     await expect(
       page.getByRole("heading", { level: 1, name: "CRM Setup" }),
     ).toBeVisible();
-    const categories = page.getByRole("list", { name: "CRM Setup categories" });
-    await categories
-      .getByRole("link", { name: /Routing & organization/ })
-      .click();
-    await expect(page).toHaveURL(/section=routing-organization$/);
+    // Every setting is on the hub itself, one click away, under its category.
+    await expect(
+      page.getByRole("heading", { level: 2, name: "Sales process" }),
+    ).toBeVisible();
+    await expect(
+      page
+        .getByRole("list", { name: "Sales process settings" })
+        .getByRole("link", { name: /Won \/ Lost Reasons/ }),
+    ).toHaveAttribute("href", "/crm/settings/lost-reasons");
     await page
       .getByRole("list", { name: "Routing & organization settings" })
       .getByRole("link", { name: /Territories & Sales Teams/ })
@@ -296,10 +300,19 @@ test("Journey 5 — nobody is shown a destination they cannot open", async ({
     await marketing.page.goto("/crm/settings");
     // Only what this role may open: the import tool, not the admin pages.
     await expect(
-      marketing.page.getByRole("link", { name: /Data management/ }),
+      marketing.page.getByRole("heading", {
+        level: 2,
+        name: "Data management",
+      }),
     ).toBeVisible();
     await expect(
-      marketing.page.getByRole("link", { name: /Sales process/ }),
+      marketing.page.getByRole("link", { name: /Imports & Exports/ }),
+    ).toBeVisible();
+    await expect(
+      marketing.page.getByRole("heading", { name: "Sales process" }),
+    ).toHaveCount(0);
+    await expect(
+      marketing.page.getByRole("link", { name: /Won \/ Lost Reasons/ }),
     ).toHaveCount(0);
   } finally {
     await marketing.context.close();
