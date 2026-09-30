@@ -22,7 +22,7 @@ test("owner scope: view-all adds nothing; everyone else gets own + unassigned + 
   assert.equal(crmOwnerScopeSql(viewAll, binder().bind, "lead.owner_user_id", "lead.organization_id"), "");
   const { values, bind } = binder();
   const sql = crmOwnerScopeSql(rep, bind, "lead.owner_user_id", "lead.organization_id");
-  assert.match(sql, /lead\.owner_user_id IS NULL OR lead\.owner_user_id = \$1 OR EXISTS \(SELECT 1 FROM tenant\.crm_sales_team_members/);
+  assert.match(sql, /lead\.owner_user_id IS NULL OR lead\.owner_user_id = \$1 OR COALESCE\(\([^)]*\) IN \(SELECT team_member\.organization_id, team_member\.user_id FROM tenant\.crm_sales_team_members/);
   assert.match(sql, /managed_team\.status='active' AND managed_team\.manager_user_id=\$1/);
   assert.match(sql, /team_member\.effective_to IS NULL OR team_member\.effective_to>=current_date/, "ended memberships stop granting access");
   assert.deepEqual(values, [me], "the caller is bound once and reused");
@@ -40,7 +40,7 @@ test("account access: shared (NULL owner), own, managed team, or an opportunity 
 test("contact access inherits the account rule; standalone contacts follow their creator, never everyone", () => {
   const sql = crmContactAccessSql(rep, binder().bind, "contact", "account");
   assert.match(sql, /contact\.party_id IS NOT NULL AND \(account\.owner_user_id IS NULL/);
-  assert.match(sql, /contact\.party_id IS NULL AND \(contact\.created_by = \$1\s+OR EXISTS/);
+  assert.match(sql, /contact\.party_id IS NULL AND \(contact\.created_by = \$1\s+OR COALESCE\(/);
   assert.equal(crmContactAccessSql(viewAll, binder().bind, "contact", "account"), "");
 });
 

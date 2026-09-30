@@ -5,6 +5,33 @@ import { CrmError } from "./errors.js";
 
 export const resourceSet = new Set(CRM_RESOURCE_KEYS);
 
+// Tables that do not carry every audit column. Generic create/update/archive
+// write only the audit columns a table has — writing created_by/updated_by/
+// updated_at unconditionally failed every generic write to these resources
+// (42703 "column does not exist"). Verified against the schema:
+// tests/integration/crm/generic-resource-audit-db.test.mjs.
+const MISSING_AUDIT_COLUMNS = Object.freeze({
+  "playbook-responses": ["created_by", "updated_by"],
+  "consent-events": ["updated_by", "updated_at"],
+  "data-quality-scores": ["created_by", "updated_by", "updated_at"],
+  "conversation-insights": ["created_by", "updated_by"],
+  "pipeline-inspections": ["created_by", "updated_by", "updated_at"],
+  recommendations: ["created_by", "updated_by"],
+  "account-signals": ["created_by", "updated_by"],
+  "enrichment-jobs": ["created_by", "updated_by"],
+  "ai-predictions": ["created_by", "updated_by", "updated_at"],
+  "ai-feedback": ["updated_by", "updated_at"],
+});
+
+export function auditColumns(resource) {
+  const missing = new Set(MISSING_AUDIT_COLUMNS[resource] ?? []);
+  return {
+    createdBy: !missing.has("created_by"),
+    updatedBy: !missing.has("updated_by"),
+    updatedAt: !missing.has("updated_at"),
+  };
+}
+
 
 
 export const resources = Object.freeze({

@@ -13,7 +13,7 @@ import { randomUUID } from "node:crypto";
 import { fileURLToPath } from "node:url";
 import { config as loadDotEnv } from "dotenv";
 import { Client } from "pg";
-import { createCrmNote, updateCrmNote, archiveCrmNote, createCrmAttachment, scanAttachmentForUpload } from "../../services/api/src/index.js";
+import { createCrmNote, updateCrmNote, archiveCrmNote, createCrmAttachment, prepareFileUpload } from "../../services/api/src/index.js";
 import { attachmentStorageKey, sha256, validateAttachment } from "../../packages/document-engine/src/index.js";
 import { setTenantContext } from "../../packages/database/src/index.js";
 
@@ -37,7 +37,10 @@ async function main() {
     `SELECT id FROM users u JOIN organization_memberships om ON om.user_id=u.id WHERE om.organization_id=$1 AND om.status='active' ORDER BY om.created_at ASC LIMIT 1`,
     [organizationId],
   )).rows[0];
-  const opportunity = (await admin.query(`SELECT id FROM tenant.crm_opportunities WHERE organization_id=$1 AND name=$2 LIMIT 1`, [organizationId, OPPORTUNITY_NAME])).rows[0];
+  const opportunity = (await admin.query(`SELECT id FROM tenant.crm_opportunities WHERE organization_id=$1 AND name=$2 LIMIT 1`, [organizationId, OPPORTUNITY_NAME])).rows[0]
+    // The original demo deal may not exist in a re-seeded org: fall back to the
+    // largest open deal that has account contacts.
+    ?? (await admin.query(`SELECT o.id FROM tenant.crm_opportunities o WHERE o.organization_id=$1 AND o.status='open' AND EXISTS (SELECT 1 FROM tenant.contacts c WHERE c.organization_id=o.organization_id AND c.party_id=o.party_id) ORDER BY o.amount DESC NULLS LAST, o.id LIMIT 1`, [organizationId])).rows[0];
   if (!opportunity) throw new Error(`Opportunity "${OPPORTUNITY_NAME}" not found.`);
   const context = {
     organizationId, userId: owner.id, activeCompanyId: null, activeBranchId: null, allowAllCompanies: true,
@@ -77,15 +80,11 @@ async function main() {
     console.log("Created + archived note");
   } else console.log("Already present: archived note");
 
+  // The Shared Platform file pipeline, exactly as the upload route uses it:
+  // prepareFileUpload validates, scans and hashes; createCrmAttachment stores.
   async function upload(fileName, mimeType, text, replacesLogicalId) {
-    const bytes = Buffer.from(text, "utf8");
-    const validated = validateAttachment({ fileName, mimeType, sizeBytes: bytes.length });
-    const { scanStatus } = await scanAttachmentForUpload(bytes, validated.mimeType, process.env);
-    const id = randomUUID();
-    return withTx((c) => createCrmAttachment(c, context, "opportunity", opportunity.id, {
-      id, fileName: validated.fileName, storageKey: attachmentStorageKey({ organizationId, attachmentId: id, fileName: validated.fileName }),
-      mimeType: validated.mimeType, sizeBytes: validated.sizeBytes, content: bytes, contentSha256: sha256(bytes), scanStatus, replacesLogicalId,
-    }));
+    const prepared = await prepareFileUpload({ fileName, mimeType, bytes: Buffer.from(text, "utf8") }, process.env);
+    return withTx((c) => createCrmAttachment(c, context, "opportunity", opportunity.id, { prepared, replacesLogicalId }));
   }
   const fileExists = async (name) => (await admin.query(
     `SELECT logical_id FROM public.attachments WHERE organization_id=$1 AND entity_type='crm.opportunity' AND entity_id=$2 AND file_name=$3 AND is_current LIMIT 1`,

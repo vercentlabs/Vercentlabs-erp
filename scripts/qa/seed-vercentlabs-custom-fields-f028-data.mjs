@@ -21,7 +21,7 @@ const connectionString = String(process.env.MIGRATION_DATABASE_URL || "").trim()
 if (!connectionString) throw new Error("MIGRATION_DATABASE_URL is required.");
 if (!/localhost|127\.0\.0\.1/.test(connectionString)) throw new Error("Refusing to run against a non-local database.");
 const ORG_NAME = process.env.SEED_ORG_NAME || "Vercentlabs";
-const DEAL = "323a6116-6eec-4523-90bf-053d20f5cf80"; // Northgate Engineering Works — Custom Reporting Add-on (Atharva's open deal)
+let DEAL = process.env.SEED_DEAL_ID || "323a6116-6eec-4523-90bf-053d20f5cf80"; // the original demo deal; replaced below if absent
 
 const FIELDS = [
   { entityType: "opportunity", fieldKey: "plant_count", label: "Number of plants", dataType: "number" },
@@ -36,6 +36,9 @@ async function main() {
   await admin.connect();
   const organizationId = (await admin.query(`SELECT id FROM organizations WHERE name=$1 LIMIT 1`, [ORG_NAME])).rows[0]?.id;
   if (!organizationId) throw new Error(`Organization "${ORG_NAME}" not found.`);
+  // A re-seeded org no longer has the original deal: use its largest open one.
+  const dealExists = (await admin.query(`SELECT 1 FROM tenant.crm_opportunities WHERE organization_id=$1 AND id=$2`, [organizationId, DEAL])).rows[0];
+  if (!dealExists) DEAL = (await admin.query(`SELECT id FROM tenant.crm_opportunities WHERE organization_id=$1 AND status='open' ORDER BY amount DESC NULLS LAST, id LIMIT 1`, [organizationId])).rows[0]?.id;
   const owner = (await admin.query(
     `SELECT u.id FROM users u JOIN organization_memberships om ON om.user_id=u.id WHERE om.organization_id=$1 AND u.full_name='Atharva Chavan'`,
     [organizationId],

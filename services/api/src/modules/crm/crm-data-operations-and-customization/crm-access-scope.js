@@ -109,14 +109,17 @@ export function relationshipGrantSql(context, resource, alias, organizationExpr)
 // SQL: the owner is an active member of an active team the caller manages.
 // Uses crm_sales_team_members_user_idx (organization_id,user_id,status) and
 // crm_sales_teams_manager_idx (migration 180).
+// Uncorrelated on purpose: the member set does not depend on the row, so
+// Postgres evaluates it once per query (a hashed subplan) instead of once per
+// row — a correlated EXISTS here cost seconds on a 10,000-lead dashboard for a
+// restricted user. COALESCE keeps it strictly true/false for a NULL owner.
 export function managedTeamMemberSql(bind, context, ownerExpr, organizationExpr, managerExpr = null) {
-  return `EXISTS (SELECT 1 FROM tenant.crm_sales_team_members team_member
+  return `COALESCE((${organizationExpr}, ${ownerExpr}) IN (SELECT team_member.organization_id, team_member.user_id FROM tenant.crm_sales_team_members team_member
       JOIN tenant.crm_sales_teams managed_team
         ON managed_team.organization_id=team_member.organization_id AND managed_team.id=team_member.team_id
-     WHERE team_member.organization_id=${organizationExpr} AND team_member.user_id=${ownerExpr}
-       AND team_member.status='active' AND team_member.effective_from<=current_date
+     WHERE team_member.status='active' AND team_member.effective_from<=current_date
        AND (team_member.effective_to IS NULL OR team_member.effective_to>=current_date)
-       AND managed_team.status='active' AND managed_team.manager_user_id=${managerExpr ?? bind(context.userId)})`;
+       AND managed_team.status='active' AND managed_team.manager_user_id=${managerExpr ?? bind(context.userId)}), false)`;
 }
 
 // Returns "" for view-all callers, else " AND (…)". `bind(value)` adds a

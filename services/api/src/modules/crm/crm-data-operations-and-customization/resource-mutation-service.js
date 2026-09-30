@@ -15,7 +15,7 @@ import { opportunityOutboxSnapshot, resolveOpportunityInitialStage, throwOpportu
 import { leadOutboxChangedFields, queueOutboxEvent } from "./outbox.js";
 import { assertGenericLeadLinkedTarget, assertLeadLinkedContentAllowed, assertLifecycleUpdate, assertOwnerAssignmentAllowed, assertSensitiveLeadMutationAllowed, assertWritableScope, canViewAllCrmRecords, projectCrmRecord, recordScope } from "./record-policy.js";
 import { getCrmRecord, nextCode } from "./resource-query-service.js";
-import { definitionFor } from "./resource-registry.js";
+import { auditColumns, definitionFor } from "./resource-registry.js";
 import { addParameter, assertLeadSourceAssignment, camelizeRow } from "./record-utils.js";
 import { GENERIC_VERSIONED_RESOURCES, assertActiveOrganizationUsers, assertCustomFieldRequiredRolloutSafe, assertLeadExpectedVersion, assertQualificationCriterionFieldsValid, assertRecordExpectedVersion, getLeadRecordForUpdate, isPlainObject, mutableEntries, normalizeStorageInput, validateCustomRecord, validateOrganizationUserReferences, validationErrorDetails } from "./resource-validation.js";
 
@@ -34,6 +34,15 @@ const LEAD_SCORE_RECALC_TRIGGER_FIELDS = new Set([
   "productInterest",
   "sourceId",
 ]);
+
+// The audit stamps an UPDATE may write on this resource's table.
+function updateStamps(resource, userParameter) {
+  const audit = auditColumns(resource);
+  return [
+    ...(audit.updatedBy ? [`updated_by = ${userParameter}`] : []),
+    ...(audit.updatedAt ? ["updated_at = now()"] : []),
+  ];
+}
 
 export async function createCrmRecord(client, context, resource, input) {
   if (resource === "activities") {
@@ -270,17 +279,18 @@ export async function createCrmRecord(client, context, resource, input) {
   const entries = mutableEntries(definition, prepared);
   if (!entries.length && !ownerChangeRequested)
     throw new CrmError(400, "No CRM fields were supplied.");
+  const audit = auditColumns(resource);
   const columns = [
     "organization_id",
     ...entries.map(([key]) => definition.fields[key]),
-    "created_by",
-    "updated_by",
+    ...(audit.createdBy ? ["created_by"] : []),
+    ...(audit.updatedBy ? ["updated_by"] : []),
   ];
   const rawValues = [
     context.organizationId,
     ...entries.map(([, value]) => value),
-    context.userId,
-    context.userId,
+    ...(audit.createdBy ? [context.userId] : []),
+    ...(audit.updatedBy ? [context.userId] : []),
   ];
   // A field sent as null on create means "no value": write DEFAULT, not NULL.
   // For a nullable column without a default that is still NULL; for a NOT
@@ -728,10 +738,13 @@ export async function updateCrmRecord(
   const assignments = entries.map(
     ([key], index) => `${definition.fields[key]} = $${index + 1}`,
   );
-  parameters.push(context.userId, context.organizationId, id);
-  const userParameter = entries.length + 1;
-  const organizationParameter = entries.length + 2;
-  const idParameter = entries.length + 3;
+  // The acting user is bound only when the table records it (an unused
+  // bound parameter is rejected by Postgres: "could not determine data type").
+  const stampsUser = auditColumns(resource).updatedBy;
+  parameters.push(...(stampsUser ? [context.userId] : []), context.organizationId, id);
+  const userParameter = stampsUser ? entries.length + 1 : null;
+  const organizationParameter = entries.length + (stampsUser ? 2 : 1);
+  const idParameter = entries.length + (stampsUser ? 3 : 2);
   const scope = recordScope(definition, context, parameters);
   // Checked-write: when a version was actually asserted above (leads or
   // opportunities), the UPDATE's own WHERE clause re-confirms updated_at
@@ -767,7 +780,7 @@ export async function updateCrmRecord(
   let updated = before;
   if (entries.length) {
     const result = await client.query(
-      `UPDATE ${definition.table} record SET ${assignments.join(", ")}, updated_by = $${userParameter}, updated_at = now() WHERE record.organization_id = $${organizationParameter} AND record.id = $${idParameter}${scope}${versionGuard} RETURNING record.*`,
+      `UPDATE ${definition.table} record SET ${[...assignments, ...updateStamps(resource, userParameter ? `$${userParameter}` : null)].join(", ")} WHERE record.organization_id = $${organizationParameter} AND record.id = $${idParameter}${scope}${versionGuard} RETURNING record.*`,
       parameters,
     );
     if (!result.rows[0]) {
@@ -1014,7 +1027,9 @@ export async function archiveCrmRecord(
   }
 
   const statusParameter = addParameter(parameters, status);
-  const userParameter = addParameter(parameters, context.userId);
+  const userParameter = auditColumns(resource).updatedBy
+    ? addParameter(parameters, context.userId)
+    : null;
   // Stage A2 §14: derive the archive-path version check from the same
   // GENERIC_VERSIONED_RESOURCES map as the PATCH path above, rather than a
   // second hand-maintained resource list — a resource added to that map for
@@ -1053,7 +1068,7 @@ export async function archiveCrmRecord(
   let result;
   try {
     result = await client.query(
-      `UPDATE ${definition.table} record SET ${definition.statusColumn} = ${statusParameter}, updated_by = ${userParameter}, updated_at = now() WHERE record.organization_id = $1 AND record.id = $2${scope}${archiveVersionGuard} RETURNING record.*`,
+      `UPDATE ${definition.table} record SET ${[`${definition.statusColumn} = ${statusParameter}`, ...updateStamps(resource, userParameter)].join(", ")} WHERE record.organization_id = $1 AND record.id = $2${scope}${archiveVersionGuard} RETURNING record.*`,
       parameters,
     );
   } finally {

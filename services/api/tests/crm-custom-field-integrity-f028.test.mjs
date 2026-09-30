@@ -70,8 +70,8 @@ test("F028: the shared record check applies deal-owner scope for callers without
   const allowed = await resolveCrmEntityAccess(c, rep, "opportunity", oppId);
   assert.equal(allowed, false);
   // Own + managed-team members + unassigned — the shared rule (crm-access-scope.js).
-  assert.match(captured.sql, /AND \(opportunity\.owner_user_id IS NULL OR opportunity\.owner_user_id = \$3 OR EXISTS \(SELECT 1 FROM tenant\.crm_sales_team_members/);
+  assert.match(captured.sql, /AND \(opportunity\.owner_user_id IS NULL OR opportunity\.owner_user_id = \$3 OR COALESCE\(\([^)]*\) IN \(SELECT team_member\.organization_id, team_member\.user_id FROM tenant\.crm_sales_team_members/);
   // The team subquery is correlated to the deal's own organization, never an unqualified column.
-  assert.match(captured.sql, /team_member\.organization_id=opportunity\.organization_id/);
+  assert.match(captured.sql, /\(opportunity\.organization_id, opportunity\.owner_user_id\) IN \(SELECT team_member\.organization_id, team_member\.user_id/);
   assert.equal(captured.values[2], rep.userId);
 });

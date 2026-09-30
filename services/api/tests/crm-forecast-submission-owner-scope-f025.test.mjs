@@ -75,13 +75,13 @@ function forecastClient({ row = ownedSubmission, teamRoster = [] } = {}) {
       // (recordScope's own canViewAllCrmRecords short-circuit) — no
       // owner/team-manager clause appears in that case, and every row is
       // visible.
-      const ownerClauseMatch = sql.match(/record\.owner_user_id = \$(\d+) OR EXISTS/);
+      const ownerClauseMatch = sql.match(/record\.owner_user_id = \$(\d+) OR COALESCE\(\(record\.organization_id, record\.owner_user_id\) IN \(/);
       let isVisible;
       if (!ownerClauseMatch) {
         assert.ok(!sql.includes("owner_user_id"), "a view_all caller's query must carry no owner predicate at all");
         isVisible = true;
       } else {
-        assert.match(sql, /record\.owner_user_id IS NULL OR record\.owner_user_id = \$\d+ OR EXISTS \(/, "must use the real IS-NULL/owner/team-manager predicate, not a narrower one");
+        assert.match(sql, /record\.owner_user_id IS NULL OR record\.owner_user_id = \$\d+ OR COALESCE\(\(record\.organization_id, record\.owner_user_id\) IN \(SELECT team_member\.organization_id, team_member\.user_id FROM tenant\.crm_sales_team_members/, "must use the real IS-NULL/owner/team-manager predicate, not a narrower one");
         const requestingUserId = params[Number(ownerClauseMatch[1]) - 1];
         isVisible = visible(requestingUserId);
       }

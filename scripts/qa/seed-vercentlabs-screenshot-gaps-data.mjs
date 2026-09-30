@@ -18,8 +18,7 @@ import { config as loadDotEnv } from "dotenv";
 import { Client } from "pg";
 import {
   capturePredictiveForecast, createCrmRecord, decideLeadQualification, createCustomFieldDefinition, moveOpportunityStage,
-  setCustomFieldValues, transitionLeadStage, updateCrmRecord, updatePrivacyRetentionPolicy,
-} from "../../services/api/src/index.js";
+  setCustomFieldValues, transitionLeadStage, updateCrmRecord, updatePrivacyRetentionPolicy, setForecastPeriodStatus } from "../../services/api/src/index.js";
 import { setTenantContext } from "../../packages/database/src/index.js";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -87,8 +86,10 @@ async function main() {
   }
 
   // 3. Buying committee on a live Suvidha deal.
-  const deal = await one(`SELECT id FROM tenant.crm_opportunities WHERE organization_id=$1 AND name='Suvidha Logistics Pvt Ltd — Custom Reporting Add-on'`, [organizationId]);
-  let committee = await one(`SELECT id FROM tenant.crm_buying_committees WHERE organization_id=$1 AND opportunity_id=$2`, [organizationId, deal.id]);
+  const deal = (await one(`SELECT id FROM tenant.crm_opportunities WHERE organization_id=$1 AND name='Suvidha Logistics Pvt Ltd — Custom Reporting Add-on'`, [organizationId]))
+    // A re-seeded org names deals differently: any live deal of the same account.
+    ?? (await one(`SELECT id FROM tenant.crm_opportunities WHERE organization_id=$1 AND party_id=$2 AND status='open' ORDER BY amount DESC NULLS LAST LIMIT 1`, [organizationId, account.id]));
+  let committee = deal ? await one(`SELECT id FROM tenant.crm_buying_committees WHERE organization_id=$1 AND opportunity_id=$2`, [organizationId, deal.id]) : { id: null };
   if (!committee) {
     committee = await tx((c) => createCrmRecord(c, context, "buying-committees", { partyId: account.id, opportunityId: deal.id, name: "Reporting add-on decision group", decisionProcess: "CFO approves after operations sign-off", decisionDate: "2026-11-15", coverageScore: 70, status: "active" }));
     for (const member of [
@@ -118,7 +119,12 @@ async function main() {
     const snap = await one(`SELECT 1 FROM tenant.crm_predictive_forecast_snapshots WHERE organization_id=$1 AND forecast_period_id=$2`, [organizationId, sept.id]);
     if (!snap) await tx((c) => capturePredictiveForecast(c, context, { forecastPeriodId: sept.id }));
     const fresh = await one(`SELECT updated_at FROM tenant.crm_forecast_periods WHERE id=$1`, [sept.id]);
-    await tx((c) => updateCrmRecord(c, context, "forecast-periods", sept.id, { status: "closed" }, { expectedUpdatedAt: fresh.updated_at.toISOString() }));
+    // Period lifecycle is governed (generic status updates return 410 since F025).
+    if (sept.status === "open" || sept.status === "planned") await tx((c) => setForecastPeriodStatus(c, context, { periodId: sept.id, status: sept.status === "planned" ? "open" : "frozen" }));
+    const now = await one(`SELECT status FROM tenant.crm_forecast_periods WHERE id=$1`, [sept.id]);
+    if (now.status === "open") await tx((c) => setForecastPeriodStatus(c, context, { periodId: sept.id, status: "frozen" }));
+    await tx((c) => setForecastPeriodStatus(c, context, { periodId: sept.id, status: "closed" }));
+    void fresh;
     console.log("September 2026: prediction captured and period closed");
   } else console.log("Already present: closed September period");
 

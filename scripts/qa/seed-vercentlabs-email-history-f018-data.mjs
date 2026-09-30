@@ -45,7 +45,10 @@ async function main() {
     `SELECT u.id, u.email FROM users u JOIN organization_memberships om ON om.user_id=u.id WHERE om.organization_id=$1 AND om.status='active' ORDER BY om.created_at ASC LIMIT 1`,
     [organizationId],
   )).rows[0];
-  const opportunity = (await admin.query(`SELECT id, party_id FROM tenant.crm_opportunities WHERE organization_id=$1 AND name=$2 LIMIT 1`, [organizationId, OPPORTUNITY_NAME])).rows[0];
+  const opportunity = (await admin.query(`SELECT id, party_id FROM tenant.crm_opportunities WHERE organization_id=$1 AND name=$2 LIMIT 1`, [organizationId, OPPORTUNITY_NAME])).rows[0]
+    // The original demo deal may not exist in a re-seeded org: fall back to the
+    // largest open deal that has account contacts.
+    ?? (await admin.query(`SELECT o.id, o.party_id FROM tenant.crm_opportunities o WHERE o.organization_id=$1 AND o.status='open' AND EXISTS (SELECT 1 FROM tenant.contacts c WHERE c.organization_id=o.organization_id AND c.party_id=o.party_id) ORDER BY o.amount DESC NULLS LAST, o.id LIMIT 1`, [organizationId])).rows[0];
   if (!opportunity) throw new Error(`Opportunity "${OPPORTUNITY_NAME}" not found.`);
   const contact = (await admin.query(`SELECT * FROM tenant.contacts WHERE organization_id=$1 AND party_id=$2 ORDER BY created_at LIMIT 1`, [organizationId, opportunity.party_id])).rows[0];
   const customerEmail = contact?.email || contact?.primary_email || "procurement@suvidha.example";
