@@ -8,7 +8,7 @@ import {
   requestPayloadHash,
 } from "../src/core/idempotency.js";
 import { nextDocumentNumber } from "../src/core/platform/numbering/index.js";
-import { listHrPayrollResource } from "../src/modules/hr-payroll/index.js";
+import { listPayslips } from "../src/modules/hr-payroll/payroll.js";
 import { postStockMovement } from "../src/modules/stock/index.js";
 import { completePointOfSale } from "../src/modules/point-of-sale/index.js";
 import { createWave0PrimitiveHarness } from "./helpers/wave0-primitives.mjs";
@@ -93,8 +93,8 @@ test("Wave 0 HR security: broad hr_payroll.view alone cannot list payslips", asy
   let queried = false;
   const client = { async query() { queried = true; return { rows: [] }; } };
   await assert.rejects(
-    () => listHrPayrollResource(client, context(["hr_payroll.view"]), "payslips"),
-    (error) => error?.code === "FORBIDDEN",
+    () => listPayslips(client, context(["hr_payroll.view"])),
+    (error) => error?.code === "HR_FORBIDDEN",
   );
   assert.equal(queried, false, "authorization must fail before payroll data is queried");
 });
@@ -108,10 +108,9 @@ test("Wave 0 HR security: explicit payslip visibility authorizes the scoped pays
       return { rows: [{ id: "payslip-1", net_pay: "1000" }] };
     },
   };
-  const rows = await listHrPayrollResource(
+  const rows = await listPayslips(
     client,
     context(["hr_payroll.view", "hr_payroll.payslip.view"]),
-    "payslips",
   );
   assert.equal(rows[0].id, "payslip-1");
 });

@@ -37,14 +37,8 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-
 const INITIAL_DOCUMENT_STATUS = Object.freeze({
   suppliers: "draft",
   categories: "active",
-  catalogs: "draft",
-  requisitions: "draft",
-  "sourcing-events": "draft",
-  agreements: "draft",
   "purchase-orders": "draft",
   receipts: "draft",
-  "service-entries": "draft",
-  returns: "draft",
   "match-exceptions": "open",
 });
 
@@ -66,29 +60,12 @@ const INTERNAL_INPUT_FIELDS = new Set([
 const CHILDREN = Object.freeze({
   suppliers: [
     ["sites", "procurement_supplier_sites"],
-    ["qualifications", "procurement_supplier_qualifications"],
-    ["certifications", "procurement_supplier_certifications"],
-    ["scorecards", "procurement_supplier_scorecards"],
   ],
-  catalogs: [["items", "procurement_catalog_items"]],
-  requisitions: [
-    ["lines", "procurement_requisition_lines"],
-    ["distributions", "procurement_requisition_distributions"],
-  ],
-  "sourcing-events": [
-    ["invitations", "procurement_sourcing_invitations"],
-    ["bids", "procurement_sourcing_bids"],
-    ["evaluations", "procurement_sourcing_evaluations"],
-  ],
-  agreements: [["lines", "procurement_agreement_lines"]],
   "purchase-orders": [
     ["lines", "procurement_purchase_order_lines"],
     ["schedules", "procurement_purchase_order_schedules"],
-    ["shippingNotices", "procurement_advance_shipping_notices"],
   ],
   receipts: [["lines", "procurement_receipt_lines"]],
-  "service-entries": [["lines", "procurement_service_entry_lines"]],
-  returns: [["lines", "procurement_return_lines"]],
   "match-exceptions": [["matchingRecords", "procurement_matching_records"]],
 });
 
@@ -109,30 +86,6 @@ const RESOURCE_CONFIG = Object.freeze({
     manage: "procurement.suppliers.manage",
     parentResource: "suppliers",
   },
-  "supplier-qualifications": {
-    table: "procurement_supplier_qualifications",
-    kind: "child",
-    view: "procurement.suppliers.view",
-    create: "procurement.suppliers.qualify",
-    manage: "procurement.suppliers.qualify",
-    parentResource: "suppliers",
-  },
-  "supplier-certifications": {
-    table: "procurement_supplier_certifications",
-    kind: "child",
-    view: "procurement.suppliers.view",
-    create: "procurement.suppliers.qualify",
-    manage: "procurement.suppliers.qualify",
-    parentResource: "suppliers",
-  },
-  "supplier-scorecards": {
-    table: "procurement_supplier_scorecards",
-    kind: "child",
-    view: "procurement.suppliers.view",
-    create: "procurement.suppliers.qualify",
-    manage: "procurement.suppliers.qualify",
-    parentResource: "suppliers",
-  },
   categories: {
     table: "procurement_categories",
     kind: "document",
@@ -140,70 +93,6 @@ const RESOURCE_CONFIG = Object.freeze({
     create: "procurement.settings.manage",
     manage: "procurement.settings.manage",
     titleFields: ["code", "name", "title"],
-  },
-  catalogs: {
-    table: "procurement_catalogs",
-    kind: "document",
-    view: "procurement.view",
-    create: "procurement.catalog.manage",
-    manage: "procurement.catalog.manage",
-    titleFields: ["code", "name", "title"],
-  },
-  "catalog-items": {
-    table: "procurement_catalog_items",
-    kind: "child",
-    view: "procurement.view",
-    create: "procurement.catalog.manage",
-    manage: "procurement.catalog.manage",
-    parentResource: "catalogs",
-  },
-  requisitions: {
-    table: "procurement_requisitions",
-    kind: "document",
-    view: "procurement.view",
-    create: "procurement.requisition.create",
-    manage: "procurement.requisition.manage",
-    titleFields: ["requisitionNumber", "title", "name"],
-  },
-  "sourcing-events": {
-    table: "procurement_sourcing_events",
-    kind: "document",
-    view: "procurement.view",
-    create: "procurement.sourcing.manage",
-    manage: "procurement.sourcing.manage",
-    titleFields: ["eventNumber", "title", "name"],
-  },
-  "sourcing-invitations": {
-    table: "procurement_sourcing_invitations",
-    kind: "child",
-    view: "procurement.view",
-    create: "procurement.sourcing.manage",
-    manage: "procurement.sourcing.manage",
-    parentResource: "sourcing-events",
-  },
-  "sourcing-bids": {
-    table: "procurement_sourcing_bids",
-    kind: "child",
-    view: "procurement.view",
-    create: "procurement.sourcing.manage",
-    manage: "procurement.sourcing.manage",
-    parentResource: "sourcing-events",
-  },
-  "sourcing-evaluations": {
-    table: "procurement_sourcing_evaluations",
-    kind: "child",
-    view: "procurement.view",
-    create: "procurement.sourcing.evaluate",
-    manage: "procurement.sourcing.evaluate",
-    parentResource: "sourcing-events",
-  },
-  agreements: {
-    table: "procurement_agreements",
-    kind: "document",
-    view: "procurement.view",
-    create: "procurement.contracts.manage",
-    manage: "procurement.contracts.manage",
-    titleFields: ["agreementNumber", "title", "name"],
   },
   "purchase-orders": {
     table: "procurement_purchase_orders",
@@ -213,14 +102,6 @@ const RESOURCE_CONFIG = Object.freeze({
     manage: "procurement.po.manage",
     titleFields: ["purchaseOrderNumber", "title", "name"],
   },
-  "advance-shipping-notices": {
-    table: "procurement_advance_shipping_notices",
-    kind: "child",
-    view: "procurement.view",
-    create: "procurement.receipts.manage",
-    manage: "procurement.receipts.manage",
-    parentResource: "purchase-orders",
-  },
   receipts: {
     table: "procurement_receipts",
     kind: "document",
@@ -228,22 +109,6 @@ const RESOURCE_CONFIG = Object.freeze({
     create: "procurement.receipts.manage",
     manage: "procurement.receipts.manage",
     titleFields: ["receiptNumber", "title", "name"],
-  },
-  "service-entries": {
-    table: "procurement_service_entries",
-    kind: "document",
-    view: "procurement.view",
-    create: "procurement.receipts.manage",
-    manage: "procurement.receipts.manage",
-    titleFields: ["serviceEntryNumber", "title", "name"],
-  },
-  returns: {
-    table: "procurement_returns",
-    kind: "document",
-    view: "procurement.view",
-    create: "procurement.returns.manage",
-    manage: "procurement.returns.manage",
-    titleFields: ["returnNumber", "title", "name"],
   },
   "match-exceptions": {
     table: "procurement_match_exceptions",
@@ -267,14 +132,6 @@ const RESOURCE_CONFIG = Object.freeze({
     create: "procurement.settings.manage",
     manage: "procurement.settings.manage",
   },
-  "portal-users": {
-    table: "procurement_portal_users",
-    kind: "child",
-    view: "procurement.suppliers.view",
-    create: "procurement.supplier_portal.manage",
-    manage: "procurement.supplier_portal.manage",
-    parentResource: "suppliers",
-  },
   outbox: {
     table: "procurement_outbox",
     kind: "outbox",
@@ -283,21 +140,6 @@ const RESOURCE_CONFIG = Object.freeze({
     manage: null,
   },
 });
-
-const REPORTS = new Set([
-  "spend-analysis",
-  "supplier-performance",
-  "purchase-price-variance",
-  "contract-compliance",
-  "maverick-spend",
-  "open-commitments",
-  "overdue-orders",
-  "matching-exceptions",
-  "savings",
-  "cycle-time",
-  "supplier-risk",
-  "agreement-consumption",
-]);
 
 function isOwner(context) {
   return (context.roleSlugs || []).some((value) =>
@@ -436,7 +278,6 @@ function normalizeLine(line, index, resource) {
   if (line.uomId) normalized.uomId = id(line.uomId, "Unit of measure");
   if (line.warehouseId) normalized.warehouseId = id(line.warehouseId, "Warehouse");
   if (line.purchaseOrderLineId) normalized.purchaseOrderLineId = id(line.purchaseOrderLineId, "Purchase order line");
-  if (line.requisitionLineId) normalized.requisitionLineId = id(line.requisitionLineId, "Requisition line");
   if ("quantity" in line) normalized.quantity = positiveDecimal(line.quantity, `Line ${index + 1} quantity`);
   if ("receivedQuantity" in line) normalized.receivedQuantity = positiveDecimal(line.receivedQuantity, `Line ${index + 1} received quantity`, { allowZero: true });
   if ("acceptedQuantity" in line) normalized.acceptedQuantity = positiveDecimal(line.acceptedQuantity, `Line ${index + 1} accepted quantity`, { allowZero: true });
@@ -495,44 +336,11 @@ function normalizeDocument(resource, input, context) {
       // already requires a partyId; nothing populated one before this).
       common.accountingPartyId = value.accountingPartyId ? id(value.accountingPartyId, "Accounting business partner") : null;
       common.sites = array(value.sites, "Supplier sites");
-      common.qualifications = array(value.qualifications, "Supplier qualifications");
-      common.certifications = array(value.certifications, "Supplier certifications");
-      common.scorecards = array(value.scorecards, "Supplier scorecards");
       return common;
     }
     case "categories":
       common.name = text(value.name || value.title, "Category name", { required: true, max: 160 });
       common.code = text(value.code, "Category code", { required: true, max: 60 }).toUpperCase();
-      return common;
-    case "catalogs":
-      common.name = text(value.name || value.title, "Catalog name", { required: true, max: 160 });
-      common.code = text(value.code, "Catalog code", { required: true, max: 60 }).toUpperCase();
-      common.items = array(value.items, "Catalog items").map((line, index) => normalizeLine(line, index, resource));
-      return common;
-    case "requisitions": {
-      common.title = text(value.title || value.name, "Requisition title", { required: true, max: 240 });
-      common.requestedBy = value.requestedBy ? id(value.requestedBy, "Requester") : context.userId;
-      common.needByDate = text(value.needByDate, "Need-by date", { required: true, max: 10 });
-      common.lines = array(value.lines, "Requisition lines", { required: true }).map((line, index) => normalizeLine(line, index, resource));
-      common.distributions = array(value.distributions, "Requisition distributions");
-      common.totals = calculateTotals(common.lines);
-      return common;
-    }
-    case "sourcing-events":
-      common.title = text(value.title || value.name, "Sourcing event title", { required: true, max: 240 });
-      common.eventType = text(value.eventType || "rfq", "Event type", { required: true, max: 20 }).toLowerCase();
-      common.bidCloseAt = text(value.bidCloseAt, "Bid close date", { required: true, max: 40 });
-      common.invitations = array(value.invitations, "Sourcing invitations");
-      common.bids = array(value.bids, "Sourcing bids");
-      common.evaluations = array(value.evaluations, "Sourcing evaluations");
-      return common;
-    case "agreements":
-      common.title = text(value.title || value.name, "Agreement title", { required: true, max: 240 });
-      common.supplierId = id(value.supplierId, "Supplier");
-      common.validFrom = text(value.validFrom, "Valid-from date", { required: true, max: 10 });
-      common.validUntil = text(value.validUntil, "Valid-until date", { required: true, max: 10 });
-      common.lines = array(value.lines, "Agreement lines", { required: true }).map((line, index) => normalizeLine(line, index, resource));
-      common.totals = calculateTotals(common.lines);
       return common;
     case "purchase-orders":
       common.title = text(value.title || value.name || "Purchase order", "Purchase order title", { required: true, max: 240 });
@@ -544,7 +352,6 @@ function normalizeDocument(resource, input, context) {
         invoicedQuantity: positiveDecimal(line.invoicedQuantity ?? "0", `Line ${index + 1} invoiced quantity`, { allowZero: true }),
       }));
       common.schedules = array(value.schedules, "Purchase order schedules");
-      common.shippingNotices = array(value.shippingNotices, "Advance shipping notices");
       common.totals = calculateTotals(common.lines);
       return common;
     case "receipts":
@@ -555,16 +362,6 @@ function normalizeDocument(resource, input, context) {
         acceptedQuantity: positiveDecimal(line.acceptedQuantity ?? line.quantity, `Line ${index + 1} accepted quantity`, { allowZero: true }),
         rejectedQuantity: positiveDecimal(line.rejectedQuantity ?? "0", `Line ${index + 1} rejected quantity`, { allowZero: true }),
       }));
-      return common;
-    case "service-entries":
-      common.purchaseOrderId = id(value.purchaseOrderId, "Purchase order");
-      common.serviceDate = text(value.serviceDate, "Service date", { required: true, max: 10 });
-      common.lines = array(value.lines, "Service entry lines", { required: true }).map((line, index) => normalizeLine(line, index, resource));
-      return common;
-    case "returns":
-      common.receiptId = id(value.receiptId, "Receipt");
-      common.reason = text(value.reason, "Return reason", { required: true, max: 1000 });
-      common.lines = array(value.lines, "Return lines", { required: true }).map((line, index) => normalizeLine(line, index, resource));
       return common;
     case "match-exceptions":
       common.title = text(value.title || value.invoiceNumber || "Matching exception", "Exception title", { required: true, max: 240 });
@@ -594,30 +391,11 @@ function normalizeChild(resource, input, context) {
   };
 }
 
-
 const DOCUMENT_REFERENCE_COLUMNS = Object.freeze({
-  agreements: {
-    supplierId: ["supplier_id", "procurement_suppliers"],
-    sourceEventId: ["source_event_id", "procurement_sourcing_events"],
-    selectedBidId: ["selected_bid_id", "procurement_sourcing_bids"],
-  },
   "purchase-orders": {
     supplierId: ["supplier_id", "procurement_suppliers"],
-    agreementId: ["agreement_id", "procurement_agreements"],
-    requisitionId: ["requisition_id", "procurement_requisitions"],
-    sourceEventId: ["source_event_id", "procurement_sourcing_events"],
-    selectedBidId: ["selected_bid_id", "procurement_sourcing_bids"],
   },
   receipts: {
-    purchaseOrderId: ["purchase_order_id", "procurement_purchase_orders"],
-    supplierId: ["supplier_id", "procurement_suppliers"],
-  },
-  "service-entries": {
-    purchaseOrderId: ["purchase_order_id", "procurement_purchase_orders"],
-    supplierId: ["supplier_id", "procurement_suppliers"],
-  },
-  returns: {
-    receiptId: ["receipt_id", "procurement_receipts"],
     purchaseOrderId: ["purchase_order_id", "procurement_purchase_orders"],
     supplierId: ["supplier_id", "procurement_suppliers"],
   },
@@ -629,22 +407,9 @@ const DOCUMENT_REFERENCE_COLUMNS = Object.freeze({
 
 const CHILD_PARENT_EDITABLE_STATES = Object.freeze({
   "supplier-sites": ["draft", "submitted", "qualified", "active", "suspended"],
-  "supplier-qualifications": ["draft", "submitted", "qualified", "active", "suspended"],
-  "supplier-certifications": ["draft", "submitted", "qualified", "active", "suspended"],
-  "supplier-scorecards": ["qualified", "active", "suspended", "blocked"],
-  "catalog-items": ["draft"],
-  "requisition-lines": ["draft", "rejected"],
-  "requisition-distributions": ["draft", "rejected"],
-  "sourcing-invitations": ["draft", "submitted", "approved", "active"],
-  "sourcing-bids": ["active"],
-  "sourcing-evaluations": ["active", "closed"],
-  "agreement-lines": ["draft", "rejected"],
   "purchase-order-lines": ["draft", "rejected"],
   "purchase-order-schedules": ["draft", "rejected", "approved", "dispatched", "acknowledged", "partially_received"],
-  "advance-shipping-notices": ["dispatched", "acknowledged", "partially_received"],
   "receipt-lines": ["draft", "rejected"],
-  "service-entry-lines": ["draft", "rejected"],
-  "return-lines": ["draft", "rejected"],
   "matching-records": ["open", "resolved", "overridden"],
 });
 
@@ -672,49 +437,6 @@ async function loadReference(client, context, table, referenceId, companyId, lab
   return { ...(row.data || {}), ...row };
 }
 
-// F077/F078: an order raised under an agreement (a "call-off") must stay inside what
-// was committed. Only an ACTIVE agreement can be called off; each item's cumulative
-// ordered quantity (all non-cancelled, non-rejected orders under the agreement, plus
-// this one) may not exceed the agreement's committed quantity for that item.
-async function assertAgreementCapacity(client, context, resource, payload, excludeOrderId = null) {
-  if (resource !== "purchase-orders" || !payload.agreementId) return;
-  const agreementId = id(payload.agreementId, "Agreement");
-  const agreement = (
-    await client.query(`SELECT id,status,data FROM tenant.procurement_agreements WHERE organization_id=$1 AND id=$2`, [context.organizationId, agreementId])
-  ).rows[0];
-  if (!agreement) throw new ProcurementError(409, "Agreement does not exist.", "PROCUREMENT_REFERENCE_INVALID");
-  if (agreement.status !== "active") {
-    throw new ProcurementError(409, "Only an active agreement can be called off.", "PROCUREMENT_AGREEMENT_NOT_ACTIVE");
-  }
-  const key = (line) => String(line.itemId || String(line.description || "").trim().toLowerCase());
-  const committed = new Map();
-  const agreementLines = await client.query(`SELECT data FROM tenant.procurement_agreement_lines WHERE organization_id=$1 AND parent_id=$2`, [context.organizationId, agreementId]);
-  for (const row of agreementLines.rows) committed.set(key(row.data || {}), (committed.get(key(row.data || {})) || 0n) + decimal(row.data?.quantity ?? "0"));
-  const used = new Map();
-  const existing = await client.query(
-    `SELECT line.data FROM tenant.procurement_purchase_order_lines line
-       JOIN tenant.procurement_purchase_orders po ON po.organization_id=line.organization_id AND po.id=line.parent_id
-      WHERE po.organization_id=$1 AND po.agreement_id=$2 AND po.status NOT IN ('cancelled','rejected')
-        AND ($3::uuid IS NULL OR po.id<>$3)`,
-    [context.organizationId, agreementId, excludeOrderId],
-  );
-  for (const row of existing.rows) used.set(key(row.data || {}), (used.get(key(row.data || {})) || 0n) + decimal(row.data?.quantity ?? "0"));
-  for (const line of Array.isArray(payload.lines) ? payload.lines : []) {
-    const lineKey = key(line);
-    if (!committed.has(lineKey)) {
-      throw new ProcurementError(409, `"${line.description}" is not on this agreement.`, "PROCUREMENT_AGREEMENT_ITEM_NOT_COVERED");
-    }
-    used.set(lineKey, (used.get(lineKey) || 0n) + decimal(line.quantity ?? "0"));
-    if (used.get(lineKey) > committed.get(lineKey)) {
-      throw new ProcurementError(
-        409,
-        `"${line.description}" would exceed the agreement: ${format(used.get(lineKey), 4)} ordered against ${format(committed.get(lineKey), 4)} committed.`,
-        "PROCUREMENT_AGREEMENT_EXCEEDED",
-      );
-    }
-  }
-}
-
 async function validateDocumentReferences(client, context, resource, payload) {
   const references = {};
   const companyId = id(payload.companyId, "Company");
@@ -740,7 +462,7 @@ async function validateDocumentReferences(client, context, resource, payload) {
     references[column] = row.id;
   }
 
-  if (resource === "receipts" || resource === "service-entries") {
+  if (resource === "receipts") {
     const order = await loadReference(
       client,
       context,
@@ -754,22 +476,6 @@ async function validateDocumentReferences(client, context, resource, payload) {
     );
     references.purchase_order_id = order.id;
     references.supplier_id = order.supplier_id || order.supplierId || null;
-    payload.supplierId = references.supplier_id;
-  }
-  if (resource === "returns") {
-    const receipt = await loadReference(
-      client,
-      context,
-      "procurement_receipts",
-      payload.receiptId,
-      companyId,
-      "Receipt",
-      { allowedStatuses: ["approved", "received", "reversed"] },
-    );
-    references.receipt_id = receipt.id;
-    references.purchase_order_id = receipt.purchase_order_id || receipt.purchaseOrderId || null;
-    references.supplier_id = receipt.supplier_id || receipt.supplierId || null;
-    payload.purchaseOrderId = references.purchase_order_id;
     payload.supplierId = references.supplier_id;
   }
   if (resource === "match-exceptions" && payload.purchaseOrderId) {
@@ -873,13 +579,8 @@ async function nextNumber(client, context, entityType) {
 }
 
 const NUMBERING = Object.freeze({
-  requisitions: ["purchase_requisition", "PR-", "requisitionNumber"],
-  "sourcing-events": ["sourcing_event", "RFQ-", "eventNumber"],
-  agreements: ["procurement_agreement", "AGR-", "agreementNumber"],
   "purchase-orders": ["purchase_order", "PO-", "purchaseOrderNumber"],
   receipts: ["goods_receipt", "GRN-", "receiptNumber"],
-  "service-entries": ["service_entry", "SE-", "serviceEntryNumber"],
-  returns: ["return_to_vendor", "RTV-", "returnNumber"],
   "match-exceptions": ["procurement_match_exception", "MATCH-", "exceptionNumber"],
 });
 
@@ -889,14 +590,12 @@ async function ensureNumber(client, context, resource, payload) {
   return { ...payload, [rule[2]]: await nextNumber(client, context, rule[0]) };
 }
 
-
 function childReferenceValues(table, child) {
   if (table === "procurement_purchase_order_lines") {
     return {
       item_id: child.itemId || null,
       uom_id: child.uomId || null,
       warehouse_id: child.warehouseId || null,
-      requisition_line_id: child.requisitionLineId || null,
       received_quantity: child.receivedQuantity || "0",
       invoiced_quantity: child.invoicedQuantity || "0",
     };
@@ -909,21 +608,6 @@ function childReferenceValues(table, child) {
       warehouse_id: child.warehouseId || null,
       accepted_quantity: child.acceptedQuantity || child.quantity || "0",
       rejected_quantity: child.rejectedQuantity || "0",
-    };
-  }
-  if (table === "procurement_service_entry_lines") {
-    return {
-      purchase_order_line_id: child.purchaseOrderLineId || null,
-      item_id: child.itemId || null,
-      uom_id: child.uomId || null,
-    };
-  }
-  if (table === "procurement_return_lines") {
-    return {
-      receipt_line_id: child.receiptLineId || null,
-      purchase_order_line_id: child.purchaseOrderLineId || null,
-      item_id: child.itemId || null,
-      uom_id: child.uomId || null,
     };
   }
   return {};
@@ -1180,7 +864,6 @@ export async function createProcurementRecord(client, context, resource, input) 
   let payload = normalizeDocument(resource, input, context);
   payload = await ensureNumber(client, context, resource, payload);
   const references = await validateDocumentReferences(client, context, resource, payload);
-  await assertAgreementCapacity(client, context, resource, payload);
   const status = INITIAL_DOCUMENT_STATUS[resource] || "draft";
   const idempotencyKey = text(input.idempotencyKey, "Idempotency key", { max: 200 });
   const result = await client.query(
@@ -1282,7 +965,6 @@ export async function updateProcurementRecord(client, context, resource, recordI
   let payload = normalizeDocument(resource, { ...(current.data || {}), ...input, companyId: current.company_id, branchId: current.branch_id }, context);
   payload = await ensureNumber(client, context, resource, payload);
   const references = await validateDocumentReferences(client, context, resource, payload);
-  await assertAgreementCapacity(client, context, resource, payload, id(recordId));
   const result = await client.query(
     `
       UPDATE tenant.${config.table}
@@ -1323,27 +1005,6 @@ const TRANSITIONS = Object.freeze({
     suspend: [["active", "qualified"], "suspended", "procurement.suppliers.qualify"],
     cancel: [["draft", "submitted"], "cancelled", "procurement.suppliers.manage"],
   },
-  requisitions: {
-    submit: [["draft", "rejected"], "submitted", "procurement.requisition.manage"],
-    approve: [["submitted", "pending_approval"], "approved", "procurement.requisition.approve"],
-    reject: [["submitted", "pending_approval"], "rejected", "procurement.requisition.approve"],
-    close: ["approved", "closed", "procurement.requisition.manage"],
-    cancel: [["draft", "submitted", "rejected"], "cancelled", "procurement.requisition.manage"],
-  },
-  "sourcing-events": {
-    submit: ["draft", "submitted", "procurement.sourcing.manage"],
-    approve: ["submitted", "approved", "procurement.sourcing.evaluate"],
-    activate: ["approved", "active", "procurement.sourcing.manage"],
-    close: ["active", "closed", "procurement.sourcing.manage"],
-    cancel: [["draft", "submitted", "approved", "active"], "cancelled", "procurement.sourcing.manage"],
-  },
-  agreements: {
-    submit: ["draft", "submitted", "procurement.contracts.manage"],
-    approve: ["submitted", "approved", "procurement.contracts.approve"],
-    activate: ["approved", "active", "procurement.contracts.manage"],
-    close: ["active", "closed", "procurement.contracts.manage"],
-    cancel: [["draft", "submitted", "approved"], "cancelled", "procurement.contracts.manage"],
-  },
   "purchase-orders": {
     submit: [["draft", "rejected"], "submitted", "procurement.po.manage"],
     approve: [["submitted", "pending_approval"], "approved", "procurement.po.approve"],
@@ -1358,19 +1019,6 @@ const TRANSITIONS = Object.freeze({
     approve: ["submitted", "approved", "procurement.receipts.approve"],
     reject: ["submitted", "rejected", "procurement.receipts.approve"],
     reverse: ["approved", "reversed", "procurement.receipts.approve"],
-  },
-  "service-entries": {
-    submit: ["draft", "submitted", "procurement.receipts.manage"],
-    approve: ["submitted", "approved", "procurement.receipts.approve"],
-    reject: ["submitted", "rejected", "procurement.receipts.approve"],
-    reverse: ["approved", "reversed", "procurement.receipts.approve"],
-  },
-  returns: {
-    submit: ["draft", "submitted", "procurement.returns.manage"],
-    approve: ["submitted", "approved", "procurement.receipts.approve"],
-    dispatch: ["approved", "dispatched", "procurement.returns.manage"],
-    close: ["dispatched", "closed", "procurement.returns.manage"],
-    reject: ["submitted", "rejected", "procurement.receipts.approve"],
   },
   "match-exceptions": {
     resolve: ["open", "resolved", "procurement.matching.manage"],
@@ -1531,9 +1179,6 @@ async function applyReceiptToOrder(client, context, receipt, direction = 1) {
 }
 
 export async function transitionProcurementRecord(client, context, resource, recordId, action, input = {}) {
-  if (action === "award" && resource === "sourcing-events") {
-    return awardSourcingEvent(client, context, recordId, input);
-  }
   if (action === "amend" && resource === "purchase-orders") {
     return amendPurchaseOrder(client, context, recordId, input);
   }
@@ -1625,7 +1270,6 @@ export async function amendPurchaseOrder(client, context, recordId, input = {}) 
     "purchase-orders",
     merged,
   );
-  await assertAgreementCapacity(client, context, "purchase-orders", merged, orderId);
   const amendment = {
     amendmentId: randomUUID(),
     requestedAt: new Date().toISOString(),
@@ -1792,172 +1436,6 @@ export async function approvePurchaseOrderAmendment(client, context, recordId, i
 
 export async function rejectPurchaseOrderAmendment(client, context, recordId, input = {}) {
   return decidePurchaseOrderAmendment(client, context, recordId, input, false);
-}
-
-export async function awardSourcingEvent(client, context, recordId, input = {}) {
-  permission(context, "procurement.sourcing.award");
-  const sourceId = id(recordId, "Sourcing event");
-  const sourceRows = await client.query(
-    `SELECT * FROM tenant.procurement_sourcing_events
-      WHERE organization_id=$1 AND id=$2
-      FOR UPDATE`,
-    [context.organizationId, sourceId],
-  );
-  const sourceRow = sourceRows.rows[0];
-  if (!sourceRow) throw new ProcurementError(404, "Sourcing event was not found.");
-  const version = expectedVersion(input.expectedVersion);
-  if (version !== Number(sourceRow.version)) {
-    throw new ProcurementError(
-      409,
-      "This sourcing event changed after it was loaded. Refresh and try again.",
-      "PROCUREMENT_VERSION_CONFLICT",
-    );
-  }
-  if (sourceRow.status !== "active") {
-    throw new ProcurementError(
-      409,
-      `Cannot award a ${sourceRow.status} sourcing event.`,
-      "PROCUREMENT_INVALID_TRANSITION",
-    );
-  }
-  const existingAward = await client.query(
-    `SELECT id,created_record_id,award_type
-       FROM tenant.procurement_sourcing_awards
-      WHERE organization_id=$1 AND source_event_id=$2`,
-    [context.organizationId, sourceId],
-  );
-  if (existingAward.rows[0] || sourceRow.data?.award) {
-    throw new ProcurementError(
-      409,
-      "This sourcing event has already been awarded.",
-      "PROCUREMENT_AWARD_ALREADY_EXISTS",
-    );
-  }
-
-  const source = await hydrateChildren(
-    client,
-    context,
-    "sourcing-events",
-    { ...(sourceRow.data || {}), ...sourceRow },
-  );
-  const selectedBidId = id(input.selectedBidId, "Selected bid");
-  const bid = (source.bids || []).find((row) => String(row.id) === selectedBidId);
-  if (!bid) {
-    throw new ProcurementError(
-      404,
-      "Selected bid was not found in this sourcing event.",
-    );
-  }
-  const supplierId = id(bid.supplierId || input.supplierId, "Supplier");
-  await loadReference(
-    client,
-    context,
-    "procurement_suppliers",
-    supplierId,
-    source.company_id,
-    "Supplier",
-    { allowedStatuses: ["qualified", "active"] },
-  );
-  const awardType = text(
-    input.awardType || "purchase-order",
-    "Award type",
-    { required: true, max: 40 },
-  );
-  if (!new Set(["purchase-order", "agreement"]).has(awardType)) {
-    throw new ProcurementError(
-      400,
-      "Award type must be purchase-order or agreement.",
-    );
-  }
-  const lines = array(input.lines || bid.lines, "Award lines", { required: true });
-  const idempotencyKey = `sourcing-award:${source.id}`;
-  // The caller was just authorised to AWARD (procurement.sourcing.award). Creating
-  // the PO/agreement is part of that one act, so it runs with the creation
-  // permission it needs; without this, no seeded role (a purchase manager holds
-  // award but not po.create; a buyer the reverse) could ever complete an award.
-  const creator = {
-    ...context,
-    permissions: [...(context.permissions || []), "procurement.po.create", "procurement.contracts.manage"],
-  };
-  const created =
-    awardType === "agreement"
-      ? await createProcurementRecord(client, creator, "agreements", {
-          companyId: source.company_id,
-          branchId: source.branch_id,
-          supplierId,
-          title: input.title || `Award from ${source.eventNumber || source.title}`,
-          validFrom: input.validFrom,
-          validUntil: input.validUntil,
-          currencyCode: input.currencyCode || bid.currencyCode || source.currencyCode,
-          lines,
-          sourceEventId: source.id,
-          selectedBidId,
-          idempotencyKey,
-        })
-      : await createProcurementRecord(client, creator, "purchase-orders", {
-          companyId: source.company_id,
-          branchId: source.branch_id,
-          supplierId,
-          title: input.title || `Award from ${source.eventNumber || source.title}`,
-          expectedDeliveryDate: input.expectedDeliveryDate,
-          currencyCode: input.currencyCode || bid.currencyCode || source.currencyCode,
-          lines,
-          sourceEventId: source.id,
-          selectedBidId,
-          idempotencyKey,
-        });
-
-  const award = {
-    awardType,
-    selectedBidId,
-    supplierId,
-    createdRecordId: created.id,
-  };
-  await client.query(
-    `INSERT INTO tenant.procurement_sourcing_awards(
-       organization_id,company_id,source_event_id,selected_bid_id,supplier_id,
-       award_type,created_record_id,award_payload,created_by
-     ) VALUES($1,$2,$3,$4,$5,$6,$7,$8::jsonb,$9)`,
-    [
-      context.organizationId,
-      source.company_id,
-      source.id,
-      selectedBidId,
-      supplierId,
-      awardType,
-      created.id,
-      JSON.stringify(award),
-      context.userId,
-    ],
-  );
-  const updated = await client.query(
-    `
-      UPDATE tenant.procurement_sourcing_events
-      SET status='closed',data=jsonb_set(data,'{award}',$3::jsonb,true),
-          version=version+1,updated_by=$4,updated_at=now()
-      WHERE organization_id=$1 AND id=$2 AND version=$5 AND status='active'
-      RETURNING *
-    `,
-    [context.organizationId, source.id, JSON.stringify(award), context.userId, version],
-  );
-  if (!updated.rows[0]) {
-    throw new ProcurementError(
-      409,
-      "The sourcing event changed before the award was committed.",
-      "PROCUREMENT_VERSION_CONFLICT",
-    );
-  }
-  await event(client, context, updated.rows[0], "sourcing-events", "awarded", award);
-  await outbox(client, context, updated.rows[0], "procurement.sourcing-events.awarded", award);
-  return {
-    sourceEvent: await getProcurementRecord(
-      client,
-      context,
-      "sourcing-events",
-      source.id,
-    ),
-    award: created,
-  };
 }
 
 function lineKey(line) {
@@ -2380,8 +1858,6 @@ export async function getProcurementDashboard(client, context) {
   const result = await client.query(
     `
       SELECT
-        (SELECT count(*) FROM tenant.procurement_requisitions record WHERE record.organization_id=$1 ${companyFilter} AND record.status IN ('submitted','pending_approval'))::int pending_requisitions,
-        (SELECT count(*) FROM tenant.procurement_sourcing_events record WHERE record.organization_id=$1 ${companyFilter} AND record.status='active')::int active_sourcing,
         (SELECT count(*) FROM tenant.procurement_purchase_orders record WHERE record.organization_id=$1 ${companyFilter} AND record.status IN ('approved','dispatched','acknowledged','partially_received','pending_amendment_approval'))::int open_orders,
         (SELECT count(*) FROM tenant.procurement_receipts record WHERE record.organization_id=$1 ${companyFilter} AND record.status IN ('draft','submitted'))::int pending_receipts,
         (SELECT count(*) FROM tenant.procurement_match_exceptions record WHERE record.organization_id=$1 ${companyFilter} AND record.status='open')::int match_exceptions,
@@ -2391,54 +1867,6 @@ export async function getProcurementDashboard(client, context) {
     values,
   );
   return result.rows[0] || {};
-}
-
-const REPORT_SQL = Object.freeze({
-  "spend-analysis": `SELECT coalesce(record.data->>'supplierId','unassigned') dimension_value,count(*)::int document_count,coalesce(sum((record.data->'totals'->>'grandTotal')::numeric),0)::text metric_value FROM tenant.procurement_purchase_orders record WHERE record.organization_id=$1 AND ($2::uuid IS NULL OR record.company_id=$2) AND record.status NOT IN ('draft','cancelled') GROUP BY 1 ORDER BY coalesce(sum((record.data->'totals'->>'grandTotal')::numeric),0) DESC`,
-  "supplier-performance": `SELECT coalesce(supplier.data->>'supplierCode',supplier.data->>'displayName',scorecard.parent_id::text) dimension_value,count(*)::int scorecard_count,coalesce(avg(nullif(scorecard.data->>'overallScore','')::numeric),0)::text metric_value FROM tenant.procurement_supplier_scorecards scorecard LEFT JOIN tenant.procurement_suppliers supplier ON supplier.organization_id=scorecard.organization_id AND supplier.id=scorecard.parent_id WHERE scorecard.organization_id=$1 AND ($2::uuid IS NULL OR scorecard.company_id=$2) GROUP BY 1 ORDER BY coalesce(avg(nullif(scorecard.data->>'overallScore','')::numeric),0) DESC`,
-  "purchase-price-variance": `SELECT coalesce(record.data->>'supplierId','unassigned') dimension_value,count(*)::int document_count,coalesce(sum(nullif(record.data->>'varianceAmount','')::numeric),0)::text metric_value FROM tenant.procurement_matching_records record WHERE record.organization_id=$1 AND ($2::uuid IS NULL OR record.company_id=$2) GROUP BY 1 ORDER BY abs(coalesce(sum(nullif(record.data->>'varianceAmount','')::numeric),0)) DESC`,
-  "contract-compliance": `SELECT CASE WHEN record.data ? 'agreementId' THEN 'on-contract' ELSE 'off-contract' END dimension_value,count(*)::int document_count,coalesce(sum((record.data->'totals'->>'grandTotal')::numeric),0)::text metric_value FROM tenant.procurement_purchase_orders record WHERE record.organization_id=$1 AND ($2::uuid IS NULL OR record.company_id=$2) GROUP BY 1 ORDER BY count(*) DESC`,
-  "maverick-spend": `SELECT coalesce(record.data->>'requesterDepartment','unassigned') dimension_value,count(*)::int document_count,coalesce(sum((record.data->'totals'->>'grandTotal')::numeric),0)::text metric_value FROM tenant.procurement_purchase_orders record WHERE record.organization_id=$1 AND ($2::uuid IS NULL OR record.company_id=$2) AND NOT (record.data ? 'agreementId') GROUP BY 1 ORDER BY coalesce(sum((record.data->'totals'->>'grandTotal')::numeric),0) DESC`,
-  "open-commitments": `SELECT record.status dimension_value,count(*)::int document_count,coalesce(sum((record.data->'totals'->>'grandTotal')::numeric),0)::text metric_value FROM tenant.procurement_purchase_orders record WHERE record.organization_id=$1 AND ($2::uuid IS NULL OR record.company_id=$2) AND record.status IN ('approved','dispatched','acknowledged','partially_received','pending_amendment_approval') GROUP BY record.status ORDER BY coalesce(sum((record.data->'totals'->>'grandTotal')::numeric),0) DESC`,
-  "overdue-orders": `SELECT coalesce(record.data->>'supplierId','unassigned') dimension_value,count(*)::int document_count,coalesce(sum((record.data->'totals'->>'grandTotal')::numeric),0)::text metric_value FROM tenant.procurement_purchase_orders record WHERE record.organization_id=$1 AND ($2::uuid IS NULL OR record.company_id=$2) AND record.status NOT IN ('received','closed','cancelled') AND nullif(record.data->>'expectedDeliveryDate','')::date < current_date GROUP BY 1 ORDER BY count(*) DESC`,
-  "matching-exceptions": `SELECT coalesce(record.data->'issues'->0->>'type','other') dimension_value,count(*)::int document_count,coalesce(sum(nullif(record.data->>'varianceAmount','')::numeric),0)::text metric_value FROM tenant.procurement_match_exceptions record WHERE record.organization_id=$1 AND ($2::uuid IS NULL OR record.company_id=$2) AND record.status='open' GROUP BY 1 ORDER BY count(*) DESC`,
-  savings: `SELECT coalesce(record.data->'award'->>'supplierId','unassigned') dimension_value,count(*)::int document_count,coalesce(sum(nullif(record.data->>'savingsAmount','')::numeric),0)::text metric_value FROM tenant.procurement_sourcing_events record WHERE record.organization_id=$1 AND ($2::uuid IS NULL OR record.company_id=$2) AND record.status='closed' GROUP BY 1 ORDER BY coalesce(sum(nullif(record.data->>'savingsAmount','')::numeric),0) DESC`,
-  "cycle-time": `SELECT record.entity_type dimension_value,count(*)::int document_count,coalesce(avg(extract(epoch FROM (record.updated_at-record.created_at))/86400),0)::text metric_value FROM tenant.procurement_events record WHERE record.organization_id=$1 AND ($2::uuid IS NULL OR record.company_id=$2) GROUP BY record.entity_type ORDER BY coalesce(avg(extract(epoch FROM (record.updated_at-record.created_at))/86400),0) DESC`,
-  "supplier-risk": `SELECT record.status dimension_value,count(*)::int document_count,count(*)::text metric_value FROM tenant.procurement_suppliers record WHERE record.organization_id=$1 AND ($2::uuid IS NULL OR record.company_id=$2) AND record.status IN ('conditional','blocked','suspended') GROUP BY record.status ORDER BY count(*) DESC`,
-  "agreement-consumption": `SELECT coalesce(record.data->>'agreementId','unassigned') dimension_value,count(*)::int document_count,coalesce(sum((record.data->'totals'->>'grandTotal')::numeric),0)::text metric_value FROM tenant.procurement_purchase_orders record WHERE record.organization_id=$1 AND ($2::uuid IS NULL OR record.company_id=$2) AND record.data ? 'agreementId' GROUP BY 1 ORDER BY coalesce(sum((record.data->'totals'->>'grandTotal')::numeric),0) DESC`,
-});
-
-export async function getProcurementReport(client, context, report, filters = {}) {
-  permission(context, "procurement.reports.view");
-  if (!REPORTS.has(report)) {
-    throw new ProcurementError(404, "Unknown Procurement report.", "PROCUREMENT_REPORT_NOT_FOUND");
-  }
-  const companyId = context.allowAllCompanies ? null : context.activeCompanyId;
-  if (!context.allowAllCompanies && !companyId) {
-    return { report, filters, rows: [], materializedFacts: [] };
-  }
-  const live = await client.query(REPORT_SQL[report], [context.organizationId, companyId]);
-  const facts = await client.query(
-    `
-      SELECT report_key,metric_key,metric_value,dimension_key,dimension_value
-      FROM tenant.procurement_reporting_facts
-      WHERE organization_id=$1 AND report_key=$2
-        AND ($3::uuid IS NULL OR company_id=$3)
-      ORDER BY metric_value DESC LIMIT 500
-    `,
-    [context.organizationId, report, companyId],
-  );
-  return { report, filters, rows: live.rows, materializedFacts: facts.rows };
-}
-
-export function evaluateSupplierScore(weights, scores) {
-  const keys = Object.keys(weights);
-  const allocations = allocate("100", keys.map((key) => weights[key]));
-  let total = 0n;
-  keys.forEach((key, index) => {
-    total += (decimal(scores[key] || 0) * allocations[index]) / decimal("100");
-  });
-  return format(total, 2);
 }
 
 export { add, allocate, decimal, format, mul };

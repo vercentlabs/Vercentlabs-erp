@@ -39,7 +39,7 @@ test("Procurement source-to-pay against real PostgreSQL", async (t) => {
   }
 
   const proc = await import("../../services/api/src/index.js");
-  const { createProcurementRecord, updateProcurementRecord, getProcurementRecord, listProcurementRecords, transitionProcurementRecord, procurementContext, getProcurementDashboard, getProcurementGovernanceTimeline } = proc;
+  const { createProcurementRecord, getProcurementRecord, listProcurementRecords, transitionProcurementRecord, procurementContext, getProcurementDashboard, getProcurementGovernanceTimeline } = proc;
   const { setTenantContext } = await import("../../packages/database/src/index.js");
 
   const orgId = randomUUID();
@@ -98,18 +98,11 @@ test("Procurement source-to-pay against real PostgreSQL", async (t) => {
       supplier = s;
     });
 
-    await t.test("F064: sites, contacts, qualifications, certifications and scorecards attach to the supplier", async () => {
+    await t.test("F064: sites and contacts attach to the supplier; a requester cannot add them", async () => {
       const site = await tx((c) => createProcurementRecord(c, ctx.buyer, "supplier-sites", { parentId: supplier.id, siteName: "Pune Plant", siteType: "plant", contactName: "Ravi", contactEmail: "ravi@acme.test" }));
       assert.equal(site.parent_id, supplier.id);
-      await tx((c) => createProcurementRecord(c, ctx.manager, "supplier-qualifications", { parentId: supplier.id, qualificationType: "quality_audit", result: "passed" }));
-      await tx((c) => createProcurementRecord(c, ctx.manager, "supplier-certifications", { parentId: supplier.id, certificateType: "ISO 9001", validUntil: "2030-01-01" }));
-      await tx((c) => createProcurementRecord(c, ctx.manager, "supplier-scorecards", { parentId: supplier.id, period: "2026-Q3", qualityScore: 90, deliveryScore: 80, priceScore: 70, serviceScore: 60, overallScore: 78.5 }));
       const listed = await tx((c) => listProcurementRecords(c, ctx.viewer, "supplier-sites", { parentId: supplier.id }));
       assert.equal(listed.total, 1);
-    });
-
-    await t.test("F064: scorecards are refused for a viewer; sites are refused for a requester", async () => {
-      await assert.rejects(() => tx((c) => createProcurementRecord(c, ctx.viewer, "supplier-scorecards", { parentId: supplier.id, period: "2026-Q4" })), forbidden);
       await assert.rejects(() => tx((c) => createProcurementRecord(c, ctx.requester, "supplier-sites", { parentId: supplier.id, siteName: "X" })), forbidden);
     });
 
@@ -128,44 +121,16 @@ test("Procurement source-to-pay against real PostgreSQL", async (t) => {
       assert.equal(category.code, "RAW");
     });
 
-    let requisition;
-    await t.test("F067/F068: requisition -> submit -> approver rejects with a reason -> requester edits and RESUBMITS -> approved", async () => {
-      requisition = await tx((c) => createProcurementRecord(c, ctx.requester, "requisitions", { title: "Widgets for Q4", needByDate: "2026-12-31", requesterDepartment: "Ops", lines: [{ itemId, description: "Raw Widget", quantity: "10", unitPrice: "100", warehouseId }] }));
-      assert.match(requisition.requisitionNumber, /^PR-/);
-      assert.equal(requisition.totals.grandTotal, "1000.00");
-      await assert.rejects(() => tx((c) => createProcurementRecord(c, ctx.viewer, "requisitions", { title: "x", needByDate: "2026-12-31", lines: [{ description: "y", quantity: "1", unitPrice: "1" }] })), forbidden);
-      await assert.rejects(() => tx((c) => transitionProcurementRecord(c, ctx.requester, "requisitions", requisition.id, "submit", { expectedVersion: requisition.version })), forbidden, "requesters create; submitting needs requisition.manage");
-      let r = await tx((c) => transitionProcurementRecord(c, ctx.buyer, "requisitions", requisition.id, "submit", { expectedVersion: requisition.version }));
-      await assert.rejects(() => tx((c) => transitionProcurementRecord(c, ctx.approver, "requisitions", requisition.id, "reject", { expectedVersion: r.version })), (e) => /reason/i.test(e.message));
-      r = await tx((c) => transitionProcurementRecord(c, ctx.approver, "requisitions", requisition.id, "reject", { expectedVersion: r.version, reason: "Quantity too high" }));
-      assert.equal(r.status, "rejected");
-      const edited = await tx((c) => updateProcurementRecord(c, ctx.buyer, "requisitions", requisition.id, { title: "Widgets for Q4", needByDate: "2026-12-31", lines: [{ itemId, description: "Raw Widget", quantity: "5", unitPrice: "100", warehouseId }], expectedVersion: r.version }));
-      assert.equal(edited.totals.grandTotal, "500.00");
-      r = await tx((c) => transitionProcurementRecord(c, ctx.buyer, "requisitions", requisition.id, "submit", { expectedVersion: edited.version }));
-      assert.equal(r.status, "submitted", "a rejected requisition can be revised and resubmitted");
-      r = await tx((c) => transitionProcurementRecord(c, ctx.approver, "requisitions", requisition.id, "approve", { expectedVersion: r.version }));
-      assert.equal(r.status, "approved");
-      requisition = r;
-    });
 
-    await t.test("F068: the person who created a requisition cannot approve it, even holding approve", async () => {
-      const both = procurementContext({ organizationId: orgId, userId: users.buyer, activeCompanyId: companyId, roleSlugs: [], permissions: [...ROLE_PERMISSIONS.buyer, "procurement.requisition.approve", "procurement.requisition.create"] });
-      const own = await tx((c) => createProcurementRecord(c, both, "requisitions", { title: "Own request", needByDate: "2026-12-31", lines: [{ description: "Thing", quantity: "1", unitPrice: "10" }] }));
-      const submitted = await tx((c) => transitionProcurementRecord(c, both, "requisitions", own.id, "submit", { expectedVersion: own.version }));
-      await assert.rejects(() => tx((c) => transitionProcurementRecord(c, both, "requisitions", own.id, "approve", { expectedVersion: submitted.version })), (e) => e.code === "PROCUREMENT_SELF_APPROVAL");
-    });
-
-    await t.test("audit: every action leaves a timeline entry, and the dashboard counts real records", async () => {
-      const timeline = await tx((c) => getProcurementGovernanceTimeline(c, ctx.viewer, "requisitions", requisition.id));
+    await t.test("audit: every action leaves a timeline entry, and the dashboard reads real records", async () => {
+      const timeline = await tx((c) => getProcurementGovernanceTimeline(c, ctx.viewer, "suppliers", supplier.id));
       const labels = timeline.map((entry) => entry.label);
-      for (const expected of ["submit", "reject", "updated", "approve"]) assert.ok(labels.includes(expected), `timeline has ${expected}`);
+      for (const expected of ["submit", "qualify", "activate", "block"]) assert.ok(labels.includes(expected), `timeline has ${expected}`);
       const dashboard = await tx((c) => getProcurementDashboard(c, ctx.viewer));
-      assert.ok(Number(dashboard.pending_requisitions) >= 1, "the unapproved own-request counts as pending");
-      const rec = await tx((c) => getProcurementRecord(c, ctx.viewer, "requisitions", requisition.id));
-      assert.equal(rec.lines.length, 1);
+      assert.equal(Number(dashboard.supplier_risks), 0, "the reactivated supplier is not a risk");
     });
 
-    // ---- sourcing: RFQ -> invitations -> bids -> evaluations -> award -> PO ----
+    // ---- purchasing ----
     async function activeSupplier(code) {
       let sup = await tx((c) => createProcurementRecord(c, ctx.buyer, "suppliers", { supplierCode: code, legalName: `${code} Ltd`, currencyCode: "INR" }));
       sup = await tx((c) => transitionProcurementRecord(c, ctx.buyer, "suppliers", sup.id, "submit", { expectedVersion: sup.version }));
@@ -173,57 +138,17 @@ test("Procurement source-to-pay against real PostgreSQL", async (t) => {
       return tx((c) => transitionProcurementRecord(c, ctx.manager, "suppliers", sup.id, "activate", { expectedVersion: sup.version }));
     }
     const lines = (quantity, price) => [{ itemId, description: "Raw Widget", quantity, unitPrice: price, warehouseId }];
-    let rfq;
-    let supplierB;
-    let bidA;
-    let bidB;
-    let award;
-    await t.test("F069/F070: an RFQ is created, approved by someone else, activated and invited to several suppliers", async () => {
-      supplierB = await activeSupplier("SUP-002");
-      rfq = await tx((c) => createProcurementRecord(c, ctx.buyer, "sourcing-events", { title: "Widget RFQ", eventType: "rfq", bidCloseAt: "2026-12-01", requisitionId: requisition.id, lines: lines("10", "0") }));
-      assert.match(rfq.eventNumber, /^RFQ-/);
-      await assert.rejects(() => tx((c) => createProcurementRecord(c, ctx.requester, "sourcing-events", { title: "x", bidCloseAt: "2026-12-01" })), forbidden);
-      let r = await tx((c) => transitionProcurementRecord(c, ctx.buyer, "sourcing-events", rfq.id, "submit", { expectedVersion: rfq.version }));
-      await assert.rejects(() => tx((c) => transitionProcurementRecord(c, ctx.buyer, "sourcing-events", rfq.id, "approve", { expectedVersion: r.version })), (e) => e.code === "PROCUREMENT_SELF_APPROVAL");
-      r = await tx((c) => transitionProcurementRecord(c, ctx.manager, "sourcing-events", rfq.id, "approve", { expectedVersion: r.version }));
-      r = await tx((c) => transitionProcurementRecord(c, ctx.buyer, "sourcing-events", rfq.id, "activate", { expectedVersion: r.version }));
-      assert.equal(r.status, "active");
-      rfq = r;
-      for (const sup of [supplier, supplierB]) {
-        await tx((c) => createProcurementRecord(c, ctx.buyer, "sourcing-invitations", { parentId: rfq.id, supplierId: sup.id }));
-      }
-      const invitations = await tx((c) => listProcurementRecords(c, ctx.viewer, "sourcing-invitations", { parentId: rfq.id }));
-      assert.equal(invitations.total, 2, "the same RFQ went to multiple vendors");
-    });
-
-    await t.test("F071/F072: supplier quotations are captured as bids; evaluations score them", async () => {
-      bidA = await tx((c) => createProcurementRecord(c, ctx.buyer, "sourcing-bids", { parentId: rfq.id, supplierId: supplier.id, quotationNumber: "Q-A", currencyCode: "INR", leadTimeDays: 14, lines: lines("10", "100") }));
-      bidB = await tx((c) => createProcurementRecord(c, ctx.buyer, "sourcing-bids", { parentId: rfq.id, supplierId: supplierB.id, quotationNumber: "Q-B", currencyCode: "INR", leadTimeDays: 7, lines: lines("10", "110") }));
-      await tx((c) => createProcurementRecord(c, ctx.manager, "sourcing-evaluations", { parentId: rfq.id, bidId: bidA.id, criterion: "price", score: 90, weight: 50 }));
-      await tx((c) => createProcurementRecord(c, ctx.manager, "sourcing-evaluations", { parentId: rfq.id, bidId: bidB.id, criterion: "delivery", score: 95, weight: 50 }));
-      await assert.rejects(() => tx((c) => createProcurementRecord(c, ctx.viewer, "sourcing-bids", { parentId: rfq.id, supplierId: supplier.id })), forbidden);
-      await assert.rejects(() => tx((c) => createProcurementRecord(c, ctx.requester, "sourcing-evaluations", { parentId: rfq.id, bidId: bidA.id, criterion: "price", score: 1 })), forbidden);
-      const detail = await tx((c) => getProcurementRecord(c, ctx.viewer, "sourcing-events", rfq.id));
-      assert.equal(detail.bids.length, 2);
-      assert.equal(detail.evaluations.length, 2);
-    });
-
-    await t.test("F073: only a holder of sourcing.award can award; the award creates a draft PO and closes the RFQ, once", async () => {
-      const input = { expectedVersion: rfq.version, selectedBidId: bidB.id, awardType: "purchase-order", expectedDeliveryDate: "2026-12-20", lines: lines("10", "110") };
-      await assert.rejects(() => tx((c) => proc.awardSourcingEvent(c, ctx.buyer, rfq.id, input)), forbidden);
-      award = await tx((c) => proc.awardSourcingEvent(c, ctx.manager, rfq.id, input));
-      assert.equal(award.sourceEvent.status, "closed");
-      assert.equal(award.award.status, "draft");
-      assert.equal(award.award.supplierId, supplierB.id, "the PO goes to the winning bidder");
-      assert.equal(award.award.totals.grandTotal, "1100.00");
-      await assert.rejects(() => tx((c) => proc.awardSourcingEvent(c, ctx.manager, rfq.id, { ...input, expectedVersion: award.sourceEvent.version })), (e) => e.status === 409, "an RFQ is awarded once");
-    });
 
     let order;
     await t.test("F074/F075: PO submit -> approve (not by its creator) -> dispatch -> acknowledge", async () => {
-      order = award.award;
-      let o = await tx((c) => transitionProcurementRecord(c, ctx.manager, "purchase-orders", order.id, "submit", { expectedVersion: order.version }));
-      await assert.rejects(() => tx((c) => transitionProcurementRecord(c, ctx.manager, "purchase-orders", order.id, "approve", { expectedVersion: o.version })), (e) => e.code === "PROCUREMENT_SELF_APPROVAL");
+      const supplierB = await activeSupplier("SUP-002");
+      await assert.rejects(() => tx((c) => createProcurementRecord(c, ctx.viewer, "purchase-orders", { title: "x", supplierId: supplierB.id, expectedDeliveryDate: "2026-12-20", lines: lines("1", "1") })), forbidden);
+      order = await tx((c) => createProcurementRecord(c, ctx.buyer, "purchase-orders", { title: "Widget PO", supplierId: supplierB.id, expectedDeliveryDate: "2026-12-20", lines: lines("10", "110") }));
+      assert.match(order.purchaseOrderNumber, /^PO-/);
+      assert.equal(order.totals.grandTotal, "1100.00");
+      let o = await tx((c) => transitionProcurementRecord(c, ctx.buyer, "purchase-orders", order.id, "submit", { expectedVersion: order.version }));
+      const selfApprover = procurementContext({ organizationId: orgId, userId: users.buyer, activeCompanyId: companyId, roleSlugs: [], permissions: [...ROLE_PERMISSIONS.buyer, "procurement.po.approve"] });
+      await assert.rejects(() => tx((c) => transitionProcurementRecord(c, selfApprover, "purchase-orders", order.id, "approve", { expectedVersion: o.version })), (e) => e.code === "PROCUREMENT_SELF_APPROVAL");
       await assert.rejects(() => tx((c) => transitionProcurementRecord(c, ctx.buyer, "purchase-orders", order.id, "approve", { expectedVersion: o.version })), forbidden);
       o = await tx((c) => transitionProcurementRecord(c, ctx.approver, "purchase-orders", order.id, "approve", { expectedVersion: o.version }));
       await assert.rejects(() => tx((c) => transitionProcurementRecord(c, ctx.approver, "purchase-orders", order.id, "dispatch", { expectedVersion: o.version })), forbidden, "dispatch needs po.dispatch");
@@ -261,22 +186,7 @@ test("Procurement source-to-pay against real PostgreSQL", async (t) => {
       await assert.rejects(() => tx((c) => transitionProcurementRecord(c, ctx.buyer, "purchase-orders", order.id, "cancel", { expectedVersion: order.version, reason: "x" })), (e) => e.code === "PROCUREMENT_INVALID_TRANSITION", "an acknowledged PO cannot simply be cancelled");
     });
 
-    await t.test("F077/F078: agreements need approval by a contracts approver, then bind a PO to the contract", async () => {
-      let a = await tx((c) => createProcurementRecord(c, ctx.buyer, "agreements", { title: "Annual widget contract", supplierId: supplier.id, validFrom: "2026-01-01", validUntil: "2026-12-31", agreementType: "blanket", lines: lines("1000", "95") }));
-      assert.match(a.agreementNumber, /^AGR-/);
-      a = await tx((c) => transitionProcurementRecord(c, ctx.buyer, "agreements", a.id, "submit", { expectedVersion: a.version }));
-      await assert.rejects(() => tx((c) => transitionProcurementRecord(c, ctx.buyer, "agreements", a.id, "approve", { expectedVersion: a.version })), forbidden, "buyers hold contracts.manage, not contracts.approve");
-      a = await tx((c) => transitionProcurementRecord(c, ctx.approver, "agreements", a.id, "approve", { expectedVersion: a.version }));
-      a = await tx((c) => transitionProcurementRecord(c, ctx.buyer, "agreements", a.id, "activate", { expectedVersion: a.version }));
-      assert.equal(a.status, "active");
-      const call = await tx((c) => createProcurementRecord(c, ctx.buyer, "purchase-orders", { title: "Call-off", supplierId: supplier.id, agreementId: a.id, expectedDeliveryDate: "2026-11-01", lines: lines("50", "95") }));
-      assert.equal(call.agreementId, a.id);
-      const report = await tx((c) => proc.getProcurementReport(c, ctx.buyer, "agreement-consumption"));
-      assert.ok(report.rows.some((row) => row.dimension_value === a.id), "consumption against the agreement is reported");
-      await assert.rejects(() => tx((c) => transitionProcurementRecord(c, ctx.buyer, "agreements", a.id, "cancel", { expectedVersion: a.version })), (e) => /reason|Cannot/i.test(e.message));
-    });
-
-    // ---- receiving, returns and matching ----
+    // ---- receiving and matching ----
     const stockCtx = { organizationId: orgId, companyId, userId: users.receiver, roleSlugs: [], permissions: ["stock.view", "stock.receive", "stock.issue"] };
     const onHand = async () => Number((await admin.query(`SELECT COALESCE(sum(quantity),0) AS q FROM tenant.stock_balances WHERE organization_id=$1 AND item_id=$2 AND warehouse_id=$3`, [orgId, itemId, warehouseId])).rows[0].q);
     let receiptOrder;
@@ -330,24 +240,6 @@ test("Procurement source-to-pay against real PostgreSQL", async (t) => {
       assert.equal(await onHand(), stockBefore - 4, "the reversal issued the 4 accepted units back out");
     });
 
-    await t.test("F083: a purchase return references an approved receipt; dispatch takes the goods out of stock", async () => {
-      const receipts = await tx((c) => listProcurementRecords(c, ctx.viewer, "receipts", { status: "approved" }));
-      const source = receipts.rows.find((row) => row.purchaseOrderId === receiptOrder.id);
-      assert.ok(source, "the second receipt is approved");
-      await assert.rejects(() => tx((c) => createProcurementRecord(c, ctx.viewer, "returns", { receiptId: source.id, reason: "x", lines: [{ description: "y", quantity: "1" }] })), forbidden);
-      let ret = await tx((c) => createProcurementRecord(c, ctx.receiver, "returns", { receiptId: source.id, purchaseOrderId: receiptOrder.id, reason: "Defective batch", lines: [{ itemId, description: "Raw Widget", quantity: "3", warehouseId }] }));
-      assert.match(ret.returnNumber, /^RTV-/);
-      ret = await tx((c) => transitionProcurementRecord(c, ctx.receiver, "returns", ret.id, "submit", { expectedVersion: ret.version }));
-      await assert.rejects(() => tx((c) => transitionProcurementRecord(c, ctx.receiver, "returns", ret.id, "approve", { expectedVersion: ret.version })), forbidden);
-      ret = await tx((c) => transitionProcurementRecord(c, ctx.approver, "returns", ret.id, "approve", { expectedVersion: ret.version }));
-      const before = await onHand();
-      ret = await tx((c) => proc.transitionProcurementReturnWithStockMovement(c, ctx.receiver, stockCtx, ret.id, "dispatch", { expectedVersion: ret.version }));
-      assert.equal(ret.status, "dispatched");
-      assert.equal(await onHand(), before - 3, "dispatching the return issued 3 units");
-      ret = await tx((c) => transitionProcurementRecord(c, ctx.receiver, "returns", ret.id, "close", { expectedVersion: ret.version }));
-      assert.equal(ret.status, "closed");
-    });
-
     await t.test("F084-F086: invoice matching -- clean 3-way match, over-invoicing raises an exception, duplicates are refused, overriding needs its permission and a reason", async () => {
       const po = await tx((c) => getProcurementRecord(c, ctx.viewer, "purchase-orders", receiptOrder.id));
       const poLine = po.lines[0];
@@ -395,45 +287,6 @@ test("Procurement source-to-pay against real PostgreSQL", async (t) => {
       assert.equal(overridden.status, "overridden");
     });
 
-    await t.test("F094: a stock item below its reorder point becomes a reorder request, then a draft PO priced from the supplier's price list -- once", async () => {
-      const ruleId = randomUUID();
-      await admin.query(`INSERT INTO tenant.stock_reorder_rules(id,organization_id,company_id,item_id,warehouse_id,minimum_quantity,reorder_quantity,maximum_quantity,preferred_supplier_id,lead_time_days,active) VALUES ($1,$2,$3,$4,$5,1000,25,2000,$6,5,true)`, [ruleId, orgId, companyId, itemId, warehouseId, supplier.id]);
-      const stock = { organizationId: orgId, companyId, userId: users.buyer, roleSlugs: [], permissions: ["stock.view"] };
-      const candidates = await tx((c) => proc.listStockReorderCandidates(c, stock, {}));
-      const candidate = candidates.find((row) => row.reorderRuleId === ruleId);
-      assert.ok(candidate, "the item is below its (deliberately high) reorder point");
-      const supplierPrice = await tx((c) => proc.upsertSupplierPurchasePrice(c, ctx.buyer, { supplierId: supplier.id, itemId, minimumQuantity: 10, rate: 88, currencyCode: "INR" }));
-      assert.equal(Number(supplierPrice.rate), 88);
-      await assert.rejects(() => tx((c) => proc.upsertSupplierPurchasePrice(c, ctx.requester, { supplierId: supplier.id, itemId, rate: 1 })), forbidden, "supplier prices need catalog.manage");
-      const request = await tx((c) => proc.createProcurementReorderRequest(c, ctx.buyer, { reorderRuleId: ruleId, itemId, warehouseId, supplierId: supplier.id, quantity: 25, idempotencyKey: `reorder-${ruleId}` }));
-      const again = await tx((c) => proc.createProcurementReorderRequest(c, ctx.buyer, { reorderRuleId: ruleId, itemId, warehouseId, supplierId: supplier.id, quantity: 25, idempotencyKey: `reorder-${ruleId}` }));
-      assert.equal(again.id, request.id, "the same trigger creates one request");
-      await assert.rejects(() => tx((c) => proc.convertReorderRequestToPurchaseOrder(c, ctx.viewer, request.id)), forbidden);
-      const converted = await tx((c) => proc.convertReorderRequestToPurchaseOrder(c, ctx.buyer, request.id));
-      assert.equal(converted.purchaseOrder.status, "draft");
-      assert.equal(converted.purchaseOrder.totals.grandTotal, "2200.00", "25 x the 88 agreed price");
-      assert.equal(converted.reorderRequest.status, "converted");
-      const replay = await tx((c) => proc.convertReorderRequestToPurchaseOrder(c, ctx.buyer, request.id));
-      assert.equal(replay.purchaseOrder.id, converted.purchaseOrder.id);
-      assert.equal(replay.idempotent, true);
-      const lead = await tx((c) => proc.upsertSupplierLeadTime(c, ctx.buyer, { supplierId: supplier.id, leadTimeDays: 12 }));
-      assert.equal(lead.lead_time_days, 12);
-      await assert.rejects(() => tx((c) => proc.upsertSupplierLeadTime(c, ctx.buyer, { supplierId: supplier.id, leadTimeDays: 99999 })), (e) => e.status === 400);
-    });
-
-    await t.test("F095/F088: landed cost and subcontract orders validate their inputs and need the right permission", async () => {
-      const order = receiptOrder;
-      await assert.rejects(() => tx((c) => proc.createProcurementLandedCost(c, ctx.buyer, { purchaseOrderId: order.id, costType: "Freight", amount: 50, currencyCode: "INR" })), forbidden, "landed cost needs matching.manage");
-      const finance = procurementContext({ organizationId: orgId, userId: users.buyer, activeCompanyId: companyId, roleSlugs: [], permissions: [...ROLE_PERMISSIONS.buyer, "procurement.matching.manage"] });
-      await assert.rejects(() => tx((c) => proc.createProcurementLandedCost(c, finance, { costType: "Freight", amount: 50, currencyCode: "INR" })), (e) => /Purchase Order or Goods Receipt/i.test(e.message));
-      await assert.rejects(() => tx((c) => proc.createProcurementLandedCost(c, finance, { purchaseOrderId: order.id, costType: "Freight", amount: -5, currencyCode: "INR" })), (e) => /negative/i.test(e.message));
-      const cost = await tx((c) => proc.createProcurementLandedCost(c, finance, { purchaseOrderId: order.id, costType: "Freight", amount: 50, currencyCode: "INR", allocationMethod: "quantity" }));
-      assert.equal(Number(cost.amount), 50);
-      const sub = await tx((c) => proc.createProcurementSubcontractOrder(c, ctx.buyer, { supplierId: supplier.id, itemId, quantity: 5, expectedReturnDate: "2027-05-01" }));
-      assert.equal(Number(sub.quantity), 5);
-      await assert.rejects(() => tx((c) => proc.createProcurementSubcontractOrder(c, ctx.requester, { supplierId: supplier.id })), forbidden);
-    });
-
     await t.test("F088/F086: the matching-tolerance policy changes what counts as a match, and needs the settings permission", async () => {
       const po = await tx((c) => getProcurementRecord(c, ctx.viewer, "purchase-orders", receiptOrder.id));
       const poLine = po.lines[0];
@@ -454,27 +307,6 @@ test("Procurement source-to-pay against real PostgreSQL", async (t) => {
       const readiness = await tx((c) => proc.assessProcurementRecordReadiness(c, ctx.viewer, "purchase-orders", receiptOrder.id));
       assert.ok(readiness.health);
       assert.ok(Array.isArray(readiness.health.blockers) && Array.isArray(readiness.health.warnings));
-    });
-
-    await t.test("F077: call-offs stay inside the agreement -- only active, only covered items, never more than committed", async () => {
-      let agreement = await tx((c) => createProcurementRecord(c, ctx.buyer, "agreements", { title: "Capped contract", supplierId: supplier.id, validFrom: "2026-01-01", validUntil: "2027-12-31", lines: lines("100", "50") }));
-      const callOff = (quantity, extra = {}) => tx((c) => createProcurementRecord(c, ctx.buyer, "purchase-orders", { title: "Call-off", supplierId: supplier.id, agreementId: agreement.id, expectedDeliveryDate: "2027-02-01", lines: lines(quantity, "50"), ...extra }));
-      await assert.rejects(() => callOff("1"), (e) => e.code === "PROCUREMENT_AGREEMENT_NOT_ACTIVE", "a draft agreement cannot be called off");
-      agreement = await tx((c) => transitionProcurementRecord(c, ctx.buyer, "agreements", agreement.id, "submit", { expectedVersion: agreement.version }));
-      agreement = await tx((c) => transitionProcurementRecord(c, ctx.approver, "agreements", agreement.id, "approve", { expectedVersion: agreement.version }));
-      agreement = await tx((c) => transitionProcurementRecord(c, ctx.buyer, "agreements", agreement.id, "activate", { expectedVersion: agreement.version }));
-      const first = await callOff("60");
-      assert.equal(first.agreementId, agreement.id);
-      await assert.rejects(() => callOff("41"), (e) => e.code === "PROCUREMENT_AGREEMENT_EXCEEDED", "60 + 41 > 100 committed");
-      const second = await callOff("40");
-      assert.equal(second.totals.grandTotal, "2000.00", "exactly the remainder is allowed");
-      await assert.rejects(() => callOff("1"), (e) => e.code === "PROCUREMENT_AGREEMENT_EXCEEDED", "the agreement is now fully called off");
-      await assert.rejects(() => tx((c) => createProcurementRecord(c, ctx.buyer, "purchase-orders", { title: "Other item", supplierId: supplier.id, agreementId: agreement.id, expectedDeliveryDate: "2027-02-01", lines: [{ description: "Something else", quantity: "1", unitPrice: "1" }] })), (e) => e.code === "PROCUREMENT_AGREEMENT_ITEM_NOT_COVERED");
-      // cancelling a call-off frees its quantity again
-      const cancelled = await tx((c) => transitionProcurementRecord(c, ctx.buyer, "purchase-orders", first.id, "cancel", { expectedVersion: first.version, reason: "Not needed" }));
-      assert.equal(cancelled.status, "cancelled");
-      const again = await callOff("55");
-      assert.ok(again.id);
     });
 
     await t.test("F084: a supplier is linked to an Accounting party at any lifecycle stage, by someone allowed to manage suppliers", async () => {

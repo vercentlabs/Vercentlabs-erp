@@ -50,10 +50,7 @@ export function getSalesOptions(client: SalesQueryClient, context: SalesContext,
 
 
 export function listSalesPass1Operations(client: SalesQueryClient, context: SalesContext, options?: { kind?: string; limit?: number }): Promise<any[]>;
-export function recordSalesAdvancePayment(client: SalesQueryClient, context: SalesContext, input?: Record<string, any>): Promise<any>;
 export function requestSalesCreditAdjustment(client: SalesQueryClient, context: SalesContext, input?: Record<string, any>): Promise<any>;
-export function createSalesDropShipRequest(client: SalesQueryClient, context: SalesContext, input?: Record<string, any>): Promise<any>;
-export function createSalesCommissionRule(client: SalesQueryClient, context: SalesContext, input?: Record<string, any>): Promise<any>;
 export function accrueSalesCommission(client: SalesQueryClient, context: SalesContext, input?: Record<string, any>): Promise<any>;
 export function upsertSalesPriceListItem(client: SalesQueryClient, context: SalesContext, input?: Record<string, any>): Promise<any>;
 export function upsertSalesCustomerPrice(client: SalesQueryClient, context: SalesContext, input?: Record<string, any>): Promise<any>;

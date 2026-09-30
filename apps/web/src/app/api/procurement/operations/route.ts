@@ -2,14 +2,7 @@ import { listProcurementPass1Operations } from "@vercentlabs/api";
 
 import { procurementRead } from "@/features/procurement/shared/route-helpers";
 
-const KINDS = [
-  "supplier-prices",
-  "landed-costs",
-  "supplier-lead-times",
-  "reorder-requests",
-  "subcontract-orders",
-  "invoice-matches",
-];
+const KINDS = ["invoice-matches"];
 
 // Read endpoint for the operational registers; the kind is checked against a fixed
 // list here as well as in the domain, so a table name can never be chosen by the caller.

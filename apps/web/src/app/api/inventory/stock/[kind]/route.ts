@@ -1,13 +1,8 @@
 import {
-  getPickList,
-  getStockAgingReport,
-  getStockTraceability,
-  listPickLists,
   listStockQuarantine,
   getStockAvailability,
   getStockMovementSummary,
   getStockValuationReport,
-  listStockLandedCosts,
   getStockCount,
   listStockCounts,
   getStockDashboard,
@@ -17,8 +12,6 @@ import {
   listStockBatchesWithBalance,
   listStockLedger,
   listStockOperationOptions,
-  listStockReorderCandidates,
-  listStockReorderRulesDetailed,
   listStockReservationsDetailed,
   listStockSerialsDetailed,
   listStockTransfersDetailed,
@@ -122,14 +115,6 @@ export async function GET(
             status: get("status"),
           }),
         };
-      case "reorder-rules":
-        return { rows: await listStockReorderRulesDetailed(client, context) };
-      case "replenishment":
-        return {
-          rows: (
-            await listStockReorderCandidates(client, context, { limit: 200 })
-          ).map((row) => ({ id: String(row.reorderRuleId), ...row })),
-        };
       case "availability":
         return {
           availability: await getStockAvailability(client, context, {
@@ -151,21 +136,6 @@ export async function GET(
           totals: report.totals,
         };
       }
-      case "aging": {
-        const report = await getStockAgingReport(client, context, {
-          slowDays: get("slowDays"),
-          deadDays: get("deadDays"),
-          warehouseId: get("warehouseId"),
-        });
-        return {
-          rows: report.lines.map((line) => ({
-            id: `${line.item_id}:${line.warehouse_id}`,
-            ...line,
-          })),
-          slowDays: report.slowDays,
-          deadDays: report.deadDays,
-        };
-      }
       case "movement": {
         const days = Number(get("days") ?? 30);
         const from = new Date(
@@ -185,14 +155,6 @@ export async function GET(
           from,
         };
       }
-      case "landed-costs":
-        return { rows: await listStockLandedCosts(client, context) };
-      case "traceability":
-        return {
-          trace: await getStockTraceability(client, context, {
-            code: get("code"),
-          }),
-        };
       case "quarantine": {
         const q = await listStockQuarantine(client, context);
         return {
@@ -208,12 +170,6 @@ export async function GET(
           ],
         };
       }
-      case "picks":
-        return {
-          rows: await listPickLists(client, context, { status: get("status") }),
-        };
-      case "pick":
-        return { pick: await getPickList(client, context, get("id") ?? "") };
       case "counts":
         return {
           rows: await listStockCounts(client, context, {

@@ -4,30 +4,19 @@ import {
   getAccountingReport,
   getAccountingSettings,
   getBankStatement,
-  getCloseRun,
   getCustomerInvoice,
   getJournalEntry,
   getPeriodCloseBlockers,
   getVendorBill,
-  listAccrualSchedules,
-  listAssetCategories,
-  listAssets,
   listBankAccounts,
   listBankStatements,
-  listBudgets,
-  listCloseRuns,
-  listComplianceRequests,
-  listConsolidationGroups,
   listCustomerInvoices,
   listFiscalPeriods,
-  listIntercompanyRules,
   listJournalEntries,
-  listRecurringTemplates,
-  listRevaluationRuns,
-  listTaxReturns,
   listVendorBills,
-  listCashForecasts,
   suggestBankMatches,
+  listCloseRuns,
+  getCloseRun,
 } from "@vercentlabs/api";
 
 import { HttpError } from "@/core/http";
@@ -62,10 +51,6 @@ export async function GET(
             context,
             context.activeCompanyId,
           )) as unknown as Record<string, Rec[]>;
-          const categories = (await listAssetCategories(
-            client,
-            context,
-          )) as unknown as Rec[];
           return {
             options: {
               accounts: named(o.accounts, (r) => String(r.name)),
@@ -86,7 +71,6 @@ export async function GET(
                 o.bankAccounts,
                 (r) => `${r.bank_name} - ${r.account_name}`,
               ),
-              assetCategories: named(categories, (r) => String(r.name)),
               periods: named(o.periods, (r) => `${r.name} (${r.status})`),
             },
           };
@@ -163,39 +147,6 @@ export async function GET(
               get("lineId") ?? "",
             ),
           };
-        case "tax-returns":
-          return {
-            rows: await listTaxReturns(client, context, {
-              status: get("status"),
-            }),
-          };
-        case "budgets":
-          return { rows: await listBudgets(client, context) };
-        case "recurring":
-          return { rows: await listRecurringTemplates(client, context) };
-        case "accruals":
-          return {
-            rows: await listAccrualSchedules(client, context, {
-              status: get("status"),
-              scheduleType: get("scheduleType"),
-            }),
-          };
-        case "revaluations":
-          return { rows: await listRevaluationRuns(client, context) };
-        case "intercompany-rules":
-          return { rows: await listIntercompanyRules(client, context) };
-        case "consolidation-groups":
-          return { rows: await listConsolidationGroups(client, context) };
-        case "asset-categories":
-          return { rows: await listAssetCategories(client, context) };
-        case "assets":
-          return {
-            rows: await listAssets(client, context, { status: get("status") }),
-          };
-        case "forecasts":
-          return { rows: await listCashForecasts(client, context) };
-        case "compliance":
-          return { rows: await listComplianceRequests(client, context) };
         case "fiscal-periods":
           return { rows: await listFiscalPeriods(client, context) };
         case "period-blockers":

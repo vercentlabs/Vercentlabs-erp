@@ -18,8 +18,6 @@ export type OptionSource =
   | "departments"
   | "costCenters"
   | "suppliers"
-  | "campaigns"
-  | "warranties"
   | "customers"
   | "accounts"
   | "sourceLines";

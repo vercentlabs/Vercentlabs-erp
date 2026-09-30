@@ -33,24 +33,6 @@ export function buildQuotationGovernanceSummary(
   now?: Date,
 ): Record<string, unknown>;
 
-export function getQuotationGovernanceDashboard(
-  client: SalesQueryClient,
-  context: SalesContext,
-): Promise<Record<string, unknown>>;
-
-export function assessQuotationReadiness(
-  client: SalesQueryClient,
-  context: SalesContext,
-  quotationId: string,
-): Promise<Record<string, unknown>>;
-
-export function captureQuotationGovernanceSnapshot(
-  client: SalesQueryClient,
-  context: SalesContext,
-  quotationId: string,
-  capturedFor?: string,
-): Promise<Record<string, unknown>>;
-
 export function getQuotationGovernanceTimeline(
   client: SalesQueryClient,
   context: SalesContext,
@@ -65,25 +47,3 @@ export function compareQuotationVersions(
   rightVersionId: string,
 ): Promise<Record<string, unknown>>;
 
-export function bulkUpdateQuotations(
-  client: SalesQueryClient,
-  context: SalesContext,
-  input: Record<string, unknown>,
-): Promise<Record<string, unknown>>;
-
-export function listQuotationSavedViews(
-  client: SalesQueryClient,
-  context: SalesContext,
-): Promise<Array<Record<string, unknown>>>;
-
-export function saveQuotationView(
-  client: SalesQueryClient,
-  context: SalesContext,
-  input: Record<string, unknown>,
-): Promise<Record<string, unknown>>;
-
-export function deleteQuotationSavedView(
-  client: SalesQueryClient,
-  context: SalesContext,
-  savedViewId: string,
-): Promise<Record<string, unknown>>;

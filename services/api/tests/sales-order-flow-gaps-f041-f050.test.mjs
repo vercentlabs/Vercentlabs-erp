@@ -10,10 +10,8 @@ import {
   submitSalesOrder,
 } from "../src/modules/sales/index.js";
 import {
-  createSalesApprovalDelegation,
   recordFulfillmentDelivery,
   recordFulfillmentShipment,
-  setSalesOrderLinePromise,
 } from "../src/modules/sales/order-execution.js";
 import { checkSalesOrderLineAvailability } from "../src/orchestration/sales-stock-reservation.js";
 
@@ -103,13 +101,6 @@ test("F041: a rejection records its reason on the inbox request and the order tr
   assert.equal(close.values[4], "Discount above policy for this customer", "decision_note");
 });
 
-test("F041: overlapping delegations for one approver are refused", async () => {
-  await assert.rejects(
-    createSalesApprovalDelegation(client({ overlap: true }), context, { delegatorUserId: approver, delegateUserId: delegate, startsOn: "2099-01-01", endsOn: "2099-01-10", reason: "On leave" }),
-    rejectsWith("SALES_DELEGATION_OVERLAP"),
-  );
-});
-
 test("F043: confirming an already-confirmed order replays instead of failing", async () => {
   const result = await confirmSalesOrder(client({ order: { lifecycle_status: "confirmed", confirmed_at: new Date(), credit_status: "passed" } }), context, orderId);
   assert.equal(result.replayed, true);
@@ -141,11 +132,6 @@ test("F045: availability converts cartons to base units and explains the promise
 test("F050: quantity already in an open invoice request is not invoiced again", async () => {
   const c = client({ order: { lifecycle_status: "confirmed" }, openRequests: [{ line_id: lineId, quantity: "20" }] });
   await assert.rejects(createInvoiceRequest(c, context, orderId, { idempotencyKey: "second-click" }), /No quantity remains to invoice/);
-});
-
-test("F048: a promise date needs a reason and cannot be in the past", async () => {
-  await assert.rejects(setSalesOrderLinePromise(client(), context, { salesOrderLineId: lineId, promisedDate: "2020-01-01", note: "PO due" }), rejectsWith("SALES_PROMISE_DATE_PAST"));
-  await assert.rejects(setSalesOrderLinePromise(client(), context, { salesOrderLineId: lineId, promisedDate: "2099-01-01", note: "" }), rejectsWith("SALES_PROMISE_NOTE_REQUIRED"));
 });
 
 test("F049: shipment only after the warehouse completes, delivery only after shipment", async () => {

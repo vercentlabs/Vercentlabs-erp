@@ -1,10 +1,8 @@
-// Maintenance and reliability (F252-F257) and inspection/calibration (F258-F259): plans and generated
-// preventive work, the work-order lifecycle, parts, downtime, repair history, warranties and claims,
-// inspections that raise corrective work, and calibration that takes failed equipment out of service.
+// Asset maintenance: plans and generated preventive work, the work-order lifecycle, parts, the downtime a
+// work order causes, and repair history.
 import { AssetError, dateOrNull, dateRequired, fromCents, loadAsset, loadSettings, need, nextNumber, nonNegative, oneOf, positive, qx, recordAssetEvent, requiredText, textOrNull, toCents, today, uuid, uuidOrNull } from "./common.js";
 
 const OPEN_ORDER = ["planned", "scheduled", "in_progress", "on_hold"];
-const RATINGS = ["excellent", "good", "fair", "poor", "critical"];
 
 function addFrequency(dateStr, unit, value) {
   const d = new Date(`${dateStr}T00:00:00Z`);
@@ -179,9 +177,8 @@ export async function completeWorkOrder(client, c, orderId, input = {}) {
     const plan = (await qx(client, `SELECT * FROM tenant.asset_maintenance_plans WHERE id=$1`, [o.maintenance_plan_id])).rows[0];
     if (plan && plan.frequency_unit !== "meter") await client.query(`UPDATE tenant.asset_maintenance_plans SET last_completed_date=current_date,next_due_date=$2,updated_at=now() WHERE id=$1`, [plan.id, addFrequency(today(), plan.frequency_unit, plan.frequency_value)]);
   }
-  const warranty = await client.query(`SELECT id FROM tenant.asset_warranties WHERE asset_id=$1 AND start_date<=current_date AND end_date>=current_date LIMIT 1`, [o.asset_id]);
   await recordAssetEvent(client, c, o.asset_id, "asset.maintenance_order.completed", { maintenanceOrderId: o.id });
-  return { ...res.rows[0], under_warranty: Boolean(warranty.rows[0]), warranty_id: warranty.rows[0]?.id ?? null };
+  return res.rows[0];
 }
 
 // F255: the repair history of an asset, with what it has cost.
@@ -193,159 +190,3 @@ export async function getRepairHistory(client, c, assetId) {
   return { asset: { id: a.id, asset_number: a.asset_number, name: a.name }, repairs: rows.rows, totalCost: fromCents(total), repairCount: rows.rows.length };
 }
 
-// ------------------------------------------------------------------ F256: downtime
-export async function listDowntime(client, c, filters = {}) {
-  need(c, "assets.view");
-  const values = [c.organizationId, c.companyId];
-  let where = "";
-  if (filters.assetId) { values.push(uuid(filters.assetId, "Asset")); where += ` AND d.asset_id=$${values.length}`; }
-  const res = await qx(client, `SELECT d.*,a.asset_number,a.name AS asset_name,ROUND(EXTRACT(EPOCH FROM (COALESCE(d.ended_at,now())-d.started_at))/3600,2) AS hours FROM tenant.asset_downtime d JOIN tenant.assets a ON a.id=d.asset_id WHERE d.organization_id=$1 AND d.company_id=$2${where} ORDER BY d.started_at DESC LIMIT 300`, values);
-  return res.rows;
-}
-
-export async function recordDowntime(client, c, assetId, input) {
-  need(c, "assets.maintain");
-  const a = await loadAsset(client, c, assetId);
-  const started = new Date(input.startedAt);
-  const ended = input.endedAt ? new Date(input.endedAt) : null;
-  if (Number.isNaN(started.getTime())) throw new AssetError(400, "Start time is not valid.", "ASSET_DATE_INVALID");
-  if (ended && (Number.isNaN(ended.getTime()) || ended < started)) throw new AssetError(400, "The end time cannot be before the start.", "ASSET_DATE_INVALID");
-  const res = await qx(client, `INSERT INTO tenant.asset_downtime(organization_id,company_id,asset_id,maintenance_order_id,category,started_at,ended_at,reason,recorded_by) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *`,
-    [c.organizationId, c.companyId, a.id, uuidOrNull(input.maintenanceOrderId, "Work order"), oneOf(input.category || "breakdown", ["breakdown", "planned", "other"], "Category"), started.toISOString(), ended?.toISOString() ?? null, textOrNull(input.reason, 500), c.userId]);
-  await recordAssetEvent(client, c, a.id, "asset.downtime_recorded", { downtimeId: res.rows[0].id });
-  return res.rows[0];
-}
-
-export async function endDowntime(client, c, downtimeId, endedAt) {
-  need(c, "assets.maintain");
-  const at = endedAt ? new Date(endedAt) : new Date();
-  const res = await qx(client, `UPDATE tenant.asset_downtime SET ended_at=$4 WHERE organization_id=$1 AND company_id=$2 AND id=$3 AND ended_at IS NULL AND started_at<=$4 RETURNING *`, [c.organizationId, c.companyId, uuid(downtimeId, "Downtime"), at.toISOString()]);
-  if (!res.rows[0]) throw new AssetError(409, "That downtime is already closed or the end precedes its start.", "ASSET_STATE_INVALID");
-  return res.rows[0];
-}
-
-// ------------------------------------------------------------------ F257: warranties and claims
-export async function listWarranties(client, c, filters = {}) {
-  need(c, "assets.view");
-  const values = [c.organizationId, c.companyId];
-  let where = "";
-  if (filters.assetId) { values.push(uuid(filters.assetId, "Asset")); where += ` AND w.asset_id=$${values.length}`; }
-  const settings = await loadSettings(client, c);
-  values.push(settings.warranty_alert_days);
-  const res = await qx(client, `SELECT w.*,a.asset_number,a.name AS asset_name,(w.end_date-current_date) AS days_remaining,
-      CASE WHEN w.end_date<current_date THEN 'expired' WHEN w.end_date<=current_date+$${values.length}::int THEN 'expiring' ELSE 'active' END AS warranty_status
-    FROM tenant.asset_warranties w JOIN tenant.assets a ON a.id=w.asset_id WHERE w.organization_id=$1 AND w.company_id=$2${where} ORDER BY w.end_date LIMIT 300`, values);
-  return res.rows;
-}
-
-export async function saveWarranty(client, c, input) {
-  need(c, "assets.maintain");
-  const a = await loadAsset(client, c, input.assetId);
-  const start = dateRequired(input.startDate, "Start date");
-  const end = dateRequired(input.endDate, "End date");
-  if (end < start) throw new AssetError(400, "The warranty end cannot be before its start.", "ASSET_DATE_INVALID");
-  const res = await qx(client, `INSERT INTO tenant.asset_warranties(organization_id,company_id,asset_id,supplier_id,provider_name,warranty_type,start_date,end_date,coverage,terms,created_by) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING *`,
-    [c.organizationId, c.companyId, a.id, uuidOrNull(input.supplierId, "Supplier"), textOrNull(input.providerName, 200), oneOf(input.warrantyType || "manufacturer", ["manufacturer", "extended", "service_contract", "amc"], "Warranty type"), start, end, textOrNull(input.coverage, 1000), textOrNull(input.terms, 2000), c.userId]);
-  await client.query(`UPDATE tenant.assets SET warranty_start_date=$2,warranty_end_date=(SELECT max(end_date) FROM tenant.asset_warranties WHERE asset_id=$1),updated_at=now() WHERE id=$1`, [a.id, start]);
-  await recordAssetEvent(client, c, a.id, "asset.warranty_added", { warrantyId: res.rows[0].id });
-  return res.rows[0];
-}
-
-export async function listWarrantyClaims(client, c, filters = {}) {
-  need(c, "assets.view");
-  const values = [c.organizationId, c.companyId];
-  let where = "";
-  if (filters.status) { values.push(String(filters.status)); where += ` AND cl.status=$${values.length}`; }
-  const res = await qx(client, `SELECT cl.*,a.asset_number,a.name AS asset_name FROM tenant.asset_warranty_claims cl JOIN tenant.assets a ON a.id=cl.asset_id WHERE cl.organization_id=$1 AND cl.company_id=$2${where} ORDER BY cl.claim_date DESC LIMIT 300`, values);
-  return res.rows;
-}
-
-export async function createWarrantyClaim(client, c, input) {
-  need(c, "assets.maintain");
-  const w = (await qx(client, `SELECT * FROM tenant.asset_warranties WHERE organization_id=$1 AND company_id=$2 AND id=$3`, [c.organizationId, c.companyId, uuid(input.warrantyId, "Warranty")])).rows[0];
-  if (!w) throw new AssetError(404, "Warranty was not found.", "ASSET_NOT_FOUND");
-  const date = dateRequired(input.claimDate || today(), "Claim date");
-  if (date < String(w.start_date) || date > String(w.end_date)) throw new AssetError(409, "The claim date falls outside the warranty period.", "ASSET_WARRANTY_EXPIRED");
-  const res = await qx(client, `INSERT INTO tenant.asset_warranty_claims(organization_id,company_id,warranty_id,asset_id,maintenance_order_id,claim_date,description,claimed_amount,created_by) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *`,
-    [c.organizationId, c.companyId, w.id, w.asset_id, uuidOrNull(input.maintenanceOrderId, "Work order"), date, requiredText(input.description, "Description", 1000), String(nonNegative(input.claimedAmount, "Claimed amount")), c.userId]);
-  await recordAssetEvent(client, c, w.asset_id, "asset.warranty_claim_created", { claimId: res.rows[0].id });
-  return res.rows[0];
-}
-
-export async function updateWarrantyClaim(client, c, claimId, input) {
-  need(c, "assets.maintain");
-  const cl = (await qx(client, `SELECT * FROM tenant.asset_warranty_claims WHERE organization_id=$1 AND company_id=$2 AND id=$3 FOR UPDATE`, [c.organizationId, c.companyId, uuid(claimId, "Claim")])).rows[0];
-  if (!cl) throw new AssetError(404, "Claim was not found.", "ASSET_NOT_FOUND");
-  const status = oneOf(input.status, ["open", "approved", "rejected", "settled"], "Status");
-  if (["settled", "rejected"].includes(cl.status)) throw new AssetError(409, "A settled or rejected claim is final.", "ASSET_STATE_INVALID");
-  const recovered = nonNegative(input.recoveredAmount, "Recovered amount", Number(cl.recovered_amount));
-  if (status === "settled" && recovered > Number(cl.claimed_amount)) throw new AssetError(409, "The recovered amount cannot exceed what was claimed.", "ASSET_NUMBER_INVALID");
-  return (await qx(client, `UPDATE tenant.asset_warranty_claims SET status=$2,recovered_amount=$3 WHERE id=$1 RETURNING *`, [cl.id, status, String(recovered)])).rows[0];
-}
-
-// ------------------------------------------------------------------ F258: inspections
-export async function listInspections(client, c, filters = {}) {
-  need(c, "assets.view");
-  const values = [c.organizationId, c.companyId];
-  let where = "";
-  if (filters.assetId) { values.push(uuid(filters.assetId, "Asset")); where += ` AND i.asset_id=$${values.length}`; }
-  if (filters.result) { values.push(String(filters.result)); where += ` AND i.result=$${values.length}`; }
-  const res = await qx(client, `SELECT i.*,a.asset_number,a.name AS asset_name FROM tenant.asset_inspections i JOIN tenant.assets a ON a.id=i.asset_id WHERE i.organization_id=$1 AND i.company_id=$2${where} ORDER BY i.inspection_date DESC,i.created_at DESC LIMIT 300`, values);
-  return res.rows;
-}
-
-export async function recordInspection(client, c, assetId, input) {
-  need(c, "assets.inspect");
-  const a = await loadAsset(client, c, assetId, { lock: true });
-  if (["draft", "disposed"].includes(a.status)) throw new AssetError(409, "Only a capitalized, non-disposed asset can be inspected.", "ASSET_STATE_INVALID");
-  const checklist = Array.isArray(input.checklist) ? input.checklist.map((i) => ({ item: requiredText(i.item, "Checklist item", 300), passed: i.passed === true, note: textOrNull(i.note, 300) })) : [];
-  const result = oneOf(input.result || (checklist.some((i) => !i.passed) ? "fail" : "pass"), ["pass", "conditional", "fail"], "Result");
-  const rating = oneOf(input.conditionRating || a.condition_rating, RATINGS, "Condition");
-  const correctiveNeeded = input.correctiveActionRequired === true || result === "fail";
-  const date = dateRequired(input.inspectionDate || today(), "Inspection date");
-  const number = await nextNumber(client, c, "asset_inspection", "INS");
-  let order = null;
-  if (correctiveNeeded) order = await createWorkOrder(client, { ...c, permissions: [...(c.permissions || []), "assets.maintain"] }, a.id, { maintenanceType: "corrective", source: "inspection", priority: result === "fail" ? "high" : "normal", problemDescription: textOrNull(input.findings, 1000) || `Corrective action from inspection ${number}`, takeOutOfService: input.takeOutOfService === true });
-  const res = await qx(client,
-    `INSERT INTO tenant.asset_inspections(organization_id,company_id,asset_id,inspection_number,inspection_type,inspection_date,condition_rating,location_verified,custodian_verified,findings,corrective_action_required,corrective_action_due_date,inspected_by,checklist,result,next_due_date,corrective_order_id)
-     VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14::jsonb,$15,$16,$17) RETURNING *`,
-    [c.organizationId, c.companyId, a.id, number, oneOf(input.inspectionType || "condition", ["condition", "custody", "safety", "compliance", "calibration"], "Inspection type"), date, rating, input.locationVerified === true, input.custodianVerified === true, textOrNull(input.findings, 2000), correctiveNeeded, dateOrNull(input.correctiveActionDueDate, "Due date"), c.userId, JSON.stringify(checklist), result, dateOrNull(input.nextDueDate, "Next due"), order?.id ?? null]);
-  await client.query(`UPDATE tenant.assets SET condition_rating=$2,updated_at=now() WHERE id=$1`, [a.id, rating]);
-  await recordAssetEvent(client, c, a.id, "asset.inspected", { inspectionId: res.rows[0].id, result });
-  return { ...res.rows[0], corrective_order: order };
-}
-
-// ------------------------------------------------------------------ F259: calibration
-export async function listCalibrations(client, c, filters = {}) {
-  need(c, "assets.view");
-  const values = [c.organizationId, c.companyId];
-  let where = "";
-  if (filters.assetId) { values.push(uuid(filters.assetId, "Asset")); where += ` AND k.asset_id=$${values.length}`; }
-  const settings = await loadSettings(client, c);
-  values.push(settings.calibration_alert_days);
-  const res = await qx(client, `SELECT k.*,a.asset_number,a.name AS asset_name,
-      CASE WHEN k.due_on<current_date THEN 'overdue' WHEN k.due_on<=current_date+$${values.length}::int THEN 'due_soon' ELSE 'valid' END AS calibration_status
-    FROM tenant.asset_calibrations k JOIN tenant.assets a ON a.id=k.asset_id WHERE k.organization_id=$1 AND k.company_id=$2${where} ORDER BY k.calibrated_on DESC LIMIT 300`, values);
-  return res.rows;
-}
-
-export async function recordCalibration(client, c, assetId, input) {
-  need(c, "assets.inspect");
-  const a = await loadAsset(client, c, assetId, { lock: true });
-  if (["draft", "disposed"].includes(a.status)) throw new AssetError(409, "Only a capitalized, non-disposed asset can be calibrated.", "ASSET_STATE_INVALID");
-  const on = dateRequired(input.calibratedOn || today(), "Calibration date");
-  const due = dateRequired(input.dueOn, "Next due date");
-  if (due < on) throw new AssetError(400, "The next due date cannot precede the calibration.", "ASSET_DATE_INVALID");
-  const result = oneOf(input.result, ["pass", "adjusted", "fail"], "Result");
-  if (result === "fail" && !textOrNull(input.asFound, 500)) throw new AssetError(400, "Record the as-found reading for a failed calibration.", "ASSET_FIELD_REQUIRED");
-  const number = await nextNumber(client, c, "asset_calibration", "CAL");
-  const res = await qx(client, `INSERT INTO tenant.asset_calibrations(organization_id,company_id,asset_id,calibration_number,calibrated_on,due_on,standard_reference,as_found,as_left,result,certificate_number,performed_by_name,recorded_by) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) RETURNING *`,
-    [c.organizationId, c.companyId, a.id, number, on, due, textOrNull(input.standardReference, 300), textOrNull(input.asFound, 500), textOrNull(input.asLeft, 500), result, textOrNull(input.certificateNumber, 100), textOrNull(input.performedByName, 200), c.userId]);
-  let order = null;
-  if (result === "fail") {
-    order = await createWorkOrder(client, { ...c, permissions: [...(c.permissions || []), "assets.maintain"] }, a.id, { maintenanceType: "calibration", source: "calibration", priority: "high", problemDescription: `Failed calibration ${number}: as found ${input.asFound}`, takeOutOfService: true });
-  }
-  await client.query(`UPDATE tenant.assets SET calibration_due_date=$2,updated_at=now() WHERE id=$1`, [a.id, due]);
-  await recordAssetEvent(client, c, a.id, "asset.calibrated", { calibrationId: res.rows[0].id, result });
-  return { ...res.rows[0], corrective_order: order };
-}

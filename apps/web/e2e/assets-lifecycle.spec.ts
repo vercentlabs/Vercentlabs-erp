@@ -10,7 +10,7 @@ import { openSalesSession as openSession } from "./sales-fixtures";
 // register then shows the reduced net book value. A person with no asset permissions is refused. The domain
 // rules in depth are covered by the assets-*.test.mjs integration suites against real PostgreSQL.
 
-test("register, capitalize by someone else, depreciate, and report", async ({
+test("register, capitalize by someone else, and depreciate", async ({
   browser,
 }) => {
   test.setTimeout(300_000);
@@ -108,12 +108,6 @@ test("register, capitalize by someone else, depreciate, and report", async ({
       .click();
     await expect(
       pb.getByRole("row", { name: new RegExp(`${cutoff}.*Posted`) }),
-    ).toBeVisible({ timeout: 60_000 });
-
-    // --- F267: the register report reflects the depreciation
-    await open(pb, "/assets/reports", "Reports");
-    await expect(
-      pb.getByRole("cell", { name: new RegExp(name) }).first(),
     ).toBeVisible({ timeout: 60_000 });
 
     // --- a user with no asset permissions is refused

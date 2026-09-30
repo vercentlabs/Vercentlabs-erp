@@ -6,7 +6,6 @@ import {
   decimal,
   event,
   getPrimaryLedger,
-  isoDate,
   loadCompany,
   requirePermission,
   text,
@@ -18,8 +17,6 @@ const DEFAULT_TASKS = [
   [10, "subledgers", "Reconcile receivables and payables"],
   [20, "bank", "Complete bank reconciliations"],
   [30, "tax", "Review tax ledger and statutory balances"],
-  [40, "accruals", "Post accruals, deferrals and recurring journals"],
-  [50, "fx", "Run foreign-currency revaluation"],
   [60, "review", "Review trial balance and exceptions"],
   [70, "lock", "Approve and lock the accounting period"],
 ];
@@ -64,24 +61,7 @@ async function periodBlockers(client, context, companyId, period) {
       (SELECT count(*) FROM tenant.sales_invoice_requests request
         JOIN tenant.sales_orders sales_order ON sales_order.id=request.sales_order_id
         WHERE request.organization_id=$1 AND sales_order.company_id=$2
-          AND request.requested_at::date BETWEEN $3 AND $4 AND request.status='failed')::int AS failed_sales_invoice_requests,
-      (SELECT count(*) FROM tenant.accounting_compliance_requests request
-        WHERE request.organization_id=$1 AND request.company_id=$2
-          AND request.requested_at::date BETWEEN $3 AND $4 AND request.status='failed')::int AS failed_compliance_requests,
-      (SELECT count(*) FROM tenant.accounting_recurring_executions execution
-        JOIN tenant.accounting_recurring_templates template ON template.id=execution.template_id
-        WHERE execution.organization_id=$1 AND template.company_id=$2
-          AND execution.scheduled_date BETWEEN $3 AND $4 AND execution.status='failed')::int AS failed_recurring_executions,
-      (SELECT count(*) FROM tenant.accounting_accrual_recognitions recognition
-        JOIN tenant.accounting_accrual_schedules schedule ON schedule.id=recognition.schedule_id
-        WHERE recognition.organization_id=$1 AND schedule.company_id=$2
-          AND recognition.recognition_date BETWEEN $3 AND $4 AND recognition.status='planned')::int AS unposted_accrual_recognitions,
-      (SELECT count(*) FROM tenant.accounting_revaluation_runs run
-        WHERE run.organization_id=$1 AND run.company_id=$2 AND run.valuation_date BETWEEN $3 AND $4
-          AND run.status IN ('draft','calculated'))::int AS unposted_revaluations,
-      (SELECT count(*) FROM tenant.accounting_tax_returns tax_return
-        WHERE tax_return.organization_id=$1 AND tax_return.company_id=$2
-          AND tax_return.period_end BETWEEN $3 AND $4 AND tax_return.status IN ('draft','review'))::int AS unfinished_tax_returns`,
+          AND request.requested_at::date BETWEEN $3 AND $4 AND request.status='failed')::int AS failed_sales_invoice_requests`,
     parameters,
   );
   const counts = result.rows[0] || {};

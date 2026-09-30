@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { listHrPayrollResource, createEmployee } from "../src/modules/hr-payroll/index.js";
-import { listSupportResource } from "../src/modules/support/index.js";
+import { stripSensitive } from "../src/modules/hr-payroll/common.js";
+import { stripPrivate } from "../src/modules/support/common.js";
 import {
   listProcurementRecords,
   getProcurementRecord,
@@ -47,35 +47,17 @@ const employeeRow = {
   emergency_contacts: [{ name: "Ravi Rao", phone: "+91-90000-00001" }],
 };
 
-function hrClient() {
-  return {
-    async query(sql) {
-      if (/INSERT INTO tenant\.document_sequences/.test(sql)) {
-        return {
-          rows: [{
-            allocated_value: "1",
-            prefix: "EMP",
-            padding: 6,
-          }],
-        };
-      }
-      if (/INSERT INTO tenant\.hr_employees/.test(sql)) return { rows: [employeeRow] };
-      if (/INSERT INTO tenant\.hr_payroll_events/.test(sql)) return { rows: [] };
-      if (/SELECT record\.\* FROM tenant\.hr_employees/.test(sql)) return { rows: [employeeRow] };
-      throw new Error(`Unexpected query: ${sql}`);
-    },
-  };
-}
-
-test("HR: privileged role reads all employee fields via list", async () => {
-  const rows = await listHrPayrollResource(hrClient(), privilegedHr, "employees", {});
-  assert.equal(rows[0].personal_email, "asha@example.com");
-  assert.equal(rows[0].bank_details.accountNumber, "0000111122223333");
+// Every live employee read and write (listEmployees, getEmployee, saveEmployee, updateEmployee) returns
+// rows through stripSensitive, so this is the guard for both the list and the echoed-back create path.
+test("HR: privileged role reads all employee fields", () => {
+  const row = stripSensitive(employeeRow, privilegedHr);
+  assert.equal(row.personal_email, "asha@example.com");
+  assert.equal(row.bank_details.accountNumber, "0000111122223333");
 });
 
-test("HR: restricted role cannot read protected employee fields via list", async () => {
-  const rows = await listHrPayrollResource(hrClient(), restrictedHr, "employees", {});
-  assert.equal(rows[0].first_name, "Asha");
+test("HR: restricted role cannot read protected employee fields", () => {
+  const row = stripSensitive(employeeRow, restrictedHr);
+  assert.equal(row.first_name, "Asha");
   for (const field of [
     "personal_email",
     "personal_phone",
@@ -89,29 +71,13 @@ test("HR: restricted role cannot read protected employee fields via list", async
     "statutory_identifiers",
     "emergency_contacts",
   ]) {
-    assert.equal(field in rows[0], false, `expected ${field} to be omitted`);
+    assert.equal(field in row, false, `expected ${field} to be omitted`);
   }
 });
 
-test("HR: restricted role cannot read protected fields echoed back from create (secondary response path)", async () => {
-  const created = await createEmployee(hrClient(), restrictedHr, {
-    firstName: "Asha",
-    lastName: "Rao",
-    employmentType: "permanent",
-    joiningDate: "2026-01-01",
-  });
-  assert.equal("bank_details" in created, false);
-  assert.equal("personal_email" in created, false);
-});
-
-test("HR: privileged role still sees protected fields echoed back from create", async () => {
-  const created = await createEmployee(hrClient(), privilegedHr, {
-    firstName: "Asha",
-    lastName: "Rao",
-    employmentType: "permanent",
-    joiningDate: "2026-01-01",
-  });
-  assert.equal(created.bank_details.accountNumber, "0000111122223333");
+test("HR: an employee always sees their own protected fields", () => {
+  const row = stripSensitive(employeeRow, restrictedHr, employeeRow.id);
+  assert.equal(row.bank_details.accountNumber, "0000111122223333");
 });
 
 const privilegedSupport = baseContext(["support.view", "support.sensitive.view"]);
@@ -130,25 +96,14 @@ const privateCommunication = {
   private_note: true,
 };
 
-function supportClient() {
-  return {
-    async query(sql) {
-      if (/SELECT record\.\* FROM tenant\.support_communications/.test(sql)) {
-        return { rows: [publicCommunication, privateCommunication] };
-      }
-      throw new Error(`Unexpected query: ${sql}`);
-    },
-  };
-}
-
-test("Support: privileged role sees internal/private communications in list", async () => {
-  const rows = await listSupportResource(supportClient(), privilegedSupport, "communications", {});
+test("Support: privileged role sees internal/private communications in list", () => {
+  const rows = stripPrivate([publicCommunication, privateCommunication], privilegedSupport);
   assert.equal(rows.length, 2);
   assert.ok(rows.some((row) => row.private_note === true));
 });
 
-test("Support: restricted role cannot see internal/private communications in list (bulk/list bypass prevention)", async () => {
-  const rows = await listSupportResource(supportClient(), restrictedSupport, "communications", {});
+test("Support: restricted role cannot see internal/private communications in list (bulk/list bypass prevention)", () => {
+  const rows = stripPrivate([publicCommunication, privateCommunication], restrictedSupport);
   assert.equal(rows.length, 1);
   assert.equal(rows[0].private_note, false);
 });

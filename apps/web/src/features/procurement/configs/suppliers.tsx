@@ -3,10 +3,7 @@ import type { DetailConfig } from "@/features/procurement/shared/DocumentDetail"
 import type { ChildConfig } from "@/features/procurement/shared/ChildSection";
 import type { FormConfig } from "@/features/procurement/shared/DocumentForm";
 import type { ListConfig } from "@/features/procurement/shared/ResourceListPage";
-import {
-  calendarDate,
-  statusLabel,
-} from "@/features/procurement/shared/format";
+import { statusLabel } from "@/features/procurement/shared/format";
 
 const STATUSES = [
   "draft",
@@ -185,10 +182,7 @@ export const supplierDetail: DetailConfig = {
 };
 
 const EDITABLE = ["draft", "submitted", "qualified", "active", "suspended"];
-export const supplierChildren: Record<
-  "sites" | "qualifications" | "certifications" | "scorecards",
-  ChildConfig
-> = {
+export const supplierChildren: Record<"sites", ChildConfig> = {
   sites: {
     resource: "supplier-sites",
     title: "Sites, contacts and addresses",
@@ -234,144 +228,6 @@ export const supplierChildren: Record<
         (r) =>
           [r.contactName, r.contactEmail].filter(Boolean).join(" · ") || "—",
       ),
-    ],
-  },
-  qualifications: {
-    resource: "supplier-qualifications",
-    title: "Qualification assessments",
-    description: "Audits and checks that support qualifying the supplier.",
-    noun: "assessment",
-    manage: "procurement.suppliers.qualify",
-    parentStates: EDITABLE,
-    emptyText: "No assessments recorded.",
-    fields: [
-      {
-        name: "qualificationType",
-        label: "Assessment",
-        kind: "select",
-        required: true,
-        options: [
-          "quality_audit",
-          "financial_review",
-          "compliance_check",
-          "site_visit",
-          "reference_check",
-        ].map((value) => ({ value, label: statusLabel(value) })),
-      },
-      {
-        name: "result",
-        label: "Result",
-        kind: "select",
-        required: true,
-        options: ["passed", "conditional", "failed"].map((value) => ({
-          value,
-          label: statusLabel(value),
-        })),
-      },
-      { name: "assessedOn", label: "Assessed on", kind: "date" },
-      { name: "expiresOn", label: "Expires on", kind: "date" },
-      { name: "assessor", label: "Assessor", kind: "text" },
-      { name: "notes", label: "Notes", kind: "textarea" },
-    ],
-    columns: [
-      col("type", "Assessment", (r) => statusLabel(r.qualificationType)),
-      col("result", "Result", (r) => statusLabel(r.result)),
-      col("on", "Assessed", (r) => calendarDate(r.assessedOn)),
-      col("exp", "Expires", (r) => calendarDate(r.expiresOn)),
-      col("who", "Assessor", (r) => String(r.assessor ?? "—")),
-    ],
-  },
-  certifications: {
-    resource: "supplier-certifications",
-    title: "Certifications",
-    noun: "certification",
-    manage: "procurement.suppliers.qualify",
-    parentStates: EDITABLE,
-    emptyText: "No certifications recorded.",
-    fields: [
-      {
-        name: "certificateType",
-        label: "Certificate",
-        kind: "text",
-        required: true,
-        placeholder: "e.g. ISO 9001",
-      },
-      { name: "certificateNumber", label: "Number", kind: "text" },
-      { name: "issuedBy", label: "Issued by", kind: "text" },
-      { name: "validFrom", label: "Valid from", kind: "date" },
-      {
-        name: "validUntil",
-        label: "Valid until",
-        kind: "date",
-        required: true,
-      },
-    ],
-    columns: [
-      col("type", "Certificate", (r) => String(r.certificateType ?? "—")),
-      col("no", "Number", (r) => String(r.certificateNumber ?? "—")),
-      col("by", "Issued by", (r) => String(r.issuedBy ?? "—")),
-      col("until", "Valid until", (r) => calendarDate(r.validUntil)),
-    ],
-  },
-  scorecards: {
-    resource: "supplier-scorecards",
-    title: "Performance scorecards",
-    description:
-      "Period scores out of 100. The overall score weights quality and delivery 30% each, price 25%, service 15%.",
-    noun: "scorecard",
-    manage: "procurement.suppliers.qualify",
-    parentStates: ["qualified", "active", "suspended", "blocked"],
-    emptyText: "No scorecards yet.",
-    fields: [
-      {
-        name: "period",
-        label: "Period",
-        kind: "text",
-        required: true,
-        placeholder: "e.g. 2026-Q3",
-      },
-      {
-        name: "qualityScore",
-        label: "Quality (0-100)",
-        kind: "number",
-        step: 1,
-      },
-      {
-        name: "deliveryScore",
-        label: "Delivery (0-100)",
-        kind: "number",
-        step: 1,
-      },
-      { name: "priceScore", label: "Price (0-100)", kind: "number", step: 1 },
-      {
-        name: "serviceScore",
-        label: "Service (0-100)",
-        kind: "number",
-        step: 1,
-      },
-      { name: "notes", label: "Notes", kind: "textarea" },
-    ],
-    transform: (v) => {
-      const n = (key: string) =>
-        Math.min(100, Math.max(0, Number(v[key] ?? 0)));
-      return {
-        overallScore: Number(
-          (
-            n("qualityScore") * 0.3 +
-            n("deliveryScore") * 0.3 +
-            n("priceScore") * 0.25 +
-            n("serviceScore") * 0.15
-          ).toFixed(2),
-        ),
-      };
-    },
-    columns: [
-      col("period", "Period", (r) => String(r.period ?? "—")),
-      col("q", "Quality", (r) => String(r.qualityScore ?? "—")),
-      col("d", "Delivery", (r) => String(r.deliveryScore ?? "—")),
-      col("p", "Price", (r) => String(r.priceScore ?? "—")),
-      col("s", "Service", (r) => String(r.serviceScore ?? "—")),
-      col("o", "Overall", (r) => String(r.overallScore ?? "—")),
     ],
   },
 };

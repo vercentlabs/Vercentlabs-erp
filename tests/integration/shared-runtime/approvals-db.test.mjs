@@ -1,6 +1,6 @@
 // Approvals: platform lifecycle + orchestration inbox + business-module
 // authority, against real PostgreSQL. Accounting journals and Sales orders are
-// covered here; POS discounts in pos-cart-tax-promotions-coupons-f277-f281.test.mjs.
+// covered here; POS discounts in pos-cart-tax-discounts-f277-f279.test.mjs.
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import test from "node:test";

@@ -1,10 +1,8 @@
 // F381-F396: employee master and number, departments, designations, reporting line, branch and
-// location, employment type, documents, joining, probation, confirmation, transfers, promotions,
-// separation, offboarding and employee self-service.
+// location, employment type, joining (with its onboarding checklist) and employee self-service.
 import { nextDocumentNumber } from "../../core/platform/numbering/index.js";
 import {
-  HrError, addDays, canSeeSensitive, cleanBank, cleanStatutory, cleanTax, dateOrNull, dateRequired, has, hasAny, need, needAny, oneOf, ownEmployee, recordEvent,
-  requireOwnEmployee, stripSensitive, text, textOrNull, today, uuid, uuidOrNull, nonNegative, qx, seq,
+  HrError, canSeeSensitive, cleanBank, cleanStatutory, cleanTax, dateOrNull, dateRequired, hasAny, need, needAny, oneOf, ownEmployee, recordEvent, requireOwnEmployee, stripSensitive, text, textOrNull, uuid, uuidOrNull, nonNegative, qx, seq,
 } from "./common.js";
 
 const EMPLOYMENT_TYPES = ["permanent", "contract", "intern", "consultant", "part_time", "temporary"];
@@ -15,13 +13,6 @@ const DEFAULT_ONBOARDING = [
   { title: "Assign laptop and workstation", owner: "IT" },
   { title: "Induction with reporting manager", owner: "Manager" },
 ];
-const DEFAULT_OFFBOARDING = [
-  { title: "Return laptop and access cards", owner: "IT" },
-  { title: "Knowledge transfer to successor", owner: "Manager" },
-  { title: "Clear dues and advances", owner: "Finance" },
-  { title: "Revoke system access", owner: "IT" },
-];
-
 const NAMES = `trim(e.first_name || ' ' || coalesce(e.middle_name || ' ', '') || e.last_name)`;
 
 export async function getHrSettings(client, c) {
@@ -56,7 +47,6 @@ export async function saveHrSettings(client, c, input) {
     return n;
   };
   const on = checklist(input.onboardingChecklist, "The onboarding checklist");
-  const off = checklist(input.offboardingChecklist, "The offboarding checklist");
   const { rows } = await qx(client, 
     `UPDATE tenant.hr_payroll_settings SET employee_number_prefix=$3, employee_number_padding=$4, default_probation_months=$5, default_notice_days=$6,
        require_documents_for_joining=$7, onboarding_checklist=$8::jsonb, offboarding_checklist=$9::jsonb,
@@ -65,8 +55,8 @@ export async function saveHrSettings(client, c, input) {
     [
       c.organizationId, c.companyId, prefix, num(input.employeeNumberPadding, cur.employee_number_padding, 3, 10, "Number padding"),
       num(input.defaultProbationMonths, cur.default_probation_months, 0, 24, "Default probation"), num(input.defaultNoticeDays, cur.default_notice_days, 0, 365, "Default notice period"),
-      input.requireDocumentsForJoining === undefined ? cur.require_documents_for_joining : input.requireDocumentsForJoining === true,
-      JSON.stringify(on ?? cur.onboarding_checklist), JSON.stringify(off ?? cur.offboarding_checklist),
+      cur.require_documents_for_joining,
+      JSON.stringify(on ?? cur.onboarding_checklist), JSON.stringify(cur.offboarding_checklist),
       // self approval can only be tightened, never switched off: the segregation rule is not optional.
       true, num(input.attendanceGraceMinutes, cur.attendance_grace_minutes, 0, 240, "Attendance grace"),
     ],
@@ -110,39 +100,6 @@ export async function saveHrSettings(client, c, input) {
   }
   await recordEvent(client, c, "settings", c.companyId, "hr.settings.saved", { keys: Object.keys(input) });
   return rows[0];
-}
-
-// ---------------------------------------------------------------- document types
-export async function listDocumentTypes(client, c) {
-  needAny(c, ["hr_payroll.view", "hr_payroll.employee.view", "hr_payroll.employee.manage"]);
-  const { rows } = await qx(client, `SELECT * FROM tenant.hr_document_types WHERE organization_id=$1 AND company_id=$2 ORDER BY name`, [c.organizationId, c.companyId]);
-  return rows;
-}
-export async function saveDocumentType(client, c, input) {
-  need(c, "hr_payroll.settings.manage");
-  const code = text(input.code, 40).toUpperCase();
-  const name = text(input.name, 120);
-  if (!/^[A-Z0-9_-]{2,40}$/.test(code)) throw new HrError(400, "Document type code must be 2 to 40 letters, digits, - or _.", "HR_DOCTYPE_INVALID");
-  if (!name) throw new HrError(400, "Document type name is required.", "HR_DOCTYPE_INVALID");
-  const flags = [input.requiredForJoining === true, input.expiryTracked === true, input.sensitive !== false, input.active !== false];
-  if (input.id) {
-    const { rows } = await qx(client, 
-      `UPDATE tenant.hr_document_types SET name=$4, required_for_joining=$5, expiry_tracked=$6, sensitive=$7, active=$8 WHERE organization_id=$1 AND company_id=$2 AND id=$3 RETURNING *`,
-      [c.organizationId, c.companyId, uuid(input.id, "Document type"), name, ...flags],
-    );
-    if (!rows[0]) throw new HrError(404, "Document type was not found.", "HR_DOCTYPE_NOT_FOUND");
-    return rows[0];
-  }
-  try {
-    const { rows } = await qx(client, 
-      `INSERT INTO tenant.hr_document_types(organization_id,company_id,code,name,required_for_joining,expiry_tracked,sensitive,active,created_by) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *`,
-      [c.organizationId, c.companyId, code, name, ...flags, c.userId],
-    );
-    return rows[0];
-  } catch (e) {
-    if (e.code === "23505") throw new HrError(409, `Document type ${code} already exists.`, "HR_DOCTYPE_DUPLICATE");
-    throw e;
-  }
 }
 
 // ---------------------------------------------------------------- departments and designations
@@ -377,14 +334,12 @@ export async function saveEmployee(client, c, input) {
   }
 }
 
-const PLACEMENT = ["departmentId", "designationId", "managerEmployeeId", "branchId", "grade", "employmentType", "joiningDate"];
 export async function updateEmployee(client, c, id, input) {
   need(c, "hr_payroll.employee.manage");
   const e = await loadEmployee(client, c, id, { lock: true });
   if (e.status === "separated") throw new HrError(409, "A separated employee's record is closed.", "HR_EMPLOYEE_CLOSED");
-  const touchesPlacement = PLACEMENT.some((k) => input[k] !== undefined && String(input[k] ?? "") !== String({ departmentId: e.department_id, designationId: e.designation_id, managerEmployeeId: e.manager_employee_id, branchId: e.branch_id, grade: e.grade, employmentType: e.employment_type, joiningDate: String(e.joining_date).slice(0, 10) }[k] ?? ""));
-  if (touchesPlacement && e.status !== "draft") {
-    throw new HrError(409, "After joining, department, designation, manager, branch, grade and employment type change through a transfer or promotion that a second person approves.", "HR_USE_CHANGE_REQUEST");
+  if (input.joiningDate !== undefined && String(input.joiningDate) !== String(e.joining_date).slice(0, 10) && e.status !== "draft") {
+    throw new HrError(409, "The joining date cannot change after the employee has joined.", "HR_JOINING_DATE_LOCKED");
   }
   const set = [];
   const params = [c.organizationId, c.companyId, e.id];
@@ -408,15 +363,13 @@ export async function updateEmployee(client, c, id, input) {
   if (input.address !== undefined) add("address", JSON.stringify(cleanAddress(input.address)), "::jsonb");
   if (input.emergencyContacts !== undefined) add("emergency_contacts", JSON.stringify(cleanContacts(input.emergencyContacts)), "::jsonb");
   if (input.noticePeriodDays !== undefined) add("notice_period_days", Math.trunc(nonNegative(input.noticePeriodDays, "Notice period")));
-  if (e.status === "draft") {
-    if (input.departmentId !== undefined) { const v = uuidOrNull(input.departmentId, "Department"); await assertReferences(client, c, { departmentId: v }); add("department_id", v); }
-    if (input.designationId !== undefined) { const v = uuidOrNull(input.designationId, "Designation"); await assertReferences(client, c, { designationId: v }); add("designation_id", v); }
-    if (input.branchId !== undefined) { const v = uuidOrNull(input.branchId, "Branch"); await assertReferences(client, c, { branchId: v }); add("branch_id", v); }
-    if (input.managerEmployeeId !== undefined) { const v = uuidOrNull(input.managerEmployeeId, "Reporting manager"); await assertReportingLine(client, c, e.id, v); add("manager_employee_id", v); }
-    if (input.grade !== undefined) add("grade", textOrNull(input.grade, 30));
-    if (input.employmentType !== undefined) add("employment_type", oneOf(String(input.employmentType), EMPLOYMENT_TYPES, "Employment type"));
-    if (input.joiningDate !== undefined) add("joining_date", dateRequired(input.joiningDate, "Joining date"));
-  }
+  if (input.departmentId !== undefined) { const v = uuidOrNull(input.departmentId, "Department"); await assertReferences(client, c, { departmentId: v }); add("department_id", v); }
+  if (input.designationId !== undefined) { const v = uuidOrNull(input.designationId, "Designation"); await assertReferences(client, c, { designationId: v }); add("designation_id", v); }
+  if (input.branchId !== undefined) { const v = uuidOrNull(input.branchId, "Branch"); await assertReferences(client, c, { branchId: v }); add("branch_id", v); }
+  if (input.managerEmployeeId !== undefined) { const v = uuidOrNull(input.managerEmployeeId, "Reporting manager"); await assertReportingLine(client, c, e.id, v); add("manager_employee_id", v); }
+  if (input.grade !== undefined) add("grade", textOrNull(input.grade, 30));
+  if (input.employmentType !== undefined) add("employment_type", oneOf(String(input.employmentType), EMPLOYMENT_TYPES, "Employment type"));
+  if (input.joiningDate !== undefined) add("joining_date", dateRequired(input.joiningDate, "Joining date"));
   const sensitiveTouched = ["bankDetails", "taxIdentifiers", "statutoryIdentifiers", "userId"].some((k) => input[k] !== undefined);
   if (sensitiveTouched) {
     if (!canSeeSensitive(c)) throw new HrError(403, "Changing bank, tax, statutory identifiers or the user link needs the sensitive-data permission.", "HR_SENSITIVE_FORBIDDEN");
@@ -451,7 +404,7 @@ export async function updateEmployee(client, c, id, input) {
 }
 
 async function makeTasks(client, c, employee, kind, list, anchor) {
-  const items = (Array.isArray(list) && list.length ? list : kind === "onboarding" ? DEFAULT_ONBOARDING : DEFAULT_OFFBOARDING);
+  const items = Array.isArray(list) && list.length ? list : DEFAULT_ONBOARDING;
   for (const item of items) {
     await qx(client, 
       `INSERT INTO tenant.hr_lifecycle_tasks(organization_id,company_id,employee_id,kind,title,owner_label,mandatory,due_date) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
@@ -460,22 +413,13 @@ async function makeTasks(client, c, employee, kind, list, anchor) {
   }
 }
 
-// F389: joining. The employee record exists as a draft from the offer; joining verifies the
-// mandatory documents, activates the record, starts probation and raises the onboarding checklist.
+// F389: joining. The employee record exists as a draft; joining activates it and raises the onboarding
+// checklist.
 export async function completeJoining(client, c, id) {
   need(c, "hr_payroll.employee.manage");
   const e = await loadEmployee(client, c, id, { lock: true });
   if (e.status !== "draft") throw new HrError(409, "Only an employee who has not yet joined can be joined.", "HR_JOINING_STATE");
   const settings = await loadSettings(client, c);
-  if (settings.require_documents_for_joining) {
-    const missing = await qx(client, 
-      `SELECT t.name FROM tenant.hr_document_types t
-       WHERE t.organization_id=$1 AND t.company_id=$2 AND t.active AND t.required_for_joining
-         AND NOT EXISTS (SELECT 1 FROM tenant.hr_employee_documents d WHERE d.employee_id=$3 AND d.document_type_id=t.id AND d.status='verified')`,
-      [c.organizationId, c.companyId, e.id],
-    );
-    if (missing.rows.length) throw new HrError(409, `These documents must be verified before joining: ${missing.rows.map((r) => r.name).join(", ")}.`, "HR_JOINING_DOCUMENTS_MISSING");
-  }
   const { rows } = await qx(client, 
     `UPDATE tenant.hr_employees SET status='active', joined_at=now(), updated_at=now() WHERE organization_id=$1 AND company_id=$2 AND id=$3 RETURNING *`,
     [c.organizationId, c.companyId, e.id],
@@ -526,11 +470,8 @@ export async function getEmployee(client, c, id) {
     cursor = r.rows[0].manager_employee_id;
   }
   const reports = await qx(client, `SELECT id, employee_number, status, ${NAMES} AS full_name FROM tenant.hr_employees e WHERE organization_id=$1 AND manager_employee_id=$2 AND status <> 'separated' ORDER BY employee_number`, [c.organizationId, e.id]);
-  const history = await qx(client, `SELECT * FROM tenant.hr_employee_changes WHERE organization_id=$1 AND employee_id=$2 ORDER BY effective_date DESC, created_at DESC`, [c.organizationId, e.id]);
-  const documents = await qx(client, `SELECT d.id, d.title, d.file_name, d.status, d.expires_on, d.issued_on, t.name AS type_name FROM tenant.hr_employee_documents d JOIN tenant.hr_document_types t ON t.id=d.document_type_id WHERE d.organization_id=$1 AND d.employee_id=$2 AND d.status <> 'removed' ORDER BY d.created_at DESC`, [c.organizationId, e.id]);
   const tasks = await qx(client, `SELECT * FROM tenant.hr_lifecycle_tasks WHERE organization_id=$1 AND employee_id=$2 ORDER BY kind, created_at`, [c.organizationId, e.id]);
-  const separation = await qx(client, `SELECT * FROM tenant.hr_separations WHERE organization_id=$1 AND employee_id=$2 ORDER BY created_at DESC LIMIT 1`, [c.organizationId, e.id]);
-  return { ...stripSensitive(e, c, own?.id), ...names.rows[0], reportingChain: chain, directReports: reports.rows, changes: history.rows, documents: documents.rows, tasks: tasks.rows, separation: separation.rows[0] ?? null };
+  return { ...stripSensitive(e, c, own?.id), ...names.rows[0], reportingChain: chain, directReports: reports.rows, tasks: tasks.rows };
 }
 
 export async function getOrgChart(client, c) {
@@ -539,199 +480,6 @@ export async function getOrgChart(client, c) {
     `SELECT e.id, e.employee_number, e.manager_employee_id, e.status, ${NAMES} AS full_name, g.name AS designation_name, d.name AS department_name
      FROM tenant.hr_employees e LEFT JOIN tenant.hr_designations g ON g.id=e.designation_id LEFT JOIN tenant.hr_departments d ON d.id=e.department_id
      WHERE e.organization_id=$1 AND e.company_id=$2 AND e.status = ANY($3::text[]) ORDER BY e.employee_number`,
-    [c.organizationId, c.companyId, LIVE],
-  );
-  return rows;
-}
-
-// ---------------------------------------------------------------- documents
-export async function listEmployeeDocuments(client, c, filters = {}) {
-  needAny(c, ["hr_payroll.employee.view", "hr_payroll.employee.manage"]);
-  const params = [c.organizationId, c.companyId];
-  let extra = "";
-  if (filters.employeeId) { params.push(uuid(filters.employeeId, "Employee")); extra += ` AND d.employee_id=$${params.length}`; }
-  if (filters.status) { params.push(String(filters.status)); extra += ` AND d.status=$${params.length}`; }
-  if (filters.expiringInDays) { params.push(Math.min(Math.max(Math.trunc(Number(filters.expiringInDays)) || 30, 1), 365)); extra += ` AND d.expires_on IS NOT NULL AND d.expires_on <= current_date + $${params.length}::int AND d.status <> 'removed'`; }
-  const { rows } = await qx(client, 
-    `SELECT d.*, t.name AS type_name, t.code AS type_code, ${NAMES} AS employee_name, e.employee_number
-     FROM tenant.hr_employee_documents d JOIN tenant.hr_document_types t ON t.id=d.document_type_id JOIN tenant.hr_employees e ON e.id=d.employee_id
-     WHERE d.organization_id=$1 AND d.company_id=$2 AND d.status <> 'removed'${extra} ORDER BY d.created_at DESC LIMIT 1000`,
-    params,
-  );
-  return rows;
-}
-export async function addEmployeeDocument(client, c, input) {
-  // HR adds for anyone; an employee may add to their own file (self-service)
-  const own = await ownEmployee(client, c);
-  const employeeId = uuid(input.employeeId ?? own?.id, "Employee");
-  if (!(own && own.id === employeeId)) need(c, "hr_payroll.employee.manage");
-  await loadEmployee(client, c, employeeId);
-  const type = await qx(client, `SELECT * FROM tenant.hr_document_types WHERE organization_id=$1 AND company_id=$2 AND id=$3 AND active`, [c.organizationId, c.companyId, uuid(input.documentTypeId, "Document type")]);
-  if (!type.rows[0]) throw new HrError(400, "Document type was not found or is inactive.", "HR_DOCTYPE_NOT_FOUND");
-  const reference = text(input.fileReference, 500);
-  if (!reference) throw new HrError(400, "A file reference is required.", "HR_DOCUMENT_INVALID");
-  const title = text(input.title, 200) || type.rows[0].name;
-  const issued = dateOrNull(input.issuedOn, "Issue date");
-  const expires = dateOrNull(input.expiresOn, "Expiry date");
-  if (type.rows[0].expiry_tracked && !expires) throw new HrError(400, `${type.rows[0].name} needs an expiry date.`, "HR_DOCUMENT_EXPIRY_REQUIRED");
-  if (issued && expires && expires < issued) throw new HrError(400, "The expiry date is before the issue date.", "HR_DOCUMENT_INVALID");
-  const size = input.sizeBytes === undefined || input.sizeBytes === "" ? null : Math.trunc(nonNegative(input.sizeBytes, "File size"));
-  const { rows } = await qx(client, 
-    `INSERT INTO tenant.hr_employee_documents(organization_id,company_id,employee_id,document_type_id,title,file_reference,file_name,mime_type,size_bytes,issued_on,expires_on,uploaded_by)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) RETURNING *`,
-    [c.organizationId, c.companyId, employeeId, type.rows[0].id, title, reference, textOrNull(input.fileName, 200), textOrNull(input.mimeType, 100), size, issued, expires, c.userId],
-  );
-  await recordEvent(client, c, "employee", employeeId, "hr.document.added", { type: type.rows[0].code, documentId: rows[0].id });
-  return rows[0];
-}
-export async function reviewEmployeeDocument(client, c, id, { verify, note }) {
-  need(c, "hr_payroll.employee.manage");
-  const { rows } = await qx(client, `SELECT * FROM tenant.hr_employee_documents WHERE organization_id=$1 AND company_id=$2 AND id=$3 FOR UPDATE`, [c.organizationId, c.companyId, uuid(id, "Document")]);
-  const d = rows[0];
-  if (!d || d.status === "removed") throw new HrError(404, "Document was not found.", "HR_DOCUMENT_NOT_FOUND");
-  if (d.status !== "submitted") throw new HrError(409, "Only a submitted document can be reviewed.", "HR_DOCUMENT_STATE");
-  const emp = await qx(client, `SELECT user_id FROM tenant.hr_employees WHERE id=$1`, [d.employee_id]);
-  if (emp.rows[0]?.user_id === c.userId) throw new HrError(403, "You cannot verify documents in your own file.", "HR_SELF_REVIEW_BLOCKED");
-  if (!verify && !text(note)) throw new HrError(400, "Give a reason for rejecting the document.", "HR_REASON_REQUIRED");
-  const out = await qx(client, `UPDATE tenant.hr_employee_documents SET status=$4, verified_by=$5, verified_at=now(), review_note=$6 WHERE organization_id=$1 AND company_id=$2 AND id=$3 RETURNING *`,
-    [c.organizationId, c.companyId, d.id, verify ? "verified" : "rejected", c.userId, textOrNull(note)]);
-  await recordEvent(client, c, "employee", d.employee_id, verify ? "hr.document.verified" : "hr.document.rejected", { documentId: d.id });
-  return out.rows[0];
-}
-export async function removeEmployeeDocument(client, c, id) {
-  need(c, "hr_payroll.employee.manage");
-  const { rows } = await qx(client, `UPDATE tenant.hr_employee_documents SET status='removed' WHERE organization_id=$1 AND company_id=$2 AND id=$3 AND status <> 'removed' RETURNING *`, [c.organizationId, c.companyId, uuid(id, "Document")]);
-  if (!rows[0]) throw new HrError(404, "Document was not found.", "HR_DOCUMENT_NOT_FOUND");
-  await recordEvent(client, c, "employee", rows[0].employee_id, "hr.document.removed", { documentId: id });
-  return rows[0];
-}
-
-// ---------------------------------------------------------------- effective-dated changes
-const CHANGE_FIELDS = {
-  transfer: ["departmentId", "branchId", "managerEmployeeId", "workLocation"],
-  promotion: ["designationId", "grade", "departmentId", "managerEmployeeId"],
-  confirmation: [],
-  probation_extension: ["probationEndDate"],
-};
-const COLUMN = { departmentId: "department_id", branchId: "branch_id", managerEmployeeId: "manager_employee_id", workLocation: "work_location", designationId: "designation_id", grade: "grade", probationEndDate: "probation_end_date" };
-
-export async function proposeEmployeeChange(client, c, input) {
-  need(c, "hr_payroll.employee.manage");
-  const type = oneOf(String(input.changeType), Object.keys(CHANGE_FIELDS), "Change type");
-  const e = await loadEmployee(client, c, input.employeeId, { lock: true });
-  if (!LIVE.includes(e.status)) throw new HrError(409, "Only a current employee can be changed. Complete joining first.", "HR_CHANGE_STATE");
-  if (e.status === "on_notice" && type !== "transfer") throw new HrError(409, "An employee serving notice can only be transferred.", "HR_CHANGE_STATE");
-  const effective = dateRequired(input.effectiveDate, "Effective date");
-  if (effective < String(e.joining_date).slice(0, 10)) throw new HrError(400, "The effective date is before the employee joined.", "HR_CHANGE_INVALID");
-  const open = await qx(client, `SELECT 1 FROM tenant.hr_employee_changes WHERE organization_id=$1 AND employee_id=$2 AND change_type=$3 AND status IN ('pending_approval','approved')`, [c.organizationId, e.id, type]);
-  if (open.rows[0]) throw new HrError(409, `There is already an open ${type.replace("_", " ")} for this employee.`, "HR_CHANGE_OPEN");
-  const changes = {};
-  for (const key of CHANGE_FIELDS[type]) if (input[key] !== undefined && input[key] !== "") changes[key] = key === "grade" || key === "workLocation" ? text(input[key], 120) : key === "probationEndDate" ? dateRequired(input[key], "New probation end date") : uuid(input[key], key);
-  if (type === "confirmation") {
-    if (e.probation_status === "confirmed" || e.probation_status === "not_applicable") throw new HrError(409, "This employee is not on probation.", "HR_CHANGE_STATE");
-  } else if (!Object.keys(changes).length) {
-    throw new HrError(400, "Say what is changing.", "HR_CHANGE_INVALID");
-  }
-  if (type === "probation_extension") {
-    if (!["on_probation", "extended"].includes(e.probation_status)) throw new HrError(409, "This employee is not on probation.", "HR_CHANGE_STATE");
-    if (changes.probationEndDate <= String(e.probation_end_date ?? e.joining_date).slice(0, 10)) throw new HrError(400, "The new probation end date must be later than the current one.", "HR_CHANGE_INVALID");
-  }
-  if (type === "promotion" && changes.designationId && changes.designationId === e.designation_id && !changes.grade) throw new HrError(400, "A promotion changes the designation or grade.", "HR_CHANGE_INVALID");
-  await assertReferences(client, c, { departmentId: changes.departmentId, designationId: changes.designationId, branchId: changes.branchId });
-  if (changes.managerEmployeeId) await assertReportingLine(client, c, e.id, changes.managerEmployeeId);
-  if (type === "promotion" && input.proposedAnnualCtc !== undefined && input.proposedAnnualCtc !== "") nonNegative(input.proposedAnnualCtc, "Proposed CTC");
-  const snapshot = { departmentId: e.department_id, designationId: e.designation_id, managerEmployeeId: e.manager_employee_id, branchId: e.branch_id, grade: e.grade, workLocation: e.work_location, probationEndDate: e.probation_end_date ? String(e.probation_end_date).slice(0, 10) : null };
-  const { rows } = await qx(client, 
-    `INSERT INTO tenant.hr_employee_changes(organization_id,company_id,employee_id,change_type,effective_date,changes,before_snapshot,proposed_annual_ctc,reason,requested_by)
-     VALUES ($1,$2,$3,$4,$5,$6::jsonb,$7::jsonb,$8,$9,$10) RETURNING *`,
-    [c.organizationId, c.companyId, e.id, type, effective, JSON.stringify(changes), JSON.stringify(snapshot), type === "promotion" && input.proposedAnnualCtc ? Number(input.proposedAnnualCtc) : null, textOrNull(input.reason), c.userId],
-  );
-  await recordEvent(client, c, "employee", e.id, `hr.${type}.requested`, { changeId: rows[0].id, effective });
-  return rows[0];
-}
-
-async function applyChangeRow(client, c, change) {
-  const e = await loadEmployee(client, c, change.employee_id, { lock: true });
-  if (!LIVE.includes(e.status)) {
-    await qx(client, `UPDATE tenant.hr_employee_changes SET status='cancelled', decision_note=coalesce(decision_note,'') || ' [employee left before the effective date]' WHERE id=$1`, [change.id]);
-    return null;
-  }
-  const set = [];
-  const params = [c.organizationId, e.id];
-  for (const [key, value] of Object.entries(change.changes)) {
-    if (key === "managerEmployeeId") await assertReportingLine(client, c, e.id, value);
-    params.push(value);
-    set.push(`${COLUMN[key]}=$${params.length}`);
-  }
-  if (change.change_type === "confirmation") {
-    params.push(change.effective_date);
-    set.push(`probation_status='confirmed'`, `confirmation_date=$${params.length}`);
-  }
-  if (change.change_type === "probation_extension") set.push(`probation_status='extended'`);
-  await qx(client, `UPDATE tenant.hr_employees SET ${set.join(", ")}, updated_at=now() WHERE organization_id=$1 AND id=$2`, params);
-  await qx(client, `UPDATE tenant.hr_employee_changes SET status='applied', applied_at=now() WHERE id=$1`, [change.id]);
-  await recordEvent(client, c, "employee", e.id, `hr.${change.change_type}.applied`, { changeId: change.id, changes: change.changes });
-  return change.id;
-}
-
-export async function decideEmployeeChange(client, c, id, { approve, note }) {
-  need(c, "hr_payroll.employee.manage");
-  const { rows } = await qx(client, `SELECT * FROM tenant.hr_employee_changes WHERE organization_id=$1 AND company_id=$2 AND id=$3 FOR UPDATE`, [c.organizationId, c.companyId, uuid(id, "Change")]);
-  const ch = rows[0];
-  if (!ch) throw new HrError(404, "Change was not found.", "HR_CHANGE_NOT_FOUND");
-  if (ch.status !== "pending_approval") throw new HrError(409, "Only a pending change can be decided.", "HR_CHANGE_STATE");
-  if (ch.requested_by === c.userId) throw new HrError(403, "A change must be approved by someone other than the person who requested it.", "SELF_APPROVAL_BLOCKED");
-  const subject = await qx(client, `SELECT user_id FROM tenant.hr_employees WHERE id=$1`, [ch.employee_id]);
-  if (subject.rows[0]?.user_id === c.userId) throw new HrError(403, "You cannot decide a change to your own record.", "SELF_APPROVAL_BLOCKED");
-  if (!approve && !text(note)) throw new HrError(400, "Give a reason for rejecting the change.", "HR_REASON_REQUIRED");
-  await qx(client, `UPDATE tenant.hr_employee_changes SET status=$4, decided_by=$5, decided_at=now(), decision_note=$6 WHERE organization_id=$1 AND company_id=$2 AND id=$3`,
-    [c.organizationId, c.companyId, ch.id, approve ? "approved" : "rejected", c.userId, textOrNull(note)]);
-  await recordEvent(client, c, "employee", ch.employee_id, approve ? `hr.${ch.change_type}.approved` : `hr.${ch.change_type}.rejected`, { changeId: ch.id });
-  if (approve && String(ch.effective_date).slice(0, 10) <= today()) await applyChangeRow(client, c, { ...ch, status: "approved" });
-  return (await qx(client, `SELECT * FROM tenant.hr_employee_changes WHERE id=$1`, [ch.id])).rows[0];
-}
-
-// Approved changes whose effective date has arrived take effect (run from the screen or a schedule).
-export async function applyDueEmployeeChanges(client, c) {
-  need(c, "hr_payroll.employee.manage");
-  const { rows } = await qx(client, `SELECT * FROM tenant.hr_employee_changes WHERE organization_id=$1 AND company_id=$2 AND status='approved' AND effective_date <= current_date FOR UPDATE`, [c.organizationId, c.companyId]);
-  const applied = [];
-  for (const ch of rows) {
-    const id = await applyChangeRow(client, c, ch);
-    if (id) applied.push(id);
-  }
-  return { applied: applied.length, ids: applied };
-}
-
-export async function cancelEmployeeChange(client, c, id, reason) {
-  need(c, "hr_payroll.employee.manage");
-  if (!text(reason)) throw new HrError(400, "Give a reason for cancelling.", "HR_REASON_REQUIRED");
-  const { rows } = await qx(client, `UPDATE tenant.hr_employee_changes SET status='cancelled', decision_note=$4, decided_by=$5, decided_at=now() WHERE organization_id=$1 AND company_id=$2 AND id=$3 AND status IN ('pending_approval','approved') RETURNING *`, [c.organizationId, c.companyId, uuid(id, "Change"), text(reason), c.userId]);
-  if (!rows[0]) throw new HrError(409, "Only a pending or approved change can be cancelled.", "HR_CHANGE_STATE");
-  return rows[0];
-}
-
-export async function listEmployeeChanges(client, c, filters = {}) {
-  needAny(c, ["hr_payroll.employee.view", "hr_payroll.employee.manage"]);
-  const params = [c.organizationId, c.companyId];
-  let extra = "";
-  if (filters.type) { params.push(String(filters.type)); extra += ` AND ch.change_type=$${params.length}`; }
-  if (filters.status) { params.push(String(filters.status)); extra += ` AND ch.status=$${params.length}`; }
-  const { rows } = await qx(client, 
-    `SELECT ch.*, ${NAMES} AS employee_name, e.employee_number FROM tenant.hr_employee_changes ch JOIN tenant.hr_employees e ON e.id=ch.employee_id
-     WHERE ch.organization_id=$1 AND ch.company_id=$2${extra} ORDER BY ch.created_at DESC LIMIT 500`, params);
-  return rows;
-}
-
-// Probation register: everyone on probation, soonest end first, flagged when due.
-export async function listProbation(client, c) {
-  needAny(c, ["hr_payroll.employee.view", "hr_payroll.employee.manage"]);
-  const { rows } = await qx(client, 
-    `SELECT e.id, e.employee_number, ${NAMES} AS full_name, e.probation_status, e.probation_end_date, e.joining_date, d.name AS department_name,
-       (e.probation_end_date - current_date) AS days_left,
-       EXISTS (SELECT 1 FROM tenant.hr_employee_changes ch WHERE ch.employee_id=e.id AND ch.change_type='confirmation' AND ch.status IN ('pending_approval','approved')) AS confirmation_pending
-     FROM tenant.hr_employees e LEFT JOIN tenant.hr_departments d ON d.id=e.department_id
-     WHERE e.organization_id=$1 AND e.company_id=$2 AND e.probation_status IN ('on_probation','extended') AND e.status = ANY($3::text[]) ORDER BY e.probation_end_date NULLS LAST`,
     [c.organizationId, c.companyId, LIVE],
   );
   return rows;
@@ -778,129 +526,10 @@ export async function completeLifecycleTask(client, c, id, { note, waive } = {})
   return rows[0];
 }
 
-// ---------------------------------------------------------------- separation and offboarding
-export async function listSeparations(client, c, filters = {}) {
-  needAny(c, ["hr_payroll.employee.view", "hr_payroll.employee.manage"]);
-  const params = [c.organizationId, c.companyId];
-  let extra = "";
-  if (filters.status) { params.push(String(filters.status)); extra += ` AND s.status=$${params.length}`; }
-  const { rows } = await qx(client, 
-    `SELECT s.*, ${NAMES} AS employee_name, e.employee_number, d.name AS department_name,
-       (SELECT count(*) FROM tenant.hr_lifecycle_tasks t WHERE t.employee_id=s.employee_id AND t.kind='offboarding' AND t.status='open' AND t.mandatory)::int AS open_tasks
-     FROM tenant.hr_separations s JOIN tenant.hr_employees e ON e.id=s.employee_id LEFT JOIN tenant.hr_departments d ON d.id=e.department_id
-     WHERE s.organization_id=$1 AND s.company_id=$2${extra} ORDER BY s.created_at DESC LIMIT 500`, params);
-  return rows;
-}
-
-export async function initiateSeparation(client, c, input) {
-  const own = await ownEmployee(client, c);
-  const isHr = has(c, "hr_payroll.employee.manage");
-  const employeeId = uuid(input.employeeId ?? own?.id, "Employee");
-  const type = oneOf(String(input.separationType ?? "resignation"), ["resignation", "termination", "retirement", "end_of_contract", "absconding", "death"], "Separation type");
-  if (!isHr) {
-    if (!(own && own.id === employeeId && type === "resignation")) throw new HrError(403, "You can only submit your own resignation.", "HR_FORBIDDEN");
-  }
-  const e = await loadEmployee(client, c, employeeId, { lock: true });
-  if (!["active", "on_leave", "suspended"].includes(e.status)) throw new HrError(409, e.status === "on_notice" ? "This employee is already serving notice." : "Only a current employee can separate.", "HR_SEPARATION_STATE");
-  const noticeDate = dateOrNull(input.noticeDate, "Notice date") ?? today();
-  const requested = dateOrNull(input.requestedLastDay, "Requested last working day") ?? addDays(noticeDate, e.notice_period_days);
-  if (requested < noticeDate) throw new HrError(400, "The last working day cannot be before the notice date.", "HR_SEPARATION_INVALID");
-  if (type === "resignation" && !text(input.reason)) throw new HrError(400, "Please give a reason for resigning.", "HR_REASON_REQUIRED");
-  try {
-    const { rows } = await qx(client, 
-      `INSERT INTO tenant.hr_separations(organization_id,company_id,employee_id,separation_type,notice_date,requested_last_day,reason,initiated_by) VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *`,
-      [c.organizationId, c.companyId, e.id, type, noticeDate, requested, textOrNull(input.reason, 1000), c.userId],
-    );
-    await recordEvent(client, c, "employee", e.id, "hr.separation.submitted", { separationId: rows[0].id, type });
-    return rows[0];
-  } catch (err) {
-    if (err.code === "23505") throw new HrError(409, "There is already an open separation for this employee.", "HR_SEPARATION_OPEN");
-    throw err;
-  }
-}
-
-export async function decideSeparation(client, c, id, { approve, note, lastWorkingDay }) {
-  need(c, "hr_payroll.employee.manage");
-  const { rows } = await qx(client, `SELECT * FROM tenant.hr_separations WHERE organization_id=$1 AND company_id=$2 AND id=$3 FOR UPDATE`, [c.organizationId, c.companyId, uuid(id, "Separation")]);
-  const s = rows[0];
-  if (!s) throw new HrError(404, "Separation was not found.", "HR_SEPARATION_NOT_FOUND");
-  if (s.status !== "submitted") throw new HrError(409, "Only a submitted separation can be decided.", "HR_SEPARATION_STATE");
-  const e = await loadEmployee(client, c, s.employee_id, { lock: true });
-  if (e.user_id === c.userId) throw new HrError(403, "You cannot decide your own separation.", "SELF_APPROVAL_BLOCKED");
-  if (!approve) {
-    if (!text(note)) throw new HrError(400, "Give a reason for rejecting the separation.", "HR_REASON_REQUIRED");
-    const out = await qx(client, `UPDATE tenant.hr_separations SET status='rejected', decided_by=$2, decided_at=now(), decision_note=$3 WHERE id=$1 RETURNING *`, [s.id, c.userId, text(note)]);
-    await recordEvent(client, c, "employee", e.id, "hr.separation.rejected", { separationId: s.id });
-    return out.rows[0];
-  }
-  const lwd = dateOrNull(lastWorkingDay, "Last working day") ?? (s.requested_last_day ? String(s.requested_last_day).slice(0, 10) : addDays(String(s.notice_date).slice(0, 10), e.notice_period_days));
-  if (lwd < String(s.notice_date).slice(0, 10)) throw new HrError(400, "The last working day cannot be before the notice date.", "HR_SEPARATION_INVALID");
-  const out = await qx(client, `UPDATE tenant.hr_separations SET status='accepted', last_working_day=$2, decided_by=$3, decided_at=now(), decision_note=$4 WHERE id=$1 RETURNING *`, [s.id, lwd, c.userId, textOrNull(note)]);
-  await qx(client, `UPDATE tenant.hr_employees SET status='on_notice', last_working_date=$3, updated_at=now() WHERE organization_id=$1 AND id=$2`, [c.organizationId, e.id, lwd]);
-  const settings = await loadSettings(client, c);
-  await makeTasks(client, c, e, "offboarding", settings.offboarding_checklist, lwd);
-  await recordEvent(client, c, "employee", e.id, "hr.separation.accepted", { separationId: s.id, lastWorkingDay: lwd });
-  return out.rows[0];
-}
-
-export async function withdrawSeparation(client, c, id, reason) {
-  const { rows } = await qx(client, `SELECT * FROM tenant.hr_separations WHERE organization_id=$1 AND company_id=$2 AND id=$3 FOR UPDATE`, [c.organizationId, c.companyId, uuid(id, "Separation")]);
-  const s = rows[0];
-  if (!s) throw new HrError(404, "Separation was not found.", "HR_SEPARATION_NOT_FOUND");
-  if (!(s.initiated_by === c.userId || has(c, "hr_payroll.employee.manage"))) throw new HrError(403, "You do not have permission to perform this HR operation.", "HR_FORBIDDEN");
-  if (!["submitted", "accepted"].includes(s.status)) throw new HrError(409, "Only an open separation can be withdrawn.", "HR_SEPARATION_STATE");
-  if (!text(reason)) throw new HrError(400, "Give a reason for withdrawing.", "HR_REASON_REQUIRED");
-  const out = await qx(client, `UPDATE tenant.hr_separations SET status='withdrawn', decision_note=$2 WHERE id=$1 RETURNING *`, [s.id, text(reason)]);
-  if (s.status === "accepted") {
-    await qx(client, `UPDATE tenant.hr_employees SET status='active', last_working_date=NULL, updated_at=now() WHERE organization_id=$1 AND id=$2 AND status='on_notice'`, [c.organizationId, s.employee_id]);
-    await qx(client, `UPDATE tenant.hr_lifecycle_tasks SET status='waived', note='Separation withdrawn', completed_at=now(), completed_by=$3 WHERE organization_id=$1 AND employee_id=$2 AND kind='offboarding' AND status='open'`, [c.organizationId, s.employee_id, c.userId]);
-  }
-  await recordEvent(client, c, "employee", s.employee_id, "hr.separation.withdrawn", { separationId: s.id });
-  return out.rows[0];
-}
-
-export async function recordExitInterview(client, c, id, input) {
-  need(c, "hr_payroll.employee.manage");
-  const interview = { reasonCategory: text(input.reasonCategory, 60), feedback: text(input.feedback, 2000), wouldRejoin: input.wouldRejoin === true, conductedOn: dateOrNull(input.conductedOn, "Interview date") ?? today(), conductedBy: c.userId };
-  const { rows } = await qx(client, `UPDATE tenant.hr_separations SET exit_interview=$4::jsonb WHERE organization_id=$1 AND company_id=$2 AND id=$3 AND status IN ('accepted','completed') RETURNING *`, [c.organizationId, c.companyId, uuid(id, "Separation"), JSON.stringify(interview)]);
-  if (!rows[0]) throw new HrError(409, "An exit interview is recorded once the separation is accepted.", "HR_SEPARATION_STATE");
-  return rows[0];
-}
-
-export async function completeSeparation(client, c, id, input = {}) {
-  need(c, "hr_payroll.employee.manage");
-  const { rows } = await qx(client, `SELECT * FROM tenant.hr_separations WHERE organization_id=$1 AND company_id=$2 AND id=$3 FOR UPDATE`, [c.organizationId, c.companyId, uuid(id, "Separation")]);
-  const s = rows[0];
-  if (!s) throw new HrError(404, "Separation was not found.", "HR_SEPARATION_NOT_FOUND");
-  if (s.status !== "accepted") throw new HrError(409, "Only an accepted separation can be completed.", "HR_SEPARATION_STATE");
-  const e = await loadEmployee(client, c, s.employee_id, { lock: true });
-  if (e.user_id === c.userId) throw new HrError(403, "You cannot complete your own separation.", "SELF_APPROVAL_BLOCKED");
-  const lwd = String(s.last_working_day).slice(0, 10);
-  if (lwd > today()) throw new HrError(409, `The last working day is ${lwd}. Complete the separation on or after that day.`, "HR_SEPARATION_NOT_DUE");
-  const open = await qx(client, `SELECT title FROM tenant.hr_lifecycle_tasks WHERE organization_id=$1 AND employee_id=$2 AND kind='offboarding' AND mandatory AND status='open'`, [c.organizationId, e.id]);
-  if (open.rows.length) throw new HrError(409, `Clear the offboarding checklist first: ${open.rows.map((r) => r.title).join("; ")}.`, "HR_OFFBOARDING_OPEN");
-  const reports = await qx(client, `SELECT id FROM tenant.hr_employees WHERE organization_id=$1 AND manager_employee_id=$2 AND status <> 'separated'`, [c.organizationId, e.id]);
-  if (reports.rows.length) {
-    const to = uuidOrNull(input.reassignReportsTo, "New manager for the direct reports");
-    if (!to) throw new HrError(409, `${reports.rows.length} employee(s) report to this person. Choose who they report to now.`, "HR_REPORTS_REASSIGN");
-    if (to === e.id) throw new HrError(400, "Choose someone else.", "HR_MANAGER_INVALID");
-    for (const r of reports.rows) await assertReportingLine(client, c, r.id, to);
-    await qx(client, `UPDATE tenant.hr_employees SET manager_employee_id=$3, updated_at=now() WHERE organization_id=$1 AND manager_employee_id=$2 AND status <> 'separated'`, [c.organizationId, e.id, to]);
-  }
-  await qx(client, `UPDATE tenant.hr_departments SET manager_employee_id=NULL WHERE organization_id=$1 AND manager_employee_id=$2`, [c.organizationId, e.id]);
-  await qx(client, `UPDATE tenant.hr_employees SET status='separated', separation_date=$3, last_working_date=$3, updated_at=now() WHERE organization_id=$1 AND id=$2`, [c.organizationId, e.id, lwd]);
-  await qx(client, `UPDATE tenant.hr_employee_changes SET status='cancelled', decision_note='Employee separated' WHERE organization_id=$1 AND employee_id=$2 AND status IN ('pending_approval','approved')`, [c.organizationId, e.id]);
-  const out = await qx(client, `UPDATE tenant.hr_separations SET status='completed', completed_by=$2, completed_at=now() WHERE id=$1 RETURNING *`, [s.id, c.userId]);
-  await recordEvent(client, c, "employee", e.id, "hr.separation.completed", { separationId: s.id, lastWorkingDay: lwd });
-  return out.rows[0];
-}
-
 // ---------------------------------------------------------------- employee self-service
 export async function getMyProfile(client, c) {
   const me = await requireOwnEmployee(client, c);
-  const profile = await getEmployee(client, c, me.id);
-  const pending = await qx(client, `SELECT * FROM tenant.hr_profile_change_requests WHERE organization_id=$1 AND employee_id=$2 ORDER BY created_at DESC LIMIT 20`, [c.organizationId, me.id]);
-  return { ...profile, profileChangeRequests: pending.rows };
+  return getEmployee(client, c, me.id);
 }
 
 const SELF_EDITABLE = ["preferredName", "personalPhone", "personalEmail", "maritalStatus", "address", "emergencyContacts"];
@@ -924,81 +553,17 @@ export async function updateMyProfile(client, c, input) {
   return rows[0];
 }
 
-// Bank, tax and statutory identifiers drive pay, so a change is requested here and applied only
-// after HR (a different person) approves it.
-export async function requestProfileChange(client, c, input) {
-  const me = await requireOwnEmployee(client, c);
-  const group = oneOf(String(input.fieldGroup), ["bank_details", "tax_identifiers", "statutory_identifiers"], "Field group");
-  const payload = group === "bank_details" ? cleanBank(input.payload) : group === "tax_identifiers" ? cleanTax(input.payload) : cleanStatutory(input.payload);
-  if (!Object.keys(payload).length) throw new HrError(400, "Nothing to change.", "HR_PROFILE_CHANGE_INVALID");
-  const dup = await qx(client, `SELECT 1 FROM tenant.hr_profile_change_requests WHERE organization_id=$1 AND employee_id=$2 AND field_group=$3 AND status='pending'`, [c.organizationId, me.id, group]);
-  if (dup.rows[0]) throw new HrError(409, "You already have a pending request for this.", "HR_PROFILE_CHANGE_OPEN");
-  const { rows } = await qx(client, `INSERT INTO tenant.hr_profile_change_requests(organization_id,company_id,employee_id,field_group,payload,requested_by) VALUES ($1,$2,$3,$4,$5::jsonb,$6) RETURNING *`,
-    [c.organizationId, c.companyId, me.id, group, JSON.stringify(payload), c.userId]);
-  await recordEvent(client, c, "employee", me.id, "hr.ess.change_requested", { group });
-  return rows[0];
-}
-export async function listProfileChangeRequests(client, c, filters = {}) {
-  need(c, "hr_payroll.employee.manage");
-  if (!canSeeSensitive(c)) throw new HrError(403, "Reviewing bank and tax changes needs the sensitive-data permission.", "HR_SENSITIVE_FORBIDDEN");
-  const params = [c.organizationId, c.companyId];
-  let extra = "";
-  if (filters.status) { params.push(String(filters.status)); extra = ` AND r.status=$3`; }
-  const { rows } = await qx(client, `SELECT r.*, ${NAMES} AS employee_name, e.employee_number FROM tenant.hr_profile_change_requests r JOIN tenant.hr_employees e ON e.id=r.employee_id WHERE r.organization_id=$1 AND r.company_id=$2${extra} ORDER BY r.created_at DESC LIMIT 500`, params);
-  return rows;
-}
-export async function decideProfileChange(client, c, id, { approve, note }) {
-  need(c, "hr_payroll.employee.manage");
-  if (!canSeeSensitive(c)) throw new HrError(403, "Reviewing bank and tax changes needs the sensitive-data permission.", "HR_SENSITIVE_FORBIDDEN");
-  const { rows } = await qx(client, `SELECT * FROM tenant.hr_profile_change_requests WHERE organization_id=$1 AND company_id=$2 AND id=$3 FOR UPDATE`, [c.organizationId, c.companyId, uuid(id, "Request")]);
-  const r = rows[0];
-  if (!r) throw new HrError(404, "Request was not found.", "HR_PROFILE_CHANGE_NOT_FOUND");
-  if (r.status !== "pending") throw new HrError(409, "That request has already been decided.", "HR_PROFILE_CHANGE_STATE");
-  if (r.requested_by === c.userId) throw new HrError(403, "You cannot approve your own change.", "SELF_APPROVAL_BLOCKED");
-  if (!approve && !text(note)) throw new HrError(400, "Give a reason for rejecting.", "HR_REASON_REQUIRED");
-  if (approve) {
-    if (r.field_group === "tax_identifiers" && r.payload.pan) {
-      const dup = await qx(client, `SELECT employee_number FROM tenant.hr_employees WHERE organization_id=$1 AND tax_identifiers->>'pan'=$2 AND status <> 'separated' AND id <> $3 LIMIT 1`, [c.organizationId, r.payload.pan, r.employee_id]);
-      if (dup.rows[0]) throw new HrError(409, `PAN ${r.payload.pan} already belongs to employee ${dup.rows[0].employee_number}.`, "HR_PAN_DUPLICATE");
-    }
-    await qx(client, `UPDATE tenant.hr_employees SET ${r.field_group}=${r.field_group} || $3::jsonb, updated_at=now() WHERE organization_id=$1 AND id=$2`, [c.organizationId, r.employee_id, JSON.stringify(r.payload)]);
-  }
-  const out = await qx(client, `UPDATE tenant.hr_profile_change_requests SET status=$2, decided_by=$3, decided_at=now(), decision_note=$4 WHERE id=$1 RETURNING *`, [r.id, approve ? "approved" : "rejected", c.userId, textOrNull(note)]);
-  await recordEvent(client, c, "employee", r.employee_id, approve ? "hr.ess.change_approved" : "hr.ess.change_rejected", { group: r.field_group });
-  return out.rows[0];
-}
-
-// ---------------------------------------------------------------- dashboard and reports
+// ---------------------------------------------------------------- dashboard
 export async function getWorkforceDashboard(client, c) {
   needAny(c, ["hr_payroll.view", "hr_payroll.employee.view", "hr_payroll.employee.manage"]);
-  const [byStatus, probation, docs, changes, tasks, separations, byDept, byType] = await seq([
+  const [byStatus, tasks, byDept, byType] = await seq([
     () => qx(client, `SELECT status, count(*)::int AS n FROM tenant.hr_employees WHERE organization_id=$1 AND company_id=$2 GROUP BY status`, [c.organizationId, c.companyId]),
-    () => qx(client, `SELECT count(*)::int AS n FROM tenant.hr_employees WHERE organization_id=$1 AND company_id=$2 AND probation_status IN ('on_probation','extended') AND probation_end_date <= current_date + 30 AND status = ANY($3::text[])`, [c.organizationId, c.companyId, LIVE]),
-    () => qx(client, `SELECT count(*)::int AS n FROM tenant.hr_employee_documents WHERE organization_id=$1 AND company_id=$2 AND status <> 'removed' AND expires_on IS NOT NULL AND expires_on <= current_date + 30`, [c.organizationId, c.companyId]),
-    () => qx(client, `SELECT count(*)::int AS n FROM tenant.hr_employee_changes WHERE organization_id=$1 AND company_id=$2 AND status='pending_approval'`, [c.organizationId, c.companyId]),
     () => qx(client, `SELECT count(*)::int AS n FROM tenant.hr_lifecycle_tasks WHERE organization_id=$1 AND company_id=$2 AND status='open' AND due_date < current_date`, [c.organizationId, c.companyId]),
-    () => qx(client, `SELECT count(*)::int AS n FROM tenant.hr_separations WHERE organization_id=$1 AND company_id=$2 AND status IN ('submitted','accepted')`, [c.organizationId, c.companyId]),
     () => qx(client, `SELECT coalesce(d.name,'Unassigned') AS name, count(*)::int AS n FROM tenant.hr_employees e LEFT JOIN tenant.hr_departments d ON d.id=e.department_id WHERE e.organization_id=$1 AND e.company_id=$2 AND e.status = ANY($3::text[]) GROUP BY 1 ORDER BY n DESC LIMIT 12`, [c.organizationId, c.companyId, LIVE]),
     () => qx(client, `SELECT employment_type, count(*)::int AS n FROM tenant.hr_employees WHERE organization_id=$1 AND company_id=$2 AND status = ANY($3::text[]) GROUP BY 1 ORDER BY n DESC`, [c.organizationId, c.companyId, LIVE]),
   ]);
   const status = Object.fromEntries(byStatus.rows.map((r) => [r.status, r.n]));
   const headcount = LIVE.reduce((sum, s) => sum + (status[s] ?? 0), 0);
-  return { headcount, status, probationEnding: probation.rows[0].n, documentsExpiring: docs.rows[0].n, pendingChanges: changes.rows[0].n, overdueTasks: tasks.rows[0].n, openSeparations: separations.rows[0].n, byDepartment: byDept.rows, byEmploymentType: byType.rows };
+  return { headcount, status, overdueTasks: tasks.rows[0].n, byDepartment: byDept.rows, byEmploymentType: byType.rows };
 }
 
-// Attrition over a trailing window: leavers / average headcount.
-export async function getAttritionReport(client, c, { months = 12 } = {}) {
-  need(c, "hr_payroll.reports.view");
-  const m = Math.min(Math.max(Math.trunc(Number(months)) || 12, 1), 60);
-  const { rows } = await qx(client, 
-    `SELECT
-       (SELECT count(*) FROM tenant.hr_employees WHERE organization_id=$1 AND company_id=$2 AND separation_date > current_date - ($3::int * 30) AND status='separated')::int AS leavers,
-       (SELECT count(*) FROM tenant.hr_employees WHERE organization_id=$1 AND company_id=$2 AND joining_date <= current_date - ($3::int * 30) AND (separation_date IS NULL OR separation_date > current_date - ($3::int * 30)) AND status <> 'draft')::int AS opening,
-       (SELECT count(*) FROM tenant.hr_employees WHERE organization_id=$1 AND company_id=$2 AND status = ANY($4::text[]))::int AS closing`,
-    [c.organizationId, c.companyId, m, LIVE],
-  );
-  const { leavers, opening, closing } = rows[0];
-  const average = (opening + closing) / 2;
-  const byType = await qx(client, `SELECT s.separation_type, count(*)::int AS n FROM tenant.hr_separations s WHERE s.organization_id=$1 AND s.company_id=$2 AND s.status='completed' AND s.completed_at > now() - ($3::int * interval '30 days') GROUP BY 1`, [c.organizationId, c.companyId, m]);
-  return { months: m, leavers, openingHeadcount: opening, closingHeadcount: closing, attritionPercent: average > 0 ? Math.round((leavers / average) * 10000) / 100 : 0, byType: byType.rows };
-}

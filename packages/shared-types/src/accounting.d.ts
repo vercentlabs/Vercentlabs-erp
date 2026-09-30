@@ -4,7 +4,6 @@ export declare const ACCOUNTING_PAYMENT_STATUSES: readonly string[];
 export declare const ACCOUNTING_REPORT_KEYS: readonly string[];
 export declare const ACCOUNTING_COMMAND_KEYS: Readonly<{
   approveJournal: "accounting.journal.approve";
-  approveBudget: "accounting.budget.approve";
   approveCustomerInvoice: "accounting.customer_invoice.approve";
   approveVendorBill: "accounting.vendor_bill.approve";
   approveVendorPayment: "accounting.vendor_payment.approve";

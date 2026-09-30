@@ -38,11 +38,6 @@ export function buildSalesOrderGovernanceSummary(
   now?: Date,
 ): Record<string, unknown>;
 
-export function getSalesOrderGovernanceDashboard(
-  client: SalesQueryClient,
-  context: SalesContext,
-): Promise<Record<string, unknown>>;
-
 export function assessSalesOrderReadiness(
   client: SalesQueryClient,
   context: SalesContext,
@@ -53,13 +48,6 @@ export function closeSalesOrder(
   client: SalesQueryClient,
   context: SalesContext,
   orderId: string,
-): Promise<Record<string, unknown>>;
-
-export function captureSalesOrderGovernanceSnapshot(
-  client: SalesQueryClient,
-  context: SalesContext,
-  orderId: string,
-  capturedFor?: string,
 ): Promise<Record<string, unknown>>;
 
 export function getSalesOrderGovernanceTimeline(
@@ -76,12 +64,6 @@ export function compareSalesOrderVersions(
   rightVersionId: string,
 ): Promise<Record<string, unknown>>;
 
-export function bulkUpdateSalesOrders(
-  client: SalesQueryClient,
-  context: SalesContext,
-  input: Record<string, unknown>,
-): Promise<Record<string, unknown>>;
-
 export function reserveSalesOrderLines(
   client: SalesQueryClient,
   context: SalesContext,
@@ -89,26 +71,3 @@ export function reserveSalesOrderLines(
   input: Record<string, unknown>,
 ): Promise<Record<string, unknown>>;
 
-export function createSalesReturnRequest(
-  client: SalesQueryClient,
-  context: SalesContext,
-  orderId: string,
-  input: Record<string, unknown>,
-): Promise<Record<string, unknown>>;
-
-export function listSalesOrderSavedViews(
-  client: SalesQueryClient,
-  context: SalesContext,
-): Promise<Array<Record<string, unknown>>>;
-
-export function saveSalesOrderView(
-  client: SalesQueryClient,
-  context: SalesContext,
-  input: Record<string, unknown>,
-): Promise<Record<string, unknown>>;
-
-export function deleteSalesOrderSavedView(
-  client: SalesQueryClient,
-  context: SalesContext,
-  savedViewId: string,
-): Promise<Record<string, unknown>>;

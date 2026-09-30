@@ -60,16 +60,6 @@ export const dateRequired = (value, label) => {
 export const today = () => new Date().toISOString().slice(0, 10);
 export const hashOf = (value) => createHash("sha256").update(JSON.stringify(value)).digest("hex");
 
-// Money in integer minor units so cost, revenue, billing and variance never drift.
-export const toCents = (value) => {
-  if (value === null || value === undefined || value === "") return 0n;
-  const m = /^(-?)(\d+)(?:\.(\d+))?$/.exec(String(value).trim());
-  if (!m) throw new ProjectError(400, "An amount is not a valid number.", "PROJECT_NUMBER_INVALID");
-  const frac = (m[3] || "").padEnd(3, "0");
-  const whole = BigInt(m[2]) * 100n + BigInt(frac.slice(0, 2));
-  const rounded = frac[2] >= "5" ? whole + 1n : whole;
-  return m[1] === "-" ? -rounded : rounded;
-};
 export const fromCents = (cents) => {
   const neg = cents < 0n;
   const abs = neg ? -cents : cents;

@@ -9,11 +9,8 @@ export declare function createProcurementRecord(client:ProcurementClient,context
 export declare function updateProcurementRecord(client:ProcurementClient,context:ProcurementContext,resource:string,id:string,input:Record<string,any>):Promise<Record<string,any>>;
 export declare function transitionProcurementRecord(client:ProcurementClient,context:ProcurementContext,resource:string,id:string,action:string,input?:Record<string,any>):Promise<Record<string,any>>;
 export declare function amendPurchaseOrder(client:ProcurementClient,context:ProcurementContext,id:string,input?:Record<string,any>):Promise<Record<string,any>>;
-export declare function awardSourcingEvent(client:ProcurementClient,context:ProcurementContext,id:string,input?:Record<string,any>):Promise<Record<string,any>>;
 export declare function runProcurementMatch(client:ProcurementClient,context:ProcurementContext,input:Record<string,any>):Promise<Record<string,any>>;
 export declare function getProcurementDashboard(client:ProcurementClient,context:ProcurementContext):Promise<Record<string,any>>;
-export declare function getProcurementReport(client:ProcurementClient,context:ProcurementContext,report:string,filters?:Record<string,unknown>):Promise<Record<string,any>>;
-export declare function evaluateSupplierScore(weights:Record<string,unknown>,scores:Record<string,unknown>):string;
 export declare function decimal(value:unknown):bigint;
 export declare function add(a:unknown,b:unknown):bigint;
 export declare function mul(a:unknown,b:unknown):bigint;
@@ -22,9 +19,4 @@ export declare function allocate(total:unknown,weights:unknown[]):bigint[];
 
 
 export declare function listProcurementPass1Operations(client:ProcurementClient,context:ProcurementContext,options?:{kind?:string;limit?:number}):Promise<Record<string,any>[]>;
-export declare function upsertSupplierPurchasePrice(client:ProcurementClient,context:ProcurementContext,input?:Record<string,any>):Promise<Record<string,any>>;
-export declare function createProcurementLandedCost(client:ProcurementClient,context:ProcurementContext,input?:Record<string,any>):Promise<Record<string,any>>;
-export declare function upsertSupplierLeadTime(client:ProcurementClient,context:ProcurementContext,input?:Record<string,any>):Promise<Record<string,any>>;
-export declare function createProcurementReorderRequest(client:ProcurementClient,context:ProcurementContext,input?:Record<string,any>):Promise<Record<string,any>>;
-export declare function createProcurementSubcontractOrder(client:ProcurementClient,context:ProcurementContext,input?:Record<string,any>):Promise<Record<string,any>>;
 export declare function listProcurementPass1Options(client:ProcurementClient,context:ProcurementContext):Promise<Record<string,Record<string,any>[]>>;

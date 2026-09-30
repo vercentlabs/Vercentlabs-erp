@@ -23,5 +23,3 @@ export declare function verifyPayrollDeterminism(client: Q, c: C, id: string): P
 export declare function holdPayslip(client: Q, c: C, id: string, reason: string): Promise<any>;
 export declare function releasePayslipHold(client: Q, c: C, id: string): Promise<any>;
 export declare function getPayrollDashboard(client: Q, c: C): Promise<any>;
-export declare function registerPayrollHook(name: string, fn: (...args: any[]) => any): void;
-export declare const PAYROLL_HOOKS: Record<string, unknown>;

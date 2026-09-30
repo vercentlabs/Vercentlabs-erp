@@ -12,9 +12,8 @@ import { MIGRATION_DATABASE_URL } from "./pos-fixtures";
 import { openSalesSession as openSession } from "./sales-fixtures";
 import { BASE_URL } from "./base-url";
 
-// Shop floor as real people: settings, an order released with reserved components, work through the
-// routing, material issue, backflush, production report, scrap and rework -- and what a view-only
-// role cannot do. Stock is checked in the database, not on trust.
+// Production as real people: settings, an order released with reserved components, material issue,
+// backflush, production report, hold, inspection and scrap -- and what a view-only role cannot do. Stock is checked in the database, not on trust.
 const origin = () => new URL(BASE_URL).origin;
 async function api<T>(
   context: BrowserContext,
@@ -85,7 +84,7 @@ async function onHand(
   }
 }
 
-test("release, work the routing, issue, backflush, report production, scrap and rework; view-only is read-only", async ({
+test("release, issue, backflush, report production, hold, inspect and scrap; view-only is read-only", async ({
   browser,
 }) => {
   test.setTimeout(900_000);
@@ -117,18 +116,7 @@ test("release, work the routing, issue, backflush, report production, scrap and 
       await db.end();
     }
 
-    // definition via the API: work center, BOM (A backflushed, B manual), routing with two operations
-    const wc = await api<Rec>(
-      manager.context,
-      "POST",
-      "/actions/work-center-save",
-      {
-        code: `PWC-${suffix}`,
-        name: `Line ${suffix}`,
-        hourlyRate: 60,
-        overheadRate: 30,
-      },
-    );
+    // definition via the API: BOM (A backflushed, B manual)
     const bom = await api<Rec>(manager.context, "POST", "/actions/bom-create", {
       itemId: items.finished.id,
       code: `PB-${suffix}`,
@@ -143,33 +131,6 @@ test("release, work the routing, issue, backflush, report production, scrap and 
     await api(approver.context, "POST", "/actions/bom-approve", {
       id: bom.body.record.id,
     });
-    const routing = await api<Rec>(
-      manager.context,
-      "POST",
-      "/actions/routing-create",
-      {
-        code: `PR-${suffix}`,
-        name: `Routing ${suffix}`,
-        itemId: items.finished.id,
-        operations: [
-          {
-            name: "Assemble",
-            workCenterId: wc.body.record.id,
-            setupMinutes: 10,
-            runMinutesPerUnit: 2,
-          },
-          {
-            name: "Test",
-            workCenterId: wc.body.record.id,
-            runMinutesPerUnit: 1,
-          },
-        ],
-      },
-    );
-    await api(manager.context, "POST", "/actions/routing-activate", {
-      id: routing.body.record.id,
-    });
-
     const m = manager.page;
     // --- settings (UI): defaults for new orders
     await open(m, "/manufacturing/settings", "Manufacturing settings");
@@ -239,65 +200,10 @@ test("release, work the routing, issue, backflush, report production, scrap and 
       }),
     ).toBeVisible();
 
-    // --- output is refused until the routing is worked
     await setNumber(
       m.getByRole("textbox", { name: "Quantity produced" }),
       "10",
     );
-    await m.getByRole("button", { name: "Report production" }).click();
-    await expect(
-      m
-        .getByRole("alert")
-        .filter({ hasText: /operation\(s\) are not completed/i }),
-    ).toBeVisible({ timeout: 30_000 });
-
-    // --- work the two operations in order (the second is not startable first)
-    const ops = m.getByRole("table", { name: "Operations" });
-    await expect(
-      ops
-        .getByRole("row", { name: /20.*Test.*Pending/ })
-        .getByRole("button", { name: "Start" }),
-    ).toHaveCount(0);
-    await ops
-      .getByRole("row", { name: /10.*Assemble.*Ready/ })
-      .getByRole("button", { name: "Start" })
-      .click();
-    await expect(m.getByText("Operation started.")).toBeVisible({
-      timeout: 30_000,
-    });
-    await ops
-      .getByRole("row", { name: /10.*Assemble.*In progress/ })
-      .getByRole("button", { name: "Complete" })
-      .click();
-    const done1 = m.getByRole("dialog", { name: /Complete operation 10/ });
-    await setNumber(
-      done1.getByRole("textbox", { name: /^Actual minutes/ }),
-      "60",
-    );
-    await done1.getByRole("button", { name: "Complete" }).click();
-    await expect(m.getByText("Operation completed.")).toBeVisible({
-      timeout: 30_000,
-    });
-    await ops
-      .getByRole("row", { name: /20.*Test.*Ready/ })
-      .getByRole("button", { name: "Start" })
-      .click();
-    await expect(m.getByText("Operation started.")).toBeVisible({
-      timeout: 30_000,
-    });
-    await ops
-      .getByRole("row", { name: /20.*Test.*In progress/ })
-      .getByRole("button", { name: "Complete" })
-      .click();
-    const done2 = m.getByRole("dialog", { name: /Complete operation 20/ });
-    await setNumber(
-      done2.getByRole("textbox", { name: /^Actual minutes/ }),
-      "30",
-    );
-    await done2.getByRole("button", { name: "Complete" }).click();
-    await expect(
-      ops.getByRole("row", { name: /20.*Test.*Completed/ }),
-    ).toBeVisible({ timeout: 30_000 });
 
     // --- manual material must be issued first; B is issued, then output
     await m.getByRole("button", { name: "Report production" }).click();
@@ -348,7 +254,7 @@ test("release, work the routing, issue, backflush, report production, scrap and 
       }),
     ).toBeVisible({ timeout: 30_000 });
 
-    // --- second order: shop-floor queue, scrap and rework
+    // --- second order: hold, inspection and scrap
     const second = await api<Rec>(
       manager.context,
       "POST",
@@ -363,15 +269,30 @@ test("release, work the routing, issue, backflush, report production, scrap and 
     await api(manager.context, "POST", "/actions/order-release", {
       id: second.body.record.id,
     });
-    await open(m, "/manufacturing/shop-floor", "Shop floor");
-    await expect(
-      m.getByRole("row", { name: /WO-.*Assemble.*Ready.*Urgent/ }).first(),
-    ).toBeVisible({ timeout: 60_000 });
     await m.goto(`/manufacturing/order/${second.body.record.id}`, {
       waitUntil: "domcontentloaded",
     });
     await expect(m.getByRole("heading", { name: /^WO-/ })).toBeVisible({
       timeout: 120_000,
+    });
+    await m.getByRole("button", { name: "Hold", exact: true }).click();
+    const hold = m.getByRole("dialog", { name: "Hold order" });
+    await hold.getByLabel(/^Reason/).fill("Waiting for a drawing change");
+    await hold.getByRole("button", { name: "Hold order" }).click();
+    await expect(m.getByText("Order put on hold.")).toBeVisible({
+      timeout: 30_000,
+    });
+    await m.getByRole("button", { name: "Resume" }).click();
+    await expect(m.getByText("Order resumed.")).toBeVisible({
+      timeout: 30_000,
+    });
+    await m.getByRole("button", { name: "Inspect", exact: true }).click();
+    await m
+      .getByRole("dialog", { name: "Inspect production" })
+      .getByRole("button", { name: "Record inspection" })
+      .click();
+    await expect(m.getByText("Inspection recorded.")).toBeVisible({
+      timeout: 30_000,
     });
     await m.getByRole("button", { name: "Record", exact: true }).click();
     await expect(m.getByText("Scrap recorded.")).toBeVisible({
@@ -381,20 +302,7 @@ test("release, work the routing, issue, backflush, report production, scrap and 
       /Scrap.*defect/i,
       { timeout: 30_000 },
     );
-    await m
-      .getByRole("button", { name: "Send scrapped units to rework" })
-      .click();
-    const rework = m.getByRole("dialog", { name: "Send to rework" });
-    await rework.getByLabel(/^Reason/).fill("Recoverable by re-soldering");
-    await rework.getByRole("button", { name: "Create rework order" }).click();
-    await expect(m.getByText("Rework order created.")).toBeVisible({
-      timeout: 30_000,
-    });
-    await expect(m.getByRole("list", { name: "Rework orders" })).toContainText(
-      /WO-/,
-      { timeout: 30_000 },
-    );
-    await open(m, "/manufacturing/scrap-rework", "Scrap and rework");
+    await open(m, "/manufacturing/scrap", "Scrap");
     await expect(
       m.getByRole("row", { name: /Scrap.*Finished units.*Defect/ }).first(),
     ).toBeVisible({ timeout: 30_000 });

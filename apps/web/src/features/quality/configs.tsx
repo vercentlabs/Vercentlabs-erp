@@ -81,100 +81,6 @@ const plans: RegisterConfig = {
   ],
 };
 
-// ---------------------------------------------------------------- F315: AQL sampling plans
-const samplingPlans: RegisterConfig = {
-  key: "sampling-plans",
-  title: "Sampling plans (AQL)",
-  description:
-    "Sample size, and the accept/reject numbers, by lot-size bracket. Several brackets share one code to form a full AQL table -- a plan set to sample by AQL picks the bracket that covers its lot size automatically.",
-  searchLabel: "Search sampling plans",
-  emptyTitle: "No sampling plans yet",
-  emptyDescription: "Add a bracket for a lot-size range.",
-  source: { kind: "view", view: "sampling-plans" },
-  createLabel: "New bracket",
-  createPermission: "quality.sampling.manage",
-  save: { action: "sampling-plan-save", success: "Saved." },
-  edit: { action: "sampling-plan-save", permission: "quality.sampling.manage" },
-  fields: [
-    {
-      name: "code",
-      label: "Code (shared by every bracket in this table)",
-      kind: "text",
-      required: true,
-      createOnly: true,
-    },
-    { name: "name", label: "Name", kind: "text", required: true },
-    {
-      name: "aqlLevel",
-      label: "AQL level",
-      kind: "text",
-      defaultValue: "II",
-      rowKey: "aql_level",
-    },
-    {
-      name: "lotSizeFrom",
-      label: "Lot size from",
-      kind: "number",
-      step: 1,
-      min: 1,
-      required: true,
-      rowKey: "lot_size_from",
-    },
-    {
-      name: "lotSizeTo",
-      label: "Lot size to (blank = no upper limit)",
-      kind: "number",
-      step: 1,
-      rowKey: "lot_size_to",
-    },
-    {
-      name: "sampleSize",
-      label: "Sample size",
-      kind: "number",
-      step: 1,
-      min: 1,
-      required: true,
-      rowKey: "sample_size",
-    },
-    {
-      name: "acceptanceNumber",
-      label: "Accept if defects ≤",
-      kind: "number",
-      step: 1,
-      rowKey: "acceptance_number",
-    },
-    {
-      name: "rejectionNumber",
-      label: "Reject if defects ≥",
-      kind: "number",
-      step: 1,
-      min: 1,
-      required: true,
-      rowKey: "rejection_number",
-    },
-    { name: "active", label: "Active", kind: "bool", defaultValue: "true" },
-  ],
-  columns: () => [
-    strong("code", "Code", (r) => String(r.code)),
-    col("name", "Name", (r) => String(r.name)),
-    col(
-      "range",
-      "Lot size",
-      (r) =>
-        `${quantity(r.lot_size_from)} – ${r.lot_size_to === null ? "∞" : quantity(r.lot_size_to)}`,
-    ),
-    col("sample", "Sample", (r) => quantity(r.sample_size)),
-    col(
-      "acc",
-      "Accept/Reject",
-      (r) =>
-        `${quantity(r.acceptance_number)} / ${quantity(r.rejection_number)}`,
-    ),
-    badge("status", "Status", (r) => (r.active ? "active" : "inactive")),
-  ],
-  searchText: (r) => text(r, ["code", "name", "aql_level"]),
-};
-
 // ---------------------------------------------------------------- F322-324: quality holds
 const holds: RegisterConfig = {
   key: "holds",
@@ -286,6 +192,5 @@ const holds: RegisterConfig = {
 
 export const CORE_REGISTERS: Record<string, RegisterConfig> = {
   plans,
-  "sampling-plans": samplingPlans,
   holds,
 };

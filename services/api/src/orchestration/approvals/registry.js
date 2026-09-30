@@ -8,7 +8,6 @@
 import { createCommandRegistry } from "@vercentlabs/workflows";
 
 import { APPROVAL_COMMANDS, ApprovalError, getApprovalCommand } from "../../core/platform/approvals/index.js";
-import { approveBudget, rejectBudgetApproval } from "../../modules/accounting/advanced.js";
 import { approveJournalEntry, rejectJournalApproval } from "../../modules/accounting/journals.js";
 import {
   approveCustomerInvoice, rejectCustomerInvoiceApproval,
@@ -46,11 +45,6 @@ const HANDLERS = Object.freeze({
     approve: (client, context, p) => approveJournalEntry(client, context, p.journalEntryId, p.contentHash),
     reject: (client, context, p) => rejectJournalApproval(client, context, p.journalEntryId),
     href: () => "/accounting/journals",
-  },
-  "accounting.budget.approve": {
-    approve: (client, context, p) => approveBudget(client, context, p.budgetId),
-    reject: (client, context, p) => rejectBudgetApproval(client, context, p.budgetId),
-    href: () => "/accounting/budgets",
   },
   "sales.quotation.approve": {
     approve: (client, context, p) => approveQuotation(client, context, p.quotationId, p.quotationVersionId),

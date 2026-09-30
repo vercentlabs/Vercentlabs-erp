@@ -3,17 +3,11 @@ import test from "node:test";
 
 import {
   applySalesAdvancesToInvoiceRequest,
-  approveSalesCommission,
   assertSalesCreditAdjustmentAllowed,
-  cancelSalesAdvancePayment,
-  completeSalesReturnRequest,
   decideSalesCreditAdjustment,
-  decideSalesReturnRequest,
   getSalesCustomerCreditExposure,
-  updateSalesDropShipStatus,
 } from "../src/modules/sales/after-sales.js";
 import { createInvoiceRequest, SalesError, submitSalesOrder } from "../src/modules/sales/index.js";
-import { accrueSalesCommission } from "../src/modules/sales/pass1-operations.js";
 
 const org = "11111111-1111-4111-8111-111111111111";
 const orderId = "22222222-2222-4222-8222-222222222222";
@@ -54,32 +48,6 @@ test("F052: advances apply oldest first, never more than the invoice bills", asy
   assert.equal(result.amountDue, 4000);
 });
 
-test("F052: an advance already deducted on an invoice cannot be refunded", async () => {
-  const c = client([["FROM tenant.sales_advance_payments WHERE organization_id=$1 AND id=$2", [{ id: recordId, status: "applied", sales_order_id: orderId }]]]);
-  await assert.rejects(cancelSalesAdvancePayment(c, context, recordId, { reason: "Customer changed mind", refunded: true }), rejectsWith("SALES_ADVANCE_NOT_OPEN"));
-});
-
-test("F054: the requester cannot decide their own return, and a rejection needs a reason", async () => {
-  const own = client([["FROM tenant.sales_return_requests WHERE organization_id=$1 AND id=$2", [{ id: recordId, status: "pending", requested_by: userId, sales_order_id: orderId }]]]);
-  await assert.rejects(decideSalesReturnRequest(own, context, recordId, { decision: "approved" }), rejectsWith("SALES_RETURN_SELF_DECISION"));
-  await assert.rejects(decideSalesReturnRequest(own, context, recordId, { decision: "rejected", note: "" }), rejectsWith("SALES_REASON_REQUIRED"));
-});
-
-test("F054: receiving a return records the quantity and restocks base units; never more than delivered", async () => {
-  const request = { id: recordId, status: "approved", sales_order_id: orderId, request_number: "RET-1", lines: [{ salesOrderLineId: lineId, quantity: "2" }] };
-  const ok = client([
-    ["FROM tenant.sales_return_requests WHERE organization_id=$1 AND id=$2", [request]],
-    ["FOR UPDATE OF progress", [{ item_id: "i1", warehouse_id: "w1", conversion_factor: "12", fulfilled_quantity: "12", returned_quantity: "0" }]],
-  ]);
-  const result = await completeSalesReturnRequest(ok, context, recordId, {});
-  assert.deepEqual(result.restock, [{ salesOrderLineId: lineId, itemId: "i1", warehouseId: "w1", baseQuantity: 24 }]);
-  const tooMany = client([
-    ["FROM tenant.sales_return_requests WHERE organization_id=$1 AND id=$2", [request]],
-    ["FOR UPDATE OF progress", [{ item_id: "i1", warehouse_id: "w1", conversion_factor: "12", fulfilled_quantity: "1", returned_quantity: "0" }]],
-  ]);
-  await assert.rejects(completeSalesReturnRequest(tooMany, context, recordId, {}), /more than was delivered/);
-});
-
 test("F055: a credit note can't exceed what was invoiced less what is already credited", async () => {
   const position = (invoiced, credited) => client([["AS invoiced", [{ invoiced, paid: "0", advances: "0", credited, refunded: "0" }]]]);
   await assert.rejects(assertSalesCreditAdjustmentAllowed(position("0", "0"), context, { id: orderId }, { type: "credit_note", amount: 100 }), rejectsWith("SALES_ADJUSTMENT_NOTHING_INVOICED"));
@@ -91,23 +59,6 @@ test("F055: a credit note can't exceed what was invoiced less what is already cr
 test("F055: the requester cannot approve their own credit note", async () => {
   const c = client([["FROM tenant.sales_credit_adjustment_requests WHERE organization_id=$1 AND id=$2", [{ id: recordId, status: "pending", created_by: userId, sales_order_id: orderId, adjustment_type: "credit_note", amount: "500" }]]]);
   await assert.rejects(decideSalesCreditAdjustment(c, context, recordId, { decision: "approved" }), rejectsWith("SALES_ADJUSTMENT_SELF_DECISION"));
-});
-
-test("F056: drop-ships follow ordered → shipped → delivered; delivery counts as fulfilled without stock", async () => {
-  const skip = client([["FROM tenant.sales_drop_ship_requests WHERE organization_id=$1 AND id=$2", [{ id: recordId, status: "requested", sales_order_id: orderId, sales_order_line_id: lineId, quantity: "5" }]]]);
-  await assert.rejects(updateSalesDropShipStatus(skip, context, recordId, { status: "delivered" }), rejectsWith("SALES_DROP_SHIP_TRANSITION_INVALID"));
-  const deliver = client([["FROM tenant.sales_drop_ship_requests WHERE organization_id=$1 AND id=$2", [{ id: recordId, status: "shipped", sales_order_id: orderId, sales_order_line_id: lineId, quantity: "5" }]]]);
-  await updateSalesDropShipStatus(deliver, context, recordId, { status: "delivered" });
-  const progress = deliver.calls.find((call) => call.sql.includes("fulfilled_quantity=fulfilled_quantity+$3"));
-  assert.equal(progress.values[2], "5");
-  assert.ok(!deliver.calls.some((call) => call.sql.includes("stock_")), "no stock touched");
-});
-
-test("F057: commission accrues only on confirmed orders, and nobody approves their own", async () => {
-  const draft = client([["FROM tenant.sales_orders record", [{ id: orderId, lifecycle_status: "draft", owner_user_id: userId, company_id: "c1" }]]]);
-  await assert.rejects(accrueSalesCommission(draft, context, { salesOrderId: orderId }), rejectsWith("SALES_COMMISSION_ORDER_NOT_CONFIRMED"));
-  const own = client([["FROM tenant.sales_commission_entries WHERE organization_id=$1 AND id=$2", [{ id: recordId, status: "accrued", owner_user_id: userId }]]]);
-  await assert.rejects(approveSalesCommission(own, context, recordId), rejectsWith("SALES_COMMISSION_SELF_APPROVAL"));
 });
 
 test("F051: a partial invoice can't bill more than remains on a line", async () => {

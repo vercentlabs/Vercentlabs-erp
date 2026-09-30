@@ -1,57 +1,37 @@
 import { z } from "zod";
 
 import {
-  addAssetDocument,
   addAssetWorkOrderPart,
   approveAssetDisposal,
   approveAssetTransfer,
   approveDepreciationRun,
-  approveValueAdjustment,
   assignAssetToCustodian,
   cancelAssetDisposal,
   cancelAssetTransfer,
-  cancelAssetVerificationCampaign,
   cancelAssetWorkOrder,
-  cancelValueAdjustment,
   capitalizeAssetRecord,
-  closeAssetVerificationCampaign,
   completeAssetDisposal,
   completeAssetTransfer,
   completeAssetWorkOrder,
   createAssetFromSource,
-  createAssetVerificationCampaign,
-  createAssetWarrantyClaim,
   createAssetWorkOrder,
   createDepreciationRun,
-  endAssetDowntime,
   generateDueMaintenance,
   holdAssetWorkOrder,
   postDepreciationRun,
-  recordAssetCalibration,
-  recordAssetDowntime,
-  recordAssetInspection,
-  recordAssetUsage,
   registerAsset,
   rejectAssetDisposal,
   rejectAssetTransfer,
-  rejectValueAdjustment,
-  removeAssetDocument,
   requestAssetDisposal,
   requestAssetTransfer,
-  requestValueAdjustment,
-  resolveAssetDiscrepancy,
   returnAsset,
   reverseDepreciationRun,
   saveAssetCategory,
   saveAssetLocation,
   saveAssetSettings,
-  saveAssetWarranty,
   saveMaintenancePlan,
-  scanAssetForVerification,
-  startAssetVerificationCampaign,
   startAssetWorkOrder,
   updateAssetRecord,
-  updateAssetWarrantyClaim,
 } from "@vercentlabs/api";
 
 import { HttpError } from "@/core/http";
@@ -108,19 +88,6 @@ export async function POST(
               input,
             ),
           };
-        case "document-add":
-          return {
-            record: await addAssetDocument(
-              client,
-              context,
-              str(input, "assetId"),
-              input,
-            ),
-          };
-        case "document-remove":
-          return {
-            record: await removeAssetDocument(client, context, idOf(input)),
-          };
         case "asset-assign":
           return {
             record: await assignAssetToCustodian(
@@ -169,15 +136,6 @@ export async function POST(
           return {
             record: await completeAssetTransfer(client, context, idOf(input)),
           };
-        case "usage-record":
-          return {
-            record: await recordAssetUsage(
-              client,
-              context,
-              str(input, "assetId"),
-              input,
-            ),
-          };
         case "run-create":
           return {
             record: await createDepreciationRun(client, context, input),
@@ -198,32 +156,6 @@ export async function POST(
               idOf(input),
               str(input, "reason"),
             ),
-          };
-        case "adjustment-request":
-          return {
-            record: await requestValueAdjustment(
-              client,
-              context,
-              str(input, "assetId"),
-              input,
-            ),
-          };
-        case "adjustment-approve":
-          return {
-            record: await approveValueAdjustment(client, context, idOf(input)),
-          };
-        case "adjustment-reject":
-          return {
-            record: await rejectValueAdjustment(
-              client,
-              context,
-              idOf(input),
-              str(input, "reason"),
-            ),
-          };
-        case "adjustment-cancel":
-          return {
-            record: await cancelValueAdjustment(client, context, idOf(input)),
           };
         case "plan-save":
           return { record: await saveMaintenancePlan(client, context, input) };
@@ -278,108 +210,6 @@ export async function POST(
               context,
               idOf(input),
               input,
-            ),
-          };
-        case "downtime-record":
-          return {
-            record: await recordAssetDowntime(
-              client,
-              context,
-              str(input, "assetId"),
-              input,
-            ),
-          };
-        case "downtime-end":
-          return {
-            record: await endAssetDowntime(
-              client,
-              context,
-              idOf(input),
-              input.endedAt as string | undefined,
-            ),
-          };
-        case "warranty-save":
-          return { record: await saveAssetWarranty(client, context, input) };
-        case "claim-create":
-          return {
-            record: await createAssetWarrantyClaim(client, context, input),
-          };
-        case "claim-update":
-          return {
-            record: await updateAssetWarrantyClaim(
-              client,
-              context,
-              idOf(input),
-              input,
-            ),
-          };
-        case "inspection-record":
-          return {
-            record: await recordAssetInspection(
-              client,
-              context,
-              str(input, "assetId"),
-              input,
-            ),
-          };
-        case "calibration-record":
-          return {
-            record: await recordAssetCalibration(
-              client,
-              context,
-              str(input, "assetId"),
-              input,
-            ),
-          };
-        case "campaign-create":
-          return {
-            record: await createAssetVerificationCampaign(
-              client,
-              context,
-              input,
-            ),
-          };
-        case "campaign-start":
-          return {
-            record: await startAssetVerificationCampaign(
-              client,
-              context,
-              idOf(input),
-            ),
-          };
-        case "campaign-scan":
-          return {
-            record: await scanAssetForVerification(
-              client,
-              context,
-              str(input, "campaignId"),
-              input,
-            ),
-          };
-        case "campaign-resolve":
-          return {
-            record: await resolveAssetDiscrepancy(
-              client,
-              context,
-              idOf(input),
-              input,
-            ),
-          };
-        case "campaign-close":
-          return {
-            record: await closeAssetVerificationCampaign(
-              client,
-              context,
-              idOf(input),
-              input,
-            ),
-          };
-        case "campaign-cancel":
-          return {
-            record: await cancelAssetVerificationCampaign(
-              client,
-              context,
-              idOf(input),
             ),
           };
         case "disposal-request":

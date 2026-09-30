@@ -1,6 +1,5 @@
 import {
   getQualitySettings,
-  listSamplingPlans,
   listQualityPlans,
   getQualityPlan,
   listInspections,
@@ -9,18 +8,6 @@ import {
   getQualityHold,
   listNonconformances,
   getNonconformance,
-  listCapa,
-  getCapa,
-  listSupplierQualityRecords,
-  listAudits,
-  getAudit,
-  listCalibrationRecords,
-  listCertificates,
-  listQualityDocuments,
-  listCustomerComplaints,
-  getCustomerComplaint,
-  getBatchTraceability,
-  getQualityCostReport,
   getQualityKpiDashboard,
   listQualityOptions,
 } from "@vercentlabs/api";
@@ -57,8 +44,6 @@ export async function GET(
           return {
             plan: await getQualityPlan(client, context, get("id") ?? ""),
           };
-        case "sampling-plans":
-          return { rows: await listSamplingPlans(client, context) };
         case "inspections":
           return {
             rows: await listInspections(client, context, {
@@ -96,70 +81,6 @@ export async function GET(
               context,
               get("id") ?? "",
             ),
-          };
-        case "capa":
-          return {
-            rows: await listCapa(client, context, { status: get("status") }),
-          };
-        case "capa-detail":
-          return { capa: await getCapa(client, context, get("id") ?? "") };
-        case "supplier-records":
-          return {
-            rows: await listSupplierQualityRecords(client, context, {
-              supplierId: get("supplierId"),
-            }),
-          };
-        case "audits":
-          return {
-            rows: await listAudits(client, context, { status: get("status") }),
-          };
-        case "audit":
-          return { audit: await getAudit(client, context, get("id") ?? "") };
-        case "calibration":
-          return {
-            rows: await listCalibrationRecords(client, context, {
-              status: get("status"),
-            }),
-          };
-        case "certificates":
-          return {
-            rows: await listCertificates(client, context, {
-              status: get("status"),
-            }),
-          };
-        case "documents":
-          return {
-            rows: await listQualityDocuments(client, context, {
-              status: get("status"),
-            }),
-          };
-        case "complaints":
-          return {
-            rows: await listCustomerComplaints(client, context, {
-              status: get("status"),
-            }),
-          };
-        case "complaint":
-          return {
-            complaint: await getCustomerComplaint(
-              client,
-              context,
-              get("id") ?? "",
-            ),
-          };
-        case "traceability":
-          return {
-            trace: await getBatchTraceability(client, context, {
-              batchId: get("batchId"),
-              serialId: get("serialId"),
-            }),
-          };
-        case "cost-report":
-          return {
-            report: await getQualityCostReport(client, context, {
-              from: get("from"),
-              to: get("to"),
-            }),
           };
         case "dashboard":
           return { dashboard: await getQualityKpiDashboard(client, context) };

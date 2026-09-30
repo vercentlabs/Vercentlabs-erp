@@ -17,8 +17,8 @@ import {
   supplierDetail,
 } from "@/features/procurement/configs/suppliers";
 
-// F063-F066/F089-F091: the supplier record with its sites and contacts,
-// qualification assessments, certifications and performance scorecards.
+// F063-F066: the supplier record with its sites and contacts, and its link to
+// the Accounting party its invoices are booked to.
 export function SupplierDetailScreen({ id }: { id: string }) {
   const config = {
     ...supplierDetail,
@@ -35,38 +35,9 @@ export function SupplierDetailScreen({ id }: { id: string }) {
         ),
       },
       {
-        id: "qualification",
-        label: "Qualification",
-        render: (record: { id: string; status: string }) => (
-          <>
-            <ChildSection
-              config={supplierChildren.qualifications}
-              parentId={record.id}
-              parentStatus={record.status}
-            />
-            <ChildSection
-              config={supplierChildren.certifications}
-              parentId={record.id}
-              parentStatus={record.status}
-            />
-          </>
-        ),
-      },
-      {
         id: "accounting",
         label: "Accounting",
         render: (record: ProcRecord) => <AccountingLink record={record} />,
-      },
-      {
-        id: "performance",
-        label: "Performance",
-        render: (record: { id: string; status: string }) => (
-          <ChildSection
-            config={supplierChildren.scorecards}
-            parentId={record.id}
-            parentStatus={record.status}
-          />
-        ),
       },
     ],
   };

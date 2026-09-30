@@ -12,13 +12,10 @@ export declare const has: (c: C, p: string) => boolean;
 export declare const hasAny: (c: C, list: string[]) => boolean;
 export declare const need: (c: C, p: string) => void;
 export declare const needAny: (c: C, list: string[]) => void;
-export declare const positive: (value: unknown, label: string) => number;
 export declare const nonNegative: (value: unknown, label: string, fallback?: number) => number;
 export declare const dateOrNull: (value: unknown, label: string) => string | null;
-export declare const dateRequired: (value: unknown, label: string) => string;
 export declare const oneOf: <T extends string>(value: string, allowed: T[], label: string) => T;
 export declare const today: () => string;
-export declare const round2: (n: unknown) => number;
 // Exact shape (not just Record<string, unknown>) so this satisfies the stricter QualityContext type
 // this folder's original index.d.ts declares for the one legacy function reused as-is (releaseQualityHold).
 export declare function qualityContext(session: Record<string, unknown>): {

@@ -18,20 +18,11 @@ const ATTENTION: Array<[string, string, string]> = [
   ["pendingApprovals", "Awaiting approval", "/assets/transfers"],
   ["openWorkOrders", "Open work orders", "/assets/work-orders"],
   ["maintenanceOverdue", "Maintenance overdue", "/assets/maintenance-plans"],
-  ["warrantiesExpiring", "Warranties expiring", "/assets/warranties"],
-  ["calibrationsDue", "Calibrations due", "/assets/calibration"],
-  [
-    "openVerificationDiscrepancies",
-    "Open verification discrepancies",
-    "/assets/physical-verification",
-  ],
 ];
 const SHORTCUTS = [
   ["Asset register", "/assets/register"],
   ["Depreciation", "/assets/depreciation"],
   ["Work orders", "/assets/work-orders"],
-  ["Verification", "/assets/physical-verification"],
-  ["Reports", "/assets/reports"],
 ] as const;
 
 export function AssetsDashboardScreen() {
@@ -52,7 +43,7 @@ export function AssetsDashboardScreen() {
     <div className="flex flex-col gap-4">
       <PageHeader
         title="Assets"
-        description="Register, custody, value, maintenance, verification and disposal, in one place."
+        description="Register, custody, depreciation, maintenance and disposal, in one place."
       />
       {error && <AssetsAlert>{error}</AssetsAlert>}
       {d && (

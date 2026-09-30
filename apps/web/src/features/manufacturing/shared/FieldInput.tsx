@@ -11,16 +11,7 @@ import {
 import type { MfgOptions } from "@/features/manufacturing/shared/client";
 
 export type OptionSource =
-  | "items"
-  | "warehouses"
-  | "uoms"
-  | "boms"
-  | "routings"
-  | "workCenters"
-  | "workOrders"
-  | "calendars"
-  | "salesOrders"
-  | "assets";
+  "items" | "warehouses" | "uoms" | "boms" | "workOrders" | "salesOrders";
 export type FieldValue = string | number;
 export type FieldDef = {
   name: string;
@@ -75,30 +66,10 @@ export function resolveOptions(
         value: b.id,
         label: `${b.code} v${b.version}${b.name ? ` — ${b.name}` : ""}`,
       }));
-    case "routings":
-      return (options?.routings ?? []).map((r) => ({
-        value: r.id,
-        label: `${r.name} (${r.code})`,
-      }));
-    case "workCenters":
-      return (options?.workCenters ?? []).map((w) => ({
-        value: w.id,
-        label: `${w.name} (${w.code})`,
-      }));
-    case "assets":
-      return (options?.assets ?? []).map((a) => ({
-        value: a.id,
-        label: `${a.name} (${a.code})`,
-      }));
     case "salesOrders":
       return (options?.salesOrders ?? []).map((o) => ({
         value: o.id,
         label: o.code,
-      }));
-    case "calendars":
-      return (options?.calendars ?? []).map((k) => ({
-        value: k.id,
-        label: `${k.name} (${k.code})`,
       }));
     case "workOrders":
       return (options?.workOrders ?? []).map((w) => ({

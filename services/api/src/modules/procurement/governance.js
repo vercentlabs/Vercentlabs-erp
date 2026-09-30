@@ -1,4 +1,3 @@
-import { createHash } from "node:crypto";
 
 export class ProcurementGovernanceError extends Error {
   constructor(status, message, code = "PROCUREMENT_GOVERNANCE_ERROR") {
@@ -12,39 +11,13 @@ export class ProcurementGovernanceError extends Error {
 const DAY_MS = 86_400_000;
 const ENTITY_TABLES = Object.freeze({
   suppliers: "procurement_suppliers",
-  requisitions: "procurement_requisitions",
-  "sourcing-events": "procurement_sourcing_events",
-  agreements: "procurement_agreements",
   "purchase-orders": "procurement_purchase_orders",
   receipts: "procurement_receipts",
 });
-const CASE_STATUSES = new Set([
-  "open",
-  "under_review",
-  "waiting_supplier",
-  "waiting_internal",
-  "resolved",
-  "closed",
-]);
-const CASE_PRIORITIES = new Set(["low", "normal", "high", "urgent"]);
-const CASE_REASONS = new Set([
-  "supplier_compliance",
-  "qualification",
-  "sourcing_competition",
-  "approval_delay",
-  "delivery_risk",
-  "receipt_variance",
-  "contract_compliance",
-  "budget_control",
-  "other",
-]);
 const string = (value) => String(value ?? "").trim();
 const number = (value) => (Number.isFinite(Number(value)) ? Number(value) : 0);
 const object = (value) =>
   value && typeof value === "object" && !Array.isArray(value) ? value : {};
-const hashPayload = (value) =>
-  createHash("sha256").update(JSON.stringify(value)).digest("hex");
-
 function hasPermission(context, permission) {
   const roles = new Set(
     Array.isArray(context.roleSlugs) ? context.roleSlugs : [],
@@ -65,17 +38,6 @@ function requireAnyPermission(context, permissions) {
   }
 }
 
-function requireManagePermission(context) {
-  requireAnyPermission(context, [
-    "procurement.settings.manage",
-    "procurement.suppliers.qualify",
-    "procurement.requisition.manage",
-    "procurement.sourcing.manage",
-    "procurement.po.manage",
-    "procurement.receipts.manage",
-  ]);
-}
-
 function uuid(value, label) {
   const normalized = string(value);
   if (
@@ -86,14 +48,6 @@ function uuid(value, label) {
     throw new ProcurementGovernanceError(400, `${label} is invalid.`);
   }
   return normalized;
-}
-
-function dateTime(value, label) {
-  if (value === undefined || value === null || value === "") return null;
-  const parsed = new Date(value);
-  if (Number.isNaN(parsed.getTime()))
-    throw new ProcurementGovernanceError(400, `${label} is invalid.`);
-  return parsed.toISOString();
 }
 
 function daysFrom(value, now) {
@@ -115,14 +69,6 @@ function defaultPolicy(policy = {}) {
           policy.certificationWarningDays ??
           30,
       ),
-    ),
-    sourcingMinimumBids: Math.max(
-      1,
-      number(policy.sourcing_minimum_bids ?? policy.sourcingMinimumBids ?? 2),
-    ),
-    requisitionSlaDays: Math.max(
-      1,
-      number(policy.requisition_sla_days ?? policy.requisitionSlaDays ?? 3),
     ),
     purchaseOrderAckDays: Math.max(
       1,
@@ -229,95 +175,6 @@ export function evaluateSupplierGovernance(
     expiringCertifications,
     score,
     certificationWarningDays: policy.certificationWarningDays,
-  });
-}
-
-export function evaluateRequisitionHealth(
-  row,
-  policyInput = {},
-  now = new Date(),
-) {
-  const policy = defaultPolicy(policyInput);
-  const blockers = [];
-  const warnings = [];
-  const status = string(row.status);
-  const data = object(row.data);
-  const lineCount = number(row.line_count ?? row.lineCount);
-  const needByDate = row.need_by_date ?? row.needByDate ?? data.needByDate;
-  const ageDays = Math.max(
-    0,
-    Math.floor(
-      (now.getTime() -
-        new Date(row.created_at ?? row.createdAt ?? now).getTime()) /
-        DAY_MS,
-    ),
-  );
-  const dueInDays = daysFrom(needByDate, now);
-  if (!string(data.title ?? row.title))
-    blockers.push("Requisition business requirement is missing.");
-  if (lineCount < 1) blockers.push("Requisition has no line items.");
-  if (!needByDate) blockers.push("Requisition need-by date is missing.");
-  if (
-    ["submitted", "pending_approval"].includes(status) &&
-    ageDays > policy.requisitionSlaDays
-  )
-    warnings.push("Requisition approval is outside the configured SLA.");
-  if (
-    dueInDays !== null &&
-    dueInDays < 0 &&
-    !["approved", "closed", "cancelled"].includes(status)
-  )
-    warnings.push("Requisition need-by date has passed.");
-  return finishHealth(blockers, warnings, { lineCount, ageDays, dueInDays });
-}
-
-export function evaluateSourcingHealth(
-  row,
-  policyInput = {},
-  now = new Date(),
-) {
-  const policy = defaultPolicy(policyInput);
-  const blockers = [];
-  const warnings = [];
-  const status = string(row.status);
-  const data = object(row.data);
-  const invitations = number(row.invitation_count ?? row.invitationCount);
-  const bids = number(row.bid_count ?? row.bidCount);
-  const evaluations = number(row.evaluation_count ?? row.evaluationCount);
-  const awards = number(row.award_count ?? row.awardCount);
-  const closesInDays = daysFrom(
-    row.bid_close_at ?? row.bidCloseAt ?? data.bidCloseAt,
-    now,
-  );
-  if (!string(data.title ?? row.title))
-    blockers.push("Sourcing event title is missing.");
-  if (invitations < 1)
-    blockers.push("No suppliers have been invited to the sourcing event.");
-  if (
-    policy.requireCompetitiveBids &&
-    ["active", "closed", "awarded"].includes(status) &&
-    bids < policy.sourcingMinimumBids
-  )
-    blockers.push(
-      `At least ${policy.sourcingMinimumBids} valid supplier bids are required.`,
-    );
-  if (["closed", "awarded"].includes(status) && evaluations < bids)
-    warnings.push("Not all supplier bids have completed evaluation evidence.");
-  if (status === "awarded" && awards !== 1)
-    blockers.push(
-      "Awarded sourcing events require exactly one governed award record.",
-    );
-  if (closesInDays !== null && closesInDays < 0 && status === "active")
-    warnings.push(
-      "Sourcing event bid deadline has passed and the event remains active.",
-    );
-  return finishHealth(blockers, warnings, {
-    invitations,
-    bids,
-    evaluations,
-    awards,
-    closesInDays,
-    minimumBids: policy.sourcingMinimumBids,
   });
 }
 
@@ -450,153 +307,6 @@ async function getPolicy(client, context, companyId = null) {
   return result.rows[0] || defaultPolicy();
 }
 
-async function loadSuppliers(client, context, policy) {
-  const values = [context.organizationId, policy.certificationWarningDays];
-  const scope = companyScope(context, values, "supplier");
-  const result = await client.query(
-    `SELECT supplier.*,supplier.data->>'legalName' AS legal_name,supplier.data->>'currencyCode' AS currency_code,company.name AS company_name,
-    COALESCE(qualification.count,0)::int AS qualification_count,COALESCE(certification.count,0)::int AS certification_count,
-    COALESCE(certification.expired,0)::int AS expired_certification_count,COALESCE(certification.expiring,0)::int AS expiring_certification_count,
-    COALESCE(score.latest_score,0)::numeric AS latest_score
-    FROM tenant.procurement_suppliers supplier
-    JOIN public.companies company ON company.organization_id=supplier.organization_id AND company.id=supplier.company_id
-    LEFT JOIN LATERAL (SELECT count(*) FROM tenant.procurement_supplier_qualifications q WHERE q.organization_id=supplier.organization_id AND q.parent_id=supplier.id AND q.status='active') qualification ON true
-    LEFT JOIN LATERAL (SELECT count(*) AS count,
-      count(*) FILTER (WHERE NULLIF(c.data->>'expiryDate','')::date < current_date) AS expired,
-      count(*) FILTER (WHERE NULLIF(c.data->>'expiryDate','')::date BETWEEN current_date AND current_date+$2::int) AS expiring
-      FROM tenant.procurement_supplier_certifications c WHERE c.organization_id=supplier.organization_id AND c.parent_id=supplier.id AND c.status='active') certification ON true
-    LEFT JOIN LATERAL (SELECT NULLIF(s.data->>'overallScore','')::numeric AS latest_score FROM tenant.procurement_supplier_scorecards s WHERE s.organization_id=supplier.organization_id AND s.parent_id=supplier.id ORDER BY s.created_at DESC LIMIT 1) score ON true
-    WHERE supplier.organization_id=$1${scope} ORDER BY supplier.updated_at DESC LIMIT 100`,
-    values,
-  );
-  return result.rows.map((row) => ({
-    ...row,
-    health: evaluateSupplierGovernance(row, policy),
-  }));
-}
-
-async function loadRequisitions(client, context, policy) {
-  const values = [context.organizationId];
-  const scope = companyScope(context, values, "record");
-  const result = await client.query(
-    `SELECT record.*,company.name AS company_name,COALESCE(lines.count,0)::int AS line_count
-    FROM tenant.procurement_requisitions record JOIN public.companies company ON company.organization_id=record.organization_id AND company.id=record.company_id
-    LEFT JOIN LATERAL (SELECT count(*) FROM tenant.procurement_requisition_lines line WHERE line.organization_id=record.organization_id AND line.parent_id=record.id) lines ON true
-    WHERE record.organization_id=$1${scope} AND record.status NOT IN ('closed','cancelled') ORDER BY record.updated_at DESC LIMIT 100`,
-    values,
-  );
-  return result.rows.map((row) => ({
-    ...row,
-    health: evaluateRequisitionHealth(row, policy),
-  }));
-}
-
-async function loadSourcing(client, context, policy) {
-  const values = [context.organizationId];
-  const scope = companyScope(context, values, "record");
-  const result = await client.query(
-    `SELECT record.*,company.name AS company_name,
-    COALESCE(invitation.count,0)::int AS invitation_count,COALESCE(bid.count,0)::int AS bid_count,
-    COALESCE(evaluation.count,0)::int AS evaluation_count,COALESCE(award.count,0)::int AS award_count
-    FROM tenant.procurement_sourcing_events record JOIN public.companies company ON company.organization_id=record.organization_id AND company.id=record.company_id
-    LEFT JOIN LATERAL (SELECT count(*) FROM tenant.procurement_sourcing_invitations item WHERE item.organization_id=record.organization_id AND item.parent_id=record.id) invitation ON true
-    LEFT JOIN LATERAL (SELECT count(*) FROM tenant.procurement_sourcing_bids item WHERE item.organization_id=record.organization_id AND item.parent_id=record.id AND item.status NOT IN ('withdrawn','rejected')) bid ON true
-    LEFT JOIN LATERAL (SELECT count(*) FROM tenant.procurement_sourcing_evaluations item WHERE item.organization_id=record.organization_id AND item.parent_id=record.id) evaluation ON true
-    LEFT JOIN LATERAL (SELECT count(*) FROM tenant.procurement_sourcing_awards item WHERE item.organization_id=record.organization_id AND item.source_event_id=record.id) award ON true
-    WHERE record.organization_id=$1${scope} AND record.status NOT IN ('cancelled') ORDER BY record.updated_at DESC LIMIT 100`,
-    values,
-  );
-  return result.rows.map((row) => ({
-    ...row,
-    health: evaluateSourcingHealth(row, policy),
-  }));
-}
-
-async function loadPurchaseOrders(client, context, policy) {
-  const values = [context.organizationId];
-  const scope = companyScope(context, values, "record");
-  const result = await client.query(
-    `SELECT record.*,company.name AS company_name,supplier.status AS supplier_status,supplier.data->>'legalName' AS supplier_name,
-    COALESCE(lines.count,0)::int AS line_count,COALESCE(lines.ordered_quantity,0)::numeric AS ordered_quantity,COALESCE(lines.received_quantity,0)::numeric AS received_quantity,
-    COALESCE(lines.invoiced_quantity,0)::numeric AS invoiced_quantity
-    FROM tenant.procurement_purchase_orders record JOIN public.companies company ON company.organization_id=record.organization_id AND company.id=record.company_id
-    LEFT JOIN tenant.procurement_suppliers supplier ON supplier.organization_id=record.organization_id AND supplier.id=record.supplier_id
-    LEFT JOIN LATERAL (SELECT count(*) AS count,
-      COALESCE(sum(NULLIF(line.data->>'quantity','')::numeric),0) AS ordered_quantity,
-      COALESCE(sum(line.received_quantity),0) AS received_quantity,COALESCE(sum(line.invoiced_quantity),0) AS invoiced_quantity
-      FROM tenant.procurement_purchase_order_lines line WHERE line.organization_id=record.organization_id AND line.parent_id=record.id) lines ON true
-    WHERE record.organization_id=$1${scope} AND record.status NOT IN ('closed','cancelled') ORDER BY record.updated_at DESC LIMIT 100`,
-    values,
-  );
-  return result.rows.map((row) => ({
-    ...row,
-    health: evaluatePurchaseOrderHealth(row, policy),
-  }));
-}
-
-async function loadReceipts(client, context, policy) {
-  const values = [context.organizationId];
-  const scope = companyScope(context, values, "record");
-  const result = await client.query(
-    `SELECT record.*,company.name AS company_name,
-    COALESCE(lines.count,0)::int AS line_count,COALESCE(lines.accepted_quantity,0)::numeric AS accepted_quantity,COALESCE(lines.rejected_quantity,0)::numeric AS rejected_quantity
-    FROM tenant.procurement_receipts record JOIN public.companies company ON company.organization_id=record.organization_id AND company.id=record.company_id
-    LEFT JOIN LATERAL (SELECT count(*) AS count,COALESCE(sum(line.accepted_quantity),0) AS accepted_quantity,COALESCE(sum(line.rejected_quantity),0) AS rejected_quantity
-      FROM tenant.procurement_receipt_lines line WHERE line.organization_id=record.organization_id AND line.parent_id=record.id) lines ON true
-    WHERE record.organization_id=$1${scope} ORDER BY record.updated_at DESC LIMIT 100`,
-    values,
-  );
-  return result.rows.map((row) => ({
-    ...row,
-    health: evaluateReceiptHealth(row, policy),
-  }));
-}
-
-export async function getProcurementGovernanceDashboard(client, context) {
-  requireAnyPermission(context, [
-    "procurement.view",
-    "procurement.suppliers.view",
-  ]);
-  const policy = defaultPolicy(await getPolicy(client, context));
-  // These loaders share the transaction's single pg PoolClient. Execute them
-  // in sequence; overlapping client.query() calls are deprecated and will be
-  // unsupported in pg 9.
-  const suppliers = await loadSuppliers(client, context, policy);
-  const requisitions = await loadRequisitions(client, context, policy);
-  const sourcingEvents = await loadSourcing(client, context, policy);
-  const purchaseOrders = await loadPurchaseOrders(client, context, policy);
-  const receipts = await loadReceipts(client, context, policy);
-  const exceptionValues = [context.organizationId];
-  const exceptionScope = companyScope(
-    context,
-    exceptionValues,
-    "exception_case",
-  );
-  const exceptionResult = await client.query(
-    `SELECT exception_case.*,company.name AS company_name FROM tenant.procurement_governance_exception_cases exception_case
-    LEFT JOIN public.companies company ON company.organization_id=exception_case.organization_id AND company.id=exception_case.company_id
-    WHERE exception_case.organization_id=$1${exceptionScope} AND exception_case.status NOT IN ('resolved','closed')
-    ORDER BY CASE exception_case.priority WHEN 'urgent' THEN 1 WHEN 'high' THEN 2 WHEN 'normal' THEN 3 ELSE 4 END,exception_case.next_action_at NULLS LAST LIMIT 100`,
-    exceptionValues,
-  );
-  const groups = {
-    suppliers,
-    requisitions,
-    sourcingEvents,
-    purchaseOrders,
-    receipts,
-  };
-  return {
-    policy,
-    summary: {
-      ...buildProcurementGovernanceSummary(groups),
-      openExceptions: exceptionResult.rows.length,
-    },
-    ...groups,
-    exceptionCases: exceptionResult.rows,
-  };
-}
-
 async function loadEntity(
   client,
   context,
@@ -643,24 +353,6 @@ async function enrichEntity(client, context, entityType, row, policy) {
       currency_code: row.data?.currencyCode,
     };
   }
-  if (entityType === "requisitions") {
-    const result = await client.query(
-      `SELECT count(*)::int AS line_count FROM tenant.procurement_requisition_lines WHERE organization_id=$1 AND parent_id=$2`,
-      [context.organizationId, row.id],
-    );
-    return { ...row, ...result.rows[0] };
-  }
-  if (entityType === "sourcing-events") {
-    const result = await client.query(
-      `SELECT
-      (SELECT count(*) FROM tenant.procurement_sourcing_invitations WHERE organization_id=$1 AND parent_id=$2)::int AS invitation_count,
-      (SELECT count(*) FROM tenant.procurement_sourcing_bids WHERE organization_id=$1 AND parent_id=$2 AND status NOT IN ('withdrawn','rejected'))::int AS bid_count,
-      (SELECT count(*) FROM tenant.procurement_sourcing_evaluations WHERE organization_id=$1 AND parent_id=$2)::int AS evaluation_count,
-      (SELECT count(*) FROM tenant.procurement_sourcing_awards WHERE organization_id=$1 AND source_event_id=$2)::int AS award_count`,
-      [context.organizationId, row.id],
-    );
-    return { ...row, ...result.rows[0] };
-  }
   if (entityType === "purchase-orders") {
     const result = await client.query(
       `SELECT supplier.status AS supplier_status,lines.* FROM tenant.procurement_purchase_orders purchase_order
@@ -684,10 +376,6 @@ async function enrichEntity(client, context, entityType, row, policy) {
 function evaluateEntity(entityType, row, policy) {
   if (entityType === "suppliers")
     return evaluateSupplierGovernance(row, policy);
-  if (entityType === "requisitions")
-    return evaluateRequisitionHealth(row, policy);
-  if (entityType === "sourcing-events")
-    return evaluateSourcingHealth(row, policy);
   if (entityType === "purchase-orders")
     return evaluatePurchaseOrderHealth(row, policy);
   if (entityType === "receipts") return evaluateReceiptHealth(row, policy);
@@ -714,57 +402,6 @@ export async function assessProcurementRecordReadiness(
     health: evaluateEntity(entityType, enriched, policy),
     policy,
   };
-}
-
-export async function captureProcurementGovernanceSnapshot(
-  client,
-  context,
-  entityType,
-  entityId,
-  capturedFor = "manual",
-) {
-  requireManagePermission(context);
-  const row = await loadEntity(client, context, entityType, entityId);
-  const policy = defaultPolicy(
-    await getPolicy(client, context, row.company_id),
-  );
-  const enriched = await enrichEntity(client, context, entityType, row, policy);
-  const health = evaluateEntity(entityType, enriched, policy);
-  const evidence = {
-    status: row.status,
-    version: row.version,
-    data: object(row.data),
-    contentHash: row.content_hash || null,
-    metrics: health.metrics,
-  };
-  const contentHash = hashPayload({
-    entityType,
-    entityId: row.id,
-    health,
-    evidence,
-  });
-  const result = await client.query(
-    `INSERT INTO tenant.procurement_governance_snapshots (
-    organization_id,company_id,entity_type,entity_id,entity_status,readiness_status,risk_band,blockers,warnings,metrics,evidence,content_hash,captured_for,captured_by
-    ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8::jsonb,$9::jsonb,$10::jsonb,$11::jsonb,$12,$13,$14) RETURNING *`,
-    [
-      context.organizationId,
-      row.company_id,
-      entityType,
-      row.id,
-      row.status,
-      health.readiness,
-      health.riskBand,
-      JSON.stringify(health.blockers),
-      JSON.stringify(health.warnings),
-      JSON.stringify(health.metrics),
-      JSON.stringify(evidence),
-      contentHash,
-      string(capturedFor).slice(0, 80) || "manual",
-      context.userId,
-    ],
-  );
-  return result.rows[0];
 }
 
 export async function getProcurementGovernanceTimeline(
@@ -794,149 +431,3 @@ export async function getProcurementGovernanceTimeline(
   return result.rows;
 }
 
-export async function listProcurementSavedViews(client, context) {
-  requireAnyPermission(context, [
-    "procurement.view",
-    "procurement.suppliers.view",
-  ]);
-  const result = await client.query(
-    `SELECT * FROM tenant.procurement_governance_saved_views WHERE organization_id=$1 AND (owner_user_id=$2 OR is_shared=true) ORDER BY is_shared DESC,updated_at DESC`,
-    [context.organizationId, context.userId],
-  );
-  return result.rows;
-}
-
-export async function saveProcurementView(client, context, input = {}) {
-  requireAnyPermission(context, [
-    "procurement.view",
-    "procurement.suppliers.view",
-  ]);
-  const name = string(input.name).slice(0, 120);
-  if (!name)
-    throw new ProcurementGovernanceError(400, "Saved view name is required.");
-  const entityType = string(input.entityType || "purchase-orders");
-  if (!ENTITY_TABLES[entityType])
-    throw new ProcurementGovernanceError(
-      400,
-      "Saved view entity type is invalid.",
-    );
-  const isShared = Boolean(input.isShared);
-  if (isShared) requireManagePermission(context);
-  const filters = object(input.filters);
-  const columns = Array.isArray(input.columns)
-    ? input.columns.slice(0, 40)
-    : [];
-  const sort = Array.isArray(input.sort) ? input.sort.slice(0, 10) : [];
-  const result = await client.query(
-    `INSERT INTO tenant.procurement_governance_saved_views (organization_id,owner_user_id,entity_type,name,filters,columns,sort,is_shared)
-    VALUES ($1,$2,$3,$4,$5::jsonb,$6::jsonb,$7::jsonb,$8)
-    ON CONFLICT (organization_id,owner_user_id,entity_type,name) DO UPDATE SET filters=EXCLUDED.filters,columns=EXCLUDED.columns,sort=EXCLUDED.sort,is_shared=EXCLUDED.is_shared,updated_at=now() RETURNING *`,
-    [
-      context.organizationId,
-      context.userId,
-      entityType,
-      name,
-      JSON.stringify(filters),
-      JSON.stringify(columns),
-      JSON.stringify(sort),
-      isShared,
-    ],
-  );
-  return result.rows[0];
-}
-
-export async function deleteProcurementSavedView(client, context, viewId) {
-  requireAnyPermission(context, [
-    "procurement.view",
-    "procurement.suppliers.view",
-  ]);
-  const id = uuid(viewId, "Saved view");
-  const result = await client.query(
-    `DELETE FROM tenant.procurement_governance_saved_views WHERE organization_id=$1 AND owner_user_id=$2 AND id=$3 RETURNING id`,
-    [context.organizationId, context.userId, id],
-  );
-  if (!result.rows[0])
-    throw new ProcurementGovernanceError(
-      404,
-      "Saved Procurement view was not found.",
-    );
-  return { deleted: true, id };
-}
-
-export async function upsertProcurementExceptionCase(
-  client,
-  context,
-  entityType,
-  entityId,
-  input = {},
-) {
-  requireManagePermission(context);
-  const row = await loadEntity(client, context, entityType, entityId, true);
-  const status = CASE_STATUSES.has(string(input.status))
-    ? string(input.status)
-    : "open";
-  const priority = CASE_PRIORITIES.has(string(input.priority))
-    ? string(input.priority)
-    : "normal";
-  const reasonCode = CASE_REASONS.has(string(input.reasonCode))
-    ? string(input.reasonCode)
-    : "other";
-  const ownerUserId = input.ownerUserId
-    ? uuid(input.ownerUserId, "Exception owner")
-    : null;
-  const nextActionAt = dateTime(input.nextActionAt, "Next action");
-  const note = string(input.note).slice(0, 2000) || null;
-  const result = await client.query(
-    `INSERT INTO tenant.procurement_governance_exception_cases (
-    organization_id,company_id,entity_type,entity_id,status,priority,reason_code,owner_user_id,next_action_at,note,created_by,updated_by,resolved_at
-    ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$11,CASE WHEN $5 IN ('resolved','closed') THEN now() ELSE NULL END)
-    ON CONFLICT (organization_id,entity_type,entity_id) DO UPDATE SET status=EXCLUDED.status,priority=EXCLUDED.priority,reason_code=EXCLUDED.reason_code,owner_user_id=EXCLUDED.owner_user_id,next_action_at=EXCLUDED.next_action_at,note=EXCLUDED.note,updated_by=EXCLUDED.updated_by,updated_at=now(),resolved_at=EXCLUDED.resolved_at RETURNING *`,
-    [
-      context.organizationId,
-      row.company_id,
-      entityType,
-      row.id,
-      status,
-      priority,
-      reasonCode,
-      ownerUserId,
-      nextActionAt,
-      note,
-      context.userId,
-    ],
-  );
-  return result.rows[0];
-}
-
-export async function bulkManageProcurementExceptions(
-  client,
-  context,
-  input = {},
-) {
-  requireManagePermission(context);
-  const records = Array.isArray(input.records) ? input.records : [];
-  if (!records.length)
-    throw new ProcurementGovernanceError(
-      400,
-      "Select at least one Procurement record.",
-    );
-  if (records.length > 200)
-    throw new ProcurementGovernanceError(
-      400,
-      "Bulk Procurement governance actions are limited to 200 records.",
-    );
-  const updated = [];
-  for (const record of records) {
-    const value = object(record);
-    updated.push(
-      await upsertProcurementExceptionCase(
-        client,
-        context,
-        string(value.entityType),
-        value.entityId,
-        object(input.case),
-      ),
-    );
-  }
-  return { updated: updated.length, records: updated };
-}

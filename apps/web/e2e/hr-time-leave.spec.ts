@@ -21,7 +21,7 @@ const addD = (s: string, n: number) =>
   iso(new Date(Date.parse(`${s}T00:00:00Z`) + n * 86400000));
 const dow = (s: string) => new Date(`${s}T00:00:00Z`).getUTCDay();
 
-test("check in and out, leave with manager approval, cancellation, attendance correction; HR registers are closed to the employee", async ({
+test("check in and out, leave with manager approval, cancellation; HR registers are closed to the employee", async ({
   browser,
 }) => {
   test.setTimeout(900_000);
@@ -174,7 +174,7 @@ test("check in and out, leave with manager approval, cancellation, attendance co
       e.getByRole("row", { name: new RegExp(`Annual ${s}`) }),
     ).toContainText("24", { timeout: 60_000 });
 
-    // --- a day with a missing check-out is corrected: requested by the employee, approved by the manager
+    // --- a day HR marks absent shows on the employee's own attendance
     let day = addD(today, -1);
     while (![1, 2, 3, 4, 5].includes(dow(day))) day = addD(day, -1);
     await withDb(world, (q) =>
@@ -192,40 +192,12 @@ test("check in and out, leave with manager approval, cancellation, attendance co
     await open(e, "/hr/my-attendance", "Check in and out");
     const dayRow = e.getByRole("row", { name: new RegExp(`${day}.*Absent`) });
     await expect(dayRow).toBeVisible({ timeout: 60_000 });
-    await dayRow.getByRole("button", { name: "Request correction" }).click();
-    dlg = e.getByRole("dialog");
-    await dlg.getByLabel("Correct check-in").fill(`${day}T09:00`);
-    await dlg.getByLabel("Correct check-out").fill(`${day}T18:00`);
-    await dlg
-      .getByLabel("Why does this day need correcting?")
-      .fill("Badge reader was down");
-    await dlg.getByRole("button", { name: "Request correction" }).click();
-    await expect(e.getByText("Correction requested.")).toBeVisible({
-      timeout: 30_000,
-    });
-    await open(m, "/hr/team-corrections", "Team corrections");
-    const corr = m.getByRole("row", {
-      name: new RegExp(`Member${s}.*${day}.*Pending`),
-    });
-    await expect(corr).toBeVisible({ timeout: 60_000 });
-    await corr.getByRole("button", { name: "Approve" }).click();
-    await m
-      .getByRole("dialog")
-      .getByRole("button", { name: "Approve" })
-      .click();
-    await expect(
-      m.getByRole("row", { name: new RegExp(`Member${s}.*${day}.*Approved`) }),
-    ).toBeVisible({ timeout: 60_000 });
-    await open(e, "/hr/my-attendance", "Check in and out");
-    await expect(
-      e.getByRole("row", { name: new RegExp(`${day}.*Present`) }),
-    ).toBeVisible({ timeout: 60_000 });
 
     // --- HR sees the registers; the employee is refused them
     await open(hrA.page, "/hr/attendance", "Attendance");
     await expect(
       hrA.page.getByRole("row", {
-        name: new RegExp(`${day}.*Member${s}.*Present`),
+        name: new RegExp(`${day}.*Member${s}.*Absent`),
       }),
     ).toBeVisible({ timeout: 60_000 });
     await open(hrA.page, "/hr/leave-requests", "Leave requests");

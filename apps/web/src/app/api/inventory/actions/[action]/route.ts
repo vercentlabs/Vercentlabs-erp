@@ -4,16 +4,6 @@ import { z } from "zod";
 
 import {
   addStockCountLine,
-  cancelPickList,
-  completePacking,
-  completePicking,
-  createPackage,
-  createPickList,
-  recordDamagedStock,
-  recordPicks,
-  recordStockReturn,
-  shipPickList,
-  allocateStockLandedCost,
   approveStockCount,
   cancelStockCount,
   completeStockTransfer,
@@ -27,7 +17,6 @@ import {
   submitStockCount,
   releaseStockReservation,
   reserveStock,
-  saveStockReorderRule,
   setStockBatchStatus,
   updateStockSettings,
 } from "@vercentlabs/api";
@@ -96,8 +85,6 @@ export async function POST(
         };
       case "serials":
         return { record: await receiveSerializedStock(client, context, input) };
-      case "reorder-rule":
-        return { record: await saveStockReorderRule(client, context, input) };
       case "count-create":
         return { record: await createStockCount(client, context, input) };
       case "count-lines":
@@ -138,53 +125,6 @@ export async function POST(
       case "count-cancel":
         return {
           record: await cancelStockCount(
-            client,
-            context,
-            idOf(input),
-            String(input.reason ?? ""),
-          ),
-        };
-      case "landed-cost-allocate":
-        return {
-          record: await allocateStockLandedCost(client, context, idOf(input)),
-        };
-      case "damage":
-        return { record: await recordDamagedStock(client, context, input) };
-      case "return":
-        return { record: await recordStockReturn(client, context, input) };
-      case "pick-create":
-        return { record: await createPickList(client, context, input) };
-      case "pick-record":
-        return {
-          record: await recordPicks(
-            client,
-            context,
-            String(input.listId ?? ""),
-            Array.isArray(input.picks)
-              ? (input.picks as Array<Record<string, unknown>>)
-              : [],
-          ),
-        };
-      case "pick-complete":
-        return { record: await completePicking(client, context, idOf(input)) };
-      case "pack-create":
-        return {
-          record: await createPackage(
-            client,
-            context,
-            String(input.listId ?? ""),
-            input,
-          ),
-        };
-      case "pack-complete":
-        return { record: await completePacking(client, context, idOf(input)) };
-      case "pick-ship":
-        return {
-          record: await shipPickList(client, context, idOf(input), input),
-        };
-      case "pick-cancel":
-        return {
-          record: await cancelPickList(
             client,
             context,
             idOf(input),

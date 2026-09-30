@@ -349,7 +349,7 @@ const LINKS: Array<[string, string, string]> = [
   ["Transfers", "/inventory/transfers", "Move between warehouses"],
   ["Adjustments", "/inventory/adjustments", "Correct a quantity"],
   ["Lots and batches", "/inventory/lots", "Batch register and expiry"],
-  ["Reorder rules", "/inventory/reorder-rules", "Minimum, safety and maximum"],
+  ["Valuation", "/inventory/valuation", "What the stock is worth"],
 ];
 
 export function InventoryHomeScreen() {
@@ -534,73 +534,6 @@ export function InventorySettingsScreen() {
             You can view these settings but not change them.
           </p>
         )}
-      </InvPanel>
-    </div>
-  );
-}
-
-const REPORTS: Array<[string, string, string]> = [
-  [
-    "Stock availability",
-    "/inventory/availability",
-    "On hand, reserved and available by item, warehouse, location and batch.",
-  ],
-  [
-    "Stock ledger",
-    "/inventory/ledger",
-    "Every movement, filterable by type. The audit trail of stock.",
-  ],
-  [
-    "Inventory valuation",
-    "/inventory/valuation",
-    "Stock value by item and warehouse, by costing method.",
-  ],
-  [
-    "Stock aging",
-    "/inventory/aging",
-    "Age buckets, slow-moving and dead stock.",
-  ],
-  [
-    "Stock movement",
-    "/inventory/movement",
-    "Received, issued and adjusted per item over a period, with cost variance.",
-  ],
-  ["Expiry", "/inventory/expiry", "Batches by how soon they expire."],
-  [
-    "Replenishment",
-    "/inventory/replenishment",
-    "Items at or below their reorder point.",
-  ],
-  ["Cycle counts", "/inventory/cycle-counts", "Count history and variances."],
-  [
-    "Landed cost",
-    "/inventory/landed-cost",
-    "Landed costs and how they were allocated to stock.",
-  ],
-];
-
-// A hub: each report is a screen of its own, and every one exports what it shows as CSV.
-export function InventoryReportsScreen() {
-  return (
-    <div className="flex flex-col gap-4">
-      <PageHeader
-        title="Inventory reports"
-        description="Every report is a live view of the ledger, scoped to the active company. Use Export CSV on any of them."
-      />
-      <InvPanel>
-        <ul className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
-          {REPORTS.map(([title, href, description]) => (
-            <li key={href}>
-              <Link
-                href={href}
-                className="flex flex-col rounded-[var(--radius-control)] border border-border p-3 hover:bg-surface-hover"
-              >
-                <span className="font-medium text-text">{title}</span>
-                <span className="text-xs text-text-muted">{description}</span>
-              </Link>
-            </li>
-          ))}
-        </ul>
       </InvPanel>
     </div>
   );

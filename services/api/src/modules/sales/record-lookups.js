@@ -24,15 +24,6 @@ export function salesFulfillmentRequestCompanyId(client, organizationId, request
   );
 }
 
-export function salesReturnRequestCompanyId(client, organizationId, returnId) {
-  return companyOf(
-    client,
-    `SELECT orders.company_id FROM tenant.sales_return_requests request JOIN tenant.sales_orders orders ON orders.id=request.sales_order_id WHERE request.organization_id=$1 AND request.id=$2`,
-    [organizationId, returnId],
-    "Return request not found.",
-  );
-}
-
 // An order version is an *amendment* if an amendment row points at it. In that
 // case approving/rejecting it must go through the amendment functions, with the
 // version being replaced and the status to resume taken from server records --

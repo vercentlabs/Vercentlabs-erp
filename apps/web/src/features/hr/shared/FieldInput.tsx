@@ -12,31 +12,15 @@ import type { HrOptions } from "@/features/hr/shared/client";
 
 export type OptionSource =
   | "employees"
-  | "openOpenings"
-  | "candidatesList"
-  | "offerApplications"
-  | "interviewApplications"
   | "departments"
   | "designations"
   | "branches"
-  | "documentTypes"
   | "leaveTypes"
   | "shifts"
   | "holidayCalendars"
   | "salaryComponents"
   | "salaryStructures"
-  | "payrollPeriods"
-  | "salaryComponents"
-  | "expenseCategories"
-  | "jobOpenings"
-  | "candidates"
-  | "skills"
-  | "goals"
-  | "reviewCycles"
-  | "courses"
-  | "trainingSessions"
-  | "banks"
-  | "accounts";
+  | "payrollPeriods";
 export type FieldValue = string | number;
 export type FieldDef = {
   name: string;

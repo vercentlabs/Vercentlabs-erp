@@ -1,6 +1,6 @@
 // Real PostgreSQL integration test -- bank accounts, CSV statement import, match-suggestion, the
-// reconciliation lifecycle (F476-480), and the GST-style tax ledger/tax-return lifecycle driven by
-// posting a real customer invoice with a tax line (F481-487). Both domains pre-existed this session;
+// reconciliation lifecycle (F476-480), and GST tax posting to the tax ledger driven by posting a real
+// customer invoice with a tax line (F481-484). Both domains pre-existed this session;
 // these are their first tests.
 import assert from "node:assert/strict";
 import test from "node:test";
@@ -77,7 +77,7 @@ test("Accounting banking and tax subsystems against real PostgreSQL", async (t) 
       assert.equal(Number(completed.difference), 0);
     });
 
-    await t.test("F481-484: posting a customer invoice with a tax line writes the tax ledger, and a tax return aggregates it into taxable/output-tax totals for the period", async () => {
+    await t.test("F481-484: posting a customer invoice with a tax line writes the GST output tax to the tax ledger", async () => {
       const { invoice } = await run("acctA", (c, x) => api.createCustomerInvoice(c, x, { companyId, partyId: customerId, lines: [{ description: "Taxed sale", quantity: 1, unitPrice: 1000, taxAmount: 180 }] }));
       await run("acctA", (c, x) => api.submitCustomerInvoice(c, x, invoice.id));
       const { invoice: posted } = await run("acctA", (c, x) => api.postCustomerInvoice(c, x, invoice.id));
@@ -85,25 +85,8 @@ test("Accounting banking and tax subsystems against real PostgreSQL", async (t) 
       const [ledgerRow] = await sql(`SELECT direction, tax_amount FROM tenant.accounting_tax_ledger WHERE organization_id=$1 AND source_id=$2`, [w.orgId, invoice.id]);
       assert.equal(ledgerRow.direction, "output");
       assert.equal(Number(ledgerRow.tax_amount), 180);
-
-      const taxReturn = await run("acctA", (c, x) => api.createTaxReturn(c, x, { companyId, returnType: "GST", periodStart: w.today, periodEnd: w.today }));
-      assert.equal(taxReturn.status, "draft");
-      assert.equal(Number(taxReturn.output_tax), 180);
-      ids.taxReturnId = taxReturn.id;
     });
 
-    await t.test("F485-487: a tax return's status transitions are a state machine, refusing an illegal jump and requiring a filing reference to file", async () => {
-      const illegal = await run("acctA", (c, x) => api.updateTaxReturnStatus(c, x, ids.taxReturnId, { status: "paid" })).catch((e) => e);
-      assert.equal(illegal.status, 409, "a draft return cannot jump directly to paid");
-      const review = await run("acctA", (c, x) => api.updateTaxReturnStatus(c, x, ids.taxReturnId, { status: "review" }));
-      assert.equal(review.status, "review");
-      const missingReference = await run("acctA", (c, x) => api.updateTaxReturnStatus(c, x, ids.taxReturnId, { status: "filed" })).catch((e) => e);
-      assert.equal(missingReference.status, 400, "filing requires an external reference");
-      const filed = await run("acctA", (c, x) => api.updateTaxReturnStatus(c, x, ids.taxReturnId, { status: "filed", externalReference: "GSTR-3B-0001" }));
-      assert.equal(filed.status, "filed");
-      const returns = await run("viewer", (c, x) => api.listTaxReturns(c, x));
-      assert.ok(returns.some((row) => row.id === ids.taxReturnId));
-    });
   } finally {
     await w.cleanup();
     await admin.end();

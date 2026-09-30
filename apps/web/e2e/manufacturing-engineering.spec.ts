@@ -59,7 +59,7 @@ async function open(page: Page, path: string, heading: string | RegExp) {
 }
 type Rec = { record: { id: string } };
 
-test("BOM definition, second-person approval, multi-level explosion, where-used, engineering change", async ({
+test("BOM definition, second-person approval and multi-level explosion", async ({
   browser,
 }) => {
   test.setTimeout(900_000);
@@ -182,104 +182,6 @@ test("BOM definition, second-person approval, multi-level explosion, where-used,
     await expect(
       a.getByRole("list", { name: "Explosion levels" }),
     ).toContainText(new RegExp(`${items.sub.code}.*built from SUB-${suffix}`));
-
-    // --- where used: the sub-part is used by the sub-assembly and, through it, the finished product
-    await open(a, "/manufacturing/where-used", "Where used");
-    await pick(
-      a,
-      a.getByRole("button", { name: /Select item/ }),
-      new RegExp(items.subPart.code),
-    );
-    await a.getByRole("button", { name: "Find" }).click();
-    const used = a.getByRole("list", { name: "Where used results" });
-    await expect(used).toContainText(items.sub.code, { timeout: 30_000 });
-    await expect(used).toContainText(items.finished.code);
-
-    // --- engineering change: propose (manager), decided by a different person, implemented -> v2
-    await m.goto(bomUrl, { waitUntil: "domcontentloaded" });
-    await m.getByRole("button", { name: "Propose change" }).first().click();
-    const propose = m.getByRole("dialog", { name: "Propose change" });
-    await propose
-      .getByLabel(/^Title/)
-      .fill(`Add a third component ${items.compC.code}`);
-    await propose
-      .getByLabel(/^Why is this change needed/)
-      .fill("Field failures");
-    await propose.getByRole("button", { name: "Add component" }).click();
-    await pick(
-      m,
-      propose.getByRole("button", { name: /Component 3 item/ }),
-      new RegExp(items.compC.code),
-    );
-    await propose.getByRole("button", { name: "Submit proposal" }).click();
-    await expect(m.getByText(/Engineering change proposed/)).toBeVisible({
-      timeout: 30_000,
-    });
-    await open(m, "/manufacturing/engineering-changes", "Engineering changes");
-    const change = m.getByRole("row", {
-      name: new RegExp(
-        `ECN-.*Add a third component ${items.compC.code}.*Draft`,
-      ),
-    });
-    await expect(change).toBeVisible({ timeout: 30_000 });
-    await change.getByRole("button", { name: "Submit" }).click();
-    await expect(m.getByText("Change submitted.")).toBeVisible({
-      timeout: 30_000,
-    });
-    await m
-      .getByRole("row", {
-        name: new RegExp(
-          `ECN-.*Add a third component ${items.compC.code}.*Submitted`,
-        ),
-      })
-      .getByRole("button", { name: "Approve" })
-      .click();
-    await expect(
-      m
-        .getByRole("alert")
-        .filter({ hasText: /someone other than its requester/i }),
-    ).toBeVisible({ timeout: 30_000 });
-    await open(a, "/manufacturing/engineering-changes", "Engineering changes");
-    await a
-      .getByRole("row", {
-        name: new RegExp(
-          `ECN-.*Add a third component ${items.compC.code}.*Submitted`,
-        ),
-      })
-      .getByRole("button", { name: "Approve" })
-      .click();
-    await expect(a.getByText("Change approved.")).toBeVisible({
-      timeout: 30_000,
-    });
-    await m.reload({ waitUntil: "domcontentloaded" });
-    await m
-      .getByRole("row", {
-        name: new RegExp(
-          `ECN-.*Add a third component ${items.compC.code}.*Approved`,
-        ),
-      })
-      .getByRole("button", { name: "Implement" })
-      .click();
-    await expect(m.getByText(/a new BOM version is active/)).toBeVisible({
-      timeout: 30_000,
-    });
-    await m
-      .getByRole("row", {
-        name: new RegExp(
-          `ECN-.*Add a third component ${items.compC.code}.*Implemented`,
-        ),
-      })
-      .getByRole("link", { name: "New version" })
-      .click();
-    await expect(
-      m.getByRole("heading", { name: `FG-${suffix} v2` }),
-    ).toBeVisible({ timeout: 60_000 });
-    await expect(m.getByRole("table", { name: "Components" })).toContainText(
-      items.compC.code,
-    );
-    await expect(m.getByRole("list", { name: "Versions" })).toContainText(
-      /v1.*Inactive/,
-    );
 
     // --- a view-only role can look, but cannot create; the server refuses too
     await open(viewer.page, "/manufacturing/boms", "Bills of materials");

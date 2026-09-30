@@ -2,7 +2,6 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Download, Printer } from "lucide-react";
-import Link from "next/link";
 import {
   Button,
   ErrorState,
@@ -10,7 +9,6 @@ import {
   PageHeader,
   StatusBadge,
 } from "@vercentlabs/design-system";
-import { POS_PERMISSIONS } from "@vercentlabs/permissions";
 
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
@@ -22,23 +20,9 @@ import {
   type PosReceiptPromotionEvidence,
   type PosReceiptReturn,
 } from "@/features/pos/receipts/api/receipts-api";
-import {
-  getPosSaleInvoice,
-  generatePosSaleInvoice,
-} from "@/features/pos/invoices/api/invoices-api";
 import { PosApiError } from "@/features/pos/shared/http";
-import {
-  dateTime,
-  money,
-  statusLabel,
-  statusTone,
-} from "@/features/pos/shared/format";
-import {
-  PosAlert,
-  PosBackLink,
-  PosLoading,
-  PosPanel,
-} from "@/features/pos/shared/PosUi";
+import { dateTime, money, statusLabel } from "@/features/pos/shared/format";
+import { PosAlert, PosBackLink, PosLoading } from "@/features/pos/shared/PosUi";
 
 // F289 -- a deterministic receipt built entirely from persisted sale facts
 // (getPosSaleReceipt / tenant.pos_sales+pos_sale_lines+pos_payments+
@@ -49,9 +33,6 @@ import {
 export function PosReceiptScreen({ saleId }: { saleId: string }) {
   const workspace = useWorkspaceContext();
   const queryClient = useQueryClient();
-  const canGenerateInvoice =
-    workspace.roleSlugs.includes("organization_owner") ||
-    workspace.permissions.includes(POS_PERMISSIONS.invoiceGenerate);
 
   const receiptQueryKey = scopedQueryKey(workspace, "pos", "receipt", saleId);
   const query = useQuery({
@@ -70,21 +51,6 @@ export function PosReceiptScreen({ saleId }: { saleId: string }) {
   function handlePrint() {
     recordPrint.mutate(undefined, { onSuccess: () => window.print() });
   }
-  // F290: a 404 here just means no invoice has been generated for this
-  // sale yet -- not an error state, so retries are disabled and the
-  // "not found" case renders the Generate button instead of an ErrorState.
-  const invoiceQuery = useQuery({
-    queryKey: scopedQueryKey(workspace, "pos", "invoice", saleId),
-    queryFn: () => getPosSaleInvoice(saleId),
-    retry: false,
-  });
-  const generateInvoice = useMutation({
-    mutationFn: () => generatePosSaleInvoice(saleId),
-    onSuccess: () =>
-      queryClient.invalidateQueries({
-        queryKey: scopedQueryKey(workspace, "pos", "invoice", saleId),
-      }),
-  });
 
   if (query.isLoading) return <PosLoading label="Loading receipt…" />;
   if (query.isError || !query.data) {
@@ -112,11 +78,6 @@ export function PosReceiptScreen({ saleId }: { saleId: string }) {
   const { sale, lines, payments, returns, promotionEvidence, printEvents } =
     query.data;
   const currency = sale.currency_code as string;
-  const hasCustomer = Boolean(sale.customer_display_name);
-  const invoiceNotFound =
-    invoiceQuery.isError &&
-    invoiceQuery.error instanceof PosApiError &&
-    invoiceQuery.error.status === 404;
   const lastPrint = printEvents[0] ?? null;
   const isReprint = lastPrint?.print_type === "reprint";
   // F289 browser-side recovery: a failed print-attempt record (network
@@ -299,70 +260,6 @@ export function PosReceiptScreen({ saleId }: { saleId: string }) {
 
           <p className="pt-2 text-center text-xs text-text-muted">Thank you</p>
         </div>
-
-        {canGenerateInvoice && (
-          <PosPanel
-            title="Tax invoice"
-            className="print:hidden"
-            actions={
-              <Link
-                href="/pos/invoices"
-                className="text-xs font-medium text-brand hover:underline"
-              >
-                All invoices
-              </Link>
-            }
-          >
-            {invoiceQuery.data ? (
-              <div className="flex items-center justify-between gap-2 text-sm">
-                <span className="flex items-center gap-2">
-                  <span className="font-medium text-text">
-                    {invoiceQuery.data.invoice.invoice_number}
-                  </span>
-                  <StatusBadge
-                    tone={statusTone(invoiceQuery.data.invoice.status)}
-                  >
-                    {statusLabel(invoiceQuery.data.invoice.status)}
-                  </StatusBadge>
-                </span>
-                <span className="tabular-nums">
-                  {money(
-                    invoiceQuery.data.invoice.currency_code,
-                    invoiceQuery.data.invoice.grand_total,
-                  )}
-                </span>
-              </div>
-            ) : invoiceNotFound ? (
-              <div className="flex items-center justify-between gap-3 text-sm">
-                <span className="text-text-secondary">
-                  {hasCustomer
-                    ? "No tax invoice generated yet."
-                    : "Attach a customer to this sale to generate a tax invoice."}
-                </span>
-                <Button
-                  variant="secondary"
-                  size="compact"
-                  onPress={() => generateInvoice.mutate()}
-                  isDisabled={!hasCustomer}
-                  isLoading={generateInvoice.isPending}
-                >
-                  Generate invoice
-                </Button>
-              </div>
-            ) : (
-              <p className="text-sm text-text-muted">
-                Checking for an invoice…
-              </p>
-            )}
-            {generateInvoice.isError && (
-              <PosAlert>
-                {generateInvoice.error instanceof PosApiError
-                  ? generateInvoice.error.message
-                  : "The invoice could not be generated."}
-              </PosAlert>
-            )}
-          </PosPanel>
-        )}
       </div>
     </div>
   );

@@ -10,21 +10,7 @@ import {
 
 import type { ProjectsOptions } from "@/features/projects/shared/client";
 
-export type OptionSource =
-  | "projects"
-  | "templates"
-  | "users"
-  | "customers"
-  | "suppliers"
-  | "items"
-  | "warehouses"
-  | "tasks"
-  | "milestones"
-  | "purchaseOrders"
-  | "receipts"
-  | "requisitions"
-  | "sourcingEvents"
-  | "vendorBills";
+export type OptionSource = "projects" | "users" | "customers" | "tasks";
 export type FieldValue = string | number;
 export type FieldDef = {
   name: string;

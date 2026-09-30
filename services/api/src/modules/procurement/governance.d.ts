@@ -19,16 +19,6 @@ export declare function evaluateSupplierGovernance(
   policy?: Record<string, any>,
   now?: Date,
 ): ProcurementGovernanceHealth;
-export declare function evaluateRequisitionHealth(
-  row: Record<string, any>,
-  policy?: Record<string, any>,
-  now?: Date,
-): ProcurementGovernanceHealth;
-export declare function evaluateSourcingHealth(
-  row: Record<string, any>,
-  policy?: Record<string, any>,
-  now?: Date,
-): ProcurementGovernanceHealth;
 export declare function evaluatePurchaseOrderHealth(
   row: Record<string, any>,
   policy?: Record<string, any>,
@@ -41,22 +31,11 @@ export declare function evaluateReceiptHealth(
 export declare function buildProcurementGovernanceSummary(
   groups: Record<string, Array<Record<string, any>>>,
 ): Record<string, number>;
-export declare function getProcurementGovernanceDashboard(
-  client: ProcurementClient,
-  context: ProcurementContext,
-): Promise<Record<string, any>>;
 export declare function assessProcurementRecordReadiness(
   client: ProcurementClient,
   context: ProcurementContext,
   entityType: string,
   entityId: string,
-): Promise<Record<string, any>>;
-export declare function captureProcurementGovernanceSnapshot(
-  client: ProcurementClient,
-  context: ProcurementContext,
-  entityType: string,
-  entityId: string,
-  capturedFor?: string,
 ): Promise<Record<string, any>>;
 export declare function getProcurementGovernanceTimeline(
   client: ProcurementClient,
@@ -64,29 +43,3 @@ export declare function getProcurementGovernanceTimeline(
   entityType: string,
   entityId: string,
 ): Promise<Array<Record<string, any>>>;
-export declare function listProcurementSavedViews(
-  client: ProcurementClient,
-  context: ProcurementContext,
-): Promise<Array<Record<string, any>>>;
-export declare function saveProcurementView(
-  client: ProcurementClient,
-  context: ProcurementContext,
-  input?: Record<string, any>,
-): Promise<Record<string, any>>;
-export declare function deleteProcurementSavedView(
-  client: ProcurementClient,
-  context: ProcurementContext,
-  viewId: string,
-): Promise<{ deleted: true; id: string }>;
-export declare function upsertProcurementExceptionCase(
-  client: ProcurementClient,
-  context: ProcurementContext,
-  entityType: string,
-  entityId: string,
-  input?: Record<string, any>,
-): Promise<Record<string, any>>;
-export declare function bulkManageProcurementExceptions(
-  client: ProcurementClient,
-  context: ProcurementContext,
-  input?: Record<string, any>,
-): Promise<Record<string, any>>;

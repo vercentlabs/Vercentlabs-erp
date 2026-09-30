@@ -11,8 +11,7 @@ import {
 // Visual QA capture pass — not a functional assertion suite. Seeds richer
 // supplementary data on top of pos-fixtures.ts's base world (a completed
 // sale with a customer, a return, a closed day-end report, a
-// reconciliation, loyalty/promotion/coupon config, an accounting-posting
-// failure) so every screen has real, populated content to screenshot
+// reconciliation, an accounting-posting failure) so every screen has real, populated content to screenshot
 // rather than an empty state, then navigates every implemented POS screen
 // and saves a real screenshot per viewport to e2e/visual-qa-screenshots/
 // for manual inspection. Kept separate from the functional pos-*.spec.ts
@@ -32,8 +31,7 @@ const VIEWPORTS: Record<string, { width: number; height: number }> = {
 };
 
 // Full 6-viewport sweep for the highest-risk/highest-traffic screens
-// (checkout is explicitly the primary touch-first workflow; analytics is
-// the single largest new screen by content volume). Everything else gets
+// (checkout is explicitly the primary touch-first workflow). Everything else gets
 // a representative 3-viewport sample (wide desktop, tablet, phone) --
 // admin/back-office screens were never designed to be touch-first, and a
 // laptop/tablet-768 pair rarely diverges in a way 1440/1024 doesn't
@@ -51,22 +49,6 @@ const SAMPLE_VIEWPORTS = ["desktop-1440", "tablet-1024", "mobile-390"];
 let world: PosWorld;
 let saleId: string;
 let dayEndReportId: string;
-// Real bug found and fixed while diagnosing an unrelated E2E failure
-// (POS Completion Program Prompt 2): this file seeds a promotion/coupon
-// directly into the SHARED, PERSISTENT `CRM E2E Fixture Org` (via
-// pos-fixtures.ts's getPosWorld(), reused across the whole POS E2E
-// suite, not a throwaway org) purely so the admin list screens have
-// something to screenshot -- but never tore them down. A promotion with
-// no item/customer scope matches EVERY checkout in that org, so once
-// created it silently corrupted every OTHER spec's price/total
-// assertions (pos-checkout.spec.ts, pos-checkout-safety.spec.ts,
-// pos-hold-resume.spec.ts, pos-returns.spec.ts) for good, since nothing
-// ever deactivated it. Four separate leaked promotions from past runs
-// were found still active in the real database while diagnosing this.
-// Tracked here and deactivated in afterAll below.
-let seededPromotionId: string | undefined;
-let seededCouponId: string | undefined;
-
 test.beforeAll(async () => {
   world = await getPosWorld();
 
@@ -79,9 +61,6 @@ test.beforeAll(async () => {
       createPointOfSaleReturn,
       approvePointOfSaleReturn,
       completePointOfSaleReturn,
-      upsertPosLoyaltyProgram,
-      createPosPromotion,
-      createPosCoupon,
       closeShift,
       generatePosDayEndReport,
       reviewPosDayEndReport,
@@ -144,33 +123,8 @@ test.beforeAll(async () => {
       ],
     };
 
-    // Loyalty program (idempotent-ish: safe to call again if already seeded).
-    await upsertPosLoyaltyProgram(client, supervisorContext, {
-      name: "Visual QA Loyalty",
-      earnRatePointsPerCurrency: 0.1,
-      redemptionValuePerPoint: 1,
-    }).catch(() => undefined);
-
-    // A promotion and a coupon for the admin list screens. Tracked so
-    // afterAll below can deactivate them -- see the top-of-file note on
-    // why this matters beyond just tidiness.
-    const promotion = await createPosPromotion(client, supervisorContext, {
-      code: `VQAPROMO-${Date.now()}`,
-      name: "Visual QA Promotion",
-      discountType: "percent",
-      discountValue: 10,
-      priority: 100,
-    }).catch(() => undefined);
-    seededPromotionId = promotion?.id;
-    const coupon = await createPosCoupon(client, supervisorContext, {
-      code: `VQACOUPON${Date.now()}`,
-      discountType: "amount",
-      discountValue: 25,
-    }).catch(() => undefined);
-    seededCouponId = coupon?.id;
-
-    // A completed sale with a real customer (so the receipt/invoice
-    // screens have something to render).
+    // A completed sale with a real customer (so the receipt screen has
+    // something to render).
     let cart = await createPosCart(client, cashierContext, {
       storeId: world.storeId,
       terminalId: world.terminalId,
@@ -281,45 +235,6 @@ test.beforeAll(async () => {
   });
 });
 
-// Deactivate whatever this file seeded into the SHARED fixture org so it
-// stops silently corrupting every other spec's price/total assertions
-// once this run is done -- see the top-of-file note. Best-effort: the
-// screenshots this file exists to produce already happened by the time
-// this runs, so a cleanup failure here must never fail the suite.
-test.afterAll(async () => {
-  if (!seededPromotionId && !seededCouponId) return;
-  await withPosDb(async (client, organizationId) => {
-    const { setPosPromotionActive, setPosCouponActive } =
-      await import("../../../services/api/src/index.js");
-    const supervisorContext = {
-      organizationId,
-      companyId: world.companyId,
-      userId: world.supervisor.userId,
-      roleSlugs: [],
-      permissions: ["pos.view", "pos.settings.manage"],
-    };
-    if (seededPromotionId)
-      await setPosPromotionActive(
-        client,
-        supervisorContext,
-        seededPromotionId,
-        false,
-      ).catch(() => undefined);
-    if (seededCouponId)
-      await setPosCouponActive(
-        client,
-        supervisorContext,
-        seededCouponId,
-        false,
-      ).catch(() => undefined);
-  }).catch((error) => {
-    console.error(
-      "Visual QA promotion/coupon cleanup failed (non-fatal):",
-      error,
-    );
-  });
-});
-
 async function shoot(
   page: Page,
   route: string,
@@ -374,23 +289,7 @@ test.describe("POS visual QA capture", () => {
     }
   });
 
-  test("capture promotions, coupons, loyalty (supervisor)", async ({
-    browser,
-  }) => {
-    const { context, page } = await openPersonaSession(
-      browser,
-      world.supervisor,
-    );
-    try {
-      await shoot(page, "/pos/promotions", "promotions", SAMPLE_VIEWPORTS);
-      await shoot(page, "/pos/coupons", "coupons", SAMPLE_VIEWPORTS);
-      await shoot(page, "/pos/loyalty", "loyalty", SAMPLE_VIEWPORTS);
-    } finally {
-      await context.close();
-    }
-  });
-
-  test("capture returns, receipts, invoices (cashier)", async ({ browser }) => {
+  test("capture returns and receipts (cashier)", async ({ browser }) => {
     const { context, page } = await openPersonaSession(browser, world.cashier);
     try {
       await shoot(page, "/pos/returns", "returns", SAMPLE_VIEWPORTS);
@@ -401,13 +300,12 @@ test.describe("POS visual QA capture", () => {
           "receipt",
           SAMPLE_VIEWPORTS,
         );
-      await shoot(page, "/pos/invoices", "invoices", SAMPLE_VIEWPORTS);
     } finally {
       await context.close();
     }
   });
 
-  test("capture day-end reports, reconciliation, accounting, analytics (manager)", async ({
+  test("capture day-end reports, reconciliation, accounting (manager)", async ({
     browser,
   }) => {
     const { context, page } = await openPersonaSession(browser, world.manager);
@@ -432,13 +330,6 @@ test.describe("POS visual QA capture", () => {
         SAMPLE_VIEWPORTS,
       );
       await shoot(page, "/pos/accounting", "accounting", SAMPLE_VIEWPORTS);
-      await shoot(page, "/pos/analytics", "analytics", FULL_SWEEP_VIEWPORTS);
-      await shoot(
-        page,
-        "/pos/offline-sync-conflicts",
-        "offline-sync-conflicts",
-        SAMPLE_VIEWPORTS,
-      );
     } finally {
       await context.close();
     }
@@ -448,19 +339,13 @@ test.describe("POS visual QA capture", () => {
     browser,
   }) => {
     // Re-use the cashier session but hit a screen that's genuinely empty
-    // for THEM specifically (they don't hold pos.settings.manage, so
-    // promotions/coupons render a PermissionState, not an empty list --
+    // for THEM specifically (they don't hold pos.accounting.view, so
+    // accounting renders a PermissionState, not an empty list --
     // real "no data yet" empty states are already captured above for
     // rows-that-happen-to-be-empty; this test instead captures the
     // permission-denied state, itself a real, important state to review).
     const { context, page } = await openPersonaSession(browser, world.cashier);
     try {
-      await shoot(
-        page,
-        "/pos/promotions",
-        "promotions-permission-denied",
-        SAMPLE_VIEWPORTS,
-      );
       await shoot(
         page,
         "/pos/accounting",

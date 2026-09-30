@@ -15,9 +15,7 @@ export type OptionSource =
   | "suppliers"
   | "warehouses"
   | "plans"
-  | "samplingPlans"
   | "nonconformances"
-  | "capas"
   | "customers";
 export type FieldValue = string | number;
 export type FieldDef = {

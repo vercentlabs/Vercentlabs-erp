@@ -23,7 +23,6 @@ import {
 import {
   amount,
   calendarDate,
-  dateTime,
   label,
   quantity,
   tone,
@@ -41,14 +40,6 @@ type Dashboard = {
   };
   ordersWithShortages: number;
   wipValue: string | null;
-  shopFloor: { ready: number; running: number };
-  openDowntime: number;
-  yieldLast30Days: number | null;
-  lastMrp: {
-    run_number: string;
-    started_at: string;
-    summary: { manufacture: number; purchase: number };
-  } | null;
   attention: Array<{
     id: string;
     work_order_number: string;
@@ -65,13 +56,18 @@ const LINKS: Array<[string, string, string]> = [
     "/manufacturing/production-orders",
     "Create, release and follow orders",
   ],
-  ["Shop floor", "/manufacturing/shop-floor", "Job cards ready to work"],
-  ["MRP", "/manufacturing/mrp", "What to make and what to buy"],
-  ["Scheduling", "/manufacturing/scheduling", "Finite-capacity plan"],
   ["Bills of materials", "/manufacturing/boms", "Structures and versions"],
-  ["Capacity", "/manufacturing/capacity", "Load against available minutes"],
-  ["Downtime", "/manufacturing/downtime", "What stopped and why"],
-  ["Reports", "/manufacturing/reports", "Cost, variance, yield, efficiency"],
+  [
+    "Material availability",
+    "/manufacturing/material-planning",
+    "Can it be made from stock",
+  ],
+  ["Inspections", "/manufacturing/inspections", "Production quality checks"],
+  [
+    "Production cost",
+    "/manufacturing/production-cost",
+    "Actual cost per order",
+  ],
 ];
 
 export function ManufacturingHomeScreen() {
@@ -113,23 +109,6 @@ export function ManufacturingHomeScreen() {
             label: "With shortages",
             value: d ? String(d.ordersWithShortages) : "…",
           },
-          {
-            label: "Job cards ready",
-            value: d ? String(d.shopFloor.ready) : "…",
-          },
-          {
-            label: "Running now",
-            value: d ? String(d.shopFloor.running) : "…",
-          },
-          { label: "Open downtime", value: d ? String(d.openDowntime) : "…" },
-          {
-            label: "Yield (30 days)",
-            value: d
-              ? d.yieldLast30Days === null
-                ? "—"
-                : `${d.yieldLast30Days}%`
-              : "…",
-          },
           ...(d && d.wipValue !== null
             ? [{ label: "WIP value", value: amount(d.wipValue) }]
             : []),
@@ -161,85 +140,9 @@ export function ManufacturingHomeScreen() {
           </ul>
         </MfgPanel>
       )}
-      {d?.lastMrp && (
-        <MfgAlert tone="info">
-          Last MRP run {d.lastMrp.run_number} ({dateTime(d.lastMrp.started_at)}
-          ): {d.lastMrp.summary.manufacture} to make,{" "}
-          {d.lastMrp.summary.purchase} to buy.
-        </MfgAlert>
-      )}
       <MfgPanel title="Go to">
         <ul className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-4">
           {LINKS.map(([title, href, description]) => (
-            <li key={href}>
-              <Link
-                href={href}
-                className="flex flex-col rounded-[var(--radius-control)] border border-border p-3 hover:bg-surface-hover"
-              >
-                <span className="font-medium text-text">{title}</span>
-                <span className="text-xs text-text-muted">{description}</span>
-              </Link>
-            </li>
-          ))}
-        </ul>
-      </MfgPanel>
-    </div>
-  );
-}
-
-const REPORTS: Array<[string, string, string]> = [
-  [
-    "Production summary",
-    "/manufacturing/production-summary",
-    "Output by product and on-time delivery",
-  ],
-  [
-    "Production cost",
-    "/manufacturing/production-cost",
-    "Actual cost of each completed order",
-  ],
-  [
-    "Cost variance",
-    "/manufacturing/variance",
-    "Actual against standard, split by cause",
-  ],
-  [
-    "Standard cost",
-    "/manufacturing/standard-cost",
-    "What a product should cost",
-  ],
-  ["Yield", "/manufacturing/yield", "Good against scrapped, by product"],
-  [
-    "Production efficiency",
-    "/manufacturing/performance",
-    "OEE per work center",
-  ],
-  ["Downtime", "/manufacturing/downtime", "What stops the plant"],
-  ["Work in progress", "/manufacturing/wip", "Cost accrued to open orders"],
-  ["Scrap and rework", "/manufacturing/scrap-rework", "Losses with reasons"],
-  [
-    "Material consumption",
-    "/manufacturing/consumption",
-    "Issues, returns and scrap",
-  ],
-  [
-    "Finished output",
-    "/manufacturing/finished-output",
-    "Goods received from production",
-  ],
-  ["Capacity", "/manufacturing/capacity", "Load against available minutes"],
-];
-
-export function ReportsScreen() {
-  return (
-    <div className="flex flex-col gap-4">
-      <PageHeader
-        title="Manufacturing reports"
-        description="Live views of what production recorded, scoped to the active company. Use Export CSV on any of them. Cost figures need the costing permission."
-      />
-      <MfgPanel>
-        <ul className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
-          {REPORTS.map(([title, href, description]) => (
             <li key={href}>
               <Link
                 href={href}
@@ -260,8 +163,6 @@ type Standard = {
   bomCode: string;
   quantity: string;
   material: string;
-  labor: string;
-  overhead: string;
   total: string;
   perUnit: string;
   note: string;
@@ -272,13 +173,6 @@ type Standard = {
     unitPrice: number;
     basis: string;
     cost: number;
-  }>;
-  operationLines: Array<{
-    sequence: number;
-    name: string;
-    minutes: number;
-    labor: number;
-    overhead: number;
   }>;
 };
 
@@ -346,8 +240,6 @@ export function StandardCostScreen() {
           <MetricStrip
             metrics={[
               { label: "Material", value: amount(s.material) },
-              { label: "Labour", value: amount(s.labor) },
-              { label: "Overhead", value: amount(s.overhead) },
               { label: "Total", value: amount(s.total) },
               { label: "Per unit", value: amount(s.perUnit) },
             ]}
@@ -362,22 +254,6 @@ export function StandardCostScreen() {
                 </li>
               ))}
             </ul>
-          </MfgPanel>
-          <MfgPanel title="Operations">
-            {s.operationLines.length === 0 ? (
-              <p className="text-sm text-text-muted">
-                No default routing, so no labour or machine cost.
-              </p>
-            ) : (
-              <ul className="text-sm" aria-label="Standard operations">
-                {s.operationLines.map((l) => (
-                  <li key={l.sequence}>
-                    {l.sequence} · {l.name} — {quantity(l.minutes)} min · labour{" "}
-                    {amount(l.labor)} · overhead {amount(l.overhead)}
-                  </li>
-                ))}
-              </ul>
-            )}
           </MfgPanel>
           <p className="text-xs text-text-muted">{s.note}</p>
         </>

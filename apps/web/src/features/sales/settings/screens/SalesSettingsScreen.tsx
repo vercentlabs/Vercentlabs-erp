@@ -4,8 +4,6 @@ import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Button,
-  Dialog,
-  EnterpriseDataGrid,
   ErrorState,
   NumberField,
   PageHeader,
@@ -14,8 +12,6 @@ import {
   Switch,
   TextField,
 } from "@vercentlabs/design-system";
-import type { ColumnDef } from "@tanstack/react-table";
-import { getSalesOptions } from "@/features/sales/quotations/api/quotations-api";
 import { SALES_PERMISSIONS } from "@vercentlabs/permissions";
 
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
@@ -69,7 +65,6 @@ export function SalesSettingsScreen() {
   return (
     <div className="flex flex-col gap-4">
       <SettingsForm settings={query.data} />
-      <ApprovalDelegations />
     </div>
   );
 }
@@ -273,211 +268,5 @@ function SettingsForm({ settings }: { settings: Settings }) {
         </div>
       </SalesPanel>
     </div>
-  );
-}
-
-type Delegation = {
-  id: string;
-  delegator_name: string;
-  delegate_name: string;
-  starts_on: string;
-  ends_on: string;
-  reason: string;
-  status: string;
-  in_effect: boolean;
-};
-
-// F041 -- while an approver is away, new approval requests assigned to them go
-// to their delegate for the dates given. Past decisions are never re-routed.
-function ApprovalDelegations() {
-  const workspace = useWorkspaceContext();
-  const queryClient = useQueryClient();
-  const key = scopedQueryKey(workspace, "sales", "approval-delegations");
-  const list = useQuery({
-    queryKey: key,
-    queryFn: () =>
-      request<{ rows: Delegation[] }>("/approval-delegations").then(
-        (r) => r.rows,
-      ),
-  });
-  const options = useQuery({
-    queryKey: scopedQueryKey(workspace, "sales", "options"),
-    queryFn: () => getSalesOptions().then((r) => r.options),
-  });
-  const [adding, setAdding] = useState(false);
-  const [delegatorUserId, setDelegatorUserId] = useState(
-    workspace.userId ?? "",
-  );
-  const [delegateUserId, setDelegateUserId] = useState("");
-  const [startsOn, setStartsOn] = useState("");
-  const [endsOn, setEndsOn] = useState("");
-  const [reason, setReason] = useState("");
-  const refresh = () => queryClient.invalidateQueries({ queryKey: key });
-  const create = useMutation({
-    mutationFn: () =>
-      request("/approval-delegations", {
-        method: "POST",
-        body: JSON.stringify({
-          delegatorUserId,
-          delegateUserId,
-          startsOn,
-          endsOn,
-          reason,
-        }),
-      }),
-    onSuccess: () => {
-      setAdding(false);
-      setDelegateUserId("");
-      setReason("");
-      refresh();
-    },
-  });
-  const revoke = useMutation({
-    mutationFn: (id: string) =>
-      request(`/approval-delegations/${id}`, { method: "DELETE" }),
-    onSuccess: refresh,
-  });
-  const users = (options.data?.users ?? []).map((user) => ({
-    value: user.id,
-    label: user.full_name,
-  }));
-  const columns: ColumnDef<Delegation, unknown>[] = [
-    { id: "from", header: "Approver", accessorKey: "delegator_name" },
-    { id: "to", header: "Delegated to", accessorKey: "delegate_name" },
-    {
-      id: "when",
-      header: "Dates",
-      accessorFn: (row) => `${row.starts_on} → ${row.ends_on}`,
-    },
-    { id: "reason", header: "Reason", accessorKey: "reason" },
-    {
-      id: "status",
-      header: "Status",
-      accessorFn: (row) =>
-        row.status === "revoked"
-          ? "Revoked"
-          : row.in_effect
-            ? "In effect"
-            : row.ends_on < new Date().toISOString().slice(0, 10)
-              ? "Ended"
-              : "Scheduled",
-    },
-  ];
-  const error = create.error ?? revoke.error;
-  return (
-    <SalesPanel
-      title="Approval delegation"
-      description="While an approver is away, new quotation and order approvals assigned to them go to the person they delegate to. The routing is recorded on each document."
-    >
-      {error && (
-        <SalesAlert>
-          {error instanceof SalesApiError
-            ? error.message
-            : "The delegation could not be saved."}
-        </SalesAlert>
-      )}
-      <EnterpriseDataGrid<Delegation>
-        aria-label="Approval delegations"
-        columns={columns}
-        data={list.data ?? []}
-        getRowId={(row) => row.id}
-        density="compact"
-        state={
-          list.isLoading ? "loading" : list.data?.length ? "ready" : "empty"
-        }
-        emptyContent={
-          <p className="px-4 py-6 text-sm text-text-muted">
-            No delegations yet.
-          </p>
-        }
-        rowActions={(row) =>
-          row.status === "active" ? (
-            <Button
-              variant="ghost"
-              size="compact"
-              onPress={() => revoke.mutate(row.id)}
-            >
-              Revoke
-            </Button>
-          ) : null
-        }
-      />
-      <div className="mt-3">
-        <Button variant="secondary" onPress={() => setAdding(true)}>
-          Delegate approvals
-        </Button>
-      </div>
-      {adding && (
-        <Dialog
-          isOpen
-          onOpenChange={(open) => !open && setAdding(false)}
-          title="Delegate approvals"
-        >
-          <div className="flex flex-col gap-3">
-            {create.error && (
-              <SalesAlert>
-                {create.error instanceof SalesApiError
-                  ? create.error.message
-                  : "The delegation could not be saved."}
-              </SalesAlert>
-            )}
-            <Select
-              label="Approver who is away"
-              options={users}
-              selectedKey={delegatorUserId || null}
-              onSelectionChange={(k) => setDelegatorUserId(String(k ?? ""))}
-            />
-            <Select
-              label="Delegate to"
-              options={users.filter((u) => u.value !== delegatorUserId)}
-              selectedKey={delegateUserId || null}
-              onSelectionChange={(k) => setDelegateUserId(String(k ?? ""))}
-            />
-            <div className="grid grid-cols-2 gap-3">
-              <TextField
-                label="From"
-                type="date"
-                isRequired
-                value={startsOn}
-                onChange={setStartsOn}
-              />
-              <TextField
-                label="Until"
-                type="date"
-                isRequired
-                value={endsOn}
-                onChange={setEndsOn}
-              />
-            </div>
-            <TextField
-              label="Reason"
-              isRequired
-              value={reason}
-              onChange={setReason}
-              placeholder="e.g. On leave for Diwali"
-            />
-            <div className="flex justify-end gap-2">
-              <Button variant="secondary" onPress={() => setAdding(false)}>
-                Close
-              </Button>
-              <Button
-                variant="primary"
-                onPress={() => create.mutate()}
-                isLoading={create.isPending}
-                isDisabled={
-                  !delegatorUserId ||
-                  !delegateUserId ||
-                  !startsOn ||
-                  !endsOn ||
-                  reason.trim().length < 5
-                }
-              >
-                Save delegation
-              </Button>
-            </div>
-          </div>
-        </Dialog>
-      )}
-    </SalesPanel>
   );
 }

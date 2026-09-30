@@ -3,7 +3,6 @@ type Q = unknown;
 type R = Record<string, any>;
 export declare function listSalaryComponents(client: Q, c: C, filters?: R): Promise<any[]>;
 export declare function saveSalaryComponent(client: Q, c: C, input: R): Promise<any>;
-export declare function ensureSystemComponent(client: Q, c: C, code: string, name: string, type: string, kind: string, opts?: R): Promise<any>;
 export declare function listSalaryStructures(client: Q, c: C, filters?: R): Promise<any[]>;
 export declare function getSalaryStructure(client: Q, c: C, id: string): Promise<any>;
 export declare function createSalaryStructure(client: Q, c: C, input: R): Promise<any>;

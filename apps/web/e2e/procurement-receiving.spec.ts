@@ -13,8 +13,8 @@ import { openSalesSession as openSession } from "./sales-fixtures";
 import { BASE_URL } from "./base-url";
 
 // Receive-to-pay with real roles and REAL stock: goods are received partly and one
-// unit rejected (only the accepted quantity enters stock), part is returned to the
-// supplier (dispatch takes it out again), and the supplier invoice is matched --
+// unit rejected (only the accepted quantity enters stock), and the supplier invoice
+// is matched --
 // a clean invoice matches, an over-invoice opens an exception that is resolved.
 // Stock quantities are read straight from the database so the assertion is about
 // the ledger, not about what the screen says.
@@ -65,8 +65,8 @@ async function onHand(
 
 type Rec = { record: { id: string; version: number } };
 
-test.describe("Procurement receiving, returns and invoice matching", () => {
-  test("partial receipt with a rejection, return to supplier, invoice match and exception", async ({
+test.describe("Procurement receiving and invoice matching", () => {
+  test("partial receipt with a rejection, invoice match and exception", async ({
     browser,
   }) => {
     test.setTimeout(720_000);
@@ -215,43 +215,6 @@ test.describe("Procurement receiving, returns and invoice matching", () => {
       await expect(
         a.getByRole("row", { name: /GRN-.*Damaged in transit/ }).first(),
       ).toBeVisible({ timeout: 60_000 });
-
-      // --- return 2 units to the supplier: dispatch takes them out of stock again
-      await r.goto(receiptUrl, { waitUntil: "domcontentloaded" });
-      await r
-        .getByRole("button", { name: "Return goods" })
-        .click({ timeout: 60_000 });
-      await expect(r.getByRole("heading", { name: "New return" })).toBeVisible({
-        timeout: 60_000,
-      });
-      await r.getByLabel("Reason for return").fill("Wrong specification");
-      await setNumber(r.getByRole("textbox", { name: "Quantity 1" }), "2");
-      await r.getByRole("button", { name: "Save return" }).click();
-      await expect(r).toHaveURL(/\/procurement\/returns\/[0-9a-f-]{36}$/, {
-        timeout: 60_000,
-      });
-      const returnUrl = r.url();
-      await r.getByRole("button", { name: "Submit for approval" }).click();
-      await expect(
-        r.getByText("Submitted", { exact: true }).first(),
-      ).toBeVisible({ timeout: 30_000 });
-      await a.goto(returnUrl, { waitUntil: "domcontentloaded" });
-      await a
-        .getByRole("button", { name: "Approve", exact: true })
-        .click({ timeout: 120_000 });
-      await expect(
-        a.getByText("Approved", { exact: true }).first(),
-      ).toBeVisible({ timeout: 30_000 });
-      await r.reload({ waitUntil: "domcontentloaded" });
-      await r
-        .getByRole("button", { name: "Dispatch to supplier" })
-        .click({ timeout: 60_000 });
-      await expect(
-        r.getByText("Dispatched", { exact: true }).first(),
-      ).toBeVisible({ timeout: 30_000 });
-      expect(await onHand(world.organizationId, world.itemCode)).toBe(
-        stockStart + 5,
-      );
 
       // --- invoice: the buyer holds no matching permission; the owner (finance) records it
       await buyer.page.goto("/procurement/invoices", {

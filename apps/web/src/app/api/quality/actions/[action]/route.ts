@@ -2,7 +2,6 @@ import { z } from "zod";
 
 import {
   saveQualitySettings,
-  saveSamplingPlan,
   defineQualityPlan,
   approveQualityPlan,
   reviseQualityPlan,
@@ -21,33 +20,6 @@ import {
   approveUseAsIs,
   closeNonconformance,
   cancelNonconformance,
-  createQualityCapa,
-  recordRootCause,
-  recordCapaActions,
-  submitCapaForVerification,
-  verifyCapa,
-  closeCapa,
-  recomputeSupplierQualityRecord,
-  saveAudit,
-  startAudit,
-  addAuditFinding,
-  linkFindingCapa,
-  closeAuditFinding,
-  completeAudit,
-  recordCalibration,
-  markOverdueCalibrations,
-  saveCertificate,
-  issueCertificate,
-  voidCertificate,
-  saveQualityDocument,
-  submitQualityDocument,
-  approveQualityDocument,
-  reviseQualityDocument,
-  obsoleteQualityDocument,
-  createCustomerComplaint,
-  investigateComplaint,
-  resolveComplaint,
-  closeComplaint,
 } from "@vercentlabs/api";
 
 import { HttpError } from "@/core/http";
@@ -74,8 +46,6 @@ export async function POST(
       switch (action) {
         case "settings-save":
           return { record: await saveQualitySettings(client, context, input) };
-        case "sampling-plan-save":
-          return { record: await saveSamplingPlan(client, context, input) };
         case "plan-create":
           return { record: await defineQualityPlan(client, context, input) };
         case "plan-approve":
@@ -197,138 +167,6 @@ export async function POST(
               String(input.reason ?? ""),
             ),
           };
-        case "capa-create":
-          return { record: await createQualityCapa(client, context, input) };
-        case "capa-root-cause":
-          return {
-            record: await recordRootCause(client, context, idOf(input), input),
-          };
-        case "capa-actions":
-          return {
-            record: await recordCapaActions(
-              client,
-              context,
-              idOf(input),
-              input,
-            ),
-          };
-        case "capa-submit-verification":
-          return {
-            record: await submitCapaForVerification(
-              client,
-              context,
-              idOf(input),
-            ),
-          };
-        case "capa-verify":
-          return {
-            record: await verifyCapa(client, context, idOf(input), input),
-          };
-        case "capa-close":
-          return { record: await closeCapa(client, context, idOf(input)) };
-        case "supplier-record-recompute":
-          return {
-            record: await recomputeSupplierQualityRecord(
-              client,
-              context,
-              input,
-            ),
-          };
-        case "audit-save":
-          return { record: await saveAudit(client, context, input) };
-        case "audit-start":
-          return { record: await startAudit(client, context, idOf(input)) };
-        case "audit-finding-add":
-          return {
-            record: await addAuditFinding(
-              client,
-              context,
-              String(input.auditId ?? ""),
-              input,
-            ),
-          };
-        case "audit-finding-link-capa":
-          return {
-            record: await linkFindingCapa(
-              client,
-              context,
-              String(input.findingId ?? ""),
-              String(input.capaId ?? ""),
-            ),
-          };
-        case "audit-finding-close":
-          return {
-            record: await closeAuditFinding(
-              client,
-              context,
-              String(input.findingId ?? ""),
-            ),
-          };
-        case "audit-complete":
-          return {
-            record: await completeAudit(client, context, idOf(input), input),
-          };
-        case "calibration-record":
-          return { record: await recordCalibration(client, context, input) };
-        case "calibration-sweep-overdue":
-          return { record: await markOverdueCalibrations(client, context) };
-        case "certificate-save":
-          return { record: await saveCertificate(client, context, input) };
-        case "certificate-issue":
-          return {
-            record: await issueCertificate(client, context, idOf(input)),
-          };
-        case "certificate-void":
-          return {
-            record: await voidCertificate(
-              client,
-              context,
-              idOf(input),
-              String(input.reason ?? ""),
-            ),
-          };
-        case "document-save":
-          return { record: await saveQualityDocument(client, context, input) };
-        case "document-submit":
-          return {
-            record: await submitQualityDocument(client, context, idOf(input)),
-          };
-        case "document-approve":
-          return {
-            record: await approveQualityDocument(client, context, idOf(input)),
-          };
-        case "document-revise":
-          return {
-            record: await reviseQualityDocument(client, context, idOf(input)),
-          };
-        case "document-obsolete":
-          return {
-            record: await obsoleteQualityDocument(
-              client,
-              context,
-              idOf(input),
-              String(input.reason ?? ""),
-            ),
-          };
-        case "complaint-create":
-          return {
-            record: await createCustomerComplaint(client, context, input),
-          };
-        case "complaint-investigate":
-          return {
-            record: await investigateComplaint(
-              client,
-              context,
-              idOf(input),
-              input,
-            ),
-          };
-        case "complaint-resolve":
-          return {
-            record: await resolveComplaint(client, context, idOf(input), input),
-          };
-        case "complaint-close":
-          return { record: await closeComplaint(client, context, idOf(input)) };
         default:
           throw new HttpError(404, "Unknown Quality action.");
       }

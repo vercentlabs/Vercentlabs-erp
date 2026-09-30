@@ -3,16 +3,7 @@
 import { post, request } from "@/features/sales/shared/http";
 
 export type RegisterKind =
-  | "advances"
-  | "adjustments"
-  | "drop-ships"
-  | "commission-rules"
-  | "commissions"
-  | "fulfillment-requests"
-  | "invoice-requests"
-  | "returns"
-  | "backorders"
-  | "pricing-rules";
+  "adjustments" | "fulfillment-requests" | "invoice-requests" | "pricing-rules";
 
 type OrderRef = {
   sales_order_id: string;
@@ -21,18 +12,6 @@ type OrderRef = {
   currency_code?: string;
 };
 
-export type AdvanceRow = {
-  id: string;
-  sales_order_id: string;
-  amount: string;
-  currency_code: string;
-  payment_reference: string;
-  received_at: string;
-  status: string;
-  note: string | null;
-  status_reason?: string | null;
-  applied_invoice_request_id?: string | null;
-};
 export type AdjustmentRow = {
   id: string;
   sales_order_id: string;
@@ -43,40 +22,6 @@ export type AdjustmentRow = {
   status: string;
   created_at: string;
   decision_note?: string | null;
-};
-export type DropShipRow = {
-  id: string;
-  sales_order_id: string;
-  supplier_id: string;
-  quantity: string;
-  status: string;
-  procurement_reference: string | null;
-  created_at: string;
-  carrier?: string | null;
-  tracking_number?: string | null;
-  status_note?: string | null;
-};
-export type CommissionRuleRow = {
-  id: string;
-  name: string;
-  rate_percent: string;
-  basis: string;
-  owner_user_id: string | null;
-  valid_from: string | null;
-  valid_to: string | null;
-  status: string;
-};
-export type CommissionRow = {
-  id: string;
-  sales_order_id: string;
-  owner_user_id: string;
-  basis_amount: string;
-  rate_percent: string;
-  commission_amount: string;
-  status: string;
-  created_at: string;
-  explanation?: { formula?: string; basisLabel?: string; rule?: string } | null;
-  reversal_reason?: string | null;
 };
 export type FulfillmentRegisterRow = OrderRef & {
   id: string;
@@ -103,82 +48,15 @@ export type InvoiceRegisterRow = OrderRef & {
   completed_at: string | null;
   grand_total: string;
 };
-export type ReturnRow = OrderRef & {
-  id: string;
-  request_number: string;
-  status: string;
-  reason: string;
-  lines: Array<{
-    salesOrderLineId: string;
-    itemCode: string;
-    quantity: string;
-  }>;
-  requested_at: string;
-  decided_at: string | null;
-  decision_note: string | null;
-};
-
 export const listRegister = <T>(kind: RegisterKind) =>
   request<{ rows: T[] }>(`/operations?kind=${kind}`);
 
-export const recordAdvance = (input: {
-  salesOrderId: string;
-  amount: number;
-  paymentReference: string;
-  note?: string;
-}) => post<{ advance: AdvanceRow }>("/operations/advances", input);
 export const requestAdjustment = (input: {
   salesOrderId: string;
   adjustmentType: "credit_note" | "refund";
   amount: number;
   reason: string;
 }) => post<{ adjustment: AdjustmentRow }>("/operations/adjustments", input);
-export const createDropShip = (input: {
-  salesOrderId: string;
-  salesOrderLineId: string;
-  supplierId: string;
-  quantity: number;
-  idempotencyKey: string;
-}) => post<{ dropShip: DropShipRow }>("/operations/drop-ships", input);
-export const createCommissionRule = (input: {
-  name: string;
-  ratePercent: number;
-  basis: "net_sales" | "gross_margin";
-  ownerUserId?: string | null;
-}) => post<{ rule: CommissionRuleRow }>("/operations/commission-rules", input);
-export const accrueCommission = (input: {
-  salesOrderId: string;
-  ruleId?: string | null;
-  ownerUserId?: string | null;
-}) => post<{ commission: CommissionRow }>("/operations/commissions", input);
-export const createReturn = (
-  orderId: string,
-  input: {
-    idempotencyKey: string;
-    reason: string;
-    lines: Array<{ salesOrderLineId: string; quantity: number }>;
-  },
-) =>
-  post<{ returnRequest: { id: string; request_number: string } }>(
-    `/orders/${orderId}/returns`,
-    input,
-  );
-
-export type BackorderRow = {
-  id: string;
-  sales_order_id: string;
-  sales_order_number: string;
-  customer_name: string | null;
-  item_code_snapshot: string;
-  item_name_snapshot: string;
-  quantity: string;
-  fulfilled_quantity: string;
-  backordered_quantity: string;
-  requested_delivery_date: string | null;
-  uom_snapshot?: string | null;
-  promised_date?: string | null;
-  promise_note?: string | null;
-};
 export type PricingRuleRow = {
   id: string;
   code: string;
@@ -266,15 +144,6 @@ export const releaseOrderReservations = (orderId: string, reason: string) =>
     `/orders/${orderId}/reservations/release`,
     { reason },
   );
-export const promiseOrderLine = (
-  lineId: string,
-  promisedDate: string,
-  note: string,
-) =>
-  post<{ promise: unknown }>(`/order-lines/${lineId}/promise`, {
-    promisedDate,
-    note,
-  });
 export const recordShipment = (
   requestId: string,
   input: { carrier: string; trackingNumber?: string },
@@ -289,20 +158,6 @@ export const recordDelivery = (
     input,
   );
 
-// F052–F057 after-sales transitions.
-export const decideReturn = (
-  id: string,
-  decision: "approved" | "rejected",
-  note?: string,
-) => post<{ result: unknown }>(`/returns/${id}/decide`, { decision, note });
-export const receiveReturn = (
-  id: string,
-  lines: Array<{
-    salesOrderLineId: string;
-    quantity: number;
-    disposition: "restock" | "scrap";
-  }>,
-) => post<{ result: unknown }>(`/returns/${id}/receive`, { lines });
 export const decideAdjustment = (
   id: string,
   decision: "approved" | "rejected",
@@ -312,20 +167,3 @@ export const decideAdjustment = (
     decision,
     note,
   });
-export const updateDropShip = (
-  id: string,
-  input: {
-    status: string;
-    procurementReference?: string;
-    carrier?: string;
-    trackingNumber?: string;
-    note?: string;
-  },
-) => post<{ result: unknown }>(`/operations/drop-ships/${id}/status`, input);
-export const cancelAdvance = (id: string, reason: string, refunded: boolean) =>
-  post<{ result: unknown }>(`/operations/advances/${id}/cancel`, {
-    reason,
-    refunded,
-  });
-export const approveCommission = (id: string) =>
-  post<{ result: unknown }>(`/operations/commissions/${id}/approve`, {});

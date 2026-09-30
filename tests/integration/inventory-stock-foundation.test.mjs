@@ -31,7 +31,7 @@ test("Inventory foundations against real PostgreSQL", async (t) => {
     return;
   }
   const api = await import("../../services/api/src/index.js");
-  const { stockContext, getStockSettings, updateStockSettings, lookupStockByCode, createStockBatch, setStockBatchStatus, listStockBatchesWithBalance, receiveSerializedStock, listStockSerialsDetailed, saveStockReorderRule, listStockReorderRulesDetailed, listStockReorderCandidates, postStockMovement } = api;
+  const { stockContext, getStockSettings, updateStockSettings, lookupStockByCode, createStockBatch, setStockBatchStatus, listStockBatchesWithBalance, receiveSerializedStock, listStockSerialsDetailed, postStockMovement } = api;
   const { setTenantContext } = await import("../../packages/database/src/index.js");
 
   const orgId = randomUUID();
@@ -137,37 +137,6 @@ test("Inventory foundations against real PostgreSQL", async (t) => {
       assert.equal((await tx((c) => listStockSerialsDetailed(c, ctx.viewer, { itemId: ids.serialItem, status: "sold" }))).length, 1);
     });
 
-    await t.test("F122-F125: reorder rules validate, upsert, honour safety stock and suggest an order-up-to quantity", async () => {
-      const base = { itemId: ids.plain, warehouseId: ids.wh, minimumQuantity: 10, reorderQuantity: 50, safetyQuantity: 5 };
-      await assert.rejects(() => tx((c) => saveStockReorderRule(c, ctx.issuer, base)), forbidden);
-      await assert.rejects(() => tx((c) => saveStockReorderRule(c, ctx.manager, { ...base, reorderQuantity: 0 })), (e) => e.code === "STOCK_REORDER_QUANTITY_INVALID");
-      await assert.rejects(() => tx((c) => saveStockReorderRule(c, ctx.manager, { ...base, minimumQuantity: -1 })), (e) => e.code === "STOCK_QUANTITY_INVALID");
-      await assert.rejects(() => tx((c) => saveStockReorderRule(c, ctx.manager, { ...base, maximumQuantity: 12 })), (e) => e.code === "STOCK_MAXIMUM_BELOW_MINIMUM");
-      await assert.rejects(() => tx((c) => saveStockReorderRule(c, ctx.manager, { ...base, warehouseId: randomUUID() })), (e) => e.status === 404);
-      const rule = await tx((c) => saveStockReorderRule(c, ctx.manager, base));
-      assert.equal(Number(rule.safety_quantity), 5);
-      // 14 on hand: above the minimum (10) but inside minimum+safety (15) -> triggered
-      await tx((c) => postStockMovement(c, ctx.manager, { movementType: "receipt", itemId: ids.plain, warehouseId: ids.wh, quantity: 14, unitCost: 2 }));
-      let cands = await tx((c) => listStockReorderCandidates(c, ctx.viewer, {}));
-      let mine = cands.find((x) => x.itemId === ids.plain);
-      assert.ok(mine, "safety stock brings the trigger up to minimum+safety");
-      assert.equal(mine.suggestedQuantity, "50");
-      // upsert (same key) turns it into min/max: order up to 100
-      const updated = await tx((c) => saveStockReorderRule(c, ctx.manager, { ...base, maximumQuantity: 100 }));
-      assert.equal(updated.id, rule.id, "same item+warehouse updates the rule");
-      cands = await tx((c) => listStockReorderCandidates(c, ctx.viewer, {}));
-      assert.equal(cands.find((x) => x.itemId === ids.plain).suggestedQuantity, "86");
-      // above minimum+safety -> not a candidate
-      await tx((c) => postStockMovement(c, ctx.manager, { movementType: "receipt", itemId: ids.plain, warehouseId: ids.wh, quantity: 10, unitCost: 2 }));
-      cands = await tx((c) => listStockReorderCandidates(c, ctx.viewer, {}));
-      assert.equal(cands.some((x) => x.itemId === ids.plain), false);
-      const detailed = await tx((c) => listStockReorderRulesDetailed(c, ctx.viewer));
-      assert.equal(Number(detailed.find((r) => r.id === rule.id).on_hand_quantity), 24);
-      // deactivated rules never trigger
-      await tx((c) => saveStockReorderRule(c, ctx.manager, { ...base, maximumQuantity: 5000, minimumQuantity: 1000, active: false }));
-      cands = await tx((c) => listStockReorderCandidates(c, ctx.viewer, {}));
-      assert.equal(cands.some((x) => x.itemId === ids.plain), false);
-    });
   } finally {
     await admin.query("BEGIN");
     try {

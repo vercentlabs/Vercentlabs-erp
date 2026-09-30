@@ -1,6 +1,5 @@
 import {
   addAttachment,
-  addMyAttachment,
   assertSameOriginOrMobile,
   prepareFileUpload,
 } from "@vercentlabs/api";
@@ -14,17 +13,15 @@ import { supportContext } from "@/features/support/shared/support-context";
 // Ticket attachment upload (multipart). The caller is authenticated and the
 // origin checked BEFORE any bytes are accepted; the Shared Platform pipeline
 // then validates and scans the file OUTSIDE any transaction; workspaceRoute
-// finally checks the Support module, permission (or portal self-service) and billing and the domain
+// finally checks the Support module, permission and billing and the domain
 // stores it. Staff need support.view (+ support.communication.manage in the
-// domain); a portal customer (selfService=1) may attach only to their own
-// tickets and never as a private note.
+// domain).
 export async function POST(
   request: Request,
   context: { params: Promise<{ ticketId: string }> },
 ) {
   let upload: {
     prepared: Awaited<ReturnType<typeof prepareFileUpload>>;
-    selfService: boolean;
     privateNote: boolean;
   };
   try {
@@ -47,32 +44,25 @@ export async function POST(
     );
     upload = {
       prepared,
-      selfService: form.get("selfService") === "1",
       privateNote: form.get("privateNote") === "1",
     };
   } catch (error) {
     return errorResponse(error);
   }
   const action = "support.attachment.upload";
-  const options = upload.selfService
-    ? { module: "support", selfService: true, billingWrite: true, action }
-    : {
-        module: "support",
-        permission: "support.view",
-        billingWrite: true,
-        action,
-      };
+  const options = {
+    module: "support",
+    permission: "support.view",
+    billingWrite: true,
+    action,
+  };
   return workspaceRoute(request, options, async ({ client, session }) => {
     const { ticketId } = await context.params;
     const domain = supportContext(session);
-    const record = upload.selfService
-      ? await addMyAttachment(client, domain, ticketId, {
-          prepared: upload.prepared,
-        })
-      : await addAttachment(client, domain, ticketId, {
-          prepared: upload.prepared,
-          privateNote: upload.privateNote,
-        });
+    const record = await addAttachment(client, domain, ticketId, {
+      prepared: upload.prepared,
+      privateNote: upload.privateNote,
+    });
     return ok(toWire({ record }) as Record<string, unknown>, 201);
   });
 }

@@ -31,11 +31,6 @@ const TOGGLES: Array<[string, string, string]> = [
     "Transfers need approval before they complete",
   ],
   [
-    "requireValueAdjustmentApproval",
-    "require_value_adjustment_approval",
-    "Revaluations and impairments need a second approver",
-  ],
-  [
     "requireDisposalApproval",
     "require_disposal_approval",
     "Disposals need approval before they complete",
@@ -48,7 +43,7 @@ const TOGGLES: Array<[string, string, string]> = [
   [
     "postToAccounting",
     "post_to_accounting",
-    "Post capitalization, depreciation, adjustments and disposals to the general ledger",
+    "Post capitalization, depreciation and disposals to the general ledger",
   ],
 ];
 
@@ -74,15 +69,12 @@ export function AssetsSettingsScreen() {
       act("settings-save", {
         requireCapitalizationApproval: form.require_capitalization_approval,
         requireTransferApproval: form.require_transfer_approval,
-        requireValueAdjustmentApproval: form.require_value_adjustment_approval,
         requireDisposalApproval: form.require_disposal_approval,
         prohibitSelfApproval: form.prohibit_self_approval,
         postToAccounting: form.post_to_accounting,
         defaultDepreciationMethod: form.default_depreciation_method,
         depreciationConvention: form.depreciation_convention,
-        warrantyAlertDays: form.warranty_alert_days,
         maintenanceLeadDays: form.maintenance_lead_days,
-        calibrationAlertDays: form.calibration_alert_days,
       }),
     onSuccess: () => {
       setMessage("Settings saved.");
@@ -103,7 +95,7 @@ export function AssetsSettingsScreen() {
     <div className="flex flex-col gap-4">
       <PageHeader
         title="Asset settings"
-        description="Approval controls, depreciation defaults and alert windows for this company."
+        description="Approval controls, depreciation defaults and maintenance lead time for this company."
       />
       {error && <AssetsAlert>{error}</AssetsAlert>}
       {message && <AssetsAlert tone="success">{message}</AssetsAlert>}
@@ -130,12 +122,10 @@ export function AssetsSettingsScreen() {
           <Select
             label="Default depreciation method"
             isDisabled={!editable}
-            options={[
-              "straight_line",
-              "declining_balance",
-              "units_of_production",
-              "none",
-            ].map((v) => ({ value: v, label: v.replace(/_/g, " ") }))}
+            options={["straight_line", "none"].map((v) => ({
+              value: v,
+              label: v.replace(/_/g, " "),
+            }))}
             selectedKey={String(
               form.default_depreciation_method ?? "straight_line",
             )}
@@ -156,27 +146,11 @@ export function AssetsSettingsScreen() {
             }
           />
           <NumberField
-            label="Warranty alert (days)"
-            isDisabled={!editable}
-            value={Number(form.warranty_alert_days ?? 30)}
-            onChange={(v) => setForm((f) => ({ ...f, warranty_alert_days: v }))}
-            minValue={0}
-          />
-          <NumberField
             label="Maintenance lead (days)"
             isDisabled={!editable}
             value={Number(form.maintenance_lead_days ?? 7)}
             onChange={(v) =>
               setForm((f) => ({ ...f, maintenance_lead_days: v }))
-            }
-            minValue={0}
-          />
-          <NumberField
-            label="Calibration alert (days)"
-            isDisabled={!editable}
-            value={Number(form.calibration_alert_days ?? 30)}
-            onChange={(v) =>
-              setForm((f) => ({ ...f, calibration_alert_days: v }))
             }
             minValue={0}
           />

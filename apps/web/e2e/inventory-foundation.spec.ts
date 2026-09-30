@@ -11,7 +11,7 @@ import { openSalesSession as openSession } from "./sales-fixtures";
 import { BASE_URL } from "./base-url";
 
 // Inventory foundations as real roles: item master, warehouses, receipts/issues/adjustments,
-// transfers, reservations, lots/expiry, reorder rules -- and what the narrower roles cannot do.
+// transfers, reservations, lots -- and what the narrower roles cannot do.
 const origin = () => new URL(BASE_URL).origin;
 
 async function api<T>(
@@ -60,7 +60,7 @@ async function open(page: Page, path: string, heading: string | RegExp) {
 type Rec = { record: { id: string } };
 
 test.describe("Inventory foundations", () => {
-  test("manager runs item -> warehouse -> receipt -> availability -> issue -> adjustment -> transfer -> reservation -> lot -> reorder rule", async ({
+  test("manager runs item -> warehouse -> receipt -> availability -> issue -> adjustment -> transfer -> reservation -> lot", async ({
     browser,
   }) => {
     test.setTimeout(900_000);
@@ -305,7 +305,7 @@ test.describe("Inventory foundations", () => {
         timeout: 30_000,
       });
 
-      // --- lots: a batch item (API setup), a batch via the UI, block with a reason, expiry view
+      // --- lots: a batch item (API setup), a batch via the UI, block with a reason
       const uom = (
         await api<{ rows: Array<{ id: string; code: string }> }>(
           manager.context,
@@ -338,10 +338,6 @@ test.describe("Inventory foundations", () => {
         name: new RegExp(`B-${stamp}.*Active`),
       });
       await expect(batchRow).toBeVisible({ timeout: 30_000 });
-      await open(m, "/inventory/expiry", "Expiry");
-      await expect(
-        m.getByRole("row", { name: new RegExp(`B-${stamp}.*5`) }),
-      ).toBeVisible({ timeout: 30_000 });
       await m
         .getByRole("row", { name: new RegExp(`B-${stamp}`) })
         .getByRole("button", { name: "Block" })
@@ -356,37 +352,6 @@ test.describe("Inventory foundations", () => {
       await expect(
         m.getByRole("row", { name: new RegExp(`B-${stamp}.*Blocked`) }),
       ).toBeVisible({ timeout: 30_000 });
-
-      // --- reorder rule -> replenishment
-      await open(m, "/inventory/reorder-rules", "Reorder rules");
-      await m.getByRole("button", { name: "Add rule" }).first().click();
-      const rule = m.getByRole("dialog", { name: "Add rule" });
-      await pick(
-        m,
-        rule.getByRole("button", { name: /Select item/ }),
-        new RegExp(itemCode),
-      );
-      await pick(
-        m,
-        rule.getByRole("button", { name: /Select warehouse/ }),
-        new RegExp(`Main ${stamp}`),
-      );
-      await setNumber(rule.getByRole("textbox", { name: /^Minimum/ }), "50");
-      await setNumber(rule.getByRole("textbox", { name: /^Safety/ }), "10");
-      await setNumber(
-        rule.getByRole("textbox", { name: /^Reorder quantity/ }),
-        "40",
-      );
-      await rule.getByRole("button", { name: "Save" }).click();
-      await expect(
-        m.getByRole("row", {
-          name: new RegExp(`${itemCode}.*Main ${stamp}.*50.*10`),
-        }),
-      ).toBeVisible({ timeout: 30_000 });
-      await open(m, "/inventory/replenishment", "Replenishment");
-      await expect(
-        m.getByRole("row", { name: new RegExp(`${itemCode}.*40`) }),
-      ).toBeVisible({ timeout: 60_000 });
 
       // --- the ledger recorded all of it; costing settings save
       await open(m, "/inventory/ledger", "Stock ledger");

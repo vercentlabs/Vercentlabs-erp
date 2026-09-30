@@ -9,7 +9,7 @@ import {
   ProjectsAlert,
   ProjectsPanel,
 } from "@/features/projects/shared/ProjectsUi";
-import { calendarDate, label, money } from "@/features/projects/shared/format";
+import { calendarDate, label } from "@/features/projects/shared/format";
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 
@@ -22,24 +22,15 @@ const ATTENTION: Array<[string, string, string]> = [
   ["overdueTasks", "Overdue tasks", "/projects/tasks"],
   ["blockedTasks", "Blocked tasks", "/projects/tasks"],
   ["overdueProjects", "Projects past their end date", "/projects/all"],
-  ["openIssues", "Open issues", "/projects/issues"],
-  ["seriousIssues", "Serious open issues", "/projects/issues"],
-  ["highRisks", "High-scoring risks", "/projects/risks"],
 ];
 const APPROVALS: Array<[string, string, string]> = [
   ["timesheets", "Timesheets", "/projects/timesheets"],
-  ["expenses", "Expenses", "/projects/expenses"],
-  ["budgets", "Budgets", "/projects/budgets"],
-  ["baselines", "Baselines", "/projects/workspace"],
-  ["billing", "Billing lines", "/projects/billing"],
 ];
 const SHORTCUTS = [
   ["All projects", "/projects/all"],
   ["Tasks", "/projects/tasks"],
-  ["Board and schedule", "/projects/workspace"],
+  ["Board and progress", "/projects/workspace"],
   ["Time", "/projects/time"],
-  ["Billing", "/projects/billing"],
-  ["Reports", "/projects/reports"],
 ] as const;
 
 export function ProjectsDashboardScreen() {
@@ -67,7 +58,7 @@ export function ProjectsDashboardScreen() {
     <div className="flex flex-col gap-4">
       <PageHeader
         title="Projects"
-        description="Planning, delivery, time, cost and billing across your projects."
+        description="Planning, delivery, time and progress across your projects."
       />
       {error && <ProjectsAlert>{error}</ProjectsAlert>}
       {d && (
@@ -128,40 +119,6 @@ export function ProjectsDashboardScreen() {
                   </li>
                 ))}
               </ul>
-            </ProjectsPanel>
-          )}
-          {d.activeContractedRevenue !== undefined && (
-            <ProjectsPanel title="Financial position of live projects">
-              <dl className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-                <div>
-                  <dt className="text-xs text-text-muted">
-                    Contracted revenue
-                  </dt>
-                  <dd className="text-xl font-semibold tabular-nums">
-                    {money(d.activeContractedRevenue)}
-                  </dd>
-                </div>
-                <div>
-                  <dt className="text-xs text-text-muted">Approved budget</dt>
-                  <dd className="text-xl font-semibold tabular-nums">
-                    {money(d.activeBudget)}
-                  </dd>
-                </div>
-                <div>
-                  <dt className="text-xs text-text-muted">Invoiced</dt>
-                  <dd className="text-xl font-semibold tabular-nums">
-                    {money(d.invoiced)}
-                  </dd>
-                </div>
-                <div>
-                  <dt className="text-xs text-text-muted">
-                    Queued for billing
-                  </dt>
-                  <dd className="text-xl font-semibold tabular-nums">
-                    {money(d.queuedForBilling)}
-                  </dd>
-                </div>
-              </dl>
             </ProjectsPanel>
           )}
           <ProjectsPanel title="Milestones in the next 14 days">

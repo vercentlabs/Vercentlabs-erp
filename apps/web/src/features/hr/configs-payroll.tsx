@@ -29,9 +29,6 @@ const KINDS = opts(
   "reimbursement",
   "arrear",
   "overtime",
-  "loan",
-  "advance",
-  "statutory",
   "other",
 );
 

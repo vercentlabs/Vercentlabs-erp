@@ -1,10 +1,9 @@
 import { MfgError, dateOrNull, has, need, positive, uuid } from "./common.js";
 import { resolveBomForItem } from "./engineering.js";
-import { getCapacityPlan } from "./routing.js";
 
-// Costing, variance, yield, efficiency, reports and the dashboard (F183-F187, F191, F192).
+// Production costing -- standard cost, actual cost and variance -- and the dashboard (F183-F185, F192).
 // Everything here is read-only over what production actually recorded. Cost figures need
-// manufacturing.costing.view; quantities, yield and efficiency do not.
+// manufacturing.costing.view; the dashboard's counts do not.
 const round = (n, d = 4) => Math.round(n * 10 ** d) / 10 ** d;
 const iso = (d) => d.toISOString().slice(0, 10);
 const seeCost = (c) => has(c, "manufacturing.costing.view");
@@ -18,7 +17,7 @@ const period = (input = {}, fallbackDays = 30) => {
 
 // ---------------------------------------------------------------- standard cost (F184)
 // What one unit SHOULD cost: components at their standard cost (or the stock's average when no
-// standard is set), and routing time at the work center's labour and machine rates.
+// standard is set).
 export async function getStandardCost(client, c, { itemId, quantity = 1 } = {}) {
   needCost(c);
   const qty = positive(quantity, "Quantity");
@@ -37,18 +36,8 @@ export async function getStandardCost(client, c, { itemId, quantity = 1 } = {}) 
     const perUnit = (Number(k.quantity) / Number(bom.output_quantity)) / (1 - Number(k.scrap_percent) / 100);
     return { itemCode: k.code, itemName: k.name, quantityPerUnit: round(perUnit, 6), unitPrice: round(Number(k.price), 6), basis: k.has_standard ? "standard cost" : "average stock cost", cost: round(perUnit * Number(k.price) * qty) };
   });
-  const routing = (await client.query(`SELECT id FROM tenant.manufacturing_routings WHERE organization_id=$1 AND company_id=$2 AND item_id=$3 AND status='active' AND is_default LIMIT 1`, [c.organizationId, c.companyId, bom.item_id])).rows[0];
-  const ops = routing
-    ? (await client.query(`SELECT o.sequence,o.name,o.setup_minutes,o.queue_minutes,o.move_minutes,o.run_minutes_per_unit,COALESCE(wc.hourly_rate,0) AS hourly_rate,COALESCE(wc.overhead_rate,0) AS overhead_rate FROM tenant.manufacturing_routing_operations o LEFT JOIN tenant.manufacturing_work_centers wc ON wc.id=o.work_center_id WHERE o.organization_id=$1 AND o.routing_id=$2 ORDER BY o.sequence`, [c.organizationId, routing.id])).rows
-    : [];
-  const operationLines = ops.map((o) => {
-    const minutes = Number(o.setup_minutes) + Number(o.queue_minutes) + Number(o.move_minutes) + Number(o.run_minutes_per_unit) * qty;
-    return { sequence: o.sequence, name: o.name, minutes: round(minutes, 2), labor: round((minutes / 60) * Number(o.hourly_rate)), overhead: round((minutes / 60) * Number(o.overhead_rate)) };
-  });
   const material = round(materialLines.reduce((t, l) => t + l.cost, 0));
-  const labor = round(operationLines.reduce((t, l) => t + l.labor, 0));
-  const overhead = round(operationLines.reduce((t, l) => t + l.overhead, 0));
-  return { bomCode: bom.code, quantity: String(qty), material: String(material), labor: String(labor), overhead: String(overhead), total: String(round(material + labor + overhead)), perUnit: String(round((material + labor + overhead) / qty)), materialLines, operationLines, note: "Standard is computed from the current BOM, routing, item standard costs and work center rates; it is not stored per order." };
+  return { bomCode: bom.code, quantity: String(qty), material: String(material), total: String(material), perUnit: String(round(material / qty)), materialLines, note: "Standard is computed from the current BOM and item standard costs; it is not stored per order." };
 }
 
 // ---------------------------------------------------------------- actual cost and variance (F183, F185)
@@ -72,16 +61,15 @@ export async function getProductionCostReport(client, c, input = {}) {
   const orders = await completedOrders(client, c, { from, to, itemId: input.itemId });
   const lines = orders.map((o) => {
     const total = Number(o.material_cost) + Number(o.labor_cost) + Number(o.overhead_cost) + Number(o.subcontract_cost);
-    return { orderId: o.id, orderNumber: o.work_order_number, itemCode: o.item_code, itemName: o.item_name, quantity: String(Number(o.quantity_completed)), material: o.material_cost, labor: o.labor_cost, overhead: o.overhead_cost, subcontract: o.subcontract_cost, total: String(round(total)), perUnit: String(round(total / Number(o.quantity_completed))), finishedAt: o.actual_end_at };
+    return { orderId: o.id, orderNumber: o.work_order_number, itemCode: o.item_code, itemName: o.item_name, quantity: String(Number(o.quantity_completed)), material: o.material_cost, total: String(round(total)), perUnit: String(round(total / Number(o.quantity_completed))), finishedAt: o.actual_end_at };
   });
   const sum = (key) => lines.reduce((t, l) => t + Number(l[key]), 0);
-  return { from, to, lines, totals: { orders: lines.length, material: String(round(sum("material"))), labor: String(round(sum("labor"))), overhead: String(round(sum("overhead"))), subcontract: String(round(sum("subcontract"))), total: String(round(sum("total"))) } };
+  return { from, to, lines, totals: { orders: lines.length, material: String(round(sum("material"))), total: String(round(sum("total"))) } };
 }
 
-// Standard vs actual per completed order (F184), split into the variances that explain it:
+// Standard vs actual per completed order (F185), split into the variances that explain it:
 //   material price   = (actual cost - actual quantity x standard price)
 //   material usage   = (actual quantity - standard quantity) x standard price
-//   labour / overhead = actual booked less standard time x rate
 // Negative is favourable (cost less than standard).
 export async function getVarianceReport(client, c, input = {}) {
   needCost(c);
@@ -108,87 +96,16 @@ export async function getVarianceReport(client, c, input = {}) {
       usage += (Number(m.net_qty) - stdQty) * Number(m.std_price);
       price += Number(m.actual_cost) - Number(m.net_qty) * Number(m.std_price);
     }
-    const ops = (await client.query(`SELECT op.planned_minutes,COALESCE(wc.hourly_rate,0) AS hourly_rate,COALESCE(wc.overhead_rate,0) AS overhead_rate FROM tenant.manufacturing_work_order_operations op LEFT JOIN tenant.manufacturing_work_centers wc ON wc.id=op.work_center_id WHERE op.organization_id=$1 AND op.work_order_id=$2 AND op.status='completed'`, [c.organizationId, o.id])).rows;
-    const stdLabor = ops.reduce((t, p) => t + (Number(p.planned_minutes) * share / 60) * Number(p.hourly_rate), 0);
-    const stdOverhead = ops.reduce((t, p) => t + (Number(p.planned_minutes) * share / 60) * Number(p.overhead_rate), 0);
     const actual = Number(o.material_cost) + Number(o.labor_cost) + Number(o.overhead_cost) + Number(o.subcontract_cost);
-    const standard = stdMaterial + stdLabor + stdOverhead;
+    const standard = stdMaterial;
     rows.push({
       orderId: o.id, orderNumber: o.work_order_number, itemCode: o.item_code, itemName: o.item_name, quantity: String(Number(o.quantity_completed)),
       standard: String(round(standard)), actual: String(round(actual)), variance: String(round(actual - standard)), variancePercent: standard ? round(((actual - standard) / standard) * 100, 1) : null,
-      materialPrice: String(round(price)), materialUsage: String(round(usage)), labor: String(round(Number(o.labor_cost) - stdLabor)), overhead: String(round(Number(o.overhead_cost) - stdOverhead)), subcontract: String(round(Number(o.subcontract_cost))),
+      materialPrice: String(round(price)), materialUsage: String(round(usage)),
     });
   }
   rows.sort((a, b) => Math.abs(Number(b.variance)) - Math.abs(Number(a.variance)));
   return { from, to, lines: rows, totals: { standard: String(round(rows.reduce((t, r) => t + Number(r.standard), 0))), actual: String(round(rows.reduce((t, r) => t + Number(r.actual), 0))), variance: String(round(rows.reduce((t, r) => t + Number(r.variance), 0))) } };
-}
-
-// ---------------------------------------------------------------- yield (F186)
-export async function getYieldReport(client, c, input = {}) {
-  need(c, "manufacturing.view");
-  const { from, to } = period(input);
-  const { rows } = await client.query(
-    `SELECT item.id AS item_id,item.code AS item_code,item.name AS item_name,count(*)::int AS orders,sum(wo.quantity_planned)::text AS planned,sum(wo.quantity_completed)::text AS completed,sum(wo.quantity_scrapped)::text AS scrapped
-       FROM tenant.manufacturing_work_orders wo JOIN tenant.items item ON item.id=wo.item_id
-      WHERE wo.organization_id=$1 AND wo.company_id=$2 AND wo.status IN ('completed','in_progress') AND wo.rework_of_id IS NULL AND COALESCE(wo.actual_end_at,wo.actual_start_at)>=$3::date AND COALESCE(wo.actual_end_at,wo.actual_start_at)<($4::date+1)
-      GROUP BY item.id,item.code,item.name,wo.organization_id ORDER BY item.name`,
-    [c.organizationId, c.companyId, from, to],
-  );
-  const reasons = (await client.query(`SELECT s.reason_code,s.category,sum(s.quantity)::text AS quantity,count(*)::int AS events FROM tenant.manufacturing_scrap_records s WHERE s.organization_id=$1 AND s.company_id=$2 AND s.created_at>=$3::date AND s.created_at<($4::date+1) GROUP BY s.reason_code,s.category ORDER BY sum(s.quantity) DESC`, [c.organizationId, c.companyId, from, to])).rows;
-  const lines = rows.map((r) => {
-    const good = Number(r.completed);
-    const lost = Number(r.scrapped);
-    return { itemId: r.item_id, itemCode: r.item_code, itemName: r.item_name, orders: r.orders, planned: r.planned, completed: r.completed, scrapped: r.scrapped, yieldPercent: good + lost > 0 ? round((good / (good + lost)) * 100, 1) : null, attainmentPercent: Number(r.planned) > 0 ? round((good / Number(r.planned)) * 100, 1) : null };
-  });
-  const totalGood = lines.reduce((t, l) => t + Number(l.completed), 0);
-  const totalLost = lines.reduce((t, l) => t + Number(l.scrapped), 0);
-  return { from, to, lines, reasons, overallYield: totalGood + totalLost > 0 ? round((totalGood / (totalGood + totalLost)) * 100, 1) : null };
-}
-
-// ---------------------------------------------------------------- efficiency / OEE (F187)
-// Availability x performance x quality per work center over a period.
-//   availability = (calendar minutes - downtime) / calendar minutes
-//   performance  = planned minutes / actual minutes of operations completed
-//   quality      = good / (good + scrapped) on the orders those operations belonged to
-export async function getEfficiencyReport(client, c, input = {}) {
-  need(c, "manufacturing.view");
-  const { from, to } = period(input);
-  const days = Math.min(Math.round((Date.parse(to) - Date.parse(from)) / 86400000) + 1, 60);
-  const capacity = await getCapacityPlan(client, c, { from, days });
-  const centers = [];
-  for (const center of capacity.centers) {
-    const downtime = Number((await client.query(`SELECT COALESCE(sum(COALESCE(minutes,EXTRACT(EPOCH FROM (now()-started_at))/60)),0) AS m FROM tenant.manufacturing_downtime_events WHERE organization_id=$1 AND work_center_id=$2 AND started_at>=$3::date AND started_at<($4::date+1)`, [c.organizationId, center.workCenterId, from, to])).rows[0].m);
-    const perf = (await client.query(`SELECT COALESCE(sum(op.planned_minutes),0) AS planned,COALESCE(sum(op.actual_minutes),0) AS actual,count(*)::int AS ops FROM tenant.manufacturing_work_order_operations op WHERE op.organization_id=$1 AND op.work_center_id=$2 AND op.status='completed' AND op.completed_at>=$3::date AND op.completed_at<($4::date+1)`, [c.organizationId, center.workCenterId, from, to])).rows[0];
-    const quality = (await client.query(`SELECT COALESCE(sum(wo.quantity_completed),0) AS good,COALESCE(sum(wo.quantity_scrapped),0) AS lost FROM tenant.manufacturing_work_orders wo WHERE wo.organization_id=$1 AND wo.id IN (SELECT DISTINCT op.work_order_id FROM tenant.manufacturing_work_order_operations op WHERE op.organization_id=$1 AND op.work_center_id=$2 AND op.status='completed' AND op.completed_at>=$3::date AND op.completed_at<($4::date+1))`, [c.organizationId, center.workCenterId, from, to])).rows[0];
-    const available = center.availableTotal;
-    const availability = available > 0 ? Math.max(Math.min((available - downtime) / available, 1), 0) : null;
-    const performance = Number(perf.actual) > 0 ? Number(perf.planned) / Number(perf.actual) : null;
-    const good = Number(quality.good);
-    const qualityRate = good + Number(quality.lost) > 0 ? good / (good + Number(quality.lost)) : null;
-    const parts = [availability, performance, qualityRate];
-    centers.push({
-      workCenterId: center.workCenterId, code: center.code, name: center.name, availableMinutes: available, downtimeMinutes: round(downtime, 1), operations: perf.ops, plannedMinutes: round(Number(perf.planned), 1), actualMinutes: round(Number(perf.actual), 1),
-      availabilityPercent: availability === null ? null : round(availability * 100, 1), performancePercent: performance === null ? null : round(performance * 100, 1), qualityPercent: qualityRate === null ? null : round(qualityRate * 100, 1),
-      oeePercent: parts.every((p) => p !== null) ? round(parts.reduce((t, p) => t * p, 1) * 100, 1) : null,
-    });
-  }
-  return { from, to, centers };
-}
-
-// ---------------------------------------------------------------- production summary (F191)
-export async function getProductionSummary(client, c, input = {}) {
-  need(c, "manufacturing.view");
-  const { from, to } = period(input);
-  const byProduct = (
-    await client.query(
-      `SELECT item.code AS item_code,item.name AS item_name,count(*)::int AS orders,sum(wo.quantity_completed)::text AS completed,sum(wo.quantity_planned)::text AS planned,
-              count(*) FILTER (WHERE wo.actual_end_at IS NOT NULL AND wo.due_date IS NOT NULL AND wo.actual_end_at::date<=wo.due_date)::int AS on_time,count(*) FILTER (WHERE wo.due_date IS NOT NULL AND wo.status='completed')::int AS with_due
-         FROM tenant.manufacturing_work_orders wo JOIN tenant.items item ON item.id=wo.item_id WHERE wo.organization_id=$1 AND wo.company_id=$2 AND wo.status IN ('completed','in_progress') AND COALESCE(wo.actual_end_at,wo.actual_start_at)>=$3::date AND COALESCE(wo.actual_end_at,wo.actual_start_at)<($4::date+1)
-        GROUP BY item.code,item.name ORDER BY sum(wo.quantity_completed) DESC`,
-      [c.organizationId, c.companyId, from, to],
-    )
-  ).rows;
-  return { from, to, lines: byProduct };
 }
 
 // ---------------------------------------------------------------- dashboard (F192)
@@ -209,10 +126,6 @@ export async function getProductionDashboard(client, c) {
             COALESCE((SELECT sum(r.quantity) FROM tenant.stock_reservations r WHERE r.organization_id=m.organization_id AND r.reference_type='manufacturing_work_order' AND r.reference_id=wo.id AND r.item_id=m.item_id AND r.status='active'),0)+0.000001`,
     [c.organizationId, c.companyId],
   )).rows[0];
-  const floor = (await client.query(`SELECT count(*) FILTER (WHERE op.status='ready')::int AS ready,count(*) FILTER (WHERE op.status='in_progress')::int AS running FROM tenant.manufacturing_work_order_operations op JOIN tenant.manufacturing_work_orders wo ON wo.id=op.work_order_id WHERE op.organization_id=$1 AND wo.company_id=$2 AND wo.status IN ('released','in_progress')`, [c.organizationId, c.companyId])).rows[0];
-  const down = (await client.query(`SELECT count(*)::int AS open FROM tenant.manufacturing_downtime_events WHERE organization_id=$1 AND company_id=$2 AND ended_at IS NULL`, [c.organizationId, c.companyId])).rows[0];
-  const yieldRow = await getYieldReport(client, c, { from: iso(new Date(Date.now() - 30 * 86400000)), to: today });
-  const mrp = (await client.query(`SELECT run_number,started_at,summary FROM tenant.manufacturing_planning_runs WHERE organization_id=$1 AND company_id=$2 ORDER BY started_at DESC LIMIT 1`, [c.organizationId, c.companyId])).rows[0] ?? null;
   const attention = (
     await client.query(
       `SELECT wo.id,wo.work_order_number,wo.status,item.code AS item_code,COALESCE(wo.due_date,wo.planned_end_at::date)::text AS due,wo.hold_reason
@@ -222,5 +135,5 @@ export async function getProductionDashboard(client, c) {
       [c.organizationId, c.companyId, today],
     )
   ).rows;
-  return { orders: { planned: counts.planned, released: counts.released, inProgress: counts.in_progress, onHold: counts.on_hold, late: counts.late, completedLast30Days: counts.completed_30d }, ordersWithShortages: shortages.orders, wipValue: seeCost(c) ? counts.wip_value : null, shopFloor: { ready: floor.ready, running: floor.running }, openDowntime: down.open, yieldLast30Days: yieldRow.overallYield, lastMrp: mrp, attention };
+  return { orders: { planned: counts.planned, released: counts.released, inProgress: counts.in_progress, onHold: counts.on_hold, late: counts.late, completedLast30Days: counts.completed_30d }, ordersWithShortages: shortages.orders, wipValue: seeCost(c) ? counts.wip_value : null, attention };
 }

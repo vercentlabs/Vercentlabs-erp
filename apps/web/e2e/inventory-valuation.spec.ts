@@ -35,7 +35,7 @@ async function open(page: Page, path: string, heading: string | RegExp) {
   ).toBeVisible({ timeout: 180_000 });
 }
 
-test("FIFO costing, valuation, aging, movement and CSV export; cost reports are closed to a view-only user", async ({
+test("FIFO costing, valuation, movement and CSV export; cost reports are closed to a view-only user", async ({
   browser,
 }) => {
   test.setTimeout(600_000);
@@ -121,19 +121,10 @@ test("FIFO costing, valuation, aging, movement and CSV export; cost reports are 
     expect(content).toContain("Stock value");
     expect(content).toContain(code);
 
-    await open(m, "/inventory/aging", "Stock aging");
-    await expect(
-      m.getByRole("row", { name: new RegExp(`${code}.*Value WH ${stamp}.*8`) }),
-    ).toBeVisible({ timeout: 60_000 });
     await open(m, "/inventory/movement", "Stock movement");
     await expect(
       m.getByRole("row", { name: new RegExp(`${code}.*20.*12`) }),
     ).toBeVisible({ timeout: 60_000 }); // received 20, issued 12
-    await open(m, "/inventory/landed-cost", "Landed cost");
-    await open(m, "/inventory/reports", "Inventory reports");
-    await expect(
-      m.getByRole("link", { name: /Inventory valuation/ }),
-    ).toBeVisible();
 
     // a view-only user cannot see valuation, and the API says so
     await open(

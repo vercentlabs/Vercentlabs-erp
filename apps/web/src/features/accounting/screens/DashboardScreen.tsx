@@ -23,8 +23,7 @@ const SHORTCUTS = [
   ["Supplier bills", "/accounting/supplier-invoices"],
   ["Payments", "/accounting/payments"],
   ["Bank statements", "/accounting/bank-transactions"],
-  ["Tax returns", "/accounting/gst"],
-  ["Period close", "/accounting/period-close"],
+  ["Fiscal periods", "/accounting/fiscal-periods"],
   ["Trial balance", "/accounting/trial-balance"],
 ] as const;
 const COUNTS = /(posted|pending|count|open|exceptions|periods|assets)/i;

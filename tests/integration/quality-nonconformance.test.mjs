@@ -1,7 +1,6 @@
 // Real PostgreSQL integration test -- quality holds and the F323 Stock-movement gate (a real call into
-// Stock's own postStockMovement, not a mock), non-conformance with containment/disposition (including
-// the use-as-is second-person approval), and CAPA through independent effectiveness verification
-// (F321-F333).
+// Stock's own postStockMovement, not a mock), and non-conformance with containment/disposition (including
+// the use-as-is second-person approval) (F321-F329).
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import test from "node:test";
@@ -11,11 +10,11 @@ import { ALL_QUALITY, buildQualityWorld, connectAdmin } from "./quality-test-kit
 const ROLES = {
   qaA: ALL_QUALITY,
   qaB: ALL_QUALITY,
-  holder: ["quality.hold", "quality.nonconformance.manage", "quality.capa.manage", "quality.view"], // no quality.manage: cannot self-approve use-as-is or self-verify a CAPA
+  holder: ["quality.hold", "quality.nonconformance.manage", "quality.view"], // no quality.manage: cannot self-approve use-as-is
   stockClerk: ["stock.issue"], // a warehouse user with a Stock permission but nothing from Quality
 };
 
-test("Quality holds (with the Stock movement gate), non-conformance and CAPA against real PostgreSQL", async (t) => {
+test("Quality holds (with the Stock movement gate) and non-conformance against real PostgreSQL", async (t) => {
   const admin = await connectAdmin();
   if (!admin) return t.skip("No reachable Postgres connection (MIGRATION_DATABASE_URL).");
   const w = await buildQualityWorld(admin, ROLES, "qlnc");
@@ -87,41 +86,6 @@ test("Quality holds (with the Stock movement gate), non-conformance and CAPA aga
       await denied("holder", (c, x) => api.closeNonconformance(c, x, nc.id, {}), 409, "QUALITY_NC_USE_AS_IS_UNAPPROVED");
       const approved = await run("qaB", (c, x) => api.approveUseAsIs(c, x, nc.id, { approve: true }));
       assert.ok(approved.use_as_is_approved_at);
-    });
-
-    await t.test("F330-333: CAPA -- root cause before actions, actions before verification, and never self-verified; a major NC needs it before closing", async () => {
-      await denied("holder", (c, x) => api.closeNonconformance(c, x, ids.nc, {}), 409, "QUALITY_NC_CAPA_REQUIRED");
-      const capa = await run("holder", (c, x) => api.createQualityCapa(c, x, { nonconformanceId: ids.nc, title: "Fix incoming length variance", dueDate: w.today }));
-      ids.capa = capa.id;
-      await denied("holder", (c, x) => api.recordCapaActions(c, x, capa.id, { correctiveAction: "Recalibrate incoming gauge" }), 409, "QUALITY_CAPA_ROOT_CAUSE_REQUIRED");
-      await denied("holder", (c, x) => api.recordRootCause(c, x, capa.id, { rootCause: "" }), 400, "QUALITY_CAPA_INVALID");
-      const withRootCause = await run("holder", (c, x) => api.recordRootCause(c, x, capa.id, { rootCauseMethod: "5-Why", rootCause: "Incoming gauge was out of calibration" }));
-      assert.equal(withRootCause.status, "analysis");
-      const withActions = await run("holder", (c, x) => api.recordCapaActions(c, x, capa.id, { correction: "Re-measured the 12 units by hand", correctiveAction: "Recalibrate the incoming gauge weekly", preventiveAction: "Add gauge calibration to the PM schedule" }));
-      assert.equal(withActions.status, "implementation");
-      const submitted = await run("holder", (c, x) => api.submitCapaForVerification(c, x, capa.id));
-      assert.equal(submitted.status, "verification");
-      await denied("holder", (c, x) => api.verifyCapa(c, x, capa.id, { effective: true, verificationResult: "Confirmed" }), 403, "SELF_APPROVAL_BLOCKED");
-      const verified = await run("qaA", (c, x) => api.verifyCapa(c, x, capa.id, { effective: true, verificationResult: "Ten follow-up lots all within tolerance" }));
-      assert.equal(verified.status, "effective");
-      const closedCapa = await run("holder", (c, x) => api.closeCapa(c, x, capa.id));
-      assert.equal(closedCapa.status, "closed");
-
-      const closedNc = await run("holder", (c, x) => api.closeNonconformance(c, x, ids.nc, {}));
-      assert.equal(closedNc.status, "closed");
-    });
-
-    await t.test("a CAPA owner cannot verify their own effectiveness result, even with quality.manage; an ineffective CAPA blocks NC closure", async () => {
-      const nc2 = await run("qaA", (c, x) => api.createQualityNonconformance(c, x, { severity: "critical", category: "safety", description: "Sharp edge found", detectedQuantity: 1, affectedQuantity: 1 }));
-      await run("qaA", (c, x) => api.setDisposition(c, x, nc2.id, { disposition: "rework", dispositionQuantity: 1 }));
-      const capa2 = await run("qaA", (c, x) => api.createQualityCapa(c, x, { nonconformanceId: nc2.id, title: "Eliminate sharp edge", ownerUserId: undefined }));
-      await run("qaA", (c, x) => api.recordRootCause(c, x, capa2.id, { rootCause: "Tooling wear" }));
-      await run("qaA", (c, x) => api.recordCapaActions(c, x, capa2.id, { correctiveAction: "Replace tooling" }));
-      await run("qaA", (c, x) => api.submitCapaForVerification(c, x, capa2.id));
-      await denied("qaA", (c, x) => api.verifyCapa(c, x, capa2.id, { effective: true, verificationResult: "Looks fine" }), 403, "SELF_APPROVAL_BLOCKED");
-      const ineffective = await run("qaB", (c, x) => api.verifyCapa(c, x, capa2.id, { effective: false, verificationResult: "New tooling still produced the defect" }));
-      assert.equal(ineffective.status, "ineffective");
-      await denied("qaA", (c, x) => api.closeNonconformance(c, x, nc2.id, {}), 409, "QUALITY_NC_CAPA_OPEN");
     });
 
     await t.test("cancelling an open non-conformance needs a reason", async () => {

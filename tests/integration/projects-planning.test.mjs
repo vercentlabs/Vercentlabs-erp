@@ -1,6 +1,6 @@
 // Real PostgreSQL integration test -- planning and delivery (F197-F201, F203, F205-F207, F228): the WBS and
-// sub-tasks, cycle-safe dependencies, the task state machine behind the Kanban board, milestones, critical-path
-// scheduling, the Gantt / Kanban / calendar views, progress roll-up and approved baselines.
+// sub-tasks, cycle-safe dependencies, the task state machine behind the Kanban board, milestones, the critical
+// path, the Gantt / Kanban / calendar views and progress roll-up.
 import assert from "node:assert/strict";
 import test from "node:test";
 
@@ -8,7 +8,7 @@ import { MEMBER, PM, PMO, buildProjectsWorld, connectAdmin } from "./projects-te
 
 const ROLES = { pm: PM, pmo: PMO, dev1: MEMBER, dev2: MEMBER, outsider: ["projects.view"] };
 
-test("Project planning, scheduling and baselines against real PostgreSQL", async (t) => {
+test("Project planning and progress against real PostgreSQL", async (t) => {
   const admin = await connectAdmin();
   if (!admin) return t.skip("No reachable Postgres connection (MIGRATION_DATABASE_URL).");
   const w = await buildProjectsWorld(admin, ROLES, "pjpl");
@@ -152,20 +152,7 @@ test("Project planning, scheduling and baselines against real PostgreSQL", async
       assert.throws(() => api.computeSchedule({ tasks: tasks.slice(0, 2), deps: [{ predecessor_task_id: "a", successor_task_id: "b", dependency_type: "finish_to_start", lag_days: 0 }, { predecessor_task_id: "b", successor_task_id: "a", dependency_type: "finish_to_start", lag_days: 0 }], projectStart: "2026-03-02" }), /loop/);
     });
 
-    await t.test("F205: scheduling a real project proposes dates, applies them for a manager only, and summary tasks span their children", async () => {
-      const preview = await run("dev1", (c, x) => api.scheduleProject(c, x, ids.p, {}));
-      assert.ok(preview.rows.length >= 3);
-      assert.equal(preview.applied, 0, "a preview changes nothing");
-      await denied("dev1", (c, x) => api.scheduleProject(c, x, ids.p, { apply: true }), 403);
-      const applied = await run("pm", (c, x) => api.scheduleProject(c, x, ids.p, { apply: true }));
-      assert.ok(applied.applied >= 2);
-      const [summary] = await sql(`SELECT planned_start_date,planned_end_date FROM tenant.project_tasks WHERE id=$1`, [ids.build]);
-      const [kids] = await sql(`SELECT min(planned_start_date) AS s,max(planned_end_date) AS e FROM tenant.project_tasks WHERE parent_task_id=$1`, [ids.build]);
-      assert.equal(String(summary.planned_start_date).slice(0, 10), String(kids.s).slice(0, 10));
-      assert.equal(String(summary.planned_end_date).slice(0, 10), String(kids.e).slice(0, 10));
-    });
-
-    await t.test("F205-F207: the Gantt, calendar and conflict views are read over the same task state", async () => {
+    await t.test("F205-F207: the Gantt and calendar views are read over the same task state", async () => {
       const gantt = await run("pm", (c, x) => api.getGanttData(c, x, ids.p));
       assert.ok(gantt.tasks.length >= 4 && gantt.dependencies.length === 2);
       assert.ok(gantt.tasks.some((tk) => tk.critical));
@@ -176,30 +163,6 @@ test("Project planning, scheduling and baselines against real PostgreSQL", async
       assert.ok(mine.tasks.length >= 1, "a team member's calendar covers the project they are on");
       const out = await run("outsider", (c, x) => api.getProjectCalendar(c, x, { from: "2026-03-01", to: "2026-04-30" }));
       assert.equal(out.tasks.length, 0);
-      await sql(`UPDATE tenant.project_tasks SET planned_start_date='2026-03-02',planned_end_date='2026-03-03' WHERE id=$1`, [ids.checkout]);
-      const conflicts = await run("pm", (c, x) => api.getScheduleConflicts(c, x, ids.p));
-      assert.ok(conflicts.conflicts.some((cf) => cf.type === "dependency"), "checkout starts before homepage finishes");
-    });
-
-    await t.test("baselines: a baseline is proposed, approved by someone else, freezes the plan, and variance is reported against it", async () => {
-      const none = await run("pm", (c, x) => api.getScheduleVariance(c, x, ids.p)).catch((e) => e);
-      assert.equal(none.code, "PROJECT_NO_BASELINE");
-      const b1 = await run("pm", (c, x) => api.createProjectBaseline(c, x, ids.p, { reason: "Initial plan" }));
-      assert.equal(b1.status, "pending_approval");
-      const again = await run("pm", (c, x) => api.createProjectBaseline(c, x, ids.p, {})).catch((e) => e);
-      assert.equal(again.code, "PROJECT_BASELINE_PENDING");
-      await denied("pm", (c, x) => api.approveProjectBaseline(c, x, b1.id), 403);
-      const approved = await run("pmo", (c, x) => api.approveProjectBaseline(c, x, b1.id));
-      assert.equal(approved.status, "approved");
-      await sql(`UPDATE tenant.project_tasks SET planned_end_date=planned_end_date+5 WHERE id=$1`, [ids.homepage]);
-      const variance = await run("pm", (c, x) => api.getScheduleVariance(c, x, ids.p));
-      assert.equal(variance.baselineVersion, 1);
-      assert.equal(variance.rows.find((r) => r.task_number && r.name === "Homepage").finishVarianceDays, 5);
-      assert.ok(variance.slipped >= 1);
-      const b2 = await run("pm", (c, x) => api.createProjectBaseline(c, x, ids.p, { reason: "Rebaseline" }));
-      await run("pmo", (c, x) => api.approveProjectBaseline(c, x, b2.id));
-      const list = await run("pm", (c, x) => api.listProjectBaselines(c, x, ids.p));
-      assert.deepEqual(list.map((b) => b.status), ["approved", "superseded"], "the earlier baseline is superseded, never overwritten");
     });
 
     await t.test("F199: a task with sub-tasks or time cannot be deleted; a closed project accepts no new work", async () => {

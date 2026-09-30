@@ -1,10 +1,9 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { ColumnDef } from "@tanstack/react-table";
-import { ArrowLeftRight, Check, Plus, RotateCcw } from "lucide-react";
+import { Check, Plus, RotateCcw } from "lucide-react";
 import {
   AlertDialog,
   Button,
@@ -64,7 +63,6 @@ const STATUS_TONE: Record<
 // code path to gate here.
 export function PosReturnsScreen() {
   const workspace = useWorkspaceContext();
-  const router = useRouter();
   const queryClient = useQueryClient();
   const canCreate =
     workspace.roleSlugs.includes("organization_owner") ||
@@ -227,16 +225,6 @@ export function PosReturnsScreen() {
                   <RotateCcw className="size-4" aria-hidden="true" />
                   Complete refund
                 </Button>
-                <Button
-                  variant="secondary"
-                  size="compact"
-                  onPress={() =>
-                    router.push(`/pos/checkout?exchangeReturnId=${r.id}`)
-                  }
-                >
-                  <ArrowLeftRight className="size-4" aria-hidden="true" />
-                  Exchange
-                </Button>
               </div>
             );
           }
@@ -244,7 +232,7 @@ export function PosReturnsScreen() {
         },
       },
     ],
-    [canApprove, approveMutation, completeMutation, completeTarget, router],
+    [canApprove, approveMutation, completeMutation, completeTarget],
   );
 
   if (!canView)

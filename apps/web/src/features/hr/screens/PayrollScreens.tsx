@@ -34,7 +34,6 @@ import {
   tone,
 } from "@/features/hr/shared/format";
 import { HrAlert, HrPanel, useCan } from "@/features/hr/shared/HrUi";
-import { PayrollCloseoutPanel } from "@/features/hr/screens/CloseScreens";
 
 const errorText = (e: unknown) =>
   e instanceof HrApiError ? e.message : "This could not be completed.";
@@ -707,9 +706,6 @@ export function PayrollRunScreen({ id }: { id: string }) {
           </ul>
         )}
       </HrPanel>
-      {["approved", "posted", "paid"].includes(st) && (
-        <PayrollCloseoutPanel runId={id} status={st} />
-      )}
       {ask && (
         <Dialog
           isOpen
@@ -792,10 +788,6 @@ export function PayslipScreen({ id }: { id: string }) {
             value: `${quantity(p.paid_days)} of ${quantity(p.working_days)}`,
           },
           { label: "Loss of pay", value: quantity(p.lop_days) },
-          {
-            label: "Overtime",
-            value: `${Math.round(Number(p.overtime_minutes) / 6) / 10} h`,
-          },
         ]}
       />
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">

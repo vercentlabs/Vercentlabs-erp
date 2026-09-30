@@ -1,60 +1,27 @@
 import { z } from "zod";
 
 import {
-  activateRouting,
-  endDowntime,
   holdProductionOrder,
-  linkWorkCenterAsset,
-  logTime,
-  receiveFromSubcontractor,
   recordInspection,
   resumeProductionOrder,
-  sendToSubcontractor,
-  startDowntime,
-  startTimer,
-  stopTimer,
-  addBomOutput,
   cancelProductionOrder,
   closeProductionOrder,
-  completeOperation,
   createProductionOrder,
   issueMaterials,
   recordScrap,
   releaseProductionOrder,
-  removeBomOutput,
   reportProduction,
   returnMaterials,
-  sendToRework,
-  skipOperation,
-  startOperation,
   updateManufacturingSettings,
-  addCalendarException,
   addComponentAlternate,
-  addShift,
   approveBom,
-  cancelEngineeringChange,
   createBom,
-  createOrdersFromMrp,
-  runMrp,
-  scheduleProductionOrders,
-  createRouting,
-  createEngineeringChange,
-  decideEngineeringChange,
-  implementEngineeringChange,
   obsoleteBom,
-  obsoleteRouting,
   rejectBom,
-  removeCalendarException,
   removeComponentAlternate,
-  removeShift,
   reviseBom,
-  reviseRouting,
-  saveCalendar,
-  saveWorkCenter,
   submitBom,
-  submitEngineeringChange,
   updateDraftBom,
-  updateDraftRouting,
 } from "@vercentlabs/api";
 
 import { HttpError } from "@/core/http";
@@ -128,83 +95,6 @@ export async function POST(
               idOf(input),
             ),
           };
-        case "change-create":
-          return {
-            record: await createEngineeringChange(client, context, input),
-          };
-        case "change-submit":
-          return {
-            record: await submitEngineeringChange(client, context, idOf(input)),
-          };
-        case "change-decide":
-          return {
-            record: await decideEngineeringChange(
-              client,
-              context,
-              idOf(input),
-              {
-                approve: input.approve === true,
-                note: String(input.note ?? ""),
-              },
-            ),
-          };
-        case "change-implement":
-          return {
-            record: await implementEngineeringChange(
-              client,
-              context,
-              idOf(input),
-            ),
-          };
-        case "change-cancel":
-          return {
-            record: await cancelEngineeringChange(
-              client,
-              context,
-              idOf(input),
-              String(input.reason ?? ""),
-            ),
-          };
-        case "work-center-save":
-          return { record: await saveWorkCenter(client, context, input) };
-        case "calendar-save":
-          return { record: await saveCalendar(client, context, input) };
-        case "shift-add":
-          return { record: await addShift(client, context, input) };
-        case "shift-remove":
-          return { record: await removeShift(client, context, idOf(input)) };
-        case "exception-add":
-          return { record: await addCalendarException(client, context, input) };
-        case "exception-remove":
-          return {
-            record: await removeCalendarException(client, context, idOf(input)),
-          };
-        case "routing-create":
-          return { record: await createRouting(client, context, input) };
-        case "routing-update":
-          return {
-            record: await updateDraftRouting(
-              client,
-              context,
-              idOf(input),
-              input,
-            ),
-          };
-        case "routing-activate":
-          return {
-            record: await activateRouting(client, context, idOf(input)),
-          };
-        case "routing-revise":
-          return { record: await reviseRouting(client, context, idOf(input)) };
-        case "routing-obsolete":
-          return {
-            record: await obsoleteRouting(
-              client,
-              context,
-              idOf(input),
-              String(input.reason ?? ""),
-            ),
-          };
         case "order-create":
           return {
             record: await createProductionOrder(client, context, input),
@@ -251,26 +141,6 @@ export async function POST(
               input,
             ),
           };
-        case "operation-start":
-          return { record: await startOperation(client, context, idOf(input)) };
-        case "operation-complete":
-          return {
-            record: await completeOperation(
-              client,
-              context,
-              idOf(input),
-              input,
-            ),
-          };
-        case "operation-skip":
-          return {
-            record: await skipOperation(
-              client,
-              context,
-              idOf(input),
-              String(input.reason ?? ""),
-            ),
-          };
         case "production-report":
           return {
             record: await reportProduction(
@@ -289,46 +159,9 @@ export async function POST(
               input,
             ),
           };
-        case "rework-create":
-          return {
-            record: await sendToRework(
-              client,
-              context,
-              String(input.orderId ?? ""),
-              input,
-            ),
-          };
         case "settings-save":
           return {
             record: await updateManufacturingSettings(client, context, input),
-          };
-        case "bom-output-add":
-          return {
-            record: await addBomOutput(
-              client,
-              context,
-              String(input.bomId ?? ""),
-              input,
-            ),
-          };
-        case "bom-output-remove":
-          return {
-            record: await removeBomOutput(client, context, idOf(input)),
-          };
-        case "mrp-run":
-          return { record: await runMrp(client, context, input) };
-        case "mrp-convert":
-          return {
-            record: await createOrdersFromMrp(
-              client,
-              context,
-              idOf(input),
-              input,
-            ),
-          };
-        case "schedule-run":
-          return {
-            record: await scheduleProductionOrders(client, context, input),
           };
         case "order-hold":
           return {
@@ -348,63 +181,12 @@ export async function POST(
               String(input.note ?? ""),
             ),
           };
-        case "time-log":
-          return {
-            record: await logTime(
-              client,
-              context,
-              String(input.operationId ?? ""),
-              input,
-            ),
-          };
-        case "timer-start":
-          return {
-            record: await startTimer(
-              client,
-              context,
-              String(input.operationId ?? ""),
-              input,
-            ),
-          };
-        case "timer-stop":
-          return { record: await stopTimer(client, context, idOf(input)) };
         case "inspection-record":
           return {
             record: await recordInspection(
               client,
               context,
               String(input.orderId ?? ""),
-              input,
-            ),
-          };
-        case "downtime-start":
-          return { record: await startDowntime(client, context, input) };
-        case "downtime-end":
-          return { record: await endDowntime(client, context, idOf(input)) };
-        case "work-center-asset":
-          return {
-            record: await linkWorkCenterAsset(
-              client,
-              context,
-              String(input.workCenterId ?? ""),
-              input.assetId ? String(input.assetId) : null,
-            ),
-          };
-        case "subcontract-send":
-          return {
-            record: await sendToSubcontractor(
-              client,
-              context,
-              String(input.operationId ?? ""),
-              input,
-            ),
-          };
-        case "subcontract-receive":
-          return {
-            record: await receiveFromSubcontractor(
-              client,
-              context,
-              idOf(input),
               input,
             ),
           };

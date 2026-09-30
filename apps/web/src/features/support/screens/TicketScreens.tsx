@@ -47,21 +47,17 @@ const PRIORITIES = opts("low", "normal", "high", "urgent", "critical");
 
 // ---------------------------------------------------------------- ticket list registers (F343-346,348,349)
 export function ticketsRegister(
-  scope: "all" | "mine" | "unassigned" | "escalated" | "breached",
+  scope: "all" | "mine" | "unassigned",
 ): RegisterConfig {
   const titles = {
     all: "All tickets",
     mine: "My tickets",
     unassigned: "Unassigned tickets",
-    escalated: "Escalated tickets",
-    breached: "Breached SLAs",
   } as const;
   const params: Record<string, string> = {
     all: {},
     mine: { scope: "mine" },
     unassigned: { status: "new" },
-    escalated: {},
-    breached: { breachedOnly: "true" },
   }[scope] as Record<string, string>;
   return {
     key: `tickets-${scope}`,
@@ -71,18 +67,11 @@ export function ticketsRegister(
         ? "Tickets assigned to you."
         : scope === "unassigned"
           ? "New tickets nobody has picked up yet."
-          : scope === "escalated"
-            ? "Tickets with an open escalation."
-            : scope === "breached"
-              ? "Tickets past their first-response or resolution SLA."
-              : "Every ticket.",
+          : "Every ticket.",
     searchLabel: "Search tickets",
     emptyTitle: "No tickets",
     emptyDescription: "A ticket appears here once created.",
-    source:
-      scope === "escalated"
-        ? { kind: "view", view: "escalations", params: { status: "open" } }
-        : { kind: "view", view: "tickets", params },
+    source: { kind: "view", view: "tickets", params },
     filters:
       scope === "all"
         ? [
@@ -160,52 +149,30 @@ export function ticketsRegister(
             },
           ]
         : undefined,
-    columns: () =>
-      scope === "escalated"
-        ? [
-            link(
-              "ticket",
-              "Ticket",
-              (r) => String(r.ticket_number),
-              (r) => `/support/ticket/${String(r.ticket_id)}`,
-            ),
-            col("subject", "Subject", (r) => String(r.subject)),
-            badge("level", "Level", (r) => `Level ${r.escalation_level}`),
-            col("reason", "Reason", (r) => String(r.reason)),
-            col("escalated", "Escalated", (r) => dateTime(r.escalated_at)),
-            badge("status", "Status", (r) => r.status),
-          ]
-        : [
-            link(
-              "ticket",
-              "Ticket",
-              (r) => String(r.ticket_number),
-              (r) => `/support/ticket/${String(r.id)}`,
-            ),
-            col("subject", "Subject", (r) => String(r.subject)),
-            col("customer", "Customer", (r) => String(r.party_name ?? "—")),
-            badge("priority", "Priority", (r) => r.priority),
-            badge("status", "Status", (r) => r.status),
-            col("queue", "Queue", (r) => String(r.queue_name ?? "—")),
-            col("due", "Resolution due", (r) =>
-              r.resolution_due_at ? dateTime(r.resolution_due_at) : "—",
-            ),
-            col("created", "Created", (r) => dateTime(r.created_at)),
-          ],
+    columns: () => [
+      link(
+        "ticket",
+        "Ticket",
+        (r) => String(r.ticket_number),
+        (r) => `/support/ticket/${String(r.id)}`,
+      ),
+      col("subject", "Subject", (r) => String(r.subject)),
+      col("customer", "Customer", (r) => String(r.party_name ?? "—")),
+      badge("priority", "Priority", (r) => r.priority),
+      badge("status", "Status", (r) => r.status),
+      col("created", "Created", (r) => dateTime(r.created_at)),
+    ],
     searchText: (r) =>
       text(r, ["ticket_number", "subject", "party_name", "status", "priority"]),
-    rowActions:
-      scope === "escalated"
-        ? []
-        : [
-            {
-              label: "Assign to me",
-              permission: "support.ticket.assign",
-              show: (r) => !r.assigned_user_id,
-              run: (r) => act("ticket-assign", { id: r.id }),
-              success: "Assigned.",
-            },
-          ],
+    rowActions: [
+      {
+        label: "Assign to me",
+        permission: "support.ticket.assign",
+        show: (r) => !r.assigned_user_id,
+        run: (r) => act("ticket-assign", { id: r.id }),
+        success: "Assigned.",
+      },
+    ],
   };
 }
 
@@ -288,13 +255,6 @@ export function TicketDetailScreen({ id }: { id: string }) {
         (r) => r.history,
       ),
   });
-  const linked = useQuery({
-    queryKey: scopedQueryKey(workspace, "support", "linked", id),
-    queryFn: () =>
-      readView<{ linked: Row }>("ticket-linked-records", { ticketId: id }).then(
-        (r) => r.linked,
-      ),
-  });
 
   const refresh = () =>
     queryClient.invalidateQueries({
@@ -332,16 +292,9 @@ export function TicketDetailScreen({ id }: { id: string }) {
         metrics={[
           { label: "Status", value: label(t.status) },
           { label: "Priority", value: label(t.priority) },
-          { label: "Queue", value: String(t.queue_name ?? "—") },
           {
-            label: "First response due",
-            value: t.first_response_due_at
-              ? dateTime(t.first_response_due_at)
-              : "—",
-          },
-          {
-            label: "Resolution due",
-            value: t.resolution_due_at ? dateTime(t.resolution_due_at) : "—",
+            label: "Category",
+            value: String(t.category_name ?? "—"),
           },
         ]}
       />
@@ -380,33 +333,7 @@ export function TicketDetailScreen({ id }: { id: string }) {
             Assign to me
           </Button>
         )}
-        {can("support.escalation.manage") && (
-          <Button variant="ghost" onPress={() => setPendingAction("escalate")}>
-            Escalate
-          </Button>
-        )}
       </div>
-
-      <SupportPanel title="Linked records">
-        <ul className="text-sm text-text-secondary">
-          <li>
-            Product:{" "}
-            {linked.data?.product ? String(linked.data.product.name) : "—"}
-          </li>
-          <li>
-            Asset:{" "}
-            {linked.data?.asset
-              ? `${String(linked.data.asset.name)}${linked.data.assetUnderWarranty === false ? " (out of warranty)" : linked.data.assetUnderWarranty ? " (under warranty)" : ""}`
-              : "—"}
-          </li>
-          <li>
-            Sales order:{" "}
-            {linked.data?.order
-              ? String(linked.data.order.sales_order_number)
-              : "—"}
-          </li>
-        </ul>
-      </SupportPanel>
 
       <SupportPanel
         title="Conversation"
@@ -503,7 +430,7 @@ export function TicketDetailScreen({ id }: { id: string }) {
         </ul>
       </SupportPanel>
 
-      {pendingAction && pendingAction !== "escalate" && (
+      {pendingAction && (
         <Dialog
           isOpen
           onOpenChange={(o) => !o && setPendingAction(null)}
@@ -557,45 +484,6 @@ export function TicketDetailScreen({ id }: { id: string }) {
           </div>
         </Dialog>
       )}
-      {pendingAction === "escalate" && (
-        <Dialog
-          isOpen
-          onOpenChange={(o) => !o && setPendingAction(null)}
-          title="Escalate"
-        >
-          <div className="flex flex-col gap-4">
-            <TextArea
-              label="Reason"
-              value={reason}
-              onChange={setReason}
-              isRequired
-            />
-            <div className="flex justify-end gap-2">
-              <Button
-                variant="secondary"
-                onPress={() => setPendingAction(null)}
-              >
-                Close
-              </Button>
-              <Button
-                variant="primary"
-                isDisabled={!reason.trim()}
-                isLoading={go.isPending}
-                onPress={() =>
-                  go.mutate(async () => {
-                    await act("escalation-raise", { ticketId: id, reason });
-                    setNotice("Escalated.");
-                    setPendingAction(null);
-                    setReason("");
-                  })
-                }
-              >
-                Escalate
-              </Button>
-            </div>
-          </div>
-        </Dialog>
-      )}
     </div>
   );
 }
@@ -620,7 +508,7 @@ export function SupportDashboardScreen() {
     <div className="flex flex-col gap-4">
       <PageHeader
         title="Support"
-        description="Ticket volume, SLA health and what needs attention right now."
+        description="Ticket volume and what needs attention right now."
       />
       {d && (
         <MetricStrip
@@ -631,15 +519,6 @@ export function SupportDashboardScreen() {
               label: "High priority",
               value: quantity(d.high_priority_tickets),
             },
-            {
-              label: "First-response breaches",
-              value: quantity(d.first_response_breaches),
-            },
-            {
-              label: "Resolution breaches",
-              value: quantity(d.resolution_breaches),
-            },
-            { label: "Open escalations", value: quantity(d.open_escalations) },
             { label: "My open tickets", value: quantity(d.my_open) },
             { label: "Resolved today", value: quantity(d.resolved_today) },
           ]}
@@ -648,58 +527,3 @@ export function SupportDashboardScreen() {
     </div>
   );
 }
-
-// ---------------------------------------------------------------- escalations (decide)
-export const escalationsRegister: RegisterConfig = {
-  key: "escalations-admin",
-  title: "Escalations",
-  description: "Every escalation, open or resolved.",
-  searchLabel: "Search escalations",
-  emptyTitle: "No escalations",
-  emptyDescription: "An escalation appears here once one is raised.",
-  source: { kind: "view", view: "escalations" },
-  filters: [
-    {
-      name: "status",
-      label: "Status",
-      options: opts("open", "acknowledged", "resolved", "cancelled"),
-    },
-  ],
-  columns: () => [
-    link(
-      "ticket",
-      "Ticket",
-      (r) => String(r.ticket_number),
-      (r) => `/support/ticket/${String(r.ticket_id)}`,
-    ),
-    col("subject", "Subject", (r) => String(r.subject)),
-    badge("level", "Level", (r) => `Level ${r.escalation_level}`),
-    col("reason", "Reason", (r) => String(r.reason)),
-    col("escalated", "Escalated", (r) => dateTime(r.escalated_at)),
-    badge("status", "Status", (r) => r.status),
-  ],
-  searchText: (r) => text(r, ["ticket_number", "subject", "reason", "status"]),
-  rowActions: [
-    {
-      label: "Acknowledge",
-      permission: "support.escalation.manage",
-      show: (r) => r.status === "open",
-      run: (r) => act("escalation-decide", { id: r.id, action: "acknowledge" }),
-      success: "Acknowledged.",
-    },
-    {
-      label: "Resolve",
-      permission: "support.escalation.manage",
-      show: (r) => ["open", "acknowledged"].includes(String(r.status)),
-      run: (r) => act("escalation-decide", { id: r.id, action: "resolve" }),
-      success: "Resolved.",
-    },
-    {
-      label: "Cancel",
-      permission: "support.escalation.manage",
-      show: (r) => ["open", "acknowledged"].includes(String(r.status)),
-      run: (r) => act("escalation-decide", { id: r.id, action: "cancel" }),
-      success: "Cancelled.",
-    },
-  ],
-};

@@ -78,10 +78,6 @@ export const getDashboard = () =>
   request<{ dashboard: Record<string, string | number> }>("/dashboard").then(
     (r) => r.dashboard,
   );
-export const getReport = (key: string) =>
-  request<{ report: { rows: Array<Record<string, unknown>> } }>(
-    `/reports/${key}`,
-  ).then((r) => r.report.rows);
 export const listOperations = <T>(kind: string) =>
   request<{ rows: T[] }>(`/operations?kind=${kind}`).then((r) => r.rows);
 export const runMatch = (input: Record<string, unknown>) =>

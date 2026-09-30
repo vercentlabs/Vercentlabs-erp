@@ -5,14 +5,13 @@ import { beginIdempotentOperation, completeIdempotentOperation } from "../../cor
 import { createStockBatch, postStockMovement, receiveSerializedStock, releaseStockReservation, reserveStock } from "../stock/index.js";
 import { MfgError, dateOrNull, has, need, positive, recordEvent, text, uuid } from "./common.js";
 import { resolveBomForItem } from "./engineering.js";
-import { operationInspectionSatisfied } from "./execution.js";
 
-// Shop-floor execution (F155-F157, F162-F167, F172-F179).
+// Production orders (F155-F156, F162-F167, F172-F173, F176-F179).
 //
 //   planned -> released (materials reserved) -> in_progress -> completed | cancelled
 //
 // Materials leave stock when ISSUED (manually, or backflushed when production is reported) and
-// accrue to the order as work-in-progress cost; finished goods (and any by-/co-products) enter stock
+// accrue to the order as work-in-progress cost; finished goods enter stock
 // at the cost absorbed from WIP. Stock effects go through Stock's own functions -- one ledger
 // movement per allocation, idempotent -- so the order, the ledger and the balances cannot disagree.
 const round = (n) => Math.round(n * 1e6) / 1e6;
@@ -175,15 +174,6 @@ export async function createProductionOrder(client, c, input = {}) {
     if (["cancelled", "closed", "draft"].includes(order.lifecycle_status)) throw new MfgError(409, `A ${order.lifecycle_status} sales order cannot drive production.`, "MFG_SALES_ORDER_STATE_INVALID");
     sourceLabel = sourceLabel || order.sales_order_number;
   }
-  let routingId = null;
-  if (input.routingId) {
-    routingId = uuid(input.routingId, "Routing");
-    const r = (await client.query(`SELECT status FROM tenant.manufacturing_routings WHERE organization_id=$1 AND company_id=$2 AND id=$3`, [c.organizationId, c.companyId, routingId])).rows[0];
-    if (!r) throw new MfgError(404, "Routing was not found.", "MFG_ROUTING_NOT_FOUND");
-    if (r.status !== "active") throw new MfgError(409, "Only an active routing can be used.", "MFG_ROUTING_STATE_INVALID");
-  } else {
-    routingId = (await client.query(`SELECT id FROM tenant.manufacturing_routings WHERE organization_id=$1 AND company_id=$2 AND item_id=$3 AND status='active' AND is_default LIMIT 1`, [c.organizationId, c.companyId, bom.item_id])).rows[0]?.id ?? null;
-  }
   const key = text(input.idempotencyKey, 200) || null;
   if (key) {
     const replay = (await client.query(`SELECT * FROM tenant.manufacturing_work_orders WHERE organization_id=$1 AND company_id=$2 AND content_hash=$3`, [c.organizationId, c.companyId, `idem:${key}`])).rows[0];
@@ -193,9 +183,9 @@ export async function createProductionOrder(client, c, input = {}) {
   const priority = ["low", "normal", "high", "urgent"].includes(input.priority) ? input.priority : "normal";
   const wo = (
     await client.query(
-      `INSERT INTO tenant.manufacturing_work_orders(organization_id,company_id,work_order_number,item_id,bom_id,routing_id,quantity_planned,status,source_type,source_id,source_label,priority,planned_start_at,planned_end_at,wip_warehouse_id,finished_goods_warehouse_id,content_hash,created_by,notes)
-       VALUES($1,$2,$3,$4,$5,$6,$7,'planned',$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18) RETURNING *`,
-      [c.organizationId, c.companyId, number, bom.item_id, bom.id, routingId, quantity, sourceType, sourceId, sourceLabel, priority, start, end, wipId, fgId, key ? `idem:${key}` : `snap:${bom.id}:${bom.version}:${quantity}`, c.userId, text(input.notes, 2000) || null],
+      `INSERT INTO tenant.manufacturing_work_orders(organization_id,company_id,work_order_number,item_id,bom_id,quantity_planned,status,source_type,source_id,source_label,priority,planned_start_at,planned_end_at,wip_warehouse_id,finished_goods_warehouse_id,content_hash,created_by,notes)
+       VALUES($1,$2,$3,$4,$5,$6,'planned',$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17) RETURNING *`,
+      [c.organizationId, c.companyId, number, bom.item_id, bom.id, quantity, sourceType, sourceId, sourceLabel, priority, start, end, wipId, fgId, key ? `idem:${key}` : `snap:${bom.id}:${bom.version}:${quantity}`, c.userId, text(input.notes, 2000) || null],
     )
   ).rows[0];
   await client.query(
@@ -205,19 +195,8 @@ export async function createProductionOrder(client, c, input = {}) {
        FROM tenant.manufacturing_bom_components component JOIN tenant.manufacturing_boms bom ON bom.id=component.bom_id WHERE component.organization_id=$4 AND component.bom_id=$5`,
     [wo.id, materialWh, quantity, c.organizationId, bom.id],
   );
-  if (routingId) await copyOperations(client, c, wo, routingId, quantity);
   await recordEvent(client, c, "work_order", wo.id, "manufacturing.work_order.created", { bomId: bom.id, quantity, sourceType });
   return { ...wo, replayed: false };
-}
-
-async function copyOperations(client, c, wo, routingId, quantity) {
-  await client.query(
-    `INSERT INTO tenant.manufacturing_work_order_operations(organization_id,work_order_id,routing_operation_id,sequence,name,work_center_id,status,planned_minutes,inspection_required)
-     SELECT o.organization_id,$1,o.id,o.sequence,o.name,o.work_center_id,CASE WHEN o.sequence=(SELECT min(x.sequence) FROM tenant.manufacturing_routing_operations x WHERE x.routing_id=o.routing_id) THEN 'ready' ELSE 'pending' END,
-            o.setup_minutes+o.queue_minutes+o.move_minutes+o.run_minutes_per_unit*$2::numeric,o.inspection_required
-       FROM tenant.manufacturing_routing_operations o WHERE o.organization_id=$3 AND o.routing_id=$4 ORDER BY o.sequence`,
-    [wo.id, quantity, c.organizationId, routingId],
-  );
 }
 
 // Release reserves the components. A shortage stops the release unless the planner accepts it.
@@ -334,78 +313,6 @@ export async function returnMaterials(client, c, id, input = {}) {
   return response;
 }
 
-// ---------------------------------------------------------------- job cards / operations (F157)
-async function loadOperation(client, c, id) {
-  const op = (await client.query(`SELECT op.*,wo.status AS wo_status,wo.id AS wo_id FROM tenant.manufacturing_work_order_operations op JOIN tenant.manufacturing_work_orders wo ON wo.id=op.work_order_id WHERE op.organization_id=$1 AND wo.company_id=$2 AND op.id=$3 FOR UPDATE OF op`, [c.organizationId, c.companyId, uuid(id, "Operation")])).rows[0];
-  if (!op) throw new MfgError(404, "Operation was not found.", "MFG_OPERATION_NOT_FOUND");
-  return op;
-}
-async function readyNext(client, c, workOrderId) {
-  const next = (await client.query(`SELECT id FROM tenant.manufacturing_work_order_operations WHERE organization_id=$1 AND work_order_id=$2 AND status='pending' ORDER BY sequence LIMIT 1`, [c.organizationId, workOrderId])).rows[0];
-  const busy = (await client.query(`SELECT 1 FROM tenant.manufacturing_work_order_operations WHERE organization_id=$1 AND work_order_id=$2 AND status IN ('ready','in_progress') LIMIT 1`, [c.organizationId, workOrderId])).rows[0];
-  if (next && !busy) await client.query(`UPDATE tenant.manufacturing_work_order_operations SET status='ready' WHERE id=$1`, [next.id]);
-}
-
-export async function startOperation(client, c, operationId) {
-  need(c, "manufacturing.production.post");
-  const op = await loadOperation(client, c, operationId);
-  if (!["released", "in_progress"].includes(op.wo_status)) throw new MfgError(409, `The work order is ${op.wo_status}; release it before starting work.`, "MFG_WORK_ORDER_STATE_INVALID");
-  if (op.status !== "ready") throw new MfgError(409, op.status === "pending" ? "An earlier operation must be completed first." : `This operation is ${op.status}.`, "MFG_OPERATION_STATE_INVALID");
-  const { rows } = await client.query(`UPDATE tenant.manufacturing_work_order_operations SET status='in_progress',started_at=now(),started_by=$3 WHERE organization_id=$1 AND id=$2 RETURNING *`, [c.organizationId, op.id, c.userId]);
-  await client.query(`UPDATE tenant.manufacturing_work_orders SET status='in_progress',actual_start_at=COALESCE(actual_start_at,now()),updated_at=now() WHERE id=$1`, [op.wo_id]);
-  return rows[0];
-}
-
-export async function completeOperation(client, c, operationId, input = {}) {
-  need(c, "manufacturing.production.post");
-  const op = await loadOperation(client, c, operationId);
-  if (op.status !== "in_progress") throw new MfgError(409, "Only an operation that has been started can be completed.", "MFG_OPERATION_STATE_INVALID");
-  if (op.inspection_required && !(await operationInspectionSatisfied(client, c, op.id))) throw new MfgError(409, "This operation requires a passing inspection before it can be completed. Record one on the order.", "MFG_INSPECTION_REQUIRED");
-  // Logged time is the operation's cost; without any, the elapsed/entered minutes are costed at completion.
-  const logged = (await client.query(`SELECT count(*)::int AS n,COALESCE(sum(minutes) FILTER (WHERE ended_at IS NOT NULL),0) AS minutes FROM tenant.manufacturing_time_entries WHERE organization_id=$1 AND operation_id=$2`, [c.organizationId, op.id])).rows[0];
-  const hasLoggedTime = logged.n > 0;
-  const minutes = input.actualMinutes === undefined || input.actualMinutes === "" ? (hasLoggedTime ? Number(logged.minutes) : Math.max(Math.round((Date.now() - new Date(op.started_at).getTime()) / 60000), 0)) : Number(input.actualMinutes);
-  if (!Number.isFinite(minutes) || minutes < 0) throw new MfgError(400, "Actual minutes must be zero or greater.", "MFG_QUANTITY_INVALID");
-  const good = input.quantityGood === undefined || input.quantityGood === "" ? 0 : Number(input.quantityGood);
-  if (!Number.isFinite(good) || good < 0) throw new MfgError(400, "Good quantity must be zero or greater.", "MFG_QUANTITY_INVALID");
-  const center = op.work_center_id ? (await client.query(`SELECT hourly_rate,overhead_rate FROM tenant.manufacturing_work_centers WHERE id=$1`, [op.work_center_id])).rows[0] : null;
-  const labor = hasLoggedTime ? 0 : round((minutes / 60) * Number(center?.hourly_rate ?? 0));
-  const overhead = hasLoggedTime ? 0 : round((minutes / 60) * Number(center?.overhead_rate ?? 0));
-  const { rows } = await client.query(`UPDATE tenant.manufacturing_work_order_operations SET status='completed',completed_at=now(),completed_by=$3,actual_minutes=$4,quantity_good=$5 WHERE organization_id=$1 AND id=$2 RETURNING *`, [c.organizationId, op.id, c.userId, minutes, good]);
-  await client.query(`UPDATE tenant.manufacturing_work_orders SET labor_cost=labor_cost+$2,overhead_cost=overhead_cost+$3,updated_at=now() WHERE id=$1`, [op.wo_id, labor, overhead]);
-  await readyNext(client, c, op.wo_id);
-  await recordEvent(client, c, "work_order", op.wo_id, "manufacturing.operation.completed", { sequence: op.sequence, minutes });
-  return { ...rows[0], laborCost: seeCost(c) ? String(labor) : null, overheadCost: seeCost(c) ? String(overhead) : null };
-}
-
-export async function skipOperation(client, c, operationId, reason) {
-  need(c, "manufacturing.work_order.manage");
-  const op = await loadOperation(client, c, operationId);
-  if (!["pending", "ready"].includes(op.status)) throw new MfgError(409, "Only an operation that has not started can be skipped.", "MFG_OPERATION_STATE_INVALID");
-  if (!text(reason, 500)) throw new MfgError(400, "A reason is required to skip an operation.", "MFG_REASON_REQUIRED");
-  const { rows } = await client.query(`UPDATE tenant.manufacturing_work_order_operations SET status='skipped' WHERE organization_id=$1 AND id=$2 RETURNING *`, [c.organizationId, op.id]);
-  await readyNext(client, c, op.wo_id);
-  await recordEvent(client, c, "work_order", op.wo_id, "manufacturing.operation.skipped", { sequence: op.sequence, reason: text(reason, 500) });
-  return rows[0];
-}
-
-export async function listJobCards(client, c, { status = null, workCenterId = null } = {}) {
-  need(c, "manufacturing.view");
-  const values = [c.organizationId, c.companyId];
-  let filter = "";
-  if (status) { values.push(String(status)); filter += ` AND op.status=$${values.length}`; } else filter += " AND op.status IN ('ready','in_progress')";
-  if (workCenterId) { values.push(uuid(workCenterId, "Work centre")); filter += ` AND op.work_center_id=$${values.length}`; }
-  const { rows } = await client.query(
-    `SELECT op.id,op.sequence,op.name,op.status,op.planned_minutes::text AS planned_minutes,op.actual_minutes::text AS actual_minutes,op.started_at,op.inspection_required,
-            wo.id AS work_order_id,wo.work_order_number,wo.quantity_planned::text AS quantity_planned,wo.priority,wo.planned_start_at,item.code AS item_code,item.name AS item_name,wc.code AS work_center_code,wc.name AS work_center_name
-       FROM tenant.manufacturing_work_order_operations op JOIN tenant.manufacturing_work_orders wo ON wo.id=op.work_order_id JOIN tenant.items item ON item.id=wo.item_id LEFT JOIN tenant.manufacturing_work_centers wc ON wc.id=op.work_center_id
-      WHERE op.organization_id=$1 AND wo.company_id=$2 AND wo.status IN ('released','in_progress')${filter}
-      ORDER BY CASE wo.priority WHEN 'urgent' THEN 0 WHEN 'high' THEN 1 WHEN 'normal' THEN 2 ELSE 3 END,wo.planned_start_at NULLS LAST,op.sequence LIMIT 300`,
-    values,
-  );
-  return rows;
-}
-
 // ---------------------------------------------------------------- production report / finished goods (F165, F167, F174, F176, F177)
 export async function reportProduction(client, c, id, input = {}) {
   need(c, "manufacturing.production.post");
@@ -416,10 +323,6 @@ export async function reportProduction(client, c, id, input = {}) {
   const quantity = positive(input.quantity, "Quantity");
   const settings = await settingsOf(client, c);
   if (!settings.allow_overproduction && Number(wo.quantity_completed) + quantity > Number(wo.quantity_planned) + 1e-9) throw new MfgError(409, "Production quantity exceeds the planned quantity.", "MFG_OVERPRODUCTION_BLOCKED");
-  if (settings.require_operation_completion) {
-    const open = Number((await client.query(`SELECT count(*)::int AS n FROM tenant.manufacturing_work_order_operations WHERE organization_id=$1 AND work_order_id=$2 AND status NOT IN ('completed','skipped')`, [c.organizationId, wo.id])).rows[0].n);
-    if (open) throw new MfgError(409, `${open} operation(s) are not completed yet. Complete them, or change the setting that requires it.`, "MFG_OPERATIONS_INCOMPLETE");
-  }
   const key = text(input.idempotencyKey, 200) || randomUUID();
   const product = (await client.query(`SELECT id,code,tracking_type FROM tenant.items WHERE organization_id=$1 AND id=$2`, [c.organizationId, wo.item_id])).rows[0];
   let batchId = input.batchId ? uuid(input.batchId, "Batch") : null;
@@ -466,11 +369,7 @@ export async function reportProduction(client, c, id, input = {}) {
   const completing = Number(wo.quantity_completed) + quantity >= Number(wo.quantity_planned) - 1e-9;
   const outstanding = Math.max(accrued - Number(fresh.cost_absorbed), 0);
   const absorb = round(completing ? outstanding : Math.min(outstanding, (accrued / Number(wo.quantity_planned)) * quantity));
-  const outputs = (await client.query(`SELECT * FROM tenant.manufacturing_bom_outputs WHERE organization_id=$1 AND bom_id=$2`, [c.organizationId, wo.bom_id])).rows;
-  const bomOutputQty = Number((await client.query(`SELECT output_quantity FROM tenant.manufacturing_boms WHERE id=$1`, [wo.bom_id])).rows[0].output_quantity);
-  const sharePct = outputs.reduce((t, o) => t + Number(o.cost_share_percent), 0);
-  const mainAbsorb = round(absorb * (1 - sharePct / 100));
-  const unitCost = input.unitCost === undefined || input.unitCost === "" ? round(mainAbsorb / quantity) : Number(input.unitCost);
+  const unitCost = input.unitCost === undefined || input.unitCost === "" ? round(absorb / quantity) : Number(input.unitCost);
   if (!Number.isFinite(unitCost) || unitCost < 0) throw new MfgError(400, "Unit cost must be zero or greater.", "MFG_QUANTITY_INVALID");
 
   let movementId = null;
@@ -483,15 +382,6 @@ export async function reportProduction(client, c, id, input = {}) {
     movementId = movement.id;
   }
   await addPosting(client, c, wo, { type: "production_receipt", itemId: wo.item_id, warehouseId: wo.finished_goods_warehouse_id, quantity, unitCost, movementId, key: `${key}:receipt`, batchId, locationId });
-  const byProducts = [];
-  for (const output of outputs) {
-    const outQty = round(Number(output.quantity) * (quantity / bomOutputQty));
-    if (outQty <= 0) continue;
-    const outUnit = outQty > 0 ? round((absorb * (Number(output.cost_share_percent) / 100)) / outQty) : 0;
-    const movement = await postStockMovement(client, asStock(c), { movementType: "receipt", itemId: output.item_id, warehouseId: output.warehouse_id || wo.finished_goods_warehouse_id, quantity: outQty, unitCost: outUnit, referenceType: REFERENCE, referenceId: wo.id, reason: `${output.output_type === "co_product" ? "Co-product" : "By-product"} of ${wo.work_order_number}`, idempotencyKey: `${key}:out:${output.id}` });
-    await addPosting(client, c, wo, { type: "byproduct_receipt", itemId: output.item_id, warehouseId: output.warehouse_id || wo.finished_goods_warehouse_id, quantity: outQty, unitCost: outUnit, movementId: movement.id, key: `${key}:byproduct:${output.id}` });
-    byProducts.push({ itemId: output.item_id, quantity: String(outQty), type: output.output_type });
-  }
   const { rows } = await client.query(
     `UPDATE tenant.manufacturing_work_orders SET quantity_completed=quantity_completed+$3,material_cost=material_cost+$4,cost_absorbed=cost_absorbed+$5,status=CASE WHEN $6 THEN 'completed' ELSE 'in_progress' END,
             actual_start_at=COALESCE(actual_start_at,now()),actual_end_at=CASE WHEN $6 THEN now() ELSE actual_end_at END,updated_at=now() WHERE organization_id=$1 AND id=$2 RETURNING *`,
@@ -515,7 +405,7 @@ export async function reportProduction(client, c, id, input = {}) {
     }
   }
   await recordEvent(client, c, "work_order", wo.id, "manufacturing.production.reported", { quantity, unitCost, completing });
-  const response = { ...updated, unitCost: String(unitCost), byProducts, reservedForOrder: String(reservedForOrder), replayed: false };
+  const response = { ...updated, unitCost: String(unitCost), reservedForOrder: String(reservedForOrder), replayed: false };
   await finishIdem(client, c, idempotency, response, wo.id);
   return response;
 }
@@ -560,35 +450,6 @@ export async function recordScrap(client, c, id, input = {}) {
   return rows[0];
 }
 
-// ---------------------------------------------------------------- rework (F175)
-// Scrapped units that can be recovered go back through the routing as their own work order.
-export async function sendToRework(client, c, id, input = {}) {
-  need(c, "manufacturing.work_order.manage");
-  const parent = await loadOrder(client, c, id, { lock: true });
-  requireStatus(parent, "released", "in_progress", "completed");
-  const quantity = positive(input.quantity, "Quantity");
-  if (!text(input.reason, 1000)) throw new MfgError(400, "A rework order needs a reason.", "MFG_REASON_REQUIRED");
-  if (quantity > Number(parent.quantity_scrapped) + 1e-9) throw new MfgError(409, "Only scrapped units can be sent to rework.", "MFG_REWORK_EXCEEDS_SCRAP");
-  if (!parent.routing_id) throw new MfgError(409, "This order has no routing to run the rework through.", "MFG_ROUTING_REQUIRED");
-  const number = await nextDocumentNumber(client, c, { documentType: "manufacturing_work_order", prefix: "WO" });
-  const child = (
-    await client.query(
-      `INSERT INTO tenant.manufacturing_work_orders(organization_id,company_id,work_order_number,item_id,bom_id,routing_id,quantity_planned,status,source_type,source_id,source_label,priority,wip_warehouse_id,finished_goods_warehouse_id,content_hash,created_by,rework_of_id,notes)
-       VALUES($1,$2,$3,$4,$5,$6,$7,'planned','make_to_stock',NULL,$8,'high',$9,$10,$11,$12,$13,$14) RETURNING *`,
-      [c.organizationId, c.companyId, number, parent.item_id, parent.bom_id, parent.routing_id, quantity, `Rework of ${parent.work_order_number}`, parent.wip_warehouse_id, parent.finished_goods_warehouse_id, `rework:${parent.id}:${randomUUID()}`, c.userId, parent.id, text(input.reason, 1000)],
-    )
-  ).rows[0];
-  // rework needs no fresh components (extra material can still be issued as usage)
-  await client.query(
-    `INSERT INTO tenant.manufacturing_work_order_materials(organization_id,work_order_id,bom_component_id,item_id,warehouse_id,required_quantity,issue_method) SELECT organization_id,$1,bom_component_id,item_id,warehouse_id,0,'manual' FROM tenant.manufacturing_work_order_materials WHERE organization_id=$2 AND work_order_id=$3`,
-    [child.id, c.organizationId, parent.id],
-  );
-  await copyOperations(client, c, child, parent.routing_id, quantity);
-  await client.query(`UPDATE tenant.manufacturing_work_orders SET quantity_scrapped=quantity_scrapped-$3,updated_at=now() WHERE organization_id=$1 AND id=$2`, [c.organizationId, parent.id, quantity]);
-  await recordEvent(client, c, "work_order", parent.id, "manufacturing.rework.created", { reworkOrder: child.id, quantity, reason: text(input.reason, 1000) });
-  return child;
-}
-
 // ---------------------------------------------------------------- reads (F155, F156, F166)
 export async function listProductionOrders(client, c, { status = null, sourceType = null, limit = 250 } = {}) {
   need(c, "manufacturing.view");
@@ -624,19 +485,9 @@ export async function getProductionOrder(client, c, id) {
       [c.organizationId, wo.id, c.companyId],
     )
   ).rows;
-  const operations = (
-    await client.query(
-      `SELECT op.id,op.sequence,op.name,op.status,op.planned_minutes::text AS planned_minutes,op.actual_minutes::text AS actual_minutes,op.started_at,op.completed_at,op.inspection_required,wc.code AS work_center_code,wc.name AS work_center_name,COALESCE((SELECT ro.subcontracted FROM tenant.manufacturing_routing_operations ro WHERE ro.id=op.routing_operation_id),false) AS subcontracted
-         FROM tenant.manufacturing_work_order_operations op LEFT JOIN tenant.manufacturing_work_centers wc ON wc.id=op.work_center_id WHERE op.organization_id=$1 AND op.work_order_id=$2 ORDER BY op.sequence`,
-      [c.organizationId, wo.id],
-    )
-  ).rows;
   const postings = (await client.query(`SELECT p.posting_type,p.quantity::text AS quantity,p.unit_cost::text AS unit_cost,p.posted_at,item.code AS item_code FROM tenant.manufacturing_production_postings p JOIN tenant.items item ON item.id=p.item_id WHERE p.organization_id=$1 AND p.work_order_id=$2 ORDER BY p.posted_at DESC LIMIT 200`, [c.organizationId, wo.id])).rows;
   const scrap = (await client.query(`SELECT s.id,s.category,s.scope,s.quantity::text AS quantity,s.reason_code,s.note,s.created_at,item.code AS item_code FROM tenant.manufacturing_scrap_records s JOIN tenant.items item ON item.id=s.item_id WHERE s.organization_id=$1 AND s.work_order_id=$2 ORDER BY s.created_at DESC`, [c.organizationId, wo.id])).rows;
-  const outputs = (await client.query(`SELECT o.output_type,o.quantity::text AS quantity,item.code AS item_code,item.name AS item_name FROM tenant.manufacturing_bom_outputs o JOIN tenant.items item ON item.id=o.item_id WHERE o.organization_id=$1 AND o.bom_id=$2`, [c.organizationId, wo.bom_id])).rows;
-  const jobs = (await client.query(`SELECT j.id,j.operation_id,j.supplier_label,j.status,j.expected_return FROM tenant.manufacturing_subcontract_jobs j WHERE j.organization_id=$1 AND j.work_order_id=$2 ORDER BY j.sent_at`, [c.organizationId, wo.id])).rows;
   const inspections = (await client.query(`SELECT i.id,i.operation_id,i.result,i.quantity_inspected::text AS quantity_inspected,i.quantity_rejected::text AS quantity_rejected,i.defect_code,i.created_at FROM tenant.manufacturing_inspections i WHERE i.organization_id=$1 AND i.work_order_id=$2 ORDER BY i.created_at DESC`, [c.organizationId, wo.id])).rows;
-  const rework = (await client.query(`SELECT id,work_order_number,status,quantity_planned::text AS quantity_planned FROM tenant.manufacturing_work_orders WHERE organization_id=$1 AND rework_of_id=$2 ORDER BY created_at`, [c.organizationId, wo.id])).rows;
   const wip = Number(wo.material_cost) + Number(wo.labor_cost) + Number(wo.overhead_cost) + Number(wo.subcontract_cost) - Number(wo.cost_absorbed);
   return {
     ...wo,
@@ -646,31 +497,12 @@ export async function getProductionOrder(client, c, id) {
     bom_code: bom?.code,
     bom_version: bom?.version,
     materials: cost ? materials : materials.map((m) => ({ ...m, issued_cost: null })),
-    operations,
     postings: cost ? postings : postings.map((p) => ({ ...p, unit_cost: null })),
     scrap,
-    outputs,
-    rework,
-    jobs,
     inspections,
     hold_reason: wo.hold_reason,
     costs: cost ? { material: wo.material_cost, labor: wo.labor_cost, overhead: wo.overhead_cost, subcontract: wo.subcontract_cost, scrap: wo.scrap_cost, absorbed: wo.cost_absorbed, wip: String(round(Math.max(wip, 0))) } : null,
   };
-}
-
-// Work-in-progress (F166): cost accrued to open orders and not yet absorbed into finished goods.
-export async function getWipReport(client, c) {
-  need(c, "manufacturing.view");
-  const cost = seeCost(c);
-  const { rows } = await client.query(
-    `SELECT wo.id,wo.work_order_number,wo.status,item.code AS item_code,item.name AS item_name,wo.quantity_planned::text AS quantity_planned,wo.quantity_completed::text AS quantity_completed,
-            wo.material_cost::text AS material_cost,wo.labor_cost::text AS labor_cost,wo.overhead_cost::text AS overhead_cost,wo.cost_absorbed::text AS cost_absorbed,
-            GREATEST(wo.material_cost+wo.labor_cost+wo.overhead_cost+wo.subcontract_cost-wo.cost_absorbed,0)::text AS wip_value,
-            (SELECT COALESCE(sum(m.issued_quantity-m.returned_quantity),0)::text FROM tenant.manufacturing_work_order_materials m WHERE m.work_order_id=wo.id) AS net_issued_quantity
-       FROM tenant.manufacturing_work_orders wo JOIN tenant.items item ON item.id=wo.item_id WHERE wo.organization_id=$1 AND wo.company_id=$2 AND wo.status IN ('released','in_progress','on_hold') ORDER BY wo.work_order_number`,
-    [c.organizationId, c.companyId],
-  );
-  return cost ? rows : rows.map((r) => ({ ...r, material_cost: null, labor_cost: null, overhead_cost: null, cost_absorbed: null, wip_value: null }));
 }
 
 export async function listMaterialReservations(client, c) {

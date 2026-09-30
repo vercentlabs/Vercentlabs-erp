@@ -1,5 +1,5 @@
-// Real PostgreSQL integration test -- BOM lifecycle, versions/revisions, alternates, multi-level
-// explosion, where-used and engineering change control, with role permission sets (no owner bypass).
+// Real PostgreSQL integration test -- BOM lifecycle, versions/revisions, alternates and multi-level
+// explosion, with role permission sets (no owner bypass).
 import assert from "node:assert/strict";
 import test from "node:test";
 import { randomUUID } from "node:crypto";
@@ -31,7 +31,7 @@ test("Manufacturing engineering against real PostgreSQL", async (t) => {
     return;
   }
   const api = await import("../../services/api/src/index.js");
-  const { manufacturingContext, createBom, updateDraftBom, submitBom, approveBom, rejectBom, obsoleteBom, reviseBom, addComponentAlternate, removeComponentAlternate, listBoms, getBom, explodeBom, resolveBomForItem, whereUsed, createEngineeringChange, submitEngineeringChange, decideEngineeringChange, implementEngineeringChange, cancelEngineeringChange, listEngineeringChanges } = api;
+  const { manufacturingContext, createBom, updateDraftBom, submitBom, approveBom, rejectBom, obsoleteBom, reviseBom, addComponentAlternate, removeComponentAlternate, listBoms, getBom, explodeBom, resolveBomForItem } = api;
   const { setTenantContext } = await import("../../packages/database/src/index.js");
 
   const orgId = randomUUID();
@@ -100,7 +100,7 @@ test("Manufacturing engineering against real PostgreSQL", async (t) => {
       await assert.rejects(() => run("engineer", (c, x) => updateDraftBom(c, x, wheelBom.id, { name: "x" })), (e) => e.code === "MFG_BOM_STATE_INVALID");
     });
 
-    await t.test("F146: multi-level explosion (scrap allowance included), circular structures refused, where-used", async () => {
+    await t.test("F146: multi-level explosion (scrap allowance included), circular structures refused", async () => {
       const bikeBom = await run("engineer", (c, x) => createBom(c, x, { itemId: ids.bike, code: "B1", components: [{ itemId: ids.wheel, quantity: 2 }, { itemId: ids.frame, quantity: 1 }] }));
       await run("engineer", (c, x) => submitBom(c, x, bikeBom.id));
       await run("approver", (c, x) => approveBom(c, x, bikeBom.id));
@@ -115,8 +115,6 @@ test("Manufacturing engineering against real PostgreSQL", async (t) => {
       assert.ok(!plan.purchasedTotals.some((l) => l.itemCode === "WHEEL"), "a sub-assembly is expanded, not bought");
       // a wheel that contains the bike would loop
       await assert.rejects(() => run("engineer", (c, x) => reviseBom(c, x, wheelBom.id).then((draft) => updateDraftBom(c, x, draft.id, { components: [{ itemId: ids.bike, quantity: 1 }] }))), (e) => e.code === "MFG_BOM_CYCLE");
-      const used = await run("viewer", (c, x) => whereUsed(c, x, { itemId: ids.spoke }));
-      assert.deepEqual(used.map((u) => [u.level, u.itemCode]), [[1, "WHEEL"], [2, "BIKE"]]);
     });
 
     await t.test("F147/F148: a revision is a new draft version copied from the source; only one revision at a time", async () => {
@@ -170,44 +168,21 @@ test("Manufacturing engineering against real PostgreSQL", async (t) => {
       assert.equal((await run("viewer", (c, x) => listBoms(c, x, { itemId: ids.bike, status: "active" }))).length, 2);
     });
 
-    await t.test("F190: an engineering change is approved by someone else, then implemented into a new active version", async () => {
-      const target = (await run("viewer", (c, x) => listBoms(c, x, { itemId: ids.bike, status: "active" }))).find((b) => b.is_default);
-      const proposal = [{ itemId: ids.wheel, quantity: 2 }, { itemId: ids.frame, quantity: 1 }, { itemId: ids.tube, quantity: 1 }];
-      await assert.rejects(() => run("engineer", (c, x) => createEngineeringChange(c, x, { targetBomId: target.id, title: "", reason: "r", components: proposal })), (e) => e.code === "MFG_TITLE_REQUIRED");
-      await assert.rejects(() => run("engineer", (c, x) => createEngineeringChange(c, x, { targetBomId: target.id, title: "Add spare tube", reason: "", components: proposal })), (e) => e.code === "MFG_REASON_REQUIRED");
-      const change = await run("engineer", (c, x) => createEngineeringChange(c, x, { targetBomId: target.id, title: "Add spare tube", reason: "Field failures", components: proposal }));
-      assert.match(change.change_number, /^ECN-/);
-      await assert.rejects(() => run("approver", (c, x) => decideEngineeringChange(c, x, change.id, { approve: true })), (e) => e.code === "MFG_CHANGE_STATE_INVALID");
-      await run("engineer", (c, x) => submitEngineeringChange(c, x, change.id));
-      await assert.rejects(() => run("engineer", (c, x) => decideEngineeringChange(c, x, change.id, { approve: true })), forbidden, "the engineer lacks manufacturing.manage");
-      await assert.rejects(() => run("approver", (c, x) => decideEngineeringChange(c, x, change.id, { approve: false })), (e) => e.code === "MFG_REASON_REQUIRED");
-      await assert.rejects(() => run("approver", (c, x) => implementEngineeringChange(c, x, change.id)), (e) => e.code === "MFG_CHANGE_STATE_INVALID", "not approved yet");
-      await run("approver", (c, x) => decideEngineeringChange(c, x, change.id, { approve: true, note: "OK" }));
-      const done = await run("engineer", (c, x) => implementEngineeringChange(c, x, change.id));
-      assert.equal(done.bom.status, "active");
-      assert.equal(done.bom.supersedes_bom_id, target.id);
-      const detail = await run("viewer", (c, x) => getBom(c, x, done.bom.id));
-      assert.equal(detail.components.length, 3);
-      assert.equal((await run("viewer", (c, x) => getBom(c, x, target.id))).status, "inactive");
-      assert.equal((await run("viewer", (c, x) => listEngineeringChanges(c, x, { status: "implemented" }))).length, 1);
-      await assert.rejects(() => run("engineer", (c, x) => cancelEngineeringChange(c, x, change.id, "x")), (e) => e.code === "MFG_CHANGE_STATE_INVALID");
-    });
-
     await t.test("obsoleting needs a reason and is refused while open work orders use the BOM", async () => {
-      const inactive = (await run("viewer", (c, x) => listBoms(c, x, { itemId: ids.bike, status: "inactive" })))[0];
-      await assert.rejects(() => run("engineer", (c, x) => obsoleteBom(c, x, inactive.id, "")), (e) => e.code === "MFG_REASON_REQUIRED");
+      const bom = (await run("viewer", (c, x) => listBoms(c, x, { itemId: ids.bike, status: "active" })))[0];
+      await assert.rejects(() => run("engineer", (c, x) => obsoleteBom(c, x, bom.id, "")), (e) => e.code === "MFG_REASON_REQUIRED");
       const woWh = randomUUID();
       await admin.query(`INSERT INTO tenant.warehouses(id,organization_id,company_id,code,name,status) VALUES ($1,$2,$3,'EW','EW','active')`, [woWh, orgId, companyId]);
-      await admin.query(`INSERT INTO tenant.manufacturing_work_orders(organization_id,company_id,work_order_number,item_id,bom_id,quantity_planned,status,wip_warehouse_id,finished_goods_warehouse_id,created_by) VALUES ($1,$2,'WO-T1',$3,$4,1,'planned',$5,$5,$6)`, [orgId, companyId, ids.bike, inactive.id, woWh, users.engineer]);
-      await assert.rejects(() => run("engineer", (c, x) => obsoleteBom(c, x, inactive.id, "Superseded")), (e) => e.code === "MFG_BOM_IN_USE");
+      await admin.query(`INSERT INTO tenant.manufacturing_work_orders(organization_id,company_id,work_order_number,item_id,bom_id,quantity_planned,status,wip_warehouse_id,finished_goods_warehouse_id,created_by) VALUES ($1,$2,'WO-T1',$3,$4,1,'planned',$5,$5,$6)`, [orgId, companyId, ids.bike, bom.id, woWh, users.engineer]);
+      await assert.rejects(() => run("engineer", (c, x) => obsoleteBom(c, x, bom.id, "Superseded")), (e) => e.code === "MFG_BOM_IN_USE");
       await admin.query(`UPDATE tenant.manufacturing_work_orders SET status='cancelled' WHERE organization_id=$1 AND work_order_number='WO-T1'`, [orgId]);
-      assert.equal((await run("engineer", (c, x) => obsoleteBom(c, x, inactive.id, "Superseded"))).status, "obsolete");
+      assert.equal((await run("engineer", (c, x) => obsoleteBom(c, x, bom.id, "Superseded"))).status, "obsolete");
     });
   } finally {
     await admin.query("BEGIN");
     try {
       await setTenantContext(admin, orgId);
-      for (const table of ["manufacturing_engineering_changes", "manufacturing_bom_component_alternates", "manufacturing_work_orders", "manufacturing_bom_components", "manufacturing_boms", "manufacturing_events", "items", "warehouses", "units_of_measure"]) {
+      for (const table of ["manufacturing_bom_component_alternates", "manufacturing_work_orders", "manufacturing_bom_components", "manufacturing_boms", "manufacturing_events", "items", "warehouses", "units_of_measure"]) {
         await admin.query(`DELETE FROM tenant.${table} WHERE organization_id=$1`, [orgId]).catch(() => {});
       }
       await admin.query("COMMIT");

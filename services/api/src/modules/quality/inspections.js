@@ -1,15 +1,15 @@
-// F308-F320: quality standards/plans (with inspection points and tolerances), sampling plans (AQL),
+// F308-F320: quality standards/plans (inspection specifications with points, tolerances and sample size),
 // incoming/in-process/final inspection, measurement and pass/fail checks, and inspection results —
 // the server computes pass/fail from each point's own tolerance/allowed-values rather than trusting a
 // caller-supplied verdict, a real integrity improvement over this folder's original thin stub.
-import { QualityError, has, need, needAny, nonNegative, oneOf, positive, qx, recordEvent, text, textOrNull, uuid, uuidOrNull } from "./common.js";
+import { QualityError, has, need, needAny, nonNegative, oneOf, qx, recordEvent, text, textOrNull, uuid, uuidOrNull } from "./common.js";
 import { nextDocumentNumber } from "../../core/platform/numbering/index.js";
 import { createQualityHold } from "./nonconformance.js";
 
 const MANAGE = "quality.manage";
 const VIEW = ["quality.view", MANAGE];
 const RESULT_TYPES = ["numeric", "boolean", "text", "selection"];
-const SAMPLING_METHODS = ["full", "fixed_quantity", "percentage", "aql"];
+const SAMPLING_METHODS = ["full", "fixed_quantity", "percentage"];
 const PLAN_TYPES = ["incoming", "in_process", "final", "stock_audit", "supplier", "customer_return"];
 
 // ---------------------------------------------------------------- settings
@@ -29,51 +29,11 @@ export async function saveQualitySettings(client, c, input) {
   return rows[0];
 }
 
-// ---------------------------------------------------------------- F315: AQL sampling plans
-export async function listSamplingPlans(client, c) {
-  needAny(c, VIEW);
-  const { rows } = await qx(client, `SELECT * FROM tenant.quality_sampling_plans WHERE organization_id=$1 AND company_id=$2 ORDER BY code, lot_size_from`, [c.organizationId, c.companyId]);
-  return rows;
-}
-export async function saveSamplingPlan(client, c, input) {
-  need(c, "quality.sampling.manage");
-  const code = text(input.code, 30).toUpperCase();
-  const name = text(input.name, 120);
-  if (!/^[A-Z0-9_-]{2,30}$/.test(code) || !name) throw new QualityError(400, "A sampling plan needs a code and a name.", "QUALITY_SAMPLING_INVALID");
-  const lotFrom = Math.trunc(positive(input.lotSizeFrom, "Lot size from"));
-  const lotTo = input.lotSizeTo === undefined || input.lotSizeTo === "" ? null : Math.trunc(positive(input.lotSizeTo, "Lot size to"));
-  if (lotTo !== null && lotTo < lotFrom) throw new QualityError(400, "Lot size to cannot be less than lot size from.", "QUALITY_SAMPLING_INVALID");
-  const sampleSize = Math.trunc(positive(input.sampleSize, "Sample size"));
-  const acceptanceNumber = Math.trunc(nonNegative(input.acceptanceNumber ?? 0, "Acceptance number"));
-  const rejectionNumber = Math.trunc(positive(input.rejectionNumber, "Rejection number"));
-  if (rejectionNumber < acceptanceNumber) throw new QualityError(400, "The rejection number cannot be less than the acceptance number.", "QUALITY_SAMPLING_INVALID");
-  if (input.id) {
-    const { rows } = await qx(client, `UPDATE tenant.quality_sampling_plans SET name=$4,aql_level=$5,lot_size_from=$6,lot_size_to=$7,sample_size=$8,acceptance_number=$9,rejection_number=$10,active=$11 WHERE organization_id=$1 AND company_id=$2 AND id=$3 RETURNING *`,
-      [c.organizationId, c.companyId, uuid(input.id, "Sampling plan"), name, textOrNull(input.aqlLevel, 10) ?? "II", lotFrom, lotTo, sampleSize, acceptanceNumber, rejectionNumber, input.active !== false]);
-    if (!rows[0]) throw new QualityError(404, "Sampling plan was not found.", "QUALITY_SAMPLING_NOT_FOUND");
-    return rows[0];
-  }
-  try {
-    const { rows } = await qx(client, `INSERT INTO tenant.quality_sampling_plans(organization_id,company_id,code,name,aql_level,lot_size_from,lot_size_to,sample_size,acceptance_number,rejection_number,created_by) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING *`,
-      [c.organizationId, c.companyId, code, name, textOrNull(input.aqlLevel, 10) ?? "II", lotFrom, lotTo, sampleSize, acceptanceNumber, rejectionNumber, c.userId]);
-    return rows[0];
-  } catch (e) {
-    if (e.code === "23505") throw new QualityError(409, `Sampling plan ${code} already exists.`, "QUALITY_SAMPLING_DUPLICATE");
-    throw e;
-  }
-}
-async function resolveSampleSize(client, c, plan, lotQuantity, samplingPlanCode) {
+function resolveSampleSize(plan, lotQuantity) {
   const method = plan.sampling_method;
-  if (method === "full") return { sampleQuantity: lotQuantity, samplingPlan: null };
-  if (method === "fixed_quantity") return { sampleQuantity: Math.min(Number(plan.sampling_value), lotQuantity), samplingPlan: null };
-  if (method === "percentage") return { sampleQuantity: Math.min(Math.ceil((lotQuantity * Number(plan.sampling_value)) / 100), lotQuantity), samplingPlan: null };
-  // aql
-  const code = text(samplingPlanCode, 30).toUpperCase();
-  if (!code) throw new QualityError(400, "This plan samples by AQL; give the sampling plan code to use.", "QUALITY_SAMPLING_REQUIRED");
-  const { rows } = await qx(client, `SELECT * FROM tenant.quality_sampling_plans WHERE organization_id=$1 AND company_id=$2 AND code=$3 AND active AND lot_size_from<=$4 AND (lot_size_to IS NULL OR lot_size_to>=$4)`, [c.organizationId, c.companyId, code, lotQuantity]);
-  const samplingPlan = rows[0];
-  if (!samplingPlan) throw new QualityError(400, `No active sampling plan ${code} covers a lot size of ${lotQuantity}.`, "QUALITY_SAMPLING_NOT_FOUND");
-  return { sampleQuantity: Math.min(Number(samplingPlan.sample_size), lotQuantity), samplingPlan };
+  if (method === "fixed_quantity") return Math.min(Number(plan.sampling_value), lotQuantity);
+  if (method === "percentage") return Math.min(Math.ceil((lotQuantity * Number(plan.sampling_value)) / 100), lotQuantity);
+  return lotQuantity;
 }
 
 // ---------------------------------------------------------------- F308-311/F318: quality plans
@@ -195,12 +155,12 @@ export async function createInspection(client, c, input) {
   const plan = (await qx(client, `SELECT * FROM tenant.quality_plans WHERE organization_id=$1 AND company_id=$2 AND id=$3 AND status='active'`, [c.organizationId, c.companyId, uuid(input.planId, "Plan")])).rows[0];
   if (!plan) throw new QualityError(400, "An active quality plan is required.", "QUALITY_PLAN_INACTIVE");
   const lotQuantity = nonNegative(input.lotQuantity ?? 0, "Lot quantity");
-  const { sampleQuantity, samplingPlan } = await resolveSampleSize(client, c, plan, lotQuantity || 1, input.samplingPlanCode);
+  const sampleQuantity = resolveSampleSize(plan, lotQuantity || 1);
   const inspectionNumber = await nextDocumentNumber(client, c, { documentType: "quality_inspection", prefix: "QI" });
   const { rows } = await qx(client, `INSERT INTO tenant.quality_inspections(organization_id,company_id,inspection_number,plan_id,inspection_type,source_type,source_id,item_id,supplier_id,warehouse_id,batch_id,serial_id,lot_quantity,sample_quantity,status,created_by)
       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,'draft',$15) RETURNING *`,
     [c.organizationId, c.companyId, inspectionNumber, plan.id, oneOf(String(input.inspectionType ?? plan.plan_type), INSPECTION_TYPES, "Inspection type"), oneOf(String(input.sourceType ?? "manual"), SOURCE_TYPES, "Source type"), uuidOrNull(input.sourceId, "Source"), uuidOrNull(input.itemId, "Item") ?? plan.item_id, uuidOrNull(input.supplierId, "Supplier") ?? plan.supplier_id, uuidOrNull(input.warehouseId, "Warehouse") ?? plan.warehouse_id, uuidOrNull(input.batchId, "Batch"), uuidOrNull(input.serialId, "Serial"), String(lotQuantity), String(sampleQuantity), c.userId]);
-  await recordEvent(client, c, "inspection", rows[0].id, "quality.inspection.created", { planId: plan.id, samplingPlan: samplingPlan?.code ?? null });
+  await recordEvent(client, c, "inspection", rows[0].id, "quality.inspection.created", { planId: plan.id });
   return getInspection(client, c, rows[0].id);
 }
 
@@ -256,23 +216,13 @@ export async function completeInspection(client, c, id, input = {}) {
   const failed = results.filter((r) => r.result_status === "fail");
   const anyCriticalFail = failed.some((r) => criticalIds.has(r.inspection_point_id));
 
-  let overall = "passed";
-  if (anyCriticalFail) overall = "failed";
-  else if (failed.length) {
-    // non-critical failures: an AQL-sampled inspection accepts up to its acceptance number
-    let acceptanceNumber = 0;
-    if (inspection.sample_quantity > 0) {
-      const sp = (await qx(client, `SELECT acceptance_number FROM tenant.quality_sampling_plans WHERE organization_id=$1 AND company_id=$2 AND sample_size=$3 LIMIT 1`, [c.organizationId, c.companyId, Math.trunc(Number(inspection.sample_quantity))])).rows[0];
-      acceptanceNumber = sp ? Number(sp.acceptance_number) : 0;
-    }
-    overall = failed.length <= acceptanceNumber && acceptanceNumber > 0 ? "conditionally_accepted" : "failed";
-  }
+  const overall = anyCriticalFail || failed.length ? "failed" : "passed";
   const lot = Number(inspection.lot_quantity);
   const rejectedRatio = results.length ? failed.length / results.length : 0;
   const rejectedQuantity = overall === "failed" ? Math.max(Math.round(lot * rejectedRatio), lot > 0 && failed.length ? 1 : 0) : Number(input.rejectedQuantity ?? 0);
   const acceptedQuantity = Math.max(lot - rejectedQuantity, 0);
 
-  const { rows } = await qx(client, `UPDATE tenant.quality_inspections SET status=$4,overall_result=$4,accepted_quantity=$5,rejected_quantity=$6,inspected_by=$7,inspected_at=now(),notes=$8,updated_at=now() WHERE organization_id=$1 AND company_id=$2 AND id=$3 RETURNING *`,
+  await qx(client, `UPDATE tenant.quality_inspections SET status=$4,overall_result=$4,accepted_quantity=$5,rejected_quantity=$6,inspected_by=$7,inspected_at=now(),notes=$8,updated_at=now() WHERE organization_id=$1 AND company_id=$2 AND id=$3 RETURNING *`,
     [c.organizationId, c.companyId, inspection.id, overall, String(acceptedQuantity), String(rejectedQuantity), c.userId, textOrNull(input.notes, 2000)]);
 
   if (overall === "failed") {

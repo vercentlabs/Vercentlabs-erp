@@ -14,7 +14,6 @@ import { createApprovalRequest, finalizeApprovalRequest } from "../../../core/pl
 import { requireCompanyRecord } from "../../../core/references.js";
 import { decimal, div, mul, min, max, asDatabaseDecimal, formatDecimal } from "../../../core/decimal.js";
 import { priceCartLines } from "./cart-pricing.js";
-import { resolveActivePosLoyaltyProgram, getPosLoyaltyBalanceValue, requirePosLoyaltyRedemptionEligible } from "./loyalty.js";
 import { posError } from "../shared/errors.js";
 import { requirePermission, assertPosStoreAccess, accessiblePosStoreIds } from "../shared/access-control.js";
 
@@ -895,101 +894,6 @@ export async function listPosDiscountApprovals(client, context, { status = "pend
     values,
   );
   return result.rows;
-}
-
-// F281: attaching a coupon reserves it against this cart (does not touch
-// committed_count) and prices it in the same step so the cashier sees the
-// real discount immediately. reserveOrValidatePosCoupon in coupons.js does
-// the actual eligibility/limit checks; this function's job is only to
-// record the reservation and trigger a reprice.
-export async function applyPosCartCoupon(client, context, cartId, input) {
-  requirePermission(context, "pos.sale.create");
-  const policy = await loadPolicy(client, context);
-  const cart = await lockCart(client, context, cartId);
-  checkVersion(cart, input.expectedVersion);
-  const normalized = String(input.code || "").trim().toUpperCase();
-  if (!normalized) throw posError(400, "A coupon code is required.", "POS_COUPON_CODE_REQUIRED");
-  const coupon = await client.query(
-    `SELECT id FROM tenant.pos_coupons
-     WHERE organization_id=$1 AND upper(code)=$2 AND status='active'
-       AND (company_id IS NULL OR company_id=$3) AND (store_id IS NULL OR store_id=$4)
-       AND (effective_from IS NULL OR effective_from<=current_date)
-       AND (effective_to IS NULL OR effective_to>=current_date)`,
-    [context.organizationId, normalized, context.companyId, cart.store_id],
-  );
-  if (!coupon.rows[0]) throw posError(404, "Coupon code is invalid, inactive or expired.", "POS_COUPON_NOT_FOUND");
-  await client.query(
-    `DELETE FROM tenant.pos_coupon_redemptions WHERE organization_id=$1 AND cart_id=$2 AND status='reserved'`,
-    [context.organizationId, cartId],
-  );
-  // Matrix item #18 (per-store half): store_id is stamped onto the
-  // reservation here, at attach time, the same way customer_id already is
-  // -- commitPosCouponRedemption (coupons.js) later reads it straight off
-  // this same row rather than re-deriving it, and evaluateCoupon
-  // (cart-pricing.js) counts committed redemptions by it.
-  await client.query(
-    `INSERT INTO tenant.pos_coupon_redemptions (organization_id,coupon_id,cart_id,customer_id,store_id,status,created_by)
-     VALUES ($1,$2,$3,$4,$5,'reserved',$6)`,
-    [context.organizationId, coupon.rows[0].id, cartId, cart.customer_id, cart.store_id, context.userId],
-  );
-  await client.query(`UPDATE tenant.pos_carts SET coupon_code=$3 WHERE organization_id=$1 AND id=$2`, [
-    context.organizationId,
-    cartId,
-    normalized,
-  ]);
-  return reprice(client, context, cart, policy);
-}
-
-export async function removePosCartCoupon(client, context, cartId, input = {}) {
-  requirePermission(context, "pos.sale.create");
-  const policy = await loadPolicy(client, context);
-  const cart = await lockCart(client, context, cartId);
-  checkVersion(cart, input.expectedVersion);
-  await client.query(
-    `UPDATE tenant.pos_coupon_redemptions SET status='released',released_at=now()
-     WHERE organization_id=$1 AND cart_id=$2 AND status='reserved'`,
-    [context.organizationId, cartId],
-  );
-  await client.query(`UPDATE tenant.pos_carts SET coupon_code=NULL WHERE organization_id=$1 AND id=$2`, [context.organizationId, cartId]);
-  return reprice(client, context, cart, policy);
-}
-
-// F306: the cashier requests a specific number of points to redeem
-// against this cart. Validated against the customer's CURRENT (preview)
-// balance and the program's min/max rules immediately, so an obviously
-// invalid request is rejected right here with a clear error rather than
-// surfacing as a confusing failure only once the cart is repriced -- the
-// authoritative, concurrency-safe recheck still happens again at
-// completePosCart's commit step under the balance row's own lock (see
-// loyalty.js's commitPosLoyaltyForSale).
-export async function redeemPosCartLoyaltyPoints(client, context, cartId, input = {}) {
-  requirePermission(context, "pos.loyalty.redeem");
-  const policy = await loadPolicy(client, context);
-  const cart = await lockCart(client, context, cartId);
-  checkVersion(cart, input.expectedVersion);
-  if (!cart.customer_id) {
-    throw posError(409, "A customer must be attached to this cart before redeeming loyalty points.", "POS_LOYALTY_CUSTOMER_REQUIRED");
-  }
-  const requestedPoints = decimal(input.points);
-  if (requestedPoints <= 0n) throw posError(400, "Points to redeem must be greater than zero.", "POS_LOYALTY_POINTS_INVALID");
-  const program = await resolveActivePosLoyaltyProgram(client, context);
-  const balance = await getPosLoyaltyBalanceValue(client, context, cart.customer_id);
-  requirePosLoyaltyRedemptionEligible(program, balance, requestedPoints);
-  await client.query(`UPDATE tenant.pos_carts SET loyalty_redeem_points=$3 WHERE organization_id=$1 AND id=$2`, [
-    context.organizationId,
-    cartId,
-    input.points,
-  ]);
-  return reprice(client, context, cart, policy);
-}
-
-export async function removePosCartLoyaltyRedemption(client, context, cartId, input = {}) {
-  requirePermission(context, "pos.loyalty.redeem");
-  const policy = await loadPolicy(client, context);
-  const cart = await lockCart(client, context, cartId);
-  checkVersion(cart, input.expectedVersion);
-  await client.query(`UPDATE tenant.pos_carts SET loyalty_redeem_points=NULL WHERE organization_id=$1 AND id=$2`, [context.organizationId, cartId]);
-  return reprice(client, context, cart, policy);
 }
 
 export async function cancelPosCart(client, context, cartId, input = {}) {

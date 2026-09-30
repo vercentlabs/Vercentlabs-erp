@@ -8,8 +8,6 @@
 //   2. Cross-company access (same org) to a cart/store is rejected.
 //   14. A cross-company item cannot be priced onto another company's cart
 //       (cart-pricing.js's resolveItemAndVariant).
-//   16. An expired coupon is rejected by code (cart-pricing.js's
-//       evaluateCoupon date-range gate).
 //   25. A cancelled cart cannot be further mutated or completed, and a
 //       closed shift cannot be used to create a new cart or record a cash
 //       movement.
@@ -32,7 +30,7 @@ async function connectOrNull(connectionString) {
   }
 }
 
-test("POS SECURITY: cross-organization, cross-company, cross-company-item, expired-coupon, cancelled-cart and closed-shift guards hold against real PostgreSQL", async (t) => {
+test("POS SECURITY: cross-organization, cross-company, cross-company-item, cancelled-cart and closed-shift guards hold against real PostgreSQL", async (t) => {
   const admin = await connectOrNull(adminConnectionString);
   if (!admin) {
     t.skip("No reachable Postgres connection (MIGRATION_DATABASE_URL) -- run `pnpm infra:up && pnpm db:setup` first.");
@@ -45,8 +43,6 @@ test("POS SECURITY: cross-organization, cross-company, cross-company-item, expir
     addPosCartLine,
     cancelPosCart,
     completePosCart,
-    applyPosCartCoupon,
-    createPosCoupon,
     closeShift,
     recordPosCashMovement,
   } = await import("../../services/api/src/index.js");
@@ -381,27 +377,6 @@ test("POS SECURITY: cross-organization, cross-company, cross-company-item, expir
         () => txA((c) => addPosCartLine(c, contextA1, cartA1.id, { itemId: itemA2Id, quantity: 1, expectedVersion: cartA1.version })),
         (error) => error.code === "POS_SALE_ITEM_NOT_FOUND",
         "a company-A2 item must never be silently priced/added onto a company-A1 cart",
-      );
-    });
-
-    // ================= Matrix item #16: expired coupon =================
-    await t.test("SECURITY (matrix #16): an expired coupon (effective_to in the past) is rejected with POS_COUPON_NOT_FOUND, not silently applied", async () => {
-      const expiredCoupon = await txA((c) =>
-        createPosCoupon(c, contextA1, {
-          code: "EXPIRED10",
-          name: "Expired coupon",
-          discountType: "amount",
-          discountValue: 10,
-          effectiveFrom: "2020-01-01",
-          effectiveTo: "2020-01-31",
-        }),
-      );
-      assert.equal(expiredCoupon.code, "EXPIRED10");
-
-      await assert.rejects(
-        () => txA((c) => applyPosCartCoupon(c, contextA1, cartA1.id, { code: "EXPIRED10", expectedVersion: cartA1.version })),
-        (error) => error.code === "POS_COUPON_NOT_FOUND",
-        "an expired coupon must never be applied to a cart",
       );
     });
 

@@ -116,7 +116,7 @@ jobs:
           node scripts/qa/run-e2e-per-spec.mjs
           crm-mvp.spec.ts crm-completion.spec.ts crm-navigation.spec.ts crm-regression.spec.ts crm-authorization.spec.ts crm-uiux.spec.ts crm-settings-setup.spec.ts
           crm-public-booking.spec.ts opportunity-stage-transition.spec.ts restricted-role-authorization.spec.ts
-          platform-security.spec.ts platform-surfaces.spec.ts accounting-schedule-views.spec.ts
+          platform-security.spec.ts platform-surfaces.spec.ts accounting-reconciliation-view.spec.ts
           accessibility.spec.ts responsive-layout.spec.ts
           auth-lifecycle.spec.ts mfa-sp007.spec.ts settings-shared-access.spec.ts
 

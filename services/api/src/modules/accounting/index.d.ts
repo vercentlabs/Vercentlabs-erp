@@ -8,8 +8,6 @@ export function getAccountingSettings(client: QueryClient, context: AccountingCo
 export function updateAccountingSettings(client: QueryClient, context: AccountingContext, input: AccountingRecord): Promise<AccountingRecord>;
 export function createAccountingAccount(client: QueryClient, context: AccountingContext, input: AccountingRecord): Promise<AccountingRecord>;
 export function upsertAccountMapping(client: QueryClient, context: AccountingContext, input: AccountingRecord): Promise<AccountingRecord>;
-export function createAccountingDimension(client: QueryClient, context: AccountingContext, input: AccountingRecord): Promise<AccountingRecord>;
-export function createAccountingDimensionValue(client: QueryClient, context: AccountingContext, input: AccountingRecord): Promise<AccountingRecord>;
 export function listJournalEntries(client: QueryClient, context: AccountingContext, filters?: AccountingRecord): Promise<AccountingRecord[]>;
 export function getJournalEntry(client: QueryClient, context: AccountingContext, id: string): Promise<{ entry: AccountingRecord; lines: AccountingRecord[]; events: AccountingRecord[] }>;
 export function createJournalEntry(client: QueryClient, context: AccountingContext, input: AccountingRecord, options?: AccountingRecord): Promise<{ entry: AccountingRecord; lines: AccountingRecord[] }>;
@@ -18,15 +16,6 @@ export function approveJournalEntry(client: QueryClient, context: AccountingCont
 export function rejectJournalApproval(client: QueryClient, context: AccountingContext, id: string): Promise<AccountingRecord>;
 export function postJournalEntry(client: QueryClient, context: AccountingContext, id: string, options?: AccountingRecord): Promise<AccountingRecord>;
 export function reverseJournalEntry(client: QueryClient, context: AccountingContext, id: string, input?: AccountingRecord): Promise<AccountingRecord>;
-export function getCustomerCreditSummary(client: QueryClient, context: AccountingContext, partyId: string): Promise<{
-  creditLimit: number;
-  arOutstanding: number;
-  unappliedAdvances: number;
-  netExposure: number;
-  availableCredit: number | null;
-  overLimit: boolean;
-  currencyCode: string | null;
-}>;
 export function listCustomerInvoices(client: QueryClient, context: AccountingContext, filters?: AccountingRecord): Promise<AccountingRecord[]>;
 export function getCustomerInvoice(client: QueryClient, context: AccountingContext, id: string): Promise<AccountingRecord>;
 export function createCustomerInvoice(client: QueryClient, context: AccountingContext, input: AccountingRecord, options?: AccountingRecord): Promise<AccountingRecord>;
@@ -72,63 +61,13 @@ export function getCloseRun(client: QueryClient, context: AccountingContext, id:
 export function updateCloseTask(client: QueryClient, context: AccountingContext, runId: string, taskId: string, input: AccountingRecord): Promise<AccountingRecord>;
 export function completeCloseRun(client: QueryClient, context: AccountingContext, id: string, input?: AccountingRecord): Promise<AccountingRecord>;
 export function getAccountingReport(client: QueryClient, context: AccountingContext, reportKey: string, filters?: AccountingRecord): Promise<AccountingRecord[]>;
-export function listAssetCategories(client: QueryClient, context: AccountingContext, filters?: AccountingRecord): Promise<AccountingRecord[]>;
-export function createAssetCategory(client: QueryClient, context: AccountingContext, input: AccountingRecord): Promise<AccountingRecord>;
-export function listAssets(client: QueryClient, context: AccountingContext, filters?: AccountingRecord): Promise<AccountingRecord[]>;
-export function getAsset(client: QueryClient, context: AccountingContext, id: string): Promise<{ asset: AccountingRecord; schedule: AccountingRecord[]; transactions: AccountingRecord[]; events: AccountingRecord[] }>;
-export function createAsset(client: QueryClient, context: AccountingContext, input: AccountingRecord): Promise<AccountingRecord>;
-export function capitalizeAsset(client: QueryClient, context: AccountingContext, id: string, input?: AccountingRecord): Promise<AccountingRecord>;
-export function postAssetDepreciation(client: QueryClient, context: AccountingContext, scheduleId: string): Promise<AccountingRecord>;
-export function disposeAsset(client: QueryClient, context: AccountingContext, id: string, input: AccountingRecord): Promise<AccountingRecord>;
-export function createTaxReturn(client: QueryClient, context: AccountingContext, input: AccountingRecord): Promise<AccountingRecord>;
-export function listTaxReturns(client: QueryClient, context: AccountingContext, filters?: AccountingRecord): Promise<AccountingRecord[]>;
-export function createRecurringTemplate(client: QueryClient, context: AccountingContext, input: AccountingRecord): Promise<AccountingRecord>;
-export function listRecurringTemplates(client: QueryClient, context: AccountingContext, filters?: AccountingRecord): Promise<AccountingRecord[]>;
-export function runDueRecurringTemplates(client: QueryClient, context: AccountingContext, runDate?: string | null): Promise<AccountingRecord[]>;
-export function createAccrualSchedule(client: QueryClient, context: AccountingContext, input: AccountingRecord): Promise<AccountingRecord>;
-export function listAccrualSchedules(client: QueryClient, context: AccountingContext, filters?: AccountingRecord): Promise<AccountingRecord[]>;
-export function getAccrualSchedule(client: QueryClient, context: AccountingContext, id: string): Promise<{ schedule: AccountingRecord; recognitions: AccountingRecord[] }>;
-export function runDueAccruals(client: QueryClient, context: AccountingContext, input?: AccountingRecord): Promise<AccountingRecord[]>;
-export function createBudget(client: QueryClient, context: AccountingContext, input: AccountingRecord): Promise<AccountingRecord>;
-export function listBudgets(client: QueryClient, context: AccountingContext): Promise<AccountingRecord[]>;
-export function submitBudget(client: QueryClient, context: AccountingContext, id: string, assignedTo?: string | null): Promise<AccountingRecord>;
-export function approveBudget(client: QueryClient, context: AccountingContext, id: string): Promise<AccountingRecord>;
-export function rejectBudgetApproval(client: QueryClient, context: AccountingContext, id: string): Promise<AccountingRecord>;
-export function activateBudget(client: QueryClient, context: AccountingContext, id: string): Promise<AccountingRecord>;
-export function calculateRevaluation(client: QueryClient, context: AccountingContext, input: AccountingRecord): Promise<AccountingRecord>;
-export function postRevaluation(client: QueryClient, context: AccountingContext, id: string): Promise<AccountingRecord>;
-export function listRevaluationRuns(client: QueryClient, context: AccountingContext, filters?: AccountingRecord): Promise<AccountingRecord[]>;
-export function createIntercompanyRule(client: QueryClient, context: AccountingContext, input: AccountingRecord): Promise<AccountingRecord>;
-export function listIntercompanyRules(client: QueryClient, context: AccountingContext): Promise<AccountingRecord[]>;
-export function createIntercompanyJournal(client: QueryClient, context: AccountingContext, input: AccountingRecord): Promise<AccountingRecord>;
-export function runDunning(client: QueryClient, context: AccountingContext, input: AccountingRecord): Promise<AccountingRecord>;
-export function listDunningRuns(client: QueryClient, context: AccountingContext): Promise<AccountingRecord[]>;
-export function createConsolidationGroup(client: QueryClient, context: AccountingContext, input: AccountingRecord): Promise<AccountingRecord>;
-export function listConsolidationGroups(client: QueryClient, context: AccountingContext): Promise<AccountingRecord[]>;
-export function calculateConsolidation(client: QueryClient, context: AccountingContext, input: AccountingRecord): Promise<AccountingRecord>;
-export function addConsolidationAdjustment(client: QueryClient, context: AccountingContext, id: string, input: AccountingRecord): Promise<AccountingRecord>;
-export function listConsolidationRuns(client: QueryClient, context: AccountingContext, filters?: AccountingRecord): Promise<AccountingRecord[]>;
-export function finalizeConsolidationRun(client: QueryClient, context: AccountingContext, id: string): Promise<AccountingRecord>;
-export function getAccountingOrganisationOptions(client: QueryClient, context: AccountingContext): Promise<{ companies: AccountingRecord[]; ledgers: AccountingRecord[]; accounts: AccountingRecord[]; currencies: AccountingRecord[] }>;
 export function initializeAccountingCompany(
   client: QueryClient,
   input: { organizationId: string; companyId: string; userId: string },
 ): Promise<{ ledgerId: string; accountCount: number }>;
-export function updateTaxReturnStatus(client: QueryClient, context: AccountingContext, id: string, input: AccountingRecord): Promise<AccountingRecord>;
-
 export function getVendorBillMatch(client: QueryClient, context: AccountingContext, id: string): Promise<AccountingRecord | null>;
 export function evaluateVendorBillMatch(client: QueryClient, context: AccountingContext, id: string, input?: AccountingRecord): Promise<AccountingRecord>;
 export function overrideVendorBillMatch(client: QueryClient, context: AccountingContext, id: string, input?: AccountingRecord): Promise<AccountingRecord>;
-export function createComplianceRequest(client: QueryClient, context: AccountingContext, input: AccountingRecord): Promise<AccountingRecord>;
-export function listComplianceRequests(client: QueryClient, context: AccountingContext, filters?: AccountingRecord): Promise<AccountingRecord[]>;
-export function updateComplianceRequest(client: QueryClient, context: AccountingContext, id: string, input: AccountingRecord): Promise<AccountingRecord>;
-export function createCashForecastScenario(client: QueryClient, context: AccountingContext, input: AccountingRecord): Promise<AccountingRecord>;
-export function generateCashForecast(client: QueryClient, context: AccountingContext, id: string, input?: AccountingRecord): Promise<AccountingRecord>;
-export function getCashForecast(client: QueryClient, context: AccountingContext, id: string): Promise<AccountingRecord>;
-export function listCashForecasts(client: QueryClient, context: AccountingContext, filters?: AccountingRecord): Promise<AccountingRecord[]>;
-export function transferAsset(client: QueryClient, context: AccountingContext, id: string, input: AccountingRecord): Promise<AccountingRecord>;
-export function impairAsset(client: QueryClient, context: AccountingContext, id: string, input: AccountingRecord): Promise<AccountingRecord>;
-export function changeAssetSuspension(client: QueryClient, context: AccountingContext, id: string, input: AccountingRecord): Promise<AccountingRecord>;
 export function allocateInstallments(total: string | number, termLines: AccountingRecord[], precision?: number): AccountingRecord[];
 
 export function calculateSettlementBaseAmounts(client: QueryClient, context: AccountingContext, input: AccountingRecord): Promise<AccountingRecord>;

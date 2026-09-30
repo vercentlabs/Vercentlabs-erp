@@ -17,8 +17,7 @@ export type OptionSource =
   | "suppliers"
   | "bankAccounts"
   | "periods"
-  | "postingAccounts"
-  | "assetCategories";
+  | "postingAccounts";
 export type FieldValue = string | number;
 export type FieldDef = {
   name: string;

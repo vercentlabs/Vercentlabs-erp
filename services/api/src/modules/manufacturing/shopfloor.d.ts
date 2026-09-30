@@ -9,16 +9,10 @@ export declare function cancelProductionOrder(client: any, context: Manufacturin
 export declare function closeProductionOrder(client: any, context: ManufacturingContext, id: string, reason?: string): Promise<Row>;
 export declare function issueMaterials(client: any, context: ManufacturingContext, id: string, input?: Row): Promise<Row>;
 export declare function returnMaterials(client: any, context: ManufacturingContext, id: string, input?: Row): Promise<Row>;
-export declare function startOperation(client: any, context: ManufacturingContext, operationId: string): Promise<Row>;
-export declare function completeOperation(client: any, context: ManufacturingContext, operationId: string, input?: Row): Promise<Row>;
-export declare function skipOperation(client: any, context: ManufacturingContext, operationId: string, reason?: string): Promise<Row>;
-export declare function listJobCards(client: any, context: ManufacturingContext, options?: { status?: string | null; workCenterId?: string | null }): Promise<Row[]>;
 export declare function reportProduction(client: any, context: ManufacturingContext, id: string, input?: Row): Promise<Row>;
 export declare function recordScrap(client: any, context: ManufacturingContext, id: string, input?: Row): Promise<Row>;
-export declare function sendToRework(client: any, context: ManufacturingContext, id: string, input?: Row): Promise<Row>;
 export declare function listProductionOrders(client: any, context: ManufacturingContext, options?: { status?: string | null; sourceType?: string | null; limit?: number }): Promise<Row[]>;
 export declare function getProductionOrder(client: any, context: ManufacturingContext, id: string): Promise<Row>;
-export declare function getWipReport(client: any, context: ManufacturingContext): Promise<Row[]>;
 export declare function listMaterialReservations(client: any, context: ManufacturingContext): Promise<Row[]>;
 export declare function listProductionPostings(client: any, context: ManufacturingContext, options?: { types?: string | null; limit?: number }): Promise<Row[]>;
 export declare function listScrapRecords(client: any, context: ManufacturingContext): Promise<Row[]>;

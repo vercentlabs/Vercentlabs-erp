@@ -462,14 +462,6 @@ export * from "./modules/sales/quotation-governance.js";
 
 export * from "./modules/sales/order-governance.js";
 
-export * from "./modules/accounting/receivables-governance.js";
-
-export * from "./modules/accounting/payables-governance.js";
-
-export * from "./modules/accounting/banking-governance.js";
-
-export * from "./modules/accounting/tax-reporting-governance.js";
-
 export * from "./modules/procurement/governance.js";
 
 export * from "./modules/crm/crm-data-operations-and-customization/core-acceptance.js";
@@ -550,34 +542,35 @@ export * from "./modules/accounting/record-lookups.js";
 export * from "./modules/stock/read-models.js";
 export * from "./modules/stock/counts.js";
 export * from "./modules/stock/valuation.js";
-export * from "./modules/stock/exceptions.js";
-export * from "./modules/stock/outbound.js";
-export * from "./modules/manufacturing/index.js";
+export * from "./modules/stock/quarantine.js";
 export { MfgError } from "./modules/manufacturing/common.js";
 export * from "./modules/manufacturing/engineering.js";
 export * from "./modules/manufacturing/options.js";
-export * from "./modules/manufacturing/routing.js";
 export * from "./modules/manufacturing/shopfloor.js";
-export * from "./modules/manufacturing/planning.js";
+export * from "./modules/manufacturing/availability.js";
 export * from "./modules/manufacturing/execution.js";
 export * from "./modules/manufacturing/costing.js";
-export * from "./modules/projects/index.js";
 export * from "./modules/projects/desk.js";
-export * from "./modules/assets/index.js";
 export * from "./modules/assets/desk.js";
 export * from "./modules/point-of-sale/index.js";
-export * from "./modules/quality/index.js";
+export { releaseQualityHold } from "./modules/quality/hold-release.js";
 export { qualityContext } from "./modules/quality/common.js";
-export { getQualitySettings, saveQualitySettings, listSamplingPlans, saveSamplingPlan, listQualityPlans, getQualityPlan, createQualityPlan as defineQualityPlan, approveQualityPlan, reviseQualityPlan, retireQualityPlan, listInspections, getInspection, createInspection as createQualityInspection, recordInspectionResults, completeInspection as completeQualityInspection, releaseInspection as releaseQualityInspection, cancelInspection as cancelQualityInspection } from "./modules/quality/inspections.js";
-export { listQualityHolds, getQualityHold, createQualityHold, cancelQualityHold, listNonconformances, getNonconformance, createNonconformance as createQualityNonconformance, transitionNonconformance, setDisposition, approveUseAsIs, closeNonconformance, cancelNonconformance, listCapa, getCapa, createCapa as createQualityCapa, recordRootCause, recordCapaActions, submitCapaForVerification, verifyCapa, closeCapa } from "./modules/quality/nonconformance.js";
-export { listSupplierQualityRecords, recomputeSupplierQualityRecord, listAudits, getAudit, saveAudit, startAudit, addAuditFinding, linkFindingCapa, closeAuditFinding, completeAudit, listCalibrationRecords, recordCalibration, markOverdueCalibrations, listCertificates, saveCertificate, issueCertificate, voidCertificate, listQualityDocuments, saveQualityDocument, submitQualityDocument, approveQualityDocument, reviseQualityDocument, obsoleteQualityDocument, listCustomerComplaints, getCustomerComplaint, createCustomerComplaint, investigateComplaint, resolveComplaint, closeComplaint, getBatchTraceability, getQualityCostReport, getQualityKpiDashboard, listQualityOptions } from "./modules/quality/management.js";
-export * from "./modules/support/index.js";
+export {
+  getQualitySettings, saveQualitySettings, listQualityPlans, getQualityPlan, createQualityPlan as defineQualityPlan, approveQualityPlan, reviseQualityPlan, retireQualityPlan, listInspections, getInspection, createInspection as createQualityInspection, recordInspectionResults, completeInspection as completeQualityInspection, releaseInspection as releaseQualityInspection, cancelInspection as cancelQualityInspection,
+} from "./modules/quality/inspections.js";
+export {
+  listQualityHolds, getQualityHold, createQualityHold, cancelQualityHold, listNonconformances, getNonconformance, createNonconformance as createQualityNonconformance, transitionNonconformance, setDisposition, approveUseAsIs, closeNonconformance, cancelNonconformance,
+} from "./modules/quality/nonconformance.js";
+export {
+  getQualityKpiDashboard, listQualityOptions,
+} from "./modules/quality/dashboard.js";
 export { supportContext } from "./modules/support/common.js";
-export { getSupportSettings, saveSupportSettings, listCategories as listSupportCategories, saveCategory as saveSupportCategory, listQueues as listSupportQueues, saveQueue as saveSupportQueue, listQueueMembers, setQueueMember, removeQueueMember, listRoutingRules, saveRoutingRule, deactivateRoutingRule, listSlaPolicies, saveSlaPolicy, deactivateSlaPolicy, listEscalationPolicies, saveEscalationPolicy, createTicket, listTickets, getTicket, updateTicket, assignTicket, transitionTicket, mergeTickets, listCommunications, addCommunication, listAttachments, addAttachment, removeAttachment, getAttachmentContent as getSupportAttachmentContent, listEscalations, escalateTicket, decideEscalation, checkSlaBreaches, getTicketHistory } from "./modules/support/tickets.js";
-export { listKnowledgeArticles, getKnowledgeArticle, saveKnowledgeArticle, submitKnowledgeArticle, publishKnowledgeArticle, retireKnowledgeArticle, reviseKnowledgeArticle, rateKnowledgeArticle, linkArticleToTicket, listTicketKnowledgeLinks, listCannedResponses, saveCannedResponse, recordCannedResponseUsage } from "./modules/support/knowledge.js";
-export { listPortalUsers, invitePortalUser, setPortalUserStatus, getMyPortalAccess, listMyTickets, getMyTicket, createMyTicket, listMyCommunications, replyToMyTicket, listMyAttachments, addMyAttachment, getMyAttachmentContent, submitMyCsat, listMyKnowledgeArticles, getMyKnowledgeArticle } from "./modules/support/portal.js";
-export { getCustomerOrderHistory, getTicketLinkedRecords, listEntitlements, saveEntitlement, setEntitlementStatus, getCsatReport, getAgentPerformance, getSlaReport, getSupportDeskDashboard, getAuditLog as getSupportAuditLog, listSupportOptions, listCustomerContacts } from "./modules/support/service.js";
-export * from "./modules/hr-payroll/index.js";
+export {
+  getSupportSettings, saveSupportSettings, listCategories as listSupportCategories, saveCategory as saveSupportCategory, createTicket, listTickets, getTicket, updateTicket, assignTicket, transitionTicket, listCommunications, addCommunication, listAttachments, addAttachment, removeAttachment, getAttachmentContent as getSupportAttachmentContent, getTicketHistory,
+} from "./modules/support/tickets.js";
+export {
+  getSupportDeskDashboard, listSupportOptions, listCustomerContacts,
+} from "./modules/support/service.js";
 // Pass 1 F015-F114 public API declarations.
 export function listCrmTasks(client: QueryClient, context: any, filters?: Record<string, unknown>): Promise<{ rows: any[]; total: number; limit: number; offset: number }>;
 export function getCrmTask(client: QueryClient, context: any, id: string, options?: { lock?: boolean }): Promise<any>;
@@ -658,10 +651,7 @@ export function getCrmAttachmentContent(client: QueryClient, context: any, entit
 export function deleteCrmAttachment(client: QueryClient, context: any, entityType: string, entityId: string, attachmentId: string): Promise<any>;
 
 export function listSalesPass1Operations(client: QueryClient, context: any, options?: { kind?: string; limit?: number }): Promise<any[]>;
-export function recordSalesAdvancePayment(client: QueryClient, context: any, input?: Record<string, unknown>): Promise<any>;
 export function requestSalesCreditAdjustment(client: QueryClient, context: any, input?: Record<string, unknown>): Promise<any>;
-export function createSalesDropShipRequest(client: QueryClient, context: any, input?: Record<string, unknown>): Promise<any>;
-export function createSalesCommissionRule(client: QueryClient, context: any, input?: Record<string, unknown>): Promise<any>;
 export function accrueSalesCommission(client: QueryClient, context: any, input?: Record<string, unknown>): Promise<any>;
 export function upsertSalesPriceListItem(client: QueryClient, context: any, input?: Record<string, unknown>): Promise<any>;
 export function upsertSalesCustomerPrice(client: QueryClient, context: any, input?: Record<string, unknown>): Promise<any>;
@@ -669,52 +659,28 @@ export function deactivateSalesPriceListItem(client: QueryClient, context: any, 
 export function deactivateSalesPricingRule(client: QueryClient, context: any, pricingRuleId: string): Promise<any>;
 export function listSalesPass1Options(client: QueryClient, context: any): Promise<Record<string, any[]>>;
 export function getSalesOrderLineReservationContext(client: QueryClient, context: any, input?: Record<string, unknown>): Promise<any>;
-export function listSalesPass1CrossModuleOptions(client: QueryClient, salesContext: any, procurementContext: any): Promise<Record<string, any[]>>;
-export function createSalesDropShipWithSupplierValidation(client: QueryClient, salesContext: any, procurementContext: any, input?: Record<string, unknown>): Promise<any>;
 export function checkSalesOrderLineAvailability(client: QueryClient, salesContext: any, stockContext: any, input?: Record<string, unknown>): Promise<any>;
 export function reserveSalesOrderLineFromStock(client: QueryClient, salesContext: any, stockContext: any, input?: Record<string, unknown>): Promise<any>;
 export function completeFulfillmentRequestWithStockMovement(client: QueryClient, salesContext: any, stockContext: any, requestId: string, input?: Record<string, unknown>): Promise<any>;
 export function releaseSalesOrderStockReservations(client: QueryClient, salesContext: any, stockContext: any, orderId: string, reason: string): Promise<any>;
 export function previewSalesOrderAmendmentImpact(client: QueryClient, context: any, orderId: string, input?: Record<string, unknown>): Promise<any>;
-export function setSalesOrderLinePromise(client: QueryClient, context: any, input?: Record<string, unknown>): Promise<any>;
 export function recordFulfillmentShipment(client: QueryClient, context: any, requestId: string, input?: Record<string, unknown>): Promise<any>;
 export function recordFulfillmentDelivery(client: QueryClient, context: any, requestId: string, input?: Record<string, unknown>): Promise<any>;
-export function listSalesApprovalDelegations(client: QueryClient, context: any): Promise<any[]>;
-export function createSalesApprovalDelegation(client: QueryClient, context: any, input?: Record<string, unknown>): Promise<any>;
-export function revokeSalesApprovalDelegation(client: QueryClient, context: any, delegationId: string): Promise<any>;
 export function getSalesCustomerCreditExposure(client: QueryClient, context: any, partyId: string): Promise<any>;
-export function cancelSalesAdvancePayment(client: QueryClient, context: any, advanceId: string, input?: Record<string, unknown>): Promise<any>;
-export function decideSalesReturnRequest(client: QueryClient, context: any, returnId: string, input?: Record<string, unknown>): Promise<any>;
-export function completeSalesReturnRequest(client: QueryClient, context: any, returnId: string, input?: Record<string, unknown>): Promise<any>;
-export function completeSalesReturnWithStock(client: QueryClient, salesContext: any, stockContext: any, returnId: string, input?: Record<string, unknown>): Promise<any>;
 export function decideSalesCreditAdjustment(client: QueryClient, context: any, adjustmentId: string, input?: Record<string, unknown>): Promise<any>;
-export function updateSalesDropShipStatus(client: QueryClient, context: any, dropShipId: string, input?: Record<string, unknown>): Promise<any>;
-export function approveSalesCommission(client: QueryClient, context: any, entryId: string): Promise<any>;
 export function confirmSalesOrderWithCrmSync(client: QueryClient, salesContext: any, orderId: string, options?: Record<string, unknown>): Promise<any>;
 export function cancelSalesOrderWithCrmSync(client: QueryClient, salesContext: any, orderId: string, reason?: string): Promise<any>;
 
 export function listProcurementPass1Operations(client: QueryClient, context: any, options?: { kind?: string; limit?: number }): Promise<any[]>;
-export function upsertSupplierPurchasePrice(client: QueryClient, context: any, input?: Record<string, unknown>): Promise<any>;
-export function createProcurementLandedCost(client: QueryClient, context: any, input?: Record<string, unknown>): Promise<any>;
-export function upsertSupplierLeadTime(client: QueryClient, context: any, input?: Record<string, unknown>): Promise<any>;
-export function createProcurementReorderRequest(client: QueryClient, context: any, input?: Record<string, unknown>): Promise<any>;
 export function linkSupplierAccountingParty(client: QueryClient, context: any, input?: Record<string, unknown>): Promise<any>;
-export function convertReorderRequestToPurchaseOrder(client: QueryClient, context: any, requestId: string): Promise<any>;
-export function createProcurementSubcontractOrder(client: QueryClient, context: any, input?: Record<string, unknown>): Promise<any>;
 export function listProcurementPass1Options(client: QueryClient, context: any): Promise<Record<string, any[]>>;
-export function generateReorderPurchasingRequests(client: QueryClient, stockContext: any, procurementContext: any, options?: { limit?: number; asOf?: Date }): Promise<{ candidates: number; createdOrReplayed: number; rows: any[] }>;
 export function transitionProcurementReceiptWithStockMovement(client: QueryClient, procurementContext: any, stockContext: any, receiptId: string, action: string, input?: Record<string, unknown>): Promise<any>;
-export function transitionProcurementReturnWithStockMovement(client: QueryClient, procurementContext: any, stockContext: any, returnId: string, action: string, input?: Record<string, unknown>): Promise<any>;
 export function runProcurementMatchWithVendorBillImport(client: QueryClient, procurementContext: any, accountingContext: any, input?: Record<string, unknown>): Promise<any>;
 
 export function getStockAvailability(client: QueryClient, context: any, input?: Record<string, unknown>): Promise<any>;
 export function reserveStock(client: QueryClient, context: any, input?: Record<string, unknown>): Promise<any>;
 export function releaseStockReservation(client: QueryClient, context: any, id: string, options?: { status?: "released" | "cancelled" | "consumed" }): Promise<any>;
-export function listStockReorderCandidates(client: QueryClient, context: any, options?: { limit?: number }): Promise<any[]>;
 export function listStockOperationOptions(client: QueryClient, context: any): Promise<Record<string, any[]>>;
-
-
-
 
 // Wave 0 production-integrity primitives.
 export * from "./core/platform/numbering/index.js";
@@ -766,13 +732,12 @@ export * from "./core/platform/module-administration.js";
 export { hrContext, HrError } from "./modules/hr-payroll/common.js";
 export * from "./modules/hr-payroll/options.js";
 export * from "./modules/hr-payroll/workforce.js";
-export * from "./modules/hr-payroll/recruitment.js";
-export { listShifts, saveShift, listShiftAssignments, assignShift, listHolidayCalendars, saveHolidayCalendar, listHolidays, addHoliday, removeHoliday, assignHolidayCalendar, punch, recordAttendance, listAttendance, getMyPunchState, listRegularizations, requestRegularization, decideRegularization, cancelRegularization, listOvertime, decideOvertime, getLateEarlyReport, getAttendanceSummary, computeAttendanceSummary, recomputeDay } from "./modules/hr-payroll/time.js";
+export {
+  listShifts, saveShift, listShiftAssignments, assignShift, listHolidayCalendars, saveHolidayCalendar, listHolidays, addHoliday, removeHoliday, assignHolidayCalendar, punch, recordAttendance, listAttendance, getMyPunchState, getAttendanceSummary, computeAttendanceSummary, recomputeDay,
+} from "./modules/hr-payroll/time.js";
 export { listLeaveTypes, saveLeaveType, listLeavePolicies, saveLeavePolicy, setPolicyEntry, removePolicyEntry, assignLeavePolicy, listLeaveBalances, getLeaveLedger, adjustLeaveBalance, runLeaveAccrual, runYearEndCarryForward, applyLeave, decideLeave, cancelLeave, listLeaveRequests, getLeaveCalendar, getLeaveDashboard } from "./modules/hr-payroll/leave.js";
 export { listSalaryComponents, saveSalaryComponent, listSalaryStructures, getSalaryStructure, createSalaryStructure, updateDraftStructure, submitSalaryStructure, decideSalaryStructure, reviseSalaryStructure, obsoleteSalaryStructure, previewSalaryStructure, listCompensation, proposeCompensation, decideCompensation, getMyCompensation } from "./modules/hr-payroll/compensation.js";
-export { listPayrollPeriods, generatePayrollPeriods, lockPayrollPeriod, unlockPayrollPeriod, closePayrollPeriod, startPayrollRun, runPayrollCalculation, submitPayrollRun, returnPayrollRun, decidePayrollRun, cancelPayroll, listPayrollExceptions, resolvePayrollException, listPayrollRuns, getPayrollRun, listPayslips, getPayslip, listMyPayslips, verifyPayrollDeterminism, holdPayslip, releasePayslipHold, getPayrollDashboard, registerPayrollHook } from "./modules/hr-payroll/payroll.js";
-export { listPayrollInputs, createPayrollInput, bulkCreatePayrollInputs, decidePayrollInput, cancelPayrollInput, listExpenseCategories, saveExpenseCategory, listExpenses, saveExpense, decideExpense, buildSchedule, listLoans, getLoan, requestLoan, decideLoan, skipLoanInstallment, prepayLoan, calculateArrears } from "./modules/hr-payroll/payroll-inputs.js";
-export { listFinalSettlements, getFinalSettlement, calculateFinalSettlement, submitFinalSettlement, decideFinalSettlement, paySettlement, listBankFiles, getBankFile, generateBankFile, acknowledgeBankFile, postPayrollToAccounting, getPayrollReconciliation } from "./modules/hr-payroll/payroll-close.js";
-export { listStatutoryComponents, getStatutoryComponent, saveStatutoryComponent, setStatutorySlab, removeStatutorySlab, deactivateStatutoryComponent, estimateGratuity, listGratuityRecords, gratuitySettlementLine, getStatutoryReport, getComplianceReport } from "./modules/hr-payroll/statutory.js";
-export { listGoals, saveGoal, checkInGoal, closeGoal, listReviewCycles, saveReviewCycle, openReviewCycle, closeReviewCycle, listAppraisals, getAppraisal, submitSelfReview, submitPeerFeedback, submitManagerReview, calibrateAppraisal, listSkills, saveSkill, listEmployeeSkills, setEmployeeSkill, listCourses, saveCourse, listTrainingSessions, scheduleTrainingSession, cancelTrainingSession, listTrainingEnrolments, enrollInTraining, recordTrainingCompletion, getPerformanceDashboard } from "./modules/hr-payroll/performance.js";
+export {
+  listPayrollPeriods, generatePayrollPeriods, lockPayrollPeriod, unlockPayrollPeriod, closePayrollPeriod, startPayrollRun, runPayrollCalculation, submitPayrollRun, returnPayrollRun, decidePayrollRun, cancelPayroll, listPayrollExceptions, resolvePayrollException, listPayrollRuns, getPayrollRun, listPayslips, getPayslip, listMyPayslips, verifyPayrollDeterminism, holdPayslip, releasePayslipHold, getPayrollDashboard,
+} from "./modules/hr-payroll/payroll.js";
 export * from "./core/platform/health/index.js";

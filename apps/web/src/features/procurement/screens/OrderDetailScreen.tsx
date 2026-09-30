@@ -11,7 +11,6 @@ import {
   listRecords,
   type ProcRecord,
 } from "@/features/procurement/shared/api";
-import { ChildSection } from "@/features/procurement/shared/ChildSection";
 import { DocumentDetail } from "@/features/procurement/shared/DocumentDetail";
 import {
   calendarDate,
@@ -23,7 +22,7 @@ import { ProcAlert, ProcPanel } from "@/features/procurement/shared/ProcUi";
 import { orderDetail } from "@/features/procurement/configs/orders";
 
 // F074-F076/F080-F082: the purchase order with the receipts posted against it,
-// advance shipping notices from the supplier, and its amendment history.
+// and its amendment history.
 export function OrderDetailScreen({ id }: { id: string }) {
   const config = {
     ...orderDetail,
@@ -40,62 +39,6 @@ export function OrderDetailScreen({ id }: { id: string }) {
         label: "Receipts",
         render: (record: ProcRecord) => (
           <ReceiptsForOrder orderId={record.id} />
-        ),
-      },
-      {
-        id: "shipping",
-        label: "Shipping notices",
-        render: (record: ProcRecord) => (
-          <ChildSection
-            parentId={record.id}
-            parentStatus={record.status}
-            config={{
-              resource: "advance-shipping-notices",
-              title: "Advance shipping notices",
-              description: "What the supplier says is on its way.",
-              noun: "notice",
-              manage: "procurement.receipts.manage",
-              emptyText: "No shipping notices yet.",
-              fields: [
-                { name: "carrier", label: "Carrier", kind: "text" },
-                {
-                  name: "trackingNumber",
-                  label: "Tracking / AWB",
-                  kind: "text",
-                },
-                { name: "shippedOn", label: "Shipped on", kind: "date" },
-                {
-                  name: "expectedArrival",
-                  label: "Expected arrival",
-                  kind: "date",
-                  required: true,
-                },
-                { name: "notes", label: "Notes", kind: "textarea" },
-              ],
-              columns: [
-                {
-                  id: "carrier",
-                  header: "Carrier",
-                  accessorFn: (r) => String(r.carrier ?? "—"),
-                },
-                {
-                  id: "track",
-                  header: "Tracking",
-                  accessorFn: (r) => String(r.trackingNumber ?? "—"),
-                },
-                {
-                  id: "ship",
-                  header: "Shipped",
-                  accessorFn: (r) => calendarDate(r.shippedOn),
-                },
-                {
-                  id: "eta",
-                  header: "Expected",
-                  accessorFn: (r) => calendarDate(r.expectedArrival),
-                },
-              ],
-            }}
-          />
         ),
       },
       {

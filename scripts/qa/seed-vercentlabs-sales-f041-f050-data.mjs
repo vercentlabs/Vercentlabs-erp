@@ -1,9 +1,8 @@
 #!/usr/bin/env node
 // Sales F041–F050 demo data, continuing the Sunrise Dairy story: a cold-store
-// warehouse with stock, direct orders through approval (discount gate,
-// delegation, a rejection with its reason), confirmation, reservation, a
-// partial delivery with shipment and proof of delivery, a promised backorder,
-// an invoice request, a pending amendment and a line that stock cannot cover.
+// warehouse with stock, direct orders through approval (discount gate, a
+// rejection with its reason), confirmation, reservation, a partial delivery
+// with shipment and proof of delivery, an invoice request, a pending amendment and a line that stock cannot cover.
 // Everything goes through governed Sales/Stock functions. Local-only, safe to
 // run more than once (each order is found by its customer note first).
 // Run seed-vercentlabs-sales-f031-f040-data.mjs first.
@@ -14,8 +13,8 @@ import { config as loadDotEnv } from "dotenv";
 import { Client } from "pg";
 import {
   amendSalesOrder, approveSalesOrder, completeFulfillmentRequestWithStockMovement, confirmSalesOrder, createBusinessDataRecord,
-  createFulfillmentRequest, createInvoiceRequest, createSalesApprovalDelegation, createSalesOrder, getSalesOrder, postStockMovement,
-  recordFulfillmentDelivery, recordFulfillmentShipment, rejectSalesOrderApproval, reserveSalesOrderLineFromStock, setSalesOrderLinePromise,
+  createFulfillmentRequest, createInvoiceRequest, createSalesOrder, getSalesOrder, postStockMovement,
+  recordFulfillmentDelivery, recordFulfillmentShipment, rejectSalesOrderApproval, reserveSalesOrderLineFromStock,
   submitSalesOrder, updateBusinessDataRecord,
 } from "../../services/api/src/index.js";
 import { setTenantContext } from "../../packages/database/src/index.js";
@@ -89,7 +88,7 @@ async function order(note, lines, extra = {}) {
 }
 const linesOf = async (id) => (await tx((c) => getSalesOrder(c, owner, id))).lines;
 
-// 1. Weekly replenishment: confirmed, reserved, partly delivered, shipped, delivered, backorder promised, invoiced.
+// 1. Weekly replenishment: confirmed, reserved, partly delivered, shipped, delivered, invoiced.
 const weekly = await order("Weekly replenishment for the Pune plant", [line(milk, 20), line(paneer, 5)], { customerPoNumber: "SDP/PO/2026/0412" });
 if (weekly.created) {
   await tx(async (c) => {
@@ -102,22 +101,16 @@ if (weekly.created) {
     await completeFulfillmentRequestWithStockMovement(c, owner, stock, request.id, { lines: [{ salesOrderLineId: milkLine.id, fulfilledQuantity: 12 }, { salesOrderLineId: paneerLine.id, fulfilledQuantity: 5 }] });
     await recordFulfillmentShipment(c, owner, request.id, { carrier: "Gati Kausar cold chain", trackingNumber: "GKC-7781402" });
     await recordFulfillmentDelivery(c, owner, request.id, { receivedBy: "Meera Kulkarni", note: "12 cartons of milk and 5 of paneer received at 7:40 am, seals intact." });
-    await setSalesOrderLinePromise(c, owner, { salesOrderLineId: milkLine.id, promisedDate: iso(4), note: "Remaining 8 cartons go on Monday's cold-chain run from the Pune cold store." });
     await createInvoiceRequest(c, owner, weekly.id, { idempotencyKey: `f041-invoice:${weekly.id}`, quantityBasis: "fulfilled" });
   });
-  console.log("  confirmed, reserved, delivered 12 of 20 cartons, promised the rest, invoice requested");
+  console.log("  confirmed, reserved, delivered 12 of 20 cartons, invoice requested");
 }
 
 // 2. A 12% discount keyed straight into an order — waits for approval.
 const festive = await order("Festive hamper order — 12% discount agreed on the call", [line(paneer, 10, { discountPercent: 12 })]);
 if (festive.created) await tx((c) => submitSalesOrder(c, owner, festive.id, priyaId));
 
-// 3. Priya is on leave: her approvals go to Karan.
-const delegationFound = await one(`SELECT id FROM tenant.sales_approval_delegations WHERE organization_id=$1 AND delegator_user_id=$2 AND status='active'`, [priyaId]);
-if (!delegationFound) {
-  await tx((c) => createSalesApprovalDelegation(c, owner, { delegatorUserId: priyaId, delegateUserId: karanId, startsOn: iso(0), endsOn: iso(10), reason: "Priya is on leave for Diwali; Karan covers Sales approvals." }));
-  console.log("created  delegation Priya → Karan");
-}
+// 3. A 15% festive discount routed to Priya for approval.
 const gift = await order("Ghee for Diwali gift boxes — 15% festive discount", [{ itemId: ghee, variantId: ghee1l, quantity: 20, warehouseId: warehouse.id, discountPercent: 15 }]);
 if (gift.created) await tx((c) => submitSalesOrder(c, owner, gift.id, priyaId));
 

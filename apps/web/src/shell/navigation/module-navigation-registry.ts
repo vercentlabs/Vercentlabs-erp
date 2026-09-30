@@ -421,11 +421,7 @@ export const MODULE_NAVIGATION: readonly ModuleNavigation[] = [
         id: "fulfillment",
         label: "Fulfillment",
         featureRange: "F041-F046",
-        items: [
-          available("Deliveries", "/sales/deliveries"),
-          available("Drop shipments", "/sales/drop-ships"),
-          available("Backorders", "/sales/backorders"),
-        ],
+        items: [available("Deliveries", "/sales/deliveries")],
       },
       {
         id: "billing",
@@ -433,15 +429,8 @@ export const MODULE_NAVIGATION: readonly ModuleNavigation[] = [
         featureRange: "F047-F052",
         items: [
           available("Invoices", "/sales/invoices"),
-          available("Advances", "/sales/advances"),
           available("Credit / Adjustments", "/sales/credit-adjustments"),
         ],
-      },
-      {
-        id: "returns",
-        label: "Returns",
-        featureRange: "F053-F054",
-        items: [available("Returns", "/sales/returns")],
       },
       {
         id: "commercial",
@@ -449,7 +438,6 @@ export const MODULE_NAVIGATION: readonly ModuleNavigation[] = [
         featureRange: "F055-F058",
         items: [
           available("Price Lists", "/sales/price-lists"),
-          available("Commissions", "/sales/commissions"),
           available("Discounts", "/sales/discounts"),
           available("Terms", "/sales/terms"),
         ],
@@ -458,12 +446,7 @@ export const MODULE_NAVIGATION: readonly ModuleNavigation[] = [
         id: "insights",
         label: "Insights",
         featureRange: "F059-F062",
-        items: [
-          available("Sales Analytics", "/sales/analytics"),
-          available("Order Status", "/sales/order-status"),
-          available("Profitability", "/sales/profitability"),
-          available("Reports", "/sales/reports"),
-        ],
+        items: [available("Order Status", "/sales/order-status")],
       },
     ],
   },
@@ -485,29 +468,13 @@ export const MODULE_NAVIGATION: readonly ModuleNavigation[] = [
         id: "requests",
         label: "Requests",
         featureRange: "F063-F066",
-        items: [
-          available("Purchase Requisitions", "/procurement/requisitions"),
-          available("Approval Queue", "/procurement/approval-queue"),
-        ],
-      },
-      {
-        id: "sourcing",
-        label: "Sourcing",
-        featureRange: "F067-F072",
-        items: [
-          available("RFQs", "/procurement/rfqs"),
-          available("Supplier Quotations", "/procurement/supplier-quotations"),
-          available("Awards", "/procurement/awards"),
-        ],
+        items: [available("Approval Queue", "/procurement/approval-queue")],
       },
       {
         id: "purchasing",
         label: "Purchasing",
         featureRange: "F073-F078",
-        items: [
-          available("Purchase Orders", "/procurement/orders"),
-          available("Agreements", "/procurement/agreements"),
-        ],
+        items: [available("Purchase Orders", "/procurement/orders")],
       },
       {
         id: "receiving",
@@ -516,7 +483,6 @@ export const MODULE_NAVIGATION: readonly ModuleNavigation[] = [
         items: [
           available("Goods Receipts", "/procurement/receipts"),
           available("Rejections", "/procurement/rejections"),
-          available("Returns", "/procurement/returns"),
         ],
       },
       {
@@ -526,7 +492,6 @@ export const MODULE_NAVIGATION: readonly ModuleNavigation[] = [
         items: [
           available("Supplier Invoices", "/procurement/invoices"),
           available("Three-Way Match", "/procurement/three-way-match"),
-          available("Landed Cost", "/procurement/landed-cost"),
         ],
       },
       {
@@ -536,31 +501,6 @@ export const MODULE_NAVIGATION: readonly ModuleNavigation[] = [
         items: [
           available("Supplier Master", "/procurement/suppliers"),
           available("Categories", "/procurement/categories"),
-          available("Price Lists", "/procurement/supplier-prices"),
-          available("Lead Times", "/procurement/lead-times"),
-          available(
-            "Supplier Performance",
-            "/procurement/supplier-performance",
-          ),
-        ],
-      },
-      {
-        id: "planning",
-        label: "Planning",
-        featureRange: "F091-F093",
-        items: [
-          available("Procurement Planning", "/procurement/planning"),
-          available("Subcontracting", "/procurement/subcontract"),
-        ],
-      },
-      {
-        id: "insights",
-        label: "Insights",
-        featureRange: "F094-F096",
-        items: [
-          available("Spend Analytics", "/procurement/spend-analytics"),
-          available("Purchase History", "/procurement/purchase-history"),
-          available("Reports", "/procurement/reports"),
         ],
       },
     ],
@@ -616,9 +556,6 @@ export const MODULE_NAVIGATION: readonly ModuleNavigation[] = [
           available("Issues", "/inventory/issues"),
           available("Transfers", "/inventory/transfers"),
           available("Adjustments", "/inventory/adjustments"),
-          available("Damaged Stock", "/inventory/damaged-stock"),
-          available("Returns", "/inventory/returns"),
-          available("Pick Lists", "/inventory/pick-lists"),
         ],
       },
       {
@@ -628,8 +565,6 @@ export const MODULE_NAVIGATION: readonly ModuleNavigation[] = [
         items: [
           available("Lots / Batches", "/inventory/lots"),
           available("Serial Numbers", "/inventory/serial-numbers"),
-          available("Expiry", "/inventory/expiry"),
-          available("Genealogy", "/inventory/genealogy"),
           available("Quarantine", "/inventory/quarantine"),
         ],
       },
@@ -638,17 +573,7 @@ export const MODULE_NAVIGATION: readonly ModuleNavigation[] = [
         label: "Counting",
         featureRange: "F126-F128",
         items: [
-          available("Cycle Counts", "/inventory/cycle-counts"),
           available("Physical Inventory", "/inventory/physical-inventory"),
-        ],
-      },
-      {
-        id: "planning",
-        label: "Planning",
-        featureRange: "F129-F132",
-        items: [
-          available("Replenishment", "/inventory/replenishment"),
-          available("Reorder Rules", "/inventory/reorder-rules"),
         ],
       },
       {
@@ -659,15 +584,7 @@ export const MODULE_NAVIGATION: readonly ModuleNavigation[] = [
           available("Costing", "/inventory/costing"),
           available("Inventory Valuation", "/inventory/valuation"),
           available("Movement", "/inventory/movement"),
-          available("Aging", "/inventory/aging"),
-          available("Landed Cost", "/inventory/landed-cost"),
         ],
-      },
-      {
-        id: "insights",
-        label: "Insights",
-        featureRange: "F139-F144",
-        items: [available("Reports", "/inventory/reports")],
       },
     ],
   },
@@ -689,12 +606,6 @@ export const MODULE_NAVIGATION: readonly ModuleNavigation[] = [
         items: [
           available("BOMs", "/manufacturing/boms"),
           available("BOM Versions", "/manufacturing/bom-versions"),
-          available("Routings", "/manufacturing/routings"),
-          available("Where Used", "/manufacturing/where-used"),
-          available(
-            "Engineering Changes",
-            "/manufacturing/engineering-changes",
-          ),
         ],
       },
       {
@@ -702,10 +613,10 @@ export const MODULE_NAVIGATION: readonly ModuleNavigation[] = [
         label: "Planning",
         featureRange: "F152-F157",
         items: [
-          available("MRP", "/manufacturing/mrp"),
-          available("Material Planning", "/manufacturing/material-planning"),
-          available("Capacity", "/manufacturing/capacity"),
-          available("Scheduling", "/manufacturing/scheduling"),
+          available(
+            "Material Availability",
+            "/manufacturing/material-planning",
+          ),
         ],
       },
       {
@@ -714,8 +625,6 @@ export const MODULE_NAVIGATION: readonly ModuleNavigation[] = [
         featureRange: "F158-F165",
         items: [
           available("Production Orders", "/manufacturing/production-orders"),
-          available("Shop Floor", "/manufacturing/shop-floor"),
-          available("Operations", "/manufacturing/operations"),
         ],
       },
       {
@@ -725,7 +634,6 @@ export const MODULE_NAVIGATION: readonly ModuleNavigation[] = [
         items: [
           available("Reservations", "/manufacturing/reservations"),
           available("Consumption", "/manufacturing/consumption"),
-          available("WIP", "/manufacturing/wip"),
         ],
       },
       {
@@ -734,32 +642,20 @@ export const MODULE_NAVIGATION: readonly ModuleNavigation[] = [
         featureRange: "F171-F175",
         items: [
           available("Finished Output", "/manufacturing/finished-output"),
-          available("By-Products", "/manufacturing/by-products"),
-          available("Scrap / Rework", "/manufacturing/scrap-rework"),
+          available("Scrap", "/manufacturing/scrap"),
         ],
       },
       {
         id: "quality",
         label: "Quality",
         featureRange: "F176-F177",
-        items: [
-          available("Inspections", "/manufacturing/inspections"),
-          available("Time Tracking", "/manufacturing/time-tracking"),
-          available("Subcontracting", "/manufacturing/subcontracting"),
-        ],
+        items: [available("Inspections", "/manufacturing/inspections")],
       },
       {
         id: "resources",
         label: "Resources",
         featureRange: "F178-F181",
-        items: [
-          available("Work Centers", "/manufacturing/work-centers"),
-          planned("Resources", "/manufacturing/resources"),
-          available("Calendars", "/manufacturing/calendars"),
-          available("Shifts", "/manufacturing/shifts"),
-          available("Holidays", "/manufacturing/calendar-exceptions"),
-          available("Settings", "/manufacturing/settings"),
-        ],
+        items: [available("Settings", "/manufacturing/settings")],
       },
       {
         id: "cost",
@@ -769,18 +665,6 @@ export const MODULE_NAVIGATION: readonly ModuleNavigation[] = [
           available("Standard Cost", "/manufacturing/standard-cost"),
           available("Production Cost", "/manufacturing/production-cost"),
           available("Variance", "/manufacturing/variance"),
-        ],
-      },
-      {
-        id: "insights",
-        label: "Insights",
-        featureRange: "F187-F192",
-        items: [
-          available("Performance", "/manufacturing/performance"),
-          available("Downtime", "/manufacturing/downtime"),
-          available("Yield", "/manufacturing/yield"),
-          available("Production Summary", "/manufacturing/production-summary"),
-          available("Reports", "/manufacturing/reports"),
         ],
       },
     ],
@@ -800,10 +684,7 @@ export const MODULE_NAVIGATION: readonly ModuleNavigation[] = [
         id: "projects",
         label: "Projects",
         featureRange: "F193-F196",
-        items: [
-          available("All Projects", "/projects/all"),
-          available("Templates", "/projects/templates"),
-        ],
+        items: [available("All Projects", "/projects/all")],
       },
       {
         id: "planning",
@@ -816,61 +697,23 @@ export const MODULE_NAVIGATION: readonly ModuleNavigation[] = [
         ],
       },
       {
-        id: "resources",
-        label: "Resources",
-        featureRange: "F204-F206",
-        items: [
-          available("Resource Allocation", "/projects/resource-allocation"),
-          available("Capacity", "/projects/capacity"),
-        ],
+        id: "team",
+        label: "Team",
+        items: [available("Project Team", "/projects/team")],
       },
       {
-        id: "time-expense",
-        label: "Time & Expense",
-        featureRange: "F207-F210",
+        id: "time",
+        label: "Time",
+        featureRange: "F209-F210",
         items: [
           available("Time Entries", "/projects/time"),
           available("Timesheets", "/projects/timesheets"),
-          available("Expenses", "/projects/expenses"),
-          available("Materials", "/projects/materials"),
         ],
       },
       {
-        id: "financials",
-        label: "Financials",
-        featureRange: "F211-F215",
-        items: [
-          available("Budgets", "/projects/budgets"),
-          available("Project Procurement", "/projects/procurement"),
-        ],
-      },
-      {
-        id: "billing",
-        label: "Billing",
-        featureRange: "F216-F218",
-        items: [
-          available("Billing", "/projects/billing"),
-          available("Project Invoices", "/projects/invoices"),
-        ],
-      },
-      {
-        id: "control",
-        label: "Control",
-        featureRange: "F219-F224",
-        items: [
-          available("Risks", "/projects/risks"),
-          available("Issues", "/projects/issues"),
-          available("Documents", "/projects/documents"),
-        ],
-      },
-      {
-        id: "insights",
-        label: "Insights",
-        featureRange: "F225-F230",
-        items: [
-          available("Reports", "/projects/reports"),
-          available("Settings", "/projects/settings"),
-        ],
+        id: "setup",
+        label: "Setup",
+        items: [available("Settings", "/projects/settings")],
       },
     ],
   },
@@ -917,11 +760,7 @@ export const MODULE_NAVIGATION: readonly ModuleNavigation[] = [
         id: "value",
         label: "Value",
         featureRange: "F242-F245",
-        items: [
-          available("Depreciation", "/assets/depreciation"),
-          available("Revaluation", "/assets/revaluation"),
-          available("Impairment", "/assets/impairment"),
-        ],
+        items: [available("Depreciation", "/assets/depreciation")],
       },
       {
         id: "maintenance",
@@ -930,18 +769,6 @@ export const MODULE_NAVIGATION: readonly ModuleNavigation[] = [
         items: [
           available("Maintenance Plans", "/assets/maintenance-plans"),
           available("Work Orders", "/assets/work-orders"),
-          available("Downtime", "/assets/downtime"),
-          available("Warranties", "/assets/warranties"),
-        ],
-      },
-      {
-        id: "compliance",
-        label: "Compliance",
-        featureRange: "F251-F254",
-        items: [
-          available("Inspections", "/assets/inspections"),
-          available("Calibration", "/assets/calibration"),
-          available("Physical Verification", "/assets/physical-verification"),
         ],
       },
       {
@@ -954,12 +781,9 @@ export const MODULE_NAVIGATION: readonly ModuleNavigation[] = [
         ],
       },
       {
-        id: "insights",
-        label: "Insights",
-        featureRange: "F258-F267",
+        id: "setup",
+        label: "Setup",
         items: [
-          available("Asset Analytics", "/assets/analytics"),
-          available("Reports", "/assets/reports"),
           adminOnly(
             "Asset Settings",
             "/assets/settings",
@@ -1017,14 +841,6 @@ export const MODULE_NAVIGATION: readonly ModuleNavigation[] = [
         featureRange: "F279-F281",
         items: [
           {
-            ...available("Promotions", "/pos/promotions"),
-            requiredPermission: "pos.settings.manage",
-          },
-          {
-            ...available("Coupons", "/pos/coupons"),
-            requiredPermission: "pos.settings.manage",
-          },
-          {
             ...available("Discount Approvals", "/pos/discount-approvals"),
             requiredPermission: "pos.discount.approve",
           },
@@ -1049,26 +865,8 @@ export const MODULE_NAVIGATION: readonly ModuleNavigation[] = [
       {
         id: "returns",
         label: "Returns",
-        featureRange: "F291-F293",
-        // Exchanges (F293) is not a separate screen -- it's the "Exchange"
-        // action on an approved return in this same Returns screen, which
-        // hands off to checkout to build the replacement cart.
+        featureRange: "F291-F292",
         items: [available("Returns", "/pos/returns")],
-      },
-      {
-        id: "customers",
-        label: "Customers",
-        featureRange: "F287-F290",
-        items: [
-          available("Customers", "/pos/customers"),
-          // F306: program config + real customer balance/ledger lookup.
-          // Editing the program is gated inside the screen itself
-          // (pos.loyalty.manage) since balance lookup stays open to cashiers.
-          available("Loyalty", "/pos/loyalty"),
-          // F290: generation happens from the receipt screen; this is the
-          // searchable ledger of every invoice already generated.
-          available("Invoices", "/pos/invoices"),
-        ],
       },
       {
         id: "inventory",
@@ -1081,15 +879,6 @@ export const MODULE_NAVIGATION: readonly ModuleNavigation[] = [
           // capability, not two destinations, so this also replaces the
           // separate "Stock Sync" placeholder that used to sit here.
           available("POS Inventory", "/pos/inventory"),
-          // F297/F298: a real screen for reviewing/resolving offline sales
-          // that couldn't sync cleanly (price/stock/shift divergence).
-          {
-            ...available(
-              "Offline Sync Conflicts",
-              "/pos/offline-sync-conflicts",
-            ),
-            requiredPermission: "pos.offline.resolve",
-          },
         ],
       },
       {
@@ -1114,21 +903,6 @@ export const MODULE_NAVIGATION: readonly ModuleNavigation[] = [
             ...available("Accounting Posting", "/pos/accounting"),
             requiredPermission: "pos.accounting.view",
           },
-          // F307: real date-range/store/terminal/cashier drilldown
-          // analytics, replacing the coarse today-only dashboard aggregate.
-          {
-            ...available("Analytics", "/pos/analytics"),
-            requiredPermission: "pos.analytics.view",
-          },
-          // F295-F307 hub -- a lightweight index page linking out to the
-          // four screens above (day-end reports, reconciliation, accounting
-          // posting, analytics) plus ad hoc POS reporting access; it computes
-          // nothing of its own, so it only needs the general pos.reports.view
-          // floor, not any one of those screens' own narrower permission.
-          {
-            ...available("Reports", "/pos/reports"),
-            requiredPermission: "pos.reports.view",
-          },
         ],
       },
     ],
@@ -1148,10 +922,7 @@ export const MODULE_NAVIGATION: readonly ModuleNavigation[] = [
         id: "planning",
         label: "Planning",
         featureRange: "F308-F312",
-        items: [
-          available("Quality Plans", "/quality/plans"),
-          available("Sampling Plans", "/quality/sampling-plans"),
-        ],
+        items: [available("Quality Plans", "/quality/plans")],
       },
       {
         id: "inspections",
@@ -1169,32 +940,6 @@ export const MODULE_NAVIGATION: readonly ModuleNavigation[] = [
         items: [
           available("Non-Conformances", "/quality/nonconformances"),
           available("Quality Holds", "/quality/holds"),
-        ],
-      },
-      {
-        id: "capa",
-        label: "CAPA",
-        featureRange: "F328-F331",
-        items: [available("CAPA", "/quality/capa")],
-      },
-      {
-        id: "supplier-customer",
-        label: "Supplier & Customer Quality",
-        featureRange: "F332-F335",
-        items: [
-          available("Supplier Quality", "/quality/supplier-records"),
-          available("Customer Complaints", "/quality/complaints"),
-        ],
-      },
-      {
-        id: "compliance",
-        label: "Compliance",
-        featureRange: "F336-F340",
-        items: [
-          available("Audits", "/quality/audits"),
-          available("Calibration", "/quality/calibration"),
-          available("Certificates", "/quality/certificates"),
-          available("Documents", "/quality/documents"),
         ],
       },
     ],
@@ -1218,65 +963,7 @@ export const MODULE_NAVIGATION: readonly ModuleNavigation[] = [
           available("My Tickets", "/support/my-tickets"),
           available("All Tickets", "/support/tickets"),
           available("Unassigned", "/support/unassigned"),
-          available("Escalated", "/support/escalated"),
           available("Categories", "/support/categories"),
-        ],
-      },
-      {
-        id: "queues",
-        label: "Queues",
-        featureRange: "F351-F355",
-        items: [
-          available("Team Queues", "/support/queues"),
-          available("Routing", "/support/routing-rules"),
-        ],
-      },
-      {
-        id: "sla",
-        label: "SLA",
-        featureRange: "F360-F364",
-        items: [
-          available("SLA Policies", "/support/sla-policies"),
-          available("Breaches", "/support/breaches"),
-          available("Escalations", "/support/escalation-policies"),
-          available("Escalation Log", "/support/escalations-admin"),
-        ],
-      },
-      {
-        id: "knowledge",
-        label: "Knowledge",
-        featureRange: "F365-F369",
-        items: [
-          available("Articles", "/support/knowledge-articles"),
-          available("Canned Responses", "/support/canned-responses"),
-        ],
-      },
-      {
-        id: "customers",
-        label: "Customers",
-        featureRange: "F370-F374",
-        items: [
-          available("Entitlements", "/support/entitlements"),
-          available("Portal Administration", "/support/portal-users"),
-        ],
-      },
-      {
-        id: "customer-portal",
-        label: "Customer Portal",
-        featureRange: "F371",
-        items: [
-          available("My Tickets", "/support/portal-tickets"),
-          available("Help Articles", "/support/portal-articles"),
-        ],
-      },
-      {
-        id: "insights",
-        label: "Insights",
-        featureRange: "F375-F380",
-        items: [
-          available("CSAT", "/support/csat"),
-          available("Agent Performance", "/support/agent-performance"),
-          available("SLA Reports", "/support/sla-reports"),
         ],
       },
     ],
@@ -1305,38 +992,12 @@ export const MODULE_NAVIGATION: readonly ModuleNavigation[] = [
           available("Organization", "/hr/organization"),
           available("Departments", "/hr/departments"),
           available("Positions", "/hr/positions"),
-          available("Documents", "/hr/documents"),
-          available("Document Types", "/hr/document-types"),
-          available("Profile Requests", "/hr/profile-requests"),
         ],
       },
       {
-        id: "lifecycle",
-        label: "Lifecycle",
-        featureRange: "F387-F392",
-        items: [
-          available("Onboarding", "/hr/onboarding"),
-          available("Probation", "/hr/probation"),
-          available("Confirmations", "/hr/confirmations"),
-          available("Probation Extensions", "/hr/probation-extensions"),
-          available("Transfers", "/hr/transfers"),
-          available("Promotions", "/hr/promotions"),
-          available("Offboarding", "/hr/offboarding"),
-          available("Separations", "/hr/separations"),
-        ],
-      },
-      {
-        id: "recruitment",
-        label: "Recruitment",
-        featureRange: "F393-F398",
-        items: [
-          available("Job Openings", "/hr/openings"),
-          available("Candidates", "/hr/candidates"),
-          available("Pipeline", "/hr/applications"),
-          available("Interviews", "/hr/interviews"),
-          available("My Interviews", "/hr/my-interviews"),
-          available("Offers", "/hr/offers"),
-        ],
+        id: "joining",
+        label: "Joining",
+        items: [available("Onboarding", "/hr/onboarding")],
       },
       {
         id: "time",
@@ -1345,15 +1006,10 @@ export const MODULE_NAVIGATION: readonly ModuleNavigation[] = [
         items: [
           available("Attendance", "/hr/attendance"),
           available("My Attendance", "/hr/my-attendance"),
-          available("Corrections", "/hr/regularizations"),
-          available("Team Corrections", "/hr/team-corrections"),
-          available("Late & Early", "/hr/late-early"),
           available("Shifts", "/hr/shifts"),
           available("Shift Assignments", "/hr/shift-assignments"),
           available("Holiday Calendars", "/hr/holiday-calendars"),
           available("Holidays", "/hr/holidays"),
-          available("Overtime", "/hr/overtime"),
-          available("Team Overtime", "/hr/team-overtime"),
         ],
       },
       {
@@ -1390,55 +1046,9 @@ export const MODULE_NAVIGATION: readonly ModuleNavigation[] = [
           available("Payroll Runs", "/hr/payroll-runs"),
           available("Payroll Periods", "/hr/payroll-periods"),
           available("Exceptions", "/hr/payroll-exceptions"),
-          available("Adjustments", "/hr/payroll-inputs"),
-          available("Expenses", "/hr/expenses"),
-          available("My Expenses", "/hr/my-expenses"),
-          available("Team Expenses", "/hr/team-expenses"),
-          available("Loans", "/hr/loans"),
-          available("My Loans", "/hr/my-loans"),
-          available("Expense Categories", "/hr/expense-categories"),
           available("Payslips", "/hr/payslips"),
           available("My Payslips", "/hr/my-payslips"),
-          available("Settlements", "/hr/final-settlements"),
-          available("Bank Files", "/hr/bank-files"),
         ],
-      },
-      {
-        id: "compliance",
-        label: "Compliance",
-        featureRange: "F423-F428",
-        items: [
-          available("Statutory Components", "/hr/statutory-components"),
-          available("Gratuity", "/hr/gratuity-records"),
-          available("Compliance Report", "/hr/compliance-report"),
-        ],
-      },
-      {
-        id: "performance-growth",
-        label: "Performance & Growth",
-        featureRange: "F448-F452",
-        items: [
-          available("Goals", "/hr/goals"),
-          available("My Goals", "/hr/my-goals"),
-          available("Team Goals", "/hr/team-goals"),
-          available("Review Cycles", "/hr/review-cycles"),
-          available("Appraisals", "/hr/appraisals"),
-          available("My Appraisals", "/hr/my-appraisals"),
-          available("Appraisals to Review", "/hr/appraisals-to-review"),
-          available("Skills", "/hr/skills"),
-          available("Skills Matrix", "/hr/employee-skills"),
-          available("My Skills", "/hr/my-skills"),
-          available("Courses", "/hr/courses"),
-          available("Training Sessions", "/hr/training-sessions"),
-          available("Training Enrolments", "/hr/training-enrolments"),
-          available("My Training", "/hr/my-training"),
-        ],
-      },
-      {
-        id: "insights",
-        label: "Insights",
-        featureRange: "F441-F452",
-        items: [planned("Reports", "/hr/reports")],
       },
     ],
   },
@@ -1462,6 +1072,7 @@ export const MODULE_NAVIGATION: readonly ModuleNavigation[] = [
           available("Journals", "/accounting/journals"),
           available("General Ledger", "/accounting/general-ledger"),
           available("Fiscal Periods", "/accounting/fiscal-periods"),
+          available("Close Checklist", "/accounting/close-checklist"),
         ],
       },
       {
@@ -1471,8 +1082,6 @@ export const MODULE_NAVIGATION: readonly ModuleNavigation[] = [
         items: [
           available("Customer Invoices", "/accounting/customer-invoices"),
           available("Receipts", "/accounting/receipts"),
-          planned("Credit", "/accounting/credit"),
-          available("AR Aging", "/accounting/ar-aging"),
         ],
       },
       {
@@ -1482,7 +1091,6 @@ export const MODULE_NAVIGATION: readonly ModuleNavigation[] = [
         items: [
           available("Supplier Invoices", "/accounting/supplier-invoices"),
           available("Payments", "/accounting/payments"),
-          available("AP Aging", "/accounting/ap-aging"),
         ],
       },
       {
@@ -1496,57 +1104,13 @@ export const MODULE_NAVIGATION: readonly ModuleNavigation[] = [
         ],
       },
       {
-        id: "tax",
-        label: "Tax",
-        featureRange: "F476-F480",
-        items: [
-          available("GST", "/accounting/gst"),
-          planned("TDS / TCS", "/accounting/tds-tcs"),
-          available("Tax Reports", "/accounting/tax-reports"),
-        ],
-      },
-      {
-        id: "planning",
-        label: "Planning",
-        featureRange: "F481-F486",
-        items: [
-          available("Budgets", "/accounting/budgets"),
-          available("Accruals", "/accounting/accruals"),
-          available("Prepayments", "/accounting/prepayments"),
-          available("Revenue Schedules", "/accounting/revenue-schedules"),
-          available("Budget vs Actual", "/accounting/budget-actual"),
-          available("Fixed Assets", "/accounting/assets"),
-        ],
-      },
-      {
-        id: "corporate",
-        label: "Corporate",
-        featureRange: "F487-F492",
-        items: [
-          available("Foreign Exchange", "/accounting/fx"),
-          available("Intercompany", "/accounting/intercompany"),
-          available("Consolidation", "/accounting/consolidation"),
-        ],
-      },
-      {
-        id: "close",
-        label: "Close",
-        featureRange: "F493-F497",
-        items: [
-          available("Close Checklist", "/accounting/close-checklist"),
-          available("Period Close", "/accounting/period-close"),
-          available("Trial Balance", "/accounting/trial-balance"),
-        ],
-      },
-      {
         id: "reports",
         label: "Reports",
         featureRange: "F498-F505",
         items: [
+          available("Trial Balance", "/accounting/trial-balance"),
           available("Profit & Loss", "/accounting/profit-loss"),
           available("Balance Sheet", "/accounting/balance-sheet"),
-          available("Cash Flow", "/accounting/cash-flow"),
-          available("Audit/Statutory Reports", "/accounting/statutory-reports"),
         ],
       },
       {

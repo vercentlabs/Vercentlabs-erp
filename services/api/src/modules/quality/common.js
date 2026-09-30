@@ -31,11 +31,6 @@ export const need = (c, p) => {
 export const needAny = (c, list) => {
   if (!hasAny(c, list)) throw new QualityError(403, "You do not have permission to perform this quality operation.", "QUALITY_FORBIDDEN");
 };
-export const positive = (value, label) => {
-  const n = Number(value);
-  if (!Number.isFinite(n) || n <= 0) throw new QualityError(400, `${label} must be greater than zero.`, "QUALITY_NUMBER_INVALID");
-  return n;
-};
 export const nonNegative = (value, label, fallback = 0) => {
   if (value === undefined || value === null || value === "") return fallback;
   const n = Number(value);
@@ -48,18 +43,11 @@ export const dateOrNull = (value, label) => {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(s) || Number.isNaN(Date.parse(s))) throw new QualityError(400, `${label} is not a valid date.`, "QUALITY_DATE_INVALID");
   return s;
 };
-export const dateRequired = (value, label) => {
-  const d = dateOrNull(value, label);
-  if (!d) throw new QualityError(400, `${label} is required.`, "QUALITY_DATE_REQUIRED");
-  return d;
-};
 export const oneOf = (value, allowed, label) => {
   if (!allowed.includes(value)) throw new QualityError(400, `${label} must be one of: ${allowed.join(", ")}.`, "QUALITY_VALUE_INVALID");
   return value;
 };
 export const today = () => new Date().toISOString().slice(0, 10);
-export const round2 = (n) => Math.round((Number(n) + Number.EPSILON) * 100) / 100;
-
 export function qualityContext(session) {
   const companyId = session.activeCompanyId || session.companyId;
   if (!companyId) throw new QualityError(400, "Select an active company before using Quality.", "ACTIVE_COMPANY_REQUIRED");

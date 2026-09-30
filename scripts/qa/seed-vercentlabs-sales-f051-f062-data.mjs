@@ -1,10 +1,8 @@
 #!/usr/bin/env node
 // Sales F051–F062 demo data, continuing the Sunrise Dairy story through
 // order-to-cash: the company's accounting foundation (the app's own
-// initializer), a supplier, an invoiced and part-paid order, returns in each
-// state, a credit note and a refund, advances deducted on a partial invoice,
-// a drop-shipment, commissions (approved and reversed), an order held for
-// longer payment terms, and a standard-cost change for the margin report.
+// initializer), an invoiced and part-paid order, a credit note and a refund,
+// a partial invoice, and an order held for longer payment terms.
 // Everything goes through governed functions. Local-only, safe to run more
 // than once (each step checks first). Run the F031–F040 and F041–F050 seeds first.
 import fs from "node:fs";
@@ -13,12 +11,9 @@ import { fileURLToPath } from "node:url";
 import { config as loadDotEnv } from "dotenv";
 import { Client } from "pg";
 import {
-  accrueSalesCommission, allocateCustomerReceipt, approveSalesCommission, approveSubledgerDocument, cancelSalesAdvancePayment,
-  cancelSalesOrder, completeSalesReturnWithStock, confirmSalesOrder, createBusinessDataRecord, createCustomerReceipt,
-  createInvoiceFromSalesRequest, createInvoiceRequest, createProcurementRecord, createSalesCommissionRule, createSalesDropShipWithSupplierValidation,
-  createSalesOrder, createSalesReturnRequest, decideSalesCreditAdjustment, decideSalesReturnRequest, getSalesOrder, initializeAccountingCompany,
-  postCustomerInvoice, postCustomerReceipt, recordSalesAdvancePayment, requestSalesCreditAdjustment, submitSalesOrder, submitSubledgerDocument,
-  updateBusinessDataRecord, updateSalesDropShipStatus,
+  allocateCustomerReceipt, approveSubledgerDocument, confirmSalesOrder, createBusinessDataRecord, createCustomerReceipt,
+  createInvoiceFromSalesRequest, createInvoiceRequest, createSalesOrder, decideSalesCreditAdjustment, getSalesOrder, initializeAccountingCompany,
+  postCustomerInvoice, postCustomerReceipt, requestSalesCreditAdjustment, submitSalesOrder, submitSubledgerDocument,
 } from "../../services/api/src/index.js";
 import { setTenantContext } from "../../packages/database/src/index.js";
 
@@ -41,8 +36,6 @@ const ownerId = await userId("atharva.chavan@vercentlabs.com");
 const priyaId = await userId("priya.nair@vercentlabs.demo");
 const ctx = (id) => ({ organizationId, userId: id, activeCompanyId: companyId, activeBranchId: null, allowAllCompanies: true, permissions: [], roleSlugs: ["organization_owner"] });
 const owner = ctx(ownerId), priya = ctx(priyaId);
-const stock = { organizationId, companyId, userId: ownerId, permissions: ["stock.view", "stock.receive", "stock.reserve", "stock.issue"], roleSlugs: [] };
-const procurement = { organizationId, companyId, activeCompanyId: companyId, userId: ownerId, permissions: ["procurement.suppliers.view", "procurement.suppliers.manage"], roleSlugs: ["organization_owner"], allowAllCompanies: true };
 
 async function tx(fn) {
   await db.query("BEGIN");
@@ -79,14 +72,11 @@ await step("fiscal periods April 2026 – March 2027", () => one(`SELECT 1 FROM 
     }
   });
 
-// ---------- Supplier and terms ----------
-await step("supplier Sahyadri Farms", () => one(`SELECT 1 FROM tenant.procurement_suppliers WHERE organization_id=$1 AND data->>'supplierCode'=$2`, ["SUP-SAHYADRI"]),
-  (c) => createProcurementRecord(c, procurement, "suppliers", { companyId, supplierCode: "SUP-SAHYADRI", legalName: "Sahyadri Farms Producer Company Ltd", displayName: "Sahyadri Farms", status: "active" }));
-const supplierId = (await one(`SELECT id FROM tenant.procurement_suppliers WHERE organization_id=$1 AND data->>'supplierCode'=$2`, ["SUP-SAHYADRI"])).id;
+// ---------- Terms ----------
 await step("payment term Net 60", () => one(`SELECT 1 FROM tenant.payment_terms WHERE organization_id=$1 AND code=$2`, ["NET60"]),
   (c) => createBusinessDataRecord(c, owner, "payment-terms", { code: "NET60", name: "Net 60", description: "Payment due 60 days from invoice", defaultDueDays: 60, status: "active" }));
 
-const milk = await itemId("MILK-TON-1L"), paneer = await itemId("PANEER-200"), ghee = await itemId("GHEE-COW");
+const milk = await itemId("MILK-TON-1L"), ghee = await itemId("GHEE-COW");
 const ctn = (await one(`SELECT id FROM tenant.units_of_measure WHERE organization_id=$1 AND code='CTN'`)).id;
 const ghee1l = (await one(`SELECT id FROM tenant.item_variants WHERE organization_id=$1 AND sku='GHEE-COW-1L'`)).id;
 const warehouse = (await one(`SELECT id FROM tenant.warehouses WHERE organization_id=$1 AND code='PUNE-COLD'`)).id;
@@ -117,71 +107,25 @@ await step("part payment received against the weekly invoice", () => one(`SELECT
     await allocateCustomerReceipt(c, owner, receiptId, { allocations: [{ invoiceId: weeklyInvoice.id, amount: 5000 }] });
   });
 
-// ---------- F054: returns (received as scrap, and one waiting) ----------
-const weeklyLines = (await tx((c) => getSalesOrder(c, owner, weekly.id))).lines;
-const weeklyMilk = weeklyLines.find((l) => l.item_id === milk), weeklyPaneer = weeklyLines.find((l) => l.item_id === paneer);
-await step("return: 1 carton of paneer damaged in transit (received, scrapped)", () => one(`SELECT 1 FROM tenant.sales_return_requests WHERE organization_id=$1 AND idempotency_key=$2`, ["f054-paneer-damaged"]),
-  async (c) => {
-    const request = await createSalesReturnRequest(c, owner, weekly.id, { idempotencyKey: "f054-paneer-damaged", reason: "One carton of paneer arrived with broken seals", lines: [{ salesOrderLineId: weeklyPaneer.id, quantity: 1 }] });
-    await decideSalesReturnRequest(c, priya, request.id, { decision: "approved", note: "Photos from Meera confirm the broken seals." });
-    await completeSalesReturnWithStock(c, owner, stock, request.id, { lines: [{ salesOrderLineId: weeklyPaneer.id, quantity: 1, disposition: "scrap" }] });
-  });
-await step("return: 2 cartons of milk leaking (waiting for approval)", () => one(`SELECT 1 FROM tenant.sales_return_requests WHERE organization_id=$1 AND idempotency_key=$2`, ["f054-milk-leaking"]),
-  (c) => createSalesReturnRequest(c, owner, weekly.id, { idempotencyKey: "f054-milk-leaking", reason: "Two cartons of pouches leaking at the Pune plant", lines: [{ salesOrderLineId: weeklyMilk.id, quantity: 2 }] }));
-const paneerReturn = await one(`SELECT id FROM tenant.sales_return_requests WHERE organization_id=$1 AND idempotency_key=$2`, ["f054-paneer-damaged"]);
-
-// ---------- F055: a credit note for the scrapped carton, and a refund ----------
+// ---------- F055: a credit note for a damaged carton, and a refund ----------
 await step("credit note for the damaged paneer (waiting for approval)", () => one(`SELECT 1 FROM tenant.sales_credit_adjustment_requests WHERE organization_id=$1 AND sales_order_id=$2 AND adjustment_type='credit_note'`, [weekly.id]),
-  (c) => requestSalesCreditAdjustment(c, owner, { salesOrderId: weekly.id, adjustmentType: "credit_note", amount: 1722, returnRequestId: paneerReturn.id, reason: "Credit for 1 carton of paneer returned damaged (₹1,640 + 5% GST)" }));
+  (c) => requestSalesCreditAdjustment(c, owner, { salesOrderId: weekly.id, adjustmentType: "credit_note", amount: 1722, reason: "Credit for 1 carton of paneer damaged in transit (₹1,640 + 5% GST)" }));
 await step("refund of an overpayment (approved)", () => one(`SELECT 1 FROM tenant.sales_credit_adjustment_requests WHERE organization_id=$1 AND sales_order_id=$2 AND adjustment_type='refund'`, [weekly.id]),
   async (c) => {
     const refund = await requestSalesCreditAdjustment(c, owner, { salesOrderId: weekly.id, adjustmentType: "refund", amount: 250, reason: "Customer paid ₹250 twice for the cold-chain surcharge" });
     await decideSalesCreditAdjustment(c, priya, refund.id, { decision: "approved", note: "Bank statement shows the duplicate transfer." });
   });
 
-// ---------- F052/F051: advances deducted on a partial invoice ----------
-await step("Diwali bulk order: two advances, a partial invoice, one advance cancelled", () => orderByNote("Diwali bulk order for the Pune plant"),
+// ---------- F051: a partial invoice ----------
+await step("Diwali bulk order: a partial invoice for the first 10 cartons", () => orderByNote("Diwali bulk order for the Pune plant"),
   async (c) => {
     const created = await createSalesOrder(c, owner, { ...header, customerNotes: "Diwali bulk order for the Pune plant", customerPoNumber: "SDP/PO/2026/0470", lines: [line(milk, 30), { itemId: ghee, variantId: ghee1l, quantity: 10, warehouseId: warehouse }] });
     const orderId = created.id ?? created.orderId;
     await submitSalesOrder(c, owner, orderId);
     await confirmSalesOrder(c, owner, orderId);
-    await recordSalesAdvancePayment(c, owner, { salesOrderId: orderId, amount: 5000, paymentReference: "UPI-SDP-7741", note: "Token advance paid on the call" });
-    await recordSalesAdvancePayment(c, owner, { salesOrderId: orderId, amount: 10000, paymentReference: "NEFT-SDP-90112", note: "Balance advance before dispatch" });
-    const wrong = await recordSalesAdvancePayment(c, owner, { salesOrderId: orderId, amount: 2000, paymentReference: "CHQ-004411" });
-    await cancelSalesAdvancePayment(c, owner, wrong.id, { reason: "Cheque bounced — recorded in error" });
     const lines = (await getSalesOrder(c, owner, orderId)).lines;
     const milkLine = lines.find((l) => l.item_id === milk);
     await createInvoiceRequest(c, owner, orderId, { idempotencyKey: `f051-partial:${orderId}`, lines: [{ salesOrderLineId: milkLine.id, quantity: 10 }] });
-  });
-
-// ---------- F056: drop-ship the ghee stock can't cover ----------
-const corporate = await orderByNote("Ghee 1 L tins for corporate gifting");
-await step("drop-ship 30 tins of ghee from Sahyadri Farms (shipped)", () => one(`SELECT 1 FROM tenant.sales_drop_ship_requests WHERE organization_id=$1 AND idempotency_key=$2`, ["f056-ghee"]),
-  async (c) => {
-    const [gheeLine] = (await getSalesOrder(c, owner, corporate.id)).lines;
-    const drop = await createSalesDropShipWithSupplierValidation(c, owner, procurement, { salesOrderId: corporate.id, salesOrderLineId: gheeLine.id, supplierId, quantity: 30, shipToAddressId: header.shippingAddressId, idempotencyKey: "f056-ghee" });
-    await updateSalesDropShipStatus(c, owner, drop.id, { status: "ordered", procurementReference: "SAH/PO/2026/0192" });
-    await updateSalesDropShipStatus(c, owner, drop.id, { status: "shipped", carrier: "Blue Dart Surface", trackingNumber: "BD-55120937" });
-  });
-
-// ---------- F057: commissions (accrued, approved, reversed) ----------
-await step("commission rule: 2% of net sales", () => one(`SELECT 1 FROM tenant.sales_commission_rules WHERE organization_id=$1 AND name=$2`, ["Dairy field sales — 2% of net sales"]),
-  (c) => createSalesCommissionRule(c, owner, { companyId, name: "Dairy field sales — 2% of net sales", ratePercent: 2, basis: "net_sales" }));
-await step("commissions accrued; weekly one approved by Priya", () => one(`SELECT 1 FROM tenant.sales_commission_entries WHERE organization_id=$1 AND sales_order_id=$2 AND status='approved'`, [weekly.id]),
-  async (c) => {
-    for (const order of [weekly, corporate]) await accrueSalesCommission(c, owner, { salesOrderId: order.id });
-    const entry = (await c.query(`SELECT id FROM tenant.sales_commission_entries WHERE organization_id=$1 AND sales_order_id=$2`, [organizationId, weekly.id])).rows[0];
-    await approveSalesCommission(c, priya, entry.id);
-  });
-await step("cancelled order: commission reversed", () => orderByNote("Paneer for a school canteen — cancelled by the customer"),
-  async (c) => {
-    const created = await createSalesOrder(c, owner, { ...header, customerNotes: "Paneer for a school canteen — cancelled by the customer", lines: [line(paneer, 3)] });
-    const orderId = created.id ?? created.orderId;
-    await submitSalesOrder(c, owner, orderId);
-    await confirmSalesOrder(c, owner, orderId);
-    await accrueSalesCommission(c, owner, { salesOrderId: orderId });
-    await cancelSalesOrder(c, owner, orderId, "School term postponed; customer cancelled the order.");
   });
 
 // ---------- F058: longer terms than the customer's default ----------
@@ -191,13 +135,6 @@ await step("order on Net 60 (customer default Net 30) waiting for approval", () 
     const created = await createSalesOrder(c, owner, { ...header, paymentTermId: net60, customerNotes: "Year-end stock-up — customer asked for Net 60", lines: [line(milk, 25)] });
     await submitSalesOrder(c, owner, created.id ?? created.orderId, priyaId);
   });
-
-// ---------- F061: milk costs went up after the orders were priced ----------
-const milkCost = await one(`SELECT standard_cost FROM tenant.items WHERE organization_id=$1 AND id=$2`, [milk]);
-if (Number(milkCost.standard_cost) !== 47) {
-  await tx((c) => updateBusinessDataRecord(c, owner, "items", milk, { standardCost: 47 }));
-  console.log("done     milk standard cost 44 → 47 (procurement price rise)");
-} else console.log("present  milk standard cost 47");
 
 await db.end();
 console.log("done");

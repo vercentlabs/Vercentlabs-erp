@@ -1,8 +1,6 @@
 import { z } from "zod";
 
 import {
-  activateBudget,
-  approveBudget,
   approveCustomerInvoice,
   approveJournalEntry,
   approveVendorBill,
@@ -11,54 +9,38 @@ import {
   allocateVendorPayment,
   applyCustomerCreditNote,
   applyVendorCreditNote,
-  calculateRevaluation,
-  capitalizeAsset,
   completeBankReconciliation,
-  completeCloseRun,
   createAccountingAccount,
-  createAccrualSchedule,
-  createAsset,
-  createAssetCategory,
   createBankAccount,
-  createBudget,
-  createCloseRun,
   createCustomerInvoice,
   createCustomerReceipt,
   createJournalEntry,
-  createRecurringTemplate,
-  createTaxReturn,
   createVendorBill,
   createVendorPayment,
-  disposeAsset,
   importBankStatement,
   matchBankStatementLine,
-  postAssetDepreciation,
   postCustomerInvoice,
   postCustomerReceipt,
   postJournalEntry,
-  postRevaluation,
   postVendorBill,
   postVendorPayment,
-  rejectBudgetApproval,
   rejectCustomerInvoiceApproval,
   rejectJournalApproval,
   rejectVendorBillApproval,
   rejectVendorPaymentApproval,
   reverseJournalEntry,
-  runDueAccruals,
-  runDueRecurringTemplates,
   startBankReconciliation,
-  submitBudget,
   submitCustomerInvoice,
   submitJournalEntry,
   submitVendorBill,
   submitVendorPayment,
   updateAccountingSettings,
-  updateCloseTask,
   updateFiscalPeriodStatus,
-  updateTaxReturnStatus,
   accountingDocumentContentHash,
   primaryAccountingLedgerId,
+  createCloseRun,
+  updateCloseTask,
+  completeCloseRun,
 } from "@vercentlabs/api";
 
 import { HttpError } from "@/core/http";
@@ -309,69 +291,6 @@ export async function POST(
               context,
               idOf(input),
             ),
-          };
-        case "tax-return-create":
-          return { record: await createTaxReturn(client, context, input) };
-        case "tax-return-status":
-          return {
-            record: await updateTaxReturnStatus(
-              client,
-              context,
-              idOf(input),
-              input,
-            ),
-          };
-        case "budget-create":
-          return { record: await createBudget(client, context, input) };
-        case "budget-submit":
-          return { record: await submitBudget(client, context, idOf(input)) };
-        case "budget-approve":
-          return { record: await approveBudget(client, context, idOf(input)) };
-        case "budget-reject":
-          return {
-            record: await rejectBudgetApproval(client, context, idOf(input)),
-          };
-        case "budget-activate":
-          return { record: await activateBudget(client, context, idOf(input)) };
-        case "recurring-create":
-          return {
-            record: await createRecurringTemplate(client, context, input),
-          };
-        case "recurring-run":
-          return {
-            record: await runDueRecurringTemplates(
-              client,
-              context,
-              str(input, "runDate") || null,
-            ),
-          };
-        case "accrual-create":
-          return {
-            record: await createAccrualSchedule(client, context, input),
-          };
-        case "accrual-run":
-          return { record: await runDueAccruals(client, context, input) };
-        case "revaluation-calculate":
-          return { record: await calculateRevaluation(client, context, input) };
-        case "revaluation-post":
-          return {
-            record: await postRevaluation(client, context, idOf(input)),
-          };
-        case "asset-category-create":
-          return { record: await createAssetCategory(client, context, input) };
-        case "asset-create":
-          return { record: await createAsset(client, context, input) };
-        case "asset-capitalize":
-          return {
-            record: await capitalizeAsset(client, context, idOf(input), input),
-          };
-        case "asset-depreciate":
-          return {
-            record: await postAssetDepreciation(client, context, idOf(input)),
-          };
-        case "asset-dispose":
-          return {
-            record: await disposeAsset(client, context, idOf(input), input),
           };
         case "period-status":
           return {

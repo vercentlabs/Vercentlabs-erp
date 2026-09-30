@@ -44,7 +44,6 @@ const num = (value: unknown) => String(Number(value ?? 0));
 
 export function ProcurementHomeScreen() {
   const workspace = useWorkspaceContext();
-  const can = useCan();
   const query = useQuery({
     queryKey: scopedQueryKey(workspace, "procurement", "dashboard"),
     queryFn: getDashboard,
@@ -63,16 +62,6 @@ export function ProcurementHomeScreen() {
   const d = query.data;
   const links = [
     {
-      href: "/procurement/requisitions",
-      label: "Requisitions",
-      hint: "Request and approve purchases",
-    },
-    {
-      href: "/procurement/rfqs",
-      label: "RFQs",
-      hint: "Invite suppliers and compare bids",
-    },
-    {
       href: "/procurement/orders",
       label: "Purchase orders",
       hint: "Order, approve, dispatch, amend",
@@ -90,17 +79,13 @@ export function ProcurementHomeScreen() {
     {
       href: "/procurement/suppliers",
       label: "Suppliers",
-      hint: "Onboarding, qualification, performance",
+      hint: "Supplier master, sites and contacts",
     },
-    ...(can("procurement.reports.view")
-      ? [
-          {
-            href: "/procurement/spend-analytics",
-            label: "Spend analytics",
-            hint: "Where the money goes",
-          },
-        ]
-      : []),
+    {
+      href: "/procurement/three-way-match",
+      label: "Three-way match",
+      hint: "Invoice exceptions to resolve",
+    },
   ];
   return (
     <div className="flex flex-col gap-6">
@@ -117,16 +102,8 @@ export function ProcurementHomeScreen() {
         <MetricStrip
           metrics={[
             {
-              label: "Requisitions awaiting approval",
-              value: d ? num(d.pending_requisitions) : "…",
-            },
-            {
-              label: "Active sourcing events",
-              value: d ? num(d.active_sourcing) : "…",
-            },
-            {
               label: "Open purchase orders",
-              value: d ? num(d.open_purchase_orders) : "…",
+              value: d ? num(d.open_orders) : "…",
             },
             {
               label: "Receipts to process",
@@ -174,16 +151,6 @@ type QueueSource = {
 };
 const SOURCES: QueueSource[] = [
   {
-    resource: "requisitions",
-    kind: "Requisition",
-    statuses: ["submitted", "pending_approval"],
-    approve: "approve",
-    reject: "reject",
-    permission: "procurement.requisition.approve",
-    href: (id) => `/procurement/requisitions/${id}`,
-    number: (r) => String(r.requisitionNumber ?? r.title ?? r.id),
-  },
-  {
     resource: "purchase-orders",
     kind: "Purchase order",
     statuses: ["submitted", "pending_approval"],
@@ -202,34 +169,6 @@ const SOURCES: QueueSource[] = [
     permission: "procurement.receipts.approve",
     href: (id) => `/procurement/receipts/${id}`,
     number: (r) => String(r.receiptNumber ?? r.id),
-  },
-  {
-    resource: "returns",
-    kind: "Purchase return",
-    statuses: ["submitted"],
-    approve: "approve",
-    reject: "reject",
-    permission: "procurement.receipts.approve",
-    href: (id) => `/procurement/returns/${id}`,
-    number: (r) => String(r.returnNumber ?? r.id),
-  },
-  {
-    resource: "agreements",
-    kind: "Agreement",
-    statuses: ["submitted"],
-    approve: "approve",
-    permission: "procurement.contracts.approve",
-    href: (id) => `/procurement/agreements/${id}`,
-    number: (r) => String(r.agreementNumber ?? r.title ?? r.id),
-  },
-  {
-    resource: "sourcing-events",
-    kind: "RFQ",
-    statuses: ["submitted"],
-    approve: "approve",
-    permission: "procurement.sourcing.evaluate",
-    href: (id) => `/procurement/rfqs/${id}`,
-    number: (r) => String(r.eventNumber ?? r.title ?? r.id),
   },
   {
     resource: "suppliers",

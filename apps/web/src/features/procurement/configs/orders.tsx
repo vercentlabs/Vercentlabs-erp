@@ -9,7 +9,6 @@ import {
 import type { DetailConfig } from "@/features/procurement/shared/DocumentDetail";
 import type { FormConfig } from "@/features/procurement/shared/DocumentForm";
 import type { ListConfig } from "@/features/procurement/shared/ResourceListPage";
-import type { FieldValue } from "@/features/procurement/shared/FieldInput";
 import {
   calendarDate,
   money,
@@ -54,8 +53,7 @@ export const ordersList: ListConfig = {
   newLabel: "New purchase order",
   createPermission: "procurement.po.create",
   emptyTitle: "No purchase orders yet",
-  emptyDescription:
-    "Create one directly, from an approved requisition, or by awarding an RFQ.",
+  emptyDescription: "Create one directly for a supplier.",
 };
 
 const lineFields = [
@@ -130,18 +128,6 @@ export const orderForm: FormConfig = {
       placeholder: "e.g. Net 30",
     },
     { name: "deliveryTerms", label: "Delivery terms", kind: "text" },
-    {
-      name: "agreementId",
-      label: "Under agreement (optional)",
-      kind: "select",
-      options: "agreements",
-    },
-    {
-      name: "requisitionId",
-      label: "From requisition (optional)",
-      kind: "select",
-      options: "requisitions",
-    },
     { name: "notes", label: "Notes", kind: "textarea" },
   ],
   lines: {
@@ -149,57 +135,6 @@ export const orderForm: FormConfig = {
     label: "Items ordered",
     addLabel: "Add item",
     fields: lineFields,
-  },
-  fromSources: {
-    requisition: {
-      resource: "requisitions",
-      map: (r) => ({
-        values: {
-          title: String(r.title ?? "Purchase order"),
-          requisitionId: r.id,
-          currencyCode: String(r.currencyCode ?? "INR"),
-        },
-        lines: (Array.isArray(r.lines) ? r.lines : []).map(
-          (line: Record<string, unknown>) => {
-            const out: Record<string, FieldValue> = {
-              description: String(line.description ?? ""),
-            };
-            if (line.itemId) out.itemId = String(line.itemId);
-            if (line.quantity !== undefined)
-              out.quantity = Number(line.quantity);
-            if (line.unitPrice !== undefined)
-              out.unitPrice = Number(line.unitPrice);
-            if (line.warehouseId) out.warehouseId = String(line.warehouseId);
-            return out;
-          },
-        ),
-      }),
-    },
-    agreement: {
-      resource: "agreements",
-      map: (a) => ({
-        values: {
-          title: `Call-off: ${String(a.title ?? "")}`,
-          supplierId: String(a.supplierId ?? ""),
-          agreementId: a.id,
-          currencyCode: String(a.currencyCode ?? "INR"),
-          paymentTerms: String(a.paymentTerms ?? ""),
-        },
-        lines: (Array.isArray(a.lines) ? a.lines : []).map(
-          (line: Record<string, unknown>) => {
-            const out: Record<string, FieldValue> = {
-              description: String(line.description ?? ""),
-            };
-            if (line.itemId) out.itemId = String(line.itemId);
-            if (line.quantity !== undefined)
-              out.quantity = Number(line.quantity);
-            if (line.unitPrice !== undefined)
-              out.unitPrice = Number(line.unitPrice);
-            return out;
-          },
-        ),
-      }),
-    },
   },
 };
 

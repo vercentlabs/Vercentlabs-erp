@@ -1,6 +1,6 @@
 // Real PostgreSQL integration test -- production orders end to end against real Stock: reservations,
-// material issue/return, backflush, job cards, WIP cost, finished-goods receipt (batch/serial),
-// by-products, scrap/waste, rework, close/cancel and make-to-order. Role permission sets, no owner bypass.
+// material issue/return, backflush, WIP cost, finished-goods receipt (batch/serial), scrap/waste,
+// close/cancel and make-to-order. Role permission sets, no owner bypass.
 import assert from "node:assert/strict";
 import test from "node:test";
 import { randomUUID } from "node:crypto";
@@ -33,13 +33,13 @@ test("Manufacturing shop floor against real PostgreSQL", async (t) => {
     return;
   }
   const api = await import("../../services/api/src/index.js");
-  const { manufacturingContext, stockContext, postStockMovement, getStockAvailability, createProductionOrder, releaseProductionOrder, cancelProductionOrder, closeProductionOrder, issueMaterials, returnMaterials, startOperation, completeOperation, skipOperation, listJobCards, reportProduction, recordScrap, sendToRework, listProductionOrders, getProductionOrder, getWipReport, listMaterialReservations, getManufacturingSettings, updateManufacturingSettings, addBomOutput } = api;
+  const { manufacturingContext, stockContext, postStockMovement, getStockAvailability, createProductionOrder, releaseProductionOrder, cancelProductionOrder, closeProductionOrder, issueMaterials, returnMaterials, reportProduction, recordScrap, listProductionOrders, getProductionOrder, listMaterialReservations, getManufacturingSettings, updateManufacturingSettings } = api;
   const { setTenantContext } = await import("../../packages/database/src/index.js");
 
   const orgId = randomUUID();
   const companyId = randomUUID();
   const users = Object.fromEntries(Object.keys(ROLES).map((r) => [r, randomUUID()]));
-  const ids = { uom: randomUUID(), fg: randomUUID(), c1: randomUUID(), c2: randomUUID(), lot: randomUUID(), ser: randomUUID(), by: randomUUID(), whM: randomUUID(), whF: randomUUID(), bin: randomUUID(), wc: randomUUID(), bomFg: randomUUID(), bomLot: randomUUID(), bomSer: randomUUID(), routing: randomUUID() };
+  const ids = { uom: randomUUID(), fg: randomUUID(), c1: randomUUID(), c2: randomUUID(), lot: randomUUID(), ser: randomUUID(), by: randomUUID(), whM: randomUUID(), whF: randomUUID(), bin: randomUUID(), bomFg: randomUUID(), bomLot: randomUUID(), bomSer: randomUUID() };
   const ctx = Object.fromEntries(Object.entries(ROLES).map(([r, permissions]) => [r, manufacturingContext({ organizationId: orgId, userId: users[r], activeCompanyId: companyId, roleSlugs: [], permissions })]));
   const stockCtx = stockContext({ organizationId: orgId, userId: users.planner, activeCompanyId: companyId, roleSlugs: [], permissions: ["stock.view", "stock.receive", "stock.issue", "stock.manage", "stock.adjust", "stock.reserve"] });
 
@@ -78,7 +78,6 @@ test("Manufacturing shop floor against real PostgreSQL", async (t) => {
     await item(ids.by, "BY");
     for (const [id, code] of [[ids.whM, "MAT"], [ids.whF, "FIN"]]) await admin.query(`INSERT INTO tenant.warehouses(id,organization_id,company_id,code,name,status) VALUES ($1,$2,$3,$4,$4,'active')`, [id, orgId, companyId, code]);
     await admin.query(`INSERT INTO tenant.warehouse_locations(id,organization_id,warehouse_id,name,code,location_type,status) VALUES ($1,$2,$3,'Bin','B1','bin','active')`, [ids.bin, orgId, ids.whM]);
-    await admin.query(`INSERT INTO tenant.manufacturing_work_centers(id,organization_id,company_id,code,name,status,capacity_per_day,efficiency_percent,hourly_rate,overhead_rate,created_by) VALUES ($1,$2,$3,'WC','Line','active',480,100,60,30,$4)`, [ids.wc, orgId, companyId, users.planner]);
     // FG: 2 x C1 (backflush) + 1 x C2 (manual, 10% scrap allowance) per unit
     const bom = async (id, itemId, code, comps) => {
       await admin.query(`INSERT INTO tenant.manufacturing_boms(id,organization_id,company_id,item_id,code,version,status,is_default,output_quantity,created_by) VALUES ($1,$2,$3,$4,$5,1,'active',true,1,$6)`, [id, orgId, companyId, itemId, code, users.planner]);
@@ -87,8 +86,6 @@ test("Manufacturing shop floor against real PostgreSQL", async (t) => {
     await bom(ids.bomFg, ids.fg, "B-FG", [[ids.c1, 2, "backflush", 0], [ids.c2, 1, "manual", 10]]);
     await bom(ids.bomLot, ids.lot, "B-LOT", [[ids.c1, 1, "backflush", 0]]);
     await bom(ids.bomSer, ids.ser, "B-SER", [[ids.c1, 1, "backflush", 0]]);
-    await admin.query(`INSERT INTO tenant.manufacturing_routings(id,organization_id,company_id,code,name,version,status,is_default,item_id,created_by) VALUES ($1,$2,$3,'R-FG','FG routing',1,'active',true,$4,$5)`, [ids.routing, orgId, companyId, ids.fg, users.planner]);
-    await admin.query(`INSERT INTO tenant.manufacturing_routing_operations(organization_id,routing_id,sequence,name,work_center_id,setup_minutes,run_minutes_per_unit) VALUES ($1,$2,10,'Assemble',$3,30,6),($1,$2,20,'Test',$3,0,2)`, [orgId, ids.routing, ids.wc]);
     await receive(ids.c1, 100, 5, { warehouseLocationId: ids.bin }); // C1 sits in a bin, not at warehouse level
     await receive(ids.c2, 50, 10);
 
@@ -98,11 +95,10 @@ test("Manufacturing shop floor against real PostgreSQL", async (t) => {
       await assert.rejects(() => run("planner", (c, x) => updateManufacturingSettings(c, x, { defaultWipWarehouseId: randomUUID() })), (e) => e.code === "MFG_WAREHOUSE_NOT_FOUND");
       const saved = await run("planner", (c, x) => updateManufacturingSettings(c, x, { defaultWipWarehouseId: ids.whM, defaultFinishedGoodsWarehouseId: ids.whF }));
       assert.equal(saved.default_finished_goods_warehouse_id, ids.whF);
-      assert.equal(saved.require_operation_completion, true);
     });
 
     let wo;
-    await t.test("F155/F156: an order snapshots the BOM (with scrap allowance) and routing; validation and permissions hold", async () => {
+    await t.test("F155/F156: an order snapshots the BOM (with scrap allowance); validation and permissions hold", async () => {
       await assert.rejects(() => run("operator", (c, x) => createProductionOrder(c, x, { itemId: ids.fg, quantity: 10 })), forbidden);
       await assert.rejects(() => run("planner", (c, x) => createProductionOrder(c, x, { itemId: ids.fg, quantity: 0 })), (e) => e.code === "MFG_QUANTITY_INVALID");
       await assert.rejects(() => run("planner", (c, x) => createProductionOrder(c, x, { itemId: ids.c1, quantity: 1 })), (e) => e.code === "MFG_NO_ACTIVE_BOM");
@@ -115,8 +111,6 @@ test("Manufacturing shop floor against real PostgreSQL", async (t) => {
       const detail = await run("planner", (c, x) => getProductionOrder(c, x, wo.id));
       close(detail.materials.find((m) => m.item_code === "C1").required_quantity, 20, "10 x 2");
       close(detail.materials.find((m) => m.item_code === "C2").required_quantity, 10 / 0.9, "10 x 1 with 10% scrap allowance");
-      assert.deepEqual(detail.operations.map((o) => [o.sequence, o.status]), [[10, "ready"], [20, "pending"]], "only the first operation is ready");
-      close(detail.operations[0].planned_minutes, 30 + 6 * 10, "setup + run x quantity");
     });
 
     await t.test("F162: release reserves components; a shortage blocks release unless the planner accepts it; only release-permission users release", async () => {
@@ -154,37 +148,13 @@ test("Manufacturing shop floor against real PostgreSQL", async (t) => {
       close(back.material_cost, 30, "the return reduces WIP by 1 x 10");
       close(await onHand(ids.c2, ids.whM), 47, "returned to stock");
       await run("operator", (c, x) => issueMaterials(c, x, wo.id, { lines: [{ materialId: c2.id, quantity: 1 }] })); // 4 net again -> then 10/0.9 - 4 more later by production check
-      const wip = await run("planner", (c, x) => getWipReport(c, x));
-      close(wip.find((w) => w.work_order_number === wo.work_order_number).wip_value, 40, "WIP = issued cost not yet absorbed");
-      assert.equal((await run("operator", (c, x) => getWipReport(c, x)))[0].wip_value, null, "cost hidden without costing.view");
+      const wip = await run("planner", (c, x) => getProductionOrder(c, x, wo.id));
+      close(wip.costs.wip, 40, "WIP = issued cost not yet absorbed");
+      assert.equal((await run("operator", (c, x) => getProductionOrder(c, x, wo.id))).costs, null, "cost hidden without costing.view");
     });
 
-    await t.test("F157/F169: job cards run in sequence; completing books labour and overhead at the work center rates", async () => {
-      const cards = await run("operator", (c, x) => listJobCards(c, x));
-      const first = cards.find((k) => k.work_order_number === wo.work_order_number);
-      assert.equal(first.sequence, 10);
-      assert.equal(cards.some((k) => k.work_order_number === wo.work_order_number && k.sequence === 20), false, "the next operation is not on the floor yet");
+    await t.test("F165/F167: reporting production needs issued manual materials; backflushes the rest; absorbs WIP into the finished-goods cost", async () => {
       const detail = await run("planner", (c, x) => getProductionOrder(c, x, wo.id));
-      const op2 = detail.operations.find((o) => o.sequence === 20);
-      await assert.rejects(() => run("operator", (c, x) => startOperation(c, x, op2.id)), (e) => e.code === "MFG_OPERATION_STATE_INVALID");
-      await assert.rejects(() => run("operator", (c, x) => completeOperation(c, x, first.id, {})), (e) => e.code === "MFG_OPERATION_STATE_INVALID", "must be started first");
-      await run("operator", (c, x) => startOperation(c, x, first.id));
-      await assert.rejects(() => run("operator", (c, x) => startOperation(c, x, first.id)), (e) => e.code === "MFG_OPERATION_STATE_INVALID");
-      await assert.rejects(() => run("operator", (c, x) => completeOperation(c, x, first.id, { actualMinutes: -5 })), (e) => e.code === "MFG_QUANTITY_INVALID");
-      const done = await run("planner", (c, x) => completeOperation(c, x, first.id, { actualMinutes: 90, quantityGood: 10 }));
-      close(done.laborCost, 90, "90 min x 60/h");
-      close(done.overheadCost, 45, "90 min x 30/h");
-      assert.equal((await run("operator", (c, x) => completeOperation(c, x, op2.id, {}).catch((e) => e))).code, "MFG_OPERATION_STATE_INVALID");
-      await assert.rejects(() => run("operator", (c, x) => skipOperation(c, x, op2.id, "x")), forbidden);
-      await assert.rejects(() => run("planner", (c, x) => skipOperation(c, x, op2.id, "")), (e) => e.code === "MFG_REASON_REQUIRED");
-    });
-
-    await t.test("F165/F167: reporting production needs finished operations and issued manual materials; backflushes the rest; absorbs WIP into the finished-goods cost", async () => {
-      await assert.rejects(() => run("operator", (c, x) => reportProduction(c, x, wo.id, { quantity: 4 })), (e) => e.code === "MFG_OPERATIONS_INCOMPLETE");
-      const detail = await run("planner", (c, x) => getProductionOrder(c, x, wo.id));
-      const op2 = detail.operations.find((o) => o.sequence === 20);
-      await run("operator", (c, x) => startOperation(c, x, op2.id));
-      await run("operator", (c, x) => completeOperation(c, x, op2.id, { actualMinutes: 30, quantityGood: 10 }));
       await assert.rejects(() => run("viewer", (c, x) => reportProduction(c, x, wo.id, { quantity: 4 })), forbidden);
       await assert.rejects(() => run("operator", (c, x) => reportProduction(c, x, wo.id, { quantity: 11 })), (e) => e.code === "MFG_OVERPRODUCTION_BLOCKED");
       // manual C2: 4 of 10/0.9 = 11.11 issued, but the first 4 units need only 4.44 -> a little more first
@@ -194,8 +164,8 @@ test("Manufacturing shop floor against real PostgreSQL", async (t) => {
       assert.equal(first.status, "in_progress");
       close(await onHand(ids.fg, ids.whF), 4, "4 finished goods received");
       close(await onHand(ids.c1, ids.whM), 100 - 2 * 4, "C1 backflushed for 4 units (from the bin)");
-      // accrued = C2 5 x 10 + C1 backflush 8 x 5 + labour 120 (90+30 min at 60/h) + overhead 60
-      const accrued = 50 + 8 * 5 + 120 + 60;
+      // accrued = C2 5 x 10 + C1 backflush 8 x 5
+      const accrued = 50 + 8 * 5;
       close(first.unitCost, (accrued / 10) * 4 / 4 - 0, "unit cost is the accrued per planned unit");
       assert.equal((await run("operator", (c, x) => reportProduction(c, x, wo.id, { quantity: 4, idempotencyKey: "rep-1" }))).replayed, true);
       close(await onHand(ids.fg, ids.whF), 4, "a replay does not receive twice");
@@ -238,28 +208,6 @@ test("Manufacturing shop floor against real PostgreSQL", async (t) => {
       close(await onHand(ids.ser, ids.whF), 3, "balance matches the serial register");
     });
 
-    await t.test("F174: a by-product is received with the main output, taking its share of the cost", async () => {
-      // add a by-product to a fresh draft BOM copy of the lot BOM so the engineering function is exercised
-      const draft = randomUUID();
-      await admin.query(`INSERT INTO tenant.manufacturing_boms(id,organization_id,company_id,item_id,code,version,status,output_quantity,created_by) VALUES ($1,$2,$3,$4,'B-BY',1,'draft',1,$5)`, [draft, orgId, companyId, ids.fg, users.planner]);
-      await assert.rejects(() => run("operator", (c, x) => addBomOutput(c, x, draft, { itemId: ids.by, quantity: 1 })), forbidden);
-      await assert.rejects(() => run("planner", (c, x) => addBomOutput(c, x, draft, { itemId: ids.fg, quantity: 1 })), (e) => e.code === "MFG_OUTPUT_INVALID");
-      await assert.rejects(() => run("planner", (c, x) => addBomOutput(c, x, draft, { itemId: ids.by, quantity: 1, costSharePercent: 100 })), (e) => e.code === "MFG_COST_SHARE_INVALID");
-      await run("planner", (c, x) => addBomOutput(c, x, ids.bomLot, { itemId: ids.by, quantity: 1 }).catch((e) => e)); // active BOM: refused
-      await admin.query(`UPDATE tenant.manufacturing_boms SET status='draft' WHERE id=$1`, [ids.bomLot]);
-      await run("planner", (c, x) => addBomOutput(c, x, ids.bomLot, { itemId: ids.by, quantity: 0.5, outputType: "by_product", costSharePercent: 20 }));
-      await admin.query(`UPDATE tenant.manufacturing_boms SET status='active' WHERE id=$1`, [ids.bomLot]);
-      const wo2 = await run("planner", (c, x) => createProductionOrder(c, x, { itemId: ids.lot, quantity: 10, materialWarehouseId: ids.whM }));
-      await run("planner", (c, x) => releaseProductionOrder(c, x, wo2.id));
-      const made = await run("operator", (c, x) => reportProduction(c, x, wo2.id, { quantity: 10, batchNumber: "PROD-LOT-2" }));
-      assert.equal(made.byProducts.length, 1);
-      close(made.byProducts[0].quantity, 5, "0.5 per unit x 10");
-      close(await onHand(ids.by, ids.whF), 5, "by-product received");
-      const cost = Number((await admin.query(`SELECT average_cost FROM tenant.stock_balances WHERE organization_id=$1 AND item_id=$2`, [orgId, ids.by])).rows[0].average_cost);
-      close(cost * 5, 10 * 5 * 0.2, "20% of the 50 accrued (10 x C1 at 5) is allocated to the by-product");
-      close(made.unitCost * 10, 50 * 0.8, "the main product keeps the other 80%");
-    });
-
     let scrapOrder;
     await t.test("F172/F173: product scrap and component waste need scrap.post and a coded reason; component waste consumes stock and adds cost", async () => {
       scrapOrder = await run("planner", (c, x) => createProductionOrder(c, x, { itemId: ids.fg, quantity: 10, materialWarehouseId: ids.whM }));
@@ -278,19 +226,6 @@ test("Manufacturing shop floor against real PostgreSQL", async (t) => {
       close(detail.quantity_scrapped, 3, "3 units scrapped");
       close(detail.costs.material, 20, "the waste is a cost of the order");
       assert.equal(detail.scrap.length, 2);
-    });
-
-    await t.test("F175: scrapped units can be sent to rework as their own order with no new material; only scrapped units, with a reason", async () => {
-      await assert.rejects(() => run("operator", (c, x) => sendToRework(c, x, scrapOrder.id, { quantity: 1, reason: "r" })), forbidden);
-      await assert.rejects(() => run("planner", (c, x) => sendToRework(c, x, scrapOrder.id, { quantity: 4, reason: "r" })), (e) => e.code === "MFG_REWORK_EXCEEDS_SCRAP");
-      await assert.rejects(() => run("planner", (c, x) => sendToRework(c, x, scrapOrder.id, { quantity: 1, reason: "" })), (e) => e.code === "MFG_REASON_REQUIRED");
-      const child = await run("planner", (c, x) => sendToRework(c, x, scrapOrder.id, { quantity: 2, reason: "Recoverable by re-soldering" }));
-      assert.equal(child.rework_of_id, scrapOrder.id);
-      const detail = await run("planner", (c, x) => getProductionOrder(c, x, child.id));
-      assert.ok(detail.materials.every((m) => Number(m.required_quantity) === 0));
-      assert.equal(detail.operations.length, 2);
-      close((await run("planner", (c, x) => getProductionOrder(c, x, scrapOrder.id))).quantity_scrapped, 1, "the parent's scrap count drops");
-      assert.equal((await run("planner", (c, x) => getProductionOrder(c, x, scrapOrder.id))).rework.length, 1);
     });
 
     await t.test("cancel is refused once material is issued; a started order is closed short (holds freed); a clean order cancels", async () => {

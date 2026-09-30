@@ -217,8 +217,8 @@ async function buildPosWorld(): Promise<PosWorld> {
     const manager = await createPersona("manager", "pos_manager");
 
     // Ensure GST place-of-supply resolution is deterministic (intra-state
-    // CGST+SGST, matching tests/integration/pos-cart-tax-promotions-
-    // coupons-f277-f281.test.mjs's own expectation) -- additive only, this
+    // CGST+SGST, matching tests/integration/pos-cart-tax-discounts-
+    // f277-f279.test.mjs's own expectation) -- additive only, this
     // org had no tenant.sales_settings row at all before this suite ran,
     // so there is nothing to preserve/restore and nothing else in this
     // shared org depends on its absence.

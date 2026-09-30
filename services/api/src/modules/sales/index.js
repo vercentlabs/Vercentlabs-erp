@@ -2586,19 +2586,13 @@ export async function getSalesDashboard(client, context) {
 }
 export async function getSalesReport(client, context, key) {
   requirePermission(context, "sales.reports.view");
-  if (key === "margin") requirePermission(context, "sales.margin.view");
   const allowed = new Set([
-    "quotation-conversion",
-    "order-intake",
     "expiring-quotations",
     "pending-approvals",
     "active-holds",
     "fulfillment",
     "billing-readiness",
-    "customer-performance",
-    "margin",
     "order-status",
-    "order-to-cash",
   ]);
   if (!allowed.has(key)) throw new SalesError(404, "Unknown Sales report.");
   // SECURITY: sales_quotations/sales_orders both carry a NOT NULL company_id,
@@ -2615,15 +2609,11 @@ export async function getSalesReport(client, context, key) {
       ? [context.organizationId, companyId]
       : [context.organizationId];
   const queries = {
-    "quotation-conversion": `SELECT date_trunc('month',created_at) AS period,count(*) AS quotations,count(*) FILTER (WHERE lifecycle_status IN ('accepted','converted')) AS accepted FROM tenant.sales_quotations WHERE organization_id=$1${companyClause("company_id")} GROUP BY 1 ORDER BY 1 DESC LIMIT 24`,
-    "order-intake": `SELECT date_trunc('month',sales_order.order_date) AS period,count(*) AS orders,sum(version.base_currency_total) AS base_total FROM tenant.sales_orders sales_order JOIN tenant.sales_order_versions version ON version.id=sales_order.current_version_id WHERE sales_order.organization_id=$1${companyClause("sales_order.company_id")} AND sales_order.lifecycle_status IN ('confirmed','on_hold','closed') GROUP BY 1 ORDER BY 1 DESC LIMIT 24`,
     "expiring-quotations": `SELECT quotation.id,quotation.quotation_number,quotation.valid_until,version.customer_snapshot->>'displayName' AS customer,version.currency_code,version.grand_total FROM tenant.sales_quotations quotation JOIN tenant.sales_quotation_versions version ON version.id=quotation.current_version_id WHERE quotation.organization_id=$1${companyClause("quotation.company_id")} AND quotation.lifecycle_status IN ('sent','viewed') AND quotation.valid_until<=current_date+30 ORDER BY quotation.valid_until`,
     "pending-approvals": `SELECT id,quotation_number,lifecycle_status,approval_status,updated_at FROM tenant.sales_quotations WHERE organization_id=$1${companyClause("company_id")} AND approval_status='pending' ORDER BY updated_at`,
     "active-holds": `SELECT hold.id,sales_order.id AS sales_order_id,sales_order.sales_order_number,hold.hold_type,hold.reason,hold.placed_at FROM tenant.sales_order_holds hold JOIN tenant.sales_orders sales_order ON sales_order.id=hold.sales_order_id WHERE hold.organization_id=$1${companyClause("sales_order.company_id")} AND hold.status='active' ORDER BY hold.placed_at`,
     fulfillment: `SELECT id AS sales_order_id,sales_order_number,fulfillment_status,requested_delivery_date,updated_at FROM tenant.sales_orders WHERE organization_id=$1${companyClause("company_id")} AND lifecycle_status IN ('confirmed','on_hold') ORDER BY requested_delivery_date NULLS LAST`,
     "billing-readiness": `SELECT id AS sales_order_id,sales_order_number,billing_status,payment_status,updated_at FROM tenant.sales_orders WHERE organization_id=$1${companyClause("company_id")} AND billing_status IN ('ready','partially_invoiced','blocked') ORDER BY updated_at DESC`,
-    "customer-performance": `SELECT version.customer_snapshot->>'displayName' AS customer,count(*) AS orders,sum(version.base_currency_total) AS base_total FROM tenant.sales_orders sales_order JOIN tenant.sales_order_versions version ON version.id=sales_order.current_version_id WHERE sales_order.organization_id=$1${companyClause("sales_order.company_id")} AND sales_order.lifecycle_status IN ('confirmed','on_hold','closed') GROUP BY 1 ORDER BY base_total DESC NULLS LAST LIMIT 100`,
-    margin: `SELECT sales_order.id AS sales_order_id,sales_order.sales_order_number,version.customer_snapshot->>'displayName' AS customer,version.base_currency_total,version.cost_total,version.margin_amount,version.margin_percent,(SELECT round(sum(line.base_quantity*COALESCE(variant.standard_cost,item.standard_cost,0)),2) FROM tenant.sales_order_lines line JOIN tenant.items item ON item.id=line.item_id LEFT JOIN tenant.item_variants variant ON variant.id=line.variant_id WHERE line.sales_order_version_id=version.id) AS current_cost_total,(SELECT CASE WHEN version.cost_total>0 THEN round(100*(sum(line.base_quantity*COALESCE(variant.standard_cost,item.standard_cost,0))-version.cost_total)/version.cost_total,1) END FROM tenant.sales_order_lines line JOIN tenant.items item ON item.id=line.item_id LEFT JOIN tenant.item_variants variant ON variant.id=line.variant_id WHERE line.sales_order_version_id=version.id) AS cost_change_percent FROM tenant.sales_orders sales_order JOIN tenant.sales_order_versions version ON version.id=sales_order.current_version_id WHERE sales_order.organization_id=$1${companyClause("sales_order.company_id")} ORDER BY sales_order.order_date DESC LIMIT 500`,
     // F059: one reconciled stage per order from Sales, Stock (reservations,
     // deliveries) and Accounting (invoices, payments), with the exceptions
     // that need someone's attention.
@@ -2659,30 +2649,6 @@ export async function getSalesReport(client, context, key) {
      WHERE orders.organization_id=$1${companyClause("orders.company_id")} AND orders.lifecycle_status IN ('confirmed','on_hold','closed')
      GROUP BY orders.id,version.customer_snapshot
      ORDER BY orders.sales_order_number DESC LIMIT 500`,
-    // F062: the whole chain per order with stable lineage — deliveries, the
-    // invoices raised (numbers), what is paid and outstanding, advances and
-    // credits — and the reason it does not reconcile, if it doesn't.
-    "order-to-cash": `SELECT orders.id AS sales_order_id,orders.sales_order_number,version.customer_snapshot->>'displayName' AS customer,orders.order_date,
-        version.grand_total AS order_value,
-        (SELECT count(*) FROM tenant.sales_fulfillment_requests f WHERE f.sales_order_id=orders.id) AS deliveries,
-        (SELECT count(*) FROM tenant.sales_fulfillment_requests f WHERE f.sales_order_id=orders.id AND f.delivered_at IS NOT NULL) AS proof_of_delivery,
-        (SELECT string_agg(invoice.invoice_number,', ' ORDER BY invoice.invoice_date) FROM tenant.accounting_customer_invoices invoice WHERE invoice.source_sales_order_id=orders.id AND invoice.status NOT IN ('draft','cancelled','reversed')) AS invoices,
-        COALESCE((SELECT sum(invoice.grand_total) FROM tenant.accounting_customer_invoices invoice WHERE invoice.source_sales_order_id=orders.id AND invoice.status NOT IN ('draft','cancelled','reversed')),0) AS invoiced_value,
-        COALESCE((SELECT sum(invoice.grand_total-invoice.outstanding_amount) FROM tenant.accounting_customer_invoices invoice WHERE invoice.source_sales_order_id=orders.id AND invoice.status NOT IN ('draft','cancelled','reversed')),0) AS paid_value,
-        COALESCE((SELECT sum(invoice.outstanding_amount) FROM tenant.accounting_customer_invoices invoice WHERE invoice.source_sales_order_id=orders.id AND invoice.status NOT IN ('draft','cancelled','reversed')),0) AS outstanding_value,
-        COALESCE((SELECT sum(advance.amount) FROM tenant.sales_advance_payments advance WHERE advance.sales_order_id=orders.id AND advance.status IN ('recorded','applied')),0) AS advances,
-        COALESCE((SELECT sum(adjustment.amount) FROM tenant.sales_credit_adjustment_requests adjustment WHERE adjustment.sales_order_id=orders.id AND adjustment.status IN ('approved','completed')),0) AS credits_and_refunds,
-        concat_ws('; ',
-          CASE WHEN EXISTS (SELECT 1 FROM tenant.sales_order_lines l JOIN tenant.sales_order_line_progress p ON p.sales_order_line_id=l.id WHERE l.sales_order_version_id=version.id AND p.fulfilled_quantity>p.invoiced_quantity) THEN 'Delivered, not yet invoiced' END,
-          CASE WHEN EXISTS (SELECT 1 FROM tenant.sales_invoice_requests r WHERE r.sales_order_id=orders.id AND r.status IN ('pending','processing')) THEN 'Invoice request waiting in Accounting' END,
-          CASE WHEN EXISTS (SELECT 1 FROM tenant.sales_invoice_requests r WHERE r.sales_order_id=orders.id AND r.status='failed') THEN 'Invoice request failed' END,
-          CASE WHEN EXISTS (SELECT 1 FROM tenant.accounting_customer_invoices i WHERE i.source_sales_order_id=orders.id AND i.outstanding_amount>0 AND i.due_date<current_date AND i.status NOT IN ('draft','cancelled','reversed')) THEN 'Payment overdue' END,
-          CASE WHEN EXISTS (SELECT 1 FROM tenant.sales_advance_payments a WHERE a.sales_order_id=orders.id AND a.status='recorded') AND orders.billing_status='fully_invoiced' THEN 'Advance not applied' END
-        ) AS exceptions
-      FROM tenant.sales_orders orders
-      JOIN tenant.sales_order_versions version ON version.id=orders.current_version_id
-     WHERE orders.organization_id=$1${companyClause("orders.company_id")} AND orders.lifecycle_status IN ('confirmed','on_hold','closed')
-     ORDER BY orders.order_date DESC,orders.sales_order_number DESC LIMIT 500`,
   };
   return (await client.query(queries[key], params)).rows;
 }

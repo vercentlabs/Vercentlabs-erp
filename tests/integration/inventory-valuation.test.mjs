@@ -1,4 +1,4 @@
-// Real PostgreSQL integration test -- costing methods, valuation, aging and landed-cost allocation.
+// Real PostgreSQL integration test -- costing methods and inventory valuation.
 import assert from "node:assert/strict";
 import test from "node:test";
 import { randomUUID } from "node:crypto";
@@ -29,7 +29,7 @@ test("Inventory valuation against real PostgreSQL", async (t) => {
     return;
   }
   const api = await import("../../services/api/src/index.js");
-  const { stockContext, postStockMovement, updateStockSettings, getStockValuationReport, getStockAgingReport, getStockMovementSummary, listStockLandedCosts, allocateStockLandedCost } = api;
+  const { stockContext, postStockMovement, updateStockSettings, getStockValuationReport, getStockMovementSummary } = api;
   const { setTenantContext } = await import("../../packages/database/src/index.js");
 
   const orgId = randomUUID();
@@ -110,56 +110,9 @@ test("Inventory valuation against real PostgreSQL", async (t) => {
 
     await t.test("valuation and reports need the right permission; the clerk sees no cost", async () => {
       await assert.rejects(() => tx((c) => getStockValuationReport(c, ctx.clerk, {})), forbidden);
-      await assert.rejects(() => tx((c) => getStockAgingReport(c, ctx.clerk, {})), forbidden);
-      await assert.rejects(() => tx((c) => listStockLandedCosts(c, ctx.clerk)), forbidden);
+      await assert.rejects(() => tx((c) => getStockMovementSummary(c, ctx.clerk, {})), forbidden);
     });
 
-    await t.test("F138-F140: aging buckets by layer age; slow and dead stock are classified", async () => {
-      await post("clerk", { movementType: "receipt", itemId: ids.avg, warehouseId: ids.whOld, quantity: 4, unitCost: 3 });
-      await post("clerk", { movementType: "receipt", itemId: ids.fifo, warehouseId: ids.whOld, quantity: 6, unitCost: 3 });
-      // age the second warehouse's history: 200 days ago for the average item, 45 days for the FIFO item
-      await admin.query(`UPDATE tenant.stock_valuation_layers SET created_at=now()-interval '200 days' WHERE organization_id=$1 AND warehouse_id=$2 AND item_id=$3`, [orgId, ids.whOld, ids.avg]);
-      await admin.query(`UPDATE tenant.stock_movements SET occurred_at=now()-interval '200 days' WHERE organization_id=$1 AND warehouse_id=$2 AND item_id=$3`, [orgId, ids.whOld, ids.avg]);
-      await admin.query(`UPDATE tenant.stock_valuation_layers SET created_at=now()-interval '45 days' WHERE organization_id=$1 AND warehouse_id=$2 AND item_id=$3`, [orgId, ids.whOld, ids.fifo]);
-      await admin.query(`UPDATE tenant.stock_movements SET occurred_at=now()-interval '45 days' WHERE organization_id=$1 AND warehouse_id=$2 AND item_id=$3`, [orgId, ids.whOld, ids.fifo]);
-      const report = await tx((c) => getStockAgingReport(c, ctx.manager, { warehouseId: ids.whOld }));
-      const dead = report.lines.find((l) => l.item_code === "VA");
-      const fresh = report.lines.find((l) => l.item_code === "VF");
-      close(dead.age_181_365, 4, "4 units in the 181-365 day bucket");
-      assert.equal(dead.classification, "dead");
-      close(fresh.age_31_60, 6, "6 units in the 31-60 day bucket");
-      assert.equal(fresh.classification, "slow", "never issued from this warehouse, moved within the dead window");
-      close(dead.stock_value, 12, "value visible to the valuation viewer");
-      const narrow = await tx((c) => getStockAgingReport(c, ctx.manager, { warehouseId: ids.whOld, slowDays: 30, deadDays: 40 }));
-      assert.equal(narrow.lines.find((l) => l.item_code === "VF").classification, "dead", "thresholds are parameters");
-    });
-
-    await t.test("F136: landed cost is capitalised into the receipt's stock (only what is still on hand) and can be allocated once", async () => {
-      const receiptId = randomUUID();
-      await admin.query(`INSERT INTO tenant.procurement_receipts(id,organization_id,company_id,content_hash,created_by,updated_by) VALUES ($1,$2,$3,'x',$4,$4)`, [receiptId, orgId, companyId, users.manager]);
-      const landedItem = randomUUID();
-      await admin.query(`INSERT INTO tenant.items(id,organization_id,company_id,code,name,item_type,uom_id,status,track_inventory) VALUES ($1,$2,$3,'VL','Item VL','product',$4,'active',true)`, [landedItem, orgId, companyId, ids.uom]);
-      await post("clerk", { movementType: "receipt", itemId: landedItem, warehouseId: ids.wh, quantity: 10, unitCost: 10, referenceType: "procurement_receipt", referenceId: receiptId });
-      await post("clerk", { movementType: "issue", itemId: landedItem, warehouseId: ids.wh, quantity: 4 });
-      const cost = (await admin.query(`INSERT INTO tenant.procurement_landed_costs(organization_id,company_id,receipt_id,cost_type,amount,currency_code,allocation_method) VALUES ($1,$2,$3,'Freight',60,'INR','value') RETURNING id`, [orgId, companyId, receiptId])).rows[0];
-      await assert.rejects(() => tx((c) => allocateStockLandedCost(c, ctx.clerk, cost.id)), forbidden);
-      const listed = await tx((c) => listStockLandedCosts(c, ctx.manager));
-      assert.equal(listed.find((l) => l.id === cost.id).allocated, false);
-      const result = await tx((c) => allocateStockLandedCost(c, ctx.manager, cost.id));
-      close(result.capitalised, 36, "6 of 10 units are still on hand: 60 x 6/10");
-      close(result.expensed, 24, "the 4 already issued carry 24 to cost of sales");
-      const balance = (await admin.query(`SELECT quantity,average_cost FROM tenant.stock_balances WHERE organization_id=$1 AND item_id=$2`, [orgId, landedItem])).rows[0];
-      close(balance.average_cost, 16, "10 + 36/6");
-      const report = await tx((c) => getStockValuationReport(c, ctx.manager, {}));
-      close(report.lines.find((l) => l.item_code === "VL").stock_value, 6 * 16, "value includes the freight");
-      await assert.rejects(() => tx((c) => allocateStockLandedCost(c, ctx.manager, cost.id)), (e) => e.code === "STOCK_LANDED_COST_ALLOCATED");
-      assert.equal((await admin.query(`SELECT status FROM tenant.procurement_landed_costs WHERE id=$1`, [cost.id])).rows[0].status, "allocated");
-      // a cost with nothing received yet is refused with a clear reason
-      const emptyReceipt = randomUUID();
-      await admin.query(`INSERT INTO tenant.procurement_receipts(id,organization_id,company_id,content_hash,created_by,updated_by) VALUES ($1,$2,$3,'x',$4,$4)`, [emptyReceipt, orgId, companyId, users.manager]);
-      const none = (await admin.query(`INSERT INTO tenant.procurement_landed_costs(organization_id,company_id,receipt_id,cost_type,amount,currency_code) VALUES ($1,$2,$3,'Duty',5,'INR') RETURNING id`, [orgId, companyId, emptyReceipt])).rows[0];
-      await assert.rejects(() => tx((c) => allocateStockLandedCost(c, ctx.manager, none.id)), (e) => e.code === "STOCK_LANDED_COST_NO_STOCK");
-    });
   } finally {
     await admin.query("BEGIN");
     try {

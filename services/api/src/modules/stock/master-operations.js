@@ -13,12 +13,6 @@ const has = (c, p) => c.roleSlugs?.includes("organization_owner") || c.roleSlugs
 const need = (c, p) => {
   if (!has(c, p)) throw new StockError(403, "You do not have permission to perform this stock operation.", "STOCK_FORBIDDEN");
 };
-const nonNegative = (value, label, { allowNull = false } = {}) => {
-  if ((value === undefined || value === null || value === "") && allowNull) return null;
-  const n = Number(value ?? 0);
-  if (!Number.isFinite(n) || n < 0) throw new StockError(400, `${label} must be zero or greater.`, "STOCK_QUANTITY_INVALID");
-  return n;
-};
 const date = (value, label) => {
   if (value === undefined || value === null || value === "") return null;
   if (!/^\d{4}-\d{2}-\d{2}/.test(String(value)) || Number.isNaN(Date.parse(String(value)))) throw new StockError(400, `${label} is not a valid date.`, "STOCK_DATE_INVALID");
@@ -207,51 +201,6 @@ export async function listStockSerialsDetailed(client, c, { itemId = null, statu
     `SELECT serial.*,item.code AS item_code,item.name AS item_name FROM tenant.stock_serials serial JOIN tenant.items item ON item.organization_id=serial.organization_id AND item.id=serial.item_id
       WHERE serial.organization_id=$1 AND serial.company_id=$2${filter} ORDER BY serial.created_at DESC LIMIT $${values.length}`,
     values,
-  );
-  return rows;
-}
-
-// ---------------------------------------------------------------- reorder rules (F122-F125)
-export async function saveStockReorderRule(client, c, input = {}) {
-  need(c, "stock.manage");
-  const item = await trackedItem(client, c, input.itemId);
-  if (!item.track_inventory) throw new StockError(409, "Only inventory-tracked items can have reorder rules.", "STOCK_ITEM_NOT_TRACKED");
-  const warehouseId = uuid(input.warehouseId, "Warehouse");
-  const warehouse = (await client.query(`SELECT id FROM tenant.warehouses WHERE organization_id=$1 AND id=$2 AND company_id=$3 AND status='active'`, [c.organizationId, warehouseId, c.companyId])).rows[0];
-  if (!warehouse) throw new StockError(404, "Warehouse was not found for the active company.", "STOCK_WAREHOUSE_NOT_FOUND");
-  const minimum = nonNegative(input.minimumQuantity, "Minimum quantity");
-  const safety = nonNegative(input.safetyQuantity, "Safety stock");
-  const maximum = nonNegative(input.maximumQuantity, "Maximum quantity", { allowNull: true });
-  const reorder = Number(input.reorderQuantity);
-  if (!Number.isFinite(reorder) || reorder <= 0) throw new StockError(400, "Reorder quantity must be greater than zero.", "STOCK_REORDER_QUANTITY_INVALID");
-  if (maximum !== null && maximum > 0 && maximum < minimum + safety) throw new StockError(400, "The maximum must be at least the minimum plus safety stock.", "STOCK_MAXIMUM_BELOW_MINIMUM");
-  const lead = input.leadTimeDays === undefined || input.leadTimeDays === null || input.leadTimeDays === "" ? 0 : Math.trunc(Number(input.leadTimeDays));
-  if ((!Number.isFinite(lead) || lead < 0 || lead > 3650)) throw new StockError(400, "Lead time must be between 0 and 3650 days.", "STOCK_LEAD_TIME_INVALID");
-  const supplierId = input.preferredSupplierId ? uuid(input.preferredSupplierId, "Supplier") : null;
-  const { rows } = await client.query(
-    `INSERT INTO tenant.stock_reorder_rules(organization_id,company_id,item_id,warehouse_id,minimum_quantity,reorder_quantity,maximum_quantity,safety_quantity,preferred_supplier_id,lead_time_days,active,updated_by)
-     VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
-     ON CONFLICT (organization_id,company_id,item_id,warehouse_id) DO UPDATE SET minimum_quantity=EXCLUDED.minimum_quantity,reorder_quantity=EXCLUDED.reorder_quantity,maximum_quantity=EXCLUDED.maximum_quantity,
-       safety_quantity=EXCLUDED.safety_quantity,preferred_supplier_id=EXCLUDED.preferred_supplier_id,lead_time_days=EXCLUDED.lead_time_days,active=EXCLUDED.active,updated_by=EXCLUDED.updated_by,updated_at=now()
-     RETURNING *`,
-    [c.organizationId, c.companyId, item.id, warehouseId, minimum, reorder, maximum, safety, supplierId, lead, input.active === undefined ? true : Boolean(input.active), c.userId],
-  );
-  return rows[0];
-}
-
-export async function listStockReorderRulesDetailed(client, c) {
-  need(c, "stock.view");
-  const { rows } = await client.query(
-    `SELECT rule.*,item.code AS item_code,item.name AS item_name,warehouse.name AS warehouse_name,
-            COALESCE(sum(balance.quantity),0)::text AS on_hand_quantity,COALESCE(sum(balance.quantity-balance.reserved_quantity),0)::text AS available_quantity
-       FROM tenant.stock_reorder_rules rule
-       JOIN tenant.items item ON item.organization_id=rule.organization_id AND item.id=rule.item_id
-       JOIN tenant.warehouses warehouse ON warehouse.organization_id=rule.organization_id AND warehouse.id=rule.warehouse_id
-       LEFT JOIN tenant.stock_balances balance ON balance.organization_id=rule.organization_id AND balance.company_id=rule.company_id AND balance.item_id=rule.item_id AND balance.warehouse_id=rule.warehouse_id
-      WHERE rule.organization_id=$1 AND rule.company_id=$2
-      GROUP BY rule.id,item.code,item.name,warehouse.name
-      ORDER BY item.name,warehouse.name`,
-    [c.organizationId, c.companyId],
   );
   return rows;
 }

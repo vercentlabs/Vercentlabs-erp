@@ -1,5 +1,5 @@
 // The asset register (F231-F238): settings, categories, locations, the asset master with identity/tag
-// codes, documents, creation from a procurement/accounting source, and capitalisation. Value maths lives
+// codes, creation from a procurement/accounting source, and capitalisation. Value maths lives
 // in value.js and the Accounting handoff in accounting-bridge.js.
 import {
   AssetError, dateOrNull, dateRequired, fromCents, has, hashOf, loadAsset, loadSettings, need, nextNumber, nonNegative, oneOf, positive, qx, recordAssetEvent, requiredText,
@@ -8,7 +8,7 @@ import {
 import { postAssetJournal } from "./accounting-bridge.js";
 import { generateSchedule } from "./value.js";
 
-const METHODS = ["straight_line", "declining_balance", "units_of_production", "none"];
+const METHODS = ["straight_line", "none"];
 const CONVENTIONS = ["full_month", "mid_month", "next_month"];
 const STATUSES = ["draft", "available", "assigned", "in_maintenance", "retired", "pending_disposal", "lost", "disposed"];
 const ANY_OPERATIONAL = ["assets.manage", "assets.create", "assets.assign", "assets.transfer", "assets.maintain", "assets.inspect", "assets.depreciate", "assets.dispose", "assets.capitalize", "assets.reports.view", "assets.audit.view", "assets.accounting.handoff", "assets.settings.manage"];
@@ -71,7 +71,6 @@ export async function listAssetCategories(client, c, filters = {}) {
   const res = await qx(client, `SELECT cat.*,(SELECT count(*)::int FROM tenant.assets a WHERE a.category_id=cat.id AND a.status<>'disposed') AS asset_count FROM tenant.asset_categories cat WHERE cat.organization_id=$1 AND cat.company_id=$2${where} ORDER BY cat.code`, values);
   return res.rows;
 }
-
 
 // An edit posts only the fields that changed; fill the rest from the stored row so the save validates as a whole.
 function fillFromRow(input, row, map) {
@@ -219,15 +218,10 @@ export async function getAssetProfile(client, c, assetId) {
   profile.movements = await q("asset_movements", "effective_date DESC,created_at DESC");
   profile.maintenanceOrders = await q("asset_maintenance_orders", "created_at DESC");
   profile.maintenancePlans = await q("asset_maintenance_plans", "created_at DESC");
-  profile.inspections = await q("asset_inspections", "inspection_date DESC");
-  profile.calibrations = await q("asset_calibrations", "calibrated_on DESC");
-  profile.warranties = await q("asset_warranties", "end_date DESC");
   profile.downtime = await q("asset_downtime", "started_at DESC");
-  profile.documents = await q("asset_documents", "created_at DESC");
   profile.events = await q("asset_events", "occurred_at DESC");
   const financial = canSeeValue(c);
   profile.schedule = financial ? await q("asset_depreciation_schedules", "period_end") : [];
-  profile.adjustments = financial ? await q("asset_value_adjustments", "created_at DESC") : [];
   return profile;
 }
 
@@ -258,7 +252,6 @@ export async function registerAsset(client, c, input, source = null) {
   const life = Math.round(positive(input.usefulLifeMonths ?? category.useful_life_months, "Useful life (months)"));
   const residual = input.residualValue !== undefined && input.residualValue !== "" ? nonNegative(input.residualValue, "Residual value") : Number(fromCents((toCents(cost) * toCents(category.residual_value_percent)) / 10000n));
   if (residual > cost) throw new AssetError(400, "Residual value cannot exceed the acquisition cost.", "ASSET_NUMBER_INVALID");
-  if (method === "units_of_production") positive(input.totalUnits, "Total expected units");
   const parentId = uuidOrNull(input.parentAssetId, "Parent asset");
   await assertParent(client, c, parentId, null);
   const locationId = uuidOrNull(input.locationId, "Location");
@@ -334,23 +327,6 @@ export async function updateAssetRecord(client, c, assetId, input) {
   }
   await recordAssetEvent(client, c, a.id, "asset.updated", { fields: sets.length });
   return maskAsset(c, res.rows[0]);
-}
-
-// ------------------------------------------------------------------ documents
-export async function addAssetDocument(client, c, assetId, input) {
-  need(c, "assets.manage");
-  const a = await loadAsset(client, c, assetId);
-  const res = await qx(client, `INSERT INTO tenant.asset_documents(organization_id,company_id,asset_id,document_type,title,reference_url,expires_on,created_by) VALUES($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *`,
-    [c.organizationId, c.companyId, a.id, oneOf(input.documentType || "other", ["invoice", "manual", "warranty", "certificate", "photo", "insurance", "licence", "other"], "Document type"), requiredText(input.title, "Title", 300), textOrNull(input.referenceUrl, 1000), dateOrNull(input.expiresOn, "Expiry"), c.userId]);
-  await recordAssetEvent(client, c, a.id, "asset.document_added", { documentId: res.rows[0].id });
-  return res.rows[0];
-}
-export async function removeAssetDocument(client, c, documentId) {
-  need(c, "assets.manage");
-  const res = await client.query(`DELETE FROM tenant.asset_documents WHERE organization_id=$1 AND company_id=$2 AND id=$3 RETURNING asset_id`, [c.organizationId, c.companyId, uuid(documentId, "Document")]);
-  if (!res.rows[0]) throw new AssetError(404, "Document was not found.", "ASSET_NOT_FOUND");
-  await recordAssetEvent(client, c, res.rows[0].asset_id, "asset.document_removed", { documentId });
-  return { ok: true };
 }
 
 // ------------------------------------------------------------------ F238: creation from a source document

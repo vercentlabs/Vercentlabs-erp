@@ -60,12 +60,7 @@ test("Sales order lifecycle against real PostgreSQL", async (t) => {
     updateSalesSettings,
     getSalesDashboard,
     getSalesReport,
-    recordSalesAdvancePayment,
     requestSalesCreditAdjustment,
-    createSalesDropShipRequest,
-    createSalesCommissionRule,
-    accrueSalesCommission,
-    createSalesReturnRequest,
     listSalesPass1Operations,
     assessSalesOrderReadiness,
     getSalesOrderGovernanceTimeline,
@@ -100,7 +95,6 @@ test("Sales order lifecycle against real PostgreSQL", async (t) => {
   };
   const approverContext = { ...base, userId: approverId, permissions: ["sales.view", "sales.order.approve", "sales.order.confirm"] };
   const financeContext = { ...sellerContext, userId: financeId, permissions: [...sellerContext.permissions, "sales.credit.override"] };
-  const settingsContext = { ...sellerContext, userId: approverId, permissions: [...sellerContext.permissions, "sales.settings.manage"] };
   const supplierId = randomUUID();
   const viewerContext = { ...base, userId: sellerId, permissions: ["sales.view"] };
 
@@ -138,7 +132,6 @@ test("Sales order lifecycle against real PostgreSQL", async (t) => {
     return order;
   }
 
-  const getSalesOrderTotal = (id) => admin.query(`SELECT v.grand_total FROM tenant.sales_orders o JOIN tenant.sales_order_versions v ON v.id=o.current_version_id WHERE o.organization_id=$1 AND o.id=$2`, [orgId, id]).then((r) => r.rows[0].grand_total);
 
   try {
     for (const [id, name] of [[sellerId, "Rep"], [approverId, "Approver"], [financeId, "Finance"]]) {
@@ -288,65 +281,14 @@ test("Sales order lifecycle against real PostgreSQL", async (t) => {
       assert.ok(timeline);
     });
 
-    await t.test("F052: advance payments are capped at the order total and need a reference", async () => {
-      const total = Number((await getSalesOrderTotal(confirmed.id)));
-      assert.equal(total, 354, "the amended order total (3 x 100 + 18% GST)");
-      const first = await tx((c) => recordSalesAdvancePayment(c, sellerContext, { salesOrderId: confirmed.id, amount: 100, paymentReference: "UTR-1001" }));
-      assert.equal(Number(first.amount), 100);
-      await assert.rejects(() => tx((c) => recordSalesAdvancePayment(c, sellerContext, { salesOrderId: confirmed.id, amount: 300, paymentReference: "UTR-1002" })), (e) => e.code === "SALES_ADVANCE_EXCEEDS_ORDER");
-      await assert.rejects(() => tx((c) => recordSalesAdvancePayment(c, sellerContext, { salesOrderId: confirmed.id, amount: 10, paymentReference: "" })), (e) => e.code === "SALES_ADVANCE_REFERENCE_REQUIRED");
-      await assert.rejects(() => tx((c) => recordSalesAdvancePayment(c, viewerContext, { salesOrderId: confirmed.id, amount: 10, paymentReference: "X" })), (e) => /permission/i.test(e.message));
-      const rows = await tx((c) => listSalesPass1Operations(c, sellerContext, { kind: "advances" }));
-      assert.ok(rows.some((r) => r.payment_reference === "UTR-1001"));
-    });
-
     await t.test("F055: credit notes and refunds need a valid type, a reason, and cannot exceed the order", async () => {
       await assert.rejects(() => tx((c) => requestSalesCreditAdjustment(c, sellerContext, { salesOrderId: confirmed.id, adjustmentType: "gift", amount: 5, reason: "x" })), (e) => e.code === "SALES_ADJUSTMENT_TYPE_INVALID");
       await assert.rejects(() => tx((c) => requestSalesCreditAdjustment(c, sellerContext, { salesOrderId: confirmed.id, adjustmentType: "refund", amount: 99999, reason: "x" })), (e) => /^SALES_ADJUSTMENT_EXCEEDS_/.test(e.code));
       await assert.rejects(() => tx((c) => requestSalesCreditAdjustment(c, sellerContext, { salesOrderId: confirmed.id, adjustmentType: "refund", amount: 5, reason: "" })), (e) => e.code === "SALES_ADJUSTMENT_REASON_REQUIRED");
-      // A credit note needs an invoice to credit; a refund is capped by what was paid (the F052 advance).
+      // A credit note needs an invoice to credit; a refund is capped by what the customer has paid.
       await assert.rejects(() => tx((c) => requestSalesCreditAdjustment(c, sellerContext, { salesOrderId: confirmed.id, adjustmentType: "credit_note", amount: 100, reason: "Damaged goods" })), (e) => e.code === "SALES_ADJUSTMENT_NOTHING_INVOICED");
-      const ok = await tx((c) => requestSalesCreditAdjustment(c, sellerContext, { salesOrderId: confirmed.id, adjustmentType: "refund", amount: 50, reason: "Damaged goods" }));
-      assert.equal(ok.status, "pending");
-      assert.ok((await tx((c) => listSalesPass1Operations(c, sellerContext, { kind: "adjustments" }))).some((r) => r.id === ok.id));
-    });
-
-    await t.test("F056: a drop-ship request is bounded by the line quantity and idempotent on its key", async () => {
-      const line = (await admin.query(`SELECT line.id FROM tenant.sales_order_lines line JOIN tenant.sales_orders o ON o.current_version_id=line.sales_order_version_id WHERE o.organization_id=$1 AND o.id=$2`, [orgId, confirmed.id])).rows[0];
-      const input = { salesOrderId: confirmed.id, salesOrderLineId: line.id, supplierId, quantity: 1, idempotencyKey: `drop-${randomUUID()}` };
-      await assert.rejects(() => tx((c) => createSalesDropShipRequest(c, sellerContext, { ...input, quantity: 99 })), (e) => e.code === "SALES_DROP_SHIP_QUANTITY_INVALID");
-      const first = await tx((c) => createSalesDropShipRequest(c, sellerContext, input));
-      const replay = await tx((c) => createSalesDropShipRequest(c, sellerContext, input));
-      assert.equal(replay.id, first.id);
-    });
-
-    await t.test("F057: commission rules need settings permission; accrual is net-of-tax basis x rate and idempotent", async () => {
-      await assert.rejects(() => tx((c) => createSalesCommissionRule(c, sellerContext, { name: "Std", ratePercent: 10 })), (e) => /permission/i.test(e.message));
-      await assert.rejects(() => tx((c) => createSalesCommissionRule(c, settingsContext, { name: "Bad", ratePercent: 150 })), (e) => e.code === "SALES_COMMISSION_RATE_INVALID");
-      const rule = await tx((c) => createSalesCommissionRule(c, settingsContext, { name: "Std 10%", ratePercent: 10, basis: "net_sales" }));
-      const first = await tx((c) => accrueSalesCommission(c, settingsContext, { salesOrderId: confirmed.id, ruleId: rule.id, ownerUserId: sellerId }));
-      assert.equal(Number(first.commission_amount), 30, "10% of the 300 net subtotal");
-      const again = await tx((c) => accrueSalesCommission(c, settingsContext, { salesOrderId: confirmed.id, ruleId: rule.id, ownerUserId: sellerId }));
-      assert.equal(again.id, first.id, "re-accruing updates the same entry rather than double-paying");
-    });
-
-    await t.test("F054: returns are limited to fulfilled quantity, idempotent, and listed in the register", async () => {
-      const line = (await admin.query(`SELECT line.id FROM tenant.sales_order_lines line JOIN tenant.sales_orders o ON o.current_version_id=line.sales_order_version_id WHERE o.organization_id=$1 AND o.id=$2`, [orgId, confirmed.id])).rows[0];
-      const key = `return-${randomUUID()}`;
-      const input = { idempotencyKey: key, reason: "Wrong colour", lines: [{ salesOrderLineId: line.id, quantity: 2 }] };
-      await assert.rejects(() => tx((c) => createSalesReturnRequest(c, sellerContext, confirmed.id, input)), (e) => e.code === "SALES_RETURN_EXCEEDS_FULFILLED");
-      // fulfilment completion needs Stock; here the line is simply marked shipped so the return rule itself is what is tested
-      await admin.query("BEGIN");
-      await setTenantContext(admin, orgId);
-      await admin.query(`UPDATE tenant.sales_order_line_progress SET fulfilled_quantity=3 WHERE organization_id=$1 AND sales_order_line_id=$2`, [orgId, line.id]);
-      await admin.query("COMMIT");
-      await assert.rejects(() => tx((c) => createSalesReturnRequest(c, sellerContext, confirmed.id, { ...input, reason: "" })), (e) => e.code === "SALES_RETURN_REASON_REQUIRED");
-      const created = await tx((c) => createSalesReturnRequest(c, sellerContext, confirmed.id, input));
-      assert.equal(created.idempotent, false);
-      const replay = await tx((c) => createSalesReturnRequest(c, sellerContext, confirmed.id, input));
-      assert.equal(replay.id, created.id);
-      const rows = await tx((c) => listSalesPass1Operations(c, sellerContext, { kind: "returns" }));
-      assert.ok(rows.some((r) => r.id === created.id && r.sales_order_number && r.customer_name === "Acme Retail"));
+      await assert.rejects(() => tx((c) => requestSalesCreditAdjustment(c, sellerContext, { salesOrderId: confirmed.id, adjustmentType: "refund", amount: 50, reason: "Damaged goods" })), (e) => e.code === "SALES_ADJUSTMENT_EXCEEDS_PAID");
+      assert.ok(Array.isArray(await tx((c) => listSalesPass1Operations(c, sellerContext, { kind: "adjustments" }))));
     });
 
     await t.test("registers: deliveries and invoice requests carry order number and customer", async () => {
@@ -358,25 +300,22 @@ test("Sales order lifecycle against real PostgreSQL", async (t) => {
       await assert.rejects(() => tx((c) => listSalesPass1Operations(c, sellerContext, { kind: "not-a-register" })), (e) => e.status === 404);
     });
 
-    await t.test("F059-F062: dashboard and every report read real data; margin needs its own permission; unknown reports are refused", async () => {
+    await t.test("F059: dashboard and every order-status report read real data; unknown reports are refused", async () => {
       const dashboard = await tx((c) => getSalesDashboard(c, sellerContext));
       assert.ok(Number(dashboard.confirmed_order_value) > 0, "confirmed orders count towards value");
       const reporter = { ...sellerContext, permissions: [...sellerContext.permissions, "sales.reports.view"] };
-      for (const key of ["quotation-conversion", "order-intake", "expiring-quotations", "pending-approvals", "active-holds", "fulfillment", "billing-readiness", "customer-performance"]) {
+      for (const key of ["order-status", "expiring-quotations", "pending-approvals", "active-holds", "fulfillment", "billing-readiness"]) {
         const rows = await tx((c) => getSalesReport(c, reporter, key));
         assert.ok(Array.isArray(rows), key);
       }
-      const intake = await tx((c) => getSalesReport(c, reporter, "order-intake"));
-      assert.ok(intake.length >= 1 && Number(intake[0].base_total) > 0);
-      await assert.rejects(() => tx((c) => getSalesReport(c, sellerContext, "order-intake")), (e) => /permission/i.test(e.message), "reports need sales.reports.view");
-      const noMargin = { ...reporter, permissions: reporter.permissions.filter((x) => x !== "sales.margin.view") };
-      await assert.rejects(() => tx((c) => getSalesReport(c, noMargin, "margin")), (e) => /permission/i.test(e.message));
-      const margin = await tx((c) => getSalesReport(c, reporter, "margin"));
-      assert.ok(margin.length >= 1 && margin[0].margin_percent !== undefined);
+      const status = await tx((c) => getSalesReport(c, reporter, "order-status"));
+      assert.ok(status.length >= 1 && status[0].stage);
+      await assert.rejects(() => tx((c) => getSalesReport(c, sellerContext, "order-status")), (e) => /permission/i.test(e.message), "reports need sales.reports.view");
+      await assert.rejects(() => tx((c) => getSalesReport(c, reporter, "margin")), (e) => e.status === 404);
       await assert.rejects(() => tx((c) => getSalesReport(c, reporter, "nope")), (e) => e.status === 404);
     });
 
-    await t.test("F045-F048: availability, reservation, partial delivery issuing real stock, and the backorder it leaves", async () => {
+    await t.test("F045-F047: availability, reservation and partial delivery issuing real stock", async () => {
       const warehouseId = randomUUID();
       const stockItemId = randomUUID();
       await admin.query("BEGIN");
@@ -413,19 +352,12 @@ test("Sales order lifecycle against real PostgreSQL", async (t) => {
       assert.equal(Number((await balance()).quantity), 7, "3 units left the warehouse");
       assert.equal((await orderRow(order.id)).fulfillment_status, "partially_fulfilled");
 
-      const backorders = await tx((c) => listSalesPass1Operations(c, sellerContext, { kind: "backorders" }));
-      const owed = backorders.find((row) => row.sales_order_id === order.id);
-      assert.ok(owed, "the shortfall shows as a backorder");
-      assert.equal(Number(owed.backordered_quantity), 1);
-
       await assert.rejects(() => tx((c) => cancelSalesOrderWithCrmSync(c, sellerContext, order.id, "too late")), (e) => e.status === 409, "an order with deliveries cannot be cancelled");
 
       const second = await tx((c) => createFulfillmentRequest(c, sellerContext, order.id, `ful-${randomUUID()}`));
       await tx((c) => completeFulfillmentRequestWithStockMovement(c, sellerContext, stockCtx, second.id, { lines: [{ salesOrderLineId: line.id, fulfilledQuantity: 1 }] }));
       assert.equal((await orderRow(order.id)).fulfillment_status, "fulfilled");
       assert.equal(Number((await balance()).quantity), 6);
-      const after = await tx((c) => listSalesPass1Operations(c, sellerContext, { kind: "backorders" }));
-      assert.ok(!after.some((row) => row.sales_order_id === order.id), "fully delivered orders leave the backorder register");
     });
 
     await t.test("F031-F032: customer master -- create, add contact and address, edit, archive; an archived customer cannot be sold to", async () => {

@@ -7,7 +7,7 @@ import {
   useState,
   useSyncExternalStore,
 } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { BadgePercent, Minus, Pause, Plus, Trash2, X } from "lucide-react";
@@ -34,10 +34,8 @@ import { listPosStores } from "@/features/pos/stores/api/stores-api";
 import { listPosTerminals } from "@/features/pos/terminals/api/terminals-api";
 import {
   addPosCartLine,
-  applyPosCoupon,
   cancelPosCart,
   completePosCart,
-  completePosExchange,
   createPosCart,
   getPosCart,
   holdPosCart,
@@ -46,7 +44,6 @@ import {
   initiatePosPayment,
   lookupPosBarcode,
   removePosCartLine,
-  removePosCoupon,
   resumePosCart,
   searchPosCustomers,
   searchPosProducts,
@@ -62,16 +59,6 @@ import {
 } from "@/features/pos/checkout/api/checkout-api";
 import { money, statusLabel, statusTone } from "@/features/pos/shared/format";
 import { PosAlert, PosLoading, PosPanel } from "@/features/pos/shared/PosUi";
-import { getPosOfflineSnapshot } from "@/features/pos/offline/api/offline-api";
-import { OfflineCheckoutPanel } from "@/features/pos/offline/OfflineCheckoutPanel";
-import { useOnlineStatus } from "@/features/pos/offline/useOnlineStatus";
-import { saveOfflineContext, saveSnapshot } from "@/features/pos/offline/db";
-import { runOfflineSyncPass } from "@/features/pos/offline/sync-runner";
-import {
-  getPosCustomerLoyaltyBalance,
-  redeemPosCartLoyaltyPoints,
-  removePosCartLoyaltyRedemption,
-} from "@/features/pos/loyalty/api/loyalty-api";
 
 // F283 (card) / F284 (UPI/digital) / F285 (split tender) / F286 (multiple
 // payment methods): one tender line per payment leg. A 'cash' line is
@@ -136,7 +123,7 @@ function getMountedServerSnapshot() {
 }
 
 // A single `cart` state variable is deliberately NOT a TanStack Query
-// cache entry: every mutation (add line, change quantity, apply coupon,
+// cache entry: every mutation (add line, change quantity, apply discount,
 // ...) returns the ENTIRE freshly-repriced cart as its response, so the
 // simplest and most correct source of truth is "the last server response
 // we received," updated imperatively after each call — not an
@@ -145,29 +132,12 @@ function getMountedServerSnapshot() {
 export function PosCheckoutScreen() {
   const workspace = useWorkspaceContext();
   const router = useRouter();
-  const searchParams = useSearchParams();
-  // F293: arriving here from the Returns screen's "Exchange" action --
-  // build a normal cart with the replacement item(s), then completing it
-  // finishes BOTH the return and this sale as one linked exchange
-  // (completePosExchange) instead of an ordinary sale.
-  const exchangeReturnId = searchParams.get("exchangeReturnId");
-  // Arriving here from the Customers workspace's "Start sale for this
-  // customer" action (/pos/checkout?customerId=...&customerName=...) --
-  // the customer is applied to the cart the same way any other customer
-  // selection is (selectCustomer/setPosCartCustomer below), just triggered
-  // from a URL instead of a search pick.
-  const presetCustomerId = searchParams.get("customerId");
-  const presetCustomerName = searchParams.get("customerName");
   const canDiscount =
     workspace.roleSlugs.includes("organization_owner") ||
     workspace.permissions.includes(POS_PERMISSIONS.discountApply);
   const canApproveDiscounts =
     workspace.roleSlugs.includes("organization_owner") ||
     workspace.permissions.includes(POS_PERMISSIONS.discountApprove);
-  const canRedeemLoyalty =
-    workspace.roleSlugs.includes("organization_owner") ||
-    workspace.permissions.includes(POS_PERMISSIONS.loyaltyRedeem);
-  const online = useOnlineStatus();
 
   const [cart, setCart] = useState<PosCart | null>(null);
   const [loading, setLoading] = useState(false);
@@ -175,7 +145,6 @@ export function PosCheckoutScreen() {
   const [conflict, setConflict] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [barcodeInput, setBarcodeInput] = useState("");
-  const [couponCode, setCouponCode] = useState("");
   const [selectedCustomer, setSelectedCustomer] =
     useState<PosCustomerMatch | null>(null);
   const [customerSearchInput, setCustomerSearchInput] = useState("");
@@ -184,7 +153,6 @@ export function PosCheckoutScreen() {
   const [lineDiscountLine, setLineDiscountLine] = useState<
     PosCart["lines"][number] | null
   >(null);
-  const [redeemPointsInput, setRedeemPointsInput] = useState(0);
   const [tenderLines, setTenderLines] = useState<TenderLine[]>([
     { id: newTenderLineId(), method: "cash", amount: 0 },
   ]);
@@ -252,51 +220,6 @@ export function PosCheckoutScreen() {
     (s) => s.id === myOpenShift?.store_id,
   );
 
-  // F297: while online with an open shift, keep this device's bounded
-  // offline snapshot + context fresh so the offline checkout path below
-  // never depends on any online-only query succeeding once the network
-  // actually drops. "Periodically" here is "every time this effect's
-  // dependencies change" (store/shift changing, or a fresh mount) --
-  // sufficient for a real cashier session without a separate polling
-  // timer.
-  useEffect(() => {
-    if (!online || !myOpenShift || !store) return;
-    let cancelled = false;
-    getPosOfflineSnapshot(store.id)
-      .then(async (result) => {
-        if (cancelled) return;
-        await saveSnapshot(result.snapshot);
-        await saveOfflineContext({
-          storeId: store.id,
-          terminalId: myOpenShift.terminal_id,
-          shiftId: myOpenShift.id,
-          cashierUserId: workspace.userId,
-        });
-      })
-      .catch(() => undefined); // best-effort refresh; a stale-but-present snapshot is still usable offline
-    return () => {
-      cancelled = true;
-    };
-    // Only the identifying fields, not full object reference equality,
-    // should retrigger this refresh -- same rationale as the cart-creation
-    // effect above.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [
-    online,
-    myOpenShift?.id,
-    myOpenShift?.terminal_id,
-    store?.id,
-    workspace.userId,
-  ]);
-
-  // F298: as soon as the device comes back online, drain the local
-  // offline queue automatically rather than waiting for the cashier to
-  // notice and click something.
-  useEffect(() => {
-    if (!online) return;
-    runOfflineSyncPass().catch(() => undefined);
-  }, [online]);
-
   // BUG FIX (found via real E2E testing, apps/web/e2e/pos-checkout.spec.ts
   // et al, under the app's actual next.config.ts reactStrictMode: true):
   // React 18/19 dev-mode StrictMode deliberately mounts, unmounts, then
@@ -343,21 +266,6 @@ export function PosCheckoutScreen() {
     queryKey: scopedQueryKey(workspace, "pos", "search", store?.id, searchTerm),
     queryFn: () => searchPosProducts(store!.id, searchTerm),
     enabled: Boolean(store?.id && searchTerm.trim().length > 0),
-  });
-
-  // F306: real points balance for the cart's customer, used both to gate
-  // redemption (can't redeem more than is on the ledger) and to show the
-  // balance/earn preview the cashier and customer both see before completion.
-  const loyaltyBalanceQuery = useQuery({
-    queryKey: scopedQueryKey(
-      workspace,
-      "pos",
-      "loyalty",
-      "balance",
-      cart?.customer_id,
-    ),
-    queryFn: () => getPosCustomerLoyaltyBalance(cart!.customer_id!),
-    enabled: Boolean(cart?.customer_id),
   });
 
   // F276: debounce the customer search-as-you-type so every keystroke
@@ -518,21 +426,6 @@ export function PosCheckoutScreen() {
     );
   }
 
-  const applyCoupon = () =>
-    cart &&
-    couponCode.trim() &&
-    run(() => applyPosCoupon(cart.id, couponCode.trim(), cart.version));
-  const removeCoupon = () =>
-    cart && run(() => removePosCoupon(cart.id, cart.version));
-  async function redeemLoyalty() {
-    if (!cart || redeemPointsInput <= 0) return;
-    await run(() =>
-      redeemPosCartLoyaltyPoints(cart.id, redeemPointsInput, cart.version),
-    );
-    setRedeemPointsInput(0);
-  }
-  const removeLoyaltyRedemption = () =>
-    cart && run(() => removePosCartLoyaltyRedemption(cart.id, cart.version));
   const applyCartDiscount = (input: {
     type: "percent" | "amount";
     value: number;
@@ -571,28 +464,6 @@ export function PosCheckoutScreen() {
     run(() => setPosCartCustomer(cart.id, customer?.id ?? null, cart.version));
   }
 
-  // Applies a preset customer from the URL exactly once per cart -- a ref
-  // guard (not just "cart.customer_id is empty") because selectCustomer(null)
-  // is a legitimate action a cashier can take afterward, which must not be
-  // immediately overridden by this effect re-firing.
-  const appliedPresetCustomerForCartIdRef = useRef<string | null>(null);
-  useEffect(() => {
-    if (!cart || !presetCustomerId) return;
-    if (appliedPresetCustomerForCartIdRef.current === cart.id) return;
-    appliedPresetCustomerForCartIdRef.current = cart.id;
-    if (cart.customer_id === presetCustomerId) return;
-    queueMicrotask(() =>
-      selectCustomer({
-        id: presetCustomerId,
-        code: "",
-        displayName: presetCustomerName || "Customer",
-        phone: null,
-        email: null,
-      }),
-    );
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [cart?.id, presetCustomerId]);
-
   // F287: hold releases this terminal's active-cart slot (the checkout
   // effect above re-creates/resumes a cart on this terminal the next time
   // it mounts with nothing else active), so a cashier can start a new sale
@@ -605,7 +476,6 @@ export function PosCheckoutScreen() {
       setError(null);
       setCart(null);
       setSelectedCustomer(null);
-      setCouponCode("");
       setIdempotencyKey(crypto.randomUUID());
       queryClient.invalidateQueries({
         queryKey: scopedQueryKey(workspace, "pos", "held-carts"),
@@ -730,27 +600,12 @@ export function PosCheckoutScreen() {
           ? { method: "cash", amount: line.amount }
           : { method: line.method, paymentId: line.paymentId! },
       );
-      // completePosExchange's contract only accepts cash legs (see
-      // pos-api.ts) -- the tender UI already hides "add tender line" while
-      // exchangeReturnId is set, so this filter is a belt-and-suspenders
-      // guarantee against ever sending a non-cash leg to that endpoint.
-      const result = exchangeReturnId
-        ? await completePosExchange(exchangeReturnId, {
-            cartId: cart.id,
-            payments: payments.filter(
-              (p): p is { method: "cash"; amount: number } =>
-                p.method === "cash",
-            ),
-            idempotencyKey,
-            expectedVersion: cart.version,
-            expectedGrandTotal: cart.grand_total,
-          })
-        : await completePosCart(cart.id, {
-            payments,
-            idempotencyKey,
-            expectedVersion: cart.version,
-            expectedGrandTotal: cart.grand_total,
-          });
+      const result = await completePosCart(cart.id, {
+        payments,
+        idempotencyKey,
+        expectedVersion: cart.version,
+        expectedGrandTotal: cart.grand_total,
+      });
       const sale = result.sale as {
         id: string;
         receipt_number: string;
@@ -815,19 +670,9 @@ export function PosCheckoutScreen() {
     setSelectedCustomer(null);
     setCustomerSearchInput("");
     setDebouncedCustomerSearch("");
-    setCouponCode("");
     setIdempotencyKey(crypto.randomUUID());
     setCart(null);
     startFreshCart();
-  }
-
-  // F297: the offline checkout path is fully independent of the online
-  // queries above (it reads its own cached context/snapshot from
-  // IndexedDB) -- checked before the "no open shift" guard below, which
-  // depends on an online-only query that would just be stale/empty
-  // offline rather than a meaningful signal.
-  if (!online) {
-    return <OfflineCheckoutPanel />;
   }
 
   if (hasMounted && shiftsQuery.isLoading) {
@@ -1065,13 +910,6 @@ export function PosCheckoutScreen() {
                                 )}
                               </>
                             )}
-                            {Number(line.coupon_discount_amount) > 0 && (
-                              <>
-                                {" "}
-                                · coupon −
-                                {money(currency, line.coupon_discount_amount)}
-                              </>
-                            )}
                             {line.serial_id && <> · serial set</>}
                             {line.batch_id && <> · batch set</>}
                           </p>
@@ -1249,7 +1087,7 @@ export function PosCheckoutScreen() {
             </PosAlert>
           )}
 
-          <PosPanel title="Customer & offers">
+          <PosPanel title="Customer & discount">
             {selectedCustomer ? (
               <div className="flex items-center justify-between gap-2 rounded-[var(--radius-control)] border border-border bg-surface-muted px-3 py-2">
                 <div>
@@ -1294,29 +1132,6 @@ export function PosCheckoutScreen() {
               />
             )}
 
-            <div className="flex items-end gap-2">
-              <TextField
-                label="Coupon code"
-                value={couponCode}
-                onChange={setCouponCode}
-                className="flex-1"
-              />
-              {cart?.coupon_code ? (
-                <Button variant="secondary" onPress={removeCoupon}>
-                  Remove
-                </Button>
-              ) : (
-                <Button variant="secondary" onPress={applyCoupon}>
-                  Apply
-                </Button>
-              )}
-            </div>
-            {cart?.coupon_code && (
-              <p className="text-xs text-success">
-                Coupon {cart.coupon_code} applied.
-              </p>
-            )}
-
             {canDiscount && (
               <div className="flex flex-col gap-2 border-t border-border pt-3">
                 <p className="text-sm font-medium text-text">Cart discount</p>
@@ -1355,71 +1170,6 @@ export function PosCheckoutScreen() {
                 )}
               </div>
             )}
-
-            {cart?.customer_id && (
-              <div className="flex flex-col gap-2 border-t border-border pt-3">
-                <p className="text-sm font-medium text-text">Loyalty points</p>
-                {loyaltyBalanceQuery.data && (
-                  <p className="text-sm text-text-secondary">
-                    Balance:{" "}
-                    <span className="tabular-nums">
-                      {loyaltyBalanceQuery.data.balance.balance}
-                    </span>{" "}
-                    pts
-                    {cart.loyalty?.pointsToEarn &&
-                      Number(cart.loyalty.pointsToEarn) > 0 && (
-                        <>
-                          {" "}
-                          · will earn{" "}
-                          <span className="tabular-nums">
-                            {cart.loyalty.pointsToEarn}
-                          </span>{" "}
-                          pts on completion
-                        </>
-                      )}
-                  </p>
-                )}
-                {canRedeemLoyalty &&
-                  (Number(cart.loyalty_redeem_points ?? 0) > 0 ? (
-                    <div className="flex items-center justify-between gap-2">
-                      <p className="text-sm text-text-secondary">
-                        Redeeming{" "}
-                        <span className="tabular-nums">
-                          {cart.loyalty_redeem_points}
-                        </span>{" "}
-                        pts
-                        {cart.loyalty?.redeemAmount && (
-                          <> (−{money(currency, cart.loyalty.redeemAmount)})</>
-                        )}
-                      </p>
-                      <Button
-                        variant="secondary"
-                        onPress={removeLoyaltyRedemption}
-                      >
-                        Remove
-                      </Button>
-                    </div>
-                  ) : (
-                    <div className="flex items-end gap-2">
-                      <NumberField
-                        label="Points to redeem"
-                        value={redeemPointsInput}
-                        onChange={setRedeemPointsInput}
-                        minValue={0}
-                        step={1}
-                        className="flex-1"
-                      />
-                      <Button
-                        variant="secondary"
-                        onPress={redeemLoyalty}
-                        isDisabled={redeemPointsInput <= 0}
-                      >
-                        Redeem
-                      </Button>
-                    </div>
-                  ))}
-              </div>
-            )}
           </PosPanel>
 
           <PosPanel title="Payment">
@@ -1437,13 +1187,6 @@ export function PosCheckoutScreen() {
                 </span>
               </div>
             </div>
-
-            {exchangeReturnId && (
-              <PosAlert tone="warning">
-                Exchange mode — completing this sale also completes the linked
-                return. Only cash tender is supported for exchanges.
-              </PosAlert>
-            )}
 
             <div className="flex flex-col gap-3 border-t border-border pt-3">
               <p className="text-sm font-medium text-text">Tender</p>
@@ -1544,18 +1287,12 @@ export function PosCheckoutScreen() {
                   )}
                 </div>
               ))}
-              {!exchangeReturnId && (
-                <div>
-                  <Button
-                    variant="ghost"
-                    size="compact"
-                    onPress={addTenderLine}
-                  >
-                    <Plus className="size-3.5" aria-hidden="true" />
-                    Add tender line (split payment)
-                  </Button>
-                </div>
-              )}
+              <div>
+                <Button variant="ghost" size="compact" onPress={addTenderLine}>
+                  <Plus className="size-3.5" aria-hidden="true" />
+                  Add tender line (split payment)
+                </Button>
+              </div>
               <div className="flex items-center justify-between text-sm">
                 <span className="text-text-secondary">
                   Remaining to allocate
@@ -1582,7 +1319,7 @@ export function PosCheckoutScreen() {
                 isDisabled={!canComplete || Boolean(completeBlockedReason)}
                 isLoading={completing}
               >
-                {exchangeReturnId ? "Complete exchange" : "Complete sale"}
+                Complete sale
               </Button>
               {completeBlockedReason && (
                 <p className="text-center text-xs text-text-muted">

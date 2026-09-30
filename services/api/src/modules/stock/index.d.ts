@@ -11,7 +11,6 @@ export declare function diagnoseStockBalanceDrift(client:any,context:StockContex
 export declare function getStockAvailability(client:any,context:StockContext,input?:Record<string,unknown>):Promise<Record<string,unknown>>;
 export declare function reserveStock(client:any,context:StockContext,input?:Record<string,unknown>):Promise<Record<string,unknown>>;
 export declare function releaseStockReservation(client:any,context:StockContext,id:string,options?:{status?:"released"|"cancelled"|"consumed"}):Promise<Record<string,unknown>>;
-export declare function listStockReorderCandidates(client:any,context:StockContext,options?:{limit?:number}):Promise<Array<Record<string,unknown>>>;
 export declare function listStockOperationOptions(client:any,context:StockContext):Promise<Record<string,Array<Record<string,unknown>>>>;
 
 export { createStockBatch, receiveSerializedStock } from "./master-operations.js";

@@ -1,6 +1,4 @@
-// Shared helpers for the Support / Customer Service domain modules (tickets, knowledge, portal,
-// service). The pre-existing `index.js` of this folder is the original thin module and is left
-// untouched; everything here is the full implementation.
+// Shared helpers for the Support / Customer Service domain modules (tickets and service).
 export class SupportError extends Error {
   constructor(status, message, code = "SUPPORT_ERROR") {
     super(message);
@@ -29,11 +27,6 @@ export const need = (c, p) => {
 export const needAny = (c, list) => {
   if (!hasAny(c, list)) throw new SupportError(403, "You do not have permission to perform this support operation.", "SUPPORT_FORBIDDEN");
 };
-export const positive = (value, label) => {
-  const n = Number(value);
-  if (!Number.isFinite(n) || n <= 0) throw new SupportError(400, `${label} must be greater than zero.`, "SUPPORT_NUMBER_INVALID");
-  return n;
-};
 export const nonNegative = (value, label, fallback = 0) => {
   if (value === undefined || value === null || value === "") return fallback;
   const n = Number(value);
@@ -45,11 +38,6 @@ export const dateOrNull = (value, label) => {
   const s = String(value).slice(0, 10);
   if (!/^\d{4}-\d{2}-\d{2}$/.test(s) || Number.isNaN(Date.parse(s))) throw new SupportError(400, `${label} is not a valid date.`, "SUPPORT_DATE_INVALID");
   return s;
-};
-export const dateRequired = (value, label) => {
-  const d = dateOrNull(value, label);
-  if (!d) throw new SupportError(400, `${label} is required.`, "SUPPORT_DATE_REQUIRED");
-  return d;
 };
 export const oneOf = (value, allowed, label) => {
   if (!allowed.includes(value)) throw new SupportError(400, `${label} must be one of: ${allowed.join(", ")}.`, "SUPPORT_VALUE_INVALID");
@@ -82,18 +70,6 @@ export async function recordEvent(client, c, ticketId, aggregateType, aggregateI
   );
 }
 
-// The portal link for the signed-in user (customer self-service). Null when the user has no portal
-// access -- an ordinary staff user with no support permission and no portal link can do nothing here.
-export async function ownPortalAccess(client, c) {
-  const { rows } = await qx(client, `SELECT * FROM tenant.support_portal_users WHERE organization_id=$1 AND user_id=$2 AND status='active'`, [c.organizationId, c.userId]);
-  return rows[0] ?? null;
-}
-export async function requirePortalAccess(client, c) {
-  const p = await ownPortalAccess(client, c);
-  if (!p) throw new SupportError(403, "You do not have portal access. Ask support to invite you.", "SUPPORT_NO_PORTAL_ACCESS");
-  return p;
-}
-
 export const canSeeSensitive = (c) => has(c, "support.sensitive.view");
 // A private note or a private attachment is hidden from anyone without support.sensitive.view -- the
 // author can always see their own.
@@ -122,8 +98,7 @@ export async function seq(thunks) {
   return out;
 }
 
-// The party (customer) this caller may act as: a portal customer for their own party, or any staff
-// member holding support.view for any party.
+// The customer (business party) a ticket is raised for, in this organization.
 export async function resolveParty(client, c, partyId) {
   const { rows } = await qx(client, `SELECT * FROM tenant.business_parties WHERE organization_id=$1 AND id=$2`, [c.organizationId, uuid(partyId, "Customer")]);
   if (!rows[0]) throw new SupportError(404, "Customer was not found.", "SUPPORT_PARTY_NOT_FOUND");

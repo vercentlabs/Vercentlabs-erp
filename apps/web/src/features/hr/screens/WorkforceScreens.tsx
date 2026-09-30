@@ -9,7 +9,6 @@ import {
   NumberField,
   PageHeader,
   PermissionState,
-  Select,
   StatusBadge,
   TextArea,
   TextField,
@@ -23,23 +22,13 @@ import {
   readView,
   type Row,
 } from "@/features/hr/shared/client";
-import {
-  calendarDate,
-  dateTime,
-  label,
-  tone,
-} from "@/features/hr/shared/format";
+import { calendarDate, label, tone } from "@/features/hr/shared/format";
 import { HrAlert, HrPanel, useCan } from "@/features/hr/shared/HrUi";
-import { CalculateSettlementButton } from "@/features/hr/screens/CloseScreens";
 
 type Dashboard = {
   headcount: number;
   status: Record<string, number>;
-  probationEnding: number;
-  documentsExpiring: number;
-  pendingChanges: number;
   overdueTasks: number;
-  openSeparations: number;
   byDepartment: Array<{ name: string; n: number }>;
   byEmploymentType: Array<{ employment_type: string; n: number }>;
 };
@@ -48,11 +37,10 @@ const LINKS: Array<[string, string, string]> = [
   ["Employees", "/hr/employees", "The workforce and each person's record"],
   ["Organization", "/hr/organization", "Reporting lines and departments"],
   ["Onboarding", "/hr/onboarding", "Joining checklists"],
-  ["Separations", "/hr/separations", "Resignations and exits"],
-  ["Transfers", "/hr/transfers", "Move people between teams"],
-  ["Promotions", "/hr/promotions", "Designation and grade changes"],
-  ["Probation", "/hr/probation", "Who is due for confirmation"],
-  ["My profile", "/hr/me", "Your own details and requests"],
+  ["Attendance", "/hr/attendance", "Who is in, and their hours"],
+  ["Leave requests", "/hr/leave-requests", "Requests and approvals"],
+  ["Payroll", "/hr/payroll", "Periods, runs and payslips"],
+  ["My profile", "/hr/me", "Your own details"],
 ];
 
 export function HrHomeScreen() {
@@ -91,23 +79,7 @@ export function HrHomeScreen() {
             label: "Serving notice",
             value: d ? String(d.status.on_notice ?? 0) : "…",
           },
-          {
-            label: "Probation ending (30 days)",
-            value: d ? String(d.probationEnding) : "…",
-          },
-          {
-            label: "Documents expiring (30 days)",
-            value: d ? String(d.documentsExpiring) : "…",
-          },
-          {
-            label: "Changes awaiting approval",
-            value: d ? String(d.pendingChanges) : "…",
-          },
           { label: "Overdue tasks", value: d ? String(d.overdueTasks) : "…" },
-          {
-            label: "Open separations",
-            value: d ? String(d.openSeparations) : "…",
-          },
         ]}
       />
       {d && d.byDepartment.length > 0 && (
@@ -391,33 +363,9 @@ export function EmployeeDetailScreen({ id }: { id: string }) {
           </dl>
         </HrPanel>
       )}
-      <HrPanel title="Documents">
-        {(e.documents as Row[]).length === 0 ? (
-          <p className="text-sm text-text-muted">No documents filed.</p>
-        ) : (
-          <ul className="text-sm" aria-label="Documents">
-            {(e.documents as Row[]).map((d) => (
-              <li key={String(d.id)}>
-                {String(d.type_name)} — {String(d.title)}{" "}
-                <StatusBadge tone={tone(d.status)}>
-                  {label(d.status)}
-                </StatusBadge>
-                {d.expires_on ? ` · expires ${calendarDate(d.expires_on)}` : ""}
-              </li>
-            ))}
-          </ul>
-        )}
-        <p className="text-xs text-text-muted">
-          <Link className="text-brand hover:underline" href="/hr/documents">
-            Review documents
-          </Link>
-        </p>
-      </HrPanel>
       <HrPanel title="Checklists">
         {(e.tasks as Row[]).length === 0 ? (
-          <p className="text-sm text-text-muted">
-            No onboarding or offboarding tasks.
-          </p>
+          <p className="text-sm text-text-muted">No onboarding tasks.</p>
         ) : (
           <ul className="text-sm" aria-label="Checklists">
             {(e.tasks as Row[]).map((t) => (
@@ -447,47 +395,6 @@ export function EmployeeDetailScreen({ id }: { id: string }) {
           </ul>
         )}
       </HrPanel>
-      <HrPanel title="History">
-        {(e.changes as Row[]).length === 0 ? (
-          <p className="text-sm text-text-muted">
-            No transfers, promotions or confirmations.
-          </p>
-        ) : (
-          <ul className="text-sm" aria-label="Employee history">
-            {(e.changes as Row[]).map((c) => (
-              <li key={String(c.id)}>
-                {label(c.change_type)} — {calendarDate(c.effective_date)}{" "}
-                <StatusBadge tone={tone(c.status)}>
-                  {label(c.status)}
-                </StatusBadge>
-              </li>
-            ))}
-          </ul>
-        )}
-      </HrPanel>
-      {e.separation && (
-        <HrPanel title="Separation">
-          <p className="text-sm">
-            {label((e.separation as Row).separation_type)} —{" "}
-            <StatusBadge tone={tone((e.separation as Row).status)}>
-              {label((e.separation as Row).status)}
-            </StatusBadge>{" "}
-            · last working day{" "}
-            {calendarDate(
-              (e.separation as Row).last_working_day ??
-                (e.separation as Row).requested_last_day,
-            )}{" "}
-            ·{" "}
-            <Link className="text-brand hover:underline" href="/hr/separations">
-              Manage
-            </Link>
-          </p>
-          <CalculateSettlementButton
-            employeeId={id}
-            status={String(e.status)}
-          />
-        </HrPanel>
-      )}
     </div>
   );
 }
@@ -504,13 +411,6 @@ export function MyProfileScreen() {
   const [notice, setNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [phone, setPhone] = useState<string | null>(null);
-  const [bank, setBank] = useState({
-    accountHolder: "",
-    accountNumber: "",
-    ifsc: "",
-    bankName: "",
-  });
-  const [resign, setResign] = useState({ reason: "", date: "" });
   const done = (message: string) => {
     setError(null);
     setNotice(message);
@@ -525,25 +425,6 @@ export function MyProfileScreen() {
   const savePhone = useMutation({
     mutationFn: () => act("me-update", { personalPhone: phone ?? "" }),
     onSuccess: () => done("Contact details saved."),
-    onError: fail,
-  });
-  const requestBank = useMutation({
-    mutationFn: () =>
-      act("me-change-request", { fieldGroup: "bank_details", payload: bank }),
-    onSuccess: () =>
-      done(
-        "Requested. HR will review your bank details before payroll uses them.",
-      ),
-    onError: fail,
-  });
-  const resignMutation = useMutation({
-    mutationFn: () =>
-      act("separation-initiate", {
-        separationType: "resignation",
-        reason: resign.reason,
-        noticeDate: resign.date || undefined,
-      }),
-    onSuccess: () => done("Your resignation has been submitted."),
     onError: fail,
   });
   if (query.isError)
@@ -596,62 +477,6 @@ export function MyProfileScreen() {
           </Button>
         </div>
       </HrPanel>
-      <HrPanel
-        title="Bank account"
-        description="Payroll pays into this account. A change is reviewed by HR before it takes effect."
-      >
-        <p className="text-sm text-text-muted">
-          Current:{" "}
-          {(p.bank_details as Record<string, string>)?.account_number
-            ? `${(p.bank_details as Record<string, string>).bank_name ?? ""} ••••${(p.bank_details as Record<string, string>).account_number.slice(-4)}`
-            : "none on file"}
-        </p>
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <TextField
-            label="Account holder"
-            value={bank.accountHolder}
-            onChange={(v) => setBank({ ...bank, accountHolder: v })}
-          />
-          <TextField
-            label="Account number"
-            value={bank.accountNumber}
-            onChange={(v) => setBank({ ...bank, accountNumber: v })}
-          />
-          <TextField
-            label="IFSC"
-            value={bank.ifsc}
-            onChange={(v) => setBank({ ...bank, ifsc: v })}
-          />
-          <TextField
-            label="Bank name"
-            value={bank.bankName}
-            onChange={(v) => setBank({ ...bank, bankName: v })}
-          />
-        </div>
-        <div>
-          <Button
-            variant="secondary"
-            onPress={() => requestBank.mutate()}
-            isLoading={requestBank.isPending}
-            isDisabled={!bank.accountNumber}
-          >
-            Request bank change
-          </Button>
-        </div>
-        {(p.profileChangeRequests as Row[]).length > 0 && (
-          <ul className="text-sm" aria-label="My change requests">
-            {(p.profileChangeRequests as Row[]).map((r) => (
-              <li key={String(r.id)}>
-                {label(r.field_group)} —{" "}
-                <StatusBadge tone={tone(r.status)}>
-                  {label(r.status)}
-                </StatusBadge>{" "}
-                · {dateTime(r.created_at)}
-              </li>
-            ))}
-          </ul>
-        )}
-      </HrPanel>
       {tasks.length > 0 && (
         <HrPanel title="My checklist">
           <ul className="text-sm" aria-label="My checklist">
@@ -662,36 +487,6 @@ export function MyProfileScreen() {
               </li>
             ))}
           </ul>
-        </HrPanel>
-      )}
-      {["active", "on_leave", "suspended"].includes(String(p.status)) && (
-        <HrPanel
-          title="Resign"
-          description="Submits your resignation for HR to accept. Your notice period is set in your terms."
-        >
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <TextField
-              label="Notice date"
-              type="date"
-              value={resign.date}
-              onChange={(v) => setResign({ ...resign, date: v })}
-            />
-            <TextArea
-              label="Reason"
-              value={resign.reason}
-              onChange={(v) => setResign({ ...resign, reason: v })}
-            />
-          </div>
-          <div>
-            <Button
-              variant="secondary"
-              onPress={() => resignMutation.mutate()}
-              isLoading={resignMutation.isPending}
-              isDisabled={!resign.reason.trim()}
-            >
-              Submit resignation
-            </Button>
-          </div>
         </HrPanel>
       )}
     </div>
@@ -741,14 +536,8 @@ export function HrSettingsScreen() {
           v("probation", s?.default_probation_months),
         ),
         defaultNoticeDays: Number(v("notice", s?.default_notice_days)),
-        requireDocumentsForJoining:
-          String(v("docs", String(s?.require_documents_for_joining))) ===
-          "true",
         onboardingChecklist: fromLines(
           String(v("onboarding", toLines(s?.onboarding_checklist))),
-        ),
-        offboardingChecklist: fromLines(
-          String(v("offboarding", toLines(s?.offboarding_checklist))),
         ),
       }),
     onSuccess: () => {
@@ -776,7 +565,7 @@ export function HrSettingsScreen() {
     <div className="flex flex-col gap-4">
       <PageHeader
         title="HR settings"
-        description="Employee numbering, probation and notice defaults, and the onboarding and offboarding checklists."
+        description="Employee numbering, probation and notice defaults, and the onboarding checklist."
       />
       {notice && <HrAlert tone="success">{notice}</HrAlert>}
       {error && <HrAlert>{error}</HrAlert>}
@@ -808,21 +597,10 @@ export function HrSettingsScreen() {
             step={1}
             onChange={(x) => set("notice", x)}
           />
-          <Select
-            label="Require verified documents to join"
-            options={[
-              { value: "true", label: "Yes" },
-              { value: "false", label: "No" },
-            ]}
-            selectedKey={String(
-              v("docs", String(s.require_documents_for_joining)),
-            )}
-            onSelectionChange={(k) => set("docs", String(k))}
-          />
         </div>
       </HrPanel>
       <HrPanel
-        title="Checklists"
+        title="Onboarding checklist"
         description="One task per line. Add ' | Team' to name the owner. Leave empty to use the built-in list."
       >
         <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
@@ -830,11 +608,6 @@ export function HrSettingsScreen() {
             label="Onboarding checklist"
             value={String(v("onboarding", toLines(s.onboarding_checklist)))}
             onChange={(x) => set("onboarding", x)}
-          />
-          <TextArea
-            label="Offboarding checklist"
-            value={String(v("offboarding", toLines(s.offboarding_checklist)))}
-            onChange={(x) => set("offboarding", x)}
           />
         </div>
       </HrPanel>

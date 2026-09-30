@@ -3,8 +3,6 @@ type Q = unknown;
 type R = Record<string, any>;
 export declare function getQualitySettings(client: Q, c: C): Promise<any>;
 export declare function saveQualitySettings(client: Q, c: C, input: R): Promise<any>;
-export declare function listSamplingPlans(client: Q, c: C): Promise<any[]>;
-export declare function saveSamplingPlan(client: Q, c: C, input: R): Promise<any>;
 export declare function listQualityPlans(client: Q, c: C, filters?: R): Promise<any[]>;
 export declare function getQualityPlan(client: Q, c: C, id: string): Promise<any>;
 export declare function createQualityPlan(client: Q, c: C, input: R): Promise<any>;

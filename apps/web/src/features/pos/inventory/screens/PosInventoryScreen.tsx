@@ -32,7 +32,6 @@ import {
   TabPanel,
   Tabs,
 } from "@vercentlabs/design-system";
-import { POS_PERMISSIONS } from "@vercentlabs/permissions";
 
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
@@ -45,11 +44,6 @@ import {
   type PosStoreInventoryRow,
   type PosStoreStockActivityRow,
 } from "@/features/pos/inventory/api/inventory-api";
-import {
-  listPosOfflineSyncConflicts,
-  POS_CONFLICT_TYPE_LABEL,
-  type PosOfflineSyncConflict,
-} from "@/features/pos/offline/api/offline-api";
 
 function formatQty(value: string | null | undefined) {
   const n = Number(value ?? 0);
@@ -61,9 +55,6 @@ function formatQty(value: string | null | undefined) {
 export function PosInventoryScreen() {
   const router = useRouter();
   const workspace = useWorkspaceContext();
-  const canResolveOffline =
-    workspace.roleSlugs.includes("organization_owner") ||
-    workspace.permissions.includes(POS_PERMISSIONS.offlineResolve);
 
   const [storeId, setStoreId] = useState("");
   const [search, setSearch] = useState("");
@@ -111,24 +102,9 @@ export function PosInventoryScreen() {
     enabled: Boolean(activeStoreId),
     placeholderData: (previous) => previous,
   });
-  const exceptionsQuery = useQuery({
-    queryKey: scopedQueryKey(
-      workspace,
-      "pos",
-      "inventory-exceptions",
-      activeStoreId,
-    ),
-    queryFn: () =>
-      listPosOfflineSyncConflicts({
-        status: "pending",
-        storeId: activeStoreId,
-      }),
-    enabled: Boolean(activeStoreId) && canResolveOffline,
-  });
 
   const inventoryRows = inventoryQuery.data?.rows ?? [];
   const activityRows = activityQuery.data?.rows ?? [];
-  const exceptionRows = exceptionsQuery.data?.conflicts ?? [];
 
   const inventoryColumns: ColumnDef<PosStoreInventoryRow, unknown>[] = useMemo(
     () => [
@@ -266,37 +242,6 @@ export function PosInventoryScreen() {
       [router],
     );
 
-  const exceptionColumns: ColumnDef<PosOfflineSyncConflict, unknown>[] =
-    useMemo(
-      () => [
-        {
-          id: "created_at",
-          header: "Captured",
-          accessorFn: (row) => dateTime(row.created_at),
-        },
-        {
-          id: "conflict_type",
-          header: "Reason",
-          accessorFn: (row) =>
-            POS_CONFLICT_TYPE_LABEL[row.conflict_type] ?? row.conflict_type,
-        },
-        {
-          id: "detail",
-          header: "Detail",
-          accessorFn: (row) => row.detail || "—",
-        },
-        {
-          id: "status",
-          header: "Status",
-          cell: ({ getValue }) => (
-            <StatusBadge tone="warning">{String(getValue())}</StatusBadge>
-          ),
-          accessorKey: "status",
-        },
-      ],
-      [],
-    );
-
   const inventoryState = inventoryQuery.isLoading
     ? "loading"
     : inventoryQuery.isError &&
@@ -354,7 +299,6 @@ export function PosInventoryScreen() {
           <TabList aria-label="POS inventory sections">
             <Tab id="availability">Availability</Tab>
             <Tab id="activity">Sync activity</Tab>
-            <Tab id="exceptions">Exceptions</Tab>
           </TabList>
 
           <TabPanel id="availability">
@@ -433,72 +377,6 @@ export function PosInventoryScreen() {
                   <PermissionState title="You don't have access to stock activity" />
                 }
               />
-            </div>
-          </TabPanel>
-
-          <TabPanel id="exceptions">
-            <div className="flex flex-col gap-3 py-4">
-              {!canResolveOffline ? (
-                <PermissionState
-                  title="You don't have access to sync exceptions"
-                  description="Resolving offline-sync exceptions requires the offline-resolve permission."
-                />
-              ) : (
-                <>
-                  <p className="text-sm text-text-secondary">
-                    Pending offline-sale sync exceptions for this store
-                    (including insufficient-stock conflicts). Resolve them in
-                    the{" "}
-                    <button
-                      type="button"
-                      className="text-brand underline-offset-2 hover:underline"
-                      onClick={() => router.push("/pos/offline-sync-conflicts")}
-                    >
-                      Offline Sync Conflicts
-                    </button>{" "}
-                    workspace.
-                  </p>
-                  <EnterpriseDataGrid<PosOfflineSyncConflict>
-                    aria-label="Stock sync exceptions"
-                    columns={exceptionColumns}
-                    data={exceptionRows}
-                    getRowId={(row) => row.id}
-                    onRowClick={() =>
-                      router.push("/pos/offline-sync-conflicts")
-                    }
-                    state={
-                      exceptionsQuery.isLoading
-                        ? "loading"
-                        : exceptionRows.length === 0
-                          ? "empty"
-                          : "ready"
-                    }
-                    loadingContent={
-                      <p className="px-4 py-8 text-sm text-text-secondary">
-                        Loading exceptions…
-                      </p>
-                    }
-                    emptyContent={
-                      <NoResultsState
-                        title="No pending sync exceptions"
-                        description="Every offline sale from this store has synced cleanly."
-                      />
-                    }
-                    errorContent={
-                      <ErrorState
-                        title="Could not load exceptions"
-                        action={{
-                          label: "Retry",
-                          onPress: () => exceptionsQuery.refetch(),
-                        }}
-                      />
-                    }
-                    permissionDeniedContent={
-                      <PermissionState title="You don't have access to sync exceptions" />
-                    }
-                  />
-                </>
-              )}
             </div>
           </TabPanel>
         </Tabs>

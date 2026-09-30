@@ -33,7 +33,7 @@ const errorText = (e: unknown) =>
   e instanceof QualityApiError ? e.message : "This could not be completed.";
 
 // F312-315: pick a plan, a source and a lot quantity; the server sizes the sample from the plan's own
-// sampling method (an AQL plan needs the sampling-plan code to size a bracket for this lot).
+// sampling method.
 export function InspectionNewScreen() {
   const router = useRouter();
   const options = useQualityOptions();
@@ -43,7 +43,6 @@ export function InspectionNewScreen() {
   const [itemId, setItemId] = useState("");
   const [supplierId, setSupplierId] = useState("");
   const [lotQuantity, setLotQuantity] = useState(1);
-  const [samplingPlanCode, setSamplingPlanCode] = useState("");
   const [error, setError] = useState<string | null>(null);
 
   const create = useMutation({
@@ -55,7 +54,6 @@ export function InspectionNewScreen() {
         itemId: itemId || undefined,
         supplierId: supplierId || undefined,
         lotQuantity,
-        samplingPlanCode: samplingPlanCode || undefined,
       }),
     onSuccess: (r) => router.push(`/quality/inspection/${r.record.id}`),
     onError: (e) => setError(errorText(e)),
@@ -133,11 +131,6 @@ export function InspectionNewScreen() {
             value={lotQuantity}
             onChange={setLotQuantity}
             minValue={0}
-          />
-          <TextField
-            label="Sampling plan code (only if the plan samples by AQL)"
-            value={samplingPlanCode}
-            onChange={setSamplingPlanCode}
           />
         </div>
       </QualityPanel>

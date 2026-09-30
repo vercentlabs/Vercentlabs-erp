@@ -12,8 +12,8 @@ import { MIGRATION_DATABASE_URL } from "./pos-fixtures";
 import { openSalesSession as openSession } from "./sales-fixtures";
 import { BASE_URL } from "./base-url";
 
-// Costing and insight as real people: dashboard, standard cost, production cost, variance split,
-// yield and OEE -- against a completed order whose numbers can be checked by hand -- and cost being
+// Costing as real people: dashboard, standard cost, production cost and the variance split
+// -- against a completed order whose numbers can be checked by hand -- and cost being
 // closed to a role without the costing permission.
 const origin = () => new URL(BASE_URL).origin;
 async function api<T>(
@@ -55,7 +55,7 @@ async function open(page: Page, path: string, heading: string | RegExp) {
 }
 type Rec = { record: { id: string } };
 
-test("dashboard, standard cost, production cost, variance split, yield and OEE; cost is closed without costing.view", async ({
+test("dashboard, standard cost, production cost and variance; cost is closed without costing.view", async ({
   browser,
 }) => {
   test.setTimeout(900_000);
@@ -64,34 +64,6 @@ test("dashboard, standard cost, production cost, variance split, yield and OEE; 
   const viewer = await openSession(browser, world.viewer);
   try {
     const { items, suffix, warehouse, organizationId, companyId } = world;
-    const cal = await api<Rec>(
-      manager.context,
-      "POST",
-      "/actions/calendar-save",
-      {
-        code: `IC-${suffix}`,
-        name: `Cal ${suffix}`,
-        workingWeekdays: [0, 1, 2, 3, 4, 5, 6],
-      },
-    );
-    await api(manager.context, "POST", "/actions/shift-add", {
-      calendarId: cal.body.record.id,
-      name: "Day",
-      startTime: "08:00",
-      endTime: "16:00",
-    });
-    const wc = await api<Rec>(
-      manager.context,
-      "POST",
-      "/actions/work-center-save",
-      {
-        code: `IW-${suffix}`,
-        name: `Line ${suffix}`,
-        calendarId: cal.body.record.id,
-        hourlyRate: 60,
-        overheadRate: 30,
-      },
-    );
     const approver = await openSession(browser, world.approver);
     const bom = await api<Rec>(manager.context, "POST", "/actions/bom-create", {
       itemId: items.finished.id,
@@ -105,27 +77,6 @@ test("dashboard, standard cost, production cost, variance split, yield and OEE; 
       id: bom.body.record.id,
     });
     await approver.context.close();
-    const routing = await api<Rec>(
-      manager.context,
-      "POST",
-      "/actions/routing-create",
-      {
-        code: `IR-${suffix}`,
-        name: `Routing ${suffix}`,
-        itemId: items.finished.id,
-        operations: [
-          {
-            name: "Make",
-            workCenterId: wc.body.record.id,
-            runMinutesPerUnit: 10,
-          },
-        ],
-      },
-    );
-    await api(manager.context, "POST", "/actions/routing-activate", {
-      id: routing.body.record.id,
-    });
-
     // a completed order and a late one, with figures chosen for hand-checking (component standard cost 5)
     const db = new Client({ connectionString: MIGRATION_DATABASE_URL });
     await db.connect();
@@ -186,18 +137,14 @@ test("dashboard, standard cost, production cost, variance split, yield and OEE; 
         10,
         2,
         144,
-        120,
-        60,
+        0,
+        0,
         true,
         new Date().toISOString().slice(0, 10),
       );
       await db.query(
         `INSERT INTO tenant.manufacturing_work_order_materials(organization_id,work_order_id,item_id,warehouse_id,required_quantity,issued_quantity,issued_cost,issue_method) VALUES ($1,$2,$3,$4,20,24,144,'manual')`,
         [organizationId, done, items.compA.id, warehouse.id],
-      );
-      await db.query(
-        `INSERT INTO tenant.manufacturing_work_order_operations(organization_id,work_order_id,sequence,name,work_center_id,status,planned_minutes,actual_minutes,completed_at) VALUES ($1,$2,10,'Make',$3,'completed',100,120,now())`,
-        [organizationId, done, wc.body.record.id],
       );
       await db.query(
         `INSERT INTO tenant.manufacturing_scrap_records(organization_id,company_id,work_order_id,item_id,category,scope,quantity,unit_cost,reason_code,posted_by) VALUES ($1,$2,$3,$4,'scrap','product',2,30,'defect',$5)`,
@@ -235,10 +182,10 @@ test("dashboard, standard cost, production cost, variance split, yield and OEE; 
       m.getByRole("list", { name: "Needs attention" }),
     ).toContainText(`WO-LT-${suffix}`, { timeout: 60_000 });
     await expect(
-      m.getByRole("link", { name: "Reports" }).first(),
+      m.getByRole("link", { name: "Production cost" }).first(),
     ).toBeVisible();
 
-    // --- standard cost of 10: 2 x A at 5 x 10 = 100 material, 100 min labour + 50 overhead
+    // --- standard cost of 10: 2 x A at 5 x 10 = 100 material
     await open(m, "/manufacturing/standard-cost", "Standard cost");
     await pick(
       m,
@@ -250,50 +197,22 @@ test("dashboard, standard cost, production cost, variance split, yield and OEE; 
     await expect(
       m.getByRole("list", { name: "Standard materials" }),
     ).toContainText(/standard cost.*100\.00/, { timeout: 30_000 });
-    await expect(
-      m.getByRole("list", { name: "Standard operations" }),
-    ).toContainText(/100.*min.*labour 100\.00.*overhead 50\.00/);
-
     // --- production cost and variance for the completed order
     await open(m, "/manufacturing/production-cost", "Production cost");
     await expect(
       m.getByRole("row", {
-        name: new RegExp(
-          `WO-IN-${suffix}.*10.*144\\.00.*120\\.00.*60\\.00.*324\\.00.*32\\.40`,
-        ),
+        name: new RegExp(`WO-IN-${suffix}.*10.*144\\.00.*144\\.00.*14\\.40`),
       }),
     ).toBeVisible({ timeout: 60_000 });
     await open(m, "/manufacturing/variance", "Cost variance");
-    // standard 250 vs actual 324: +74 = usage 20 + price 24 + labour 20 + overhead 10
+    // standard 100 vs actual 144: +44 = price 24 + usage 20
     await expect(
       m.getByRole("row", {
         name: new RegExp(
-          `WO-IN-${suffix}.*250\\.00.*324\\.00.*74\\.00.*29\\.6%.*24\\.00.*20\\.00.*20\\.00.*10\\.00`,
+          `WO-IN-${suffix}.*100\\.00.*144\\.00.*44\\.00.*44%.*24\\.00.*20\\.00`,
         ),
       }),
     ).toBeVisible({ timeout: 60_000 });
-
-    // --- yield and OEE
-    await open(m, "/manufacturing/yield", "Yield");
-    await expect(
-      m
-        .getByRole("row", {
-          name: new RegExp(`${items.finished.code}.*10.*83\\.3%`),
-        })
-        .first(),
-    ).toBeVisible({ timeout: 60_000 });
-    await open(m, "/manufacturing/performance", "Production efficiency");
-    await expect(
-      m
-        .getByRole("row", {
-          name: new RegExp(
-            `IW-${suffix}.*Line.*100%.*83\\.3%.*83\\.3%.*83\\.3%|IW-${suffix}.*83\\.3%`,
-          ),
-        })
-        .first(),
-    ).toBeVisible({ timeout: 60_000 });
-    await open(m, "/manufacturing/reports", "Manufacturing reports");
-    await expect(m.getByRole("link", { name: /Cost variance/ })).toBeVisible();
 
     // --- a role without costing.view: dashboard counts yes, WIP value no, cost pages closed, API 403
     await open(viewer.page, "/manufacturing", "Manufacturing");
@@ -324,15 +243,6 @@ test("dashboard, standard cost, production cost, variance split, yield and OEE; 
         )
       ).status,
     ).toBe(403);
-    // quantities need no cost permission
-    await open(viewer.page, "/manufacturing/yield", "Yield");
-    await expect(
-      viewer.page
-        .getByRole("row", {
-          name: new RegExp(`${items.finished.code}.*83\\.3%`),
-        })
-        .first(),
-    ).toBeVisible({ timeout: 60_000 });
   } finally {
     await manager.context.close();
     await viewer.context.close();

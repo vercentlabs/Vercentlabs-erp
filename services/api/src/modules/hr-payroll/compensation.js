@@ -7,12 +7,9 @@ import {
 
 const KINDS = ["basic", "allowance", "bonus", "incentive", "reimbursement", "arrear", "overtime", "loan", "advance", "statutory", "other"];
 const TYPES = ["earning", "deduction", "employer_contribution"];
-const CALC = ["fixed", "percentage", "formula", "statutory"];
+const CALC = ["fixed", "percentage", "formula"];
 const MANAGE = "hr_payroll.compensation.manage";
 const SEE = [MANAGE, "hr_payroll.sensitive.view"];
-
-// Extension point: other slices (arrears) react to an approved compensation change.
-export const COMPENSATION_HOOKS = { afterApprove: null };
 
 // ---------------------------------------------------------------- formula language
 // numbers, identifiers (component codes, CTC), + - * / ( ) and min(), max(), round(). No eval.
@@ -131,15 +128,6 @@ export async function saveSalaryComponent(client, c, input) {
   const { rows } = await qx(client, `INSERT INTO tenant.hr_salary_components(organization_id,company_id,code,name,component_type,component_kind,calculation_type,taxable,prorated,pf_wage,esic_wage,display_order,description,accounting_account_id,active,affects_gross,affects_net,created_by)
     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18) RETURNING *`,
     [c.organizationId, c.companyId, code, vals[0], type, vals[1], vals[2], vals[3], vals[4], vals[5], vals[6], vals[7], vals[8], vals[9], vals[10], type === "earning", type !== "employer_contribution", c.userId]);
-  return rows[0];
-}
-
-// A component the engine itself needs (overtime, bonus, arrears ...), created on first use.
-export async function ensureSystemComponent(client, c, code, name, type, kind, { taxable = true } = {}) {
-  const cur = (await qx(client, `SELECT * FROM tenant.hr_salary_components WHERE organization_id=$1 AND company_id=$2 AND code=$3`, [c.organizationId, c.companyId, code])).rows[0];
-  if (cur) return cur;
-  const { rows } = await qx(client, `INSERT INTO tenant.hr_salary_components(organization_id,company_id,code,name,component_type,component_kind,calculation_type,taxable,prorated,pf_wage,esic_wage,affects_gross,affects_net,created_by) VALUES ($1,$2,$3,$4,$5,$6,'fixed',$7,false,false,true,$8,$9,$10) RETURNING *`,
-    [c.organizationId, c.companyId, code, name, type, kind, taxable, type === "earning", type !== "employer_contribution", c.userId]);
   return rows[0];
 }
 
@@ -411,7 +399,6 @@ export async function decideCompensation(client, c, id, { approve, note }) {
   await qx(client, `UPDATE tenant.hr_employee_compensation SET effective_to=$2::date - 1 WHERE employee_id=$1 AND status='active' AND effective_to IS NULL AND effective_from < $2`, [k.employee_id, k.effective_from]);
   const out = await qx(client, `UPDATE tenant.hr_employee_compensation SET status='active', approved_by=$2, approved_at=now(), decision_note=$3 WHERE id=$1 RETURNING *`, [k.id, c.userId, textOrNull(note)]);
   await recordEvent(client, c, "employee", k.employee_id, "hr.compensation.approved", { compensationId: k.id, from: k.effective_from });
-  if (COMPENSATION_HOOKS.afterApprove) await COMPENSATION_HOOKS.afterApprove({ client, c, compensation: out.rows[0] });
   return out.rows[0];
 }
 export async function getMyCompensation(client, c) {

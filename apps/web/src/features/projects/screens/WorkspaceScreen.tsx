@@ -65,27 +65,6 @@ const VIEWS: Array<[string, string, string]> = [
     "Progress",
     "Weighted roll-up of task progress and the status reports.",
   ],
-  [
-    "schedule",
-    "Schedule",
-    "Dates worked out from dependencies, durations and working days.",
-  ],
-  [
-    "baselines",
-    "Baselines",
-    "Approved reference plans and the variance against them.",
-  ],
-  ["cost", "Cost", "Approved budget against actual cost and its breakdown."],
-  [
-    "profitability",
-    "Profitability",
-    "Revenue recognised, margin, earned-value indices and forecast.",
-  ],
-  [
-    "capacity",
-    "Capacity",
-    "Each person's capacity less allocation and approved leave.",
-  ],
 ];
 
 const isRec = (v: unknown): v is Rec =>
@@ -291,7 +270,6 @@ export function WorkspaceScreen() {
   });
   const projects = options.data?.projects ?? [];
   const current = VIEWS.find((v) => v[0] === view) ?? VIEWS[0];
-  const needsProject = view !== "capacity";
 
   const query = useQuery({
     queryKey: scopedQueryKey(
@@ -301,7 +279,7 @@ export function WorkspaceScreen() {
       view,
       projectId,
     ),
-    enabled: !needsProject || Boolean(projectId),
+    enabled: Boolean(projectId),
     queryFn: async () => {
       const p = { projectId, id: projectId };
       switch (view) {
@@ -327,43 +305,9 @@ export function WorkspaceScreen() {
         case "progress":
           return (await readView<{ progress: unknown }>("progress", p))
             .progress;
-        case "schedule": {
-          const [schedule, conflicts] = await Promise.all([
-            readView<{ schedule: unknown }>("schedule", p),
-            readView<{ conflicts: unknown }>("conflicts", p),
-          ]);
-          return {
-            schedule: schedule.schedule,
-            conflicts: conflicts.conflicts,
-          } as unknown;
-        }
-        case "baselines": {
-          const [rows, variance] = await Promise.all([
-            readView<{ rows: unknown }>("baselines", p),
-            readView<{ variance: unknown }>("schedule-variance", p),
-          ]);
-          return {
-            baselines: rows.rows,
-            variance: variance.variance,
-          } as unknown;
-        }
-        case "cost": {
-          const [variance, breakdown] = await Promise.all([
-            readView<{ variance: unknown }>("cost-variance", p),
-            readView<{ breakdown: unknown }>("cost-breakdown", p),
-          ]);
-          return {
-            variance: variance.variance,
-            breakdown: breakdown.breakdown,
-          } as unknown;
-        }
-        case "profitability":
-          return (
-            await readView<{ profitability: unknown }>("profitability", p)
-          ).profitability;
         default:
-          return (await readView<{ availability: unknown }>("availability"))
-            .availability;
+          return (await readView<{ progress: unknown }>("progress", p))
+            .progress;
       }
     },
   });
@@ -433,7 +377,7 @@ export function WorkspaceScreen() {
       {error && <ProjectsAlert>{error}</ProjectsAlert>}
       {message && <ProjectsAlert tone="success">{message}</ProjectsAlert>}
       {loadError && <ProjectsAlert>{loadError}</ProjectsAlert>}
-      {needsProject && !projectId && (
+      {!projectId && (
         <p className="text-sm text-text-muted">Choose a project.</p>
       )}
       {query.isLoading && <p className="text-sm text-text-muted">Loading…</p>}
@@ -498,66 +442,6 @@ export function WorkspaceScreen() {
         data !== undefined &&
         !query.isLoading && <Generic data={data} />}
 
-      {projectId && view === "schedule" && can("projects.manage") && (
-        <ProjectsPanel title="Apply">
-          <p className="text-sm text-text-muted">
-            Writes the calculated dates to the tasks that are not yet started.
-          </p>
-          <div className="flex justify-end">
-            <Button
-              variant="primary"
-              isLoading={run.isPending}
-              onPress={() =>
-                run.mutate({
-                  action: "schedule-apply",
-                  input: { projectId },
-                  success: "Schedule applied.",
-                })
-              }
-            >
-              Apply schedule
-            </Button>
-          </div>
-        </ProjectsPanel>
-      )}
-      {projectId && view === "baselines" && can("projects.manage") && (
-        <ProjectsPanel title="Baseline">
-          <div className="flex justify-end">
-            <Button
-              variant="primary"
-              isLoading={run.isPending}
-              onPress={() =>
-                run.mutate({
-                  action: "baseline-create",
-                  input: { projectId },
-                  success: "Baseline submitted.",
-                })
-              }
-            >
-              Capture current plan as a baseline
-            </Button>
-          </div>
-        </ProjectsPanel>
-      )}
-      {projectId &&
-        view === "profitability" &&
-        can("projects.profitability.view") && (
-          <ProjectsPanel title="Snapshot">
-            <div className="flex justify-end">
-              <Button
-                onPress={() =>
-                  run.mutate({
-                    action: "profitability-snapshot",
-                    input: { projectId },
-                    success: "Snapshot captured.",
-                  })
-                }
-              >
-                Capture a profitability snapshot
-              </Button>
-            </div>
-          </ProjectsPanel>
-        )}
       {projectId && view === "progress" && can("projects.manage") && (
         <ProjectsPanel title="Status report">
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">

@@ -45,10 +45,8 @@ test("no explicit root export hides a different function of the same name from a
   assert.deepEqual(hidden, []);
 });
 
-test("manufacturing shift and inspection lists are exported under their own names", async () => {
+test("manufacturing inspection list is exported under its own name", async () => {
   const api = await import(pathToFileURL(indexPath).href);
-  assert.equal(typeof api.listManufacturingShifts, "function");
   assert.equal(typeof api.listManufacturingInspections, "function");
-  assert.notEqual(api.listManufacturingShifts, api.listShifts);
   assert.notEqual(api.listManufacturingInspections, api.listInspections);
 });

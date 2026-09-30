@@ -3,7 +3,7 @@
 import {
   HrError, addDays, dateOrNull, dateRequired, has, hasAny, need, needAny, nonNegative, oneOf, ownEmployee, qx, recordEvent, round2, text, textOrNull, today, uuid, uuidOrNull,
 } from "./common.js";
-import { assertDateOpen, loadDayContext, recomputeDay } from "./time.js";
+import { loadDayContext, recomputeDay } from "./time.js";
 
 const LIVE = ["active", "on_leave", "on_notice"];
 const MANAGE = "hr_payroll.leave.manage";
@@ -28,7 +28,6 @@ export function leaveYearOf(date, startMonth = 1) {
 }
 export const leaveYearRange = (year, startMonth = 1) => ({ start: `${year}-${pad(startMonth)}-01`, end: addDays(`${year + 1}-${pad(startMonth)}-01`, -1) });
 const daysIn = (from, to) => Math.round((Date.parse(to) - Date.parse(from)) / 86400000) + 1;
-const monthEnd = (ymd) => addDays(`${Number(ymd.slice(5, 7)) === 12 ? Number(ymd.slice(0, 4)) + 1 : ymd.slice(0, 4)}-${pad(Number(ymd.slice(5, 7)) === 12 ? 1 : Number(ymd.slice(5, 7)) + 1)}-01`, -1);
 const addMonths = (ymd, n) => {
   const t = Number(ymd.slice(0, 4)) * 12 + (Number(ymd.slice(5, 7)) - 1) + n;
   return `${Math.floor(t / 12)}-${pad((t % 12) + 1)}-01`;

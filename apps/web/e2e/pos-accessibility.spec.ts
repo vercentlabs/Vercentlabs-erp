@@ -16,20 +16,15 @@ const managerPages: Array<[string, string]> = [
   ["/pos/reports/day-end", "POS Day-end Reports"],
   ["/pos/reconciliation", "POS Reconciliation"],
   ["/pos/accounting", "POS Accounting Posting"],
-  ["/pos/analytics", "POS Analytics"],
-  ["/pos/offline-sync-conflicts", "POS Offline Sync Conflicts"],
 ];
 
 const supervisorPages: Array<[string, string]> = [
-  ["/pos/promotions", "POS Promotions"],
-  ["/pos/coupons", "POS Coupons"],
-  ["/pos/loyalty", "POS Loyalty"],
+  ["/pos/discount-approvals", "POS Discount Approvals"],
 ];
 
 const cashierPages: Array<[string, string]> = [
   ["/pos/checkout", "POS Checkout"],
   ["/pos/returns", "POS Returns"],
-  ["/pos/invoices", "POS Invoices"],
 ];
 
 async function checkPage(

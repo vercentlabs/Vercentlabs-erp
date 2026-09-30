@@ -2,8 +2,7 @@
 // dependencies, milestones, critical-path scheduling, the Gantt / Kanban / calendar views over the same task
 // state, progress roll-up, and approved baselines that freeze the plan the current one is compared to.
 import {
-  addDays, addWorkingDays, asDate, dateOrNull, dateRequired, diffDays, has, isBroad, isMember, iso, loadProject, loadSettings, need, needAny, nextNumber, nonNegative, oneOf, positive, ProjectError,
-  qx, recordEvent, requiredText, textOrNull, today, uuid, uuidOrNull, assertOpen, workingDaysBetween,
+  addDays, addWorkingDays, asDate, dateOrNull, dateRequired, diffDays, has, isBroad, isMember, iso, loadProject, need, needAny, nextNumber, nonNegative, oneOf, positive, ProjectError, qx, recordEvent, requiredText, textOrNull, today, uuid, uuidOrNull, assertOpen, workingDaysBetween,
 } from "./common.js";
 
 const STATUSES = ["todo", "in_progress", "blocked", "review", "done", "cancelled"];
@@ -468,52 +467,6 @@ export function computeSchedule({ tasks, deps, projectStart }) {
   return { rows, projectEnd, criticalPath: rows.filter((r) => r.critical).map((r) => r.taskNumber) };
 }
 
-export async function scheduleProject(client, c, projectId, input = {}) {
-  need(c, "projects.view");
-  const p = await loadProject(client, c, projectId, { lock: input.apply === true });
-  const all = await loadTasks(client, c, p.id);
-  const parents = new Set(all.filter((t) => t.parent_task_id).map((t) => t.parent_task_id));
-  const leaves = all.filter((t) => !parents.has(t.id) && t.status !== "cancelled");
-  const deps = await loadDeps(client, c, p.id);
-  const start = dateOrNull(input.startDate, "Start") || p.planned_start_date || today();
-  const result = computeSchedule({ tasks: leaves, deps, projectStart: start });
-  let applied = 0;
-  if (input.apply === true) {
-    need(c, "projects.tasks.manage");
-    assertOpen(p, "reschedule");
-    for (const r of result.rows) {
-      const t = leaves.find((x) => x.id === r.taskId);
-      if (t.status === "done") continue;
-      await client.query(`UPDATE tenant.project_tasks SET planned_start_date=$2,planned_end_date=$3,duration_days=COALESCE(duration_days,$4),updated_at=now() WHERE id=$1`, [t.id, r.start, r.finish, r.durationDays]);
-      applied += 1;
-    }
-    // summary tasks span their children
-    for (const t of all.filter((x) => parents.has(x.id))) {
-      const span = await qx(client, `WITH RECURSIVE d AS (SELECT id FROM tenant.project_tasks WHERE parent_task_id=$1 UNION ALL SELECT c.id FROM tenant.project_tasks c JOIN d ON c.parent_task_id=d.id) SELECT min(planned_start_date) AS s,max(planned_end_date) AS e FROM tenant.project_tasks WHERE id IN (SELECT id FROM d)`, [t.id]);
-      await client.query(`UPDATE tenant.project_tasks SET planned_start_date=$2,planned_end_date=$3 WHERE id=$1`, [t.id, span.rows[0].s, span.rows[0].e]);
-    }
-    if (result.rows.length) await client.query(`UPDATE tenant.projects SET planned_start_date=COALESCE(planned_start_date,$2),planned_end_date=$3,updated_at=now() WHERE id=$1`, [p.id, start, result.projectEnd]);
-    await recordEvent(client, c, "project", p.id, "project.rescheduled", { tasks: applied, end: result.projectEnd });
-  }
-  return { ...result, applied };
-}
-
-export async function getScheduleConflicts(client, c, projectId) {
-  need(c, "projects.view");
-  const p = await loadProject(client, c, projectId);
-  const tasks = await loadTasks(client, c, p.id);
-  const deps = await loadDeps(client, c, p.id);
-  const byId = new Map(tasks.map((t) => [t.id, t]));
-  const conflicts = [];
-  for (const d of deps) {
-    const a = byId.get(d.predecessor_task_id); const b = byId.get(d.successor_task_id);
-    if (!a || !b || !a.planned_end_date || !b.planned_start_date) continue;
-    if (d.dependency_type === "finish_to_start" && b.planned_start_date <= a.planned_end_date) conflicts.push({ type: "dependency", message: `${b.task_number} starts on or before ${a.task_number} finishes`, predecessor: a.task_number, successor: b.task_number });
-  }
-  for (const t of tasks) if (t.planned_end_date && p.planned_end_date && t.planned_end_date > p.planned_end_date && t.status !== "cancelled") conflicts.push({ type: "beyond_project_end", message: `${t.task_number} ends after the project's planned end`, task: t.task_number });
-  return { conflicts };
-}
-
 export async function getProjectWbs(client, c, projectId) {
   need(c, "projects.view");
   const p = await loadProject(client, c, projectId);
@@ -610,105 +563,6 @@ export async function saveStatusReport(client, c, projectId, input) {
   await client.query(`UPDATE tenant.projects SET health=$2,updated_at=now() WHERE id=$1`, [p.id, health]);
   await recordEvent(client, c, "project", p.id, "project.status_report", { health });
   return res.rows[0];
-}
-
-// ------------------------------------------------------------------ baselines
-export async function listProjectBaselines(client, c, projectId) {
-  need(c, "projects.view");
-  const p = await loadProject(client, c, projectId);
-  const res = await qx(client, `SELECT id,version,status,reason,created_by,approved_by,approved_at,created_at,jsonb_array_length(snapshot->'tasks') AS task_count FROM tenant.project_baselines WHERE organization_id=$1 AND project_id=$2 ORDER BY version DESC`, [c.organizationId, p.id]);
-  return res.rows;
-}
-
-export async function createProjectBaseline(client, c, projectId, input = {}) {
-  need(c, "projects.manage");
-  const p = await loadProject(client, c, projectId, { lock: true });
-  assertOpen(p, "baseline the plan");
-  const tasks = await loadTasks(client, c, p.id);
-  if (!tasks.length) throw new ProjectError(409, "There is nothing to baseline; add tasks first.", "PROJECT_BASELINE_EMPTY");
-  const pending = await client.query(`SELECT 1 FROM tenant.project_baselines WHERE project_id=$1 AND status='pending_approval'`, [p.id]);
-  if (pending.rows[0]) throw new ProjectError(409, "A baseline is already awaiting approval.", "PROJECT_BASELINE_PENDING");
-  const ms = (await qx(client, `SELECT id,name,planned_date FROM tenant.project_milestones WHERE project_id=$1 AND status<>'cancelled'`, [p.id])).rows;
-  const version = Number((await client.query(`SELECT COALESCE(max(version),0)+1 AS v FROM tenant.project_baselines WHERE project_id=$1`, [p.id])).rows[0].v);
-  const snapshot = { project: { start: p.planned_start_date, end: p.planned_end_date, budget: p.approved_budget, revenue: p.contracted_revenue }, tasks: tasks.map((t) => ({ id: t.id, wbs: t.wbs_code, name: t.name, start: t.planned_start_date, end: t.planned_end_date, hours: t.estimated_hours })), milestones: ms };
-  const settings = await loadSettings(client, c);
-  const row = (await qx(client, `INSERT INTO tenant.project_baselines(organization_id,company_id,project_id,version,status,snapshot,reason,created_by) VALUES($1,$2,$3,$4,'pending_approval',$5::jsonb,$6,$7) RETURNING id,version,status,reason,created_at`, [c.organizationId, c.companyId, p.id, version, JSON.stringify(snapshot), textOrNull(input.reason, 500), c.userId])).rows[0];
-  if (!settings.require_baseline_approval) return applyBaseline(client, c, p.id, row.id);
-  await recordEvent(client, c, "project", p.id, "project.baseline_requested", { version });
-  return row;
-}
-
-async function applyBaseline(client, c, projectId, baselineId) {
-  const b = (await qx(client, `SELECT * FROM tenant.project_baselines WHERE id=$1`, [baselineId])).rows[0];
-  await client.query(`UPDATE tenant.project_baselines SET status='superseded' WHERE project_id=$1 AND status='approved'`, [projectId]);
-  for (const t of b.snapshot.tasks) await client.query(`UPDATE tenant.project_tasks SET baseline_start=$2,baseline_end=$3,baseline_hours=$4 WHERE id=$1`, [t.id, t.start, t.end, t.hours]);
-  for (const m of b.snapshot.milestones) await client.query(`UPDATE tenant.project_milestones SET baseline_date=$2 WHERE id=$1`, [m.id, m.planned_date]);
-  await client.query(`UPDATE tenant.projects SET baseline_version=$2,updated_at=now() WHERE id=$1`, [projectId, b.version]);
-  const res = await qx(client, `UPDATE tenant.project_baselines SET status='approved',approved_by=COALESCE(approved_by,$2),approved_at=COALESCE(approved_at,now()) WHERE id=$1 RETURNING id,version,status,approved_by,approved_at`, [b.id, c.userId]);
-  await recordEvent(client, c, "project", projectId, "project.baseline_approved", { version: b.version });
-  return res.rows[0];
-}
-
-export async function approveProjectBaseline(client, c, baselineId) {
-  need(c, "projects.approve");
-  const b = (await qx(client, `SELECT * FROM tenant.project_baselines WHERE organization_id=$1 AND company_id=$2 AND id=$3 FOR UPDATE`, [c.organizationId, c.companyId, uuid(baselineId, "Baseline")])).rows[0];
-  if (!b) throw new ProjectError(404, "Baseline was not found.", "PROJECT_NOT_FOUND");
-  if (b.status !== "pending_approval") throw new ProjectError(409, "Only a pending baseline can be approved.", "PROJECT_STATE_INVALID");
-  const p = await loadProject(client, c, b.project_id, { lock: true });
-  assertOpen(p, "approve a baseline");
-  const settings = await loadSettings(client, c);
-  if (settings.prohibit_self_approval && b.created_by === c.userId) throw new ProjectError(409, "The person who proposed a baseline cannot approve it.", "SELF_APPROVAL_BLOCKED");
-  return applyBaseline(client, c, p.id, b.id);
-}
-
-export async function rejectProjectBaseline(client, c, baselineId, reason) {
-  need(c, "projects.approve");
-  const res = await qx(client, `UPDATE tenant.project_baselines SET status='rejected',approved_by=$4,approved_at=now(),reason=COALESCE(reason||' | ','')||$5 WHERE organization_id=$1 AND company_id=$2 AND id=$3 AND status='pending_approval' RETURNING id,version,status`, [c.organizationId, c.companyId, uuid(baselineId, "Baseline"), c.userId, `Rejected: ${requiredText(reason, "Reason", 500)}`]);
-  if (!res.rows[0]) throw new ProjectError(409, "Only a pending baseline can be rejected.", "PROJECT_STATE_INVALID");
-  return res.rows[0];
-}
-
-export async function getScheduleVariance(client, c, projectId) {
-  need(c, "projects.view");
-  const p = await loadProject(client, c, projectId);
-  if (!p.baseline_version) throw new ProjectError(409, "This project has no approved baseline yet.", "PROJECT_NO_BASELINE");
-  const rows = await qx(client, `SELECT task_number,name,wbs_code,planned_start_date,planned_end_date,baseline_start,baseline_end,estimated_hours,baseline_hours,status FROM tenant.project_tasks WHERE organization_id=$1 AND project_id=$2 AND baseline_end IS NOT NULL ORDER BY sort_order`, [c.organizationId, p.id]);
-  const out = rows.rows.map((t) => ({ ...t, startVarianceDays: t.planned_start_date && t.baseline_start ? diffDays(t.baseline_start, t.planned_start_date) : null, finishVarianceDays: t.planned_end_date && t.baseline_end ? diffDays(t.baseline_end, t.planned_end_date) : null, hoursVariance: t.baseline_hours === null ? null : Number(t.estimated_hours) - Number(t.baseline_hours) }));
-  return { baselineVersion: p.baseline_version, rows: out, slipped: out.filter((r) => (r.finishVarianceDays ?? 0) > 0).length };
-}
-
-// ------------------------------------------------------------------ templates -> project (F196)
-export async function instantiateTemplate(client, c, project, template, startDate) {
-  const items = template.items;
-  const start = addWorkingDays(startDate, 0);
-  const created = new Map();
-  const taskItems = items.filter((i) => i.item_type === "task");
-  const bySeq = new Map(items.map((i) => [i.sequence, i]));
-  const depth = (i) => { let d = 0; let cur = i; while (cur.parent_sequence) { cur = bySeq.get(cur.parent_sequence); d += 1; } return d; };
-  for (const item of [...taskItems].sort((a, b) => depth(a) - depth(b) || a.sequence - b.sequence)) {
-    const from = addDays(start, item.offset_days);
-    const s = addWorkingDays(from, 0);
-    const parent = item.parent_sequence ? created.get(item.parent_sequence) : null;
-    const number = await nextNumber(client, c, `project_task:${project.id}`, "TASK");
-    const row = (await client.query(`INSERT INTO tenant.project_tasks(organization_id,project_id,parent_task_id,task_number,name,description,status,priority,planned_start_date,planned_end_date,estimated_hours,billable,created_by,duration_days,sort_order) VALUES($1,$2,$3,$4,$5,$6,'todo',$7,$8,$9,$10,$11,$12,$13,$14) RETURNING id`,
-      [c.organizationId, project.id, parent, number, item.name, item.description, item.priority, s, finishFromStart(s, item.duration_days), item.estimated_hours, project.project_type === "internal" ? false : item.billable, c.userId, item.duration_days, item.sequence])).rows[0];
-    created.set(item.sequence, row.id);
-  }
-  for (const item of taskItems) for (const pred of item.predecessor_sequences || []) {
-    if (created.has(pred) && created.has(item.sequence)) await client.query(`INSERT INTO tenant.project_task_dependencies(organization_id,project_id,predecessor_task_id,successor_task_id,dependency_type,lag_days) VALUES($1,$2,$3,$4,'finish_to_start',0) ON CONFLICT DO NOTHING`, [c.organizationId, project.id, created.get(pred), created.get(item.sequence)]);
-  }
-  let seq = 0;
-  for (const item of items.filter((i) => i.item_type === "milestone")) {
-    seq += 1;
-    const billing = Number(item.billing_percent) > 0 && project.project_type === "customer";
-    const amount = billing ? String(Math.round(Number(project.contracted_revenue) * Number(item.billing_percent)) / 100) : "0";
-    await client.query(`INSERT INTO tenant.project_milestones(organization_id,project_id,sequence,name,description,planned_date,billing_trigger,billing_amount) VALUES($1,$2,$3,$4,$5,$6,$7,$8)`, [c.organizationId, project.id, seq, item.name, item.description, addDays(start, item.offset_days), billing && Number(amount) > 0, amount]);
-  }
-  await renumberWbs(client, c, project.id);
-  await recalculateProgress(client, c, project.id);
-  const dates = await qx(client, `SELECT max(planned_end_date) AS e FROM tenant.project_tasks WHERE project_id=$1`, [project.id]);
-  if (dates.rows[0].e) await client.query(`UPDATE tenant.projects SET planned_start_date=COALESCE(planned_start_date,$2),planned_end_date=COALESCE(planned_end_date,$3) WHERE id=$1`, [project.id, start, dates.rows[0].e]);
-  return { tasks: created.size };
 }
 
 void needAny; void iso; void dateRequired; void positive;

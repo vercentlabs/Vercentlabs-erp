@@ -1,4 +1,4 @@
-// Real PostgreSQL integration test -- quality plans (with tolerances), AQL sampling plans, and the
+// Real PostgreSQL integration test -- quality plans (with tolerances and sample sizes) and the
 // inspection lifecycle (F308-F320): the server computes pass/fail from each point's own
 // tolerance/allowed-values rather than trusting a caller-supplied verdict.
 import assert from "node:assert/strict";
@@ -42,15 +42,12 @@ test("Quality plans and inspections against real PostgreSQL", async (t) => {
       assert.ok(approved.approved_by);
     });
 
-    await t.test("F315: AQL sampling plans size a sample from the lot, and the plan resolves the right bracket", async () => {
-      await run("qaA", (c, x) => api.saveSamplingPlan(c, x, { code: "AQL65", name: "AQL general II", lotSizeFrom: 1, lotSizeTo: 50, sampleSize: 8, acceptanceNumber: 1, rejectionNumber: 2 }));
-      await run("qaA", (c, x) => api.saveSamplingPlan(c, x, { code: "AQL65", name: "AQL general II", lotSizeFrom: 51, lotSizeTo: 500, sampleSize: 32, acceptanceNumber: 3, rejectionNumber: 4 }));
-      const aqlPlan = await run("qaA", (c, x) => api.defineQualityPlan(c, x, { code: "P2", name: "AQL final", planType: "final", itemId, samplingMethod: "aql", points: [{ characteristic: "Function test", resultType: "boolean", critical: true }] }));
-      await run("qaB", (c, x) => api.approveQualityPlan(c, x, aqlPlan.id));
-      ids.aqlPlan = aqlPlan.id;
-      await denied("qaA", (c, x) => api.createQualityInspection(c, x, { planId: aqlPlan.id, lotQuantity: 30, sourceType: "manual" }), 400, "QUALITY_SAMPLING_REQUIRED");
-      const inspection = await run("qaA", (c, x) => api.createQualityInspection(c, x, { planId: aqlPlan.id, lotQuantity: 30, sourceType: "manual", samplingPlanCode: "AQL65" }));
-      assert.equal(Number(inspection.sample_quantity), 8, "a lot of 30 falls in the 1-50 bracket: sample 8");
+    await t.test("F309: a percentage plan sizes the sample from the lot", async () => {
+      const pctPlan = await run("qaA", (c, x) => api.defineQualityPlan(c, x, { code: "P2", name: "Final sample", planType: "final", itemId, samplingMethod: "percentage", samplingValue: 10, points: [{ characteristic: "Finish", resultType: "boolean" }] }));
+      await run("qaB", (c, x) => api.approveQualityPlan(c, x, pctPlan.id));
+      ids.pctPlan = pctPlan.id;
+      const inspection = await run("qaA", (c, x) => api.createQualityInspection(c, x, { planId: pctPlan.id, lotQuantity: 30, sourceType: "manual" }));
+      assert.equal(Number(inspection.sample_quantity), 3, "10% of 30");
     });
 
     await t.test("F312-314/F316/F317/F319: results are checked against tolerance server-side; a critical failure fails the lot", async () => {
@@ -105,7 +102,7 @@ test("Quality plans and inspections against real PostgreSQL", async (t) => {
     });
 
     await t.test("cancel an inspection with a reason", async () => {
-      const inspection4 = await run("qaA", (c, x) => api.createQualityInspection(c, x, { planId: ids.aqlPlan, lotQuantity: 10, sourceType: "manual", samplingPlanCode: "AQL65" }));
+      const inspection4 = await run("qaA", (c, x) => api.createQualityInspection(c, x, { planId: ids.pctPlan, lotQuantity: 10, sourceType: "manual" }));
       await denied("qaA", (c, x) => api.cancelQualityInspection(c, x, inspection4.id, ""), 400, "QUALITY_REASON_REQUIRED");
       const cancelled = await run("qaA", (c, x) => api.cancelQualityInspection(c, x, inspection4.id, "Wrong lot"));
       assert.equal(cancelled.status, "cancelled");

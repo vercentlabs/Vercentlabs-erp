@@ -2,7 +2,7 @@
 // exercises the actual Procurement domain functions against a real,
 // migrated local database (same connection this repo's other verification
 // scripts use, see README "Database" section) to prove the
-// Supplier -> Requisition -> RFQ -> Purchase Order -> Goods Receipt leg of
+// Supplier -> Purchase Order -> Goods Receipt leg of
 // the task's required Supplier->...->Payment journey has a REAL physical
 // Stock effect, not just internal Procurement bookkeeping.
 //
@@ -39,7 +39,6 @@ import {
   createProcurementRecord,
   transitionProcurementRecord,
   procurementContext,
-  awardSourcingEvent,
 } from "../../services/api/src/modules/procurement/index.js";
 import { transitionProcurementReceiptWithStockMovement } from "../../services/api/src/orchestration/procurement-stock-receiving.js";
 import { runProcurementMatchWithVendorBillImport } from "../../services/api/src/orchestration/procurement-accounting-vendor-bill.js";
@@ -59,7 +58,7 @@ async function connectOrSkip() {
   }
 }
 
-test("Procurement: Supplier -> Requisition -> RFQ -> PO -> GRN posts a real Stock receipt movement", async (t) => {
+test("Procurement: Supplier -> PO -> GRN posts a real Stock receipt movement", async (t) => {
   const client = await connectOrSkip();
   if (!client) {
     t.skip("No reachable Postgres connection (MIGRATION_DATABASE_URL/DATABASE_URL) -- run `pnpm infra:up && pnpm db:setup` first.");
@@ -141,54 +140,16 @@ test("Procurement: Supplier -> Requisition -> RFQ -> PO -> GRN posts a real Stoc
     s = await transitionProcurementRecord(client, approverContext, "suppliers", supplier.id, "activate", { expectedVersion: s.version });
     assert.equal(s.status, "active", "supplier must reach active before it can be ordered from");
 
-    // --- Requisition: create -> submit -> approve ---
-    const requisition = await createProcurementRecord(client, procContext, "requisitions", {
-      title: "Journey Test Requisition",
-      needByDate: "2026-12-31",
-      lines: [{ description: "Journey Test Item", quantity: "10", unitPrice: "100" }],
-    });
-    let r = await transitionProcurementRecord(client, procContext, "requisitions", requisition.id, "submit", { expectedVersion: requisition.version });
-    r = await transitionProcurementRecord(client, approverContext, "requisitions", requisition.id, "approve", { expectedVersion: r.version });
-    assert.equal(r.status, "approved");
-
-    // --- RFQ (sourcing event): create -> submit -> approve -> activate, add a bid, award to a PO ---
-    const sourcingEvent = await createProcurementRecord(client, procContext, "sourcing-events", {
-      title: "Journey Test RFQ",
-      eventType: "rfq",
-      bidCloseAt: "2026-12-01T00:00:00.000Z",
-    });
-    let evt = await transitionProcurementRecord(client, procContext, "sourcing-events", sourcingEvent.id, "submit", { expectedVersion: sourcingEvent.version });
-    evt = await transitionProcurementRecord(client, approverContext, "sourcing-events", sourcingEvent.id, "approve", { expectedVersion: evt.version });
-    evt = await transitionProcurementRecord(client, procContext, "sourcing-events", sourcingEvent.id, "activate", { expectedVersion: evt.version });
-    assert.equal(evt.status, "active");
-
-    const bidResult = await client.query(
-      `INSERT INTO tenant.procurement_sourcing_bids(organization_id,company_id,parent_id,status,data,content_hash,updated_by)
-       VALUES($1,$2,$3,'active',$4::jsonb,'test-hash',$5) RETURNING id`,
-      [
-        organizationId,
-        companyId,
-        sourcingEvent.id,
-        JSON.stringify({ supplierId: supplier.id, quotationNumber: "SQ-001", currencyCode: "INR" }),
-        userId,
-      ],
-    );
-    const bidId = bidResult.rows[0].id;
-
-    const awardResult = await awardSourcingEvent(client, procContext, sourcingEvent.id, {
-      expectedVersion: evt.version,
-      selectedBidId: bidId,
+    // --- Purchase order: create -> submit -> approve -> dispatch ---
+    const draftOrder = await createProcurementRecord(client, procContext, "purchase-orders", {
+      title: "Journey Test PO",
       supplierId: supplier.id,
-      awardType: "purchase-order",
       expectedDeliveryDate: "2026-12-15",
       lines: [{ itemId, uomId, warehouseId, description: "Journey Test Item", quantity: "10", unitPrice: "100" }],
     });
-    assert.equal(awardResult.sourceEvent.status, "closed");
-    const purchaseOrderId = awardResult.award.id;
-
-    // --- Purchase order: submit -> approve -> dispatch ---
+    const purchaseOrderId = draftOrder.id;
     let po = await transitionProcurementRecord(client, procContext, "purchase-orders", purchaseOrderId, "submit", {
-      expectedVersion: awardResult.award.version,
+      expectedVersion: draftOrder.version,
     });
     po = await transitionProcurementRecord(client, approverContext, "purchase-orders", purchaseOrderId, "approve", { expectedVersion: po.version });
     po = await transitionProcurementRecord(client, procContext, "purchase-orders", purchaseOrderId, "dispatch", { expectedVersion: po.version });

@@ -107,8 +107,7 @@ const employees: RegisterConfig = {
   createPermission: "hr_payroll.employee.manage",
   save: {
     action: "employee-save",
-    success:
-      "Employee created. Complete joining once the required documents are verified.",
+    success: "Employee created. Complete joining on their first day.",
     transform: (v) => ({
       pan: v.pan || undefined,
       bankDetails: v.accountNumber
@@ -121,13 +120,41 @@ const employees: RegisterConfig = {
         : undefined,
     }),
   },
+  edit: {
+    action: "employee-update",
+    permission: "hr_payroll.employee.manage",
+    show: (r) => r.status !== "separated",
+  },
   fields: [
-    { name: "firstName", label: "First name", kind: "text", required: true },
-    { name: "lastName", label: "Last name", kind: "text", required: true },
-    { name: "workEmail", label: "Work email", kind: "text" },
-    { name: "personalPhone", label: "Mobile", kind: "text" },
+    {
+      name: "firstName",
+      label: "First name",
+      kind: "text",
+      required: true,
+      rowKey: "first_name",
+    },
+    {
+      name: "lastName",
+      label: "Last name",
+      kind: "text",
+      required: true,
+      rowKey: "last_name",
+    },
+    {
+      name: "workEmail",
+      label: "Work email",
+      kind: "text",
+      rowKey: "work_email",
+    },
+    {
+      name: "personalPhone",
+      label: "Mobile",
+      kind: "text",
+      rowKey: "personal_phone",
+    },
     {
       name: "employmentType",
+      rowKey: "employment_type",
       label: "Employment type",
       kind: "select",
       defaultValue: "permanent",
@@ -136,37 +163,79 @@ const employees: RegisterConfig = {
     },
     {
       name: "joiningDate",
+      createOnly: true,
       label: "Joining date",
       kind: "date",
       required: true,
     },
-    { name: "dateOfBirth", label: "Date of birth", kind: "date" },
+    {
+      name: "dateOfBirth",
+      label: "Date of birth",
+      kind: "date",
+      rowKey: "date_of_birth",
+    },
     {
       name: "departmentId",
+      rowKey: "department_id",
       label: "Department",
       kind: "select",
       options: "departments",
     },
     {
       name: "designationId",
+      rowKey: "designation_id",
       label: "Designation",
       kind: "select",
       options: "designations",
     },
     {
       name: "managerEmployeeId",
+      rowKey: "manager_employee_id",
       label: "Reports to",
       kind: "select",
       options: "employees",
     },
-    { name: "branchId", label: "Branch", kind: "select", options: "branches" },
-    { name: "workLocation", label: "Work location", kind: "text" },
-    { name: "grade", label: "Grade", kind: "text" },
-    { name: "pan", label: "PAN", kind: "text", placeholder: "ABCDE1234F" },
-    { name: "accountHolder", label: "Bank account holder", kind: "text" },
-    { name: "accountNumber", label: "Bank account number", kind: "text" },
-    { name: "ifsc", label: "IFSC", kind: "text", placeholder: "HDFC0001234" },
-    { name: "bankName", label: "Bank name", kind: "text" },
+    {
+      name: "branchId",
+      label: "Branch",
+      kind: "select",
+      options: "branches",
+      rowKey: "branch_id",
+    },
+    {
+      name: "workLocation",
+      label: "Work location",
+      kind: "text",
+      rowKey: "work_location",
+    },
+    { name: "grade", label: "Grade", kind: "text", rowKey: "grade" },
+    {
+      name: "pan",
+      label: "PAN",
+      kind: "text",
+      placeholder: "ABCDE1234F",
+      createOnly: true,
+    },
+    {
+      name: "accountHolder",
+      label: "Bank account holder",
+      kind: "text",
+      createOnly: true,
+    },
+    {
+      name: "accountNumber",
+      label: "Bank account number",
+      kind: "text",
+      createOnly: true,
+    },
+    {
+      name: "ifsc",
+      label: "IFSC",
+      kind: "text",
+      placeholder: "HDFC0001234",
+      createOnly: true,
+    },
+    { name: "bankName", label: "Bank name", kind: "text", createOnly: true },
   ],
   columns: () => [
     link(
@@ -303,396 +372,17 @@ const designations: RegisterConfig = {
   searchText: (r) => text(r, ["code", "name", "grade"]),
 };
 
-const documentTypes: RegisterConfig = {
-  key: "document-types",
-  title: "Document types",
-  description:
-    "What can be filed on an employee. A type can be required before joining and can track an expiry date.",
-  searchLabel: "Search document types",
-  emptyTitle: "No document types yet",
-  emptyDescription: "Add types such as identity proof or a work permit.",
-  source: { kind: "view", view: "document-types" },
-  createLabel: "New document type",
-  createPermission: "hr_payroll.settings.manage",
-  save: { action: "document-type-save", success: "Document type saved." },
-  edit: { action: "document-type-save" },
-  fields: [
-    {
-      name: "code",
-      label: "Code",
-      kind: "text",
-      required: true,
-      createOnly: true,
-    },
-    { name: "name", label: "Name", kind: "text", required: true },
-    {
-      name: "requiredForJoining",
-      label: "Required for joining",
-      kind: "bool",
-      defaultValue: "false",
-      rowKey: "required_for_joining",
-    },
-    {
-      name: "expiryTracked",
-      label: "Track expiry",
-      kind: "bool",
-      defaultValue: "false",
-      rowKey: "expiry_tracked",
-    },
-    {
-      name: "sensitive",
-      label: "Sensitive",
-      kind: "bool",
-      defaultValue: "true",
-    },
-    { name: "active", label: "Active", kind: "bool", defaultValue: "true" },
-  ],
-  columns: () => [
-    strong("code", "Code", (r) => String(r.code)),
-    col("name", "Name", (r) => String(r.name)),
-    col("req", "Required for joining", (r) =>
-      r.required_for_joining ? "Yes" : "No",
-    ),
-    col("exp", "Tracks expiry", (r) => (r.expiry_tracked ? "Yes" : "No")),
-    badge("status", "Status", (r) => (r.active ? "active" : "inactive")),
-  ],
-  searchText: (r) => text(r, ["code", "name"]),
-};
-
-const documents: RegisterConfig = {
-  key: "documents",
-  title: "Employee documents",
-  description:
-    "Files held against employees. A document is verified by someone other than the employee whose file it is; expiring documents are flagged.",
-  searchLabel: "Search documents",
-  emptyTitle: "No documents filed",
-  emptyDescription: "Add a document to an employee's file.",
-  source: { kind: "view", view: "documents" },
-  filters: [
-    {
-      name: "status",
-      label: "Status",
-      options: opts("submitted", "verified", "rejected"),
-    },
-    {
-      name: "expiringInDays",
-      label: "Expiry",
-      options: [
-        { value: "30", label: "Expiring in 30 days" },
-        { value: "90", label: "Expiring in 90 days" },
-      ],
-    },
-  ],
-  createLabel: "Add document",
-  createPermission: "hr_payroll.employee.manage",
-  save: { action: "document-add", success: "Document added." },
-  fields: [
-    {
-      name: "employeeId",
-      label: "Employee",
-      kind: "select",
-      options: "employees",
-      required: true,
-    },
-    {
-      name: "documentTypeId",
-      label: "Document type",
-      kind: "select",
-      options: "documentTypes",
-      required: true,
-    },
-    { name: "title", label: "Title", kind: "text" },
-    {
-      name: "fileReference",
-      label: "File reference (storage key or URL)",
-      kind: "text",
-      required: true,
-      wide: true,
-    },
-    { name: "issuedOn", label: "Issued on", kind: "date" },
-    { name: "expiresOn", label: "Expires on", kind: "date" },
-  ],
-  columns: () => [
-    col(
-      "employee",
-      "Employee",
-      (r) => `${r.employee_name} (${r.employee_number})`,
-    ),
-    col("type", "Type", (r) => String(r.type_name)),
-    col("title", "Title", (r) => String(r.title)),
-    badge("status", "Status", (r) => r.status),
-    col("expires", "Expires", (r) => calendarDate(r.expires_on)),
-    col("note", "Review note", (r) => String(r.review_note ?? "")),
-  ],
-  searchText: (r) =>
-    text(r, [
-      "employee_name",
-      "employee_number",
-      "type_name",
-      "title",
-      "status",
-    ]),
-  rowActions: [
-    {
-      label: "Verify",
-      permission: "hr_payroll.employee.manage",
-      show: (r) => r.status === "submitted",
-      run: (r, note) =>
-        act("document-review", { id: r.id, verify: true, note }),
-      note: { label: "Note (optional)" },
-      success: "Document verified.",
-    },
-    {
-      label: "Reject",
-      permission: "hr_payroll.employee.manage",
-      show: (r) => r.status === "submitted",
-      run: (r, note) =>
-        act("document-review", { id: r.id, verify: false, note }),
-      note: { label: "Reason", required: true },
-      success: "Document rejected.",
-    },
-    {
-      label: "Remove",
-      permission: "hr_payroll.employee.manage",
-      run: (r) => act("document-remove", { id: r.id }),
-      success: "Document removed.",
-    },
-  ],
-};
-
-// ------------------------------------------------ effective-dated changes (transfer / promotion / confirmation / probation)
-function changeRegister(
-  type: "transfer" | "promotion" | "confirmation" | "probation_extension",
-  title: string,
-  description: string,
-  fields: RegisterConfig["fields"],
-  noun: string,
-): RegisterConfig {
-  return {
-    key: `changes-${type}`,
-    title,
-    description,
-    searchLabel: `Search ${title.toLowerCase()}`,
-    emptyTitle: `No ${title.toLowerCase()} yet`,
-    emptyDescription: `Propose a ${noun} for a current employee. A second person approves it; it takes effect on its effective date.`,
-    source: { kind: "view", view: "changes", params: { type } },
-    filters: [
-      {
-        name: "status",
-        label: "Status",
-        options: opts(
-          "pending_approval",
-          "approved",
-          "applied",
-          "rejected",
-          "cancelled",
-        ),
-      },
-    ],
-    createLabel: `Propose ${noun}`,
-    createPermission: "hr_payroll.employee.manage",
-    save: {
-      action: "change-propose",
-      fixed: { changeType: type },
-      success: `${noun.charAt(0).toUpperCase()}${noun.slice(1)} proposed. A second person must approve it.`,
-    },
-    fields: [
-      {
-        name: "employeeId",
-        label: "Employee",
-        kind: "select",
-        options: "employees",
-        required: true,
-      },
-      {
-        name: "effectiveDate",
-        label: "Effective date",
-        kind: "date",
-        required: true,
-      },
-      ...(fields ?? []),
-      { name: "reason", label: "Reason", kind: "textarea" },
-    ],
-    columns: () => [
-      col(
-        "employee",
-        "Employee",
-        (r) => `${r.employee_name} (${r.employee_number})`,
-      ),
-      badge("status", "Status", (r) => r.status),
-      col("effective", "Effective", (r) => calendarDate(r.effective_date)),
-      col(
-        "changes",
-        "Change",
-        (r) =>
-          Object.entries((r.changes ?? {}) as Record<string, unknown>)
-            .map(([k, v]) => `${label(k)}: ${String(v)}`)
-            .join("; ") || "—",
-      ),
-      col("reason", "Reason", (r) => String(r.reason ?? "")),
-      col("decision", "Decision note", (r) => String(r.decision_note ?? "")),
-    ],
-    searchText: (r) =>
-      text(r, ["employee_name", "employee_number", "status", "reason"]),
-    rowActions: [
-      {
-        label: "Approve",
-        permission: "hr_payroll.employee.manage",
-        show: (r) => r.status === "pending_approval",
-        run: (r, note) =>
-          act("change-decide", { id: r.id, approve: true, note }),
-        note: { label: "Note (optional)" },
-        success: "Approved.",
-      },
-      {
-        label: "Reject",
-        permission: "hr_payroll.employee.manage",
-        show: (r) => r.status === "pending_approval",
-        run: (r, note) =>
-          act("change-decide", { id: r.id, approve: false, note }),
-        note: { label: "Reason", required: true },
-        success: "Rejected.",
-      },
-      {
-        label: "Cancel",
-        permission: "hr_payroll.employee.manage",
-        show: (r) =>
-          ["pending_approval", "approved"].includes(String(r.status)),
-        run: (r, note) => act("change-cancel", { id: r.id, reason: note }),
-        note: { label: "Reason", required: true },
-        success: "Cancelled.",
-      },
-    ],
-  };
-}
-
-const transfers = changeRegister(
-  "transfer",
-  "Transfers",
-  "Move an employee to another department, branch, manager or location from a date.",
-  [
-    {
-      name: "departmentId",
-      label: "New department",
-      kind: "select",
-      options: "departments",
-    },
-    {
-      name: "branchId",
-      label: "New branch",
-      kind: "select",
-      options: "branches",
-    },
-    {
-      name: "managerEmployeeId",
-      label: "New manager",
-      kind: "select",
-      options: "employees",
-    },
-    { name: "workLocation", label: "New work location", kind: "text" },
-  ],
-  "transfer",
-);
-const promotions = changeRegister(
-  "promotion",
-  "Promotions",
-  "Change designation or grade from a date. A proposed CTC is carried to the compensation assignment.",
-  [
-    {
-      name: "designationId",
-      label: "New designation",
-      kind: "select",
-      options: "designations",
-    },
-    { name: "grade", label: "New grade", kind: "text" },
-    {
-      name: "departmentId",
-      label: "New department",
-      kind: "select",
-      options: "departments",
-    },
-    {
-      name: "proposedAnnualCtc",
-      label: "Proposed annual CTC",
-      kind: "number",
-      step: 1000,
-    },
-  ],
-  "promotion",
-);
-const confirmations = changeRegister(
-  "confirmation",
-  "Confirmations",
-  "Confirm an employee at the end of probation.",
-  [],
-  "confirmation",
-);
-const probationExtensions = changeRegister(
-  "probation_extension",
-  "Probation extensions",
-  "Extend probation to a later date.",
-  [
-    {
-      name: "probationEndDate",
-      label: "New probation end date",
-      kind: "date",
-      required: true,
-    },
-  ],
-  "probation extension",
-);
-
-const probation: RegisterConfig = {
-  key: "probation",
-  title: "Probation",
-  description:
-    "Everyone on probation, soonest end first. Confirm from Confirmations, or extend from Probation extensions.",
-  searchLabel: "Search probation",
-  emptyTitle: "Nobody is on probation",
-  emptyDescription:
-    "Employees appear here from joining until they are confirmed.",
-  source: { kind: "view", view: "probation" },
-  columns: () => [
-    link(
-      "number",
-      "Employee",
-      (r) => String(r.employee_number),
-      (r) => `/hr/employee/${r.id}`,
-    ),
-    col("name", "Name", (r) => String(r.full_name)),
-    col("dept", "Department", (r) => String(r.department_name ?? "—")),
-    badge("status", "Status", (r) => r.probation_status),
-    col("end", "Probation ends", (r) => calendarDate(r.probation_end_date)),
-    col("left", "Days left", (r) =>
-      r.days_left === null
-        ? "—"
-        : Number(r.days_left) < 0
-          ? `${Math.abs(Number(r.days_left))} overdue`
-          : String(r.days_left),
-    ),
-    col("pending", "Confirmation", (r) =>
-      r.confirmation_pending ? "Pending" : "—",
-    ),
-  ],
-  searchText: (r) =>
-    text(r, ["employee_number", "full_name", "department_name"]),
-};
-
-function taskRegister(kind: "onboarding" | "offboarding"): RegisterConfig {
-  const title = kind === "onboarding" ? "Onboarding" : "Offboarding";
+function taskRegister(): RegisterConfig {
+  const kind = "onboarding";
+  const title = "Onboarding";
   return {
     key: `tasks-${kind}`,
     title,
     description:
-      kind === "onboarding"
-        ? "The joining checklist raised for each new employee. Complete or waive (with a reason) each task."
-        : "The exit checklist raised when a separation is accepted. Mandatory tasks must be done before the separation can be completed.",
+      "The joining checklist raised for each new employee. Complete or waive (with a reason) each task.",
     searchLabel: `Search ${title.toLowerCase()} tasks`,
     emptyTitle: `No ${title.toLowerCase()} tasks`,
-    emptyDescription:
-      kind === "onboarding"
-        ? "Tasks appear when an employee joins."
-        : "Tasks appear when a separation is accepted.",
+    emptyDescription: "Tasks appear when an employee joins.",
     source: { kind: "view", view: "tasks", params: { kind } },
     filters: [
       {
@@ -769,207 +459,9 @@ function taskRegister(kind: "onboarding" | "offboarding"): RegisterConfig {
   };
 }
 
-const separations: RegisterConfig = {
-  key: "separations",
-  title: "Separations",
-  description:
-    "Resignations and other exits. Accepting starts the notice period and the offboarding checklist; completing closes the employee's record after the last working day.",
-  searchLabel: "Search separations",
-  emptyTitle: "No separations",
-  emptyDescription:
-    "Record a resignation, termination, retirement or end of contract.",
-  source: { kind: "view", view: "separations" },
-  filters: [
-    {
-      name: "status",
-      label: "Status",
-      options: opts(
-        "submitted",
-        "accepted",
-        "completed",
-        "rejected",
-        "withdrawn",
-      ),
-    },
-  ],
-  createLabel: "Record separation",
-  createPermission: "hr_payroll.employee.manage",
-  save: { action: "separation-initiate", success: "Separation recorded." },
-  fields: [
-    {
-      name: "employeeId",
-      label: "Employee",
-      kind: "select",
-      options: "employees",
-      required: true,
-    },
-    {
-      name: "separationType",
-      label: "Type",
-      kind: "select",
-      defaultValue: "resignation",
-      options: opts(
-        "resignation",
-        "termination",
-        "retirement",
-        "end_of_contract",
-        "absconding",
-        "death",
-      ),
-      required: true,
-    },
-    { name: "noticeDate", label: "Notice date", kind: "date" },
-    {
-      name: "requestedLastDay",
-      label: "Requested last working day",
-      kind: "date",
-    },
-    { name: "reason", label: "Reason", kind: "textarea" },
-  ],
-  columns: () => [
-    col(
-      "employee",
-      "Employee",
-      (r) => `${r.employee_name} (${r.employee_number})`,
-    ),
-    col("type", "Type", (r) => label(r.separation_type)),
-    badge("status", "Status", (r) => r.status),
-    col("notice", "Notice", (r) => calendarDate(r.notice_date)),
-    col("last", "Last working day", (r) =>
-      calendarDate(r.last_working_day ?? r.requested_last_day),
-    ),
-    col("open", "Open tasks", (r) => String(r.open_tasks)),
-    col("reason", "Reason", (r) => String(r.reason ?? "")),
-  ],
-  searchText: (r) =>
-    text(r, [
-      "employee_name",
-      "employee_number",
-      "separation_type",
-      "status",
-      "reason",
-    ]),
-  rowActions: [
-    {
-      label: "Accept",
-      permission: "hr_payroll.employee.manage",
-      show: (r) => r.status === "submitted",
-      run: (r, note) =>
-        act("separation-decide", { id: r.id, approve: true, note }),
-      note: { label: "Note (optional)" },
-      success:
-        "Accepted. Notice has started and the offboarding checklist is raised.",
-    },
-    {
-      label: "Reject",
-      permission: "hr_payroll.employee.manage",
-      show: (r) => r.status === "submitted",
-      run: (r, note) =>
-        act("separation-decide", { id: r.id, approve: false, note }),
-      note: { label: "Reason", required: true },
-      success: "Rejected.",
-    },
-    {
-      label: "Withdraw",
-      show: (r) => ["submitted", "accepted"].includes(String(r.status)),
-      run: (r, note) => act("separation-withdraw", { id: r.id, reason: note }),
-      note: { label: "Reason", required: true },
-      success: "Withdrawn.",
-    },
-    {
-      label: "Exit interview",
-      permission: "hr_payroll.employee.manage",
-      show: (r) => ["accepted", "completed"].includes(String(r.status)),
-      run: (r, note) =>
-        act("separation-exit-interview", {
-          id: r.id,
-          feedback: note,
-          wouldRejoin: false,
-        }),
-      note: { label: "Feedback", required: true },
-      success: "Exit interview recorded.",
-    },
-    {
-      label: "Complete",
-      permission: "hr_payroll.employee.manage",
-      show: (r) => r.status === "accepted",
-      run: (r) => act("separation-complete", { id: r.id }),
-      success: "Separation completed.",
-    },
-  ],
-};
-
-const profileRequests: RegisterConfig = {
-  key: "profile-requests",
-  title: "Profile change requests",
-  description:
-    "Bank, tax and statutory changes requested by employees. Pay depends on these, so a different person approves each one.",
-  searchLabel: "Search requests",
-  emptyTitle: "No change requests",
-  emptyDescription: "Employees request bank or tax changes from My profile.",
-  source: { kind: "view", view: "profile-requests" },
-  filters: [
-    {
-      name: "status",
-      label: "Status",
-      options: opts("pending", "approved", "rejected"),
-    },
-  ],
-  columns: () => [
-    col(
-      "employee",
-      "Employee",
-      (r) => `${r.employee_name} (${r.employee_number})`,
-    ),
-    col("group", "Change", (r) => label(r.field_group)),
-    col("detail", "New values", (r) =>
-      Object.entries((r.payload ?? {}) as Record<string, unknown>)
-        .map(
-          ([k, v]) =>
-            `${label(k)}: ${k.includes("number") ? `••••${String(v).slice(-4)}` : String(v)}`,
-        )
-        .join("; "),
-    ),
-    badge("status", "Status", (r) => r.status),
-    col("when", "Requested", (r) => dateTime(r.created_at)),
-  ],
-  searchText: (r) =>
-    text(r, ["employee_name", "employee_number", "field_group", "status"]),
-  rowActions: [
-    {
-      label: "Approve",
-      permission: "hr_payroll.sensitive.view",
-      show: (r) => r.status === "pending",
-      run: (r, note) =>
-        act("profile-change-decide", { id: r.id, approve: true, note }),
-      note: { label: "Note (optional)" },
-      success: "Change applied to the employee record.",
-    },
-    {
-      label: "Reject",
-      permission: "hr_payroll.sensitive.view",
-      show: (r) => r.status === "pending",
-      run: (r, note) =>
-        act("profile-change-decide", { id: r.id, approve: false, note }),
-      note: { label: "Reason", required: true },
-      success: "Rejected.",
-    },
-  ],
-};
-
 export const REGISTERS: Record<string, RegisterConfig> = {
   employees,
   departments,
   designations,
-  "document-types": documentTypes,
-  documents,
-  transfers,
-  promotions,
-  confirmations,
-  "probation-extensions": probationExtensions,
-  probation,
-  onboarding: taskRegister("onboarding"),
-  offboarding: taskRegister("offboarding"),
-  separations,
-  "profile-requests": profileRequests,
+  onboarding: taskRegister(),
 };

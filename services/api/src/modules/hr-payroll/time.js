@@ -202,7 +202,6 @@ async function assertDateOpen(client, c, date) {
   const p = await qx(client, `SELECT period_code, status FROM tenant.hr_payroll_periods WHERE organization_id=$1 AND company_id=$2 AND status IN ('locked','closed') AND period_start <= $3 AND period_end >= $3 LIMIT 1`, [c.organizationId, c.companyId, date]);
   if (p.rows[0]) throw new HrError(409, `${date} is in payroll period ${p.rows[0].period_code}, which is ${p.rows[0].status}. Attendance for it is locked.`, "HR_PERIOD_LOCKED");
 }
-export { assertDateOpen };
 
 // ---------------------------------------------------------------- daily attendance (F404-F408)
 async function localDate(client, tz, when) {
@@ -273,11 +272,6 @@ export async function recomputeDay(client, c, employee, date) {
        late_minutes=EXCLUDED.late_minutes, early_exit_minutes=EXCLUDED.early_exit_minutes, status=EXCLUDED.status, source=EXCLUDED.source, notes=EXCLUDED.notes, updated_at=now() RETURNING *`,
     [c.organizationId, c.companyId, employee.id, date, shift?.id ?? null, firstIn, lastOut, Math.max(worked, 0), overtime, late, early, status, source, notes, c.userId]);
   const row = rows[0];
-  if (overtime > 0) {
-    await qx(client, `INSERT INTO tenant.hr_overtime(organization_id,company_id,employee_id,work_date,minutes) VALUES ($1,$2,$3,$4,$5) ON CONFLICT (employee_id,work_date) DO UPDATE SET minutes=EXCLUDED.minutes WHERE tenant.hr_overtime.status='pending'`, [c.organizationId, c.companyId, employee.id, date, overtime]);
-  } else {
-    await qx(client, `DELETE FROM tenant.hr_overtime WHERE employee_id=$1 AND work_date=$2 AND status='pending'`, [employee.id, date]);
-  }
   return row;
 }
 
@@ -372,137 +366,6 @@ export async function getMyPunchState(client, c) {
   return { checkedIn: last?.direction === "in", lastPunch: last ?? null, today: day.rows[0] ?? null };
 }
 
-// ---------------------------------------------------------------- regularization (F409)
-export async function listRegularizations(client, c, filters = {}) {
-  const own = await ownEmployee(client, c);
-  const params = [c.organizationId, c.companyId];
-  let extra = "";
-  if (filters.status) { params.push(String(filters.status)); extra += ` AND r.status=$${params.length}`; }
-  if (filters.scope === "mine") {
-    if (!own) throw new HrError(403, "You do not have permission to perform this HR operation.", "HR_FORBIDDEN");
-    params.push(own.id);
-    extra += ` AND r.employee_id=$${params.length}`;
-  } else if (filters.scope === "team") {
-    if (!own) throw new HrError(403, "You do not have permission to perform this HR operation.", "HR_FORBIDDEN");
-    params.push(own.id);
-    extra += ` AND e.manager_employee_id=$${params.length}`;
-  } else needAny(c, VIEW);
-  const { rows } = await qx(client, `SELECT r.*, e.employee_number, trim(e.first_name || ' ' || e.last_name) AS employee_name FROM tenant.hr_attendance_regularizations r JOIN tenant.hr_employees e ON e.id=r.employee_id WHERE r.organization_id=$1 AND r.company_id=$2${extra} ORDER BY r.created_at DESC LIMIT 500`, params);
-  return rows;
-}
-export async function requestRegularization(client, c, input) {
-  const own = await ownEmployee(client, c);
-  const employeeId = uuid(input.employeeId ?? own?.id, "Employee");
-  const { employee, isSelf, isHr } = await actor(client, c, employeeId);
-  if (!isSelf && !isHr) throw new HrError(403, "You can only request a correction for your own attendance.", "HR_FORBIDDEN");
-  const date = dateRequired(input.attendanceDate, "Date");
-  if (date > today()) throw new HrError(400, "You cannot correct a future day.", "HR_REGULARIZATION_INVALID");
-  if (date < addDays(today(), -31)) throw new HrError(400, "Only the last 31 days can be corrected.", "HR_REGULARIZATION_INVALID");
-  if (date < employee.joining_date) throw new HrError(400, "That is before the employee joined.", "HR_REGULARIZATION_INVALID");
-  await assertDateOpen(client, c, date);
-  if (!text(input.reason)) throw new HrError(400, "Say why the day needs correcting.", "HR_REASON_REQUIRED");
-  const cin = input.checkIn ? new Date(String(input.checkIn)) : null;
-  const cout = input.checkOut ? new Date(String(input.checkOut)) : null;
-  if ((!cin && !cout) || (cin && Number.isNaN(cin.getTime())) || (cout && Number.isNaN(cout.getTime())) || (cin && cout && cout <= cin)) throw new HrError(400, "Give a valid check-in and/or check-out time.", "HR_REGULARIZATION_INVALID");
-  const day = (await qx(client, `SELECT * FROM tenant.hr_attendance WHERE employee_id=$1 AND attendance_date=$2`, [employee.id, date])).rows[0];
-  if (day?.leave_request_id) throw new HrError(409, "That day is covered by approved leave.", "HR_ATTENDANCE_ON_LEAVE");
-  const cfg = await settings(client, c);
-  const used = (await qx(client, `SELECT count(*)::int AS n FROM tenant.hr_attendance_regularizations WHERE employee_id=$1 AND status IN ('pending','approved') AND date_trunc('month', attendance_date) = date_trunc('month', $2::date)`, [employee.id, date])).rows[0].n;
-  if (used >= cfg.regularization_limit_per_month) throw new HrError(409, `The limit of ${cfg.regularization_limit_per_month} corrections a month has been reached.`, "HR_REGULARIZATION_LIMIT");
-  const dup = await qx(client, `SELECT 1 FROM tenant.hr_attendance_regularizations WHERE employee_id=$1 AND attendance_date=$2 AND status='pending'`, [employee.id, date]);
-  if (dup.rows[0]) throw new HrError(409, "There is already a pending correction for that day.", "HR_REGULARIZATION_OPEN");
-  const { rows } = await qx(client, `INSERT INTO tenant.hr_attendance_regularizations(organization_id,company_id,employee_id,attendance_date,requested_check_in,requested_check_out,reason,requested_by) VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *`,
-    [c.organizationId, c.companyId, employee.id, date, cin?.toISOString() ?? null, cout?.toISOString() ?? null, text(input.reason, 500), c.userId]);
-  await recordEvent(client, c, "employee", employee.id, "hr.regularization.requested", { date });
-  return rows[0];
-}
-export async function decideRegularization(client, c, id, { approve, note }) {
-  const { rows } = await qx(client, `SELECT * FROM tenant.hr_attendance_regularizations WHERE organization_id=$1 AND company_id=$2 AND id=$3 FOR UPDATE`, [c.organizationId, c.companyId, uuid(id, "Correction")]);
-  const r = rows[0];
-  if (!r) throw new HrError(404, "Correction was not found.", "HR_REGULARIZATION_NOT_FOUND");
-  const { employee, isManager, isHr } = await actor(client, c, r.employee_id, { allowManager: true });
-  if (!isManager && !isHr) throw new HrError(403, "Only the reporting manager or HR can decide a correction.", "HR_FORBIDDEN");
-  if (r.status !== "pending") throw new HrError(409, "That correction has already been decided.", "HR_REGULARIZATION_STATE");
-  if (r.requested_by === c.userId || employee.user_id === c.userId) throw new HrError(403, "You cannot decide your own correction.", "SELF_APPROVAL_BLOCKED");
-  if (!approve && !text(note)) throw new HrError(400, "Give a reason for rejecting.", "HR_REASON_REQUIRED");
-  if (approve) {
-    await assertDateOpen(client, c, r.attendance_date);
-    const tz = await orgZone(client, c);
-    const pairs = [];
-    if (r.requested_check_in) pairs.push(["in", r.requested_check_in]);
-    if (r.requested_check_out) pairs.push(["out", r.requested_check_out]);
-    for (const [direction, when] of pairs) {
-      const clash = await qx(client, `SELECT 1 FROM tenant.hr_attendance_punches WHERE employee_id=$1 AND punched_at=$2`, [employee.id, when]);
-      if (!clash.rows[0]) await qx(client, `INSERT INTO tenant.hr_attendance_punches(organization_id,company_id,employee_id,punched_at,direction,source,note,created_by) VALUES ($1,$2,$3,$4,$5,'regularized',$6,$7)`, [c.organizationId, c.companyId, employee.id, when, direction, `Regularization ${r.id}`, c.userId]);
-    }
-    // a corrected day is derived from its punches again, even if it was overridden by hand before
-    await qx(client, `UPDATE tenant.hr_attendance SET override_reason=NULL, source='regularized' WHERE employee_id=$1 AND attendance_date=$2`, [employee.id, r.attendance_date]);
-    await recomputeDay(client, c, employee, r.attendance_date);
-    void tz;
-  }
-  const out = await qx(client, `UPDATE tenant.hr_attendance_regularizations SET status=$2, decided_by=$3, decided_at=now(), decision_note=$4 WHERE id=$1 RETURNING *`, [r.id, approve ? "approved" : "rejected", c.userId, textOrNull(note)]);
-  await recordEvent(client, c, "employee", employee.id, approve ? "hr.regularization.approved" : "hr.regularization.rejected", { date: r.attendance_date });
-  return out.rows[0];
-}
-export async function cancelRegularization(client, c, id) {
-  const { rows } = await qx(client, `SELECT * FROM tenant.hr_attendance_regularizations WHERE organization_id=$1 AND company_id=$2 AND id=$3 FOR UPDATE`, [c.organizationId, c.companyId, uuid(id, "Correction")]);
-  const r = rows[0];
-  if (!r) throw new HrError(404, "Correction was not found.", "HR_REGULARIZATION_NOT_FOUND");
-  if (!(r.requested_by === c.userId || has(c, MANAGE))) throw new HrError(403, "You cannot cancel this correction.", "HR_FORBIDDEN");
-  if (r.status !== "pending") throw new HrError(409, "Only a pending correction can be cancelled.", "HR_REGULARIZATION_STATE");
-  return (await qx(client, `UPDATE tenant.hr_attendance_regularizations SET status='cancelled', decided_at=now() WHERE id=$1 RETURNING *`, [r.id])).rows[0];
-}
-
-// ---------------------------------------------------------------- overtime (F408)
-export async function listOvertime(client, c, filters = {}) {
-  const own = await ownEmployee(client, c);
-  const params = [c.organizationId, c.companyId];
-  let extra = "";
-  if (filters.status) { params.push(String(filters.status)); extra += ` AND o.status=$${params.length}`; }
-  if (filters.scope === "mine") {
-    if (!own) throw new HrError(403, "You do not have permission to perform this HR operation.", "HR_FORBIDDEN");
-    params.push(own.id);
-    extra += ` AND o.employee_id=$${params.length}`;
-  } else if (filters.scope === "team") {
-    if (!own) throw new HrError(403, "You do not have permission to perform this HR operation.", "HR_FORBIDDEN");
-    params.push(own.id);
-    extra += ` AND e.manager_employee_id=$${params.length}`;
-  } else needAny(c, VIEW);
-  const { rows } = await qx(client, `SELECT o.*, e.employee_number, trim(e.first_name || ' ' || e.last_name) AS employee_name FROM tenant.hr_overtime o JOIN tenant.hr_employees e ON e.id=o.employee_id WHERE o.organization_id=$1 AND o.company_id=$2${extra} ORDER BY o.work_date DESC LIMIT 1000`, params);
-  return rows;
-}
-export async function decideOvertime(client, c, id, { approve, note }) {
-  const { rows } = await qx(client, `SELECT * FROM tenant.hr_overtime WHERE organization_id=$1 AND company_id=$2 AND id=$3 FOR UPDATE`, [c.organizationId, c.companyId, uuid(id, "Overtime")]);
-  const o = rows[0];
-  if (!o) throw new HrError(404, "Overtime was not found.", "HR_OVERTIME_NOT_FOUND");
-  const { employee, isManager, isHr } = await actor(client, c, o.employee_id, { allowManager: true });
-  if (!isManager && !isHr) throw new HrError(403, "Only the reporting manager or HR can decide overtime.", "HR_FORBIDDEN");
-  if (employee.user_id === c.userId) throw new HrError(403, "You cannot approve your own overtime.", "SELF_APPROVAL_BLOCKED");
-  if (o.status !== "pending") throw new HrError(409, "That overtime has already been decided.", "HR_OVERTIME_STATE");
-  await assertDateOpen(client, c, o.work_date);
-  if (!approve && !text(note)) throw new HrError(400, "Give a reason for rejecting the overtime.", "HR_REASON_REQUIRED");
-  const out = await qx(client, `UPDATE tenant.hr_overtime SET status=$2, decided_by=$3, decided_at=now(), decision_note=$4 WHERE id=$1 RETURNING *`, [o.id, approve ? "approved" : "rejected", c.userId, textOrNull(note)]);
-  await recordEvent(client, c, "employee", employee.id, approve ? "hr.overtime.approved" : "hr.overtime.rejected", { date: o.work_date, minutes: o.minutes });
-  return out.rows[0];
-}
-
-// ---------------------------------------------------------------- late / early report (F406, F407)
-export async function getLateEarlyReport(client, c, filters = {}) {
-  needAny(c, VIEW);
-  const from = dateOrNull(filters.from, "From") ?? addDays(today(), -30);
-  const to = dateOrNull(filters.to, "To") ?? today();
-  const cfg = await settings(client, c);
-  const { rows } = await qx(client,
-    `SELECT e.id, e.employee_number, trim(e.first_name || ' ' || e.last_name) AS employee_name,
-       count(*) FILTER (WHERE a.late_minutes > 0)::int AS late_marks, coalesce(sum(a.late_minutes),0)::int AS late_minutes,
-       count(*) FILTER (WHERE a.early_exit_minutes > 0)::int AS early_exits, coalesce(sum(a.early_exit_minutes),0)::int AS early_exit_minutes
-     FROM tenant.hr_attendance a JOIN tenant.hr_employees e ON e.id=a.employee_id
-     WHERE a.organization_id=$1 AND a.company_id=$2 AND a.attendance_date BETWEEN $3 AND $4 AND (a.late_minutes > 0 OR a.early_exit_minutes > 0)
-     GROUP BY e.id ORDER BY late_marks DESC, early_exits DESC LIMIT 500`, [c.organizationId, c.companyId, from, to]);
-  const per = Number(cfg.late_marks_per_deduction);
-  return { from, to, lateMarksPerDeduction: per, rows: rows.map((r) => ({ ...r, deduction_days: per > 0 ? Math.floor((r.late_marks + r.early_exits) / per) * 0.5 : 0 })) };
-}
-
 // ---------------------------------------------------------------- summary for payroll (F425)
 // Classifies every day of a period for one employee. Payroll turns this into paid and unpaid days.
 export async function computeAttendanceSummary(client, c, employeeId, from, to, { runId = null } = {}) {
@@ -511,7 +374,7 @@ export async function computeAttendanceSummary(client, c, employeeId, from, to, 
   const cfg = await settings(client, c);
   const att = await qx(client, `SELECT a.*, l.leave_type_id, t.paid AS leave_paid, t.code AS leave_code, l.start_half, l.end_half, l.start_date, l.end_date FROM tenant.hr_attendance a LEFT JOIN tenant.hr_leave_requests l ON l.id=a.leave_request_id LEFT JOIN tenant.hr_leave_types t ON t.id=l.leave_type_id WHERE a.employee_id=$1 AND a.attendance_date BETWEEN $2 AND $3`, [employee.id, from, to]);
   const byDate = new Map(att.rows.map((r) => [r.attendance_date, r]));
-  const s = { from, to, calendarDays: 0, payableDays: 0, presentDays: 0, halfDays: 0, paidLeaveDays: 0, unpaidLeaveDays: 0, holidays: 0, weeklyOffs: 0, absentDays: 0, unmarkedDays: 0, notEmployedDays: 0, overtimeMinutes: 0, lateMarks: 0, earlyExits: 0, lateDeductionDays: 0, details: [] };
+  const s = { from, to, calendarDays: 0, payableDays: 0, presentDays: 0, halfDays: 0, paidLeaveDays: 0, unpaidLeaveDays: 0, holidays: 0, weeklyOffs: 0, absentDays: 0, unmarkedDays: 0, notEmployedDays: 0, lateMarks: 0, earlyExits: 0, lateDeductionDays: 0, details: [] };
   const last = employee.separation_date ?? employee.last_working_date ?? null;
   for (const date of dayRange(from, to)) {
     s.calendarDays += 1;
@@ -542,8 +405,6 @@ export async function computeAttendanceSummary(client, c, employeeId, from, to, 
     s.payableDays += value;
     s.details.push({ date, kind, value });
   }
-  const ot = await qx(client, `SELECT coalesce(sum(minutes),0)::int AS m FROM tenant.hr_overtime WHERE employee_id=$1 AND work_date BETWEEN $2 AND $3 AND status='approved' AND (payroll_run_id IS NULL OR payroll_run_id=$4::uuid)`, [employee.id, from, to, runId]);
-  s.overtimeMinutes = ot.rows[0].m;
   const per = Number(cfg.late_marks_per_deduction);
   s.lateDeductionDays = per > 0 ? Math.floor((s.lateMarks + s.earlyExits) / per) * 0.5 : 0;
   return s;

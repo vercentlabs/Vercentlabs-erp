@@ -8,7 +8,6 @@ import {
   requirePermission,
   requiredText,
   strictBoolean,
-  text,
   uuid,
 } from "./core.js";
 
@@ -44,7 +43,6 @@ export async function getAccountingSettings(client, context, companyIdValue = nu
   const dimensionValues = await client.query(`SELECT value.*,dimension.code AS dimension_code,dimension.name AS dimension_name FROM tenant.accounting_dimension_values value JOIN tenant.accounting_dimensions dimension ON dimension.organization_id=value.organization_id AND dimension.id=value.dimension_id WHERE value.organization_id=$1 AND (dimension.company_id IS NULL OR dimension.company_id=$2) ORDER BY dimension.code,value.code`, [context.organizationId, company.id]);
   return { company, settings: settings.rows[0] || null, ledgers: ledgers.rows, mappings: mappings.rows, dimensions: dimensions.rows, dimensionValues: dimensionValues.rows };
 }
-
 
 export async function updateAccountingSettings(client, context, input) {
   requirePermission(context, ACCOUNTING_PERMISSIONS.settingsManage);
@@ -134,68 +132,3 @@ export async function upsertAccountMapping(client, context, input) {
   return result.rows[0];
 }
 
-export async function createAccountingDimension(client, context, input) {
-  requirePermission(context, ACCOUNTING_PERMISSIONS.settingsManage);
-  const company = await loadCompany(client, context, input.companyId || context.activeCompanyId);
-  const sourceType = String(input.sourceType || "custom");
-  if (!["branch", "department", "cost_center", "project", "custom"].includes(sourceType)) {
-    throw new AccountingError(400, "Accounting dimension source type is invalid.");
-  }
-  const requiredForClasses = Array.isArray(input.requiredForClasses)
-    ? [...new Set(input.requiredForClasses.map((value) => text(value, 50)).filter(Boolean))]
-    : [];
-  const allowedClasses = new Set(["asset", "liability", "equity", "revenue", "expense", "memorandum",
-    "bank", "cash", "receivable", "payable", "inventory", "fixed_asset", "tax_input", "tax_output",
-    "cogs", "intercompany"]);
-  if (requiredForClasses.some((value) => !allowedClasses.has(value))) {
-    throw new AccountingError(400, "One or more required account classes are invalid.");
-  }
-  const result = await client.query(
-    `INSERT INTO tenant.accounting_dimensions
-      (organization_id,company_id,code,name,source_type,required_for_classes,balancing_dimension,status,created_by,updated_by)
-     VALUES ($1,$2,$3,$4,$5,$6::text[],$7,'active',$8,$8) RETURNING *`,
-    [context.organizationId, company.id, requiredText(input.code, "Dimension code", 50),
-      requiredText(input.name, "Dimension name", 200), sourceType, requiredForClasses,
-      strictBoolean(input.balancingDimension, "Balancing dimension", { defaultValue: false }), context.userId],
-  );
-  return result.rows[0];
-}
-
-export async function createAccountingDimensionValue(client, context, input) {
-  requirePermission(context, ACCOUNTING_PERMISSIONS.settingsManage);
-  const company = await loadCompany(client, context, input.companyId || context.activeCompanyId);
-  const dimensionId = uuid(input.dimensionId, "Accounting dimension");
-  const dimension = await client.query(
-    `SELECT id FROM tenant.accounting_dimensions WHERE organization_id=$1 AND id=$2 AND status='active'
-      AND (company_id IS NULL OR company_id=$3)`,
-    [context.organizationId, dimensionId, company.id],
-  );
-  if (!dimension.rows[0]) throw new AccountingError(409, "Accounting dimension is unavailable for this company.");
-  const parentId = optionalUuid(input.parentId, "Parent dimension value");
-  if (parentId) {
-    const parent = await client.query(
-      `SELECT id FROM tenant.accounting_dimension_values WHERE organization_id=$1 AND id=$2 AND dimension_id=$3 AND status='active'`,
-      [context.organizationId, parentId, dimensionId],
-    );
-    if (!parent.rows[0]) throw new AccountingError(409, "Parent dimension value is unavailable.");
-  }
-  const result = await client.query(
-    `INSERT INTO tenant.accounting_dimension_values
-      (organization_id,dimension_id,parent_id,code,name,source_record_id,status,created_by,updated_by)
-     VALUES ($1,$2,$3,$4,$5,$6,'active',$7,$7) RETURNING *`,
-    [context.organizationId, dimensionId, parentId, requiredText(input.code, "Dimension value code", 50),
-      requiredText(input.name, "Dimension value name", 200), optionalUuid(input.sourceRecordId, "Source record"), context.userId],
-  );
-  return result.rows[0];
-}
-
-export async function getAccountingOrganisationOptions(client, context) {
-  requirePermission(context, ACCOUNTING_PERMISSIONS.view);
-  // Sequential, not Promise.all: a single pg client can only run one query at a time (concurrent
-  // queries on the same connection are deprecated and will error in pg@9).
-  const companies = await client.query(`SELECT id,name,legal_name,base_currency FROM public.companies WHERE organization_id=$1 ORDER BY name`, [context.organizationId]);
-  const ledgers = await client.query(`SELECT id,company_id,code,name,ledger_type,functional_currency_code FROM tenant.accounting_ledgers WHERE organization_id=$1 AND status='active' ORDER BY company_id,ledger_type='primary' DESC,name`, [context.organizationId]);
-  const accounts = await client.query(`SELECT id,company_id,ledger_id,code,name,account_class,account_type,is_group,allow_manual_posting FROM tenant.accounting_accounts WHERE organization_id=$1 AND status='active' ORDER BY company_id,code`, [context.organizationId]);
-  const currencies = await client.query(`SELECT code,name,decimal_places FROM tenant.currencies WHERE organization_id=$1 AND status='active' ORDER BY code`, [context.organizationId]);
-  return { companies: companies.rows, ledgers: ledgers.rows, accounts: accounts.rows, currencies: currencies.rows };
-}

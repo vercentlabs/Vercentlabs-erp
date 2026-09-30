@@ -1,5 +1,5 @@
-// Real PostgreSQL integration test -- time and leave (F403-F417): shifts, holidays, punches,
-// late/early/overtime rules, regularization, the attendance summary, leave types and policies,
+// Real PostgreSQL integration test -- time and leave (F403-F417): shifts, holidays, check-in and
+// check-out, the attendance summary, leave types and policies,
 // accrual, carry forward, requests, approval (manager or HR, never self), cancellation, and locks.
 import assert from "node:assert/strict";
 import test from "node:test";
@@ -37,7 +37,6 @@ test("HR time and leave against real PostgreSQL", async (t) => {
   const ids = {};
 
   try {
-    await run("hrA", (c, x) => api.saveHrSettings(c, x, { requireDocumentsForJoining: false }));
     const dept = await run("hrA", (c, x) => api.saveDepartment(c, x, { code: "OPS", name: "Operations" }));
     const mk = async (first, email, userId, extra = {}) => {
       const e = await run("hrA", (c, x) => api.saveEmployee(c, x, { firstName: first, lastName: "T", workEmail: email, employmentType: "permanent", joiningDate: "2025-01-06", departmentId: dept.id, userId, ...extra }));
@@ -80,7 +79,7 @@ test("HR time and leave against real PostgreSQL", async (t) => {
       await denied("hrOnlyView", (c, x) => api.addHoliday(c, x, { calendarId: cal.id, holidayDate: `${year}-11-01`, name: "X" }), 403);
     });
 
-    await t.test("F404-F408: punches build the day -- late arrival, early exit, overtime, half day and a missing check-out", async () => {
+    await t.test("F404-F407: check-in and check-out build the day -- late arrival, early exit, worked minutes, half day and a missing check-out", async () => {
       const [d1, d2, d3, d4] = [prevWorkday(4), prevWorkday(3), prevWorkday(2), prevWorkday(1)];
       ids.days = { d1, d2, d3, d4 };
       // D1: 25 minutes late (grace is 10), leaves 30 minutes after shift end
@@ -90,7 +89,7 @@ test("HR time and leave against real PostgreSQL", async (t) => {
       assert.equal(p1.attendance.late_minutes, 25);
       assert.equal(p1.attendance.worked_minutes, 485, "545 minutes in the building less the 60-minute break");
       assert.equal(p1.attendance.overtime_minutes, 0, "5 minutes over is below the overtime threshold");
-      // D2: a long day -> overtime is queued for approval
+      // D2: a long day
       await run("hrA", (c, x) => api.punch(c, x, { employeeId: ids.e1, direction: "in", at: at(d2, "09:00") }));
       const p2 = await run("hrA", (c, x) => api.punch(c, x, { employeeId: ids.e1, direction: "out", at: at(d2, "20:30") }));
       assert.equal(p2.attendance.worked_minutes, 630);
@@ -119,64 +118,17 @@ test("HR time and leave against real PostgreSQL", async (t) => {
       const state = await run("emp2", (c, x) => api.getMyPunchState(c, x));
       assert.equal(state.checkedIn, true);
       await denied("emp2", (c, x) => api.punch(c, x, { direction: "in" }), 409, "HR_ALREADY_CHECKED_IN");
-      const overtime = await run("hrA", (c, x) => api.listOvertime(c, x, {}));
-      assert.equal(overtime.find((o) => o.work_date === d2).minutes, 150);
     });
 
-    await t.test("F404/F406/F407: manual attendance needs a reason; the late and early report counts marks and applies the deduction rule", async () => {
+    await t.test("F404/F406: manual attendance needs a reason", async () => {
       const d = prevWorkday(5);
       await denied("hrA", (c, x) => api.recordAttendance(c, x, { employeeId: ids.e2, attendanceDate: d, status: "present" }), 400, "HR_REASON_REQUIRED");
       await denied("hrOnlyView", (c, x) => api.recordAttendance(c, x, { employeeId: ids.e2, attendanceDate: d, status: "present", reason: "x" }), 403);
       await denied("hrA", (c, x) => api.recordAttendance(c, x, { employeeId: ids.e2, attendanceDate: addD(today, 3), status: "present", reason: "x" }), 400, "HR_ATTENDANCE_INVALID");
       const rec = await run("hrA", (c, x) => api.recordAttendance(c, x, { employeeId: ids.e2, attendanceDate: d, status: "remote", reason: "Worked from home, badge system down" }));
       assert.equal(rec.source, "manual");
-      const rep = await run("hrA", (c, x) => api.getLateEarlyReport(c, x, {}));
-      const ella = rep.rows.find((r) => r.id === ids.e1);
-      assert.equal(ella.late_marks, 1);
-      assert.equal(ella.late_minutes, 25);
-      assert.equal(ella.early_exits, 1);
-      assert.equal(ella.early_exit_minutes, 180);
-      assert.equal(ella.deduction_days, 0, "no deduction rule is configured");
       await run("hrA", (c, x) => c && api.saveHrSettings(c, x, { attendanceGraceMinutes: 0 }));
       await sql(`UPDATE tenant.hr_payroll_settings SET late_marks_per_deduction=2 WHERE organization_id=$1`, [w.orgId]);
-      const rep2 = await run("hrA", (c, x) => api.getLateEarlyReport(c, x, {}));
-      assert.equal(rep2.rows.find((r) => r.id === ids.e1).deduction_days, 0.5, "two marks (one late, one early) cost half a day");
-    });
-
-    await t.test("F409: a missed check-out is regularized -- requested by the employee, decided by the manager (never self), limited per month", async () => {
-      const d = ids.days.d4;
-      const req = await run("emp1", (c, x) => api.requestRegularization(c, x, { attendanceDate: d, checkOut: at(d, "18:10"), reason: "Forgot to check out" }));
-      assert.equal(req.status, "pending");
-      await denied("emp1", (c, x) => api.requestRegularization(c, x, { attendanceDate: d, checkOut: at(d, "18:15"), reason: "again" }), 409, "HR_REGULARIZATION_OPEN");
-      await denied("emp1", (c, x) => api.requestRegularization(c, x, { attendanceDate: addD(today, 2), checkIn: at(addD(today, 2), "09:00"), reason: "x" }), 400, "HR_REGULARIZATION_INVALID");
-      await denied("emp1", (c, x) => api.requestRegularization(c, x, { attendanceDate: addD(today, -60), checkIn: at(addD(today, -60), "09:00"), reason: "x" }), 400, "HR_REGULARIZATION_INVALID");
-      await denied("emp2", (c, x) => api.requestRegularization(c, x, { employeeId: ids.e1, attendanceDate: prevWorkday(7), checkIn: at(prevWorkday(7), "09:00"), reason: "x" }), 403);
-      await denied("emp1", (c, x) => api.decideRegularization(c, x, req.id, { approve: true }), 403);
-      await denied("emp2", (c, x) => api.decideRegularization(c, x, req.id, { approve: true }), 403);
-      await denied("mgr", (c, x) => api.decideRegularization(c, x, req.id, { approve: false }), 400, "HR_REASON_REQUIRED");
-      const team = await run("mgr", (c, x) => api.listRegularizations(c, x, { scope: "team" }));
-      assert.equal(team.length, 1, "the manager sees their team's requests without any HR permission");
-      const done = await run("mgr", (c, x) => api.decideRegularization(c, x, req.id, { approve: true, note: "Confirmed with security" }));
-      assert.equal(done.status, "approved");
-      const [row] = await sql(`SELECT status, worked_minutes, source FROM tenant.hr_attendance WHERE employee_id=$1 AND attendance_date=$2`, [ids.e1, d]);
-      assert.equal(row.status, "present", "the corrected day is recomputed from its punches");
-      assert.equal(row.source, "regularized");
-      assert.equal(row.worked_minutes, 485, "09:05 to 18:10 less the 60-minute break");
-      await denied("mgr", (c, x) => api.decideRegularization(c, x, req.id, { approve: true }), 409, "HR_REGULARIZATION_STATE");
-      // the monthly limit
-      await sql(`UPDATE tenant.hr_payroll_settings SET regularization_limit_per_month=1 WHERE organization_id=$1`, [w.orgId]);
-      const d5 = prevWorkday(5);
-      if (d5.slice(0, 7) === d.slice(0, 7)) await denied("emp1", (c, x) => api.requestRegularization(c, x, { attendanceDate: d5, checkIn: at(d5, "09:00"), checkOut: at(d5, "18:00"), reason: "second" }), 409, "HR_REGULARIZATION_LIMIT");
-      await sql(`UPDATE tenant.hr_payroll_settings SET regularization_limit_per_month=5 WHERE organization_id=$1`, [w.orgId]);
-    });
-
-    await t.test("F408: overtime is approved by the manager or HR, never by the employee", async () => {
-      const ot = (await run("hrA", (c, x) => api.listOvertime(c, x, { status: "pending" }))).find((o) => o.work_date === ids.days.d2);
-      await denied("emp1", (c, x) => api.decideOvertime(c, x, ot.id, { approve: true }), 403);
-      await denied("mgr", (c, x) => api.decideOvertime(c, x, ot.id, { approve: false }), 400, "HR_REASON_REQUIRED");
-      const ok = await run("mgr", (c, x) => api.decideOvertime(c, x, ot.id, { approve: true, note: "Month-end close" }));
-      assert.equal(ok.status, "approved");
-      await denied("mgr", (c, x) => api.decideOvertime(c, x, ot.id, { approve: true }), 409, "HR_OVERTIME_STATE");
     });
 
     await t.test("F425 input: the attendance summary classifies every day -- holidays, weekly offs, present, half, absent, unmarked", async () => {
@@ -190,13 +142,12 @@ test("HR time and leave against real PostgreSQL", async (t) => {
       assert.equal(s.holidays, 1);
       assert.equal(s.weeklyOffs, weekends);
       assert.equal(s.halfDays, 1, "the half day");
-      assert.equal(s.presentDays, 3, "D1, D2 and the regularized D4");
+      assert.equal(s.presentDays, 2, "D1 and D2");
       assert.equal(s.lateMarks, 1);
-      assert.equal(s.overtimeMinutes, 150, "only approved overtime is counted");
       close(s.payableDays, s.holidays + s.weeklyOffs + s.presentDays + 0.5, "payable days");
-      assert.equal(s.unmarkedDays, s.absentDays, "workdays with no record are absent");
+      assert.equal(s.absentDays, s.unmarkedDays + 1, "workdays with no record are absent, as is D4 with its missing check-out");
       const mine = await run("emp1", (c, x) => api.getAttendanceSummary(c, x, { from, to }));
-      assert.equal(mine.presentDays, 3, "an employee sees their own summary without HR rights");
+      assert.equal(mine.presentDays, 2, "an employee sees their own summary without HR rights");
       await denied("emp1", (c, x) => api.getAttendanceSummary(c, x, { employeeId: ids.e2, from, to }), 403);
       // days outside employment are not counted
       const before = await run("hrA", (c, x) => api.getAttendanceSummary(c, x, { employeeId: ids.e1, from: "2024-12-30", to: "2025-01-08" }));
@@ -359,7 +310,6 @@ test("HR time and leave against real PostgreSQL", async (t) => {
       await sql(`INSERT INTO tenant.hr_payroll_runs(organization_id,company_id,payroll_number,period_start,period_end,payment_date,status,created_by) VALUES ($1,$2,'PR-LOCK-1',$3,$4,$4,'approved',$5)`, [w.orgId, w.companyId, from, to, users.hrA]);
       await denied("hrA", (c, x) => api.recordAttendance(c, x, { employeeId: ids.e2, attendanceDate: day, status: "present", reason: "late entry" }), 409, "HR_PERIOD_LOCKED");
       await denied("hrA", (c, x) => api.punch(c, x, { employeeId: ids.e2, direction: "in", at: at(day, "09:00") }), 409, "HR_PERIOD_LOCKED");
-      await denied("emp2", (c, x) => api.requestRegularization(c, x, { attendanceDate: day, checkIn: at(day, "09:00"), reason: "x" }), 409, "HR_PERIOD_LOCKED");
       await sql(`DELETE FROM tenant.hr_payroll_runs WHERE payroll_number='PR-LOCK-1'`);
     });
 

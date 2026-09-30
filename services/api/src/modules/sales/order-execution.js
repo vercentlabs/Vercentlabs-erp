@@ -10,12 +10,6 @@ const uuid = (value, label) => {
   return String(value);
 };
 const text = (value, max = 2000) => String(value ?? "").trim().slice(0, max);
-const isoDate = (value, label) => {
-  const day = String(value ?? "").slice(0, 10);
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(day) || Number.isNaN(Date.parse(day))) throw new SalesError(400, `${label} is invalid.`, "SALES_DATE_INVALID");
-  return day;
-};
-const today = () => new Date().toISOString().slice(0, 10);
 const can = (c, permission) => c.roleSlugs?.includes("organization_owner") || c.permissions?.includes(permission);
 const need = (c, permission) => {
   if (!can(c, permission)) throw new SalesError(403, "You do not have permission to perform this Sales operation.");
@@ -25,69 +19,6 @@ async function event(client, c, entityType, entityId, eventType, status, metadat
     `INSERT INTO tenant.sales_document_events (organization_id,entity_type,entity_id,event_type,from_status,to_status,metadata,actor_user_id) VALUES ($1,$2,$3,$4,$5,$5,$6::jsonb,$7)`,
     [c.organizationId, entityType, entityId, eventType, status, JSON.stringify(metadata), c.userId || null],
   );
-}
-
-// ---- F041 approval delegation ------------------------------------------------
-export async function listSalesApprovalDelegations(client, c) {
-  need(c, "sales.view");
-  const { rows } = await client.query(
-    `SELECT delegation.id,delegation.delegator_user_id,delegator.full_name AS delegator_name,delegation.delegate_user_id,delegate.full_name AS delegate_name,
-            delegation.starts_on::text AS starts_on,delegation.ends_on::text AS ends_on,delegation.reason,delegation.status,delegation.created_at,
-            (delegation.status='active' AND delegation.starts_on<=current_date AND delegation.ends_on>=current_date) AS in_effect
-       FROM tenant.sales_approval_delegations delegation
-       JOIN public.users delegator ON delegator.id=delegation.delegator_user_id
-       JOIN public.users delegate ON delegate.id=delegation.delegate_user_id
-      WHERE delegation.organization_id=$1
-      ORDER BY delegation.status, delegation.starts_on DESC`,
-    [c.organizationId],
-  );
-  return rows;
-}
-
-// An approver delegates their own approvals; managing someone else's needs
-// Sales settings rights. Overlapping active windows for one approver are refused
-// so routing is never ambiguous.
-export async function createSalesApprovalDelegation(client, c, input = {}) {
-  const delegatorId = uuid(input.delegatorUserId || c.userId, "Approver");
-  const delegateId = uuid(input.delegateUserId, "Delegate");
-  if (delegatorId !== c.userId) need(c, "sales.settings.manage");
-  else if (!can(c, "sales.quotation.approve") && !can(c, "sales.order.approve")) need(c, "sales.settings.manage");
-  if (delegatorId === delegateId) throw new SalesError(400, "Choose someone other than the approver.", "SALES_DELEGATION_SELF");
-  const startsOn = isoDate(input.startsOn, "Start date");
-  const endsOn = isoDate(input.endsOn, "End date");
-  if (startsOn > endsOn) throw new SalesError(400, "The end date must be on or after the start date.", "SALES_DELEGATION_DATES");
-  if (endsOn < today()) throw new SalesError(400, "The delegation has already ended.", "SALES_DELEGATION_DATES");
-  const reason = text(input.reason, 500);
-  if (reason.length < 5) throw new SalesError(400, "Say why approvals are delegated (at least 5 characters).", "SALES_DELEGATION_REASON");
-  const members = await client.query(
-    `SELECT user_id FROM public.organization_memberships WHERE organization_id=$1 AND status='active' AND user_id = ANY($2::uuid[])`,
-    [c.organizationId, [delegatorId, delegateId]],
-  );
-  if (members.rows.length !== 2) throw new SalesError(409, "Both people must be active members of this organisation.", "SALES_DELEGATION_MEMBER");
-  const overlap = await client.query(
-    `SELECT 1 FROM tenant.sales_approval_delegations WHERE organization_id=$1 AND delegator_user_id=$2 AND status='active' AND starts_on<=$4 AND ends_on>=$3 LIMIT 1`,
-    [c.organizationId, delegatorId, startsOn, endsOn],
-  );
-  if (overlap.rows[0]) throw new SalesError(409, "This approver already has a delegation in that period.", "SALES_DELEGATION_OVERLAP");
-  const { rows } = await client.query(
-    `INSERT INTO tenant.sales_approval_delegations (organization_id,delegator_user_id,delegate_user_id,starts_on,ends_on,reason,created_by)
-     VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id,starts_on::text AS starts_on,ends_on::text AS ends_on,status`,
-    [c.organizationId, delegatorId, delegateId, startsOn, endsOn, reason, c.userId],
-  );
-  return rows[0];
-}
-
-export async function revokeSalesApprovalDelegation(client, c, delegationId) {
-  const id = uuid(delegationId, "Delegation");
-  const found = (await client.query(`SELECT delegator_user_id,status FROM tenant.sales_approval_delegations WHERE organization_id=$1 AND id=$2 FOR UPDATE`, [c.organizationId, id])).rows[0];
-  if (!found) throw new SalesError(404, "Delegation not found.");
-  if (found.delegator_user_id !== c.userId) need(c, "sales.settings.manage");
-  if (found.status !== "active") return { id, status: found.status };
-  await client.query(
-    `UPDATE tenant.sales_approval_delegations SET status='revoked',revoked_by=$3,revoked_at=now() WHERE organization_id=$1 AND id=$2`,
-    [c.organizationId, id, c.userId],
-  );
-  return { id, status: "revoked" };
 }
 
 // ---- F044 amendment impact --------------------------------------------------
@@ -143,42 +74,6 @@ export async function previewSalesOrderAmendmentImpact(client, c, orderId, input
     downstream,
     blockers,
   };
-}
-
-// ---- F048 backorder promise dates --------------------------------------------
-export async function setSalesOrderLinePromise(client, c, input = {}) {
-  need(c, "sales.fulfillment.request");
-  const lineId = uuid(input.salesOrderLineId, "Sales order line");
-  const promisedDate = isoDate(input.promisedDate, "Promised date");
-  if (promisedDate < today()) throw new SalesError(400, "A promise date cannot be in the past.", "SALES_PROMISE_DATE_PAST");
-  const note = text(input.note, 500);
-  if (note.length < 5) throw new SalesError(400, "Say what the promise is based on (at least 5 characters).", "SALES_PROMISE_NOTE_REQUIRED");
-  const line = (
-    await client.query(
-      `SELECT line.id,orders.id AS order_id,orders.lifecycle_status,
-              line.quantity-progress.fulfilled_quantity-progress.cancelled_quantity AS open_quantity
-         FROM tenant.sales_order_lines line
-         JOIN tenant.sales_orders orders ON orders.organization_id=line.organization_id AND orders.current_version_id=line.sales_order_version_id
-         JOIN tenant.sales_order_line_progress progress ON progress.organization_id=line.organization_id AND progress.sales_order_line_id=line.id
-        WHERE line.organization_id=$1 AND line.id=$2 FOR UPDATE OF orders`,
-      [c.organizationId, lineId],
-    )
-  ).rows[0];
-  if (!line) throw new SalesError(404, "Sales order line not found in the current order version.");
-  if (!["confirmed", "on_hold"].includes(line.lifecycle_status)) throw new SalesError(409, "Only open lines of a confirmed order can be promised.");
-  if (Number(line.open_quantity) <= 0) throw new SalesError(409, "Nothing remains to deliver on this line.");
-  const updated = await client.query(
-    `UPDATE tenant.sales_order_schedules SET promised_date=$3,promise_note=$4,updated_by=$5,updated_at=now()
-      WHERE organization_id=$1 AND sales_order_line_id=$2 AND sequence=1 RETURNING id`,
-    [c.organizationId, lineId, promisedDate, note, c.userId],
-  );
-  if (!updated.rows[0])
-    await client.query(
-      `INSERT INTO tenant.sales_order_schedules (organization_id,sales_order_line_id,sequence,requested_date,promised_date,quantity,promise_note,updated_by) VALUES ($1,$2,1,$3,$3,$4,$5,$6)`,
-      [c.organizationId, lineId, promisedDate, line.open_quantity, note, c.userId],
-    );
-  await event(client, c, "sales_order", line.order_id, "sales_order.line_promised", line.lifecycle_status, { salesOrderLineId: lineId, promisedDate, note, openQuantity: String(line.open_quantity) });
-  return { salesOrderLineId: lineId, promisedDate, note };
 }
 
 // ---- F049 shipment and delivery evidence ----------------------------------------

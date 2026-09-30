@@ -4,8 +4,8 @@ import { getSalesWorld, openSalesSession } from "./sales-fixtures";
 import { BASE_URL } from "./base-url";
 
 // Stock-linked delivery journey: a stock-tracked line is reserved from real
-// balances, delivered in two parts (the first short), and the shortfall shows in
-// the backorder register until the second delivery clears it. The order is
+// balances, delivered in two parts (the first short), and Order Status shows it
+// partly delivered until the second delivery completes it. The order is
 // seeded through the real API as the real personas.
 async function api<T>(
   context: BrowserContext,
@@ -38,8 +38,8 @@ async function clickUntil(
   }).toPass({ timeout: 30_000 });
 }
 
-test.describe("Sales deliveries and backorders", () => {
-  test("reserve stock, deliver in two parts, backorder appears then clears", async ({
+test.describe("Sales deliveries", () => {
+  test("reserve stock, deliver in two parts, order status follows", async ({
     browser,
   }) => {
     test.setTimeout(420_000);
@@ -128,15 +128,16 @@ test.describe("Sales deliveries and backorders", () => {
         }),
       ).toBeVisible({ timeout: 60_000 });
 
-      // --- the shortfall is a backorder of exactly 1
-      await r.goto("/sales/backorders", { waitUntil: "domcontentloaded" });
-      const backorder = r.getByRole("row", {
-        name: new RegExp(`${orderNumber}.*${world.stockItemName}`),
-      });
-      await expect(backorder).toBeVisible({ timeout: 60_000 });
-      await expect(backorder).toContainText(/4\s*3\s*1/);
+      // --- the shortfall leaves the order partly delivered
+      const m = manager.page;
+      await m.goto("/sales/order-status", { waitUntil: "domcontentloaded" });
+      await expect(
+        m.getByRole("row", {
+          name: new RegExp(`${orderNumber}.*Partly delivered`),
+        }),
+      ).toBeVisible({ timeout: 60_000 });
 
-      // --- a second request delivers the rest; the backorder clears
+      // --- a second request delivers the rest
       await r.goto(`/sales/orders/${orderId}`, {
         waitUntil: "domcontentloaded",
       });
@@ -163,13 +164,12 @@ test.describe("Sales deliveries and backorders", () => {
       ).toBeVisible({ timeout: 60_000 });
       await second.getByRole("button", { name: "Complete delivery" }).click();
       await expect(pending).toHaveCount(0, { timeout: 60_000 });
-      await r.goto("/sales/backorders", { waitUntil: "domcontentloaded" });
-      await expect(r.getByRole("heading", { name: "Backorders" })).toBeVisible({
-        timeout: 60_000,
-      });
+      await m.goto("/sales/order-status", { waitUntil: "domcontentloaded" });
       await expect(
-        r.getByRole("row", { name: new RegExp(orderNumber) }),
-      ).toHaveCount(0);
+        m.getByRole("row", {
+          name: new RegExp(`${orderNumber}.*Delivered`),
+        }),
+      ).toBeVisible({ timeout: 60_000 });
     } finally {
       await rep.context.close();
       await manager.context.close();

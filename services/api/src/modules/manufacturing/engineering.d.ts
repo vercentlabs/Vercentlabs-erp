@@ -14,12 +14,3 @@ export declare function listBoms(client: any, context: ManufacturingContext, opt
 export declare function getBom(client: any, context: ManufacturingContext, bomId: string): Promise<Row & { components: Row[]; versions: Row[]; otherStructures: Row[] }>;
 export declare function explodeBom(client: any, context: ManufacturingContext, options?: { bomId?: string | null; itemId?: string | null; quantity?: number | string; asOf?: string | null }): Promise<{ bomId: string; bomCode: string; quantity: string; asOf: string; lines: Row[]; purchasedTotals: Row[] }>;
 export declare function resolveBomForItem(client: any, context: ManufacturingContext, itemId: string, day?: string | null): Promise<Row | null>;
-export declare function whereUsed(client: any, context: ManufacturingContext, options?: { itemId?: string }): Promise<Row[]>;
-export declare function createEngineeringChange(client: any, context: ManufacturingContext, input?: Row): Promise<Row>;
-export declare function submitEngineeringChange(client: any, context: ManufacturingContext, id: string): Promise<Row>;
-export declare function decideEngineeringChange(client: any, context: ManufacturingContext, id: string, options?: { approve?: boolean; note?: string }): Promise<Row>;
-export declare function implementEngineeringChange(client: any, context: ManufacturingContext, id: string): Promise<{ changeId: string; bom: Row }>;
-export declare function cancelEngineeringChange(client: any, context: ManufacturingContext, id: string, reason?: string): Promise<Row>;
-export declare function listEngineeringChanges(client: any, context: ManufacturingContext, options?: { status?: string | null }): Promise<Row[]>;
-export declare function addBomOutput(client: any, context: ManufacturingContext, bomId: string, input?: Row): Promise<Row>;
-export declare function removeBomOutput(client: any, context: ManufacturingContext, outputId: string): Promise<Row>;

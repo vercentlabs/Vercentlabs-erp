@@ -58,17 +58,6 @@ type Material = {
   available_quantity: string;
   issued_cost: string | null;
 };
-type Operation = {
-  id: string;
-  sequence: number;
-  name: string;
-  status: string;
-  planned_minutes: string;
-  actual_minutes: string | null;
-  work_center_name: string | null;
-  inspection_required: boolean;
-  subcontracted: boolean;
-};
 type Order = {
   id: string;
   work_order_number: string;
@@ -76,7 +65,6 @@ type Order = {
   priority: string;
   source_type: string;
   source_label: string | null;
-  rework_of_id: string | null;
   quantity_planned: string;
   quantity_completed: string;
   quantity_scrapped: string;
@@ -91,7 +79,6 @@ type Order = {
   cancel_reason: string | null;
   notes: string | null;
   materials: Material[];
-  operations: Operation[];
   postings: Array<{
     posting_type: string;
     quantity: string;
@@ -108,18 +95,6 @@ type Order = {
     note: string | null;
     item_code: string;
   }>;
-  outputs: Array<{
-    output_type: string;
-    quantity: string;
-    item_code: string;
-    item_name: string;
-  }>;
-  rework: Array<{
-    id: string;
-    work_order_number: string;
-    status: string;
-    quantity_planned: string;
-  }>;
   costs: {
     material: string;
     labor: string;
@@ -128,13 +103,6 @@ type Order = {
     absorbed: string;
     wip: string;
   } | null;
-  jobs: Array<{
-    id: string;
-    operation_id: string;
-    supplier_label: string;
-    status: string;
-    expected_return: string | null;
-  }>;
   inspections: Array<{
     id: string;
     operation_id: string | null;
@@ -178,18 +146,7 @@ export function OrderDetailScreen({ id }: { id: string }) {
   const [expiresOn, setExpiresOn] = useState("");
   const [serials, setSerials] = useState("");
   const [dialog, setDialog] = useState<{
-    kind:
-      | "close"
-      | "cancel"
-      | "return"
-      | "complete"
-      | "skip"
-      | "rework"
-      | "hold"
-      | "log"
-      | "inspect"
-      | "send"
-      | "receive";
+    kind: "close" | "cancel" | "return" | "hold" | "inspect";
     id?: string;
     title: string;
   } | null>(null);
@@ -285,7 +242,7 @@ export function OrderDetailScreen({ id }: { id: string }) {
     <div className="flex flex-col gap-4">
       <PageHeader
         title={order.work_order_number}
-        description={`${order.item_name} (${order.item_code}) · BOM ${order.bom_code ?? "—"} v${order.bom_version ?? "—"} · ${order.rework_of_id ? "rework" : order.source_type === "make_to_order" ? `for sales order ${order.source_label ?? ""}` : "make to stock"}`}
+        description={`${order.item_name} (${order.item_code}) · BOM ${order.bom_code ?? "—"} v${order.bom_version ?? "—"} · ${order.source_type === "make_to_order" ? `for sales order ${order.source_label ?? ""}` : "make to stock"}`}
         secondaryActions={
           <div className="flex flex-wrap items-center gap-2">
             <StatusBadge tone={tone(order.status)}>
@@ -342,6 +299,17 @@ export function OrderDetailScreen({ id }: { id: string }) {
                 Resume
               </Button>
             )}
+            {["released", "in_progress", "on_hold"].includes(order.status) &&
+              canPost && (
+                <Button
+                  variant="secondary"
+                  onPress={() =>
+                    setDialog({ kind: "inspect", title: "Inspect production" })
+                  }
+                >
+                  Inspect
+                </Button>
+              )}
             {active && canManage && (
               <Button
                 variant="secondary"
@@ -530,200 +498,10 @@ export function OrderDetailScreen({ id }: { id: string }) {
         </div>
       </MfgPanel>
 
-      {order.operations.length > 0 && (
-        <MfgPanel
-          title="Operations"
-          description="Work runs in sequence: an operation opens when the one before it is done."
-        >
-          <div className="overflow-x-auto">
-            <Table className="w-full text-left text-sm" aria-label="Operations">
-              <TableHead>
-                <TableRow className="border-b border-border text-xs uppercase text-text-muted">
-                  <TableHeaderCell className="px-2 py-2">Seq</TableHeaderCell>
-                  <TableHeaderCell className="px-2 py-2">
-                    Operation
-                  </TableHeaderCell>
-                  <TableHeaderCell className="px-2 py-2">
-                    Work center
-                  </TableHeaderCell>
-                  <TableHeaderCell className="px-2 py-2">
-                    Status
-                  </TableHeaderCell>
-                  <TableHeaderCell className="px-2 py-2">
-                    Planned min
-                  </TableHeaderCell>
-                  <TableHeaderCell className="px-2 py-2">
-                    Actual min
-                  </TableHeaderCell>
-                  <TableHeaderCell />
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {order.operations.map((o) => (
-                  <TableRow key={o.id} className="border-b border-border/60">
-                    <TableCell className="px-2 py-2">{o.sequence}</TableCell>
-                    <TableCell className="px-2 py-2 font-medium text-text">
-                      {o.name}
-                      {o.inspection_required ? " · inspection" : ""}
-                    </TableCell>
-                    <TableCell className="px-2 py-2">
-                      {o.work_center_name ?? "—"}
-                    </TableCell>
-                    <TableCell className="px-2 py-2">
-                      <StatusBadge tone={tone(o.status)}>
-                        {label(o.status)}
-                      </StatusBadge>
-                    </TableCell>
-                    <TableCell className="px-2 py-2">
-                      {quantity(o.planned_minutes)}
-                    </TableCell>
-                    <TableCell className="px-2 py-2">
-                      {quantity(o.actual_minutes)}
-                    </TableCell>
-                    <TableCell className="px-2 py-2">
-                      <div className="flex gap-1">
-                        {o.status === "ready" && active && canPost && (
-                          <Button
-                            variant="ghost"
-                            size="compact"
-                            onPress={() =>
-                              run.mutate({
-                                action: "operation-start",
-                                body: { id: o.id },
-                                success: "Operation started.",
-                              })
-                            }
-                          >
-                            Start
-                          </Button>
-                        )}
-                        {o.status === "in_progress" && canPost && (
-                          <Button
-                            variant="ghost"
-                            size="compact"
-                            onPress={() =>
-                              setDialog({
-                                kind: "complete",
-                                id: o.id,
-                                title: `Complete operation ${o.sequence}`,
-                              })
-                            }
-                          >
-                            Complete
-                          </Button>
-                        )}
-                        {["pending", "ready"].includes(o.status) &&
-                          active &&
-                          canManage && (
-                            <Button
-                              variant="ghost"
-                              size="compact"
-                              onPress={() =>
-                                setDialog({
-                                  kind: "skip",
-                                  id: o.id,
-                                  title: `Skip operation ${o.sequence}`,
-                                })
-                              }
-                            >
-                              Skip
-                            </Button>
-                          )}
-                        {o.status === "in_progress" &&
-                          !o.subcontracted &&
-                          canPost && (
-                            <Button
-                              variant="ghost"
-                              size="compact"
-                              onPress={() =>
-                                setDialog({
-                                  kind: "log",
-                                  id: o.id,
-                                  title: `Log time on ${o.sequence}`,
-                                })
-                              }
-                            >
-                              Log time
-                            </Button>
-                          )}
-                        {(o.inspection_required ||
-                          o.status === "in_progress") &&
-                          !o.subcontracted &&
-                          canPost &&
-                          ["released", "in_progress", "on_hold"].includes(
-                            order.status,
-                          ) && (
-                            <Button
-                              variant="ghost"
-                              size="compact"
-                              onPress={() =>
-                                setDialog({
-                                  kind: "inspect",
-                                  id: o.id,
-                                  title: `Inspect operation ${o.sequence}`,
-                                })
-                              }
-                            >
-                              Inspect
-                            </Button>
-                          )}
-                        {o.subcontracted &&
-                          o.status === "ready" &&
-                          active &&
-                          canPost && (
-                            <Button
-                              variant="ghost"
-                              size="compact"
-                              onPress={() =>
-                                setDialog({
-                                  kind: "send",
-                                  id: o.id,
-                                  title: `Send out operation ${o.sequence}`,
-                                })
-                              }
-                            >
-                              Send out
-                            </Button>
-                          )}
-                        {o.subcontracted &&
-                          o.status === "in_progress" &&
-                          canPost &&
-                          order.jobs.find(
-                            (j) =>
-                              j.operation_id === o.id && j.status === "sent",
-                          ) && (
-                            <Button
-                              variant="ghost"
-                              size="compact"
-                              onPress={() =>
-                                setDialog({
-                                  kind: "receive",
-                                  id: order.jobs.find(
-                                    (j) =>
-                                      j.operation_id === o.id &&
-                                      j.status === "sent",
-                                  )!.id,
-                                  title: `Receive operation ${o.sequence}`,
-                                })
-                              }
-                            >
-                              Receive
-                            </Button>
-                          )}
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
-        </MfgPanel>
-      )}
-
       {active && canPost && (
         <MfgPanel
           title="Report production"
-          description="Receive finished goods into stock at the cost absorbed from work in progress. Operations must be complete and manual materials issued; backflush materials are consumed automatically."
+          description="Receive finished goods into stock at the cost absorbed from work in progress. Manual materials must be issued first; backflush materials are consumed automatically."
         >
           <div className="flex flex-wrap items-end gap-3">
             <NumberField
@@ -859,49 +637,10 @@ export function OrderDetailScreen({ id }: { id: string }) {
             >
               Record
             </Button>
-            {canManage && Number(order.quantity_scrapped) > 0 && (
-              <Button
-                variant="ghost"
-                onPress={() =>
-                  setDialog({ kind: "rework", title: "Send to rework" })
-                }
-              >
-                Send scrapped units to rework
-              </Button>
-            )}
           </div>
         </MfgPanel>
       )}
 
-      {order.outputs.length > 0 && (
-        <MfgPanel title="By-products planned">
-          <ul className="text-sm" aria-label="By-products planned">
-            {order.outputs.map((o) => (
-              <li key={o.item_code}>
-                {o.item_name} ({o.item_code}) — {quantity(o.quantity)} per unit
-                · {label(o.output_type)}
-              </li>
-            ))}
-          </ul>
-        </MfgPanel>
-      )}
-      {order.rework.length > 0 && (
-        <MfgPanel title="Rework orders">
-          <ul className="text-sm" aria-label="Rework orders">
-            {order.rework.map((r) => (
-              <li key={r.id}>
-                <Link
-                  className="text-brand hover:underline"
-                  href={`/manufacturing/order/${r.id}`}
-                >
-                  {r.work_order_number}
-                </Link>{" "}
-                · {quantity(r.quantity_planned)} · {label(r.status)}
-              </li>
-            ))}
-          </ul>
-        </MfgPanel>
-      )}
       <MfgPanel title="Activity">
         {order.postings.length === 0 && order.scrap.length === 0 ? (
           <p className="text-sm text-text-muted">
@@ -957,36 +696,6 @@ export function OrderDetailScreen({ id }: { id: string }) {
           }
         />
       )}
-      {dialog?.kind === "skip" && (
-        <ReasonDialog
-          title={dialog.title}
-          error={error}
-          isPending={run.isPending}
-          onClose={() => setDialog(null)}
-          onConfirm={(reason) =>
-            run.mutate({
-              action: "operation-skip",
-              body: { id: dialog.id, reason },
-              success: "Operation skipped.",
-            })
-          }
-        />
-      )}
-      {dialog?.kind === "complete" && (
-        <MinutesDialog
-          title={dialog.title}
-          error={error}
-          isPending={run.isPending}
-          onClose={() => setDialog(null)}
-          onConfirm={(minutes) =>
-            run.mutate({
-              action: "operation-complete",
-              body: { id: dialog.id, actualMinutes: minutes },
-              success: "Operation completed.",
-            })
-          }
-        />
-      )}
       {dialog?.kind === "return" && (
         <ReturnDialog
           title={dialog.title}
@@ -1020,21 +729,6 @@ export function OrderDetailScreen({ id }: { id: string }) {
           }
         />
       )}
-      {dialog?.kind === "log" && (
-        <LogTimeDialog
-          title={dialog.title}
-          error={error}
-          isPending={run.isPending}
-          onClose={() => setDialog(null)}
-          onConfirm={(body) =>
-            run.mutate({
-              action: "time-log",
-              body: { operationId: dialog.id, ...body },
-              success: "Time logged.",
-            })
-          }
-        />
-      )}
       {dialog?.kind === "inspect" && (
         <InspectDialog
           title={dialog.title}
@@ -1044,54 +738,8 @@ export function OrderDetailScreen({ id }: { id: string }) {
           onConfirm={(body) =>
             run.mutate({
               action: "inspection-record",
-              body: { orderId: order.id, operationId: dialog.id, ...body },
+              body: { orderId: order.id, ...body },
               success: "Inspection recorded.",
-            })
-          }
-        />
-      )}
-      {dialog?.kind === "send" && (
-        <SendDialog
-          title={dialog.title}
-          materials={order.materials}
-          error={error}
-          isPending={run.isPending}
-          onClose={() => setDialog(null)}
-          onConfirm={(body) =>
-            post(
-              "subcontract-send",
-              { operationId: dialog.id, ...body },
-              "Sent to the subcontractor.",
-            )
-          }
-        />
-      )}
-      {dialog?.kind === "receive" && (
-        <ReceiveDialog
-          title={dialog.title}
-          error={error}
-          isPending={run.isPending}
-          onClose={() => setDialog(null)}
-          onConfirm={(body) =>
-            run.mutate({
-              action: "subcontract-receive",
-              body: { id: dialog.id, ...body },
-              success: "Received from the subcontractor.",
-            })
-          }
-        />
-      )}
-      {dialog?.kind === "rework" && (
-        <ReworkDialog
-          max={Number(order.quantity_scrapped)}
-          error={error}
-          isPending={run.isPending}
-          onClose={() => setDialog(null)}
-          onConfirm={(q, reason) =>
-            run.mutate({
-              action: "rework-create",
-              body: { orderId: order.id, quantity: q, reason },
-              success: "Rework order created.",
             })
           }
         />
@@ -1176,39 +824,6 @@ function ReasonDialog({
     </Shell>
   );
 }
-function MinutesDialog({
-  title,
-  onClose,
-  onConfirm,
-  isPending,
-  error,
-}: {
-  title: string;
-  onClose: () => void;
-  onConfirm: (minutes: number | undefined) => void;
-  isPending: boolean;
-  error: string | null;
-}) {
-  const [minutes, setMinutes] = useState<number>(0);
-  return (
-    <Shell title={title} onClose={onClose} error={error}>
-      <NumberField
-        label="Actual minutes (0 = use the time since start)"
-        value={minutes}
-        minValue={0}
-        step={1}
-        onChange={(n) => setMinutes(Number.isNaN(n) ? 0 : n)}
-      />
-      <Buttons
-        onClose={onClose}
-        confirm="Complete"
-        onConfirm={() => onConfirm(minutes > 0 ? minutes : undefined)}
-        isPending={isPending}
-        disabled={false}
-      />
-    </Shell>
-  );
-}
 function ReturnDialog({
   title,
   onClose,
@@ -1249,43 +864,6 @@ function ReturnDialog({
     </Shell>
   );
 }
-function ReworkDialog({
-  max,
-  onClose,
-  onConfirm,
-  isPending,
-  error,
-}: {
-  max: number;
-  onClose: () => void;
-  onConfirm: (quantity: number, reason: string) => void;
-  isPending: boolean;
-  error: string | null;
-}) {
-  const [q, setQ] = useState(max);
-  const [reason, setReason] = useState("");
-  return (
-    <Shell title="Send to rework" onClose={onClose} error={error}>
-      <NumberField
-        label={`Units to rework (up to ${quantity(max)})`}
-        value={q}
-        minValue={0}
-        maxValue={max}
-        step={1}
-        onChange={(n) => setQ(Number.isNaN(n) ? 0 : n)}
-      />
-      <TextArea label="Reason" isRequired value={reason} onChange={setReason} />
-      <Buttons
-        onClose={onClose}
-        confirm="Create rework order"
-        onConfirm={() => onConfirm(q, reason.trim())}
-        isPending={isPending}
-        disabled={q <= 0 || !reason.trim()}
-      />
-    </Shell>
-  );
-}
-
 type Settings = {
   default_wip_warehouse_id: string | null;
   default_finished_goods_warehouse_id: string | null;
@@ -1317,8 +895,6 @@ export function SettingsScreen() {
           draft.backflush === undefined
             ? undefined
             : draft.backflush === "true",
-        requireOperationCompletion:
-          draft.ops === undefined ? undefined : draft.ops === "true",
         allowOverproduction:
           draft.over === undefined ? undefined : draft.over === "true",
       }),
@@ -1397,16 +973,6 @@ export function SettingsScreen() {
             }}
           />
           <Select
-            label="Require operations complete before output"
-            isDisabled={!editable || !s}
-            options={yes}
-            selectedKey={flag("ops", s?.require_operation_completion)}
-            onSelectionChange={(k) => {
-              setSaved(false);
-              setDraft((d) => ({ ...d, ops: String(k) }));
-            }}
-          />
-          <Select
             label="Allow overproduction"
             isDisabled={!editable || !s}
             options={yes}
@@ -1438,62 +1004,6 @@ export function SettingsScreen() {
   );
 }
 
-function LogTimeDialog({
-  title,
-  onClose,
-  onConfirm,
-  isPending,
-  error,
-}: {
-  title: string;
-  onClose: () => void;
-  onConfirm: (body: {
-    minutes: number;
-    entryType: string;
-    operatorLabel: string | undefined;
-  }) => void;
-  isPending: boolean;
-  error: string | null;
-}) {
-  const [minutes, setMinutes] = useState(30);
-  const [entryType, setEntryType] = useState("labor");
-  const [who, setWho] = useState("");
-  return (
-    <Shell title={title} onClose={onClose} error={error}>
-      <Select
-        label="Kind of time"
-        options={[
-          { value: "labor", label: "Labour" },
-          { value: "machine", label: "Machine" },
-          { value: "setup", label: "Setup" },
-        ]}
-        selectedKey={entryType}
-        onSelectionChange={(k) => setEntryType(String(k ?? "labor"))}
-      />
-      <NumberField
-        label="Minutes"
-        value={minutes}
-        minValue={0}
-        step={5}
-        onChange={(n) => setMinutes(Number.isNaN(n) ? 0 : n)}
-      />
-      <TextField label="Operator" value={who} onChange={setWho} />
-      <Buttons
-        onClose={onClose}
-        confirm="Log time"
-        onConfirm={() =>
-          onConfirm({
-            minutes,
-            entryType,
-            operatorLabel: who.trim() || undefined,
-          })
-        }
-        isPending={isPending}
-        disabled={minutes <= 0}
-      />
-    </Shell>
-  );
-}
 function InspectDialog({
   title,
   onClose,
@@ -1569,116 +1079,6 @@ function InspectDialog({
         }
         isPending={isPending}
         disabled={inspected <= 0 || (rejected > 0 && !defect.trim())}
-      />
-    </Shell>
-  );
-}
-function SendDialog({
-  title,
-  materials,
-  onClose,
-  onConfirm,
-  isPending,
-  error,
-}: {
-  title: string;
-  materials: Material[];
-  onClose: () => void;
-  onConfirm: (body: {
-    supplierLabel: string;
-    expectedReturn: string | undefined;
-    materials: Array<{ materialId: string; quantity: number }>;
-  }) => void;
-  isPending: boolean;
-  error: string | null;
-}) {
-  const [supplier, setSupplier] = useState("");
-  const [due, setDue] = useState("");
-  const [qty, setQty] = useState<Record<string, number>>({});
-  return (
-    <Shell title={title} onClose={onClose} error={error}>
-      <TextField
-        label="Subcontractor"
-        isRequired
-        value={supplier}
-        onChange={setSupplier}
-      />
-      <TextField
-        label="Expected back"
-        type="date"
-        value={due}
-        onChange={setDue}
-      />
-      <p className="text-sm text-text-secondary">
-        Material sent with the job (issued from stock to this order):
-      </p>
-      {materials.map((m) => (
-        <NumberField
-          key={m.id}
-          label={`${m.item_name} (${m.item_code})`}
-          value={qty[m.id] ?? 0}
-          minValue={0}
-          step={0.001}
-          onChange={(n) =>
-            setQty((c) => ({ ...c, [m.id]: Number.isNaN(n) ? 0 : n }))
-          }
-        />
-      ))}
-      <Buttons
-        onClose={onClose}
-        confirm="Send out"
-        onConfirm={() =>
-          onConfirm({
-            supplierLabel: supplier.trim(),
-            expectedReturn: due || undefined,
-            materials: Object.entries(qty)
-              .filter(([, q]) => q > 0)
-              .map(([materialId, quantity]) => ({ materialId, quantity })),
-          })
-        }
-        isPending={isPending}
-        disabled={!supplier.trim()}
-      />
-    </Shell>
-  );
-}
-function ReceiveDialog({
-  title,
-  onClose,
-  onConfirm,
-  isPending,
-  error,
-}: {
-  title: string;
-  onClose: () => void;
-  onConfirm: (body: { quantityGood: number; cost: number }) => void;
-  isPending: boolean;
-  error: string | null;
-}) {
-  const [good, setGood] = useState(0);
-  const [cost, setCost] = useState(0);
-  return (
-    <Shell title={title} onClose={onClose} error={error}>
-      <NumberField
-        label="Good quantity received"
-        value={good}
-        minValue={0}
-        step={1}
-        onChange={(n) => setGood(Number.isNaN(n) ? 0 : n)}
-      />
-      <NumberField
-        label="Subcontract cost"
-        value={cost}
-        minValue={0}
-        step={0.01}
-        onChange={(n) => setCost(Number.isNaN(n) ? 0 : n)}
-      />
-      <Buttons
-        onClose={onClose}
-        confirm="Receive"
-        onConfirm={() => onConfirm({ quantityGood: good, cost })}
-        isPending={isPending}
-        disabled={good <= 0}
       />
     </Shell>
   );

@@ -66,7 +66,7 @@ test("payment terms allocate exact document totals", () => {
 });
 
 test("accounting contracts expose financial reports and governed permissions", () => {
-  for (const report of ["trial-balance", "profit-and-loss", "balance-sheet", "cash-flow", "cash-flow-forecast", "subledger-reconciliation"]) assert.ok(ACCOUNTING_REPORT_KEYS.includes(report));
+  for (const report of ["trial-balance", "general-ledger", "profit-and-loss", "balance-sheet", "bank-reconciliation"]) assert.ok(ACCOUNTING_REPORT_KEYS.includes(report));
   assert.equal(ACCOUNTING_PERMISSIONS.journalPost, "accounting.journal.post");
   assert.equal(ACCOUNTING_PERMISSIONS.receivablesApprove, "accounting.receivables.approve");
   assert.equal(ACCOUNTING_PERMISSIONS.payablesApprove, "accounting.payables.approve");

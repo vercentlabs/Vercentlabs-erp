@@ -135,12 +135,6 @@ test("create, approve by someone else, start, plan, log time and approve it", as
       timeout: 60_000,
     });
 
-    // --- reports render
-    await open(pb, "/projects/reports", "Reports");
-    await expect(
-      pb.getByRole("cell", { name: new RegExp(name) }).first(),
-    ).toBeVisible({ timeout: 60_000 });
-
     // --- a user with no project permissions is refused
     await plain.page.goto("/projects/all", { waitUntil: "domcontentloaded" });
     await expect(

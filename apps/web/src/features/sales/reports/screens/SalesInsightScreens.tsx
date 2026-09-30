@@ -79,14 +79,14 @@ export function SalesHomeScreen() {
       hint: "Invoice requests raised from orders",
     },
     {
-      href: "/sales/returns",
-      label: "Returns",
-      hint: "Customer returns against fulfilled quantities",
+      href: "/sales/credit-adjustments",
+      label: "Credit notes",
+      hint: "Credit notes and refunds against orders",
     },
     {
-      href: "/sales/reports",
-      label: "Reports",
-      hint: "Order-to-cash, conversion and performance",
+      href: "/sales/order-status",
+      label: "Order status",
+      hint: "Where every order is, from reservation to payment",
     },
   ];
   return (
@@ -313,29 +313,6 @@ export function SalesReportScreen({
   );
 }
 
-export const ANALYTICS_REPORTS: ReportSpec[] = [
-  {
-    key: "quotation-conversion",
-    label: "Quotation conversion",
-    description: "Quotations created per month and how many were accepted.",
-  },
-  {
-    key: "order-intake",
-    label: "Order intake",
-    description: "Orders confirmed per month and their value in base currency.",
-  },
-  {
-    key: "customer-performance",
-    label: "Customer performance",
-    description: "Orders and value per customer.",
-  },
-  {
-    key: "order-to-cash",
-    label: "Order to cash",
-    description:
-      "Each order through deliveries, invoices, payments, advances and credits, and why it does not reconcile yet.",
-  },
-];
 export const STATUS_REPORTS: ReportSpec[] = [
   {
     key: "order-status",
@@ -368,17 +345,4 @@ export const STATUS_REPORTS: ReportSpec[] = [
     label: "Expiring quotations",
     description: "Sent quotations about to lapse.",
   },
-];
-export const PROFITABILITY_REPORTS: ReportSpec[] = [
-  {
-    key: "margin",
-    label: "Order margin",
-    description:
-      "Cost, margin and margin percent per order, with the cost at today's standard cost — a large change means the price was set on a stale cost. Requires margin visibility.",
-  },
-];
-export const ALL_REPORTS: ReportSpec[] = [
-  ...ANALYTICS_REPORTS,
-  ...STATUS_REPORTS,
-  ...PROFITABILITY_REPORTS,
 ];

@@ -10,14 +10,7 @@ import {
 
 import type { SupportOptions } from "@/features/support/shared/client";
 
-export type OptionSource =
-  | "customers"
-  | "categories"
-  | "queues"
-  | "slaPolicies"
-  | "agents"
-  | "products"
-  | "entitlements";
+export type OptionSource = "customers" | "categories" | "agents";
 export type FieldValue = string | number;
 export type FieldDef = {
   name: string;

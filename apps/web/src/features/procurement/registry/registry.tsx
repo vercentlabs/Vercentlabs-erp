@@ -17,26 +17,11 @@ import {
   categoryForm,
 } from "@/features/procurement/configs/categories";
 import {
-  requisitionDetail,
-  requisitionForm,
-  requisitionsList,
-} from "@/features/procurement/configs/requisitions";
-import {
   supplierForm,
   suppliersList,
 } from "@/features/procurement/configs/suppliers";
 import { SupplierDetailScreen } from "@/features/procurement/screens/SupplierDetailScreen";
-import {
-  agreementForm,
-  agreementsList,
-} from "@/features/procurement/configs/agreements";
 import { orderForm, ordersList } from "@/features/procurement/configs/orders";
-import { rfqForm, rfqsList } from "@/features/procurement/configs/rfqs";
-import {
-  awardsList,
-  quotationsList,
-} from "@/features/procurement/configs/sourcing-lists";
-import { AgreementDetailScreen } from "@/features/procurement/screens/AgreementDetailScreen";
 import { OrderDetailScreen } from "@/features/procurement/screens/OrderDetailScreen";
 import {
   exceptionDetail,
@@ -45,52 +30,30 @@ import {
   receiptForm,
   receiptsList,
   rejectionsList,
-  returnDetail,
-  returnForm,
-  returnsList,
 } from "@/features/procurement/configs/receiving";
-import {
-  invoicesRegister,
-  landedCostRegister,
-  leadTimesRegister,
-  subcontractRegister,
-  supplierPricesRegister,
-} from "@/features/procurement/configs/operations";
+import { invoicesRegister } from "@/features/procurement/configs/operations";
 import { InvoiceMatchScreen } from "@/features/procurement/screens/InvoiceMatchScreen";
 import {
   OperationRegister,
   type OperationConfig,
 } from "@/features/procurement/shared/OperationRegister";
-import { RfqDetailScreen } from "@/features/procurement/screens/RfqDetailScreen";
 
 const LISTS: Record<string, ListConfig> = {
   suppliers: suppliersList,
   categories: categoriesList,
-  requisitions: requisitionsList,
   orders: ordersList,
-  agreements: agreementsList,
-  rfqs: rfqsList,
-  quotations: quotationsList,
-  awards: awardsList,
   receipts: receiptsList,
   rejections: rejectionsList,
-  returns: returnsList,
   exceptions: exceptionsList,
 };
 const FORMS: Record<string, FormConfig> = {
   suppliers: supplierForm,
   categories: categoryForm,
-  requisitions: requisitionForm,
   orders: orderForm,
-  agreements: agreementForm,
-  rfqs: rfqForm,
   receipts: receiptForm,
-  returns: returnForm,
 };
 const DETAILS: Record<string, DetailConfig> = {
-  requisitions: requisitionDetail,
   receipts: receiptDetail,
-  returns: returnDetail,
   exceptions: exceptionDetail,
 };
 // Details with bespoke sections render their own screen.
@@ -100,16 +63,10 @@ const CUSTOM_DETAILS: Record<
 > = {
   suppliers: (props) => <SupplierDetailScreen id={props.id} />,
   orders: (props) => <OrderDetailScreen id={props.id} />,
-  agreements: (props) => <AgreementDetailScreen id={props.id} />,
-  rfqs: (props) => <RfqDetailScreen id={props.id} />,
 };
 
 const REGISTERS: Record<string, OperationConfig> = {
   invoices: invoicesRegister,
-  "landed-cost": landedCostRegister,
-  "supplier-prices": supplierPricesRegister,
-  "lead-times": leadTimesRegister,
-  subcontract: subcontractRegister,
 };
 export function RegisterPage({ name }: { name: string }) {
   return <OperationRegister config={REGISTERS[name]} />;

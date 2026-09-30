@@ -78,15 +78,11 @@ test("F031: getSalesReport scopes quotation/order-backed reports to the active c
   const client = trackingClient();
   const context = contextFor({ allowAllCompanies: false, activeCompanyId: companyA });
   for (const key of [
-    "quotation-conversion",
-    "order-intake",
     "expiring-quotations",
     "pending-approvals",
     "active-holds",
     "fulfillment",
     "billing-readiness",
-    "customer-performance",
-    "margin",
   ]) {
     client.calls.length = 0;
     await getSalesReport(client, context, key);
@@ -99,7 +95,7 @@ test("F031: getSalesReport scopes quotation/order-backed reports to the active c
 
 test("F031: getSalesReport with allowAllCompanies sees every company", async () => {
   const client = trackingClient();
-  await getSalesReport(client, contextFor({ allowAllCompanies: true }), "margin");
+  await getSalesReport(client, contextFor({ allowAllCompanies: true }), "order-status");
   const [call] = client.calls;
   assert.doesNotMatch(call.sql, /company_id=\$2/);
   assert.deepEqual(call.values, [org]);

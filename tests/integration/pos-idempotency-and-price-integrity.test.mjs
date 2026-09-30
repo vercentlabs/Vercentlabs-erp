@@ -16,8 +16,7 @@
 // it to `undefined` for any non-override line -- so the authoritative
 // price-list rate is silently substituted instead of the forged value.
 //
-// #19 mirrors the two-connection concurrency pattern already proven in
-// tests/integration/pos-audit-integrity-and-usage-concurrency.test.mjs:
+// #19 uses a two-connection concurrency pattern:
 // two independent pg.Client connections, each in its own transaction,
 // race completePosCart() for the last unit of stock. The actual
 // serialization point is stock/index.js's postStockMovement, which takes

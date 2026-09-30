@@ -47,44 +47,10 @@ export const REPORTS: Record<
     description: "Assets, liabilities and equity as of the end date.",
     asOf: true,
   },
-  "cash-flow": {
-    key: "cash-flow",
-    title: "Cash flow",
-    description: "Movement in cash accounts by category.",
-  },
   "general-ledger": {
     key: "general-ledger",
     title: "General ledger",
     description: "Every posted line, by account, with its entry and party.",
-  },
-  "ar-aging": {
-    key: "aged-receivables",
-    title: "Receivables aging",
-    description: "What customers owe, by how overdue it is.",
-    asOf: true,
-  },
-  "ap-aging": {
-    key: "aged-payables",
-    title: "Payables aging",
-    description: "What is owed to suppliers, by how overdue it is.",
-    asOf: true,
-  },
-  "tax-reports": {
-    key: "tax-summary",
-    title: "Tax summary",
-    description:
-      "Output tax, input credit and withholding from the tax ledger.",
-  },
-  "statutory-reports": {
-    key: "subledger-reconciliation",
-    title: "Subledger reconciliation",
-    description:
-      "Receivable and payable subledgers against their control accounts in the ledger.",
-  },
-  "budget-actual": {
-    key: "budget-vs-actual",
-    title: "Budget vs actual",
-    description: "Actual postings against the active budget.",
   },
 };
 

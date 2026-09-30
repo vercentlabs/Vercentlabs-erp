@@ -80,15 +80,6 @@ export declare function createPointOfSaleReturn(client: any, context: PointOfSal
 export declare function approvePointOfSaleReturn(client: any, context: PointOfSaleContext, returnId: string, input?: Record<string, any>): Promise<any>;
 export declare function completePointOfSaleReturn(client: any, context: PointOfSaleContext, returnId: string, input?: Record<string, any>): Promise<any>;
 
-// F293 exchanges
-export declare function completePosExchange(client: any, context: PointOfSaleContext, input: {
-  returnId: string;
-  cartId: string;
-  idempotencyKey: string;
-  payments: Array<{ method: string; amount: number }>;
-  expectedVersion?: number;
-  expectedGrandTotal?: string;
-}): Promise<{ return: any; sale: any }>;
 export declare function closeShift(client: any, context: PointOfSaleContext, shiftId: string, input: Record<string, any>): Promise<any>;
 export type PosShiftPaymentBreakdown = { payment_method: string; status: string; amount: string; count: number };
 export type PosShiftSaleSummary = { id: string; receipt_number: string; customer_name: string | null; grand_total: string; status: string; created_at: string };
@@ -162,12 +153,6 @@ export declare function recordPosDayEndVariance(client: any, context: PointOfSal
 export declare function listPosDayEndReports(client: any, context: PointOfSaleContext, options?: { storeId?: string; terminalId?: string; status?: string; scopeType?: string; businessDateFrom?: string; businessDateTo?: string; limit?: number; offset?: number }): Promise<PosDayEndReport[]>;
 export declare function getPosDayEndReport(client: any, context: PointOfSaleContext, reportId: string): Promise<PosDayEndReport>;
 
-// F290 — invoice generation. The returned shape is Accounting's own
-// getCustomerInvoice() composite { invoice, lines, schedules, ... }.
-export declare function generatePosInvoice(client: any, context: PointOfSaleContext, saleId: string, input?: { notes?: string | null; idempotencyKey?: string }): Promise<{ invoice: Record<string, any>; lines: Record<string, any>[]; [key: string]: any }>;
-export declare function getPosInvoiceForSale(client: any, context: PointOfSaleContext, saleId: string): Promise<{ invoice: Record<string, any>; lines: Record<string, any>[]; [key: string]: any }>;
-export declare function listPosInvoices(client: any, context: PointOfSaleContext, options?: { storeId?: string; customerId?: string; limit?: number; offset?: number }): Promise<Record<string, any>[]>;
-
 // F304 — payment reconciliation.
 export type PosSettlementBatch = { id: string; organization_id: string; company_id: string; store_id: string | null; payment_method: string; provider_key: string; batch_reference: string; settlement_date: string; total_amount: string; total_fee_amount: string; entry_count: number; status: "imported" | "matched" | "closed"; [key: string]: any };
 export type PosSettlementEntry = { id: string; batch_id: string; provider_reference: string; amount: string; fee_amount: string; settled_at: string; matched_payment_id: string | null; match_status: "unmatched" | "matched" | "duplicate"; [key: string]: any };
@@ -194,79 +179,6 @@ export type PosAccountingMappingRow = PosMappingKeyDefinition & { configured: bo
 export declare function getPosAccountingMappingConfig(client: any, context: PointOfSaleContext): Promise<{ ledger: Record<string, any> | null; accounts: Record<string, any>[]; mappings: PosAccountingMappingRow[] }>;
 export declare function upsertPosAccountingMapping(client: any, context: PointOfSaleContext, input: { mappingKey: string; accountId: string }): Promise<Record<string, any>>;
 
-// F307 — POS sales analytics.
-export declare function getPosSalesAnalytics(client: any, context: PointOfSaleContext, filters: { dateFrom: string; dateTo: string; storeId?: string; terminalId?: string; cashierId?: string }): Promise<Record<string, any>>;
-
-// F297/F298 — offline POS workspace + offline-to-online sync
-export type PosOfflineUnsupportedOperation = { code: string; label: string; reason: string };
-export declare const OFFLINE_SNAPSHOT_ITEM_LIMIT: number;
-export declare const OFFLINE_UNSUPPORTED_OPERATIONS: readonly PosOfflineUnsupportedOperation[];
-export type PosOfflineSnapshot = {
-  version: string;
-  generatedAt: string;
-  store: { id: string; code: string; name: string; warehouseId: string; currencyCode: string; priceListId: string | null };
-  policy: { allowNegativeStock: boolean; maxLineDiscountPercent: number };
-  items: Array<{ itemId: string; code: string; name: string; barcode: string | null; taxCategoryId: string | null; unitPrice: number; minimumQuantity: number; lastKnownQuantity: number }>;
-  itemLimit: number;
-  itemLimitReached: boolean;
-  taxRatesByCategory: Array<{ taxCategoryId: string; rate: number }>;
-  cashierPermissions: string[];
-  unsupportedOperations: readonly PosOfflineUnsupportedOperation[];
-  encryptionSeed: string;
-};
-export declare function getPosOfflineSnapshot(client: any, context: PointOfSaleContext, input: { storeId: string }): Promise<PosOfflineSnapshot>;
-
-export type PosOfflineSyncLine = {
-  itemId: string;
-  variantId?: string | null;
-  quantity: number;
-  capturedUnitPrice: number;
-  discountAmount?: number | null;
-  discountReason?: string | null;
-  description?: string | null;
-  warehouseLocationId?: string | null;
-  batchId?: string | null;
-  serialId?: string | null;
-};
-export type PosOfflineSyncInput = {
-  localTransactionId: string;
-  storeId: string;
-  terminalId?: string | null;
-  shiftId: string;
-  lines: PosOfflineSyncLine[];
-  payments: Array<{ method: string; amount: number }>;
-  customerName?: string | null;
-  roundingAdjustment?: number;
-  capturedAt?: string | null;
-};
-export type PosOfflineSyncResult =
-  | { outcome: "accepted"; localTransactionId: string; sale: any; replayed: boolean }
-  | { outcome: "conflict"; localTransactionId: string; conflictId: string; conflictType: string; detail: string | null; replayed: boolean }
-  | { outcome: "voided"; localTransactionId: string; conflictId: string; detail: string | null; replayed: boolean };
-export declare function syncOfflinePosSale(client: any, context: PointOfSaleContext, input: PosOfflineSyncInput): Promise<PosOfflineSyncResult>;
-
-export type PosOfflineSyncConflict = {
-  id: string;
-  local_transaction_id: string;
-  conflict_type: string;
-  status: "pending" | "resolved_retried" | "resolved_voided";
-  captured_payload: Record<string, any>;
-  server_context_snapshot: Record<string, any>;
-  [key: string]: any;
-};
-export declare function listPosOfflineSyncConflicts(client: any, context: PointOfSaleContext, options?: { status?: string; storeId?: string; limit?: number; offset?: number }): Promise<PosOfflineSyncConflict[]>;
-// A retry line never carries capturedUnitPrice: resolvePosOfflineSyncConflict's
-// retry path always re-resolves the CURRENT price fresh server-side
-// (currentOfflineCatalogUnitPrice), never trusts a client-supplied
-// captured price for an operator-reviewed retry.
-export type PosOfflineRetryLine = Omit<PosOfflineSyncLine, "capturedUnitPrice">;
-export declare function resolvePosOfflineSyncConflict(
-  client: any,
-  context: PointOfSaleContext,
-  conflictId: string,
-  input: { action: "retry" | "void"; reason?: string; lines?: PosOfflineRetryLine[]; payments?: Array<{ method: string; amount: number }>; shiftId?: string },
-): Promise<PosOfflineSyncConflict>;
-
 export type PointOfSaleProductMatch = {
   itemId: string;
   variantId: string | null;
@@ -279,9 +191,6 @@ export type PointOfSaleProductMatch = {
 };
 export declare function searchPointOfSalePosProducts(client: any, context: PointOfSaleContext, storeId: string, input?: Record<string, any>): Promise<PointOfSaleProductMatch[]>;
 export declare function lookupPointOfSaleBarcode(client: any, context: PointOfSaleContext, storeId: string, barcode: string): Promise<PointOfSaleProductMatch>;
-export type PosItemGroupMatch = { id: string; code: string; name: string };
-export declare function searchPointOfSaleItemGroups(client: any, context: PointOfSaleContext, input?: { query?: string; limit?: number }): Promise<PosItemGroupMatch[]>;
-
 // F276
 export type PointOfSaleCustomerMatch = { id: string; code: string; displayName: string; phone: string | null; email: string | null };
 export declare function searchPointOfSaleCustomers(client: any, context: PointOfSaleContext, input?: { query?: string; limit?: number; offset?: number }): Promise<PointOfSaleCustomerMatch[]>;
@@ -379,8 +288,6 @@ export declare function assertPosCartDiscountsApproved(client: any, context: Poi
 export declare function approvePosCartDiscountApproval(client: any, context: Record<string, any>, payload: { discountApprovalId: string }): Promise<{ discountApprovalId: string; cartId: string; status: "approved" }>;
 export declare function rejectPosCartDiscountApproval(client: any, context: Record<string, any>, payload: { discountApprovalId: string }): Promise<{ discountApprovalId: string; cartId: string; status: "rejected" }>;
 export declare function setPosCartCustomer(client: any, context: PointOfSaleContext, cartId: string, input: { customerId: string | null; expectedVersion?: number }): Promise<PosCart>;
-export declare function applyPosCartCoupon(client: any, context: PointOfSaleContext, cartId: string, input: { code: string; expectedVersion?: number }): Promise<PosCart>;
-export declare function removePosCartCoupon(client: any, context: PointOfSaleContext, cartId: string, input?: { expectedVersion?: number }): Promise<PosCart>;
 export declare function holdPosCart(client: any, context: PointOfSaleContext, cartId: string, input?: { expectedVersion?: number }): Promise<PosCart>;
 export declare function resumePosCart(client: any, context: PointOfSaleContext, cartId: string): Promise<PosCart>;
 export type PosHeldCart = {
@@ -471,8 +378,6 @@ export declare function getPosTransactionDetail(client: any, context: PointOfSal
   auditTrail: Record<string, any>[];
 }>;
 export declare function cancelPosCart(client: any, context: PointOfSaleContext, cartId: string, input?: { reason?: string }): Promise<PosCart>;
-export declare function redeemPosCartLoyaltyPoints(client: any, context: PointOfSaleContext, cartId: string, input: { points: number | string; expectedVersion?: number }): Promise<PosCart>;
-export declare function removePosCartLoyaltyRedemption(client: any, context: PointOfSaleContext, cartId: string, input?: { expectedVersion?: number }): Promise<PosCart>;
 export declare function completePosCart(
   client: any,
   context: PointOfSaleContext,
@@ -487,61 +392,6 @@ export declare function completePosCart(
     expectedGrandTotal?: string;
   },
 ): Promise<any>;
-
-// F280 Promotions
-export type PosPromotion = { id: string; code: string; name: string; status: "active" | "inactive"; [key: string]: any };
-export declare function listPosPromotions(client: any, context: PointOfSaleContext, options?: { status?: string }): Promise<PosPromotion[]>;
-export declare function createPosPromotion(client: any, context: PointOfSaleContext, input: Record<string, any>): Promise<PosPromotion>;
-export declare function updatePosPromotion(client: any, context: PointOfSaleContext, id: string, input: Record<string, any>): Promise<PosPromotion>;
-export declare function setPosPromotionActive(client: any, context: PointOfSaleContext, id: string, active: boolean): Promise<PosPromotion>;
-
-// F281 Coupons
-export type PosCoupon = { id: string; code: string; status: "active" | "inactive"; [key: string]: any };
-export declare function listPosCoupons(client: any, context: PointOfSaleContext, options?: { status?: string }): Promise<PosCoupon[]>;
-export declare function createPosCoupon(client: any, context: PointOfSaleContext, input: Record<string, any>): Promise<PosCoupon>;
-export declare function updatePosCoupon(client: any, context: PointOfSaleContext, id: string, input: Record<string, any>): Promise<PosCoupon>;
-export declare function setPosCouponActive(client: any, context: PointOfSaleContext, id: string, active: boolean): Promise<PosCoupon>;
-
-// F306 Loyalty
-export type PosLoyaltyProgram = {
-  id: string;
-  status: "active" | "inactive";
-  name: string;
-  earn_rate_points_per_currency: string;
-  redemption_value_per_point: string;
-  min_redemption_points: string;
-  max_redemption_points_per_sale: string | null;
-  max_redemption_percent_of_payable: string | null;
-  min_eligible_sale_amount: string;
-  points_expiry_days: number | null;
-  [key: string]: any;
-};
-export type PosLoyaltyLedgerEntry = {
-  id: string;
-  entry_type: "earn" | "redeem" | "reverse_earn" | "reverse_redeem" | "expire" | "adjust";
-  points: string;
-  sale_id: string | null;
-  sale_line_id: string | null;
-  return_id: string | null;
-  original_entry_id: string | null;
-  created_at: string;
-  [key: string]: any;
-};
-export declare function getPosLoyaltyProgram(client: any, context: PointOfSaleContext): Promise<PosLoyaltyProgram | null>;
-export declare function upsertPosLoyaltyProgram(client: any, context: PointOfSaleContext, input: Record<string, any>): Promise<PosLoyaltyProgram>;
-export declare function setPosLoyaltyProgramActive(client: any, context: PointOfSaleContext, active: boolean): Promise<PosLoyaltyProgram>;
-export declare function getPosCustomerLoyaltyBalance(client: any, context: PointOfSaleContext, customerId: string): Promise<{ customerId: string; balance: string; updatedAt: string | null }>;
-export declare function listPosCustomerLoyaltyLedger(client: any, context: PointOfSaleContext, customerId: string, options?: { limit?: number }): Promise<PosLoyaltyLedgerEntry[]>;
-export declare function adjustPosCustomerLoyaltyBalance(client: any, context: PointOfSaleContext, customerId: string, points: number | string, reason: string): Promise<{ customerId: string; balance: string }>;
-export type PosLoyaltyExpiryResult = {
-  expiryDays: number | null;
-  cutoff: string | null;
-  customersExpired: number;
-  pointsExpired: string;
-  moreRemaining?: boolean;
-  skippedReason?: "no_active_program" | "no_expiry_configured";
-};
-export declare function expirePosLoyaltyPoints(client: any, context: PointOfSaleContext, options?: { asOf?: string | Date | null; limit?: number }): Promise<PosLoyaltyExpiryResult>;
 
 // F283 (card) / F284 (UPI/digital) / F285 (split tender) / F286 (multiple
 // payment methods): ONE payment-tender subsystem. Field names are

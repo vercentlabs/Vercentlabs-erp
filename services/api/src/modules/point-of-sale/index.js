@@ -6,8 +6,6 @@
 // owner -- mirroring services/api/src/modules/crm/index.js's own "implementation
 // is owned by the capability directories" boundary.
 export { getPointOfSaleDashboard } from "./pos-analytics/dashboard.js";
-// POS-CAP-009 -- POS analytics (F307).
-export { getPosSalesAnalytics } from "./pos-analytics/reports.js";
 
 export { listPointOfSaleResource } from "./shared/resource-registry.js";
 
@@ -26,7 +24,7 @@ export {
 } from "./store-terminal-and-cashier-control/settings-and-payment-config.js";
 
 // POS-CAP-002 -- assortment, pricing, customer and cart (F272-F281).
-export { searchPointOfSalePosProducts, lookupPointOfSaleBarcode, searchPointOfSaleItemGroups } from "./assortment-pricing-customer-and-cart/assortment.js";
+export { searchPointOfSalePosProducts, lookupPointOfSaleBarcode } from "./assortment-pricing-customer-and-cart/assortment.js";
 export { searchPointOfSaleCustomers } from "./assortment-pricing-customer-and-cart/customers.js";
 export { priceCartLines } from "./assortment-pricing-customer-and-cart/cart-pricing.js";
 export {
@@ -43,33 +41,16 @@ export {
   approvePosCartDiscountApproval,
   rejectPosCartDiscountApproval,
   setPosCartCustomer,
-  applyPosCartCoupon,
-  removePosCartCoupon,
   holdPosCart,
   resumePosCart,
   listHeldPosCarts,
   listPosDiscountApprovals,
   cancelPosCart,
-  redeemPosCartLoyaltyPoints,
-  removePosCartLoyaltyRedemption,
 } from "./assortment-pricing-customer-and-cart/cart.js";
-export { listPosPromotions, createPosPromotion, updatePosPromotion, setPosPromotionActive } from "./assortment-pricing-customer-and-cart/promotions.js";
-export { listPosCoupons, createPosCoupon, updatePosCoupon, setPosCouponActive } from "./assortment-pricing-customer-and-cart/coupons.js";
-export {
-  getPosLoyaltyProgram,
-  upsertPosLoyaltyProgram,
-  setPosLoyaltyProgramActive,
-  getPosCustomerLoyaltyBalance,
-  listPosCustomerLoyaltyLedger,
-  adjustPosCustomerLoyaltyBalance,
-  expirePosLoyaltyPoints,
-  // Exported publicly (not just used internally by sale-completion.js/
-  // return-lifecycle.js) because it is also the intended entry point for
-  // a future offline-sync replay path to commit loyalty effects for a
-  // sale synced outside the normal completePosCart/completePointOfSale
-  // flow -- see its own idempotent-on-sale-id design.
-  commitPosLoyaltyForSale,
-} from "./assortment-pricing-customer-and-cart/loyalty.js";
+// Exported publicly (not just used internally by sale-completion.js/
+// return-lifecycle.js) because it commits loyalty effects idempotently on
+// the sale id.
+export { commitPosLoyaltyForSale } from "./assortment-pricing-customer-and-cart/loyalty.js";
 export { completePointOfSale, completePosCart } from "./assortment-pricing-customer-and-cart/sale-completion.js";
 
 // POS-CAP-003 -- tender and payment execution (F282-F286).
@@ -88,16 +69,14 @@ export {
 
 // POS-CAP-004 -- transaction continuity and documents (F287-F290).
 export { getPosSaleReceipt, recordPosReceiptPrintAttempt, listPosReceiptPrintEvents } from "./transaction-continuity-and-documents/receipts.js";
-export { generatePosInvoice, getPosInvoiceForSale, listPosInvoices } from "./transaction-continuity-and-documents/invoices.js";
 // Transactions workspace — search/drill-down over completed sales. Same
-// capability directory as receipts/invoices: a completed sale IS the
+// capability directory as receipts: a completed sale IS the
 // transaction this reads, just a richer, filterable/paginated view of it.
 export { listPosTransactions, getPosTransactionDetail } from "./transaction-continuity-and-documents/transactions.js";
 
 // POS-CAP-005 -- returns, refunds and exchanges (F291-F293).
 export { findPosSaleForReturn } from "./returns-refunds-and-exchanges/returns.js";
 export { createPointOfSaleReturn, approvePointOfSaleReturn, completePointOfSaleReturn } from "./returns-refunds-and-exchanges/return-lifecycle.js";
-export { completePosExchange } from "./returns-refunds-and-exchanges/exchange.js";
 
 // POS-CAP-007 -- cash, shift, day-end and reconciliation (F299-F305).
 export { openShift, closeShift, getPosShift } from "./cash-shift-day-end-and-reconciliation/shift-operations.js";
@@ -130,15 +109,7 @@ export {
   upsertPosAccountingMapping,
 } from "./cash-shift-day-end-and-reconciliation/accounting-mapping-config.js";
 
-// POS-CAP-006 -- inventory and offline continuity (F294-F298).
-export {
-  OFFLINE_SNAPSHOT_ITEM_LIMIT,
-  OFFLINE_UNSUPPORTED_OPERATIONS,
-  getPosOfflineSnapshot,
-  listPosOfflineSyncConflicts,
-  syncOfflinePosSale,
-  resolvePosOfflineSyncConflict,
-} from "./inventory-and-offline-continuity/offline-sync.js";
+// POS-CAP-006 -- inventory visibility (F294-F296).
 // F294/F296 -- read-only store inventory/stock-sync-activity visibility,
 // sourced directly from Stock's own ledger (see that file's own header
 // comment for why this never writes stock_balances/stock_movements).

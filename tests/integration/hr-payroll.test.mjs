@@ -1,7 +1,7 @@
 // Real PostgreSQL integration test -- compensation and the payroll engine (F418-F427, run lifecycle
 // of F434): components, formula structures with a balancing allowance, approved compensation with a
 // frozen breakup, payroll periods, attendance-based calculation with proration for joining, leaving
-// and a mid-period pay revision, overtime, exceptions, determinism, maker-checker approval,
+// and a mid-period pay revision, exceptions, determinism, maker-checker approval,
 // payslip release, and locks.
 import assert from "node:assert/strict";
 import test from "node:test";
@@ -43,7 +43,6 @@ test("HR compensation and payroll against real PostgreSQL", async (t) => {
   const fullAttendance = (emp, from, to) => sql(`INSERT INTO tenant.hr_attendance(organization_id,company_id,employee_id,attendance_date,status,source,created_by) SELECT $1,$2,$3,d::date,'present','system',$4 FROM generate_series($5::date,$6::date,'1 day') d WHERE extract(isodow FROM d) BETWEEN 1 AND 5 ON CONFLICT DO NOTHING`, [w.orgId, w.companyId, emp, users.hrA, from, to]);
 
   try {
-    await run("hrA", (c, x) => api.saveHrSettings(c, x, { requireDocumentsForJoining: false }));
     const dept = await run("hrA", (c, x) => api.saveDepartment(c, x, { code: "FIN", name: "Finance" }));
     const mk = async (first, email, extra = {}) => {
       const e = await run("hrA", (c, x) => api.saveEmployee(c, x, { firstName: first, lastName: "P", workEmail: email, employmentType: "permanent", joiningDate: "2025-01-06", departmentId: dept.id, bankDetails: bank, pan: undefined, ...extra }));
@@ -266,29 +265,6 @@ test("HR compensation and payroll against real PostgreSQL", async (t) => {
       assert.equal(again.blockingExceptions, 0);
     });
 
-    await t.test("F427: approved overtime is paid at the hourly rate x the multiplier, once; pending overtime is left out and reported", async () => {
-      const day = await sql(`SELECT attendance_date::text AS d FROM tenant.hr_attendance WHERE employee_id=$1 AND status='present' AND attendance_date BETWEEN $2 AND $3 ORDER BY 1 LIMIT 3`, [ids.e1, start, end]);
-      await sql(`INSERT INTO tenant.hr_overtime(organization_id,company_id,employee_id,work_date,minutes,status,decided_by) VALUES ($1,$2,$3,$4,120,'approved',$5)`, [w.orgId, w.companyId, ids.e1, day[0].d, users.hrA]);
-      await sql(`INSERT INTO tenant.hr_overtime(organization_id,company_id,employee_id,work_date,minutes,status) VALUES ($1,$2,$3,$4,60,'pending')`, [w.orgId, w.companyId, ids.e1, day[1].d]);
-      await run("hrA", (c, x) => pay.runPayrollCalculation(c, x, ids.run));
-      const slips = await run("hrA", (c, x) => pay.listPayslips(c, x, { runId: ids.run, employeeId: ids.e1 }));
-      const ps = await run("hrA", (c, x) => pay.getPayslip(c, x, slips[0].id));
-      const ot = ps.lines.find((l) => l.component_code === "OVERTIME");
-      // hourly = 99,000 / 26 days / 8 hours; 2 hours at the default 2x
-      close(ot.amount, r2((2 * 99000) / 26 / 8 * 2), "overtime pay");
-      assert.equal(ps.overtime_minutes, 120);
-      close(ps.gross_pay, 99000 + Number(ot.amount), "gross includes overtime");
-      const ex = await run("hrA", (c, x) => pay.listPayrollExceptions(c, x, { runId: ids.run }));
-      assert.ok(ex.some((e) => e.code === "PENDING_OVERTIME" && e.employee_number));
-      const [row] = await sql(`SELECT payroll_run_id FROM tenant.hr_overtime WHERE employee_id=$1 AND status='approved'`, [ids.e1]);
-      assert.equal(row.payroll_run_id, ids.run, "the approved overtime is reserved by this run");
-      // recalculating does not pay it twice
-      await run("hrA", (c, x) => pay.runPayrollCalculation(c, x, ids.run));
-      const slipsAgain = await run("hrA", (c, x) => pay.listPayslips(c, x, { runId: ids.run, employeeId: ids.e1 }));
-      const again = (await run("hrA", (c, x) => pay.getPayslip(c, x, slipsAgain[0].id))).lines.filter((l) => l.component_code === "OVERTIME");
-      assert.equal(again.length, 1);
-    });
-
     await t.test("F424: the same inputs give the same payslips (hash), and a changed input changes it", async () => {
       const a = await run("hrA", (c, x) => pay.runPayrollCalculation(c, x, ids.run));
       const b = await run("hrA", (c, x) => pay.runPayrollCalculation(c, x, ids.run));
@@ -314,9 +290,9 @@ test("HR compensation and payroll against real PostgreSQL", async (t) => {
       await sql(`UPDATE tenant.hr_employees SET user_id=$2 WHERE id=$1`, [ids.e1, users.emp]);
       // sent back, then submitted again
       await denied("hrB", (c, x) => pay.decidePayrollRun(c, x, ids.run, { approve: false }), 400, "HR_REASON_REQUIRED");
-      const back = await run("hrB", (c, x) => pay.decidePayrollRun(c, x, ids.run, { approve: false, note: "Check overtime" }));
+      const back = await run("hrB", (c, x) => pay.decidePayrollRun(c, x, ids.run, { approve: false, note: "Check attendance" }));
       assert.equal(back.status, "calculated");
-      assert.equal(back.returned_reason, "Check overtime");
+      assert.equal(back.returned_reason, "Check attendance");
       await run("hrA", (c, x) => pay.submitPayrollRun(c, x, ids.run));
       // employees cannot see their payslip before approval
       assert.equal((await run("emp", (c, x) => pay.listMyPayslips(c, x))).length, 0);
@@ -324,7 +300,6 @@ test("HR compensation and payroll against real PostgreSQL", async (t) => {
       assert.equal(approved.status, "approved");
       assert.equal(approved.approved_by, users.hrC);
       assert.equal((await sql(`SELECT count(*)::int AS n FROM tenant.hr_payslips WHERE payroll_run_id=$1 AND status='approved'`, [ids.run]))[0].n, 5);
-      assert.equal((await sql(`SELECT status FROM tenant.hr_overtime WHERE employee_id=$1 AND payroll_run_id=$2`, [ids.e1, ids.run]))[0].status, "paid");
     });
 
     await t.test("release and self-service: an employee sees only their own released payslip, with the bank account masked", async () => {
@@ -350,12 +325,11 @@ test("HR compensation and payroll against real PostgreSQL", async (t) => {
       await denied("hrA", (c, x) => pay.lockPayrollPeriod(c, x, ids.period), 409, "HR_PERIOD_STATE");
     });
 
-    await t.test("cancelling an approved payroll releases its overtime and payslips; the period can then be run again", async () => {
+    await t.test("cancelling an approved payroll releases its payslips; the period can then be run again", async () => {
       await denied("prep", (c, x) => pay.cancelPayroll(c, x, ids.run, "mistake"), 403); // approved: the approver's permission is needed
       await denied("hrB", (c, x) => pay.cancelPayroll(c, x, ids.run, ""), 400, "HR_REASON_REQUIRED");
       const c = await run("hrB", (cc, x) => pay.cancelPayroll(cc, x, ids.run, "Wrong bonus month"));
       assert.equal(c.status, "cancelled");
-      assert.equal((await sql(`SELECT status, payroll_run_id FROM tenant.hr_overtime WHERE employee_id=$1 AND status IN ('approved','paid')`, [ids.e1]))[0].payroll_run_id, null);
       assert.equal((await run("emp", (cc, x) => pay.listMyPayslips(cc, x))).length, 0, "a cancelled payslip is not visible");
       const fresh = await run("hrA", (cc, x) => pay.startPayrollRun(cc, x, { periodId: ids.period }));
       assert.notEqual(fresh.id, ids.run);
@@ -363,17 +337,13 @@ test("HR compensation and payroll against real PostgreSQL", async (t) => {
       assert.equal(dash.runsByStatus.cancelled, 1);
     });
 
-    await t.test("a payroll with a period that has pending items is locked only on purpose", async () => {
+    await t.test("a period is locked and unlocked only by the right people", async () => {
       const next = (await run("hrA", (cc, x) => pay.listPayrollPeriods(cc, x, { year: Number(start.slice(0, 4)) }))).find((k) => k.period_start > end);
-      const day = next.period_start;
-      const e = ids.e1;
-      await sql(`INSERT INTO tenant.hr_overtime(organization_id,company_id,employee_id,work_date,minutes,status) VALUES ($1,$2,$3,$4,45,'pending')`, [w.orgId, w.companyId, e, day]);
-      await denied("hrA", (cc, x) => pay.lockPayrollPeriod(cc, x, next.id), 409, "HR_PERIOD_PENDING_ITEMS");
-      const locked = await run("hrA", (cc, x) => pay.lockPayrollPeriod(cc, x, next.id, { force: true, reason: "Month-end freeze" }));
+      const locked = await run("hrA", (cc, x) => pay.lockPayrollPeriod(cc, x, next.id));
       assert.equal(locked.status, "locked");
       await denied("prep", (cc, x) => pay.unlockPayrollPeriod(cc, x, next.id, "x"), 403); // unlocking is the approver's
       await denied("hrB", (cc, x) => pay.unlockPayrollPeriod(cc, x, next.id, ""), 400, "HR_REASON_REQUIRED");
-      assert.equal((await run("hrB", (cc, x) => pay.unlockPayrollPeriod(cc, x, next.id, "Reopened for late overtime"))).status, "open");
+      assert.equal((await run("hrB", (cc, x) => pay.unlockPayrollPeriod(cc, x, next.id, "Reopened for a late leave decision"))).status, "open");
     });
 
     await t.test("payroll groups: a run can be scoped to a department; a company-wide run for the same period is then refused, so nobody is paid twice", async () => {

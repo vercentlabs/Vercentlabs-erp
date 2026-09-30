@@ -26,12 +26,7 @@ import {
 // itself auto-logs "Failed to load resource: the server responded with a
 // status of 404" as a console error for ANY fetch/XHR that gets a 4xx
 // response -- regardless of whether application code correctly treats
-// that status as an expected, non-error outcome. The receipt screen's
-// own invoice-existence check (getPosSaleInvoice, PosReceiptScreen.tsx)
-// deliberately probes for an invoice that may not exist yet and treats a
-// 404 there as "no invoice generated yet," not a failure -- its own code
-// comment says so explicitly. That legitimate 404 was unconditionally
-// failing this assertion. The `response` listener below already
+// that status as an expected, non-error outcome. The `response` listener below already
 // independently catches genuine server errors (>= 500); this filter just
 // stops Chrome's own routine 4xx logging noise from masquerading as one.
 async function collectPageErrors(page: Page) {

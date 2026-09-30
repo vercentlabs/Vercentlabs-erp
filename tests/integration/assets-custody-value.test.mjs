@@ -1,6 +1,6 @@
-// Real PostgreSQL integration test -- custody and movement (F239-F241) and asset value (F242-F251):
-// assignment/return and the transfer workflow, the depreciation maths, approved-and-posted depreciation
-// runs and their reversal, units-of-production usage, and revaluation/impairment.
+// Real PostgreSQL integration test -- custody and movement (F239-F241) and asset value (F242-F249):
+// assignment/return and the transfer workflow, straight-line depreciation maths, and approved-and-posted
+// depreciation runs and their reversal.
 import assert from "node:assert/strict";
 import test from "node:test";
 
@@ -18,7 +18,7 @@ test("Asset custody and value against real PostgreSQL", async (t) => {
   const admin = await connectAdmin();
   if (!admin) return t.skip("No reachable Postgres connection (MIGRATION_DATABASE_URL).");
   const w = await buildAssetsWorld(admin, ROLES, "ascv");
-  const { api, run, denied, sql, accounts } = w;
+  const { api, run, denied, sql } = w;
   const ids = {};
 
   async function newAsset(over = {}, catOver = {}) {
@@ -43,13 +43,6 @@ test("Asset custody and value against real PostgreSQL", async (t) => {
       assert.equal(lines[0].periodEnd, "2026-01-31");
       const amounts = lines.slice(0, -1).map((l) => l.amount);
       assert.ok(amounts.every((a) => a === amounts[0]), "each full month is equal");
-    });
-
-    await t.test("F246: declining balance front-loads, never goes below salvage, and lands on salvage", () => {
-      const lines = api.buildDepreciationLines({ method: "declining_balance", openingCents: 1200000n, salvageCents: 200000n, months: 24, start: new Date("2026-01-01T00:00:00Z"), annualRatePercent: 40 });
-      assert.ok(lines[0].amount > lines[10].amount, "the first charge exceeds a later one");
-      assert.ok(lines.every((l) => l.closing >= 200000n));
-      assert.equal(lines.at(-1).closing, 200000n);
     });
 
     await t.test("F245: a mid-month convention halves the first and last periods; next-month starts a month later", () => {
@@ -151,59 +144,6 @@ test("Asset custody and value against real PostgreSQL", async (t) => {
       assert.equal(Number(after.accumulated_depreciation), 4000);
     });
 
-    await t.test("F247: units-of-production depreciates by usage and never beyond total units", async () => {
-      const a = await newAsset({ name: "Drill", acquisitionCost: 10000, totalUnits: 1000, depreciationMethod: "units_of_production", capDate: "2026-01-05" }, { code: "UOP", depreciationMethod: "units_of_production" });
-      const none = await sql(`SELECT count(*)::int AS n FROM tenant.asset_depreciation_schedules WHERE asset_id=$1`, [a.id]);
-      assert.equal(none[0].n, 0, "no calendar schedule for a usage-driven asset");
-      const r = await run("mgr", (c, x) => api.recordAssetUsage(c, x, a.id, { periodEnd: "2026-01-31", units: 100 }));
-      assert.equal(Number(r.depreciationAmount), 1000);
-      const over = await run("mgr", (c, x) => api.recordAssetUsage(c, x, a.id, { periodEnd: "2026-02-28", units: 950 })).catch((e) => e);
-      assert.equal(over.status, 409, "usage beyond the total expected units is refused");
-      await run("mgr", (c, x) => api.recordAssetUsage(c, x, a.id, { periodEnd: "2026-02-28", units: 900 }));
-      const [t2] = await sql(`SELECT sum(depreciation_amount) AS d FROM tenant.asset_depreciation_schedules WHERE asset_id=$1`, [a.id]);
-      assert.equal(Number(t2.d), 10000, "the full base is depreciated at exactly 1000 units");
-    });
-
-    await t.test("F251: an impairment is requested, approved by someone else, and cuts NBV and the remaining schedule", async () => {
-      const req = await run("acctA", (c, x) => api.requestValueAdjustment(c, x, ids.press, { adjustmentType: "impairment", newNetBookValue: 5000, reason: "Fire damage", effectiveDate: "2026-04-30" }));
-      assert.equal(req.status, "pending_approval");
-      const dup = await run("acctA", (c, x) => api.requestValueAdjustment(c, x, ids.press, { adjustmentType: "impairment", newNetBookValue: 4000, reason: "again" })).catch((e) => e);
-      assert.equal(dup.status, 409, "one pending adjustment at a time");
-      const self = await run("acctA", (c, x) => api.approveValueAdjustment(c, x, req.id)).catch((e) => e);
-      assert.equal(self.code, "SELF_APPROVAL_BLOCKED");
-      const posted = await run("acctB", (c, x) => api.approveValueAdjustment(c, x, req.id));
-      assert.equal(posted.status, "posted");
-      assert.equal(posted.accounting_status, "posted");
-      const [a] = await sql(`SELECT net_book_value,impairment_accumulated FROM tenant.assets WHERE id=$1`, [ids.press]);
-      assert.equal(Number(a.net_book_value), 5000);
-      assert.equal(Number(a.impairment_accumulated), 3000);
-      const remaining = await sql(`SELECT sum(depreciation_amount) AS d FROM tenant.asset_depreciation_schedules WHERE asset_id=$1 AND status='planned'`, [ids.press]);
-      assert.equal(Number(remaining[0].d), 5000, "the future schedule now depreciates the reduced value down to salvage");
-    });
-
-    await t.test("F250: an impairment reversal cannot exceed the impairment; a revaluation up books a reserve", async () => {
-      const tooMuch = await run("acctA", (c, x) => api.requestValueAdjustment(c, x, ids.press, { adjustmentType: "impairment_reversal", newNetBookValue: 9000, reason: "recovered" })).catch((e) => e);
-      assert.equal(tooMuch.status, 409);
-      const up = await run("acctA", (c, x) => api.requestValueAdjustment(c, x, ids.press, { adjustmentType: "revaluation", newNetBookValue: 6000, reason: "Market value" }));
-      const posted = await run("acctB", (c, x) => api.approveValueAdjustment(c, x, up.id));
-      assert.equal(posted.status, "posted");
-      const [a] = await sql(`SELECT net_book_value,revaluation_surplus,capitalized_cost FROM tenant.assets WHERE id=$1`, [ids.press]);
-      assert.equal(Number(a.net_book_value), 6000);
-      assert.equal(Number(a.revaluation_surplus), 1000);
-      const [line] = await sql(`SELECT account_id FROM tenant.accounting_journal_lines WHERE journal_entry_id=$1 AND base_credit_amount>0`, [posted.accounting_journal_id]);
-      assert.equal(line.account_id, accounts.reserve, "the credit lands on the revaluation reserve");
-    });
-
-    await t.test("F251: a stale adjustment is refused when depreciation posted after it was requested", async () => {
-      const req = await run("acctA", (c, x) => api.requestValueAdjustment(c, x, ids.press, { adjustmentType: "impairment", newNetBookValue: 100, reason: "Scrap value" }));
-      const next = await run("acctA", (c, x) => api.createDepreciationRun(c, x, { periodEnd: "2026-06-30" }));
-      await run("acctB", (c, x) => api.approveDepreciationRun(c, x, next.id));
-      await run("acctB", (c, x) => api.postDepreciationRun(c, x, next.id));
-      const stale = await run("acctB", (c, x) => api.approveValueAdjustment(c, x, req.id)).catch((e) => e);
-      assert.equal(stale.code, "ASSET_ADJUSTMENT_STALE");
-      const cancelled = await run("acctA", (c, x) => api.cancelValueAdjustment(c, x, req.id));
-      assert.equal(cancelled.status, "cancelled");
-    });
   } finally {
     await w.cleanup();
     await admin.end();

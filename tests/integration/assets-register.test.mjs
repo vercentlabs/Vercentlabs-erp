@@ -68,15 +68,12 @@ test("Asset register, identity and capitalisation against real PostgreSQL", asyn
       assert.ok(payload.qr.includes(ids.tag) && !("acquisition_cost" in payload), "a label payload never carries value");
     });
 
-    await t.test("F231: component hierarchy refuses a cycle; documents attach", async () => {
+    await t.test("F231: component hierarchy refuses a cycle", async () => {
       const child = await run("registrar", (c, x) => api.registerAsset(c, x, { name: "PSU", categoryId: ids.cat, acquisitionCost: 800, parentAssetId: ids.a1 }));
       const cyc = await run("mgr", (c, x) => api.updateAssetRecord(c, x, ids.a1, { parentAssetId: child.id })).catch((e) => e);
       assert.equal(cyc.status, 400, "the parent cannot become its own descendant");
-      const doc = await run("mgr", (c, x) => api.addAssetDocument(c, x, ids.a1, { documentType: "manual", title: "Rack manual", referenceUrl: "https://example.test/manual.pdf" }));
-      assert.ok(doc.id);
       const profile = await run("mgr", (c, x) => api.getAssetProfile(c, x, ids.a1));
       assert.equal(profile.children.length, 1);
-      assert.equal(profile.documents.length, 1);
     });
 
     await t.test("F237: capitalisation needs a different person, the threshold, and posts a balanced journal", async () => {

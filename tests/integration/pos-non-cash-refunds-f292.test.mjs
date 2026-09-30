@@ -5,7 +5,7 @@
 // action already uses, and that F305's accounting posting for a return
 // correctly attributes the refund back to each tender's own account.
 // Mirrors pos-payments-f283-f286.test.mjs's card-sale fixture and
-// pos-invoice-reconciliation-accounting-analytics-f290-f304-f305-f307.test.mjs's
+// pos-reconciliation-accounting-f304-f305.test.mjs's
 // accounting-foundation fixture.
 import assert from "node:assert/strict";
 import test from "node:test";

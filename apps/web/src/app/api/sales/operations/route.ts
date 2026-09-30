@@ -3,15 +3,9 @@ import { listSalesPass1Operations } from "@vercentlabs/api";
 import { salesRead } from "@/features/sales/shared/route-helpers";
 
 const KINDS = [
-  "advances",
   "adjustments",
-  "drop-ships",
-  "commission-rules",
-  "commissions",
   "fulfillment-requests",
   "invoice-requests",
-  "returns",
-  "backorders",
   "pricing-rules",
 ];
 

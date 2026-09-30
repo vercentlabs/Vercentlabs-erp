@@ -3,7 +3,6 @@
 import type { PosCart, PosPayment } from "@vercentlabs/api";
 
 import { request, post, del } from "@/features/pos/shared/http";
-import type { PosReturn } from "@/features/pos/returns/api/returns-api";
 
 export const createPosCart = (input: Record<string, unknown>) =>
   post<{ cart: PosCart }>("/carts", input);
@@ -65,15 +64,6 @@ export const setPosCartCustomer = (
     customerId,
     expectedVersion,
   });
-export const applyPosCoupon = (
-  id: string,
-  code: string,
-  expectedVersion?: number,
-) => post<{ cart: PosCart }>(`/carts/${id}/coupon`, { code, expectedVersion });
-export const removePosCoupon = (id: string, expectedVersion?: number) =>
-  del<{ cart: PosCart }>(
-    `/carts/${id}/coupon${expectedVersion != null ? `?expectedVersion=${expectedVersion}` : ""}`,
-  );
 export const holdPosCart = (id: string, expectedVersion?: number) =>
   post<{ cart: PosCart }>(`/carts/${id}/hold`, { expectedVersion });
 export const resumePosCart = (id: string) =>
@@ -139,25 +129,6 @@ export const searchPosCustomers = (
   request<{ rows: PosCustomerMatch[] }>(
     `/customers?q=${encodeURIComponent(query)}`,
     { signal: options.signal },
-  );
-
-// F293 -- exchange as linked lineage (see services/api/src/modules/point-of-sale/
-// returns-refunds-and-exchanges/exchange.js's completePosExchange). Rung up
-// from checkout (arriving via /pos/checkout?exchangeReturnId=), not from
-// the returns screen itself, so it lives here rather than in returns-api.ts.
-export const completePosExchange = (
-  returnId: string,
-  input: {
-    cartId: string;
-    idempotencyKey: string;
-    payments: { method: "cash"; amount: number }[];
-    expectedVersion?: number;
-    expectedGrandTotal?: string;
-  },
-) =>
-  post<{ return: PosReturn; sale: Record<string, unknown> }>(
-    `/returns/${returnId}/exchange`,
-    input,
   );
 
 // F283/F284/F285/F286 payment tender subsystem.

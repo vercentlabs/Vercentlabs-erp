@@ -10,22 +10,15 @@ import {
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import { readView, type Row } from "@/features/quality/shared/client";
-import { label, quantity } from "@/features/quality/shared/format";
-import { QualityPanel } from "@/features/quality/shared/QualityUi";
+import { quantity } from "@/features/quality/shared/format";
 
-// F342: the KPI dashboard, plus F341's cost report underneath.
+// F342: the Quality KPI dashboard.
 export function QualityDashboardScreen() {
   const workspace = useWorkspaceContext();
   const kpi = useQuery({
     queryKey: scopedQueryKey(workspace, "quality", "dashboard"),
     queryFn: () =>
       readView<{ dashboard: Row }>("dashboard").then((r) => r.dashboard),
-  });
-  const cost = useQuery({
-    queryKey: scopedQueryKey(workspace, "quality", "cost-report"),
-    queryFn: () =>
-      readView<{ report: Row }>("cost-report").then((r) => r.report),
-    enabled: !kpi.isError,
   });
   if (kpi.isError)
     return (
@@ -35,13 +28,11 @@ export function QualityDashboardScreen() {
       />
     );
   const d = kpi.data;
-  const c = cost.data;
-  const bySeverity = (c?.bySeverity ?? []) as Row[];
   return (
     <div className="flex flex-col gap-4">
       <PageHeader
         title="Quality"
-        description="Inspections, holds, non-conformances, CAPA, calibration and complaints, at a glance."
+        description="Inspections, holds and non-conformances, at a glance."
       />
       {d && (
         <MetricStrip
@@ -63,34 +54,8 @@ export function QualityDashboardScreen() {
               label: "Open critical NC",
               value: quantity(d.open_critical_nonconformances),
             },
-            { label: "Open CAPA", value: quantity(d.open_capa) },
-            { label: "Overdue CAPA", value: quantity(d.overdue_capa) },
-            {
-              label: "Overdue calibrations",
-              value: quantity(d.overdue_calibrations),
-            },
-            { label: "Open complaints", value: quantity(d.open_complaints) },
           ]}
         />
-      )}
-      {c && (
-        <QualityPanel
-          title="Cost of quality"
-          description="Estimated cost of non-conformances, by severity."
-        >
-          <MetricStrip
-            metrics={[
-              {
-                label: "Total estimated cost",
-                value: quantity(c.totalEstimatedCost),
-              },
-              ...bySeverity.map((s) => ({
-                label: `${label(s.severity)} (${quantity(s.n)})`,
-                value: quantity(s.cost),
-              })),
-            ]}
-          />
-        </QualityPanel>
       )}
     </div>
   );

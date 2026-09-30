@@ -175,10 +175,6 @@ export function PlanBuilderScreen() {
               { value: "full", label: "Full (100%)" },
               { value: "fixed_quantity", label: "Fixed quantity" },
               { value: "percentage", label: "Percentage" },
-              {
-                value: "aql",
-                label: "AQL (looked up by lot size at inspection time)",
-              },
             ]}
             selectedKey={samplingMethod}
             onSelectionChange={(k) => setSamplingMethod(String(k))}
