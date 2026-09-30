@@ -6,7 +6,7 @@ Read `README.md`, then this file. You do not need to redo the audit.
 
 - Branch `main`. Every change is a **local commit; nothing has been pushed** (the owner said not to push). `git log --oneline` from `f71c86e8` upward is this program's history.
 - Working tree is clean apart from regenerated files under `docs/implementation/`. Regenerate with `node scripts/ux/build-implementation-inventory.mjs`.
-- Local services: Postgres container `vercentlabs-postgres` on 5433, Next dev server on 3001. If the dev server misbehaves after large edits (edit pages answering 404, first request taking minutes), stop it and start `pnpm dev -p 3001` in `apps/web`; it recovers once compiled.
+- Local services: Postgres container `vercentlabs-erp-postgres` (compose project `vercentlabs-erp`) on 5433, Next dev server on 3001. If the dev server misbehaves after large edits (edit pages answering 404, first request taking minutes), stop it and start `pnpm dev -p 3001` in `apps/web`; it recovers once compiled.
 - Before running `tests/integration`, set `MIGRATION_DATABASE_URL` from `apps/web/.env.local`. Without it 80 tests skip silently and hide failures.
 - Bash heredocs that contain quotes, backslashes or `$` corrupt scripts in this environment. Write scripts with the file-write tool and run them with `node`.
 - Do not edit `apps/web/src` or `services/api/src` while a Playwright run is in progress: the dev server rebuilds and pages reload mid-test.

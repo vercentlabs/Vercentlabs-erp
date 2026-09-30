@@ -1,7 +1,9 @@
+name: vercentlabs-erp
+
 services:
   postgres:
     image: postgres:16-alpine
-    container_name: vercentlabs-postgres
+    container_name: vercentlabs-erp-postgres
     environment:
       POSTGRES_USER: vercentlabs
       POSTGRES_PASSWORD: vercentlabs_local_password
@@ -9,7 +11,7 @@ services:
     ports:
       - "5433:5432"
     volumes:
-      - vercentlabs_postgres_data:/var/lib/postgresql/data
+      - postgres_data:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U vercentlabs -d vercentlabs_control"]
       interval: 3s
@@ -17,4 +19,5 @@ services:
       retries: 20
 
 volumes:
-  vercentlabs_postgres_data:
+  postgres_data:
+    name: vercentlabs-erp-postgres-data
