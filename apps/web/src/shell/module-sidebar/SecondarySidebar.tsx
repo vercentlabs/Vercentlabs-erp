@@ -4,39 +4,12 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Lock, Pin, PinOff } from "lucide-react";
 
+import {
+  activeWorkspaceId,
+  sidebarItems,
+} from "@/shell/navigation/navigation-resolution";
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 import { useSecondarySidebarState } from "./SecondarySidebarState";
-
-function isActiveRoute(pathname: string, route: string) {
-  return pathname === route || pathname.startsWith(`${route}/`);
-}
-
-// The module root (e.g. "Home" at /crm) matches every one of its own
-// sibling routes too under isActiveRoute's startsWith check ("/crm/leads"
-// starts with "/crm/"), so naively calling isActiveRoute per item
-// highlighted Home AND Leads simultaneously on every leaf page. Only the
-// single longest matching route (the most specific one) is ever active —
-// this resolves the whole module's active item once, not per-item.
-function findActiveItemId(
-  pathname: string,
-  sections: { items: { id: string; route: string; status: string }[] }[],
-) {
-  let bestId: string | null = null;
-  let bestLength = -1;
-  for (const section of sections) {
-    for (const item of section.items) {
-      if (item.status !== "AVAILABLE") continue;
-      if (
-        isActiveRoute(pathname, item.route) &&
-        item.route.length > bestLength
-      ) {
-        bestId = item.id;
-        bestLength = item.route.length;
-      }
-    }
-  }
-  return bestId;
-}
 
 // Desktop module secondary sidebar (Phase 3; UI refinement addendum
 // requirement #1 for the hover/pin behaviour). One section per work area,
@@ -48,11 +21,20 @@ function findActiveItemId(
 // inside the region that wires up regionHandlers (see ModuleRail.tsx).
 export function SecondarySidebar() {
   const pathname = usePathname();
-  const { permissions } = useWorkspaceContext();
+  const { permissions, roleSlugs } = useWorkspaceContext();
   const { activeModule, pinned, togglePinned, open } =
     useSecondarySidebarState();
   if (!activeModule) return null;
-  const activeItemId = findActiveItemId(pathname, activeModule.sections);
+  // Exactly one workspace is active: the one that owns the most specific
+  // registered route (a child route such as /crm/pipeline highlights its
+  // parent, Opportunities). Views and configuration pages inside a
+  // workspace are never sidebar entries (navigation-resolution.ts), and a
+  // workspace the person may not open is not listed at all.
+  const activeItemId = activeWorkspaceId(activeModule, pathname);
+  const sections = sidebarItems(activeModule, {
+    permissions,
+    isOwner: roleSlugs.includes("organization_owner"),
+  });
 
   return (
     <nav
@@ -113,22 +95,17 @@ export function SecondarySidebar() {
         </button>
       </div>
       <div className="flex flex-col gap-4 px-2">
-        {activeModule.sections.map((section) => (
+        {sections.map((section) => (
           <div key={section.id}>
             <p className="px-2 pb-1 text-xs font-medium tracking-wide text-text-muted uppercase">
               {section.label}
             </p>
             <div className="flex flex-col gap-0.5">
               {section.items.map((item) => {
-                const available = item.status === "AVAILABLE";
-                const permitted =
-                  !item.requiredPermission ||
-                  permissions.includes(item.requiredPermission);
-                // Checkpoint C fix (ERP completion gap register): this must
-                // gate on both available AND permitted — an available item
-                // the user lacks permission for renders the disabled/locked
-                // state below, never a live Link.
-                if (available && permitted) {
+                // sidebarItems() already dropped AVAILABLE items the person
+                // may not open; what remains is either a live workspace or
+                // a PLANNED placeholder rendered disabled below.
+                if (item.status === "AVAILABLE") {
                   const active = item.id === activeItemId;
                   return (
                     <Link
@@ -151,11 +128,7 @@ export function SecondarySidebar() {
                   <span
                     key={item.id}
                     className="flex items-center justify-between rounded-[var(--radius-control)] px-2 py-1.5 text-sm text-text-secondary"
-                    title={
-                      permitted
-                        ? "Planned — not yet built"
-                        : "Requires additional permission once built"
-                    }
+                    title="Planned — not yet built"
                   >
                     {item.label}
                     <Lock aria-hidden="true" className="size-3" />

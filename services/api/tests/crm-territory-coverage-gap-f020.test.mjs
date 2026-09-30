@@ -29,7 +29,7 @@ test("F020: getCrmDashboard exposes uncovered_territories, requiring a currently
   let capturedSql = null;
   const client = {
     async query(sql) {
-      if (/^WITH lead_counts AS/.test(sql.trim())) {
+      if (/^WITH scoped_leads AS/.test(sql.trim())) {
         capturedSql = sql;
         return { rows: [{ uncovered_territories: 3 }] };
       }

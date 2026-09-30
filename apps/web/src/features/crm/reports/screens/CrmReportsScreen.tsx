@@ -1,12 +1,13 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import type { ColumnDef } from "@tanstack/react-table";
 import { Download } from "lucide-react";
 import {
   Button,
+  ComboBox,
   EnterpriseDataGrid,
   ErrorState,
   NoResultsState,
@@ -306,10 +307,39 @@ export function CrmReportsScreen() {
     ...group,
     reports: group.reports.filter((r) => canOpen(r.key)),
   })).filter((group) => group.reports.length > 0);
-  const [report, setReport] = useState<string>(ALL[0].key);
-  const [from, setFrom] = useState("");
-  const [to, setTo] = useState("");
-  const [applied, setApplied] = useState<{ from?: string; to?: string }>({});
+  const permitted = library.flatMap((group) => group.reports);
+  // The selected report and the applied period live in the URL
+  // (/crm/reports?report=pipeline&from=…&to=…): refresh, back/forward and a
+  // shared link all reopen the same report. Keys are the backend's own
+  // report keys; an unknown or not-permitted key falls back to the first.
+  const searchParams = useSearchParams();
+  const requested = searchParams.get("report");
+  const report =
+    permitted.find((r) => r.key === requested)?.key ??
+    permitted[0]?.key ??
+    ALL[0].key;
+  const applied = useMemo(
+    () => ({
+      from: searchParams.get("from") || undefined,
+      to: searchParams.get("to") || undefined,
+    }),
+    [searchParams],
+  );
+  const [from, setFrom] = useState(applied.from ?? "");
+  const [to, setTo] = useState(applied.to ?? "");
+  function navigate(next: { report?: string; from?: string; to?: string }) {
+    const params = new URLSearchParams(searchParams.toString());
+    const values = { report, ...applied, ...next };
+    for (const key of ["report", "from", "to"] as const) {
+      const value = values[key];
+      if (value) params.set(key, value);
+      else params.delete(key);
+    }
+    router.push(`/crm/reports?${params.toString()}`, { scroll: false });
+  }
+  const setReport = (key: string) => navigate({ report: key });
+  const setApplied = (range: { from?: string; to?: string }) =>
+    navigate({ from: range.from, to: range.to });
 
   const current = ALL.find((r) => r.key === report) ?? ALL[0];
   const query = useQuery({
@@ -475,31 +505,27 @@ export function CrmReportsScreen() {
         title="Reports"
         description="Live figures for everything you can see. Choose a report, set the period, and drill into the numbers."
       />
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-[260px_1fr]">
-        <nav
-          aria-label="Report library"
-          className="flex flex-col gap-4 rounded-[var(--radius-card)] border border-border bg-surface p-3"
-        >
-          {library.map((group) => (
-            <div key={group.group} className="flex flex-col gap-1">
-              <p className="px-2 text-xs font-semibold uppercase tracking-wide text-text-muted">
-                {group.group}
-              </p>
-              {group.reports.map((r) => (
-                <button
-                  key={r.key}
-                  type="button"
-                  aria-current={r.key === report ? "page" : undefined}
-                  onClick={() => setReport(r.key)}
-                  className={`rounded-[var(--radius-control)] px-2 py-1.5 text-left text-sm ${r.key === report ? "bg-brand-soft font-medium text-brand-active" : "text-text hover:bg-surface-muted"}`}
-                >
-                  {r.title}
-                </button>
-              ))}
-            </div>
-          ))}
-        </nav>
-
+      <div className="flex flex-col gap-4">
+        <div className="flex flex-wrap items-end gap-4">
+          <ComboBox
+            label="Report"
+            className="w-full max-w-md"
+            placeholder="Search reports…"
+            sections={library.map((group) => ({
+              id: group.group,
+              label: group.group,
+              options: group.reports.map((r) => ({
+                value: r.key,
+                label: r.title,
+              })),
+            }))}
+            selectedKey={report}
+            onSelectionChange={(key) => {
+              if (key && String(key) !== report) setReport(String(key));
+            }}
+            emptyMessage="No report matches"
+          />
+        </div>
         <div className="flex min-w-0 flex-col gap-4">
           <section className="flex flex-col gap-3 rounded-[var(--radius-card)] border border-border bg-surface p-4">
             <div>

@@ -38,6 +38,13 @@ import {
   LifeBuoy,
   Landmark,
   Building2,
+  CalendarClock,
+  Database,
+  Network,
+  ShieldCheck,
+  SlidersHorizontal,
+  UserSearch,
+  Workflow,
 } from "lucide-react";
 
 import type { ModuleNavigation, SecondaryNavItem } from "./navigation-types";
@@ -76,8 +83,23 @@ export const MODULE_NAVIGATION: readonly ModuleNavigation[] = [
     label: "CRM",
     icon: Users,
     requiredPermission: "crm.view",
+    // Seven permanent workspaces. Everything else (Pipeline, activity lists,
+    // Dashboard, every configuration page, imports, duplicates, coverage)
+    // is registered as a child of the workspace that owns it: still routed,
+    // searchable and breadcrumbed, never a sidebar entry of its own.
     sections: [
-      { id: "overview", label: "Overview", items: [available("Home", "/crm")] },
+      {
+        id: "overview",
+        label: "Overview",
+        items: [
+          available("Home", "/crm"),
+          {
+            ...available("Dashboard", "/crm/dashboard"),
+            parent: "home",
+            aliases: ["kpi", "metrics"],
+          },
+        ],
+      },
       {
         id: "customers",
         label: "Customers",
@@ -89,110 +111,84 @@ export const MODULE_NAVIGATION: readonly ModuleNavigation[] = [
         ],
       },
       {
-        id: "pipeline",
-        label: "Pipeline",
-        featureRange: "F009-F015",
+        id: "sales",
+        label: "Sales",
+        featureRange: "F009-F012",
         items: [
           available("Opportunities", "/crm/opportunities"),
-          available("Pipeline", "/crm/pipeline"),
-          available("Forecast", "/crm/forecast"),
           {
-            ...available("Sales Coverage", "/crm/coverage"),
-            requiredPermission: "crm.coverage.view",
+            ...available("Pipeline", "/crm/pipeline"),
+            parent: "opportunities",
+            aliases: ["board", "kanban", "deals"],
           },
         ],
       },
       {
         id: "work",
         label: "Work",
-        featureRange: "F016-F020",
+        featureRange: "F013-F019",
         items: [
-          available("Tasks", "/crm/tasks"),
-          available("Calls", "/crm/calls"),
-          available("Meetings", "/crm/meetings"),
-          available("Follow-ups", "/crm/follow-ups"),
+          { ...available("My Work", "/crm/work"), aliases: ["today"] },
+          { ...available("Tasks", "/crm/tasks"), parent: "my-work" },
+          { ...available("Calls", "/crm/calls"), parent: "my-work" },
+          { ...available("Meetings", "/crm/meetings"), parent: "my-work" },
+          { ...available("Follow-ups", "/crm/follow-ups"), parent: "my-work" },
+          {
+            ...available("Inbox", "/crm/communications"),
+            parent: "my-work",
+            aliases: ["communications", "email", "conversations"],
+          },
         ],
-      },
-      {
-        id: "engagement",
-        label: "Engagement",
-        featureRange: "F021-F023",
-        items: [available("Communications", "/crm/communications")],
       },
       {
         id: "insights",
         label: "Insights",
-        featureRange: "F024-F026",
+        featureRange: "F024-F026, F030",
         items: [
-          available("Dashboard", "/crm/dashboard"),
-          available("Reports", "/crm/reports"),
+          {
+            ...available("Forecast", "/crm/forecast"),
+            requiredAnyPermission: [
+              "crm.forecast.submit",
+              "crm.forecast.review",
+              "crm.forecast.manage",
+            ],
+          },
+          {
+            ...available("Reports", "/crm/reports"),
+            requiredPermission: "crm.reports.view",
+          },
         ],
       },
       {
-        id: "data",
-        label: "Data",
-        featureRange: "F027-F028",
-        items: [
-          available("Imports & Exports", "/crm/data/import-export"),
-          available("Duplicate Management", "/crm/data/duplicates"),
-        ],
-      },
-      {
-        id: "setup",
-        label: "Setup",
-        featureRange: "F029-F030",
+        id: "administration",
+        label: "Administration",
+        featureRange: "F004-F008, F020-F021, F026-F028",
         items: [
           {
-            ...available(
-              "Territories & Sales Teams",
-              "/crm/settings/territories",
-            ),
-            requiredPermission: "crm.coverage.view",
+            ...available("CRM Setup", "/crm/settings"),
+            aliases: ["settings", "configuration", "administration"],
+            // Shown to anyone who can open at least one destination inside
+            // it; each destination keeps its own permission below.
+            requiredAnyPermission: [
+              "crm.settings.manage",
+              "crm.teams.manage",
+              "crm.territories.manage",
+              "crm.coverage.view",
+              "crm.data-quality.manage",
+              "crm.privacy.manage",
+              "crm.import",
+            ],
           },
-          {
-            ...available(
-              "Custom Fields & Tags",
-              "/crm/settings/custom-fields-and-tags",
-            ),
-            requiredPermission: "crm.settings.manage",
-          },
-          {
-            ...available("Custom Record Fields", "/crm/settings/record-fields"),
-            requiredPermission: "crm.settings.manage",
-          },
-          {
-            ...available("Lead Sources", "/crm/settings/lead-sources"),
-            requiredPermission: "crm.settings.manage",
-          },
-          {
-            ...available("Assignment Rules", "/crm/settings/assignment"),
-            requiredPermission: "crm.settings.manage",
-          },
+          // Sales process
           {
             ...available(
               "Lead Lifecycle Stages",
               "/crm/settings/lead-lifecycle",
             ),
-            requiredPermission: "crm.settings.manage",
-          },
-          {
-            ...available("Lead Scoring", "/crm/settings/lead-scoring"),
-            requiredPermission: "crm.settings.manage",
-          },
-          // F008 gap-closure — gated by crm.data-quality.manage (the same
-          // permission the merge/override actions elsewhere in Duplicate
-          // Management already require), not the generic settings-manage
-          // permission every other Setup entry uses.
-          {
-            ...available("Duplicate Rules", "/crm/settings/duplicate-rules"),
-            requiredPermission: "crm.data-quality.manage",
-          },
-          {
-            ...available("Pipeline Stages", "/crm/settings/pipeline-stages"),
-            requiredPermission: "crm.settings.manage",
-          },
-          {
-            ...available("Won / Lost Reasons", "/crm/settings/lost-reasons"),
+            parent: "crm-setup",
+            group: "sales-process",
+            description:
+              "The stages a lead moves through and which moves are allowed.",
             requiredPermission: "crm.settings.manage",
           },
           {
@@ -200,24 +196,198 @@ export const MODULE_NAVIGATION: readonly ModuleNavigation[] = [
               "Qualification / Playbooks",
               "/crm/settings/playbooks",
             ),
+            parent: "crm-setup",
+            group: "sales-process",
+            description:
+              "Qualification questions and the playbooks sellers follow.",
             requiredPermission: "crm.settings.manage",
           },
           {
-            ...available("Meeting Links", "/crm/settings/meeting-links"),
+            ...available("Pipeline Stages", "/crm/settings/pipeline-stages"),
+            parent: "crm-setup",
+            group: "sales-process",
+            description:
+              "Pipelines, their sales stages and default probabilities.",
+            aliases: ["sales stages"],
             requiredPermission: "crm.settings.manage",
           },
-          // Consent/GDPR gap-closure — the CRM-specific DSR queue (Leads/
-          // Contacts/Accounts), gated by crm.privacy.manage (already seeded,
-          // already used by the "privacy" report), distinct from the
-          // platform-wide Settings > Privacy and retention page.
+          {
+            ...available("Won / Lost Reasons", "/crm/settings/lost-reasons"),
+            parent: "crm-setup",
+            group: "sales-process",
+            description: "The reasons a deal can be won or lost.",
+            aliases: ["outcome reasons"],
+            requiredPermission: "crm.settings.manage",
+          },
+          // Routing & organization
+          {
+            ...available("Assignment Rules", "/crm/settings/assignment"),
+            parent: "crm-setup",
+            group: "routing-organization",
+            description: "Route new leads to eligible owners, with fallbacks.",
+            aliases: ["routing", "round robin"],
+            requiredPermission: "crm.settings.manage",
+          },
+          {
+            ...available(
+              "Territories & Sales Teams",
+              "/crm/settings/territories",
+            ),
+            parent: "crm-setup",
+            group: "routing-organization",
+            description:
+              "Teams, hierarchy, territories, forecast periods and quotas.",
+            aliases: ["territory", "sales teams", "quotas"],
+            requiredAnyPermission: [
+              "crm.teams.manage",
+              "crm.territories.manage",
+              "crm.forecast.manage",
+            ],
+          },
+          {
+            ...available("Sales Coverage", "/crm/coverage"),
+            parent: "crm-setup",
+            group: "routing-organization",
+            description: "Who covers what, coverage gaps and unassigned work.",
+            aliases: ["reassign", "unassigned"],
+            requiredPermission: "crm.coverage.view",
+          },
+          // Lead management
+          {
+            ...available("Lead Sources", "/crm/settings/lead-sources"),
+            parent: "crm-setup",
+            group: "lead-management",
+            description: "Where leads come from, for routing and attribution.",
+            requiredPermission: "crm.settings.manage",
+          },
+          {
+            ...available("Lead Scoring", "/crm/settings/lead-scoring"),
+            parent: "crm-setup",
+            group: "lead-management",
+            description: "Scoring models, grades and recalculation.",
+            requiredPermission: "crm.settings.manage",
+          },
+          {
+            ...available("Duplicate Management", "/crm/data/duplicates"),
+            parent: "crm-setup",
+            group: "lead-management",
+            description: "Review, dismiss and merge possible duplicates.",
+            aliases: ["duplicate", "merge"],
+          },
+          // F008 gap-closure — gated by crm.data-quality.manage (the same
+          // permission the merge/override actions in Duplicate Management
+          // require), not the generic settings-manage permission.
+          {
+            ...available("Duplicate Rules", "/crm/settings/duplicate-rules"),
+            parent: "crm-setup",
+            group: "lead-management",
+            description: "How records are matched as possible duplicates.",
+            requiredPermission: "crm.data-quality.manage",
+          },
+          // Data management
+          {
+            ...available("Imports & Exports", "/crm/data/import-export"),
+            parent: "crm-setup",
+            group: "data-management",
+            description: "Import leads from a file and export CRM data.",
+            aliases: ["import", "export", "csv"],
+          },
+          // Customization
+          {
+            ...available(
+              "Custom Fields & Tags",
+              "/crm/settings/custom-fields-and-tags",
+            ),
+            parent: "crm-setup",
+            group: "customization",
+            description: "Extra fields and tags on leads, accounts and deals.",
+            requiredPermission: "crm.settings.manage",
+          },
+          {
+            ...available("Custom Record Fields", "/crm/settings/record-fields"),
+            parent: "crm-setup",
+            group: "customization",
+            description: "Fields on custom CRM record types.",
+            requiredPermission: "crm.settings.manage",
+          },
+          // Communications & integrations
+          {
+            ...available("Meeting Links", "/crm/settings/meeting-links"),
+            parent: "crm-setup",
+            group: "communications-integrations",
+            description: "Public booking links and their availability.",
+            aliases: ["booking", "calendar"],
+            requiredPermission: "crm.settings.manage",
+          },
+          // Governance — the CRM-specific data-subject request queue (Leads/
+          // Contacts/Accounts), distinct from the platform-wide
+          // Settings > Privacy and retention page.
           {
             ...available(
               "Data Subject Requests",
               "/crm/settings/data-requests",
             ),
+            parent: "crm-setup",
+            group: "governance",
+            description:
+              "Access, export and erasure requests about CRM records.",
+            aliases: ["privacy", "consent", "gdpr", "dsr"],
             requiredPermission: "crm.privacy.manage",
           },
         ],
+      },
+    ],
+    groups: [
+      {
+        id: "sales-process",
+        workspace: "crm-setup",
+        label: "Sales process",
+        description:
+          "Lead lifecycle, qualification, pipeline stages and outcome reasons.",
+        icon: Workflow,
+      },
+      {
+        id: "routing-organization",
+        workspace: "crm-setup",
+        label: "Routing & organization",
+        description:
+          "Assignment rules, teams, territories, quotas and coverage.",
+        icon: Network,
+      },
+      {
+        id: "lead-management",
+        workspace: "crm-setup",
+        label: "Lead management",
+        description: "Lead sources, scoring and duplicate management.",
+        icon: UserSearch,
+      },
+      {
+        id: "data-management",
+        workspace: "crm-setup",
+        label: "Data management",
+        description: "Bring data in and take it out.",
+        icon: Database,
+      },
+      {
+        id: "customization",
+        workspace: "crm-setup",
+        label: "Customization",
+        description: "Your own fields and tags.",
+        icon: SlidersHorizontal,
+      },
+      {
+        id: "communications-integrations",
+        workspace: "crm-setup",
+        label: "Communications & integrations",
+        description: "Meeting booking links.",
+        icon: CalendarClock,
+      },
+      {
+        id: "governance",
+        workspace: "crm-setup",
+        label: "Governance",
+        description: "Privacy and data-subject requests.",
+        icon: ShieldCheck,
       },
     ],
   },

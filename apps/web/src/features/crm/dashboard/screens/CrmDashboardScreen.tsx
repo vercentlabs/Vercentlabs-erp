@@ -161,7 +161,11 @@ function KpiTile({
 // scope and period, and every figure drills into a list filtered by the same
 // scope and date predicates, so the list's count reconciles to the number.
 // Scope and period live in the URL, so a view can be shared or bookmarked.
-export function CrmDashboardScreen() {
+// `embedded`: rendered inside CRM Home (the page supplies the h1), so the
+// dashboard's own header becomes a section heading.
+export function CrmDashboardScreen({
+  embedded = false,
+}: { embedded?: boolean } = {}) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -498,10 +502,14 @@ export function CrmDashboardScreen() {
 
   return (
     <div className="flex flex-1 flex-col gap-6">
-      <PageHeader
-        title="Dashboard"
-        description="What changed, what needs attention, and what to do next. Every number opens the records behind it."
-      />
+      {embedded ? (
+        <h2 className="sr-only">Pipeline and activity</h2>
+      ) : (
+        <PageHeader
+          title="Dashboard"
+          description="What changed, what needs attention, and what to do next. Every number opens the records behind it."
+        />
+      )}
 
       <section
         aria-label="Dashboard scope and period"

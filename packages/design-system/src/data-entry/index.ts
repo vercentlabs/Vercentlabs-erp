@@ -11,7 +11,7 @@ export { CheckboxGroup, type CheckboxGroupProps } from "./CheckboxGroup.tsx";
 export { RadioGroup, Radio, type RadioGroupProps, type RadioProps } from "./RadioGroup.tsx";
 export { Switch, type SwitchProps } from "./Switch.tsx";
 export { Select, type SelectProps, type SelectOption } from "./Select.tsx";
-export { ComboBox, type ComboBoxProps, type ComboBoxOption } from "./ComboBox.tsx";
+export { ComboBox, type ComboBoxProps, type ComboBoxOption, type ComboBoxSection } from "./ComboBox.tsx";
 export { MultiSelect, type MultiSelectProps, type MultiSelectOption } from "./MultiSelect.tsx";
 export { DateField, type DateFieldProps } from "./DateField.tsx";
 export { DatePicker, type DatePickerProps } from "./DatePicker.tsx";

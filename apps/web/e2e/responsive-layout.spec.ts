@@ -20,6 +20,9 @@ const PAGES = [
   ["/crm/forecast", "Forecast"],
   ["/crm/tasks", "Tasks"],
   ["/crm/reports", "Reports"],
+  ["/crm/work", "My Work"],
+  ["/crm/settings", "CRM Setup"],
+  ["/crm/settings?section=routing-organization", "CRM Setup category"],
   ["/crm/settings/lead-lifecycle", "Lead lifecycle settings"],
   ["/crm/settings/custom-fields-and-tags", "Custom fields and tags settings"],
 ] as const;

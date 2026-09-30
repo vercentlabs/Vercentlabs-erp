@@ -26,6 +26,7 @@ export default defineConfig({
     "auth.setup.ts",
     "crm-mvp.spec.ts",
     "crm-completion.spec.ts",
+    "crm-navigation.spec.ts",
     "crm-authorization.spec.ts",
     "crm-regression.spec.ts",
     "crm-public-booking.spec.ts",

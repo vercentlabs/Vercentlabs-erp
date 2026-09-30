@@ -15,6 +15,11 @@ import {
   GLOBAL_NAV_BOTTOM,
   UTILITY_NAV,
 } from "@/shell/navigation/moduleNavigationRegistry";
+import { getModuleNavigation } from "@/shell/navigation/module-navigation-registry";
+import {
+  activeWorkspaceId,
+  sidebarItems,
+} from "@/shell/navigation/navigation-resolution";
 
 const MODULE_ACCESS_REASON_LABEL: Record<string, string> = {
   not_released: "Not yet available",
@@ -200,21 +205,64 @@ export function MobileNav({
             {MODULE_NAV_ENTRIES.map((entry) => {
               const access = accessByModuleKey.get(entry.moduleKey);
               const accessible = access?.accessible ?? false;
+              const inModule = accessible && isActive(pathname, entry.href);
+              // The module you are in lists its permanent workspaces (the
+              // same set the desktop secondary sidebar shows, from the same
+              // registry and rules); views and configuration pages stay
+              // inside their workspace — no nested third navigation.
+              const moduleNavigation = inModule
+                ? getModuleNavigation(entry.moduleKey)
+                : null;
+              const activeId = moduleNavigation
+                ? activeWorkspaceId(moduleNavigation, pathname)
+                : null;
+              const workspaces = moduleNavigation
+                ? sidebarItems(moduleNavigation, { permissions })
+                    .flatMap((section) => section.items)
+                    .filter((item) => item.status === "AVAILABLE")
+                : [];
               return (
-                <DrawerRow
-                  key={entry.moduleKey}
-                  href={entry.href}
-                  label={entry.label}
-                  icon={<entry.icon aria-hidden="true" className="size-4" />}
-                  disabled={!accessible}
-                  disabledReason={
-                    access?.reason
-                      ? MODULE_ACCESS_REASON_LABEL[access.reason]
-                      : undefined
-                  }
-                  active={isActive(pathname, entry.href)}
-                  onNavigate={close}
-                />
+                <div key={entry.moduleKey} className="flex flex-col gap-1">
+                  <DrawerRow
+                    href={entry.href}
+                    label={entry.label}
+                    icon={<entry.icon aria-hidden="true" className="size-4" />}
+                    disabled={!accessible}
+                    disabledReason={
+                      access?.reason
+                        ? MODULE_ACCESS_REASON_LABEL[access.reason]
+                        : undefined
+                    }
+                    active={inModule && workspaces.length === 0}
+                    onNavigate={close}
+                  />
+                  {workspaces.length > 0 && (
+                    <ul
+                      aria-label={`${entry.label} workspaces`}
+                      className="ml-6 flex flex-col gap-0.5 border-l border-border pl-2"
+                    >
+                      {workspaces.map((item) => (
+                        <li key={item.id}>
+                          <Link
+                            href={item.route}
+                            onClick={close}
+                            aria-current={
+                              item.id === activeId ? "page" : undefined
+                            }
+                            className={[
+                              "flex rounded-[var(--radius-control)] px-3 py-2 text-sm transition-colors",
+                              item.id === activeId
+                                ? "bg-brand-soft font-medium text-brand"
+                                : "text-text hover:bg-surface-muted",
+                            ].join(" ")}
+                          >
+                            {item.label}
+                          </Link>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
               );
             })}
 

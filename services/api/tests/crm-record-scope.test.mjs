@@ -200,7 +200,7 @@ test("CRM: an elevated manager CAN reassign lead ownership to another user", asy
 function dashboardClient(rows) {
   return {
     async query(sql) {
-      if (/^WITH lead_counts AS/.test(sql.trim())) {
+      if (/^WITH scoped_leads AS/.test(sql.trim())) {
         return { rows: [{ currency_code: "INR", open_leads: rows.openLeads }] };
       }
       if (/FROM tenant\.crm_pipeline_stages stage/.test(sql)) return { rows: [] };
@@ -220,7 +220,7 @@ test("CRM analytics: a restricted rep's dashboard metrics only count their own r
   let capturedParams;
   const client = {
     async query(sql, params) {
-      if (/^WITH lead_counts AS/.test(sql.trim())) {
+      if (/^WITH scoped_leads AS/.test(sql.trim())) {
         capturedParams = params;
         return { rows: [{}] };
       }
@@ -234,7 +234,7 @@ test("CRM analytics: a restricted rep's dashboard metrics only count their own r
   let managerParams;
   const managerClient = {
     async query(sql, params) {
-      if (/^WITH lead_counts AS/.test(sql.trim())) {
+      if (/^WITH scoped_leads AS/.test(sql.trim())) {
         managerParams = params;
         return { rows: [{}] };
       }

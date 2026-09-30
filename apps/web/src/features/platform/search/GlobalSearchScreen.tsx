@@ -7,6 +7,12 @@ import { useQuery } from "@tanstack/react-query";
 import { Button, PageHeader, SearchField } from "@vercentlabs/design-system";
 
 import { MODULE_NAVIGATION } from "@/shell/navigation/module-navigation-registry";
+import {
+  allItems,
+  groupFor,
+  isItemPermitted,
+  owningWorkspace,
+} from "@/shell/navigation/navigation-resolution";
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 
@@ -114,25 +120,36 @@ export function GlobalSearchScreen() {
       module: string;
       href: string;
     }> = [];
+    const viewer = {
+      permissions: workspace.permissions,
+      isOwner: workspace.roleSlugs.includes("organization_owner"),
+    };
     for (const area of MODULE_NAVIGATION) {
       if (!workspace.accessibleModuleKeys.includes(area.moduleKey)) continue;
-      for (const section of area.sections) {
-        for (const item of section.items) {
-          if (item.status === "PLANNED") continue;
-          if (
-            item.requiredPermission &&
-            !workspace.permissions.includes(item.requiredPermission) &&
-            !workspace.roleSlugs.includes("organization_owner")
-          )
-            continue;
-          if (`${item.label} ${area.label}`.toLowerCase().includes(needle))
-            found.push({
-              id: `${area.moduleKey}:${item.id}`,
-              label: item.label,
-              module: area.label,
-              href: item.route,
-            });
-        }
+      // Every registered route is searchable, including views and
+      // configuration pages that are not sidebar entries — shown with the
+      // workspace (and group) they live in. Permission-filtered exactly
+      // like the sidebar: nothing the person may not open is listed.
+      for (const item of allItems(area)) {
+        if (item.status !== "AVAILABLE") continue;
+        if (!isItemPermitted(item, viewer)) continue;
+        const owner = owningWorkspace(area, item);
+        const group = groupFor(area, item);
+        const place = [
+          area.label,
+          ...(owner.id !== item.id ? [owner.label] : []),
+          ...(group ? [group.label] : []),
+        ].join(" › ");
+        const haystack = [item.label, place, ...(item.aliases ?? [])]
+          .join(" ")
+          .toLowerCase();
+        if (haystack.includes(needle))
+          found.push({
+            id: `${area.moduleKey}:${item.id}`,
+            label: item.label,
+            module: place,
+            href: item.route,
+          });
       }
     }
     return found.slice(0, 12);

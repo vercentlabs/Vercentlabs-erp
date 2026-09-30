@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { ChevronRight } from "lucide-react";
 
@@ -9,6 +10,12 @@ import {
   GLOBAL_NAV_BOTTOM,
   UTILITY_NAV,
 } from "@/shell/navigation/moduleNavigationRegistry";
+import {
+  breadcrumbTrail,
+  matchRoute,
+  matchesRoute,
+  type Crumb,
+} from "@/shell/navigation/navigation-resolution";
 
 const GLOBAL_ENTRIES = [
   ...GLOBAL_NAV_TOP,
@@ -16,47 +23,19 @@ const GLOBAL_ENTRIES = [
   ...UTILITY_NAV,
 ];
 
-function matchesRoute(pathname: string, route: string): boolean {
-  return pathname === route || pathname.startsWith(`${route}/`);
-}
-
-// Picks the LONGEST matching route, not just the first one encountered —
-// the module's own "Home" item is always registered with the module's
-// bare root route (e.g. "/crm"), which prefix-matches every one of that
-// module's sub-pages too. Taking the first match in array order (as this
-// used to) meant "Home" won for every single CRM sub-page before its own,
-// more specific item (e.g. "/crm/leads") was ever checked, collapsing
-// every breadcrumb in the module down to just the module name.
-function bestRouteMatch<T extends { route: string }>(
-  items: readonly T[],
-  pathname: string,
-): T | undefined {
-  return items
-    .filter((item) => matchesRoute(pathname, item.route))
-    .sort((a, b) => b.route.length - a.route.length)[0];
-}
-
-function crumbsForPathname(pathname: string): string[] {
+// Module > Workspace > (Group) > Page, from the same route-ownership rules
+// the secondary sidebar uses (navigation-resolution.ts): /crm/pipeline reads
+// CRM > Opportunities > Pipeline and /crm/settings/territories reads
+// CRM > CRM Setup > Routing & organization > Territories & Sales Teams.
+function crumbsForPathname(pathname: string): Crumb[] {
   const activeModule = MODULE_NAVIGATION.find((entry) =>
-    entry.sections.some((section) =>
-      section.items.some((item) => matchesRoute(pathname, item.route)),
-    ),
+    matchRoute(entry, pathname),
   );
-  if (activeModule) {
-    const item = bestRouteMatch(
-      activeModule.sections.flatMap((section) => section.items),
-      pathname,
-    );
-    // Module → Workspace, no redundant repetition — the module's own
-    // Overview item never repeats the module label twice.
-    if (!item || item.id === "home") return [activeModule.label];
-    return [activeModule.label, item.label];
-  }
-  const global = bestRouteMatch(
-    GLOBAL_ENTRIES.map((entry) => ({ ...entry, route: entry.href })),
-    pathname,
-  );
-  return global && global.href !== "/" ? [global.label] : [];
+  if (activeModule) return breadcrumbTrail(activeModule, pathname);
+  const global = GLOBAL_ENTRIES.filter((entry) =>
+    matchesRoute(pathname, entry.href),
+  ).sort((a, b) => b.href.length - a.href.length)[0];
+  return global && global.href !== "/" ? [{ label: global.label }] : [];
 }
 
 export function Breadcrumbs() {
@@ -67,25 +46,39 @@ export function Breadcrumbs() {
   return (
     <nav
       aria-label="Breadcrumb"
-      className="flex items-center gap-1 text-sm text-text-secondary"
+      className="flex min-w-0 items-center gap-1 text-sm text-text-secondary"
     >
-      {crumbs.map((crumb, index) => (
-        <span key={crumb} className="flex items-center gap-1">
-          {index > 0 ? (
-            <ChevronRight
-              aria-hidden="true"
-              className="size-3.5 text-text-muted"
-            />
-          ) : null}
+      {crumbs.map((crumb, index) => {
+        const last = index === crumbs.length - 1;
+        return (
           <span
-            className={
-              index === crumbs.length - 1 ? "font-medium text-text" : undefined
-            }
+            key={`${crumb.label}-${index}`}
+            className="flex min-w-0 items-center gap-1"
           >
-            {crumb}
+            {index > 0 ? (
+              <ChevronRight
+                aria-hidden="true"
+                className="size-3.5 shrink-0 text-text-muted"
+              />
+            ) : null}
+            {last || !crumb.href ? (
+              <span
+                aria-current={last ? "page" : undefined}
+                className={last ? "truncate font-medium text-text" : "truncate"}
+              >
+                {crumb.label}
+              </span>
+            ) : (
+              <Link
+                href={crumb.href}
+                className="truncate hover:text-text hover:underline"
+              >
+                {crumb.label}
+              </Link>
+            )}
           </span>
-        </span>
-      ))}
+        );
+      })}
     </nav>
   );
 }

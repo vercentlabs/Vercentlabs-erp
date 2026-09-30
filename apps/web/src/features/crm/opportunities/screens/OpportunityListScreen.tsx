@@ -440,18 +440,19 @@ export function OpportunityListScreen() {
               options={[
                 {
                   id: "table",
-                  label: "Table",
+                  label: "List",
                   icon: <Table2 className="size-3.5" aria-hidden="true" />,
                 },
                 {
                   id: "board",
-                  label: "Board",
+                  label: "Pipeline",
                   icon: <Kanban className="size-3.5" aria-hidden="true" />,
                 },
               ]}
               value="table"
               onChange={(id) => {
-                if (id === "board") router.push("/crm/pipeline");
+                if (id === "board")
+                  router.push("/crm/opportunities?view=pipeline");
               }}
             />
             <Button

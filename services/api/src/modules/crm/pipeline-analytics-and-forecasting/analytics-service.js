@@ -91,23 +91,29 @@ export async function getCrmDashboard(client, context, options = {}) {
   const leadVisible = ownerVisible("lead", "owner_user_id");
   const activityVisible = ownerVisible("activity", "assigned_to");
   const result = await client.query(
-    `WITH lead_counts AS (
+    `WITH scoped_leads AS (
+       -- Visibility is evaluated once per lead (it can contain a managed-team
+       -- EXISTS for restricted users), not once per figure below.
+       SELECT lead.organization_id, lead.record_status, lead.qualification_state, lead.created_at, lead.converted_at,
+              lead.owner_user_id, lead.status, lead.stage_entered_at, lead.lead_grade, (${leadVisible}) AS visible
+         FROM tenant.crm_leads lead
+        WHERE lead.organization_id = $1 AND ${companyVisible("lead")} AND ${branchVisible("lead")}
+     ), lead_counts AS (
        SELECT
-         count(*) FILTER (WHERE lead.record_status = 'active' AND ${leadVisible})::int AS open_leads,
-         count(*) FILTER (WHERE lead.record_status = 'active' AND lead.qualification_state = 'qualified' AND ${leadVisible})::int AS qualified_leads,
-         count(*) FILTER (WHERE lead.record_status IN ('active','converted') AND ${inPeriod("lead.created_at")} AND ${leadVisible})::int AS leads_in_period,
-         count(*) FILTER (WHERE lead.record_status IN ('active','converted') AND ${inPeriod("lead.created_at", "$9", "$10")} AND ${leadVisible})::int AS leads_previous_period,
-         count(*) FILTER (WHERE lead.record_status = 'converted' AND ${inPeriod("lead.converted_at")} AND ${leadVisible})::int AS conversions_in_period,
-         count(*) FILTER (WHERE lead.record_status = 'converted' AND ${inPeriod("lead.converted_at", "$9", "$10")} AND ${leadVisible})::int AS conversions_previous_period,
+         count(*) FILTER (WHERE lead.record_status = 'active' AND lead.visible)::int AS open_leads,
+         count(*) FILTER (WHERE lead.record_status = 'active' AND lead.qualification_state = 'qualified' AND lead.visible)::int AS qualified_leads,
+         count(*) FILTER (WHERE lead.record_status IN ('active','converted') AND ${inPeriod("lead.created_at")} AND lead.visible)::int AS leads_in_period,
+         count(*) FILTER (WHERE lead.record_status IN ('active','converted') AND ${inPeriod("lead.created_at", "$9", "$10")} AND lead.visible)::int AS leads_previous_period,
+         count(*) FILTER (WHERE lead.record_status = 'converted' AND ${inPeriod("lead.converted_at")} AND lead.visible)::int AS conversions_in_period,
+         count(*) FILTER (WHERE lead.record_status = 'converted' AND ${inPeriod("lead.converted_at", "$9", "$10")} AND lead.visible)::int AS conversions_previous_period,
          count(*) FILTER (WHERE lead.record_status = 'active' AND lead.owner_user_id IS NULL AND ${orgWide})::int AS unassigned_leads,
-         count(*) FILTER (WHERE lead.record_status = 'active' AND ${leadVisible} AND EXISTS (
+         count(*) FILTER (WHERE lead.record_status = 'active' AND lead.visible AND EXISTS (
            SELECT 1 FROM tenant.crm_lead_stages stage
             WHERE stage.organization_id = lead.organization_id AND stage.code = lead.status AND stage.dwell_breach_hours IS NOT NULL
               AND lead.stage_entered_at <= now() - (stage.dwell_breach_hours || ' hours')::interval))::int AS dwell_breached_leads,
-         count(*) FILTER (WHERE lead.record_status = 'active' AND lead.qualification_state = 'not_reviewed' AND ${leadVisible})::int AS needs_qualification_leads,
-         count(*) FILTER (WHERE lead.record_status = 'active' AND lead.lead_grade IN ('hot','qualified') AND ${leadVisible})::int AS high_priority_leads
-       FROM tenant.crm_leads lead
-       WHERE lead.organization_id = $1 AND ${companyVisible("lead")} AND ${branchVisible("lead")}
+         count(*) FILTER (WHERE lead.record_status = 'active' AND lead.qualification_state = 'not_reviewed' AND lead.visible)::int AS needs_qualification_leads,
+         count(*) FILTER (WHERE lead.record_status = 'active' AND lead.lead_grade IN ('hot','qualified') AND lead.visible)::int AS high_priority_leads
+       FROM scoped_leads lead
      ), activity_counts AS (
        SELECT
          count(*) FILTER (WHERE ${taskOverdueSql("activity")})::int AS overdue_activities,

@@ -46,7 +46,7 @@ test("F024: 'team' adds members of sales teams the caller manages, still within 
   const client = capture();
   await getCrmDashboard(client, rep, { scope: "team" });
   const sql = client.calls[0].sql;
-  assert.match(sql, /\(\$5::boolean OR \(\(lead\.owner_user_id IS NULL OR lead\.owner_user_id = \$6 OR EXISTS \(SELECT 1 FROM tenant\.crm_sales_team_members[\s\S]*?\)\)\)\) AND \(lead\.owner_user_id = \$6 OR lead\.owner_user_id IN \(SELECT member\.user_id FROM tenant\.crm_sales_team_members member/);
+  assert.match(sql, /\(\$5::boolean OR \(\(lead\.owner_user_id IS NULL OR lead\.owner_user_id = \$6 OR COALESCE\(\([^)]*\) IN \(SELECT team_member\.organization_id, team_member\.user_id FROM tenant\.crm_sales_team_members[\s\S]*?\)\)\)\) AND \(lead\.owner_user_id = \$6 OR lead\.owner_user_id IN \(SELECT member\.user_id FROM tenant\.crm_sales_team_members member/);
   // Opportunity figures come from the canonical fact set with the same team rule.
   const facts = client.calls.find((call) => call.sql.includes("opportunity_facts"));
   assert.match(facts.sql, /o\.owner_user_id IN \(SELECT member\.user_id FROM tenant\.crm_sales_team_members member/);

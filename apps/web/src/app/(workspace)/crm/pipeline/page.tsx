@@ -1,9 +1,20 @@
+import { redirect } from "next/navigation";
+
 import { requireWorkspace } from "@/core/session";
-import { PipelineBoardScreen } from "@/features/crm/pipeline/screens/PipelineBoardScreen";
 
-export const metadata = { title: "Pipeline" };
-
-export default async function PipelinePage() {
+// Pipeline is a view of the Opportunities workspace. This address keeps
+// working (bookmarks, mobile web links) and opens the board view.
+export default async function PipelinePage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
   await requireWorkspace();
-  return <PipelineBoardScreen />;
+  const query = new URLSearchParams();
+  for (const [key, value] of Object.entries(await searchParams)) {
+    for (const item of Array.isArray(value) ? value : [value])
+      if (item !== undefined) query.append(key, item);
+  }
+  query.set("view", "pipeline");
+  redirect(`/crm/opportunities?${query.toString()}`);
 }

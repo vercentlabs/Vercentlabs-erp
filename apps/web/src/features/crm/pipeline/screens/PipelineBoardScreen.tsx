@@ -246,18 +246,18 @@ export function PipelineBoardScreen() {
               options={[
                 {
                   id: "table",
-                  label: "Table",
+                  label: "List",
                   icon: <Table2 className="size-3.5" aria-hidden="true" />,
                 },
                 {
                   id: "board",
-                  label: "Board",
+                  label: "Pipeline",
                   icon: <Kanban className="size-3.5" aria-hidden="true" />,
                 },
               ]}
               value="board"
               onChange={(id) => {
-                if (id === "table") router.push("/crm/opportunities");
+                if (id === "table") router.push("/crm/opportunities?view=list");
               }}
             />
           </>
