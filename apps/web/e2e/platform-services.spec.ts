@@ -10,7 +10,7 @@ import {
   executeReportRun,
 } from "../../../services/api/src/index.js";
 // @ts-expect-error -- plain JS domain module without a declaration file; called with the documented shape
-import { recordLeadAssignment } from "../../../services/api/src/modules/crm/lead-lifecycle-qualification-and-prioritization/lead-assignment.js";
+import { recordLeadAssignment } from "../../../services/api/src/modules/crm/lead-management/lead-assignment.js";
 import {
   processOrganizationWebhooks,
   processOrganizationWorkflows,

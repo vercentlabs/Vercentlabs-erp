@@ -1,10 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { getCrmCall, updateCrmCall } from "../src/modules/crm/seller-activity-and-follow-up-workspace/call-operations.js";
-import { getCrmMeeting, updateCrmMeeting } from "../src/modules/crm/seller-activity-and-follow-up-workspace/meeting-operations.js";
-import { getCrmTask, updateCrmTask } from "../src/modules/crm/seller-activity-and-follow-up-workspace/task-operations.js";
-import { getCrmFollowUp, updateCrmFollowUp } from "../src/modules/crm/seller-activity-and-follow-up-workspace/follow-ups/follow-up-operations.js";
+import { getCrmCall, updateCrmCall } from "../src/modules/crm/activities/call-operations.js";
+import { getCrmMeeting, updateCrmMeeting } from "../src/modules/crm/activities/meeting-operations.js";
+import { getCrmTask, updateCrmTask } from "../src/modules/crm/activities/task-operations.js";
+import { getCrmFollowUp, updateCrmFollowUp } from "../src/modules/crm/activities/follow-ups/follow-up-operations.js";
 
 // F013-F016 Tranche J — getCrmCall/getCrmMeeting/getCrmTask/getCrmFollowUp
 // and their update counterparts already existed and were already routed

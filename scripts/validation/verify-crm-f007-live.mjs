@@ -6,7 +6,7 @@ import {
   setLeadStageActive,
   transitionLeadStage,
   updateLeadStage,
-} from "../../services/api/src/modules/crm/lead-lifecycle-qualification-and-prioritization/lifecycle/index.js";
+} from "../../services/api/src/modules/crm/lead-management/lifecycle/index.js";
 
 config({ path: "apps/web/.env.local" });
 

@@ -19,7 +19,7 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..")
 // Record scope as each module's domain enforces it (on top of PostgreSQL RLS
 // on the organisation, which applies to every workspace handler).
 export const RECORD_SCOPE = Object.freeze({
-  crm: "company/branch scope + record ownership unless crm.records.view_all (crm-data-operations-and-customization/record-policy.js)",
+  crm: "company/branch scope + record ownership unless crm.records.view_all (data-management/record-policy.js)",
   sales: "active company/branch; approvals and self-approval rules in the domain",
   accounting: "active company; segregation of duties (no self-approval) in the domain",
   procurement: "active company; self-approval blocked",

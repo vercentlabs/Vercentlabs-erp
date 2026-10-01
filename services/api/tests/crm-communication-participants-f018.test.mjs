@@ -7,7 +7,7 @@ import {
   projectCrmCommunications,
   resolveCallerParticipantCommunicationIds,
   resolveCommunicationParticipants,
-} from "../src/modules/crm/seller-activity-and-follow-up-workspace/communications/communication-projection.js";
+} from "../src/modules/crm/activities/communications/communication-projection.js";
 
 const org = "11111111-1111-4111-8111-111111111111";
 const user = "22222222-2222-4222-8222-222222222222";

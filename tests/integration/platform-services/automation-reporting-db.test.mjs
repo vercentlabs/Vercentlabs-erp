@@ -12,7 +12,7 @@ import { publishDomainEvent } from "../../../services/api/src/core/platform/even
 import { setObjectStorageForTests } from "../../../services/api/src/core/platform/files/index.js";
 import { setNotificationPreference } from "../../../services/api/src/core/platform/notifications/index.js";
 import { createWorkflow, listWorkflowRuns, setWorkflowStatus } from "../../../services/api/src/core/platform/workflows/index.js";
-import { recordLeadAssignment } from "../../../services/api/src/modules/crm/lead-lifecycle-qualification-and-prioritization/lead-assignment.js";
+import { recordLeadAssignment } from "../../../services/api/src/modules/crm/lead-management/lead-assignment.js";
 import { renderAuthorizedDocument } from "../../../services/api/src/orchestration/documents/registry.js";
 import {
   createReportDefinition,

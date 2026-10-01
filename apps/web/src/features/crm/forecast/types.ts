@@ -1,5 +1,5 @@
 // getCrmReport(client, context, "forecast", filters)'s row shape
-// (services/api/src/modules/crm/pipeline-analytics-and-forecasting/
+// (services/api/src/modules/crm/analytics/
 // analytics-service.js) — grouped by opportunity owner. For a sales
 // manager without crm.records.view_all, this now also rolls up their
 // active team members via ownerVisibleForForecast(), not just their own

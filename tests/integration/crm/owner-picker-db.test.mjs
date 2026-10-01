@@ -5,7 +5,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { getCrmOptions } from "../../../services/api/src/modules/crm/crm-data-operations-and-customization/resource-options.js";
+import { getCrmOptions } from "../../../services/api/src/modules/crm/data-management/resource-options.js";
 import { createRuntimeKit } from "../shared-runtime/runtime-kit.mjs";
 import { ADMIN, crmFixtures } from "./crm-fixtures.mjs";
 

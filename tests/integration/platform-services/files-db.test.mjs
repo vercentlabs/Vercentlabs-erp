@@ -14,7 +14,7 @@ import {
   getCrmAttachmentContent,
   listCrmAttachments,
   listCrmAttachmentVersions,
-} from "../../../services/api/src/modules/crm/seller-activity-and-follow-up-workspace/attachments/attachments-operations.js";
+} from "../../../services/api/src/modules/crm/activities/attachments/attachments-operations.js";
 import { addAttachment, createTicket, getAttachmentContent } from "../../../services/api/src/modules/support/tickets.js";
 import { createRuntimeKit, expectCode } from "../shared-runtime/runtime-kit.mjs";
 

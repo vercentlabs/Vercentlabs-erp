@@ -5,7 +5,7 @@ import {
   listOpportunityStageBottlenecks,
   listStageSlaPolicies,
   upsertStageSlaPolicy,
-} from "../src/modules/crm/opportunity-and-pipeline-governance/stage-aging.js";
+} from "../src/modules/crm/pipeline/stage-aging.js";
 
 // F010 gap-closure (benchmark: "Opportunity pipeline management in top
 // ERPs" report) — the Pipeline board had no bottleneck/funnel signal

@@ -1,5 +1,5 @@
 // getCrmReport's own return shape (services/api/src/modules/crm/
-// pipeline-analytics-and-forecasting/analytics-service.js) — each of the
+// analytics/analytics-service.js) — each of the
 // 14 report kinds has its own hand-written SQL and its own row shape, so
 // this stays a generic bag of camelized columns rather than 14 bespoke
 // types; the screen renders whatever columns the backend actually returns.

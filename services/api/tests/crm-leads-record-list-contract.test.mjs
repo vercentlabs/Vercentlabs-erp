@@ -6,8 +6,8 @@ import {
   canViewSensitiveLeadContent,
   leadScopeSql,
   projectLeadForContext,
-} from "../src/modules/crm/lead-lifecycle-qualification-and-prioritization/lead-security.js";
-import { publicLeadDuplicateResult } from "../src/modules/crm/prospect-and-relationship-master-data/lead-duplicates.js";
+} from "../src/modules/crm/lead-management/lead-security.js";
+import { publicLeadDuplicateResult } from "../src/modules/crm/master-data/lead-duplicates.js";
 
 const read = (path) => fs.readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
 const base = {
@@ -75,7 +75,7 @@ test("F001 Pass 2A: hidden duplicate matches cannot expose signals or classifica
 });
 
 test("F001 Pass 2A: intelligence and related-feature services enforce sensitive content plus Lead scope", () => {
-  const intelligence = read("src/modules/crm/lead-lifecycle-qualification-and-prioritization/lead-intelligence.js");
+  const intelligence = read("src/modules/crm/lead-management/lead-intelligence.js");
   // F027 Prompt 4: getScopedLead/scopedLeadWhere (the leadScopeSql(context
   // callers) moved to the scoring capability directory's shared.js so the
   // scoring engine and this file's own SLA/nurture functions can both use
@@ -83,12 +83,12 @@ test("F001 Pass 2A: intelligence and related-feature services enforce sensitive 
   // getScopedLead(client, context, leadId) throughout, which is the same
   // Lead-scope enforcement, just one hop away from the literal SQL call.
   const scoringShared = read(
-    "src/modules/crm/lead-lifecycle-qualification-and-prioritization/scoring/shared.js",
+    "src/modules/crm/lead-management/scoring/shared.js",
   );
-  const call = read("src/modules/crm/seller-activity-and-follow-up-workspace/call-operations.js");
-  const meeting = read("src/modules/crm/seller-activity-and-follow-up-workspace/meeting-operations.js");
-  const task = read("src/modules/crm/seller-activity-and-follow-up-workspace/task-operations.js");
-  const communications = read("src/modules/crm/seller-activity-and-follow-up-workspace/communications.js");
+  const call = read("src/modules/crm/activities/call-operations.js");
+  const meeting = read("src/modules/crm/activities/meeting-operations.js");
+  const task = read("src/modules/crm/activities/task-operations.js");
+  const communications = read("src/modules/crm/activities/communications.js");
   assert.match(intelligence, /assertSensitiveLeadIntelligenceAccess/);
   assert.match(intelligence, /getScopedLead\(client, context, leadId/);
   assert.match(scoringShared, /leadScopeSql\(context/);
@@ -108,7 +108,7 @@ test("F001 Pass 2A: intelligence and related-feature services enforce sensitive 
 
 test("F001 Pass 2A: lifecycle responses are projected through the Lead privacy boundary", () => {
   // F007 Prompt 4: implementation moved to the lifecycle/ capability directory.
-  const source = read("src/modules/crm/lead-lifecycle-qualification-and-prioritization/lifecycle/transition-engine.js");
+  const source = read("src/modules/crm/lead-management/lifecycle/transition-engine.js");
   assert.match(source, /projectLeadForContext\(context, dto\(lead\)\)/);
   assert.match(source, /projectLeadForContext\(context, dto\(updated\.rows\[0\]\)\)/);
 });
@@ -211,8 +211,8 @@ test("F001 Pass 2A: restricted actors cannot create Lead-linked generic intellig
 
 test("F001 Pass 2A: generic Lead entity types are normalized and historical mixed-case rows are scoped", () => {
   const source = [
-    read("src/modules/crm/crm-data-operations-and-customization/resource-validation.js"),
-    read("src/modules/crm/crm-data-operations-and-customization/record-policy.js"),
+    read("src/modules/crm/data-management/resource-validation.js"),
+    read("src/modules/crm/data-management/record-policy.js"),
   ].join("\n");
   assert.match(source, /prepared\.entityType = String\(prepared\.entityType \|\| ""\)\.trim\(\)\.toLowerCase\(\)/);
   assert.match(source, /lower\(COALESCE\(\$\{alias\}\.\$\{entityTypeColumn\},''\)\) <> 'lead'/);
@@ -221,8 +221,8 @@ test("F001 Pass 2A: generic Lead entity types are normalized and historical mixe
 
 test("F001 Pass 2A: AI feedback inherits access through its parent prediction", async () => {
   const source = [
-    read("src/modules/crm/crm-data-operations-and-customization/record-policy.js"),
-    read("src/modules/crm/crm-data-operations-and-customization/resource-mutation-service.js"),
+    read("src/modules/crm/data-management/record-policy.js"),
+    read("src/modules/crm/data-management/resource-mutation-service.js"),
   ].join("\n");
   assert.match(source, /function aiFeedbackLeadScope/);
   assert.match(source, /tenant\.crm_ai_predictions prediction/);

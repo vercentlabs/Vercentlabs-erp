@@ -1,11 +1,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { crmAccountAccessSql, crmContactAccessSql, crmOwnerScopeSql } from "../src/modules/crm/crm-data-operations-and-customization/crm-access-scope.js";
-import { listCrmAccounts } from "../src/modules/crm/prospect-and-relationship-master-data/account-operations.js";
-import { listCrmContacts } from "../src/modules/crm/prospect-and-relationship-master-data/contact-operations.js";
-import { getCustomer360 } from "../src/modules/crm/prospect-and-relationship-master-data/account-intelligence.js";
-import { assertCrmExportAllowed, buildCrmLeadExportCsv, enqueueCrmLeadExportJob } from "../src/modules/crm/prospect-and-relationship-master-data/lead-export.js";
+import { crmAccountAccessSql, crmContactAccessSql, crmOwnerScopeSql } from "../src/modules/crm/data-management/crm-access-scope.js";
+import { listCrmAccounts } from "../src/modules/crm/master-data/account-operations.js";
+import { listCrmContacts } from "../src/modules/crm/master-data/contact-operations.js";
+import { getCustomer360 } from "../src/modules/crm/master-data/account-intelligence.js";
+import { assertCrmExportAllowed, buildCrmLeadExportCsv, enqueueCrmLeadExportJob } from "../src/modules/crm/master-data/lead-export.js";
 
 // CRM role hierarchy correction — the shared scope helpers and the surfaces
 // that previously bypassed them. The same rules run against a real database
@@ -89,7 +89,7 @@ test("export needs crm.export — managing leads is not enough — at enqueue an
 });
 
 test("duplicates: an inaccessible match is disclosed only as restricted; visible matches keep sensitive-field projection", async () => {
-  const { projectDuplicateMatchesForCaller } = await import("../src/modules/crm/prospect-and-relationship-master-data/duplicate-matching.js");
+  const { projectDuplicateMatchesForCaller } = await import("../src/modules/crm/master-data/duplicate-matching.js");
   const rows = [
     { id: "a1", display_name: "Hidden Co", gstin: "27AAAAA0000A1Z5", classification: "exact", match_score: 100, caller_can_access: false, in_company_scope: true },
     { id: "a2", display_name: "Visible Co", gstin: "27BBBBB0000B1Z5", pan: "BBBBB0000B", classification: "probable", match_score: 60, caller_can_access: true, in_company_scope: true },
@@ -104,7 +104,7 @@ test("duplicates: an inaccessible match is disclosed only as restricted; visible
 });
 
 test("reports: organisation-wide rollups need view-all; child-record reports are narrowed by the owning record's rule", async () => {
-  const { getCrmReport } = await import("../src/modules/crm/pipeline-analytics-and-forecasting/analytics-service.js");
+  const { getCrmReport } = await import("../src/modules/crm/analytics/analytics-service.js");
   for (const report of ["campaigns", "attribution", "partner-pipeline", "ai-governance", "privacy"]) {
     const client = capture();
     await assert.rejects(() => getCrmReport(client, rep, report, {}), { code: "CRM_REPORT_SCOPE_FORBIDDEN" });
@@ -122,7 +122,7 @@ test("reports: organisation-wide rollups need view-all; child-record reports are
 });
 
 test("resource-specific view-all widens only its own resource; relationship grants are SQL branches", async () => {
-  const { canViewAllCrmResource, crmOwnerScopeSql: ownerScope, crmAccountAccessSql: accountAccess } = await import("../src/modules/crm/crm-data-operations-and-customization/crm-access-scope.js");
+  const { canViewAllCrmResource, crmOwnerScopeSql: ownerScope, crmAccountAccessSql: accountAccess } = await import("../src/modules/crm/data-management/crm-access-scope.js");
   const marketing = { ...rep, permissions: ["crm.view", "crm.leads.view_all"] };
   assert.equal(canViewAllCrmResource(marketing, "leads"), true);
   assert.equal(canViewAllCrmResource(marketing, "opportunities"), false);
@@ -139,14 +139,14 @@ test("resource-specific view-all widens only its own resource; relationship gran
 });
 
 test("private notes/communications: read breadth is not an override; CRM administration is", async () => {
-  const { canOverridePrivateCrmContent } = await import("../src/modules/crm/crm-data-operations-and-customization/crm-access-scope.js");
+  const { canOverridePrivateCrmContent } = await import("../src/modules/crm/data-management/crm-access-scope.js");
   assert.equal(canOverridePrivateCrmContent({ permissions: ["crm.records.view_all"], roleSlugs: [] }), false, "Auditor / Read-only");
   assert.equal(canOverridePrivateCrmContent({ permissions: ["crm.records.view_all", "crm.settings.manage"], roleSlugs: [] }), true, "CRM Administrator");
   assert.equal(canOverridePrivateCrmContent({ permissions: [], roleSlugs: ["organization_owner"] }), true);
 });
 
 test("Account 360 applies the Sales and Accounting modules' OWN document rules (no CRM bypass)", async () => {
-  const { crmChildScopes } = await import("../src/modules/crm/crm-data-operations-and-customization/record-policy.js");
+  const { crmChildScopes } = await import("../src/modules/crm/data-management/record-policy.js");
   const noModules = crmChildScopes({ ...rep, allowAllCompanies: false, activeCompanyId: "44444444-4444-4444-8444-444444444444" }, []);
   assert.equal(noModules.sales("quotation"), " AND false", "no sales.view → no quotations/orders");
   assert.equal(noModules.accounting("invoice"), " AND false", "no accounting.view → no invoices/receipts");
@@ -155,12 +155,12 @@ test("Account 360 applies the Sales and Accounting modules' OWN document rules (
   assert.match(withModules.sales("quotation"), /quotation\.company_id=\$1/);
   assert.match(withModules.accounting("invoice"), /invoice\.company_id=\$2/);
   const client = capture([]);
-  const { getCustomer360 } = await import("../src/modules/crm/prospect-and-relationship-master-data/account-intelligence.js");
+  const { getCustomer360 } = await import("../src/modules/crm/master-data/account-intelligence.js");
   await assert.rejects(() => getCustomer360(client, rep, account));
 });
 
 test("private-content override per built-in role: record breadth and resource view-all never imply it", async () => {
-  const { canOverridePrivateCrmContent } = await import("../src/modules/crm/crm-data-operations-and-customization/crm-access-scope.js");
+  const { canOverridePrivateCrmContent } = await import("../src/modules/crm/data-management/crm-access-scope.js");
   const { ROLE_TEMPLATE_BY_SLUG } = await import("../../../packages/permissions/src/roles.js");
   const override = (slug) => canOverridePrivateCrmContent({ permissions: [...ROLE_TEMPLATE_BY_SLUG.get(slug).permissions], roleSlugs: [] });
   for (const slug of ["sales_head", "auditor", "read_only", "marketing_manager", "customer_success_manager", "partner_manager", "sales_manager", "sales_representative"])

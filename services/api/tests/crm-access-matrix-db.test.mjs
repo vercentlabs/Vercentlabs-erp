@@ -3,18 +3,18 @@ import { randomUUID } from "node:crypto";
 import test from "node:test";
 
 import { ROLE_TEMPLATE_BY_SLUG } from "../../../packages/permissions/src/roles.js";
-import { listCrmAccounts, getCrmAccount } from "../src/modules/crm/prospect-and-relationship-master-data/account-operations.js";
-import { listCrmContacts, getCrmContact } from "../src/modules/crm/prospect-and-relationship-master-data/contact-operations.js";
-import { getAccountHierarchy, getCustomer360ForCaller, previewAccountMerge } from "../src/modules/crm/prospect-and-relationship-master-data/account-intelligence.js";
-import { findAccountDuplicates, projectDuplicateMatchesForCaller } from "../src/modules/crm/prospect-and-relationship-master-data/duplicate-matching.js";
-import { buildCrmLeadExportCsv } from "../src/modules/crm/prospect-and-relationship-master-data/lead-export.js";
-import { listContactOpportunityRoles } from "../src/modules/crm/opportunity-and-pipeline-governance/opportunity-contacts.js";
-import { getCrmReport } from "../src/modules/crm/pipeline-analytics-and-forecasting/analytics-service.js";
-import { listCrmRecords } from "../src/modules/crm/crm-data-operations-and-customization/resource-query-service.js";
-import { assertCrmOwnerAssignable } from "../src/modules/crm/crm-data-operations-and-customization/crm-access-scope.js";
-import { redactInaccessibleCrmNotifications } from "../src/modules/crm/crm-data-operations-and-customization/notification-visibility.js";
+import { listCrmAccounts, getCrmAccount } from "../src/modules/crm/master-data/account-operations.js";
+import { listCrmContacts, getCrmContact } from "../src/modules/crm/master-data/contact-operations.js";
+import { getAccountHierarchy, getCustomer360ForCaller, previewAccountMerge } from "../src/modules/crm/master-data/account-intelligence.js";
+import { findAccountDuplicates, projectDuplicateMatchesForCaller } from "../src/modules/crm/master-data/duplicate-matching.js";
+import { buildCrmLeadExportCsv } from "../src/modules/crm/master-data/lead-export.js";
+import { listContactOpportunityRoles } from "../src/modules/crm/pipeline/opportunity-contacts.js";
+import { getCrmReport } from "../src/modules/crm/analytics/analytics-service.js";
+import { listCrmRecords } from "../src/modules/crm/data-management/resource-query-service.js";
+import { assertCrmOwnerAssignable } from "../src/modules/crm/data-management/crm-access-scope.js";
+import { redactInaccessibleCrmNotifications } from "../src/modules/crm/data-management/notification-visibility.js";
 import { getCrmRecordTimelinePage } from "../src/index.js";
-import { listCrmTasks } from "../src/modules/crm/seller-activity-and-follow-up-workspace/task-operations.js";
+import { listCrmTasks } from "../src/modules/crm/activities/task-operations.js";
 
 // CRM record-visibility matrix against a REAL PostgreSQL database: the scope
 // rules are SQL, so mocked clients cannot prove them. The test seeds its OWN

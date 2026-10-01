@@ -4,7 +4,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { listCrmRecords } from "../../../services/api/src/modules/crm/crm-data-operations-and-customization/resource-query-service.js";
+import { listCrmRecords } from "../../../services/api/src/modules/crm/data-management/resource-query-service.js";
 import { createRuntimeKit } from "../shared-runtime/runtime-kit.mjs";
 
 test("F001 lead search", async (t) => {

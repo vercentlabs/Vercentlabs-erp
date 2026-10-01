@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { getCrmEmailHistory, getCrmEmailThread } from "../src/modules/crm/seller-activity-and-follow-up-workspace/communications.js";
+import { getCrmEmailHistory, getCrmEmailThread } from "../src/modules/crm/activities/communications.js";
 
 const org = "11111111-1111-4111-8111-111111111111";
 const user = "22222222-2222-4222-8222-222222222222";
@@ -63,7 +63,7 @@ test("getCrmEmailThread camelizes the thread and its messages", async () => {
 });
 
 test("an outbound reply stamps the thread's first response so an answered conversation stops counting as overdue", async () => {
-  const { ingestMailboxDelta } = await import("../src/modules/crm/seller-activity-and-follow-up-workspace/communications.js");
+  const { ingestMailboxDelta } = await import("../src/modules/crm/activities/communications.js");
   const threadSql = [];
   const c = {
     query: async (sql) => {

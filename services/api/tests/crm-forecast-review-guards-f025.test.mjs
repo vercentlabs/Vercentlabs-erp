@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { assertLifecycleUpdate } from "../src/modules/crm/crm-data-operations-and-customization/record-policy.js";
+import { assertLifecycleUpdate } from "../src/modules/crm/data-management/record-policy.js";
 
 const owner = "11111111-1111-4111-8111-111111111111";
 const manager = "22222222-2222-4222-8222-222222222222";

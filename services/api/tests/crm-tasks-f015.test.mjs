@@ -14,7 +14,7 @@ import {
   claimCrmTask,
   releaseCrmTask,
   listMyTaskTeams,
-} from "../src/modules/crm/seller-activity-and-follow-up-workspace/task-operations.js";
+} from "../src/modules/crm/activities/task-operations.js";
 
 // CRM vNext Prompt 6 (F015 — Tasks). Re-audit confirmed `recurring_rule`
 // was pure free text, never parsed by anything — no recurrence engine, no
@@ -278,8 +278,8 @@ test("F015: taskOverdueSql produces one canonical predicate, reused by every cal
 
 test("F015: taskOverdueSql is reused (not re-derived) in the generic activities list, the KPI dashboard count and the activities report", () => {
   const source = [
-    fs.readFileSync(new URL("../src/modules/crm/crm-data-operations-and-customization/resource-query-service.js", import.meta.url), "utf8"),
-    fs.readFileSync(new URL("../src/modules/crm/pipeline-analytics-and-forecasting/analytics-service.js", import.meta.url), "utf8"),
+    fs.readFileSync(new URL("../src/modules/crm/data-management/resource-query-service.js", import.meta.url), "utf8"),
+    fs.readFileSync(new URL("../src/modules/crm/analytics/analytics-service.js", import.meta.url), "utf8"),
   ].join("\n");
   const occurrences = source.match(/taskOverdueSql\(/g) || [];
   assert.ok(occurrences.length >= 3, `expected taskOverdueSql to be called at least 3 times across the canonical query/analytics services, found ${occurrences.length}`);
@@ -494,7 +494,7 @@ test("F015: listMyTaskTeams scopes an ordinary caller to Teams they actually bel
 // --- scopeSql: queue visibility does not leak to non-members --------------
 
 test("F015: listCrmTasks scopes an unclaimed queue Task to that Team's active members, not the whole organization", async () => {
-  const { listCrmTasks } = await import("../src/modules/crm/seller-activity-and-follow-up-workspace/task-operations.js");
+  const { listCrmTasks } = await import("../src/modules/crm/activities/task-operations.js");
   const client = {
     async query(sql, values) {
       if (sql.includes("count(*)")) {
@@ -521,8 +521,8 @@ test("F015: listCrmTasks scopes an unclaimed queue Task to that Team's active me
 // exact pattern crm-calls-f013.test.mjs already asserts for Calls.
 test("F015: generic Activity create/update/archive/complete cannot bypass governed Tasks", () => {
   const source = [
-    fs.readFileSync(new URL("../src/modules/crm/crm-data-operations-and-customization/resource-mutation-service.js", import.meta.url), "utf8"),
-    fs.readFileSync(new URL("../src/modules/crm/seller-activity-and-follow-up-workspace/activity-commands.js", import.meta.url), "utf8"),
+    fs.readFileSync(new URL("../src/modules/crm/data-management/resource-mutation-service.js", import.meta.url), "utf8"),
+    fs.readFileSync(new URL("../src/modules/crm/activities/activity-commands.js", import.meta.url), "utf8"),
   ].join("\n");
   assert.match(
     source,
@@ -545,7 +545,7 @@ test("F015: generic Activity create/update/archive/complete cannot bypass govern
 // F015 gap-closure — listCrmTaskHistory had no route/UI caller; it now joins
 // the actor's name so a history entry can say who did it, not just a user id.
 test("F015: listCrmTaskHistory joins the actor's name and camelizes the ledger row", async () => {
-  const { listCrmTaskHistory } = await import("../src/modules/crm/seller-activity-and-follow-up-workspace/task-operations.js");
+  const { listCrmTaskHistory } = await import("../src/modules/crm/activities/task-operations.js");
   const org = "11111111-1111-4111-8111-111111111111";
   const actor = "44444444-4444-4444-8444-444444444444";
   const taskId = "66666666-6666-4666-8666-666666666666";
@@ -576,7 +576,7 @@ test("F015: every crm_task_events event_type the service writes is permitted by 
   const fs = await import("node:fs");
   const path = await import("node:path");
   const root = path.resolve(import.meta.dirname, "../../..");
-  const service = fs.readFileSync(path.join(root, "services/api/src/modules/crm/seller-activity-and-follow-up-workspace/task-operations.js"), "utf8");
+  const service = fs.readFileSync(path.join(root, "services/api/src/modules/crm/activities/task-operations.js"), "utf8");
   const written = new Set([...service.matchAll(/event\(client, context, [\w.]+, "(\w+)"/g)].map((m) => m[1]));
   const dir = path.join(root, "database/tenant/migrations");
   let latest = "";

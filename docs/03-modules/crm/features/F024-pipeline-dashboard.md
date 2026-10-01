@@ -267,7 +267,7 @@ Pass B decision: **no new canonical F-ID required**; mature behavior expands thi
 
 Written after implementation and verification; the evidence is the code and tests named here. Human UAT is pending (`docs/03-modules/crm/CRM_UAT_F001_F030.md`). Full matrix: `docs/03-modules/crm/CRM_F001_F030_COMPLETION_MATRIX.md`.
 
-- One canonical metric layer (`services/api/src/modules/crm/pipeline-analytics-and-forecasting/metric-definitions.js`, `opportunity-facts.js`, `pipeline-metrics.js`, version `crm-metrics-2026.09`). The dashboard, KPI drill-downs, breakdowns, CRM reports and saved reports all read the same fact set. Definitions: `docs/03-modules/crm/CRM_METRIC_DEFINITIONS.md`.
+- One canonical metric layer (`services/api/src/modules/crm/analytics/metric-definitions.js`, `opportunity-facts.js`, `pipeline-metrics.js`, version `crm-metrics-2026.09`). The dashboard, KPI drill-downs, breakdowns, CRM reports and saved reports all read the same fact set. Definitions: `docs/03-modules/crm/CRM_METRIC_DEFINITIONS.md`.
 - Multi-currency: amounts are converted with `tenant.exchange_rates` (close date for won/lost, as-of date for open); unconverted records are counted and disclosed, never silently summed.
 - Filters: period, scope, pipeline, stage, team (subtree), territory (subtree), owner, source and forecast category, all kept in the URL.
 - Drill-down: the KPI's own population with keyset cursors; its summary equals the KPI (browser Journey F checks this equality through the API and the UI).

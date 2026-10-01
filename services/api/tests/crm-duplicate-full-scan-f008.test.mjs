@@ -7,8 +7,8 @@ import {
   getDuplicateFullScanJob,
   listDuplicateScanMatches,
   processDuplicateFullScanBatch,
-} from "../src/modules/crm/prospect-and-relationship-master-data/duplicate-scan.js";
-import { CrmError } from "../src/modules/crm/crm-data-operations-and-customization/errors.js";
+} from "../src/modules/crm/master-data/duplicate-scan.js";
+import { CrmError } from "../src/modules/crm/data-management/errors.js";
 
 const org = "11111111-1111-4111-8111-111111111111";
 const user = "22222222-2222-4222-8222-222222222222";

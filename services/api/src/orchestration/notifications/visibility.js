@@ -2,7 +2,7 @@
 // the record-visibility adapters registered by business modules. Domain
 // adapters own record checks; the platform never guesses.
 import { listNotifications, projectNotificationsForViewer } from "../../core/platform/notifications/index.js";
-import { redactInaccessibleCrmNotifications } from "../../modules/crm/crm-data-operations-and-customization/notification-visibility.js";
+import { redactInaccessibleCrmNotifications } from "../../modules/crm/data-management/notification-visibility.js";
 
 function moduleContext(session) {
   return {

@@ -12,7 +12,7 @@ import {
   deleteCrmAttachment,
   getCrmAttachmentContent,
   listCrmAttachments,
-} from "../src/modules/crm/seller-activity-and-follow-up-workspace/attachments/attachments-operations.js";
+} from "../src/modules/crm/activities/attachments/attachments-operations.js";
 
 const org = "11111111-1111-4111-8111-111111111111";
 const user = "44444444-4444-4444-8444-444444444444";

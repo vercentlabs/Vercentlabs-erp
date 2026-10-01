@@ -1,10 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { getCrmDashboard, resolveDashboardOptions } from "../src/modules/crm/pipeline-analytics-and-forecasting/analytics-service.js";
-import { buildFilters } from "../src/modules/crm/crm-data-operations-and-customization/resource-query-service.js";
-import { resources } from "../src/modules/crm/crm-data-operations-and-customization/resource-registry.js";
-import { listCrmTasks } from "../src/modules/crm/seller-activity-and-follow-up-workspace/task-operations.js";
+import { getCrmDashboard, resolveDashboardOptions } from "../src/modules/crm/analytics/analytics-service.js";
+import { buildFilters } from "../src/modules/crm/data-management/resource-query-service.js";
+import { resources } from "../src/modules/crm/data-management/resource-registry.js";
+import { listCrmTasks } from "../src/modules/crm/activities/task-operations.js";
 
 // F024 — the dashboard gained a scope (mine / my team / all permitted) and a
 // reporting period with a previous-period comparison; every figure drills

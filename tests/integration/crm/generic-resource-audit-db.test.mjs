@@ -8,7 +8,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { createCrmRecord, updateCrmRecord } from "../../../services/api/src/modules/crm/crm-data-operations-and-customization/resource-mutation-service.js";
+import { createCrmRecord, updateCrmRecord } from "../../../services/api/src/modules/crm/data-management/resource-mutation-service.js";
 import { permissionsForRole } from "../../../packages/permissions/src/roles.js";
 import { createRuntimeKit } from "../shared-runtime/runtime-kit.mjs";
 import { crmFixtures } from "./crm-fixtures.mjs";

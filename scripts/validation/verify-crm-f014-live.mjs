@@ -15,13 +15,13 @@ import {
   listCrmMeetingEvents,
   startCrmMeeting,
   updateCrmMeeting,
-} from "../../services/api/src/modules/crm/seller-activity-and-follow-up-workspace/meeting-operations.js";
+} from "../../services/api/src/modules/crm/activities/meeting-operations.js";
 import {
   bookMeeting,
   cancelMeetingBooking,
   getMeetingAvailability,
   rescheduleMeetingBooking,
-} from "../../services/api/src/modules/crm/seller-activity-and-follow-up-workspace/communications.js";
+} from "../../services/api/src/modules/crm/activities/communications.js";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(here, "../..");

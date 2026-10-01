@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { calculateMeetingSlots, calendarDateInZone, zonedWallTimeToUtc } from "../src/modules/crm/seller-activity-and-follow-up-workspace/communications.js";
+import { calculateMeetingSlots, calendarDateInZone, zonedWallTimeToUtc } from "../src/modules/crm/activities/communications.js";
 
 const availability = { monday: [{ start: "09:00", end: "10:00" }] };
 const base = { date: "2026-11-30", durationMinutes: 30, availability, now: new Date("2026-01-01T00:00:00Z") };

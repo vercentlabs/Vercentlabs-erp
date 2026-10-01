@@ -10,24 +10,24 @@ export * from "./modules/sales/index.js";
 export * from "./modules/accounting/index.js";
 
 export * from "./modules/procurement/index.js";
-export * from "./modules/crm/prospect-and-relationship-master-data/foundation.js";
-export * from "./modules/crm/lead-lifecycle-qualification-and-prioritization/lead-governance.js";
+export * from "./modules/crm/master-data/foundation.js";
+export * from "./modules/crm/lead-management/lead-governance.js";
 
-export * from "./modules/crm/lead-lifecycle-qualification-and-prioritization/lead-operations.js";
+export * from "./modules/crm/lead-management/lead-operations.js";
 
-export * from "./modules/crm/prospect-and-relationship-master-data/account-operations.js";
+export * from "./modules/crm/master-data/account-operations.js";
 
-export * from "./modules/crm/prospect-and-relationship-master-data/contact-operations.js";
+export * from "./modules/crm/master-data/contact-operations.js";
 
-export * from "./modules/crm/prospect-and-relationship-master-data/lead-source-operations.js";
-export * from "./modules/crm/lead-lifecycle-qualification-and-prioritization/lead-qualification.js";
-export * from "./modules/crm/lead-lifecycle-qualification-and-prioritization/lifecycle/index.js";
-export * from "./modules/crm/prospect-and-relationship-master-data/lead-duplicates.js";
-export * from "./modules/crm/prospect-and-relationship-master-data/lead-attribution.js";
+export * from "./modules/crm/master-data/lead-source-operations.js";
+export * from "./modules/crm/lead-management/lead-qualification.js";
+export * from "./modules/crm/lead-management/lifecycle/index.js";
+export * from "./modules/crm/master-data/lead-duplicates.js";
+export * from "./modules/crm/master-data/lead-attribution.js";
 
-export * from "./modules/crm/opportunity-and-pipeline-governance/opportunity-operations.js";
-export * from "./modules/crm/opportunity-and-pipeline-governance/sales-stage-operations.js";
-export * from "./modules/crm/seller-activity-and-follow-up-workspace/attachments/attachments-operations.js";
+export * from "./modules/crm/pipeline/opportunity-operations.js";
+export * from "./modules/crm/pipeline/sales-stage-operations.js";
+export * from "./modules/crm/activities/attachments/attachments-operations.js";
 
 export * from "./modules/sales/quotation-governance.js";
 
@@ -35,12 +35,12 @@ export * from "./modules/sales/order-governance.js";
 
 export * from "./modules/procurement/governance.js";
 
-export * from "./modules/crm/crm-data-operations-and-customization/core-acceptance.js";
+export * from "./modules/crm/data-management/core-acceptance.js";
 
-export * from "./modules/crm/prospect-and-relationship-master-data/account-intelligence.js";
+export * from "./modules/crm/master-data/account-intelligence.js";
 
-export * from "./modules/crm/prospect-and-relationship-master-data/contact-relationships.js";
-export * from "./modules/crm/prospect-and-relationship-master-data/duplicate-rules.js";
+export * from "./modules/crm/master-data/contact-relationships.js";
+export * from "./modules/crm/master-data/duplicate-rules.js";
 export {
   findAccountDuplicates,
   findContactDuplicates,
@@ -50,18 +50,18 @@ export {
   dismissContactDuplicateMatch,
   recordAccountDuplicateOverride,
   recordContactDuplicateOverride,
-} from "./modules/crm/prospect-and-relationship-master-data/duplicate-matching.js";
-export * from "./modules/crm/prospect-and-relationship-master-data/duplicate-scan.js";
+} from "./modules/crm/master-data/duplicate-matching.js";
+export * from "./modules/crm/master-data/duplicate-scan.js";
 
 export * from "./core/release/governance.js";
 
-export * from "./modules/crm/seller-activity-and-follow-up-workspace/communications.js";
-export * from "./modules/crm/seller-activity-and-follow-up-workspace/public-meetings.js";
+export * from "./modules/crm/activities/communications.js";
+export * from "./modules/crm/activities/public-meetings.js";
 
-export * from "./modules/crm/prospect-and-relationship-master-data/lead-acquisition.js";
-export * from "./modules/crm/prospect-and-relationship-master-data/lead-import.js";
-export * from "./modules/crm/prospect-and-relationship-master-data/lead-export.js";
-export * from "./modules/crm/lead-lifecycle-qualification-and-prioritization/lead-intelligence.js";
+export * from "./modules/crm/master-data/lead-acquisition.js";
+export * from "./modules/crm/master-data/lead-import.js";
+export * from "./modules/crm/master-data/lead-export.js";
+export * from "./modules/crm/lead-management/lead-intelligence.js";
 export {
   listLeadScoringModels,
   createLeadScoringModel,
@@ -75,15 +75,15 @@ export {
   processLeadScoreRecalcBatch,
   SCORE_RECALC_JOB_TYPE,
   SCORE_RECALC_BATCH_SIZE,
-} from "./modules/crm/lead-lifecycle-qualification-and-prioritization/scoring/index.js";
-export * from "./modules/crm/opportunity-and-pipeline-governance/opportunity-revenue-intelligence.js";
-export * from "./modules/crm/crm-data-operations-and-customization/offline-sync.js";
-export * from "./modules/crm/crm-data-operations-and-customization/notification-visibility.js";
-export * from "./modules/crm/opportunity-and-pipeline-governance/opportunity-commercial.js";
-export * from "./modules/crm/opportunity-and-pipeline-governance/opportunity-contacts.js";
-export * from "./modules/crm/opportunity-and-pipeline-governance/stage-migration.js";
-export * from "./modules/crm/opportunity-and-pipeline-governance/stage-aging.js";
-export * from "./modules/crm/opportunity-and-pipeline-governance/pipeline-snapshots.js";
+} from "./modules/crm/lead-management/scoring/index.js";
+export * from "./modules/crm/pipeline/opportunity-revenue-intelligence.js";
+export * from "./modules/crm/data-management/offline-sync.js";
+export * from "./modules/crm/data-management/notification-visibility.js";
+export * from "./modules/crm/pipeline/opportunity-commercial.js";
+export * from "./modules/crm/pipeline/opportunity-contacts.js";
+export * from "./modules/crm/pipeline/stage-migration.js";
+export * from "./modules/crm/pipeline/stage-aging.js";
+export * from "./modules/crm/pipeline/pipeline-snapshots.js";
 export * from "./modules/stock/index.js";
 export * from "./modules/stock/master-operations.js";
 export * from "./modules/sales/record-lookups.js";

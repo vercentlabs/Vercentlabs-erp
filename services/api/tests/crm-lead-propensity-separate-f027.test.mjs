@@ -2,8 +2,8 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 
-import { recalculateLeadScoreInternal } from "../src/modules/crm/lead-lifecycle-qualification-and-prioritization/scoring/scoring-engine.js";
-import { activateLeadScoringModel } from "../src/modules/crm/lead-lifecycle-qualification-and-prioritization/scoring/model-config.js";
+import { recalculateLeadScoreInternal } from "../src/modules/crm/lead-management/scoring/scoring-engine.js";
+import { activateLeadScoringModel } from "../src/modules/crm/lead-management/scoring/model-config.js";
 
 // F027 — the deterministic rule score and the ML propensity are separate:
 // one active model of each type; the rule model writes score/lead_grade, the

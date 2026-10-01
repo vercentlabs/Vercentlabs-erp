@@ -6,10 +6,10 @@ code in one place and every consumer computes them from the same fact set:
 
 | Piece | File |
 |---|---|
-| Measures, populations, dimensions (version `crm-metrics-2026.09`) | `services/api/src/modules/crm/pipeline-analytics-and-forecasting/metric-definitions.js` |
-| Canonical opportunity fact set (visibility, attribution, currency) | `.../pipeline-analytics-and-forecasting/opportunity-facts.js` |
-| KPIs, breakdowns, rollups, keyset drill-downs, quota | `.../pipeline-analytics-and-forecasting/pipeline-metrics.js` |
-| Forecast rollup, submissions, snapshots, accuracy | `.../pipeline-analytics-and-forecasting/forecast-service.js` |
+| Measures, populations, dimensions (version `crm-metrics-2026.09`) | `services/api/src/modules/crm/analytics/metric-definitions.js` |
+| Canonical opportunity fact set (visibility, attribution, currency) | `.../analytics/opportunity-facts.js` |
+| KPIs, breakdowns, rollups, keyset drill-downs, quota | `.../analytics/pipeline-metrics.js` |
+| Forecast rollup, submissions, snapshots, accuracy | `.../analytics/forecast-service.js` |
 | Report datasets `crm.pipeline_analysis`, `crm.opportunity_records` | `services/api/src/orchestration/reporting/datasets.js` |
 
 The CRM home dashboard's opportunity figures, and the `pipeline`, `forecast`

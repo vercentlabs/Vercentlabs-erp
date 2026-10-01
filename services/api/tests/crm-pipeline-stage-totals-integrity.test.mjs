@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { listOpportunityPipelineStageTotals } from "../src/modules/crm/opportunity-and-pipeline-governance/stage-aging.js";
+import { listOpportunityPipelineStageTotals } from "../src/modules/crm/pipeline/stage-aging.js";
 
 // Integrity closeout (Prompts 1-5): the pipeline board previously derived
 // per-stage totals by summing whatever card rows the page happened to load

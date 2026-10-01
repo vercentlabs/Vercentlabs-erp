@@ -177,14 +177,14 @@ for (const doc of activeDocs) {
 // exactly one of the eight capability directories below. This is a hard
 // invariant rather than a debt counter.
 const CRM_CAPABILITY_DIRECTORIES = Object.freeze([
-  "prospect-and-relationship-master-data",
-  "lead-lifecycle-qualification-and-prioritization",
-  "opportunity-and-pipeline-governance",
-  "seller-activity-and-follow-up-workspace",
-  "sales-organization-and-coverage",
-  "crm-data-operations-and-customization",
-  "crm-conversion-and-sales-handoff",
-  "pipeline-analytics-and-forecasting",
+  "master-data",
+  "lead-management",
+  "pipeline",
+  "activities",
+  "sales-organization",
+  "data-management",
+  "conversions",
+  "analytics",
 ]);
 const CRM_WEB_PUBLIC_BOUNDARY = Object.freeze(["index.ts"]);
 const CRM_API_PUBLIC_BOUNDARY = Object.freeze(["index.js", "index.d.ts"]);

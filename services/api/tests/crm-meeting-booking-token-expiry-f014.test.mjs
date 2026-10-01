@@ -37,7 +37,7 @@ test("F014: the public booking cancel/reschedule route is the ONLY code path tha
   // apps/web) into the CRM public-meetings service, which the route calls.
   const route = read("apps/web/src/app/api/crm/public/meetings/bookings/[token]/route.ts");
   assert.match(route, /resolvePublicMeetingBooking\(/);
-  const service = read("services/api/src/modules/crm/seller-activity-and-follow-up-workspace/public-meetings.js");
+  const service = read("services/api/src/modules/crm/activities/public-meetings.js");
   // This pins the one legitimate call site's shape so a future direct-table
   // bypass would be a visible diff here, not a silent regression.
   assert.match(service, /SELECT \* FROM tenant\.crm_public_meeting_booking\(\$1\)/);

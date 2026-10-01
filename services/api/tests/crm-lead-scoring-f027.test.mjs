@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { calculateLeadScoreBreakdown, evaluateLeadScoreRule, recalculateLeadScoreInternal, recalculateLeadScore } from "../src/modules/crm/lead-lifecycle-qualification-and-prioritization/scoring/scoring-engine.js";
+import { calculateLeadScoreBreakdown, evaluateLeadScoreRule, recalculateLeadScoreInternal, recalculateLeadScore } from "../src/modules/crm/lead-management/scoring/scoring-engine.js";
 import {
   listLeadScoringModels,
   createLeadScoringModel,
@@ -9,9 +9,9 @@ import {
   activateLeadScoringModel,
   createLeadScoringModelRule,
   setLeadScoringModelRuleStatus,
-} from "../src/modules/crm/lead-lifecycle-qualification-and-prioritization/scoring/model-config.js";
-import { enqueueLeadScoreRecalcJob, processLeadScoreRecalcBatch } from "../src/modules/crm/lead-lifecycle-qualification-and-prioritization/scoring/bulk-recalc.js";
-import { CrmLeadIntelligenceError } from "../src/modules/crm/lead-lifecycle-qualification-and-prioritization/scoring/shared.js";
+} from "../src/modules/crm/lead-management/scoring/model-config.js";
+import { enqueueLeadScoreRecalcJob, processLeadScoreRecalcBatch } from "../src/modules/crm/lead-management/scoring/bulk-recalc.js";
+import { CrmLeadIntelligenceError } from "../src/modules/crm/lead-management/scoring/shared.js";
 
 const org = "11111111-1111-4111-8111-111111111111";
 const actorId = "22222222-2222-4222-8222-222222222222";

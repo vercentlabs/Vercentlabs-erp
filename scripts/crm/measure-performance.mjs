@@ -20,15 +20,15 @@ import { config as loadDotEnv } from "dotenv";
 import pg from "pg";
 
 import { setTenantContext } from "../../packages/database/src/index.js";
-import { getCrmDashboard } from "../../services/api/src/modules/crm/pipeline-analytics-and-forecasting/analytics-service.js";
-import { getCrmReport } from "../../services/api/src/modules/crm/pipeline-analytics-and-forecasting/analytics-service.js";
-import { captureForecastPeriodSnapshot, getForecastAccuracy, getForecastWorkspace } from "../../services/api/src/modules/crm/pipeline-analytics-and-forecasting/forecast-service.js";
-import { getMetricDrilldown, getMetricRollup, getPipelineDashboard } from "../../services/api/src/modules/crm/pipeline-analytics-and-forecasting/pipeline-metrics.js";
-import { listCrmRecords } from "../../services/api/src/modules/crm/crm-data-operations-and-customization/resource-query-service.js";
-import { listCrmContacts } from "../../services/api/src/modules/crm/prospect-and-relationship-master-data/contact-operations.js";
-import { getSalesCoverage, listUnassignedRecords } from "../../services/api/src/modules/crm/sales-organization-and-coverage/coverage-service.js";
-import { previewLeadImport, processLeadImportChunk } from "../../services/api/src/modules/crm/prospect-and-relationship-master-data/lead-import.js";
-import { ensureDefaultLeadStages } from "../../services/api/src/modules/crm/lead-lifecycle-qualification-and-prioritization/lifecycle/stage-catalog.js";
+import { getCrmDashboard } from "../../services/api/src/modules/crm/analytics/analytics-service.js";
+import { getCrmReport } from "../../services/api/src/modules/crm/analytics/analytics-service.js";
+import { captureForecastPeriodSnapshot, getForecastAccuracy, getForecastWorkspace } from "../../services/api/src/modules/crm/analytics/forecast-service.js";
+import { getMetricDrilldown, getMetricRollup, getPipelineDashboard } from "../../services/api/src/modules/crm/analytics/pipeline-metrics.js";
+import { listCrmRecords } from "../../services/api/src/modules/crm/data-management/resource-query-service.js";
+import { listCrmContacts } from "../../services/api/src/modules/crm/master-data/contact-operations.js";
+import { getSalesCoverage, listUnassignedRecords } from "../../services/api/src/modules/crm/sales-organization/coverage-service.js";
+import { previewLeadImport, processLeadImportChunk } from "../../services/api/src/modules/crm/master-data/lead-import.js";
+import { ensureDefaultLeadStages } from "../../services/api/src/modules/crm/lead-management/lifecycle/stage-catalog.js";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 for (const file of [path.join(root, "apps/web/.env.local"), path.join(root, ".env")]) if (fs.existsSync(file)) loadDotEnv({ path: file, override: false, quiet: true });

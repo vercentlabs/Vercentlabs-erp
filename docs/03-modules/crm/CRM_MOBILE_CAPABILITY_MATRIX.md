@@ -4,7 +4,7 @@ Source of truth in code: `apps/mobile/src/modules/crm/ui/crm-feature-registry.ts
 (every F-ID has a disposition; `apps/mobile/tests/crm-feature-registry.test.mjs`
 fails if one is missing or a web deep link points at a page that does not
 exist). Offline mutations queue on the device and replay through
-`/api/crm/offline-sync` (`crm-data-operations-and-customization/offline-sync.js`):
+`/api/crm/offline-sync` (`data-management/offline-sync.js`):
 each carries an idempotency key and the record version it was based on; a
 version mismatch is stored as a conflict (`tenant.crm_mobile_conflicts`) for the
 user to resolve (keep server / apply mine), never a silent overwrite.

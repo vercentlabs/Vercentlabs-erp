@@ -9,7 +9,7 @@ import {
   getOpportunityBulkJob,
   normalizeOpportunityBulkChanges,
   resolveOpportunityBulkExecutionContext,
-} from "../src/modules/crm/opportunity-and-pipeline-governance/opportunity-operations.js";
+} from "../src/modules/crm/pipeline/opportunity-operations.js";
 
 // F029 (Bulk actions) — LAST PROMPT 1/3 closeout: Opportunities previously
 // had no async bulk-job path at all (a selection above the synchronous
@@ -275,8 +275,8 @@ test("F029: getOpportunityBulkJob scopes to the requester unless they can view a
 });
 
 test("F029: synchronous updates and durable jobs share identical field/value validation", () => {
-  const operations = read("src/modules/crm/opportunity-and-pipeline-governance/opportunity-operations.js");
-  const core = read("src/modules/crm/crm-data-operations-and-customization/resource-query-service.js");
+  const operations = read("src/modules/crm/pipeline/opportunity-operations.js");
+  const core = read("src/modules/crm/data-management/resource-query-service.js");
   const migration = read("../../database/tenant/migrations/111_f029_opportunity_bulk_scale.sql");
   assert.match(operations, /normalizeOpportunityBulkChanges\(\s*client,\s*context,\s*input\.changes,?\s*\)/);
   assert.match(core, /snapshotOpportunityBulkJobSelection/);

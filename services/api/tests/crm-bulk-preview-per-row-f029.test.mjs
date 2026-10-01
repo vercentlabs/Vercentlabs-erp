@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { bulkUpdateOpportunities } from "../src/modules/crm/opportunity-and-pipeline-governance/opportunity-operations.js";
+import { bulkUpdateOpportunities } from "../src/modules/crm/pipeline/opportunity-operations.js";
 
 // F029 — the synchronous Opportunity bulk edit runs each row through the
 // single-record command in its own savepoint, reports every row, and in

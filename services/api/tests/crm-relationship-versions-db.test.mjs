@@ -3,8 +3,8 @@ import { randomUUID } from "node:crypto";
 import test from "node:test";
 
 import { ROLE_TEMPLATE_BY_SLUG } from "../../../packages/permissions/src/roles.js";
-import { createCrmAccount, updateCrmAccount } from "../src/modules/crm/prospect-and-relationship-master-data/account-operations.js";
-import { createCrmContact, updateCrmContact } from "../src/modules/crm/prospect-and-relationship-master-data/contact-operations.js";
+import { createCrmAccount, updateCrmAccount } from "../src/modules/crm/master-data/account-operations.js";
+import { createCrmContact, updateCrmContact } from "../src/modules/crm/master-data/contact-operations.js";
 
 // Account and Contact edits carry the version the editor loaded
 // (expectedUpdatedAt). PostgreSQL keeps updated_at in microseconds while a

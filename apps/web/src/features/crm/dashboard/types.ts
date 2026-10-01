@@ -1,5 +1,5 @@
 // getCrmDashboard's own return shape (services/api/src/modules/crm/
-// pipeline-analytics-and-forecasting/analytics-service.js) — every field
+// analytics/analytics-service.js) — every field
 // here is a real, permission-scoped aggregation computed there; this type
 // only names what the backend already returns, it does not derive anything.
 export type CrmDashboardMetrics = {

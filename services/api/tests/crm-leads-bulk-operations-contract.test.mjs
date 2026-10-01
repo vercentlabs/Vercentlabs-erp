@@ -10,7 +10,7 @@ import {
   normalizeLeadBulkChanges,
   normalizeLeadBulkFilters,
   resolveLeadBulkExecutionContext,
-} from "../src/modules/crm/lead-lifecycle-qualification-and-prioritization/lead-operations.js";
+} from "../src/modules/crm/lead-management/lead-operations.js";
 
 const read = (path) => fs.readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
 const org = "11111111-1111-4111-8111-111111111111";
@@ -272,8 +272,8 @@ test("F001 Pass 2C: Lead operations dashboard is a scoped SQL aggregate, not an 
 });
 
 test("F001 Pass 2C: synchronous updates and durable jobs preserve canonical per-record invariants", () => {
-  const operations = read("src/modules/crm/lead-lifecycle-qualification-and-prioritization/lead-operations.js");
-  const core = read("src/modules/crm/crm-data-operations-and-customization/resource-query-service.js");
+  const operations = read("src/modules/crm/lead-management/lead-operations.js");
+  const core = read("src/modules/crm/data-management/resource-query-service.js");
   const migration = read("../../database/tenant/migrations/074_f001_lead_bulk_scale.sql");
   assert.match(operations, /SAVEPOINT crm_lead_bulk_item/);
   assert.match(operations, /updateCrmRecord\(client, context, "leads", id, changes/);

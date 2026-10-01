@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { saveLeadAssignmentPolicy, resolveLeadAssignment, normalizeLeadAssignmentCriteria } from "../src/modules/crm/lead-lifecycle-qualification-and-prioritization/assignment/assignment-engine.js";
-import { explainLeadAssignmentCandidates } from "../src/modules/crm/lead-lifecycle-qualification-and-prioritization/assignment/eligibility.js";
+import { saveLeadAssignmentPolicy, resolveLeadAssignment, normalizeLeadAssignmentCriteria } from "../src/modules/crm/lead-management/assignment/assignment-engine.js";
+import { explainLeadAssignmentCandidates } from "../src/modules/crm/lead-management/assignment/eligibility.js";
 import { assignLeadOwner } from "../src/modules/crm/index.js";
 
 const org = "11111111-1111-4111-8111-111111111111";

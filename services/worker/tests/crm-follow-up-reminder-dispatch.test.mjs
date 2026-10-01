@@ -143,7 +143,7 @@ test("F016 worker: an in-app reminder links to the real Follow-up page and deliv
 
 test("F016: no notification links to the nonexistent /crm/activities page", async () => {
   const fs = await import("node:fs");
-  for (const file of ["services/api/src/modules/crm/seller-activity-and-follow-up-workspace/follow-ups/follow-up-operations.js", "services/worker/src/handlers/crm-follow-up-reminder-dispatch.js"]) {
+  for (const file of ["services/api/src/modules/crm/activities/follow-ups/follow-up-operations.js", "services/worker/src/handlers/crm-follow-up-reminder-dispatch.js"]) {
     const source = fs.readFileSync(new URL(`../../../${file}`, import.meta.url), "utf8");
     assert.doesNotMatch(source, /\/crm\/activities\?/, `${file} still links to /crm/activities`);
   }

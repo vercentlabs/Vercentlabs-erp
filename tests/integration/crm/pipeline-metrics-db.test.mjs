@@ -11,8 +11,8 @@ import {
   getPipelineBreakdown,
   getPipelineDashboard,
   getPipelineMetrics,
-} from "../../../services/api/src/modules/crm/pipeline-analytics-and-forecasting/pipeline-metrics.js";
-import { getCrmReport } from "../../../services/api/src/modules/crm/pipeline-analytics-and-forecasting/analytics-service.js";
+} from "../../../services/api/src/modules/crm/analytics/pipeline-metrics.js";
+import { getCrmReport } from "../../../services/api/src/modules/crm/analytics/analytics-service.js";
 import { createRuntimeKit, expectCode } from "../shared-runtime/runtime-kit.mjs";
 import { ADMIN, crmFixtures, MANAGER, REP } from "./crm-fixtures.mjs";
 

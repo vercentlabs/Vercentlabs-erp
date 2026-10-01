@@ -2,9 +2,9 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 
-import { getCrmReport } from "../src/modules/crm/pipeline-analytics-and-forecasting/analytics-service.js";
-import { buildFilters } from "../src/modules/crm/crm-data-operations-and-customization/resource-query-service.js";
-import { resources } from "../src/modules/crm/crm-data-operations-and-customization/resource-registry.js";
+import { getCrmReport } from "../src/modules/crm/analytics/analytics-service.js";
+import { buildFilters } from "../src/modules/crm/data-management/resource-query-service.js";
+import { resources } from "../src/modules/crm/data-management/resource-registry.js";
 
 // F026 — won/lost reasons: a report of closed deals by outcome and reason for
 // a period, whose every row drills into the Opportunities list with the same

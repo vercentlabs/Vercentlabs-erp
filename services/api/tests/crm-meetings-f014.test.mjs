@@ -7,8 +7,8 @@ import { fileURLToPath } from "node:url";
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
 const read = (relative) => fs.readFileSync(path.join(root, relative), "utf8");
 
-const service = () => read("services/api/src/modules/crm/seller-activity-and-follow-up-workspace/meeting-operations.js");
-const communications = () => read("services/api/src/modules/crm/seller-activity-and-follow-up-workspace/communications.js");
+const service = () => read("services/api/src/modules/crm/activities/meeting-operations.js");
+const communications = () => read("services/api/src/modules/crm/activities/communications.js");
 
 test("F014: governed Meeting lifecycle stays on canonical crm_activities and reuses crm_activity_attendees", () => {
   const source = service();
@@ -43,8 +43,8 @@ test("F014: all-company creation inherits company\/branch from the related CRM r
 
 test("F014: generic Activity create/update/archive/complete cannot bypass governed Meetings", () => {
   const source = [
-    read("services/api/src/modules/crm/crm-data-operations-and-customization/resource-mutation-service.js"),
-    read("services/api/src/modules/crm/seller-activity-and-follow-up-workspace/activity-commands.js"),
+    read("services/api/src/modules/crm/data-management/resource-mutation-service.js"),
+    read("services/api/src/modules/crm/activities/activity-commands.js"),
   ].join("\n");
   assert.match(source, /activityType === "meeting"[\s\S]{0,160}CRM_MEETING_API_MOVED/);
   assert.match(source, /before\.activityType === "meeting" \|\| requestedActivityType === "meeting"/);
@@ -53,7 +53,7 @@ test("F014: generic Activity create/update/archive/complete cannot bypass govern
 });
 
 test("F014: legacy server offline-sync cannot directly insert or complete Meetings", () => {
-  const source = read("services/api/src/modules/crm/crm-data-operations-and-customization/offline-sync.js");
+  const source = read("services/api/src/modules/crm/data-management/offline-sync.js");
   assert.match(source, /governed Meetings mobile endpoint for offline Meeting creation/);
   assert.match(source, /governed Meetings mobile endpoint for offline Meeting completion/);
 });
@@ -188,7 +188,7 @@ test("F014: scheduled/booked Meetings join the shared reminder engine on schedul
 // outcome_code and duration_seconds. Wiring a route to it without this fix
 // would have shipped a history that always shows blank outcome/duration.
 test("F014: listCrmMeetingEvents preserves the event's own locationType/outcomeCode/durationSeconds instead of nulling them via crm_activities' dto()", async () => {
-  const { listCrmMeetingEvents } = await import("../src/modules/crm/seller-activity-and-follow-up-workspace/meeting-operations.js");
+  const { listCrmMeetingEvents } = await import("../src/modules/crm/activities/meeting-operations.js");
   const org = "11111111-1111-4111-8111-111111111111";
   const user = "44444444-4444-4444-8444-444444444444";
   const meeting = "66666666-6666-4666-8666-666666666666";

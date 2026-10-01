@@ -6,9 +6,9 @@ import {
   normalizeTerritoryCoverage,
   normalizeTerritoryType,
   territoryCoverageMatch,
-} from "../src/modules/crm/sales-organization-and-coverage/territory-coverage.js";
-import { normalizeStorageInput } from "../src/modules/crm/crm-data-operations-and-customization/resource-validation.js";
-import { resolveLeadAssignment } from "../src/modules/crm/lead-lifecycle-qualification-and-prioritization/assignment/assignment-engine.js";
+} from "../src/modules/crm/sales-organization/territory-coverage.js";
+import { normalizeStorageInput } from "../src/modules/crm/data-management/resource-validation.js";
+import { resolveLeadAssignment } from "../src/modules/crm/lead-management/assignment/assignment-engine.js";
 
 const org = "11111111-1111-4111-8111-111111111111";
 const context = { organizationId: org, userId: "u1", activeCompanyId: null, permissions: [], roleSlugs: [] };

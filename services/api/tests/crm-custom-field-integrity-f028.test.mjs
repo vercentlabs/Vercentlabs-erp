@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { setCustomFieldValues } from "../src/modules/crm/crm-data-operations-and-customization/custom-field-runtime.js";
-import { resolveCrmEntityAccess } from "../src/modules/crm/seller-activity-and-follow-up-workspace/timeline/timeline.js";
+import { setCustomFieldValues } from "../src/modules/crm/data-management/custom-field-runtime.js";
+import { resolveCrmEntityAccess } from "../src/modules/crm/activities/timeline/timeline.js";
 
 // F028 — custom field values: edit permission, correct booleans, required
 // fields satisfied by stored values, an append-only history of changes, and

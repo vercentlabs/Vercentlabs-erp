@@ -13,7 +13,7 @@ import {
   ensurePrimaryRelationshipFromLegacyFields,
   reconcileRelationshipsOnContactMerge,
   reconcileRelationshipsOnAccountMerge,
-} from "../src/modules/crm/prospect-and-relationship-master-data/contact-relationships.js";
+} from "../src/modules/crm/master-data/contact-relationships.js";
 import { CrmError } from "../src/modules/crm/index.js";
 
 const org = "11111111-1111-4111-8111-111111111111";

@@ -9,6 +9,18 @@
 > document to judge current implementation status; it remains useful only
 > as a historical record of backend decisions and prior audits.
 
+> **Path note (2026-10-01, CRM refactor Prompt 2).** The eight backend
+> capability directories named below were renamed 1:1 (no files moved between
+> them): `prospect-and-relationship-master-data` → `master-data`,
+> `lead-lifecycle-qualification-and-prioritization` → `lead-management`,
+> `opportunity-and-pipeline-governance` → `pipeline`,
+> `seller-activity-and-follow-up-workspace` → `activities`,
+> `sales-organization-and-coverage` → `sales-organization`,
+> `crm-data-operations-and-customization` → `data-management`,
+> `crm-conversion-and-sales-handoff` → `conversions`,
+> `pipeline-analytics-and-forecasting` → `analytics`, all under
+> `services/api/src/modules/crm/`. The old names below are kept as recorded.
+
 Status: `LIVE — SOURCE OF TRUTH FOR PROMPTS 1–12`
 
 This is the permanent, continuously-updated source of truth for the CRM vNext

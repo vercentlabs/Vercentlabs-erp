@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { ingestMailboxDelta, queueOutboundEmail } from "../src/modules/crm/seller-activity-and-follow-up-workspace/communications.js";
+import { ingestMailboxDelta, queueOutboundEmail } from "../src/modules/crm/activities/communications.js";
 
 // F018 §14 closeout — the underlying thread/message upsert SQL
 // (ON CONFLICT (organization_id,provider,external_thread_id) for threads,

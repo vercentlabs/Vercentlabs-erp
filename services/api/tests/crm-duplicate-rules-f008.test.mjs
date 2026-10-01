@@ -6,7 +6,7 @@ import {
   listDuplicateRules,
   upsertDuplicateRule,
   setDuplicateRuleEnabled,
-} from "../src/modules/crm/prospect-and-relationship-master-data/duplicate-rules.js";
+} from "../src/modules/crm/master-data/duplicate-rules.js";
 import { CrmError } from "../src/modules/crm/index.js";
 
 const org = "11111111-1111-4111-8111-111111111111";

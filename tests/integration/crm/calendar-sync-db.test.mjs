@@ -7,8 +7,8 @@ import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import test from "node:test";
 
-import { getMeetingAvailability } from "../../../services/api/src/modules/crm/seller-activity-and-follow-up-workspace/communications.js";
-import { publicMeetingContext } from "../../../services/api/src/modules/crm/seller-activity-and-follow-up-workspace/public-meetings.js";
+import { getMeetingAvailability } from "../../../services/api/src/modules/crm/activities/communications.js";
+import { publicMeetingContext } from "../../../services/api/src/modules/crm/activities/public-meetings.js";
 import { syncCalendarAccountsHandler } from "../../../services/worker/src/handlers/crm-calendar-sync.js";
 import { createRuntimeKit } from "../shared-runtime/runtime-kit.mjs";
 

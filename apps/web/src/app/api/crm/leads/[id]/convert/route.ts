@@ -7,7 +7,7 @@ import { workspaceRoute } from "@/core/workspace-route";
 
 // F022 lead-to-opportunity conversion. Idempotency/duplicate-reuse and
 // what-gets-created-vs-reused is entirely convertCrmLead's authority
-// (services/api/src/modules/crm/crm-conversion-and-sales-handoff/
+// (services/api/src/modules/crm/conversions/
 // lead-conversion.js, covered by crm-lead-conversion-f022.test.mjs and
 // crm-lead-conversion-duplicate-reuse-f022.test.mjs) — this route never
 // re-derives any of that. This route enforces crm.leads.manage; convertCrmLead

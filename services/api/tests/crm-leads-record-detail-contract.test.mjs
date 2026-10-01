@@ -5,7 +5,7 @@ import test from "node:test";
 import {
   queueLeadEnrichment,
   reviewLeadEnrichment,
-} from "../src/modules/crm/prospect-and-relationship-master-data/lead-acquisition.js";
+} from "../src/modules/crm/master-data/lead-acquisition.js";
 
 const read = (path) => fs.readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
 const base = {
@@ -70,8 +70,8 @@ test("F001 Pass 2B: enrichment review re-checks Lead record scope before applyin
 
 test("F001 Pass 2B: generic consent list/create boundaries inherit the Lead privacy and record scope", () => {
   const source = [
-    read("src/modules/crm/crm-data-operations-and-customization/record-policy.js"),
-    read("src/modules/crm/crm-data-operations-and-customization/resource-mutation-service.js"),
+    read("src/modules/crm/data-management/record-policy.js"),
+    read("src/modules/crm/data-management/resource-mutation-service.js"),
   ].join("\n");
   assert.match(source, /definition\.table === "tenant\.crm_consent_events"/);
   assert.match(source, /return ` AND \${alias}\.\${leadIdColumn} IS NULL`/);
@@ -84,7 +84,7 @@ test("F001 Pass 2B: generic consent list/create boundaries inherit the Lead priv
 
 
 test("F001 Pass 2B: specialized enrichment service and route enforce both record scope and same-origin mutation protection", () => {
-  const service = read("src/modules/crm/prospect-and-relationship-master-data/lead-acquisition.js");
+  const service = read("src/modules/crm/master-data/lead-acquisition.js");
   const route = read("../../apps/web/src/app/api/crm/leads/enrichment/route.ts");
   assert.match(service, /getScopedSensitiveEnrichmentLead/);
   assert.match(service, /canViewSensitiveLeadContent/);

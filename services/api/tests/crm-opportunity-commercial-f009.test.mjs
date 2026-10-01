@@ -9,13 +9,13 @@ import {
   removeOpportunityTeamMember,
   addOpportunityCompetitor,
   removeOpportunityCompetitor,
-} from "../src/modules/crm/opportunity-and-pipeline-governance/opportunity-commercial.js";
-import { saveOpportunityRevenueSplits } from "../src/modules/crm/opportunity-and-pipeline-governance/opportunity-revenue-intelligence.js";
+} from "../src/modules/crm/pipeline/opportunity-commercial.js";
+import { saveOpportunityRevenueSplits } from "../src/modules/crm/pipeline/opportunity-revenue-intelligence.js";
 import {
   enqueueOpportunityStageMigrationJob,
   processOpportunityStageMigrationBatch,
-} from "../src/modules/crm/opportunity-and-pipeline-governance/stage-migration.js";
-import { computeStageAge } from "../src/modules/crm/opportunity-and-pipeline-governance/stage-aging.js";
+} from "../src/modules/crm/pipeline/stage-migration.js";
+import { computeStageAge } from "../src/modules/crm/pipeline/stage-aging.js";
 
 const org = "11111111-1111-4111-8111-111111111111";
 const actorId = "22222222-2222-4222-8222-222222222222";

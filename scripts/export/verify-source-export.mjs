@@ -153,14 +153,14 @@ function main() {
     [`newest tenant migration present (${newestMigration})`]: anyIncluded(manifest, (p) =>
       p === newestMigration),
     "Prompt 3 (duplicate matching / relationships) present": anyIncluded(manifest, (p) =>
-      p.includes("prospect-and-relationship-master-data/duplicate-matching") ||
-      p.includes("prospect-and-relationship-master-data/record-version")),
+      p.includes("modules/crm/master-data/duplicate-matching") ||
+      p.includes("modules/crm/master-data/record-version")),
     "Prompt 4/5 CRM worker handlers present": anyIncluded(manifest, (p) =>
       p === "services/worker/src/handlers/crm-lead-stage-migration.js" ||
       p === "services/worker/src/handlers/crm-opportunity-stage-migration.js" ||
       p === "services/worker/src/handlers/crm-lead-score-recalc.js"),
     "Prompt 5 Opportunity governance capability present": anyIncluded(manifest, (p) =>
-      p.startsWith("services/api/src/modules/crm/opportunity-and-pipeline-governance/")),
+      p.startsWith("services/api/src/modules/crm/pipeline/")),
     "CRM E2E spec files present": anyIncluded(manifest, (p) =>
       p.startsWith("apps/web/tests/e2e/erp-crm-")),
   };

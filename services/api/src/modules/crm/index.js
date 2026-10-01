@@ -1,23 +1,23 @@
 // Stable public CRM API boundary. Implementation is owned by the eight canonical capability directories.
-export { completeCrmActivity } from "./seller-activity-and-follow-up-workspace/activity-commands.js";
-export { getCrmDashboard, getCrmReport } from "./pipeline-analytics-and-forecasting/analytics-service.js";
-export { getMetricDrilldown, getMetricRollup, getPipelineBreakdown, getPipelineDashboard, getPipelineMetrics, getQuotaSummary, getUserQuotas } from "./pipeline-analytics-and-forecasting/pipeline-metrics.js";
-export { analyticsFiltersFromSearchParams, normalizeAnalyticsFilters } from "./pipeline-analytics-and-forecasting/opportunity-facts.js";
-export { buildForecastRollup, captureForecastPeriodSnapshot, captureScheduledForecastSnapshots, getForecastAccuracy, getForecastSnapshot, getForecastWorkspace, listForecastSubmissionEvents, reviewForecast, setForecastPeriodStatus, submitForecast } from "./pipeline-analytics-and-forecasting/forecast-service.js";
-export { COVERAGE_REASSIGN_LIMIT, getSalesCoverage, listUnassignedRecords, reassignCoverage, transferTerritoryCoverage } from "./sales-organization-and-coverage/coverage-service.js";
-export { BREAKDOWN_DIMENSIONS, listMetricDefinitions, METRIC_VERSION, PIPELINE_METRICS } from "./pipeline-analytics-and-forecasting/metric-definitions.js";
-export { findCrmDuplicates } from "./prospect-and-relationship-master-data/duplicate-search.js";
-export { CrmError } from "./crm-data-operations-and-customization/errors.js";
-export { assignLeadOwner } from "./lead-lifecycle-qualification-and-prioritization/lead-assignment.js";
-export { captureCrmLead, resolvePublicCaptureOrganization } from "./prospect-and-relationship-master-data/lead-capture.js";
-export { convertCrmLead, mergeCrmLead } from "./crm-conversion-and-sales-handoff/lead-conversion.js";
-export { archiveCrmRecord, createCrmRecord, runCrmAutomation, updateCrmRecord } from "./crm-data-operations-and-customization/resource-mutation-service.js";
-export { moveOpportunityStage, updateOpportunityProbability, restoreOpportunity, listOpportunityProbabilityHistory, getOpportunityPredictiveProbability } from "./opportunity-and-pipeline-governance/opportunity-transitions.js";
-export { getCrmOptions } from "./crm-data-operations-and-customization/resource-options.js";
-export { leadOutboxChangedFields, queueOutboxEvent } from "./crm-data-operations-and-customization/outbox.js";
-export { canViewAllCrmRecords, recordScope } from "./crm-data-operations-and-customization/record-policy.js";
-export { getCrmRecord, listCrmRecords, snapshotLeadBulkJobSelection, snapshotOpportunityBulkJobSelection } from "./crm-data-operations-and-customization/resource-query-service.js";
-export { isCrmResource, resources } from "./crm-data-operations-and-customization/resource-registry.js";
+export { completeCrmActivity } from "./activities/activity-commands.js";
+export { getCrmDashboard, getCrmReport } from "./analytics/analytics-service.js";
+export { getMetricDrilldown, getMetricRollup, getPipelineBreakdown, getPipelineDashboard, getPipelineMetrics, getQuotaSummary, getUserQuotas } from "./analytics/pipeline-metrics.js";
+export { analyticsFiltersFromSearchParams, normalizeAnalyticsFilters } from "./analytics/opportunity-facts.js";
+export { buildForecastRollup, captureForecastPeriodSnapshot, captureScheduledForecastSnapshots, getForecastAccuracy, getForecastSnapshot, getForecastWorkspace, listForecastSubmissionEvents, reviewForecast, setForecastPeriodStatus, submitForecast } from "./analytics/forecast-service.js";
+export { COVERAGE_REASSIGN_LIMIT, getSalesCoverage, listUnassignedRecords, reassignCoverage, transferTerritoryCoverage } from "./sales-organization/coverage-service.js";
+export { BREAKDOWN_DIMENSIONS, listMetricDefinitions, METRIC_VERSION, PIPELINE_METRICS } from "./analytics/metric-definitions.js";
+export { findCrmDuplicates } from "./master-data/duplicate-search.js";
+export { CrmError } from "./data-management/errors.js";
+export { assignLeadOwner } from "./lead-management/lead-assignment.js";
+export { captureCrmLead, resolvePublicCaptureOrganization } from "./master-data/lead-capture.js";
+export { convertCrmLead, mergeCrmLead } from "./conversions/lead-conversion.js";
+export { archiveCrmRecord, createCrmRecord, runCrmAutomation, updateCrmRecord } from "./data-management/resource-mutation-service.js";
+export { moveOpportunityStage, updateOpportunityProbability, restoreOpportunity, listOpportunityProbabilityHistory, getOpportunityPredictiveProbability } from "./pipeline/opportunity-transitions.js";
+export { getCrmOptions } from "./data-management/resource-options.js";
+export { leadOutboxChangedFields, queueOutboxEvent } from "./data-management/outbox.js";
+export { canViewAllCrmRecords, recordScope } from "./data-management/record-policy.js";
+export { getCrmRecord, listCrmRecords, snapshotLeadBulkJobSelection, snapshotOpportunityBulkJobSelection } from "./data-management/resource-query-service.js";
+export { isCrmResource, resources } from "./data-management/resource-registry.js";
 
 export {
   createSalesStage,
@@ -28,7 +28,7 @@ export {
   reorderSalesStages,
   setSalesStageActive,
   updateSalesStage,
-} from "./opportunity-and-pipeline-governance/sales-stage-operations.js";
+} from "./pipeline/sales-stage-operations.js";
 
 export {
   cancelCrmCall,
@@ -39,7 +39,7 @@ export {
   listCrmCalls,
   startCrmCall,
   updateCrmCall,
-} from "./seller-activity-and-follow-up-workspace/call-operations.js";
+} from "./activities/call-operations.js";
 
 export {
   cancelCrmMeeting,
@@ -50,7 +50,7 @@ export {
   listCrmMeetings,
   startCrmMeeting,
   updateCrmMeeting,
-} from "./seller-activity-and-follow-up-workspace/meeting-operations.js";
+} from "./activities/meeting-operations.js";
 
 // Prompt 6 integrity note: task-operations.js was previously exported only
 // from the top-level package index (services/api/src/index.js), not from
@@ -76,7 +76,7 @@ export {
   addTaskDependency,
   removeTaskDependency,
   listTaskDependencies,
-} from "./seller-activity-and-follow-up-workspace/task-operations.js";
+} from "./activities/task-operations.js";
 
 export {
   archiveCrmNote,
@@ -85,9 +85,9 @@ export {
   listCrmNoteVersions,
   listCrmNotes,
   updateCrmNote,
-} from "./seller-activity-and-follow-up-workspace/notes/notes-operations.js";
+} from "./activities/notes/notes-operations.js";
 
-export { resolveCrmEntityAccess } from "./seller-activity-and-follow-up-workspace/timeline/timeline.js";
+export { resolveCrmEntityAccess } from "./activities/timeline/timeline.js";
 
 export {
   communicationVisibilitySql,
@@ -95,7 +95,7 @@ export {
   projectCrmCommunications,
   resolveCallerParticipantCommunicationIds,
   resolveCommunicationParticipants,
-} from "./seller-activity-and-follow-up-workspace/communications/communication-projection.js";
+} from "./activities/communications/communication-projection.js";
 
 export {
   createCrmAttachment,
@@ -104,7 +104,7 @@ export {
   getCrmAttachmentContent,
   listCrmAttachments,
   listCrmAttachmentVersions,
-} from "./seller-activity-and-follow-up-workspace/attachments/attachments-operations.js";
+} from "./activities/attachments/attachments-operations.js";
 
 // F028 (Prompt 3 Stage A) — runtime custom fields bound to built-in CRM
 // entities, using the platform-level custom_field_definitions/
@@ -119,7 +119,7 @@ export {
   listCustomFieldDefinitions,
   setCustomFieldDefinitionActive,
   setCustomFieldValues,
-} from "./crm-data-operations-and-customization/custom-field-runtime.js";
+} from "./data-management/custom-field-runtime.js";
 
 // F028 Tranche C (Prompt 3 Stage A) — tag ASSIGNMENT over the existing
 // tenant.crm_lead_tags junction. Tag definitions already flow through
@@ -130,7 +130,7 @@ export {
   assignRecordTag,
   listRecordTags,
   removeRecordTag,
-} from "./crm-data-operations-and-customization/tag-assignment.js";
+} from "./data-management/tag-assignment.js";
 
 export {
   acknowledgeReminder,
@@ -149,14 +149,14 @@ export {
   resetStuckDispatchingReminders,
   snoozeCrmFollowUp,
   updateCrmFollowUp,
-} from "./seller-activity-and-follow-up-workspace/follow-ups/follow-up-operations.js";
+} from "./activities/follow-ups/follow-up-operations.js";
 
-export { getManagerForUser } from "./seller-activity-and-follow-up-workspace/shared/notify.js";
+export { getManagerForUser } from "./activities/shared/notify.js";
 
 export {
   getCrmTimelinePage as getCrmRecordTimelinePage,
   getCrmTimelinePageBySource,
-} from "./seller-activity-and-follow-up-workspace/timeline/timeline.js";
+} from "./activities/timeline/timeline.js";
 
 // F020 territory coverage: validation and the lead → territory match used by
 // territory-mode assignment rules (and the "check a lead" tool on the screen).
@@ -164,4 +164,4 @@ export {
   matchLeadTerritory,
   normalizeTerritoryCoverage,
   TERRITORY_TYPES,
-} from "./sales-organization-and-coverage/territory-coverage.js";
+} from "./sales-organization/territory-coverage.js";

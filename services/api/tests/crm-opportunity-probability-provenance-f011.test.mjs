@@ -4,7 +4,7 @@ import test from "node:test";
 import {
   getOpportunityPredictiveProbability,
   listOpportunityProbabilityHistory,
-} from "../src/modules/crm/opportunity-and-pipeline-governance/opportunity-transitions.js";
+} from "../src/modules/crm/pipeline/opportunity-transitions.js";
 
 // F011 gap-closure (benchmark: "Probability and expected revenue in top
 // ERPs" report) — crm_opportunity_probability_history has been an

@@ -4,17 +4,17 @@ import test from "node:test";
 import {
   findAccountDuplicates,
   findContactDuplicates,
-} from "../src/modules/crm/prospect-and-relationship-master-data/foundation.js";
+} from "../src/modules/crm/master-data/foundation.js";
 import {
   CrmAccountIntelligenceError,
   mergeAccountsGoverned,
   mergeContactsGoverned,
-} from "../src/modules/crm/prospect-and-relationship-master-data/account-intelligence.js";
+} from "../src/modules/crm/master-data/account-intelligence.js";
 import {
   dismissAccountDuplicateMatch,
   dismissContactDuplicateMatch,
   findLeadContactCrossMatches,
-} from "../src/modules/crm/prospect-and-relationship-master-data/duplicate-matching.js";
+} from "../src/modules/crm/master-data/duplicate-matching.js";
 import { CrmError } from "../src/modules/crm/index.js";
 
 const org = "11111111-1111-4111-8111-111111111111";
@@ -34,7 +34,7 @@ function norm(sql) {
 
 // -----------------------------------------------------------------------
 // findAccountDuplicates / findContactDuplicates
-// (prospect-and-relationship-master-data/duplicate-matching.js, re-exported
+// (master-data/duplicate-matching.js, re-exported
 // from foundation.js) — rule-driven since this prompt's continuation:
 // getActiveDuplicateRules is queried first, then a dynamically-assembled
 // (but always fixed-fragment, never free-text) query runs against it. The

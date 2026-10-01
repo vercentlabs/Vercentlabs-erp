@@ -20,7 +20,7 @@ export async function listProcurementPass1Options(client,c){
   // Sequential, not Promise.all — concurrent client.query() on one shared
   // PoolClient can interleave extended-query protocol messages (observed
   // live in CRM as Postgres 08P01 "bind message supplies N parameters...");
-  // see services/api/src/modules/crm/opportunity-and-pipeline-governance/
+  // see services/api/src/modules/crm/pipeline/
   // opportunity-revenue-intelligence.js's fix for the full explanation.
   const suppliers=await client.query(`SELECT record.id,COALESCE(record.data->>'displayName',record.data->>'legalName',record.data->>'supplierCode',record.id::text) AS label,record.status FROM tenant.procurement_suppliers record WHERE record.organization_id=$1${scope} AND record.status NOT IN ('archived','rejected') ORDER BY record.updated_at DESC LIMIT 1000`,values);
   const orders=await client.query(`SELECT record.id,COALESCE(record.data->>'purchaseOrderNumber',record.data->>'poNumber',record.data->>'number',record.id::text) AS label,record.status,record.company_id FROM tenant.procurement_purchase_orders record WHERE record.organization_id=$1${scope} ORDER BY record.updated_at DESC LIMIT 1000`,values);

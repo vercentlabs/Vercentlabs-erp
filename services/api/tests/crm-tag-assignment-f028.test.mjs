@@ -5,7 +5,7 @@ import {
   assignRecordTag,
   listRecordTags,
   removeRecordTag,
-} from "../src/modules/crm/crm-data-operations-and-customization/tag-assignment.js";
+} from "../src/modules/crm/data-management/tag-assignment.js";
 
 const org = "11111111-1111-4111-8111-111111111111";
 const user = "44444444-4444-4444-8444-444444444444";

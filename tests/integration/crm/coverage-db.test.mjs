@@ -11,7 +11,7 @@ import {
   listUnassignedRecords,
   reassignCoverage,
   transferTerritoryCoverage,
-} from "../../../services/api/src/modules/crm/sales-organization-and-coverage/coverage-service.js";
+} from "../../../services/api/src/modules/crm/sales-organization/coverage-service.js";
 import { createRuntimeKit, expectCode } from "../shared-runtime/runtime-kit.mjs";
 import { ADMIN, crmFixtures, MANAGER, REP } from "./crm-fixtures.mjs";
 

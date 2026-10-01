@@ -11,7 +11,7 @@ import {
   markNotificationRead,
   setNotificationPreference,
 } from "../../../services/api/src/core/platform/notifications/index.js";
-import { recordLeadAssignment } from "../../../services/api/src/modules/crm/lead-lifecycle-qualification-and-prioritization/lead-assignment.js";
+import { recordLeadAssignment } from "../../../services/api/src/modules/crm/lead-management/lead-assignment.js";
 import { listNotificationsForViewer } from "../../../services/api/src/orchestration/notifications/visibility.js";
 import { createRuntimeKit, expectCode } from "./runtime-kit.mjs";
 

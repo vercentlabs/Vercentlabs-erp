@@ -293,8 +293,8 @@ export function completeCrmMeeting(client: QueryClient, context: CrmContext, id:
 export function cancelCrmMeeting(client: QueryClient, context: CrmContext, id: string, input?: Record<string, unknown>): Promise<any>;
 
 
-export * from "./crm-data-operations-and-customization/custom-field-runtime.js";
-export * from "./crm-data-operations-and-customization/tag-assignment.js";
+export * from "./data-management/custom-field-runtime.js";
+export * from "./data-management/tag-assignment.js";
 
 export function listCrmTasks(client: QueryClient, context: CrmContext, filters?: Record<string, unknown>): Promise<{ rows: any[]; total: number; limit: number; offset: number }>;
 export function getCrmTask(client: QueryClient, context: CrmContext, id: string, options?: { lock?: boolean }): Promise<any>;

@@ -15,8 +15,8 @@ import {
   markReminderOutcome,
   resetStuckDispatchingReminders,
   escalateOverdueFollowUps,
-} from "../src/modules/crm/seller-activity-and-follow-up-workspace/follow-ups/follow-up-operations.js";
-import { addBusinessMinutes } from "../src/modules/crm/lead-lifecycle-qualification-and-prioritization/lead-intelligence.js";
+} from "../src/modules/crm/activities/follow-ups/follow-up-operations.js";
+import { addBusinessMinutes } from "../src/modules/crm/lead-management/lead-intelligence.js";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
 const read = (relative) => fs.readFileSync(path.join(root, relative), "utf8");
@@ -285,8 +285,8 @@ test("F016: a reminder left 'dispatching' by a crashed worker is recovered back 
 
 test("F016: the generic Activity create/update/archive/complete routes cannot bypass governed Follow-ups", () => {
   const source = [
-    read("services/api/src/modules/crm/crm-data-operations-and-customization/resource-mutation-service.js"),
-    read("services/api/src/modules/crm/seller-activity-and-follow-up-workspace/activity-commands.js"),
+    read("services/api/src/modules/crm/data-management/resource-mutation-service.js"),
+    read("services/api/src/modules/crm/activities/activity-commands.js"),
   ].join("\n");
   assert.match(source, /if \(activityType === "follow_up"\)\s*throw new CrmError\(410, "Use the governed Follow-ups operations\.", "CRM_FOLLOW_UP_API_MOVED"\);/);
   assert.match(source, /if \(before\.activityType === "follow_up" \|\| requestedActivityType === "follow_up"\)\s*throw new CrmError\(410, "Use the governed Follow-ups operations\.", "CRM_FOLLOW_UP_API_MOVED"\);/);

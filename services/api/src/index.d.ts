@@ -282,10 +282,10 @@ export function seedBusinessDataFoundation(
 ): Promise<void>;
 export * from "@vercentlabs/reporting-engine";
 export * from "./modules/crm/index.js";
-export * from "./modules/crm/prospect-and-relationship-master-data/account-operations.js";
-export * from "./modules/crm/prospect-and-relationship-master-data/contact-operations.js";
-export * from "./modules/crm/prospect-and-relationship-master-data/lead-source-operations.js";
-export * from "./modules/crm/lead-lifecycle-qualification-and-prioritization/lead-qualification.js";
+export * from "./modules/crm/master-data/account-operations.js";
+export * from "./modules/crm/master-data/contact-operations.js";
+export * from "./modules/crm/master-data/lead-source-operations.js";
+export * from "./modules/crm/lead-management/lead-qualification.js";
 export * from "./modules/sales/index.js";
 
 export * from "./modules/accounting/index.js";
@@ -450,13 +450,13 @@ export function clearLeadAssigneeAvailability(
   id: string,
 ): Promise<{ id: string }>;
 
-export * from "./modules/crm/lead-lifecycle-qualification-and-prioritization/lead-operations.js";
+export * from "./modules/crm/lead-management/lead-operations.js";
 
-export * from "./modules/crm/opportunity-and-pipeline-governance/opportunity-operations.js";
-export * from "./modules/crm/opportunity-and-pipeline-governance/sales-stage-operations.js";
-export * from "./modules/crm/opportunity-and-pipeline-governance/stage-aging.js";
-export * from "./modules/crm/opportunity-and-pipeline-governance/pipeline-snapshots.js";
-export * from "./modules/crm/seller-activity-and-follow-up-workspace/attachments/attachments-operations.js";
+export * from "./modules/crm/pipeline/opportunity-operations.js";
+export * from "./modules/crm/pipeline/sales-stage-operations.js";
+export * from "./modules/crm/pipeline/stage-aging.js";
+export * from "./modules/crm/pipeline/pipeline-snapshots.js";
+export * from "./modules/crm/activities/attachments/attachments-operations.js";
 
 export * from "./modules/sales/quotation-governance.js";
 
@@ -464,12 +464,12 @@ export * from "./modules/sales/order-governance.js";
 
 export * from "./modules/procurement/governance.js";
 
-export * from "./modules/crm/crm-data-operations-and-customization/core-acceptance.js";
+export * from "./modules/crm/data-management/core-acceptance.js";
 
-export * from "./modules/crm/prospect-and-relationship-master-data/account-intelligence.js";
+export * from "./modules/crm/master-data/account-intelligence.js";
 
-export * from "./modules/crm/prospect-and-relationship-master-data/contact-relationships.js";
-export * from "./modules/crm/prospect-and-relationship-master-data/duplicate-rules.js";
+export * from "./modules/crm/master-data/contact-relationships.js";
+export * from "./modules/crm/master-data/duplicate-rules.js";
 export {
   findAccountDuplicates,
   findContactDuplicates,
@@ -479,11 +479,11 @@ export {
   dismissContactDuplicateMatch,
   recordAccountDuplicateOverride,
   recordContactDuplicateOverride,
-} from "./modules/crm/prospect-and-relationship-master-data/duplicate-matching.js";
+} from "./modules/crm/master-data/duplicate-matching.js";
 
 export * from "./core/release/governance.js";
 
-export * from "./modules/crm/seller-activity-and-follow-up-workspace/communications.js";
+export * from "./modules/crm/activities/communications.js";
 // F018 closeout (§33 shared-inbox reachability) — explicit overrides
 // alongside the wildcard above, matching this file's own established
 // pattern for communications.js/lead-intelligence.js functions that need
@@ -513,10 +513,10 @@ export function getPublicMeetingLinkView(client: QueryClient, link: PublicMeetin
 export function getPublicMeetingBookingView(client: QueryClient, booking: PublicMeetingBookingRow): Promise<Record<string, unknown>>;
 export function getPublicRescheduleAvailability(client: QueryClient, booking: PublicMeetingBookingRow, date: string | null): Promise<any>;
 
-export * from "./modules/crm/prospect-and-relationship-master-data/lead-acquisition.js";
-export * from "./modules/crm/prospect-and-relationship-master-data/lead-import.js";
-export * from "./modules/crm/prospect-and-relationship-master-data/lead-export.js";
-export * from "./modules/crm/lead-lifecycle-qualification-and-prioritization/lead-intelligence.js";
+export * from "./modules/crm/master-data/lead-acquisition.js";
+export * from "./modules/crm/master-data/lead-import.js";
+export * from "./modules/crm/master-data/lead-export.js";
+export * from "./modules/crm/lead-management/lead-intelligence.js";
 export function listLeadScoringModels(client: QueryClient, context: any): Promise<any[]>;
 export function createLeadScoringModel(client: QueryClient, context: any, input?: Record<string, unknown>): Promise<any>;
 export function updateLeadScoringModel(client: QueryClient, context: any, id: string, input?: Record<string, unknown>): Promise<any>;
@@ -530,10 +530,10 @@ export function processLeadScoreRecalcBatch(client: QueryClient, systemContext: 
 export const SCORE_RECALC_JOB_TYPE: string;
 export const SCORE_RECALC_BATCH_SIZE: number;
 export function scanLeadStageDwellBreaches(client: QueryClient, context: any): Promise<{ scanned: number; notified: number }>;
-export * from "./modules/crm/opportunity-and-pipeline-governance/opportunity-revenue-intelligence.js";
-export * from "./modules/crm/opportunity-and-pipeline-governance/opportunity-contacts.js";
-export * from "./modules/crm/crm-data-operations-and-customization/offline-sync.js";
-export * from "./modules/crm/crm-data-operations-and-customization/notification-visibility.js";
+export * from "./modules/crm/pipeline/opportunity-revenue-intelligence.js";
+export * from "./modules/crm/pipeline/opportunity-contacts.js";
+export * from "./modules/crm/data-management/offline-sync.js";
+export * from "./modules/crm/data-management/notification-visibility.js";
 export * from "./modules/stock/index.js";
 export * from "./modules/stock/master-operations.js";
 export * from "./modules/sales/record-lookups.js";

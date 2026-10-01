@@ -11,8 +11,8 @@ import {
   cancelMeetingBooking,
   getMeetingAvailability,
   rescheduleMeetingBooking,
-} from "../../../services/api/src/modules/crm/seller-activity-and-follow-up-workspace/communications.js";
-import { publicMeetingContext } from "../../../services/api/src/modules/crm/seller-activity-and-follow-up-workspace/public-meetings.js";
+} from "../../../services/api/src/modules/crm/activities/communications.js";
+import { publicMeetingContext } from "../../../services/api/src/modules/crm/activities/public-meetings.js";
 import { createRuntimeKit, expectCode } from "../shared-runtime/runtime-kit.mjs";
 
 const ALL_DAY = Object.fromEntries(

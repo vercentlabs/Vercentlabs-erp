@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { capturePipelineSnapshots, listPipelineSnapshots } from "../src/modules/crm/opportunity-and-pipeline-governance/pipeline-snapshots.js";
+import { capturePipelineSnapshots, listPipelineSnapshots } from "../src/modules/crm/pipeline/pipeline-snapshots.js";
 
 // F010 integrity closeout: historical pipeline snapshots (dossier
 // F010-CAP-002 / DEC-CRM-P1-F010, a REQUIRED enterprise-scope item). These

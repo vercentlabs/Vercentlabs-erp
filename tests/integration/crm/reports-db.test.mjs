@@ -9,7 +9,7 @@ import test from "node:test";
 import { createMemoryObjectStorage } from "../../../packages/document-engine/src/index.js";
 import { buildWorkspaceAccessSnapshot } from "../../../services/api/src/core/access/index.js";
 import { setObjectStorageForTests } from "../../../services/api/src/core/platform/files/index.js";
-import { getPipelineMetrics } from "../../../services/api/src/modules/crm/pipeline-analytics-and-forecasting/pipeline-metrics.js";
+import { getPipelineMetrics } from "../../../services/api/src/modules/crm/analytics/pipeline-metrics.js";
 import { createReportSchedule, enqueueDueReportSchedules, listReportSchedules, nextScheduleOccurrence, setReportScheduleStatus } from "../../../services/api/src/orchestration/reporting/schedules.js";
 import { createReportDefinition, executeReportRun, readReportRunOutput, requestReportRun } from "../../../services/api/src/orchestration/reporting/service.js";
 import { createRuntimeKit, expectCode } from "../shared-runtime/runtime-kit.mjs";

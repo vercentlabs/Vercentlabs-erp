@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import test from "node:test";
 
-import { getLeadOperationsDashboard } from "../src/modules/crm/lead-lifecycle-qualification-and-prioritization/lead-operations.js";
+import { getLeadOperationsDashboard } from "../src/modules/crm/lead-management/lead-operations.js";
 
 const read = (path) => fs.readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
 
@@ -42,9 +42,9 @@ test("F001 Wave 1: operations dashboard composes company, branch and owner recor
 
 test("F001 Wave 1: authoritative Lead mutations use row locks and stale-write conflicts", () => {
   const source = [
-    read("src/modules/crm/crm-data-operations-and-customization/resource-validation.js"),
-    read("src/modules/crm/crm-data-operations-and-customization/resource-mutation-service.js"),
-    read("src/modules/crm/lead-lifecycle-qualification-and-prioritization/lead-assignment.js"),
+    read("src/modules/crm/data-management/resource-validation.js"),
+    read("src/modules/crm/data-management/resource-mutation-service.js"),
+    read("src/modules/crm/lead-management/lead-assignment.js"),
   ].join("\n");
   assert.match(source, /async function getLeadRecordForUpdate[\s\S]*FOR UPDATE/);
   // Integrity closeout (Prompts 1-5): assertLeadExpectedVersion's literal
@@ -66,7 +66,7 @@ test("F001 Wave 1: authoritative Lead mutations use row locks and stale-write co
 });
 
 test("F001 Wave 1: Lead merge locks deterministically before replay check and uses record_status terminal state", () => {
-  const source = read("src/modules/crm/crm-conversion-and-sales-handoff/lead-conversion.js");
+  const source = read("src/modules/crm/conversions/lead-conversion.js");
   const start = source.indexOf("export async function mergeCrmLead");
   const merge = source.slice(start);
   const lock = merge.indexOf("ORDER BY record.id FOR UPDATE");
@@ -80,7 +80,7 @@ test("F001 Wave 1: Lead merge locks deterministically before replay check and us
 
 test("F001 Wave 1: lifecycle expected-version parsing is bounded and invalid timestamps are actionable", () => {
   // F007 Prompt 4: implementation moved to the lifecycle/ capability directory.
-  const source = read("src/modules/crm/lead-lifecycle-qualification-and-prioritization/lifecycle/transition-engine.js");
+  const source = read("src/modules/crm/lead-management/lifecycle/transition-engine.js");
   assert.match(source, /input\.requireVersion === true/);
   assert.match(source, /CRM_LEAD_VERSION_REQUIRED/);
   assert.match(source, /Number\.isFinite\(expected\.getTime\(\)\)/);

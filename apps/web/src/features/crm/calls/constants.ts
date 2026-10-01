@@ -1,7 +1,7 @@
 import type { SelectOption } from "@vercentlabs/design-system";
 
 // Mirrors call-operations.js's OUTCOMES set exactly (services/api/src/
-// modules/crm/seller-activity-and-follow-up-workspace/call-operations.js).
+// modules/crm/activities/call-operations.js).
 // Shared by the create form's log mode and the complete-call dialog so a
 // second picker can't silently drift from the governed outcome list.
 export const OUTCOME_OPTIONS: SelectOption[] = [

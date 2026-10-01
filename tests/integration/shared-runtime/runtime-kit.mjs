@@ -8,7 +8,7 @@ import pg from "pg";
 
 import { setTenantContext } from "../../../packages/database/src/index.js";
 import { buildWorkspaceAccessSnapshot } from "../../../services/api/src/core/access/index.js";
-import { ensureDefaultLeadStages } from "../../../services/api/src/modules/crm/lead-lifecycle-qualification-and-prioritization/lifecycle/stage-catalog.js";
+import { ensureDefaultLeadStages } from "../../../services/api/src/modules/crm/lead-management/lifecycle/stage-catalog.js";
 
 export function requireDatabase() {
   assert.ok(process.env.MIGRATION_DATABASE_URL, "MIGRATION_DATABASE_URL is required: shared runtime DB tests never skip.");

@@ -1,6 +1,6 @@
 // Shape returned by services/api's generic getCrmRecord/listCrmRecords for
 // the "leads" resource (camelized DB columns — see
-// services/api/src/modules/crm/crm-data-operations-and-customization/
+// services/api/src/modules/crm/data-management/
 // resource-registry.js's `leads.fields` map — plus computed/projected
 // fields such as recordStatus). Left loose (many fields optional/unknown)
 // rather than asserting an exact shape this pass didn't independently

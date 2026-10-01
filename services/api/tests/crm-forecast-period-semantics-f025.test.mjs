@@ -1,9 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { getCrmReport } from "../src/modules/crm/pipeline-analytics-and-forecasting/analytics-service.js";
-import { buildFilters } from "../src/modules/crm/crm-data-operations-and-customization/resource-query-service.js";
-import { resources } from "../src/modules/crm/crm-data-operations-and-customization/resource-registry.js";
+import { getCrmReport } from "../src/modules/crm/analytics/analytics-service.js";
+import { buildFilters } from "../src/modules/crm/data-management/resource-query-service.js";
+import { resources } from "../src/modules/crm/data-management/resource-registry.js";
 
 // F025 — two real bugs in the forecast report: its Commit column filtered on
 // forecast_category='commit' (the governed value is 'committed', so Commit

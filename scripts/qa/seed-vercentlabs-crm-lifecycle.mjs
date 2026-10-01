@@ -13,7 +13,7 @@
 //     snapshots (so accuracy has history) and a current-quarter snapshot
 // Only timestamps are backdated with SQL (the services stamp "now"); every
 // state change goes through the service that owns it. Idempotent.
-import { trainPredictiveLeadScoringModel } from "../../services/api/src/modules/crm/lead-lifecycle-qualification-and-prioritization/scoring/predictive-model.js";
+import { trainPredictiveLeadScoringModel } from "../../services/api/src/modules/crm/lead-management/scoring/predictive-model.js";
 import {
   addOpportunityCompetitor,
   addOpportunityContactRole,

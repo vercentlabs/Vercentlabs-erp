@@ -5,10 +5,10 @@ import {
   addLeadStageTransition,
   removeLeadStageTransition,
   findApplicableTransitionReasons,
-} from "../src/modules/crm/lead-lifecycle-qualification-and-prioritization/lifecycle/transition-graph.js";
-import { transitionLeadStage } from "../src/modules/crm/lead-lifecycle-qualification-and-prioritization/lifecycle/transition-engine.js";
-import { deactivateLeadStageWithMigration, enqueueLeadStageMigrationJob, processLeadStageMigrationBatch } from "../src/modules/crm/lead-lifecycle-qualification-and-prioritization/lifecycle/stage-migration.js";
-import { getLeadStageDwell } from "../src/modules/crm/lead-lifecycle-qualification-and-prioritization/lifecycle/stage-catalog.js";
+} from "../src/modules/crm/lead-management/lifecycle/transition-graph.js";
+import { transitionLeadStage } from "../src/modules/crm/lead-management/lifecycle/transition-engine.js";
+import { deactivateLeadStageWithMigration, enqueueLeadStageMigrationJob, processLeadStageMigrationBatch } from "../src/modules/crm/lead-management/lifecycle/stage-migration.js";
+import { getLeadStageDwell } from "../src/modules/crm/lead-management/lifecycle/stage-catalog.js";
 
 const org = "11111111-1111-4111-8111-111111111111";
 const actorId = "22222222-2222-4222-8222-222222222222";

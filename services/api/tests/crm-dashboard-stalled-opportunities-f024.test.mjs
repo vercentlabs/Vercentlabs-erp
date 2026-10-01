@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { getCrmDashboard } from "../src/modules/crm/index.js";
-import { normalizeAnalyticsFilters, opportunityFactsCte } from "../src/modules/crm/pipeline-analytics-and-forecasting/opportunity-facts.js";
+import { normalizeAnalyticsFilters, opportunityFactsCte } from "../src/modules/crm/analytics/opportunity-facts.js";
 
 // F024 stalled-opportunity signal. The threshold rule (an SLA policy's
 // maximum_days over the stage's stale_after_days, and no threshold = never

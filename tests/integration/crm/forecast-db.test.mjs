@@ -16,7 +16,7 @@ import {
   reviewForecast,
   setForecastPeriodStatus,
   submitForecast,
-} from "../../../services/api/src/modules/crm/pipeline-analytics-and-forecasting/forecast-service.js";
+} from "../../../services/api/src/modules/crm/analytics/forecast-service.js";
 import { createRuntimeKit, expectCode } from "../shared-runtime/runtime-kit.mjs";
 import { ADMIN, crmFixtures, MANAGER, REP } from "./crm-fixtures.mjs";
 

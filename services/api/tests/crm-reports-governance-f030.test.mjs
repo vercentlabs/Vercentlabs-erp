@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 
-import { getCrmReport } from "../src/modules/crm/pipeline-analytics-and-forecasting/analytics-service.js";
+import { getCrmReport } from "../src/modules/crm/analytics/analytics-service.js";
 
 // F030 — reports: validated periods, a reproducible fingerprint, and governed
 // (audited) exports. No tenant SQL: only fixed report keys are served.

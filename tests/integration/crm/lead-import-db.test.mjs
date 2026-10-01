@@ -14,8 +14,8 @@ import {
   LEAD_IMPORT_LIMITS,
   previewLeadImport,
   rollbackLeadImport,
-} from "../../../services/api/src/modules/crm/prospect-and-relationship-master-data/lead-import.js";
-import { ensureDefaultLeadStages } from "../../../services/api/src/modules/crm/lead-lifecycle-qualification-and-prioritization/lifecycle/stage-catalog.js";
+} from "../../../services/api/src/modules/crm/master-data/lead-import.js";
+import { ensureDefaultLeadStages } from "../../../services/api/src/modules/crm/lead-management/lifecycle/stage-catalog.js";
 import { leadImportHandler } from "../../../services/worker/src/handlers/crm-lead-import.js";
 import { createRuntimeKit, expectCode } from "../shared-runtime/runtime-kit.mjs";
 import { crmFixtures, REP } from "./crm-fixtures.mjs";

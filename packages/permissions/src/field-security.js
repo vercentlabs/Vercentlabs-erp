@@ -32,8 +32,8 @@ export const FIELD_SECURITY = Object.freeze([
     writePermission: "crm.leads.view_sensitive",
     ownerBypass: true,
     enforcement: Object.freeze({
-      read: "services/api/src/modules/crm/lead-lifecycle-qualification-and-prioritization/lead-security.js#projectLeadForContext",
-      write: "services/api/src/modules/crm/lead-lifecycle-qualification-and-prioritization/lead-security.js#firstSensitiveLeadInputField",
+      read: "services/api/src/modules/crm/lead-management/lead-security.js#projectLeadForContext",
+      write: "services/api/src/modules/crm/lead-management/lead-security.js#firstSensitiveLeadInputField",
     }),
     channels: channels({ report: "excluded", export: "projected", jobs: "projected" }),
     note: "Report dataset crm.leads has no contact columns; the CSV export is built from listCrmRecords with the requester's re-resolved context.",
@@ -46,8 +46,8 @@ export const FIELD_SECURITY = Object.freeze([
     writePermission: "crm.contacts.view_sensitive",
     ownerBypass: true,
     enforcement: Object.freeze({
-      read: "services/api/src/modules/crm/prospect-and-relationship-master-data/contact-security.js#projectContactForContext",
-      write: "services/api/src/modules/crm/prospect-and-relationship-master-data/contact-security.js#firstSensitiveContactInputField",
+      read: "services/api/src/modules/crm/master-data/contact-security.js#projectContactForContext",
+      write: "services/api/src/modules/crm/master-data/contact-security.js#firstSensitiveContactInputField",
     }),
     channels: channels(),
   }),
@@ -59,8 +59,8 @@ export const FIELD_SECURITY = Object.freeze([
     writePermission: "crm.accounts.view_sensitive",
     ownerBypass: true,
     enforcement: Object.freeze({
-      read: "services/api/src/modules/crm/prospect-and-relationship-master-data/account-security.js#projectAccountForContext",
-      write: "services/api/src/modules/crm/prospect-and-relationship-master-data/account-security.js#firstSensitiveAccountInputField",
+      read: "services/api/src/modules/crm/master-data/account-security.js#projectAccountForContext",
+      write: "services/api/src/modules/crm/master-data/account-security.js#firstSensitiveAccountInputField",
     }),
     channels: channels(),
   }),

@@ -170,7 +170,7 @@ export function checkCanonicalDefinitions(files) {
 }
 
 export const TENANT_CONTEXT_EXCEPTIONS = Object.freeze({
-  "services/api/src/modules/crm/prospect-and-relationship-master-data/lead-capture.js":
+  "services/api/src/modules/crm/master-data/lead-capture.js":
     "Public web-to-lead capture resolves the tenant from a verified capture-form token (no session exists); sets the same transaction-local parameterized context.",
 });
 

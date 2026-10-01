@@ -30,14 +30,14 @@ The capability groups below are the organizing units *inside*
 The web does **not** create F001-F510 source folders. The 510 features map into the 98 approved capability groups below. F-IDs remain traceability metadata in manifests/tests/docs.
 
 ### `crm`
-- `prospect-and-relationship-master-data/` — CRM-CAP-001 — F001;F002;F003;F004;F008
-- `lead-lifecycle-qualification-and-prioritization/` — CRM-CAP-002 — F005;F006;F007;F027
-- `opportunity-and-pipeline-governance/` — CRM-CAP-003 — F009;F010;F011;F012;F026
-- `seller-activity-and-follow-up-workspace/` — CRM-CAP-004 — F013;F014;F015;F016;F017;F018;F019
-- `sales-organization-and-coverage/` — CRM-CAP-005 — F020
-- `crm-data-operations-and-customization/` — CRM-CAP-006 — F021;F028;F029
-- `crm-conversion-and-sales-handoff/` — CRM-CAP-007 — F022;F023
-- `pipeline-analytics-and-forecasting/` — CRM-CAP-008 — F024;F025;F030
+- `master-data/` — CRM-CAP-001 — F001;F002;F003;F004;F008
+- `lead-management/` — CRM-CAP-002 — F005;F006;F007;F027
+- `pipeline/` — CRM-CAP-003 — F009;F010;F011;F012;F026
+- `activities/` — CRM-CAP-004 — F013;F014;F015;F016;F017;F018;F019
+- `sales-organization/` — CRM-CAP-005 — F020
+- `data-management/` — CRM-CAP-006 — F021;F028;F029
+- `conversions/` — CRM-CAP-007 — F022;F023
+- `analytics/` — CRM-CAP-008 — F024;F025;F030
 
 ### `sales`
 - `customer-catalog-and-pricing-foundation/` — SALES-CAP-001 — F031;F032;F033;F034;F035

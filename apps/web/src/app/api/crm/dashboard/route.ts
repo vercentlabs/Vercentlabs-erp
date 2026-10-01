@@ -6,7 +6,7 @@ import { workspaceRoute } from "@/core/workspace-route";
 
 // F024. Every KPI's formula/scope/permission-safe aggregation is
 // getCrmDashboard's own authority (services/api/src/modules/crm/
-// pipeline-analytics-and-forecasting/analytics-service.js) — this route
+// analytics/analytics-service.js) — this route
 // never computes or shapes a metric itself.
 export async function GET(request: Request) {
   return workspaceRoute(

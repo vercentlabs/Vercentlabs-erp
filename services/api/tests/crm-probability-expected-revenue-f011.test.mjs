@@ -86,22 +86,22 @@ test("F011 reporting consumes canonical expected revenue and excludes closed dea
   // Reporting reads the stored (generated) expected_revenue once, in the
   // canonical fact set, converted like amount; weighted measures only count
   // open populations (metric-definitions.js).
-  const facts=read("services/api/src/modules/crm/pipeline-analytics-and-forecasting/opportunity-facts.js");
+  const facts=read("services/api/src/modules/crm/analytics/opportunity-facts.js");
   assert.match(facts,/COALESCE\(o\.expected_revenue, 0\) \* \$\{rate\} AS weighted_reporting/);
-  const definitions=read("services/api/src/modules/crm/pipeline-analytics-and-forecasting/metric-definitions.js");
+  const definitions=read("services/api/src/modules/crm/analytics/metric-definitions.js");
   assert.match(definitions,/weighted_pipeline: \{[^}]*population: "open", measure: "weighted"/);
   assert.match(definitions,/weighted_closing: \{[^}]*population: "closing", measure: "weighted"/);
   assert.match(definitions,/open: \{ label: "Open opportunities", sql: "f\.status='open'"/);
 });
 
 test("F011 expected revenue is derived and cannot be forged through generic create/update", async () => {
-  const service=read("services/api/src/modules/crm/crm-data-operations-and-customization/resource-mutation-service.js");
+  const service=read("services/api/src/modules/crm/data-management/resource-mutation-service.js");
   assert.match(service,/CRM_OPPORTUNITY_EXPECTED_REVENUE_DERIVED/);
   assert.match(service,/Expected revenue is calculated automatically/);
 });
 
 test("F011 does not reopen generic probability mutation", () => {
-  const service=read("services/api/src/modules/crm/crm-data-operations-and-customization/record-policy.js");
+  const service=read("services/api/src/modules/crm/data-management/record-policy.js");
   assert.match(service,/controlledFields[\s\S]*"probability"/);
   assert.match(service,/Use governed Opportunity actions/);
 });
