@@ -129,6 +129,7 @@ export function checkCrmCapabilityImportBans(files) {
 // statements, nothing else, so they cannot grow back into implementations.
 export const CRM_COMPATIBILITY_BARRELS = Object.freeze([
   `${CRM_MODULE_ROOT}/activities/communications.js`,
+  `${CRM_MODULE_ROOT}/master-data/account-intelligence.js`,
 ]);
 
 export function checkCrmCompatibilityBarrels(files) {
