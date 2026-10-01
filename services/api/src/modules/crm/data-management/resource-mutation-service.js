@@ -1,39 +1,24 @@
-import { createNotification } from "../../../core/platform/notifications/index.js";
-import { assertNoQualificationMutation } from "../lead-management/lead-qualification.js";
-import { ensureDefaultLeadStages } from "../lead-management/lifecycle/stage-catalog.js";
-import { normalizeLeadRecordInput, validateLeadRecord } from "../lead-management/lead-record-validation.js";
-import { normalizeOpportunityRecordInput, opportunityChangedFields, validateOpportunityRecord } from "../pipeline/opportunity-record-validation.js";
-import { ensurePrimaryContactRoleFromLegacyField } from "../pipeline/opportunity-contacts.js";
-import { assertLeadDuplicatePolicy, hasLeadDuplicateIdentityChange, recordLeadDuplicateOverride } from "../master-data/lead-duplicates.js";
-import { assertEligibleLeadAssignee, resolveLeadAssignment } from "../lead-management/lead-governance.js";
-import { recalculateLeadScoreInternal } from "../lead-management/scoring/scoring-engine.js";
-import { projectLeadForContext } from "../lead-management/lead-security.js";
+// Generic CRM record commands: createCrmRecord / updateCrmRecord /
+// archiveCrmRecord for every resource in resource-registry.js.
+//
+// This file owns the generic mechanics (governed-resource redirects, scope and
+// owner checks, code numbering, company/branch defaults, the INSERT/UPDATE/
+// archive SQL, optimistic-concurrency guards, the outbox event and the
+// projection). Behaviour that belongs to one aggregate lives with its owner
+// and is called here at fixed points:
+//   Leads         -> lead-management/lead-record-rules.js
+//   Opportunities -> pipeline/opportunity-record-rules.js
+//   Automation    -> automation/automation-engine.js (runCrmAutomation)
+import { applyLeadCreatePolicies, applyLeadOwnerChange, archiveLeadRecord, assertLeadCreateInput, assertLeadUpdateFieldsGoverned, assertLeadUpdateInput, completeLeadCreate, completeLeadUpdate, leadOwnerRequest, leadUpdateChangedFields, logLeadConsentChanges, normalizeLeadRecordInput, prepareLeadForCreate, prepareLeadForUpdate, recordInitialLeadAssignment, takeLeadDuplicateOverrideReason } from "../lead-management/lead-record-rules.js";
+import { afterOpportunityRowUpdated, assertOpportunityCreateInput, assertOpportunityExpectedRevenueNotSupplied, assertOpportunityUpdateAllowed, completeOpportunityCreate, normalizeOpportunityRecordInput, opportunityChangedFields, opportunityOutboxSnapshot, prepareOpportunityForCreate, validateOpportunityForUpdate, withOpportunityArchiveTransition } from "../pipeline/opportunity-record-rules.js";
+import { runCrmAutomation } from "./automation/automation-engine.js";
 import { CrmError } from "./errors.js";
-import { assignLeadOwner, recordLeadAssignment } from "../lead-management/lead-assignment.js";
-import { criteriaMatches } from "../conversions/lead-conversion.js";
-import { opportunityOutboxSnapshot, resolveOpportunityInitialStage, throwOpportunityValidation, validateOpportunityRelationships } from "../pipeline/opportunity-validation.js";
-import { leadOutboxChangedFields, queueOutboxEvent } from "./outbox.js";
-import { assertGenericLeadLinkedTarget, assertLeadLinkedContentAllowed, assertLifecycleUpdate, assertOwnerAssignmentAllowed, assertSensitiveLeadMutationAllowed, assertWritableScope, canViewAllCrmRecords, projectCrmRecord, recordScope } from "./record-policy.js";
+import { queueOutboxEvent } from "./outbox.js";
+import { assertGenericLeadLinkedTarget, assertLeadLinkedContentAllowed, assertLifecycleUpdate, assertOwnerAssignmentAllowed, assertWritableScope, projectCrmRecord, recordScope } from "./record-policy.js";
+import { addParameter, camelizeRow } from "./record-utils.js";
 import { getCrmRecord, nextCode } from "./resource-query-service.js";
 import { auditColumns, definitionFor } from "./resource-registry.js";
-import { addParameter, assertLeadSourceAssignment, camelizeRow } from "./record-utils.js";
-import { GENERIC_VERSIONED_RESOURCES, assertActiveOrganizationUsers, assertCustomFieldRequiredRolloutSafe, assertLeadExpectedVersion, assertQualificationCriterionFieldsValid, assertRecordExpectedVersion, getLeadRecordForUpdate, isPlainObject, mutableEntries, normalizeStorageInput, validateCustomRecord, validateOrganizationUserReferences, validationErrorDetails } from "./resource-validation.js";
-
-
-
-// F027: fields whose change can plausibly affect the deterministic score
-// (they appear in the seeded demographic/firmographic rule predicates, or
-// are the qualifying "source change" trigger the dossier calls out).
-// Recalculation on update is scoped to these — not every field save —
-// per Prompt 4 §44's "avoid recalculating synchronously on unrelated
-// updates".
-const LEAD_SCORE_RECALC_TRIGGER_FIELDS = new Set([
-  "email",
-  "mobile",
-  "companyName",
-  "productInterest",
-  "sourceId",
-]);
+import { GENERIC_VERSIONED_RESOURCES, assertCustomFieldRequiredRolloutSafe, assertLeadExpectedVersion, assertQualificationCriterionFieldsValid, assertRecordExpectedVersion, getLeadRecordForUpdate, mutableEntries, normalizeStorageInput, validateCustomRecord, validateOrganizationUserReferences } from "./resource-validation.js";
 
 // The audit stamps an UPDATE may write on this resource's table.
 function updateStamps(resource, userParameter) {
@@ -67,15 +52,8 @@ export async function createCrmRecord(client, context, resource, input) {
       "Use the governed Sales Stages operations.",
       "CRM_SALES_STAGE_API_MOVED",
     );
-  const duplicateOverrideReason =
-    resource === "leads" ? input?.duplicateOverrideReason : undefined;
-  if (
-    resource === "leads" &&
-    Object.prototype.hasOwnProperty.call(input || {}, "duplicateOverrideReason")
-  ) {
-    input = { ...input };
-    delete input.duplicateOverrideReason;
-  }
+  let duplicateOverrideReason;
+  if (resource === "leads") ({ input, duplicateOverrideReason } = takeLeadDuplicateOverrideReason(input));
   if (resource === "sources")
     throw new CrmError(
       410,
@@ -91,47 +69,12 @@ export async function createCrmRecord(client, context, resource, input) {
     throw new CrmError(410, "Use the governed forecast operations (submit, review, period lifecycle).", "CRM_FORECAST_API_MOVED");
   const definition = definitionFor(resource);
   assertLeadLinkedContentAllowed(context, resource, input);
-  if (resource === "leads") {
-    assertNoQualificationMutation(input);
-    assertSensitiveLeadMutationAllowed(context, input);
-    if (
-      ["status", "stage", "stageId", "stageCode", "recordStatus"].some(
-        (field) => Object.prototype.hasOwnProperty.call(input, field),
-      )
-    )
-      throw new CrmError(
-        409,
-        "New Leads always begin in the configured initial lifecycle stage.",
-        "CRM_LEAD_INITIAL_STAGE_GOVERNED",
-      );
-  }
-  if (resource === "opportunities") {
-    if (Object.prototype.hasOwnProperty.call(input || {}, "expectedRevenue"))
-      throw new CrmError(
-        409,
-        "Expected revenue is calculated automatically from amount and probability.",
-        "CRM_OPPORTUNITY_EXPECTED_REVENUE_DERIVED",
-      );
-    for (const field of [
-      "status",
-      "actualCloseDate",
-      "lostReasonId",
-      "lossNotes",
-      "outcomeReasonId",
-      "outcomeNotes",
-    ]) {
-      if (Object.prototype.hasOwnProperty.call(input || {}, field))
-        throw new CrmError(409, "Opportunity lifecycle and outcome fields are governed by CRM actions.", "CRM_OPPORTUNITY_LIFECYCLE_GOVERNED");
-    }
-  }
+  if (resource === "leads") assertLeadCreateInput(context, input);
+  if (resource === "opportunities") assertOpportunityCreateInput(input);
   assertWritableScope(definition, context, input);
   await assertOwnerAssignmentAllowed(client, definition, context, input);
-  const ownerChangeRequested =
-    resource === "leads" &&
-    Object.prototype.hasOwnProperty.call(input, "ownerUserId");
-  const requestedOwnerUserId = ownerChangeRequested
-    ? input.ownerUserId || null
-    : undefined;
+  const { ownerChangeRequested, requestedOwnerUserId } =
+    resource === "leads" ? leadOwnerRequest(input) : { ownerChangeRequested: false, requestedOwnerUserId: undefined };
   const prepared =
     resource === "leads"
       ? normalizeLeadRecordInput(input)
@@ -139,40 +82,7 @@ export async function createCrmRecord(client, context, resource, input) {
         ? normalizeOpportunityRecordInput(input)
         : normalizeStorageInput(resource, input);
   if (ownerChangeRequested) delete prepared.ownerUserId;
-  if (resource === "leads") {
-    // F007 protects the immutable `new` code as the one active initial stage;
-    // administrators may rename its label but cannot deactivate or replace it.
-    prepared.status = "new";
-    // F004: original_source_id is fixed at creation and never changes again
-    // (see the update-path guard below), so attribution reporting can always
-    // answer "what acquired this lead" even after source_id is corrected
-    // later. Ignore any caller-supplied value — only what the lead is
-    // actually created with counts.
-    prepared.originalSourceId = prepared.sourceId ?? null;
-    const leadErrors = validateLeadRecord(prepared, { mode: "create" });
-    if (leadErrors.length) {
-      const first = leadErrors[0];
-      throw new CrmError(
-        400,
-        first.message,
-        first.code,
-        validationErrorDetails(leadErrors),
-      );
-    }
-    // Pure in-memory validation must fail before any DB access — only
-    // reachable here once the input is already known to be well-formed.
-    // A truly brand-new organization has no crm_lead_stages rows at all
-    // yet (nothing seeds them at organization-creation time — only
-    // listLeadStages/getLeadStages ever did, until now) — without this,
-    // the very first Lead any such organization ever creates would violate
-    // crm_leads_lifecycle_stage_fkey, since no ('org','new') row would
-    // exist for it to reference. ensureDefaultLeadStages is idempotent
-    // (a no-op once stages already exist), so this is safe to call on
-    // every creation, not just the first.
-    await ensureDefaultLeadStages(client, context);
-    if (Object.prototype.hasOwnProperty.call(prepared, "sourceId"))
-      await assertLeadSourceAssignment(client, context, prepared.sourceId);
-  }
+  if (resource === "leads") await prepareLeadForCreate(client, context, prepared);
   if (definition.codeEntity && !prepared[definition.codeField])
     prepared[definition.codeField] = await nextCode(
       client,
@@ -205,69 +115,14 @@ export async function createCrmRecord(client, context, resource, input) {
     assertQualificationCriterionFieldsValid(prepared);
   await assertGenericLeadLinkedTarget(client, context, resource, prepared);
   let leadDuplicateEvaluation = null;
-  if (resource === "leads") {
-    // F008 commit-time duplicate protection runs before F005 assignment
-    // evaluation so a rejected duplicate cannot consume round-robin state.
-    leadDuplicateEvaluation = await assertLeadDuplicatePolicy(
-      client,
-      context,
-      prepared,
-      { overrideReason: duplicateOverrideReason, lock: true },
-    );
-  }
   let initialLeadAssignment = null;
-  if (resource === "leads") {
-    if (ownerChangeRequested && requestedOwnerUserId) {
-      try {
-        await assertEligibleLeadAssignee(
-          client,
-          context,
-          requestedOwnerUserId,
-          {
-            companyId: prepared.companyId || null,
-            branchId: prepared.branchId || null,
-          },
-        );
-      } catch (error) {
-        if (error?.code === "CRM_LEAD_ASSIGNEE_SCOPE_INVALID")
-          throw new CrmError(409, error.message, error.code);
-        throw error;
-      }
-      prepared.ownerUserId = requestedOwnerUserId;
-      initialLeadAssignment = {
-        ownerUserId: requestedOwnerUserId,
-        policyId: null,
-        reason: "manual:create",
-      };
-    } else if (!ownerChangeRequested) {
-      initialLeadAssignment = await resolveLeadAssignment(
-        client,
-        context,
-        prepared,
-      );
-      prepared.ownerUserId = initialLeadAssignment.ownerUserId;
-    }
-  }
-  if (resource === "opportunities") {
-    prepared.status = "open";
-    prepared.actualCloseDate = null;
-    prepared.lostReasonId = null;
-    prepared.lossNotes = null;
-    prepared.outcomeReasonId = null;
-    prepared.outcomeNotes = null;
-    // Manual creation is owned by the actor unless an eligible owner was
-    // explicitly selected. This avoids accidentally creating a broadly
-    // visible unowned Opportunity.
-    prepared.ownerUserId ||= context.userId;
-    throwOpportunityValidation(validateOpportunityRecord(prepared, { mode: "create" }));
-    await resolveOpportunityInitialStage(client, context, prepared);
-    await validateOpportunityRelationships(client, context, prepared);
-  }
-  // F027 Prompt 4: score is no longer set pre-insert by the legacy
-  // uncapped/undecayed/unversioned rule engine (System B) — it defaults to
-  // 0 via the column default and is computed by the real deterministic
-  // scoring engine (System A, recalculateLeadScoreInternal) once the row
-  // exists, right below.
+  if (resource === "leads")
+    ({ leadDuplicateEvaluation, initialLeadAssignment } = await applyLeadCreatePolicies(client, context, prepared, {
+      duplicateOverrideReason,
+      ownerChangeRequested,
+      requestedOwnerUserId,
+    }));
+  if (resource === "opportunities") await prepareOpportunityForCreate(client, context, prepared);
   if (resource === "custom-records")
     await validateCustomRecord(client, context, prepared);
   await validateOrganizationUserReferences(
@@ -310,22 +165,7 @@ export async function createCrmRecord(client, context, resource, input) {
   );
   let created = camelizeRow(result.rows[0]);
   if (resource === "leads") {
-    await recordLeadDuplicateOverride(
-      client,
-      context,
-      created.id,
-      leadDuplicateEvaluation,
-      "create",
-    );
-    const scored = await recalculateLeadScoreInternal(client, context, created.id, "Initial lead scoring");
-    if (scored)
-      created = {
-        ...created,
-        score: scored.score,
-        leadGrade: scored.grade,
-        scoreCalculatedAt: scored.calculatedAt,
-        scoreExplanation: scored.explanation,
-      };
+    created = await completeLeadCreate(client, context, created, leadDuplicateEvaluation);
     await runCrmAutomation(
       client,
       context,
@@ -336,22 +176,7 @@ export async function createCrmRecord(client, context, resource, input) {
     );
   }
   if (resource === "opportunities") {
-    await client.query(
-      `INSERT INTO tenant.crm_opportunity_stage_history (organization_id, opportunity_id, to_stage_id, probability, changed_by, note) VALUES ($1, $2, $3, $4, $5, 'Opportunity created')`,
-      [
-        context.organizationId,
-        created.id,
-        created.stageId,
-        created.probability,
-        context.userId,
-      ],
-    );
-    // F003 gap-closure: keep tenant.crm_opportunity_contact_roles in sync
-    // with the classic single contactId field regardless of entry point —
-    // see ensurePrimaryContactRoleFromLegacyField's own comment.
-    if (created.contactId) {
-      await ensurePrimaryContactRoleFromLegacyField(client, context, created.id, created.contactId);
-    }
+    await completeOpportunityCreate(client, context, created);
     await runCrmAutomation(
       client,
       context,
@@ -369,53 +194,8 @@ export async function createCrmRecord(client, context, resource, input) {
     created.id,
     resource === "opportunities" ? opportunityOutboxSnapshot(created) : created,
   );
-  if (resource === "leads" && created.ownerUserId)
-    await recordLeadAssignment(client, context, {
-      leadId: created.id,
-      previousOwnerUserId: null,
-      ownerUserId: created.ownerUserId,
-      policyId: initialLeadAssignment?.policyId || null,
-      reason: initialLeadAssignment?.reason || "manual:create",
-      evaluationTrace: initialLeadAssignment?.trace || null,
-      leadName: created.fullName || created.firstName || null,
-    });
+  if (resource === "leads") await recordInitialLeadAssignment(client, context, created, initialLeadAssignment);
   return projectCrmRecord(client, context, resource, created);
-}
-
-// Turns a manual consent-checkbox toggle on the Lead edit form into a
-// permanent tenant.crm_consent_events row per changed channel, instead of
-// leaving consent as a mutable boolean with no evidence trail — the same
-// gap Zoho's GDPR Compliance module closes with its "Data Processing
-// Basis" log. doNotContact is recorded on the "all" channel since it
-// suppresses every channel at once. record-policy.js already makes
-// consent-events create-only/immutable once written.
-const CONSENT_CHANNEL_FIELDS = Object.freeze({
-  consentEmail: "email",
-  consentSms: "sms",
-  consentWhatsapp: "whatsapp",
-});
-async function logLeadConsentChanges(client, context, leadId, before, after) {
-  const events = [];
-  for (const [field, channel] of Object.entries(CONSENT_CHANNEL_FIELDS)) {
-    if (before[field] !== after[field] && after[field] !== undefined)
-      events.push({ channel, action: after[field] ? "granted" : "withdrawn" });
-  }
-  if (before.doNotContact !== after.doNotContact && after.doNotContact !== undefined)
-    events.push({ channel: "all", action: after.doNotContact ? "suppressed" : "resubscribed" });
-  for (const event of events)
-    await client.query(
-      `INSERT INTO tenant.crm_consent_events(organization_id,company_id,lead_id,channel,purpose,action,lawful_basis,source,evidence,created_by)
-       VALUES($1,$2,$3,$4,'sales',$5,'consent','manual',$6::jsonb,$7)`,
-      [
-        context.organizationId,
-        after.companyId || null,
-        leadId,
-        event.channel,
-        event.action,
-        JSON.stringify({ changedVia: "lead_edit_form" }),
-        context.userId,
-      ],
-    );
 }
 
 export async function updateCrmRecord(
@@ -437,15 +217,8 @@ export async function updateCrmRecord(
       "Use the governed Sales Stages operations.",
       "CRM_SALES_STAGE_API_MOVED",
     );
-  const duplicateOverrideReason =
-    resource === "leads" ? input?.duplicateOverrideReason : undefined;
-  if (
-    resource === "leads" &&
-    Object.prototype.hasOwnProperty.call(input || {}, "duplicateOverrideReason")
-  ) {
-    input = { ...input };
-    delete input.duplicateOverrideReason;
-  }
+  let duplicateOverrideReason;
+  if (resource === "leads") ({ input, duplicateOverrideReason } = takeLeadDuplicateOverrideReason(input));
   if (resource === "sources")
     throw new CrmError(
       410,
@@ -453,10 +226,7 @@ export async function updateCrmRecord(
       "CRM_LEAD_SOURCE_API_MOVED",
     );
   const definition = definitionFor(resource);
-  if (resource === "leads") {
-    assertNoQualificationMutation(input);
-    assertSensitiveLeadMutationAllowed(context, input);
-  }
+  if (resource === "leads") assertLeadUpdateInput(context, input);
   const before =
     resource === "leads"
       ? await getLeadRecordForUpdate(client, context, id)
@@ -503,10 +273,7 @@ export async function updateCrmRecord(
     if (before.activityType === "task" || requestedActivityType === "task")
       throw new CrmError(410, "Use the governed Tasks operations.", "CRM_TASK_API_MOVED");
   }
-  if (resource === "opportunities" && before.status === "archived")
-    throw new CrmError(409, "Archived Opportunities are read-only.", "CRM_OPPORTUNITY_ARCHIVED");
-  if (resource === "opportunities" && Object.prototype.hasOwnProperty.call(input || {}, "ownerUserId") && !input.ownerUserId && !canViewAllCrmRecords(context))
-    throw new CrmError(403, "You do not have permission to leave this Opportunity unassigned.", "CRM_OPPORTUNITY_OWNER_REQUIRED");
+  if (resource === "opportunities") assertOpportunityUpdateAllowed(context, before, input);
   // Checkpoint audit (Prompt 3 continuation): initially suspected Opportunities
   // had no guard against stageId/status/probability/outcome fields being
   // forged through this generic path. FALSE ALARM — record-policy.js's
@@ -517,43 +284,12 @@ export async function updateCrmRecord(
   // ("outcome and stage-owned fields cannot be forged through generic
   // PATCH"). Do not re-add a redundant/conflicting guard here — this was
   // caught by re-running that test after an incorrect first attempt.
-  if (
-    resource === "leads" &&
-    ["status", "stage", "stageId", "stageCode", "recordStatus"].some(
-      (field) => Object.prototype.hasOwnProperty.call(input, field),
-    )
-  )
-    throw new CrmError(
-      409,
-      "Use the governed Lead lifecycle transition action.",
-      "CRM_LEAD_STAGE_ACTION_REQUIRED",
-    );
-  if (
-    resource === "leads" &&
-    Object.prototype.hasOwnProperty.call(input, "originalSourceId")
-  )
-    throw new CrmError(
-      409,
-      "Original source is fixed at creation and cannot be edited.",
-      "CRM_LEAD_ORIGINAL_SOURCE_IMMUTABLE",
-    );
+  if (resource === "leads") assertLeadUpdateFieldsGoverned(input);
   assertWritableScope(definition, context, input);
   await assertOwnerAssignmentAllowed(client, definition, context, input);
-  const ownerChangeRequested =
-    resource === "leads" &&
-    Object.prototype.hasOwnProperty.call(input, "ownerUserId");
-  const requestedOwnerUserId = ownerChangeRequested
-    ? input.ownerUserId || null
-    : undefined;
-  if (
-    resource === "opportunities" &&
-    Object.prototype.hasOwnProperty.call(input || {}, "expectedRevenue")
-  )
-    throw new CrmError(
-      409,
-      "Expected revenue is calculated automatically from amount and probability.",
-      "CRM_OPPORTUNITY_EXPECTED_REVENUE_DERIVED",
-    );
+  const { ownerChangeRequested, requestedOwnerUserId } =
+    resource === "leads" ? leadOwnerRequest(input) : { ownerChangeRequested: false, requestedOwnerUserId: undefined };
+  if (resource === "opportunities") assertOpportunityExpectedRevenueNotSupplied(input);
   assertLifecycleUpdate(resource, before, input, context);
   const prepared =
     resource === "leads"
@@ -564,65 +300,9 @@ export async function updateCrmRecord(
   if (ownerChangeRequested) delete prepared.ownerUserId;
   let leadDuplicateEvaluation = null;
   let leadScoreRecalcNeeded = false;
-  if (resource === "leads") {
-    const leadErrors = validateLeadRecord(prepared, {
-      mode: "update",
-      existing: before,
-    });
-    if (leadErrors.length) {
-      const first = leadErrors[0];
-      throw new CrmError(
-        400,
-        first.message,
-        first.code,
-        validationErrorDetails(leadErrors),
-      );
-    }
-    if (Object.prototype.hasOwnProperty.call(prepared, "sourceId"))
-      await assertLeadSourceAssignment(client, context, prepared.sourceId, {
-        allowUnchangedInactive: true,
-        currentSourceId: before.sourceId,
-      });
-    if (hasLeadDuplicateIdentityChange(prepared)) {
-      leadDuplicateEvaluation = await assertLeadDuplicatePolicy(
-        client,
-        context,
-        { ...before, ...prepared },
-        {
-          excludeLeadId: id,
-          overrideReason: duplicateOverrideReason,
-          lock: true,
-        },
-      );
-    }
-    // F027 Prompt 4: score is no longer overwritten unconditionally by the
-    // legacy uncapped/undecayed/unversioned rule engine on every field
-    // save. The real deterministic scoring engine (System A) recalculates
-    // — after this UPDATE commits, so it reads the merged final values —
-    // only when a scoring-relevant field actually changed (create,
-    // qualifying-field change, source change), not on every unrelated
-    // edit (§44: "avoid recalculating synchronously on unrelated updates").
-    leadScoreRecalcNeeded = Object.keys(prepared).some((field) => LEAD_SCORE_RECALC_TRIGGER_FIELDS.has(field));
-  }
-  if (resource === "opportunities") {
-    // before.expectedCloseDate comes straight from getCrmRecord, which
-    // never stringifies DATE columns — node-postgres returns them as real
-    // Date instances. Every update merges before+prepared into one
-    // candidate for revalidation (even one that never touches this field),
-    // so without this normalization, validateOpportunityRecord's strict
-    // YYYY-MM-DD regex check rejected a Date instance on literally every
-    // update to an Opportunity that already had a close date set — the
-    // same class of bug already fixed on the client side for DateInput
-    // (apps/web/.../DateTimeInput.tsx), now closed at the server boundary too.
-    const normalizedBefore = before.expectedCloseDate instanceof Date
-      ? { ...before, expectedCloseDate: before.expectedCloseDate.toISOString().slice(0, 10) }
-      : before;
-    const candidate = { ...normalizedBefore, ...prepared };
-    throwOpportunityValidation(validateOpportunityRecord(candidate, { mode: "update" }));
-    const relationshipFields = new Set(["companyId", "branchId", "leadId", "partyId", "contactId", "ownerUserId"]);
-    if (Object.keys(prepared).some((field) => relationshipFields.has(field)))
-      await validateOpportunityRelationships(client, context, prepared, before);
-  }
+  if (resource === "leads")
+    ({ leadDuplicateEvaluation, leadScoreRecalcNeeded } = await prepareLeadForUpdate(client, context, id, prepared, before, duplicateOverrideReason));
+  if (resource === "opportunities") await validateOpportunityForUpdate(client, context, prepared, before);
   if (resource === "custom-records") {
     const callerSuppliedData = Object.prototype.hasOwnProperty.call(prepared, "data");
     prepared.objectDefinitionId ??= before.objectDefinitionId;
@@ -801,45 +481,14 @@ export async function updateCrmRecord(
     }
     updated = camelizeRow(result.rows[0]);
     if (resource === "leads") await logLeadConsentChanges(client, context, id, before, updated);
-    if (resource === "opportunities" && Object.prototype.hasOwnProperty.call(input, "contactId")) {
-      await ensurePrimaryContactRoleFromLegacyField(client, context, id, updated.contactId);
-    }
+    if (resource === "opportunities") await afterOpportunityRowUpdated(client, context, id, input, updated);
   }
-  if (ownerChangeRequested) {
-    const assignment = await assignLeadOwner(
-      client,
-      context,
-      id,
-      requestedOwnerUserId,
-      { reason: "manual:patch" },
-    );
-    updated = assignment.lead;
-  }
-  if (resource === "leads" && leadDuplicateEvaluation?.overrideReason) {
-    await recordLeadDuplicateOverride(
-      client,
-      context,
-      id,
-      leadDuplicateEvaluation,
-      "update",
-    );
-  }
-  if (resource === "leads" && leadScoreRecalcNeeded) {
-    const scored = await recalculateLeadScoreInternal(client, context, id, "Lead fields updated");
-    if (scored)
-      updated = {
-        ...updated,
-        score: scored.score,
-        leadGrade: scored.grade,
-        scoreCalculatedAt: scored.calculatedAt,
-        scoreExplanation: scored.explanation,
-      };
-  }
+  if (ownerChangeRequested) updated = await applyLeadOwnerChange(client, context, id, requestedOwnerUserId);
+  if (resource === "leads")
+    updated = await completeLeadUpdate(client, context, id, updated, leadDuplicateEvaluation, leadScoreRecalcNeeded);
   const changedFields =
     resource === "leads"
-      ? leadOutboxChangedFields(before, updated, Object.keys(input)).filter(
-          (field) => field !== "ownerUserId",
-        )
+      ? leadUpdateChangedFields(before, updated, Object.keys(input))
       : resource === "opportunities"
         ? opportunityChangedFields(before, updated, Object.keys(input))
         : undefined;
@@ -952,22 +601,7 @@ export async function archiveCrmRecord(
     );
   }
 
-  if (resource === "leads") {
-    if (before.recordStatus === "archived")
-      return projectLeadForContext(context, before);
-    if (before.recordStatus === "converted")
-      throw new CrmError(409, "Converted Leads cannot be archived.", "CRM_LEAD_RECORD_CLOSED");
-    const userParameter = addParameter(parameters, context.userId);
-    const result = await client.query(
-      `UPDATE tenant.crm_leads record SET record_status='archived',updated_by=${userParameter},updated_at=now()
-       WHERE record.organization_id=$1 AND record.id=$2${scope} RETURNING record.*`,
-      parameters,
-    );
-    if (!result.rows[0]) throw new CrmError(404, "CRM record not found.");
-    const record = camelizeRow(result.rows[0]);
-    await queueOutboxEvent(client, context, "crm.leads.archived", "leads", id, record);
-    return projectLeadForContext(context, record);
-  }
+  if (resource === "leads") return archiveLeadRecord(client, context, id, before, parameters, scope);
 
   const archiveStatuses = {
     opportunities: "archived",
@@ -1049,32 +683,15 @@ export async function archiveCrmRecord(
   const archiveVersionGuard = archiveVersionChecked
     ? ` AND date_trunc('milliseconds', record.updated_at) = date_trunc('milliseconds', ${addParameter(parameters, before.updatedAt)}::timestamptz)`
     : "";
-  // Opportunities specifically: this UPDATE touches `status`, one of the
-  // columns tenant.crm_opportunity_lifecycle_write_guard (migration 098)
-  // watches, and that trigger only allows the change while the governed
-  // session flag reads 'allowed'. Discovered live (not theoretical): a
-  // pooled connection that had ever run a real stage/probability
-  // transition left the flag at '' (node-postgres never resets custom GUCs
-  // on client.release()), so archiving an Opportunity would then fail with
-  // "Use the governed Opportunity stage/probability service" — while a
-  // connection that had never touched the flag (current_setting(...,true)
-  // returns NULL there, and `NULL <> 'allowed'` is NULL, which PL/pgSQL's
-  // IF treats as false) let it through. Same set-then-reset pattern
-  // moveOpportunityStage/updateOpportunityProbability/restoreOpportunity
-  // already use, so archiving behaves consistently regardless of which
-  // pooled connection happens to service the request.
-  if (resource === "opportunities")
-    await client.query("SELECT set_config('app.crm_opportunity_lifecycle_transition','allowed',true)");
-  let result;
-  try {
-    result = await client.query(
+  // Opportunities: the status write is allowed only inside the governed
+  // lifecycle-transition flag (see withOpportunityArchiveTransition).
+  const archive = () =>
+    client.query(
       `UPDATE ${definition.table} record SET ${[`${definition.statusColumn} = ${statusParameter}`, ...updateStamps(resource, userParameter)].join(", ")} WHERE record.organization_id = $1 AND record.id = $2${scope}${archiveVersionGuard} RETURNING record.*`,
       parameters,
     );
-  } finally {
-    if (resource === "opportunities")
-      await client.query("SELECT set_config('app.crm_opportunity_lifecycle_transition','',true)");
-  }
+  const result =
+    resource === "opportunities" ? await withOpportunityArchiveTransition(client, archive) : await archive();
   if (!result.rows[0]) {
     if (archiveVersionChecked)
       throw new CrmError(
@@ -1096,254 +713,6 @@ export async function archiveCrmRecord(
   return record;
 }
 
-
-
-// Automation entity type → CRM web route segment.
-const CRM_NOTIFICATION_ROUTE = Object.freeze({ lead: "leads", opportunity: "opportunities", party: "accounts", contact: "contacts", campaign: "campaigns", activity: "activities" });
-
-export async function runCrmAutomation(
-  client,
-  context,
-  eventType,
-  entityType,
-  entityId,
-  payload,
-) {
-  const rules = await client.query(
-    `SELECT * FROM tenant.crm_automation_rules WHERE organization_id = $1 AND event_type = $2 AND status = 'active' ORDER BY sequence, name`,
-    [context.organizationId, eventType],
-  );
-  const results = [];
-  for (const rule of rules.rows) {
-    if (!criteriaMatches(payload, rule.conditions)) {
-      results.push({ ruleId: rule.id, status: "skipped" });
-      continue;
-    }
-    const output = [];
-    await client.query("SAVEPOINT crm_automation_rule");
-    try {
-      for (const action of Array.isArray(rule.actions) ? rule.actions : []) {
-        if (action.type === "create_activity") {
-          const created = await createCrmRecord(client, context, "activities", {
-            entityType,
-            entityId,
-            activityType: action.activityType || "task",
-            subject:
-              action.subject ||
-              `Follow up: ${payload.name || payload.fullName || entityType}`,
-            description: action.description || null,
-            assignedTo:
-              action.assignedTo || payload.ownerUserId || context.userId,
-            dueAt: new Date(
-              Date.now() + Number(action.delayMinutes || 0) * 60000,
-            ).toISOString(),
-          });
-          output.push({ action: action.type, id: created.id });
-        }
-        if (action.type === "notification" && action.userId) {
-          await assertActiveOrganizationUsers(client, context, [action.userId]);
-          await createNotification(client, {
-            organizationId: context.organizationId,
-            userId: action.userId,
-            category: "crm_automation",
-            title: action.title || "CRM automation",
-            message: action.message || "A CRM automation rule ran.",
-            // Always the triggering record's real route, so the link works and
-            // notification redaction (notification-visibility.js) can
-            // re-check access to it; a free-form href is not accepted.
-            href: `/crm/${CRM_NOTIFICATION_ROUTE[entityType] ?? `${entityType}s`}/${entityId}`,
-            entityType: `crm_${entityType}`,
-            entityId,
-          });
-          output.push({ action: action.type });
-        }
-        if (action.type === "update_record" && isPlainObject(action.fields)) {
-          const targetResource =
-            entityType === "lead"
-              ? "leads"
-              : entityType === "opportunity"
-                ? "opportunities"
-                : entityType === "activity"
-                  ? "activities"
-                  : null;
-          if (!targetResource)
-            throw new CrmError(
-              400,
-              `Automation cannot update ${entityType} records.`,
-            );
-          await updateCrmRecord(
-            client,
-            context,
-            targetResource,
-            entityId,
-            action.fields,
-          );
-          output.push({ action: action.type, resource: targetResource });
-        }
-        if (action.type === "assign_owner" && action.userId) {
-          const targetResource =
-            entityType === "lead"
-              ? "leads"
-              : entityType === "opportunity"
-                ? "opportunities"
-                : entityType === "activity"
-                  ? "activities"
-                  : null;
-          const ownerField =
-            targetResource === "activities" ? "assignedTo" : "ownerUserId";
-          if (!targetResource)
-            throw new CrmError(
-              400,
-              `Automation cannot assign ${entityType} records.`,
-            );
-          const membership = await client.query(
-            `SELECT 1 FROM public.organization_memberships WHERE organization_id = $1 AND user_id = $2 AND status = 'active'`,
-            [context.organizationId, action.userId],
-          );
-          if (!membership.rows[0])
-            throw new CrmError(
-              409,
-              "Automation owner must be an active organization member.",
-            );
-          await updateCrmRecord(client, context, targetResource, entityId, {
-            [ownerField]: action.userId,
-          });
-          output.push({ action: action.type, userId: action.userId });
-        }
-        if (action.type === "enroll_sequence" && action.sequenceId) {
-          const targetField =
-            entityType === "lead"
-              ? "leadId"
-              : entityType === "opportunity"
-                ? "opportunityId"
-                : entityType === "contact"
-                  ? "contactId"
-                  : null;
-          if (!targetField)
-            throw new CrmError(
-              400,
-              `Automation cannot enroll ${entityType} in a sequence.`,
-            );
-          const enrollment = await createCrmRecord(
-            client,
-            context,
-            "sequence-enrollments",
-            {
-              sequenceId: action.sequenceId,
-              [targetField]: entityId,
-              currentStep: 0,
-              nextRunAt: new Date(
-                Date.now() + Number(action.delayMinutes || 0) * 60000,
-              ).toISOString(),
-              status: "active",
-              enrolledBy: context.userId,
-            },
-          );
-          output.push({ action: action.type, id: enrollment.id });
-        }
-        if (action.type === "create_recommendation" && action.title) {
-          const recommendation = await createCrmRecord(
-            client,
-            context,
-            "recommendations",
-            {
-              companyId: payload.companyId || context.activeCompanyId,
-              entityType,
-              entityId,
-              recommendationType:
-                action.recommendationType || "next_best_action",
-              title: action.title,
-              rationale:
-                action.rationale || "Created by a governed CRM automation.",
-              actionPayload: action.actionPayload || {},
-              priority: action.priority || "medium",
-              confidence: action.confidence ?? null,
-              source: "rules",
-              dueAt: action.dueAt || null,
-              status: "open",
-            },
-          );
-          output.push({ action: action.type, id: recommendation.id });
-        }
-        if (action.type === "queue_communication") {
-          const targetField =
-            entityType === "lead"
-              ? "leadId"
-              : entityType === "opportunity"
-                ? "opportunityId"
-                : entityType === "contact"
-                  ? "contactId"
-                  : entityType === "party"
-                    ? "partyId"
-                    : null;
-          if (!targetField)
-            throw new CrmError(
-              400,
-              `Automation cannot communicate with ${entityType}.`,
-            );
-          const communication = await createCrmRecord(
-            client,
-            context,
-            "communications",
-            {
-              channel: action.channel || "email",
-              direction: "outbound",
-              [targetField]: entityId,
-              provider: action.provider || "outbox",
-              subject: action.subject || null,
-              body: action.body || "",
-              fromAddress: action.fromAddress || null,
-              toAddresses: Array.isArray(action.toAddresses)
-                ? action.toAddresses
-                : [],
-              status: "queued",
-              occurredAt: new Date().toISOString(),
-              metadata: { automationRuleId: rule.id },
-            },
-          );
-          output.push({ action: action.type, id: communication.id });
-        }
-        if (action.type === "emit_event" && action.eventType) {
-          await queueOutboxEvent(
-            client,
-            context,
-            action.eventType,
-            entityType,
-            entityId,
-            isPlainObject(action.payload) ? action.payload : payload,
-          );
-          output.push({ action: action.type, eventType: action.eventType });
-        }
-      }
-      await client.query(
-        `INSERT INTO tenant.crm_automation_runs (organization_id, rule_id, event_type, entity_type, entity_id, status, result, finished_at) VALUES ($1, $2, $3, $4, $5, 'succeeded', $6, now())`,
-        [
-          context.organizationId,
-          rule.id,
-          eventType,
-          entityType,
-          entityId,
-          output,
-        ],
-      );
-      await client.query("RELEASE SAVEPOINT crm_automation_rule");
-      results.push({ ruleId: rule.id, status: "succeeded", output });
-    } catch (error) {
-      await client.query("ROLLBACK TO SAVEPOINT crm_automation_rule");
-      await client.query("RELEASE SAVEPOINT crm_automation_rule");
-      await client.query(
-        `INSERT INTO tenant.crm_automation_runs (organization_id, rule_id, event_type, entity_type, entity_id, status, error_message, finished_at) VALUES ($1, $2, $3, $4, $5, 'failed', $6, now())`,
-        [
-          context.organizationId,
-          rule.id,
-          eventType,
-          entityType,
-          entityId,
-          String(error?.message || error),
-        ],
-      );
-      results.push({ ruleId: rule.id, status: "failed" });
-    }
-  }
-  return results;
-}
+// Compatibility: runCrmAutomation lives in automation/automation-engine.js;
+// crm/index.js and existing importers still take it from this file.
+export { runCrmAutomation };

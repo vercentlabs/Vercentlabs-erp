@@ -93,6 +93,37 @@ export function checkCrmSelfBoundaryImports(files) {
   return problems;
 }
 
+// Capability edges that must stay one-way inside CRM. The key may not import
+// any listed capability at runtime. Each ban carries its reason.
+export const CRM_CAPABILITY_IMPORT_BANS = Object.freeze({
+  "data-management": Object.freeze({
+    conversions: "conversion uses the CRM record kernel, never the other way round; shared helpers belong in data-management (e.g. condition-matching.js)",
+  }),
+});
+
+export function checkCrmCapabilityImportBans(files) {
+  const problems = [];
+  for (const { path: file, source } of files) {
+    if (!file.startsWith(`${CRM_MODULE_ROOT}/`) || !/\.(js|mjs)$/.test(file)) continue;
+    const capability = file.slice(CRM_MODULE_ROOT.length + 1).split("/")[0];
+    const bans = CRM_CAPABILITY_IMPORT_BANS[capability];
+    if (!bans) continue;
+    const specifiers = [
+      ...source.matchAll(/\b(?:import|export)\b[^;]*?\bfrom\s*["']([^"']+)["']/gs),
+      ...source.matchAll(/\bimport\(\s*["']([^"']+)["']\s*\)/g),
+    ].map((match) => match[1]);
+    for (const specifier of specifiers) {
+      if (!specifier.startsWith(".")) continue;
+      const target = posixPath.normalize(posixPath.join(posixPath.dirname(file), specifier));
+      if (!target.startsWith(`${CRM_MODULE_ROOT}/`)) continue;
+      const targetCapability = target.slice(CRM_MODULE_ROOT.length + 1).split("/")[0];
+      if (bans[targetCapability])
+        problems.push(`${file} imports ${targetCapability} ("${specifier}"); ${capability} must not depend on ${targetCapability}: ${bans[targetCapability]}`);
+    }
+  }
+  return problems;
+}
+
 // ------------------------------------------------------------- api layout
 
 export const API_CORE_DOMAINS = Object.freeze(["access", "auth", "organization", "billing", "platform", "security", "release"]);

@@ -95,7 +95,8 @@ test("F011 reporting consumes canonical expected revenue and excludes closed dea
 });
 
 test("F011 expected revenue is derived and cannot be forged through generic create/update", async () => {
-  const service=read("services/api/src/modules/crm/data-management/resource-mutation-service.js");
+  // The guard is Opportunity policy (pipeline/opportunity-record-rules.js), applied by the generic record commands.
+  const service=read("services/api/src/modules/crm/data-management/resource-mutation-service.js")+read("services/api/src/modules/crm/pipeline/opportunity-record-rules.js");
   assert.match(service,/CRM_OPPORTUNITY_EXPECTED_REVENUE_DERIVED/);
   assert.match(service,/Expected revenue is calculated automatically/);
 });

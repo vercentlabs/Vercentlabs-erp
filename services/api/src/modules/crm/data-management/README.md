@@ -2,11 +2,13 @@
 
 Path: `services/api/src/modules/crm/data-management/`
 
-Owns F021 Lead import and export (`import-export/lead-import.js`, `import-export/lead-export.js`), F028 Custom fields and tags and F029 Bulk actions. It also holds the shared CRM record infrastructure every other capability uses: `errors.js`, `record-policy.js`, `crm-access-scope.js`, `record-utils.js`, `outbox.js`, the generic resource layer (`resource-registry.js`, `resource-query-service.js`, `resource-mutation-service.js` including `runCrmAutomation`, `resource-validation.js`, `resource-options.js`) and `offline-sync.js` for mobile.
+Owns F021 Lead import and export (`import-export/lead-import.js`, `import-export/lead-export.js`), F028 Custom fields and tags and F029 Bulk actions. It also holds the shared CRM record infrastructure every other capability uses: `errors.js`, `record-policy.js`, `crm-access-scope.js`, `record-utils.js`, `outbox.js`, the generic resource layer (`resource-registry.js`, `resource-query-service.js`, `resource-mutation-service.js`, `resource-validation.js`, `resource-options.js`), `condition-matching.js` (the criteria matcher used by automation and record policy), `automation/automation-engine.js` (`runCrmAutomation`) and `offline-sync.js` for mobile.
 
 Main files for its own features: `import-export/`, `custom-field-runtime.js`, `tag-assignment.js`. Import reuses the normal lead intake command (`master-data/lead-acquisition.js`) rather than writing Leads itself.
 
-Depends on: most other capabilities (the resource layer calls lead, opportunity, activity and conversion rules), so it currently has two-way dependencies; see the refactor baseline.
+`resource-mutation-service.js` is the generic create/update/archive coordinator; Lead and Opportunity behaviour it applies lives with its owner (`lead-management/lead-record-rules.js`, `pipeline/opportunity-record-rules.js`). It must not import `conversions` (enforced by `checkCrmCapabilityImportBans`).
+
+Depends on: lead-management, pipeline, activities, master-data and sales-organization still have reverse edges from record policy, queries, validation, offline sync and import; see the refactor reports.
 
 ## Boundary
 

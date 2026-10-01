@@ -4,7 +4,7 @@ Path: `services/api/src/modules/crm/lead-management/`
 
 Owns F005 Lead assignment, F006 Lead qualification, F007 Lead stages and statuses and F027 Basic lead scoring: explainable routing, qualification, lifecycle governance and prioritization.
 
-Main files: `lead-operations.js`, `lead-governance.js`, `lead-security.js` (lead field projection, used across CRM), `lead-qualification.js`, `lead-assignment.js`, `lead-intelligence.js` (SLA, nurture queue), `assignment/`, `lifecycle/`, `scoring/`.
+Main files: `lead-record-rules.js` (the Lead rules applied by the generic record commands: create/update/archive guards, duplicates, assignment, scoring, consent log), `lead-operations.js`, `lead-governance.js`, `lead-security.js` (lead field projection, used across CRM), `lead-qualification.js`, `lead-assignment.js`, `lead-intelligence.js` (SLA, nurture queue), `assignment/`, `lifecycle/`, `scoring/`.
 
 Depends on: `data-management` (shared record infrastructure), `sales-organization` (territory matching), `master-data` (lead source validation).
 

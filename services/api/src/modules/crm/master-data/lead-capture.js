@@ -2,7 +2,8 @@ import { evaluateLeadDuplicateRisk } from "./lead-duplicates.js";
 import { resolveIngestionLeadSource } from "./lead-source-validation.js";
 import { getEligibleLeadAssignee } from "../lead-management/lead-governance.js";
 import { CrmError } from "../data-management/errors.js";
-import { createCrmRecord, runCrmAutomation } from "../data-management/resource-mutation-service.js";
+import { runCrmAutomation } from "../data-management/automation/automation-engine.js";
+import { createCrmRecord } from "../data-management/resource-mutation-service.js";
 import { recordLeadTouchpoint } from "./lead-attribution.js";
 import { crmLeadAcquisitionHash } from "./lead-acquisition.js";
 

@@ -1,5 +1,5 @@
 import { crmOwnerScopeSql } from "../data-management/crm-access-scope.js";
-import { runCrmAutomation } from "../data-management/resource-mutation-service.js";
+import { runCrmAutomation } from "../data-management/automation/automation-engine.js";
 import { recalculateLeadScoreInternal } from "./scoring/scoring-engine.js";
 import { publishDomainEvent } from "../../../core/platform/events/index.js";
 

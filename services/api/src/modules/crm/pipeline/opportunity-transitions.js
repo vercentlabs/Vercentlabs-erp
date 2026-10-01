@@ -1,5 +1,5 @@
 import { CrmError } from "../data-management/errors.js";
-import { runCrmAutomation } from "../data-management/resource-mutation-service.js";
+import { runCrmAutomation } from "../data-management/automation/automation-engine.js";
 import { queueOutboxEvent } from "../data-management/outbox.js";
 import { recordScope } from "../data-management/record-policy.js";
 import { resources } from "../data-management/resource-registry.js";

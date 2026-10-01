@@ -1,7 +1,7 @@
 import { canViewSensitiveLeadContent, firstSensitiveLeadInputField, projectLeadForContext } from "../lead-management/lead-security.js";
 import { communicationVisibilitySql, projectCrmCommunication } from "../activities/communications/communication-projection.js";
 import { CrmError } from "./errors.js";
-import { comparable } from "../conversions/lead-conversion.js";
+import { comparable } from "./condition-matching.js";
 import { getCrmRecord } from "./resource-query-service.js";
 import { resources } from "./resource-registry.js";
 import { addParameter } from "./record-utils.js";

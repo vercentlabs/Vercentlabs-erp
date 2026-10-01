@@ -28,11 +28,6 @@ function assertCanCreateRelationshipRecords(context) {
     throw new CrmError(403, "You do not have permission to create Accounts and Contacts.", "PERMISSION_DENIED");
 }
 
-export function comparable(value) {
-  if (value === null || value === undefined) return "";
-  return typeof value === "string" ? value.trim().toLowerCase() : value;
-}
-
 
 // F027 Prompt 4: the legacy static-predicate scoring engine
 // (tenant.crm_scoring_rules, ruleMatches/calculateLeadScore/recordLeadScore)
@@ -40,15 +35,8 @@ export function comparable(value) {
 // silently governing crm_leads.score on every Lead create/update in
 // parallel with the real deterministic engine (System A,
 // recalculateLeadScoreInternal, now the sole writer). See migration
-// 096_f027_scoring_consolidation.sql.
-export function criteriaMatches(input, criteria) {
-  if (!criteria || typeof criteria !== "object") return true;
-  return Object.entries(criteria).every(([key, expected]) =>
-    Array.isArray(expected)
-      ? expected.map(comparable).includes(comparable(input[key]))
-      : comparable(input[key]) === comparable(expected),
-  );
-}
+// 096_f027_scoring_consolidation.sql. The generic criteria matcher that used
+// to live here is data-management/condition-matching.js.
 
 
 

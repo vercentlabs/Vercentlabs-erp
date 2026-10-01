@@ -4,7 +4,7 @@ Path: `services/api/src/modules/crm/pipeline/`
 
 Owns F009 Opportunities, F010 Opportunity pipeline, F011 Probability and expected revenue, F012 Sales stages and F026 Won/lost reasons: governed opportunity pursuit, stage flow, probability and outcomes.
 
-Main files: `opportunity-operations.js`, `opportunity-transitions.js` (stage moves, probability, restore), `opportunity-validation.js`, `opportunity-commercial.js`, `opportunity-contacts.js`, `sales-stage-operations.js`, `stage-migration.js`, `stage-aging.js`, `pipeline-snapshots.js`, `opportunity-revenue-intelligence.js`.
+Main files: `opportunity-record-rules.js` (the Opportunity rules applied by the generic record commands: derived/lifecycle field guards, create defaults, contact-role sync, archive transition flag), `opportunity-operations.js`, `opportunity-transitions.js` (stage moves, probability, restore), `opportunity-validation.js`, `opportunity-commercial.js`, `opportunity-contacts.js`, `sales-stage-operations.js`, `stage-migration.js`, `stage-aging.js`, `pipeline-snapshots.js`, `opportunity-revenue-intelligence.js`.
 
 Depends on: `data-management` (shared record infrastructure), `lead-management`, `master-data` (contacts).
 

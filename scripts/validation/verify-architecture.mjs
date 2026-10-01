@@ -4,7 +4,7 @@ import { ERP_MODULE_CATALOG } from "../../packages/shared-types/src/modules.js";
 import fs from "node:fs";
 import path from "node:path";
 
-import { checkApiCoreLayout, checkCrmSelfBoundaryImports, checkCrossFeatureImports, checkWebRetiredAliases, checkWebTopLevel } from "./architecture-rules.mjs";
+import { checkApiCoreLayout, checkCrmCapabilityImportBans, checkCrmSelfBoundaryImports, checkCrossFeatureImports, checkWebRetiredAliases, checkWebTopLevel } from "./architecture-rules.mjs";
 
 const root = process.cwd();
 const modules = ERP_MODULE_CATALOG.map((module) => module.key);
@@ -239,6 +239,9 @@ const crmRuntimeRecords = walk(path.join(root, "services/api/src/modules/crm"), 
 const crmSelfBoundaryProblems = checkCrmSelfBoundaryImports(crmRuntimeRecords);
 for (const problem of crmSelfBoundaryProblems) fail(problem);
 if (!crmSelfBoundaryProblems.length) ok(`CRM implementation does not import its own public boundary (${crmRuntimeRecords.length} runtime files)`);
+const crmImportBanProblems = checkCrmCapabilityImportBans(crmRuntimeRecords);
+for (const problem of crmImportBanProblems) fail(problem);
+if (!crmImportBanProblems.length) ok("CRM capability import bans hold (data-management does not import conversions)");
 
 if (failures) {
   console.error(`\n${failures} architecture failure(s).`);

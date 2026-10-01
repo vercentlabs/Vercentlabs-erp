@@ -5,6 +5,7 @@ import {
   checkAccessBoundaryUse,
   checkApiCoreLayout,
   checkCanonicalDefinitions,
+  checkCrmCapabilityImportBans,
   checkCrmSelfBoundaryImports,
   checkClientTenantIdentity,
   checkCrossFeatureImports,
@@ -157,6 +158,29 @@ test("direct capability imports, declaration files, the boundary itself and outs
       file(`${crm}/pipeline/stage-aging.d.ts`, 'import type { CrmContext } from "../index.js";'),
       file(`${crm}/index.js`, 'export { x } from "./pipeline/x.js";'),
       file("services/api/src/orchestration/sales-crm-opportunity-sync.js", 'import { moveOpportunityStage } from "../modules/crm/index.js";'),
+    ]),
+    [],
+  );
+});
+
+test("the CRM record kernel (data-management) may not import conversions", () => {
+  const crm = "services/api/src/modules/crm";
+  const problems = checkCrmCapabilityImportBans([
+    file(`${crm}/data-management/resource-mutation-service.js`, 'import { criteriaMatches } from "../conversions/lead-conversion.js";'),
+    file(`${crm}/data-management/automation/automation-engine.js`, 'import { x } from "../../conversions/lead-conversion.js";'),
+  ]);
+  assert.equal(problems.length, 2);
+  assert.match(problems[0], /resource-mutation-service\.js imports conversions/);
+  assert.match(problems[0], /condition-matching\.js/);
+});
+
+test("conversions may use the kernel, and the kernel may use its own matcher", () => {
+  const crm = "services/api/src/modules/crm";
+  assert.deepEqual(
+    checkCrmCapabilityImportBans([
+      file(`${crm}/conversions/lead-conversion.js`, 'import { recordScope } from "../data-management/record-policy.js";'),
+      file(`${crm}/data-management/automation/automation-engine.js`, 'import { criteriaMatches } from "../condition-matching.js";'),
+      file(`${crm}/data-management/record-policy.js`, 'import { comparable } from "./condition-matching.js";'),
     ]),
     [],
   );
