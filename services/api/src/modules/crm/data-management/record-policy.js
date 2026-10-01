@@ -1,8 +1,7 @@
 import { canViewSensitiveLeadContent, firstSensitiveLeadInputField, projectLeadForContext } from "../lead-management/lead-security.js";
-import { communicationVisibilitySql, projectCrmCommunication } from "../activities/communications/communication-projection.js";
+import { communicationVisibilitySql, projectCrmCommunication } from "./communication-access.js";
 import { CrmError } from "./errors.js";
 import { comparable } from "./condition-matching.js";
-import { getCrmRecord } from "./resource-query-service.js";
 import { resources } from "./resource-registry.js";
 import { addParameter } from "./record-utils.js";
 import { salesDocumentVisibilitySql } from "../../sales/index.js";
@@ -135,7 +134,7 @@ export function recordScope(definition, context, parameters, alias = "record") {
     // and the visibility tier (team/private/participant) is the ONE
     // canonical fragment every other audience call site (getCommunication-
     // Timeline, the canonical Timeline's communication branch, the shared
-    // inbox) also uses — see communication-projection.js. Content
+    // inbox) also uses — see communication-access.js. Content
     // (whether the caller sees full subject/body or only a metadata stub)
     // is no longer a row-visibility decision here at all: it is applied by
     // the route layer via projectCrmCommunication(s) AFTER this query
@@ -397,37 +396,6 @@ export const LEAD_LINKED_GENERIC_RESOURCES = new Set([
   "enrichment-jobs",
   "ai-predictions",
 ]);
-
-
-
-export async function assertGenericLeadLinkedTarget(client, context, resource, effective) {
-  if (resource === "consent-events" && effective?.leadId) {
-    if (!canViewSensitiveLeadContent(context))
-      throw new CrmError(
-        403,
-        "You do not have permission to access Lead consent evidence.",
-        "CRM_LEAD_SENSITIVE_CONTENT_FORBIDDEN",
-      );
-    await getCrmRecord(client, context, "leads", effective.leadId);
-    return;
-  }
-  if (LEAD_LINKED_GENERIC_RESOURCES.has(resource)) {
-    if (String(effective?.entityType || "").toLowerCase() !== "lead") return;
-    if (!canViewSensitiveLeadContent(context))
-      throw new CrmError(
-        403,
-        "You do not have permission to access Lead-linked CRM intelligence.",
-        "CRM_LEAD_SENSITIVE_CONTENT_FORBIDDEN",
-      );
-    const leadId = String(effective?.entityId || "").trim();
-    if (!leadId)
-      throw new CrmError(400, "A Lead reference is required.", "CRM_LEAD_REFERENCE_REQUIRED");
-    await getCrmRecord(client, context, "leads", leadId);
-    return;
-  }
-  if (resource === "ai-feedback" && effective?.predictionId)
-    await getCrmRecord(client, context, "ai-predictions", effective.predictionId);
-}
 
 
 

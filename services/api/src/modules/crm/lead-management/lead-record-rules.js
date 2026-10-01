@@ -16,7 +16,7 @@ import { validationErrorDetails } from "../data-management/resource-validation.j
 import { assertLeadDuplicatePolicy, hasLeadDuplicateIdentityChange, recordLeadDuplicateOverride } from "../master-data/lead-duplicates.js";
 import { assignLeadOwner, recordLeadAssignment } from "./lead-assignment.js";
 import { assertEligibleLeadAssignee, resolveLeadAssignment } from "./lead-governance.js";
-import { assertNoQualificationMutation } from "./lead-qualification.js";
+import { assertNoQualificationMutation } from "./qualification-fields.js";
 import { normalizeLeadRecordInput, validateLeadRecord } from "./lead-record-validation.js";
 import { projectLeadForContext } from "./lead-security.js";
 import { ensureDefaultLeadStages } from "./lifecycle/stage-catalog.js";

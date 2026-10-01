@@ -7,6 +7,8 @@ import {
   checkCanonicalDefinitions,
   checkCrmCapabilityImportBans,
   checkCrmCompatibilityBarrels,
+  checkCrmKernelImportBans,
+  checkCrmRuntimeCycles,
   checkCrmSelfBoundaryImports,
   checkClientTenantIdentity,
   checkCrossFeatureImports,
@@ -202,4 +204,54 @@ test("a CRM compatibility barrel may only re-export", () => {
   assert.equal(problems.length, 1);
   assert.match(problems[0], /compatibility re-export boundary/);
   assert.match(problems[0], /export async function queueOutboundEmail/);
+});
+
+test("the record kernel may not import activities (except offline sync) and record-policy may not import record queries", () => {
+  const crm = "services/api/src/modules/crm";
+  const problems = checkCrmKernelImportBans([
+    file(`${crm}/data-management/tag-assignment.js`, 'import { resolveCrmEntityAccess } from "../activities/timeline/timeline.js";'),
+    file(`${crm}/data-management/record-policy.js`, 'import { x } from "../activities/communications/communication-projection.js";\nimport { getCrmRecord } from "./resource-query-service.js";'),
+  ]);
+  assert.equal(problems.length, 3);
+  assert.match(problems[0], /tag-assignment\.js imports "\.\.\/activities\/timeline\/timeline\.js"/);
+  assert.match(problems[0], /entity-access\.js/);
+  assert.match(problems[2], /record-policy\.js must not depend on data-management\/resource-query-service\.js/);
+  assert.deepEqual(
+    checkCrmKernelImportBans([
+      file(`${crm}/data-management/offline-sync.js`, 'import { createCrmTask } from "../activities/task-operations.js";'),
+      file(`${crm}/data-management/resource-validation.js`, 'import { getCrmRecord } from "./resource-query-service.js";'),
+      file(`${crm}/activities/timeline/timeline.js`, 'import { resolveCrmEntityAccess } from "../../data-management/entity-access.js";'),
+    ]),
+    [],
+  );
+});
+
+test("CRM runtime import cycles are limited to the documented mutual recursions", () => {
+  const crm = "services/api/src/modules/crm";
+  const mutation = file(`${crm}/data-management/resource-mutation-service.js`, 'import { runCrmAutomation } from "./automation/automation-engine.js";\nimport { validate } from "./resource-validation.js";');
+  const queries = file(`${crm}/data-management/resource-query-service.js`, 'import { recordScope } from "./record-policy.js";');
+  // Documented recursion only: automation <-> mutation, validation below both.
+  assert.deepEqual(
+    checkCrmRuntimeCycles([
+      mutation,
+      queries,
+      file(`${crm}/data-management/automation/automation-engine.js`, 'import { createCrmRecord } from "../resource-mutation-service.js";'),
+      file(`${crm}/data-management/resource-validation.js`, 'import { getCrmRecord } from "./resource-query-service.js";'),
+      file(`${crm}/data-management/record-policy.js`, "export const recordScope = () => '';"),
+    ]),
+    [],
+  );
+  // A policy file reading back through the queries, and validation reaching
+  // a workflow that runs automation, each form an undocumented cycle.
+  const problems = checkCrmRuntimeCycles([
+    mutation,
+    queries,
+    file(`${crm}/data-management/automation/automation-engine.js`, 'import { createCrmRecord } from "../resource-mutation-service.js";'),
+    file(`${crm}/data-management/resource-validation.js`, 'import { READINESS_FIELD_COLUMNS } from "../lead-management/lead-qualification.js";'),
+    file(`${crm}/lead-management/lead-qualification.js`, 'import { runCrmAutomation } from "../data-management/automation/automation-engine.js";'),
+    file(`${crm}/data-management/record-policy.js`, 'import { getCrmRecord } from "./resource-query-service.js";'),
+  ]);
+  assert.equal(problems.length, 2);
+  assert.ok(problems.some((problem) => problem.includes("across 2 files: data-management/record-policy.js, data-management/resource-query-service.js")));
+  assert.ok(problems.some((problem) => problem.includes("across 4 files: data-management/automation/automation-engine.js, data-management/resource-mutation-service.js, data-management/resource-validation.js, lead-management/lead-qualification.js")));
 });

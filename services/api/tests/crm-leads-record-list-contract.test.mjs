@@ -226,6 +226,7 @@ test("F001 Pass 2A: AI feedback inherits access through its parent prediction", 
   const source = [
     read("src/modules/crm/data-management/record-policy.js"),
     read("src/modules/crm/data-management/resource-mutation-service.js"),
+    read("src/modules/crm/data-management/resource-validation.js"),
   ].join("\n");
   assert.match(source, /function aiFeedbackLeadScope/);
   assert.match(source, /tenant\.crm_ai_predictions prediction/);

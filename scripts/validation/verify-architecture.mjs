@@ -4,7 +4,7 @@ import { ERP_MODULE_CATALOG } from "../../packages/shared-types/src/modules.js";
 import fs from "node:fs";
 import path from "node:path";
 
-import { CRM_COMPATIBILITY_BARRELS, checkApiCoreLayout, checkCrmCapabilityImportBans, checkCrmCompatibilityBarrels, checkCrmSelfBoundaryImports, checkCrossFeatureImports, checkWebRetiredAliases, checkWebTopLevel } from "./architecture-rules.mjs";
+import { CRM_ALLOWED_RUNTIME_CYCLES, CRM_COMPATIBILITY_BARRELS, checkApiCoreLayout, checkCrmCapabilityImportBans, checkCrmCompatibilityBarrels, checkCrmKernelImportBans, checkCrmRuntimeCycles, checkCrmSelfBoundaryImports, checkCrossFeatureImports, checkWebRetiredAliases, checkWebTopLevel } from "./architecture-rules.mjs";
 
 const root = process.cwd();
 const modules = ERP_MODULE_CATALOG.map((module) => module.key);
@@ -242,6 +242,12 @@ if (!crmSelfBoundaryProblems.length) ok(`CRM implementation does not import its 
 const crmImportBanProblems = checkCrmCapabilityImportBans(crmRuntimeRecords);
 for (const problem of crmImportBanProblems) fail(problem);
 if (!crmImportBanProblems.length) ok("CRM capability import bans hold (data-management does not import conversions)");
+const crmKernelBanProblems = checkCrmKernelImportBans(crmRuntimeRecords);
+for (const problem of crmKernelBanProblems) fail(problem);
+if (!crmKernelBanProblems.length) ok("CRM kernel import directions hold (data-management does not import activities except offline sync; record-policy does not import resource queries)");
+const crmCycleProblems = checkCrmRuntimeCycles(crmRuntimeRecords);
+for (const problem of crmCycleProblems) fail(problem);
+if (!crmCycleProblems.length) ok(`CRM runtime import cycles limited to the ${CRM_ALLOWED_RUNTIME_CYCLES.length} documented mutual recursions`);
 const crmBarrelProblems = checkCrmCompatibilityBarrels(crmRuntimeRecords);
 for (const problem of crmBarrelProblems) fail(problem);
 if (!crmBarrelProblems.length) ok(`CRM compatibility barrels hold re-exports only (${CRM_COMPATIBILITY_BARRELS.length} files)`);

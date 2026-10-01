@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { taskOverdueSql } from "../activities/task-operations.js";
+import { taskOverdueSql } from "../data-management/activity-query-rules.js";
 import { CrmError } from "../data-management/errors.js";
 import { canViewAllCrmRecords } from "../data-management/record-policy.js";
 import { canViewAllCrmResource, crmAccountAccessSql, crmOwnerScopeSql } from "../data-management/crm-access-scope.js";

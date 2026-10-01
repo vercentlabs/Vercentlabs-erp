@@ -20,7 +20,7 @@
 // already-shipped, tested mutation paths.
 import { CrmError } from "./errors.js";
 import { queueOutboxEvent } from "./outbox.js";
-import { resolveCrmEntityAccess } from "../activities/timeline/timeline.js";
+import { resolveCrmEntityAccess } from "./entity-access.js";
 
 const ENTITY_TYPES = new Set(["lead", "opportunity", "party", "contact"]);
 const DATA_TYPES = new Set(["text", "textarea", "number", "currency", "percentage", "boolean", "date", "datetime", "select", "multi_select"]);

@@ -124,6 +124,89 @@ export function checkCrmCapabilityImportBans(files) {
   return problems;
 }
 
+function crmRelativeImportTargets(file, source) {
+  return [
+    ...source.matchAll(/\b(?:import|export)\b[^;]*?\bfrom\s*["']([^"']+)["']/gs),
+    ...source.matchAll(/\bimport\(\s*["']([^"']+)["']\s*\)/g),
+  ]
+    .map((match) => match[1])
+    .filter((specifier) => specifier.startsWith("."))
+    .map((specifier) => ({ specifier, target: posixPath.normalize(posixPath.join(posixPath.dirname(file), specifier)) }));
+}
+
+// File-level dependency directions inside CRM. Paths are relative to the CRM
+// module root; a path ending in "/" covers the whole directory.
+export const CRM_KERNEL_IMPORT_BANS = Object.freeze([
+  Object.freeze({
+    from: "data-management/",
+    to: "activities/",
+    except: Object.freeze(["data-management/offline-sync.js"]),
+    reason: "entity access, communication access and activity predicates belong to the record kernel (entity-access.js, communication-access.js, activity-query-rules.js); only offline sync orchestrates activity commands",
+  }),
+  Object.freeze({
+    from: "data-management/record-policy.js",
+    to: "data-management/resource-query-service.js",
+    except: Object.freeze([]),
+    reason: "record scope and projection sit below the record queries; checks that need a scoped read belong in resource-validation.js",
+  }),
+]);
+
+export function checkCrmKernelImportBans(files) {
+  const problems = [];
+  const covers = (pattern, path) => (pattern.endsWith("/") ? path.startsWith(pattern) : path === pattern);
+  for (const { path: file, source } of files) {
+    if (!file.startsWith(`${CRM_MODULE_ROOT}/`) || !/\.(js|mjs)$/.test(file)) continue;
+    const local = file.slice(CRM_MODULE_ROOT.length + 1);
+    for (const ban of CRM_KERNEL_IMPORT_BANS) {
+      if (!covers(ban.from, local) || ban.except.includes(local)) continue;
+      for (const { specifier, target } of crmRelativeImportTargets(file, source)) {
+        if (target.startsWith(`${CRM_MODULE_ROOT}/`) && covers(ban.to, target.slice(CRM_MODULE_ROOT.length + 1)))
+          problems.push(`${file} imports "${specifier}"; ${ban.from} must not depend on ${ban.to}: ${ban.reason}`);
+      }
+    }
+  }
+  return problems;
+}
+
+// The only import cycles allowed among CRM runtime files, each a genuine
+// mutual recursion rather than a misplaced helper. Any other strongly
+// connected group of files is reported.
+export const CRM_ALLOWED_RUNTIME_CYCLES = Object.freeze([
+  // Automation actions create/update records through the generic mutation
+  // path, and that path runs automation after each write.
+  Object.freeze(["data-management/automation/automation-engine.js", "data-management/resource-mutation-service.js"]),
+  // Lead stage catalogue, stage migration jobs and the transition engine
+  // (pre-existing; outside the record-kernel cleanup).
+  Object.freeze(["lead-management/lifecycle/stage-catalog.js", "lead-management/lifecycle/stage-migration.js", "lead-management/lifecycle/transition-engine.js"]),
+]);
+
+export function checkCrmRuntimeCycles(files) {
+  const runtime = files.filter(({ path: file }) => file.startsWith(`${CRM_MODULE_ROOT}/`) && /\.(js|mjs)$/.test(file));
+  const graph = new Map(runtime.map(({ path: file }) => [file, new Set()]));
+  for (const { path: file, source } of runtime)
+    for (const { target } of crmRelativeImportTargets(file, source)) if (graph.has(target) && target !== file) graph.get(file).add(target);
+  // Tarjan's strongly connected components.
+  let counter = 0;
+  const index = new Map(), low = new Map(), stack = [], onStack = new Set(), components = [];
+  const visit = (node) => {
+    index.set(node, counter); low.set(node, counter); counter += 1; stack.push(node); onStack.add(node);
+    for (const next of graph.get(node)) {
+      if (!index.has(next)) { visit(next); low.set(node, Math.min(low.get(node), low.get(next))); }
+      else if (onStack.has(next)) low.set(node, Math.min(low.get(node), index.get(next)));
+    }
+    if (low.get(node) !== index.get(node)) return;
+    const component = [];
+    let member;
+    do { member = stack.pop(); onStack.delete(member); component.push(member.slice(CRM_MODULE_ROOT.length + 1)); } while (member !== node);
+    if (component.length > 1) components.push(component.sort());
+  };
+  for (const node of graph.keys()) if (!index.has(node)) visit(node);
+  const allowed = new Set(CRM_ALLOWED_RUNTIME_CYCLES.map((cycle) => [...cycle].sort().join("|")));
+  return components
+    .filter((component) => !allowed.has(component.join("|")))
+    .map((component) => `CRM runtime import cycle across ${component.length} files: ${component.join(", ")}; move the shared rule or primitive below its users instead of importing back`);
+}
+
 // CRM files kept only as compatibility re-export boundaries after their code
 // moved to owning files. They may contain comments and `export { ... } from`
 // statements, nothing else, so they cannot grow back into implementations.

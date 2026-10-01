@@ -72,6 +72,7 @@ test("F001 Pass 2B: generic consent list/create boundaries inherit the Lead priv
   const source = [
     read("src/modules/crm/data-management/record-policy.js"),
     read("src/modules/crm/data-management/resource-mutation-service.js"),
+    read("src/modules/crm/data-management/resource-validation.js"),
   ].join("\n");
   assert.match(source, /definition\.table === "tenant\.crm_consent_events"/);
   assert.match(source, /return ` AND \${alias}\.\${leadIdColumn} IS NULL`/);

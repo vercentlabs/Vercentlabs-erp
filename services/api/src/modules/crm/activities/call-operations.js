@@ -1,5 +1,6 @@
 import { crmOwnerScopeSql } from "../data-management/crm-access-scope.js";
 import { CrmError } from "../data-management/errors.js";
+import { taskOverdueSql } from "../data-management/activity-query-rules.js";
 import { queueOutboxEvent } from "../data-management/outbox.js";
 import { assertEligibleLeadAssignee } from "../lead-management/lead-governance.js";
 import { canViewSensitiveLeadContent, leadScopeSql } from "../lead-management/lead-security.js";
@@ -315,7 +316,7 @@ export async function listCrmCalls(client, context, filters = {}) {
   }
   const due = text(filters.due || "all");
   if (due === "today") where += ` AND activity.due_at>=current_date AND activity.due_at<current_date+interval '1 day'`;
-  if (due === "overdue") where += ` AND activity.due_at<now() AND activity.status NOT IN ('completed','cancelled')`;
+  if (due === "overdue") where += ` AND ${taskOverdueSql("activity")}`;
   if (due === "upcoming") where += ` AND activity.due_at>=now() AND activity.status NOT IN ('completed','cancelled')`;
   const limit = Math.max(1, Math.min(100, Math.trunc(Number(filters.limit) || 25)));
   const offset = Math.max(0, Math.min(10_000_000, Math.trunc(Number(filters.offset) || 0)));

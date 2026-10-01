@@ -1,6 +1,6 @@
 import { leadSearchColumnsForContext } from "../lead-management/lead-security.js";
 import { nextDocumentNumber } from "../../../core/platform/numbering/index.js";
-import { taskOverdueSql } from "../activities/task-operations.js";
+import { taskOverdueSql } from "./activity-query-rules.js";
 import { CrmError } from "./errors.js";
 import { projectCrmRecord, projectCrmRecords, recordScope } from "./record-policy.js";
 import { definitionFor, resources } from "./resource-registry.js";

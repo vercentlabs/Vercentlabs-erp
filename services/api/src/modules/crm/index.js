@@ -70,7 +70,6 @@ export {
   releaseCrmTask,
   startCrmTask,
   updateCrmTask,
-  taskOverdueSql,
   computeNextTaskOccurrence,
   generateNextTaskOccurrence,
   addTaskDependency,
@@ -87,15 +86,17 @@ export {
   updateCrmNote,
 } from "./activities/notes/notes-operations.js";
 
-export { resolveCrmEntityAccess } from "./activities/timeline/timeline.js";
+export { taskOverdueSql } from "./data-management/activity-query-rules.js";
+
+export { resolveCrmEntityAccess } from "./data-management/entity-access.js";
 
 export {
   communicationVisibilitySql,
   projectCrmCommunication,
   projectCrmCommunications,
   resolveCallerParticipantCommunicationIds,
-  resolveCommunicationParticipants,
-} from "./activities/communications/communication-projection.js";
+} from "./data-management/communication-access.js";
+export { resolveCommunicationParticipants } from "./activities/communications/communication-projection.js";
 
 export {
   createCrmAttachment,

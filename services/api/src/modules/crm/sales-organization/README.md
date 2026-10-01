@@ -4,7 +4,7 @@ Path: `services/api/src/modules/crm/sales-organization/`
 
 Owns F020 Territories and sales teams: effective-dated teams, territories, coverage views and governed reassignment. Team, member and territory records themselves are generic CRM resources (`data-management/resource-registry.js`).
 
-Main files: `coverage-service.js`, `territory-coverage.js`.
+Main files: `coverage-service.js`, `territory-coverage.js`, `hierarchy-rules.js` (self-parent and ancestor-cycle guards applied by the generic Territory and Sales team update).
 
 Depends on: `data-management`, `lead-management` (lead assignment), `analytics` (opportunity facts), `master-data` (accounts).
 

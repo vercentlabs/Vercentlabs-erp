@@ -7,8 +7,9 @@
 import { randomBytes } from "node:crypto";
 import { publishDomainEvent } from "../../../../core/platform/events/index.js";
 import { leadScopeSql } from "../../lead-management/lead-security.js";
-import { resolveCrmEntityAccess } from "../timeline/timeline.js";
-import { communicationVisibilitySql, projectCrmCommunications, resolveCommunicationParticipants } from "./communication-projection.js";
+import { resolveCrmEntityAccess } from "../../data-management/entity-access.js";
+import { communicationVisibilitySql, projectCrmCommunications } from "../../data-management/communication-access.js";
+import { resolveCommunicationParticipants } from "./communication-projection.js";
 import { CrmCommunicationsError, assertId } from "./communications-error.js";
 import { crmCommunicationsHash } from "./content-hash.js";
 import { normalizeEmailAddress, optionalEmail } from "./email-address.js";
@@ -629,7 +630,7 @@ export async function queueOutboundEmail(client, context, input = {}) {
 // F018 final closeout — the ONE canonical Communications projection this
 // codebase's five read surfaces (record 360, canonical Timeline's
 // communication branch, shared inbox thread messages, the generic
-// communication API, mobile) all call — see communication-projection.js
+// communication API, mobile) all call — see data-management/communication-access.js
 // for the audience-vs-content split this implements. AUDIENCE (parent-
 // record scope + team/private/participant tier) is enforced here in SQL;
 // CONTENT (full vs metadata-only) is applied per-row afterward via

@@ -4,7 +4,7 @@
 
 import { canOverridePrivateCrmContent } from "../../data-management/crm-access-scope.js";
 import { canViewSensitiveLeadContent } from "../../lead-management/lead-security.js";
-import { communicationVisibilitySql, resolveCallerParticipantCommunicationIds } from "./communication-projection.js";
+import { communicationVisibilitySql, resolveCallerParticipantCommunicationIds } from "../../data-management/communication-access.js";
 import { CrmCommunicationsError, assertId } from "./communications-error.js";
 import { optionalEmail } from "./email-address.js";
 

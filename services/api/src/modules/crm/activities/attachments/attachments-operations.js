@@ -28,7 +28,7 @@
 import { archiveFile, listFiles, listFileVersions, readFileContent, storeFile } from "../../../../core/platform/files/index.js";
 import { CrmError } from "../../data-management/errors.js";
 import { queueOutboxEvent } from "../../data-management/outbox.js";
-import { resolveCrmEntityAccess } from "../timeline/timeline.js";
+import { resolveCrmEntityAccess } from "../../data-management/entity-access.js";
 import { assertCanWriteCrmRecordContent } from "../../data-management/crm-access-scope.js";
 
 const ENTITY_TYPES = new Set(["lead", "opportunity", "party", "contact", "campaign"]);

@@ -14,7 +14,7 @@ F014 and F018 layout:
 - `communications/shared-inbox-service.js` — inbox setup and the membership-gated thread claim / read / status operations.
 - `communications/provider-integrations.js` — Gmail / Microsoft 365: normalisation, webhook signatures, OAuth state, credentials, the trusted-host HTTP wrapper, delta fetch and calendar push.
 - `communications/provider-sync.js` — on-demand sync of one provider account.
-- `communications/communication-projection.js` — audience and content projection for communications.
+- `communications/communication-projection.js` — write-time participant resolution; re-exports the audience and content projection that now lives in `data-management/communication-access.js` (generic record scope applies it to the `communications` resource).
 - Small shared pieces: `communications-error.js`, `email-address.js`, `content-hash.js`; dormant `communications-acceptance.js`.
 
 `communications.js` is a compatibility boundary only: it re-exports the names that used to be implemented there (enforced by `checkCrmCompatibilityBarrels`). New code goes in the owning file.

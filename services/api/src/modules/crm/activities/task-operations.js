@@ -4,6 +4,9 @@ import { managedTeamMembersSql } from "../data-management/record-utils.js";
 import { queueOutboxEvent } from "../data-management/outbox.js";
 import { assertEligibleLeadAssignee } from "../lead-management/lead-governance.js";
 import { canViewSensitiveLeadContent, leadScopeSql } from "../lead-management/lead-security.js";
+import { taskOverdueSql } from "../data-management/activity-query-rules.js";
+
+export { taskOverdueSql };
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const PRIORITIES = new Set(["low", "medium", "high", "urgent"]);
@@ -15,18 +18,6 @@ const TASK_FIELDS = new Set([
   "assignedTo", "teamId", "startAt", "dueAt", "reminderAt", "recurringRule", "recurrenceConfig",
 ]);
 const EXPECTATION_FIELDS = new Set(["expectedUpdatedAt", "expectedStatus"]);
-
-// F015 closeout: the ONE canonical "is this overdue" predicate — CRM Home,
-// the Activities workspace list, the Task list and the Timeline must all
-// agree on what "overdue" means (dossier: "one canonical, centrally-
-// defined overdue formula reused everywhere"). A prior audit found this
-// predicate duplicated near-identically across task-operations.js, the
-// generic activities list, the KPI count and the activities report — all
-// textually independent copies that could silently drift. This is now the
-// single source of truth every one of those call sites imports.
-export function taskOverdueSql(alias = "activity") {
-  return `${alias}.due_at<now() AND ${alias}.status NOT IN ('completed','cancelled')`;
-}
 
 const hasOwn = (value, key) => Object.prototype.hasOwnProperty.call(value || {}, key);
 const text = (value) => String(value ?? "").trim();

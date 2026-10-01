@@ -9,6 +9,7 @@ import { crmOwnerScopeSql } from "../../data-management/crm-access-scope.js";
 // dossier's REQUIRED "multiple reminders" scope (a single timestamp column
 // cannot represent that).
 import { CrmError } from "../../data-management/errors.js";
+import { taskOverdueSql } from "../../data-management/activity-query-rules.js";
 import { queueOutboxEvent } from "../../data-management/outbox.js";
 import { assertEligibleLeadAssignee } from "../../lead-management/lead-governance.js";
 import { canViewSensitiveLeadContent, leadScopeSql } from "../../lead-management/lead-security.js";
@@ -422,7 +423,7 @@ export async function listCrmFollowUps(client, context, filters = {}) {
   const status = text(filters.status || "all").toLowerCase();
   if (status !== "all" && new Set(["planned", "in_progress", "completed", "cancelled", "overdue"]).has(status)) where += ` AND activity.status=${add(values, status)}`;
   const due = text(filters.due || "all").toLowerCase();
-  if (due === "overdue") where += ` AND activity.due_at<now() AND activity.status NOT IN ('completed','cancelled')`;
+  if (due === "overdue") where += ` AND ${taskOverdueSql("activity")}`;
   if (due === "today") where += ` AND activity.due_at>=current_date AND activity.due_at<current_date+interval '1 day'`;
   if (due === "upcoming") where += ` AND activity.due_at>=now() AND activity.status NOT IN ('completed','cancelled')`;
   const search = text(filters.search).slice(0, 200);

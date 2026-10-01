@@ -17,7 +17,7 @@
 // schema decision, not something to improvise here.
 import { CrmError } from "./errors.js";
 import { queueOutboxEvent } from "./outbox.js";
-import { resolveCrmEntityAccess } from "../activities/timeline/timeline.js";
+import { resolveCrmEntityAccess } from "./entity-access.js";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 

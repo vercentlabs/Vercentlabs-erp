@@ -1,9 +1,11 @@
-import { READINESS_FIELD_COLUMNS } from "../lead-management/lead-qualification.js";
+import { READINESS_FIELD_COLUMNS } from "../lead-management/qualification-fields.js";
+import { canViewSensitiveLeadContent } from "../lead-management/lead-security.js";
 import { CrmError } from "./errors.js";
 import { normalizeTerritoryCoverage, normalizeTerritoryType } from "../sales-organization/territory-coverage.js";
 import { LEAD_LINKED_GENERIC_RESOURCES, canViewCustomField, recordScope } from "./record-policy.js";
 import { resources } from "./resource-registry.js";
 import { camelizeRow } from "./record-utils.js";
+import { getCrmRecord } from "./resource-query-service.js";
 
 
 
@@ -253,6 +255,41 @@ export async function validateOrganizationUserReferences(
     )
     .map(([, value]) => value);
   await assertActiveOrganizationUsers(client, context, userIds);
+}
+
+
+
+// A Lead-linked generic record (consent evidence, data-quality scores,
+// enrichment jobs, AI predictions/feedback) may only reference a Lead or
+// prediction the caller can open: the reference is loaded through the same
+// scoped read as the record itself (404 when out of scope).
+export async function assertGenericLeadLinkedTarget(client, context, resource, effective) {
+  if (resource === "consent-events" && effective?.leadId) {
+    if (!canViewSensitiveLeadContent(context))
+      throw new CrmError(
+        403,
+        "You do not have permission to access Lead consent evidence.",
+        "CRM_LEAD_SENSITIVE_CONTENT_FORBIDDEN",
+      );
+    await getCrmRecord(client, context, "leads", effective.leadId);
+    return;
+  }
+  if (LEAD_LINKED_GENERIC_RESOURCES.has(resource)) {
+    if (String(effective?.entityType || "").toLowerCase() !== "lead") return;
+    if (!canViewSensitiveLeadContent(context))
+      throw new CrmError(
+        403,
+        "You do not have permission to access Lead-linked CRM intelligence.",
+        "CRM_LEAD_SENSITIVE_CONTENT_FORBIDDEN",
+      );
+    const leadId = String(effective?.entityId || "").trim();
+    if (!leadId)
+      throw new CrmError(400, "A Lead reference is required.", "CRM_LEAD_REFERENCE_REQUIRED");
+    await getCrmRecord(client, context, "leads", leadId);
+    return;
+  }
+  if (resource === "ai-feedback" && effective?.predictionId)
+    await getCrmRecord(client, context, "ai-predictions", effective.predictionId);
 }
 
 

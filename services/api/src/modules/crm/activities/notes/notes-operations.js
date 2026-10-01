@@ -8,7 +8,7 @@
 // enforcement — that every entity type's routes call into, mirroring
 // task-operations.js/follow-up-operations.js's established structure.
 //
-// Authorization reuses resolveCrmEntityAccess from timeline.js verbatim —
+// Authorization reuses resolveCrmEntityAccess (data-management/entity-access.js) verbatim —
 // the SAME per-entity-type sensitive-content gate and company/branch scope
 // check the canonical Timeline already uses, not a re-derived equivalent
 // (the dossier's explicit "object-specific wrapper functions are
@@ -16,7 +16,7 @@
 import { assertCanWriteCrmRecordContent, canOverridePrivateCrmContent } from "../../data-management/crm-access-scope.js";
 import { CrmError } from "../../data-management/errors.js";
 import { queueOutboxEvent } from "../../data-management/outbox.js";
-import { resolveCrmEntityAccess } from "../timeline/timeline.js";
+import { resolveCrmEntityAccess } from "../../data-management/entity-access.js";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const ENTITY_TYPES = new Set(["lead", "opportunity", "party", "contact", "campaign"]);
@@ -55,7 +55,7 @@ function normalizeVisibility(value, fallback = "shared") {
 function visibilityPredicate(values, context, alias = "note") {
   const userIdParam = values.push(context.userId), userIdPlaceholder = `$${userIdParam}`;
   const viewAllParam = values.push(canOverridePrivateCrmContent(context)), viewAllPlaceholder = `$${viewAllParam}`;
-  // ::boolean is required, not cosmetic — see communication-projection.js's
+  // ::boolean is required, not cosmetic — see data-management/communication-access.js's
   // communicationVisibilitySql for the full explanation (found via
   // live-browser Prompt 3 QA against a real database): without it,
   // Postgres cannot infer this bare `OR $N` placeholder's type and rejects
