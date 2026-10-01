@@ -1,5 +1,7 @@
 # CRM mobile capability matrix (F001–F030)
 
+> **Status 2026-10-02 (final CRM audit):** the server API this matrix relies on (`/api/mobile/v1`, used by `createMobileClient` for sign-in and every native CRM call) no longer exists; it was removed in `49b80eeb`. Native dispositions below are blocked until it is restored. See `CRM_FINAL_ARCHITECTURE_AUDIT.md` (MOBILE-V1).
+
 Source of truth in code: `apps/mobile/src/modules/crm/ui/crm-feature-registry.ts`
 (every F-ID has a disposition; `apps/mobile/tests/crm-feature-registry.test.mjs`
 fails if one is missing or a web deep link points at a page that does not

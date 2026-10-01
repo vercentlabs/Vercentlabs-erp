@@ -1,5 +1,7 @@
 # CRM F001–F030 completion matrix
 
+> **Status 2026-10-02 (final CRM audit):** F009 and F023 are reopened by P0 SALES-SCOPE (Sales lists and links Opportunities outside the caller's CRM scope), and mobile evidence is void because `/api/mobile/v1` was removed (MOBILE-V1). The current state is in `CRM_FINAL_ARCHITECTURE_AUDIT.md`.
+
 This file is the working audit for the CRM completion program (canonical range
 F001–F030). Part 1 is the audit taken **before** any code changed in this
 pass (HEAD `0256fcd6`, 2026-09-29). Part 2 is the closing state with evidence;
