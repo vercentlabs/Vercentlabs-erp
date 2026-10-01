@@ -1,5 +1,8 @@
 "use client";
 
+import { CrmApiError } from "../shared/http/crm-api-error.ts";
+import { crmApiClient } from "../shared/http/crm-request.ts";
+
 export type CrmCustomFieldEntityType =
   "lead" | "opportunity" | "party" | "contact";
 
@@ -52,35 +55,14 @@ export type CrmCustomFieldValueRow = {
   valueUpdatedAt: string | null;
 };
 
-export class CustomFieldApiError extends Error {
-  constructor(
-    message: string,
-    public readonly status: number,
-    public readonly code?: string,
-  ) {
-    super(message);
-  }
-}
+export class CustomFieldApiError extends CrmApiError {}
 
-async function parseResponse<T>(response: Response): Promise<T> {
-  const payload = await response.json().catch(() => ({}));
-  if (!response.ok || payload.ok === false) {
-    throw new CustomFieldApiError(
-      payload.message || "The request could not be completed.",
-      response.status,
-      payload.code,
-    );
-  }
-  return payload;
-}
+const { request, parseResponse } = crmApiClient(CustomFieldApiError);
 
 export async function listCustomFieldDefinitions(
   entityType: CrmCustomFieldEntityType,
 ): Promise<{ rows: CrmCustomFieldDefinition[] }> {
-  const response = await fetch(
-    `/api/crm/custom-fields/definitions/${entityType}`,
-  );
-  return parseResponse(response);
+  return request(`/api/crm/custom-fields/definitions/${entityType}`);
 }
 
 export async function createCustomFieldDefinition(
@@ -120,10 +102,7 @@ export async function getCustomFieldValues(
   entityType: CrmCustomFieldEntityType,
   entityId: string,
 ): Promise<{ rows: CrmCustomFieldValueRow[] }> {
-  const response = await fetch(
-    `/api/crm/custom-fields/values/${entityType}/${entityId}`,
-  );
-  return parseResponse(response);
+  return request(`/api/crm/custom-fields/values/${entityType}/${entityId}`);
 }
 
 // F028 — append-only change history; labels are as they were at the time.
@@ -141,10 +120,9 @@ export async function getCustomFieldValueHistory(
   entityType: CrmCustomFieldEntityType,
   entityId: string,
 ): Promise<{ rows: CrmCustomFieldHistoryRow[] }> {
-  const response = await fetch(
+  return request(
     `/api/crm/custom-fields/values/${entityType}/${entityId}/history`,
   );
-  return parseResponse(response);
 }
 
 export async function setCustomFieldValues(

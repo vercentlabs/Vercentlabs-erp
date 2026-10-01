@@ -65,9 +65,17 @@ function ReasonPromptDialog({
   onCancel: () => void;
   onConfirm: (reasonCode: string) => void;
 }) {
+  const workspace = useWorkspaceContext();
   const [reasonCode, setReasonCode] = useState("");
   const reasonsQuery = useQuery({
-    queryKey: ["crm", "leads", lead.id, "stage-reasons", stage.id],
+    queryKey: scopedQueryKey(
+      workspace,
+      "crm",
+      "leads",
+      lead.id,
+      "stage-reasons",
+      stage.id,
+    ),
     queryFn: () => getLeadStageReasons(lead.id, stage.id),
   });
   const reasonOptions: SelectOption[] = (reasonsQuery.data?.reasons ?? []).map(

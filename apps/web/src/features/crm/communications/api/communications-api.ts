@@ -5,28 +5,12 @@ import type {
   CommunicationListFilters,
   CommunicationListResponse,
 } from "../types";
+import { CrmApiError } from "../../shared/http/crm-api-error.ts";
+import { crmApiClient } from "../../shared/http/crm-request.ts";
 
-export class CommunicationApiError extends Error {
-  constructor(
-    message: string,
-    public readonly status: number,
-    public readonly code?: string,
-  ) {
-    super(message);
-  }
-}
+export class CommunicationApiError extends CrmApiError {}
 
-async function parseResponse<T>(response: Response): Promise<T> {
-  const payload = await response.json().catch(() => ({}));
-  if (!response.ok || payload.ok === false) {
-    throw new CommunicationApiError(
-      payload.message || "The request could not be completed.",
-      response.status,
-      payload.code,
-    );
-  }
-  return payload;
-}
+const { request } = crmApiClient(CommunicationApiError);
 
 // Reuses the generic /api/crm/[resource] boundary ("communications" is a
 // real CRM_RESOURCE_KEYS entry) rather than a bespoke route — see types.ts
@@ -38,13 +22,11 @@ export async function listCommunications(
   for (const [key, value] of Object.entries(filters)) {
     if (value !== undefined && value !== "") params.set(key, String(value));
   }
-  const response = await fetch(`/api/crm/communications?${params.toString()}`);
-  return parseResponse(response);
+  return request(`/api/crm/communications?${params.toString()}`);
 }
 
 export async function getCommunication(
   id: string,
 ): Promise<{ record: Communication }> {
-  const response = await fetch(`/api/crm/communications/${id}`);
-  return parseResponse(response);
+  return request(`/api/crm/communications/${id}`);
 }

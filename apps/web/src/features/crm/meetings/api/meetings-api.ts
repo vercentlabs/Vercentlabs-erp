@@ -5,28 +5,12 @@ import type {
   MeetingListFilters,
   MeetingListResponse,
 } from "../types";
+import { CrmApiError } from "../../shared/http/crm-api-error.ts";
+import { crmApiClient } from "../../shared/http/crm-request.ts";
 
-export class MeetingApiError extends Error {
-  constructor(
-    message: string,
-    public readonly status: number,
-    public readonly code?: string,
-  ) {
-    super(message);
-  }
-}
+export class MeetingApiError extends CrmApiError {}
 
-async function parseResponse<T>(response: Response): Promise<T> {
-  const payload = await response.json().catch(() => ({}));
-  if (!response.ok || payload.ok === false) {
-    throw new MeetingApiError(
-      payload.message || "The request could not be completed.",
-      response.status,
-      payload.code,
-    );
-  }
-  return payload;
-}
+const { request } = crmApiClient(MeetingApiError);
 
 export async function listMeetings(
   filters: MeetingListFilters,
@@ -36,31 +20,20 @@ export async function listMeetings(
     if (value !== undefined && value !== "" && value !== "all")
       params.set(key, String(value));
   }
-  const response = await fetch(`/api/crm/meetings?${params.toString()}`);
-  return parseResponse(response);
+  return request(`/api/crm/meetings?${params.toString()}`);
 }
 
 export async function createMeeting(
   input: Record<string, unknown>,
 ): Promise<{ record: Meeting }> {
-  const response = await fetch("/api/crm/meetings", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(input),
-  });
-  return parseResponse(response);
+  return request("/api/crm/meetings", { method: "POST", json: input });
 }
 
 export async function updateMeeting(
   id: string,
   input: Record<string, unknown>,
 ): Promise<{ record: Meeting }> {
-  const response = await fetch(`/api/crm/meetings/${id}`, {
-    method: "PATCH",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(input),
-  });
-  return parseResponse(response);
+  return request(`/api/crm/meetings/${id}`, { method: "PATCH", json: input });
 }
 
 async function action(
@@ -68,17 +41,14 @@ async function action(
   path: string,
   input: Record<string, unknown> = {},
 ): Promise<{ record: Meeting }> {
-  const response = await fetch(`/api/crm/meetings/${id}/${path}`, {
+  return request(`/api/crm/meetings/${id}/${path}`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(input),
+    json: input,
   });
-  return parseResponse(response);
 }
 
 export async function getMeeting(id: string): Promise<{ record: Meeting }> {
-  const response = await fetch(`/api/crm/meetings/${id}`);
-  return parseResponse(response);
+  return request(`/api/crm/meetings/${id}`);
 }
 
 export const startMeeting = (id: string, expectedUpdatedAt?: string) =>
@@ -121,6 +91,5 @@ export type MeetingEvent = {
 export async function listMeetingEvents(
   id: string,
 ): Promise<{ rows: MeetingEvent[] }> {
-  const response = await fetch(`/api/crm/meetings/${id}/events`);
-  return parseResponse(response);
+  return request(`/api/crm/meetings/${id}/events`);
 }

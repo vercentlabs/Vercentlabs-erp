@@ -1,14 +1,9 @@
 "use client";
 
-export class CoverageApiError extends Error {
-  constructor(
-    message: string,
-    public readonly status: number,
-    public readonly code?: string,
-  ) {
-    super(message);
-  }
-}
+import { CrmApiError } from "../../shared/http/crm-api-error.ts";
+import { crmApiClient } from "../../shared/http/crm-request.ts";
+
+export class CoverageApiError extends CrmApiError {}
 
 export type CoverageMember = {
   userId: string;
@@ -115,16 +110,7 @@ export type ReassignmentResult = {
   }>;
 };
 
-async function parse<T>(response: Response): Promise<T> {
-  const payload = await response.json().catch(() => ({}));
-  if (!response.ok || payload.ok === false)
-    throw new CoverageApiError(
-      payload.message || "The request could not be completed.",
-      response.status,
-      payload.code,
-    );
-  return payload;
-}
+const { parseResponse: parse } = crmApiClient(CoverageApiError);
 
 export async function getSalesCoverage(): Promise<SalesCoverage> {
   return (

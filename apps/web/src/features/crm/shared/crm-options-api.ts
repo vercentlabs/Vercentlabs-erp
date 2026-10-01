@@ -1,5 +1,7 @@
 "use client";
 
+import { readJsonResponse } from "../../../shared/http/request-json.ts";
+
 // Shape mirrors services/api's getCrmOptions (resource-options.js) — over
 // 30 differently-shaped reference lists (companies/leadStages/users/tags/
 // parties/...), so this is intentionally left as loose per-key rows
@@ -9,10 +11,11 @@
 export async function getCrmOptions(): Promise<{
   options: Record<string, Array<Record<string, unknown>>>;
 }> {
-  const response = await fetch("/api/crm/options");
-  const payload = await response.json().catch(() => ({}));
-  if (!response.ok || payload.ok === false) {
-    throw new Error(payload.message || "Could not load CRM reference data.");
-  }
-  return payload;
+  // Deliberately a plain Error with its own fallback message (callers show it
+  // as-is); only the JSON response contract is shared.
+  return readJsonResponse(
+    await fetch("/api/crm/options"),
+    (payload) =>
+      new Error(payload.message || "Could not load CRM reference data."),
+  );
 }

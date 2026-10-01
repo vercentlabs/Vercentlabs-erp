@@ -6,28 +6,12 @@ import type {
   LeadImportPreviewResult,
   LeadImportRollbackResult,
 } from "../types";
+import { CrmApiError } from "../../shared/http/crm-api-error.ts";
+import { crmApiClient } from "../../shared/http/crm-request.ts";
 
-export class ImportExportApiError extends Error {
-  constructor(
-    message: string,
-    public readonly status: number,
-    public readonly code?: string,
-  ) {
-    super(message);
-  }
-}
+export class ImportExportApiError extends CrmApiError {}
 
-async function parseResponse<T>(response: Response): Promise<T> {
-  const payload = await response.json().catch(() => ({}));
-  if (!response.ok || payload.ok === false) {
-    throw new ImportExportApiError(
-      payload.message || "The request could not be completed.",
-      response.status,
-      payload.code,
-    );
-  }
-  return payload;
-}
+const { request, parseResponse } = crmApiClient(ImportExportApiError);
 
 // The server parses the CSV (Shared Platform parser); the browser uploads the file.
 export async function analyzeLeadImportRequest(file: File): Promise<{
@@ -66,19 +50,15 @@ export async function previewLeadImportRequest(input: {
 export async function commitLeadImportRequest(
   batchId: string,
 ): Promise<{ batch: LeadImportBatch; async: boolean; jobId?: string }> {
-  const response = await fetch(`/api/crm/leads/import/${batchId}/commit`, {
-    method: "POST",
-  });
-  return parseResponse(response);
+  return request(`/api/crm/leads/import/${batchId}/commit`, { method: "POST" });
 }
 
 export async function rollbackLeadImportRequest(
   batchId: string,
 ): Promise<LeadImportRollbackResult> {
-  const response = await fetch(`/api/crm/leads/import/${batchId}/rollback`, {
+  return request(`/api/crm/leads/import/${batchId}/rollback`, {
     method: "POST",
   });
-  return parseResponse(response);
 }
 
 // F021 gap-closure — the only way back to a completed batch used to be
@@ -88,8 +68,7 @@ export async function rollbackLeadImportRequest(
 export async function listLeadImportBatchesRequest(): Promise<{
   batches: LeadImportBatch[];
 }> {
-  const response = await fetch("/api/crm/leads/import/batches");
-  return parseResponse(response);
+  return request("/api/crm/leads/import/batches");
 }
 
 // F021 Stage A2 §9. Export is now a real async, server-side job
@@ -106,19 +85,16 @@ export async function startLeadExportRequest(
   const cleaned: Record<string, string> = {};
   for (const [key, value] of Object.entries(filters))
     if (value) cleaned[key] = value;
-  const response = await fetch("/api/crm/leads/export", {
+  return request("/api/crm/leads/export", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ filters: cleaned }),
+    json: { filters: cleaned },
   });
-  return parseResponse(response);
 }
 
 export async function getLeadExportJobRequest(
   jobId: string,
 ): Promise<{ job: LeadExportJob }> {
-  const response = await fetch(`/api/crm/leads/export/${jobId}`);
-  return parseResponse(response);
+  return request(`/api/crm/leads/export/${jobId}`);
 }
 
 export function leadExportDownloadUrl(jobId: string): string {
@@ -129,8 +105,7 @@ export async function getLeadImportBatchRequest(batchId: string): Promise<{
   batch: LeadImportBatch;
   progress: { processed: number; total: number; percent: number };
 }> {
-  const response = await fetch(`/api/crm/leads/import/${batchId}`);
-  return parseResponse(response);
+  return request(`/api/crm/leads/import/${batchId}`);
 }
 
 export function leadImportErrorsUrl(batchId: string) {

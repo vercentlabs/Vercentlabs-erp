@@ -8,6 +8,8 @@ import { listAccounts } from "@/features/crm/accounts/api/accounts-api";
 import { listContacts } from "@/features/crm/contacts/api/contacts-api";
 import { listLeads } from "@/features/crm/leads/api/leads-api";
 import { listOpportunities } from "@/features/crm/opportunities/api/opportunities-api";
+import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
+import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 
 export type RelatedValue = {
   entityType: "general" | "lead" | "party" | "contact" | "opportunity";
@@ -60,9 +62,16 @@ export function RelatedRecordPicker({
   onChange: (v: RelatedValue) => void;
   label?: string;
 }) {
+  const workspace = useWorkspaceContext();
   const [text, setText] = useState("");
   const query = useQuery({
-    queryKey: ["crm", "related-search", value.entityType, text],
+    queryKey: scopedQueryKey(
+      workspace,
+      "crm",
+      "related-search",
+      value.entityType,
+      text,
+    ),
     queryFn: () => search(value.entityType, text),
     enabled: value.entityType !== "general",
     staleTime: 15_000,

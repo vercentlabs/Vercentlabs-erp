@@ -1,5 +1,8 @@
 "use client";
 
+import { CrmApiError } from "../../shared/http/crm-api-error.ts";
+import { crmApiClient } from "../../shared/http/crm-request.ts";
+
 export const RELATIONSHIP_TYPES = [
   "employment",
   "affiliated",
@@ -54,44 +57,23 @@ export type AccountContactRelationship = {
   contactStatus: string;
 };
 
-export class ContactRelationshipApiError extends Error {
-  constructor(
-    message: string,
-    public readonly status: number,
-    public readonly code?: string,
-  ) {
-    super(message);
-  }
-}
+export class ContactRelationshipApiError extends CrmApiError {}
 
-async function parseResponse<T>(response: Response): Promise<T> {
-  const payload = await response.json().catch(() => ({}));
-  if (!response.ok || payload.ok === false) {
-    throw new ContactRelationshipApiError(
-      payload.message || "The request could not be completed.",
-      response.status,
-      payload.code,
-    );
-  }
-  return payload;
-}
+const { request, parseResponse } = crmApiClient(ContactRelationshipApiError);
 
 export async function listContactRelationships(
   contactId: string,
 ): Promise<{ rows: ContactAccountRelationship[] }> {
-  const response = await fetch(`/api/crm/contacts/${contactId}/relationships`);
-  return parseResponse(response);
+  return request(`/api/crm/contacts/${contactId}/relationships`);
 }
 export async function addContactRelationship(
   contactId: string,
   input: Record<string, unknown>,
 ): Promise<{ rows: ContactAccountRelationship[] }> {
-  const response = await fetch(`/api/crm/contacts/${contactId}/relationships`, {
+  return request(`/api/crm/contacts/${contactId}/relationships`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(input),
+    json: input,
   });
-  return parseResponse(response);
 }
 export async function updateContactRelationship(
   contactId: string,
@@ -136,8 +118,5 @@ export async function removeContactRelationship(
 export async function listAccountContactRelationships(
   accountId: string,
 ): Promise<{ rows: AccountContactRelationship[] }> {
-  const response = await fetch(
-    `/api/crm/accounts/${accountId}/contact-relationships`,
-  );
-  return parseResponse(response);
+  return request(`/api/crm/accounts/${accountId}/contact-relationships`);
 }

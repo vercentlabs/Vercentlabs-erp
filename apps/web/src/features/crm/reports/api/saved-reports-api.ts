@@ -1,6 +1,7 @@
 "use client";
 
-import { CrmReportApiError } from "./reports-api";
+import { CrmReportApiError } from "./reports-api.ts";
+import { crmApiClient } from "../../shared/http/crm-request.ts";
 
 // Saved, run and scheduled CRM reports through the shared reporting service
 // (report_definitions / report_runs / report_schedules). CRM datasets are
@@ -55,16 +56,7 @@ export type ReportSchedule = {
   }>;
 };
 
-async function parse<T>(response: Response): Promise<T> {
-  const payload = await response.json().catch(() => ({}));
-  if (!response.ok || payload.ok === false)
-    throw new CrmReportApiError(
-      payload.message || "The request could not be completed.",
-      response.status,
-      payload.code,
-    );
-  return payload;
-}
+const { parseResponse: parse } = crmApiClient(CrmReportApiError);
 
 const post = (url: string, body: unknown) =>
   fetch(url, {

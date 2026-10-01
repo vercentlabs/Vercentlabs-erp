@@ -5,68 +5,45 @@ import type {
   LeadAssignmentFallback,
   LeadAssignmentPolicy,
 } from "../types";
+import { CrmApiError } from "../../../shared/http/crm-api-error.ts";
+import { crmApiClient } from "../../../shared/http/crm-request.ts";
 
-export class AssignmentPolicyApiError extends Error {
-  constructor(
-    message: string,
-    public readonly status: number,
-    public readonly code?: string,
-  ) {
-    super(message);
-  }
-}
+export class AssignmentPolicyApiError extends CrmApiError {}
 
-async function parseResponse<T>(response: Response): Promise<T> {
-  const payload = await response.json().catch(() => ({}));
-  if (!response.ok || payload.ok === false) {
-    throw new AssignmentPolicyApiError(
-      payload.message || "The request could not be completed.",
-      response.status,
-      payload.code,
-    );
-  }
-  return payload;
-}
+const { request, parseResponse } = crmApiClient(AssignmentPolicyApiError);
 
 export async function listLeadAssignmentPolicies(): Promise<{
   rows: LeadAssignmentPolicy[];
 }> {
-  const response = await fetch("/api/crm/lead-assignment-policies");
-  return parseResponse(response);
+  return request("/api/crm/lead-assignment-policies");
 }
 export async function createLeadAssignmentPolicy(
   input: Record<string, unknown>,
 ): Promise<{ record: LeadAssignmentPolicy }> {
-  const response = await fetch("/api/crm/lead-assignment-policies", {
+  return request("/api/crm/lead-assignment-policies", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(input),
+    json: input,
   });
-  return parseResponse(response);
 }
 export async function updateLeadAssignmentPolicy(
   id: string,
   input: Record<string, unknown>,
   expectedUpdatedAt: string,
 ): Promise<{ record: LeadAssignmentPolicy }> {
-  const response = await fetch(`/api/crm/lead-assignment-policies/${id}`, {
+  return request(`/api/crm/lead-assignment-policies/${id}`, {
     method: "PATCH",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ ...input, expectedUpdatedAt }),
+    json: { ...input, expectedUpdatedAt },
   });
-  return parseResponse(response);
 }
 export async function setLeadAssignmentPolicyStatus(
   id: string,
   status: "active" | "inactive",
   expectedUpdatedAt: string,
 ): Promise<{ record: LeadAssignmentPolicy }> {
-  const response = await fetch(`/api/crm/lead-assignment-policies/${id}`, {
+  return request(`/api/crm/lead-assignment-policies/${id}`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ status, expectedUpdatedAt }),
+    json: { status, expectedUpdatedAt },
   });
-  return parseResponse(response);
 }
 export async function archiveLeadAssignmentPolicy(
   id: string,
@@ -108,24 +85,20 @@ export async function explainAssignmentPolicy(
 export async function getLeadAssignmentFallback(): Promise<{
   record: LeadAssignmentFallback;
 }> {
-  const response = await fetch("/api/crm/lead-assignment-fallback");
-  return parseResponse(response);
+  return request("/api/crm/lead-assignment-fallback");
 }
 export async function setLeadAssignmentFallback(
   userId: string | null,
 ): Promise<{ record: LeadAssignmentFallback }> {
-  const response = await fetch("/api/crm/lead-assignment-fallback", {
+  return request("/api/crm/lead-assignment-fallback", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ userId }),
+    json: { userId },
   });
-  return parseResponse(response);
 }
 export async function listLeadAssigneeAvailability(): Promise<{
   rows: LeadAssigneeAvailability[];
 }> {
-  const response = await fetch("/api/crm/lead-assignee-availability");
-  return parseResponse(response);
+  return request("/api/crm/lead-assignee-availability");
 }
 export async function setLeadAssigneeAvailability(input: {
   userId: string;
@@ -133,18 +106,15 @@ export async function setLeadAssigneeAvailability(input: {
   endsAt: string;
   reason?: string;
 }): Promise<{ record: LeadAssigneeAvailability }> {
-  const response = await fetch("/api/crm/lead-assignee-availability", {
+  return request("/api/crm/lead-assignee-availability", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(input),
+    json: input,
   });
-  return parseResponse(response);
 }
 export async function clearLeadAssigneeAvailability(
   id: string,
 ): Promise<{ id: string }> {
-  const response = await fetch(`/api/crm/lead-assignee-availability/${id}`, {
+  return request(`/api/crm/lead-assignee-availability/${id}`, {
     method: "DELETE",
   });
-  return parseResponse(response);
 }

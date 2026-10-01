@@ -1,6 +1,7 @@
 "use client";
 
-import { CrmDashboardApiError } from "./dashboard-api";
+import { CrmDashboardApiError } from "./dashboard-api.ts";
+import { crmApiClient } from "../../shared/http/crm-request.ts";
 
 // Canonical pipeline analytics (services/api/.../pipeline-metrics.js). The
 // dashboard, its drill-downs and breakdowns share one filter set, so every
@@ -119,16 +120,7 @@ function toSearch(
   return params.toString();
 }
 
-async function parse<T>(response: Response): Promise<T> {
-  const payload = await response.json().catch(() => ({}));
-  if (!response.ok || payload.ok === false)
-    throw new CrmDashboardApiError(
-      payload.message || "The request could not be completed.",
-      response.status,
-      payload.code,
-    );
-  return payload;
-}
+const { parseResponse: parse } = crmApiClient(CrmDashboardApiError);
 
 export async function getPipelineDashboard(
   filters: PipelineFilters,

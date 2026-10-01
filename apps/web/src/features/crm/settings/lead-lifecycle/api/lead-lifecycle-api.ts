@@ -5,95 +5,64 @@ import type {
   LeadStageTransition,
   LeadStageTransitionReason,
 } from "../types";
+import { CrmApiErrorWithDetails } from "../../../shared/http/crm-api-error.ts";
+import { crmApiClient } from "../../../shared/http/crm-request.ts";
 
-export class LeadLifecycleApiError extends Error {
-  constructor(
-    message: string,
-    public readonly status: number,
-    public readonly code?: string,
-    public readonly details?: unknown,
-  ) {
-    super(message);
-  }
-}
+export class LeadLifecycleApiError extends CrmApiErrorWithDetails {}
 
-async function parseResponse<T>(response: Response): Promise<T> {
-  const payload = await response.json().catch(() => ({}));
-  if (!response.ok || payload.ok === false) {
-    throw new LeadLifecycleApiError(
-      payload.message || "The request could not be completed.",
-      response.status,
-      payload.code,
-      payload.details,
-    );
-  }
-  return payload;
-}
+const { request, parseResponse } = crmApiClient(
+  LeadLifecycleApiError,
+  "details-field",
+);
 
 export async function listLeadStages(
   status: "active" | "inactive" | "all" = "all",
 ): Promise<{ rows: LeadStage[]; total: number }> {
-  const response = await fetch(`/api/crm/lead-stages?status=${status}`);
-  return parseResponse(response);
+  return request(`/api/crm/lead-stages?status=${status}`);
 }
 export async function createLeadStage(
   input: Record<string, unknown>,
 ): Promise<{ record: LeadStage }> {
-  const response = await fetch("/api/crm/lead-stages", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(input),
-  });
-  return parseResponse(response);
+  return request("/api/crm/lead-stages", { method: "POST", json: input });
 }
 export async function updateLeadStage(
   id: string,
   input: Record<string, unknown>,
 ): Promise<{ record: LeadStage }> {
-  const response = await fetch(`/api/crm/lead-stages/${id}`, {
+  return request(`/api/crm/lead-stages/${id}`, {
     method: "PATCH",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(input),
+    json: input,
   });
-  return parseResponse(response);
 }
 export async function reactivateLeadStage(
   id: string,
 ): Promise<{ record: LeadStage }> {
-  const response = await fetch(`/api/crm/lead-stages/${id}/reactivate`, {
-    method: "POST",
-  });
-  return parseResponse(response);
+  return request(`/api/crm/lead-stages/${id}/reactivate`, { method: "POST" });
 }
 export async function deactivateLeadStage(
   id: string,
   migrateToStageId?: string,
 ): Promise<{ deactivated: boolean; stage: LeadStage; migrationJob?: unknown }> {
-  const response = await fetch(`/api/crm/lead-stages/${id}/deactivate`, {
+  return request(`/api/crm/lead-stages/${id}/deactivate`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ migrateToStageId }),
+    json: { migrateToStageId },
   });
-  return parseResponse(response);
 }
 
 export async function listLeadStageTransitions(): Promise<{
   rows: LeadStageTransition[];
 }> {
-  const response = await fetch("/api/crm/lead-stage-transitions");
-  return parseResponse(response);
+  return request("/api/crm/lead-stage-transitions");
 }
 export async function addLeadStageTransition(
   fromStageId: string,
   toStageId: string,
   reasonRequired: boolean,
 ): Promise<{ record: unknown }> {
-  const response = await fetch("/api/crm/lead-stage-transitions", {
+  return request("/api/crm/lead-stage-transitions", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ fromStageId, toStageId, reasonRequired }),
+    json: { fromStageId, toStageId, reasonRequired },
   });
-  return parseResponse(response);
 }
 export async function removeLeadStageTransition(
   fromStageId: string,
@@ -117,37 +86,31 @@ export type LeadStageTemplatePreview = {
 };
 
 export async function previewLeadStageTemplateUpgrade(): Promise<LeadStageTemplatePreview> {
-  const response = await fetch("/api/crm/lead-stages/recommended-template");
-  return parseResponse(response);
+  return request("/api/crm/lead-stages/recommended-template");
 }
 export async function applyLeadStageTemplateUpgrade(): Promise<{
   applied: boolean;
   stagesCreated: Array<{ code: string; name: string; description: string }>;
   edgesAdded: Array<{ fromCode: string; toCode: string }>;
 }> {
-  const response = await fetch("/api/crm/lead-stages/recommended-template", {
+  return request("/api/crm/lead-stages/recommended-template", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ confirm: true }),
+    json: { confirm: true },
   });
-  return parseResponse(response);
 }
 
 export async function listLeadStageTransitionReasons(): Promise<{
   rows: LeadStageTransitionReason[];
 }> {
-  const response = await fetch("/api/crm/lead-stage-transition-reasons");
-  return parseResponse(response);
+  return request("/api/crm/lead-stage-transition-reasons");
 }
 export async function createLeadStageTransitionReason(
   input: Record<string, unknown>,
 ): Promise<{ record: LeadStageTransitionReason }> {
-  const response = await fetch("/api/crm/lead-stage-transition-reasons", {
+  return request("/api/crm/lead-stage-transition-reasons", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(input),
+    json: input,
   });
-  return parseResponse(response);
 }
 export async function setLeadStageTransitionReasonActive(
   id: string,

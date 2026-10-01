@@ -1,28 +1,12 @@
 "use client";
 
 import type { CrmListResponse, MeetingLink } from "../types";
+import { CrmApiError } from "../../../shared/http/crm-api-error.ts";
+import { crmApiClient } from "../../../shared/http/crm-request.ts";
 
-export class MeetingLinkApiError extends Error {
-  constructor(
-    message: string,
-    public readonly status: number,
-    public readonly code?: string,
-  ) {
-    super(message);
-  }
-}
+export class MeetingLinkApiError extends CrmApiError {}
 
-async function parseResponse<T>(response: Response): Promise<T> {
-  const payload = await response.json().catch(() => ({}));
-  if (!response.ok || payload.ok === false) {
-    throw new MeetingLinkApiError(
-      payload.message || "The request could not be completed.",
-      response.status,
-      payload.code,
-    );
-  }
-  return payload;
-}
+const { request, parseResponse } = crmApiClient(MeetingLinkApiError);
 
 // Reuses the generic /api/crm/[resource] boundary — meeting-links has no
 // dedicated module (confirmed by grep before building this), just a
@@ -30,30 +14,22 @@ async function parseResponse<T>(response: Response): Promise<T> {
 export async function listMeetingLinks(): Promise<
   CrmListResponse<MeetingLink>
 > {
-  const response = await fetch("/api/crm/meeting-links?limit=100");
-  return parseResponse(response);
+  return request("/api/crm/meeting-links?limit=100");
 }
 export async function createMeetingLink(
   input: Record<string, unknown>,
 ): Promise<{ record: MeetingLink }> {
-  const response = await fetch("/api/crm/meeting-links", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(input),
-  });
-  return parseResponse(response);
+  return request("/api/crm/meeting-links", { method: "POST", json: input });
 }
 export async function updateMeetingLink(
   id: string,
   input: Record<string, unknown>,
   expectedUpdatedAt: string,
 ): Promise<{ record: MeetingLink }> {
-  const response = await fetch(`/api/crm/meeting-links/${id}`, {
+  return request(`/api/crm/meeting-links/${id}`, {
     method: "PATCH",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ input, expectedUpdatedAt }),
+    json: { input, expectedUpdatedAt },
   });
-  return parseResponse(response);
 }
 export async function archiveMeetingLink(
   id: string,

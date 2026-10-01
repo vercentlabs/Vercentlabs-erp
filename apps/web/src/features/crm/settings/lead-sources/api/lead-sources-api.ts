@@ -1,43 +1,21 @@
 "use client";
 
 import type { LeadSource, LeadSourceListResponse } from "../types";
+import { CrmApiError } from "../../../shared/http/crm-api-error.ts";
+import { crmApiClient } from "../../../shared/http/crm-request.ts";
 
-export class LeadSourceApiError extends Error {
-  constructor(
-    message: string,
-    public readonly status: number,
-    public readonly code?: string,
-  ) {
-    super(message);
-  }
-}
+export class LeadSourceApiError extends CrmApiError {}
 
-async function parseResponse<T>(response: Response): Promise<T> {
-  const payload = await response.json().catch(() => ({}));
-  if (!response.ok || payload.ok === false) {
-    throw new LeadSourceApiError(
-      payload.message || "The request could not be completed.",
-      response.status,
-      payload.code,
-    );
-  }
-  return payload;
-}
+const { request } = crmApiClient(LeadSourceApiError);
 
 export async function listLeadSources(): Promise<LeadSourceListResponse> {
-  const response = await fetch("/api/crm/lead-sources");
-  return parseResponse(response);
+  return request("/api/crm/lead-sources");
 }
 
 export async function createLeadSource(
   input: Record<string, unknown>,
 ): Promise<{ record: LeadSource }> {
-  const response = await fetch("/api/crm/lead-sources", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(input),
-  });
-  return parseResponse(response);
+  return request("/api/crm/lead-sources", { method: "POST", json: input });
 }
 
 export async function updateLeadSource(
@@ -45,12 +23,10 @@ export async function updateLeadSource(
   input: Record<string, unknown>,
   expectedUpdatedAt: string,
 ): Promise<{ record: LeadSource }> {
-  const response = await fetch(`/api/crm/lead-sources/${id}`, {
+  return request(`/api/crm/lead-sources/${id}`, {
     method: "PATCH",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ input, expectedUpdatedAt }),
+    json: { input, expectedUpdatedAt },
   });
-  return parseResponse(response);
 }
 
 export async function setLeadSourceActive(
@@ -58,10 +34,8 @@ export async function setLeadSourceActive(
   active: boolean,
   expectedUpdatedAt: string,
 ): Promise<{ record: LeadSource }> {
-  const response = await fetch(`/api/crm/lead-sources/${id}/active`, {
+  return request(`/api/crm/lead-sources/${id}/active`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ active, expectedUpdatedAt }),
+    json: { active, expectedUpdatedAt },
   });
-  return parseResponse(response);
 }

@@ -5,6 +5,7 @@ import {
   checkAccessBoundaryUse,
   checkApiCoreLayout,
   checkApiRootCrmBoundary,
+  checkCrmBrowserClients,
   checkCanonicalDefinitions,
   checkCrmCapabilityImportBans,
   checkCrmCompatibilityBarrels,
@@ -274,4 +275,32 @@ test("the package root reaches CRM only through the module boundary and the lega
   assert.match(problems[1], /"\.\/modules\/crm\/pipeline\/bar\.js"/);
   assert.match(problems[2], /may only re-export, found "export function helper/);
   assert.match(problems[3], /re-exports "\.\.\/modules\/sales\/index\.js"/);
+});
+
+test("CRM browser clients use the shared response parser, the common error base and scoped query keys", () => {
+  const crm = "apps/web/src/features/crm";
+  assert.deepEqual(
+    checkCrmBrowserClients([
+      file(`${crm}/calls/api/calls-api.ts`, 'export class CallApiError extends CrmApiError {}\nconst { request } = crmApiClient(CallApiError);'),
+      file(`${crm}/shared/http/crm-api-error.ts`, "export class CrmApiError extends Error {}"),
+      file(`${crm}/shared/http/crm-request.ts`, "const payload = await response.json();"),
+      file(`${crm}/coverage/screens/SalesCoverageScreen.tsx`, 'useQuery({ queryKey: [...coverageKey, "unassigned"] });\nuseQuery({ queryKey: scopedQueryKey(workspace, "crm") });'),
+      file("apps/web/src/features/sales/api/sales-api.ts", 'class SalesError extends Error {}\nuseQuery({ queryKey: ["sales"] });'),
+    ]),
+    [],
+  );
+  const problems = checkCrmBrowserClients([
+    file(`${crm}/tasks/api/tasks-api.ts`, "export class TaskApiError extends Error {}\nasync function parseResponse(r) { const payload = await r.json().catch(() => ({})); }"),
+    file(`${crm}/shared/ui/RelatedRecordPicker.tsx`, 'useQuery({\n  queryKey: ["crm", "related-search", type, text],\n});'),
+  ]);
+  assert.equal(problems.length, 3);
+  assert.match(problems[0], /tasks-api\.ts decodes a response body itself/);
+  assert.match(problems[1], /declares TaskApiError extends Error/);
+  assert.match(problems[2], /RelatedRecordPicker\.tsx:2 builds an unscoped query key/);
+  const directive = checkCrmBrowserClients([
+    file(`${crm}/shared/notes-api.ts`, 'import { crmApiClient } from "./http/crm-request.ts";\n\n("use client");\n'),
+    file(`${crm}/shared/tags-api.ts`, '"use client";\n\nimport { crmApiClient } from "./http/crm-request.ts";\n'),
+  ]);
+  assert.equal(directive.length, 1);
+  assert.match(directive[0], /notes-api\.ts has a "use client" directive that is not the first statement/);
 });

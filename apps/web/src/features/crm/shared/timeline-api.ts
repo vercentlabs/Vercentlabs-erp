@@ -1,5 +1,8 @@
 "use client";
 
+import { CrmApiError } from "./http/crm-api-error.ts";
+import { crmApiClient } from "./http/crm-request.ts";
+
 // F019 — shared client for every 360 that embeds a RecordTimelinePanel.
 export type TimelineKind =
   | "activity"
@@ -28,15 +31,9 @@ export type RecordTimelinePage = {
   nextCursor: string | null;
 };
 
-export class TimelineApiError extends Error {
-  constructor(
-    message: string,
-    public readonly status: number,
-    public readonly code?: string,
-  ) {
-    super(message);
-  }
-}
+export class TimelineApiError extends CrmApiError {}
+
+const { request } = crmApiClient(TimelineApiError);
 
 export async function getRecordTimeline(
   entityType: string,
@@ -46,14 +43,5 @@ export async function getRecordTimeline(
   const params = new URLSearchParams({ entityType, entityId });
   if (options.cursor) params.set("cursor", options.cursor);
   if (options.kinds?.length) params.set("kinds", options.kinds.join(","));
-  const response = await fetch(`/api/crm/timeline?${params.toString()}`);
-  const payload = await response.json().catch(() => ({}));
-  if (!response.ok || payload.ok === false) {
-    throw new TimelineApiError(
-      payload.message || "The request could not be completed.",
-      response.status,
-      payload.code,
-    );
-  }
-  return payload;
+  return request(`/api/crm/timeline?${params.toString()}`);
 }

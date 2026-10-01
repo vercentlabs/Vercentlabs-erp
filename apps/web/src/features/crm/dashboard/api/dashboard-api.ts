@@ -1,28 +1,12 @@
 "use client";
 
 import type { CrmDashboard, CrmDashboardScope } from "../types";
+import { CrmApiError } from "../../shared/http/crm-api-error.ts";
+import { crmApiClient } from "../../shared/http/crm-request.ts";
 
-export class CrmDashboardApiError extends Error {
-  constructor(
-    message: string,
-    public readonly status: number,
-    public readonly code?: string,
-  ) {
-    super(message);
-  }
-}
+export class CrmDashboardApiError extends CrmApiError {}
 
-async function parseResponse<T>(response: Response): Promise<T> {
-  const payload = await response.json().catch(() => ({}));
-  if (!response.ok || payload.ok === false) {
-    throw new CrmDashboardApiError(
-      payload.message || "The request could not be completed.",
-      response.status,
-      payload.code,
-    );
-  }
-  return payload;
-}
+const { parseResponse } = crmApiClient(CrmDashboardApiError);
 
 export async function getCrmDashboardData(
   options: { scope?: CrmDashboardScope; from?: string; to?: string } = {},

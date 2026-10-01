@@ -243,6 +243,37 @@ export function checkApiRootCrmBoundary(files) {
   return problems;
 }
 
+// CRM browser clients (apps/web/src/features/crm) share one response/error
+// model in features/crm/shared/http: responses are decoded there
+// (parseCrmResponse / crmRequest), feature error classes extend CrmApiError
+// instead of re-implementing status/code/details, and every TanStack Query key
+// is workspace-scoped through scopedQueryKey (or spreads a key built by it).
+export const CRM_WEB_ROOT = "apps/web/src/features/crm";
+export const CRM_WEB_HTTP_DIR = `${CRM_WEB_ROOT}/shared/http/`;
+// Files allowed to decode a response body themselves. Empty today: uploads,
+// import/export and public booking all parse through parseCrmResponse.
+export const CRM_WEB_CUSTOM_RESPONSE_PARSERS = Object.freeze([]);
+
+export function checkCrmBrowserClients(files) {
+  const problems = [];
+  for (const { path: file, source } of files) {
+    if (!file.startsWith(`${CRM_WEB_ROOT}/`) || !/\.tsx?$/.test(file) || /\.test\.tsx?$/.test(file)) continue;
+    const inHttp = file.startsWith(CRM_WEB_HTTP_DIR);
+    if (/^\s*\(?\s*["']use client["']\s*\)?\s*;?\s*$/m.test(source) && !/^["']use client["'];?\s*$/.test(source.split("\n")[0]))
+      problems.push(`${file} has a "use client" directive that is not the first statement, so Next.js ignores it`);
+    if (!inHttp && !CRM_WEB_CUSTOM_RESPONSE_PARSERS.includes(file) && /\.json\(\s*\)/.test(source))
+      problems.push(`${file} decodes a response body itself; use parseCrmResponse/crmRequest from features/crm/shared/http (or list a genuinely special client in CRM_WEB_CUSTOM_RESPONSE_PARSERS)`);
+    if (!inHttp)
+      for (const match of source.matchAll(/class\s+([A-Za-z_$][\w$]*)\s+extends\s+Error\b/g))
+        problems.push(`${file} declares ${match[1]} extends Error; CRM API errors extend CrmApiError (features/crm/shared/http/crm-api-error.ts)`);
+    for (const match of source.matchAll(/queryKey:\s*\[(?!\s*\.\.\.)/g)) {
+      const line = source.slice(0, match.index).split("\n").length;
+      problems.push(`${file}:${line} builds an unscoped query key; use scopedQueryKey(workspace, ...) so caches never cross organizations or companies`);
+    }
+  }
+  return problems;
+}
+
 // CRM files kept only as compatibility re-export boundaries after their code
 // moved to owning files. They may contain comments and `export { ... } from`
 // statements, nothing else, so they cannot grow back into implementations.

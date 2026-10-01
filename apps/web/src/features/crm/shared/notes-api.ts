@@ -1,5 +1,8 @@
 "use client";
 
+import { CrmApiError } from "../shared/http/crm-api-error.ts";
+import { crmApiClient } from "../shared/http/crm-request.ts";
+
 // F017 Notes — one shared client for every 360 that embeds a NotesPanel
 // (Lead/Account/Contact/Opportunity), not a per-feature duplicate.
 export type CrmNote = {
@@ -17,35 +20,16 @@ export type CrmNote = {
   archivedAt: string | null;
 };
 
-export class NoteApiError extends Error {
-  constructor(
-    message: string,
-    public readonly status: number,
-    public readonly code?: string,
-  ) {
-    super(message);
-  }
-}
+export class NoteApiError extends CrmApiError {}
 
-async function parseResponse<T>(response: Response): Promise<T> {
-  const payload = await response.json().catch(() => ({}));
-  if (!response.ok || payload.ok === false) {
-    throw new NoteApiError(
-      payload.message || "The request could not be completed.",
-      response.status,
-      payload.code,
-    );
-  }
-  return payload;
-}
+const { request, parseResponse } = crmApiClient(NoteApiError);
 
 export async function listNotes(
   entityType: string,
   entityId: string,
 ): Promise<{ notes: CrmNote[] }> {
   const params = new URLSearchParams({ entityType, entityId });
-  const response = await fetch(`/api/crm/notes?${params.toString()}`);
-  return parseResponse(response);
+  return request(`/api/crm/notes?${params.toString()}`);
 }
 
 export async function createNote(
@@ -54,12 +38,10 @@ export async function createNote(
   body: string,
   visibility: "shared" | "private" = "shared",
 ): Promise<{ note: CrmNote }> {
-  const response = await fetch("/api/crm/notes", {
+  return request("/api/crm/notes", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ entityType, entityId, body, visibility }),
+    json: { entityType, entityId, body, visibility },
   });
-  return parseResponse(response);
 }
 
 export type NotePatch = {
@@ -73,12 +55,10 @@ export async function updateNote(
   patch: NotePatch,
   expectedVersion: number,
 ): Promise<{ note: CrmNote }> {
-  const response = await fetch(`/api/crm/notes/${id}`, {
+  return request(`/api/crm/notes/${id}`, {
     method: "PATCH",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ ...patch, expectedVersion }),
+    json: { ...patch, expectedVersion },
   });
-  return parseResponse(response);
 }
 
 export async function archiveNote(
@@ -108,6 +88,5 @@ export type NoteVersion = {
 export async function listNoteVersions(
   id: string,
 ): Promise<{ versions: NoteVersion[] }> {
-  const response = await fetch(`/api/crm/notes/${id}/versions`);
-  return parseResponse(response);
+  return request(`/api/crm/notes/${id}/versions`);
 }

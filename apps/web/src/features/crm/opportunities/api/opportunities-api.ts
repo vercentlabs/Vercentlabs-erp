@@ -5,28 +5,12 @@ import type {
   Opportunity,
   OpportunityListFilters,
 } from "../types";
+import { CrmApiError } from "../../shared/http/crm-api-error.ts";
+import { crmApiClient } from "../../shared/http/crm-request.ts";
 
-export class OpportunityApiError extends Error {
-  constructor(
-    message: string,
-    public readonly status: number,
-    public readonly code?: string,
-  ) {
-    super(message);
-  }
-}
+export class OpportunityApiError extends CrmApiError {}
 
-async function parseResponse<T>(response: Response): Promise<T> {
-  const payload = await response.json().catch(() => ({}));
-  if (!response.ok || payload.ok === false) {
-    throw new OpportunityApiError(
-      payload.message || "The request could not be completed.",
-      response.status,
-      payload.code,
-    );
-  }
-  return payload;
-}
+const { request, parseResponse } = crmApiClient(OpportunityApiError);
 
 // Opportunities ARE a generic CRM_RESOURCE_KEYS resource (unlike Accounts/
 // Contacts), so plain CRUD reuses the same /api/crm/[resource] boundary
@@ -39,26 +23,19 @@ export async function listOpportunities(
     if (value !== undefined && value !== "" && value !== "all")
       params.set(key, String(value));
   }
-  const response = await fetch(`/api/crm/opportunities?${params.toString()}`);
-  return parseResponse(response);
+  return request(`/api/crm/opportunities?${params.toString()}`);
 }
 
 export async function getOpportunity(
   id: string,
 ): Promise<{ record: Opportunity }> {
-  const response = await fetch(`/api/crm/opportunities/${id}`);
-  return parseResponse(response);
+  return request(`/api/crm/opportunities/${id}`);
 }
 
 export async function createOpportunity(
   input: Record<string, unknown>,
 ): Promise<{ record: Opportunity }> {
-  const response = await fetch("/api/crm/opportunities", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(input),
-  });
-  return parseResponse(response);
+  return request("/api/crm/opportunities", { method: "POST", json: input });
 }
 
 export async function updateOpportunity(
@@ -66,12 +43,10 @@ export async function updateOpportunity(
   input: Record<string, unknown>,
   expectedUpdatedAt: string,
 ): Promise<{ record: Opportunity }> {
-  const response = await fetch(`/api/crm/opportunities/${id}`, {
+  return request(`/api/crm/opportunities/${id}`, {
     method: "PATCH",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ input, expectedUpdatedAt }),
+    json: { input, expectedUpdatedAt },
   });
-  return parseResponse(response);
 }
 
 export async function archiveOpportunity(
@@ -94,12 +69,10 @@ export async function restoreOpportunity(
   reason: string,
   expectedUpdatedAt: string,
 ): Promise<{ record: Opportunity }> {
-  const response = await fetch(`/api/crm/opportunities/${id}/restore`, {
+  return request(`/api/crm/opportunities/${id}/restore`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ reason, expectedUpdatedAt }),
+    json: { reason, expectedUpdatedAt },
   });
-  return parseResponse(response);
 }
 
 export async function moveOpportunityStage(
@@ -113,12 +86,10 @@ export async function moveOpportunityStage(
     outcomeNotes?: string | null;
   },
 ): Promise<{ record: Opportunity }> {
-  const response = await fetch(`/api/crm/opportunities/${id}/stage`, {
+  return request(`/api/crm/opportunities/${id}/stage`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(input),
+    json: input,
   });
-  return parseResponse(response);
 }
 
 export async function updateOpportunityProbability(
@@ -130,12 +101,10 @@ export async function updateOpportunityProbability(
     expectedProbability?: number | null;
   },
 ): Promise<{ record: Opportunity }> {
-  const response = await fetch(`/api/crm/opportunities/${id}/probability`, {
+  return request(`/api/crm/opportunities/${id}/probability`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(input),
+    json: input,
   });
-  return parseResponse(response);
 }
 
 // F010 gap-closure — authoritative per-stage totals/ages/bottlenecks the
@@ -170,10 +139,9 @@ export async function getPipelineSummary(pipelineId: string): Promise<{
   stageAges: Record<string, PipelineStageAge>;
   bottlenecks: PipelineStageBottleneck[];
 }> {
-  const response = await fetch(
+  return request(
     `/api/crm/opportunities/pipeline-summary?pipelineId=${encodeURIComponent(pipelineId)}`,
   );
-  return parseResponse(response);
 }
 
 export type PipelineSnapshot = {
@@ -194,10 +162,9 @@ export type PipelineSnapshot = {
 export async function listPipelineSnapshots(
   pipelineId: string,
 ): Promise<{ rows: PipelineSnapshot[] }> {
-  const response = await fetch(
+  return request(
     `/api/crm/pipeline/snapshots?pipelineId=${encodeURIComponent(pipelineId)}`,
   );
-  return parseResponse(response);
 }
 
 export async function capturePipelineSnapshotNow(pipelineId: string): Promise<{
@@ -207,12 +174,10 @@ export async function capturePipelineSnapshotNow(pipelineId: string): Promise<{
   rowsWritten: number;
   rowsSkippedDuplicate: number;
 }> {
-  const response = await fetch("/api/crm/pipeline/snapshots", {
+  return request("/api/crm/pipeline/snapshots", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ pipelineId }),
+    json: { pipelineId },
   });
-  return parseResponse(response);
 }
 
 // F011 gap-closure — crm_opportunity_probability_history has been an
@@ -240,10 +205,7 @@ export type OpportunityProbabilityHistoryEntry = {
 export async function getOpportunityProbabilityHistory(
   id: string,
 ): Promise<{ rows: OpportunityProbabilityHistoryEntry[] }> {
-  const response = await fetch(
-    `/api/crm/opportunities/${id}/probability-history`,
-  );
-  return parseResponse(response);
+  return request(`/api/crm/opportunities/${id}/probability-history`);
 }
 
 // F011 gap-closure — the predictive-forecast model already computes a real
@@ -261,10 +223,7 @@ export type OpportunityPredictiveProbability = {
 export async function getOpportunityPredictiveProbability(
   id: string,
 ): Promise<{ prediction: OpportunityPredictiveProbability | null }> {
-  const response = await fetch(
-    `/api/crm/opportunities/${id}/predictive-probability`,
-  );
-  return parseResponse(response);
+  return request(`/api/crm/opportunities/${id}/predictive-probability`);
 }
 
 // F029 governed bulk edit — only ownerUserId/forecastCategory/
@@ -310,10 +269,8 @@ export async function bulkUpdateOpportunitiesRequest(
   idempotencyKey?: string,
   preview = false,
 ): Promise<OpportunityBulkSyncResult | OpportunityBulkJobResult> {
-  const response = await fetch("/api/crm/opportunities/bulk", {
+  return request("/api/crm/opportunities/bulk", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ ids, changes, idempotencyKey, preview }),
+    json: { ids, changes, idempotencyKey, preview },
   });
-  return parseResponse(response);
 }

@@ -552,12 +552,17 @@ function RequestDetailDialog({
   onExecuted: () => void;
   onError: (error: unknown) => void;
 }) {
+  const workspace = useWorkspaceContext();
   const [erasureMode, setErasureMode] = useState("anonymize");
   const [corrections, setCorrections] = useState("{}");
   const [resolutionNotes, setResolutionNotes] = useState("");
 
   const previewQuery = useQuery({
-    queryKey: ["crm-privacy-request-preview", request?.id],
+    queryKey: scopedQueryKey(
+      workspace,
+      "crm-privacy-request-preview",
+      request?.id,
+    ),
     queryFn: () => previewPrivacyRequest(request!.id),
     enabled: Boolean(request),
   });

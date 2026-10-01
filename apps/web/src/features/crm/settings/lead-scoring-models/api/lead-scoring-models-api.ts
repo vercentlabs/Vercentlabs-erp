@@ -1,71 +1,48 @@
 "use client";
 
 import type { LeadScoringModel, LeadScoringModelRule } from "../types";
+import { CrmApiError } from "../../../shared/http/crm-api-error.ts";
+import { crmApiClient } from "../../../shared/http/crm-request.ts";
 
-export class ScoringModelApiError extends Error {
-  constructor(
-    message: string,
-    public readonly status: number,
-    public readonly code?: string,
-  ) {
-    super(message);
-  }
-}
+export class ScoringModelApiError extends CrmApiError {}
 
-async function parseResponse<T>(response: Response): Promise<T> {
-  const payload = await response.json().catch(() => ({}));
-  if (!response.ok || payload.ok === false) {
-    throw new ScoringModelApiError(
-      payload.message || "The request could not be completed.",
-      response.status,
-      payload.code,
-    );
-  }
-  return payload;
-}
+const { request, parseResponse } = crmApiClient(ScoringModelApiError);
 
 export async function listLeadScoringModels(): Promise<{
   rows: LeadScoringModel[];
 }> {
-  const response = await fetch("/api/crm/lead-scoring-models");
-  return parseResponse(response);
+  return request("/api/crm/lead-scoring-models");
 }
 export async function createLeadScoringModel(
   input: Record<string, unknown>,
 ): Promise<{ record: LeadScoringModel }> {
-  const response = await fetch("/api/crm/lead-scoring-models", {
+  return request("/api/crm/lead-scoring-models", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(input),
+    json: input,
   });
-  return parseResponse(response);
 }
 export async function updateLeadScoringModel(
   id: string,
   input: Record<string, unknown>,
 ): Promise<{ record: LeadScoringModel }> {
-  const response = await fetch(`/api/crm/lead-scoring-models/${id}`, {
+  return request(`/api/crm/lead-scoring-models/${id}`, {
     method: "PATCH",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(input),
+    json: input,
   });
-  return parseResponse(response);
 }
 export async function activateLeadScoringModel(
   id: string,
 ): Promise<{ model: LeadScoringModel; recalcJob: unknown }> {
-  const response = await fetch(`/api/crm/lead-scoring-models/${id}/activate`, {
+  return request(`/api/crm/lead-scoring-models/${id}/activate`, {
     method: "POST",
   });
-  return parseResponse(response);
 }
 export async function trainLeadScoringModel(
   id: string,
 ): Promise<{ record: LeadScoringModel }> {
-  const response = await fetch(`/api/crm/lead-scoring-models/${id}/train`, {
+  return request(`/api/crm/lead-scoring-models/${id}/train`, {
     method: "POST",
   });
-  return parseResponse(response);
 }
 export async function createLeadScoringModelRule(
   modelId: string,

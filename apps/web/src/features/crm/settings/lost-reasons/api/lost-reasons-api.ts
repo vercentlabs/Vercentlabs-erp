@@ -1,44 +1,22 @@
 "use client";
 
 import type { CrmListResponse, CrmOutcomeReason } from "../types";
+import { CrmApiError } from "../../../shared/http/crm-api-error.ts";
+import { crmApiClient } from "../../../shared/http/crm-request.ts";
 
-export class OutcomeReasonApiError extends Error {
-  constructor(
-    message: string,
-    public readonly status: number,
-    public readonly code?: string,
-  ) {
-    super(message);
-  }
-}
+export class OutcomeReasonApiError extends CrmApiError {}
 
-async function parseResponse<T>(response: Response): Promise<T> {
-  const payload = await response.json().catch(() => ({}));
-  if (!response.ok || payload.ok === false) {
-    throw new OutcomeReasonApiError(
-      payload.message || "The request could not be completed.",
-      response.status,
-      payload.code,
-    );
-  }
-  return payload;
-}
+const { request, parseResponse } = crmApiClient(OutcomeReasonApiError);
 
 export async function listOutcomeReasons(): Promise<
   CrmListResponse<CrmOutcomeReason>
 > {
-  const response = await fetch("/api/crm/lost-reasons?limit=200");
-  return parseResponse(response);
+  return request("/api/crm/lost-reasons?limit=200");
 }
 export async function createOutcomeReason(
   input: Record<string, unknown>,
 ): Promise<{ record: CrmOutcomeReason }> {
-  const response = await fetch("/api/crm/lost-reasons", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(input),
-  });
-  return parseResponse(response);
+  return request("/api/crm/lost-reasons", { method: "POST", json: input });
 }
 export async function archiveOutcomeReason(
   id: string,
@@ -55,10 +33,8 @@ export async function updateOutcomeReason(
   input: Record<string, unknown>,
   expectedUpdatedAt: string,
 ): Promise<{ record: CrmOutcomeReason }> {
-  const response = await fetch(`/api/crm/lost-reasons/${id}`, {
+  return request(`/api/crm/lost-reasons/${id}`, {
     method: "PATCH",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ input, expectedUpdatedAt }),
+    json: { input, expectedUpdatedAt },
   });
-  return parseResponse(response);
 }

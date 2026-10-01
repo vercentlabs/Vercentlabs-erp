@@ -1,5 +1,8 @@
 "use client";
 
+import { CrmApiError } from "../../shared/http/crm-api-error.ts";
+import { crmApiClient } from "../../shared/http/crm-request.ts";
+
 // Same vocabulary as contact-relationships-api.ts's STAKEHOLDER_ROLES — see
 // opportunity-contacts.js's own comment on why this is duplicated rather
 // than imported (separate CRM capabilities on the backend; here it's simply
@@ -46,35 +49,14 @@ export type ContactOpportunityRoleRow = {
   currencyCode: string | null;
 };
 
-export class OpportunityContactRoleApiError extends Error {
-  constructor(
-    message: string,
-    public readonly status: number,
-    public readonly code?: string,
-  ) {
-    super(message);
-  }
-}
+export class OpportunityContactRoleApiError extends CrmApiError {}
 
-async function parseResponse<T>(response: Response): Promise<T> {
-  const payload = await response.json().catch(() => ({}));
-  if (!response.ok || payload.ok === false) {
-    throw new OpportunityContactRoleApiError(
-      payload.message || "The request could not be completed.",
-      response.status,
-      payload.code,
-    );
-  }
-  return payload;
-}
+const { request, parseResponse } = crmApiClient(OpportunityContactRoleApiError);
 
 export async function listOpportunityContactRoles(
   opportunityId: string,
 ): Promise<{ rows: OpportunityContactRoleRow[] }> {
-  const response = await fetch(
-    `/api/crm/opportunities/${opportunityId}/contact-roles`,
-  );
-  return parseResponse(response);
+  return request(`/api/crm/opportunities/${opportunityId}/contact-roles`);
 }
 export async function addOpportunityContactRole(
   opportunityId: string,

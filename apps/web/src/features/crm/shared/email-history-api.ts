@@ -1,5 +1,8 @@
 "use client";
 
+import { CrmApiError } from "../shared/http/crm-api-error.ts";
+import { crmApiClient } from "../shared/http/crm-request.ts";
+
 // F018 Email history — one shared client for every 360 embedding an
 // EmailHistoryPanel (Lead/Opportunity/Account/Contact).
 export type EmailEngagementEvent = {
@@ -53,41 +56,21 @@ export type EmailThread = {
   lastMessageAt?: string | null;
 };
 
-export class EmailHistoryApiError extends Error {
-  constructor(
-    message: string,
-    public readonly status: number,
-    public readonly code?: string,
-  ) {
-    super(message);
-  }
-}
+export class EmailHistoryApiError extends CrmApiError {}
 
-async function parseResponse<T>(response: Response): Promise<T> {
-  const payload = await response.json().catch(() => ({}));
-  if (!response.ok || payload.ok === false) {
-    throw new EmailHistoryApiError(
-      payload.message || "The request could not be completed.",
-      response.status,
-      payload.code,
-    );
-  }
-  return payload;
-}
+const { request } = crmApiClient(EmailHistoryApiError);
 
 export async function listEmailHistory(
   entityType: string,
   entityId: string,
 ): Promise<{ rows: EmailHistoryRow[] }> {
-  const response = await fetch(
+  return request(
     `/api/crm/email-history?entityType=${encodeURIComponent(entityType)}&entityId=${encodeURIComponent(entityId)}`,
   );
-  return parseResponse(response);
 }
 
 export async function getEmailThread(
   threadId: string,
 ): Promise<{ thread: EmailThread; messages: EmailThreadMessage[] }> {
-  const response = await fetch(`/api/crm/email-threads/${threadId}`);
-  return parseResponse(response);
+  return request(`/api/crm/email-threads/${threadId}`);
 }

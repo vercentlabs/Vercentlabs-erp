@@ -1,31 +1,12 @@
 "use client";
 
 import type { CrmListResponse, Lead, LeadListFilters } from "../types";
+import { CrmApiErrorWithBody } from "../../shared/http/crm-api-error.ts";
+import { crmApiClient } from "../../shared/http/crm-request.ts";
 
-export class LeadApiError extends Error {
-  constructor(
-    message: string,
-    public readonly status: number,
-    public readonly code?: string,
-    // The rest of the error body (e.g. the matches of a duplicate refusal).
-    public readonly details: Record<string, unknown> = {},
-  ) {
-    super(message);
-  }
-}
+export class LeadApiError extends CrmApiErrorWithBody {}
 
-async function parseResponse<T>(response: Response): Promise<T> {
-  const payload = await response.json().catch(() => ({}));
-  if (!response.ok || payload.ok === false) {
-    throw new LeadApiError(
-      payload.message || "The request could not be completed.",
-      response.status,
-      payload.code,
-      payload,
-    );
-  }
-  return payload;
-}
+const { request, parseResponse } = crmApiClient(LeadApiError, "body");
 
 export async function listLeads(
   filters: LeadListFilters,
@@ -40,19 +21,16 @@ export async function listLeads(
 }
 
 export async function getLead(id: string): Promise<{ record: Lead }> {
-  const response = await fetch(`/api/crm/leads/${id}`);
-  return parseResponse<{ record: Lead }>(response);
+  return request<{ record: Lead }>(`/api/crm/leads/${id}`);
 }
 
 export async function createLead(
   input: Record<string, unknown>,
 ): Promise<{ record: Lead }> {
-  const response = await fetch("/api/crm/leads", {
+  return request<{ record: Lead }>("/api/crm/leads", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(input),
+    json: input,
   });
-  return parseResponse<{ record: Lead }>(response);
 }
 
 export async function updateLead(
@@ -60,12 +38,10 @@ export async function updateLead(
   input: Record<string, unknown>,
   expectedUpdatedAt: string,
 ): Promise<{ record: Lead }> {
-  const response = await fetch(`/api/crm/leads/${id}`, {
+  return request<{ record: Lead }>(`/api/crm/leads/${id}`, {
     method: "PATCH",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ input, expectedUpdatedAt }),
+    json: { input, expectedUpdatedAt },
   });
-  return parseResponse<{ record: Lead }>(response);
 }
 
 export async function archiveLead(
@@ -101,12 +77,10 @@ export async function assignLead(
     overrideReason?: string;
   },
 ): Promise<LeadAssignmentResult> {
-  const response = await fetch(`/api/crm/leads/${id}/assign`, {
+  return request<LeadAssignmentResult>(`/api/crm/leads/${id}/assign`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(input),
+    json: input,
   });
-  return parseResponse<LeadAssignmentResult>(response);
 }
 
 export type LeadStageTransitionResult = {
@@ -130,24 +104,20 @@ export async function transitionLeadStage(
     overrideReason?: string;
   },
 ): Promise<LeadStageTransitionResult> {
-  const response = await fetch(`/api/crm/leads/${id}/stage`, {
+  return request<LeadStageTransitionResult>(`/api/crm/leads/${id}/stage`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(input),
+    json: input,
   });
-  return parseResponse<LeadStageTransitionResult>(response);
 }
 
 export async function convertLead(
   id: string,
   input: Record<string, unknown> = {},
 ): Promise<{ result: unknown }> {
-  const response = await fetch(`/api/crm/leads/${id}/convert`, {
+  return request<{ result: unknown }>(`/api/crm/leads/${id}/convert`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(input),
+    json: input,
   });
-  return parseResponse<{ result: unknown }>(response);
 }
 
 // F022 pre-conversion review. Raw rows from findAccountDuplicates/
@@ -172,8 +142,7 @@ export async function getLeadConversionPreview(id: string): Promise<{
   accountCandidates: LeadConversionCandidate[];
   contactCandidates: LeadConversionCandidate[];
 }> {
-  const response = await fetch(`/api/crm/leads/${id}/convert/preview`);
-  return parseResponse(response);
+  return request(`/api/crm/leads/${id}/convert/preview`);
 }
 
 // F008: findCrmDuplicates returns a lightweight match projection, not a
@@ -201,24 +170,20 @@ export async function findLeadDuplicates(
   input: Record<string, unknown>,
   excludeId?: string | null,
 ): Promise<{ duplicates: LeadDuplicateMatch[] }> {
-  const response = await fetch("/api/crm/leads/duplicates", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ input, excludeId }),
-  });
-  return parseResponse<{ duplicates: LeadDuplicateMatch[] }>(response);
+  return request<{ duplicates: LeadDuplicateMatch[] }>(
+    "/api/crm/leads/duplicates",
+    { method: "POST", json: { input, excludeId } },
+  );
 }
 
 export async function mergeLead(
   targetId: string,
   sourceId: string,
 ): Promise<{ result: unknown }> {
-  const response = await fetch(`/api/crm/leads/${targetId}/merge`, {
+  return request<{ result: unknown }>(`/api/crm/leads/${targetId}/merge`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ sourceId }),
+    json: { sourceId },
   });
-  return parseResponse<{ result: unknown }>(response);
 }
 
 export async function scheduleLeadFollowUp(
@@ -232,17 +197,15 @@ export async function scheduleLeadFollowUp(
     dueAt: string;
   },
 ): Promise<{ activity: unknown; lead: Lead }> {
-  const response = await fetch(`/api/crm/leads/${id}/follow-up`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(input),
-  });
-  return parseResponse<{ activity: unknown; lead: Lead }>(response);
+  return request<{ activity: unknown; lead: Lead }>(
+    `/api/crm/leads/${id}/follow-up`,
+    { method: "POST", json: input },
+  );
 }
 
 // getCrmOptions moved to ../../shared/crm-options-api.ts — it's used by
 // every CRM feature area (Leads/Accounts/Contacts/...), not just Leads.
-export { getCrmOptions } from "../../shared/crm-options-api";
+export { getCrmOptions } from "../../shared/crm-options-api.ts";
 
 // F007: dwell/SLA context + transition history for the current stage.
 export type LeadStageDwell = {
@@ -271,8 +234,7 @@ export async function getLeadStageDetail(id: string): Promise<{
   history: LeadStageHistoryEntry[];
   canOverride: boolean;
 }> {
-  const response = await fetch(`/api/crm/leads/${id}/stage`);
-  return parseResponse(response);
+  return request(`/api/crm/leads/${id}/stage`);
 }
 
 export type LeadStageTransitionEdge = {
@@ -288,8 +250,7 @@ export type LeadStageTransitionEdge = {
 export async function getLeadTransitionGraph(): Promise<{
   transitions: LeadStageTransitionEdge[];
 }> {
-  const response = await fetch("/api/crm/leads/transition-graph");
-  return parseResponse(response);
+  return request("/api/crm/leads/transition-graph");
 }
 
 export type LeadTransitionReason = { code: string; label: string };
@@ -298,10 +259,9 @@ export async function getLeadStageReasons(
   id: string,
   toStageId: string,
 ): Promise<{ reasons: LeadTransitionReason[] }> {
-  const response = await fetch(
+  return request(
     `/api/crm/leads/${id}/stage/reasons?toStageId=${encodeURIComponent(toStageId)}`,
   );
-  return parseResponse(response);
 }
 
 // F006 qualification — independent axis from pipeline stage/record status.
@@ -344,8 +304,7 @@ export type LeadQualification = {
 export async function getLeadQualificationDetail(
   id: string,
 ): Promise<{ qualification: LeadQualification }> {
-  const response = await fetch(`/api/crm/leads/${id}/qualification`);
-  return parseResponse(response);
+  return request(`/api/crm/leads/${id}/qualification`);
 }
 
 export async function decideLeadQualification(
@@ -364,12 +323,10 @@ export async function decideLeadQualification(
   event?: unknown;
   qualification: LeadQualification;
 }> {
-  const response = await fetch(`/api/crm/leads/${id}/qualification`, {
+  return request(`/api/crm/leads/${id}/qualification`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(input),
+    json: input,
   });
-  return parseResponse(response);
 }
 
 // F027 scoring — read-only intelligence, never lifecycle authority.
@@ -401,8 +358,7 @@ export type LeadScoreExplanation = {
 export async function getLeadScoreDetail(
   id: string,
 ): Promise<{ explanation: LeadScoreExplanation }> {
-  const response = await fetch(`/api/crm/leads/${id}/score`);
-  return parseResponse(response);
+  return request(`/api/crm/leads/${id}/score`);
 }
 
 export type LeadScoreContribution = {
@@ -424,12 +380,10 @@ export async function recalculateLeadScore(
   thresholds: { warm: number; hot: number; qualified: number };
   calculatedAt: string;
 }> {
-  const response = await fetch(`/api/crm/leads/${id}/score`, {
+  return request(`/api/crm/leads/${id}/score`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ reason }),
+    json: { reason },
   });
-  return parseResponse(response);
 }
 
 export type LeadAttributionTouchpoint = {
@@ -460,8 +414,7 @@ export type LeadAttributionTimeline = {
 export async function getLeadAttribution(
   id: string,
 ): Promise<{ timeline: LeadAttributionTimeline }> {
-  const response = await fetch(`/api/crm/leads/${id}/attribution`);
-  return parseResponse(response);
+  return request(`/api/crm/leads/${id}/attribution`);
 }
 
 export async function dismissLeadDuplicate(
@@ -469,12 +422,10 @@ export async function dismissLeadDuplicate(
   matchedLeadId: string,
   reason: string,
 ): Promise<{ result: unknown }> {
-  const response = await fetch(`/api/crm/leads/${id}/duplicates/dismiss`, {
+  return request(`/api/crm/leads/${id}/duplicates/dismiss`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ matchedLeadId, reason }),
+    json: { matchedLeadId, reason },
   });
-  return parseResponse(response);
 }
 
 // F029 governed bulk edit — only sourceId/nextFollowUpAt/priority/rating
@@ -517,16 +468,14 @@ export async function bulkUpdateLeads(
   idempotencyKey?: string,
   preview = false,
 ): Promise<LeadBulkSyncResult | LeadBulkJobResult> {
-  const response = await fetch("/api/crm/leads/bulk", {
+  return request("/api/crm/leads/bulk", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
+    json: {
       ids,
       changes,
       expectedVersions,
       idempotencyKey,
       preview,
-    }),
+    },
   });
-  return parseResponse(response);
 }

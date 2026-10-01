@@ -8,31 +8,12 @@ import type {
   ContactListResponse,
   ContactMergePreview,
 } from "../types";
+import { CrmApiErrorWithBody } from "../../shared/http/crm-api-error.ts";
+import { crmApiClient } from "../../shared/http/crm-request.ts";
 
-export class ContactApiError extends Error {
-  constructor(
-    message: string,
-    public readonly status: number,
-    public readonly code?: string,
-    // The rest of the error body (e.g. the matches of a duplicate refusal).
-    public readonly details: Record<string, unknown> = {},
-  ) {
-    super(message);
-  }
-}
+export class ContactApiError extends CrmApiErrorWithBody {}
 
-async function parseResponse<T>(response: Response): Promise<T> {
-  const payload = await response.json().catch(() => ({}));
-  if (!response.ok || payload.ok === false) {
-    throw new ContactApiError(
-      payload.message || "The request could not be completed.",
-      response.status,
-      payload.code,
-      payload,
-    );
-  }
-  return payload;
-}
+const { request, parseResponse } = crmApiClient(ContactApiError, "body");
 
 export async function listContacts(
   filters: ContactListFilters,
@@ -41,24 +22,17 @@ export async function listContacts(
   for (const [key, value] of Object.entries(filters)) {
     if (value !== undefined && value !== "") params.set(key, String(value));
   }
-  const response = await fetch(`/api/crm/contacts?${params.toString()}`);
-  return parseResponse(response);
+  return request(`/api/crm/contacts?${params.toString()}`);
 }
 
 export async function getContact(id: string): Promise<{ record: Contact }> {
-  const response = await fetch(`/api/crm/contacts/${id}`);
-  return parseResponse(response);
+  return request(`/api/crm/contacts/${id}`);
 }
 
 export async function createContact(
   input: Record<string, unknown>,
 ): Promise<{ record: Contact }> {
-  const response = await fetch("/api/crm/contacts", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(input),
-  });
-  return parseResponse(response);
+  return request("/api/crm/contacts", { method: "POST", json: input });
 }
 
 export async function updateContact(
@@ -66,12 +40,10 @@ export async function updateContact(
   input: Record<string, unknown>,
   expectedUpdatedAt: string,
 ): Promise<{ record: Contact }> {
-  const response = await fetch(`/api/crm/contacts/${id}`, {
+  return request(`/api/crm/contacts/${id}`, {
     method: "PATCH",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ input, expectedUpdatedAt }),
+    json: { input, expectedUpdatedAt },
   });
-  return parseResponse(response);
 }
 
 export async function archiveContact(
@@ -89,12 +61,10 @@ export async function reactivateContact(
   id: string,
   expectedUpdatedAt: string,
 ): Promise<{ record: Contact }> {
-  const response = await fetch(`/api/crm/contacts/${id}/reactivate`, {
+  return request(`/api/crm/contacts/${id}/reactivate`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ expectedUpdatedAt }),
+    json: { expectedUpdatedAt },
   });
-  return parseResponse(response);
 }
 
 // F003 Tranche F — mirrors the Account duplicates/merge client exactly;
@@ -103,24 +73,20 @@ export async function reactivateContact(
 export async function findContactDuplicates(
   input: Record<string, unknown>,
 ): Promise<{ duplicates: ContactDuplicateMatch[] }> {
-  const response = await fetch("/api/crm/contacts/duplicates", {
+  return request("/api/crm/contacts/duplicates", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ input }),
+    json: { input },
   });
-  return parseResponse(response);
 }
 
 export async function previewContactMerge(
   sourceId: string,
   survivorId: string,
 ): Promise<ContactMergePreview> {
-  const response = await fetch("/api/crm/contacts/merge/preview", {
+  return request("/api/crm/contacts/merge/preview", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ sourceId, survivorId }),
+    json: { sourceId, survivorId },
   });
-  return parseResponse(response);
 }
 // F003 gap-closure — the Contact-side reverse view of Opportunity Contact
 // Roles (opportunity-contacts.js), so a Contact's Deals tab shows every deal
@@ -128,10 +94,7 @@ export async function previewContactMerge(
 export async function listContactOpportunityRoles(
   contactId: string,
 ): Promise<{ rows: ContactOpportunityRoleRow[] }> {
-  const response = await fetch(
-    `/api/crm/contacts/${contactId}/opportunity-roles`,
-  );
-  return parseResponse(response);
+  return request(`/api/crm/contacts/${contactId}/opportunity-roles`);
 }
 
 export async function mergeContacts(
@@ -140,10 +103,8 @@ export async function mergeContacts(
   reason: string | null,
   fieldSelections: Record<string, "source" | "survivor">,
 ): Promise<{ record: Record<string, unknown> }> {
-  const response = await fetch("/api/crm/contacts/merge", {
+  return request("/api/crm/contacts/merge", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ sourceId, survivorId, reason, fieldSelections }),
+    json: { sourceId, survivorId, reason, fieldSelections },
   });
-  return parseResponse(response);
 }

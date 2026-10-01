@@ -7,28 +7,12 @@ import type {
   FollowUpListResponse,
   FollowUpReminder,
 } from "../types";
+import { CrmApiError } from "../../shared/http/crm-api-error.ts";
+import { crmApiClient } from "../../shared/http/crm-request.ts";
 
-export class FollowUpApiError extends Error {
-  constructor(
-    message: string,
-    public readonly status: number,
-    public readonly code?: string,
-  ) {
-    super(message);
-  }
-}
+export class FollowUpApiError extends CrmApiError {}
 
-async function parseResponse<T>(response: Response): Promise<T> {
-  const payload = await response.json().catch(() => ({}));
-  if (!response.ok || payload.ok === false) {
-    throw new FollowUpApiError(
-      payload.message || "The request could not be completed.",
-      response.status,
-      payload.code,
-    );
-  }
-  return payload;
-}
+const { request, parseResponse } = crmApiClient(FollowUpApiError);
 
 export async function listFollowUps(
   filters: FollowUpListFilters,
@@ -38,36 +22,24 @@ export async function listFollowUps(
     if (value !== undefined && value !== "" && value !== "all")
       params.set(key, String(value));
   }
-  const response = await fetch(`/api/crm/follow-ups?${params.toString()}`);
-  return parseResponse(response);
+  return request(`/api/crm/follow-ups?${params.toString()}`);
 }
 
 export async function getFollowUp(id: string): Promise<{ record: FollowUp }> {
-  const response = await fetch(`/api/crm/follow-ups/${id}`);
-  return parseResponse(response);
+  return request(`/api/crm/follow-ups/${id}`);
 }
 
 export async function updateFollowUp(
   id: string,
   input: Record<string, unknown>,
 ): Promise<{ record: FollowUp }> {
-  const response = await fetch(`/api/crm/follow-ups/${id}`, {
-    method: "PATCH",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(input),
-  });
-  return parseResponse(response);
+  return request(`/api/crm/follow-ups/${id}`, { method: "PATCH", json: input });
 }
 
 export async function createFollowUp(
   input: Record<string, unknown>,
 ): Promise<{ record: FollowUp }> {
-  const response = await fetch("/api/crm/follow-ups", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(input),
-  });
-  return parseResponse(response);
+  return request("/api/crm/follow-ups", { method: "POST", json: input });
 }
 
 async function action(
@@ -75,12 +47,10 @@ async function action(
   path: string,
   input: Record<string, unknown> = {},
 ): Promise<{ record: FollowUp }> {
-  const response = await fetch(`/api/crm/follow-ups/${id}/${path}`, {
+  return request(`/api/crm/follow-ups/${id}/${path}`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(input),
+    json: input,
   });
-  return parseResponse(response);
 }
 
 export const snoozeFollowUp = (
@@ -96,8 +66,7 @@ export const cancelFollowUp = (id: string, expectedUpdatedAt?: string) =>
 export async function listFollowUpReminders(
   id: string,
 ): Promise<{ rows: FollowUpReminder[] }> {
-  const response = await fetch(`/api/crm/follow-ups/${id}/reminders`);
-  return parseResponse(response);
+  return request(`/api/crm/follow-ups/${id}/reminders`);
 }
 export async function acknowledgeFollowUpReminder(
   id: string,
@@ -112,6 +81,5 @@ export async function acknowledgeFollowUpReminder(
 export async function listFollowUpHistory(
   id: string,
 ): Promise<{ rows: FollowUpHistoryEvent[] }> {
-  const response = await fetch(`/api/crm/follow-ups/${id}/history`);
-  return parseResponse(response);
+  return request(`/api/crm/follow-ups/${id}/history`);
 }

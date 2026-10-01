@@ -1,5 +1,8 @@
 "use client";
 
+import { CrmApiError } from "../shared/http/crm-api-error.ts";
+import { crmApiClient } from "../shared/http/crm-request.ts";
+
 export type CrmRecordTag = {
   tagId: string;
   name: string;
@@ -14,55 +17,33 @@ export type CrmTagDefinition = {
   status: "active" | "inactive";
 };
 
-export class TagApiError extends Error {
-  constructor(
-    message: string,
-    public readonly status: number,
-    public readonly code?: string,
-  ) {
-    super(message);
-  }
-}
+export class TagApiError extends CrmApiError {}
 
-async function parseResponse<T>(response: Response): Promise<T> {
-  const payload = await response.json().catch(() => ({}));
-  if (!response.ok || payload.ok === false) {
-    throw new TagApiError(
-      payload.message || "The request could not be completed.",
-      response.status,
-      payload.code,
-    );
-  }
-  return payload;
-}
+const { request } = crmApiClient(TagApiError);
 
 export async function listLeadTags(
   leadId: string,
 ): Promise<{ rows: CrmRecordTag[] }> {
-  const response = await fetch(`/api/crm/leads/${leadId}/tags`);
-  return parseResponse(response);
+  return request(`/api/crm/leads/${leadId}/tags`);
 }
 
 export async function assignLeadTag(
   leadId: string,
   tagId: string,
 ): Promise<{ rows: CrmRecordTag[] }> {
-  const response = await fetch(`/api/crm/leads/${leadId}/tags`, {
+  return request(`/api/crm/leads/${leadId}/tags`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ tagId }),
+    json: { tagId },
   });
-  return parseResponse(response);
 }
 
 export async function removeLeadTag(
   leadId: string,
   tagId: string,
 ): Promise<{ rows: CrmRecordTag[] }> {
-  const response = await fetch(`/api/crm/leads/${leadId}/tags/${tagId}`, {
+  return request(`/api/crm/leads/${leadId}/tags/${tagId}`, {
     method: "DELETE",
   });
-  return parseResponse(response);
 }
 
 // The tag DEFINITIONS library already goes through the generic
@@ -72,6 +53,5 @@ export async function removeLeadTag(
 export async function listTagDefinitions(): Promise<{
   rows: CrmTagDefinition[];
 }> {
-  const response = await fetch("/api/crm/tags?status=active&limit=100");
-  return parseResponse(response);
+  return request("/api/crm/tags?status=active&limit=100");
 }

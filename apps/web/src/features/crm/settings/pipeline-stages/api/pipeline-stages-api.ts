@@ -1,43 +1,21 @@
 "use client";
 
 import type { CrmListResponse, CrmPipeline, CrmSalesStage } from "../types";
+import { CrmApiError } from "../../../shared/http/crm-api-error.ts";
+import { crmApiClient } from "../../../shared/http/crm-request.ts";
 
-export class PipelineStagesApiError extends Error {
-  constructor(
-    message: string,
-    public readonly status: number,
-    public readonly code?: string,
-  ) {
-    super(message);
-  }
-}
+export class PipelineStagesApiError extends CrmApiError {}
 
-async function parseResponse<T>(response: Response): Promise<T> {
-  const payload = await response.json().catch(() => ({}));
-  if (!response.ok || payload.ok === false) {
-    throw new PipelineStagesApiError(
-      payload.message || "The request could not be completed.",
-      response.status,
-      payload.code,
-    );
-  }
-  return payload;
-}
+const { request, parseResponse } = crmApiClient(PipelineStagesApiError);
 
 // Pipelines reuse the generic /api/crm/[resource] boundary.
 export async function listPipelines(): Promise<CrmListResponse<CrmPipeline>> {
-  const response = await fetch("/api/crm/pipelines?limit=100");
-  return parseResponse(response);
+  return request("/api/crm/pipelines?limit=100");
 }
 export async function createPipeline(
   input: Record<string, unknown>,
 ): Promise<{ record: CrmPipeline }> {
-  const response = await fetch("/api/crm/pipelines", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(input),
-  });
-  return parseResponse(response);
+  return request("/api/crm/pipelines", { method: "POST", json: input });
 }
 export async function archivePipeline(
   id: string,
@@ -54,54 +32,42 @@ export async function archivePipeline(
 export async function listStages(
   pipelineId: string,
 ): Promise<{ rows: CrmSalesStage[]; total: number }> {
-  const response = await fetch(
+  return request(
     `/api/crm/pipeline-stages?pipelineId=${encodeURIComponent(pipelineId)}`,
   );
-  return parseResponse(response);
 }
 export async function createStage(
   input: Record<string, unknown>,
 ): Promise<{ record: CrmSalesStage }> {
-  const response = await fetch("/api/crm/pipeline-stages", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(input),
-  });
-  return parseResponse(response);
+  return request("/api/crm/pipeline-stages", { method: "POST", json: input });
 }
 export async function updateStage(
   id: string,
   input: Record<string, unknown>,
 ): Promise<{ record: CrmSalesStage }> {
-  const response = await fetch(`/api/crm/pipeline-stages/${id}`, {
+  return request(`/api/crm/pipeline-stages/${id}`, {
     method: "PATCH",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(input),
+    json: input,
   });
-  return parseResponse(response);
 }
 export async function setStageActive(
   id: string,
   active: boolean,
   expectedUpdatedAt: string,
 ): Promise<{ record: CrmSalesStage }> {
-  const response = await fetch(`/api/crm/pipeline-stages/${id}/active`, {
+  return request(`/api/crm/pipeline-stages/${id}/active`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ active, expectedUpdatedAt }),
+    json: { active, expectedUpdatedAt },
   });
-  return parseResponse(response);
 }
 export async function reorderStages(
   pipelineId: string,
   entries: Array<{ id: string; expectedUpdatedAt: string }>,
 ): Promise<{ changed: boolean; rows: CrmSalesStage[] }> {
-  const response = await fetch("/api/crm/pipeline-stages/reorder", {
+  return request("/api/crm/pipeline-stages/reorder", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ pipelineId, entries }),
+    json: { pipelineId, entries },
   });
-  return parseResponse(response);
 }
 
 // F010 gap-closure — crm_opportunity_stage_sla_policies previously had no
@@ -122,10 +88,9 @@ export type StageSlaPolicy = {
 export async function listStageSlaPolicies(
   pipelineId: string,
 ): Promise<{ rows: StageSlaPolicy[] }> {
-  const response = await fetch(
+  return request(
     `/api/crm/pipeline-stages/sla-policies?pipelineId=${encodeURIComponent(pipelineId)}`,
   );
-  return parseResponse(response);
 }
 
 export async function saveStageSlaPolicy(
@@ -169,12 +134,10 @@ export async function deactivateStageWithMigration(
   migrateToStageId: string | undefined,
   expectedUpdatedAt: string,
 ): Promise<StageDeactivationResult> {
-  const response = await fetch(`/api/crm/pipeline-stages/${id}/deactivate`, {
+  return request(`/api/crm/pipeline-stages/${id}/deactivate`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ migrateToStageId, expectedUpdatedAt }),
+    json: { migrateToStageId, expectedUpdatedAt },
   });
-  return parseResponse(response);
 }
 
 export type StageHistoryEntry = {
@@ -193,8 +156,7 @@ export type StageHistoryEntry = {
 export async function listStageHistory(
   pipelineId: string,
 ): Promise<{ rows: StageHistoryEntry[] }> {
-  const response = await fetch(
+  return request(
     `/api/crm/pipeline-stages/history?pipelineId=${encodeURIComponent(pipelineId)}`,
   );
-  return parseResponse(response);
 }

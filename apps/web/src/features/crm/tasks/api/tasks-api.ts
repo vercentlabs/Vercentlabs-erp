@@ -6,28 +6,12 @@ import type {
   TaskListFilters,
   TaskListResponse,
 } from "../types";
+import { CrmApiError } from "../../shared/http/crm-api-error.ts";
+import { crmApiClient } from "../../shared/http/crm-request.ts";
 
-export class TaskApiError extends Error {
-  constructor(
-    message: string,
-    public readonly status: number,
-    public readonly code?: string,
-  ) {
-    super(message);
-  }
-}
+export class TaskApiError extends CrmApiError {}
 
-async function parseResponse<T>(response: Response): Promise<T> {
-  const payload = await response.json().catch(() => ({}));
-  if (!response.ok || payload.ok === false) {
-    throw new TaskApiError(
-      payload.message || "The request could not be completed.",
-      response.status,
-      payload.code,
-    );
-  }
-  return payload;
-}
+const { request, parseResponse } = crmApiClient(TaskApiError);
 
 export async function listTasks(
   filters: TaskListFilters,
@@ -36,36 +20,24 @@ export async function listTasks(
   for (const [key, value] of Object.entries(filters)) {
     if (value !== undefined && value !== "") params.set(key, String(value));
   }
-  const response = await fetch(`/api/crm/tasks?${params.toString()}`);
-  return parseResponse(response);
+  return request(`/api/crm/tasks?${params.toString()}`);
 }
 
 export async function getTask(id: string): Promise<{ record: Task }> {
-  const response = await fetch(`/api/crm/tasks/${id}`);
-  return parseResponse(response);
+  return request(`/api/crm/tasks/${id}`);
 }
 
 export async function createTask(
   input: Record<string, unknown>,
 ): Promise<{ record: Task }> {
-  const response = await fetch("/api/crm/tasks", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(input),
-  });
-  return parseResponse(response);
+  return request("/api/crm/tasks", { method: "POST", json: input });
 }
 
 export async function updateTask(
   id: string,
   input: Record<string, unknown>,
 ): Promise<{ record: Task }> {
-  const response = await fetch(`/api/crm/tasks/${id}`, {
-    method: "PATCH",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(input),
-  });
-  return parseResponse(response);
+  return request(`/api/crm/tasks/${id}`, { method: "PATCH", json: input });
 }
 
 async function action(
@@ -73,12 +45,10 @@ async function action(
   path: string,
   input: Record<string, unknown> = {},
 ): Promise<{ record: Task }> {
-  const response = await fetch(`/api/crm/tasks/${id}/${path}`, {
+  return request(`/api/crm/tasks/${id}/${path}`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(input),
+    json: input,
   });
-  return parseResponse(response);
 }
 
 export const startTask = (id: string, expectedUpdatedAt?: string) =>
@@ -98,26 +68,22 @@ export const releaseTask = (id: string, expectedUpdatedAt?: string) =>
 export async function listMyTaskTeams(): Promise<{
   teams: Array<{ id: string; name: string }>;
 }> {
-  const response = await fetch("/api/crm/tasks/teams");
-  return parseResponse(response);
+  return request("/api/crm/tasks/teams");
 }
 
 export async function listTaskDependencies(
   taskId: string,
 ): Promise<{ rows: TaskDependency[] }> {
-  const response = await fetch(`/api/crm/tasks/${taskId}/dependencies`);
-  return parseResponse(response);
+  return request(`/api/crm/tasks/${taskId}/dependencies`);
 }
 export async function addTaskDependency(
   taskId: string,
   dependsOnTaskId: string,
 ): Promise<{ record: TaskDependency }> {
-  const response = await fetch(`/api/crm/tasks/${taskId}/dependencies`, {
+  return request(`/api/crm/tasks/${taskId}/dependencies`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ dependsOnTaskId }),
+    json: { dependsOnTaskId },
   });
-  return parseResponse(response);
 }
 export async function removeTaskDependency(
   taskId: string,
@@ -146,6 +112,5 @@ export type TaskEvent = {
 export async function listTaskHistory(
   taskId: string,
 ): Promise<{ rows: TaskEvent[] }> {
-  const response = await fetch(`/api/crm/tasks/${taskId}/history`);
-  return parseResponse(response);
+  return request(`/api/crm/tasks/${taskId}/history`);
 }

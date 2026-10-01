@@ -9,28 +9,12 @@ import type {
   ForecastSubmission,
   PredictiveForecastResult,
 } from "../types";
+import { CrmApiError } from "../../shared/http/crm-api-error.ts";
+import { crmApiClient } from "../../shared/http/crm-request.ts";
 
-export class CrmForecastApiError extends Error {
-  constructor(
-    message: string,
-    public readonly status: number,
-    public readonly code?: string,
-  ) {
-    super(message);
-  }
-}
+export class CrmForecastApiError extends CrmApiError {}
 
-async function parseResponse<T>(response: Response): Promise<T> {
-  const payload = await response.json().catch(() => ({}));
-  if (!response.ok || payload.ok === false) {
-    throw new CrmForecastApiError(
-      payload.message || "The request could not be completed.",
-      response.status,
-      payload.code,
-    );
-  }
-  return payload;
-}
+const { request, parseResponse } = crmApiClient(CrmForecastApiError);
 
 // Reuses getCrmReport("forecast", ...) via the same /api/crm/reports/[report]
 // boundary the Reports screen uses — no separate backend route.
@@ -62,49 +46,38 @@ export async function getCrmForecast(filters: CrmForecastFilters): Promise<{
 export async function listForecastPeriods(): Promise<
   CrmListResponse<ForecastPeriod>
 > {
-  const response = await fetch("/api/crm/forecast-periods?limit=100");
-  return parseResponse(response);
+  return request("/api/crm/forecast-periods?limit=100");
 }
 export async function createForecastPeriod(
   input: Record<string, unknown>,
 ): Promise<{ record: ForecastPeriod }> {
-  const response = await fetch("/api/crm/forecast-periods", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(input),
-  });
-  return parseResponse(response);
+  return request("/api/crm/forecast-periods", { method: "POST", json: input });
 }
 
 export async function listForecastSubmissions(
   periodId: string,
 ): Promise<CrmListResponse<ForecastSubmission>> {
-  const response = await fetch(
+  return request(
     `/api/crm/forecast-submissions?periodId=${encodeURIComponent(periodId)}&limit=200`,
   );
-  return parseResponse(response);
 }
 export async function createForecastSubmission(
   input: Record<string, unknown>,
 ): Promise<{ record: ForecastSubmission }> {
-  const response = await fetch("/api/crm/forecast-submissions", {
+  return request("/api/crm/forecast-submissions", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(input),
+    json: input,
   });
-  return parseResponse(response);
 }
 export async function updateForecastSubmission(
   id: string,
   input: Record<string, unknown>,
   expectedUpdatedAt?: string,
 ): Promise<{ record: ForecastSubmission }> {
-  const response = await fetch(`/api/crm/forecast-submissions/${id}`, {
+  return request(`/api/crm/forecast-submissions/${id}`, {
     method: "PATCH",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ input, expectedUpdatedAt }),
+    json: { input, expectedUpdatedAt },
   });
-  return parseResponse(response);
 }
 
 // F025 Stage A2 §11 — accuracy/backtesting (getForecastCalibration) and
@@ -121,12 +94,10 @@ export async function getForecastCalibration(
 export async function capturePredictiveSnapshot(
   forecastPeriodId?: string,
 ): Promise<PredictiveForecastResult> {
-  const response = await fetch("/api/crm/forecast/predictive-snapshot", {
+  return request("/api/crm/forecast/predictive-snapshot", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ forecastPeriodId }),
+    json: { forecastPeriodId },
   });
-  return parseResponse(response);
 }
 
 // F025 governed forecast (services/api/.../forecast-service.js). Submissions,

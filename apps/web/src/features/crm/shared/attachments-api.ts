@@ -1,5 +1,8 @@
 "use client";
 
+import { CrmApiError } from "../shared/http/crm-api-error.ts";
+import { crmApiClient } from "../shared/http/crm-request.ts";
+
 export type CrmAttachmentEntityType =
   "lead" | "opportunity" | "party" | "contact" | "campaign";
 
@@ -17,36 +20,15 @@ export type CrmAttachment = {
   createdAt: string;
 };
 
-export class AttachmentApiError extends Error {
-  constructor(
-    message: string,
-    public readonly status: number,
-    public readonly code?: string,
-  ) {
-    super(message);
-  }
-}
+export class AttachmentApiError extends CrmApiError {}
 
-async function parseResponse<T>(response: Response): Promise<T> {
-  const payload = await response.json().catch(() => ({}));
-  if (!response.ok || payload.ok === false) {
-    throw new AttachmentApiError(
-      payload.message || "The request could not be completed.",
-      response.status,
-      payload.code,
-    );
-  }
-  return payload;
-}
+const { request, parseResponse } = crmApiClient(AttachmentApiError);
 
 export async function listAttachments(
   entityType: CrmAttachmentEntityType,
   entityId: string,
 ): Promise<{ rows: CrmAttachment[] }> {
-  const response = await fetch(
-    `/api/crm/attachments/${entityType}/${entityId}`,
-  );
-  return parseResponse(response);
+  return request(`/api/crm/attachments/${entityType}/${entityId}`);
 }
 
 export async function listAttachmentVersions(
@@ -54,10 +36,9 @@ export async function listAttachmentVersions(
   entityId: string,
   logicalId: string,
 ): Promise<{ rows: CrmAttachment[] }> {
-  const response = await fetch(
+  return request(
     `/api/crm/attachments/${entityType}/${entityId}/${logicalId}/versions`,
   );
-  return parseResponse(response);
 }
 
 export async function uploadAttachment(

@@ -8,57 +8,33 @@ import type {
   Territory,
   TerritoryAssignment,
 } from "../types";
+import { CrmApiError } from "../../../shared/http/crm-api-error.ts";
+import { crmApiClient } from "../../../shared/http/crm-request.ts";
 
-export class SettingsApiError extends Error {
-  constructor(
-    message: string,
-    public readonly status: number,
-    public readonly code?: string,
-  ) {
-    super(message);
-  }
-}
+export class SettingsApiError extends CrmApiError {}
 
-async function parseResponse<T>(response: Response): Promise<T> {
-  const payload = await response.json().catch(() => ({}));
-  if (!response.ok || payload.ok === false) {
-    throw new SettingsApiError(
-      payload.message || "The request could not be completed.",
-      response.status,
-      payload.code,
-    );
-  }
-  return payload;
-}
+const { request, parseResponse } = crmApiClient(SettingsApiError);
 
 // Both resources reuse the generic /api/crm/[resource] boundary — no
 // dedicated routes exist or are needed (see resource-permissions.ts for
 // the crm.settings.manage gate applied to both).
 export async function listSalesTeams(): Promise<CrmListResponse<SalesTeam>> {
-  const response = await fetch("/api/crm/sales-teams?limit=100");
-  return parseResponse(response);
+  return request("/api/crm/sales-teams?limit=100");
 }
 export async function createSalesTeam(
   input: Record<string, unknown>,
 ): Promise<{ record: SalesTeam }> {
-  const response = await fetch("/api/crm/sales-teams", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(input),
-  });
-  return parseResponse(response);
+  return request("/api/crm/sales-teams", { method: "POST", json: input });
 }
 export async function updateSalesTeam(
   id: string,
   input: Record<string, unknown>,
   expectedUpdatedAt: string,
 ): Promise<{ record: SalesTeam }> {
-  const response = await fetch(`/api/crm/sales-teams/${id}`, {
+  return request(`/api/crm/sales-teams/${id}`, {
     method: "PATCH",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ input, expectedUpdatedAt }),
+    json: { input, expectedUpdatedAt },
   });
-  return parseResponse(response);
 }
 export async function archiveSalesTeam(
   id: string,
@@ -72,30 +48,22 @@ export async function archiveSalesTeam(
 }
 
 export async function listTerritories(): Promise<CrmListResponse<Territory>> {
-  const response = await fetch("/api/crm/territories?limit=100");
-  return parseResponse(response);
+  return request("/api/crm/territories?limit=100");
 }
 export async function createTerritory(
   input: Record<string, unknown>,
 ): Promise<{ record: Territory }> {
-  const response = await fetch("/api/crm/territories", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(input),
-  });
-  return parseResponse(response);
+  return request("/api/crm/territories", { method: "POST", json: input });
 }
 export async function updateTerritory(
   id: string,
   input: Record<string, unknown>,
   expectedUpdatedAt: string,
 ): Promise<{ record: Territory }> {
-  const response = await fetch(`/api/crm/territories/${id}`, {
+  return request(`/api/crm/territories/${id}`, {
     method: "PATCH",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ input, expectedUpdatedAt }),
+    json: { input, expectedUpdatedAt },
   });
-  return parseResponse(response);
 }
 export async function archiveTerritory(
   id: string,
@@ -114,20 +82,17 @@ export async function archiveTerritory(
 export async function listSalesTeamMembers(
   teamId: string,
 ): Promise<CrmListResponse<SalesTeamMember>> {
-  const response = await fetch(
+  return request(
     `/api/crm/sales-team-members?teamId=${encodeURIComponent(teamId)}&limit=100`,
   );
-  return parseResponse(response);
 }
 export async function createSalesTeamMember(
   input: Record<string, unknown>,
 ): Promise<{ record: SalesTeamMember }> {
-  const response = await fetch("/api/crm/sales-team-members", {
+  return request("/api/crm/sales-team-members", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(input),
+    json: input,
   });
-  return parseResponse(response);
 }
 export async function archiveSalesTeamMember(
   id: string,
@@ -148,32 +113,27 @@ export async function archiveSalesTeamMember(
 export async function listTerritoryAssignments(
   territoryId: string,
 ): Promise<CrmListResponse<TerritoryAssignment>> {
-  const response = await fetch(
+  return request(
     `/api/crm/territory-assignments?territoryId=${encodeURIComponent(territoryId)}&limit=100`,
   );
-  return parseResponse(response);
 }
 export async function createTerritoryAssignment(
   input: Record<string, unknown>,
 ): Promise<{ record: TerritoryAssignment }> {
-  const response = await fetch("/api/crm/territory-assignments", {
+  return request("/api/crm/territory-assignments", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(input),
+    json: input,
   });
-  return parseResponse(response);
 }
 export async function endTerritoryAssignment(
   id: string,
   effectiveTo: string,
   expectedUpdatedAt: string,
 ): Promise<{ record: TerritoryAssignment }> {
-  const response = await fetch(`/api/crm/territory-assignments/${id}`, {
+  return request(`/api/crm/territory-assignments/${id}`, {
     method: "PATCH",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ input: { effectiveTo }, expectedUpdatedAt }),
+    json: { input: { effectiveTo }, expectedUpdatedAt },
   });
-  return parseResponse(response);
 }
 
 // F020 Stage A2 §8 — quota-plans (tenant.crm_quota_plans) is a real,
@@ -181,30 +141,22 @@ export async function endTerritoryAssignment(
 // zero frontend consumer before this pass (confirmed by grep). Reuses
 // the same generic /api/crm/[resource] boundary.
 export async function listQuotaPlans(): Promise<CrmListResponse<QuotaPlan>> {
-  const response = await fetch("/api/crm/quota-plans?limit=100");
-  return parseResponse(response);
+  return request("/api/crm/quota-plans?limit=100");
 }
 export async function createQuotaPlan(
   input: Record<string, unknown>,
 ): Promise<{ record: QuotaPlan }> {
-  const response = await fetch("/api/crm/quota-plans", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(input),
-  });
-  return parseResponse(response);
+  return request("/api/crm/quota-plans", { method: "POST", json: input });
 }
 export async function updateQuotaPlan(
   id: string,
   input: Record<string, unknown>,
   expectedUpdatedAt: string,
 ): Promise<{ record: QuotaPlan }> {
-  const response = await fetch(`/api/crm/quota-plans/${id}`, {
+  return request(`/api/crm/quota-plans/${id}`, {
     method: "PATCH",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ input, expectedUpdatedAt }),
+    json: { input, expectedUpdatedAt },
   });
-  return parseResponse(response);
 }
 export async function archiveQuotaPlan(
   id: string,
@@ -240,6 +192,5 @@ export async function checkTerritoryMatch(lead: {
       [string, string]
     >,
   );
-  const response = await fetch(`/api/crm/territory-match?${params.toString()}`);
-  return parseResponse(response);
+  return request(`/api/crm/territory-match?${params.toString()}`);
 }
