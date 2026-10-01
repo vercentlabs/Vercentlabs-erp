@@ -274,6 +274,28 @@ export function checkCrmBrowserClients(files) {
   return problems;
 }
 
+// CRM frontend ownership (apps/web/src/features/crm): one directory per
+// product area, plus `shared` for Record-360 panels, HTTP and other
+// cross-area primitives. Route URLs live separately under app/(workspace)/crm.
+// The old parallel buckets (leads, accounts, settings, forecast, ...) must not
+// come back beside these areas; `index.ts` is CRM's public surface for other
+// web features.
+export const CRM_WEB_AREAS = Object.freeze(["customers", "data", "home", "inbox", "insights", "pipeline", "public", "setup", "shared", "work"]);
+export const CRM_WEB_ROOT_FILES = Object.freeze(["index.ts"]);
+
+export function checkCrmWebOwnership(entries) {
+  const problems = [];
+  for (const { name, isDirectory } of entries) {
+    if (isDirectory && !CRM_WEB_AREAS.includes(name))
+      problems.push(`${CRM_WEB_ROOT}/${name}/ is not a CRM product area (${CRM_WEB_AREAS.join(", ")}); put it under the owning area or shared`);
+    if (!isDirectory && !CRM_WEB_ROOT_FILES.includes(name))
+      problems.push(`${CRM_WEB_ROOT}/${name} is a loose file; CRM code belongs in a product area or shared`);
+  }
+  for (const area of CRM_WEB_AREAS)
+    if (!entries.some((entry) => entry.isDirectory && entry.name === area)) problems.push(`${CRM_WEB_ROOT}/${area}/ is missing`);
+  return problems;
+}
+
 // CRM files kept only as compatibility re-export boundaries after their code
 // moved to owning files. They may contain comments and `export { ... } from`
 // statements, nothing else, so they cannot grow back into implementations.

@@ -1,6 +1,6 @@
 import { CRM_PERMISSIONS } from "@vercentlabs/permissions";
 import { requireWorkspace } from "@/core/session";
-import { MeetingFormScreen } from "@/features/crm/meetings/screens/MeetingFormScreen";
+import { MeetingFormScreen } from "@/features/crm/work/meetings/screens/MeetingFormScreen";
 
 export const metadata = { title: "New meeting" };
 

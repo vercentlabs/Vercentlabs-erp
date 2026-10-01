@@ -1,5 +1,5 @@
 import { requireWorkspace } from "@/core/session";
-import { MeetingLinksSettingsScreen } from "@/features/crm/settings/meeting-links/screens/MeetingLinksSettingsScreen";
+import { MeetingLinksSettingsScreen } from "@/features/crm/setup/meeting-links/screens/MeetingLinksSettingsScreen";
 
 export const metadata = { title: "Meeting Links" };
 

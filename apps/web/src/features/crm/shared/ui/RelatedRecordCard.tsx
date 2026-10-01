@@ -3,10 +3,10 @@
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 
-import { getAccount } from "@/features/crm/accounts/api/accounts-api";
-import { getContact } from "@/features/crm/contacts/api/contacts-api";
-import { getLead } from "@/features/crm/leads/api/leads-api";
-import { getOpportunity } from "@/features/crm/opportunities/api/opportunities-api";
+import { getAccount } from "@/features/crm/customers/accounts/api/accounts-api";
+import { getContact } from "@/features/crm/customers/contacts/api/contacts-api";
+import { getLead } from "@/features/crm/customers/leads/api/leads-api";
+import { getOpportunity } from "@/features/crm/pipeline/opportunities/api/opportunities-api";
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 

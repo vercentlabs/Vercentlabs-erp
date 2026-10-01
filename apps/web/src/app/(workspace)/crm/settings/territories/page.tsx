@@ -1,5 +1,5 @@
 import { requireWorkspace } from "@/core/session";
-import { SalesOrganizationSettingsScreen } from "@/features/crm/settings/territories/screens/SalesOrganizationSettingsScreen";
+import { SalesOrganizationSettingsScreen } from "@/features/crm/setup/territories/screens/SalesOrganizationSettingsScreen";
 
 export const metadata = { title: "Territories & Sales Teams" };
 

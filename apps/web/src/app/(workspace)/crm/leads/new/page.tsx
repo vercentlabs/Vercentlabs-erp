@@ -1,6 +1,6 @@
 import { CRM_PERMISSIONS } from "@vercentlabs/permissions";
 import { requireWorkspace } from "@/core/session";
-import { LeadFormScreen } from "@/features/crm/leads/screens/LeadFormScreen";
+import { LeadFormScreen } from "@/features/crm/customers/leads/screens/LeadFormScreen";
 
 export const metadata = { title: "New lead" };
 

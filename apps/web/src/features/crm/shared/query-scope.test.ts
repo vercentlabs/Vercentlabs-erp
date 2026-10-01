@@ -93,18 +93,18 @@ test("the three corrected CRM queries build their keys with scopedQueryKey", () 
       /queryKey: scopedQueryKey\(\s*workspace,\s*"crm",\s*"related-search",\s*value\.entityType,\s*text,?\s*\)/,
     ],
     [
-      "../leads/components/LeadKanbanBoard.tsx",
+      "../customers/leads/components/LeadKanbanBoard.tsx",
       /queryKey: scopedQueryKey\(\s*workspace,\s*"crm",\s*"leads",\s*lead\.id,\s*"stage-reasons",\s*stage\.id,?\s*\)/,
     ],
     [
-      "../settings/privacy-requests/screens/PrivacyRequestsSettingsScreen.tsx",
+      "../setup/privacy-requests/screens/PrivacyRequestsSettingsScreen.tsx",
       /queryKey: scopedQueryKey\(\s*workspace,\s*"crm-privacy-request-preview",\s*request\?\.id,?\s*\)/,
     ],
   ] as const;
   for (const [file, pattern] of cases) assert.match(read(file), pattern, file);
-  // The Kanban reason prompt shares the Lead detail screen's key family.
+  // The Kanban reason prompt shares the Lead detail key family (its data hook).
   assert.match(
-    read("../leads/screens/LeadDetailScreen.tsx"),
+    read("../customers/leads/detail/useLeadDetailData.ts"),
     /scopedQueryKey\(\s*workspace,\s*"crm",\s*"leads",\s*leadId,\s*"stage-reasons",/,
   );
 });

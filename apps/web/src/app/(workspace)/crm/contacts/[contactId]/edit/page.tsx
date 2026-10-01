@@ -6,8 +6,8 @@ import {
   crmContext,
   loadRecordForEdit,
 } from "@/features/crm/shared/crm-context";
-import { ContactFormScreen } from "@/features/crm/contacts/screens/ContactFormScreen";
-import type { Contact } from "@/features/crm/contacts/types";
+import { ContactFormScreen } from "@/features/crm/customers/contacts/screens/ContactFormScreen";
+import type { Contact } from "@/features/crm/customers/contacts/types";
 
 export const metadata = { title: "Edit contact" };
 

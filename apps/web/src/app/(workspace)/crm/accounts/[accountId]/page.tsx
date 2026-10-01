@@ -1,5 +1,5 @@
 import { requireWorkspace } from "@/core/session";
-import { AccountDetailScreen } from "@/features/crm/accounts/screens/AccountDetailScreen";
+import { AccountDetailScreen } from "@/features/crm/customers/accounts/screens/AccountDetailScreen";
 
 export const metadata = { title: "Account" };
 

@@ -1,5 +1,5 @@
 import { requireWorkspace } from "@/core/session";
-import { CrmImportExportScreen } from "@/features/crm/import-export/screens/CrmImportExportScreen";
+import { CrmImportExportScreen } from "@/features/crm/data/import-export/screens/CrmImportExportScreen";
 
 export const metadata = { title: "Import & Export" };
 

@@ -1,5 +1,5 @@
 import { requireWorkspace } from "@/core/session";
-import { OutcomeReasonsSettingsScreen } from "@/features/crm/settings/lost-reasons/screens/OutcomeReasonsSettingsScreen";
+import { OutcomeReasonsSettingsScreen } from "@/features/crm/setup/lost-reasons/screens/OutcomeReasonsSettingsScreen";
 
 export const metadata = { title: "Won / Lost Reasons" };
 

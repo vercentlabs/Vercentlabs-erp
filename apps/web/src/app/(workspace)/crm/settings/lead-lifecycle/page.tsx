@@ -1,5 +1,5 @@
 import { requireWorkspace } from "@/core/session";
-import { LeadLifecycleSettingsScreen } from "@/features/crm/settings/lead-lifecycle/screens/LeadLifecycleSettingsScreen";
+import { LeadLifecycleSettingsScreen } from "@/features/crm/setup/lead-lifecycle/screens/LeadLifecycleSettingsScreen";
 
 export const metadata = { title: "Lead Lifecycle Stages" };
 

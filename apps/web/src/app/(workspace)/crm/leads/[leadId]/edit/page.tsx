@@ -6,8 +6,8 @@ import {
   crmContext,
   loadRecordForEdit,
 } from "@/features/crm/shared/crm-context";
-import { LeadFormScreen } from "@/features/crm/leads/screens/LeadFormScreen";
-import type { Lead } from "@/features/crm/leads/types";
+import { LeadFormScreen } from "@/features/crm/customers/leads/screens/LeadFormScreen";
+import type { Lead } from "@/features/crm/customers/leads/types";
 
 export const metadata = { title: "Edit lead" };
 

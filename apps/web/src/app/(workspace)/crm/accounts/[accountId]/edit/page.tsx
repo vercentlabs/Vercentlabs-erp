@@ -6,8 +6,8 @@ import {
   crmContext,
   loadRecordForEdit,
 } from "@/features/crm/shared/crm-context";
-import { AccountFormScreen } from "@/features/crm/accounts/screens/AccountFormScreen";
-import type { Account } from "@/features/crm/accounts/types";
+import { AccountFormScreen } from "@/features/crm/customers/accounts/screens/AccountFormScreen";
+import type { Account } from "@/features/crm/customers/accounts/types";
 
 export const metadata = { title: "Edit account" };
 

@@ -1,6 +1,6 @@
 import { CRM_PERMISSIONS } from "@vercentlabs/permissions";
 import { requireWorkspace } from "@/core/session";
-import { FollowUpFormScreen } from "@/features/crm/follow-ups/screens/FollowUpFormScreen";
+import { FollowUpFormScreen } from "@/features/crm/work/follow-ups/screens/FollowUpFormScreen";
 
 export const metadata = { title: "New follow-up" };
 

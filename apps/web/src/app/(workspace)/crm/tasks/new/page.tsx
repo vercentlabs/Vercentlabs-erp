@@ -1,6 +1,6 @@
 import { CRM_PERMISSIONS } from "@vercentlabs/permissions";
 import { requireWorkspace } from "@/core/session";
-import { TaskFormScreen } from "@/features/crm/tasks/screens/TaskFormScreen";
+import { TaskFormScreen } from "@/features/crm/work/tasks/screens/TaskFormScreen";
 
 export const metadata = { title: "New task" };
 

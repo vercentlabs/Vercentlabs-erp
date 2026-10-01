@@ -1,5 +1,5 @@
 import { requireWorkspace } from "@/core/session";
-import { CrmForecastScreen } from "@/features/crm/forecast/screens/CrmForecastScreen";
+import { CrmForecastScreen } from "@/features/crm/pipeline/forecast/screens/CrmForecastScreen";
 
 export const metadata = { title: "CRM Forecast" };
 

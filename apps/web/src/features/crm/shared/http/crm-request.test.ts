@@ -10,30 +10,33 @@ import { crmRequest, parseCrmResponse } from "./crm-request.ts";
 import {
   AccountApiError,
   createAccount,
-} from "../../accounts/api/accounts-api.ts";
+} from "../../customers/accounts/api/accounts-api.ts";
 import {
   ContactApiError,
   createContact,
-} from "../../contacts/api/contacts-api.ts";
-import { LeadApiError, createLead } from "../../leads/api/leads-api.ts";
+} from "../../customers/contacts/api/contacts-api.ts";
+import {
+  LeadApiError,
+  createLead,
+} from "../../customers/leads/api/leads-api.ts";
 import {
   MeetingApiError,
   getMeeting,
-} from "../../meetings/api/meetings-api.ts";
-import { CallApiError } from "../../calls/api/calls-api.ts";
+} from "../../work/meetings/api/meetings-api.ts";
+import { CallApiError } from "../../work/calls/api/calls-api.ts";
 import {
   LeadLifecycleApiError,
   createLeadStage,
-} from "../../settings/lead-lifecycle/api/lead-lifecycle-api.ts";
+} from "../../setup/lead-lifecycle/api/lead-lifecycle-api.ts";
 import { AttachmentApiError, uploadAttachment } from "../attachments-api.ts";
 import {
   ImportExportApiError,
   analyzeLeadImportRequest,
-} from "../../import-export/api/import-export-api.ts";
+} from "../../data/import-export/api/import-export-api.ts";
 import {
   PublicBookingApiError,
   getPublicMeetingLink,
-} from "../../public-booking/api/public-booking-api.ts";
+} from "../../public/booking/api/public-booking-api.ts";
 import { getCrmOptions } from "../crm-options-api.ts";
 
 type Sent = { url: string; init?: RequestInit };

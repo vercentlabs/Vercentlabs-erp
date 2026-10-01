@@ -1,5 +1,5 @@
 import { requireWorkspace } from "@/core/session";
-import { LeadScoringSettingsScreen } from "@/features/crm/settings/lead-scoring-models/screens/LeadScoringSettingsScreen";
+import { LeadScoringSettingsScreen } from "@/features/crm/setup/lead-scoring-models/screens/LeadScoringSettingsScreen";
 
 export const metadata = { title: "Lead Scoring" };
 

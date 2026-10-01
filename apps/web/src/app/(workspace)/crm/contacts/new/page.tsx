@@ -1,6 +1,6 @@
 import { CRM_PERMISSIONS } from "@vercentlabs/permissions";
 import { requireWorkspace } from "@/core/session";
-import { ContactFormScreen } from "@/features/crm/contacts/screens/ContactFormScreen";
+import { ContactFormScreen } from "@/features/crm/customers/contacts/screens/ContactFormScreen";
 
 export const metadata = { title: "New contact" };
 

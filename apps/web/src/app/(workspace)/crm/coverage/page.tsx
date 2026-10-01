@@ -1,5 +1,5 @@
 import { requireWorkspace } from "@/core/session";
-import { SalesCoverageScreen } from "@/features/crm/coverage/screens/SalesCoverageScreen";
+import { SalesCoverageScreen } from "@/features/crm/pipeline/coverage/screens/SalesCoverageScreen";
 
 export const metadata = { title: "Sales Coverage" };
 

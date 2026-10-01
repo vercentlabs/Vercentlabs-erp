@@ -6,8 +6,8 @@ import {
   crmContext,
   loadRecordForEdit,
 } from "@/features/crm/shared/crm-context";
-import { OpportunityFormScreen } from "@/features/crm/opportunities/screens/OpportunityFormScreen";
-import type { Opportunity } from "@/features/crm/opportunities/types";
+import { OpportunityFormScreen } from "@/features/crm/pipeline/opportunities/screens/OpportunityFormScreen";
+import type { Opportunity } from "@/features/crm/pipeline/opportunities/types";
 
 export const metadata = { title: "Edit opportunity" };
 

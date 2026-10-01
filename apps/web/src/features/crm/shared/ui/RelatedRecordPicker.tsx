@@ -4,10 +4,10 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { ComboBox, Select } from "@vercentlabs/design-system";
 
-import { listAccounts } from "@/features/crm/accounts/api/accounts-api";
-import { listContacts } from "@/features/crm/contacts/api/contacts-api";
-import { listLeads } from "@/features/crm/leads/api/leads-api";
-import { listOpportunities } from "@/features/crm/opportunities/api/opportunities-api";
+import { listAccounts } from "@/features/crm/customers/accounts/api/accounts-api";
+import { listContacts } from "@/features/crm/customers/contacts/api/contacts-api";
+import { listLeads } from "@/features/crm/customers/leads/api/leads-api";
+import { listOpportunities } from "@/features/crm/pipeline/opportunities/api/opportunities-api";
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 

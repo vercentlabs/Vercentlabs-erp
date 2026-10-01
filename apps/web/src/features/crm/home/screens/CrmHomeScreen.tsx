@@ -11,7 +11,7 @@ import {
 } from "@vercentlabs/design-system";
 
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
-import { CrmDashboardScreen } from "@/features/crm/dashboard/screens/CrmDashboardScreen";
+import { CrmDashboardScreen } from "@/features/crm/home/dashboard/screens/CrmDashboardScreen";
 
 const CREATE_LINKS = [
   { label: "Lead", href: "/crm/leads/new" },

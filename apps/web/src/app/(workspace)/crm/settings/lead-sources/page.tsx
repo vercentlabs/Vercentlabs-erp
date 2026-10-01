@@ -1,5 +1,5 @@
 import { requireWorkspace } from "@/core/session";
-import { LeadSourcesSettingsScreen } from "@/features/crm/settings/lead-sources/screens/LeadSourcesSettingsScreen";
+import { LeadSourcesSettingsScreen } from "@/features/crm/setup/lead-sources/screens/LeadSourcesSettingsScreen";
 
 export const metadata = { title: "Lead Sources" };
 

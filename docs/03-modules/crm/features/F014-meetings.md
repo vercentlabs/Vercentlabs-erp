@@ -270,7 +270,7 @@ Written after implementation and verification; the evidence is the code and test
 - Public availability is host-scoped: busy time is the host's own synced calendar events, the host's meeting activities and the host's bookings (previously every event in the organization blocked every host).
 - `maximum_days_ahead` is enforced on availability and on booking (`isBookableDate`).
 - Guest input is bounded and validated (name ≤200, email ≤254 and valid, IANA timezone ≤64, notes ≤2000, cancel reason ≤1000).
-- All five public meeting routes use database-backed rate limits (`apps/web/src/features/crm/public-booking/public-limits.ts`, `enforcePublicRateLimits`); `scripts/qa/validate-route-security.mjs` fails any public-token route without a limiter and any route that reads a request body with `request.json()/text()/arrayBuffer()`.
+- All five public meeting routes use database-backed rate limits (`apps/web/src/features/crm/public/booking/public-limits.ts`, `enforcePublicRateLimits`); `scripts/qa/validate-route-security.mjs` fails any public-token route without a limiter and any route that reads a request body with `request.json()/text()/arrayBuffer()`.
 - Provider calls: HTTPS allow-list (Google/Microsoft API hosts), 20 s timeout, no redirects; Google page/sync tokens with 410 restart; Microsoft removals; cancelled/removed events cancel the mirrored slot.
 - Scheduled incremental calendar sync: worker job `crm.calendar.sync` (claim/complete/fail per account, 10-minute interval), `logger.event("crm.meeting_sync")`.
 - Evidence: `tests/integration/crm/meetings-public-db.test.mjs`, `tests/integration/crm/calendar-sync-db.test.mjs` (real PostgreSQL; provider HTTP stubbed at `fetch`).

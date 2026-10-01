@@ -1,5 +1,5 @@
 import { requireWorkspace } from "@/core/session";
-import { TaskDetailScreen } from "@/features/crm/tasks/screens/TaskDetailScreen";
+import { TaskDetailScreen } from "@/features/crm/work/tasks/screens/TaskDetailScreen";
 
 export const metadata = { title: "Task" };
 

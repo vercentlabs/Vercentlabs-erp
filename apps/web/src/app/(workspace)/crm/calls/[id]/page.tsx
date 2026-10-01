@@ -1,5 +1,5 @@
 import { requireWorkspace } from "@/core/session";
-import { CallDetailScreen } from "@/features/crm/calls/screens/CallDetailScreen";
+import { CallDetailScreen } from "@/features/crm/work/calls/screens/CallDetailScreen";
 
 export const metadata = { title: "Call" };
 

@@ -8,7 +8,7 @@ import { createLogger } from "@vercentlabs/observability";
 import { tenantTransaction, withIngressClient } from "@/core/db";
 import { enforcePublicRateLimits } from "@/core/public-rate-limit";
 import { errorResponse, ok, readJson } from "@/core/http";
-import { publicMeetingLimits } from "@/features/crm/public-booking/public-limits";
+import { publicMeetingLimits } from "@/features/crm/public/booking/public-limits";
 
 type RouteContext = { params: Promise<{ token: string }> };
 

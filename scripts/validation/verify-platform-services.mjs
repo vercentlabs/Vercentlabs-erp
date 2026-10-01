@@ -104,7 +104,7 @@ section("files: metadata via the platform service, bytes in object storage", [
 // 7. Exports and imports.
 section("export files are artifacts, not job JSON", [
   ...matching(/result_manifest[^;]*\bcsv\b/).map((file) => `${file} writes CSV content into a job manifest`),
-  ...(exists("apps/web/src/features/crm/import-export/csv.ts") ? ["the browser still parses CSV authoritatively"] : []),
+  ...(exists("apps/web/src/features/crm/data/import-export/csv.ts") ? ["the browser still parses CSV authoritatively"] : []),
   ...(/parseCsvUpload/.test(read("apps/web/src/app/api/crm/leads/import/preview/route.ts")) ? [] : ["lead import preview does not parse the upload server-side"]),
 ]);
 

@@ -12,7 +12,7 @@ import {
 
 import { tenantTransaction, withIngressClient } from "@/core/db";
 import { errorResponse, HttpError, ok } from "@/core/http";
-import { publicCaptureSchema } from "@/features/crm/public-capture/capture-schema";
+import { publicCaptureSchema } from "@/features/crm/public/capture/capture-schema";
 
 const PUBLIC_CAPTURE_KEY_PATTERN = /^[0-9a-f]{24,64}$/i;
 

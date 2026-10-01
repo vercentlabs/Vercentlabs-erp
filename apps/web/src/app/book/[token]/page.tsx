@@ -1,4 +1,4 @@
-import { BookMeetingScreen } from "@/features/crm/public-booking/screens/BookMeetingScreen";
+import { BookMeetingScreen } from "@/features/crm/public/booking/screens/BookMeetingScreen";
 
 export const metadata = { title: "Book a meeting" };
 

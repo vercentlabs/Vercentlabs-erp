@@ -8,15 +8,15 @@ import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import {
   findAccountDuplicates,
   listAccounts,
-} from "@/features/crm/accounts/api/accounts-api";
+} from "@/features/crm/customers/accounts/api/accounts-api";
 import {
   findContactDuplicates,
   listContacts,
-} from "@/features/crm/contacts/api/contacts-api";
+} from "@/features/crm/customers/contacts/api/contacts-api";
 import {
   findLeadDuplicates,
   listLeads,
-} from "@/features/crm/leads/api/leads-api";
+} from "@/features/crm/customers/leads/api/leads-api";
 import { humanize } from "@/shared/format/human";
 import { LoadingState } from "@/shared/ui/LoadingState";
 

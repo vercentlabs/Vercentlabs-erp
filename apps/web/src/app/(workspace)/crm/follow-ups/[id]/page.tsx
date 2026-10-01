@@ -1,5 +1,5 @@
 import { requireWorkspace } from "@/core/session";
-import { FollowUpDetailScreen } from "@/features/crm/follow-ups/screens/FollowUpDetailScreen";
+import { FollowUpDetailScreen } from "@/features/crm/work/follow-ups/screens/FollowUpDetailScreen";
 
 export const metadata = { title: "Follow-up" };
 

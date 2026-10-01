@@ -1,5 +1,5 @@
 import { requireWorkspace } from "@/core/session";
-import { CrmSetupScreen } from "@/features/crm/settings/hub/screens/CrmSetupScreen";
+import { CrmSetupScreen } from "@/features/crm/setup/hub/screens/CrmSetupScreen";
 
 export const metadata = { title: "CRM Setup" };
 

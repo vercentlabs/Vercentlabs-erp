@@ -33,7 +33,7 @@ export async function GET(request: Request, context: RouteContext) {
       const branchId = url.searchParams.get("branchId") || undefined;
       // listLeadAssignmentPolicies returns RAW snake_case rows (assignment-
       // engine.js does not camelize — confirmed this session, see
-      // features/crm/settings/lead-assignment-policies/types.ts's own note).
+      // features/crm/setup/lead-assignment-policies/types.ts's own note).
       const policies = await listLeadAssignmentPolicies(
         client,
         crmContext(session),

@@ -6,6 +6,7 @@ import {
   checkApiCoreLayout,
   checkApiRootCrmBoundary,
   checkCrmBrowserClients,
+  checkCrmWebOwnership,
   checkCanonicalDefinitions,
   checkCrmCapabilityImportBans,
   checkCrmCompatibilityBarrels,
@@ -303,4 +304,16 @@ test("CRM browser clients use the shared response parser, the common error base 
   ]);
   assert.equal(directive.length, 1);
   assert.match(directive[0], /notes-api\.ts has a "use client" directive that is not the first statement/);
+});
+
+test("the CRM frontend keeps one directory per product area", () => {
+  const dir = (name) => ({ name, isDirectory: true });
+  const areas = ["customers", "data", "home", "inbox", "insights", "pipeline", "public", "setup", "shared", "work"].map(dir);
+  assert.deepEqual(checkCrmWebOwnership([...areas, { name: "index.ts", isDirectory: false }]), []);
+  const problems = checkCrmWebOwnership([...areas.filter((entry) => entry.name !== "inbox"), dir("leads"), dir("settings"), { name: "helpers.ts", isDirectory: false }]);
+  assert.equal(problems.length, 4);
+  assert.match(problems[0], /features\/crm\/leads\/ is not a CRM product area/);
+  assert.match(problems[1], /features\/crm\/settings\/ is not a CRM product area/);
+  assert.match(problems[2], /helpers\.ts is a loose file/);
+  assert.match(problems[3], /features\/crm\/inbox\/ is missing/);
 });

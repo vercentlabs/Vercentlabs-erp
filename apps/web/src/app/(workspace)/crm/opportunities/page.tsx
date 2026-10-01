@@ -1,6 +1,6 @@
 import { requireWorkspace } from "@/core/session";
-import { OpportunityListScreen } from "@/features/crm/opportunities/screens/OpportunityListScreen";
-import { PipelineBoardScreen } from "@/features/crm/pipeline/screens/PipelineBoardScreen";
+import { OpportunityListScreen } from "@/features/crm/pipeline/opportunities/screens/OpportunityListScreen";
+import { PipelineBoardScreen } from "@/features/crm/pipeline/board/screens/PipelineBoardScreen";
 
 export const metadata = { title: "Opportunities" };
 

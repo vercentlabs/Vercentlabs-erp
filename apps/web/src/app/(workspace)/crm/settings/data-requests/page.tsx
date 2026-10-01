@@ -1,5 +1,5 @@
 import { requireWorkspace } from "@/core/session";
-import { PrivacyRequestsSettingsScreen } from "@/features/crm/settings/privacy-requests/screens/PrivacyRequestsSettingsScreen";
+import { PrivacyRequestsSettingsScreen } from "@/features/crm/setup/privacy-requests/screens/PrivacyRequestsSettingsScreen";
 
 export const metadata = { title: "Data Subject Requests" };
 

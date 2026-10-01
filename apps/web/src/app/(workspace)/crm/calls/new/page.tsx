@@ -1,6 +1,6 @@
 import { CRM_PERMISSIONS } from "@vercentlabs/permissions";
 import { requireWorkspace } from "@/core/session";
-import { CallFormScreen } from "@/features/crm/calls/screens/CallFormScreen";
+import { CallFormScreen } from "@/features/crm/work/calls/screens/CallFormScreen";
 
 export const metadata = { title: "New call" };
 

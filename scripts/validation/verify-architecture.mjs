@@ -4,7 +4,7 @@ import { ERP_MODULE_CATALOG } from "../../packages/shared-types/src/modules.js";
 import fs from "node:fs";
 import path from "node:path";
 
-import { API_ROOT_INDEX_FILES, CRM_ALLOWED_RUNTIME_CYCLES, CRM_COMPATIBILITY_BARRELS, CRM_ROOT_LEGACY_BARRELS, checkApiCoreLayout, checkApiRootCrmBoundary, checkCrmBrowserClients, checkCrmCapabilityImportBans, checkCrmCompatibilityBarrels, checkCrmKernelImportBans, checkCrmRuntimeCycles, checkCrmSelfBoundaryImports, checkCrossFeatureImports, checkWebRetiredAliases, checkWebTopLevel } from "./architecture-rules.mjs";
+import { API_ROOT_INDEX_FILES, CRM_ALLOWED_RUNTIME_CYCLES, CRM_COMPATIBILITY_BARRELS, CRM_ROOT_LEGACY_BARRELS, checkApiCoreLayout, checkApiRootCrmBoundary, checkCrmBrowserClients, checkCrmWebOwnership, checkCrmCapabilityImportBans, checkCrmCompatibilityBarrels, checkCrmKernelImportBans, checkCrmRuntimeCycles, checkCrmSelfBoundaryImports, checkCrossFeatureImports, checkWebRetiredAliases, checkWebTopLevel } from "./architecture-rules.mjs";
 
 const root = process.cwd();
 const modules = ERP_MODULE_CATALOG.map((module) => module.key);
@@ -113,6 +113,9 @@ const webFiles = walk(path.join(root, "apps/web/src"), [".ts", ".tsx"]);
 const webRecords = webFiles.map((file) => ({ path: path.relative(root, file).split(path.sep).join("/"), source: fs.readFileSync(file, "utf8") }));
 for (const problem of checkWebRetiredAliases(webRecords)) fail(problem);
 for (const problem of checkCrossFeatureImports(webRecords)) fail(problem);
+const crmOwnershipProblems = checkCrmWebOwnership(fs.readdirSync(path.join(root, "apps/web/src/features/crm"), { withFileTypes: true }).map((entry) => ({ name: entry.name, isDirectory: entry.isDirectory() })));
+for (const problem of crmOwnershipProblems) fail(problem);
+if (!crmOwnershipProblems.length) ok("CRM frontend is organised by product area (customers, pipeline, work, inbox, insights, data, setup, public, home, shared)");
 const crmBrowserProblems = checkCrmBrowserClients(webRecords);
 for (const problem of crmBrowserProblems) fail(problem);
 if (!crmBrowserProblems.length) ok("CRM browser clients share one response/error model and scoped query keys");

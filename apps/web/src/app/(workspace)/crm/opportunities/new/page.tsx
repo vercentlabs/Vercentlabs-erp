@@ -1,6 +1,6 @@
 import { CRM_PERMISSIONS } from "@vercentlabs/permissions";
 import { requireWorkspace } from "@/core/session";
-import { OpportunityFormScreen } from "@/features/crm/opportunities/screens/OpportunityFormScreen";
+import { OpportunityFormScreen } from "@/features/crm/pipeline/opportunities/screens/OpportunityFormScreen";
 
 export const metadata = { title: "New opportunity" };
 

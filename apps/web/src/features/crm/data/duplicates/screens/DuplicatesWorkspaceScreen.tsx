@@ -12,21 +12,24 @@ import { CRM_PERMISSIONS } from "@vercentlabs/permissions";
 
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
-import { getLead, listLeads } from "@/features/crm/leads/api/leads-api";
-import type { Lead } from "@/features/crm/leads/types";
-import { LeadDuplicatesWorkspacePanel } from "@/features/crm/leads/components/LeadDuplicatesWorkspacePanel";
+import {
+  getLead,
+  listLeads,
+} from "@/features/crm/customers/leads/api/leads-api";
+import type { Lead } from "@/features/crm/customers/leads/types";
+import { LeadDuplicatesWorkspacePanel } from "@/features/crm/customers/leads/components/LeadDuplicatesWorkspacePanel";
 import {
   getAccount,
   listAccounts,
-} from "@/features/crm/accounts/api/accounts-api";
-import type { Account } from "@/features/crm/accounts/types";
-import { AccountDuplicatesPanel } from "@/features/crm/accounts/components/AccountDuplicatesPanel";
+} from "@/features/crm/customers/accounts/api/accounts-api";
+import type { Account } from "@/features/crm/customers/accounts/types";
+import { AccountDuplicatesPanel } from "@/features/crm/customers/accounts/components/AccountDuplicatesPanel";
 import {
   getContact,
   listContacts,
-} from "@/features/crm/contacts/api/contacts-api";
-import type { Contact } from "@/features/crm/contacts/types";
-import { ContactDuplicatesPanel } from "@/features/crm/contacts/components/ContactDuplicatesPanel";
+} from "@/features/crm/customers/contacts/api/contacts-api";
+import type { Contact } from "@/features/crm/customers/contacts/types";
+import { ContactDuplicatesPanel } from "@/features/crm/customers/contacts/components/ContactDuplicatesPanel";
 
 import { SuspectedDuplicates, type EntityType } from "./SuspectedDuplicates";
 import { FullDuplicateScan } from "../components/FullDuplicateScan";

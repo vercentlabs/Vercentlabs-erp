@@ -1,4 +1,4 @@
-import { ManageBookingScreen } from "@/features/crm/public-booking/screens/ManageBookingScreen";
+import { ManageBookingScreen } from "@/features/crm/public/booking/screens/ManageBookingScreen";
 
 export const metadata = { title: "Manage your meeting" };
 

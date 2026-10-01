@@ -8,10 +8,10 @@ import { LoadingState } from "@/shared/ui/LoadingState";
 import { formatDate } from "@/shared/format/human";
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
-import { listTasks } from "@/features/crm/tasks/api/tasks-api";
-import { listCalls } from "@/features/crm/calls/api/calls-api";
-import { listMeetings } from "@/features/crm/meetings/api/meetings-api";
-import { listFollowUps } from "@/features/crm/follow-ups/api/follow-ups-api";
+import { listTasks } from "@/features/crm/work/tasks/api/tasks-api";
+import { listCalls } from "@/features/crm/work/calls/api/calls-api";
+import { listMeetings } from "@/features/crm/work/meetings/api/meetings-api";
+import { listFollowUps } from "@/features/crm/work/follow-ups/api/follow-ups-api";
 
 // Today's queue from the existing, permission-scoped activity lists — the
 // same endpoints and filters the Tasks/Calls/Meetings/Follow-ups views use,

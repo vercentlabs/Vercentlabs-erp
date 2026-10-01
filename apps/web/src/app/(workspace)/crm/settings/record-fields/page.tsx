@@ -1,5 +1,5 @@
 import { requireWorkspace } from "@/core/session";
-import { RecordFieldsSettingsScreen } from "@/features/crm/settings/record-fields/screens/RecordFieldsSettingsScreen";
+import { RecordFieldsSettingsScreen } from "@/features/crm/setup/record-fields/screens/RecordFieldsSettingsScreen";
 
 export const metadata = { title: "Custom Record Fields" };
 

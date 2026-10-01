@@ -556,7 +556,7 @@ const rows = [
     expected_behavior: "Every query key starts with [organizationId, companyId] (scopedQueryKey convention) so a context switch's cache invalidation can never miss a scoped query and two organizations' responses can never collide under the same key.",
     existing_domain_code: "apps/web/src/shell/workspace-context/queryKeys.ts (scopedQueryKey — pre-existing, already used correctly elsewhere, e.g. CRM saved-views)",
     existing_http_endpoint: "n/a",
-    existing_frontend: "apps/web/src/app/(workspace)/{notifications,approvals,jobs}/*-client.tsx; apps/web/src/features/crm/{accounts,contacts}/components/*DuplicatesPanel.tsx; apps/web/src/features/crm/settings/lead-assignment-policies/screens/AssignmentPoliciesSettingsScreen.tsx",
+    existing_frontend: "apps/web/src/app/(workspace)/{notifications,approvals,jobs}/*-client.tsx; apps/web/src/features/crm/customers/{accounts,contacts}/components/*DuplicatesPanel.tsx; apps/web/src/features/crm/setup/lead-assignment-policies/screens/AssignmentPoliciesSettingsScreen.tsx",
     existing_worker_or_job: "n/a",
     existing_database_support: "n/a",
     permission_and_scope: "n/a",
