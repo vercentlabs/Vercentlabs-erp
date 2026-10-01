@@ -1,4 +1,7 @@
-import { getCustomFieldValues, setCustomFieldValues } from "@vercentlabs/api";
+import {
+  getCustomFieldValues,
+  setCustomFieldValues,
+} from "@vercentlabs/api/crm";
 
 import { ok, readJson } from "@/core/http";
 import { crmContext } from "@/features/crm/shared/crm-context";

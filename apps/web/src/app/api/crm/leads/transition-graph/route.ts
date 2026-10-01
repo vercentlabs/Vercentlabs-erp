@@ -1,4 +1,4 @@
-import { listLeadStageTransitions } from "@vercentlabs/api";
+import { listLeadStageTransitions } from "@vercentlabs/api/crm";
 
 import { ok } from "@/core/http";
 import { crmContext } from "@/features/crm/shared/crm-context";

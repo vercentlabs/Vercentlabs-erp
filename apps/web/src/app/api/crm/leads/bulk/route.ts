@@ -2,7 +2,7 @@ import {
   bulkUpdateLeads,
   enqueueLeadBulkUpdateJob,
   LEAD_BULK_SYNC_LIMIT,
-} from "@vercentlabs/api";
+} from "@vercentlabs/api/crm";
 import { CRM_PERMISSIONS } from "@vercentlabs/permissions";
 
 import { HttpError, ok, readJson } from "@/core/http";

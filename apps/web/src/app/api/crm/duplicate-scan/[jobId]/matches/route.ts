@@ -1,4 +1,4 @@
-import { listDuplicateScanMatches } from "@vercentlabs/api";
+import { listDuplicateScanMatches } from "@vercentlabs/api/crm";
 import { CRM_PERMISSIONS } from "@vercentlabs/permissions";
 
 import { ok } from "@/core/http";

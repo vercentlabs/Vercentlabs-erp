@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { captureScheduledForecastSnapshots } from "@vercentlabs/api";
+import { captureScheduledForecastSnapshots } from "@vercentlabs/api/crm";
 
 export const JOB_TYPE = "crm.forecast.capture_snapshots";
 

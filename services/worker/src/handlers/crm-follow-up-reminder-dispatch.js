@@ -1,10 +1,12 @@
 import { z } from "zod";
 import {
   claimDueReminders,
-  createNotification,
   escalateOverdueFollowUps,
   markReminderOutcome,
   resetStuckDispatchingReminders,
+} from "@vercentlabs/api/crm";
+import {
+  createNotification,
   sendTransactionalEmail,
 } from "@vercentlabs/api";
 

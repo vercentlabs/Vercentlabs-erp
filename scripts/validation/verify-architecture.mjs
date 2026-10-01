@@ -4,7 +4,7 @@ import { ERP_MODULE_CATALOG } from "../../packages/shared-types/src/modules.js";
 import fs from "node:fs";
 import path from "node:path";
 
-import { CRM_ALLOWED_RUNTIME_CYCLES, CRM_COMPATIBILITY_BARRELS, checkApiCoreLayout, checkCrmCapabilityImportBans, checkCrmCompatibilityBarrels, checkCrmKernelImportBans, checkCrmRuntimeCycles, checkCrmSelfBoundaryImports, checkCrossFeatureImports, checkWebRetiredAliases, checkWebTopLevel } from "./architecture-rules.mjs";
+import { API_ROOT_INDEX_FILES, CRM_ALLOWED_RUNTIME_CYCLES, CRM_COMPATIBILITY_BARRELS, CRM_ROOT_LEGACY_BARRELS, checkApiCoreLayout, checkApiRootCrmBoundary, checkCrmCapabilityImportBans, checkCrmCompatibilityBarrels, checkCrmKernelImportBans, checkCrmRuntimeCycles, checkCrmSelfBoundaryImports, checkCrossFeatureImports, checkWebRetiredAliases, checkWebTopLevel } from "./architecture-rules.mjs";
 
 const root = process.cwd();
 const modules = ERP_MODULE_CATALOG.map((module) => module.key);
@@ -248,6 +248,11 @@ if (!crmKernelBanProblems.length) ok("CRM kernel import directions hold (data-ma
 const crmCycleProblems = checkCrmRuntimeCycles(crmRuntimeRecords);
 for (const problem of crmCycleProblems) fail(problem);
 if (!crmCycleProblems.length) ok(`CRM runtime import cycles limited to the ${CRM_ALLOWED_RUNTIME_CYCLES.length} documented mutual recursions`);
+const apiRootCrmProblems = checkApiRootCrmBoundary(
+  [...API_ROOT_INDEX_FILES, ...CRM_ROOT_LEGACY_BARRELS].map((file) => ({ path: file, source: fs.readFileSync(path.join(root, file), "utf8") })),
+);
+for (const problem of apiRootCrmProblems) fail(problem);
+if (!apiRootCrmProblems.length) ok("Package root reaches CRM only through modules/crm/index.js and the legacy root compatibility barrel");
 const crmBarrelProblems = checkCrmCompatibilityBarrels(crmRuntimeRecords);
 for (const problem of crmBarrelProblems) fail(problem);
 if (!crmBarrelProblems.length) ok(`CRM compatibility barrels hold re-exports only (${CRM_COMPATIBILITY_BARRELS.length} files)`);

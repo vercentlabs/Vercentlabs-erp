@@ -1,4 +1,4 @@
-import { matchLeadTerritory } from "@vercentlabs/api";
+import { matchLeadTerritory } from "@vercentlabs/api/crm";
 import { CRM_PERMISSIONS } from "@vercentlabs/permissions";
 
 import { ok } from "@/core/http";

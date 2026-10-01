@@ -1,4 +1,5 @@
 import type { BusinessDataResourceKey } from "@vercentlabs/shared-types";
+import type { CrmFoundationContext, PublicMeetingBookingRow, PublicMeetingLinkRow } from "./modules/crm/index.js";
 
 export type QueryClient = {
   query(
@@ -47,13 +48,6 @@ export function recordLeadDuplicateOverride(
 export function hasLeadDuplicateIdentityChange(
   input: Record<string, unknown>,
 ): boolean;
-export function dismissLeadDuplicateMatch(
-  client: QueryClient,
-  context: any,
-  leadId: string,
-  matchedLeadId: string,
-  reason: string,
-): Promise<any>;
 
 export class LeadAttributionError extends Error {
   readonly status: number;
@@ -69,12 +63,6 @@ export function calculateAttributionWeights(
   touchpoints: Array<{ event_at: string | Date }>,
   model?: "first_touch" | "last_touch" | "linear" | "position_based" | "time_decay",
 ): number[];
-export function getLeadAttributionTimeline(
-  client: QueryClient,
-  context: any,
-  leadId: string,
-  options?: { model?: string },
-): Promise<any>;
 
 export function listLeadStages(client: QueryClient, context: any, options?: { status?: string }): Promise<any>;
 export function classifyLeadStageCustomization(client: QueryClient, context: any, stages: any[]): Promise<"CUSTOMIZED" | "UNTOUCHED_STANDARD_3_STAGE">;
@@ -105,7 +93,6 @@ export function processLeadStageMigrationBatch(client: QueryClient, systemContex
 export const STAGE_MIGRATION_JOB_TYPE: string;
 export const STAGE_MIGRATION_BATCH_SIZE: number;
 export function transitionLeadStage(client: QueryClient, context: any, leadId: string, input?: Record<string, unknown>, options?: { skipTransitionGraphCheck?: boolean; source?: string }): Promise<any>;
-export function isElevatedLifecycleActor(context: any): boolean;
 export function listLeadStageHistory(client: QueryClient, context: any, leadId: string): Promise<any[]>;
 export function getLeadStageDwell(client: QueryClient, context: any, leadId: string): Promise<any>;
 export function listLeadStageTransitions(client: QueryClient, context: any): Promise<any[]>;
@@ -135,38 +122,14 @@ export function removeOpportunityTeamMember(client: QueryClient, context: any, o
 export function listOpportunityCompetitors(client: QueryClient, context: any, opportunityId: string): Promise<any[]>;
 export function addOpportunityCompetitor(client: QueryClient, context: any, opportunityId: string, input?: Record<string, unknown>): Promise<any>;
 export function removeOpportunityCompetitor(client: QueryClient, context: any, opportunityId: string, competitorId: string): Promise<{ removed: boolean }>;
-
-// F012 safe stage deactivation + migration job (Prompt 5, mirrors the F007 lead-stage-migration shape).
-export const OPPORTUNITY_STAGE_MIGRATION_JOB_TYPE: string;
 export const OPPORTUNITY_STAGE_MIGRATION_BATCH_SIZE: number;
 export function enqueueOpportunityStageMigrationJob(client: QueryClient, context: any, fromStageId: string, toStageId: string): Promise<any>;
 export function getOpportunityStageMigrationJob(client: QueryClient, context: any, jobId: string): Promise<any>;
-export function processOpportunityStageMigrationBatch(client: QueryClient, systemContext: any, jobId: string): Promise<any>;
-export function deactivateSalesStageWithMigration(client: QueryClient, context: any, id: string, options?: { migrateToStageId?: string; expectedUpdatedAt?: string }): Promise<{ deactivated: boolean; stage: any; migrationJob?: any }>;
 
 // F010/F012 stage-age computation (Prompt 5).
 export function computeStageAge(row: Record<string, unknown>, now?: Date): { enteredAt: string | null; ageDays: number | null; maximumDays: number | null; status: "unknown" | "ok" | "warning" | "breached" };
-export function listOpportunityStageAges(client: QueryClient, context: any, pipelineId?: string): Promise<Record<string, { enteredAt: string | null; ageDays: number | null; maximumDays: number | null; status: string }>>;
-export function listOpportunityPipelineStageTotals(client: QueryClient, context: any, pipelineId: string | null): Promise<Record<string, { opportunityCount: number; byCurrency: Record<string, { opportunityCount: number; amount: number; weightedAmount: number }> }>>;
 
 // F010 integrity closeout — historical pipeline snapshots (Prompts 1-5).
-export type CrmPipelineStageSnapshot = {
-  id: string;
-  organization_id: string;
-  pipeline_id: string;
-  company_id: string | null;
-  stage_id: string;
-  currency_code: string;
-  snapshot_date: string;
-  opportunity_count: number;
-  amount: string;
-  weighted_amount: string;
-  source: "scheduled" | "manual";
-  captured_by: string | null;
-  captured_at: string;
-};
-export function capturePipelineSnapshots(client: QueryClient, context: any, options?: { pipelineId?: string; source?: "scheduled" | "manual"; capturedBy?: string | null; snapshotDate?: string }): Promise<{ snapshotDate: string; source: "scheduled" | "manual"; pipelinesProcessed: number; rowsWritten: number; rowsSkippedDuplicate: number }>;
-export function listPipelineSnapshots(client: QueryClient, context: any, options?: { pipelineId?: string; limit?: number }): Promise<CrmPipelineStageSnapshot[]>;
 
 export type BusinessDataContext = {
   organizationId: string;
@@ -282,10 +245,22 @@ export function seedBusinessDataFoundation(
 ): Promise<void>;
 export * from "@vercentlabs/reporting-engine";
 export * from "./modules/crm/index.js";
-export * from "./modules/crm/master-data/account-operations.js";
-export * from "./modules/crm/master-data/contact-operations.js";
-export * from "./modules/crm/master-data/lead-source-operations.js";
-export * from "./modules/crm/lead-management/lead-qualification.js";
+export * from "./compat/crm-root-legacy.js";
+// Named so the boundary declarations win over the legacy per-file
+// declarations reachable through the compatibility barrel.
+export {
+  CrmPipelineStageSnapshot,
+  capturePipelineSnapshots,
+  createCrmAttachment,
+  crmAttachmentStorageEntityType,
+  deleteCrmAttachment,
+  getCrmAttachmentContent,
+  listCrmAttachmentVersions,
+  listCrmAttachments,
+  listOpportunityPipelineStageTotals,
+  listOpportunityStageAges,
+  listPipelineSnapshots,
+} from "./modules/crm/index.js";
 export * from "./modules/sales/index.js";
 
 export * from "./modules/accounting/index.js";
@@ -296,12 +271,6 @@ export class CrmFoundationError extends Error {
   readonly code: string;
   constructor(status: number, message: string, code?: string);
 }
-export type CrmFoundationContext = Omit<
-  BusinessDataContext,
-  "allowAllCompanies"
-> & {
-  allowAllCompanies?: boolean;
-};
 export function findAccountDuplicates(
   client: QueryClient,
   context: CrmFoundationContext,
@@ -312,13 +281,7 @@ export function findContactDuplicates(
   context: CrmFoundationContext,
   input?: Record<string, unknown>,
 ): Promise<Array<Record<string, unknown>>>;
-export const DUPLICATE_FULL_SCAN_JOB_TYPE: string;
 export const DUPLICATE_FULL_SCAN_BATCH_SIZE: number;
-export function enqueueDuplicateFullScan(client: QueryClient, context: any, entityType: string): Promise<any>;
-export function getDuplicateFullScanJob(client: QueryClient, context: any, jobId: string): Promise<any>;
-export function getLatestDuplicateFullScan(client: QueryClient, context: any, entityType: string): Promise<any>;
-export function listDuplicateScanMatches(client: QueryClient, context: any, jobId: string): Promise<any[]>;
-export function processDuplicateFullScanBatch(client: QueryClient, systemContext: any, jobId: string): Promise<any>;
 export function mergeAccounts(
   client: QueryClient,
   context: CrmFoundationContext,
@@ -390,73 +353,6 @@ export function assertEligibleLeadAssignee(
   userId: string,
   scope?: Record<string, unknown>,
 ): Promise<Record<string, unknown>>;
-// F005 Stage A2 §3 — the type declaration for this function was missing
-// even though the runtime export already existed (lead-governance.js
-// re-exports assignment/index.js, already reachable via this file's own
-// "export * from lead-governance.js"); only the .d.ts surface needed
-// this hand-written signature, matching the sibling declarations below.
-export function explainLeadAssignmentCandidates(
-  client: QueryClient,
-  context: CrmFoundationContext,
-  memberUserIds: string[],
-  input?: { companyId?: string; branchId?: string },
-): Promise<Array<{ userId: string; name: string | null; eligible: boolean; reasons: string[] }>>;
-export function listLeadAssignmentPolicies(
-  client: QueryClient,
-  context: CrmFoundationContext,
-): Promise<Array<Record<string, unknown>>>;
-export function saveLeadAssignmentPolicy(
-  client: QueryClient,
-  context: CrmFoundationContext,
-  input?: Record<string, unknown>,
-): Promise<Record<string, unknown>>;
-export function archiveLeadAssignmentPolicy(
-  client: QueryClient,
-  context: CrmFoundationContext,
-  policyId: string,
-  expectedUpdatedAt?: string,
-): Promise<Record<string, unknown>>;
-export function setLeadAssignmentPolicyStatus(
-  client: QueryClient,
-  context: CrmFoundationContext,
-  policyId: string,
-  status: "active" | "inactive",
-  expectedUpdatedAt?: string,
-): Promise<Record<string, unknown>>;
-export function matchLeadTerritory(client: QueryClient, context: any, lead: Record<string, unknown>): Promise<{ territoryId: string; code: string; name: string; matchedOn: string[]; alternatives: Array<{ territoryId: string; name: string; matchedOn: string[] }> } | null>;
-export function normalizeTerritoryCoverage(value: unknown): Record<string, string[]>;
-export const TERRITORY_TYPES: string[];
-export function getLeadAssignmentFallback(
-  client: QueryClient,
-  context: CrmFoundationContext,
-): Promise<Record<string, unknown>>;
-export function setLeadAssignmentFallback(
-  client: QueryClient,
-  context: CrmFoundationContext,
-  userId: string | null,
-): Promise<Record<string, unknown>>;
-export function listLeadAssigneeAvailability(
-  client: QueryClient,
-  context: CrmFoundationContext,
-): Promise<Array<Record<string, unknown>>>;
-export function setLeadAssigneeAvailability(
-  client: QueryClient,
-  context: CrmFoundationContext,
-  input?: Record<string, unknown>,
-): Promise<Record<string, unknown>>;
-export function clearLeadAssigneeAvailability(
-  client: QueryClient,
-  context: CrmFoundationContext,
-  id: string,
-): Promise<{ id: string }>;
-
-export * from "./modules/crm/lead-management/lead-operations.js";
-
-export * from "./modules/crm/pipeline/opportunity-operations.js";
-export * from "./modules/crm/pipeline/sales-stage-operations.js";
-export * from "./modules/crm/pipeline/stage-aging.js";
-export * from "./modules/crm/pipeline/pipeline-snapshots.js";
-export * from "./modules/crm/activities/attachments/attachments-operations.js";
 
 export * from "./modules/sales/quotation-governance.js";
 
@@ -464,26 +360,8 @@ export * from "./modules/sales/order-governance.js";
 
 export * from "./modules/procurement/governance.js";
 
-export * from "./modules/crm/data-management/core-acceptance.js";
-
-export * from "./modules/crm/master-data/account-intelligence.js";
-
-export * from "./modules/crm/master-data/contact-relationships.js";
-export * from "./modules/crm/master-data/duplicate-rules.js";
-export {
-  findAccountDuplicates,
-  findContactDuplicates,
-  findLeadContactCrossMatches,
-  projectDuplicateMatchesForCaller,
-  dismissAccountDuplicateMatch,
-  dismissContactDuplicateMatch,
-  recordAccountDuplicateOverride,
-  recordContactDuplicateOverride,
-} from "./modules/crm/master-data/duplicate-matching.js";
-
 export * from "./core/release/governance.js";
 
-export * from "./modules/crm/activities/communications.js";
 // F018 closeout (§33 shared-inbox reachability) — explicit overrides
 // alongside the wildcard above, matching this file's own established
 // pattern for communications.js/lead-intelligence.js functions that need
@@ -503,37 +381,9 @@ export function publicQuoteTokenHash(token: string): string;
 export function resolvePublicQuoteOrganization(queryable: QueryClient, tokenHash: string): Promise<string>;
 // F014 public meeting pages (token-resolved, anonymous host context).
 export class PublicMeetingError extends Error { readonly status: number; readonly code: string }
-export type PublicMeetingLinkRow = { organization_id: string; meeting_link_id: string; owner_user_id: string; [key: string]: any };
-export type PublicMeetingBookingRow = { organization_id: string; booking_id: string; host_user_id: string; token_type: string };
-export function resolvePublicMeetingLink(queryable: QueryClient, token: string): Promise<PublicMeetingLinkRow>;
-export function resolvePublicMeetingBooking(queryable: QueryClient, token: string): Promise<PublicMeetingBookingRow>;
-export function publicMeetingContext(input: { organizationId: string; hostUserId: string }): any;
-export function assertPublicDate(date: string | null): string;
-export function getPublicMeetingLinkView(client: QueryClient, link: PublicMeetingLinkRow): Promise<Record<string, unknown>>;
-export function getPublicMeetingBookingView(client: QueryClient, booking: PublicMeetingBookingRow): Promise<Record<string, unknown>>;
-export function getPublicRescheduleAvailability(client: QueryClient, booking: PublicMeetingBookingRow, date: string | null): Promise<any>;
-
-export * from "./modules/crm/master-data/lead-acquisition.js";
-export * from "./modules/crm/data-management/import-export/lead-import.js";
-export * from "./modules/crm/data-management/import-export/lead-export.js";
-export * from "./modules/crm/lead-management/lead-intelligence.js";
-export function listLeadScoringModels(client: QueryClient, context: any): Promise<any[]>;
-export function createLeadScoringModel(client: QueryClient, context: any, input?: Record<string, unknown>): Promise<any>;
-export function updateLeadScoringModel(client: QueryClient, context: any, id: string, input?: Record<string, unknown>): Promise<any>;
-export function activateLeadScoringModel(client: QueryClient, context: any, id: string): Promise<any>;
-export function createLeadScoringModelRule(client: QueryClient, context: any, modelId: string, input?: Record<string, unknown>): Promise<any>;
-export function setLeadScoringModelRuleStatus(client: QueryClient, context: any, modelId: string, ruleId: string, status: string): Promise<any>;
-export function trainLeadScoringModel(client: QueryClient, context: any, modelId: string): Promise<any>;
 export function enqueueLeadScoreRecalcJob(client: QueryClient, context: any, modelId: string): Promise<any>;
 export function getLeadScoreRecalcJob(client: QueryClient, context: any, jobId: string): Promise<any>;
-export function processLeadScoreRecalcBatch(client: QueryClient, systemContext: any, jobId: string): Promise<any>;
-export const SCORE_RECALC_JOB_TYPE: string;
 export const SCORE_RECALC_BATCH_SIZE: number;
-export function scanLeadStageDwellBreaches(client: QueryClient, context: any): Promise<{ scanned: number; notified: number }>;
-export * from "./modules/crm/pipeline/opportunity-revenue-intelligence.js";
-export * from "./modules/crm/pipeline/opportunity-contacts.js";
-export * from "./modules/crm/data-management/offline-sync.js";
-export * from "./modules/crm/data-management/notification-visibility.js";
 export * from "./modules/stock/index.js";
 export * from "./modules/stock/master-operations.js";
 export * from "./modules/sales/record-lookups.js";
@@ -580,75 +430,7 @@ export function startCrmTask(client: QueryClient, context: any, id: string, inpu
 export function completeCrmTask(client: QueryClient, context: any, id: string, input?: Record<string, unknown>): Promise<any>;
 export function cancelCrmTask(client: QueryClient, context: any, id: string, input?: Record<string, unknown>): Promise<any>;
 export function listCrmTaskHistory(client: QueryClient, context: any, id: string): Promise<any[]>;
-// Prompt 6 (CRM-CAP-004): F015 recurrence, dependencies, canonical overdue formula.
-export function taskOverdueSql(alias?: string): string;
-export function computeNextTaskOccurrence(
-  config: { freq: "daily" | "weekly" | "monthly"; interval?: number; count?: number; until?: string; byWeekday?: number[] } | null,
-  fromDueAt: string,
-  occurrenceIndex: number,
-): string | null;
-export function generateNextTaskOccurrence(client: QueryClient, context: any, completedTask: any): Promise<any | null>;
-export function addTaskDependency(client: QueryClient, context: any, taskId: string, dependsOnTaskId: string): Promise<any | null>;
-export function removeTaskDependency(client: QueryClient, context: any, taskId: string, dependsOnTaskId: string): Promise<void>;
-export function listTaskDependencies(client: QueryClient, context: any, taskId: string): Promise<any[]>;
-// Prompt 6 (CRM-CAP-004): F015 team/queue Tasks — real assignment model.
-export function claimCrmTask(client: QueryClient, context: any, id: string, input?: Record<string, unknown>): Promise<any>;
-export function releaseCrmTask(client: QueryClient, context: any, id: string, input?: Record<string, unknown>): Promise<any>;
-export function listMyTaskTeams(client: QueryClient, context: any): Promise<any[]>;
-export function listTeamMembers(client: QueryClient, context: any, teamId: string): Promise<any[]>;
-
-// Prompt 6 (CRM-CAP-004): F016 Follow-ups and reminders.
-export function listCrmFollowUps(client: QueryClient, context: any, filters?: Record<string, unknown>): Promise<{ rows: any[]; total: number; limit: number; offset: number }>;
-export function getCrmFollowUp(client: QueryClient, context: any, id: string, options?: { lock?: boolean }): Promise<any>;
-export function createCrmFollowUp(client: QueryClient, context: any, input?: Record<string, unknown>): Promise<any>;
-export function updateCrmFollowUp(client: QueryClient, context: any, id: string, input?: Record<string, unknown>): Promise<any>;
-export function snoozeCrmFollowUp(client: QueryClient, context: any, id: string, input?: Record<string, unknown>): Promise<any>;
-export function completeCrmFollowUp(client: QueryClient, context: any, id: string, input?: Record<string, unknown>): Promise<any>;
-export function cancelCrmFollowUp(client: QueryClient, context: any, id: string, input?: Record<string, unknown>): Promise<any>;
-export function listCrmFollowUpHistory(client: QueryClient, context: any, id: string): Promise<any[]>;
-export function createRemindersForActivity(client: QueryClient, context: any, activityId: string, dueAt: string, options?: { offsets?: number[]; channel?: "in_app" | "email" }): Promise<any[]>;
-export function cancelPendingRemindersForActivity(client: QueryClient, context: any, activityId: string): Promise<void>;
-export function listRemindersForActivity(client: QueryClient, context: any, activityId: string): Promise<any[]>;
-export function acknowledgeReminder(client: QueryClient, context: any, activityId: string, reminderId: string): Promise<any>;
-export function claimDueReminders(client: QueryClient, context: any, options?: { limit?: number }): Promise<any[]>;
-export function markReminderOutcome(client: QueryClient, context: any, reminderId: string, options: { status: "sent" | "failed"; failureReason?: string | null }): Promise<void>;
-export function resetStuckDispatchingReminders(client: QueryClient, context: any, options?: { olderThanMinutes?: number }): Promise<number>;
-export function escalateOverdueFollowUps(client: QueryClient, context: any): Promise<number>;
-export function getManagerForUser(client: QueryClient, organizationId: string, userId: string | null): Promise<string | null>;
-export function getCrmRecordTimelinePage(
-  client: QueryClient,
-  context: any,
-  entityType: "lead" | "opportunity" | "party" | "contact" | "campaign",
-  entityId: string,
-  options?: { cursor?: string | null; limit?: number; kinds?: Array<"activity" | "communication" | "note" | "attachment"> },
-): Promise<{ rows: Array<Record<string, unknown>>; hasMore: boolean; nextCursor: string | null }>;
-export function getCrmTimelinePageBySource(
-  client: QueryClient,
-  context: any,
-  entityType: "lead" | "opportunity" | "party" | "contact" | "campaign",
-  entityId: string,
-  options: { source: "activity" | "communication" | "note" | "attachment"; offset?: number; limit?: number },
-): Promise<{ rows: Array<Record<string, unknown>>; hasMore: boolean }>;
-export function resolveCrmEntityAccess(
-  client: QueryClient,
-  context: any,
-  entityType: "lead" | "opportunity" | "party" | "contact" | "campaign",
-  entityId: string,
-): Promise<boolean>;
-// Prompt 6 (CRM-CAP-004): F017 canonical Notes domain.
-export function listCrmNotes(client: QueryClient, context: any, entityType: string, entityId: string, options?: { includeArchived?: boolean; limit?: number }): Promise<any[]>;
-export function getCrmNote(client: QueryClient, context: any, id: string): Promise<any>;
-export function createCrmNote(client: QueryClient, context: any, entityType: string, entityId: string, input?: Record<string, unknown>): Promise<any>;
-export function updateCrmNote(client: QueryClient, context: any, id: string, input?: Record<string, unknown>): Promise<any>;
-export function archiveCrmNote(client: QueryClient, context: any, id: string, input?: Record<string, unknown>): Promise<any>;
-export function listCrmNoteVersions(client: QueryClient, context: any, id: string): Promise<any[]>;
 // Prompt 6 (CRM-CAP-004): F017 canonical governed-attachment domain.
-export function crmAttachmentStorageEntityType(entityType: string): string;
-export function listCrmAttachments(client: QueryClient, context: any, entityType: string, entityId: string): Promise<any[]>;
-export function listCrmAttachmentVersions(client: QueryClient, context: any, entityType: string, entityId: string, logicalId: string): Promise<any[]>;
-export function createCrmAttachment(client: QueryClient, context: any, entityType: string, entityId: string, input: { prepared: import("./core/platform/files/index.js").PreparedUpload; replacesLogicalId?: string | null }, options?: { storage?: import("@vercentlabs/document-engine").ObjectStorage }): Promise<any>;
-export function getCrmAttachmentContent(client: QueryClient, context: any, entityType: string, entityId: string, attachmentId: string, options?: { storage?: import("@vercentlabs/document-engine").ObjectStorage }): Promise<{ id: string; fileName: string; mimeType: string; sizeBytes: number; contentSha256: string | null; body: Buffer }>;
-export function deleteCrmAttachment(client: QueryClient, context: any, entityType: string, entityId: string, attachmentId: string): Promise<any>;
 
 export function listSalesPass1Operations(client: QueryClient, context: any, options?: { kind?: string; limit?: number }): Promise<any[]>;
 export function requestSalesCreditAdjustment(client: QueryClient, context: any, input?: Record<string, unknown>): Promise<any>;

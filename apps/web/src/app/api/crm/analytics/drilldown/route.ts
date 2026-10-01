@@ -1,7 +1,7 @@
 import {
   analyticsFiltersFromSearchParams,
   getMetricDrilldown,
-} from "@vercentlabs/api";
+} from "@vercentlabs/api/crm";
 
 import { ok } from "@/core/http";
 import { workspaceRoute } from "@/core/workspace-route";

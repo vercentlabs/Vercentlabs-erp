@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { processLeadStageMigrationBatch, STAGE_MIGRATION_JOB_TYPE } from "@vercentlabs/api";
+import { processLeadStageMigrationBatch, STAGE_MIGRATION_JOB_TYPE } from "@vercentlabs/api/crm";
 import { extendJobLease } from "../queue.js";
 
 export const JOB_TYPE = STAGE_MIGRATION_JOB_TYPE;

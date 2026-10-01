@@ -4,9 +4,7 @@
 // that. Providers return a small safe DTO only (no email, phone, bank, cost...).
 // Register a provider here only when its domain list function is proven safe.
 import { listBusinessDataRecords } from "../../core/master-data.js";
-import { listCrmRecords } from "../../modules/crm/data-management/resource-query-service.js";
-import { listCrmAccounts } from "../../modules/crm/master-data/account-operations.js";
-import { listCrmContacts } from "../../modules/crm/master-data/contact-operations.js";
+import { listCrmAccounts, listCrmContacts, listCrmRecords } from "../../modules/crm/index.js";
 
 const SALES_CUSTOMER_TYPES = ["customer", "prospect", "both"];
 const text = (value) => (value === null || value === undefined || value === "" ? null : String(value).slice(0, 160));

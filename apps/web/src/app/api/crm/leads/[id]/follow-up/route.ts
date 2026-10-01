@@ -1,15 +1,14 @@
 import { z } from "zod";
 
 import {
-  audit,
   createCrmCall,
   createCrmMeeting,
   createCrmRecord,
   createCrmTask,
   getCrmRecord,
-  requireSessionPermission,
   updateCrmRecord,
-} from "@vercentlabs/api";
+} from "@vercentlabs/api/crm";
+import { audit, requireSessionPermission } from "@vercentlabs/api";
 import { CRM_PERMISSIONS } from "@vercentlabs/permissions";
 
 import { HttpError, ok, readJson } from "@/core/http";

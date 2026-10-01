@@ -1,4 +1,4 @@
-import { createSalesStage, listSalesStages } from "@vercentlabs/api";
+import { createSalesStage, listSalesStages } from "@vercentlabs/api/crm";
 import { CRM_PERMISSIONS } from "@vercentlabs/permissions";
 
 import { HttpError, ok, readJson } from "@/core/http";

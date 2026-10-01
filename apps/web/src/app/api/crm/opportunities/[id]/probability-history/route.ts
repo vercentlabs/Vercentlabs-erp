@@ -1,4 +1,4 @@
-import { listOpportunityProbabilityHistory } from "@vercentlabs/api";
+import { listOpportunityProbabilityHistory } from "@vercentlabs/api/crm";
 
 import { ok } from "@/core/http";
 import { crmContext } from "@/features/crm/shared/crm-context";

@@ -1,4 +1,4 @@
-import { getLeadImportErrorsCsv } from "@vercentlabs/api";
+import { getLeadImportErrorsCsv } from "@vercentlabs/api/crm";
 import { CRM_PERMISSIONS } from "@vercentlabs/permissions";
 
 import { workspaceRoute } from "@/core/workspace-route";

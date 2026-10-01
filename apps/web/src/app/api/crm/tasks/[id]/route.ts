@@ -1,4 +1,4 @@
-import { getCrmTask, updateCrmTask } from "@vercentlabs/api";
+import { getCrmTask, updateCrmTask } from "@vercentlabs/api/crm";
 import { CRM_PERMISSIONS } from "@vercentlabs/permissions";
 
 import { ok, readJson } from "@/core/http";

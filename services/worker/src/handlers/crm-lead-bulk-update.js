@@ -2,7 +2,7 @@ import { z } from "zod";
 import {
   resolveLeadBulkExecutionContext,
   updateCrmRecord,
-} from "@vercentlabs/api";
+} from "@vercentlabs/api/crm";
 import { extendJobLease } from "../queue.js";
 
 export const JOB_TYPE = "crm.leads.bulk_update";

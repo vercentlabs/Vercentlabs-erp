@@ -1,4 +1,4 @@
-import { getCrmAttachmentContent } from "@vercentlabs/api";
+import { getCrmAttachmentContent } from "@vercentlabs/api/crm";
 
 import { crmContext } from "@/features/crm/shared/crm-context";
 import { workspaceRoute } from "@/core/workspace-route";

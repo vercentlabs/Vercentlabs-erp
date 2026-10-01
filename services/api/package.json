@@ -11,6 +11,10 @@
     "./access": {
       "types": "./src/core/access/index.d.ts",
       "default": "./src/core/access/index.js"
+    },
+    "./crm": {
+      "types": "./src/modules/crm/index.d.ts",
+      "default": "./src/modules/crm/index.js"
     }
   },
   "scripts": {

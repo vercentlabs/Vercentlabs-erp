@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { buildCrmLeadExportCsv, completeCrmLeadExportJob, resolveLeadBulkExecutionContext } from "@vercentlabs/api";
+import { buildCrmLeadExportCsv, completeCrmLeadExportJob, resolveLeadBulkExecutionContext } from "@vercentlabs/api/crm";
 
 export const JOB_TYPE = "crm.leads.export";
 

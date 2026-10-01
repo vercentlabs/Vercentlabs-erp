@@ -2,7 +2,7 @@ import { z } from "zod";
 import {
   resolveOpportunityBulkExecutionContext,
   updateCrmRecord,
-} from "@vercentlabs/api";
+} from "@vercentlabs/api/crm";
 import { extendJobLease } from "../queue.js";
 
 // F029 (Bulk actions) — LAST PROMPT 1/3 closeout: mirrors

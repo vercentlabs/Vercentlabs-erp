@@ -1,4 +1,4 @@
-import { getCustomer360ForCaller } from "@vercentlabs/api";
+import { getCustomer360ForCaller } from "@vercentlabs/api/crm";
 
 import { ok } from "@/core/http";
 import { crmContext } from "@/features/crm/shared/crm-context";

@@ -2,8 +2,8 @@ import {
   openLeadSlaCase,
   recordLeadResponse,
   scanLeadSlaBreaches,
-  requireSessionPermission,
-} from "@vercentlabs/api";
+} from "@vercentlabs/api/crm";
+import { requireSessionPermission } from "@vercentlabs/api";
 import { CRM_PERMISSIONS } from "@vercentlabs/permissions";
 
 import { HttpError, ok, readJson } from "@/core/http";

@@ -1,4 +1,4 @@
-import { readCrmLeadExportArtifact } from "@vercentlabs/api";
+import { readCrmLeadExportArtifact } from "@vercentlabs/api/crm";
 import { CRM_PERMISSIONS } from "@vercentlabs/permissions";
 
 import { crmContext } from "@/features/crm/shared/crm-context";

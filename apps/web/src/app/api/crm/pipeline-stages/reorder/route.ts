@@ -1,4 +1,4 @@
-import { reorderSalesStages } from "@vercentlabs/api";
+import { reorderSalesStages } from "@vercentlabs/api/crm";
 import { CRM_PERMISSIONS } from "@vercentlabs/permissions";
 
 import { HttpError, ok, readJson } from "@/core/http";

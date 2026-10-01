@@ -1,4 +1,4 @@
-import { getForecastAccuracy } from "@vercentlabs/api";
+import { getForecastAccuracy } from "@vercentlabs/api/crm";
 
 import { ok } from "@/core/http";
 import { workspaceRoute } from "@/core/workspace-route";

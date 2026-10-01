@@ -1,4 +1,4 @@
-import { deleteCrmAttachment } from "@vercentlabs/api";
+import { deleteCrmAttachment } from "@vercentlabs/api/crm";
 
 import { ok } from "@/core/http";
 import { crmContext } from "@/features/crm/shared/crm-context";

@@ -1,4 +1,4 @@
-import { listStageSlaPolicies } from "@vercentlabs/api";
+import { listStageSlaPolicies } from "@vercentlabs/api/crm";
 import { CRM_PERMISSIONS } from "@vercentlabs/permissions";
 
 import { HttpError, ok } from "@/core/http";

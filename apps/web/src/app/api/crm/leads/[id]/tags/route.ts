@@ -1,4 +1,4 @@
-import { assignRecordTag, listRecordTags } from "@vercentlabs/api";
+import { assignRecordTag, listRecordTags } from "@vercentlabs/api/crm";
 
 import { ok, readJson } from "@/core/http";
 import { crmContext } from "@/features/crm/shared/crm-context";

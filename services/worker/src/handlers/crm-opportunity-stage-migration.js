@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { processOpportunityStageMigrationBatch, OPPORTUNITY_STAGE_MIGRATION_JOB_TYPE } from "@vercentlabs/api";
+import { processOpportunityStageMigrationBatch, OPPORTUNITY_STAGE_MIGRATION_JOB_TYPE } from "@vercentlabs/api/crm";
 import { extendJobLease } from "../queue.js";
 
 export const JOB_TYPE = OPPORTUNITY_STAGE_MIGRATION_JOB_TYPE;

@@ -4,6 +4,7 @@ import test from "node:test";
 import {
   checkAccessBoundaryUse,
   checkApiCoreLayout,
+  checkApiRootCrmBoundary,
   checkCanonicalDefinitions,
   checkCrmCapabilityImportBans,
   checkCrmCompatibilityBarrels,
@@ -254,4 +255,23 @@ test("CRM runtime import cycles are limited to the documented mutual recursions"
   assert.equal(problems.length, 2);
   assert.ok(problems.some((problem) => problem.includes("across 2 files: data-management/record-policy.js, data-management/resource-query-service.js")));
   assert.ok(problems.some((problem) => problem.includes("across 4 files: data-management/automation/automation-engine.js, data-management/resource-mutation-service.js, data-management/resource-validation.js, lead-management/lead-qualification.js")));
+});
+
+test("the package root reaches CRM only through the module boundary and the legacy root barrel", () => {
+  const ok = [
+    file("services/api/src/index.js", 'export * from "./modules/crm/index.js";\nexport * from "./compat/crm-root-legacy.js";\nexport * from "./modules/sales/index.js";\n'),
+    file("services/api/src/index.d.ts", 'import type { CrmFoundationContext } from "./modules/crm/index.js";\nexport * from "./modules/crm/index.js";\nexport * from "./compat/crm-root-legacy.js";\n'),
+    file("services/api/src/compat/crm-root-legacy.js", '// legacy\nexport * from "../modules/crm/master-data/account-operations.js";\nexport {\n  findAccountDuplicates,\n} from "../modules/crm/master-data/duplicate-matching.js";\n'),
+    file("services/api/src/compat/crm-root-legacy.d.ts", 'export type { QueryClient } from "../index.js";\nexport * from "../modules/crm/master-data/account-operations.js";\n'),
+  ];
+  assert.deepEqual(checkApiRootCrmBoundary(ok), []);
+  const problems = checkApiRootCrmBoundary([
+    file("services/api/src/index.js", 'export * from "./modules/crm/index.js";\nexport * from "./modules/crm/master-data/foo.js";\nexport { bar } from "./modules/crm/pipeline/bar.js";\n'),
+    file("services/api/src/compat/crm-root-legacy.js", 'export * from "../modules/sales/index.js";\nexport function helper() { return 1; }\n'),
+  ]);
+  assert.equal(problems.length, 4);
+  assert.match(problems[0], /index\.js reaches into CRM through "\.\/modules\/crm\/master-data\/foo\.js"/);
+  assert.match(problems[1], /"\.\/modules\/crm\/pipeline\/bar\.js"/);
+  assert.match(problems[2], /may only re-export, found "export function helper/);
+  assert.match(problems[3], /re-exports "\.\.\/modules\/sales\/index\.js"/);
 });

@@ -1,4 +1,4 @@
-import { removeRecordTag } from "@vercentlabs/api";
+import { removeRecordTag } from "@vercentlabs/api/crm";
 
 import { ok } from "@/core/http";
 import { crmContext } from "@/features/crm/shared/crm-context";

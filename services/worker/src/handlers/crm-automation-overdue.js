@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { runCrmAutomation } from "@vercentlabs/api";
+import { runCrmAutomation } from "@vercentlabs/api/crm";
 
 export const JOB_TYPE = "crm.automation.detect_overdue_activities";
 

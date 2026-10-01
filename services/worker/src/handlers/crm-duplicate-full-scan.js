@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { processDuplicateFullScanBatch, DUPLICATE_FULL_SCAN_JOB_TYPE } from "@vercentlabs/api";
+import { processDuplicateFullScanBatch, DUPLICATE_FULL_SCAN_JOB_TYPE } from "@vercentlabs/api/crm";
 import { extendJobLease } from "../queue.js";
 
 export const JOB_TYPE = DUPLICATE_FULL_SCAN_JOB_TYPE;

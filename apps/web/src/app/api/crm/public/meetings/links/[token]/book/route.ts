@@ -2,7 +2,7 @@ import {
   bookMeeting,
   publicMeetingContext,
   resolvePublicMeetingLink,
-} from "@vercentlabs/api";
+} from "@vercentlabs/api/crm";
 import { createLogger } from "@vercentlabs/observability";
 
 import { tenantTransaction, withIngressClient } from "@/core/db";

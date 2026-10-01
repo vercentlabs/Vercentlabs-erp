@@ -1,4 +1,5 @@
-import { audit, getCrmReport, rowsToCsv } from "@vercentlabs/api";
+import { getCrmReport } from "@vercentlabs/api/crm";
+import { audit, rowsToCsv } from "@vercentlabs/api";
 import { CRM_PERMISSIONS } from "@vercentlabs/permissions";
 
 import { ok } from "@/core/http";

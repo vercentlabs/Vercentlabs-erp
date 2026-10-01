@@ -1,7 +1,7 @@
 import {
   analyticsFiltersFromSearchParams,
   getPipelineDashboard,
-} from "@vercentlabs/api";
+} from "@vercentlabs/api/crm";
 
 import { ok } from "@/core/http";
 import { workspaceRoute } from "@/core/workspace-route";

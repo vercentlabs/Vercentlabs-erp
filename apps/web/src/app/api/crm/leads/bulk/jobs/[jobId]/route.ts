@@ -1,4 +1,4 @@
-import { getLeadBulkJob } from "@vercentlabs/api";
+import { getLeadBulkJob } from "@vercentlabs/api/crm";
 
 import { ok } from "@/core/http";
 import { crmContext } from "@/features/crm/shared/crm-context";

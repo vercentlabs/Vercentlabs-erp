@@ -1,4 +1,4 @@
-import { listCrmTaskHistory } from "@vercentlabs/api";
+import { listCrmTaskHistory } from "@vercentlabs/api/crm";
 import { CRM_PERMISSIONS } from "@vercentlabs/permissions";
 
 import { ok } from "@/core/http";

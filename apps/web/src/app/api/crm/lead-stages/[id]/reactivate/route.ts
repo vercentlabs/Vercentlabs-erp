@@ -1,4 +1,4 @@
-import { reactivateLeadStage } from "@vercentlabs/api";
+import { reactivateLeadStage } from "@vercentlabs/api/crm";
 import { CRM_PERMISSIONS } from "@vercentlabs/permissions";
 
 import { ok } from "@/core/http";

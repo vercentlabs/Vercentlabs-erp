@@ -2,8 +2,8 @@ import {
   createCrmRecord,
   isCrmResource,
   listCrmRecords,
-  requireBillingWriteAccess,
-} from "@vercentlabs/api";
+} from "@vercentlabs/api/crm";
+import { requireBillingWriteAccess } from "@vercentlabs/api";
 
 import { HttpError, ok, readJson } from "@/core/http";
 import { workspaceRoute } from "@/core/workspace-route";

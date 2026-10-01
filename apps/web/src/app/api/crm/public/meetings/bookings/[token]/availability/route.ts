@@ -1,7 +1,7 @@
 import {
   getPublicRescheduleAvailability,
   resolvePublicMeetingBooking,
-} from "@vercentlabs/api";
+} from "@vercentlabs/api/crm";
 
 import { tenantTransaction, withIngressClient } from "@/core/db";
 import { enforcePublicRateLimits } from "@/core/public-rate-limit";

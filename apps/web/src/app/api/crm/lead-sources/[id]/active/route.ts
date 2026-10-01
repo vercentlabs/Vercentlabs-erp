@@ -1,4 +1,4 @@
-import { setCrmLeadSourceActive } from "@vercentlabs/api";
+import { setCrmLeadSourceActive } from "@vercentlabs/api/crm";
 import { CRM_PERMISSIONS } from "@vercentlabs/permissions";
 
 import { ok, readJson } from "@/core/http";

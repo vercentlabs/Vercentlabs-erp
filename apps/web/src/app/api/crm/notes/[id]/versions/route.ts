@@ -1,4 +1,4 @@
-import { listCrmNoteVersions } from "@vercentlabs/api";
+import { listCrmNoteVersions } from "@vercentlabs/api/crm";
 
 import { ok } from "@/core/http";
 import { crmContext } from "@/features/crm/shared/crm-context";

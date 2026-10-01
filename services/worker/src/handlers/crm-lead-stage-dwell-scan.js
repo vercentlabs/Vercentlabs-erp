@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { scanLeadStageDwellBreaches } from "@vercentlabs/api";
+import { scanLeadStageDwellBreaches } from "@vercentlabs/api/crm";
 
 export const JOB_TYPE = "crm.automation.detect_lead_dwell_breaches";
 

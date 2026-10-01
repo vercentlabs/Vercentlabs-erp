@@ -207,6 +207,42 @@ export function checkCrmRuntimeCycles(files) {
     .map((component) => `CRM runtime import cycle across ${component.length} files: ${component.join(", ")}; move the shared rule or primitive below its users instead of importing back`);
 }
 
+// The package root (services/api/src/index.js and index.d.ts) reaches CRM only
+// through the CRM module boundary and the legacy root compatibility barrel;
+// that barrel only re-exports CRM files. New CRM contracts go on the module
+// boundary (@vercentlabs/api/crm), never straight onto the package root.
+export const API_ROOT_INDEX_FILES = Object.freeze(["services/api/src/index.js", "services/api/src/index.d.ts"]);
+export const CRM_ROOT_LEGACY_BARRELS = Object.freeze(["services/api/src/compat/crm-root-legacy.js", "services/api/src/compat/crm-root-legacy.d.ts"]);
+const API_ROOT_CRM_ALLOWED = Object.freeze(["./modules/crm/index.js", "./compat/crm-root-legacy.js"]);
+
+export function checkApiRootCrmBoundary(files) {
+  const problems = [];
+  const specifiers = (source) => [
+    ...source.matchAll(/\b(?:import|export)\b[^;]*?\bfrom\s*["']([^"']+)["']/gs),
+    ...source.matchAll(/\bimport\(\s*["']([^"']+)["']\s*\)/g),
+  ].map((match) => match[1]);
+  for (const { path: file, source } of files) {
+    if (API_ROOT_INDEX_FILES.includes(file)) {
+      for (const specifier of specifiers(source))
+        if (/^\.\/modules\/crm\//.test(specifier) && !API_ROOT_CRM_ALLOWED.includes(specifier))
+          problems.push(`${file} reaches into CRM through "${specifier}"; export CRM contracts from modules/crm/index.js (@vercentlabs/api/crm) instead of the package root`);
+    }
+    if (CRM_ROOT_LEGACY_BARRELS.includes(file)) {
+      const remainder = source
+        .replace(/\/\*[\s\S]*?\*\//g, "")
+        .replace(/^\s*\/\/.*$/gm, "")
+        .replace(/\bexport\s*(?:type\s*)?(?:\*|\{[^}]*\})\s*from\s*["'][^"']+["']\s*;/g, "")
+        .trim();
+      if (remainder)
+        problems.push(`${file} is the legacy root CRM compatibility barrel; it may only re-export, found "${remainder.split("\n")[0].slice(0, 80)}"`);
+      for (const specifier of specifiers(source))
+        if (!/^\.\.\/modules\/crm\//.test(specifier) && !(file.endsWith(".d.ts") && specifier === "../index.js"))
+          problems.push(`${file} re-exports "${specifier}"; the legacy root CRM barrel may only re-export CRM files`);
+    }
+  }
+  return problems;
+}
+
 // CRM files kept only as compatibility re-export boundaries after their code
 // moved to owning files. They may contain comments and `export { ... } from`
 // statements, nothing else, so they cannot grow back into implementations.

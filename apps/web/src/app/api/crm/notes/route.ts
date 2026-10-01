@@ -1,4 +1,4 @@
-import { createCrmNote, listCrmNotes } from "@vercentlabs/api";
+import { createCrmNote, listCrmNotes } from "@vercentlabs/api/crm";
 
 import { HttpError, ok, readJson } from "@/core/http";
 import { crmContext } from "@/features/crm/shared/crm-context";

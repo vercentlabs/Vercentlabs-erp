@@ -1,4 +1,4 @@
-import { getForecastWorkspace } from "@vercentlabs/api";
+import { getForecastWorkspace } from "@vercentlabs/api/crm";
 
 import { ok } from "@/core/http";
 import { workspaceRoute } from "@/core/workspace-route";

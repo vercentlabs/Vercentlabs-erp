@@ -4,9 +4,8 @@
 // (company/branch/record scope, ownership rules, margin redaction). Columns
 // are an explicit allow-list: contact PII (email, phone) is not exportable
 // through shared reports at all.
-import { listCrmRecords } from "../../modules/crm/data-management/resource-query-service.js";
 import { listSalesOrders } from "../../modules/sales/index.js";
-import { BREAKDOWN_DIMENSIONS, getMetricDrilldown, getMetricRollup, PIPELINE_METRICS } from "../../modules/crm/index.js";
+import { BREAKDOWN_DIMENSIONS, getMetricDrilldown, getMetricRollup, listCrmRecords, PIPELINE_METRICS } from "../../modules/crm/index.js";
 
 // CRM analytical datasets (F030) are computed by the canonical CRM metric
 // layer (metric-definitions.js), so a saved or scheduled report shows the

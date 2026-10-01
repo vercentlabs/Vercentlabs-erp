@@ -4,7 +4,7 @@ import {
   completeCalendarSync,
   failCalendarSync,
   fetchProviderCalendarDelta,
-} from "@vercentlabs/api";
+} from "@vercentlabs/api/crm";
 import { createLogger } from "@vercentlabs/observability";
 
 export const JOB_TYPE = "crm.calendar.sync";

@@ -1,4 +1,4 @@
-import { previewContactMergeForCaller } from "@vercentlabs/api";
+import { previewContactMergeForCaller } from "@vercentlabs/api/crm";
 
 import { HttpError, ok, readJson } from "@/core/http";
 import { crmContext } from "@/features/crm/shared/crm-context";

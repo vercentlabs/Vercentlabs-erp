@@ -3,7 +3,7 @@ import "server-only";
 import {
   findAccountDuplicates,
   recordAccountDuplicateOverride,
-} from "@vercentlabs/api";
+} from "@vercentlabs/api/crm";
 
 import { HttpError } from "@/core/http";
 

@@ -1,4 +1,4 @@
-import { getCrmAccountForCaller } from "@vercentlabs/api";
+import { getCrmAccountForCaller } from "@vercentlabs/api/crm";
 import { CRM_PERMISSIONS } from "@vercentlabs/permissions";
 
 import { requireWorkspace } from "@/core/session";

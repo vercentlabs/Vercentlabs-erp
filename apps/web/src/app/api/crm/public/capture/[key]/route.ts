@@ -1,10 +1,12 @@
 import {
   captureCrmLead,
+  resolvePublicCaptureOrganization,
+} from "@vercentlabs/api/crm";
+import {
   directCaptureFingerprint,
   incrementBillingUsage,
   readRequestBytes,
   requireBillingWriteAccess,
-  resolvePublicCaptureOrganization,
   verifiedCaptureProxyFingerprint,
 } from "@vercentlabs/api";
 

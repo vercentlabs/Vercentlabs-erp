@@ -1,4 +1,4 @@
-import { createLeadScoringModelRule } from "@vercentlabs/api";
+import { createLeadScoringModelRule } from "@vercentlabs/api/crm";
 
 import { ok, readJson } from "@/core/http";
 import { crmContext } from "@/features/crm/shared/crm-context";

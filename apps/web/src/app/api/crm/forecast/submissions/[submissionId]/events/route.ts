@@ -1,4 +1,4 @@
-import { listForecastSubmissionEvents } from "@vercentlabs/api";
+import { listForecastSubmissionEvents } from "@vercentlabs/api/crm";
 
 import { ok } from "@/core/http";
 import { workspaceRoute } from "@/core/workspace-route";

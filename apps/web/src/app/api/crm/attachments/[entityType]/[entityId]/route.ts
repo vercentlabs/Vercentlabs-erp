@@ -1,8 +1,5 @@
-import {
-  createCrmAttachment,
-  listCrmAttachments,
-  prepareFileUpload,
-} from "@vercentlabs/api";
+import { createCrmAttachment, listCrmAttachments } from "@vercentlabs/api/crm";
+import { prepareFileUpload } from "@vercentlabs/api";
 
 import { HttpError, ok } from "@/core/http";
 import { crmContext } from "@/features/crm/shared/crm-context";

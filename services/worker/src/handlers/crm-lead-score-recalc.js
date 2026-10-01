@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { processLeadScoreRecalcBatch, SCORE_RECALC_JOB_TYPE } from "@vercentlabs/api";
+import { processLeadScoreRecalcBatch, SCORE_RECALC_JOB_TYPE } from "@vercentlabs/api/crm";
 import { extendJobLease } from "../queue.js";
 
 export const JOB_TYPE = SCORE_RECALC_JOB_TYPE;

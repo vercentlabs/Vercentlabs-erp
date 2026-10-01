@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { capturePipelineSnapshots } from "@vercentlabs/api";
+import { capturePipelineSnapshots } from "@vercentlabs/api/crm";
 
 export const JOB_TYPE = "crm.pipeline.capture_daily_snapshot";
 

@@ -3,7 +3,7 @@ import {
   finalizeLeadImport,
   processLeadImportChunk,
   resolveLeadBulkExecutionContext,
-} from "@vercentlabs/api";
+} from "@vercentlabs/api/crm";
 import { createLogger } from "@vercentlabs/observability";
 
 import { extendJobLease } from "../queue.js";

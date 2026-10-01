@@ -1,4 +1,4 @@
-import { addTaskDependency, listTaskDependencies } from "@vercentlabs/api";
+import { addTaskDependency, listTaskDependencies } from "@vercentlabs/api/crm";
 import { CRM_PERMISSIONS } from "@vercentlabs/permissions";
 
 import { HttpError, ok, readJson } from "@/core/http";

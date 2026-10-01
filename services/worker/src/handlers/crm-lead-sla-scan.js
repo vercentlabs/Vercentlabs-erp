@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { scanLeadSlaBreaches } from "@vercentlabs/api";
+import { scanLeadSlaBreaches } from "@vercentlabs/api/crm";
 
 export const JOB_TYPE = "crm.automation.detect_lead_sla_breaches";
 

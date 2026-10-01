@@ -1,8 +1,8 @@
 import {
   queueLeadEnrichment,
   reviewLeadEnrichment,
-  requireSessionPermission,
-} from "@vercentlabs/api";
+} from "@vercentlabs/api/crm";
+import { requireSessionPermission } from "@vercentlabs/api";
 import { CRM_PERMISSIONS } from "@vercentlabs/permissions";
 
 import { ok, readJson } from "@/core/http";

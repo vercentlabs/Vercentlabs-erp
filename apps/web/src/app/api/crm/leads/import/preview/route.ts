@@ -1,8 +1,5 @@
-import {
-  LEAD_IMPORT_LIMITS,
-  parseCsvUpload,
-  previewLeadImport,
-} from "@vercentlabs/api";
+import { LEAD_IMPORT_LIMITS, previewLeadImport } from "@vercentlabs/api/crm";
+import { parseCsvUpload } from "@vercentlabs/api";
 import { CRM_PERMISSIONS } from "@vercentlabs/permissions";
 
 import { HttpError, ok } from "@/core/http";

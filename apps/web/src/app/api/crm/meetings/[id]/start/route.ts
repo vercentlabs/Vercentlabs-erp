@@ -1,4 +1,4 @@
-import { startCrmMeeting } from "@vercentlabs/api";
+import { startCrmMeeting } from "@vercentlabs/api/crm";
 import { CRM_PERMISSIONS } from "@vercentlabs/permissions";
 
 import { ok, readJson } from "@/core/http";

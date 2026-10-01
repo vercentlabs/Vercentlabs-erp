@@ -1,4 +1,4 @@
-import { getLeadAttributionTimeline } from "@vercentlabs/api";
+import { getLeadAttributionTimeline } from "@vercentlabs/api/crm";
 
 import { ok } from "@/core/http";
 import { crmContext } from "@/features/crm/shared/crm-context";

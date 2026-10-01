@@ -1,4 +1,4 @@
-import { getCrmRecordTimelinePage } from "@vercentlabs/api";
+import { getCrmRecordTimelinePage } from "@vercentlabs/api/crm";
 
 import { ok } from "@/core/http";
 import { crmContext } from "@/features/crm/shared/crm-context";

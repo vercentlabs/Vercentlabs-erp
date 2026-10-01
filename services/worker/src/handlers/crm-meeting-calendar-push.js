@@ -3,7 +3,7 @@ import {
   prepareMeetingCalendarPush,
   pushProviderCalendarEvent,
   recordMeetingCalendarPushResult,
-} from "@vercentlabs/api";
+} from "@vercentlabs/api/crm";
 
 export const JOB_TYPE = "crm.meetings.calendar_push";
 

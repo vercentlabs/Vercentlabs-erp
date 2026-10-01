@@ -1,4 +1,5 @@
-import { applyOfflineBatch, requireSessionPermission } from "@vercentlabs/api";
+import { applyOfflineBatch } from "@vercentlabs/api/crm";
+import { requireSessionPermission } from "@vercentlabs/api";
 import { CRM_PERMISSIONS } from "@vercentlabs/permissions";
 
 import { HttpError, ok, readJson } from "@/core/http";

@@ -1,4 +1,4 @@
-import { getOpportunityPredictiveProbability } from "@vercentlabs/api";
+import { getOpportunityPredictiveProbability } from "@vercentlabs/api/crm";
 
 import { ok } from "@/core/http";
 import { crmContext } from "@/features/crm/shared/crm-context";

@@ -1,4 +1,4 @@
-import { getCrmEmailThread } from "@vercentlabs/api";
+import { getCrmEmailThread } from "@vercentlabs/api/crm";
 
 import { ok } from "@/core/http";
 import { crmContext } from "@/features/crm/shared/crm-context";
