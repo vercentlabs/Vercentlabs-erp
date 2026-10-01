@@ -8,7 +8,9 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../.
 const read = (relative) => fs.readFileSync(path.join(root, relative), "utf8");
 
 const service = () => read("services/api/src/modules/crm/activities/meeting-operations.js");
-const communications = () => read("services/api/src/modules/crm/activities/communications.js");
+// F014 booking moved out of the communications.js compatibility barrel into
+// its owning file; these assertions follow the implementation.
+const communications = () => read("services/api/src/modules/crm/activities/meetings/meeting-booking.js");
 
 test("F014: governed Meeting lifecycle stays on canonical crm_activities and reuses crm_activity_attendees", () => {
   const source = service();
@@ -143,7 +145,7 @@ test("F014: booking-managed completion terminalizes the booking so a public canc
 });
 
 test("F014: booking reschedule serializes on the Meeting Link and refuses non-editable linked Meeting states", () => {
-  const block = communications().match(/export async function rescheduleMeetingBooking[\s\S]*?export async function getCommunicationTimeline/)?.[0] || "";
+  const block = communications().match(/export async function rescheduleMeetingBooking[\s\S]*$/)?.[0] || "";
   assert.match(block, /FOR UPDATE OF booking,link/);
   assert.match(block, /excludeBookingId: id/);
   const availability = communications().match(/export async function getMeetingAvailability[\s\S]*?export async function bookMeeting/)?.[0] || "";
@@ -172,12 +174,12 @@ test("F014: scheduled/booked Meetings join the shared reminder engine on schedul
   const cancelBlock = meeting.match(/export async function cancelCrmMeeting[\s\S]*$/)?.[0] || "";
   assert.match(cancelBlock, /await cancelPendingRemindersForActivity\(client, context, id\);/);
 
-  assert.match(communication, /import \{ createRemindersForActivity, cancelPendingRemindersForActivity \} from "\.\/follow-ups\/follow-up-operations\.js"/);
+  assert.match(communication, /import \{ createRemindersForActivity, cancelPendingRemindersForActivity \} from "\.\.\/follow-ups\/follow-up-operations\.js"/);
   const bookBlock = communication.match(/export async function bookMeeting[\s\S]*?\n\}/)?.[0] || "";
   assert.match(bookBlock, /await createRemindersForActivity\(client, context, meetingActivity\.rows\[0\]\.id, desiredStart\);/);
   const cancelBookingBlock = communication.match(/export async function cancelMeetingBooking[\s\S]*?export async function rescheduleMeetingBooking/)?.[0] || "";
   assert.match(cancelBookingBlock, /await cancelPendingRemindersForActivity\(client, context, activity\.rows\[0\]\.id\);/);
-  const rescheduleBookingBlock = communication.match(/export async function rescheduleMeetingBooking[\s\S]*?export async function getCommunicationTimeline/)?.[0] || "";
+  const rescheduleBookingBlock = communication.match(/export async function rescheduleMeetingBooking[\s\S]*$/)?.[0] || "";
   assert.match(rescheduleBookingBlock, /await cancelPendingRemindersForActivity\(client, context, activity\.rows\[0\]\.id\);/);
   assert.match(rescheduleBookingBlock, /await createRemindersForActivity\(client, context, activity\.rows\[0\]\.id, desiredStart\);/);
 });

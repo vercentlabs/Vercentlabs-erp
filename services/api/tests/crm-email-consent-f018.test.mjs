@@ -115,7 +115,7 @@ test("F018: read breadth alone (crm.records.view_all without CRM administration,
 });
 
 test("F018: queueOutboundEmail persists the caller's visibility choice (team/private/participant), defaulting to 'team' (today's real-world behavior) when not specified", () => {
-  const source = fs.readFileSync(new URL("../src/modules/crm/activities/communications.js", import.meta.url), "utf8");
+  const source = fs.readFileSync(new URL("../src/modules/crm/activities/communications/email-service.js", import.meta.url), "utf8");
   assert.match(source, /\["private", "participant"\]\.includes\(input\.visibility\) \? input\.visibility : "team"/);
 });
 

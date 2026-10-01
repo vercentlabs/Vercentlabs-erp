@@ -281,7 +281,7 @@ try {
     await client.query(
       `SELECT
          (SELECT count(*)::int FROM tenant.crm_meeting_events WHERE organization_id=$1 AND activity_id=$2) AS events,
-         (SELECT count(*)::int FROM tenant.platform_events WHERE organization_id=$1 AND entity_type='meeting' AND entity_id=$2) AS outbox`,
+         (SELECT count(*)::int FROM tenant.platform_events WHERE organization_id=$1 AND entity_type='meeting' AND entity_id=$2::text) AS outbox`,
       [organizationId, manualMeetingId],
     )
   ).rows[0];
@@ -294,7 +294,7 @@ try {
     await client.query(
       `SELECT
          (SELECT count(*)::int FROM tenant.crm_meeting_events WHERE organization_id=$1 AND activity_id=$2) AS events,
-         (SELECT count(*)::int FROM tenant.platform_events WHERE organization_id=$1 AND entity_type='meeting' AND entity_id=$2) AS outbox`,
+         (SELECT count(*)::int FROM tenant.platform_events WHERE organization_id=$1 AND entity_type='meeting' AND entity_id=$2::text) AS outbox`,
       [organizationId, manualMeetingId],
     )
   ).rows[0];
@@ -355,7 +355,7 @@ try {
     await client.query(
       `SELECT
          (SELECT count(*)::int FROM tenant.crm_meeting_events WHERE organization_id=$1 AND activity_id=$2) AS events,
-         (SELECT count(*)::int FROM tenant.platform_events WHERE organization_id=$1 AND entity_type='meeting' AND entity_id=$2) AS outbox`,
+         (SELECT count(*)::int FROM tenant.platform_events WHERE organization_id=$1 AND entity_type='meeting' AND entity_id=$2::text) AS outbox`,
       [organizationId, manualMeetingId],
     )
   ).rows[0];
@@ -379,7 +379,7 @@ try {
     await client.query(
       `SELECT
          (SELECT count(*)::int FROM tenant.crm_meeting_events WHERE organization_id=$1 AND activity_id=$2) AS events,
-         (SELECT count(*)::int FROM tenant.platform_events WHERE organization_id=$1 AND entity_type='meeting' AND entity_id=$2) AS outbox`,
+         (SELECT count(*)::int FROM tenant.platform_events WHERE organization_id=$1 AND entity_type='meeting' AND entity_id=$2::text) AS outbox`,
       [organizationId, manualMeetingId],
     )
   ).rows[0];

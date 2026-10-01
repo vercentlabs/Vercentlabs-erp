@@ -88,7 +88,10 @@ test("F001 Pass 2A: intelligence and related-feature services enforce sensitive 
   const call = read("src/modules/crm/activities/call-operations.js");
   const meeting = read("src/modules/crm/activities/meeting-operations.js");
   const task = read("src/modules/crm/activities/task-operations.js");
-  const communications = read("src/modules/crm/activities/communications.js");
+  const communications = [
+    read("src/modules/crm/activities/communications/email-service.js"),
+    read("src/modules/crm/activities/communications/shared-inbox-service.js"),
+  ].join("\n");
   assert.match(intelligence, /assertSensitiveLeadIntelligenceAccess/);
   assert.match(intelligence, /getScopedLead\(client, context, leadId/);
   assert.match(scoringShared, /leadScopeSql\(context/);

@@ -4,7 +4,7 @@ import { ERP_MODULE_CATALOG } from "../../packages/shared-types/src/modules.js";
 import fs from "node:fs";
 import path from "node:path";
 
-import { checkApiCoreLayout, checkCrmCapabilityImportBans, checkCrmSelfBoundaryImports, checkCrossFeatureImports, checkWebRetiredAliases, checkWebTopLevel } from "./architecture-rules.mjs";
+import { checkApiCoreLayout, checkCrmCapabilityImportBans, checkCrmCompatibilityBarrels, checkCrmSelfBoundaryImports, checkCrossFeatureImports, checkWebRetiredAliases, checkWebTopLevel } from "./architecture-rules.mjs";
 
 const root = process.cwd();
 const modules = ERP_MODULE_CATALOG.map((module) => module.key);
@@ -242,6 +242,9 @@ if (!crmSelfBoundaryProblems.length) ok(`CRM implementation does not import its 
 const crmImportBanProblems = checkCrmCapabilityImportBans(crmRuntimeRecords);
 for (const problem of crmImportBanProblems) fail(problem);
 if (!crmImportBanProblems.length) ok("CRM capability import bans hold (data-management does not import conversions)");
+const crmBarrelProblems = checkCrmCompatibilityBarrels(crmRuntimeRecords);
+for (const problem of crmBarrelProblems) fail(problem);
+if (!crmBarrelProblems.length) ok("CRM compatibility barrels hold re-exports only (activities/communications.js)");
 
 if (failures) {
   console.error(`\n${failures} architecture failure(s).`);

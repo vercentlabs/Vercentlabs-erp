@@ -3,7 +3,7 @@ import { CrmError } from "../data-management/errors.js";
 import { queueOutboxEvent } from "../data-management/outbox.js";
 import { assertEligibleLeadAssignee } from "../lead-management/lead-governance.js";
 import { canViewSensitiveLeadContent, leadScopeSql } from "../lead-management/lead-security.js";
-import { upsertMeetingCalendarEvent, markMeetingCalendarEventCancelling, enqueueCalendarPushJob } from "./communications.js";
+import { upsertMeetingCalendarEvent, markMeetingCalendarEventCancelling, enqueueCalendarPushJob } from "./meetings/meeting-calendar.js";
 import { createRemindersForActivity, cancelPendingRemindersForActivity } from "./follow-ups/follow-up-operations.js";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;

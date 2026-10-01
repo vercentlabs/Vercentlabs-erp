@@ -6,6 +6,7 @@ import {
   checkApiCoreLayout,
   checkCanonicalDefinitions,
   checkCrmCapabilityImportBans,
+  checkCrmCompatibilityBarrels,
   checkCrmSelfBoundaryImports,
   checkClientTenantIdentity,
   checkCrossFeatureImports,
@@ -184,4 +185,21 @@ test("conversions may use the kernel, and the kernel may use its own matcher", (
     ]),
     [],
   );
+});
+
+test("a CRM compatibility barrel may only re-export", () => {
+  const barrel = "services/api/src/modules/crm/activities/communications.js";
+  assert.deepEqual(
+    checkCrmCompatibilityBarrels([
+      file(barrel, '// boundary\nexport {\n  bookMeeting,\n  getMeetingAvailability,\n} from "./meetings/meeting-booking.js";\n/* note */\nexport { queueOutboundEmail } from "./communications/email-service.js";\n'),
+      file("services/api/src/modules/crm/activities/meetings/meeting-booking.js", "export async function bookMeeting() { await client.query('SELECT 1'); }"),
+    ]),
+    [],
+  );
+  const problems = checkCrmCompatibilityBarrels([
+    file(barrel, 'export { bookMeeting } from "./meetings/meeting-booking.js";\nexport async function queueOutboundEmail(client) {\n  return client.query("SELECT 1");\n}\n'),
+  ]);
+  assert.equal(problems.length, 1);
+  assert.match(problems[0], /compatibility re-export boundary/);
+  assert.match(problems[0], /export async function queueOutboundEmail/);
 });

@@ -124,6 +124,28 @@ export function checkCrmCapabilityImportBans(files) {
   return problems;
 }
 
+// CRM files kept only as compatibility re-export boundaries after their code
+// moved to owning files. They may contain comments and `export { ... } from`
+// statements, nothing else, so they cannot grow back into implementations.
+export const CRM_COMPATIBILITY_BARRELS = Object.freeze([
+  `${CRM_MODULE_ROOT}/activities/communications.js`,
+]);
+
+export function checkCrmCompatibilityBarrels(files) {
+  const problems = [];
+  for (const { path: file, source } of files) {
+    if (!CRM_COMPATIBILITY_BARRELS.includes(file)) continue;
+    const remainder = source
+      .replace(/\/\*[\s\S]*?\*\//g, "")
+      .replace(/^\s*\/\/.*$/gm, "")
+      .replace(/\bexport\s*\{[^}]*\}\s*from\s*["'][^"']+["']\s*;/g, "")
+      .trim();
+    if (remainder)
+      problems.push(`${file} is a compatibility re-export boundary; move "${remainder.split("\n")[0].slice(0, 80)}" into the owning implementation file`);
+  }
+  return problems;
+}
+
 // ------------------------------------------------------------- api layout
 
 export const API_CORE_DOMAINS = Object.freeze(["access", "auth", "organization", "billing", "platform", "security", "release"]);

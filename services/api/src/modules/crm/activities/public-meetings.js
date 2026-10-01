@@ -7,7 +7,7 @@
 // runs in a tenant transaction for the resolved organisation, using the same
 // domain functions an authenticated user uses (availability, booking,
 // cancel, reschedule) under an anonymous host context with no permissions.
-import { getMeetingAvailability } from "./communications.js";
+import { getMeetingAvailability } from "./meetings/meeting-booking.js";
 
 export class PublicMeetingError extends Error {
   constructor(status, message, code) {
