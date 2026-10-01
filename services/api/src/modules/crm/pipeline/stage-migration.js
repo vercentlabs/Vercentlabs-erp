@@ -8,7 +8,8 @@
 import { CrmError } from "../data-management/errors.js";
 import { queueOutboxEvent } from "../data-management/outbox.js";
 import { isElevatedSalesStageActor, text } from "./shared.js";
-import { getSalesStage, moveOpportunityStage, setSalesStageActive } from "../index.js";
+import { moveOpportunityStage } from "./opportunity-transitions.js";
+import { getSalesStage, setSalesStageActive } from "./sales-stage-operations.js";
 
 export const OPPORTUNITY_STAGE_MIGRATION_JOB_TYPE = "crm.opportunities.stage_migration";
 export const OPPORTUNITY_STAGE_MIGRATION_BATCH_SIZE = 100;

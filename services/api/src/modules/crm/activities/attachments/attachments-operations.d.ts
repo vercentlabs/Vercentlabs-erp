@@ -1,4 +1,4 @@
-import type { CrmContext, QueryClient } from "../../../index.js";
+import type { CrmContext, QueryClient } from "../../../../index.js";
 
 export type CrmAttachmentEntityType = "lead" | "opportunity" | "party" | "contact" | "campaign";
 

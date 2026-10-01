@@ -5,6 +5,7 @@ import {
   checkAccessBoundaryUse,
   checkApiCoreLayout,
   checkCanonicalDefinitions,
+  checkCrmSelfBoundaryImports,
   checkClientTenantIdentity,
   checkCrossFeatureImports,
   checkModuleCatalogueCopies,
@@ -133,4 +134,30 @@ test("Shared Access administration guardrails", async () => {
   assert.equal(checkCompanyAdministratorTemplate(subtractive).length, 1);
   const derived = good.replace('Object.freeze(["users.manage"])', "Object.freeze([...ALL_PERMISSIONS])");
   assert.equal(checkCompanyAdministratorTemplate(derived).length, 1);
+});
+
+test("CRM implementation may not import its own public boundary at runtime", () => {
+  const crm = "services/api/src/modules/crm";
+  const problems = checkCrmSelfBoundaryImports([
+    file(`${crm}/pipeline/stage-migration.js`, 'import { getSalesStage } from "../index.js";'),
+    file(`${crm}/activities/notes/notes-operations.js`, 'export { x } from "../../index.js";'),
+    file(`${crm}/master-data/x.js`, 'const m = await import("../index.js");'),
+  ]);
+  assert.equal(problems.length, 3);
+  assert.match(problems[0], /stage-migration\.js imports the CRM public boundary \("\.\.\/index\.js"/);
+  assert.match(problems[0], /import the owning capability file directly/);
+});
+
+test("direct capability imports, declaration files, the boundary itself and outside consumers are allowed", () => {
+  const crm = "services/api/src/modules/crm";
+  assert.deepEqual(
+    checkCrmSelfBoundaryImports([
+      file(`${crm}/pipeline/stage-migration.js`, 'import { getSalesStage } from "./sales-stage-operations.js";'),
+      file(`${crm}/data-management/offline-sync.js`, 'import { createCrmRecord } from "./resource-mutation-service.js";'),
+      file(`${crm}/pipeline/stage-aging.d.ts`, 'import type { CrmContext } from "../index.js";'),
+      file(`${crm}/index.js`, 'export { x } from "./pipeline/x.js";'),
+      file("services/api/src/orchestration/sales-crm-opportunity-sync.js", 'import { moveOpportunityStage } from "../modules/crm/index.js";'),
+    ]),
+    [],
+  );
 });

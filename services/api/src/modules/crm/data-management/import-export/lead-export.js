@@ -1,8 +1,8 @@
 import { rowsToCsv } from "@vercentlabs/reporting-engine";
-import { getConfigurationValue } from "../../../core/platform/configuration/index.js";
-import { prepareFileUpload, readFileContent, storeFile } from "../../../core/platform/files/index.js";
-import { CrmError } from "../data-management/errors.js";
-import { listCrmRecords } from "../data-management/resource-query-service.js";
+import { getConfigurationValue } from "../../../../core/platform/configuration/index.js";
+import { prepareFileUpload, readFileContent, storeFile } from "../../../../core/platform/files/index.js";
+import { CrmError } from "../errors.js";
+import { listCrmRecords } from "../resource-query-service.js";
 
 // F021 Stage A2 §9. Async, job-based Lead export — the "DEFINITELY
 // REQUIRED" async/job/manifest/download-authorization architecture the

@@ -4,7 +4,7 @@ import { ERP_MODULE_CATALOG } from "../../packages/shared-types/src/modules.js";
 import fs from "node:fs";
 import path from "node:path";
 
-import { checkApiCoreLayout, checkCrossFeatureImports, checkWebRetiredAliases, checkWebTopLevel } from "./architecture-rules.mjs";
+import { checkApiCoreLayout, checkCrmSelfBoundaryImports, checkCrossFeatureImports, checkWebRetiredAliases, checkWebTopLevel } from "./architecture-rules.mjs";
 
 const root = process.cwd();
 const modules = ERP_MODULE_CATALOG.map((module) => module.key);
@@ -230,6 +230,15 @@ checkCrmCapabilityArchitecture(
   CRM_API_PUBLIC_BOUNDARY,
   "api",
 );
+
+// CRM runtime implementation never calls back through its own public boundary.
+const crmRuntimeRecords = walk(path.join(root, "services/api/src/modules/crm"), [".js", ".mjs"]).map((file) => ({
+  path: path.relative(root, file).split(path.sep).join("/"),
+  source: fs.readFileSync(file, "utf8"),
+}));
+const crmSelfBoundaryProblems = checkCrmSelfBoundaryImports(crmRuntimeRecords);
+for (const problem of crmSelfBoundaryProblems) fail(problem);
+if (!crmSelfBoundaryProblems.length) ok(`CRM implementation does not import its own public boundary (${crmRuntimeRecords.length} runtime files)`);
 
 if (failures) {
   console.error(`\n${failures} architecture failure(s).`);

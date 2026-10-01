@@ -5,7 +5,7 @@ import { crmAccountAccessSql, crmContactAccessSql, crmOwnerScopeSql } from "../s
 import { listCrmAccounts } from "../src/modules/crm/master-data/account-operations.js";
 import { listCrmContacts } from "../src/modules/crm/master-data/contact-operations.js";
 import { getCustomer360 } from "../src/modules/crm/master-data/account-intelligence.js";
-import { assertCrmExportAllowed, buildCrmLeadExportCsv, enqueueCrmLeadExportJob } from "../src/modules/crm/master-data/lead-export.js";
+import { assertCrmExportAllowed, buildCrmLeadExportCsv, enqueueCrmLeadExportJob } from "../src/modules/crm/data-management/import-export/lead-export.js";
 
 // CRM role hierarchy correction — the shared scope helpers and the surfaces
 // that previously bypassed them. The same rules run against a real database

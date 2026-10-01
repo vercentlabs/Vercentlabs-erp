@@ -3,7 +3,7 @@ import fs from "node:fs";
 import test from "node:test";
 
 import { validateLeadImportRows } from "../src/modules/crm/master-data/lead-acquisition.js";
-import { LEAD_IMPORT_LIMITS, previewLeadImport } from "../src/modules/crm/master-data/lead-import.js";
+import { LEAD_IMPORT_LIMITS, previewLeadImport } from "../src/modules/crm/data-management/import-export/lead-import.js";
 
 // F021 durable lead import. Dry run, duplicate policies, scope-safe updates,
 // synchronous vs worker execution, crash/resume without duplicates, revoked
@@ -38,7 +38,7 @@ test("F021: thresholds and execution rules are explicit", () => {
   assert.ok(LEAD_IMPORT_LIMITS.syncCommitRows <= 100, "only small imports run inside a request");
   assert.ok(LEAD_IMPORT_LIMITS.chunkSize <= 500, "each worker transaction is short");
   assert.equal(LEAD_IMPORT_LIMITS.maxBytes, 20 * 1024 * 1024);
-  const source = fs.readFileSync(new URL("../src/modules/crm/master-data/lead-import.js", import.meta.url), "utf8");
+  const source = fs.readFileSync(new URL("../src/modules/crm/data-management/import-export/lead-import.js", import.meta.url), "utf8");
   assert.match(source, /FOR UPDATE SKIP LOCKED/, "rows are claimed so two workers never take the same row");
   assert.match(source, /enforceScope: true/, "imports may only update leads the importer can see");
   assert.match(source, /jsonb_to_recordset/, "rows are staged in bulk, not one round trip each");

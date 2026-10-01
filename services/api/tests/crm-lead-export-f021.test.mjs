@@ -9,7 +9,7 @@ import {
   enqueueCrmLeadExportJob,
   getCrmLeadExportJob,
   LEAD_EXPORT_JOB_TYPE,
-} from "../src/modules/crm/master-data/lead-export.js";
+} from "../src/modules/crm/data-management/import-export/lead-export.js";
 
 const org = "11111111-1111-4111-8111-111111111111";
 const requester = "22222222-2222-4222-8222-222222222222";

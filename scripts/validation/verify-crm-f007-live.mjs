@@ -3,7 +3,10 @@ import pg from "pg";
 
 import {
   createLeadStage,
-  setLeadStageActive,
+  deactivateLeadStageWithMigration,
+  findApplicableTransitionReasons,
+  listLeadStageTransitions,
+  reactivateLeadStage,
   transitionLeadStage,
   updateLeadStage,
 } from "../../services/api/src/modules/crm/lead-management/lifecycle/index.js";
@@ -55,21 +58,37 @@ try {
     name: `${configured.name} renamed`,
     sortOrder: 95,
   });
-  const inactive = await setLeadStageActive(client, context, configured.id, false);
-  const reactivated = await setLeadStageActive(client, context, configured.id, true);
+  // Same commands the /api/crm/lead-stages/[id]/deactivate and /reactivate
+  // routes call. The new stage has no Leads, so deactivation is immediate (no
+  // migration job) and returns { deactivated, stage }.
+  const deactivation = await deactivateLeadStageWithMigration(client, context, configured.id);
+  const inactive = deactivation.stage;
+  const reactivated = await reactivateLeadStage(client, context, configured.id);
   const before = await client.query(
     `SELECT
        (SELECT count(*)::int FROM tenant.crm_lead_stage_events WHERE organization_id=$1 AND lead_id=$2) history,
-       (SELECT count(*)::int FROM tenant.platform_events WHERE organization_id=$1 AND entity_id=$2 AND event_type='crm.lead.stage_changed') outbox`,
+       (SELECT count(*)::int FROM tenant.platform_events WHERE organization_id=$1 AND entity_id=$2::text AND event_type='crm.lead.stage_changed') outbox`,
     [lead.organization_id, lead.id],
   );
+  // F007 lifecycles are a directed graph: move along a configured edge out of
+  // New, preferring one without a reason gate, and give a valid reason if the
+  // only edges require one.
+  const edges = (await listLeadStageTransitions(client, context)).filter((edge) => edge.fromStageCode === "new");
+  const edge = edges.find((candidate) => !candidate.reasonRequired) ?? edges[0];
+  if (!edge) throw new Error("The verification organization has no lifecycle transition out of New.");
+  const reason = edge.reasonRequired
+    ? (await findApplicableTransitionReasons(client, context, edge.fromStageId, edge.toStageId))[0]
+    : null;
+  if (edge.reasonRequired && !reason) throw new Error(`No active reason for New -> ${edge.toStageCode}.`);
   const result = await transitionLeadStage(
     client,
     context,
     lead.id,
     {
-      stageCode: "contacted",
-      expectedUpdatedAt: lead.updated_at,
+      stageCode: edge.toStageCode,
+      ...(reason ? { reasonCode: reason.code } : {}),
+      // ISO string, as the API returns it and the UI sends it back.
+      expectedUpdatedAt: new Date(lead.updated_at).toISOString(),
       source: "api",
       note: "F007 rolled-back verification",
     },
@@ -77,7 +96,7 @@ try {
   const after = await client.query(
     `SELECT
        (SELECT count(*)::int FROM tenant.crm_lead_stage_events WHERE organization_id=$1 AND lead_id=$2) history,
-       (SELECT count(*)::int FROM tenant.platform_events WHERE organization_id=$1 AND entity_id=$2 AND event_type='crm.lead.stage_changed') outbox`,
+       (SELECT count(*)::int FROM tenant.platform_events WHERE organization_id=$1 AND entity_id=$2::text AND event_type='crm.lead.stage_changed') outbox`,
     [lead.organization_id, lead.id],
   );
   let guardBlocked = false;
@@ -101,12 +120,12 @@ try {
     configuration: {
       stableCode: configured.code === renamed.code,
       renamed: renamed.name.endsWith("renamed"),
-      deactivated: inactive.status === "inactive",
+      deactivated: deactivation.deactivated === true && !deactivation.migrationJob && inactive.status === "inactive",
       reactivated: reactivated.status === "active",
     },
     rolledBack: true,
   };
-  if (!evidence.changed || evidence.destination !== "contacted" || evidence.historyDelta !== 1 || evidence.outboxDelta !== 1 || !evidence.directWriteBlocked || !Object.values(evidence.configuration).every(Boolean))
+  if (!evidence.changed || evidence.destination !== edge.toStageCode || evidence.historyDelta !== 1 || evidence.outboxDelta !== 1 || !evidence.directWriteBlocked || !Object.values(evidence.configuration).every(Boolean))
     throw new Error(`F007 live verification failed: ${JSON.stringify(evidence)}`);
   console.log(JSON.stringify(evidence));
 } finally {

@@ -1,5 +1,5 @@
-// F007 Lead lifecycle — public barrel for the lead-lifecycle-qualification-
-// and-prioritization capability directory's lifecycle module, re-exported
+// F007 Lead lifecycle — public barrel for the lead-management capability
+// directory's lifecycle module, re-exported
 // by services/api/src/index.js.
 export {
   ensureDefaultLeadStages,

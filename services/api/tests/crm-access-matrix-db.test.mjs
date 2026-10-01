@@ -7,7 +7,7 @@ import { listCrmAccounts, getCrmAccount } from "../src/modules/crm/master-data/a
 import { listCrmContacts, getCrmContact } from "../src/modules/crm/master-data/contact-operations.js";
 import { getAccountHierarchy, getCustomer360ForCaller, previewAccountMerge } from "../src/modules/crm/master-data/account-intelligence.js";
 import { findAccountDuplicates, projectDuplicateMatchesForCaller } from "../src/modules/crm/master-data/duplicate-matching.js";
-import { buildCrmLeadExportCsv } from "../src/modules/crm/master-data/lead-export.js";
+import { buildCrmLeadExportCsv } from "../src/modules/crm/data-management/import-export/lead-export.js";
 import { listContactOpportunityRoles } from "../src/modules/crm/pipeline/opportunity-contacts.js";
 import { getCrmReport } from "../src/modules/crm/analytics/analytics-service.js";
 import { listCrmRecords } from "../src/modules/crm/data-management/resource-query-service.js";

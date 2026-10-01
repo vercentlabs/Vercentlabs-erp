@@ -83,7 +83,7 @@ export function verifyFieldSecurity() {
     }
   }
 
-  const leadExport = read("services/api/src/modules/crm/master-data/lead-export.js");
+  const leadExport = read("services/api/src/modules/crm/data-management/import-export/lead-export.js");
   if (!/listCrmRecords\(client, context, "leads"/.test(leadExport)) problems.push("CRM lead export is not built from the projected listCrmRecords read");
   if (!/assertCrmExportAllowed\(context\)[\s\S]*buildCrmLeadExportCsv|export async function buildCrmLeadExportCsv[\s\S]*?assertCrmExportAllowed\(context\)/.test(leadExport)) problems.push("CRM lead export does not re-check crm.export when building");
   return problems;

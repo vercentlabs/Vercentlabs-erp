@@ -12,6 +12,8 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { shouldExclude } from "./export-source.mjs";
+
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = execFileSync("git", ["rev-parse", "--show-toplevel"], {
   encoding: "utf8",
@@ -89,8 +91,43 @@ const IMPORT_PATTERNS = [
   /\bexport\s+(?:\*|\{[^}]*\})\s+from\s+["']([^"']+)["']/g,
 ];
 
+// Text that the import scanner matches but that is not a module dependency of
+// this repository: import strings inside test fixtures, and paths that only
+// exist inside the production container. Each entry is file -> specifier.
+// Files whose import-looking text is test fixture data: the import-boundary
+// rules are tested on source strings. Their real local import
+// (./architecture-rules.mjs) is checked by running the test itself.
+const FIXTURE_SOURCE_FILES = new Set(["scripts/validation/architecture-rules.test.mjs"]);
+const NON_MODULE_SPECIFIERS = new Set([
+  // Evaluated with `node -e` inside the built image, whose working directory is /app.
+  "scripts/production/production-smoke.mjs -> /app/services/api/src/core/platform/files/storage.js",
+  "scripts/production/production-smoke.mjs -> ./apps/web/server.js",
+]);
+
+function gitVisibleFiles() {
+  const output = execFileSync("git", ["ls-files", "--cached", "--others", "--exclude-standard", "-z"], {
+    cwd: repoRoot,
+    maxBuffer: 1024 * 1024 * 256,
+  });
+  return new Set(output.toString("utf8").split("\0").filter(Boolean));
+}
+
+// An import that does not resolve inside the export is still acceptable when its
+// target exists in the repository and export-source.mjs deliberately excludes it
+// (for example any path matching /secret/i). A target that exists nowhere is a
+// genuinely missing dependency and still fails.
+function deliberatelyExcludedTarget(fromFile, specifier, repoFiles) {
+  const raw = path.posix.normalize(path.posix.join(path.posix.dirname(fromFile), specifier));
+  for (const suffix of RESOLVE_CANDIDATE_SUFFIXES) {
+    const candidate = suffix ? `${raw}${suffix}` : raw;
+    if (repoFiles.has(candidate)) return shouldExclude(candidate);
+  }
+  return false;
+}
+
 function findMissingLocalImports(manifest, tempDir) {
   const includedPathSet = new Set(manifest.files.map((file) => file.path));
+  const repoFiles = gitVisibleFiles();
   const missing = [];
   for (const file of manifest.files) {
     const ext = path.extname(file.path).toLowerCase();
@@ -109,6 +146,9 @@ function findMissingLocalImports(manifest, tempDir) {
           // excluded binary asset such as a CSS/image import).
           const specifierExt = path.extname(specifier).toLowerCase();
           if (specifierExt && !SOURCE_EXTENSIONS_EXPECTED_IN_EXPORT.has(specifierExt)) continue;
+          if (FIXTURE_SOURCE_FILES.has(file.path)) continue;
+          if (NON_MODULE_SPECIFIERS.has(`${file.path} -> ${specifier}`)) continue;
+          if (deliberatelyExcludedTarget(file.path, specifier, repoFiles)) continue;
           missing.push({ file: file.path, specifier });
         }
       }
@@ -146,8 +186,10 @@ function main() {
   const anchors = {
     "api CRM capability directories present": anyIncluded(manifest, (p) =>
       /^services\/api\/src\/modules\/crm\/[^/]+\//.test(p)),
-    "web CRM capability directories present": anyIncluded(manifest, (p) =>
-      /^apps\/web\/src\/modules\/crm\/[^/]+\//.test(p)),
+    "web CRM feature directories present": anyIncluded(manifest, (p) =>
+      /^apps\/web\/src\/features\/crm\/[^/]+\//.test(p)),
+    "web CRM public feature boundary present": anyIncluded(manifest, (p) =>
+      p === "apps/web/src/features/crm/index.ts"),
     "CRM vNext register present": anyIncluded(manifest, (p) =>
       p === "docs/03-modules/crm/CRM_VNEXT_IMPLEMENTATION_REGISTER.md"),
     [`newest tenant migration present (${newestMigration})`]: anyIncluded(manifest, (p) =>
@@ -162,7 +204,9 @@ function main() {
     "Prompt 5 Opportunity governance capability present": anyIncluded(manifest, (p) =>
       p.startsWith("services/api/src/modules/crm/pipeline/")),
     "CRM E2E spec files present": anyIncluded(manifest, (p) =>
-      p.startsWith("apps/web/tests/e2e/erp-crm-")),
+      /^apps\/web\/e2e\/crm-[^/]+\.spec\.ts$/.test(p)),
+    "CRM E2E Playwright config present": anyIncluded(manifest, (p) =>
+      p === "apps/web/playwright.config.crm.ts"),
   };
 
   fs.rmSync(tempDir, { recursive: true, force: true });

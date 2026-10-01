@@ -1,6 +1,6 @@
 import { moveOpportunityStage } from "../pipeline/opportunity-transitions.js";
 import { createHash, randomUUID } from "node:crypto";
-import { createCrmRecord } from "../index.js";
+import { createCrmRecord } from "./resource-mutation-service.js";
 import { createCrmTask, completeCrmTask } from "../activities/task-operations.js";
 import { createCrmFollowUp, completeCrmFollowUp } from "../activities/follow-ups/follow-up-operations.js";
 export const CRM_OFFLINE_CAPABILITY_IDS = Object.freeze(["CRM-072"]);

@@ -1,4 +1,4 @@
-import type { CrmFoundationContext, QueryClient } from "../../../index.js";
+import type { CrmFoundationContext, QueryClient } from "../../../../index.js";
 
 export const LEAD_EXPORT_JOB_TYPE: string;
 export const LEAD_EXPORT_COLUMNS: ReadonlyArray<{ key: string; label: string }>;

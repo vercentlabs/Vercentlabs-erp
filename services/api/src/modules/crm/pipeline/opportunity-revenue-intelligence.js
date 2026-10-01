@@ -1,6 +1,6 @@
 import { recordScope } from "../data-management/record-policy.js";
 import { createHash } from "node:crypto";
-import { resources } from "../index.js";
+import { resources } from "../data-management/resource-registry.js";
 
 export const CRM_OPPORTUNITY_REVENUE_CAPABILITY_IDS = Object.freeze([
   "CRM-051",

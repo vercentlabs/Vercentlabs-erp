@@ -1,9 +1,21 @@
+import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
 import { defineConfig, devices } from "@playwright/test";
 
 import { offlineMailEnv } from "./e2e/offline-mail-env";
+
+// The spec process runs CRM worker jobs and fixtures against the database
+// itself (e2e/crm-worker.ts), so it needs the same database settings the dev
+// server reads. Next loads apps/web/.env.local only for the server, so load it
+// (then the repo .env) here too. process.loadEnvFile never overrides a variable
+// that is already set, so values from the shell or CI keep precedence.
+// Playwright runs from apps/web.
+for (const file of [".env.local", "../../.env"]) {
+  const envFile = path.resolve(process.cwd(), file);
+  if (fs.existsSync(envFile)) process.loadEnvFile(envFile);
+}
 
 // CRM browser journeys (F001–F030) against a temporary, isolated web server on
 // its own port and build directory, so they run beside a developer's

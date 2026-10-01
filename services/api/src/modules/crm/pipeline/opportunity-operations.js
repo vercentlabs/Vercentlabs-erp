@@ -3,8 +3,7 @@ import { queueOutboxEvent } from "../data-management/outbox.js";
 import { snapshotOpportunityBulkJobSelection } from "../data-management/resource-query-service.js";
 import { updateCrmRecord } from "../data-management/resource-mutation-service.js";
 import { createHash } from "node:crypto";
-import {
-  resources } from "../index.js";
+import { resources } from "../data-management/resource-registry.js";
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 

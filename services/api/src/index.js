@@ -59,8 +59,8 @@ export * from "./modules/crm/activities/communications.js";
 export * from "./modules/crm/activities/public-meetings.js";
 
 export * from "./modules/crm/master-data/lead-acquisition.js";
-export * from "./modules/crm/master-data/lead-import.js";
-export * from "./modules/crm/master-data/lead-export.js";
+export * from "./modules/crm/data-management/import-export/lead-import.js";
+export * from "./modules/crm/data-management/import-export/lead-export.js";
 export * from "./modules/crm/lead-management/lead-intelligence.js";
 export {
   listLeadScoringModels,

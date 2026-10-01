@@ -27,7 +27,7 @@ import { getMetricDrilldown, getMetricRollup, getPipelineDashboard } from "../..
 import { listCrmRecords } from "../../services/api/src/modules/crm/data-management/resource-query-service.js";
 import { listCrmContacts } from "../../services/api/src/modules/crm/master-data/contact-operations.js";
 import { getSalesCoverage, listUnassignedRecords } from "../../services/api/src/modules/crm/sales-organization/coverage-service.js";
-import { previewLeadImport, processLeadImportChunk } from "../../services/api/src/modules/crm/master-data/lead-import.js";
+import { previewLeadImport, processLeadImportChunk } from "../../services/api/src/modules/crm/data-management/import-export/lead-import.js";
 import { ensureDefaultLeadStages } from "../../services/api/src/modules/crm/lead-management/lifecycle/stage-catalog.js";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");

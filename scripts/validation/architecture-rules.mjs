@@ -8,6 +8,8 @@
 // shrinking an exception list is always welcome, growing one needs review.
 // See docs/01-standards/SHARED_PLATFORM_ARCHITECTURE.md.
 
+import { posix as posixPath } from "node:path";
+
 // ---------------------------------------------------------------- frontend
 
 export const WEB_SRC_ENTRIES = Object.freeze(["app", "core", "features", "shell", "shared"]);
@@ -54,6 +56,38 @@ export function checkCrossFeatureImports(files) {
       const [, target, rest] = match;
       if (target === own || !rest) continue;
       problems.push(`${path} imports private ${target} code (@/features/${target}${rest}); import the feature's public index instead`);
+    }
+  }
+  return problems;
+}
+
+// ------------------------------------------------------- CRM self boundary
+// services/api/src/modules/crm/index.js is CRM's public boundary for code
+// OUTSIDE the module. CRM's own runtime implementation must import the owning
+// capability file directly; calling back through the boundary creates
+// implementation -> index.js -> implementation cycles. Declaration (.d.ts)
+// type imports are not runtime edges and are not checked here.
+
+export const CRM_MODULE_ROOT = "services/api/src/modules/crm";
+const CRM_BOUNDARY_TARGETS = new Set([CRM_MODULE_ROOT, `${CRM_MODULE_ROOT}/index`, `${CRM_MODULE_ROOT}/index.js`]);
+
+export function checkCrmSelfBoundaryImports(files) {
+  const problems = [];
+  for (const { path: file, source } of files) {
+    if (!file.startsWith(`${CRM_MODULE_ROOT}/`) || !/\.(js|mjs)$/.test(file)) continue;
+    if (posixPath.dirname(file) === CRM_MODULE_ROOT) continue; // the boundary itself
+    const specifiers = [
+      ...source.matchAll(/\b(?:import|export)\b[^;]*?\bfrom\s*["']([^"']+)["']/gs),
+      ...source.matchAll(/\bimport\(\s*["']([^"']+)["']\s*\)/g),
+    ].map((match) => match[1]);
+    for (const specifier of specifiers) {
+      if (!specifier.startsWith(".")) continue;
+      const target = posixPath.normalize(posixPath.join(posixPath.dirname(file), specifier));
+      if (!CRM_BOUNDARY_TARGETS.has(target)) continue;
+      problems.push(
+        `${file} imports the CRM public boundary ("${specifier}" -> ${CRM_MODULE_ROOT}/index.js); ` +
+          "CRM implementation must import the owning capability file directly — the boundary is only for code outside the CRM module",
+      );
     }
   }
   return problems;

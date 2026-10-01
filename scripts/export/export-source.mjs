@@ -19,6 +19,7 @@ import { createHash } from "node:crypto";
 import { gzipSync } from "node:zlib";
 import fs from "node:fs";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 
 const repoRoot = execFileSync("git", ["rev-parse", "--show-toplevel"], {
   encoding: "utf8",
@@ -70,7 +71,9 @@ function isAllowedDotenv(basename) {
   return ALLOWED_DOTENV_SUFFIXES.some((suffix) => basename.endsWith(suffix));
 }
 
-function shouldExclude(relPath) {
+// Exported so verify-source-export.mjs applies exactly the same rule when it
+// decides whether an unresolved import is a deliberate exclusion.
+export function shouldExclude(relPath) {
   const segments = relPath.split("/");
   if (segments.some((segment) => EXCLUDED_DIR_SEGMENTS.has(segment))) return true;
   const basename = segments[segments.length - 1];
@@ -199,4 +202,5 @@ function main() {
   return path.join(outDir, manifestFile);
 }
 
-main();
+// Run only when executed directly (verify-source-export.mjs imports shouldExclude).
+if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) main();

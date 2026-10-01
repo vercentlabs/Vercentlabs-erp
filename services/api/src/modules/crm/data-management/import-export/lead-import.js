@@ -1,10 +1,10 @@
 import { rowsToCsv } from "@vercentlabs/reporting-engine";
 
-import { canViewAllCrmResource } from "../data-management/crm-access-scope.js";
-import { queueOutboxEvent } from "../data-management/outbox.js";
-import { camelizeRow } from "../data-management/record-utils.js";
-import { leadScopeSql } from "../lead-management/lead-security.js";
-import { createIngestedLead, CrmLeadAcquisitionError, crmLeadAcquisitionHash, validateLeadImportRows } from "./lead-acquisition.js";
+import { canViewAllCrmResource } from "../crm-access-scope.js";
+import { queueOutboxEvent } from "../outbox.js";
+import { camelizeRow } from "../record-utils.js";
+import { leadScopeSql } from "../../lead-management/lead-security.js";
+import { createIngestedLead, CrmLeadAcquisitionError, crmLeadAcquisitionHash, validateLeadImportRows } from "../../master-data/lead-acquisition.js";
 
 // F021 Lead import at enterprise volume.
 //

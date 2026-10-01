@@ -2,7 +2,7 @@ import { crmOwnerScopeSql } from "../data-management/crm-access-scope.js";
 import { updateCrmRecord } from "../data-management/resource-mutation-service.js";
 import { createHash } from "node:crypto";
 import { resolveLeadOwner } from "./lead-governance.js";
-import { snapshotLeadBulkJobSelection } from "../index.js";
+import { snapshotLeadBulkJobSelection } from "../data-management/resource-query-service.js";
 import {
   LeadSourceError,
   validateLeadSourceAssignment,

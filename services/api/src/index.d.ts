@@ -514,8 +514,8 @@ export function getPublicMeetingBookingView(client: QueryClient, booking: Public
 export function getPublicRescheduleAvailability(client: QueryClient, booking: PublicMeetingBookingRow, date: string | null): Promise<any>;
 
 export * from "./modules/crm/master-data/lead-acquisition.js";
-export * from "./modules/crm/master-data/lead-import.js";
-export * from "./modules/crm/master-data/lead-export.js";
+export * from "./modules/crm/data-management/import-export/lead-import.js";
+export * from "./modules/crm/data-management/import-export/lead-export.js";
 export * from "./modules/crm/lead-management/lead-intelligence.js";
 export function listLeadScoringModels(client: QueryClient, context: any): Promise<any[]>;
 export function createLeadScoringModel(client: QueryClient, context: any, input?: Record<string, unknown>): Promise<any>;

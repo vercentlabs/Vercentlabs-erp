@@ -9,7 +9,7 @@
 // weight/threshold; there is no dynamic SQL assembled from rule content
 // itself (weights/thresholds are always bound parameters).
 import { createHash } from "node:crypto";
-import { CrmError } from "../index.js";
+import { CrmError } from "../data-management/errors.js";
 import { activeRuleSetTimestamp, getActiveDuplicateRules } from "./duplicate-rules.js";
 import { crmAccountCompanySql, crmAccountVisibleSql, crmContactVisibleSql } from "../data-management/crm-access-scope.js";
 import { projectAccountForContext } from "./account-security.js";
