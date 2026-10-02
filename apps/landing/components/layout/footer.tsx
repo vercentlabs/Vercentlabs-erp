@@ -1,23 +1,26 @@
 import Link from "next/link";
-import { LANDING_MODULES, LANDING_INDUSTRIES, CTAS, COMPANY_IDENTITY } from "@vercentlabs/landing-content";
+import {
+  LANDING_MODULES,
+  LANDING_INDUSTRIES,
+  CTAS,
+  COMPANY_IDENTITY,
+  POSITIONING,
+  PRIMARY_NAV,
+  SIGN_IN_LABEL,
+  getRoutedWorkflows,
+} from "@vercentlabs/landing-content";
 import { Logo } from "@/components/brand/logo";
 import { ButtonLink } from "@/components/ui/button";
 import { Container } from "@/components/layout/container";
 import { APP_URL } from "@/lib/site";
 
-const PRODUCT_LINKS = [
-  { label: "Platform", href: "/product/platform" },
-  { label: "Automation", href: "/product/automation" },
-  { label: "Analytics", href: "/product/analytics" },
-  { label: "Mobile", href: "/product/mobile" },
-  { label: "Security", href: "/security" },
-  { label: "Integrations", href: "/product/integrations" },
-];
+const PRODUCT_LINKS = PRIMARY_NAV.find((item) => item.label === "Product")?.children ?? [];
 
-const PLATFORM_LINKS = [
-  { label: "Implementation", href: "/implementation" },
-  { label: "Solutions", href: "/solutions" },
-  { label: "Workflows", href: "/workflows" },
+const MODULE_LINKS = LANDING_MODULES.map((moduleInfo) => ({ label: moduleInfo.displayName, href: `/modules/${moduleInfo.key}` }));
+
+const WORKFLOW_LINKS = [
+  ...getRoutedWorkflows().map((workflow) => ({ label: workflow.name, href: `/workflows/${workflow.slug}` })),
+  { label: "All workflows", href: "/workflows" },
 ];
 
 const RESOURCE_LINKS = [
@@ -26,6 +29,14 @@ const RESOURCE_LINKS = [
   { label: "Glossary", href: "/resources/glossary" },
   { label: "Compare Vercentlabs", href: "/compare" },
   { label: "All resources", href: "/resources" },
+];
+
+// Industries and solutions are use-case entry points, not the brand — they
+// live here rather than in the header.
+const USE_CASE_LINKS = [
+  ...LANDING_INDUSTRIES.map((industry) => ({ label: industry.name, href: `/industries/${industry.slug}` })),
+  { label: "All industries", href: "/industries" },
+  { label: "Solutions", href: "/solutions" },
 ];
 
 const CONTACT_LINKS = [
@@ -46,23 +57,21 @@ export function Footer() {
         <div className="mb-12 grid grid-cols-1 items-end gap-8 border-b border-white/15 pb-10 lg:grid-cols-[1fr_auto]">
           <div>
             <Logo inverse />
-            <p className="mt-5 max-w-[52ch] text-sm leading-[1.75] text-white/58">
-              An operational ERP for growing, multi-location businesses — sales, inventory, procurement, production,
-              and finance on one live system.
-            </p>
+            <p className="mt-5 max-w-[52ch] text-sm leading-[1.75] text-white/58">{POSITIONING.descriptor}</p>
           </div>
           <ButtonLink href={CTAS.primary.href} size="sm" variant="inverse">{CTAS.primary.label}</ButtonLink>
         </div>
 
         <div className="grid grid-cols-2 border-l border-t border-white/15 sm:grid-cols-3 lg:grid-cols-6">
           <FooterColumn title="Product" index="01" links={PRODUCT_LINKS} />
-          <FooterColumn title="Modules" index="02" links={LANDING_MODULES.slice(0, 6).map((moduleInfo) => ({ label: moduleInfo.name, href: `/modules/${moduleInfo.key}` })).concat({ label: "All modules", href: "/modules" })} />
-          <FooterColumn title="Industries" index="03" links={LANDING_INDUSTRIES.map((industry) => ({ label: industry.name, href: `/industries/${industry.slug}` })).concat({ label: "All industries", href: "/industries" })} />
-          <FooterColumn title="Platform" index="04" links={PLATFORM_LINKS} />
-          <FooterColumn title="Resources" index="05" links={RESOURCE_LINKS} />
+          <FooterColumn title="Modules" index="02" links={MODULE_LINKS} />
+          <FooterColumn title="Workflows" index="03" links={WORKFLOW_LINKS} />
+          <FooterColumn title="Resources" index="04" links={RESOURCE_LINKS} />
+          <FooterColumn title="Use cases" index="05" links={USE_CASE_LINKS} />
           <div className="border-b border-r border-white/15 p-5">
             <div className="flex items-center justify-between"><p className="text-[0.65rem] font-bold uppercase tracking-[0.14em] text-white/45">Account</p><span className="vl-index text-white/35">06</span></div>
-            <Link href={APP_URL.toString()} className="mt-5 block text-sm font-semibold text-white/75 hover:text-white">Sign in →</Link>
+            <Link href={APP_URL.toString()} className="mt-5 block text-sm font-semibold text-white/75 hover:text-white">{SIGN_IN_LABEL} →</Link>
+            <Link href={CTAS.talkToSpecialist.href} prefetch={false} className="mt-3 block text-sm text-white/68 hover:text-white">{CTAS.talkToSpecialist.label}</Link>
           </div>
         </div>
 
@@ -86,7 +95,7 @@ export function Footer() {
   );
 }
 
-function FooterColumn({ title, index, links }: { title: string; index: string; links: { label: string; href: string }[] }) {
+function FooterColumn({ title, index, links }: { title: string; index: string; links: readonly { label: string; href: string }[] }) {
   return (
     <div className="border-b border-r border-white/15 p-5">
       <div className="flex items-center justify-between gap-3">

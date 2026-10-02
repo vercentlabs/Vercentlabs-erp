@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { LANDING_INDUSTRIES } from "@vercentlabs/landing-content";
+import { LANDING_INDUSTRIES, CTAS } from "@vercentlabs/landing-content";
 import { Container, Section, SectionHeader } from "@/components/layout/container";
 import { Heading, Text } from "@/components/ui/text";
 import { Breadcrumbs } from "@/components/layout/breadcrumbs";
@@ -94,7 +94,7 @@ export default function IndustriesIndexPage() {
               <span className="vl-index text-white/50">FIELD SESSION / LIVE</span>
               <Heading level="h1" as="h2" className="mt-4 text-(--color-text-inverse)">See your industry&rsquo;s operating model in a live demo.</Heading>
             </div>
-            <TrackedCtaLink href="/book-demo" event="industry_final_cta_click" ctaLocation="industries_index_final">Book a Demo</TrackedCtaLink>
+            <TrackedCtaLink href="/book-demo" event="industry_final_cta_click" ctaLocation="industries_index_final">{CTAS.talkToSpecialist.label}</TrackedCtaLink>
           </Reveal>
         </Container>
       </Section>

@@ -5,7 +5,7 @@ import Link from "next/link";
 import { createPortal } from "react-dom";
 import { useEffect, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
-import { MODULE_NAV_GROUPS, LANDING_MODULES, PRIMARY_NAV, CTAS } from "@vercentlabs/landing-content";
+import { MODULE_NAV_GROUPS, LANDING_MODULES, PRIMARY_NAV, CTAS, SIGN_IN_LABEL } from "@vercentlabs/landing-content";
 import { ButtonLink } from "@/components/ui/button";
 import { APP_URL } from "@/lib/site";
 import { cx } from "@/lib/utils";
@@ -171,7 +171,7 @@ export function MobileNav({ open, onClose }: MobileNavProps) {
                               className="flex min-h-11 items-center gap-3 border-b border-(--color-border-subtle) px-0 py-2 text-sm text-(--color-text-secondary) hover:text-(--color-text-brand)"
                             >
                               <span className="h-1.5 w-1.5 flex-none rounded-full" style={{ backgroundColor: moduleInfo.accentColor.hex }} aria-hidden="true" />
-                              {moduleInfo.name}
+                              {moduleInfo.displayName}
                             </Link>
                           </li>
                         );
@@ -193,7 +193,7 @@ export function MobileNav({ open, onClose }: MobileNavProps) {
             ))}
             <li>
               <Link href={APP_URL.toString()} className="block min-h-11 border-b border-(--color-border-subtle) px-0 py-3 text-sm font-semibold text-(--color-text-secondary) hover:text-(--color-text-brand)">
-                Sign in
+                {SIGN_IN_LABEL}
               </Link>
             </li>
           </ul>
@@ -202,6 +202,9 @@ export function MobileNav({ open, onClose }: MobileNavProps) {
         <div className="border-t border-(--color-border-strong) bg-(--color-bg-subtle) px-5 py-5">
           <ButtonLink href={CTAS.primary.href} className="w-full">
             {CTAS.primary.label}
+          </ButtonLink>
+          <ButtonLink href={CTAS.talkToSpecialist.href} variant="secondary" className="mt-2 w-full">
+            {CTAS.talkToSpecialist.label}
           </ButtonLink>
         </div>
       </div>

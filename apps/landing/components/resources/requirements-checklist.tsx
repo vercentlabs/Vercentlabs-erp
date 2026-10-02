@@ -12,7 +12,8 @@ export interface ChecklistGroup {
   id: string;
   name: string;
   description: string;
-  requirementCount: number;
+  /** Approved launch capability names in this group (from the launch capability register). */
+  capabilities: string[];
   publicPage: string;
   filterKey: string;
   filterLabel: string;
@@ -128,17 +129,20 @@ export function RequirementsChecklist({ groups, filters }: { groups: ChecklistGr
             <div className="min-w-0">
               <div className="flex flex-wrap items-baseline justify-between gap-2">
                 <Heading level="h4" as="h3">{group.name}</Heading>
-                <span className="vl-index sm:hidden">{group.requirementCount} REQ</span>
+                <span className="vl-index sm:hidden">{group.capabilities.length} CAP</span>
               </div>
               <Text variant="bodySmall" className="mt-1">
                 {group.description}
+              </Text>
+              <Text variant="caption" className="mt-2">
+                {group.capabilities.join(" · ")}
               </Text>
               <Link href={group.publicPage} prefetch={false} className="vl-editorial-link mt-2 inline-block text-xs font-bold text-(--color-text-brand) print:hidden">
                 See how Vercentlabs implements this →
               </Link>
             </div>
             <div className="hidden border-l border-(--color-border-default) pl-5 sm:block">
-              <span className="vl-index">{group.requirementCount} REQ</span>
+              <span className="vl-index">{group.capabilities.length} CAP</span>
               <p className="mt-2 text-xs font-semibold text-(--color-text-secondary)">{group.filterLabel}</p>
             </div>
           </li>

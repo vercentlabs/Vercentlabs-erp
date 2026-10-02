@@ -15,18 +15,18 @@ export default function SecurityPage() {
       breadcrumbTrail={[{ name: "Security & Governance", path: SECURITY_PAGE.slug }]}
       visual={{
         eyebrow: "Governance foundation",
-        stat: "12",
-        statLabel: "Seeded roles with scoped permission packages.",
+        stat: "04",
+        statLabel: "Four layers of control, from database to workflow.",
         items: [
-          { label: "Structural isolation", detail: "Tenant and company boundaries enforced below the UI.", color: "var(--color-module-accounting)" },
-          { label: "Scoped access", detail: "Time-bound roles at company, branch, or department level.", color: "var(--color-module-hr-payroll)" },
-          { label: "Immutable history", detail: "Audit records reject update and deletion at the database layer.", color: "var(--color-state-success)" },
-          { label: "Maker-checker", detail: "Sensitive actions block self-approval by construction.", color: "var(--color-brand)" },
+          { label: "Tenant isolation", detail: "Row-level security in the database separates each organisation's data.", color: "var(--color-module-accounting)" },
+          { label: "Scoped access", detail: "Roles, permissions, record-level access, and company/branch access.", color: "var(--color-module-hr-payroll)" },
+          { label: "Protected audit log", detail: "The database rejects edits and deletions of audit entries.", color: "var(--color-state-success)" },
+          { label: "Recovery", detail: "Backups with a restore process, plus logging and monitoring.", color: "var(--color-brand)" },
         ],
         definitionLabel: "What security means here",
         bodyEyebrow: "Controls buyers can verify",
-        bodyTitle: "Isolation, identity, audit, and approval—explained plainly.",
-        bodyDescription: "Implemented mechanisms and current limitations are separated clearly.",
+        bodyTitle: "Isolation, access, audit, and recovery—explained plainly.",
+        bodyDescription: "Where a control runs in the application rather than the database, it says so.",
         moduleEyebrow: "Controls in context",
         moduleTitle: "Governance applied to sensitive operational modules.",
       }}

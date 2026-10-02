@@ -10,7 +10,7 @@ import { PlatformHero } from "@/components/platform/platform-hero";
 import { DirectDefinition } from "@/components/modules/direct-definition";
 import { RecommendedModuleStack } from "@/components/industries/recommended-module-stack";
 import { RolePerspective } from "@/components/shared/role-perspective";
-import { ContextualCta } from "@/components/shared/contextual-cta";
+import { ContextualCta } from "@/components/conversion/contextual-cta";
 import { RelatedPages } from "@/components/modules/related-pages";
 import { Reveal } from "@/components/motion/reveal";
 import { buildPageMetadata } from "@/lib/metadata";

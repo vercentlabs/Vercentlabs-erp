@@ -13,24 +13,24 @@ export default function MobilePage() {
     <EvidencePlatformPageTemplate
       content={MOBILE_PAGE}
       visual={{
-        eyebrow: "Mobile coverage",
+        eyebrow: "Responsive access",
         stat: "01",
-        statLabel: "One native, offline-capable module today.",
+        statLabel: "One browser-based application, on every screen size.",
         items: [
-          { label: "Native & offline", detail: "CRM leads, opportunities, activities, and pipeline.", color: "var(--color-module-crm)" },
-          { label: "Secure browser", detail: "Selected Procurement and platform workspaces.", color: "var(--color-module-procurement)" },
-          { label: "Current boundary", detail: "The remaining modules are stated plainly as unavailable.", color: "var(--color-state-warning)" },
+          { label: "Responsive UI", detail: "Layouts adapt to desktop, tablet, and phone browsers.", color: "var(--color-module-crm)" },
+          { label: "Same access rules", detail: "The same sign-in, roles, and permissions on every device.", color: "var(--color-module-accounting)" },
+          { label: "Current boundary", detail: "No native app and no offline mode at launch.", color: "var(--color-state-warning)" },
         ],
-        definitionLabel: "What mobile covers",
+        definitionLabel: "What responsive access covers",
         bodyEyebrow: "Coverage, without overclaiming",
-        bodyTitle: "Native capability, secure handoff, and honest gaps.",
-        bodyDescription: "Every mobile experience is labeled by what it actually is today.",
-        moduleEyebrow: "Available paths",
-        moduleTitle: "The modules with a real mobile access path today.",
+        bodyTitle: "A responsive web application — not a native app.",
+        bodyDescription: "Every screen is the same browser-based application, adapted to the device.",
+        moduleEyebrow: "Used on the move",
+        moduleTitle: "Modules people often open from a phone or tablet browser.",
       }}
       breadcrumbTrail={[
         { name: "Product", path: "/product" },
-        { name: "Mobile", path: MOBILE_PAGE.slug },
+        { name: "Responsive Access", path: MOBILE_PAGE.slug },
       ]}
     />
   );

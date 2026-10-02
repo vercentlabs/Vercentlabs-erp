@@ -9,13 +9,13 @@ import { ArticleHeader } from "@/components/content/article-header";
 import { KeyTakeaways } from "@/components/content/key-takeaways";
 import { TableOfContents } from "@/components/content/table-of-contents";
 import { FaqAccordion } from "@/components/marketing/faq-accordion";
-import { ContextualCta } from "@/components/shared/contextual-cta";
+import { ContextualCta } from "@/components/conversion/contextual-cta";
 import { RelatedPages } from "@/components/modules/related-pages";
 import { Reveal } from "@/components/motion/reveal";
 import { TrackedCtaLink } from "@/components/analytics/tracked-cta-link";
 import { TrackView } from "@/components/analytics/track-view";
 import { buildPageMetadata } from "@/lib/metadata";
-import { jsonLdScriptProps, SOFTWARE_APPLICATION_ID } from "@/lib/seo/json-ld";
+import { jsonLdScriptProps, SOFTWARE_APPLICATION_ID, editorialAttributionJsonLd } from "@/lib/seo/json-ld";
 import { absoluteUrl } from "@/lib/site";
 
 const AUTHOR = CONTENT_AUTHORS[0];
@@ -40,7 +40,7 @@ export default async function ResourceGuidePage({ params }: { params: Promise<{ 
   const relatedWorkflows = guide.relatedWorkflowSlugs.map((s) => getWorkflow(s)).filter((w): w is NonNullable<typeof w> => Boolean(w));
   const relatedGuides = guide.relatedResourceSlugs.map((s) => getResourceGuide(s)).filter((g): g is NonNullable<typeof g> => Boolean(g));
   const breadcrumbTrail = [{ name: "Resources", path: "/resources" }, { name: guide.title, path: `/resources/${guide.slug}` }];
-  const techArticleJsonLd = { "@context": "https://schema.org", "@type": "TechArticle", headline: guide.title, description: guide.metaDescription, url: absoluteUrl(`/resources/${guide.slug}`), author: { "@type": "Organization", name: AUTHOR.name }, datePublished: freshness.publishedAt, dateModified: freshness.lastModifiedAt, isPartOf: { "@id": SOFTWARE_APPLICATION_ID } };
+  const techArticleJsonLd = { "@context": "https://schema.org", "@type": "TechArticle", headline: guide.title, description: guide.metaDescription, url: absoluteUrl(`/resources/${guide.slug}`), ...editorialAttributionJsonLd(AUTHOR.name), datePublished: freshness.publishedAt, dateModified: freshness.lastModifiedAt, isPartOf: { "@id": SOFTWARE_APPLICATION_ID } };
   const faqPageJsonLd = guide.faqs.length ? { "@context": "https://schema.org", "@type": "FAQPage", mainEntity: guide.faqs.map((faq) => ({ "@type": "Question", name: faq.question, acceptedAnswer: { "@type": "Answer", text: faq.answer } })) } : null;
 
   return <>
@@ -57,7 +57,7 @@ export default async function ResourceGuidePage({ params }: { params: Promise<{ 
           <aside className="lg:sticky lg:top-24 lg:self-start">
             <span className="vl-folio">REFERENCE JOURNAL</span>
             <div className="mt-6 border-t border-(--color-border-strong) pt-5"><TableOfContents entries={guide.sections.map((section) => ({ id: section.id, label: section.heading }))} /></div>
-            {relatedModules.length ? <div className="mt-8 border-t border-(--color-border-default) pt-5"><Text variant="dataLabel">Relevant modules</Text><Inline gap={2} className="mt-3 flex-wrap">{relatedModules.map((m) => <Link key={m.key} href={`/modules/${m.key}`} prefetch={false}><ModuleTag name={m.name} accentColor={m.accentColor.hex} /></Link>)}</Inline></div> : null}
+            {relatedModules.length ? <div className="mt-8 border-t border-(--color-border-default) pt-5"><Text variant="dataLabel">Relevant modules</Text><Inline gap={2} className="mt-3 flex-wrap">{relatedModules.map((m) => <Link key={m.key} href={`/modules/${m.key}`} prefetch={false}><ModuleTag name={m.displayName} accentColor={m.accentColor.hex} /></Link>)}</Inline></div> : null}
           </aside>
           <article>
             <div className="border-y border-(--color-border-strong) py-7"><KeyTakeaways items={guide.keyTakeaways} /></div>

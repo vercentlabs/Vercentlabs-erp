@@ -1,10 +1,10 @@
 import Link from "next/link";
-import { VERCENTLABS_VS_ODOO } from "@vercentlabs/landing-content";
+import { VERCENTLABS_VS_ODOO, CTAS } from "@vercentlabs/landing-content";
 import { Container, Section, SectionHeader } from "@/components/layout/container";
 import { Heading, Text } from "@/components/ui/text";
 import { Breadcrumbs } from "@/components/layout/breadcrumbs";
 import { DirectDefinition } from "@/components/modules/direct-definition";
-import { ContextualCta } from "@/components/shared/contextual-cta";
+import { ContextualCta } from "@/components/conversion/contextual-cta";
 import { CollectionHero } from "@/components/shared/collection-hero";
 import { Reveal } from "@/components/motion/reveal";
 import { TrackedCtaLink } from "@/components/analytics/tracked-cta-link";
@@ -116,7 +116,7 @@ export default function CompareIndexPage() {
               <span className="vl-index text-white/50">DECISION DOCKET → LIVE PROOF</span>
               <Heading level="h1" as="h2" className="mt-4 text-(--color-text-inverse)">Ready to see it running on your own data?</Heading>
             </div>
-            <TrackedCtaLink href="/book-demo" event="comparison_cta_click" ctaLocation="compare_index_final">Book a Demo</TrackedCtaLink>
+            <TrackedCtaLink href="/book-demo" event="comparison_cta_click" ctaLocation="compare_index_final">{CTAS.talkToSpecialist.label}</TrackedCtaLink>
           </Reveal>
         </Container>
       </Section>

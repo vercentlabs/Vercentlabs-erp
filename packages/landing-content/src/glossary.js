@@ -5,18 +5,21 @@
  * works, example, related terms, relevant modules, how Vercentlabs handles
  * it, a related workflow, sources) AND connects meaningfully to a real,
  * evidenced Vercentlabs capability gets `standalone: true` and its own
- * /resources/glossary/{slug} page — see docs/landing-redesign/phase-6/
- * glossary-architecture.md and decision-log.md item 8.
+ * /resources/glossary/{slug} page.
  *
  * "Lead to Cash" and "Procure to Pay" are deliberately index-only, not
  * standalone: a full page already exists for each at /workflows/{slug} —
  * a duplicate glossary page would be exactly the cannibalisation
- * .claude/rules/landing-content.md rule 3 prohibits. Their index card links
+ * scripts/check-cannibalization.mjs guards against. Their index card links
  * straight to the real workflow page instead.
  *
- * Every `vercentlabsHandling` claim on a standalone entry traces to a real,
- * already-cited fact from workflows.js/solutions.js/modules.js — nothing
- * here is a new, unevidenced product claim invented for glossary copy.
+ * Definitions, "why it matters", "how it works" and examples are general,
+ * educational ERP content and may describe functionality Vercentlabs ERP
+ * doesn't offer. `vercentlabsHandling` is the only product claim on an entry:
+ * it must stay inside the approved launch capability register
+ * (capabilities/launch-capabilities.js), and says so plainly when a concept is not part of
+ * the launch product. Index-only entries only link to a module page when that
+ * module actually covers the concept.
  */
 export const GLOSSARY_TERMS = Object.freeze([
   // --- Standalone entries (11 pages; Reorder Point & Safety Stock share one) ---
@@ -28,12 +31,12 @@ export const GLOSSARY_TERMS = Object.freeze([
     definition: "ERP (Enterprise Resource Planning) is a category of business software that unifies an organisation's core operational processes — finance, sales, procurement, inventory, manufacturing, projects, HR, and more — on one shared data model, rather than as separate point tools each keeping their own copy of the truth.",
     whyItMatters: "Without ERP, the same fact (a customer, an item, an order) exists in multiple systems that drift out of sync — a spreadsheet, a separate accounting tool, a separate CRM — and reconciling them consumes real staff time and produces real errors.",
     howItWorks: "Departments read and write the same underlying records rather than syncing copies after the fact — a sales order and the invoice it generates are the same transaction seen from two modules, connected by a real reference, not two documents someone keeps aligned manually.",
-    example: "A won CRM opportunity becomes the source record for a sales quotation; an accepted quotation converts to a sales order; the confirmed order generates a customer invoice — one real chain of records, not four separately maintained documents.",
+    example: "A CRM opportunity becomes a sales quotation; the accepted quotation becomes a sales order; the order is invoiced — one chain of records, not four separately maintained documents.",
     relatedTerms: ["crm", "multi-company-erp", "rbac"],
     relatedModules: ["accounting", "sales", "crm"],
-    vercentlabsHandling: "Vercentlabs ERP implements this across 12 modules (CRM, Sales, Accounting, Procurement, Stock, Manufacturing, Projects, Assets, Point of Sale, Quality, Support, HR & Payroll) plus a shared platform layer covering multi-tenancy, RBAC, approval workflows, and an immutable audit trail every module inherits rather than rebuilding.",
+    vercentlabsHandling: "Vercentlabs ERP covers 12 business modules (CRM, Sales, Accounting, Procurement, Stock, Manufacturing, Projects, Assets, Point of Sale, Quality, Support, HR & Payroll) on a Shared Platform for tenants and companies, roles and permissions, audit logs, and import and export that every module uses rather than rebuilding.",
     relatedWorkflow: "lead-to-cash",
-    lastReviewedAt: "2026-08-07",
+    lastReviewedAt: "2026-10-02",
   },
   {
     slug: "crm",
@@ -43,12 +46,12 @@ export const GLOSSARY_TERMS = Object.freeze([
     definition: "CRM (Customer Relationship Management) is software for tracking leads, contacts, accounts, and sales opportunities through a defined pipeline, from first contact through a won or lost decision.",
     whyItMatters: "A CRM that isn't connected to the rest of the business means a won deal has to be re-typed into a separate order or billing system — the exact handoff gap that causes lost deal context and delayed invoicing.",
     howItWorks: "Leads are captured (often with source and campaign attribution), scored, and qualified through pipeline stages; a won opportunity typically becomes the source record for whatever comes next — a quotation, an order — in a connected system.",
-    example: "A lead lands with source and campaign data intact, is scored and SLA-tracked automatically, and a single qualification action creates the account, contact, and opportunity together rather than three separate manual entries.",
+    example: "A lead is assigned to a sales rep, qualified through its stages, and converted into an opportunity linked to its account and contact, rather than re-entered by hand at each step.",
     relatedTerms: ["erp"],
     relatedModules: ["crm", "sales"],
-    vercentlabsHandling: "CRM is one of Vercentlabs' 12 modules — a won opportunity is the literal source record for a Sales quotation (carrying a source_opportunity_id reference), and confirming the resulting order writes the win status back to CRM automatically, part of the real Lead to Cash sequence.",
+    vercentlabsHandling: "CRM is one of Vercentlabs' 12 modules — leads are assigned, qualified, checked for duplicates, and converted into opportunities that move through sales stages, and an opportunity converts into a Sales quotation as part of the Lead to Cash sequence.",
     relatedWorkflow: "lead-to-cash",
-    lastReviewedAt: "2026-08-07",
+    lastReviewedAt: "2026-10-02",
   },
   {
     slug: "mrp",
@@ -61,9 +64,9 @@ export const GLOSSARY_TERMS = Object.freeze([
     example: "A production plan for 500 finished units explodes against the bill of materials to determine exactly how many of each component are needed, nets that against on-hand and on-order stock, and recommends a purchase or production action for the shortfall.",
     relatedTerms: ["bom"],
     relatedModules: ["manufacturing", "stock"],
-    vercentlabsHandling: "Vercentlabs' material and capacity planning runs produce recommended purchase, manufacture, transfer, or expedite actions — stated honestly as a real, current limitation, these runs are triggered manually today; there is no automatic scheduler running MRP on a cadence yet.",
+    vercentlabsHandling: "Vercentlabs ERP does not include MRP planning runs at launch. Its Manufacturing module checks material availability for each manufacturing order against the bill of materials, using real-time stock balances — useful input to purchasing decisions, but not an MRP calculation.",
     relatedWorkflow: "plan-to-production",
-    lastReviewedAt: "2026-08-07",
+    lastReviewedAt: "2026-10-02",
   },
   {
     slug: "bom",
@@ -73,12 +76,12 @@ export const GLOSSARY_TERMS = Object.freeze([
     definition: "A bill of materials (BOM) is the structured list of every component, sub-assembly, and quantity needed to produce one unit of a finished item — the structural recipe a work order is built from.",
     whyItMatters: "A BOM's accuracy directly determines whether production can run as planned — an incomplete or stale BOM produces a work order that can't actually be fulfilled against real components.",
     howItWorks: "A BOM defines parent-child component relationships and quantities per unit; when a work order is created, its materials and operations are typically snapshotted from the active BOM at that moment, not re-read live from a structure that could change mid-order.",
-    example: "A finished product's BOM lists 6 components at specific quantities each; releasing a work order against it requires proving those 6 components are actually available before production can start.",
+    example: "A finished product's BOM lists 6 components at specific quantities each; a manufacturing order for 100 units uses the BOM to work out how much of each component is needed and whether it's available.",
     relatedTerms: ["mrp"],
     relatedModules: ["manufacturing"],
-    vercentlabsHandling: "Vercentlabs enforces exactly one active BOM per item — there's no ambiguity about which structure a work order snapshots from — and a released work order is blocked from starting if proven component availability can't be shown against that snapshotted BOM.",
+    vercentlabsHandling: "In Vercentlabs ERP, manufacturing orders are created from an item's bill of materials, and material availability is checked against it before production starts; material issue, consumption, and scrap are then recorded against the order.",
     relatedWorkflow: "plan-to-production",
-    lastReviewedAt: "2026-08-07",
+    lastReviewedAt: "2026-10-02",
   },
   {
     slug: "reorder-point-and-safety-stock",
@@ -91,9 +94,9 @@ export const GLOSSARY_TERMS = Object.freeze([
     example: "An item with a reorder point of 50 units and safety stock of 20 shows on a low-stock dashboard the moment on-hand quantity drops to 50, giving the buyer visibility before the buffer is touched.",
     relatedTerms: ["purchase-requisition"],
     relatedModules: ["stock", "procurement"],
-    vercentlabsHandling: "Reorder rules in Vercentlabs reference a preferred supplier and feed a real low-stock dashboard — stated honestly, replenishment is still a deliberate purchasing decision made on real-time data today, not an automatic requisition job triggered from Stock.",
+    vercentlabsHandling: "Vercentlabs ERP does not include reorder rules or automatic replenishment at launch. Real-time stock balances and available stock give buyers current figures, and replenishment is a deliberate purchasing decision raised as a purchase order.",
     relatedWorkflow: "procure-to-pay",
-    lastReviewedAt: "2026-08-07",
+    lastReviewedAt: "2026-10-02",
   },
   {
     slug: "three-way-match",
@@ -106,9 +109,9 @@ export const GLOSSARY_TERMS = Object.freeze([
     example: "A purchase order for 100 units, a receipt confirming 100 units delivered, and a vendor invoice billing for 100 units at the agreed price match cleanly and clear for payment; an invoice billing for 105 units would be held as a variance exception.",
     relatedTerms: ["purchase-requisition"],
     relatedModules: ["procurement", "accounting"],
-    vercentlabsHandling: "A vendor bill in Vercentlabs can only be imported once the matching engine confirms a 'matched' status across the order, receipt, and invoice — 2, 3, or 4-way matching, with a mandatory documented reason required for any tolerance override, not a silent approval.",
+    vercentlabsHandling: "Vercentlabs ERP supports 2-way matching (supplier invoice against the purchase order) and 3-way matching (purchase order, goods receipt, and supplier invoice) before a supplier invoice is posted to payables and paid.",
     relatedWorkflow: "procure-to-pay",
-    lastReviewedAt: "2026-08-07",
+    lastReviewedAt: "2026-10-02",
   },
   {
     slug: "purchase-requisition",
@@ -121,9 +124,9 @@ export const GLOSSARY_TERMS = Object.freeze([
     example: "An employee drafts a requisition for replacement equipment; it's submitted, approved by a designated approver (not the requester), and only then does a buyer convert it into a purchase order sent to a supplier.",
     relatedTerms: ["three-way-match"],
     relatedModules: ["procurement"],
-    vercentlabsHandling: "A requisition in Vercentlabs is drafted and submitted, entering a governed draft → submit → approve → execute state machine, with self-approval blocked structurally at every stage — the same person who creates a supplier, purchase order, or receipt cannot also approve or qualify it.",
+    vercentlabsHandling: "Vercentlabs ERP does not include purchase requisitions at launch. Purchasing starts from the purchase order, which is then received against a goods receipt and matched against the supplier invoice.",
     relatedWorkflow: "procure-to-pay",
-    lastReviewedAt: "2026-08-07",
+    lastReviewedAt: "2026-10-02",
   },
   {
     slug: "rbac",
@@ -136,9 +139,9 @@ export const GLOSSARY_TERMS = Object.freeze([
     example: "A contractor is granted a scoped role limited to one branch, with an expiry date matching their engagement end — their access is automatically no longer valid after that date, without anyone having to remember to revoke it.",
     relatedTerms: ["maker-checker", "multi-company-erp"],
     relatedModules: ["accounting", "hr-payroll"],
-    vercentlabsHandling: "Vercentlabs seeds roughly 12 roles at organisation bootstrap, and role assignments can be scoped to specific companies, branches, or departments and carry a start and expiry date — a contractor or auditor's access doesn't outlive the engagement.",
+    vercentlabsHandling: "Vercentlabs ERP uses roles and permissions checked on the server, with record-level access and company and branch access to narrow what each user can reach.",
     relatedWorkflow: null,
-    lastReviewedAt: "2026-08-07",
+    lastReviewedAt: "2026-10-02",
   },
   {
     slug: "maker-checker",
@@ -151,9 +154,9 @@ export const GLOSSARY_TERMS = Object.freeze([
     example: "A payroll preparer calculates and submits a run; the system requires a different, designated approver before it can post — the preparer's own approval action on that same run is rejected outright, not merely discouraged.",
     relatedTerms: ["rbac"],
     relatedModules: ["hr-payroll", "accounting", "projects"],
-    vercentlabsHandling: "Self-approval is blocked structurally, not just by policy, across multiple Vercentlabs modules: payroll runs require a different approver than the preparer, leave requests can't be approved by the person who submitted them, an asset's creator can't capitalize or dispose of it themselves, and a timesheet or expense entry can't be approved by the person who logged it.",
+    vercentlabsHandling: "In Vercentlabs ERP, leave approval and payroll approval are built in: nobody can decide their own leave request, and an approver can't approve a payroll that includes their own pay. Vercentlabs ERP does not include a general-purpose approval engine at launch.",
     relatedWorkflow: "hire-to-payroll",
-    lastReviewedAt: "2026-08-07",
+    lastReviewedAt: "2026-10-02",
   },
   {
     slug: "multi-tenant-saas",
@@ -166,9 +169,9 @@ export const GLOSSARY_TERMS = Object.freeze([
     example: "Two unrelated companies both use the same ERP instance; a user from one can never see, query, or be granted access to the other's records, regardless of role, because the isolation is enforced below the application logic, not just within it.",
     relatedTerms: ["multi-company-erp"],
     relatedModules: ["accounting"],
-    vercentlabsHandling: "Vercentlabs is built as a multi-tenant, multi-company ERP: organisations, companies, branches, and departments form a real hierarchy with granular, membership-scoped access — company and branch isolation, not an all-or-nothing switch a careless admin could flip.",
+    vercentlabsHandling: "Vercentlabs ERP is multi-tenant: each organisation's data is isolated by database row-level security on its tenant tables. Within an organisation, company and branch access is scoped through permissions and query-level controls in the application.",
     relatedWorkflow: null,
-    lastReviewedAt: "2026-08-07",
+    lastReviewedAt: "2026-10-02",
   },
   {
     slug: "multi-company-erp",
@@ -181,27 +184,27 @@ export const GLOSSARY_TERMS = Object.freeze([
     example: "A distributor running four warehouses under one legal entity gives its branch managers access scoped to their own branch, while finance retains a consolidated view across all four for close and reporting.",
     relatedTerms: ["multi-tenant-saas", "rbac"],
     relatedModules: ["accounting"],
-    vercentlabsHandling: "Vercentlabs supports real multi-entity consolidation and intercompany posting inside Accounting's close/planning capability group, on top of the same structural company/branch/department isolation and scoped, time-bound roles described under Multi-Tenant SaaS — not a manual spreadsheet roll-up.",
+    vercentlabsHandling: "Vercentlabs ERP lets an organisation run several companies and branches, with access scoped by company and branch. Financial consolidation and intercompany accounting are not part of the launch product.",
     relatedWorkflow: null,
-    lastReviewedAt: "2026-08-07",
+    lastReviewedAt: "2026-10-02",
   },
-  // --- Index-only entries (16; each links to the real existing page that covers it) ---
-  { term: "Routing", shortDefinition: "The sequence of operations (and the work centers/time each requires) needed to convert raw materials into a finished item — the process complement to a BOM's materials list.", standalone: false, relatedRoute: "/modules/manufacturing" },
-  { term: "Work Order", shortDefinition: "A released, trackable instruction to produce a specific quantity of an item, snapshotting its materials and operations from an active bill of materials and routing.", standalone: false, relatedRoute: "/workflows/plan-to-production" },
+  // --- Index-only entries (16; linked to a page only where Vercentlabs ERP covers the concept) ---
+  { term: "Routing", shortDefinition: "The sequence of operations (and the work centers/time each requires) needed to convert raw materials into a finished item — the process complement to a BOM's materials list.", standalone: false },
+  { term: "Work Order", shortDefinition: "A trackable instruction to produce a specific quantity of an item, built from its bill of materials — called a manufacturing order in Vercentlabs ERP.", standalone: false, relatedRoute: "/workflows/plan-to-production" },
   { term: "Lead to Cash", shortDefinition: "The end-to-end process from capturing a sales lead through qualification, quotation, order confirmation, and invoicing.", standalone: false, relatedRoute: "/workflows/lead-to-cash" },
-  { term: "Procure to Pay", shortDefinition: "The end-to-end process from a purchase requisition through sourcing, purchase order, receipt, invoice matching, and payment.", standalone: false, relatedRoute: "/workflows/procure-to-pay" },
+  { term: "Procure to Pay", shortDefinition: "The end-to-end purchasing process — from the decision to buy, through purchase order, receipt, invoice matching, and payment.", standalone: false, relatedRoute: "/workflows/procure-to-pay" },
   { term: "Order to Cash", shortDefinition: "The process from a confirmed sales order through warehouse fulfilment to invoicing — the fulfilment and billing half of the broader lead-to-cash cycle.", standalone: false, relatedRoute: "/workflows/order-to-fulfilment" },
   { term: "Available to Promise (ATP)", shortDefinition: "A calculation of how much of an item can be committed to a new order, based on on-hand stock minus what's already reserved or allocated to other orders.", standalone: false, relatedRoute: "/modules/stock" },
   { term: "Stock Ledger", shortDefinition: "The system of record for every inventory movement — receipts, issues, transfers, adjustments — that determines an item's real-time on-hand quantity and valuation.", standalone: false, relatedRoute: "/modules/stock" },
-  { term: "Lot/Serial Tracking", shortDefinition: "Tracking inventory at the level of individual batches (lot tracking) or individual units (serial tracking), typically for traceability, recall, or warranty purposes.", standalone: false, relatedRoute: "/modules/stock" },
+  { term: "Lot/Serial Tracking", shortDefinition: "Tracking inventory at the level of individual batches (lot tracking) or individual units (serial tracking), typically for traceability, recall, or warranty purposes.", standalone: false },
   { term: "Cycle Count", shortDefinition: "A periodic, partial physical inventory count of a subset of items, used to verify system-recorded quantities against reality without a full warehouse shutdown.", standalone: false, relatedRoute: "/modules/stock" },
-  { term: "RFQ (Request for Quotation)", shortDefinition: "A formal invitation sent to suppliers to submit pricing and terms for a defined scope of goods or services, typically used for competitively sourced spend.", standalone: false, relatedRoute: "/modules/procurement" },
-  { term: "CAPA (Corrective and Preventive Action)", shortDefinition: "A formal, tracked process for investigating a quality failure, fixing its immediate cause (corrective) and its root cause (preventive) so it doesn't recur.", standalone: false, relatedRoute: "/modules/quality" },
-  { term: "Non-Conformance", shortDefinition: "A recorded instance where a product, material, or process fails to meet a defined quality specification — the triggering event for an inspection hold or a CAPA.", standalone: false, relatedRoute: "/modules/quality" },
-  { term: "OEE (Overall Equipment Effectiveness)", shortDefinition: "A manufacturing metric combining availability, performance, and quality into a single score representing how effectively a piece of equipment or line is being used.", standalone: false, relatedRoute: "/modules/manufacturing" },
+  { term: "RFQ (Request for Quotation)", shortDefinition: "A formal invitation sent to suppliers to submit pricing and terms for a defined scope of goods or services, typically used for competitively sourced spend.", standalone: false },
+  { term: "CAPA (Corrective and Preventive Action)", shortDefinition: "A formal, tracked process for investigating a quality failure, fixing its immediate cause (corrective) and its root cause (preventive) so it doesn't recur.", standalone: false },
+  { term: "Non-Conformance", shortDefinition: "A recorded instance where a product, material, or process fails to meet a defined quality specification — the triggering event for a quality hold and a disposition decision.", standalone: false, relatedRoute: "/modules/quality" },
+  { term: "OEE (Overall Equipment Effectiveness)", shortDefinition: "A manufacturing metric combining availability, performance, and quality into a single score representing how effectively a piece of equipment or line is being used.", standalone: false },
   { term: "WIP (Work in Progress)", shortDefinition: "Inventory that has entered the production process but isn't yet a finished good — materials that have been issued to a work order but not yet completed.", standalone: false, relatedRoute: "/modules/manufacturing" },
   { term: "Depreciation", shortDefinition: "The systematic allocation of a fixed asset's cost over its useful life, reducing its recorded book value over time as it's used.", standalone: false, relatedRoute: "/modules/assets" },
-  { term: "SLA (Service-Level Agreement)", shortDefinition: "A defined commitment for how quickly a support request will be responded to or resolved, typically measured and tracked against a due date.", standalone: false, relatedRoute: "/modules/support" },
+  { term: "SLA (Service-Level Agreement)", shortDefinition: "A defined commitment for how quickly a support request will be responded to or resolved, typically measured and tracked against a due date.", standalone: false },
 ]);
 
 export const STANDALONE_GLOSSARY_SLUGS = Object.freeze(

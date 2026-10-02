@@ -1,218 +1,356 @@
+import {
+  LAUNCH_BUSINESS_MODULE_COUNT,
+  LAUNCH_CAPABILITY_COUNTS,
+  LAUNCH_CAPABILITY_TOTAL,
+  SHARED_PLATFORM_KEY,
+  launchCapabilityNames,
+} from "./capabilities/launch-capabilities.js";
+import { LANDING_MODULES } from "./modules/index.js";
+import { POSITIONING, SITE_IDENTITY } from "./metadata.js";
+import { CTAS, MODULE_NAV_GROUPS } from "./navigation.js";
+
 /**
  * Typed homepage content model — the single source of truth apps/landing's
- * homepage composes from. See docs/landing-redesign/phase-3/
- * homepage-content-specification.md for the rationale behind every section.
+ * homepage composes from.
  *
- * Every capability claim here traces to docs/landing-redesign/phase-1/
- * product-intelligence.md. Where that document's "Honest Limitations" section
- * flags something as NOT automated (e.g. a standard sales order does not yet
- * trigger an automatic stock deduction — only Manufacturing and POS post real
- * stock movements today), the copy below is written to avoid implying it is.
+ * The story runs: what it is (hero) → what it connects (the connected-ERP
+ * map) → why that matters (fragmentation) → how work moves (workflows) →
+ * what is included (modules) → what sits underneath (Shared Platform) → what
+ * it means for each team → how broad it is (the approved launch scope as
+ * proof) → how to evaluate it → how adoption works → whether it can be
+ * trusted → buyer questions → the next step. The capability count is proof,
+ * never the headline.
+ *
+ * Product claims must stay inside the approved launch capability register
+ * (capabilities/launch-capabilities.js); every product-breadth number and
+ * capability name is derived from it, and CTAs come from the CTAS contract in
+ * navigation.js.
  */
 
+const PLATFORM_CAPABILITY_COUNT = LAUNCH_CAPABILITY_COUNTS[SHARED_PLATFORM_KEY];
+const MODULE_CAPABILITY_COUNT = LAUNCH_CAPABILITY_TOTAL - PLATFORM_CAPABILITY_COUNT;
+
 export const HOMEPAGE_METADATA = Object.freeze({
-  title: "Vercentlabs ERP — The ERP for Businesses That Outgrew Spreadsheets",
-  // Kept to ~150 characters so the CTA survives real SERP truncation
-  // (~155-160 chars) — see docs/landing-redesign/phase-3/decision-log.md.
-  description:
-    "Vercentlabs connects sales, inventory, procurement, production, and finance on one live system — for manufacturers and distributors. Book a demo.",
+  // Rendered as-is: the root segment doesn't receive the "| Vercentlabs ERP" title template.
+  title: `${SITE_IDENTITY.productName} — One ERP for Your Entire Business`,
+  // Kept near ~150 characters so it survives SERP truncation.
+  description: `${POSITIONING.masterPromise} ${SITE_IDENTITY.productName} connects ${LAUNCH_BUSINESS_MODULE_COUNT} business modules — CRM, sales, inventory, HR, accounting and more — on one platform.`,
 });
 
 export const HERO = Object.freeze({
   id: "hero",
-  eyebrow: "Connected ERP for manufacturers and distributors",
-  heading: "The ERP for businesses that outgrew spreadsheets.",
+  eyebrow: SITE_IDENTITY.productName,
+  heading: POSITIONING.heroHeadline,
   supportingText:
-    "Vercentlabs connects sales, inventory, procurement, production, finance, employees, projects, and service on one live system — so the number your warehouse sees is the same one your finance team sees.",
-  primaryCta: { label: "Book a Demo", href: "/book-demo", analyticsId: "hero_primary_cta_click" },
-  secondaryCta: { label: "Explore the Platform", href: "/product/platform", analyticsId: "hero_secondary_cta_click" },
+    "Connect CRM, sales, procurement, inventory, manufacturing, projects, assets, POS, quality, support, HR & payroll, and finance in one ERP — so every team works from the same connected business data.",
+  primaryCta: { ...CTAS.primary, analyticsId: "hero_primary_cta_click" },
+  secondaryCta: { ...CTAS.talkToSpecialist, analyticsId: "hero_secondary_cta_click" },
   evidence: [
-    { label: "Connected modules", value: "12" },
-    { label: "Documented requirements", value: "991" },
-    { label: "Operating model", value: "Multi-company" },
-    { label: "Access model", value: "Role-based" },
+    { value: String(LAUNCH_BUSINESS_MODULE_COUNT), label: "business modules" },
+    { value: String(LAUNCH_CAPABILITY_TOTAL), label: "approved MVP capabilities" },
+    { value: "1", label: "shared platform" },
   ],
+  // Shown only once an approved, current capture exists; until then the hero
+  // renders the connected-ERP map instead (apps/landing lib/product/screenshots.ts).
   screenshotId: "crm-pipeline-board",
   analyticsId: "hero_view",
 });
 
+export const CONNECTED_ERP_SECTION = Object.freeze({
+  id: "connected-erp",
+  eyebrow: "One connected ERP",
+  heading: "Your business functions should not behave like separate systems.",
+  supportingText:
+    "Every module runs on one ERP core and one Shared Platform. Each team works in the module built for its part of the business, and the records it creates carry on to the next team.",
+  layers: [
+    { key: "modules", label: `${LAUNCH_BUSINESS_MODULE_COUNT} business modules`, description: "Each team works in the module built for its part of the business — from CRM to Accounting." },
+    { key: "core", label: "One ERP core", description: "Customers, items, orders, and postings are shared records, handed on between modules instead of copied." },
+    { key: "platform", label: "One Shared Platform", description: "Access, audit, data integrity, and settings sit underneath every module." },
+  ],
+  mapCaption: `${LAUNCH_BUSINESS_MODULE_COUNT} business modules on one ERP core and one Shared Platform.`,
+  // The route traced by the map's motion — a real, routed workflow.
+  route: { workflowSlug: "lead-to-cash", label: "Lead to Cash", moduleKeys: ["crm", "sales", "stock", "accounting"] },
+  analyticsId: "connected_erp_view",
+});
+
 export const PROBLEM_SECTION = Object.freeze({
   id: "problem",
-  eyebrow: "The cost of disconnected tools",
-  heading: "Growth exposes the seams between systems that were never meant to talk to each other.",
+  eyebrow: "The cost of disconnected systems",
+  heading: POSITIONING.problemStatement,
   supportingText:
-    "A spreadsheet next to an accounting tool next to a WhatsApp thread works for a while. Then a stock count doesn't match, an approval sits in someone's inbox for a week, and nobody can say who approved the last price override.",
+    "When sales, inventory, purchasing, people, and finance each run in a separate tool, the business pays for it in re-typed data, mismatched numbers, and handoffs nobody owns.",
+  // Generic categories of tools, never named products.
+  fragmented: {
+    label: "Disconnected tools",
+    systems: ["CRM", "Spreadsheets", "Inventory software", "Email", "Payroll tool", "Accounting system"],
+    // One per handoff between consecutive tools.
+    handoffs: ["Re-typed", "Exported", "Forwarded by email", "Re-keyed", "Matched by hand"],
+  },
+  connected: {
+    label: "One ERP",
+    summary: "One set of records, shared by every module.",
+    moduleKeys: ["crm", "sales", "stock", "support", "hr-payroll", "accounting"],
+  },
   items: [
-    { title: "Duplicate data", description: "The same customer, item, or supplier is re-typed into three different tools — and drifts out of sync between them." },
-    { title: "Manual reconciliation", description: "Someone spends a day a month matching what the spreadsheet says against what the accounting system says." },
-    { title: "Delayed approvals", description: "A discount, a purchase order, or a leave request waits on an email thread instead of a governed workflow." },
-    { title: "Inventory uncertainty", description: "What's actually in stock is a guess until someone walks the warehouse and counts it by hand." },
-    { title: "Inconsistent reporting", description: "Sales, finance, and operations each keep their own version of the numbers — and the three don't agree." },
-    { title: "Weak process ownership", description: "When a handoff breaks, there's no record of where — or whose job it was to catch it." },
-    { title: "Departmental silos", description: "Procurement doesn't know what sales just promised a customer; production doesn't know what procurement just ordered." },
-    { title: "Limited auditability", description: "When something goes wrong, reconstructing who changed what — and when — takes hours, if it's possible at all." },
+    { title: "Repeated data entry", description: "The same customer, item, or supplier is typed into several tools — and the copies drift apart." },
+    { title: "Disconnected records", description: "An order, its delivery, and its invoice live in different systems, so nobody sees the whole transaction." },
+    { title: "Manual reconciliation", description: "Someone spends days each month matching what one system says against another." },
+    { title: "Inconsistent information", description: "Sales, operations, and finance each keep their own version of the numbers — and they don't agree." },
+    { title: "Weak handoffs", description: "Work passes between teams by email and chat, and details get lost on the way." },
+    { title: "Poor visibility", description: "Stock, orders, and cash only become clear after someone pulls reports from several places." },
   ],
   analyticsId: "problem_section_view",
 });
 
-export const CONNECTED_SYSTEM_SECTION = Object.freeze({
-  id: "connected-system",
-  eyebrow: "Why this is an ERP, not five apps with one login",
-  heading: "One record moves through the business — not five copies of it.",
+export const CONNECTED_WORKFLOWS_SECTION = Object.freeze({
+  id: "connected-workflows",
+  eyebrow: "Connected workflows",
+  heading: "One workflow. Multiple modules. No broken handoffs.",
   supportingText:
-    "A lead becomes an opportunity, a quotation, and an order without being re-typed. The same order is visible to finance for invoicing and to the warehouse and production teams who need to know it exists — on the same system, not synced between separate ones.",
-  steps: [
-    { label: "Lead", module: "crm", detail: "Captured from any channel, scored, and assigned automatically." },
-    { label: "Opportunity", module: "crm", detail: "Progresses through a governed pipeline with qualification checkpoints." },
-    { label: "Quotation", module: "sales", detail: "Priced with GST-aware tax rules, accepted publicly with a digital signature." },
-    { label: "Sales order", module: "sales", detail: "Converted from the accepted quotation with a real-time credit check." },
-    { label: "Warehouse", module: "stock", detail: "See the same order and item records — no separate spreadsheet to reconcile." },
-    { label: "Quality", module: "quality", detail: "Inspects incoming, in-process, and outgoing goods against the same item and batch records." },
-    { label: "Invoice", module: "accounting", detail: "Generated from the order through an auditable, idempotent handoff." },
-    { label: "Support", module: "support", detail: "Any resulting ticket carries the full order and account history automatically." },
-  ],
+    "Choose a process to see which module owns each step — and where the record crosses into the next one. Each team still does its own part of the work; the information carries through.",
+  // Routed workflows only: each has a full /workflows/{slug} page and an
+  // approved-capability sequence in workflows.js.
+  workflowSlugs: ["lead-to-cash", "procure-to-pay", "plan-to-production", "order-to-fulfilment", "hire-to-payroll"],
   analyticsId: "workflow_view",
+  interactionAnalyticsId: "workflow_interaction",
 });
 
 export const MODULE_ARCHITECTURE_SECTION = Object.freeze({
   id: "modules",
-  eyebrow: "Twelve modules, one system of record",
-  heading: "Every operational function your business runs, connected by default.",
-  supportingText: "Grouped the way your teams actually think about the business — not by internal engineering structure.",
+  eyebrow: "The modules",
+  heading: `${LAUNCH_BUSINESS_MODULE_COUNT} business modules. One connected ERP.`,
+  supportingText:
+    "Every module runs on one Shared Platform and one data model — not separate apps behind a shared login — so you can start with what you need and add more without switching systems.",
   groupSummaries: [
-    { groupKey: "revenue", outcome: "From first contact to the till — one pipeline, one price book, one order history." },
-    { groupKey: "operations", outcome: "What you can build, buy, and ship — governed by the same supplier and item records." },
-    { groupKey: "finance", outcome: "The books and the assets that back them, reconciled against real transactions, not estimates." },
+    { groupKey: "revenue", outcome: "From first contact to the till — one pipeline, one customer record, one order history." },
+    { groupKey: "operations", outcome: "What you buy, hold, make, and inspect — on the same supplier, item, and stock records." },
+    { groupKey: "finance", outcome: "The books and the assets behind them, posted from real transactions." },
     { groupKey: "people-and-service", outcome: "The people running the business, and the customers they serve after the sale." },
-    { groupKey: "delivery", outcome: "Billable work, tracked against budget and margin while it's still in progress." },
+    { groupKey: "delivery", outcome: "Projects, milestones, tasks, and timesheets — tracked through to delivery." },
   ],
+  platform: {
+    label: "Shared Platform",
+    summary: "The foundation every module inherits — it isn't a separate product.",
+    href: "/product/platform",
+    highlights: launchCapabilityNames([
+      "platform-authentication",
+      "platform-user-management",
+      "platform-roles",
+      "platform-permissions",
+      "platform-company-branch-access",
+      "platform-notifications",
+      "platform-audit-logs",
+      "platform-import",
+      "platform-export",
+      "platform-transaction-safety",
+      "platform-monitoring",
+      "platform-responsive-ui",
+      "platform-permission-aware-navigation",
+    ]),
+  },
   analyticsId: "module_group_view",
 });
 
-export const BREADTH_SECTION = Object.freeze({
-  id: "breadth",
-  eyebrow: "Depth without the feature dump",
-  heading: "991 documented requirements, organised around the workflows your teams use every day.",
-  supportingText:
-    "This is an evidence registry, not a feature-completion claim. It shows how the retained ERP scope breaks down across operational modules and the shared platform.",
-  breakdown: [
-    { label: "Operational modules", value: "897", description: "Requirements specific to the 12 modules above — from lead scoring to production costing." },
-    { label: "Shared platform", value: "94", description: "Multi-tenancy, roles and permissions, approvals, audit, reporting, and mobile access — used by every module." },
-    { label: "Governed automation", value: "Built in", description: "Approval routing, separation-of-duties enforcement, and SLA tracking, not bolted on after the fact." },
-    { label: "Audit trail", value: "Immutable", description: "Every record change is logged at the database level — even an application bug can't alter history." },
-  ],
-  analyticsId: "breadth_section_view",
-});
+function platformFamily(key, title, description, capabilityIds) {
+  return { key, title, description, capabilities: launchCapabilityNames(capabilityIds) };
+}
 
-export const FLAGSHIP_WORKFLOW_SECTION = Object.freeze({
-  id: "flagship-workflow",
-  eyebrow: "See it work: lead to cash",
-  heading: "From a captured lead to a posted invoice — without leaving the system once.",
-  supportingText:
-    "This is the same sequence a real deal follows inside Vercentlabs, not a simplified diagram of how ERPs work in general.",
-  workflowSlug: "lead-to-cash",
-  steps: [
-    { step: "Lead captured", department: "Marketing / Sales", moduleKey: "crm", systemAction: "Scored automatically and assigned by policy — no manual triage queue." },
-    { step: "Converted to opportunity", department: "Sales", moduleKey: "crm", systemAction: "Account and contact records created in one step; duplicate accounts are flagged, not silently created." },
-    { step: "Quotation issued", department: "Sales", moduleKey: "sales", systemAction: "Priced against the customer's price list and India GST rules automatically." },
-    { step: "Customer accepts", department: "Customer", moduleKey: "sales", systemAction: "Approves publicly with a typed signature — no separate e-signature tool." },
-    { step: "Order confirmed", department: "Sales / Finance", moduleKey: "sales", systemAction: "Checked against the customer's live credit exposure before confirmation is allowed." },
-    { step: "Invoice posted", department: "Finance", moduleKey: "accounting", systemAction: "Generated from the order through an idempotent, auditable handoff — not re-keyed." },
+export const PLATFORM_FOUNDATION_SECTION = Object.freeze({
+  id: "platform",
+  eyebrow: "Shared Platform",
+  heading: "One platform underneath every module.",
+  supportingText: `Every module inherits the same ${PLATFORM_CAPABILITY_COUNT} Shared Platform capabilities, so access, audit, and data integrity behave the same way in CRM as they do in Accounting.`,
+  families: [
+    platformFamily("access", "Access", "Who can sign in, and what each person can see and do.", [
+      "platform-authentication",
+      "platform-session-management",
+      "platform-user-management",
+      "platform-roles",
+      "platform-permissions",
+      "platform-record-level-access",
+    ]),
+    platformFamily("structure", "Business structure", "Tenants, companies, and branches — and the settings each one runs with.", [
+      "platform-tenant-management",
+      "platform-company-management",
+      "platform-company-branch-access",
+      "platform-company-settings",
+      "platform-module-enable-disable",
+    ]),
+    platformFamily("integrity", "Data integrity", "Every save is checked, and every posting completes fully or not at all.", [
+      "platform-validation",
+      "platform-transaction-safety",
+      "platform-idempotency",
+      "platform-concurrency-protection",
+      "platform-error-handling",
+    ]),
+    platformFamily("traceability", "Traceability", "What happened to a record, who did it, and the context around it.", [
+      "platform-audit-logs",
+      "platform-activity-history",
+      "platform-comments",
+      "platform-attachments",
+      "platform-notifications",
+    ]),
+    platformFamily("operations", "Operations", "The running system — backed up, logged, and monitored.", [
+      "platform-backups",
+      "platform-restore-process",
+      "platform-logging",
+      "platform-monitoring",
+      "platform-health-checks",
+    ]),
+    platformFamily("experience", "Experience", "Finding and moving data, on any screen size.", [
+      "platform-search",
+      "platform-filtering",
+      "platform-import",
+      "platform-export",
+      "platform-responsive-ui",
+      "platform-permission-aware-navigation",
+    ]),
   ],
-  analyticsId: "workflow_interaction",
+  analyticsId: "platform_section_view",
 });
 
 export const ROLE_VALUE_SECTION = Object.freeze({
   id: "role-value",
-  eyebrow: "One system, every seat",
-  heading: "The same connected data means something different to every role.",
+  eyebrow: "One system, every team",
+  heading: "The same connected data, working for every part of the business.",
   roles: [
-    { role: "Owners & executives", gains: "One real number for revenue, stock, and cash — not three reports that disagree." },
-    { role: "Sales teams", gains: "A pipeline that reflects what's actually been quoted and ordered, not what's remembered." },
-    { role: "Operations teams", gains: "Shared item and order records with production and the warehouse — no separate spreadsheet to keep in sync." },
-    { role: "Finance teams", gains: "Invoices generated from real orders, a governed close process, and an audit trail that holds up." },
-    { role: "Manufacturing teams", gains: "A work order that can't be released without the components to build it." },
-    { role: "HR & people teams", gains: "Attendance-driven payroll with the same separation-of-duties controls as the rest of the business." },
+    { role: "Owners & executives", gains: "One set of numbers for sales, stock, and the books — instead of reports that disagree.", moduleKeys: ["sales", "stock", "accounting"] },
+    { role: "Sales teams", gains: "Leads, opportunities, quotations, and orders in one place, with stock availability checked before an order is confirmed.", moduleKeys: ["crm", "sales"] },
+    { role: "Operations teams", gains: "Purchasing, inventory, production, and quality working from the same supplier, item, and stock records.", moduleKeys: ["procurement", "stock", "manufacturing", "quality"] },
+    { role: "Finance teams", gains: "Invoices from real orders, reconciled bank accounts, and financial statements straight from the ledger.", moduleKeys: ["accounting", "sales"] },
+    { role: "People & HR teams", gains: "Employee records, attendance, leave, and payroll in one place, with payroll approved before payslips are issued.", moduleKeys: ["hr-payroll"] },
+    { role: "Customer & service teams", gains: "Support tickets logged against the same customers and contacts the sales team works with.", moduleKeys: ["support", "crm"] },
   ],
   analyticsId: "role_value_view",
 });
 
-export const AUTOMATION_SECTION = Object.freeze({
-  id: "automation",
-  eyebrow: "Automation and reporting, not an add-on",
-  heading: "Governed automation that enforces how work is actually supposed to happen.",
-  items: [
-    { title: "Approval routing", description: "Discounts, purchase orders, and journal entries route to the right approver by policy, not by whoever's free." },
-    { title: "Separation of duties", description: "The person who creates a record can't approve it — enforced in the system, not just written in a policy document." },
-    { title: "SLA and escalation", description: "Support tickets carry policy-driven due dates and escalate automatically when they're missed." },
-    { title: "Quality holds", description: "A failed inspection places an automatic hold on the affected stock — no manual flag to remember." },
-    { title: "Cross-module reporting", description: "Dashboards read from the same live data every module writes to, not a separate reporting warehouse that's a day behind." },
+export const BREADTH_SECTION = Object.freeze({
+  id: "breadth",
+  eyebrow: "The launch scope",
+  heading: `${LAUNCH_CAPABILITY_TOTAL} approved MVP capabilities.`,
+  supportingText:
+    "The approved launch scope of Vercentlabs ERP, organised around how the business runs: the capabilities each business module launches with, plus the Shared Platform every module runs on.",
+  // Derived per owner from the register, in module-group order, Shared Platform last.
+  distribution: [
+    ...MODULE_NAV_GROUPS.flatMap((group) => group.moduleKeys).map((key) => ({
+      key,
+      label: LANDING_MODULES.find((landingModule) => landingModule.key === key).displayName,
+      count: LAUNCH_CAPABILITY_COUNTS[key],
+    })),
+    { key: SHARED_PLATFORM_KEY, label: "Shared Platform", count: PLATFORM_CAPABILITY_COUNT },
   ],
-  analyticsId: "automation_section_view",
+  breakdown: [
+    { label: "Business module capabilities", value: String(MODULE_CAPABILITY_COUNT), description: `Across ${LAUNCH_BUSINESS_MODULE_COUNT} business modules.` },
+    { label: "Shared Platform capabilities", value: String(PLATFORM_CAPABILITY_COUNT), description: "Inherited by every module." },
+  ],
+  cta: { label: "See what each module includes", href: "/modules" },
+  analyticsId: "breadth_section_view",
 });
 
-export const SECURITY_SECTION = Object.freeze({
-  id: "security",
-  eyebrow: "Enterprise control, explained plainly",
-  heading: "The controls a buying committee actually asks about.",
-  supportingText: "Real, implemented mechanisms — not a generic security-policy page.",
-  items: [
-    { title: "Role-based access", description: "Twelve seeded system roles with hand-curated permission sets, scoped to what each role actually needs." },
-    { title: "Time-bound & scoped roles", description: "Access can expire automatically and be scoped to a specific company, branch, or department — not all-or-nothing." },
-    { title: "Approval workflows", description: "A reusable, governed command registry enforces maker-checker approval across accounting, sales, CRM, HR, assets, and projects." },
-    { title: "Immutable audit trail", description: "A database trigger rejects any attempt to alter or delete an audit log entry — even from inside the application." },
-    { title: "Multi-company data isolation", description: "Structural, database-level isolation between companies and branches — not just an application-layer filter." },
-    { title: "Tenant isolation", description: "Every tenant's data is isolated at the database layer, enforced on every query, not assumed by convention." },
+export const EVALUATION_SECTION = Object.freeze({
+  id: "evaluate",
+  eyebrow: "Evaluate on your terms",
+  heading: "Explore before you talk to sales.",
+  supportingText:
+    "The product, module, and workflow pages describe the approved launch scope in full. Work through them at your own pace, and bring in a specialist when you want a walkthrough of your own processes.",
+  // Ordered evaluation paths. Add a path here (for example a self-serve
+  // trial, once it exists) rather than changing the homepage layout.
+  paths: [
+    {
+      key: "explore",
+      title: "Explore on your own",
+      description: "Browse the product, module, and platform pages to see what each part of the ERP covers.",
+      cta: { ...CTAS.primary },
+    },
+    {
+      key: "workflow",
+      title: "Follow a workflow",
+      description: "See how a process such as Lead to Cash or Procure to Pay moves across modules, step by step.",
+      cta: { label: "Browse workflows", href: "/workflows" },
+    },
+    {
+      key: "specialist",
+      title: "Get a guided walkthrough",
+      description: "Talk through your own business and the modules you would start with, with an assisted walkthrough.",
+      cta: { ...CTAS.talkToSpecialist },
+    },
   ],
-  analyticsId: "security_section_view",
+  analyticsId: "evaluation_section_view",
+  pathAnalyticsId: "evaluation_path_click",
 });
 
 export const IMPLEMENTATION_SECTION = Object.freeze({
   id: "implementation",
   eyebrow: "Getting live",
-  heading: "A configurable product still needs a structured rollout — here's what that actually looks like.",
-  supportingText:
-    "Vercentlabs is configurable, not a black box — but a real ERP adoption succeeds or fails on the implementation, not the software alone.",
+  heading: "A typical path from evaluation to go-live.",
+  supportingText: "Most rollouts follow the same broad steps. The detail depends on your business and the modules you start with.",
   steps: [
-    { step: "01", title: "Discovery", description: "We map your current processes, data, and the modules you actually need on day one." },
-    { step: "02", title: "Configuration", description: "Roles, approval chains, numbering series, and module settings are configured to match how you work." },
-    { step: "03", title: "Data migration", description: "Customers, items, suppliers, and open balances are migrated and reconciled before go-live." },
-    { step: "04", title: "Validation", description: "Your team runs real transactions in a staging environment before anything goes live." },
-    { step: "05", title: "Team training", description: "Role-specific training for the people who'll actually use the system day to day." },
-    { step: "06", title: "Controlled launch", description: "A phased go-live, module by module or location by location — not a single high-risk cutover." },
-    { step: "07", title: "Post-launch support", description: "Structured support during the weeks where real usage surfaces what training couldn't." },
+    { step: "01", title: "Understand", description: "Map how the business runs today and decide which modules to start with." },
+    { step: "02", title: "Configure", description: "Set up companies, roles and permissions, document numbering, and module settings." },
+    { step: "03", title: "Prepare data", description: "Bring in the customers, items, suppliers, and opening balances you need to start." },
+    { step: "04", title: "Validate", description: "Run real transactions through the configured system before relying on it." },
+    { step: "05", title: "Train", description: "Show each team how their part of the work runs in the system." },
+    { step: "06", title: "Go live", description: "Start using it for day-to-day work — all at once or module by module." },
   ],
   analyticsId: "implementation_section_view",
+});
+
+export const SECURITY_SECTION = Object.freeze({
+  id: "security",
+  eyebrow: "Trust & security",
+  heading: "Control access. Keep actions traceable.",
+  supportingText: "Controls from the Shared Platform, described plainly — what they do and where they're enforced.",
+  accessChain: [
+    { label: "User", detail: "Signs in to a managed session." },
+    { label: "Role", detail: "Grants a defined set of permissions." },
+    { label: "Permission", detail: "Checked on the server for every action." },
+    { label: "Record", detail: "Narrowed by record, company, and branch access." },
+  ],
+  traceChain: [
+    { label: "Action", detail: "A significant change is made." },
+    { label: "Audit event", detail: "Written to an audit log the database protects from edits and deletion." },
+    { label: "History", detail: "Kept with the record, so changes can be traced back." },
+  ],
+  items: [
+    { title: "Tenant isolation", description: "Each organisation's data is isolated in the database by row-level security on its tenant tables." },
+    { title: "Roles and permissions", description: "What each person can see and do is set by their role's permissions and checked on the server, not just hidden in the interface." },
+    { title: "Record-level access", description: "Access can be limited to the records a person is responsible for, not just whole modules." },
+    { title: "Company and branch access", description: "Access can be scoped by company and branch through permissions and query-level controls in the application." },
+    { title: "Protected audit log", description: "The platform audit log can't be edited or deleted — the database rejects any attempt to change it, even from inside the application." },
+    { title: "Backups and restore", description: "Data is backed up, with a restore process." },
+  ],
+  cta: { label: "See the security architecture", href: "/security" },
+  analyticsId: "security_section_view",
 });
 
 export const BUYER_QUESTIONS_SECTION = Object.freeze({
   id: "buyer-questions",
   eyebrow: "Straight answers",
-  heading: "What buyers actually ask before booking a demo.",
+  heading: "Questions buyers ask about Vercentlabs ERP.",
   questions: [
     {
-      question: "Can Vercentlabs support multiple companies or locations?",
-      answer: "Yes. Multi-company and branch-level data isolation is implemented at the database layer, and role access can be scoped to a specific company or branch rather than granted organisation-wide.",
+      question: "What is Vercentlabs ERP?",
+      answer: `Vercentlabs ERP is business management software — an ERP that runs the major functions of a business in one system: ${LAUNCH_BUSINESS_MODULE_COUNT} business modules on one Shared Platform, sharing one data model.`,
     },
     {
-      question: "Can modules be adopted together, or one at a time?",
-      answer: "Both. All 12 modules run on one shared platform and data model, but module access is entitlement-gated per organisation — you can enable what you need now and add more later.",
+      question: "Which business functions does Vercentlabs ERP cover?",
+      answer: `CRM, Sales, Procurement, Inventory, Manufacturing, Projects, Assets, POS, Quality, Support, HR & Payroll, and Accounting — ${LAUNCH_BUSINESS_MODULE_COUNT} business modules — plus a Shared Platform for tenants and companies, users, roles and permissions, audit logs, and import and export. Together that's ${LAUNCH_CAPABILITY_TOTAL} approved MVP capabilities.`,
     },
     {
-      question: "Can workflows and approvals be configured to match how we work?",
-      answer: "Yes. Roles, permission sets, and approval routing are configured per organisation through a reusable governed command registry, not hard-coded.",
+      question: "Do the modules work together?",
+      answer: "Yes. The modules share one data model, so records carry through — an opportunity becomes a quotation, an order reserves stock, and an invoice posts to the general ledger — without being re-typed. Each team still carries out its own steps; connected doesn't mean everything happens automatically.",
     },
     {
-      question: "Can our existing business data be migrated in?",
-      answer: "Yes — customers, items, suppliers, and open transactions are migrated and reconciled as part of implementation, not left for you to re-enter by hand.",
+      question: "Can we enable only the modules we need?",
+      answer: "Yes. Modules can be enabled or disabled per organisation within its subscription plan, so you can start with what you need and add more later on the same platform.",
     },
     {
-      question: "Is Vercentlabs suitable for manufacturing or distribution businesses specifically?",
-      answer: "Yes. The Manufacturing module covers bills of materials, work orders, and production posting into a live stock ledger; the Stock and Point of Sale modules cover multi-location distribution and retail.",
+      question: "How are users and permissions controlled?",
+      answer: "Through roles and permissions checked on the server, record-level access, and company and branch access — with significant actions recorded in an audit log the database protects from edits and deletion.",
     },
     {
-      question: "How is access controlled?",
-      answer: "Through role-based permissions with optional time-bound expiry and company/branch/department scoping, backed by an immutable, database-enforced audit trail of every change.",
+      question: "How can I evaluate Vercentlabs ERP?",
+      answer: "Explore the product, module, and workflow pages on this site to see what each part of the ERP covers. For a walkthrough focused on your own processes, talk to an ERP specialist.",
     },
   ],
   analyticsId: "buyer_questions_view",
@@ -220,24 +358,27 @@ export const BUYER_QUESTIONS_SECTION = Object.freeze({
 
 export const FINAL_CTA_SECTION = Object.freeze({
   id: "final-cta",
-  heading: "See how your operations would run in one connected system.",
-  supportingText: "The demo is adapted to your business — the modules and workflows you'd actually use, not a generic tour.",
-  primaryCta: { label: "Book a Demo", href: "/book-demo", analyticsId: "final_cta_click" },
+  eyebrow: SITE_IDENTITY.productName,
+  heading: "See how your business can run in one connected ERP.",
+  supportingText: "Explore the modules and workflows, or talk to an ERP specialist about the parts of your business you want to connect.",
+  primaryCta: { ...CTAS.primary, analyticsId: "final_cta_click" },
+  secondaryCta: { ...CTAS.talkToSpecialist, analyticsId: "final_secondary_cta_click" },
   analyticsId: "final_cta_view",
 });
 
 /** Ordered list of homepage sections — apps/landing/app/page.tsx renders exactly this sequence. */
 export const HOMEPAGE_SECTIONS = Object.freeze([
   HERO,
+  CONNECTED_ERP_SECTION,
   PROBLEM_SECTION,
-  CONNECTED_SYSTEM_SECTION,
+  CONNECTED_WORKFLOWS_SECTION,
   MODULE_ARCHITECTURE_SECTION,
-  BREADTH_SECTION,
-  FLAGSHIP_WORKFLOW_SECTION,
+  PLATFORM_FOUNDATION_SECTION,
   ROLE_VALUE_SECTION,
-  AUTOMATION_SECTION,
-  SECURITY_SECTION,
+  BREADTH_SECTION,
+  EVALUATION_SECTION,
   IMPLEMENTATION_SECTION,
+  SECURITY_SECTION,
   BUYER_QUESTIONS_SECTION,
   FINAL_CTA_SECTION,
 ]);

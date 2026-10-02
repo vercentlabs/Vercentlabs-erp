@@ -1,0 +1,13 @@
+export { HomeHero } from "./home-hero";
+export { HomeConnectedErp } from "./home-connected-erp";
+export { HomeProblem } from "./home-problem";
+export { HomeWorkflow } from "./home-workflow";
+export { HomeModules } from "./home-modules";
+export { HomePlatform } from "./home-platform";
+export { HomeRoleValue } from "./home-role-value";
+export { HomeBreadth } from "./home-breadth";
+export { HomeEvaluation } from "./home-evaluation";
+export { HomeImplementation } from "./home-implementation";
+export { HomeSecurity } from "./home-security";
+export { HomeFaq } from "./home-faq";
+export { HomeFinalCta } from "./home-final-cta";

@@ -1,16 +1,16 @@
 /**
- * Comparisons — 1, not several (see docs/landing-redesign/phase-6/
- * comparison-policy.md). Odoo only this phase: the most naturally adjacent,
- * publicly documented competitor with real fetchable pricing/edition data.
+ * Comparisons — 1, not several: a comparison ships only where real buyer
+ * intent, verifiable evidence, and a maintainable difference exist. Odoo
+ * only: the most naturally adjacent, publicly documented competitor with real
+ * fetchable pricing/edition data.
  * Every ODOO_COMPARISON_EVIDENCE claim traces to a real EDITORIAL_SOURCES
- * entry (sources.js), fetched live via WebFetch on 2026-08-07 — see
- * .claude/rules/landing-content.md rule 7 and comparison-evidence-register.md.
+ * entry (sources.js), fetched live on 2026-08-07.
  *
  * Never "Vercentlabs is better than Odoo." Every comparison dimension is
  * framed both directions — where Odoo may be the stronger fit, where
- * Vercentlabs may be. Vercentlabs does not publish public per-seat pricing
- * anywhere on this site (no /pricing content exists yet), so this
- * comparison does not claim or imply a specific Vercentlabs price point —
+ * Vercentlabs may be. Vercentlabs pricing is not published on this site
+ * yet (no /pricing content exists), so this comparison neither states,
+ * characterises, nor implies a Vercentlabs price point or pricing model —
  * doing so would be inventing a fact that doesn't exist in the product.
  */
 export const ODOO_COMPARISON_EVIDENCE = Object.freeze([
@@ -63,9 +63,10 @@ export const ODOO_COMPARISON_EVIDENCE = Object.freeze([
 
 /**
  * 5-part dimension comparison, each side sourced independently: the Odoo
- * side traces to ODOO_COMPARISON_EVIDENCE; the Vercentlabs side traces to
- * docs/landing-redesign/phase-1/product-intelligence.md and real code —
- * never a matching, unverified guess about what Odoo "must" also do.
+ * side traces to ODOO_COMPARISON_EVIDENCE (dated; refresh before relying on
+ * time-sensitive details); the Vercentlabs side must stay inside the approved
+ * launch capability register (capabilities/launch-capabilities.js) — never a matching,
+ * unverified guess about what Odoo "must" also do.
  */
 export const VERCENTLABS_VS_ODOO = Object.freeze({
   slug: "vercentlabs-vs-odoo",
@@ -73,57 +74,57 @@ export const VERCENTLABS_VS_ODOO = Object.freeze({
   metaDescription: "A neutral, evidence-based comparison of Vercentlabs ERP and Odoo — deployment model, module scope, pricing structure, multi-company support, and where each may be the stronger fit.",
   searchIntent: "Vercentlabs vs Odoo",
   directAnswer:
-    "Vercentlabs ERP and Odoo are both multi-module business platforms, but they differ in real, verifiable ways: Odoo's app catalog is broader (including website building, e-commerce, and marketing tools Vercentlabs doesn't offer), is available as a free, self-hostable open-source Community edition, and publishes transparent per-seat pricing. Vercentlabs is a narrower, operations-focused 12-module ERP with structural multi-tenant/multi-company isolation and a database-trigger-immutable audit trail built into the platform layer itself, not gated to a higher tier.",
+    "Vercentlabs ERP and Odoo are both multi-module business platforms, but they differ in real, verifiable ways: Odoo's app catalog is broader (including website building, e-commerce, and marketing tools Vercentlabs doesn't offer), is available as a free, self-hostable open-source Community edition, and publishes transparent per-seat pricing. Vercentlabs is a narrower, operations-focused ERP with 12 business modules on one Shared Platform, with tenant isolation enforced by database row-level security and a database-protected audit log.",
   dimensions: [
     {
       id: "deployment-and-editions",
       title: "Deployment and editions",
       odoo: "Odoo offers a genuinely free, open-source Community edition with self-hosting and GitHub source access, plus a paid Enterprise tier (extra apps, infrastructure, professional services) available via Odoo Online (cloud), Odoo.sh, or on-premise.",
-      vercentlabs: "Vercentlabs is a multi-tenant SaaS platform — organizations, companies, branches, and departments are structurally isolated within one hosted deployment model; there is no self-hosted or open-source edition.",
+      vercentlabs: "Vercentlabs is a hosted, multi-tenant SaaS platform — each organisation's data is isolated by database row-level security within one hosted deployment model; there is no self-hosted or open-source edition.",
       evidenceIds: ["odoo-community-open-source"],
     },
     {
       id: "module-and-app-scope",
       title: "Module and app scope",
       odoo: "Odoo's catalog spans 8 broad domains and dozens of individual apps, including website building, e-commerce, blogging, live chat, and marketing automation — tools aimed at running a business's public-facing presence as well as its back office.",
-      vercentlabs: "Vercentlabs covers 12 operational modules (CRM, Sales, Accounting, Procurement, Stock, Manufacturing, Projects, Assets, Point of Sale, Quality, Support, HR & Payroll) plus a shared platform layer — a narrower, operations-and-finance focus with no website/e-commerce/marketing-automation suite.",
+      vercentlabs: "Vercentlabs covers 12 business modules (CRM, Sales, Accounting, Procurement, Stock, Manufacturing, Projects, Assets, Point of Sale, Quality, Support, HR & Payroll) plus a Shared Platform — a narrower, operations-and-finance focus with no website/e-commerce/marketing-automation suite.",
       evidenceIds: ["odoo-app-breadth"],
     },
     {
       id: "pricing-structure",
       title: "Pricing structure",
-      odoo: "Odoo publishes transparent per-user, per-month pricing across a free tier, a Standard plan, and a Custom plan (₹580–1,420/user/month range at time of retrieval, geo-localized and subject to change).",
-      vercentlabs: "Vercentlabs does not currently publish public per-seat pricing on this site — pricing is quote-based. This comparison does not estimate or imply a Vercentlabs price point, since no public figure exists to cite honestly.",
+      odoo: "Odoo publishes per-user, per-month pricing on its website across a free tier, a Standard plan, and a Custom plan. Its prices are geo-localized and change over time — check Odoo's pricing page for current figures.",
+      vercentlabs: "Vercentlabs pricing is not yet published on this site, so this comparison doesn't state or estimate a Vercentlabs price. Ask us for current pricing for your modules and users.",
       evidenceIds: ["odoo-free-tier", "odoo-standard-plan", "odoo-custom-plan"],
     },
     {
       id: "multi-company-and-access-control",
       title: "Multi-company support and access control",
       odoo: "Multi-company support is available only by way of Odoo's Custom plan — adding a second company on the Free or Standard plan automatically upgrades the account to Custom pricing.",
-      vercentlabs: "Structural multi-company and branch isolation, plus scoped and time-bound role assignments, are core platform capabilities available across the product — not gated to a higher tier.",
+      vercentlabs: "Several companies and branches per organisation, with company and branch access scoping, roles and permissions, and record-level access, are part of the Shared Platform.",
       evidenceIds: ["odoo-custom-plan"],
     },
     {
       id: "audit-and-governance",
       title: "Audit trail and governance",
       odoo: "Odoo's own public pages describe app breadth and editions but do not detail a specific audit-trail immutability mechanism — not evaluated here since no primary-source claim was found to cite.",
-      vercentlabs: "Every record change writes to an audit table a Postgres trigger makes immutable — UPDATE and DELETE are rejected at the database level, not just hidden by a UI restriction. Self-approval is blocked structurally across HR, Assets, Accounting, Procurement, and Projects.",
+      vercentlabs: "Significant actions are written to a platform audit log that a database trigger protects — updates and deletions are rejected at the database level, not just hidden by a UI restriction. Leave and payroll approval are built in, and an approver can't approve a payroll that includes their own pay.",
       evidenceIds: [],
     },
   ],
   strongerFitForOdoo: [
     "An organisation that wants a genuinely free, self-hostable, open-source starting point with the option to extend the codebase directly.",
     "A business that needs website building, e-commerce, or marketing automation in the same platform as its back-office ERP, not as separate tools.",
-    "A buyer who wants fully transparent, published per-seat pricing before any sales conversation.",
+    "A buyer who wants to compare published per-seat prices before any conversation with the vendor.",
   ],
   strongerFitForVercentlabs: [
-    "An organisation whose primary need is operational ERP depth (manufacturing, quality, multi-company accounting) rather than a broad website/marketing app catalog.",
-    "A multi-entity business that needs structural company/branch isolation and time-bound scoped roles as a standard platform capability, not a higher-tier add-on.",
-    "A buyer that weighs a database-enforced, trigger-immutable audit trail as a real evaluation criterion, not just a checkbox feature.",
+    "An organisation whose primary need is connected operations — sales, stock, manufacturing, quality, and accounting on one data model — rather than a broad website/marketing app catalog.",
+    "A multi-company business that wants company and branch access scoping as part of the core platform.",
+    "A buyer that weighs a database-protected audit log as a real evaluation criterion, not just a checkbox feature.",
   ],
   faqs: [
-    { question: "Is Odoo cheaper than Vercentlabs?", answer: "Odoo publishes transparent pricing starting from a free tier; Vercentlabs is quote-based with no public price to compare against. A fair cost comparison requires getting an actual Vercentlabs quote for your real module and seat count, not comparing a published number against an unpublished one." },
-    { question: "Does Odoo have manufacturing and quality management like Vercentlabs?", answer: "Odoo's own pages list Manufacturing, PLM, and Quality within its Supply Chain domain — this comparison did not independently verify the depth of Odoo's manufacturing/quality feature set against Vercentlabs' own (BOM/work-order/quality-hold mechanics documented on this site), since doing so honestly would require the same live, fetched verification standard applied to every other claim here. Treat that specific depth comparison as unverified rather than assumed either way." },
+    { question: "Is Odoo cheaper than Vercentlabs?", answer: "Odoo publishes pricing starting from a free tier. Vercentlabs pricing isn't published on this site yet, so this page doesn't compare prices — a fair comparison needs current pricing from both vendors for your actual modules and number of users." },
+    { question: "Does Odoo have manufacturing and quality management like Vercentlabs?", answer: "Odoo's own pages list Manufacturing, PLM, and Quality within its Supply Chain domain — this comparison did not independently verify the depth of Odoo's manufacturing/quality feature set against Vercentlabs' own (BOM, manufacturing-order, and quality-hold capabilities documented on this site), since doing so honestly would require the same live, fetched verification standard applied to every other claim here. Treat that specific depth comparison as unverified rather than assumed either way." },
     { question: "Can I self-host Vercentlabs the way I can self-host Odoo Community?", answer: "No — Vercentlabs is a hosted, multi-tenant SaaS platform with no self-hosted or open-source edition, unlike Odoo's free Community edition." },
   ],
 });

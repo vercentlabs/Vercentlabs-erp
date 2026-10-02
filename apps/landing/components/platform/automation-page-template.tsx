@@ -90,7 +90,7 @@ export function AutomationPageTemplate({
                     <div className="mt-3 flex flex-wrap gap-2">
                       {connectedModules.map((module) => (
                         <Link key={module.key} href={`/modules/${module.key}`} prefetch={false}>
-                          <ModuleTag name={module.name} accentColor={module.accentColor.hex} />
+                          <ModuleTag name={module.displayName} accentColor={module.accentColor.hex} />
                         </Link>
                       ))}
                     </div>
@@ -171,10 +171,10 @@ export function AutomationPageTemplate({
               {connectedModules.map((module, index) => (
                 <Link key={module.key} href={`/modules/${module.key}`} prefetch={false} className="group bg-(--color-bg-elevated) p-5 transition-colors hover:bg-(--color-bg-subtle)">
                   <div className="flex items-center justify-between gap-3">
-                    <ModuleTag name={module.name} accentColor={module.accentColor.hex} />
+                    <ModuleTag name={module.displayName} accentColor={module.accentColor.hex} />
                     <span className="tabular-data text-xs font-semibold text-(--color-text-muted)">{String(index + 1).padStart(2, "0")}</span>
                   </div>
-                  <span className="mt-8 block text-sm font-medium text-(--color-text-brand) group-hover:underline">Explore {module.name} →</span>
+                  <span className="mt-8 block text-sm font-medium text-(--color-text-brand) group-hover:underline">Explore {module.displayName} →</span>
                 </Link>
               ))}
             </div>

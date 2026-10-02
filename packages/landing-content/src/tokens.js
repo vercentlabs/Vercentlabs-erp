@@ -1,10 +1,8 @@
 /**
- * Design tokens implementing the "Control Surface" creative direction
- * (docs/landing-redesign/phase-1/creative-direction.md). This is a semantic-token
- * FOUNDATION, not a finished visual redesign — Prompt 2 wires these into whatever
- * styling stack it chooses (Tailwind v4 `@theme`, CSS custom properties, or both;
- * see phase-2-brief.md's "styling decision" note) and verifies WCAG AA contrast
- * for every module accent (see modules.js) before shipping.
+ * Design tokens implementing the "Control Surface" creative direction. This is
+ * the semantic-token foundation mirrored into apps/landing/app/globals.css
+ * (Tailwind v4 `@theme` + CSS custom properties); every module accent
+ * (see modules/*.js) is checked for WCAG AA contrast.
  */
 export const COLOR_TOKENS = Object.freeze({
   canvas: "#f9fafb",
@@ -14,8 +12,7 @@ export const COLOR_TOKENS = Object.freeze({
   // 4.5:1 for normal text). Darkened to the minimal value that clears AA
   // with real margin (4.83:1), found via axe-core scanning all Phase 7
   // representative routes — a real, MEASURED, site-wide finding (228 nodes
-  // across 9 of 13 routes), not a one-off component bug. See
-  // docs/landing-redesign/phase-7/decision-log.md.
+  // across 9 of 13 routes), not a one-off component bug.
   mutedInk: "#5d6b81",
   border: "#e4e7ec",
   brandAccent: "#4338ca",
@@ -74,11 +71,9 @@ export const TYPOGRAPHY_TOKENS = Object.freeze({
 });
 
 /**
- * Phase 2 extension: semantic categories required by phase-2-brief.md /
- * docs/landing-redesign/phase-2/design-system-specification.md. Every value here
- * resolves to a COLOR_TOKENS entry (never a new raw hex) so there is exactly one
- * place the actual brand palette is defined. See docs/landing-redesign/phase-2/
- * decision-log.md for why this extends, rather than replaces, the Phase 1 palette.
+ * Semantic categories layered on COLOR_TOKENS. Every value here resolves to a
+ * COLOR_TOKENS entry (never a new raw hex) so there is exactly one place the
+ * actual brand palette is defined; this extends, rather than replaces, it.
  */
 export const SEMANTIC_BACKGROUND = Object.freeze({
   page: COLOR_TOKENS.canvas,

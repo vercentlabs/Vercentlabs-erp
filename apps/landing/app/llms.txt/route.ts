@@ -9,6 +9,8 @@ import {
   STANDALONE_GLOSSARY_SLUGS,
   GLOSSARY_TERMS,
   VERCENTLABS_VS_ODOO,
+  LAUNCH_CAPABILITY_SUMMARY,
+  POSITIONING,
 } from "@vercentlabs/landing-content";
 import { SITE, absoluteUrl } from "@/lib/site";
 
@@ -28,16 +30,18 @@ function buildLlmsTxt(): string {
   const lines: string[] = [
     `# ${SITE.productName}`,
     "",
-    `> ${SITE.productName} is a multi-tenant, multi-company ERP covering 12 operational modules and a shared platform layer.`,
+    `> ${SITE.productName} is ${SITE.category.toLowerCase().replace("erp", "ERP")} — ${POSITIONING.masterPromise.charAt(0).toLowerCase()}${POSITIONING.masterPromise.slice(1, -1)}, with ${LAUNCH_CAPABILITY_SUMMARY}.`,
+    "",
+    `${POSITIONING.descriptor} It is a multi-tenant, multi-company web application made by ${SITE.name}.`,
     "",
     "## Product",
     `- [Product overview](${absoluteUrl("/product")})`,
     ...PLATFORM_PAGES.map((page) => `- [${page.title}](${absoluteUrl(page.slug)})`),
     "",
     "## Modules",
-    ...LANDING_MODULES.map((moduleInfo) => `- [${moduleInfo.name}](${absoluteUrl(`/modules/${moduleInfo.key}`)})`),
+    ...LANDING_MODULES.map((moduleInfo) => `- [${moduleInfo.displayName}](${absoluteUrl(`/modules/${moduleInfo.key}`)})`),
     "",
-    "## Industries",
+    "## Industry use cases",
     ...LANDING_INDUSTRIES.map((industry) => `- [${industry.name}](${absoluteUrl(`/industries/${industry.slug}`)})`),
     "",
     "## Solutions",

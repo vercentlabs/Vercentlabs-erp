@@ -19,9 +19,19 @@ import {
   SEMANTIC_PRODUCT,
   HOMEPAGE_SECTIONS,
   HERO,
-  CONNECTED_SYSTEM_SECTION,
+  CONNECTED_ERP_SECTION,
+  PROBLEM_SECTION,
+  ROLE_VALUE_SECTION,
+  BREADTH_SECTION,
+  EVALUATION_SECTION,
+  PLATFORM_FOUNDATION_SECTION,
+  LAUNCH_CAPABILITY_COUNTS,
+  LAUNCH_CAPABILITY_TOTAL,
+  ROUTED_WORKFLOW_SLUGS,
+  getWorkflow,
   MODULE_ARCHITECTURE_SECTION,
-  FLAGSHIP_WORKFLOW_SECTION,
+  CONNECTED_WORKFLOWS_SECTION,
+  FINAL_CTA_SECTION,
 } from "../src/index.js";
 
 const HEX_COLOR = /^#[0-9a-f]{6}$/i;
@@ -73,7 +83,7 @@ test("all 12 released modules have distinct accent colours", () => {
   assert.equal(new Set(accents).size, LANDING_MODULES.length);
 });
 
-test("modules.js never overrides the canonical catalog name/description", () => {
+test("module content never overrides the canonical catalog name/description", () => {
   for (const module of LANDING_MODULES) {
     const canonical = getLandingModule(module.key);
     assert.equal(module.name, canonical.name);
@@ -96,11 +106,17 @@ test("every module belongs to exactly one nav group", () => {
   assert.equal(grouped.length, LANDING_MODULES.length, "not every module is assigned to a nav group");
 });
 
+const SINGLE_MODULE_WORKFLOWS = new Set(["hire-to-payroll"]);
+
 test("workflows reference only real module keys and have a summary", () => {
   const validKeys = new Set(LANDING_MODULES.map((module) => module.key));
   assert.ok(LANDING_WORKFLOWS.length >= 12, "fewer than 12 documented cross-module workflows");
   for (const workflow of LANDING_WORKFLOWS) {
-    assert.ok(workflow.modules.length >= 2, `workflow "${workflow.slug}" should span at least 2 modules`);
+    // Employee to Payroll stays inside HR & Payroll in the approved launch scope
+    // (no payroll-to-ledger handoff is an approved capability), so it is the
+    // one deliberately single-module workflow.
+    const minimumModules = SINGLE_MODULE_WORKFLOWS.has(workflow.slug) ? 1 : 2;
+    assert.ok(workflow.modules.length >= minimumModules, `workflow "${workflow.slug}" should span at least ${minimumModules} modules`);
     for (const key of workflow.modules) {
       assert.ok(validKeys.has(key), `workflow "${workflow.slug}" references unknown module "${key}"`);
     }
@@ -148,8 +164,8 @@ test("no CTA uses a banned generic label", () => {
   }
 });
 
-test("HOMEPAGE_SECTIONS has exactly 12 sections, each with a unique id, heading, and analyticsId", () => {
-  assert.equal(HOMEPAGE_SECTIONS.length, 12);
+test("HOMEPAGE_SECTIONS has exactly 13 sections, each with a unique id, heading, and analyticsId", () => {
+  assert.equal(HOMEPAGE_SECTIONS.length, 13);
   const ids = HOMEPAGE_SECTIONS.map((section) => section.id);
   assert.equal(new Set(ids).size, ids.length, "a homepage section id is duplicated");
   const analyticsIds = HOMEPAGE_SECTIONS.map((section) => section.analyticsId);
@@ -159,16 +175,56 @@ test("HOMEPAGE_SECTIONS has exactly 12 sections, each with a unique id, heading,
   }
 });
 
-test("hero and final CTA use the approved primary CTA destination", () => {
-  assert.equal(HERO.primaryCta.href, "/book-demo");
-  assert.equal(HERO.primaryCta.label, "Book a Demo");
+test("hero and final CTA use the global CTA contract: explore first, specialist second", () => {
+  for (const section of [HERO, FINAL_CTA_SECTION]) {
+    assert.equal(section.primaryCta.href, CTAS.primary.href);
+    assert.equal(section.primaryCta.label, CTAS.primary.label);
+    assert.equal(section.secondaryCta.href, CTAS.talkToSpecialist.href);
+    assert.equal(section.secondaryCta.label, CTAS.talkToSpecialist.label);
+  }
 });
 
-test("connected-system steps reference only real module keys", () => {
+test("every module key the homepage references is a real module", () => {
   const validKeys = new Set(LANDING_MODULES.map((module) => module.key));
-  for (const step of CONNECTED_SYSTEM_SECTION.steps) {
-    assert.ok(validKeys.has(step.module), `connected-system step "${step.label}" references unknown module "${step.module}"`);
+  const referenced = [
+    ...CONNECTED_ERP_SECTION.route.moduleKeys,
+    ...PROBLEM_SECTION.connected.moduleKeys,
+    ...ROLE_VALUE_SECTION.roles.flatMap((role) => role.moduleKeys),
+  ];
+  for (const key of referenced) assert.ok(validKeys.has(key), `homepage references unknown module "${key}"`);
+});
+
+test("the connected-ERP route traces the modules of a real routed workflow, in order", () => {
+  const workflow = getWorkflow(CONNECTED_ERP_SECTION.route.workflowSlug);
+  assert.ok(workflow && ROUTED_WORKFLOW_SLUGS.includes(workflow.slug));
+  const sequenceModules = workflow.sequence.map((step) => step.moduleKey).filter((key, index, keys) => keys.indexOf(key) === index);
+  assert.deepEqual(CONNECTED_ERP_SECTION.route.moduleKeys, sequenceModules);
+});
+
+test("every module has a one-line purpose", () => {
+  for (const module of LANDING_MODULES) {
+    assert.ok(module.purpose && module.purpose.length <= 90, `${module.key} needs a short purpose`);
   }
+});
+
+test("capability breadth is derived per owner and sums to the register total", () => {
+  assert.equal(BREADTH_SECTION.distribution.length, LANDING_MODULES.length + 1);
+  for (const owner of BREADTH_SECTION.distribution) assert.equal(owner.count, LAUNCH_CAPABILITY_COUNTS[owner.key], owner.key);
+  assert.equal(BREADTH_SECTION.distribution.reduce((sum, owner) => sum + owner.count, 0), LAUNCH_CAPABILITY_TOTAL);
+  assert.equal(new Set(BREADTH_SECTION.distribution.map((owner) => owner.key)).size, BREADTH_SECTION.distribution.length);
+});
+
+test("Shared Platform families only name approved platform capabilities", () => {
+  const families = PLATFORM_FOUNDATION_SECTION.families;
+  assert.equal(families.length, 6);
+  for (const family of families) assert.ok(family.capabilities.length > 0, family.key);
+});
+
+test("evaluation paths never offer a trial, sandbox, or demo company that doesn't exist", () => {
+  const text = JSON.stringify(EVALUATION_SECTION).toLowerCase();
+  for (const phrase of ["trial", "sandbox", "demo company", "product tour"]) assert.ok(!text.includes(phrase), phrase);
+  assert.ok(EVALUATION_SECTION.paths.some((path) => path.cta.href === CTAS.primary.href));
+  assert.ok(EVALUATION_SECTION.paths.some((path) => path.cta.href === CTAS.talkToSpecialist.href));
 });
 
 test("module architecture group summaries match real nav groups exactly", () => {
@@ -177,9 +233,12 @@ test("module architecture group summaries match real nav groups exactly", () => 
   assert.deepEqual(summaryKeys, navGroupKeys);
 });
 
-test("flagship workflow references a real workflow slug", () => {
-  const validSlugs = new Set(LANDING_WORKFLOWS.map((workflow) => workflow.slug));
-  assert.ok(validSlugs.has(FLAGSHIP_WORKFLOW_SECTION.workflowSlug));
+test("homepage workflows are routed workflows with approved step sequences", () => {
+  for (const slug of CONNECTED_WORKFLOWS_SECTION.workflowSlugs) {
+    assert.ok(ROUTED_WORKFLOW_SLUGS.includes(slug), `${slug} has no /workflows page`);
+    assert.ok(Array.isArray(getWorkflow(slug).sequence), `${slug} has no approved sequence`);
+  }
+  assert.equal(CONNECTED_WORKFLOWS_SECTION.workflowSlugs[0], "lead-to-cash", "the server-rendered default is Lead to Cash");
 });
 
 test("no homepage section copy uses a banned overclaiming phrase", () => {

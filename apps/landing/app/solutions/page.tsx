@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { LANDING_SOLUTIONS } from "@vercentlabs/landing-content";
+import { LANDING_SOLUTIONS, CTAS } from "@vercentlabs/landing-content";
 import { Container, Section, SectionHeader } from "@/components/layout/container";
 import { Heading, Text } from "@/components/ui/text";
 import { Breadcrumbs } from "@/components/layout/breadcrumbs";
@@ -100,7 +100,7 @@ export default function SolutionsIndexPage() {
               <span className="vl-index text-white/50">DIAGNOSTIC SESSION / LIVE</span>
               <Heading level="h1" as="h2" className="mt-4 text-(--color-text-inverse)">See your real problem solved in a live demo.</Heading>
             </div>
-            <TrackedCtaLink href="/book-demo" event="solution_cta_click" ctaLocation="solutions_index_final">Book a Demo</TrackedCtaLink>
+            <TrackedCtaLink href="/book-demo" event="solution_cta_click" ctaLocation="solutions_index_final">{CTAS.talkToSpecialist.label}</TrackedCtaLink>
           </Reveal>
         </Container>
       </Section>

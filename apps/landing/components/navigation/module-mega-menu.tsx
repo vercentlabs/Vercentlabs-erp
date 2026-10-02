@@ -31,7 +31,7 @@ export function ModuleMegaMenuContent() {
                     >
                       <span className="mt-1 h-8 w-1" style={{ backgroundColor: moduleInfo.accentColor.hex }} aria-hidden="true" />
                       <span>
-                        <span className="block text-sm font-semibold text-(--color-text-primary) group-hover:text-(--color-text-brand)">{moduleInfo.name}</span>
+                        <span className="block text-sm font-semibold text-(--color-text-primary) group-hover:text-(--color-text-brand)">{moduleInfo.displayName}</span>
                         <span className="mt-0.5 block text-[0.7rem] leading-snug text-(--color-text-muted)">{moduleInfo.description}</span>
                       </span>
                       <span className="text-xs text-(--color-text-muted) transition-transform group-hover:translate-x-1" aria-hidden="true">→</span>
@@ -45,7 +45,7 @@ export function ModuleMegaMenuContent() {
       </div>
       <div className="flex shrink-0 flex-col gap-3 border-x border-b border-(--color-border-default) bg-(--color-bg-subtle) px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
         <Link href="/modules" prefetch={false} className="vl-editorial-link text-sm font-semibold text-(--color-text-brand)">See all modules</Link>
-        <Link href={CTAS.watchTour.href} prefetch={false} className="vl-editorial-link text-sm font-semibold text-(--color-text-secondary)">{CTAS.watchTour.label}</Link>
+        <Link href={CTAS.primary.href} prefetch={false} className="vl-editorial-link text-sm font-semibold text-(--color-text-secondary)">{CTAS.primary.label}</Link>
       </div>
     </div>
   );

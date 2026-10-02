@@ -1,28 +1,30 @@
 import { notFound } from "next/navigation";
+import Link from "next/link";
 import {
+  CTAS,
   LANDING_MODULES,
-  getLandingModule,
+  LAUNCH_CAPABILITY_COUNTS,
+  MODULE_DETAIL_PAGE,
   getIndustriesForModule,
-  getWorkflowsForModule,
-  getSolutionsForModule,
+  getLandingModule,
   getResourceGuidesForModule,
-  ROUTED_WORKFLOW_SLUGS,
+  getRoutedWorkflowsForModule,
 } from "@vercentlabs/landing-content";
-import { Container, Section, SectionHeader, Stack } from "@/components/layout/container";
-import { Heading, Text } from "@/components/ui/text";
+import { Container, Section, SectionHeader } from "@/components/layout/container";
 import { Breadcrumbs } from "@/components/layout/breadcrumbs";
 import { FaqAccordion } from "@/components/marketing/faq-accordion";
-import { TrackedCtaLink } from "@/components/analytics/tracked-cta-link";
 import { TrackView } from "@/components/analytics/track-view";
+import { CtaPair } from "@/components/conversion/cta-pair";
 import { ModuleHero } from "@/components/modules/module-hero";
-import { DirectDefinition } from "@/components/modules/direct-definition";
+import { ModuleProcess } from "@/components/modules/module-process";
 import { CapabilityGrid } from "@/components/modules/capability-grid";
-import { ModuleWorkflow } from "@/components/modules/module-workflow";
-import { ProductEvidenceSection } from "@/components/modules/product-evidence-section";
-import { ContextualCta } from "@/components/modules/contextual-cta";
 import { ConnectedModules } from "@/components/modules/connected-modules";
 import { RelatedPages } from "@/components/modules/related-pages";
-import { Reveal } from "@/components/motion/reveal";
+import { ProductEvidence } from "@/components/product/product-evidence";
+import { SharedPlatformBand } from "@/components/platform/shared-platform-band";
+import { WorkflowModulePath } from "@/components/workflows/workflow-module-path";
+import { Heading } from "@/components/ui/text";
+import { getApprovedScreenshot } from "@/lib/product/screenshots";
 import { buildPageMetadata } from "@/lib/metadata";
 import { jsonLdScriptProps, SOFTWARE_APPLICATION_ID } from "@/lib/seo/json-ld";
 import { absoluteUrl } from "@/lib/site";
@@ -36,48 +38,52 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
   const landingModule = getLandingModule(slug);
   if (!landingModule) return {};
   return buildPageMetadata({
-    title: `${landingModule.name} Module`,
+    title: `${landingModule.displayName} Module`,
     description: landingModule.metaDescription,
     path: `/modules/${landingModule.key}`,
   });
 }
+
+const SCREENSHOT_SIZES = "(min-width: 1480px) 1380px, (min-width: 1024px) calc(100vw - 96px), 100vw";
 
 export default async function ModulePage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
   const landingModule = getLandingModule(slug);
   if (!landingModule) notFound();
 
-  const connectedModules = landingModule.connectedModules
-    .map((link) => getLandingModule(link.moduleKey))
-    .filter((m): m is NonNullable<typeof m> => Boolean(m));
-  const relatedIndustries = getIndustriesForModule(landingModule.key);
-  const relatedWorkflows = getWorkflowsForModule(landingModule.key).filter((w) => ROUTED_WORKFLOW_SLUGS.includes(w.slug));
-  const relatedSolutions = getSolutionsForModule(landingModule.key);
-  const relatedGuides = [...getResourceGuidesForModule(landingModule.key)].sort((a, b) => a.relatedModuleKeys.length - b.relatedModuleKeys.length);
-
-  const breadcrumbTrail = [
-    { name: "Modules", path: "/modules" },
-    { name: landingModule.name, path: `/modules/${landingModule.key}` },
+  const name = landingModule.displayName;
+  const accent = landingModule.accentColor.hex;
+  const workflows = getRoutedWorkflowsForModule(landingModule.key);
+  const primaryShot = landingModule.screenshots.primary;
+  const secondaryShot = landingModule.screenshots.secondary;
+  const hasScreenshot = Boolean(primaryShot && getApprovedScreenshot(primaryShot));
+  const relatedPages = [
+    ...workflows.slice(0, 2).map((workflow) => ({ label: `${workflow.name} workflow`, href: `/workflows/${workflow.slug}` })),
+    ...landingModule.connectedModules.slice(0, 2).flatMap((link) => {
+      const connected = getLandingModule(link.moduleKey);
+      return connected ? [{ label: `${connected.displayName} module`, href: `/modules/${connected.key}` }] : [];
+    }),
+    ...getIndustriesForModule(landingModule.key).slice(0, 1).map((industry) => ({ label: `${name} in ${industry.name.toLowerCase()}`, href: `/industries/${industry.slug}` })),
+    ...[...getResourceGuidesForModule(landingModule.key)].sort((a, b) => a.relatedModuleKeys.length - b.relatedModuleKeys.length).slice(0, 1).map((guide) => ({ label: guide.title, href: `/resources/${guide.slug}` })),
+    { label: "All 12 modules", href: "/modules" },
   ];
+  const finalExplore = workflows[0]
+    ? { href: `/workflows/${workflows[0].slug}`, label: `See the ${workflows[0].name} workflow` }
+    : { href: "/workflows", label: "Explore connected workflows" };
 
   const webPageJsonLd = {
     "@context": "https://schema.org",
     "@type": "WebPage",
-    name: `${landingModule.name} — Vercentlabs ERP`,
+    name: `${name} — Vercentlabs ERP`,
     description: landingModule.metaDescription,
     url: absoluteUrl(`/modules/${landingModule.key}`),
     isPartOf: { "@id": SOFTWARE_APPLICATION_ID },
   };
-
   const faqPageJsonLd = landingModule.faqs.length
     ? {
         "@context": "https://schema.org",
         "@type": "FAQPage",
-        mainEntity: landingModule.faqs.map((faq) => ({
-          "@type": "Question",
-          name: faq.question,
-          acceptedAnswer: { "@type": "Answer", text: faq.answer },
-        })),
+        mainEntity: landingModule.faqs.map((faq) => ({ "@type": "Question", name: faq.question, acceptedAnswer: { "@type": "Answer", text: faq.answer } })),
       }
     : null;
 
@@ -86,193 +92,147 @@ export default async function ModulePage({ params }: { params: Promise<{ slug: s
       <TrackView event="module_page_view" properties={{ workflow: landingModule.key }}>
         <div>
           <Section tone="page" paddingTop={{ base: 6 }} paddingBottom={{ base: 0 }}>
-            <Container><Breadcrumbs trail={breadcrumbTrail} /></Container>
+            <Container>
+              <Breadcrumbs trail={[{ name: "Modules", path: "/modules" }, { name, path: `/modules/${landingModule.key}` }]} />
+            </Container>
           </Section>
           <ModuleHero landingModule={landingModule} />
         </div>
       </TrackView>
 
-      <Reveal><DirectDefinition definition={landingModule.directDefinition} /></Reveal>
-
-      <Section tone="page">
+      {/* 2. Product evidence: a current, approved screen, or the module's process as a labelled diagram. */}
+      <Section tone="page" paddingTop={{ base: 0 }} paddingBottom={{ base: 14, sm: 16 }}>
         <Container>
-          <div className="flex items-end justify-between gap-6 border-b border-(--color-border-strong) pb-5">
-            <SectionHeader eyebrow="Module atlas / operating conditions" title={`Why ${landingModule.name} becomes difficult in fragments`} />
-            <span className="vl-folio hidden sm:block">RECORD / {landingModule.key.toUpperCase()}</span>
-          </div>
-          <div className="mt-8 border-t border-(--color-border-strong)">
-            {landingModule.businessProblems.map((item, index) => (
-              <div key={item.title} className="grid gap-3 border-b border-(--color-border-default) py-6 md:grid-cols-[4rem_minmax(180px,.55fr)_minmax(0,1fr)] md:gap-8">
-                <span className="vl-index" style={{ color: landingModule.accentColor.hex }}>{String(index + 1).padStart(2, "0")}</span>
-                <Heading level="h4" as="h3">{item.title}</Heading>
-                <Text variant="bodySmall">{item.description}</Text>
-              </div>
-            ))}
+          <p className="vl-index mb-3">{MODULE_DETAIL_PAGE.evidenceEyebrow}</p>
+          <div className={secondaryShot && hasScreenshot ? "grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1.45fr)_minmax(0,1fr)] xl:items-start" : undefined}>
+            <ProductEvidence screenshotId={primaryShot} moduleAccentColor={accent} sizes={SCREENSHOT_SIZES} fallback={<ModuleProcess landingModule={landingModule} />} />
+            {secondaryShot && hasScreenshot ? <ProductEvidence screenshotId={secondaryShot} moduleAccentColor={accent} sizes="(min-width: 1440px) 560px, 100vw" fallback={null} /> : null}
           </div>
         </Container>
       </Section>
 
+      {/* 3. What the module manages. */}
       <Section tone="subtle">
         <Container>
-          <SectionHeader eyebrow="Operating outcomes" title={`What changes when ${landingModule.name} shares one system of record`} />
-          <div className="mt-10 grid grid-cols-1 border-l border-t border-(--color-border-strong) md:grid-cols-2">
+          <SectionHeader eyebrow={MODULE_DETAIL_PAGE.managesEyebrow} title={MODULE_DETAIL_PAGE.managesHeading(name)} />
+          <ul className="mt-10 grid grid-cols-1 gap-px bg-(--color-border-strong) md:grid-cols-2">
             {landingModule.businessOutcomes.map((item, index) => (
-              <div key={item.title} className="min-h-[190px] border-b border-r border-(--color-border-strong) bg-(--color-bg-elevated) p-6 sm:p-7">
-                <div className="flex items-center justify-between gap-5">
-                  <span className="vl-index" style={{ color: landingModule.accentColor.hex }}>OUT / {String(index + 1).padStart(2, "0")}</span>
-                  <span className="h-2.5 w-2.5" style={{ backgroundColor: landingModule.accentColor.hex }} aria-hidden="true" />
-                </div>
-                <Heading level="h3" className="mt-8">{item.title}</Heading>
-                <Text variant="bodySmall" className="mt-3 max-w-[58ch]">{item.description}</Text>
-              </div>
+              <li key={item.title} className="bg-(--vl-paper-strong) p-6 sm:p-7">
+                <span className="vl-index" style={{ color: accent }}>
+                  {String(index + 1).padStart(2, "0")}
+                </span>
+                <h3 className="mt-3 text-lg font-semibold tracking-[-0.03em] text-(--color-text-primary)">{item.title}</h3>
+                <p className="mt-2 max-w-[60ch] text-sm leading-[1.65] text-(--color-text-secondary)">{item.description}</p>
+              </li>
             ))}
-          </div>
+          </ul>
         </Container>
       </Section>
 
-      <Section tone="page">
+      {/* 4. Every approved capability, from the register, in buyer-readable groups. */}
+      <Section tone="page" id="capabilities">
         <Container>
           <SectionHeader
-            eyebrow="Capability architecture"
-            title="The module, decomposed by operating capability."
-            description={`${landingModule.capabilityGroups.length} capability groups organised by the way the product works, not as a flat marketing feature wall.`}
+            eyebrow={MODULE_DETAIL_PAGE.capabilitiesEyebrow}
+            title={MODULE_DETAIL_PAGE.capabilitiesHeading(name, LAUNCH_CAPABILITY_COUNTS[landingModule.key])}
+            description={MODULE_DETAIL_PAGE.capabilitiesSupportingText}
           />
-          <Reveal><div className="mt-10"><CapabilityGrid groups={landingModule.capabilityGroups} /></div></Reveal>
-        </Container>
-      </Section>
-
-      <TrackView event="module_workflow_view" properties={{ workflow: landingModule.primaryWorkflow.name }}>
-        <Section tone="subtle">
-          <Container>
-            <div className="grid grid-cols-1 gap-8 lg:grid-cols-[240px_minmax(0,1fr)] lg:gap-14">
-              <div className="border-t border-(--color-border-strong) pt-5">
-                <span className="vl-folio">RUNBOOK / 01</span>
-                <Text variant="dataLabel" className="mt-8 block">Primary operating sequence</Text>
-                <Text variant="bodySmall" className="mt-3">A transaction-level view of how work progresses through {landingModule.name}.</Text>
-              </div>
-              <div>
-                <SectionHeader eyebrow="See it work" title={landingModule.primaryWorkflow.name} description={`The ordered process a real ${landingModule.name} workflow follows inside Vercentlabs.`} />
-                <Reveal><div className="mt-10 max-w-[900px]"><ModuleWorkflow workflow={landingModule.primaryWorkflow} accentColor={landingModule.accentColor.hex} connectedModules={connectedModules} /></div></Reveal>
-              </div>
-            </div>
-          </Container>
-        </Section>
-      </TrackView>
-
-      <ProductEvidenceSection
-        moduleName={landingModule.name}
-        accentColor={landingModule.accentColor.hex}
-        capabilityGroupCount={landingModule.capabilityGroups.length}
-        workflowName={landingModule.primaryWorkflow.name}
-        connectedModuleCount={landingModule.connectedModules.length}
-        featuredOutcome={landingModule.businessOutcomes[0]}
-      />
-
-      <ContextualCta moduleName={landingModule.name} moduleSlug={landingModule.key} />
-
-      <Section tone="page">
-        <Container>
-          <SectionHeader eyebrow="System map" title={`${landingModule.name} does not operate alone.`} description="The handoffs below are part of the operating model, not decorative cross-sells." />
-          <Reveal><div className="mt-10"><ConnectedModules links={landingModule.connectedModules} resolveModule={(key) => getLandingModule(key) ?? undefined} /></div></Reveal>
-        </Container>
-      </Section>
-
-      <Section tone="subtle">
-        <Container>
-          <SectionHeader eyebrow="Output register" title={`What ${landingModule.name} tells operators and managers`} />
-          <div className="mt-10 border-y border-(--color-border-strong)">
-            {landingModule.reporting.map((report, index) => (
-              <div key={report.name} className="grid gap-3 border-b border-(--color-border-default) py-5 last:border-b-0 lg:grid-cols-[3rem_260px_minmax(0,1fr)_220px] lg:gap-8">
-                <span className="vl-index">R{String(index + 1).padStart(2, "0")}</span>
-                <Text variant="label">{report.name}</Text>
-                <Text variant="bodySmall">{report.measures}</Text>
-                <Text variant="caption">Audience / {report.audience}</Text>
-              </div>
-            ))}
+          <div className="mt-10">
+            <CapabilityGrid groups={landingModule.capabilityGroups} />
           </div>
         </Container>
       </Section>
 
-      <Section tone="page">
-        <Container>
-          <div className="grid grid-cols-1 gap-12 lg:grid-cols-2 lg:gap-16">
-            <div>
-              <SectionHeader compact eyebrow="Rule register" title="What the module can run on its own" />
-              <div className="mt-8 border-t border-(--color-border-strong)">
-                {landingModule.automation.map((item, index) => (
-                  <div key={item.title} className="grid grid-cols-[2.5rem_1fr] gap-4 border-b border-(--color-border-default) py-5">
-                    <span className="vl-index" style={{ color: landingModule.accentColor.hex }}>A{index + 1}</span>
-                    <div><Text variant="label">{item.title}</Text><Text variant="bodySmall" className="mt-2">{item.description}</Text></div>
-                  </div>
-                ))}
-              </div>
-            </div>
-            <div>
-              <SectionHeader compact eyebrow="Control register" title={`How ${landingModule.name} stays governed`} description="Module-specific controls shown separately from the platform-wide security architecture." />
-              <div className="mt-8 border-t border-(--color-border-strong)">
-                {landingModule.governance.map((item, index) => (
-                  <div key={item.title} className="grid grid-cols-[2.5rem_1fr] gap-4 border-b border-(--color-border-default) py-5">
-                    <span className="vl-index">C{index + 1}</span>
-                    <div><Text variant="label">{item.title}</Text><Text variant="bodySmall" className="mt-2">{item.description}</Text></div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        </Container>
-      </Section>
+      {/* 5. The connected workflow(s) this module takes part in, or its own process. */}
+      {workflows.length || hasScreenshot ? (
+        <TrackView event="module_workflow_view" properties={{ workflow: workflows[0]?.slug ?? landingModule.primaryWorkflow.name }}>
+          <Section tone="subtle">
+            <Container>
+              <SectionHeader eyebrow={MODULE_DETAIL_PAGE.workflowEyebrow} title={MODULE_DETAIL_PAGE.workflowHeading(name)} />
+              {workflows.length ? (
+                <ul className="mt-10 grid gap-4">
+                  {workflows.slice(0, 3).map((workflow, index) => (
+                    <li key={workflow.slug} className="border border-(--color-border-strong) bg-(--vl-paper-strong) p-5 sm:p-6">
+                      <div className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-2">
+                        <h3 className={index === 0 ? "text-xl font-semibold tracking-[-0.035em]" : "text-base font-semibold tracking-[-0.025em]"}>{workflow.name}</h3>
+                        <Link href={`/workflows/${workflow.slug}`} prefetch={false} className="group inline-flex items-center gap-2 text-sm font-semibold text-(--color-text-brand)">
+                          <span className="vl-editorial-link">See the complete workflow</span>
+                          <span className="vl-hover-arrow" aria-hidden="true">→</span>
+                        </Link>
+                      </div>
+                      {index === 0 ? <p className="mt-2 max-w-[78ch] text-sm leading-[1.6] text-(--color-text-secondary)">{workflow.summary}</p> : null}
+                      <WorkflowModulePath slug={workflow.slug} highlightModuleKey={landingModule.key} showSteps={index === 0} className="mt-4" />
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <div className="mt-10">
+                  <ModuleProcess landingModule={landingModule} />
+                </div>
+              )}
+            </Container>
+          </Section>
+        </TrackView>
+      ) : null}
 
-      <Section tone="subtle">
-        <Container>
-          <div className="grid grid-cols-1 gap-10 border-y border-(--color-border-strong) py-8 lg:grid-cols-[280px_minmax(0,1fr)] lg:gap-16">
-            <div><span className="vl-folio">ROLLOUT / MODULE</span><Heading level="h2" className="mt-5">What to plan before going live.</Heading></div>
-            <ol className="border-t border-(--color-border-default)">
-              {landingModule.implementationConsiderations.map((item, index) => (
-                <li key={item} className="grid grid-cols-[3rem_1fr] gap-5 border-b border-(--color-border-default) py-4">
-                  <span className="vl-index">{String(index + 1).padStart(2, "0")}</span><Text variant="bodySmall">{item}</Text>
-                </li>
-              ))}
-            </ol>
-          </div>
-        </Container>
-      </Section>
-
-      {landingModule.faqs.length > 0 ? (
+      {/* 6. Connections to other modules. */}
+      {landingModule.connectedModules.length ? (
         <Section tone="page">
           <Container>
-            <SectionHeader eyebrow="Buyer questions" title={`Questions teams ask about ${landingModule.name}`} />
-            <Reveal group><FaqAccordion items={landingModule.faqs} className="mt-10 max-w-[900px]" /></Reveal>
+            <SectionHeader eyebrow={MODULE_DETAIL_PAGE.connectionsEyebrow} title={MODULE_DETAIL_PAGE.connectionsHeading(name)} />
+            <div className="mt-10">
+              <ConnectedModules landingModule={landingModule} />
+            </div>
           </Container>
         </Section>
       ) : null}
 
+      {/* 7. Shared Platform controls this module inherits. */}
       <Section tone="subtle">
         <Container>
-          <Stack gap={4}>
-            <Text variant="dataLabel">Continue the operating map</Text>
-            <RelatedPages pages={[
-              { label: "Explore the full platform", href: "/product" },
-              { label: "See all modules", href: "/modules" },
-              ...connectedModules.slice(0, 4).map((m) => ({ label: `${m.name} module`, href: `/modules/${m.key}` })),
-              ...relatedIndustries.slice(0, 2).map((industry) => ({ label: `${industry.name} industry`, href: `/industries/${industry.slug}` })),
-              ...relatedWorkflows.slice(0, 2).map((workflow) => ({ label: `${workflow.name} workflow`, href: `/workflows/${workflow.slug}` })),
-              ...relatedSolutions.slice(0, 2).map((solution) => ({ label: `${solution.name} solution`, href: `/solutions/${solution.slug}` })),
-              ...relatedGuides.slice(0, 1).map((guide) => ({ label: guide.title, href: `/resources/${guide.slug}` })),
-            ]} />
-          </Stack>
+          <SectionHeader eyebrow={MODULE_DETAIL_PAGE.platformEyebrow} title={MODULE_DETAIL_PAGE.platformHeading} description={MODULE_DETAIL_PAGE.platformSupportingText} />
+          <ul className="mt-10 grid grid-cols-1 gap-x-10 md:grid-cols-3">
+            {landingModule.governance.map((item) => (
+              <li key={item.title} className="border-t border-(--color-border-strong) py-5">
+                <h3 className="text-base font-semibold tracking-[-0.025em] text-(--color-text-primary)">{item.title}</h3>
+                <p className="mt-2 text-sm leading-[1.6] text-(--color-text-secondary)">{item.description}</p>
+              </li>
+            ))}
+          </ul>
+          <SharedPlatformBand className="mt-6" />
         </Container>
       </Section>
 
-      <Section tone="inverse">
+      {/* 8. Buyer questions. */}
+      {landingModule.faqs.length > 0 ? (
+        <Section tone="page">
+          <Container>
+            <SectionHeader eyebrow={MODULE_DETAIL_PAGE.faqEyebrow} title={MODULE_DETAIL_PAGE.faqHeading(name)} />
+            <FaqAccordion items={landingModule.faqs} className="mt-10 max-w-[900px]" />
+          </Container>
+        </Section>
+      ) : null}
+
+      {/* 9. Related exploration. */}
+      <Section tone="page" paddingTop={{ base: 0 }} paddingBottom={{ base: 14, sm: 16 }}>
         <Container>
-          <div className="grid grid-cols-1 items-end gap-8 border-y border-white/20 py-9 lg:grid-cols-[minmax(0,1fr)_auto] lg:gap-16 lg:py-12">
-            <div className="max-w-[760px]">
-              <span className="vl-folio text-white/55">MODULE / {landingModule.key.toUpperCase()} / LIVE SESSION</span>
-              <Heading level="h1" as="h2" className="mt-4 text-(--color-text-inverse)">{landingModule.conversion.heading}</Heading>
-            </div>
-            <TrackedCtaLink href={`/book-demo?module=${landingModule.key}`} event="module_final_cta_click" ctaLocation={`module_final_${landingModule.key}`}>
-              {landingModule.conversion.ctaLabel}
-            </TrackedCtaLink>
+          <p className="vl-index mb-4">{MODULE_DETAIL_PAGE.relatedEyebrow}</p>
+          <RelatedPages pages={relatedPages} />
+        </Container>
+      </Section>
+
+      {/* 10. Next step: keep exploring, or talk to a specialist. */}
+      <Section tone="inverse" className="vl-noise-free">
+        <Container>
+          <div className="grid grid-cols-1 items-end gap-8 border-t border-white/20 pt-6 lg:grid-cols-[minmax(0,1fr)_auto] lg:gap-16">
+            <Heading level="h2" className="max-w-[24ch] text-white">
+              {landingModule.conversion.heading}
+            </Heading>
+            <CtaPair
+              ctaLocation={`module_final_${landingModule.key}`}
+              primary={{ href: finalExplore.href, event: "module_related_link_click", label: finalExplore.label, variant: "inverse" }}
+              secondary={{ href: `/book-demo?module=${landingModule.key}`, event: "module_final_cta_click", label: CTAS.talkToSpecialist.label, variant: "inverse-secondary" }}
+            />
           </div>
         </Container>
       </Section>

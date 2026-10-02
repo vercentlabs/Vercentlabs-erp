@@ -1,10 +1,10 @@
 import Link from "next/link";
-import { GLOSSARY_TERMS } from "@vercentlabs/landing-content";
+import { GLOSSARY_TERMS, CTAS } from "@vercentlabs/landing-content";
 import { Container, Section, SectionHeader } from "@/components/layout/container";
 import { Heading } from "@/components/ui/text";
 import { Breadcrumbs } from "@/components/layout/breadcrumbs";
 import { DirectDefinition } from "@/components/modules/direct-definition";
-import { ContextualCta } from "@/components/shared/contextual-cta";
+import { ContextualCta } from "@/components/conversion/contextual-cta";
 import { CollectionHero } from "@/components/shared/collection-hero";
 import { Reveal } from "@/components/motion/reveal";
 import { TrackedCtaLink } from "@/components/analytics/tracked-cta-link";
@@ -100,7 +100,7 @@ export default function GlossaryIndexPage() {
               <span className="vl-index text-white/50">LEXICON → PRODUCT</span>
               <Heading level="h1" as="h2" className="mt-4 text-(--color-text-inverse)">Ready to see it running on your own data?</Heading>
             </div>
-            <TrackedCtaLink href="/book-demo" event="resource_cta_click" ctaLocation="glossary_index_final">Book a Demo</TrackedCtaLink>
+            <TrackedCtaLink href="/book-demo" event="resource_cta_click" ctaLocation="glossary_index_final">{CTAS.talkToSpecialist.label}</TrackedCtaLink>
           </Reveal>
         </Container>
       </Section>

@@ -1,7 +1,9 @@
+import { LAUNCH_CAPABILITY_SUMMARY, LAUNCH_CAPABILITY_TOTAL } from "./capabilities/launch-capabilities.js";
+import { CAPABILITY_GROUPS } from "./capabilities/capability-registry.js";
+import { CTAS } from "./navigation.js";
+
 /**
- * Cornerstone resource guides — 6, not the maximal 8-candidate list (see
- * docs/landing-redesign/phase-6/content-authority-strategy.md's scope
- * decision). Dropped inventory-management-guide and procurement-process-guide
+ * Cornerstone resource guides — 6, not the maximal 8-candidate list. Dropped inventory-management-guide and procurement-process-guide
  * as standalone pages: their real substance already lives on /modules/stock,
  * /modules/procurement, /workflows/order-to-fulfilment, /workflows/procure-to-pay,
  * and /industries/distribution — a standalone page would duplicate that
@@ -9,14 +11,15 @@
  *
  * erp-requirements-checklist's article metadata lives here (title, dek, faqs,
  * conversion) but its actual checklist body is built directly in its route
- * from CAPABILITY_GROUPS (capability-registry.js) — real, structured,
+ * from CAPABILITY_GROUPS (capabilities/capability-registry.js), which groups the approved
+ * launch capability register (capabilities/launch-capabilities.js) — structured,
  * crawlable capability data, not prose someone has to keep in sync by hand.
  *
- * Every claim in every guide traces to product-intelligence.md (for
- * Vercentlabs-specific claims) or is a vendor-neutral statement true of ERP
- * evaluation/implementation/migration generally (for the guides explicitly
- * scoped to stay useful to a buyer evaluating any ERP, not just Vercentlabs —
- * erp-buying-guide and erp-implementation-checklist in particular).
+ * Vercentlabs-specific statements must stay inside the approved launch
+ * capability register; everything else is a vendor-neutral statement true of
+ * ERP evaluation/implementation/migration generally (erp-buying-guide and
+ * erp-implementation-checklist in particular are scoped to stay useful to a
+ * buyer evaluating any ERP).
  */
 export const RESOURCE_GUIDES = Object.freeze([
   {
@@ -66,7 +69,7 @@ export const RESOURCE_GUIDES = Object.freeze([
         id: "vercentlabs-context",
         heading: "Where Vercentlabs fits into this framework",
         paragraphs: [
-          "Vercentlabs ERP is a 12-module, multi-tenant, multi-company platform — the Requirements Checklist on this site lets you evaluate its real capability coverage against the framework above using the same structured, filterable list this guide describes, whether or not you end up choosing Vercentlabs.",
+          `Vercentlabs ERP is a multi-tenant, multi-company platform with ${LAUNCH_CAPABILITY_SUMMARY} — the Requirements Checklist on this site lets you evaluate that approved scope against the framework above using the same structured, filterable list this guide describes, whether or not you end up choosing Vercentlabs.`,
         ],
       },
     ],
@@ -80,16 +83,16 @@ export const RESOURCE_GUIDES = Object.freeze([
     relatedResourceSlugs: ["erp-requirements-checklist", "erp-implementation-checklist", "erp-vs-spreadsheets"],
     metaDescription: "A vendor-neutral ERP buying guide: how to evaluate ERP software based on real operational pain, which modules to implement first, and the questions worth asking any vendor.",
     searchIntent: "how to choose ERP software",
-    conversion: { heading: "See whether Vercentlabs fits the framework above.", ctaLabel: "Book a Demo" },
+    conversion: { heading: "See whether Vercentlabs fits the framework above.", ctaLabel: CTAS.talkToSpecialist.label },
   },
   {
     slug: "erp-requirements-checklist",
     category: "Requirements",
     title: "The ERP Requirements Checklist",
-    dek: "A structured, filterable checklist built from Vercentlabs' retained 991-requirement capability model — usable as a neutral evaluation framework for any ERP decision, not just this one.",
+    dek: `A structured, filterable checklist built from Vercentlabs ERP's ${LAUNCH_CAPABILITY_SUMMARY} — usable as a neutral evaluation framework for any ERP decision, not just this one.`,
     keyTakeaways: [
-      "991 documented requirements across 12 modules and a shared platform layer — filterable by module below.",
-      "Every item links to the real page describing how Vercentlabs implements it.",
+      `${LAUNCH_CAPABILITY_TOTAL} approved MVP capabilities in ${CAPABILITY_GROUPS.length} groups, across the business modules and the Shared Platform — filterable by module below.`,
+      "Every group links to the page describing that part of Vercentlabs ERP.",
       "Your selections stay in your browser only — nothing is sent anywhere unless you explicitly choose to.",
     ],
     sections: [
@@ -104,15 +107,15 @@ export const RESOURCE_GUIDES = Object.freeze([
     ],
     faqs: [
       { question: "Is my progress saved if I close the browser?", answer: "Yes — your checked items are saved to your browser's local storage, not to a server, so they persist across visits on the same device and browser but are never visible to Vercentlabs or transmitted anywhere." },
-      { question: "Can I print this checklist?", answer: "Yes — the Print button opens your browser's print dialog with a layout suited for printing; the filter and checkbox controls are hidden in the printed version so you get the clean requirement list." },
-      { question: "Does this cover every requirement individually?", answer: "This checklist operates at the same capability-group granularity Vercentlabs' own module pages use — 70 groups summing to 991 documented requirements — rather than presenting each requirement as a separate feature claim." },
+      { question: "Can I print this checklist?", answer: "Yes — the Print button opens your browser's print dialog with a layout suited for printing; the filter and checkbox controls are hidden in the printed version so you get a clean capability list." },
+      { question: "Does this list every capability individually?", answer: `Yes — each group lists the approved MVP capabilities it contains, ${LAUNCH_CAPABILITY_TOTAL} in total across ${CAPABILITY_GROUPS.length} groups. These are Vercentlabs ERP's approved launch scope, the same groups its module pages use.` },
     ],
     relatedModuleKeys: [],
     relatedWorkflowSlugs: [],
     relatedResourceSlugs: ["erp-buying-guide", "erp-implementation-checklist"],
-    metaDescription: "A structured, filterable ERP requirements checklist covering 991 documented requirements across 12 modules and a shared platform layer — no login required, nothing transmitted.",
+    metaDescription: `A structured, filterable ERP requirements checklist built from Vercentlabs ERP's ${LAUNCH_CAPABILITY_SUMMARY} — no login required, nothing transmitted.`,
     searchIntent: "ERP requirements checklist",
-    conversion: { heading: "See the checklist items you cared about most, live in the product.", ctaLabel: "Book a Demo" },
+    conversion: { heading: "See the checklist items you cared about most, live in the product.", ctaLabel: CTAS.talkToSpecialist.label },
   },
   {
     slug: "erp-implementation-checklist",
@@ -150,7 +153,7 @@ export const RESOURCE_GUIDES = Object.freeze([
         id: "testing-and-training",
         heading: "Integration testing and user training",
         paragraphs: [
-          "Test the specific workflows your organisation actually runs, not just a generic smoke test — the order-to-invoice sequence a real sales team will use, the requisition-to-payment sequence a real buyer will use. Training that happens once, weeks before go-live, is consistently less effective than training scheduled close to go-live with a real, hands-on task to complete.",
+          "Test the specific workflows your organisation actually runs, not just a generic smoke test — the order-to-invoice sequence a real sales team will use, the purchase-to-payment sequence a real buyer will use. Training that happens once, weeks before go-live, is consistently less effective than training scheduled close to go-live with a real, hands-on task to complete.",
         ],
       },
       {
@@ -227,7 +230,7 @@ export const RESOURCE_GUIDES = Object.freeze([
     slug: "manufacturing-erp-guide",
     category: "Manufacturing",
     title: "The Manufacturing ERP Guide",
-    dek: "What manufacturing ERP actually needs to do — bills of materials, work orders, material planning — and how Vercentlabs implements each piece.",
+    dek: "What manufacturing ERP actually needs to do — bills of materials, manufacturing orders, material planning — and which pieces Vercentlabs ERP covers at launch.",
     keyTakeaways: [
       "A bill of materials is the structural input every downstream manufacturing step depends on.",
       "Material requirements planning turns a production plan into a concrete purchasing/production plan.",
@@ -245,43 +248,43 @@ export const RESOURCE_GUIDES = Object.freeze([
         id: "bom-and-routing",
         heading: "Bills of materials and routings",
         paragraphs: [
-          "A bill of materials' accuracy directly determines whether production can run as planned — an incomplete or stale BOM produces a work order that can't actually be fulfilled. Vercentlabs enforces exactly one active BOM per item, so a work order always snapshots its materials and operations from a single, unambiguous structure at creation time, rather than reading live from a structure that could change mid-order.",
+          "A bill of materials' accuracy directly determines whether production can run as planned — an incomplete or stale BOM produces an order that can't actually be fulfilled. In Vercentlabs ERP, manufacturing orders are created from the item's bill of materials. Routings and work centers are not part of the launch product.",
           "See the Manufacturing module and the Plan to Production workflow for the real, full sequence.",
         ],
       },
       {
         id: "work-order-release-gating",
-        heading: "Work order release should be gated on real component availability",
+        heading: "Production should start only when the materials are there",
         paragraphs: [
-          "A work order that's released without proven component availability is a common source of shop-floor disruption — production starts, then stalls partway through because a component wasn't actually there. Vercentlabs blocks release outright if proven component availability can't be shown against the snapshotted BOM, rather than leaving that check to a planner's manual judgment.",
+          "An order started without the components it needs is a common source of shop-floor disruption — production starts, then stalls partway through because a component wasn't actually there. Vercentlabs ERP checks material availability for each manufacturing order against its bill of materials before production starts.",
         ],
       },
       {
         id: "mrp-honest-limitations",
-        heading: "Material requirements planning — and its honest current limitation",
+        heading: "Material requirements planning — not part of the launch product",
         paragraphs: [
-          "Material and capacity planning runs compare a demand signal against current stock and open supply and produce recommended purchase, manufacture, transfer, or expedite actions. Stated honestly: in Vercentlabs today, these runs are triggered manually — there is no automatic scheduler running MRP on a recurring cadence yet. This is a real, current limitation, not glossed over here.",
+          "MRP and capacity planning runs compare a demand signal against current stock and open supply and produce recommended purchase, manufacture, transfer, or expedite actions. Vercentlabs ERP does not include MRP or capacity planning at launch — purchasing decisions are made from real-time stock balances and each order's material availability check.",
         ],
       },
       {
         id: "connection-to-finance-and-inventory",
         heading: "Connection to inventory and finance, not an isolated production tracker",
         paragraphs: [
-          "Every material issue and finished-goods receipt in Vercentlabs posts as a real, auditable stock movement in the same transaction as the production event — production data feeds real inventory valuation and cost reporting, rather than requiring a separate reconciliation step between a production system and the books.",
+          "In Vercentlabs ERP, material issues and finished-goods receipts post to the same stock ledger the rest of the business uses, feeding inventory valuation, and each manufacturing order records its production cost — no separate reconciliation between a production tracker and inventory.",
         ],
       },
     ],
     faqs: [
-      { question: "Does Vercentlabs support multiple bills of materials for the same item?", answer: "No — exactly one active BOM per item is enforced, so a work order always snapshots from a single, unambiguous structure rather than an ambiguous choice between competing versions." },
-      { question: "Is material requirements planning fully automated?", answer: "Not yet — planning runs are triggered manually today, producing recommended purchase, manufacture, transfer, or expedite actions. There's no background scheduler running MRP on a recurring cadence in the current product." },
-      { question: "What happens if a work order is released without enough raw material?", answer: "It can't be — release is blocked outright if proven component availability can't be shown against the snapshotted bill of materials. This is a hard structural gate, not a warning a planner can dismiss." },
+      { question: "What does Vercentlabs Manufacturing cover at launch?", answer: "Bills of materials, manufacturing orders, material availability, material issue and consumption, scrap, production quality inspections and holds, finished-goods receipt, and production costing." },
+      { question: "Does Vercentlabs ERP include MRP?", answer: "No. MRP and capacity planning are not part of the launch product; manufacturing orders check material availability against their bill of materials instead." },
+      { question: "What happens if there isn't enough raw material for an order?", answer: "The manufacturing order's material availability check shows the shortfall against its bill of materials before production starts." },
     ],
     relatedModuleKeys: ["manufacturing", "stock"],
     relatedWorkflowSlugs: ["plan-to-production"],
     relatedResourceSlugs: ["erp-vs-spreadsheets", "erp-buying-guide"],
-    metaDescription: "What manufacturing ERP actually needs to cover — bills of materials, work order release gating, material requirements planning — and how Vercentlabs implements each piece, honestly.",
+    metaDescription: "What manufacturing ERP actually needs to cover — bills of materials, material availability, material requirements planning — and which pieces Vercentlabs ERP covers at launch, stated plainly.",
     searchIntent: "manufacturing ERP software",
-    conversion: { heading: "See real bill-of-materials and work-order governance in a live demo.", ctaLabel: "Book a Demo" },
+    conversion: { heading: "Walk through bills of materials and manufacturing orders with an ERP specialist.", ctaLabel: CTAS.talkToSpecialist.label },
   },
   {
     slug: "erp-vs-spreadsheets",
@@ -332,7 +335,7 @@ export const RESOURCE_GUIDES = Object.freeze([
     relatedResourceSlugs: ["erp-buying-guide", "manufacturing-erp-guide"],
     metaDescription: "A nuanced comparison of ERP and spreadsheets — where spreadsheets remain the right tool, where they genuinely break down, and the concrete questions worth asking before deciding.",
     searchIntent: "ERP vs spreadsheets",
-    conversion: { heading: "See what replaces your spreadsheet processes in Vercentlabs.", ctaLabel: "Book a Demo" },
+    conversion: { heading: "See what replaces your spreadsheet processes in Vercentlabs.", ctaLabel: CTAS.talkToSpecialist.label },
   },
 ]);
 

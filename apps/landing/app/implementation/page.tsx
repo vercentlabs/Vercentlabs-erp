@@ -7,7 +7,7 @@ import { TrackedCtaLink } from "@/components/analytics/tracked-cta-link";
 import { TrackView } from "@/components/analytics/track-view";
 import { DirectDefinition } from "@/components/modules/direct-definition";
 import { ImplementationTimeline } from "@/components/implementation/implementation-timeline";
-import { ContextualCta } from "@/components/shared/contextual-cta";
+import { ContextualCta } from "@/components/conversion/contextual-cta";
 import { CollectionHero } from "@/components/shared/collection-hero";
 import { RelatedPages } from "@/components/modules/related-pages";
 import { Reveal } from "@/components/motion/reveal";

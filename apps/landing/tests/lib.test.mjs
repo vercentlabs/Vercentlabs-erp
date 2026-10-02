@@ -57,12 +57,14 @@ test("getApprovedScreenshot returns null for an id with no approved entry", () =
   assert.equal(getApprovedScreenshot("no-such-screenshot-id"), null);
 });
 
-test("every approved screenshot is marked approvedForMarketing and resolves by id", () => {
+test("getApprovedScreenshot resolves a registered screenshot only when it is approved for marketing", () => {
   assert.ok(APPROVED_SCREENSHOTS.length > 0);
   for (const screenshot of APPROVED_SCREENSHOTS) {
-    assert.equal(screenshot.approvedForMarketing, true);
-    assert.equal(getApprovedScreenshot(screenshot.id)?.id, screenshot.id);
+    const resolved = getApprovedScreenshot(screenshot.id);
+    if (screenshot.approvedForMarketing) assert.equal(resolved?.id, screenshot.id);
+    else assert.equal(resolved, null, `${screenshot.id} is not approved for marketing but still resolves`);
   }
+  assert.equal(getApprovedScreenshot("not-a-registered-screenshot"), null);
 });
 
 // Regression test for a real Phase 4 bug: a module's content referenced a

@@ -1,170 +1,153 @@
+import { CTAS } from "./navigation.js";
+
 /**
- * Solution pages — Phase 5 IA amendment (see docs/landing-redesign/phase-5/
- * decision-log.md item 1). The approved Phase 1 IA doc explicitly argued
- * against a standalone /solutions tier ("a 'solution' in this product's case
- * is either an industry framing or a workflow framing, not a third thing"),
- * and icp-and-buyer-map.md explicitly folded "replacing spreadsheets" and
- * "consolidating disconnected systems" into the homepage's top-of-funnel
- * framing rather than giving them their own page, for the same reason. The
- * governing prompt for this phase asked for 5 standalone solution pages
- * regardless; the user approved building them as a deliberate amendment.
+ * Solution pages — problem-led entry points that go deeper than the homepage's
+ * problem section and link to ONE paired platform page
+ * (relatedPlatformPageSlug) for the underlying capability, never restating it.
  *
- * To make that amendment defensible rather than a cannibalisation risk, every
- * solution page here goes materially deeper than the homepage's five-second
- * pitch (packages/landing-content/src/homepage.js's PROBLEM_SECTION) — a real
- * before/after system narrative, concrete translation of what's being
- * replaced, and links to ONE paired platform page (relatedPlatformPageSlug)
- * that a reader can go to for the underlying capability, never restating that
- * page's content. Every approach[] claim traces to
- * docs/landing-redesign/phase-1/product-intelligence.md.
- *
- * screenshotId (optional, Phase 6) is assigned only where a real approved
- * screenshot (apps/landing/lib/product/screenshots.ts) honestly illustrates
- * that page's specific approach[] claims — not a generic module screenshot
- * bolted on for coverage. multi-company-management deliberately has none:
- * no approved screenshot shows company/branch isolation or consolidation,
- * and forcing an unrelated one would misrepresent what the image shows.
- * See docs/landing-redesign/phase-6/decision-log.md.
+ * Every approach[] claim must stay inside the approved launch capability
+ * register (capabilities/launch-capabilities.js). screenshotId is optional and only set
+ * where an approved screenshot honestly illustrates the page's approach.
  */
 export const LANDING_SOLUTIONS = Object.freeze([
   {
     slug: "replace-spreadsheets",
     name: "Replace Spreadsheets",
     directDefinition:
-      "Replacing spreadsheets with Vercentlabs ERP means one server-validated master-data model, governed numbering series, and an immutable audit trail replacing the item, BOM, and pricing files departments currently maintain separately.",
+      "Replacing spreadsheets with Vercentlabs ERP means shared master data, validated forms, document numbering, and a protected audit log in place of the item, customer, and pricing files departments currently maintain separately.",
     problemStatement:
-      "Your item master lives in one spreadsheet, your BOM in another, your invoice numbering is a manually incremented cell, and every one of them drifts out of sync with what's actually true the moment two people edit at once.",
-    before: "Item codes, prices, and BOM structures re-typed across three or four spreadsheets, with no single version anyone fully trusts — and no record of who changed what, when.",
-    after: "One real item and party master feeding every module — Sales pricing, Procurement ordering, Stock valuation, Manufacturing BOMs — with server-validated forms, not a shared file someone else has open.",
+      "Your item list lives in one spreadsheet, your customers in another, your invoice numbering is a manually incremented cell, and every one of them drifts out of sync the moment two people edit at once.",
+    before: "Item codes, customers, and prices re-typed across three or four spreadsheets, with no single version anyone fully trusts — and no record of who changed what, when.",
+    after: "One item master and one customer and supplier master shared by every module — Sales, Procurement, Stock, and Manufacturing — with validated forms instead of a shared file someone else has open.",
     approach: [
-      { title: "Item, party, and BOM data becomes one real master", description: "Master data (items, suppliers, customers, addresses, unit-of-measure, bills of material) lives in one server-validated model that every module reads from — not a workbook copied between departments.", moduleKey: "manufacturing" },
-      { title: "Manual numbering becomes a governed numbering series", description: "Organisation bootstrap seeds roughly 29 numbering series across the platform at signup — invoice numbers, purchase order numbers, and the rest stop being a manually incremented cell someone eventually gets wrong." },
-      { title: "A version-history cell becomes an immutable audit trail", description: "Every record change is logged to an audit table a Postgres trigger makes immutable — UPDATE and DELETE are rejected at the database level, not just hidden by a UI restriction." },
-      { title: "Formula-driven totals become server-computed values", description: "Pricing waterfalls, GST tax splits, credit checks, and margin calculations run as real server logic against live data, not a spreadsheet formula that breaks the moment a column gets inserted." },
+      { title: "Item, customer, and supplier data becomes one master", description: "The item master, customer master, and supplier master are shared by every module that needs them — not a workbook copied between departments.", moduleKey: "stock" },
+      { title: "Manual numbering becomes document numbering", description: "Invoices, orders, and other documents take their numbers from configured numbering series — no more manually incremented cell that someone eventually gets wrong." },
+      { title: "A version-history column becomes a protected audit log", description: "Significant actions are recorded in a platform audit log, and the database rejects any attempt to edit or delete an entry." },
+      { title: "Formula-driven totals become calculated values", description: "Discounts, taxes, stock balances, and inventory valuation are calculated by the system from live records, not a spreadsheet formula that breaks when a column is inserted." },
     ],
     relatedPlatformPageSlug: "/product",
     relatedModuleKeys: ["stock", "sales", "procurement"],
     relatedWorkflowSlugs: ["procure-to-pay"],
     screenshotId: "sales-quotation-detail",
     faqs: [
-      { question: "How much of our existing spreadsheet data actually migrates?", answer: "Customers, items, suppliers, and open transactions are migrated and reconciled as part of implementation — see the implementation journey's data-migration phase for the real process, not a manual re-typing exercise." },
-      { question: "Will the team lose the flexibility a spreadsheet gives them?", answer: "Server-validated forms replace ad hoc cell edits, which is a real trade-off — you lose free-form editing in exchange for data that every module can trust. Most teams that make this switch are doing so because the free-form editing was already the problem, not a feature." },
-      { question: "What if our processes don't match a standard module exactly?", answer: "Implementation's configuration phase adapts numbering, roles, and approval thresholds to your real process rather than forcing a generic template — see the implementation journey for what's actually configurable at that stage." },
+      { question: "How much of our existing spreadsheet data moves across?", answer: "Data migration is planned and checked as part of implementation — see the implementation journey's data-migration phase — and CSV import with a preview and rollback step is available for CRM leads." },
+      { question: "Will the team lose the flexibility a spreadsheet gives them?", answer: "Validated forms replace free-form cell edits, which is a real trade-off — you lose ad hoc editing in exchange for data every module can trust. Most teams make this switch because the free-form editing was already the problem." },
+      { question: "What if our processes don't match a standard module exactly?", answer: "Implementation's configuration phase sets up numbering, roles, permissions, and module settings to match your real process — see the implementation journey for what's configurable at that stage." },
     ],
-    metaDescription: "See what replaces your item, BOM, and pricing spreadsheets: one server-validated master data model, governed numbering series, and an immutable audit trail — not another file someone else has open.",
+    metaDescription: "See what replaces your item, customer, and pricing spreadsheets: shared master data, validated forms, document numbering, and a protected audit log — not another file someone else has open.",
     searchIntent: "replace spreadsheets with ERP software",
-    conversion: { heading: "See your spreadsheet processes become one governed system.", ctaLabel: "Book a Demo" },
+    conversion: { heading: "See your spreadsheet processes become one connected system.", ctaLabel: CTAS.talkToSpecialist.label },
   },
   {
     slug: "connect-business-operations",
     name: "Connect Business Operations",
     directDefinition:
-      "Connecting business operations with Vercentlabs ERP means CRM, Sales, Procurement, and Accounting reading and writing the same real records at each handoff — not synced copies reconciled between separate tools.",
+      "Connecting business operations with Vercentlabs ERP means CRM, Sales, Stock, Procurement, and Accounting working on the same records at each handoff — not synced copies reconciled between separate tools.",
     problemStatement:
-      "Procurement doesn't know what sales just promised a customer. Production doesn't know what procurement just ordered. Every handoff between departments is a re-typed email or a Slack message, not a system that already knows.",
-    before: "A CRM opportunity, a Sales quotation, a Procurement purchase order, and an Accounting invoice exist as four separate records in four separate tools, connected only by someone remembering to update all four.",
-    after: "One connected data model where a won CRM opportunity is the literal source record for a Sales quotation, an accepted quotation converts to a credit-checked order, and that order generates an invoice through an auditable, idempotent handoff — the same real record, not four copies.",
+      "Purchasing doesn't know what sales just promised a customer. The warehouse doesn't know what purchasing just ordered. Every handoff between departments is a re-typed email or a chat message, not a system that already knows.",
+    before: "An opportunity, a quotation, a purchase order, and an invoice exist as four records in four tools, connected only by someone remembering to update all four.",
+    after: "One connected data model where an opportunity converts into a quotation, the quotation becomes an order that reserves real stock, and the invoice posts to the general ledger — the same records, not four copies.",
     approach: [
-      { title: "CRM to Sales is a real, cited handoff", description: "A won opportunity is the source record for a quotation (`source_opportunity_id`), and confirming the resulting order writes the win status back to CRM automatically — not a manual status update in two systems.", moduleKey: "crm" },
-      { title: "Procurement to Accounting is gated, not assumed", description: "A vendor bill can only be imported once the matching engine confirms the purchase order, receipt, and invoice line up — 2, 3, or 4-way matching, with a mandatory reason for any tolerance override.", moduleKey: "procurement" },
-      { title: "Support sees the whole customer, not just the ticket", description: "A support ticket carries first-class references to the customer's CRM account, sales order, invoice, asset, and project records, aggregated into one customer-history view — not four browser tabs.", moduleKey: "support" },
-      { title: "One governed approval backbone, not a department-by-department email chain", description: "A single validated, permission-gated command registry wires approvals for discounts, purchase orders, journal entries, and more onto shared decision and separation-of-duties primitives — reused across modules, not reinvented per department." },
+      { title: "CRM to Sales without re-typing", description: "An opportunity converts into a Sales quotation, so the customer and deal details carry straight through to the order and invoice.", moduleKey: "crm" },
+      { title: "Sales orders see real stock", description: "Sales orders check availability and reserve stock from the same balances the warehouse works from.", moduleKey: "sales" },
+      { title: "Procurement to Accounting is checked, not assumed", description: "Supplier invoices are matched 2-way against the purchase order, or 3-way against the order and goods receipt, before they're posted and paid.", moduleKey: "procurement" },
+      { title: "Support works from the same customer", description: "Support tickets are logged against the same customers and contacts the revenue team works with, so agents and sales share one customer record.", moduleKey: "support" },
     ],
     relatedPlatformPageSlug: "/product/platform",
     relatedModuleKeys: ["crm", "sales", "procurement", "support"],
     relatedWorkflowSlugs: ["lead-to-cash", "procure-to-pay"],
     screenshotId: "sales-order-detail",
     faqs: [
-      { question: "Does every module talk to every other module automatically?", answer: "No — the connections are real but specific, not an all-to-all mesh. Standard sales-order fulfillment, for example, does not yet post an automatic stock deduction; only Manufacturing and Point of Sale write to the stock ledger today. See each module page's 'Connected modules' section for the honest, specific relationship." },
-      { question: "How is this different from just buying integration middleware for our existing tools?", answer: "Middleware connects separate systems after the fact, with all the sync-lag and conflict-resolution problems that implies. Here, CRM, Sales, Procurement, and Accounting are one system with one data model — there's no sync step for these connections because there's nothing to sync. (Not every module pair works this way yet — see the previous question.)" },
-      { question: "What connects the platform underneath these module handoffs?", answer: "See the Platform capability page for the shared control plane — multi-tenancy, roles and permissions, the approval-workflow engine, and the immutable audit trail every module inherits rather than rebuilding." },
+      { question: "Does every module talk to every other module automatically?", answer: "No — the connections are real but specific, not an all-to-all mesh. Each module page's 'Connected modules' section describes exactly which records it shares and with whom." },
+      { question: "How is this different from buying integration middleware for our existing tools?", answer: "Middleware connects separate systems after the fact, with sync lag and conflicts to resolve. Here, CRM, Sales, Stock, Procurement, and Accounting are modules of one system with one data model, so these handoffs don't need a sync step." },
+      { question: "What sits underneath these module handoffs?", answer: "See the Platform page for the Shared Platform every module runs on — tenants and companies, users, roles and permissions, audit logs, and the transaction safety that keeps records consistent." },
     ],
-    metaDescription: "See how Vercentlabs connects CRM, Sales, Procurement, and Accounting as one real data model — a won opportunity becomes a quotation, an order, and an invoice without being re-typed at each handoff.",
+    metaDescription: "See how Vercentlabs connects CRM, Sales, Stock, Procurement, and Accounting on one data model — an opportunity becomes a quotation, an order, and an invoice without being re-typed.",
     searchIntent: "connect business operations software",
-    conversion: { heading: "See a lead become an invoice without a single re-typed handoff.", ctaLabel: "Book a Demo" },
+    conversion: { heading: "See a lead become an invoice without a single re-typed handoff.", ctaLabel: CTAS.talkToSpecialist.label },
   },
   {
     slug: "multi-company-management",
     name: "Multi-Company Management",
     directDefinition:
-      "Managing multiple companies with Vercentlabs ERP means structural isolation by company and branch, scoped and time-bound roles, and real consolidation when you need a combined view — relevant to a manufacturer running several plants or a distributor running multiple warehouses under one legal umbrella, not just a holding-company structure.",
+      "Managing multiple companies with Vercentlabs ERP means several companies and branches in one organisation, with roles, permissions, and company and branch access deciding who sees what — relevant to a manufacturer with several plants or a distributor with several warehouses, not just a holding-company structure.",
     problemStatement:
-      "You run more than one legal entity, more than one plant, or more than one branch — a manufacturer with several facilities, a distributor with multiple warehouses — and today that means either a separate system per entity or one shared login where anyone can see everyone else's numbers.",
-    before: "Either N separate systems (one per company) that never reconcile with each other, or one shared system with no real separation — every user sees every company's data whether they should or not.",
-    after: "One platform, structurally isolated by company and branch — a user's access is scoped to the companies, branches, or even departments they're actually granted, with consolidation and intercompany posting available when you need a combined view.",
+      "You run more than one legal entity, plant, or branch, and today that means either a separate system per entity or one shared login where anyone can see everyone else's numbers.",
+    before: "Either a separate system per company that never lines up with the others, or one shared system with no real separation — every user sees every company's data whether they should or not.",
+    after: "One platform with several companies and branches, where each user's access is scoped to the companies and branches they're granted.",
     approach: [
-      { title: "Isolation is structural, not a filtered view", description: "Organisations, companies, branches, departments, and cost centers form a real hierarchy with granular, membership-scoped access — company and branch, not an all-or-nothing switch a careless admin could flip." },
-      { title: "Roles can be scoped and time-bound per company or branch", description: "Role assignments can be scoped to specific companies, branches, or departments, and can carry a start and expiry date — a contractor or auditor's access doesn't outlive the engagement." },
-      { title: "Consolidation is a real capability, not a manual spreadsheet roll-up", description: "Accounting supports multi-entity consolidation and intercompany posting as part of its close/planning capability group — a combined view exists when you need it, without breaking each entity's own isolated books.", moduleKey: "accounting" },
-      { title: "One numbering and role framework, provisioned once", description: "A one-transaction organisation bootstrap seeds roughly 12 roles and 29 numbering series at signup — adding a new company doesn't mean rebuilding your role and numbering structure from scratch." },
+      { title: "Companies and branches in one organisation", description: "An organisation can run several companies and branches, each with its own company settings for currency, timezone, tax configuration, and document numbering." },
+      { title: "Access scoped by company and branch", description: "Company and branch access is scoped through permissions and query-level controls in the application, so a user only reaches the companies and branches they've been granted." },
+      { title: "Roles and record-level access on top", description: "Roles and permissions decide what each user can do, and record-level access narrows which records they reach within their companies." },
+      { title: "Each company keeps its own books", description: "Accounting keeps the chart of accounts, general ledger, and financial statements for the business on the same platform as every other module.", moduleKey: "accounting" },
     ],
     relatedPlatformPageSlug: "/product/platform",
     relatedModuleKeys: ["accounting"],
     relatedWorkflowSlugs: [],
     faqs: [
-      { question: "Can a user work across two companies if their role genuinely requires it?", answer: "Yes — access is scoped per company/branch/department by design, but a role assignment can be granted across multiple scopes where that's the real access someone needs. It's not an all-or-nothing single-tenant switch." },
-      { question: "Is consolidation automatic, or does someone have to run it?", answer: "Multi-entity consolidation and intercompany posting are real capabilities inside Accounting's close/planning workflow, not a background job — they run as part of a deliberate close/reporting step, keeping each entity's own books independently accurate." },
-      { question: "Does time-bound role access apply to auditors and contractors too?", answer: "Role assignments generally can carry a start and expiry date and can be scoped to a specific company or branch — a reasonable fit for an auditor or contractor engagement, though this is a platform capability, not an auditor-specific feature." },
+      { question: "Can a user work across two companies if their role genuinely requires it?", answer: "Yes — company and branch access is granted per user, so someone who genuinely needs more than one company can be given access to each." },
+      { question: "Does Vercentlabs consolidate the books of several companies?", answer: "No. The launch product doesn't include financial consolidation or intercompany accounting." },
+      { question: "Is company separation enforced in the database?", answer: "Tenant (organisation) isolation is enforced by database row-level security. Company and branch access within an organisation is enforced by permissions and query-level controls in the application." },
     ],
-    metaDescription: "See how Vercentlabs structurally isolates data by company and branch — scoped, time-bound roles, one shared numbering framework, and real multi-entity consolidation when you need a combined view.",
+    metaDescription: "See how Vercentlabs runs several companies and branches in one organisation, with roles, permissions, record-level access, and company and branch access scoping who sees what.",
     searchIntent: "multi-company ERP software",
-    conversion: { heading: "See structural isolation across every company you run.", ctaLabel: "Book a Demo" },
+    conversion: { heading: "See access scoped across every company you run.", ctaLabel: CTAS.talkToSpecialist.label },
   },
   {
     slug: "workflow-automation",
-    name: "Automate Governed Workflows",
+    name: "Built-In Workflow Controls",
     directDefinition:
-      "Automating workflow with Vercentlabs ERP means policy-routed approvals, code-enforced self-approval blocking, and scheduled recurring financial postings — real, built-in governed automations, not a drag-and-drop workflow builder you configure yourself.",
+      "Workflow control with Vercentlabs ERP means the system enforcing specific rules inside everyday work — duplicate detection, stock reservation, negative-stock control, quality holds, invoice matching, and leave and payroll approval — not a drag-and-drop workflow builder you configure yourself.",
     problemStatement:
-      "A discount approval sits in an email thread for a week. A journal entry gets posted without anyone checking it against the account it references. The parts of your process that shouldn't need a human keep needing one anyway.",
-    before: "Approvals routed by whoever remembers to forward the email; the same person able to create and approve their own transaction; recurring postings re-entered by hand every period.",
-    after: "A shared, governed command registry routes discounts, purchase orders, and journal entries to the right approver by policy, blocks the creator of a transaction from approving their own work, and runs recurring postings — accruals, FX revaluation, dunning — on a schedule instead of a checklist.",
+      "Stock gets promised twice. Goods that failed inspection get shipped. A supplier invoice gets paid for goods that never arrived. The parts of your process that should be enforced keep depending on someone remembering.",
+    before: "Stock checked by walking the warehouse, failed goods flagged on a sticky note, supplier invoices paid on trust, and leave and payroll signed off in email.",
+    after: "Sales orders reserve real stock, issues below zero are blocked, quality holds stop stock from moving, supplier invoices are matched before payment, and leave and payroll are approved in the system.",
     approach: [
-      { title: "Approval routing is policy-driven, not inbox-driven", description: "A single validated, permission-gated command registry wires module approvals onto shared decision primitives — a discount, a purchase order, and a journal entry all route by the same real policy engine, not three different email habits." },
-      { title: "Self-approval is blocked in code, not just discouraged in policy", description: "Payroll runs require a different approver than the preparer; leave requests can't be approved by the person who submitted them; an asset's creator can't capitalize or dispose of it themselves — enforced structurally, across HR, Assets, Accounting, and more." },
-      { title: "Recurring postings run on a schedule, not a checklist", description: "Accounting automates scheduled recurring journals, accruals, FX revaluation, consolidation, and dunning — the period-end tasks a controller used to have to remember to trigger by hand.", moduleKey: "accounting" },
-      { title: "Quality holds trigger automatically, not by someone noticing", description: "A failed quality inspection automatically places an inventory hold on the affected batch, serial, receipt, work order, or return — the hold doesn't wait for a human to catch the failure and act on it.", moduleKey: "quality" },
+      { title: "Stock can't be promised twice", description: "Sales orders check availability and reserve stock, and negative-stock control blocks issues that would take a balance below zero.", moduleKey: "stock" },
+      { title: "Failed goods can't move", description: "A quality hold blocks stock movement until the hold is released, so stock that failed inspection isn't shipped or used by mistake.", moduleKey: "quality" },
+      { title: "Supplier invoices are checked before payment", description: "Supplier invoices are matched 2-way against the purchase order, or 3-way against the order and goods receipt.", moduleKey: "procurement" },
+      { title: "Leave and payroll are approved in the system", description: "Leave requests and payroll are approved in Vercentlabs ERP, and an approver can't approve a payroll that includes their own pay.", moduleKey: "hr-payroll" },
     ],
     relatedPlatformPageSlug: "/product/automation",
-    relatedModuleKeys: ["accounting", "quality", "hr-payroll"],
+    relatedModuleKeys: ["stock", "quality", "hr-payroll"],
     relatedWorkflowSlugs: ["procure-to-pay", "hire-to-payroll"],
     screenshotId: "quality-dashboard",
     faqs: [
-      { question: "Is this a general-purpose workflow builder we configure ourselves?", answer: "No — this is a set of real, built-in governed automations (approval routing, self-approval blocking, scheduled financial postings, automatic quality holds) rather than a drag-and-drop workflow designer. See the Automation platform page for the full, honest breakdown of what's automatic today versus what still requires a manual trigger." },
-      { question: "Does self-approval blocking apply everywhere, or just in Accounting?", answer: "It's a shared pattern applied across multiple modules — Accounting's subledger approvals, Procurement, HR & Payroll's leave and payroll runs, Assets' capitalization and disposal, Projects' timesheet approval — not an Accounting-only control." },
-      { question: "What still requires a manual trigger today?", answer: "Manufacturing's material-requirements planning runs and Procurement's requisition creation both still need a person to trigger them — there's no background scheduler running either automatically yet. That's stated plainly, not glossed over." },
+      { question: "Is this a general-purpose workflow builder we configure ourselves?", answer: "No — these are specific controls built into the modules (stock reservation, negative-stock control, quality holds, invoice matching, leave and payroll approval), not a drag-and-drop workflow designer." },
+      { question: "Is there a general approval engine for discounts, purchases, and journals?", answer: "No. Approvals at launch are built into specific capabilities — leave approval and payroll approval — rather than a general-purpose approval engine." },
+      { question: "Does Vercentlabs schedule recurring postings or reorders automatically?", answer: "No. The launch product doesn't include scheduled recurring postings, automatic reordering, or MRP planning runs." },
     ],
-    metaDescription: "See what Vercentlabs automates without a human trigger: policy-routed approvals, code-enforced self-approval blocking, scheduled recurring financial postings, and automatic quality holds.",
+    metaDescription: "See the controls Vercentlabs ERP enforces inside everyday work: stock reservation, negative-stock control, quality holds, supplier invoice matching, and leave and payroll approval.",
     searchIntent: "business process automation software",
-    conversion: { heading: "See what stops needing a human to catch it.", ctaLabel: "Book a Demo" },
+    conversion: { heading: "See what stops needing a human to catch it.", ctaLabel: CTAS.talkToSpecialist.label },
   },
   {
     slug: "real-time-business-reporting",
     name: "Real-Time Business Reporting",
     directDefinition:
-      "Real-time reporting with Vercentlabs ERP means every report — project margin, financial statements, pipeline forecast, spend analysis — reads the same live transactional data every module writes to, not a scheduled data-warehouse refresh.",
+      "Real-time reporting with Vercentlabs ERP means reports come straight from the records every module works on — financial statements from the general ledger, stock balances from the stock ledger, and day-end totals from the till — not a scheduled data-warehouse refresh.",
     problemStatement:
-      "Sales, finance, and operations each keep their own version of the numbers, refreshed whenever someone remembers to update the spreadsheet — usually right before the numbers are needed, never when a decision actually depends on them.",
-    before: "A month-end close before anyone knows the real margin; a manually rebuilt pipeline forecast; a stock count that's only as current as the last physical walk-through.",
-    after: "Project margin computed live from approved actuals while the project is still open. A 16-report Accounting registry, a 14-type CRM reporting suite, and Procurement's 12-report spend/risk analytics — all reading the same live data every other module writes to.",
+      "Sales, finance, and operations each keep their own version of the numbers, refreshed whenever someone remembers to update the spreadsheet — usually right before the numbers are needed.",
+    before: "A trial balance rebuilt from exports, a stock count only as current as the last walk-through, and a pipeline kept in personal lists.",
+    after: "The trial balance, profit & loss, and balance sheet straight from the general ledger; real-time stock balances by warehouse; the opportunity pipeline by sales stage; and the Day-End / Z report for every shift.",
     approach: [
-      { title: "Project margin is live, not a post-mortem", description: "Gross margin is computed from approved labor, approved expenses, and real procurement actuals against contracted revenue while the project is still open — not a report run after the project closes.", moduleKey: "projects" },
-      { title: "Financial reporting is a real registry, not a rebuilt spreadsheet", description: "Accounting's 16-report registry covers trial balance, GL, P&L, balance sheet, cash flow, aged AR/AP, tax summary, and close status — plus a hashed close-pack snapshot bundle for audit — all generated from posted transactions, not re-assembled by hand.", moduleKey: "accounting" },
-      { title: "Pipeline and forecast numbers come from the same governed pipeline", description: "CRM's 14 report types include weighted and committed forecast by rep and team, computed from the same stage-gated pipeline reps actually work in — not a separate forecast spreadsheet someone reconciles against it.", moduleKey: "crm" },
-      { title: "Spend visibility doesn't wait for a quarterly review", description: "Procurement's 12-report registry covers spend analysis, maverick-spend detection, matching exceptions, supplier risk, and cycle time — live operational visibility, not a once-a-quarter audit exercise.", moduleKey: "procurement" },
+      { title: "Financial statements from the ledger", description: "The trial balance, profit & loss, and balance sheet are produced from the double-entry general ledger, not re-assembled by hand.", moduleKey: "accounting" },
+      { title: "Stock balances that are actually current", description: "Real-time stock balances and the inventory movement history update as each receipt, issue, transfer, and adjustment posts.", moduleKey: "stock" },
+      { title: "A pipeline everyone reads the same way", description: "The opportunity pipeline shows open deals by sales stage, from the same records sales reps work in.", moduleKey: "crm" },
+      { title: "Day-end totals from the till", description: "The Day-End / Z report and payment reconciliation total each shift's takings by payment method.", moduleKey: "point-of-sale" },
     ],
     relatedPlatformPageSlug: "/product/analytics",
-    relatedModuleKeys: ["accounting", "crm", "procurement", "projects"],
-    relatedWorkflowSlugs: ["project-to-profitability"],
-    screenshotId: "projects-dashboard",
+    relatedModuleKeys: ["accounting", "stock", "crm", "point-of-sale"],
+    relatedWorkflowSlugs: ["order-to-fulfilment"],
+    screenshotId: "stock-overview",
     faqs: [
-      { question: "Is 'real-time' actually real-time, or refreshed on a schedule?", answer: "Reports read live transactional data, not a scheduled data-warehouse refresh — a posted journal, a completed inspection, or an approved timesheet is reflected the next time the relevant report runs, not the next morning." },
-      { question: "Can we export data for our own BI tool instead of using the built-in reports?", answer: "CSV export exists with injection-safe handling and hard-capped pagination — see the Analytics platform page for the full breakdown of what's exportable and what stays report-only today." },
-      { question: "Do different departments really see the same numbers, or their own version?", answer: "Reports read from the same underlying transactional tables every module writes to — Sales' pipeline reports and Accounting's receivables reports both trace back to the same order and invoice records, not two independently maintained copies." },
+      { question: "Is 'real-time' actually real-time, or refreshed on a schedule?", answer: "Reports read the operational records directly — a posted journal or a stock movement is reflected the next time the relevant report runs, not the next morning." },
+      { question: "Can we export data for our own BI tool?", answer: "CSV export is available today for CRM leads; see the reporting and data import & export pages for the current scope." },
+      { question: "Do different departments really see the same numbers?", answer: "Yes. Reports trace back to the same order, invoice, and stock records every module works on, not separately maintained copies." },
     ],
-    metaDescription: "See real-time reporting across Vercentlabs: live project margin while a project is still open, a 16-report Accounting registry, CRM forecast reporting, and Procurement spend analytics — all on live data.",
+    metaDescription: "See real-time reporting in Vercentlabs ERP: financial statements from the general ledger, real-time stock balances, the opportunity pipeline, and POS day-end reports — all from live records.",
     searchIntent: "real-time business reporting software",
-    conversion: { heading: "See a number that's true right now, not at month-end.", ctaLabel: "Book a Demo" },
+    conversion: { heading: "See a number that's true right now, not at month-end.", ctaLabel: CTAS.talkToSpecialist.label },
   },
 ]);
 

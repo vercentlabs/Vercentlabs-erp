@@ -2,30 +2,31 @@
 /**
  * capture-marketing-screenshots.mjs
  *
- * Logs into the synthetic "Vercent Demo Manufacturing" demo organization
- * (created by seed-marketing-demo-org.mjs) using the real Vercentlabs ERP
- * app (apps/web) and captures a small set of full-page/targeted screenshots
- * of genuine, populated product views for use on the public marketing site.
+ * Captures the marketing screenshots listed in marketing-capture-plan.mjs
+ * from the real Vercentlabs ERP (apps/web), signed in to the synthetic
+ * "Northstar Demo" organisation created by scripts/qa/seed-marketing-demo-org.mjs.
+ * It only reads the UI — it never creates or changes data.
  *
- * This script only ever reads the app's UI — it does not create or modify
- * any data. It must NEVER be run against a production environment.
+ * Requirements:
+ *  - A PRODUCTION build of the ERP (no Next.js development indicator), served
+ *    on loopback with the ERP's local profile — a plain `next start` refuses
+ *    to boot without production infrastructure:
+ *      pnpm --filter @vercentlabs/web build
+ *      RUNTIME_PROFILE=local-production-build pnpm --filter @vercentlabs/web exec next start -p 3001 -H 127.0.0.1
+ *  - apps/landing/scripts/.demo-org-credentials.local.md (written by the seed
+ *    script) or DEMO_EMAIL / DEMO_PASSWORD.
+ *  - http://localhost:3001 (the app's configured origin; sign-in is
+ *    origin-checked, so 127.0.0.1 does not work).
  *
- * Captures are saved as PNG only. next.config.mjs already configures
- * next/image to transcode to AVIF/WebP on request, so pre-generating a
- * WebP sibling here would just be unused dead weight shipped in every
- * deploy (see docs/landing-redesign/phase-3/screenshot-capture-process.md).
- *
- * After running, review each capture and register only the ones that are
- * genuinely marketing-ready in apps/landing/lib/product/screenshots.ts with
- * `approvedForMarketing: true` — do not assume every capture is approved by
- * default (see that file's own comment on why one capture was excluded).
+ * Each plan entry must load its exact route and show its `ready` text, or the
+ * run fails — there is no silent fallback to another screen. Images are
+ * written to apps/landing/public/product/<id>.png at a fixed viewport, under
+ * ids that never reuse a retired screenshot's file. Capturing does NOT
+ * approve an image: inspect every file, then approve it in
+ * apps/landing/lib/product/screenshots.ts with its capturedAt date.
  *
  * Usage:
- *   node apps/landing/scripts/capture-marketing-screenshots.mjs
- *
- * Requires apps/landing/scripts/.demo-org-credentials.local.md to exist
- * (written by seed-marketing-demo-org.mjs) unless DEMO_EMAIL/DEMO_PASSWORD
- * env vars are supplied instead.
+ *   node apps/landing/scripts/capture-marketing-screenshots.mjs [id ...]
  *
  * Env overrides:
  *   DEMO_BASE_URL   - defaults to http://localhost:3001
@@ -37,6 +38,7 @@ import { chromium } from "@playwright/test";
 import { readFile, mkdir } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { CAPTURE_VIEWPORT, MARKETING_CAPTURE_PLAN } from "./marketing-capture-plan.mjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const BASE_URL = process.env.DEMO_BASE_URL || "http://localhost:3001";
@@ -46,15 +48,11 @@ const CREDENTIALS_PATH = path.join(__dirname, ".demo-org-credentials.local.md");
 
 function assertSafeEnvironment() {
   if (process.env.NODE_ENV === "production") {
-    throw new Error(
-      "Refusing to run: NODE_ENV is 'production'. This script must never run against production.",
-    );
+    throw new Error("Refusing to run: NODE_ENV is 'production'. This script must never run against production.");
   }
   const host = new URL(BASE_URL).hostname;
   if (host !== "localhost" && host !== "127.0.0.1") {
-    throw new Error(
-      `Refusing to run: target host '${host}' is not localhost. This script must only run against a local dev server.`,
-    );
+    throw new Error(`Refusing to run: target host '${host}' is not localhost. This script must only run against a local ERP.`);
   }
 }
 
@@ -63,115 +61,64 @@ async function loadCredentials() {
     return { email: process.env.DEMO_EMAIL, password: process.env.DEMO_PASSWORD };
   }
   const text = await readFile(CREDENTIALS_PATH, "utf8").catch(() => {
-    throw new Error(
-      `Could not read ${CREDENTIALS_PATH}. Run seed-marketing-demo-org.mjs first, or set DEMO_EMAIL/DEMO_PASSWORD.`,
-    );
+    throw new Error(`Could not read ${CREDENTIALS_PATH}. Run scripts/qa/seed-marketing-demo-org.mjs first, or set DEMO_EMAIL/DEMO_PASSWORD.`);
   });
   const email = text.match(/Email:\s*(\S+)/)?.[1];
   const password = text.match(/Password:\s*(\S+)/)?.[1];
-  if (!email || !password) {
-    throw new Error(`Could not parse credentials out of ${CREDENTIALS_PATH}.`);
-  }
+  if (!email || !password) throw new Error(`Could not parse credentials out of ${CREDENTIALS_PATH}.`);
+  if (!email.endsWith("@example.com")) throw new Error(`Refusing to capture as ${email}: marketing captures use the synthetic demo owner only.`);
   return { email, password };
 }
 
-function log(step, message) {
-  console.log(`[capture] ${step} :: ${message}`);
+async function settle(page) {
+  await page.waitForLoadState("networkidle");
+  await page.getByText(/^Loading/).first().waitFor({ state: "detached", timeout: 20_000 }).catch(() => {});
+  await page.waitForTimeout(1_000);
 }
-
-const CAPTURES = [
-  { id: "crm-pipeline-board", path: "/crm/pipeline", fullPage: false },
-  { id: "crm-leads-list", path: "/crm/leads", fullPage: true },
-  { id: "crm-opportunity-detail", path: null, fullPage: true }, // navigated to dynamically, see main()
-  { id: "sales-quotation-detail", path: null, fullPage: true },
-  { id: "sales-order-detail", path: null, fullPage: true },
-  { id: "stock-overview", path: "/stock", fullPage: false },
-  { id: "accounting-dashboard", path: "/accounting", fullPage: false },
-  // procurement/orders/{id} was captured and rejected: its ProcurementResourceWorkspace
-  // detail view renders a raw "Document facts" field dump (unstyled UUIDs
-  // for branchId/companyId/supplierId/id) — the same defect class Phase 3
-  // rejected on the CRM opportunity-detail capture. The orders list view is
-  // materially cleaner (real title, status badge, version) even though its
-  // secondary Branch/Company ID columns still show raw ids.
-  { id: "procurement-orders-list", path: "/procurement/orders", fullPage: false },
-  { id: "manufacturing-dashboard", path: "/manufacturing", fullPage: false },
-  { id: "projects-dashboard", path: "/projects", fullPage: false },
-  { id: "assets-dashboard", path: "/assets", fullPage: false },
-  { id: "quality-dashboard", path: "/quality", fullPage: false },
-  { id: "support-dashboard", path: "/support", fullPage: false },
-  { id: "hr-payroll-dashboard", path: "/hr-payroll", fullPage: false },
-  { id: "point-of-sale-dashboard", path: "/point-of-sale", fullPage: false },
-];
 
 async function main() {
   assertSafeEnvironment();
+  const requested = new Set(process.argv.slice(2));
+  const plan = requested.size ? MARKETING_CAPTURE_PLAN.filter((entry) => requested.has(entry.id)) : MARKETING_CAPTURE_PLAN;
+  if (requested.size && plan.length !== requested.size) {
+    throw new Error(`Unknown capture id(s): ${[...requested].filter((id) => !plan.some((entry) => entry.id === id)).join(", ")}`);
+  }
   await mkdir(OUTPUT_DIR, { recursive: true });
   const { email, password } = await loadCredentials();
-  log("guard", `Target ${BASE_URL} looks safe. Using credentials for ${email}.`);
 
   const browser = await chromium.launch({ headless: HEADLESS });
-  const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
-  const page = await context.newPage();
+  const page = await browser.newPage({ viewport: CAPTURE_VIEWPORT, deviceScaleFactor: 1 });
+  const failures = [];
+  try {
+    await page.goto(`${BASE_URL}/login`, { waitUntil: "networkidle" });
+    await page.getByLabel(/email/i).first().fill(email);
+    await page.getByLabel(/password/i).first().fill(password);
+    await Promise.all([
+      page.waitForURL((url) => !url.pathname.startsWith("/login"), { timeout: 20_000 }),
+      page.getByRole("button", { name: /^sign in$/i }).click(),
+    ]);
+    console.log(`[capture] signed in to ${BASE_URL}`);
 
-  log("auth", "Logging in...");
-  await page.goto(`${BASE_URL}/login`, { waitUntil: "networkidle" });
-  await page.fill('input[name="email"]', email);
-  await page.fill('input[name="password"]', password);
-  await Promise.all([
-    page.waitForURL((url) => !url.pathname.includes("/login"), { timeout: 15000 }),
-    page.click('button[type="submit"]'),
-  ]);
-  log("auth", "Logged in.");
-
-  const captured = [];
-  for (const capture of CAPTURES) {
-    if (!capture.path) {
-      log("skip", `${capture.id} requires a record-specific URL — capture manually or extend this script with the real id.`);
-      continue;
+    for (const entry of plan) {
+      try {
+        const response = await page.goto(`${BASE_URL}${entry.route}`);
+        if (!response || response.status() >= 400) throw new Error(`HTTP ${response?.status() ?? "no response"}`);
+        const expectedPath = new URL(entry.route, BASE_URL).pathname;
+        if (new URL(page.url()).pathname !== expectedPath) throw new Error(`redirected to ${new URL(page.url()).pathname}`);
+        await settle(page);
+        await page.getByText(entry.ready, { exact: false }).first().waitFor({ state: "visible", timeout: 20_000 });
+        await page.screenshot({ path: path.join(OUTPUT_DIR, `${entry.id}.png`), fullPage: false, ...(entry.clip ? { clip: entry.clip } : {}) });
+        console.log(`[capture] ${entry.id} <- ${entry.route}`);
+      } catch (error) {
+        failures.push(entry.id);
+        console.error(`[capture] FAILED ${entry.id} (${entry.route}): ${error.message.split("\n")[0]}`);
+      }
     }
-    await page.goto(`${BASE_URL}${capture.path}`, { waitUntil: "networkidle" });
-    // Some detail pages (e.g. Procurement's ProcurementResourceWorkspace)
-    // fetch their record client-side after the initial networkidle render,
-    // showing a transient "Loading record…" state. Wait for that text to
-    // clear (and for Next <Image> lazy-loading to settle) before capturing.
-    await page
-      .getByText("Loading record", { exact: false })
-      .waitFor({ state: "detached", timeout: 10_000 })
-      .catch(() => {});
-    await page.waitForTimeout(750);
-    const outputPath = path.join(OUTPUT_DIR, `${capture.id}.png`);
-    if (capture.fullPage) {
-      // Playwright's fullPage stitched capture doesn't repeat position:sticky/fixed
-      // chrome (the app shell's sidebar) past the first viewport — on any page taller
-      // than 900px the sidebar's dark background just stops partway down the image,
-      // leaving a large dead gray gap beside content that keeps going. Real users never
-      // see this (the sidebar stays pinned while they scroll); it's purely a capture
-      // artifact. Fix: resize the viewport to the page's content height (capped — see
-      // MAX_CAPTURE_HEIGHT below) and take a single non-stitched screenshot, so the
-      // sidebar renders correctly for the whole frame with no scrolling/stitching.
-      //
-      // The cap itself matters independently of the sidebar bug: capturing a record
-      // detail page's full, uncapped document height (some pages exceed 1300px) also
-      // produces an image whose aspect ratio no longer reads as a browser window —
-      // it looks unnaturally tall/square next to the site's other 900-1000px-tall
-      // screenshots. 1080 was chosen by checking each affected page's actual content
-      // at 1000/1080 and picking the smallest cap that avoids cutting a table row or
-      // list entry mid-element (see docs/landing-redesign/phase-8/decision-log.md).
-      const MAX_CAPTURE_HEIGHT = 1080;
-      const contentHeight = await page.evaluate(() => document.documentElement.scrollHeight);
-      await page.setViewportSize({ width: 1440, height: Math.min(contentHeight, MAX_CAPTURE_HEIGHT) });
-      await page.waitForTimeout(100);
-      await page.screenshot({ path: outputPath, fullPage: false });
-      await page.setViewportSize({ width: 1440, height: 900 });
-    } else {
-      await page.screenshot({ path: outputPath, fullPage: false });
-    }
-    log("captured", outputPath);
-    captured.push(capture.id);
+  } finally {
+    await browser.close();
   }
-
-  log("done", `Captured ${captured.length}/${CAPTURES.length}. Review each file, then update lib/product/screenshots.ts.`);
-  await browser.close();
+  console.log(`[capture] ${plan.length - failures.length}/${plan.length} captured. Inspect each file before approving it in lib/product/screenshots.ts.`);
+  if (failures.length) process.exitCode = 1;
 }
 
 main().catch((error) => {

@@ -11,7 +11,7 @@ import { TrackView } from "@/components/analytics/track-view";
 import { PlatformHero } from "@/components/platform/platform-hero";
 import { DirectDefinition } from "@/components/modules/direct-definition";
 import { BeforeAfterSystem } from "@/components/solutions/before-after-system";
-import { ContextualCta } from "@/components/shared/contextual-cta";
+import { ContextualCta } from "@/components/conversion/contextual-cta";
 import { RelatedPages } from "@/components/modules/related-pages";
 import { Reveal } from "@/components/motion/reveal";
 import { buildPageMetadata } from "@/lib/metadata";
@@ -114,7 +114,7 @@ export default async function SolutionPage({ params }: { params: Promise<{ slug:
                 <span className="vl-index">Modules</span>
                 <div className="mt-5 flex flex-wrap gap-2">
                   {relatedModules.map((moduleInfo, index) => (
-                    <Link key={moduleInfo.key} href={`/modules/${moduleInfo.key}`} prefetch={false} data-reveal-item style={{ transitionDelay: `${Math.min(index, 4) * 50}ms` }}><ModuleTag name={moduleInfo.name} accentColor={moduleInfo.accentColor.hex} /></Link>
+                    <Link key={moduleInfo.key} href={`/modules/${moduleInfo.key}`} prefetch={false} data-reveal-item style={{ transitionDelay: `${Math.min(index, 4) * 50}ms` }}><ModuleTag name={moduleInfo.displayName} accentColor={moduleInfo.accentColor.hex} /></Link>
                   ))}
                 </div>
               </div>

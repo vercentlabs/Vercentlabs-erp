@@ -6,33 +6,32 @@ const productLinks = new Map(productItem?.children?.map((item) => [item.href, it
 
 const PRODUCT_GROUPS = [
   {
-    label: "Core platform",
+    label: "Product",
     accent: "#4338ca",
     links: [
-      { href: "/product/platform", description: "Architecture, tenant controls and shared foundations." },
-      { href: "/product/automation", description: "Rules, approvals and scheduled operational work." },
-      { href: "/product/analytics", description: "Reports, dashboards and decision signals." },
+      { href: "/product", description: "What Vercentlabs ERP is and how the modules fit together." },
+      { href: "/product/platform", description: "The Shared Platform every module runs on." },
+      { href: "/product/automation", description: "Validation, transaction safety, holds, and approvals built into the work." },
+      { href: "/product/analytics", description: "Financial statements, stock, and day-end reports." },
     ],
   },
   {
-    label: "Experience & trust",
+    label: "Access & trust",
     accent: "#087f6a",
     links: [
-      { href: "/product/mobile", description: "Responsive and offline-ready business workflows." },
-      { href: "/security", description: "Roles, permissions, sessions and auditability." },
-      { href: "/product/integrations", description: "APIs, webhooks and connected systems." },
+      { href: "/product/mobile", description: "The same ERP in any browser, on any screen size." },
+      { href: "/product/integrations", description: "CSV import and export, PDF and print." },
+      { href: "/security", description: "Roles, permissions, access scoping, and audit logs." },
     ],
   },
   {
-    label: "Adoption & operations",
+    label: "Getting started",
     accent: "#a16207",
-    links: [
-      { href: "/implementation", description: "Rollout phases, migration and readiness guidance." },
-      { href: "/solutions", description: "Operating problems mapped to system capabilities." },
-      { href: "/workflows", description: "Cross-module process maps and handoffs." },
-    ],
+    links: [{ href: "/implementation", description: "A typical path from evaluation to go-live." }],
   },
 ] as const;
+
+const PRODUCT_LINK_COUNT = PRODUCT_GROUPS.reduce((count, group) => count + group.links.length, 0);
 
 export function ProductMegaMenuContent() {
   return (
@@ -44,7 +43,7 @@ export function ProductMegaMenuContent() {
             Explore the platform, the controls around it, and the paths used to put it into operation.
           </p>
         </div>
-        <span className="tabular-data text-4xl font-semibold tracking-[-0.06em] text-(--color-text-primary)">09</span>
+        <span className="tabular-data text-4xl font-semibold tracking-[-0.06em] text-(--color-text-primary)">{String(PRODUCT_LINK_COUNT).padStart(2, "0")}</span>
       </div>
 
       <div className="grid min-h-0 flex-1 grid-cols-3 overflow-y-auto border-l border-t border-(--color-border-default)">

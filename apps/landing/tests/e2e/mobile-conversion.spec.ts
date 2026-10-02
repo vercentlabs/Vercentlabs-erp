@@ -62,7 +62,7 @@ test.describe("sticky mobile CTA behavior", () => {
     for (const width of MOBILE_WIDTHS) {
       await page.setViewportSize({ width, height: 800 });
       await page.goto("/");
-      const headerCtaVisible = await page.locator("header a", { hasText: "Book a Demo" }).first().isVisible().catch(() => false);
+      const headerCtaVisible = await page.locator("header a", { hasText: "Explore the ERP" }).first().isVisible().catch(() => false);
       const stickyCtaVisible = await page.locator("[data-sticky-mobile-cta]").first().isVisible().catch(() => false);
       expect(headerCtaVisible && stickyCtaVisible, `both header and sticky CTA visible simultaneously at ${width}px`).toBe(false);
     }

@@ -15,8 +15,8 @@ export function RecommendedModuleStack({ entries, resolveModule }: { entries: re
           <div key={entry.moduleKey} className="grid grid-cols-[48px_1fr] gap-4 border-b border-(--color-border-default) py-6 sm:grid-cols-[70px_220px_1fr] lg:grid-cols-[90px_280px_1fr] lg:py-7">
             <span className="vl-index text-(--color-text-brand)">{String(index + 1).padStart(2, "0")}</span>
             <div>
-              <Link href={`/modules/${landingModule.key}`} prefetch={false}><ModuleTag name={landingModule.name} accentColor={landingModule.accentColor.hex} /></Link>
-              <Heading level="h3" className="mt-3">{landingModule.name}</Heading>
+              <Link href={`/modules/${landingModule.key}`} prefetch={false}><ModuleTag name={landingModule.displayName} accentColor={landingModule.accentColor.hex} /></Link>
+              <Heading level="h3" className="mt-3">{landingModule.displayName}</Heading>
             </div>
             <Text variant="bodySmall" className="col-start-2 max-w-[70ch] sm:col-start-3">{entry.role}</Text>
           </div>

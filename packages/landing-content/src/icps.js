@@ -30,7 +30,7 @@ export const LANDING_ICPS = Object.freeze([
     slug: "professional-services",
     industrySlugs: ["professional-services"],
     name: "Project-Based & Professional Services Businesses",
-    triggerEvent: "A project that looked profitable but wasn't, or scaling past what a spreadsheet PM process can hold.",
+    triggerEvent: "Scaling past what a spreadsheet project tracker and separate customer tools can hold.",
     primaryModules: ["projects", "crm", "sales", "accounting", "hr-payroll"],
     primaryWorkflow: "project-to-profitability",
   },

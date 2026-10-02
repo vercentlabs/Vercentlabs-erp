@@ -1,4 +1,4 @@
-import { VERCENTLABS_VS_ODOO, ODOO_COMPARISON_EVIDENCE, EDITORIAL_SOURCES, getFreshness, CONTENT_AUTHORS } from "@vercentlabs/landing-content";
+import { VERCENTLABS_VS_ODOO, ODOO_COMPARISON_EVIDENCE, EDITORIAL_SOURCES, getFreshness, CONTENT_AUTHORS, CTAS } from "@vercentlabs/landing-content";
 import { Container, Section, SectionHeader, Stack } from "@/components/layout/container";
 import { Heading, Text } from "@/components/ui/text";
 import { Breadcrumbs } from "@/components/layout/breadcrumbs";
@@ -6,12 +6,12 @@ import { ArticleHeader } from "@/components/content/article-header";
 import { DecisionMatrix } from "@/components/content/decision-matrix";
 import { SourceList } from "@/components/content/source-list";
 import { FaqAccordion } from "@/components/marketing/faq-accordion";
-import { ContextualCta } from "@/components/shared/contextual-cta";
+import { ContextualCta } from "@/components/conversion/contextual-cta";
 import { RelatedPages } from "@/components/modules/related-pages";
 import { TrackedCtaLink } from "@/components/analytics/tracked-cta-link";
 import { TrackView } from "@/components/analytics/track-view";
 import { buildPageMetadata } from "@/lib/metadata";
-import { jsonLdScriptProps, SOFTWARE_APPLICATION_ID } from "@/lib/seo/json-ld";
+import { jsonLdScriptProps, SOFTWARE_APPLICATION_ID, editorialAttributionJsonLd } from "@/lib/seo/json-ld";
 import { absoluteUrl } from "@/lib/site";
 
 const AUTHOR = CONTENT_AUTHORS[0];
@@ -22,7 +22,7 @@ export default function VercentlabsVsOdooPage() {
   const usedSourceUrls = new Set(ODOO_COMPARISON_EVIDENCE.map((e) => e.sourceUrl));
   const usedSources = EDITORIAL_SOURCES.filter((source) => usedSourceUrls.has(source.url));
   const breadcrumbTrail = [{ name: "Compare", path: "/compare" }, { name: `Vercentlabs vs. ${VERCENTLABS_VS_ODOO.competitor}`, path: `/compare/${VERCENTLABS_VS_ODOO.slug}` }];
-  const techArticleJsonLd = { "@context": "https://schema.org", "@type": "TechArticle", headline: `Vercentlabs vs. ${VERCENTLABS_VS_ODOO.competitor}`, description: VERCENTLABS_VS_ODOO.metaDescription, url: absoluteUrl(`/compare/${VERCENTLABS_VS_ODOO.slug}`), author: { "@type": "Organization", name: AUTHOR.name }, datePublished: freshness.publishedAt, dateModified: freshness.lastModifiedAt, isPartOf: { "@id": SOFTWARE_APPLICATION_ID } };
+  const techArticleJsonLd = { "@context": "https://schema.org", "@type": "TechArticle", headline: `Vercentlabs vs. ${VERCENTLABS_VS_ODOO.competitor}`, description: VERCENTLABS_VS_ODOO.metaDescription, url: absoluteUrl(`/compare/${VERCENTLABS_VS_ODOO.slug}`), ...editorialAttributionJsonLd(AUTHOR.name), datePublished: freshness.publishedAt, dateModified: freshness.lastModifiedAt, isPartOf: { "@id": SOFTWARE_APPLICATION_ID } };
   const faqPageJsonLd = { "@context": "https://schema.org", "@type": "FAQPage", mainEntity: VERCENTLABS_VS_ODOO.faqs.map((faq) => ({ "@type": "Question", name: faq.question, acceptedAnswer: { "@type": "Answer", text: faq.answer } })) };
 
   return <>
@@ -47,7 +47,7 @@ export default function VercentlabsVsOdooPage() {
     <Section tone="subtle"><Container><SectionHeader eyebrow="Buyer questions" title="Questions that matter before selection" /><FaqAccordion items={VERCENTLABS_VS_ODOO.faqs} className="mt-10 max-w-[900px]" /></Container></Section>
     <Section tone="page"><Container><div className="grid grid-cols-1 gap-10 lg:grid-cols-[220px_minmax(0,780px)] lg:gap-16"><div><span className="vl-folio">SOURCE FILE</span><Text variant="bodySmall" className="mt-4">The evidence ledger behind this comparison.</Text></div><SourceList sources={usedSources} /></div></Container></Section>
     <Section tone="subtle"><Container><Stack gap={4}><Text variant="dataLabel">Related decision material</Text><RelatedPages pages={[{ label: "The ERP Buying Guide", href: "/resources/erp-buying-guide" }, { label: "The ERP Requirements Checklist", href: "/resources/erp-requirements-checklist" }, { label: "See all comparisons", href: "/compare" }]} /></Stack></Container></Section>
-    <Section tone="inverse"><Container><div className="grid grid-cols-1 items-end gap-8 border-y border-white/20 py-9 lg:grid-cols-[minmax(0,1fr)_auto] lg:gap-16 lg:py-12"><div><span className="vl-folio text-white/55">DECISION → LIVE VALIDATION</span><Heading level="h1" as="h2" className="mt-4 max-w-[18ch] text-(--color-text-inverse)">See how Vercentlabs handles your specific requirements.</Heading></div><TrackedCtaLink href="/book-demo" event="comparison_cta_click" ctaLocation="comparison_final_vercentlabs-vs-odoo">Book a Demo</TrackedCtaLink></div></Container></Section>
+    <Section tone="inverse"><Container><div className="grid grid-cols-1 items-end gap-8 border-y border-white/20 py-9 lg:grid-cols-[minmax(0,1fr)_auto] lg:gap-16 lg:py-12"><div><span className="vl-folio text-white/55">DECISION → LIVE VALIDATION</span><Heading level="h1" as="h2" className="mt-4 max-w-[18ch] text-(--color-text-inverse)">See how Vercentlabs handles your specific requirements.</Heading></div><TrackedCtaLink href="/book-demo" event="comparison_cta_click" ctaLocation="comparison_final_vercentlabs-vs-odoo">{CTAS.talkToSpecialist.label}</TrackedCtaLink></div></Container></Section>
     <script {...jsonLdScriptProps(techArticleJsonLd)} /><script {...jsonLdScriptProps(faqPageJsonLd)} />
   </>;
 }

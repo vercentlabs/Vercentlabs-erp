@@ -1,6 +1,6 @@
 
 
-import { POSITIONING, LANDING_MODULES, getIndustry, getWorkflow, getSolution, ROUTED_WORKFLOW_SLUGS, getLandingModule } from "@vercentlabs/landing-content";
+import { CTAS, LANDING_MODULES, getIndustry, getWorkflow, getSolution, ROUTED_WORKFLOW_SLUGS, getLandingModule } from "@vercentlabs/landing-content";
 import { Container, Section, Stack } from "@/components/layout/container";
 import { Heading, Text } from "@/components/ui/text";
 import { FeatureList } from "@/components/ui/card";
@@ -10,8 +10,8 @@ import { Reveal } from "@/components/motion/reveal";
 import { buildPageMetadata } from "@/lib/metadata";
 
 export const metadata = buildPageMetadata({
-  title: "Book a Demo",
-  description: "See Vercentlabs ERP adapted to your business — the modules and workflows you'd actually use, walked through by a specialist.",
+  title: CTAS.talkToSpecialist.label,
+  description: "Talk to an ERP specialist about Vercentlabs ERP — we'll focus the conversation on the modules and workflows relevant to your business.",
   path: "/book-demo",
 });
 
@@ -57,16 +57,16 @@ export default async function BookDemoPage({
 
   if (matchedModule) {
     initialModuleKeys = [matchedModule.key];
-    contextLabel = `We'll focus this session on ${matchedModule.name}.`;
+    contextLabel = `We'll focus the conversation on ${matchedModule.displayName}.`;
   } else if (matchedIndustry) {
     initialModuleKeys = matchedIndustry.moduleStack.map((entry) => entry.moduleKey);
-    contextLabel = `Built for ${matchedIndustry.name.toLowerCase()} operations like yours.`;
+    contextLabel = `We'll focus the conversation on how ${matchedIndustry.name.toLowerCase()} businesses use Vercentlabs ERP.`;
   } else if (matchedWorkflow) {
     initialModuleKeys = matchedWorkflow.modules;
-    contextLabel = `See the ${matchedWorkflow.name} workflow running in your business.`;
+    contextLabel = `We'll walk through the ${matchedWorkflow.name} workflow as it would apply to your business.`;
   } else if (matchedSolution) {
     initialModuleKeys = matchedSolution.relatedModuleKeys;
-    contextLabel = `We'll focus this session on: ${matchedSolution.name.toLowerCase()}.`;
+    contextLabel = `We'll focus the conversation on: ${matchedSolution.name.toLowerCase()}.`;
   } else if (isSpecialistIntent) {
     contextLabel = "We'll pair you with a specialist who can answer detailed implementation and rollout questions.";
   }
@@ -78,18 +78,19 @@ export default async function BookDemoPage({
   return (
     <Section tone="page" paddingTop={{ base: 8, sm: 10 }} paddingBottom={{ base: 14, sm: 18 }}>
       <Container>
-        <Breadcrumbs trail={[{ name: "Book a Demo", path: "/book-demo" }]} />
+        <Breadcrumbs trail={[{ name: CTAS.talkToSpecialist.label, path: "/book-demo" }]} />
         <div className="mt-8 border-t border-(--color-border-strong) pt-5">
           <div className="flex items-center justify-between gap-4">
-            <Text variant="eyebrow">Demo request</Text>
-            <span className="vl-folio">DEMO INTAKE / WORKING SESSION</span>
+            <Text variant="eyebrow">Assisted evaluation</Text>
+            <span className="vl-folio">SPECIALIST INTAKE / CONVERSATION</span>
           </div>
           <div className="mt-8 grid grid-cols-1 gap-10 lg:grid-cols-[minmax(280px,.72fr)_minmax(0,1.28fr)] lg:gap-16">
           <div className="py-2 lg:py-4">
             <Stack gap={5} className="reveal-on-load lg:sticky lg:top-24">
-              <Heading level="display" as="h1" className="max-w-[9ch]">See how Vercentlabs would run in your business.</Heading>
+              <Heading level="display" as="h1" className="max-w-[12ch]">{CTAS.talkToSpecialist.label}</Heading>
               <Text variant="lead">
-                {`${POSITIONING.heroSubhead} Book a demo and we'll walk through the modules and workflows relevant to your operation — not a generic product tour.`}
+                Tell us what you want to connect or improve, and we&apos;ll focus the conversation on the modules and workflows relevant to your business. Prefer to look around first? You can{" "}
+                <a href={CTAS.primary.href} className="vl-editorial-link">explore the ERP</a> on your own.
               </Text>
               {contextLabel ? (
                 <div className="grid grid-cols-[5px_1fr] border-y border-r border-(--color-border-brand) bg-(--color-bg-elevated)">
@@ -105,12 +106,12 @@ export default async function BookDemoPage({
                 ))}
               </div>
               <Reveal group>
-                <Text variant="dataLabel">Session protocol</Text>
+                <Text variant="dataLabel">What to expect</Text>
                 <FeatureList
                   className="mt-4"
                   items={[
-                    "A 30-minute working session focused on your actual operations, not a slide deck.",
-                    "Real product screens — the same system you'd actually use, not a mockup.",
+                    "A conversation focused on your actual operations, not a slide deck.",
+                    "A walkthrough of the modules and workflows that matter to you, where helpful.",
                     "A specialist who can answer specific questions about your modules of interest.",
                     "No obligation, and no pressure to decide on the call.",
                   ]}
@@ -120,7 +121,7 @@ export default async function BookDemoPage({
           </div>
           <div className="border-t border-(--color-border-strong) bg-(--color-bg-elevated) px-5 py-7 sm:px-7 sm:py-9 lg:px-9 lg:py-10">
             <div className="mb-6 flex items-end justify-between border-b border-(--color-border-default) pb-4">
-              <div><Text variant="dataLabel">Demo request</Text><p className="mt-1 text-sm text-(--color-text-secondary)">Only four fields plus consent are required.</p></div>
+              <div><Text variant="dataLabel">Your details</Text><p className="mt-1 text-sm text-(--color-text-secondary)">Only four fields plus consent are required.</p></div>
               <span className="vl-index">INTAKE / 01</span>
             </div>
             <DemoForm initialModules={initialModuleNames} />

@@ -2,17 +2,14 @@
  * AEO answer library — reusable, typed Q&A entries that power visible
  * content across pages (glossary cards, resource intros, FAQ sections).
  * This is not a hidden database and not a dedicated page per question —
- * each entry's directAnswer/expandedExplanation is meant to be rendered
- * in-context on the entry's relatedRoute or wherever it's referenced, per
- * docs/landing-redesign/phase-6/aeo-answer-library.md.
+ * each entry's directAnswer/expandedExplanation is rendered in-context on
+ * the entry's relatedRoute or wherever it's referenced.
  *
- * Definitional entries for universal, uncontested ERP/manufacturing
- * terminology (what is ERP, what is MRP, etc.) are not tied to an external
- * EDITORIAL_SOURCES entry — these are standard-usage definitions, not
- * competitor-specific or statistical claims requiring live verification
- * (see .claude/rules/landing-content.md rule 2's scope). Every entry that
- * describes what Vercentlabs specifically does is grounded in
- * docs/landing-redesign/phase-1/product-intelligence.md.
+ * These are general, educational definitions of standard ERP terminology
+ * (what is ERP, what is MRP, etc.) and may describe functionality Vercentlabs
+ * ERP doesn't offer. They must not make Vercentlabs product claims; anything
+ * Vercentlabs-specific belongs on a page grounded in the approved launch
+ * capability register (capabilities/launch-capabilities.js).
  */
 export const AEO_ANSWERS = Object.freeze([
   {

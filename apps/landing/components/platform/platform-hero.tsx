@@ -156,7 +156,7 @@ export function PlatformHero({
                       {relatedModules.slice(0, 6).map((moduleInfo, index) => (
                         <li key={moduleInfo.key} className="flex min-w-0 items-center">
                           <span className="h-2 w-2 shrink-0" style={{ backgroundColor: moduleInfo.accentColor.hex }} aria-hidden="true" />
-                          <span className="ml-2 text-xs font-semibold text-(--color-text-primary)">{moduleInfo.name}</span>
+                          <span className="ml-2 text-xs font-semibold text-(--color-text-primary)">{moduleInfo.displayName}</span>
                           {index < Math.min(relatedModules.length, 6) - 1 ? <span className="mx-3 text-(--color-text-muted)" aria-hidden="true">→</span> : null}
                         </li>
                       ))}
@@ -180,7 +180,7 @@ function ModuleRegister({ modules, compact = false }: { modules: Array<NonNullab
         <li key={moduleInfo.key}>
           <Link href={`/modules/${moduleInfo.key}`} prefetch={false} className="group grid grid-cols-[2rem_1fr_auto] items-center gap-3 border-b border-(--color-border-default) py-3.5">
             <span className="vl-index text-(--color-text-brand)">{String(index + 1).padStart(2, "0")}</span>
-            <ModuleTag name={moduleInfo.name} accentColor={moduleInfo.accentColor.hex} />
+            <ModuleTag name={moduleInfo.displayName} accentColor={moduleInfo.accentColor.hex} />
             <span className="vl-hover-arrow text-xs text-(--color-text-muted)">→</span>
           </Link>
         </li>

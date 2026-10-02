@@ -3,7 +3,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { PRIMARY_NAV, CTAS } from "@vercentlabs/landing-content";
+import { PRIMARY_NAV, CTAS, SIGN_IN_LABEL } from "@vercentlabs/landing-content";
 import { Logo } from "@/components/brand/logo";
 import { ButtonLink } from "@/components/ui/button";
 import { NavMenu } from "@/components/navigation/nav-menu";
@@ -45,8 +45,9 @@ export function Header() {
   return (
     <header
       className={cx(
-        "sticky top-0 z-50 border-b border-(--color-border-default) bg-(--color-bg-page) transition-[box-shadow,background-color] duration-(--duration-base) ease-(--ease-standard)",
-        scrolled ? "shadow-[0_6px_24px_rgba(23,24,23,.07)]" : "shadow-none",
+        "sticky top-0 z-50 border-b bg-(--color-bg-page) transition-[box-shadow,border-color] duration-(--duration-base) ease-(--ease-standard)",
+        // At the top the header sits on the page itself; once content scrolls under it, a rule and shadow separate them.
+        scrolled ? "border-(--color-border-default) shadow-[0_6px_24px_rgba(23,24,23,.07)]" : "border-transparent shadow-none",
       )}
     >
       <div className="mx-auto flex h-[72px] max-w-[1480px] items-center justify-between px-5 sm:px-7 lg:px-12 xl:px-14">
@@ -78,8 +79,14 @@ export function Header() {
             href={APP_URL.toString()}
             className="hidden px-2 py-2 text-sm font-semibold text-(--color-text-secondary) hover:text-(--color-text-brand) sm:inline-flex"
           >
-            Sign in
+            {SIGN_IN_LABEL}
           </Link>
+          {/* Assisted evaluation — deliberately the quieter action, and only where the header has room. */}
+          <div className="hidden xl:block">
+            <ButtonLink href={CTAS.talkToSpecialist.href} size="sm" variant="secondary">
+              {CTAS.talkToSpecialist.label}
+            </ButtonLink>
+          </div>
           {/*
             Visibility toggled on this wrapper, not via a className passed
             into ButtonLink: ButtonLink's own base classes always include an
@@ -92,7 +99,7 @@ export function Header() {
           */}
           <div className="hidden sm:block">
             <ButtonLink href={CTAS.primary.href} size="sm">
-              Book a Demo
+              {CTAS.primary.label}
             </ButtonLink>
           </div>
 

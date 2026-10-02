@@ -123,9 +123,9 @@ test.describe("book-demo conversion context: industry/workflow/solution", () => 
     await page.goto(`/book-demo?industry=${industry.slug}`);
     const firstModule = getLandingModule(industry.moduleStack[0].moduleKey);
     if (firstModule) {
-      await expect(page.getByRole("checkbox", { name: firstModule.name })).toBeChecked();
+      await expect(page.getByRole("checkbox", { name: firstModule.displayName })).toBeChecked();
     }
-    await expect(page.getByText(`Built for ${industry.name.toLowerCase()}`, { exact: false })).toBeVisible();
+    await expect(page.getByText(`how ${industry.name.toLowerCase()} businesses use Vercentlabs ERP`, { exact: false })).toBeVisible();
   });
 
   test("book-demo preselects modules for a valid ?workflow=", async ({ page }) => {
@@ -134,7 +134,7 @@ test.describe("book-demo conversion context: industry/workflow/solution", () => 
     await page.goto(`/book-demo?workflow=${workflow.slug}`);
     const firstModule = getLandingModule(workflow.modules[0]);
     if (firstModule) {
-      await expect(page.getByRole("checkbox", { name: firstModule.name })).toBeChecked();
+      await expect(page.getByRole("checkbox", { name: firstModule.displayName })).toBeChecked();
     }
   });
 
@@ -143,7 +143,7 @@ test.describe("book-demo conversion context: industry/workflow/solution", () => 
     await page.goto(`/book-demo?solution=${solution.slug}`);
     const firstModule = getLandingModule(solution.relatedModuleKeys[0]);
     if (firstModule) {
-      await expect(page.getByRole("checkbox", { name: firstModule.name })).toBeChecked();
+      await expect(page.getByRole("checkbox", { name: firstModule.displayName })).toBeChecked();
     }
   });
 

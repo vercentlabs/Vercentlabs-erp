@@ -1,14 +1,12 @@
+import { CTAS } from "./navigation.js";
+
 /**
- * The 8-phase implementation journey — Tier 4, P0 in
- * docs/landing-redesign/phase-1/information-architecture.md, explicitly
- * required by conversion-architecture.md's objection-handling stage ("we
- * tried an ERP before and it failed" is a named objection in
- * icp-and-buyer-map.md for every ICP).
+ * The 8-phase implementation journey behind /implementation — it answers the
+ * "we tried an ERP before and it failed" objection every buyer raises.
  *
  * Data migration is integrated into the "Data Migration" phase below rather
- * than built as a separate /implementation/migration route — the IA doc lists
- * no dedicated migration route, and the governing prompt for this phase
- * explicitly allows either. See docs/landing-redesign/phase-5/decision-log.md.
+ * than built as a separate route. Product statements must stay inside the
+ * approved launch capability register (capabilities/launch-capabilities.js).
  *
  * No specific timeframes, durations, or completion-rate guarantees appear
  * anywhere below — CLAUDE.md's evidence rules explicitly forbid fabricating
@@ -48,24 +46,24 @@ export const IMPLEMENTATION_PAGE = Object.freeze({
         "Discovery's findings become a concrete design: which modules, which workflows, and how the platform's shared structures — companies, branches, roles, numbering — map to your real organisation.",
       activities: [
         "Design the company/branch/department structure for multi-entity or multi-location organisations",
-        "Design the role and permission model — which of the platform's seeded roles apply, and where scoped or time-bound assignments are needed",
-        "Plan approval thresholds and governance rules (quotation approval limits, journal approval thresholds, matching tolerances) against real policy, not defaults left unexamined",
+        "Design the role and permission model — which roles apply, and where record-level or company and branch access needs to be narrowed",
+        "Plan the controls you rely on — leave and payroll approvers, negative-stock policy, 2-way versus 3-way matching, document numbering — against real policy, not defaults left unexamined",
         "Confirm the numbering-series scheme for invoices, purchase orders, and other documents",
       ],
-      typicalOutputs: ["A solution design document", "A confirmed role and approval-threshold plan"],
+      typicalOutputs: ["A solution design document", "A confirmed role, access, and approver plan"],
     },
     {
       id: "configuration",
       name: "Configuration",
       description:
-        "Organisation bootstrap is a real, one-transaction operation that seeds roughly 12 system roles and 29 numbering series at signup — configuration builds on that seeded foundation rather than starting from nothing, adapting it to the solution design rather than leaving defaults in place.",
+        "A new organisation starts with default roles and document numbering already in place — configuration builds on that foundation rather than starting from nothing, adapting it to the solution design rather than leaving defaults in place.",
       activities: [
         "Configure companies, branches, and departments per the solution design",
         "Adjust roles, permission packages, and any custom roles the design called for",
-        "Set approval thresholds, matching tolerances, and other governance rules module by module",
+        "Set company settings, tax configuration, document numbering, and module settings module by module",
         "Configure the chart of accounts, tax rules, and localisation settings (India-default: en-IN, Asia/Kolkata, INR, April-start fiscal year, adjustable per organisation)",
       ],
-      typicalOutputs: ["A configured, entitlement-gated workspace matching the solution design"],
+      typicalOutputs: ["A configured workspace with the right modules enabled, matching the solution design"],
     },
     {
       id: "data-migration",
@@ -94,7 +92,7 @@ export const IMPLEMENTATION_PAGE = Object.freeze({
         "Configured workflows are validated against real scenarios drawn from discovery — not a generic test script — before anyone depends on the system for a live transaction.",
       activities: [
         "Run real workflow scenarios end to end (e.g. a real quotation through to invoice, a real purchase order through to matched vendor bill)",
-        "Validate approval routing and self-approval blocking behave as designed",
+        "Validate that roles, access, and leave and payroll approval behave as designed",
         "User acceptance testing with the actual people who will use the system day to day, not just IT",
       ],
       typicalOutputs: ["A validated set of real-scenario test results", "Sign-off from the people who'll actually use the system"],
@@ -115,10 +113,10 @@ export const IMPLEMENTATION_PAGE = Object.freeze({
       id: "launch",
       name: "Launch",
       description:
-        "Go-live activates the subscription (through the platform's HMAC-verified, replay-protected billing webhook pipeline) and switches entitlement gates on for the configured module set.",
+        "Go-live confirms the subscription plan and enables the configured set of modules for the organisation.",
       activities: [
         "Final reconciliation check on migrated data",
-        "Subscription activation and module entitlement confirmation",
+        "Subscription plan confirmation and module enablement",
         "Go-live cutover, with the prior system typically kept read-only for a reconciliation window rather than switched off immediately",
       ],
       typicalOutputs: ["A live, entitled workspace running real transactions"],
@@ -127,7 +125,7 @@ export const IMPLEMENTATION_PAGE = Object.freeze({
       id: "post-launch",
       name: "Post-Launch",
       description:
-        "Early usage surfaces configuration refinements discovery couldn't fully anticipate — approval thresholds that turn out too tight or too loose, a report a team actually needs that wasn't scoped, a role that needs narrower access than first designed.",
+        "Early usage surfaces configuration refinements discovery couldn't fully anticipate — a numbering format a team wants changed, a report a team actually needs that wasn't scoped, a role that needs narrower access than first designed.",
       activities: [
         "Hypercare support during the initial usage period",
         "Configuration refinement based on real usage patterns",
@@ -138,9 +136,9 @@ export const IMPLEMENTATION_PAGE = Object.freeze({
   ],
   faqs: [
     { question: "How long does implementation actually take?", answer: "This varies by scope — module count, data volume, and process complexity all matter, and no two implementations look the same. Rather than quote a generic number, the discovery phase is specifically where a realistic scope and plan get set for your actual organisation." },
-    { question: "What if our processes don't match a standard module exactly?", answer: "Configuration adapts numbering, roles, approval thresholds, and workflow governance to your real process — see the Configuration phase above for what's actually adjustable. Discovery and Solution Design exist specifically to catch process mismatches before configuration starts, not after." },
+    { question: "What if our processes don't match a standard module exactly?", answer: "Configuration adapts numbering, roles, permissions, and module settings to your real process — see the Configuration phase above for what's actually adjustable. Discovery and Solution Design exist specifically to catch process mismatches before configuration starts, not after." },
     { question: "Will we lose data or have a gap in operations during migration?", answer: "Open transactions — open sales orders, open purchase orders, outstanding receivables and payables — are migrated alongside master data, and migrated data is reconciled against source-system totals before sign-off. The typical pattern is keeping the prior system read-only for a reconciliation window rather than an abrupt cutover." },
     { question: "Do we need an in-house IT team to manage this?", answer: "An IT/Ops resource is useful for data extraction and integration questions during discovery and migration, but implementation doesn't require a dedicated in-house administrator to run day to day — the role and permission model is designed during solution design specifically so business owners of each module can operate it themselves." },
   ],
-  conversion: { heading: "Talk through your real implementation scope.", ctaLabel: "Book a Demo" },
+  conversion: { heading: "Talk through your real implementation scope.", ctaLabel: CTAS.talkToSpecialist.label },
 });

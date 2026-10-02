@@ -3,14 +3,35 @@ import { COMPANY_IDENTITY } from "@vercentlabs/landing-content";
 
 /**
  * JSON-LD builders. Every field here must trace to something real — no invented
- * ratings, review counts, or pricing (docs/landing-redesign/phase-1/
- * seo-aeo-geo-architecture.md, "GEO" section: "verifiable claims").
+ * ratings, review counts, pricing, addresses, registration numbers, or social
+ * profiles.
+ *
+ * Entity graph (stable @ids, one definition each):
+ *   Organization  "Vercentlabs" (legalName "Vercentlabs LLP")   /#organization
+ *     ├─ publisher of → WebSite                                 /#website
+ *     └─ creator/publisher of → SoftwareApplication "Vercentlabs ERP"  /#software
+ * Every other page refers to these by @id instead of re-declaring them.
  */
+export const ORGANIZATION_ID = absoluteUrl("/#organization");
+export const WEBSITE_ID = absoluteUrl("/#website");
+
+/**
+ * The one, stable @id for the site-wide SoftwareApplication entity (declared
+ * once, on the homepage). Module and content pages reference it via
+ * `isPartOf: { "@id": SOFTWARE_APPLICATION_ID }` rather than re-declaring it.
+ */
+export const SOFTWARE_APPLICATION_ID = absoluteUrl("/#software");
+
+const organizationRef = { "@id": ORGANIZATION_ID } as const;
+
 export function organizationJsonLd() {
   return {
     "@context": "https://schema.org",
     "@type": "Organization",
-    name: SITE.productName,
+    "@id": ORGANIZATION_ID,
+    name: SITE.name,
+    legalName: COMPANY_IDENTITY.legalName,
+    description: `${SITE.name} makes ${SITE.productName}, ${SITE.category.toLowerCase().replace("erp", "ERP")}.`,
     url: SITE.url.toString(),
     logo: absoluteUrl("/icons/icon.svg"),
     email: COMPANY_IDENTITY.primaryContactEmail,
@@ -38,21 +59,39 @@ export function websiteJsonLd() {
   return {
     "@context": "https://schema.org",
     "@type": "WebSite",
-    name: SITE.productName,
+    "@id": WEBSITE_ID,
+    name: SITE.name,
     url: SITE.url.toString(),
+    publisher: organizationRef,
+  };
+}
+
+/** Vercentlabs ERP — the product, made and published by the Vercentlabs organization. */
+export function softwareApplicationJsonLd(description: string) {
+  return {
+    "@context": "https://schema.org",
+    "@type": "SoftwareApplication",
+    "@id": SOFTWARE_APPLICATION_ID,
+    name: SITE.productName,
+    applicationCategory: "BusinessApplication",
+    operatingSystem: "Web",
+    description,
+    creator: organizationRef,
+    publisher: organizationRef,
   };
 }
 
 /**
- * The one, stable @id for the site-wide SoftwareApplication entity (declared
- * once, on the homepage — see app/page.tsx). Module pages reference this same
- * @id via `isPartOf: { "@id": SOFTWARE_APPLICATION_ID }` rather than
- * re-declaring a second, disconnected SoftwareApplication object — a Phase 4
- * Cycle 2 SEO review caught 12 module pages each declaring their own inline
- * `isPartOf` object with no @id, meaning no crawler could resolve them as the
- * same entity as the real one. See docs/landing-redesign/phase-4/decision-log.md.
+ * Author and publisher for editorial content. The byline (e.g. "Vercentlabs
+ * Product Team") is a team within the Vercentlabs organization — never a
+ * second, disconnected Organization entity.
  */
-export const SOFTWARE_APPLICATION_ID = absoluteUrl("/#software");
+export function editorialAttributionJsonLd(authorName: string) {
+  return {
+    author: { "@type": "Organization", name: authorName, parentOrganization: organizationRef },
+    publisher: organizationRef,
+  };
+}
 
 export interface BreadcrumbEntry {
   name: string;

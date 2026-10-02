@@ -141,7 +141,7 @@ test.describe("production smoke", () => {
 
     const response = await page.goto("/");
     expect(response?.status()).toBe(200);
-    await expect(page.getByRole("heading", { level: 1 })).toContainText("outgrew spreadsheets");
+    await expect(page.getByRole("heading", { level: 1 })).toHaveText("One ERP. Your entire business.");
     expect(consoleErrors).toEqual([]);
   });
 
@@ -199,11 +199,11 @@ test.describe("navigation", () => {
     await page.goto("/");
     const { panel } = await openHydratedDisclosure(page, "Product");
     await expect(panel.getByText("Product system map", { exact: true })).toBeVisible();
-    await expect(panel.getByText("Core platform", { exact: true })).toBeVisible();
-    await expect(panel.getByText("Experience & trust", { exact: true })).toBeVisible();
-    await expect(panel.getByText("Adoption & operations", { exact: true })).toBeVisible();
+    await expect(panel.getByText("Product", { exact: true })).toBeVisible();
+    await expect(panel.getByText("Access & trust", { exact: true })).toBeVisible();
+    await expect(panel.getByText("Getting started", { exact: true })).toBeVisible();
 
-    for (const label of ["Platform", "Automation", "Analytics", "Mobile", "Security", "Integrations", "Implementation", "Solutions", "Workflows"]) {
+    for (const label of ["Product Overview", "Platform", "Built-In Controls", "Reporting", "Responsive Access", "Import & Export", "Security", "Implementation"]) {
       await expect(panel.getByRole("link", { name: new RegExp(`^${label}`) })).toBeVisible();
     }
   });
@@ -224,10 +224,10 @@ test.describe("navigation", () => {
     await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(1000);
   });
 
-  test("header CTA links to /book-demo", async ({ page }) => {
+  test("primary header CTA is Explore the ERP and links to /product", async ({ page }) => {
     await page.goto("/");
-    const cta = page.getByRole("link", { name: "Book a Demo" }).first();
-    await expect(cta).toHaveAttribute("href", "/book-demo");
+    const cta = page.locator("header").getByRole("link", { name: "Explore the ERP" }).first();
+    await expect(cta).toHaveAttribute("href", "/product");
   });
 
   test("\"Talk to an ERP Specialist\" CTA reaches /book-demo with a distinct context label", async ({ page }) => {

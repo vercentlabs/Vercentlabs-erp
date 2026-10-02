@@ -13,7 +13,7 @@ test.describe("module routes", () => {
       expect(response?.status()).toBe(200);
       const h1 = page.getByRole("heading", { level: 1 });
       await expect(h1).toHaveCount(1);
-      await expect(h1).toContainText(moduleInfo.name);
+      await expect(h1).toContainText(moduleInfo.displayName);
       expect(consoleErrors).toEqual([]);
     });
   }

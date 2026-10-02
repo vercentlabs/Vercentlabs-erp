@@ -70,7 +70,7 @@ export default function DesignSystemPage() {
         </Grid>
 
         <Text variant="label" className="mt-8 block">
-          Module accents (all landing-original — see modules.js)
+          Module accents (all landing-original — see landing-content modules/*.js)
         </Text>
         <Inline gap={2} className="mt-3">
           {LANDING_MODULES.map((module) => (
@@ -101,7 +101,7 @@ export default function DesignSystemPage() {
           <Text variant="eyebrow">Eyebrow label</Text>
           <Text variant="caption">Caption text, for image captions and fine print.</Text>
           <Text variant="dataValue" className="tabular-data">
-            991
+            1,284
           </Text>
           <Text variant="dataLabel">Data label</Text>
           <Text variant="body">

@@ -1,219 +1,252 @@
+import { getLaunchCapability } from "./capabilities/launch-capabilities.js";
+
 /**
- * Cross-module workflows evidenced in docs/landing-redesign/phase-1/product-intelligence.md.
- * `modules` values must be valid keys from @vercentlabs/shared-types' ERP_MODULE_CATALOG.
- * `iaPriority` mirrors docs/landing-redesign/phase-1/information-architecture.md's Tier 3 table
- * (only priority P0/P1 workflows have a planned /workflows/{slug} page in the initial IA;
- * the rest are documented here for future phases, not yet routed).
+ * Cross-module workflows. `modules` values must be valid keys from
+ * @vercentlabs/shared-types' ERP_MODULE_CATALOG.
  *
- * Phase 5 extends the 6 workflows that get a real page (lead-to-cash,
- * procure-to-pay, order-to-fulfilment, plan-to-production,
- * project-to-profitability, hire-to-payroll) with the richer page-level
- * fields (trigger, participants, sequence, automatedActions, approvals,
- * exceptions, visibility, businessValue, faqs, screenshotId) — see
- * docs/landing-redesign/phase-5/workflow-content-architecture.md. The other
- * 6 workflows keep their original minimal shape; they're still consumed by
- * getWorkflowsForModule() for module-page cross-links, just not routed to a
- * dedicated page this phase.
+ * Every step describes approved launch capabilities only. Routed workflows
+ * (the ones with a /workflows/{slug} page) carry `capabilityIds` — the
+ * capabilities/launch-capabilities.js register entries the sequence relies on — so a
+ * workflow can't quietly describe functionality outside the approved scope.
+ * Unrouted workflows keep a minimal shape and are only used for module-page
+ * cross-links.
  *
- * order-to-fulfilment and hire-to-payroll are new this phase — no exact
- * equivalent existed in the original 12. Both are grounded directly in
- * product-intelligence.md's real module profiles and cross-module workflow
- * list (order-to-fulfilment is explicitly named as a "relevant workflow" for
- * ICP 2 in icp-and-buyer-map.md, just never previously routed).
+ * Route slugs are kept stable for URL compatibility even where the display
+ * name has changed (e.g. project-to-profitability is presented as
+ * "Project to Delivery"); renaming routes belongs to the information
+ * architecture phase.
  */
 export const LANDING_WORKFLOWS = Object.freeze([
   {
     slug: "lead-to-cash",
     name: "Lead to Cash",
-    modules: ["crm", "sales", "accounting"],
+    modules: ["crm", "sales", "stock", "accounting"],
     summary:
-      "A captured lead converts to an account and opportunity, progresses through a governed pipeline, becomes a publicly accepted quotation, converts to a credit-checked order, and posts a customer invoice.",
+      "A lead becomes an opportunity, a quotation, and a sales order, is delivered from stock, invoiced, paid, and posted to the general ledger — on one system, without re-typing the customer.",
     iaPriority: "P0",
     directDefinition:
-      "Lead to Cash is Vercentlabs ERP's real, cited sequence connecting CRM, Sales, and Accounting — the same system carries a captured lead through a publicly accepted quotation to a posted customer invoice, with no re-typed handoff between the three modules.",
-    trigger: "A lead is captured from a public form, an import, or a signed webhook.",
-    participants: ["Sales rep", "Sales approver (for over-threshold quotations)", "Buyer (customer)", "Finance/billing"],
+      "Lead to Cash is the customer-to-cash sequence in Vercentlabs ERP, connecting CRM, Sales, Inventory, and Accounting — the same records carry a lead through quotation, order, delivery, and invoice to a customer receipt posted in the books.",
+    trigger: "A new lead is entered or imported into CRM.",
+    participants: ["Sales rep", "Order desk / sales operations", "Warehouse staff", "Finance / accounts receivable"],
     sequence: [
-      { step: "Capture and score", moduleKey: "crm", detail: "The lead lands with source and campaign attribution intact, and is scored and SLA-tracked automatically." },
-      { step: "Qualify and convert", moduleKey: "crm", detail: "Playbook-gated pipeline stage exit; one action creates the account, contact, and opportunity together." },
-      { step: "Build the quotation", moduleKey: "sales", detail: "A GST-aware quotation is seeded from the won opportunity, with automatic CGST/SGST vs. IGST tax splitting by state." },
-      { step: "Approve", moduleKey: "sales", detail: "Under-threshold quotations auto-approve; over-threshold quotations route to an approval request." },
-      { step: "Accept publicly", moduleKey: "sales", detail: "The customer accepts or rejects via a public, single-use, hashed share link with a typed digital signature — no login required." },
-      { step: "Convert to order", moduleKey: "sales", detail: "The accepted quotation converts to a sales order through an idempotent promotion — no duplicate orders on retry." },
-      { step: "Credit check and confirm", moduleKey: "sales", detail: "The order is checked against real-time aggregated customer credit exposure, under an advisory database lock, before confirmation." },
-      { step: "Invoice", moduleKey: "accounting", detail: "A customer invoice is generated from the confirmed order through an auditable, idempotent handoff." },
+      { step: "Lead", moduleKey: "crm", detail: "The lead is assigned to an owner, qualified through its stages, and checked for duplicates." },
+      { step: "Opportunity", moduleKey: "crm", detail: "The qualified lead converts into an opportunity that moves through the sales stages." },
+      { step: "Quotation", moduleKey: "sales", detail: "The opportunity converts into a Sales quotation, with discounts and taxes applied." },
+      { step: "Sales order", moduleKey: "sales", detail: "The accepted quotation becomes a sales order, confirmed after an availability check with stock reserved." },
+      { step: "Delivery", moduleKey: "stock", detail: "The order is delivered from stock, and the shipment is recorded against it." },
+      { step: "Invoice", moduleKey: "sales", detail: "A sales invoice is raised from the order instead of being re-keyed." },
+      { step: "Receipt and posting", moduleKey: "accounting", detail: "The receivable posts to the general ledger, and the customer receipt is allocated against the invoice." },
+    ],
+    capabilityIds: [
+      "crm-leads",
+      "crm-lead-assignment",
+      "crm-lead-qualification",
+      "crm-duplicate-detection",
+      "crm-lead-to-opportunity-conversion",
+      "crm-opportunity-pipeline",
+      "crm-opportunity-to-quotation-conversion",
+      "sales-quotations",
+      "sales-discounts",
+      "sales-taxes",
+      "sales-sales-orders",
+      "sales-order-confirmation",
+      "sales-availability-check",
+      "sales-stock-reservation",
+      "sales-delivery-shipment",
+      "sales-sales-invoices",
+      "accounting-customer-invoices",
+      "accounting-customer-receipts",
+      "accounting-payment-allocation",
     ],
     automatedActions: [
-      "Lead scoring and SLA due-date calculation",
-      "Threshold-based quotation auto-approval",
-      "Real-time aggregated credit-exposure check",
-      "Idempotent invoice generation from the confirmed order",
+      "Duplicate detection on new leads, accounts, and contacts",
+      "Tax calculation on quotations and orders",
+      "Stock reservation for confirmed orders",
+      "Double-entry enforcement when the receivable posts",
     ],
-    approvals: [
-      "Quotations above the approval threshold route to a designated sales approver, not an open-ended email thread.",
-      "Order confirmation is blocked outright if the customer's credit check fails.",
-    ],
+    approvals: [],
     exceptions: [
-      "A quotation revision automatically cancels any pending approval on the prior version, so a stale draft can't get approved by accident.",
-      "An order that would exceed the customer's credit exposure is held at confirmation, not silently accepted and discovered later at collection.",
+      "A likely duplicate lead, account, or contact is flagged instead of being created silently.",
+      "An order line without available stock shows up at the availability check, before the order is promised.",
     ],
     visibility: [
-      "CRM's pipeline and forecast reports show stage-by-stage conversion by rep and team.",
-      "Sales' quotation-conversion, expiring-quotations, and pending-approvals reports.",
-      "Every quotation and order action writes an immutable, timestamped event row.",
+      "The opportunity pipeline shows open deals by sales stage.",
+      "Order status tracking shows where each order is between confirmation, delivery, and invoice.",
     ],
     businessValue: [
-      "A qualified lead reaches an invoiced order without a single re-typed handoff between CRM, Sales, and Accounting.",
-      "Self-service, signature-backed quote acceptance removes a phone-tag round trip from the sales cycle.",
-      "Credit risk is checked before commitment, not discovered at collection.",
+      "A qualified lead reaches an invoiced, paid order without re-typing the customer between CRM, Sales, and Accounting.",
+      "Orders are promised against stock the warehouse actually has.",
+      "Finance invoices and posts from the same order the sales team confirmed.",
     ],
     faqs: [
-      { question: "Does confirming an order automatically deduct inventory?", answer: "Not for a standard sales order today — only Manufacturing and Point of Sale currently write to the stock ledger. Order lines carry a warehouse reference so fulfilment sees the same records, but the stock deduction itself is a separate, not-yet-automated step. See the Order to Fulfilment workflow for the honest detail." },
-      { question: "What happens if a customer rejects the quotation instead of accepting it?", answer: "The public decision page records the rejection the same way it records acceptance — through the real API, with the event logged — rather than the quotation just sitting unresolved with no record of the outcome." },
-      { question: "Is the credit check a hard block or just a warning?", answer: "It's enforced at order confirmation under an advisory database lock — an order that would exceed the customer's real-time aggregated credit exposure is blocked at that point, not flagged for someone to notice later." },
+      { question: "Does the customer have to be re-entered between CRM and Sales?", answer: "No. An opportunity converts into a Sales quotation, so the customer and deal details carry through to the order and invoice." },
+      { question: "Is stock checked before an order is confirmed?", answer: "Yes. The sales order's availability check shows what's available, and confirmed orders can reserve stock so the same units aren't promised twice." },
+      { question: "How does the invoice reach the books?", answer: "The sales invoice becomes a customer invoice posted to receivables in the general ledger, and customer receipts are allocated against it." },
     ],
     screenshotId: "sales-quotation-detail",
   },
   {
     slug: "quote-to-order",
     name: "Quote to Order",
-    modules: ["sales", "accounting"],
-    summary:
-      "A GST-aware quotation is approved, publicly accepted with a typed signature, and converts to a sales order with a real-time customer-credit check.",
+    modules: ["sales", "stock"],
+    summary: "A quotation with discounts and taxes becomes a confirmed sales order, checked for availability and with stock reserved.",
     iaPriority: "P0",
   },
   {
     slug: "procure-to-pay",
     name: "Procure to Pay",
-    modules: ["procurement", "accounting"],
+    modules: ["procurement", "stock", "accounting"],
     summary:
-      "A requisition moves through sourcing, award, purchase order, and receipt, and a vendor bill can only be created once two- or three-way matching confirms it.",
+      "A purchase order is received against a goods receipt, the supplier invoice is matched to the order and receipt, and the matched invoice is posted and paid in Accounting.",
     iaPriority: "P0",
     directDefinition:
-      "Procure to Pay is Vercentlabs ERP's real, cited sequence connecting Procurement and Accounting — a purchase order can only become a vendor bill once matching confirms the order, receipt, and invoice actually agree.",
-    trigger: "A requisition is raised for goods or services the business needs.",
-    participants: ["Requesting employee", "Category/sourcing buyer", "Supplier", "Receiving clerk", "AP/finance staff"],
+      "Procure to Pay is the purchasing sequence in Vercentlabs ERP, connecting Procurement, Inventory, and Accounting — a supplier invoice is checked against the purchase order and goods receipt before it's posted to payables and paid.",
+    trigger: "The business needs to buy goods or services from a supplier.",
+    participants: ["Buyer", "Supplier", "Receiving clerk", "Accounts payable"],
     sequence: [
-      { step: "Requisition", moduleKey: "procurement", detail: "A requisition is drafted and submitted, entering a governed draft→submit→approve→execute state machine." },
-      { step: "Sourcing (where used)", moduleKey: "procurement", detail: "Supplier RFQ invitations, bids, and evaluations can precede an award for competitively sourced spend." },
-      { step: "Purchase order", moduleKey: "procurement", detail: "An approved order is created, then dispatched to the supplier and acknowledged, with a full amendment workflow if terms change." },
-      { step: "Receipt", moduleKey: "procurement", detail: "Goods or services received against the acknowledged order are recorded." },
-      { step: "Matching", moduleKey: "procurement", detail: "2, 3, or 4-way matching compares the order, receipt, and invoice, with per-line variance tolerance and a mandatory reason for any override." },
-      { step: "Vendor bill", moduleKey: "accounting", detail: "A vendor bill can only be imported once matching confirms a 'matched' status — not before." },
-      { step: "Payment", moduleKey: "accounting", detail: "The matched, posted bill is paid through Accounting's payables process." },
+      { step: "Supplier", moduleKey: "procurement", detail: "The supplier is set up with contacts, addresses, and payment terms." },
+      { step: "Purchase order", moduleKey: "procurement", detail: "A purchase order is raised to the supplier with quantities and prices." },
+      { step: "Goods receipt", moduleKey: "procurement", detail: "A goods receipt (GRN) records what arrived; rejected quantities are recorded as rejected receipts." },
+      { step: "Stock", moduleKey: "stock", detail: "Received goods enter stock and post to the stock ledger." },
+      { step: "Supplier invoice and matching", moduleKey: "procurement", detail: "The supplier invoice is matched 2-way against the purchase order, or 3-way against the order and the goods receipt." },
+      { step: "Posting and payment", moduleKey: "accounting", detail: "The matched invoice posts to accounts payable, and the supplier payment is recorded and allocated." },
     ],
-    automatedActions: [
-      "Self-approval is blocked at every governed stage of the chain.",
-      "A match failure automatically creates an exception case for resolution — it doesn't just fail silently.",
-      "Policy-configurable readiness scoring runs continuously across the whole requisition-to-payment chain.",
+    capabilityIds: [
+      "procurement-supplier-master",
+      "procurement-supplier-contacts-addresses",
+      "procurement-payment-terms",
+      "procurement-purchase-orders",
+      "procurement-goods-receipt",
+      "procurement-rejected-receipts",
+      "procurement-supplier-invoices",
+      "procurement-two-way-matching",
+      "procurement-three-way-matching",
+      "stock-goods-receipts",
+      "stock-stock-ledger",
+      "accounting-supplier-invoices",
+      "accounting-supplier-payments",
+      "accounting-payment-allocation",
     ],
-    approvals: [
-      "Purchase orders move through a governed approve → dispatch → acknowledge lifecycle, not an informal sign-off.",
-      "A vendor bill cannot be created until the matching engine confirms 'matched' status.",
-    ],
+    automatedActions: ["2-way and 3-way invoice matching", "Stock ledger posting on goods receipt"],
+    approvals: [],
     exceptions: [
-      "A matching variance outside tolerance requires a mandatory documented reason before an override is accepted — it can't be silently approved.",
-      "Supplier qualification and activation are separate governed steps, kept apart from requisition creation itself.",
+      "Rejected quantities are recorded as rejected receipts, so they aren't treated as received stock.",
+      "A supplier invoice that doesn't agree with the order and receipt shows up at matching, before it's paid.",
     ],
     visibility: [
-      "A 12-report registry: spend analysis, maverick-spend detection, matching exceptions, supplier risk, and cycle time.",
-      "Content-hashed governance audit snapshots at each stage of the chain.",
+      "Matching status shows which supplier invoices agree with their order and receipt.",
+      "The stock ledger shows what each goods receipt brought in.",
     ],
     businessValue: [
-      "Real 2/3/4-way matching mechanically blocks AP bill creation on unresolved variance — not a policy someone has to remember to enforce.",
-      "Live readiness scoring across the whole chain replaces a status-chasing email thread with a real dashboard.",
+      "You only pay for what was ordered and actually received.",
+      "Purchasing, the warehouse, and accounts payable work from the same order and receipt.",
     ],
     faqs: [
-      { question: "Can a requisition skip straight to a purchase order without sourcing?", answer: "Yes — sourcing/RFQ is part of the chain for competitively sourced spend, not a mandatory gate on every requisition. A direct requisition-to-PO path exists for routine purchases." },
-      { question: "What stops someone from approving their own purchase order?", answer: "Self-approval is blocked structurally across the chain — the same person who creates a supplier, purchase order, or receipt cannot also approve or qualify it, enforced in the permission model, not left to policy." },
-      { question: "Does Stock automatically reorder when it runs low?", answer: "No — reorder rules reference a preferred supplier and feed a low-stock dashboard, but there's no automatic requisition job triggered from Stock today. Replenishment is still a deliberate purchasing decision, made on real-time data." },
+      { question: "When should a purchase use 3-way matching instead of 2-way?", answer: "Use 3-way matching when goods are physically received — the invoice is checked against both the purchase order and the goods receipt. 2-way matching checks the invoice against the purchase order alone." },
+      { question: "What happens to goods that are rejected on delivery?", answer: "They're recorded as rejected receipts against the purchase order, so they don't enter usable stock and aren't paid for as received." },
     ],
     screenshotId: "procurement-orders-list",
   },
   {
     slug: "order-to-fulfilment",
     name: "Order to Fulfilment",
-    modules: ["sales", "stock", "accounting"],
+    modules: ["stock", "sales"],
     summary:
-      "An accepted quotation converts to a credit-checked sales order, warehouse and production see the same order and item records, and an invoice is generated from the order through an auditable, idempotent handoff.",
+      "Stock is received into warehouses, moved between them, reserved for confirmed orders, issued for delivery, and valued — all on one stock ledger.",
     iaPriority: "P0",
     directDefinition:
-      "Order to Fulfilment is Vercentlabs ERP's real, cited sequence covering what happens once a sales order exists — the warehouse and finance side of the process, distinct from Lead to Cash's revenue-team focus on getting the order signed in the first place.",
-    trigger: "A sales quotation is accepted and converted to a sales order.",
-    participants: ["Sales operations", "Warehouse/fulfilment staff", "Finance/billing"],
+      "Order to Fulfilment is the inventory sequence in Vercentlabs ERP — receipts, internal transfers, reservations, and goods issues all post to one stock ledger, so balances, availability, and inventory valuation stay current while orders are fulfilled.",
+    trigger: "Stock arrives in a warehouse, or a confirmed order needs to be fulfilled.",
+    participants: ["Warehouse staff", "Inventory controller", "Order desk / sales operations"],
     sequence: [
-      { step: "Order confirmed (see Lead to Cash)", moduleKey: "sales", detail: "An accepted quotation has already converted to a sales order and passed the real-time credit-exposure check — that conversion and credit-check step is Lead to Cash's, not repeated here. This workflow picks up from the confirmed order." },
-      { step: "Readiness governance", moduleKey: "sales", detail: "The order's governance panel tracks readiness, fulfilment, invoicing, and closure state explicitly, rather than leaving status implicit." },
-      { step: "Warehouse visibility", moduleKey: "stock", detail: "Order lines carry a warehouse reference, so warehouse and production see the same order and item records sales confirmed." },
-      { step: "Invoice handoff", moduleKey: "accounting", detail: "The same auditable, idempotent invoice handoff Lead to Cash describes closes this workflow from the fulfilment side — no duplicate billing on retry." },
+      { step: "Receive", moduleKey: "stock", detail: "Goods receipts bring items into a warehouse and update the real-time stock balance." },
+      { step: "Transfer", moduleKey: "stock", detail: "Internal transfers move stock between warehouses, with each movement in the inventory movement history." },
+      { step: "Reserve", moduleKey: "sales", detail: "A confirmed sales order reserves available stock so it isn't promised twice." },
+      { step: "Issue", moduleKey: "stock", detail: "A goods issue takes stock out for delivery; negative-stock control blocks issuing more than is available." },
+      { step: "Value", moduleKey: "stock", detail: "Inventory valuation reflects every movement as it posts." },
     ],
-    automatedActions: [
-      "Order conversion and the credit-exposure check are the same automations Lead to Cash covers — see that workflow for detail.",
-      "Idempotent invoice-request generation from the confirmed order.",
+    capabilityIds: [
+      "stock-goods-receipts",
+      "stock-real-time-stock-balance",
+      "stock-internal-transfers",
+      "stock-inventory-movement-history",
+      "stock-stock-reservations",
+      "stock-available-stock",
+      "sales-stock-reservation",
+      "stock-goods-issues",
+      "stock-negative-stock-control",
+      "stock-inventory-valuation",
+      "stock-stock-ledger",
     ],
-    approvals: [
-      "Order confirmation is blocked outright if the credit check fails.",
-      "Amendments and return requests go through a controlled path, not a silent edit to a confirmed order.",
-    ],
+    automatedActions: ["Real-time balance update on every movement", "Negative-stock control", "Quality-hold movement blocking"],
+    approvals: [],
     exceptions: [
-      "Standard sales-order fulfillment does not yet post an automatic stock deduction — order lines carry a warehouse reference, but only Manufacturing and Point of Sale currently write real movements to the stock ledger. This is stated plainly here, not implied away.",
+      "An issue that would take stock below zero is blocked unless negative stock is explicitly allowed.",
+      "Stock under a quality hold can't be moved until the hold is released.",
     ],
     visibility: [
-      "Sales' fulfilment and billing-readiness reports.",
-      "Every order action writes an entry to the order's document event history.",
+      "Real-time stock balances show on-hand, reserved, and available stock by warehouse.",
+      "The inventory movement history shows every receipt, transfer, issue, and adjustment.",
     ],
     businessValue: [
-      "Warehouse and production see the same order and item records as sales confirmed — not a re-keyed picking list.",
-      "Invoicing is idempotent and auditable, generated from the real order rather than a manually re-entered bill.",
+      "Orders are fulfilled from stock the system knows is really there.",
+      "Inventory value is always current, not recalculated at month end.",
     ],
     faqs: [
-      { question: "Does this mean fulfilment is fully automated end to end?", answer: "No — the order and warehouse share the same real records, which removes re-keying, but the physical stock deduction for a standard sales order is not yet an automated step. Manufacturing and Point of Sale are the two flows that do post real stock movements today." },
-      { question: "What happens if the customer wants to change the order after confirmation?", answer: "Amendments go through a controlled path in Sales' order governance, not a direct edit — so there's a record of what changed and when, not just an overwritten order." },
-      { question: "Can an order be invoiced before it's fully confirmed?", answer: "No — invoice generation is triggered from a confirmed order via the idempotent handoff; it isn't a separate step someone can run early against an unconfirmed order." },
+      { question: "Can stock be reserved for an order before it ships?", answer: "Yes. Confirmed sales orders reserve stock, and available stock excludes what's already reserved." },
+      { question: "Is inventory value updated as stock moves?", answer: "Yes. Inventory valuation reflects receipts, issues, transfers, and adjustments as they post to the stock ledger." },
     ],
-    screenshotId: "sales-order-detail",
+    screenshotId: "stock-overview",
   },
   {
     slug: "plan-to-production",
     name: "Plan to Production",
-    modules: ["manufacturing", "stock"],
+    modules: ["manufacturing", "stock", "quality"],
     summary:
-      "A bill of materials becomes a work order; release is blocked on component shortage; every material issue and finished-goods receipt posts a real stock movement.",
+      "A manufacturing order is built from the bill of materials, materials are checked, issued, and consumed, output is inspected, and finished goods are received into stock with their production cost.",
     iaPriority: "P1",
     directDefinition:
-      "Plan to Production is Vercentlabs ERP's real, cited sequence connecting Manufacturing and Stock — a released work order snapshots its bill of materials and cannot proceed without proven component availability, then posts real stock movements as it runs.",
-    trigger: "An active bill of materials exists and a work order is created against it.",
-    participants: ["Production planner", "Shop-floor supervisor", "Work-center operator"],
+      "Plan to Production is the production sequence in Vercentlabs ERP, connecting Manufacturing, Inventory, and Quality — a BOM-based manufacturing order checks and consumes materials, is inspected, and receives finished goods into stock.",
+    trigger: "Finished goods need to be produced.",
+    participants: ["Production planner", "Shop-floor supervisor", "Quality inspector", "Warehouse staff"],
     sequence: [
-      { step: "Activate the BOM", moduleKey: "manufacturing", detail: "One active bill of materials per item is enforced — there's no ambiguity about which structure a work order will snapshot from." },
-      { step: "Create the work order", moduleKey: "manufacturing", detail: "Materials and operations are snapshotted from the active BOM and routing at creation time, not re-read live from a structure that could change mid-order." },
-      { step: "Release", moduleKey: "manufacturing", detail: "Release is blocked if proven component availability can't be shown — a work order can't start against materials that aren't there." },
-      { step: "Start", moduleKey: "manufacturing", detail: "The work order moves to in-progress on the shop floor." },
-      { step: "Post production", moduleKey: "manufacturing", detail: "Material issue and finished-goods receipt post as real, auditable stock movements in the same transaction as the production event." },
+      { step: "BOM", moduleKey: "manufacturing", detail: "The item's bill of materials defines the components and quantities." },
+      { step: "Manufacturing order", moduleKey: "manufacturing", detail: "A manufacturing order is created, and material availability is checked before work starts." },
+      { step: "Material issue", moduleKey: "stock", detail: "Components are issued from stock to the order." },
+      { step: "Consumption", moduleKey: "manufacturing", detail: "Material consumption and scrap are recorded against the order." },
+      { step: "Inspection", moduleKey: "quality", detail: "Production quality inspections check the output; a production hold stops it if it fails." },
+      { step: "Finished goods", moduleKey: "manufacturing", detail: "Finished goods are received into stock, and the order's production cost is recorded." },
     ],
-    automatedActions: [
-      "The release-blocking component-shortage check runs automatically, not as a manual pre-flight checklist.",
-      "Every state transition writes to an event-sourced audit trail.",
-      "Policy toggles control whether overproduction is allowed and whether component issue is manual or backflushed.",
+    capabilityIds: [
+      "manufacturing-bill-of-materials",
+      "manufacturing-manufacturing-orders",
+      "manufacturing-material-availability",
+      "manufacturing-material-issue",
+      "manufacturing-material-consumption",
+      "manufacturing-scrap",
+      "manufacturing-production-quality-inspections",
+      "manufacturing-production-hold",
+      "manufacturing-finished-goods-receipt",
+      "manufacturing-production-costing",
+      "stock-goods-issues",
     ],
-    approvals: [
-      "A released work order cannot proceed without proven component availability — the closest thing to an approval gate in this workflow, enforced structurally rather than by sign-off.",
-    ],
+    automatedActions: ["Material availability check", "Stock postings for material issue and finished-goods receipt"],
+    approvals: [],
     exceptions: [
-      "Overproduction is blocked by default unless an organisation's policy explicitly allows it.",
-      "Material requirements planning runs are triggered manually — there's no background scheduler running them on a cadence today.",
+      "A material shortage shows up at the availability check, before production starts.",
+      "Output that fails inspection is held instead of being received as good stock.",
     ],
     visibility: [
-      "A single dashboard shows active, planned, and completed work order counts and live material shortages.",
+      "Each manufacturing order shows its materials, consumption, scrap, and inspection results.",
+      "Production costing shows what each order cost.",
     ],
     businessValue: [
-      "A released work order cannot proceed without proven component availability — not a paper work-order tracker sitting beside a separately managed inventory.",
-      "Every material issue and finished-goods receipt is a real, auditable stock movement, posted in the same transaction as the production event.",
+      "Production doesn't start without the materials to finish it.",
+      "Every finished batch has its materials, inspection, and cost on record.",
     ],
     faqs: [
-      { question: "What happens if a work order is released without enough raw material?", answer: "It can't be — release is blocked outright if proven component availability can't be shown against the snapshotted BOM. This isn't a warning a planner can dismiss; it's a hard gate." },
-      { question: "Is capacity planning automatic, or does someone run it?", answer: "Material and capacity planning runs produce recommended purchase, manufacture, transfer, or expedite actions, but they're triggered manually today — there's no automatic scheduler running MRP on a cadence." },
-      { question: "Can more than one bill of materials be active for the same item at once?", answer: "No — one active BOM per item is enforced, so a work order always snapshots from a single, unambiguous structure." },
+      { question: "Is scrap tracked against the manufacturing order?", answer: "Yes. Scrap is recorded alongside material consumption on the manufacturing order." },
+      { question: "Can production output be held for quality?", answer: "Yes. Production quality inspections check output, and a production hold stops failed output from moving on." },
     ],
     screenshotId: "manufacturing-dashboard",
   },
@@ -221,96 +254,97 @@ export const LANDING_WORKFLOWS = Object.freeze([
     slug: "inventory-to-replenishment",
     name: "Inventory to Replenishment",
     modules: ["stock", "procurement"],
-    summary: "Reorder rules and a shared, race-safe stock ledger feed replenishment decisions across warehouses.",
+    summary: "Real-time stock balances and available stock show buyers what's running low; they raise purchase orders to replenish, and goods receipts post the new stock back into the ledger.",
     iaPriority: "P1",
   },
   {
     slug: "project-to-profitability",
-    name: "Project Planning to Profitability",
-    modules: ["projects", "procurement", "accounting", "hr-payroll"],
+    name: "Project to Delivery",
+    modules: ["projects", "hr-payroll"],
     summary:
-      "Approved timesheets, expenses, and procurement actuals compute live project gross margin against contracted revenue while the project is still open.",
+      "A project is set up with milestones, tasks are assigned and prioritised, team members log timesheets, and progress is tracked through to delivery.",
     iaPriority: "P1",
     directDefinition:
-      "Project Planning to Profitability is Vercentlabs ERP's real, cited sequence connecting Projects, Procurement, Accounting, and HR & Payroll — gross margin is computed live from approved actuals against contracted revenue while a project is still open, not reconstructed after it closes.",
-    trigger: "A project is set up with a billing method and, where relevant, contracted revenue and a linked Sales order.",
-    participants: ["Project/delivery manager", "Consultants and employees logging time/expenses", "Finance/PMO staff"],
+      "Project to Delivery is the project sequence in Vercentlabs ERP — projects, milestones, and tasks with assignees and priorities, timesheets logged against the work, comments in context, and progress tracked through to delivery.",
+    trigger: "A new project is started.",
+    participants: ["Project manager", "Team members", "Operations lead"],
     sequence: [
-      { step: "Project setup", moduleKey: "projects", detail: "Billing method (fixed price, time & material, milestone, or non-billable) and customer/order linkage are set at creation." },
-      { step: "Work breakdown", moduleKey: "projects", detail: "Tasks and milestones structure the delivery plan." },
-      { step: "Time and expense", moduleKey: "projects", detail: "Time entries carry cost and bill rate; the person who logs an entry cannot approve their own entry." },
-      { step: "Procurement actuals", moduleKey: "procurement", detail: "Real procurement actuals linked to the project feed into profitability, not a separately tracked spend estimate." },
-      { step: "Live margin calculation", moduleKey: "projects", detail: "Gross margin is computed from approved labor, approved expenses, and real procurement actuals against contracted revenue — while the project is still open." },
-      { step: "Billing milestone", moduleKey: "projects", detail: "An idempotency-keyed billing milestone hands off to Accounting — the same billing event can't be entered, or double-billed, twice." },
-      { step: "Invoice", moduleKey: "accounting", detail: "Accounting posts the resulting customer invoice." },
+      { step: "Set up", moduleKey: "projects", detail: "The project is created with its milestones and status." },
+      { step: "Plan", moduleKey: "projects", detail: "Tasks are created, assigned, and prioritised." },
+      { step: "Log time", moduleKey: "projects", detail: "Team members log timesheets against the project and task." },
+      { step: "Collaborate", moduleKey: "projects", detail: "Comments keep discussion attached to the project and task." },
+      { step: "Track", moduleKey: "projects", detail: "Project status and progress tracking show how delivery is going against the milestones." },
     ],
-    automatedActions: [
-      "Live gross-margin calculation runs from approved actuals, not a manually rebuilt spreadsheet.",
-      "A hard rule blocks marking a project complete while it still has open tasks.",
-      "Billing milestones are idempotency-keyed against duplicate entry.",
+    capabilityIds: [
+      "projects-projects",
+      "projects-milestones",
+      "projects-project-status",
+      "projects-tasks",
+      "projects-assignees",
+      "projects-priority",
+      "projects-timesheets",
+      "projects-comments-collaboration",
+      "projects-progress-tracking",
     ],
-    approvals: [
-      "A timesheet or expense entry cannot be approved by the person who logged it.",
-    ],
-    exceptions: [
-      "A project cannot be marked complete while it still has open tasks — a hard rule, not a warning a manager can override casually.",
-    ],
-    visibility: [
-      "A per-project profitability report alongside the module dashboard's active/overdue project and task counts.",
-    ],
+    automatedActions: ["Progress tracking from task and milestone status"],
+    approvals: [],
+    exceptions: ["A task without an assignee or priority stands out in the project's task list before it's forgotten."],
+    visibility: ["Project status and progress across projects and milestones.", "Timesheets by project and task."],
     businessValue: [
-      "Gross margin is visible while the project is still open, not discovered after close.",
-      "Billing milestones can't be entered — or double-billed — twice, removing a real source of client-facing billing errors.",
+      "Everyone works from one view of what's due, who owns it, and how far along it is.",
+      "Time is recorded against the work it was spent on.",
     ],
     faqs: [
-      { question: "Does margin only get calculated at project close?", answer: "No — it's a live calculation from approved labor, approved expenses, and real procurement actuals against contracted revenue, available at any point while the project is still open." },
-      { question: "What stops someone from approving their own hours?", answer: "Self-approval is blocked structurally — the person who logs a time entry cannot also approve it, so cost data feeding the margin calculation isn't self-certified." },
-      { question: "Can procurement spend on a project be missed from the margin calculation?", answer: "Real procurement actuals are linked to the project via project_procurement_links and feed directly into the profitability calculation — not tracked in a parallel spend estimate someone has to remember to reconcile." },
+      { question: "Can milestones be tracked separately from tasks?", answer: "Yes. Milestones mark progress through a project, and progress tracking reflects both tasks and milestones." },
+      { question: "Can team members comment on tasks?", answer: "Yes. Comments and collaboration keep discussion attached to the project and task it's about." },
     ],
     screenshotId: "projects-dashboard",
   },
   {
     slug: "hire-to-payroll",
-    name: "Hire to Payroll",
-    modules: ["hr-payroll", "accounting"],
+    name: "Employee to Payroll",
+    modules: ["hr-payroll"],
     summary:
-      "An employee record moves through onboarding, compensation setup, and attendance tracking to an attendance-adjusted, maker-checker-governed payroll run.",
+      "An employee joins, works shifts with recorded attendance, requests and takes approved leave, and is paid through a calculated, approved payroll with a payslip.",
     iaPriority: "P0",
     directDefinition:
-      "Hire to Payroll is Vercentlabs ERP's real, cited sequence connecting HR & Payroll and Accounting — attendance-adjusted pay is calculated in one transaction and a run cannot be approved by the person who prepared it, with a manual accounting-batch reference for finance to reconcile against.",
-    trigger: "An employee record is created as part of onboarding.",
-    participants: ["HR manager/admin", "Line manager", "Payroll preparer", "Payroll approver (a different person than the preparer)"],
+      "Employee to Payroll is the people sequence in Vercentlabs ERP — employee records, shifts and attendance, approved leave, and salary structures feed a payroll calculated for each period, approved, and issued as payslips.",
+    trigger: "A new employee joins, or a payroll period comes to a close.",
+    participants: ["HR admin", "Line manager", "Employee", "Payroll preparer", "Payroll approver"],
     sequence: [
-      { step: "Employee record", moduleKey: "hr-payroll", detail: "Workforce structure — department, designation, manager hierarchy, probation/confirmation dates — is set at onboarding." },
-      { step: "Compensation setup", moduleKey: "hr-payroll", detail: "Salary components and jurisdiction-aware statutory components (PF, ESI, professional tax, TDS) are configured with effective-dated history." },
-      { step: "Attendance and leave", moduleKey: "hr-payroll", detail: "Per-day attendance status and overtime are tracked; leave balances deduct automatically on approval." },
-      { step: "Payroll run", moduleKey: "hr-payroll", detail: "A run moves through draft → calculated → pending_approval → approved → posted, with attendance-adjusted gross-pay calculated in one transaction." },
-      { step: "Approval", moduleKey: "hr-payroll", detail: "A run cannot be approved by the person who prepared it — a different approver is required, enforced structurally." },
-      { step: "Payslip", moduleKey: "hr-payroll", detail: "A posted run generates the employee's payslip." },
-      { step: "Accounting reference", moduleKey: "accounting", detail: "A posted run carries a manual accounting-batch reference field for finance to reconcile against." },
+      { step: "Employee", moduleKey: "hr-payroll", detail: "The employee record is created with department, designation, reporting manager, branch, and joining details." },
+      { step: "Attendance", moduleKey: "hr-payroll", detail: "Attendance and check-in/check-out are recorded against the employee's shift." },
+      { step: "Leave", moduleKey: "hr-payroll", detail: "Leave requests are approved, and leave balances update." },
+      { step: "Payroll", moduleKey: "hr-payroll", detail: "Payroll is calculated for the period from the employee's salary structure, attendance, and leave, then approved." },
+      { step: "Payslip", moduleKey: "hr-payroll", detail: "A payslip is issued for the approved payroll." },
     ],
-    automatedActions: [
-      "Attendance-adjusted gross-pay calculation runs in one transaction, not a manual spreadsheet formula.",
-      "Leave balances update automatically on approval.",
+    capabilityIds: [
+      "hr-employee-master",
+      "hr-joining",
+      "hr-shifts",
+      "hr-attendance",
+      "hr-check-in-check-out",
+      "hr-leave-requests",
+      "hr-leave-approval",
+      "hr-leave-balances",
+      "hr-salary-structures",
+      "hr-compensation-assignment",
+      "hr-payroll-periods",
+      "hr-payroll-calculation",
+      "hr-payroll-approval",
+      "hr-payslips",
     ],
-    approvals: [
-      "A payroll run cannot be approved by the person who prepared it.",
-      "Leave requests cannot be approved by the person who submitted them.",
-    ],
-    exceptions: [
-      "Posting to the general ledger is a manual accounting-batch reference field, not an automated journal-posting call — finance reconciles against the reference, it isn't posted on their behalf.",
-    ],
-    visibility: [
-      "A dashboard showing active employees, employees on leave, new joiners, open payroll runs, and latest net pay.",
-    ],
+    automatedActions: ["Payroll calculation from salary structures, attendance, and leave", "Leave-balance update on approval"],
+    approvals: ["Leave requests are approved in the system.", "Payroll is approved before payslips are issued — an approver can't approve a payroll that includes their own pay."],
+    exceptions: ["An approver whose own pay is in the payroll is blocked from approving it."],
+    visibility: ["Payroll status and totals for each payroll period.", "Leave balances per employee."],
     businessValue: [
-      "Payroll you can defend in an audit — attendance-driven pay calculation with hard-coded maker-checker control.",
-      "An immutable event trail on every action, not a paper sign-off sheet.",
+      "Payroll comes from the attendance and leave already recorded, not a monthly spreadsheet.",
+      "Every payroll has an approval step before payslips go out.",
     ],
     faqs: [
-      { question: "Does a posted payroll run automatically create a general-ledger journal entry?", answer: "No — a posted run carries a manual accounting-batch reference field for finance to reconcile against. There is no automated GL-journal-posting call found in the codebase today; this is a real, stated limitation, not an oversight in the copy." },
-      { question: "Can the same person prepare and approve a payroll run to move faster?", answer: "No — a payroll run cannot be approved by the person who prepared it. This is enforced in the permission model, not left as a policy someone could bypass under time pressure." },
-      { question: "Is HR & Payroll accessible on a phone for managers approving leave on the go?", answer: "No — HR & Payroll is cataloged in the platform's module list but explicitly excluded from the enabled mobile modules, alongside Stock. Leave and payroll approval are browser workflows today." },
+      { question: "Does approved leave affect payroll?", answer: "Yes. Approved leave updates the leave balance, and payroll is calculated from the employee's attendance and leave for the period." },
+      { question: "Who can approve a payroll?", answer: "Anyone with payroll-approval permission — except that an approver can't approve a payroll that includes their own pay." },
     ],
     screenshotId: "hr-payroll-dashboard",
   },
@@ -318,60 +352,51 @@ export const LANDING_WORKFLOWS = Object.freeze([
     slug: "retail-checkout-to-inventory",
     name: "Retail Checkout to Inventory",
     modules: ["point-of-sale", "stock"],
-    summary: "A point-of-sale checkout posts the sale and deducts inventory in the same database transaction.",
+    summary: "A POS sale is paid by cash, card, or UPI, reduces stock in real time, and is reconciled at shift close in the Day-End / Z report.",
     iaPriority: "P2",
   },
   {
     slug: "physical-goods-quality-gate",
-    name: "Physical-Goods Quality Gate",
-    modules: ["quality", "procurement", "manufacturing", "stock", "sales"],
+    name: "Physical Goods Quality Gate",
+    modules: ["quality", "procurement", "manufacturing", "stock"],
     summary:
-      "Inspections tied to receiving, production, stock, or returns can auto-hold inventory on failure; a different person than the inspector must release it.",
+      "Incoming, in-process, and final inspections record pass/fail results; a failure raises a non-conformance report and a quality hold that blocks the stock until it's released and dispositioned.",
     iaPriority: "P2",
   },
   {
     slug: "asset-acquisition-to-disposal",
     name: "Asset Acquisition to Disposal",
-    modules: ["assets", "procurement", "stock", "support"],
+    modules: ["assets", "accounting"],
     summary:
-      "An asset referencing its purchase order and receipt moves through capitalization, custodian assignment, maintenance, and disposal, with self-approval blocked at each governed step.",
+      "An asset is capitalized, assigned to a custodian at a location, transferred and maintained on record, depreciated on a straight-line schedule, and disposed of with a full history.",
     iaPriority: "P2",
   },
   {
     slug: "support-ticket-resolution",
-    name: "Ticket to Resolution",
-    modules: ["support", "crm", "sales", "accounting", "assets", "projects", "quality"],
+    name: "Support Ticket Resolution",
+    modules: ["support", "crm"],
     summary:
-      "A support ticket carries first-class links to the customer's account, sales order, invoice, asset, and project records, aggregated into one customer-history view.",
-    iaPriority: "P2",
-  },
-  {
-    slug: "payroll-to-books",
-    name: "Governed Payroll to Books",
-    modules: ["hr-payroll", "accounting"],
-    summary:
-      "Attendance-adjusted payroll runs require an approver different from the preparer and post with a manual accounting-batch reference for finance reconciliation.",
+      "A customer issue becomes a numbered ticket, is categorised, prioritised, and assigned, and is worked through replies and private notes to a resolved status — with its history kept and reopening possible.",
     iaPriority: "P2",
   },
   {
     slug: "returns-and-reverse-logistics",
-    name: "Returns and Reverse Logistics",
-    modules: ["sales", "point-of-sale", "stock", "quality", "accounting"],
-    summary:
-      "A sales or point-of-sale return restocks inventory, can route through a quality disposition inspection, and flows back through the same receivables/payables documents as the original transaction.",
+    name: "Returns and Refunds",
+    modules: ["sales", "point-of-sale", "stock"],
+    summary: "Sales credit notes and refunds, and point-of-sale returns and refunds, correct the original transaction and the stock it affected.",
     iaPriority: "P2",
   },
   {
     slug: "tenant-onboarding-and-entitlement",
-    name: "Tenant Onboarding & Module Entitlement",
+    name: "Tenant Onboarding & Module Access",
     modules: ["crm", "sales", "accounting", "procurement", "stock", "manufacturing", "projects", "assets", "point-of-sale", "quality", "support", "hr-payroll"],
     summary:
-      "Organisation signup seeds roles and numbering series, activates a verified subscription, and gates every module's access by entitlement.",
+      "An organisation and its companies are set up, users are invited and given roles, and modules are enabled or disabled per organisation within its subscription plan.",
     iaPriority: "P2",
   },
 ]);
 
-/** Slugs of the 6 workflows with a real /workflows/{slug} page this phase. */
+/** Slugs of the 6 workflows with a real /workflows/{slug} page. */
 export const ROUTED_WORKFLOW_SLUGS = Object.freeze([
   "lead-to-cash",
   "procure-to-pay",
@@ -391,4 +416,94 @@ export function getWorkflow(slug) {
 
 export function getRoutedWorkflows() {
   return ROUTED_WORKFLOW_SLUGS.map((slug) => getWorkflow(slug)).filter(Boolean);
+}
+
+/**
+ * The module handoff path of a routed workflow: its steps grouped into
+ * consecutive runs by owning module, so CRM, CRM, Sales becomes
+ * CRM (Lead, Opportunity) then Sales (Quotation). Derived from the sequence,
+ * never typed separately.
+ */
+export function getWorkflowModulePath(slug) {
+  const sequence = getWorkflow(slug)?.sequence ?? [];
+  const path = [];
+  for (const step of sequence) {
+    const last = path[path.length - 1];
+    if (last && last.moduleKey === step.moduleKey) last.steps.push(step.step);
+    else path.push({ moduleKey: step.moduleKey, steps: [step.step] });
+  }
+  return path;
+}
+
+/**
+ * The approved launch capabilities a routed workflow relies on, grouped by the
+ * module (or Shared Platform) that owns them, in the order the modules first
+ * appear in the workflow. Names come from the capability register.
+ */
+export function getWorkflowCapabilityGroups(slug) {
+  const workflow = getWorkflow(slug);
+  if (!workflow?.capabilityIds) return [];
+  const order = [...new Set((workflow.sequence ?? []).map((step) => step.moduleKey))];
+  const groups = new Map();
+  for (const id of workflow.capabilityIds) {
+    const capability = getLaunchCapability(id);
+    if (!capability) throw new Error(`Workflow "${slug}" references unknown launch capability "${id}".`);
+    if (!groups.has(capability.moduleKey)) groups.set(capability.moduleKey, []);
+    groups.get(capability.moduleKey).push(capability.name);
+  }
+  const rank = (key) => (order.includes(key) ? order.indexOf(key) : order.length);
+  return [...groups.entries()].sort(([a], [b]) => rank(a) - rank(b)).map(([ownerKey, capabilities]) => ({ ownerKey, capabilities }));
+}
+
+/** /workflows — the index of cross-module workflows. */
+export const WORKFLOWS_INDEX_PAGE = Object.freeze({
+  slug: "/workflows",
+  title: "Cross-Module Workflows",
+  metaDescription:
+    "See how work moves across Vercentlabs ERP: lead to cash, procure to pay, order to fulfilment, plan to production, project delivery and employee to payroll, step by step across modules.",
+  eyebrow: "Connected workflows",
+  heading: "See how work moves across the ERP.",
+  supportingText:
+    "Each workflow shows the steps of a business process, the module that owns each step, and where the record is handed on to the next module. Every step is an approved launch capability.",
+  listHeading: "Business processes, step by step.",
+  singleModuleHeading: "Processes inside one module.",
+  singleModuleSupportingText: "These run end to end within a single module, so there is no module handoff to show.",
+  finalCta: {
+    heading: "Follow a process through the modules that run it.",
+    supportingText: "Open a workflow for the full step sequence, the capabilities it relies on, and the modules involved.",
+  },
+});
+
+
+/** Section copy shared by every /workflows/[slug] page. */
+export const WORKFLOW_DETAIL_PAGE = Object.freeze({
+  eyebrow: "Workflow",
+  triggerLabel: "Starts when",
+  scopeLabel: (steps, modules) => `${steps} steps across ${modules} ${modules === 1 ? "module" : "modules"}`,
+  finalHeading: (name) => `${name}, walked through for your business.`,
+  allWorkflowsLabel: "All workflows",
+  sequenceEyebrow: "The full sequence",
+  sequenceHeading: "Every step, and the module that owns it.",
+  capabilitiesEyebrow: "Capabilities used",
+  capabilitiesHeading: "The approved capabilities this workflow relies on.",
+  capabilitiesSupportingText: "Grouped by the module that provides them. Each one is part of the approved launch scope.",
+  evidenceEyebrow: "Product evidence",
+  evidenceHeading: "Screens from this workflow.",
+  modulesEyebrow: "Modules involved",
+  modulesHeading: "The modules this workflow runs through.",
+  relatedEyebrow: "Related workflows",
+  faqEyebrow: "Buyer questions",
+  faqHeading: "Questions buyers ask about this workflow.",
+});
+
+/**
+ * Routed workflows whose sequence includes a module, most relevant first: by
+ * the share of steps that module owns, then in ROUTED_WORKFLOW_SLUGS order.
+ */
+export function getRoutedWorkflowsForModule(moduleKey) {
+  return getRoutedWorkflows()
+    .filter((workflow) => (workflow.sequence ?? []).some((step) => step.moduleKey === moduleKey))
+    .map((workflow, index) => ({ workflow, index, share: workflow.sequence.filter((step) => step.moduleKey === moduleKey).length / workflow.sequence.length }))
+    .sort((a, b) => b.share - a.share || a.index - b.index)
+    .map(({ workflow }) => workflow);
 }

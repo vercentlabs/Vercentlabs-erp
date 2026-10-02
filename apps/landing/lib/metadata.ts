@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { POSITIONING } from "@vercentlabs/landing-content";
 import { SITE, absoluteUrl } from "./site.ts";
 
 interface PageMetadataInput {
@@ -45,13 +46,12 @@ export const ROOT_METADATA: Metadata = {
     default: `${SITE.productName} — ${SITE.category}`,
     template: SITE.titleTemplate,
   },
-  description:
-    "Sales, inventory, procurement, production, and finance on one live system. Vercentlabs is the ERP for businesses that outgrew spreadsheets.",
+  description: `${POSITIONING.masterPromise} ${POSITIONING.descriptor}`,
   applicationName: SITE.productName,
   authors: [{ name: SITE.name }],
   generator: "Next.js",
   referrer: "strict-origin-when-cross-origin",
-  keywords: ["ERP software", "manufacturing ERP", "inventory management software", "operational ERP"],
+  keywords: ["ERP software", "business management software", "cloud ERP", "ERP system"],
   // Real, discoverable feed — without this <link>, /resources/feed.xml was a
   // working but orphaned endpoint no crawler or feed reader could find (a
   // Cycle 2 seo-aeo-geo-reviewer finding).
@@ -62,7 +62,7 @@ export const ROOT_METADATA: Metadata = {
     type: "website",
     siteName: SITE.productName,
     title: `${SITE.productName} — ${SITE.category}`,
-    description: "Sales, inventory, procurement, production, and finance on one live system.",
+    description: POSITIONING.descriptor,
   },
   twitter: {
     card: "summary_large_image",

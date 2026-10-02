@@ -1,12 +1,48 @@
 export type ModuleHeroVariant = "screenshot-led" | "workflow-led" | "dashboard-led" | "operational-sequence";
 
+// --- Approved launch capability register (capabilities/launch-capabilities.js) ---
+
+/** Owner of a launch capability: one of the 12 ERP module keys, or the Shared Platform. */
+export type LaunchCapabilityOwnerKey = string;
+
+export interface LaunchCapability {
+  /** Stable, human-readable ID, e.g. "crm-leads". */
+  id: string;
+  moduleKey: LaunchCapabilityOwnerKey;
+  name: string;
+}
+
+export interface LaunchCapabilityOwner {
+  key: LaunchCapabilityOwnerKey;
+  label: string;
+  kind: "module" | "platform";
+}
+
+export const SHARED_PLATFORM_KEY: "shared-platform";
+export const LAUNCH_CAPABILITY_OWNERS: readonly LaunchCapabilityOwner[];
+/** The approved MVP capabilities — approved launch scope, not an engineering completion claim. */
+export const LAUNCH_CAPABILITIES: readonly LaunchCapability[];
+/** Derived count per owner key. */
+export const LAUNCH_CAPABILITY_COUNTS: Readonly<Record<LaunchCapabilityOwnerKey, number>>;
+/** Derived total — never type this number elsewhere. */
+export const LAUNCH_CAPABILITY_TOTAL: number;
+export const LAUNCH_BUSINESS_MODULE_COUNT: number;
+/** Derived proof line, e.g. "222 approved MVP capabilities across 12 business modules and the Shared Platform". */
+export const LAUNCH_CAPABILITY_SUMMARY: string;
+export function getLaunchCapability(id: string): LaunchCapability | null;
+export function getLaunchCapabilitiesForOwner(ownerKey: LaunchCapabilityOwnerKey): LaunchCapability[];
+export function getLaunchCapabilityOwner(ownerKey: LaunchCapabilityOwnerKey): LaunchCapabilityOwner | null;
+/** Names for capability IDs; throws on an ID that isn't in the register. */
+export function launchCapabilityNames(ids: readonly string[]): string[];
+
 export interface CapabilityGroup {
   id: string;
   name: string;
   description: string;
-  capabilities: string[];
-  /** Requirement-count allocation for this group — see capability-registry.js. */
-  requirementCount: number;
+  /** Launch capability register IDs in this group. */
+  capabilityIds: readonly string[];
+  /** Display names, derived from capabilityIds via the register. */
+  capabilities: readonly string[];
   workflowSlug?: string;
 }
 
@@ -73,7 +109,12 @@ export interface ModuleConversion {
 
 export interface LandingModule {
   key: string;
+  /** Catalog (engineering) name, e.g. "Stock". */
   name: string;
+  /** The one public, buyer-facing label, e.g. "Inventory". */
+  displayName: string;
+  /** One-line, buyer-facing purpose for compact module lists — stays inside the module's approved capabilities. */
+  purpose: string;
   description: string;
   availability: string;
   navGroup: string;
@@ -133,6 +174,8 @@ export interface LandingWorkflow {
   businessValue?: string[];
   faqs?: WorkflowFaq[];
   screenshotId?: string;
+  /** Launch capability register IDs the routed sequence relies on (capabilities/launch-capabilities.js). */
+  capabilityIds?: readonly string[];
 }
 
 export const LANDING_WORKFLOWS: readonly LandingWorkflow[];
@@ -140,6 +183,46 @@ export const ROUTED_WORKFLOW_SLUGS: readonly string[];
 export function getWorkflowsForModule(moduleKey: string): LandingWorkflow[];
 export function getWorkflow(slug: string): LandingWorkflow | null;
 export function getRoutedWorkflows(): LandingWorkflow[];
+/** Routed workflows whose sequence includes a module, most relevant first (share of steps owned, then routed order). */
+export function getRoutedWorkflowsForModule(moduleKey: string): LandingWorkflow[];
+/** A routed workflow's steps grouped into consecutive runs by owning module. */
+export function getWorkflowModulePath(slug: string): { moduleKey: string; steps: string[] }[];
+/** A routed workflow's capabilities, grouped by owning module (or "shared-platform"), in workflow order. */
+export function getWorkflowCapabilityGroups(slug: string): { ownerKey: string; capabilities: string[] }[];
+
+export const WORKFLOWS_INDEX_PAGE: {
+  slug: string;
+  title: string;
+  metaDescription: string;
+  eyebrow: string;
+  heading: string;
+  supportingText: string;
+  listHeading: string;
+  singleModuleHeading: string;
+  singleModuleSupportingText: string;
+  finalCta: { heading: string; supportingText: string };
+};
+
+/** Section copy shared by every /workflows/[slug] page. */
+export const WORKFLOW_DETAIL_PAGE: {
+  eyebrow: string;
+  triggerLabel: string;
+  scopeLabel: (steps: number, modules: number) => string;
+  finalHeading: (name: string) => string;
+  allWorkflowsLabel: string;
+  sequenceEyebrow: string;
+  sequenceHeading: string;
+  capabilitiesEyebrow: string;
+  capabilitiesHeading: string;
+  capabilitiesSupportingText: string;
+  evidenceEyebrow: string;
+  evidenceHeading: string;
+  modulesEyebrow: string;
+  modulesHeading: string;
+  relatedEyebrow: string;
+  faqEyebrow: string;
+  faqHeading: string;
+};
 
 export interface LandingIcp {
   slug: string;
@@ -174,21 +257,25 @@ export interface Cta {
   href: string;
 }
 
+/** The global CTA contract — see navigation.js. Components render CTAs by role. */
 export const CTAS: {
+  /** Main evaluation action. Today "Explore the ERP" → /product. */
   primary: Cta;
-  exploreProduct: Cta;
-  exploreModules: Cta;
-  watchTour: Cta;
-  seeHowItWorks: Cta;
+  /** Assisted evaluation through the /book-demo lead form. */
   talkToSpecialist: Cta;
+  /** The same form, where a tailored demo is explicitly the ask. */
+  bookDemo: Cta;
 };
+export const SIGN_IN_LABEL: string;
 
-export const ANNOUNCEMENT_BANNER: {
+export interface AnnouncementBannerContent {
   id: string;
   message: string;
   ctaLabel: string;
   href: string;
-};
+}
+/** null when there is no real announcement — the bar then doesn't render. */
+export const ANNOUNCEMENT_BANNER: AnnouncementBannerContent | null;
 
 export const ANALYTICS_EVENTS: readonly [
   "homepage_view",
@@ -240,7 +327,14 @@ export const ANALYTICS_EVENTS: readonly [
 ];
 
 export const SITE_IDENTITY: { name: string; productName: string; titleTemplate: string; category: string };
-export const POSITIONING: { heroHeadline: string; heroSubhead: string; promise: string };
+/** The master brand contract — see metadata.js. */
+export const POSITIONING: {
+  heroHeadline: string;
+  masterPromise: string;
+  coreIdea: string;
+  problemStatement: string;
+  descriptor: string;
+};
 export const COMPANY_IDENTITY: {
   legalName: string;
   entityType: string;
@@ -263,23 +357,32 @@ export type HomepageAnalyticsId =
   | "hero_view"
   | "hero_primary_cta_click"
   | "hero_secondary_cta_click"
+  | "connected_erp_view"
   | "problem_section_view"
   | "workflow_view"
-  | "module_group_view"
-  | "breadth_section_view"
   | "workflow_interaction"
+  | "module_group_view"
+  | "platform_section_view"
   | "role_value_view"
-  | "automation_section_view"
-  | "security_section_view"
+  | "breadth_section_view"
+  | "evaluation_section_view"
+  | "evaluation_path_click"
   | "implementation_section_view"
+  | "security_section_view"
   | "buyer_questions_view"
   | "final_cta_view"
-  | "final_cta_click";
+  | "final_cta_click"
+  | "final_secondary_cta_click";
 
 export interface HomepageCta {
   label: string;
   href: string;
   analyticsId: HomepageAnalyticsId;
+}
+
+export interface HomepageLink {
+  label: string;
+  href: string;
 }
 
 export interface HomepageSectionBase {
@@ -295,56 +398,77 @@ export const HOMEPAGE_METADATA: { title: string; description: string };
 export interface HeroContent extends HomepageSectionBase {
   primaryCta: HomepageCta;
   secondaryCta: HomepageCta;
-  evidence: { label: string; value: string }[];
+  evidence: { value: string; label: string }[];
   screenshotId: string;
 }
 export const HERO: HeroContent;
 
+export interface ConnectedErpSection extends HomepageSectionBase {
+  layers: { key: "modules" | "core" | "platform"; label: string; description: string }[];
+  mapCaption: string;
+  /** The routed workflow the connected-ERP map traces. */
+  route: { workflowSlug: string; label: string; moduleKeys: string[] };
+}
+export const CONNECTED_ERP_SECTION: ConnectedErpSection;
+
 export interface ProblemSection extends HomepageSectionBase {
+  fragmented: { label: string; systems: string[]; handoffs: string[] };
+  connected: { label: string; summary: string; moduleKeys: string[] };
   items: { title: string; description: string }[];
 }
 export const PROBLEM_SECTION: ProblemSection;
 
-export interface ConnectedSystemSection extends HomepageSectionBase {
-  steps: { label: string; module: string; detail: string }[];
+export interface ConnectedWorkflowsSection extends HomepageSectionBase {
+  /** Routed workflow slugs, in tab order; the first is the server-rendered default. */
+  workflowSlugs: string[];
+  interactionAnalyticsId: HomepageAnalyticsId;
 }
-export const CONNECTED_SYSTEM_SECTION: ConnectedSystemSection;
+export const CONNECTED_WORKFLOWS_SECTION: ConnectedWorkflowsSection;
 
 export interface ModuleArchitectureSection extends HomepageSectionBase {
   groupSummaries: { groupKey: string; outcome: string }[];
+  /** The Shared Platform shown as the common foundation under the module groups. */
+  platform: { label: string; summary: string; href: string; highlights: string[] };
 }
 export const MODULE_ARCHITECTURE_SECTION: ModuleArchitectureSection;
 
-export interface BreadthSection extends HomepageSectionBase {
-  breakdown: { label: string; value: string; description: string }[];
+export interface PlatformFoundationSection extends HomepageSectionBase {
+  /** Control families; capability names are derived from the launch register. */
+  families: { key: string; title: string; description: string; capabilities: string[] }[];
 }
-export const BREADTH_SECTION: BreadthSection;
-
-export interface FlagshipWorkflowSection extends HomepageSectionBase {
-  workflowSlug: string;
-  steps: { step: string; department: string; moduleKey: string; systemAction: string }[];
-}
-export const FLAGSHIP_WORKFLOW_SECTION: FlagshipWorkflowSection;
+export const PLATFORM_FOUNDATION_SECTION: PlatformFoundationSection;
 
 export interface RoleValueSection extends HomepageSectionBase {
-  roles: { role: string; gains: string }[];
+  roles: { role: string; gains: string; moduleKeys: string[] }[];
 }
 export const ROLE_VALUE_SECTION: RoleValueSection;
 
-export interface AutomationSection extends HomepageSectionBase {
-  items: { title: string; description: string }[];
+export interface BreadthSection extends HomepageSectionBase {
+  /** Capability count per owner, derived from the register — business modules in module-group order, then the Shared Platform. */
+  distribution: { key: string; label: string; count: number }[];
+  breakdown: { label: string; value: string; description: string }[];
+  cta: HomepageLink;
 }
-export const AUTOMATION_SECTION: AutomationSection;
+export const BREADTH_SECTION: BreadthSection;
 
-export interface SecuritySection extends HomepageSectionBase {
-  items: { title: string; description: string }[];
+export interface EvaluationSection extends HomepageSectionBase {
+  paths: { key: string; title: string; description: string; cta: HomepageLink }[];
+  pathAnalyticsId: HomepageAnalyticsId;
 }
-export const SECURITY_SECTION: SecuritySection;
+export const EVALUATION_SECTION: EvaluationSection;
 
 export interface ImplementationSection extends HomepageSectionBase {
   steps: { step: string; title: string; description: string }[];
 }
 export const IMPLEMENTATION_SECTION: ImplementationSection;
+
+export interface SecuritySection extends HomepageSectionBase {
+  accessChain: { label: string; detail: string }[];
+  traceChain: { label: string; detail: string }[];
+  items: { title: string; description: string }[];
+  cta: HomepageLink;
+}
+export const SECURITY_SECTION: SecuritySection;
 
 export interface BuyerQuestionsSection extends HomepageSectionBase {
   questions: { question: string; answer: string }[];
@@ -353,6 +477,7 @@ export const BUYER_QUESTIONS_SECTION: BuyerQuestionsSection;
 
 export interface FinalCtaSection extends HomepageSectionBase {
   primaryCta: HomepageCta;
+  secondaryCta: HomepageCta;
 }
 export const FINAL_CTA_SECTION: FinalCtaSection;
 
@@ -387,14 +512,12 @@ export const SEMANTIC_STATE: Record<
 >;
 export const SEMANTIC_PRODUCT: Record<"frame" | "chrome" | "canvas" | "annotation" | "highlight", string>;
 
-// --- Capability traceability registry (capability-registry.js) ---
+// --- Capability groups (capabilities/capability-registry.js) ---
 
 /**
- * One real, evidence-grounded capability group (module-specific or shared-platform)
- * carrying an honest requirement-count allocation. See
- * docs/landing-redesign/phase-4/capability-traceability.md for the methodology —
- * this is a structural allocation for the retained 991-requirement registry,
- * not an independently re-derived implementation-completion claim.
+ * Public grouping of the launch capability register (capabilities/capability-registry.js):
+ * module groups come from each module's capabilityGroups; Shared Platform
+ * groups are declared there. Every register capability is in exactly one group.
  */
 export interface CapabilityGroupRecord {
   id: string;
@@ -402,7 +525,8 @@ export interface CapabilityGroupRecord {
   moduleId?: string;
   platformArea?: string;
   description: string;
-  requirementCount: number;
+  capabilityIds: readonly string[];
+  capabilities: readonly string[];
   workflowSlugs: string[];
   publicPage: string;
   publicSection: string;
@@ -410,13 +534,13 @@ export interface CapabilityGroupRecord {
 }
 
 export const CAPABILITY_GROUPS: readonly CapabilityGroupRecord[];
+export const SHARED_PLATFORM_CAPABILITY_GROUPS: readonly CapabilityGroupRecord[];
 export function getCapabilityGroupsForModule(moduleKey: string): CapabilityGroupRecord[];
 export function getCapabilityGroupsForPlatformArea(platformArea: string): CapabilityGroupRecord[];
-export function getTotalRequirementCount(): number;
-export function getModuleRequirementTotal(): number;
-export function getPlatformRequirementTotal(): number;
+/** The owner key of a group: its moduleId, or SHARED_PLATFORM_KEY. */
+export function getCapabilityGroupOwner(group: CapabilityGroupRecord): LaunchCapabilityOwnerKey;
 
-// --- Platform and product-overview content (platform-pages.js) ---
+// --- Product overview and platform pages (platform/*.js) ---
 
 /** A CTA whose analytics event isn't one of the homepage's fixed section IDs. */
 export interface PageCta {
@@ -479,12 +603,15 @@ export interface LegalPageContent {
 export const PRIVACY_PAGE: LegalPageContent;
 export const TERMS_PAGE: LegalPageContent;
 
-export interface ProductOverviewSection {
-  id: string;
-  eyebrow?: string;
+export interface PageLink {
+  label: string;
+  href: string;
+}
+
+export interface PageSectionCopy {
+  eyebrow: string;
   heading: string;
   supportingText?: string;
-  items?: PlatformFeatureItem[];
 }
 
 export interface ProductOverviewPage {
@@ -495,10 +622,20 @@ export interface ProductOverviewPage {
   eyebrow: string;
   heading: string;
   supportingText: string;
-  heroScreenshotId?: string;
-  sections: ProductOverviewSection[];
+  primaryCta: PageLink;
+  secondaryCta: PageLink;
+  /** Derived figures: module count, routed workflow count, Shared Platform capability count. */
+  facts: { value: string; label: string }[];
+  architecture: PageSectionCopy & { layers: { key: "modules" | "workflows" | "platform"; title: string; description: string }[] };
+  evidence: PageSectionCopy & { primaryScreenshotId: string; secondaryScreenshotId: string };
+  modulesSection: PageSectionCopy;
+  workflowsSection: PageSectionCopy;
+  platformSection: PageSectionCopy & { cta: PageLink };
+  controlsSection: PageSectionCopy & { items: { title: string; description: string }[]; cta: PageLink };
+  evaluation: PageSectionCopy;
+  finalCta: { heading: string; supportingText: string; primaryCta: PageLink; secondaryCta: PageLink };
+  faqSection: PageSectionCopy;
   faqs: ModuleFaq[];
-  primaryCta: PageCta;
 }
 
 export const PRODUCT_OVERVIEW_PAGE: ProductOverviewPage;
@@ -518,11 +655,36 @@ export interface ModulesIndexPage {
   eyebrow: string;
   heading: string;
   supportingText: string;
+  groupsSection: PageSectionCopy;
+  relationshipsSection: PageSectionCopy;
+  platformSection: PageSectionCopy & { cta: PageLink };
+  stacksSection: PageSectionCopy;
   operatingStacks: OperatingStack[];
-  primaryCta: PageCta;
+  finalCta: { heading: string; supportingText: string; primaryCta: PageLink; secondaryCta: PageLink };
 }
 
 export const MODULES_INDEX_PAGE: ModulesIndexPage;
+
+/** Section copy shared by every /modules/[slug] page. */
+export const MODULE_DETAIL_PAGE: {
+  evidenceEyebrow: string;
+  evidenceFallbackLabel: string;
+  managesEyebrow: string;
+  managesHeading: (name: string) => string;
+  capabilitiesEyebrow: string;
+  capabilitiesHeading: (name: string, count: number) => string;
+  capabilitiesSupportingText: string;
+  workflowEyebrow: string;
+  workflowHeading: (name: string) => string;
+  connectionsEyebrow: string;
+  connectionsHeading: (name: string) => string;
+  platformEyebrow: string;
+  platformHeading: string;
+  platformSupportingText: string;
+  faqEyebrow: string;
+  faqHeading: (name: string) => string;
+  relatedEyebrow: string;
+};
 
 // --- Buyer roles (buyer-roles.js) ---
 

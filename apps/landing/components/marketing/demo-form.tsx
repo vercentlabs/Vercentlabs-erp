@@ -169,7 +169,7 @@ export function DemoForm({ initialModules }: { initialModules?: string[] } = {})
       </Grid>
 
       <Grid columns={2} gap={4}>
-        <FieldWrapper id="industry" label="Industry" error={errors.industry}>
+        <FieldWrapper id="industry" label="Type of business" error={errors.industry}>
           {(describedBy) => (
             <Select id="industry" name="industry" value={values.industry} onChange={(e) => updateField("industry", e.target.value)} invalid={Boolean(errors.industry)} aria-describedby={describedBy}>
               <option value="">Select an industry</option>
@@ -228,7 +228,7 @@ export function DemoForm({ initialModules }: { initialModules?: string[] } = {})
                   setModulesOfInterest((current) => (e.target.checked ? [...current, module.name] : current.filter((item) => item !== module.name)))
                 }
               />
-              {module.name}
+              {module.displayName}
             </label>
           ))}
         </div>
@@ -265,7 +265,7 @@ export function DemoForm({ initialModules }: { initialModules?: string[] } = {})
         id="consentEmail"
         name="consentEmail"
         required
-        label="I agree to be contacted by Vercentlabs about this demo request."
+        label="I agree to be contacted by Vercentlabs about this request."
         checked={values.consentEmail}
         onChange={(e) => updateField("consentEmail", e.target.checked)}
         invalid={Boolean(errors.consentEmail)}

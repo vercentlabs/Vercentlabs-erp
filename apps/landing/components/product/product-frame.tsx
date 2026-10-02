@@ -20,13 +20,13 @@ export function ProductFrame({
       <div className="flex items-center justify-between border-y border-(--color-product-frame) py-2.5">
         <div className="flex items-center gap-3">
           <span className="h-2.5 w-2.5" style={{ backgroundColor: moduleAccentColor ?? "var(--color-brand)" }} aria-hidden="true" />
-          <span className="text-[0.61rem] font-bold uppercase tracking-[0.14em] text-(--color-text-muted)">Live product evidence</span>
+          <span className="text-[0.7rem] font-bold uppercase tracking-[0.12em] text-(--color-text-muted)">Product screen</span>
         </div>
-        <span className="vl-index">VERCENTLABS ERP</span>
+        <span className="vl-index hidden sm:inline">Vercentlabs ERP · demo data</span>
       </div>
       <div className="relative mt-3 overflow-hidden border border-(--color-product-frame) bg-(--color-product-canvas)">{children}</div>
       {caption ? (
-        <figcaption className="grid grid-cols-[auto_1fr] gap-4 border-b border-(--color-product-frame) py-3 text-[0.69rem] leading-relaxed text-(--color-text-muted)">
+        <figcaption className="grid grid-cols-[auto_1fr] gap-4 border-b border-(--color-product-frame) py-3 text-[0.75rem] leading-relaxed text-(--color-text-muted)">
           <span className="font-bold uppercase tracking-[0.11em] text-(--color-text-brand)">Evidence</span>
           <span>{caption}</span>
         </figcaption>
@@ -41,9 +41,11 @@ interface ProductScreenshotProps {
   className?: string;
   allowPlaceholder?: boolean;
   priority?: boolean;
+  /** Responsive `sizes` for next/image; defaults to a full-container image. */
+  sizes?: string;
 }
 
-export function ProductScreenshot({ id, moduleAccentColor, className, allowPlaceholder = false, priority = false }: ProductScreenshotProps) {
+export function ProductScreenshot({ id, moduleAccentColor, className, allowPlaceholder = false, priority = false, sizes = "(min-width: 1024px) 1100px, 100vw" }: ProductScreenshotProps) {
   const screenshot = getApprovedScreenshot(id);
 
   if (!screenshot) {
@@ -65,7 +67,7 @@ export function ProductScreenshot({ id, moduleAccentColor, className, allowPlace
         width={screenshot.width}
         height={screenshot.height}
         className="h-auto w-full"
-        sizes="(min-width: 1024px) 1100px, 100vw"
+        sizes={sizes}
         priority={priority}
       />
     </ProductFrame>

@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { Inter } from "next/font/google";
 import { ROOT_METADATA } from "@/lib/metadata";
 import { organizationJsonLd, websiteJsonLd, jsonLdScriptProps } from "@/lib/seo/json-ld";
 import { Header } from "@/components/navigation/header";
@@ -14,6 +15,11 @@ import "./globals.css";
 
 export const metadata = ROOT_METADATA;
 
+// The ERP product's own typeface (apps/web uses the same next/font Inter), so
+// the site and the product read as one system. next/font self-hosts the files
+// and generates a metric-matched fallback, so the swap causes no layout shift.
+const inter = Inter({ subsets: ["latin"], display: "swap", variable: "--font-inter" });
+
 export const viewport = {
   width: "device-width",
   initialScale: 1,
@@ -22,7 +28,7 @@ export const viewport = {
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
-    <html lang="en">
+    <html lang="en" className={inter.variable}>
       <body>
         {/* Belt-and-braces alongside Reveal's own fail-open branch (see
             components/motion/reveal.tsx): guarantees scroll-revealed content

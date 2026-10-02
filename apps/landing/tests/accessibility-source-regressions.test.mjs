@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 
 const read = (relative) => readFileSync(new URL(`../${relative}`, import.meta.url), "utf8");
 
@@ -14,11 +14,16 @@ test("landing a11y: glossary index uses list semantics, never orphan dt/dd nodes
 });
 
 test("landing a11y: homepage description-list source order is term then description", () => {
-  const source = read("app/page.tsx");
-  const term = source.indexOf('<dt className="vl-index order-2 mt-3">');
-  const description = source.indexOf('<dd className="tabular-data order-1');
-  assert.ok(term >= 0 && description > term);
-  assert.doesNotMatch(source, /text-white\/42/);
+  // Visual order may put the figure first (CSS order), but the source keeps term → description.
+  for (const file of ["components/home/home-hero.tsx", "components/home/home-breadth.tsx"]) {
+    const source = read(file);
+    const term = source.indexOf("<dt");
+    const description = source.indexOf("<dd");
+    assert.ok(term >= 0 && description > term, file);
+  }
+  for (const section of readdirSync(new URL("../components/home/", import.meta.url))) {
+    assert.doesNotMatch(read(`components/home/${section}`), /text-white\/42/, section);
+  }
 });
 
 test("landing a11y: border colors are not used as visible section-number text on representative index pages", () => {

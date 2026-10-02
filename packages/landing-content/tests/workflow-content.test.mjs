@@ -20,7 +20,8 @@ test("order-to-fulfilment and hire-to-payroll are new, real entries with a modul
   assert.ok(orderToFulfilment, "order-to-fulfilment must exist");
   assert.ok(hireToPayroll, "hire-to-payroll must exist");
   assert.ok(orderToFulfilment.modules.length >= 2);
-  assert.ok(hireToPayroll.modules.length >= 2);
+  // Single-module in the approved launch scope — see SINGLE_MODULE_WORKFLOWS in landing-content.test.mjs.
+  assert.ok(hireToPayroll.modules.length >= 1);
 });
 
 test("every routed workflow has a directDefinition distinct from its summary (no duplicate hero/DirectDefinition text)", () => {

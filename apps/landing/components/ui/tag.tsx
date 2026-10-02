@@ -35,3 +35,19 @@ export function ModuleTag({ name, accentColor, className }: { name: string; acce
     </span>
   );
 }
+
+/** A non-interactive module reference for diagrams and lists: accent swatch + public module name. */
+export function ModuleChip({ name, accentColor, inverse = false, className }: { name: string; accentColor: string; inverse?: boolean; className?: string }) {
+  return (
+    <span
+      className={cx(
+        "inline-flex items-center gap-1.5 whitespace-nowrap text-[0.78rem] font-semibold leading-none",
+        inverse ? "text-white" : "text-(--color-text-primary)",
+        className,
+      )}
+    >
+      <span className="h-2 w-2 flex-none" style={{ backgroundColor: accentColor }} aria-hidden="true" />
+      {name}
+    </span>
+  );
+}

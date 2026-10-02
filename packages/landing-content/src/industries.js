@@ -1,19 +1,14 @@
+import { CTAS } from "./navigation.js";
+
 /**
- * Industry pages — Phase 5 IA amendment (see docs/landing-redesign/phase-5/
- * decision-log.md item 1). The approved Phase 1 IA defines 3 industry pages
- * (distribution-retail combined); this phase builds 4, splitting distribution
- * and retail into separate pages per the governing prompt's explicit route
- * list. `icpSlug` is deliberately shared between the "distribution" and
- * "retail" entries below — both compose from the same real, researched ICP 2
- * ("Wholesale Distributors & Multi-Location Retailers",
- * docs/landing-redesign/phase-1/icp-and-buyer-map.md) rather than inventing a
- * 4th independently-researched buyer segment. Each still gets a genuinely
- * distinct operatingModel/moduleStack/challenges grounded in the already-real,
- * already-differentiated Procurement and Point of Sale module content.
+ * Industry pages. These are lower-funnel entry points into the same product;
+ * every product statement on them must stay inside the approved launch
+ * capability register (capabilities/launch-capabilities.js) — an industry page never gets
+ * capabilities the module pages don't have.
  *
- * Every operatingModel/challenges/evidenceHighlights line traces to
- * docs/landing-redesign/phase-1/product-intelligence.md and
- * icp-and-buyer-map.md — not independently re-researched.
+ * `icpSlug` is deliberately shared between the "distribution" and "retail"
+ * entries — both compose from the same ICP — while each keeps a distinct
+ * operating model and module stack.
  */
 export const LANDING_INDUSTRIES = Object.freeze([
   {
@@ -21,156 +16,155 @@ export const LANDING_INDUSTRIES = Object.freeze([
     icpSlug: "manufacturing",
     name: "Manufacturing",
     directDefinition:
-      "Vercentlabs ERP runs the shop floor and the back office on one system — a bill of materials becomes a costed work order, production posts real stock movements, and procurement and quality stay synchronised with what's actually happening on the line.",
+      "Vercentlabs ERP runs production and the back office on one system — a bill of materials becomes a manufacturing order, material issues and finished-goods receipts post to the same stock ledger, and quality and purchasing work from the same records.",
     operatingModel:
-      "Growing manufacturers typically run 1-5 plants with production planning still tracked in Excel and shop-floor status relayed by paper traveler or WhatsApp, while accounting lives separately in Tally or a similar tool. Vercentlabs replaces that split with one data model: an active bill of materials defines what a finished item requires, a work order snapshots those materials and can't be released without proven component availability, and every material issue or finished-goods receipt posts as a real, auditable stock movement in the same transaction as the production event — not a month-end reconciliation.",
+      "Growing manufacturers often plan production in spreadsheets, relay shop-floor status by paper or chat, and keep accounting in a separate tool. Vercentlabs replaces that split with one data model: a bill of materials defines what a finished item needs, each manufacturing order checks material availability before work starts, material issue, consumption, and scrap are recorded against the order, production inspections and holds catch problems on the line, and finished goods are received into stock with their production cost.",
     challenges: [
-      "No real-time inventory visibility across raw material, work-in-progress, and finished goods",
-      "Production costing is a month-end guess, not a live number",
-      "Quality holds and rework aren't tracked systematically",
-      "Procurement and production run on different information, causing both stockouts and excess",
+      "No real-time view of raw material and finished-goods stock",
+      "Production cost worked out after the fact",
+      "Quality problems found at dispatch instead of on the line",
+      "Purchasing and production working from different information",
     ],
     moduleStack: [
-      { moduleKey: "manufacturing", role: "Plans BOMs and work orders, and posts every material issue and finished-goods receipt as a real stock movement." },
-      { moduleKey: "stock", role: "Holds the single, race-safe inventory ledger Manufacturing posts into — on-hand, reserved, and valuation, per warehouse." },
-      { moduleKey: "procurement", role: "Sources raw materials with a governed requisition-to-order chain, so production isn't waiting on off-the-books purchasing." },
-      { moduleKey: "quality", role: "Gates incoming materials and in-process production with inspection points; a failed inspection automatically holds the affected stock." },
-      { moduleKey: "accounting", role: "Carries production cost through to real financials, with a governed close instead of a spreadsheet reconciliation." },
+      { moduleKey: "manufacturing", role: "Turns bills of materials into manufacturing orders, checks material availability, and records issue, consumption, scrap, and finished goods." },
+      { moduleKey: "stock", role: "Holds the single stock ledger production posts into — real-time balances, reservations, and valuation per warehouse." },
+      { moduleKey: "procurement", role: "Buys raw materials with purchase orders, goods receipts, and invoices matched against both before payment." },
+      { moduleKey: "quality", role: "Inspects incoming materials and production output; a quality hold blocks failed stock from moving until it's released." },
+      { moduleKey: "accounting", role: "Keeps the general ledger, payables, and financial statements in the same system as production." },
     ],
     primaryWorkflowSlug: "plan-to-production",
     buyerRoleSlugs: ["ceo-owner", "plant-manager", "cfo"],
     evidenceHighlights: [
-      "A released manufacturing work order cannot proceed without proven component availability.",
-      "Every material issue and finished-goods receipt posts a real, auditable stock movement — not a paper work-order tracker sitting beside a separately managed inventory.",
-      "Failed quality inspections automatically place an inventory hold on the affected batch, serial, receipt, work order, or return.",
+      "Each manufacturing order checks material availability against its bill of materials before production starts.",
+      "Material issues and finished-goods receipts post to the same stock ledger the rest of the business uses.",
+      "A quality hold blocks stock movement until the hold is released.",
     ],
     screenshots: { primary: "manufacturing-dashboard" },
     faqs: [
-      { question: "Does Vercentlabs handle our actual BOM complexity, or just simple assemblies?", answer: "Bills of material are versioned and multi-component, with scrap percentage and a choice of manual or backflush issue method per component. One active BOM per item is enforced, so there's no ambiguity about which structure a work order snapshots from." },
-      { question: "Is there automatic capacity scheduling or MRP?", answer: "Material and capacity planning runs produce recommended purchase, manufacture, transfer, or expedite actions — but they're triggered manually today, not run on an automatic scheduler. Treat this as MRP-style planning support, not a fully automated capacity-scheduling engine." },
-      { question: "How fast can we actually go live, coming off Tally and Excel?", answer: "Implementation starts with a discovery phase that maps your real BOM and production process before any configuration happens — see the implementation journey for the full 8-phase methodology, including data migration for existing items, suppliers, and open transactions." },
-      { question: "Will the shop floor actually use this, or will it stay a planning-office tool?", answer: "Production posting is a single action — issue materials, receive finished goods — that writes the same stock ledger everyone else sees, so there's no separate system to reconcile against what the floor already did." },
+      { question: "What does Vercentlabs Manufacturing cover?", answer: "Bills of materials, manufacturing orders, material availability, material issue and consumption, scrap, production quality inspections and holds, finished-goods receipt, and production costing." },
+      { question: "Is there automatic capacity scheduling or MRP?", answer: "No. The launch product runs BOM-based manufacturing orders and their execution; MRP planning runs and capacity scheduling are not part of it." },
+      { question: "How fast can we go live, coming off spreadsheets and a separate accounting tool?", answer: "Implementation starts with discovery that maps your real BOMs and production process before any configuration — see the implementation journey for the full methodology, including data migration." },
+      { question: "Will the shop floor actually use this, or will it stay a planning-office tool?", answer: "Recording material issues and finished-goods receipts happens on the manufacturing order itself and updates the same stock everyone else sees, so there's no separate system to reconcile against what the floor already did." },
     ],
-    metaDescription: "See how Vercentlabs ERP runs manufacturing operations: BOM-driven work orders, real-time stock movements, quality holds, and procurement synchronised with production — not a paper tracker beside a separate inventory system.",
+    metaDescription: "See how Vercentlabs ERP runs manufacturing: BOM-based manufacturing orders, material availability, real-time stock postings, production inspections and holds, and production costing.",
     searchIntent: "manufacturing ERP software",
-    conversion: { heading: "See your BOM become a costed, stock-linked work order.", ctaLabel: "Book a Demo" },
+    conversion: { heading: "See your bill of materials become a stock-linked manufacturing order.", ctaLabel: CTAS.talkToSpecialist.label },
   },
   {
     slug: "distribution",
     icpSlug: "distribution-retail",
     name: "Distribution",
     directDefinition:
-      "Vercentlabs ERP gives wholesale distributors one real-time stock number across every warehouse, with procurement decisions driven by the same live inventory data — not a weekly export reconciled by hand.",
+      "Vercentlabs ERP gives wholesale distributors one real-time stock balance across every warehouse, with sales orders and purchasing working from the same live inventory — not a weekly export reconciled by hand.",
     operatingModel:
-      "Distributors typically run 3-50 warehouses with a standalone POS or basic accounting tool for sales and billing, while stock across locations is reconciled manually in Excel — the weak point in an otherwise systemised business. Vercentlabs replaces the reconciliation step: Stock's ledger tracks on-hand, reserved, and valuation per warehouse in real time, Procurement's requisition-to-order chain sources replenishment against reorder rules that reference the same live stock data, and every purchase order runs through 2/3/4-way matching before a vendor bill can post — so purchasing decisions aren't made on stale numbers.",
+      "Distributors often run several warehouses with a basic sales or billing tool, while stock across locations is reconciled in spreadsheets. Vercentlabs removes the reconciliation step: the stock ledger tracks on-hand, reserved, and available stock per warehouse in real time, internal transfers move stock between warehouses on record, sales orders check availability and reserve stock before they're confirmed, and supplier invoices are matched against purchase orders and goods receipts before they're paid.",
     challenges: [
       "No single view of stock across warehouses",
-      "Can't confidently promise delivery dates without checking multiple systems",
-      "Manual reconciliation between point-of-sale/order systems and the books",
-      "Procurement decisions made on stale inventory data",
+      "Promising delivery without checking what's available",
+      "Manual reconciliation between orders and the books",
+      "Purchasing decisions made on stale inventory data",
     ],
     moduleStack: [
-      { moduleKey: "procurement", role: "Runs requisition-to-order sourcing with policy-driven readiness scoring, so replenishment isn't a manual purchasing decision made on old data." },
-      { moduleKey: "stock", role: "Holds one real-time ledger — on-hand, reserved, valuation — across every warehouse, with reorder rules feeding a low-stock dashboard." },
-      { moduleKey: "sales", role: "Prices and orders with a GST-aware quotation engine and a real-time customer-credit check before confirmation." },
-      { moduleKey: "crm", role: "Keeps the wholesale account relationship — leads, opportunities, and account history — in one system with Sales." },
-      { moduleKey: "accounting", role: "Reconciles receivables and payables against real orders and matched purchase orders, not a spreadsheet." },
+      { moduleKey: "stock", role: "Holds one real-time ledger across every warehouse — receipts, transfers, reservations, issues, and valuation." },
+      { moduleKey: "sales", role: "Quotes and confirms orders with availability checks and stock reservation, then delivers and invoices them." },
+      { moduleKey: "procurement", role: "Buys stock with purchase orders and goods receipts, and matches supplier invoices 2-way or 3-way before payment." },
+      { moduleKey: "crm", role: "Keeps the wholesale account relationship — leads, accounts, and opportunities — in the same system as Sales." },
+      { moduleKey: "accounting", role: "Posts receivables and payables from real invoices and reconciles receipts and payments with the bank." },
     ],
     primaryWorkflowSlug: "order-to-fulfilment",
     buyerRoleSlugs: ["coo", "ceo-owner", "cfo"],
     evidenceHighlights: [
-      "Real 2/3/4-way matching between purchase order, goods receipt, and vendor invoice gates AP bill creation.",
-      "GST tax calculation automatically splits CGST/SGST vs. IGST by state on every quotation and order.",
-      "Sales orders are checked against real-time aggregated customer credit exposure, under an advisory database lock, before confirmation.",
+      "Stock balances update in real time as each receipt, transfer, and issue posts.",
+      "Sales orders check availability and reserve stock before they're confirmed.",
+      "Supplier invoices are matched against the purchase order, or the order and goods receipt, before payment.",
     ],
     screenshots: { primary: "procurement-orders-list" },
     faqs: [
-      { question: "Does this replace our existing POS, or sit alongside it?", answer: "Vercentlabs includes its own Point of Sale module with real-time stock deduction on checkout — see the Retail industry page for that angle. For a pure wholesale/distribution operation without a storefront, Stock and Procurement are the primary modules; POS is optional." },
-      { question: "How does stock stay accurate across multiple warehouses without manual counts?", answer: "Every movement — receipt, issue, transfer, adjustment, return, count — posts through a row-locked ledger that enforces available-stock checks, so two people can't oversell the same unit from two terminals." },
-      { question: "Can reorder rules trigger a purchase automatically?", answer: "Reorder rules reference a preferred supplier and feed a low-stock dashboard, but there's no automatic requisition job triggered from Stock today — replenishment is still a deliberate purchasing decision, just one made on real-time data instead of a stale export." },
-      { question: "Can each warehouse operate under its own branch, or is it all one pool?", answer: "Warehouses are typed and structured under real companies and branches with granular, membership-scoped access — a distributor running several warehouses under one or multiple legal entities gets structural isolation, not just a location filter on one shared pool." },
+      { question: "Does this replace our existing POS, or sit alongside it?", answer: "Vercentlabs includes its own Point of Sale module that reduces stock in real time — see the Retail industry page for that angle. For a wholesale operation without a storefront, Stock, Sales, and Procurement are the primary modules; Point of Sale is optional." },
+      { question: "How does stock stay accurate across multiple warehouses?", answer: "Every receipt, issue, transfer, and adjustment posts to one stock ledger, physical counts are reconciled with stock adjustments, and negative-stock control stops more being issued than is available." },
+      { question: "Can low stock trigger a purchase automatically?", answer: "No. Replenishment is a deliberate purchasing decision in the launch product — made on real-time stock balances rather than a stale export." },
+      { question: "Can warehouses sit under different companies or branches?", answer: "Yes. An organisation can run several companies and branches, and access can be scoped to specific companies and branches." },
     ],
-    metaDescription: "Vercentlabs ERP gives distributors one real-time stock number across every warehouse, procurement driven by live inventory data, and 2/3/4-way matching that gates AP posting on unresolved variance.",
+    metaDescription: "Vercentlabs ERP gives distributors one real-time stock balance across warehouses, sales orders checked against available stock, and supplier invoices matched before payment.",
     searchIntent: "distribution management system",
-    conversion: { heading: "See one real stock number across every warehouse you run.", ctaLabel: "Book a Demo" },
+    conversion: { heading: "See one real stock number across every warehouse you run.", ctaLabel: CTAS.talkToSpecialist.label },
   },
   {
     slug: "retail",
     icpSlug: "distribution-retail",
     name: "Retail",
     directDefinition:
-      "Vercentlabs ERP's Point of Sale posts a real inventory deduction in the same database transaction as the checkout — so store stock, warehouse stock, and the books stay in step without a nightly sync.",
+      "Vercentlabs ERP's Point of Sale reduces stock in real time as each sale completes — so store stock and warehouse stock stay in step, and every shift closes with a Day-End / Z report.",
     operatingModel:
-      "Multi-location retailers typically run a standalone POS system with Tally or QuickBooks for accounting and Excel for cross-location stock reconciliation — none of it talking to the others until month-end. Vercentlabs replaces the reconciliation gap directly at the point of sale: a checkout completes a multi-line sale with mixed-tender payment and deducts real inventory in the same transaction, one open shift per terminal is enforced so cash accountability is never ambiguous, and shift close computes cash variance automatically instead of a manager reconstructing it from receipts.",
+      "Multi-location retailers often run a standalone till with separate accounting and spreadsheets for stock across stores. Vercentlabs closes that gap at the point of sale: cashiers sell from terminals with cash, card, or UPI payments, each sale reduces stock in real time, returns and refunds are recorded at the till, and every shift is opened and closed with a Day-End / Z report and payment reconciliation by payment method.",
     challenges: [
-      "Disconnect between floor sales and back-office stock/cash",
-      "Unauthorized over- or under-charging at the register",
-      "An indefensible end-of-day cash reconciliation process",
+      "Till sales disconnected from back-office stock",
+      "No control over who can do what at the register",
+      "End-of-day cash reconciliation done by hand",
       "No single view of stock across store locations",
     ],
     moduleStack: [
-      { moduleKey: "point-of-sale", role: "Runs checkout, shift/cash-drawer control, and returns — every sale deducts real inventory in the same transaction as the checkout." },
-      { moduleKey: "stock", role: "Holds the shared, real-time inventory ledger every store checkout posts into — visible across every location, not just the selling store." },
-      { moduleKey: "procurement", role: "Sources store replenishment through a governed requisition-to-order chain instead of ad hoc reordering." },
-      { moduleKey: "crm", role: "Tracks the customer relationship for accounts that span both counter sales and wholesale/B2B orders." },
-      { moduleKey: "accounting", role: "Reconciles the books against real transactions — though POS sales don't yet auto-create a Sales order or Accounting invoice; see the honest limitation below." },
+      { moduleKey: "point-of-sale", role: "Runs checkout, shifts, returns, and refunds — every sale reduces stock in real time." },
+      { moduleKey: "stock", role: "Holds the shared, real-time stock ledger every store's sales post into, visible across locations." },
+      { moduleKey: "procurement", role: "Buys store stock with purchase orders and goods receipts, with supplier invoices matched before payment." },
+      { moduleKey: "crm", role: "Tracks the customer relationship for accounts that buy both over the counter and on account." },
     ],
     primaryWorkflowSlug: "order-to-fulfilment",
     buyerRoleSlugs: ["coo", "ceo-owner"],
     evidenceHighlights: [
-      "A point-of-sale checkout deducts live inventory in the same database transaction as the sale — no nightly batch sync.",
-      "One open shift per terminal is enforced by a unique index, and shift close computes cash variance automatically.",
-      "Returns are line-level and policy-gated for approval, not a free-for-all refund button.",
+      "Each point-of-sale sale reduces stock in real time.",
+      "Cash, card, and UPI / digital payments are reconciled by payment method at day end.",
+      "Cashiers work under their own permissions.",
     ],
     screenshots: { primary: "point-of-sale-dashboard" },
     faqs: [
-      { question: "Does a POS sale automatically create a Sales order or an Accounting invoice?", answer: "Not automatically today — the linking columns exist on the POS sale record but aren't populated by an automated process yet. Treat Point of Sale as inventory-integrated in real time, not fully books-integrated, until that link ships." },
-      { question: "Is Point of Sale available on a mobile device or tablet?", answer: "No — Point of Sale is explicitly excluded from the mobile module catalog today. It's a desktop/terminal workflow, not a tablet checkout." },
-      { question: "How is cash accountability enforced across shifts and terminals?", answer: "A unique index enforces one open shift per terminal, and closing a shift computes the expected-versus-counted cash variance automatically rather than relying on a manager's manual tally." },
-      { question: "Can a return be refused or routed for inspection instead of an automatic refund?", answer: "Returns are line-level and policy-gated for approval, not a free-for-all refund button — a return can be routed for review rather than refunded on the spot, matching the same governance discipline as the rest of the platform." },
+      { question: "Which payment methods can the till take?", answer: "Cash, card, and UPI / digital payments, reconciled by payment method in the Day-End / Z report." },
+      { question: "Is there a tablet or phone checkout app?", answer: "No. Vercentlabs ERP is a browser-based application with a responsive interface; there is no native POS app at launch." },
+      { question: "How is cash accountability handled across shifts?", answer: "Each shift is opened and closed on its terminal, and the Day-End / Z report and payment reconciliation account for what was taken by payment method." },
+      { question: "How are returns handled at the till?", answer: "Returns and refunds are recorded at the till like any other transaction, so they're on record rather than handled informally." },
     ],
-    metaDescription: "Vercentlabs Point of Sale deducts real inventory in the same transaction as checkout, enforces one open shift per terminal, and computes cash variance automatically — no nightly stock sync required.",
+    metaDescription: "Vercentlabs Point of Sale reduces stock in real time at checkout, takes cash, card, and UPI payments, and closes every shift with a Day-End / Z report and payment reconciliation.",
     searchIntent: "retail ERP with POS",
-    conversion: { heading: "See a checkout deduct real inventory in real time.", ctaLabel: "Book a Demo" },
+    conversion: { heading: "See a checkout reduce real inventory in real time.", ctaLabel: CTAS.talkToSpecialist.label },
   },
   {
     slug: "professional-services",
     icpSlug: "professional-services",
     name: "Professional Services",
     directDefinition:
-      "Vercentlabs Projects computes live gross margin from approved labor, expenses, and real procurement actuals against contracted revenue — while the project is still open, not after it closes.",
+      "Vercentlabs ERP runs project delivery alongside the customers, quotations, and support tickets it relates to — projects, milestones, tasks, timesheets, and progress tracking in the same system as the rest of the business.",
     operatingModel:
-      "Project-based and professional-services businesses typically track delivery in a standalone PM tool or spreadsheets, with financial tie-back to project profitability handled manually and well after the fact. Vercentlabs connects the two directly: a project links to billing method (fixed price, time & material, milestone, or non-billable) and, where relevant, a Sales order; approved timesheets and expenses — with the person who logged them blocked from self-approving — feed a live gross-margin calculation against contracted revenue; and real procurement actuals linked to the project flow into that same margin number, not a separate spreadsheet.",
+      "Project-based businesses often track delivery in a standalone task tool or spreadsheets, with customers, quotes, and support kept somewhere else. Vercentlabs puts them on one system: projects are broken into milestones and tasks with assignees and priorities, team members log timesheets against the work, comments keep discussion attached to the task, progress tracking shows where each project stands, and the same customers flow through CRM, Sales, and Support.",
     challenges: [
-      "Don't know which projects are actually profitable until the project is over",
-      "Timesheet-to-billing is manual and leaky",
-      "Resource utilisation is a guess, not a number",
-      "Project procurement isn't tied to project budgets",
+      "Project status scattered across spreadsheets and chat",
+      "Unclear ownership of tasks",
+      "Time recorded inconsistently, or not at all",
+      "Customer, quote, and project information in separate tools",
     ],
     moduleStack: [
-      { moduleKey: "projects", role: "Tracks tasks, timesheets, budgets, and live gross margin — computed from approved actuals, not a static report." },
-      { moduleKey: "crm", role: "Manages the client relationship and opportunity that a project can originate from." },
-      { moduleKey: "sales", role: "Quotes and orders the engagement, with the resulting order linkable to the project." },
-      { moduleKey: "accounting", role: "Receives idempotent billing-milestone handoffs and posts the resulting invoice — no duplicate billing risk on retry." },
-      { moduleKey: "hr-payroll", role: "Supplies the workforce data timesheets and cost rates draw from, under the same self-approval-blocked governance." },
+      { moduleKey: "projects", role: "Tracks projects, milestones, tasks, assignees, priorities, timesheets, comments, and progress." },
+      { moduleKey: "crm", role: "Manages the client relationship and the opportunities new work comes from." },
+      { moduleKey: "sales", role: "Quotes and invoices the engagement from the same customer records." },
+      { moduleKey: "support", role: "Handles client issues as numbered tickets against the same customers and contacts." },
+      { moduleKey: "hr-payroll", role: "Holds the employee records for the people assigned to tasks and logging timesheets." },
     ],
     primaryWorkflowSlug: "project-to-profitability",
     buyerRoleSlugs: ["ceo-owner", "cfo", "hr-leader"],
     evidenceHighlights: [
-      "Project profitability is computed live from approved labor, approved expenses, and real procurement actuals against contracted revenue while the project is still open.",
-      "The person who logs a timesheet entry cannot approve their own entry — self-approval is blocked, not just discouraged.",
-      "Billing milestones use idempotency keys, so the same billing event can't be entered — or double-billed — twice.",
+      "Every task has an assignee and a priority.",
+      "Timesheets are logged against the project and task the time was spent on.",
+      "Project status and progress tracking show where each project stands against its milestones.",
     ],
     screenshots: { primary: "projects-dashboard" },
     faqs: [
-      { question: "Does this replace the PM tool our team already uses and likes?", answer: "Vercentlabs Projects is positioned as the finance and operations layer underneath project delivery — task and timesheet tracking, budget versioning, and live margin — not a general-purpose project-management replacement. If your team's PM tool handles day-to-day task collaboration well, the value here is connecting that work to real financials." },
-      { question: "Can it handle mixed billing models — fixed price, T&M, and milestone — across different clients?", answer: "Yes — billing method is set per project (fixed price, time and material, milestone, or non-billable), so a services firm running different commercial models across its client base doesn't need a workaround." },
-      { question: "Is there a mobile app for logging time in the field?", answer: "Not today — Projects has no native mobile presence, which is a real gap for field-based time entry. Time tracking is a browser workflow, not a phone app." },
-      { question: "Who can approve a consultant's logged hours?", answer: "Not the consultant who logged them — self-approval is blocked structurally, so the cost data feeding the live margin calculation is never self-certified by the person who created it." },
+      { question: "Does this replace the task tool our team already uses?", answer: "It can — Projects covers projects, milestones, tasks, assignees, priorities, comments, timesheets, and progress tracking. The difference is that it sits in the same system as your customers, quotations, and support tickets." },
+      { question: "Does Vercentlabs track project budgets or profitability?", answer: "No. The launch product covers project delivery, timesheets, and progress tracking; project budgets, profitability, and billing are not part of it." },
+      { question: "Can consultants log time from their phone?", answer: "Timesheets are entered in the browser, and the interface is responsive on phone screens; there is no native mobile app at launch." },
+      { question: "Can clients' issues be tracked alongside projects?", answer: "Yes. Support tickets are logged against the same customers and contacts, so client issues and project work share one customer record." },
     ],
-    metaDescription: "Vercentlabs Projects computes live gross margin from approved labor, expenses, and procurement actuals against contracted revenue — see project profitability before the project ends, not after.",
+    metaDescription: "Vercentlabs ERP for professional services: projects, milestones, tasks, timesheets, and progress tracking alongside the customers, quotations, and support tickets they relate to.",
     searchIntent: "ERP for professional services",
-    conversion: { heading: "See project profitability before the project ends.", ctaLabel: "Book a Demo" },
+    conversion: { heading: "See your projects and clients managed in one system.", ctaLabel: CTAS.talkToSpecialist.label },
   },
 ]);
 

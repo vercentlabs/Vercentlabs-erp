@@ -1,12 +1,12 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  ROUTED_WORKFLOW_SLUGS,
   LANDING_MODULES,
   LANDING_WORKFLOWS,
   CAPABILITY_GROUPS,
-  getTotalRequirementCount,
-  getModuleRequirementTotal,
-  getPlatformRequirementTotal,
+  LAUNCH_CAPABILITIES,
+  getLaunchCapabilitiesForOwner,
   PLATFORM_PAGES,
   PRODUCT_OVERVIEW_PAGE,
   MODULES_INDEX_PAGE,
@@ -32,12 +32,12 @@ test("every module has a non-empty, non-generic direct definition", () => {
   }
 });
 
-test("every module has at least 3 retained capability groups, each with capabilities and a positive requirement count", () => {
+test("every module has at least 3 capability groups, each listing approved launch capabilities", () => {
   for (const module of LANDING_MODULES) {
     assert.ok(module.capabilityGroups.length >= 3, `${module.key} has fewer than 3 capability groups`);
     for (const group of module.capabilityGroups) {
-      assert.ok(group.capabilities.length > 0, `${module.key}'s group ${group.id} has no capabilities listed`);
-      assert.ok(group.requirementCount > 0, `${module.key}'s group ${group.id} has a non-positive requirement count`);
+      assert.ok(group.capabilityIds.length > 0, `${module.key}'s group ${group.id} has no capabilities listed`);
+      assert.equal(group.capabilities.length, group.capabilityIds.length, `${module.key}'s group ${group.id} capability names must be derived from its IDs`);
     }
   }
 });
@@ -114,10 +114,13 @@ test("every capability group's workflowSlug (if set) resolves to a real workflow
   }
 });
 
-test("capability registry matches the retained ERP-510 scope allocation", () => {
-  assert.equal(getModuleRequirementTotal(), 897);
-  assert.equal(getPlatformRequirementTotal(), 94);
-  assert.equal(getTotalRequirementCount(), 991);
+test("each module's capability groups list exactly that module's approved launch capabilities, each once", () => {
+  for (const module of LANDING_MODULES) {
+    const grouped = module.capabilityGroups.flatMap((group) => group.capabilityIds);
+    const approved = getLaunchCapabilitiesForOwner(module.key).map((capability) => capability.id);
+    assert.equal(new Set(grouped).size, grouped.length, `${module.key} lists a capability in more than one group`);
+    assert.deepEqual([...grouped].sort(), [...approved].sort(), `${module.key}'s capability groups must cover exactly its approved launch capabilities`);
+  }
 });
 
 test("no duplicate capability group IDs, and every group has a resolvable public page", () => {
@@ -129,13 +132,10 @@ test("no duplicate capability group IDs, and every group has a resolvable public
   }
 });
 
-test("every module-specific capability group's requirementCount sums to that module's declared capabilityGroups total", () => {
-  for (const module of LANDING_MODULES) {
-    const registryGroups = CAPABILITY_GROUPS.filter((g) => g.moduleId === module.key);
-    const registrySum = registryGroups.reduce((sum, g) => sum + g.requirementCount, 0);
-    const moduleSum = module.capabilityGroups.reduce((sum, g) => sum + g.requirementCount, 0);
-    assert.equal(registrySum, moduleSum, `${module.key}'s registry total doesn't match its own capabilityGroups total`);
-  }
+test("capability groups across modules and the Shared Platform cover all approved launch capabilities exactly once", () => {
+  const grouped = CAPABILITY_GROUPS.flatMap((group) => group.capabilityIds);
+  assert.equal(new Set(grouped).size, grouped.length, "a launch capability appears in more than one group");
+  assert.deepEqual([...grouped].sort(), LAUNCH_CAPABILITIES.map((capability) => capability.id).sort());
 });
 
 test("platform pages have unique slugs, titles, meta descriptions, and direct definitions", () => {
@@ -187,10 +187,14 @@ const KNOWN_ROUTES = new Set([
   "/modules",
   ...LANDING_MODULES.map((m) => `/modules/${m.key}`),
   ...PLATFORM_PAGES.map((p) => p.slug),
+  "/workflows",
+  ...ROUTED_WORKFLOW_SLUGS.map((slug) => `/workflows/${slug}`),
 ]);
 
 function isResolvableHref(href) {
   if (KNOWN_ROUTES.has(href)) return true;
+  // The assisted-evaluation (specialist) entry point.
+  if (href === "/book-demo?intent=specialist") return true;
   // /book-demo accepts a validated ?module= query param (see app/book-demo/page.tsx).
   if (/^\/book-demo\?module=[a-z-]+$/.test(href)) {
     const key = href.split("=")[1];
@@ -199,9 +203,11 @@ function isResolvableHref(href) {
   return false;
 }
 
-test("every platform/product-overview/modules-index primaryCta href resolves to a real route", () => {
-  const allPages = [PRODUCT_OVERVIEW_PAGE, MODULES_INDEX_PAGE, ...PLATFORM_PAGES];
-  for (const page of allPages) {
-    assert.ok(isResolvableHref(page.primaryCta.href), `${page.slug}'s primaryCta.href '${page.primaryCta.href}' does not resolve to a known route`);
+test("every href in the platform, product-overview and modules-index content resolves to a real route", () => {
+  const hrefs = (value) => (value && typeof value === "object" ? Object.entries(value).flatMap(([key, child]) => (key === "href" && typeof child === "string" ? [child] : hrefs(child))) : []);
+  for (const page of [PRODUCT_OVERVIEW_PAGE, MODULES_INDEX_PAGE, ...PLATFORM_PAGES]) {
+    const found = hrefs(page);
+    assert.ok(found.length > 0, `${page.slug} has no calls to action`);
+    for (const href of found) assert.ok(isResolvableHref(href), `${page.slug} links to '${href}', which does not resolve to a known route`);
   }
 });
