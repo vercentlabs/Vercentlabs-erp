@@ -15,14 +15,12 @@ import { absoluteUrl } from "@/lib/site";
 /**
  * Only routes that actually exist as pages belong here. The noindex
  * /design-system and /book-demo/thank-you routes are deliberately excluded
- * (see robots.ts and seo-aeo-geo-architecture.md's indexation rules).
+ * (see robots.ts).
  *
  * `lastModified` is read per-route from CONTENT_FRESHNESS
  * (packages/landing-content/src/freshness.js) — a real, deterministic date
  * grounded in this repository's git history, never `new Date()` at build
- * time. This replaced a single global date applied to every route uniformly,
- * a gap flagged in Phase 4's decision log, reflagged as still-deferred in
- * Phase 5's, and fixed here — see docs/landing-redesign/phase-6/decision-log.md.
+ * time, and never one global date applied to every route uniformly.
  * `getFreshness()` throws on any route missing a real entry, so this file
  * cannot silently regress back to a placeholder date for a new route.
  */
@@ -57,9 +55,8 @@ export default function sitemap(): MetadataRoute.Sitemap {
     entry("/compare", "monthly", 0.7),
     // "weekly" not "monthly" — comparisons carry a materially shorter real review
     // cycle than the rest of the site (competitor pricing/editions change faster
-    // than product content), see freshness-and-sitemap-policy.md's 30-day interval
-    // and comparison-evidence-register.md. A Cycle 2 SEO review found the sitemap
-    // wasn't reflecting this distinct cadence — fixed here.
+    // than product content; see the comparison review interval in
+    // packages/landing-content/scripts/check-stale-content.mjs).
     entry(`/compare/${VERCENTLABS_VS_ODOO.slug}`, "weekly", 0.7),
     entry("/privacy", "yearly", 0.3),
     entry("/terms", "yearly", 0.3),

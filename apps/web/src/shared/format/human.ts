@@ -340,16 +340,6 @@ export function formatMinutes(minutes: number | null | undefined): string {
   return parts.join(" ");
 }
 
-export function reminderOffsetsLabel(
-  offsets: number[] | null | undefined,
-): string {
-  if (!offsets || offsets.length === 0) return "No reminders";
-  return [...offsets]
-    .sort((a, b) => b - a)
-    .map(reminderLabel)
-    .join(", ");
-}
-
 // ------------------------------------------------------------------ urgency
 export type DueState = "overdue" | "today" | "upcoming" | "none";
 export function dueState(

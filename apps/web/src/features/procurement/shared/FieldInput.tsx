@@ -10,8 +10,8 @@ import {
 
 import type { ProcOptions } from "@/features/procurement/shared/api";
 
-export type FieldKind = "text" | "date" | "number" | "textarea" | "select";
-export type OptionSource =
+type FieldKind = "text" | "date" | "number" | "textarea" | "select";
+type OptionSource =
   | "suppliers"
   | "warehouses"
   | "items"
@@ -37,7 +37,7 @@ export type FieldDef = {
 
 export type FieldValue = string | number;
 
-export function resolveOptions(
+function resolveOptions(
   source: FieldDef["options"],
   options: ProcOptions | undefined,
 ): SelectOption[] {

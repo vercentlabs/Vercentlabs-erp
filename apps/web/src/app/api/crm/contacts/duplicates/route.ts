@@ -7,8 +7,7 @@ import { ok, readJson } from "@/core/http";
 import { crmContext } from "@/features/crm/shared/crm-context";
 import { workspaceRoute } from "@/core/workspace-route";
 
-// F003 Tranche F (Stage A). findContactDuplicates (duplicate-matching.js)
-// already existed, already tested, with zero frontend wiring. Mirrors
+// F003. findContactDuplicates (duplicate-matching.js). Mirrors
 // /api/crm/accounts/duplicates exactly.
 export async function POST(request: Request) {
   return workspaceRoute(

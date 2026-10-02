@@ -461,12 +461,10 @@ export async function saveOpportunityRevenueSplits(
   await requireOpportunity(client, context, opportunityId);
   const splits = validateRevenueSplits(input.splits);
   // Replace only the split rows for the split TYPE(s) present in this save —
-  // never delete-all-team-members-then-recreate. That destroyed any team
-  // member (e.g. a view-only observer, or one holding a split of a
-  // *different* type not included in this call) who happened not to be in
-  // this particular payload — a real bug found this prompt, since the
-  // opportunity team was previously only ever manageable as a side effect
-  // of saving revenue splits, with no standalone team-membership concept.
+  // never delete-all-team-members-then-recreate, which would destroy any
+  // team member (e.g. a view-only observer, or one holding a split of a
+  // *different* type not included in this call) who happens not to be in
+  // this particular payload.
   const splitTypes = [...new Set(splits.map((split) => split.splitType))];
   await client.query(
     `DELETE FROM tenant.crm_opportunity_revenue_splits
@@ -843,13 +841,10 @@ export async function getOpportunityRevenueDashboard(client, context) {
   const winLossParameters = [context.organizationId];
   const quotaParameters = [context.organizationId];
   const actionPlanParameters = [context.organizationId];
-  // Integrity closeout (Prompts 1-5): only the summary query below applied
-  // recordScope() — win/loss reviews, quota plans/allocations and action
-  // plans were queried by organization_id alone, so a company-restricted
-  // caller saw every company's loss reasons, competitor names, quota
-  // targets and action-plan status in this "dashboard," not just their own
-  // scope, even though the summary query right above it was correctly
-  // scoped. Each is now scoped through its real anchor: win/loss reviews
+  // Every query here is scoped, not just the summary: a company-restricted
+  // caller must never see other companies' loss reasons, competitor names,
+  // quota targets or action-plan status. Each is scoped through its real
+  // anchor: win/loss reviews
   // and action plans via their parent Opportunity's own recordScope
   // (mirroring the summary query exactly); quota plans/allocations via
   // crm_quota_plans.company_id directly. crm_predictive_forecast_snapshots
@@ -930,12 +925,9 @@ export async function getOpportunityRevenueDashboard(client, context) {
   };
 }
 
-// F011 integrity closeout (Prompts 1-5): the predictive-forecast model
-// already exposed model version/confidence/predicted amount (real
-// provenance, closed this prompt via the /crm/forecast page), but the
-// dossier's separate drift/calibration-monitoring requirement was
-// unimplemented — no comparison of a past prediction against what actually
-// closed existed anywhere. This is a deterministic comparison of stored
+// F011 forecast calibration: drift monitoring for the predictive-forecast
+// model (whose version/confidence/predicted amount the /crm/forecast page
+// shows). This is a deterministic comparison of stored
 // predictions (crm_predictive_forecast_snapshots, scoped to a real closed
 // forecast period) against the actual won revenue for that same period —
 // not a fabricated AI output, and it never reinterprets history: each

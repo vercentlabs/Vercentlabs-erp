@@ -1,8 +1,6 @@
 /**
  * Content author registry — no invented individual experts. A truthful
- * organizational byline is used everywhere a resource needs an author (see
- * .claude/rules/landing-content.md and
- * docs/landing-redesign/phase-6/author-and-review-policy.md).
+ * organizational byline is used everywhere a resource needs an author.
  */
 export const CONTENT_AUTHORS = Object.freeze([
   {

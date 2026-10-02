@@ -1,9 +1,5 @@
-// Reconstructed gap: invitations/accept/route.ts and the reset-password
-// flow both reference passwordPolicyIssues() from "@/core/password-policy",
-// but that source file was never itself among the 42 recovered files.
-// Rebuilt with a conservative minimum-strength policy rather than left
-// unimplemented. See docs/frontend-rebuild/PLATFORM_PORT_REGISTER.csv, the
-// "(gap - referenced but not recovered)" row under invitations/accept.
+// Conservative minimum-strength password policy, shared by invitation
+// acceptance and the reset-password flow (passwordPolicyIssues()).
 const MINIMUM_LENGTH = 12;
 const MAXIMUM_LENGTH = 200;
 

@@ -57,8 +57,8 @@ function assertCanDecide(context) {
     );
 }
 
-// F006 exception override (DEC-CRM-P1-F006, F005/F006-SEM-04 SoD/override
-// governance): the same elevated pairing already used for manual Lead
+// F006 exception override (segregation-of-duties governance): the same
+// elevated pairing already used for manual Lead
 // assignment/reassignment override — an ordinary crm.leads.manage user
 // cannot bypass required evidence on their own; it takes the broader
 // crm.records.view_all scope (or being the organization owner).
@@ -185,7 +185,7 @@ export async function getLeadQualification(client, context, leadId) {
     decidedByUserId: lead.qualification_decided_by_user_id,
     decidedByName: lead.qualification_decided_by_name,
     readiness: await evaluateLeadQualificationReadiness(client, context, lead),
-    // "Evidence timestamps" (DEC-CRM-P1-F006): readiness is computed live
+    // Evidence timestamps: readiness is computed live
     // from current Lead field values, so this is the instant the caller's
     // evidence snapshot was evaluated — surfaced in the UI as "Last
     // evaluated" alongside the separate, persisted "decided at".
@@ -329,7 +329,7 @@ export async function decideLeadQualification(client, context, leadId, input = {
   if (decision === "qualified") {
     await runCrmAutomation(client, context, "lead.qualified", "lead", leadId, camelizedLead);
   }
-  // F027 integration (Prompt 4 §48): a qualification decision can only ever
+  // F027 integration: a qualification decision can only ever
   // move the score through a configured rule that references it (e.g. an
   // admin-added demographic rule predicate on qualification_state) — this
   // never scores qualification itself, it just keeps score/grade current

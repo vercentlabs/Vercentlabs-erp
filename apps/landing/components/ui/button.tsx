@@ -3,7 +3,7 @@ import Link from "next/link";
 import { cx } from "@/lib/utils";
 
 export type ButtonVariant = "primary" | "secondary" | "tertiary" | "inverse" | "inverse-secondary";
-export type ButtonSize = "md" | "sm";
+type ButtonSize = "md" | "sm";
 
 const BASE_CLASSES =
   "group inline-flex items-center justify-center gap-2 rounded-[2px] font-semibold tracking-[-0.015em] transition-[color,background-color,border-color,transform] duration-(--duration-fast) ease-(--ease-standard) active:translate-y-px focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-(--color-border-focus) disabled:cursor-not-allowed disabled:opacity-50";

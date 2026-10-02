@@ -233,7 +233,7 @@ export async function getOpportunityPredictiveProbability(
 // sync path has no per-record applied/conflict/skipped/failed manifest —
 // only an aggregate updated count (see the bulk route's own comment).
 // F029 — one outcome per selected record (each ran through the single-record rules).
-export type OpportunityBulkItem = {
+type OpportunityBulkItem = {
   id: string;
   name?: string | null;
   status: "applied" | "would_apply" | "conflict" | "skipped" | "failed";

@@ -3,10 +3,8 @@
  * Deterministic cannibalisation check — compares titles across every real
  * indexable route's content entry and flags exact or near-duplicate titles
  * for human review. This is advisory only: it never deletes or edits
- * anything, and always exits 0 — the brief is explicit that flagged
- * findings go to a human, not an auto-resolution ("flag for human review,
- * never auto-delete"). See docs/landing-redesign/phase-6/cannibalisation-review.md
- * for the last full manual review this script's findings were cross-checked against.
+ * anything, and always exits 0 — flagged findings go to a human, never an
+ * auto-resolution.
  */
 import {
   LANDING_MODULES,
@@ -67,7 +65,7 @@ function run() {
 
   console.log(`Cannibalisation check: ${entries.length} routes scanned.`);
   if (collisions.length === 0) {
-    console.log("No exact or near-duplicate titles found. See docs/landing-redesign/phase-6/cannibalisation-review.md for the last full manual intent review.");
+    console.log("No exact or near-duplicate titles found.");
     return;
   }
 
@@ -78,7 +76,7 @@ function run() {
       console.log(`    - ${entry.route}  ("${entry.title}")`);
     }
   }
-  console.log("\nReview each group against docs/landing-redesign/phase-6/search-intent-ownership.md before changing anything.");
+  console.log("\nReview each group's search intent before changing anything.");
 }
 
 run();

@@ -1,33 +1,23 @@
 /**
- * Privacy Policy and Terms of Use — Phase 8. Content here is grounded in a
- * real audit of what apps/landing actually collects and does (not a generic
- * template): every data point named below was verified against the real
- * source (lib/attribution.ts, lib/analytics.ts, lib/web-vitals.ts,
- * lib/lead-observability.ts, lib/rate-limit.ts, lib/crm-capture.ts,
- * components/marketing/demo-form.tsx, components/resources/
- * requirements-checklist.tsx, app/book-demo/thank-you/thank-you-effects.tsx)
- * during this phase's cookie-storage-audit.md and repository-release-audit.md
- * work — not copied from a generic privacy-policy template.
+ * Privacy Policy and Terms of Use. Content here describes what apps/landing
+ * actually collects and does (not a generic template): every data point named
+ * below must match the real source (lib/attribution.ts, lib/analytics.ts,
+ * lib/web-vitals.ts, lib/lead-observability.ts, lib/rate-limit.ts,
+ * lib/crm-capture.ts, components/marketing/demo-form.tsx,
+ * components/resources/requirements-checklist.tsx,
+ * app/book-demo/thank-you/thank-you-effects.tsx) — update this file when any
+ * of those change.
  *
- * Legal facts referenced (India's Digital Personal Data Protection Act, 2023
- * and its 2025 Rules) were verified via live web search against current
- * sources during this phase — see docs/landing-redesign/phase-8/
- * legal-readiness.md for citations and retrieval date. This is NOT legal
- * advice and does NOT replace review by qualified counsel — see that same
- * document for the specific items requiring company/counsel confirmation
- * before this policy can be treated as final (registered office address,
- * LLPIN, confirmed live contact mailboxes, and a definitive governing-law/
- * jurisdiction clause).
+ * Legal facts referenced: India's Digital Personal Data Protection Act, 2023
+ * and its 2025 Rules. This is NOT legal advice and does NOT replace review by
+ * qualified counsel. Items still requiring company/counsel confirmation before
+ * this policy can be treated as final: registered office address, LLPIN,
+ * confirmed live contact mailboxes, and a definitive governing-law/
+ * jurisdiction clause.
  *
  * Contact emails are pulled from COMPANY_IDENTITY (metadata.js) and
- * interpolated directly into the page text below — a real Cycle 2 legal
- * review found the original draft *referenced* "the email address below"
- * and "our company identity documentation" without either ever actually
- * resolving to a real, visible address anywhere on the live page, leaving
- * visitors with no real way to exercise a data-subject right. Fixed by
- * importing the single source of truth and rendering it for real, rather
- * than pointing at a promise. See docs/landing-redesign/phase-8/
- * decision-log.md.
+ * interpolated directly into the page text below, so every data-subject right
+ * resolves to a real, visible address on the live page.
  */
 import { COMPANY_IDENTITY } from "./metadata.js";
 

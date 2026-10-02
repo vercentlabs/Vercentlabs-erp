@@ -1,10 +1,8 @@
 import { CrmError } from "../data-management/errors.js";
 
 // Shared optimistic-concurrency helper for Account/Contact ordinary edits.
-// Integrity closeout (Prompts 1-5): updateCrmAccount/updateCrmContact (and
-// their archive counterparts) previously ran a plain
-// `UPDATE ... WHERE organization_id=$1 AND id=$2` with no expected-version
-// check at all — a real Product-DoD gap. Mirrors the exact contract Lead
+// Used by updateCrmAccount/updateCrmContact and their archive counterparts.
+// Mirrors the exact contract Lead
 // updates already use (assertLeadExpectedVersion / CRM_STALE_WRITE), so the
 // web client's conflict-handling code (typed 409, "Refresh and try again")
 // works identically for Accounts and Contacts.

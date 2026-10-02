@@ -43,8 +43,7 @@ export async function runWithOrganizationConnection(client, organizationId, work
   }
 }
 
-// The one tenant transaction sequence (docs/01-standards/
-// TENANT_TRANSACTION_RLS_STANDARD.md): on ONE checked-out client,
+// The one tenant transaction sequence: on ONE checked-out client,
 // BEGIN -> transaction-local tenant context (parameterized) -> work ->
 // COMMIT, or ROLLBACK on any failure. set_config(..., true) is
 // transaction-local, so the context can never leak to the next user of the

@@ -5,13 +5,7 @@ import Link from "next/link";
 import { StatusBadge } from "@vercentlabs/design-system";
 
 import { type Row } from "@/features/quality/shared/client";
-import {
-  calendarDate,
-  dateTime,
-  label,
-  quantity,
-  tone,
-} from "@/features/quality/shared/format";
+import { label, quantity, tone } from "@/features/quality/shared/format";
 
 type Col = ColumnDef<Row, unknown>;
 // `cell` is only set when given: an explicit undefined would replace the grid's default renderer with nothing.
@@ -63,4 +57,4 @@ export const text = (row: Row, keys: string[]) =>
   keys.map((key) => String(row[key] ?? "")).join(" ");
 export const opts = (...values: string[]) =>
   values.map((value) => ({ value, label: label(value) }));
-export { calendarDate, dateTime, label, quantity };
+export { quantity };

@@ -1,6 +1,6 @@
 # Secret Manager secret CONTAINERS and per-workload access. Terraform never
 # holds secret VALUES (they would be stored in state): operators add
-# versions with `gcloud secrets versions add` (docs/operations/PRODUCTION_RUNBOOK.md).
+# versions with `gcloud secrets versions add`.
 # The GKE Secret Manager add-on mounts each secret as a file; the application
 # reads NAME from NAME_FILE (packages/config loadSecretFiles).
 

@@ -12,7 +12,6 @@ export default defineConfig([
     "coverage/**",
     "next-env.d.ts",
     "playwright-report/**",
-    "playwright-report-crm/**",
     "test-results/**",
     "storybook-static/**",
   ]),

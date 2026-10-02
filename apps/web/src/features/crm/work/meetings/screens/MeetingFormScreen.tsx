@@ -65,7 +65,7 @@ const EMPTY: FormValues = {
 const DURATIONS = [15, 30, 45, 60, 90, 120];
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-// F014 Stage A2 §5 closeout: replaces the prior plain-text-only attendee
+// F014: replaces the prior plain-text-only attendee
 // entry with a real Contact picker (contactId per crm_activity_attendees
 // — normalizeAttendees in meeting-operations.js already resolves and
 // validates it). Free-text email entry is kept alongside it for external

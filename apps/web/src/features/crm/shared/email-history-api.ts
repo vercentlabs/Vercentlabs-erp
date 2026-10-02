@@ -5,7 +5,7 @@ import { crmApiClient } from "../shared/http/crm-request.ts";
 
 // F018 Email history — one shared client for every 360 embedding an
 // EmailHistoryPanel (Lead/Opportunity/Account/Contact).
-export type EmailEngagementEvent = {
+type EmailEngagementEvent = {
   type: string;
   occurredAt: string;
   url?: string | null;
@@ -56,7 +56,7 @@ export type EmailThread = {
   lastMessageAt?: string | null;
 };
 
-export class EmailHistoryApiError extends CrmApiError {}
+class EmailHistoryApiError extends CrmApiError {}
 
 const { request } = crmApiClient(EmailHistoryApiError);
 

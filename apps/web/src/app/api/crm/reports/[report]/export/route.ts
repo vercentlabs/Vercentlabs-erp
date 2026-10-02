@@ -8,11 +8,11 @@ import { workspaceRoute } from "@/core/workspace-route";
 
 const FILTER_KEYS = ["from", "to"] as const;
 
-// F030 Stage A2 §12. Governed export — reuses the exact same
+// F030. Governed export — reuses the exact same
 // getCrmReport call the interactive report uses (identical row/field
 // scope by construction, never a parallel query), and rowsToCsv/csvCell
 // (@vercentlabs/reporting-engine) for the same formula-injection
-// neutralization already wired into F021's Lead export. Columns are
+// neutralization as F021's Lead export. Columns are
 // derived from whatever keys the first row actually has, mirroring
 // CrmReportsScreen.tsx's own column-derivation logic exactly, so the
 // exported CSV always matches what the screen renders.

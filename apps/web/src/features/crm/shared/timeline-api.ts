@@ -31,7 +31,7 @@ export type RecordTimelinePage = {
   nextCursor: string | null;
 };
 
-export class TimelineApiError extends CrmApiError {}
+class TimelineApiError extends CrmApiError {}
 
 const { request } = crmApiClient(TimelineApiError);
 

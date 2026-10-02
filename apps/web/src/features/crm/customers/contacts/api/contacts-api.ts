@@ -67,9 +67,8 @@ export async function reactivateContact(
   });
 }
 
-// F003 Tranche F — mirrors the Account duplicates/merge client exactly;
-// findContactDuplicates/mergeContactsGoverned were already real,
-// already-tested backend services with zero frontend wiring.
+// F003 — mirrors the Account duplicates/merge client exactly
+// (findContactDuplicates/mergeContactsGoverned).
 export async function findContactDuplicates(
   input: Record<string, unknown>,
 ): Promise<{ duplicates: ContactDuplicateMatch[] }> {

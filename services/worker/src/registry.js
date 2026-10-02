@@ -32,8 +32,8 @@ export function listRegisteredJobTypes() {
   return [...handlers.keys()];
 }
 
-// Malformed persisted jobs must fail safely, not crash the worker loop
-// (Part 6) — this is the one place every handler invocation funnels
+// Malformed persisted jobs must fail safely, not crash the worker loop —
+// this is the one place every handler invocation funnels
 // through, so validation failure is handled uniformly regardless of which
 // handler is involved.
 export function validatePayload(definition, payload) {

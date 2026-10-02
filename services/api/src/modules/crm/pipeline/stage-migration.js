@@ -1,9 +1,7 @@
 // F012 — safe stage deactivation with a governed, resumable background
-// migration job. Previously setSalesStageActive only ever hard-blocked
-// deactivation while open Opportunities occupied the stage ("move them out
-// first"), with no bulk remediation path — mirrors the exact
-// crm_lead_stage_migration_items pattern built for F007 lead stages
-// (CRM vNext Prompt 4) and crm-lead-bulk-update.js's savepoint-per-item
+// migration job that moves open Opportunities out of the stage — mirrors
+// the crm_lead_stage_migration_items pattern used for F007 lead stages and
+// crm-lead-bulk-update.js's savepoint-per-item
 // batching, adapted for Opportunities.
 import { CrmError } from "../data-management/errors.js";
 import { queueOutboxEvent } from "../data-management/outbox.js";

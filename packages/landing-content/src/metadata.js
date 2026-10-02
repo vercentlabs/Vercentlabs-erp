@@ -27,16 +27,15 @@ export const POSITIONING = Object.freeze({
 });
 
 /**
- * Single source of truth for legal/company identity — Phase 8. Only fields
+ * Single source of truth for legal/company identity. Only fields
  * verifiable against real, existing usage elsewhere in the codebase are
  * populated with confidence: "Vercentlabs LLP" is the real legal name already
  * used in apps/web's production auth emails (src/core/mailer.ts) and account
- * UI (src/core/components/auth-card.tsx), not invented for this phase.
+ * UI (src/core/components/auth-card.tsx), not invented.
  *
  * registeredAddress and llpin are intentionally null — no registered office
  * address or LLP Identification Number exists anywhere in this repository,
- * and neither may be fabricated (see docs/landing-redesign/phase-8/
- * company-identity-and-trust.md). Both are real BLOCKERs for a fully complete
+ * and neither may be fabricated. Both are real BLOCKERs for a fully complete
  * Privacy Policy/Terms of Use under India's DPDPA — the pages ship with
  * accurate placeholder language rather than an invented address, and the gap
  * is flagged explicitly, not hidden.

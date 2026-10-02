@@ -224,11 +224,10 @@ export async function updateCrmLeadSource(client, context, id, input = {}, expec
         "Use the governed lifecycle action; internal source codes cannot be changed.",
         "CRM_LEAD_SOURCE_GOVERNED_FIELD",
       );
-    // Concurrency (Prompts 1-5 integrity closeout): mutable Lead Source
-    // fields (name/description/channel/sort order/default flag) previously
-    // had no stale-write protection at all — two administrators editing the
-    // same source concurrently would silently overwrite each other, unlike
-    // every other governed CRM mutation. Reuses the shared checked-write
+    // Concurrency: mutable Lead Source fields (name/description/channel/
+    // sort order/default flag) get stale-write protection so two
+    // administrators editing the same source can never silently overwrite
+    // each other. Reuses the shared checked-write
     // contract (assertExpectedRecordVersion + a WHERE ... AND updated_at=$N
     // guard) rather than a bespoke implementation.
     assertExpectedRecordVersion(before, expectations.expectedUpdatedAt, {

@@ -1,6 +1,5 @@
-// F005 Lead assignment — shared error class and primitives. Moved here
-// (from the legacy flat lead-governance.js) as part of CRM vNext Prompt 4;
-// lead-governance.js now imports this class back for its own (non-F005)
+// F005 Lead assignment — shared error class and primitives.
+// lead-governance.js imports this class for its own (non-F005)
 // Lead-configuration functions so both halves keep throwing the same
 // error shape without a circular module dependency.
 export class LeadGovernanceError extends Error {

@@ -15,7 +15,7 @@ import { createPlatformMaintenanceLoop } from "./platform-maintenance.js";
 
 const logger = createLogger("worker");
 
-// Stable per-process identity (Part 8) — used for lease ownership, never
+// Stable per-process identity — used for lease ownership, never
 // for any kind of permanent cross-restart registration.
 export function generateWorkerId() {
   return `${os.hostname()}:${process.pid}:${randomUUID().slice(0, 8)}`;
@@ -63,8 +63,7 @@ export async function processGenericJob(pool, workerId, organizationId, job, { l
       failJob(client, job.id, workerId, {
         error: String(error?.message || error),
         backoffMilliseconds,
-        // A malformed payload will never become valid on retry — Part 6:
-        // "move to terminal/error state according to policy" — so it is
+        // A malformed payload will never become valid on retry, so it is
         // forced dead rather than retried up to max_attempts.
         ...(terminal ? { dead: true } : {}),
       }),
@@ -175,7 +174,7 @@ export function createWorker(config, { workerId = generateWorkerId(), billingPro
       health.startedAt = Date.now();
       logger.info("worker started", { workerId });
     },
-    // Graceful shutdown (Part 13): stop claiming new work, let the
+    // Graceful shutdown: stop claiming new work, let the
     // in-flight poll cycle finish (jobs it already claimed run to
     // completion so their leases are released cleanly rather than left to
     // expire), then close the pool.

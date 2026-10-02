@@ -12,9 +12,8 @@
 // comment for why) — so "program CRUD" here is get/upsert/setActive
 // rather than list/create/update/setActive against many rows.
 //
-// BUSINESS RULES (the F306 dossier explicitly leaves these as
-// implementation decisions; documented here as the single source of
-// truth for all three):
+// BUSINESS RULES (implementation decisions; documented here as the
+// single source of truth for all three):
 //
 // 1. EARN TIMING/BASIS: points are earned only on a COMPLETED sale
 //    (never a draft/priced cart, never a freely-editable balance field),

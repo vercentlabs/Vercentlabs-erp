@@ -5,8 +5,7 @@ export const JOB_TYPE = "crm.pipeline.capture_daily_snapshot";
 
 export const payloadSchema = z.object({}).strict();
 
-// F010 integrity closeout — the durable daily pipeline-history baseline
-// (dossier F010-CAP-002 / DEC-CRM-P1-F010). Deliberately org-wide/
+// F010 — the durable daily pipeline-history baseline. Deliberately org-wide/
 // permission-neutral (allowAllCompanies:true, no owner scope): a system
 // capture must record the pipeline's real total state, not one synthetic
 // actor's restricted view of it — see pipeline-snapshots.js's own

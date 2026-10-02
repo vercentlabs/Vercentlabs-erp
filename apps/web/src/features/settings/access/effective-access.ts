@@ -13,9 +13,9 @@ import { ERP_MODULE_CATALOG } from "@vercentlabs/shared-types";
 
 type RoleLike = { slug: string; permission_keys: readonly string[] };
 
-export type ModuleAccessLevel = "none" | "view" | "operate" | "administer";
+type ModuleAccessLevel = "none" | "view" | "operate" | "administer";
 
-export type ModuleAccessSummary = {
+type ModuleAccessSummary = {
   key: string;
   name: string;
   level: ModuleAccessLevel;
@@ -132,5 +132,3 @@ export function summarizeEffectiveAccess(
     highRisk: [...highRisk],
   };
 }
-
-export const MODULE_ACCESS_LEVEL_LABEL = LEVEL_LABEL;

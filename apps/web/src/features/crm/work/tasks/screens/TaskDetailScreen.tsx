@@ -73,15 +73,12 @@ function describeRecurrence(config: RecurrenceConfig | null): string | null {
   return text;
 }
 
-// F015 Tranche J (Stage A) — dedicated Task detail view; getCrmTask/
-// updateCrmTask (task-operations.js) were already real, already routed,
-// with no frontend consumer. Stage A2 §6 closeout: dependency management
-// and a recurrence-config builder were genuine, confirmed gaps — the
-// backend (addTaskDependency/removeTaskDependency/listTaskDependencies,
-// cycle/self-dependency/completion-blocked all enforced server-side; and
-// recurrenceConfig, the machine-readable field generateNextTaskOccurrence
-// actually reads) already existed with zero frontend consumer. Both are
-// now wired below, not invented.
+// F015 — the Task detail view (getCrmTask/updateCrmTask,
+// task-operations.js), with dependency management
+// (addTaskDependency/removeTaskDependency/listTaskDependencies;
+// cycle/self-dependency/completion-blocked all enforced server-side) and a
+// recurrence-config builder (recurrenceConfig, the machine-readable field
+// generateNextTaskOccurrence reads).
 export function TaskDetailScreen({ taskId }: { taskId: string }) {
   const router = useRouter();
   const queryClient = useQueryClient();
@@ -391,8 +388,7 @@ export function TaskDetailScreen({ taskId }: { taskId: string }) {
   );
 }
 
-// F015 Stage A2 §6. addTaskDependency/removeTaskDependency already
-// enforce cycle prevention, self-dependency rejection and completion-
+// F015. addTaskDependency/removeTaskDependency enforce cycle prevention, self-dependency rejection and completion-
 // while-blocked rejection server-side (CRM_TASK_DEPENDENCY_CYCLE/
 // CRM_TASK_DEPENDENCY_INVALID/CRM_TASK_DEPENDENCY_BLOCKED) — this panel
 // surfaces that state, it does not re-implement the rules.

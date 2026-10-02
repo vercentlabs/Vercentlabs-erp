@@ -46,7 +46,7 @@ export default function CompareIndexPage() {
         />
       </TrackView>
 
-      <Reveal><DirectDefinition definition="This page indexes Vercentlabs' evidence-based ERP comparisons — currently one, against Odoo, with more added only where real intent, verifiable evidence, and a maintainable difference exist. See docs/landing-redesign/phase-6/comparison-policy.md for the standard every comparison here has to clear." /></Reveal>
+      <Reveal><DirectDefinition definition="This page indexes Vercentlabs' evidence-based ERP comparisons — currently one, against Odoo, with more added only where real intent, verifiable evidence, and a maintainable difference exist." /></Reveal>
 
       <Section tone="page" paddingTop={{ base: 12, sm: 16 }}>
         <Container>

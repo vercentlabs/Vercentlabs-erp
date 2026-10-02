@@ -93,7 +93,11 @@ __pycache__/
 # Storybook build output — reproducible artifact, never source of truth.
 storybook-static/
 
-# Prompt 3 live-browser visual QA artifacts (screenshots, inventory,
+# Generated security matrices and perf reports (scripts/qa, scripts/validation,
+# scripts/perf, scripts/crm/measure-performance.mjs).
+/reports/
+
+# Live-browser visual QA artifacts (screenshots, inventory,
 # storage-state.json session cookies) — reproducible by re-running
 # apps/web/scripts/qa/*.mjs against a real environment, never committed.
 # The .mjs scripts themselves ARE committed (real QA tooling).

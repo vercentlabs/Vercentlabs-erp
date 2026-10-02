@@ -216,7 +216,7 @@ export type SalesOptions = {
   };
 };
 
-export type SalesDocumentLineInput = {
+type SalesDocumentLineInput = {
   itemId: string;
   variantId?: string | null;
   quantity: number;

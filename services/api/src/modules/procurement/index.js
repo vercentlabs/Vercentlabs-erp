@@ -5,14 +5,12 @@ import { hasAnyOwnField, omitFields } from "../../core/access/index.js";
 import { nextDocumentNumber } from "../../core/platform/numbering/index.js";
 
 // Supplier banking/financial-account keys inside tenant.procurement_suppliers'
-// jsonb `data` column, gated behind procurement.suppliers.sensitive (see
-// docs/implementation/ERP_SECURITY_HARDENING_003.md, Part 1). Deliberately
-// does NOT include taxRegistrationNumber: that field is already collected
-// by the standard, currently-ungated supplier form and used by roles (e.g.
-// Buyer) that hold procurement.suppliers.manage without .sensitive — gating
-// it now would break an existing working workflow (Part 8). No supplier
-// banking field is wired into any current form, so protecting this set
-// closes a real mass-assignment gap without regressing any caller.
+// jsonb `data` column, gated behind procurement.suppliers.sensitive.
+// Deliberately does NOT include taxRegistrationNumber: that field is
+// collected by the standard, ungated supplier form and used by roles (e.g.
+// Buyer) that hold procurement.suppliers.manage without .sensitive. No
+// supplier banking field is wired into any current form, so protecting
+// this set prevents mass assignment without breaking any caller.
 const SUPPLIER_SENSITIVE_FIELDS = Object.freeze([
   "bankAccountNumber",
   "bankAccountName",

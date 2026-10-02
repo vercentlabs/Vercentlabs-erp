@@ -77,7 +77,7 @@ export function apiOk(
   });
 }
 
-export function apiError(
+function apiError(
   requestId: string,
   status: number,
   code: string,

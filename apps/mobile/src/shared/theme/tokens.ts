@@ -53,11 +53,4 @@ export const typeScale = Object.freeze({
   caption: { fontSize: 13, lineHeight: 18, fontWeight: "500" as const },
 });
 
-export const breakpoints = Object.freeze({
-  narrow: 480,
-  mobile: 768,
-  tablet: 1024,
-  compactDesktop: 1280,
-});
-
 export const minimumTouchTarget = 48;

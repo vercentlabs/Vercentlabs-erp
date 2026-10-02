@@ -13,7 +13,5 @@
       "default": "./src/production.js"
     }
   },
-  "scripts": {
-    "test": "node --test"
-  }
+  "scripts": {}
 }

@@ -111,7 +111,7 @@ export function setSalesStageActive(client: QueryClient, context: any, id: strin
 export function reorderSalesStages(client: QueryClient, context: any, pipelineId: string, entries: Array<{ id: string; expectedUpdatedAt: string }>): Promise<{ changed: boolean; rows: any[] }>;
 export function listSalesStageHistory(client: QueryClient, context: any, pipelineId: string, limit?: number): Promise<any[]>;
 
-// F009 opportunity commercial-record child entities (Prompt 5).
+// F009 opportunity commercial-record child entities.
 export function listOpportunityItems(client: QueryClient, context: any, opportunityId: string): Promise<any[]>;
 export function addOpportunityItem(client: QueryClient, context: any, opportunityId: string, input?: Record<string, unknown>): Promise<any>;
 export function updateOpportunityItem(client: QueryClient, context: any, opportunityId: string, itemRowId: string, input?: Record<string, unknown>): Promise<any>;
@@ -126,10 +126,10 @@ export const OPPORTUNITY_STAGE_MIGRATION_BATCH_SIZE: number;
 export function enqueueOpportunityStageMigrationJob(client: QueryClient, context: any, fromStageId: string, toStageId: string): Promise<any>;
 export function getOpportunityStageMigrationJob(client: QueryClient, context: any, jobId: string): Promise<any>;
 
-// F010/F012 stage-age computation (Prompt 5).
+// F010/F012 stage-age computation.
 export function computeStageAge(row: Record<string, unknown>, now?: Date): { enteredAt: string | null; ageDays: number | null; maximumDays: number | null; status: "unknown" | "ok" | "warning" | "breached" };
 
-// F010 integrity closeout — historical pipeline snapshots (Prompts 1-5).
+// F010 historical pipeline snapshots.
 
 export type BusinessDataContext = {
   organizationId: string;
@@ -362,7 +362,7 @@ export * from "./modules/procurement/governance.js";
 
 export * from "./core/release/governance.js";
 
-// F018 closeout (§33 shared-inbox reachability) — explicit overrides
+// F018 shared-inbox reachability — explicit overrides
 // alongside the wildcard above, matching this file's own established
 // pattern for communications.js/lead-intelligence.js functions that need
 // one.
@@ -421,7 +421,7 @@ export {
 export {
   getSupportDeskDashboard, listSupportOptions, listCustomerContacts,
 } from "./modules/support/service.js";
-// Pass 1 F015-F114 public API declarations.
+// F015-F114 public API declarations.
 export function listCrmTasks(client: QueryClient, context: any, filters?: Record<string, unknown>): Promise<{ rows: any[]; total: number; limit: number; offset: number }>;
 export function getCrmTask(client: QueryClient, context: any, id: string, options?: { lock?: boolean }): Promise<any>;
 export function createCrmTask(client: QueryClient, context: any, input?: Record<string, unknown>): Promise<any>;
@@ -430,7 +430,7 @@ export function startCrmTask(client: QueryClient, context: any, id: string, inpu
 export function completeCrmTask(client: QueryClient, context: any, id: string, input?: Record<string, unknown>): Promise<any>;
 export function cancelCrmTask(client: QueryClient, context: any, id: string, input?: Record<string, unknown>): Promise<any>;
 export function listCrmTaskHistory(client: QueryClient, context: any, id: string): Promise<any[]>;
-// Prompt 6 (CRM-CAP-004): F017 canonical governed-attachment domain.
+// F017 canonical governed-attachment domain.
 
 export function listSalesPass1Operations(client: QueryClient, context: any, options?: { kind?: string; limit?: number }): Promise<any[]>;
 export function requestSalesCreditAdjustment(client: QueryClient, context: any, input?: Record<string, unknown>): Promise<any>;
@@ -470,8 +470,6 @@ export * from "./core/idempotency.js";
 export * from "./core/inventory-lock.js";
 export * from "./core/references.js";
 
-// Platform reactivation port (Prompt 2 of 15) — see
-// docs/frontend-rebuild/PLATFORM_PORT_REGISTER.csv.
 // Shared Access public boundary (see core/access/index.js).
 export * from "./core/access/index.js";
 // Shared Platform domain boundaries.

@@ -17,10 +17,9 @@ export function requirePermission(context, permission) {
   }
 }
 
-// POS Session 3, Phase 2 (F268-F273): every store/shift/sale/return/cart
-// function used to filter by organization_id+company_id only -- any
-// cashier holding pos.sale.create could read or mutate ANY store's records
-// in the company by guessing/enumerating an id, regardless of which
+// F268-F273 store access: filtering by organization_id+company_id alone
+// would let any cashier holding pos.sale.create read or mutate ANY store's
+// records in the company by guessing/enumerating an id, regardless of which
 // physical store they actually work at. The platform has no existing
 // sub-company access-grant finer than company/branch (see
 // database/platform/migrations/002_platform_foundation.sql's
@@ -42,22 +41,16 @@ export function requirePermission(context, permission) {
 // capability (store-terminal-and-cashier-control, assortment-pricing-
 // customer-and-cart, transaction-continuity-and-documents, returns-
 // refunds-and-exchanges, cash-shift-day-end-and-reconciliation), which is
-// why it lives here in shared/ rather than inside any one of them -- it
-// used to be homed in the cart capability purely because that is where it
-// was first built, which made every other capability importing it reach
-// sideways into a sibling capability's internals for a genuinely
-// cross-cutting concern.
+// why it lives here in shared/ rather than inside any one of them.
 // F270/F271: terminalId is optional and additive. Every call site that
 // never passes one (the large majority -- returns, receipts, invoices,
 // day-end reports, reconciliation, accounting posting, cash movements...)
-// exercises ONLY the store-level check below, byte-for-byte the same
-// query/behavior this function has always had. The two call sites where a
+// exercises ONLY the store-level check below. The two call sites where a
 // cashier actively starts operating a specific terminal --
 // openShift (shift-operations.js) and createPosCart (cart.js) -- pass
 // terminalId, which adds a second, narrower check: does this user's
 // access to the store cover this terminal specifically? A store-wide
-// grant (terminal_id IS NULL) always covers every terminal, unchanged
-// from before this column existed; a user holding only terminal-specific
+// grant (terminal_id IS NULL) always covers every terminal; a user holding only terminal-specific
 // grants is confined to those terminals even though they have real
 // "presence" at the store (so a store-level-only call, e.g. viewing a
 // receipt for a sale at that store, still succeeds for them).

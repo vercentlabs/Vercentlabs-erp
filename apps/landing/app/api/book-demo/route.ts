@@ -87,7 +87,7 @@ export async function POST(request: Request) {
 
     if (!result.ok) {
       // Safe server-side log: request id and status only, never the submitted
-      // name/email/phone (see conversion-architecture.md's PII-redaction rule).
+      // name/email/phone (PII is never logged).
       logLeadCaptureEvent("upstream_failure", requestId, Date.now() - startedAt, result.status);
       return NextResponse.json(
         { ok: false, requestId, error: "We couldn't submit your request. Please try again." },

@@ -6,9 +6,9 @@ import { track } from "@/lib/analytics";
 
 /**
  * No visible output — the confirmation heading/text render server-side in
- * page.tsx so they're never gated behind client hydration (a real bug this
- * phase: a fallback={null} Suspense boundary around the *visible* content
- * left the page looking blank for a moment on load — see decision-log.md).
+ * page.tsx so they're never gated behind client hydration (a fallback={null}
+ * Suspense boundary around the *visible* content leaves the page looking
+ * blank for a moment on load).
  * This component only handles requestId-dependent side effects: moving
  * focus to the heading, and firing product_demo_complete exactly once per
  * request id even across a page refresh.

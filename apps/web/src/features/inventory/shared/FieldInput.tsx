@@ -10,7 +10,7 @@ import {
 
 import type { InvOptions } from "@/features/inventory/shared/client";
 
-export type OptionSource =
+type OptionSource =
   | "items"
   | "warehouses"
   | "locations"
@@ -39,7 +39,7 @@ export type FieldDef = {
   rowKey?: string;
 };
 
-export function resolveOptions(
+function resolveOptions(
   field: FieldDef,
   options: InvOptions | undefined,
   values: Record<string, FieldValue>,

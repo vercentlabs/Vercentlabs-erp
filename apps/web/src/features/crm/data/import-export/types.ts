@@ -25,7 +25,7 @@ export const LEAD_IMPORT_FIELDS: Array<{
 
 // The dry run returns rejected rows first (up to 200) and a small sample of
 // the rest; the full list of rejected rows is the errors CSV.
-export type LeadImportRowResult = {
+type LeadImportRowResult = {
   rowNumber: number;
   valid: boolean;
   planned: "create" | "update" | "skip" | "error";

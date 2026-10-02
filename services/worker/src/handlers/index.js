@@ -22,7 +22,7 @@ import { syncCalendarAccountsHandler, JOB_TYPE as CALENDAR_SYNC_JOB_TYPE, payloa
 
 // Registers every currently-wired job type. Called once at worker
 // startup (bin/start.mjs) and by tests that need a populated registry.
-// This is the "typed/validated handler registry" (Part 5) — the single
+// This is the typed/validated handler registry — the single
 // place new job types get added, never a switch scattered through
 // worker.js.
 export function registerBuiltinHandlers() {

@@ -26,13 +26,10 @@ export async function getLeadRecordForUpdate(client, context, id) {
 
 // Generic optimistic-concurrency check, originally Lead-only (hence the
 // CRM_LEAD_* codes preserved for that entity's backward-compatible
-// contract). Integrity closeout (Prompts 1-5): generalized with an
-// entityLabel/codePrefix so the exact same check now also protects ordinary
-// Opportunity edits through the generic updateCrmRecord/archiveCrmRecord
-// path — previously Opportunity PATCH/DELETE never passed `expectations`
-// at all, so two concurrent editors could silently overwrite each other
-// (unlike the dedicated stage/probability commands, which already had this
-// protection).
+// contract). Generalized with an entityLabel/codePrefix so the same check
+// also protects ordinary Opportunity edits through the generic
+// updateCrmRecord/archiveCrmRecord path, so two concurrent editors can
+// never silently overwrite each other.
 export function assertRecordExpectedVersion(
   record,
   expectedUpdatedAt,
@@ -73,7 +70,7 @@ export function assertLeadExpectedVersion(record, expectedUpdatedAt, required = 
 
 
 
-// Prompts 1-5 integrity closeout (blocker C): mutable generic-CRUD
+// Mutable generic-CRUD
 // configuration resources with no existing append-only/versioned model —
 // Qualification criteria (F006) and Won/Lost reasons (F026) — get the same
 // checked-write contract as leads/opportunities through the generic
@@ -84,15 +81,11 @@ export function assertLeadExpectedVersion(record, expectedUpdatedAt, required = 
 // Qualification criteria has no archive/DELETE transition defined
 // (archiveStatuses below), so it is PATCH-only.
 //
-// Stage A2 §14 concurrency audit: the same class of gap existed for every
-// other mutable CRM configuration/aggregate resource that only ever went
-// through this generic path — the web PATCH route (apps/web .../[resource]/
-// [id]/route.ts) already sent `expectedUpdatedAt`/`requireVersion: true` on
-// every request regardless of resource, but updateCrmRecord/archiveCrmRecord
-// silently ignored both unless the resource appeared in this map, so two
-// concurrent editors of, say, a Quota Plan or Territory could overwrite each
-// other with no server-side rejection. Widened to cover every resource in
-// the audited list that is genuinely editable post-creation (has real
+// The web PATCH route (apps/web .../[resource]/[id]/route.ts) sends
+// `expectedUpdatedAt`/`requireVersion: true` on every request, but
+// updateCrmRecord/archiveCrmRecord only enforce them for resources in this
+// map. It covers every mutable CRM configuration/aggregate resource that
+// is genuinely editable post-creation (has real
 // fields a second editor could race on) rather than append-only: sales
 // teams, team memberships, territories, territory assignments, quota
 // plans, account plans, account stakeholders, forecast periods, forecast

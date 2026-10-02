@@ -467,7 +467,7 @@ export function getLeadAttributionTimeline(
   options?: { model?: string },
 ): Promise<any>;
 export function isElevatedLifecycleActor(context: any): boolean;
-// F012 safe stage deactivation + migration job (Prompt 5, mirrors the F007 lead-stage-migration shape).
+// F012 safe stage deactivation + migration job (mirrors the F007 lead-stage-migration shape).
 export const OPPORTUNITY_STAGE_MIGRATION_JOB_TYPE: string;
 export function deactivateSalesStageWithMigration(client: QueryClient, context: any, id: string, options?: { migrateToStageId?: string; expectedUpdatedAt?: string }): Promise<{ deactivated: boolean; stage: any; migrationJob?: any }>;
 export const DUPLICATE_FULL_SCAN_JOB_TYPE: string;
@@ -475,11 +475,8 @@ export function enqueueDuplicateFullScan(client: QueryClient, context: any, enti
 export function getDuplicateFullScanJob(client: QueryClient, context: any, jobId: string): Promise<any>;
 export function getLatestDuplicateFullScan(client: QueryClient, context: any, entityType: string): Promise<any>;
 export function listDuplicateScanMatches(client: QueryClient, context: any, jobId: string): Promise<any[]>;
-// F005 Stage A2 §3 — the type declaration for this function was missing
-// even though the runtime export already existed (lead-governance.js
-// re-exports assignment/index.js, already reachable via this file's own
-// "export * from lead-governance.js"); only the .d.ts surface needed
-// this hand-written signature, matching the sibling declarations below.
+// F005 — hand-written signature for a runtime export reached through
+// lead-governance.js's re-export of assignment/index.js.
 export function explainLeadAssignmentCandidates(
   client: QueryClient,
   context: CrmFoundationContext,
@@ -549,7 +546,7 @@ export function createLeadScoringModelRule(client: QueryClient, context: any, mo
 export function setLeadScoringModelRuleStatus(client: QueryClient, context: any, modelId: string, ruleId: string, status: string): Promise<any>;
 export function trainLeadScoringModel(client: QueryClient, context: any, modelId: string): Promise<any>;
 export const SCORE_RECALC_JOB_TYPE: string;
-// Prompt 6 (CRM-CAP-004): F015 recurrence, dependencies, canonical overdue formula.
+// F015 recurrence, dependencies, canonical overdue formula.
 export function taskOverdueSql(alias?: string): string;
 export function computeNextTaskOccurrence(
   config: { freq: "daily" | "weekly" | "monthly"; interval?: number; count?: number; until?: string; byWeekday?: number[] } | null,
@@ -560,12 +557,12 @@ export function generateNextTaskOccurrence(client: QueryClient, context: any, co
 export function addTaskDependency(client: QueryClient, context: any, taskId: string, dependsOnTaskId: string): Promise<any | null>;
 export function removeTaskDependency(client: QueryClient, context: any, taskId: string, dependsOnTaskId: string): Promise<void>;
 export function listTaskDependencies(client: QueryClient, context: any, taskId: string): Promise<any[]>;
-// Prompt 6 (CRM-CAP-004): F015 team/queue Tasks — real assignment model.
+// F015 team/queue Tasks — real assignment model.
 export function claimCrmTask(client: QueryClient, context: any, id: string, input?: Record<string, unknown>): Promise<any>;
 export function releaseCrmTask(client: QueryClient, context: any, id: string, input?: Record<string, unknown>): Promise<any>;
 export function listMyTaskTeams(client: QueryClient, context: any): Promise<any[]>;
 export function listTeamMembers(client: QueryClient, context: any, teamId: string): Promise<any[]>;
-// Prompt 6 (CRM-CAP-004): F016 Follow-ups and reminders.
+// F016 Follow-ups and reminders.
 export function listCrmFollowUps(client: QueryClient, context: any, filters?: Record<string, unknown>): Promise<{ rows: any[]; total: number; limit: number; offset: number }>;
 export function getCrmFollowUp(client: QueryClient, context: any, id: string, options?: { lock?: boolean }): Promise<any>;
 export function createCrmFollowUp(client: QueryClient, context: any, input?: Record<string, unknown>): Promise<any>;
@@ -603,7 +600,7 @@ export function resolveCrmEntityAccess(
   entityType: "lead" | "opportunity" | "party" | "contact" | "campaign",
   entityId: string,
 ): Promise<boolean>;
-// Prompt 6 (CRM-CAP-004): F017 canonical Notes domain.
+// F017 canonical Notes domain.
 export function listCrmNotes(client: QueryClient, context: any, entityType: string, entityId: string, options?: { includeArchived?: boolean; limit?: number }): Promise<any[]>;
 export function getCrmNote(client: QueryClient, context: any, id: string): Promise<any>;
 export function createCrmNote(client: QueryClient, context: any, entityType: string, entityId: string, input?: Record<string, unknown>): Promise<any>;

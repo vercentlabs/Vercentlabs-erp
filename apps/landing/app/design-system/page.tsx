@@ -36,8 +36,7 @@ export default function DesignSystemPage() {
 
       <Heading level="display">Operational Ledger — Design System</Heading>
       <Text variant="lead" className="mt-3 max-w-[70ch]">
-        Every reusable primitive shipped in Phase 2, in every state it supports. See{" "}
-        <InlineCode>docs/landing-redesign/phase-2/component-inventory.md</InlineCode> for the full written spec.
+        Every reusable primitive, in every state it supports.
       </Text>
 
       {/* Colour */}
@@ -78,7 +77,7 @@ export default function DesignSystemPage() {
           ))}
         </Inline>
         <Text variant="caption" className="mt-2">
-          Landing-owned colors, not sourced from the product. See creative-direction.md.
+          Landing-owned colors, not sourced from the product.
         </Text>
       </Section>
 

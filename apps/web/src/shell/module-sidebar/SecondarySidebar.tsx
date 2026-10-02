@@ -11,8 +11,7 @@ import {
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 import { useSecondarySidebarState } from "./SecondarySidebarState";
 
-// Desktop module secondary sidebar (Phase 3; UI refinement addendum
-// requirement #1 for the hover/pin behaviour). One section per work area,
+// Desktop module secondary sidebar (with hover/pin behaviour). One section per work area,
 // PLANNED items rendered disabled (visible for orientation, never a
 // clickable dead link) so the intended IA is legible without pretending
 // it's built. Collapses into the mobile drawer's per-module section below

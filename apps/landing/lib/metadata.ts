@@ -11,8 +11,7 @@ interface PageMetadataInput {
 }
 
 /**
- * Shared metadata builder — every indexable page must go through this, per
- * docs/landing-redesign/phase-1/seo-aeo-geo-architecture.md's "metadata pattern"
+ * Shared metadata builder — every indexable page must go through this
  * (title + description + self-referencing canonical, defined once, not hand-written
  * per page).
  */
@@ -53,8 +52,7 @@ export const ROOT_METADATA: Metadata = {
   referrer: "strict-origin-when-cross-origin",
   keywords: ["ERP software", "business management software", "cloud ERP", "ERP system"],
   // Real, discoverable feed — without this <link>, /resources/feed.xml was a
-  // working but orphaned endpoint no crawler or feed reader could find (a
-  // Cycle 2 seo-aeo-geo-reviewer finding).
+  // working but orphaned endpoint no crawler or feed reader could find.
   alternates: {
     types: { "application/rss+xml": absoluteUrl("/resources/feed.xml") },
   },

@@ -111,7 +111,7 @@ resource "google_compute_security_policy" "edge" {
 # Google-managed certificate for the public hostnames (the Ingress in the
 # Kubernetes overlay references it through a ManagedCertificate resource).
 # DNS A/AAAA records at the registrar point the hostnames to
-# google_compute_global_address.ingress (see terraform/README.md).
+# google_compute_global_address.ingress.
 
 # TLS 1.2+ with the MODERN profile for the HTTPS load balancer (the
 # Kubernetes FrontendConfig references it by name).

@@ -2,7 +2,6 @@
   "$schema": "https://unpkg.com/knip@6/schema.json",
   "ignore": [
     ".claude/**",
-    "docs/**",
     "database/**",
     "infrastructure/**",
     "patches/**",
@@ -21,49 +20,38 @@
   ],
   "ignoreDependencies": ["dotenv", "pg"],
   "workspaces": {
-    ".": {
-      "entry": ["scripts/**/*.mjs"],
-      "project": ["scripts/**/*.mjs"]
-    },
     "apps/web": {
       "entry": [
         "src/app/**/{page,layout,route,loading,error,global-error,not-found,template,default,sitemap,robots,manifest}.{ts,tsx}",
         "src/proxy.ts",
         "src/instrumentation.ts",
-        "e2e/**/*.{spec,setup}.ts",
-        "e2e/*.ts",
         "scripts/**/*.mjs"
       ],
-      "project": ["src/**/*.{ts,tsx}", "e2e/**/*.ts"]
+      "project": ["src/**/*.{ts,tsx}"]
     },
     "apps/landing": {
       "entry": [
         "app/**/{page,layout,route,loading,error,global-error,not-found,template,default,sitemap,robots,manifest}.{ts,tsx}",
         "middleware.ts",
-        "tests/**/*.{spec,setup,test}.{ts,tsx}",
         "scripts/**/*.mjs"
       ],
       "project": ["app/**/*.{ts,tsx}", "components/**/*.{ts,tsx}", "lib/**/*.{ts,tsx}"]
     },
     "apps/mobile": {
-      "entry": ["App.tsx", "index.ts", "app/**/*.tsx", "e2e/**/*.ts"],
+      "entry": ["App.tsx", "index.ts", "app/**/*.tsx"],
       "project": ["**/*.{ts,tsx}"]
     },
     "services/api": {
-      "entry": ["src/index.js", "tests/**/*.test.mjs"],
+      "entry": ["src/index.js"],
       "project": ["src/**/*.js"]
     },
     "services/worker": {
-      "entry": ["src/index.js", "tests/**/*.test.mjs", "src/**/*.test.mjs"],
+      "entry": ["src/index.js"],
       "project": ["src/**/*.js"]
     },
     "packages/*": {
-      "entry": ["src/index.{js,ts}", "src/**/*.test.{js,mjs,ts}", "src/*.d.ts"],
+      "entry": ["src/index.{js,ts}", "src/*.d.ts"],
       "project": ["src/**/*.{js,ts,tsx}"]
-    },
-    "tests": {
-      "entry": ["integration/**/*.test.mjs", "security/**/*.test.mjs"],
-      "project": ["**/*.mjs"]
     }
   }
 }

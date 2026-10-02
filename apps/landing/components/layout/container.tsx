@@ -13,11 +13,6 @@ export function Container({ children, className, as: As = "div" }: ContainerProp
   return <As className={cx("mx-auto w-full max-w-[1480px] px-5 sm:px-7 lg:px-12 xl:px-14", className)}>{children}</As>;
 }
 
-/** Narrower container for long-form reading content (module/workflow body copy). */
-export function NarrowContainer({ children, className, as: As = "div" }: ContainerProps) {
-  return <As className={cx("mx-auto w-full max-w-[820px] px-5 sm:px-7", className)}>{children}</As>;
-}
-
 /**
  * Discrete Tailwind spacing values Section's padding props accept. Kept as a fixed
  * set (not an arbitrary number) so every class this component can emit is a
@@ -25,10 +20,10 @@ export function NarrowContainer({ children, className, as: As = "div" }: Contain
  * discover classes it can see spelled out in source, not ones assembled at runtime
  * via `pt-${n}` string interpolation.
  */
-export type SectionSpacing = 0 | 6 | 7 | 8 | 9 | 10 | 12 | 14 | 16 | 18 | 20 | 24;
+type SectionSpacing = 0 | 6 | 7 | 8 | 9 | 10 | 12 | 14 | 16 | 18 | 20 | 24;
 
 /** A padding value that can grow at wider breakpoints; unset tiers fall back to the previous one. */
-export interface ResponsiveSpacing {
+interface ResponsiveSpacing {
   base: SectionSpacing;
   sm?: SectionSpacing;
   lg?: SectionSpacing;
@@ -62,8 +57,7 @@ const DEFAULT_SECTION_PADDING: ResponsiveSpacing = { base: 16, sm: 20, lg: 24 };
  * a real, confirmed bug: a plain `pt-8` override was silently losing to the
  * component's own `lg:py-24` default at desktop widths, because Tailwind places
  * `@media` breakpoint rules after plain utility rules in the generated stylesheet —
- * so the base class always won regardless of source/className order. See
- * docs/landing-redesign/phase-8/decision-log.md.
+ * so the base class always won regardless of source/className order.
  */
 function paddingClassName(side: "top" | "bottom", spacing: ResponsiveSpacing): string {
   const sm = spacing.sm ?? spacing.base;
@@ -191,15 +185,6 @@ export function Inline({ children, className, gap = 3, as: As = "div", ...rest }
   );
 }
 
-/** Horizontal group of small, related items (tags, badges) — never wraps mid-item. */
-export function Cluster({ children, className, gap = 2, as: As = "div", ...rest }: StackProps) {
-  return (
-    <As className={cx("flex flex-row flex-wrap items-center content-start", GAP_CLASSES[gap], className)} {...rest}>
-      {children}
-    </As>
-  );
-}
-
 interface GridProps {
   children: ReactNode;
   className?: string;
@@ -242,8 +227,7 @@ const GRID_ITEM_SPAN_CLASSES: Record<NonNullable<GridProps["columns"]>, string> 
  * gap-10 a col-span-12 item has an unshrinkable 11 x 40px = 440px floor,
  * which is wider than every phone viewport this site supports and forces
  * real, confirmed horizontal body overflow (see
- * tests/e2e/mobile-conversion.spec.ts and the Prompt 16 UI/UX audit, bug
- * LAND-001). Scaling the gap down until there's room for the full value
+ * tests/e2e/mobile-conversion.spec.ts). Scaling the gap down until there's room for the full value
  * keeps that floor under the viewport at every tier.
  */
 const GRID_GAP_CLASSES: Record<NonNullable<GridProps["gap"]>, string> = {
@@ -302,25 +286,6 @@ interface SidebarLayoutProps {
   className?: string;
 }
 
-/** Content + narrow rail layout (e.g. resource article + related-links rail). */
-export function SidebarLayout({ content, sidebar, className }: SidebarLayoutProps) {
-  return (
-    <div className={cx("grid grid-cols-1 gap-12 lg:grid-cols-[minmax(0,1fr)_300px] lg:gap-16", className)}>
-      <div>{content}</div>
-      <aside>{sidebar}</aside>
-    </div>
-  );
-}
-
-/** Escapes the standard container width — for full-width product screenshots/diagrams. */
-export function Bleed({ children, className }: { children: ReactNode; className?: string }) {
-  return <div className={cx("relative left-1/2 w-screen -translate-x-1/2", className)}>{children}</div>;
-}
-
 export function Divider({ className }: { className?: string }) {
   return <hr className={cx("border-t border-(--color-border-default)", className)} />;
-}
-
-export function PageShell({ children }: { children: ReactNode }) {
-  return <div className="flex min-h-screen flex-col bg-(--color-bg-page)">{children}</div>;
 }

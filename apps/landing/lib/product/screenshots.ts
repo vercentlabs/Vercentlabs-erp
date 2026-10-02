@@ -41,7 +41,7 @@ export interface ProductScreenshot {
  * development indicator). They stay registered for history, unapproved, and
  * tests refuse to let them be approved again.
  */
-export const APPROVED_SCREENSHOTS: readonly ProductScreenshot[] = Object.freeze([
+const APPROVED_SCREENSHOTS: readonly ProductScreenshot[] = Object.freeze([
   // ---- Current ERP UI, synthetic demo data, inspected and approved 2026-10-02.
   {
     id: "crm-opportunity-pipeline",

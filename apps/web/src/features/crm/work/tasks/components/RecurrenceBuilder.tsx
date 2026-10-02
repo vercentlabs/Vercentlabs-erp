@@ -32,7 +32,7 @@ function endMode(config: RecurrenceConfig): "never" | "count" | "until" {
   return "never";
 }
 
-// F015 Stage A2 §6. Maps directly to the existing authoritative
+// F015. Maps directly to the authoritative
 // recurrenceConfig contract (normalizeRecurrenceConfig, task-operations.js)
 // — {freq, interval, count?, until?, byWeekday?} — not an invented
 // cron/RRULE syntax. recurringRule (free text) is untouched; this builds

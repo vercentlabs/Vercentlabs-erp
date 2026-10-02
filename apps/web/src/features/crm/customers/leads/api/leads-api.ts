@@ -186,23 +186,6 @@ export async function mergeLead(
   });
 }
 
-export async function scheduleLeadFollowUp(
-  id: string,
-  input: {
-    activityType: string;
-    subject: string;
-    description?: string | null;
-    priority: string;
-    assignedTo?: string | null;
-    dueAt: string;
-  },
-): Promise<{ activity: unknown; lead: Lead }> {
-  return request<{ activity: unknown; lead: Lead }>(
-    `/api/crm/leads/${id}/follow-up`,
-    { method: "POST", json: input },
-  );
-}
-
 // getCrmOptions moved to ../../shared/crm-options-api.ts — it's used by
 // every CRM feature area (Leads/Accounts/Contacts/...), not just Leads.
 export { getCrmOptions } from "../../../shared/crm-options-api.ts";
@@ -265,7 +248,7 @@ export async function getLeadStageReasons(
 }
 
 // F006 qualification — independent axis from pipeline stage/record status.
-export type LeadQualificationCriterion = {
+type LeadQualificationCriterion = {
   key: string;
   label: string;
   met: boolean;
@@ -386,7 +369,7 @@ export async function recalculateLeadScore(
   });
 }
 
-export type LeadAttributionTouchpoint = {
+type LeadAttributionTouchpoint = {
   id: string;
   campaign_id: string | null;
   campaign_name: string | null;

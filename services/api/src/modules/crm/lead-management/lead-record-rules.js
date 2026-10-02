@@ -26,10 +26,9 @@ export { normalizeLeadRecordInput };
 
 // F027: fields whose change can plausibly affect the deterministic score
 // (they appear in the seeded demographic/firmographic rule predicates, or
-// are the qualifying "source change" trigger the dossier calls out).
-// Recalculation on update is scoped to these — not every field save —
-// per Prompt 4 §44's "avoid recalculating synchronously on unrelated
-// updates".
+// are the qualifying "source change" trigger).
+// Recalculation on update is scoped to these — not every field save — to
+// avoid recalculating synchronously on unrelated updates.
 const LEAD_SCORE_RECALC_TRIGGER_FIELDS = new Set([
   "email",
   "mobile",
@@ -157,10 +156,9 @@ export async function applyLeadCreatePolicies(client, context, prepared, { dupli
 }
 
 // After the INSERT: the duplicate-override record and the initial F027 score.
-// F027 Prompt 4: the score is no longer set pre-insert by the legacy
-// uncapped/undecayed/unversioned rule engine (System B) — it defaults to 0
-// via the column default and is computed here by the deterministic scoring
-// engine (System A, recalculateLeadScoreInternal) once the row exists.
+// The score defaults to 0 via the column default and is computed here by
+// the deterministic scoring engine (recalculateLeadScoreInternal) once the
+// row exists.
 export async function completeLeadCreate(client, context, created, leadDuplicateEvaluation) {
   await recordLeadDuplicateOverride(
     client,
@@ -246,13 +244,10 @@ export async function prepareLeadForUpdate(client, context, id, prepared, before
       },
     );
   }
-  // F027 Prompt 4: score is no longer overwritten unconditionally by the
-  // legacy uncapped/undecayed/unversioned rule engine on every field
-  // save. The real deterministic scoring engine (System A) recalculates
-  // — after the UPDATE commits, so it reads the merged final values —
-  // only when a scoring-relevant field actually changed (create,
-  // qualifying-field change, source change), not on every unrelated
-  // edit (§44: "avoid recalculating synchronously on unrelated updates").
+  // The deterministic scoring engine recalculates — after the UPDATE
+  // commits, so it reads the merged final values — only when a
+  // scoring-relevant field actually changed (create, qualifying-field
+  // change, source change), not on every unrelated edit.
   const leadScoreRecalcNeeded = Object.keys(prepared).some((field) => LEAD_SCORE_RECALC_TRIGGER_FIELDS.has(field));
   return { leadDuplicateEvaluation, leadScoreRecalcNeeded };
 }

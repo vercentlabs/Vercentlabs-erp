@@ -31,7 +31,7 @@ function safeUrl(rawValue: string | undefined, fallback: string, label: string):
  * NEXT_PUBLIC_SITE_URL should be set in every real deployment (see
  * apps/landing/.env.example). The localhost fallback only applies to local dev/build,
  * never to a shipped production artifact — it keeps `next build` from failing when
- * the variable is unset in this phase's validation environment.
+ * the variable is unset in a local validation environment.
  */
 export const SITE_URL = safeUrl(process.env.NEXT_PUBLIC_SITE_URL, "http://localhost:3000", "NEXT_PUBLIC_SITE_URL");
 

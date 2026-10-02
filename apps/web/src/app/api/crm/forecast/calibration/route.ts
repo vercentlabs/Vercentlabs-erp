@@ -5,11 +5,8 @@ import { ok } from "@/core/http";
 import { crmContext } from "@/features/crm/shared/crm-context";
 import { workspaceRoute } from "@/core/workspace-route";
 
-// F025 Stage A2 §11. getForecastCalibration (opportunity-revenue-
-// intelligence.js) already existed, fully tested
-// (crm-forecast-calibration-integrity.test.mjs), with zero frontend
-// consumer — the dossier's "accuracy/backtesting" requirement, wrongly
-// marked as a genuine gap by an earlier audit that didn't find it.
+// F025 forecast accuracy/backtesting. getForecastCalibration (opportunity-
+// revenue-intelligence.js; see crm-forecast-calibration-integrity.test.mjs).
 // Compares each CLOSED period's predicted amount (from the real
 // predictive-forecast snapshot, not a recalculation) against the
 // period's actual won revenue.

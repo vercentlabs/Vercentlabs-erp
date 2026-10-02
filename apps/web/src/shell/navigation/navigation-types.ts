@@ -2,7 +2,7 @@ import type { ComponentType, SVGProps } from "react";
 
 export type NavIcon = ComponentType<SVGProps<SVGSVGElement>>;
 
-// Explicit per Phase 2: a normal production nav item may only ever be
+// A normal production nav item may only ever be
 // AVAILABLE (a real, reachable screen) or ADMIN_ONLY (real, permission-
 // gated). PLANNED items are real future destinations the registry already
 // knows the route/label/section for, but the secondary sidebar renders
@@ -10,7 +10,7 @@ export type NavIcon = ComponentType<SVGProps<SVGSVGElement>>;
 // UNAVAILABLE covers a destination whose owning module itself isn't
 // entitled/permitted (resolved at render time from module-entitlements,
 // not stored per item).
-export type NavImplementationStatus = "AVAILABLE" | "PLANNED" | "ADMIN_ONLY";
+type NavImplementationStatus = "AVAILABLE" | "PLANNED" | "ADMIN_ONLY";
 
 // ROUTE EXISTENCE != PERMANENT SIDEBAR DESTINATION. Every real route stays
 // registered here (breadcrumbs, route matching, global search, deep links),
@@ -39,10 +39,10 @@ export type SecondaryNavItem = {
   description?: string;
 };
 
-export type SecondaryNavSection = {
+type SecondaryNavSection = {
   id: string;
   label: string;
-  /** Coarse F-id range this section maps to, for traceability back to docs/02-register/FEATURE_REGISTER.csv — see that module's row group. Not a claim that every item is 1:1 with one F-id. */
+  /** Coarse F-id range this section maps to, for traceability. Not a claim that every item is 1:1 with one F-id. */
   featureRange?: string;
   items: SecondaryNavItem[];
 };

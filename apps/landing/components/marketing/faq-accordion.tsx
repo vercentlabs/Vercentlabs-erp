@@ -12,8 +12,7 @@ interface FaqItem {
  * by default with zero custom JS, and every answer stays in the server-rendered
  * HTML (just visually collapsed), so crawlers and answer engines see the full
  * text regardless of open/closed state. The matching FAQPage JSON-LD is built
- * from this same `items` data in app/page.tsx, not duplicated here — see
- * docs/landing-redesign/phase-3/decision-log.md item 4.
+ * from this same `items` data in app/page.tsx, not duplicated here.
  *
  * Self-wraps in its own <Reveal group>: entries carry data-reveal-item
  * unconditionally, so without a reveal-group ancestor they'd stay stuck at

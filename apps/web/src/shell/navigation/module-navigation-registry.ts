@@ -1,30 +1,16 @@
-// The canonical, single-authority module secondary-navigation registry
-// (Prompt 2B Phase 2). Desktop secondary sidebar, the mobile drawer's
-// per-module section, and (in a later prompt) the command menu must all
-// read from this file — none may define a parallel nav list.
+// The canonical, single-authority module secondary-navigation registry.
+// The desktop secondary sidebar, the mobile drawer's per-module section,
+// and the command menu must all read from this file — none may define a
+// parallel nav list.
 //
-// STATUS HONESTY: an item is AVAILABLE only once the prompt that built its
-// screen flips it here — do not flip one speculatively. For every module
-// other than CRM, every item is still PLANNED except each module's own
-// "Overview"/root item (apps/web/src/app/(workspace)/<module>/page.tsx). CRM's clean rebuild
-// (Prompt 3) has flipped its built screens (Leads/Accounts/Contacts/
-// Opportunities/Pipeline/Tasks/Calls/Meetings/Follow-ups/Communications/
-// Dashboard/Territories & Sales Teams) to AVAILABLE as each was verified
-// working end-to-end; CRM items still PLANNED (Forecast UI, Reports UI,
-// Imports & Exports, Duplicate Management, and the remaining Setup screens)
-// genuinely have no screen yet. PLANNED items render in the secondary
-// sidebar disabled, for orientation, never as a clickable link — see
-// SecondarySidebar.tsx.
+// STATUS HONESTY: an item is AVAILABLE only once its screen is built and
+// verified working end-to-end — never flip one speculatively. PLANNED items
+// render in the secondary sidebar disabled, for orientation, never as a
+// clickable link — see SecondarySidebar.tsx.
 //
-// VALIDATION NOTE: sections are grouped around the user's work model (per
-// Phase 2's instruction), not a literal F-id-per-item mapping, and are
-// annotated with the coarse F-id range they correspond to in
-// docs/02-register/FEATURE_REGISTER.csv for traceability. A full per-item
-// cross-check against that register (and each module's dossier) is the
-// responsibility of the prompt that implements the section, at which point
-// its items graduate from PLANNED to AVAILABLE — inventing precise F-id-
-// to-nav-item mappings for screens that don't exist yet would be a claim
-// this pass cannot actually verify.
+// Sections are grouped around the user's work model, not a literal
+// F-id-per-item mapping; each is annotated with the coarse F-id range it
+// corresponds to.
 import {
   Users,
   ShoppingCart,
@@ -801,7 +787,7 @@ export const MODULE_NAVIGATION: readonly ModuleNavigation[] = [
     sections: [
       { id: "overview", label: "Overview", items: [available("Home", "/pos")] },
       // In-transaction checkout mode hides ordinary ERP nav for a focused
-      // surface (Prompt 10) — "Open POS" is deliberately not a normal
+      // surface — "Open POS" is deliberately not a normal
       // secondary-nav destination among these, it's a distinct mode.
       {
         id: "sell",
@@ -875,9 +861,8 @@ export const MODULE_NAVIGATION: readonly ModuleNavigation[] = [
         items: [
           // F294/F295/F296: one consolidated read-only workspace (store
           // availability + lot/batch + real-time stock-sync activity) --
-          // the dossiers describe a single coherent inventory-visibility
-          // capability, not two destinations, so this also replaces the
-          // separate "Stock Sync" placeholder that used to sit here.
+          // a single coherent inventory-visibility capability, not two
+          // destinations.
           available("POS Inventory", "/pos/inventory"),
         ],
       },

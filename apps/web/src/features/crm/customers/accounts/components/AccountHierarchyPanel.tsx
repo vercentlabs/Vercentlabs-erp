@@ -16,9 +16,8 @@ import { listAccounts } from "../api/accounts-api";
 
 const dateFormatter = new Intl.DateTimeFormat("en-IN", { dateStyle: "medium" });
 
-// F002 Tranche E — getAccountHierarchy/setAccountParent were already a
-// real, already-tested, cycle-guarded backend service with zero frontend
-// wiring before this pass (confirmed by grep). Ancestors are ordered
+// F002 — getAccountHierarchy/setAccountParent, a cycle-guarded backend
+// service. Ancestors are ordered
 // root-first (depth DESC per the query), so the breadcrumb reads top to
 // bottom naturally without re-sorting here.
 export function AccountHierarchyPanel({

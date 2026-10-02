@@ -1,9 +1,6 @@
-// Prompt 6 (CRM-CAP-004, F017 — Notes & Files). Re-audit confirmed governed
-// attachments used the SAME real shared table (public.attachments, already
-// generic: entity_type/entity_id) but only Lead had routes that wrote to
-// it — Account/Contact/Opportunity had no attachment support at all, and
-// the parent-record authorization + entity_type convention ('crm.lead')
-// lived inline inside that one route rather than in a reusable service.
+// F017 — Notes & Files. Governed attachments for Leads, Accounts, Contacts
+// and Opportunities, stored in the shared public.attachments table
+// (generic: entity_type/entity_id).
 // This module is the ONE canonical attachment domain service every entity
 // type's routes call into — parent-record authorization (reusing
 // resolveCrmEntityAccess, the SAME function Notes/Timeline already use),
@@ -11,16 +8,15 @@
 // future authorization change only has one place to make it.
 //
 // Storage, versioning, scanning, hashing and the quarantine download gate
-// belong to the Shared Platform file service (core/platform/files, Prompt 5):
+// belong to the Shared Platform file service (core/platform/files):
 // bytes live in object storage, not PostgreSQL. This module keeps what is
 // CRM's: which records may carry files, parent-record authorization, the
 // write rule, and CRM outbox events. The route prepares (validates + scans)
 // the upload outside the transaction; createCrmAttachment stores it.
 //
-// F017 §CRM-VNEXT-053 closeout (attachment versioning): platform migration
-// 038 adds logical_id/version/is_current. Every attachment already
-// uploaded became its own one-version logical file (logical_id=id) with
-// zero data loss. A genuine "replace this file" upload reuses the
+// Attachment versioning (platform migration 038: logical_id/version/
+// is_current). A first upload is its own one-version logical file
+// (logical_id=id). A genuine "replace this file" upload reuses the
 // ORIGINAL logical_id, increments version, and the new row becomes
 // current — the superseded row is never deleted or overwritten, so every
 // prior version's filename/MIME/size/uploader/timestamp/storage

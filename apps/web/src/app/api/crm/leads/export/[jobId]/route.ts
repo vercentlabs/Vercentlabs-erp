@@ -5,7 +5,7 @@ import { ok } from "@/core/http";
 import { crmContext } from "@/features/crm/shared/crm-context";
 import { workspaceRoute } from "@/core/workspace-route";
 
-// F021 Stage A2 §9. Status polling (getCrmLeadExportJob enforces
+// F021. Status polling (getCrmLeadExportJob enforces
 // requester-or-view_all). The manifest holds only safe metadata; the file
 // itself is a Shared Platform artifact served by the download route.
 export async function GET(

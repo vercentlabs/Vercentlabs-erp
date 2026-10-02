@@ -115,7 +115,7 @@
 }
 
 @media (prefers-color-scheme: dark) {
-  /* Dark mode is not yet designed for the ERP workspace (light-canvas-first
-     per the rebuild brief); this guard exists so components that already
+  /* Dark mode is not yet designed for the ERP workspace (light-canvas-first);
+     this guard exists so components that already
      branch on it don't silently break. Revisit when dark mode is scoped. */
 }

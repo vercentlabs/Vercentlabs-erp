@@ -27,12 +27,10 @@ const ASSIGNEE_KIND_OPTIONS: SelectOption[] = [
   { value: "user", label: "Individual" },
 ];
 
-// F020 Stage A2 §8. quota-plans (tenant.crm_quota_plans) is a real,
-// already-migrated resource (FK'd to team/territory/user, CHECK
-// num_nonnulls(...)>=1) with zero frontend consumer before this pass —
-// confirmed by grep. This is the setup/configuration half of "quotas"
-// (F020-CAP-002); F025's own forecast-attainment work (Stage A2 §11)
-// consumes these plans, it does not define them.
+// F020. quota-plans (tenant.crm_quota_plans; FK'd to team/territory/user,
+// CHECK num_nonnulls(...)>=1). This is the setup/configuration half of
+// "quotas"; F025's forecast attainment consumes these plans, it does not
+// define them.
 export function QuotaPlanDialog({
   isOpen,
   onOpenChange,

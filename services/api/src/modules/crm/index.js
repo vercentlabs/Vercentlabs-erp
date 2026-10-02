@@ -52,11 +52,8 @@ export {
   updateCrmMeeting,
 } from "./activities/meeting-operations.js";
 
-// Prompt 6 integrity note: task-operations.js was previously exported only
-// from the top-level package index (services/api/src/index.js), not from
-// this module's own index.js — an architectural inconsistency versus
-// call-operations.js/meeting-operations.js above, fixed here rather than
-// left standing while other CRM-CAP-004 work lands in this same pass.
+// task-operations.js is exported from this module's index.js, like
+// call-operations.js/meeting-operations.js above.
 export {
   cancelCrmTask,
   claimCrmTask,
@@ -107,12 +104,9 @@ export {
   listCrmAttachmentVersions,
 } from "./activities/attachments/attachments-operations.js";
 
-// F028 (Prompt 3 Stage A) — runtime custom fields bound to built-in CRM
-// entities, using the platform-level custom_field_definitions/
-// custom_field_values tables (002_platform_foundation.sql), which had
-// zero service layer anywhere in the codebase before this — confirmed by
-// direct search, not assumed missing the way sales-stage-operations.js
-// turned out to already be reachable via this same file.
+// F028 — runtime custom fields bound to built-in CRM entities, using the
+// platform-level custom_field_definitions/custom_field_values tables
+// (002_platform_foundation.sql).
 export {
   createCustomFieldDefinition,
   getCustomFieldValueHistory,
@@ -122,11 +116,9 @@ export {
   setCustomFieldValues,
 } from "./data-management/custom-field-runtime.js";
 
-// F028 Tranche C (Prompt 3 Stage A) — tag ASSIGNMENT over the existing
-// tenant.crm_lead_tags junction. Tag definitions already flow through
-// the generic resource-mutation-service ("tags" in resource-registry.js);
-// this closes the gap that tag definitions alone did not let anyone
-// actually put a tag on a record.
+// F028 — tag ASSIGNMENT over the tenant.crm_lead_tags junction. Tag
+// definitions flow through the generic resource-mutation-service ("tags"
+// in resource-registry.js); this puts a defined tag on a record.
 export {
   assignRecordTag,
   listRecordTags,

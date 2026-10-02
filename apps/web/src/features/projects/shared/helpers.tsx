@@ -1,15 +1,12 @@
 "use client";
 
 import type { ColumnDef } from "@tanstack/react-table";
-import Link from "next/link";
 import { StatusBadge } from "@vercentlabs/design-system";
 
 import { type Row } from "@/features/projects/shared/client";
 import {
   calendarDate,
-  dateTime,
   label,
-  money,
   quantity,
   tone,
 } from "@/features/projects/shared/format";
@@ -46,22 +43,8 @@ export const strong = (
   col(id, header, value, ({ row }) => (
     <span className="font-medium text-text">{value(row.original)}</span>
   ));
-export const link = (
-  id: string,
-  header: string,
-  value: (row: Row) => string,
-  href: (row: Row) => string,
-): Col =>
-  col(id, header, value, ({ row }) => (
-    <Link
-      className="font-medium text-brand hover:underline"
-      href={href(row.original)}
-    >
-      {value(row.original)}
-    </Link>
-  ));
 export const text = (row: Row, keys: string[]) =>
   keys.map((key) => String(row[key] ?? "")).join(" ");
 export const opts = (...values: string[]) =>
   values.map((value) => ({ value, label: label(value) }));
-export { calendarDate, dateTime, label, money, quantity };
+export { calendarDate, quantity };

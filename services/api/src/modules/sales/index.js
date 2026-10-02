@@ -910,17 +910,14 @@ async function insertQuotationVersion(
   return version.rows[0];
 }
 
-// F023 (Opportunity-to-quotation conversion) — LAST PROMPT 1/3 closeout:
-// F023-INT-001 explicitly requires an idempotency key on the CRM->Sales
-// handoff ("...using sourceOpportunityId and idempotency key"); no such key
-// existed anywhere on quotation creation, so a double-click on the
+// F023 (Opportunity-to-quotation conversion): the CRM->Sales handoff takes
+// an idempotency key (with sourceOpportunityId), so a double-click on the
 // Opportunity page's "Create quotation" link (or a retried request after a
-// dropped response) could create two quotations from the same Opportunity.
+// dropped response) can never create two quotations from one Opportunity.
 // Reuses the same shared idempotency utility (services/api/src/core/
 // idempotency.js) Stock/Quality/POS/Manufacturing already use, keyed off
-// input.idempotencyKey — optional (required: false), so every existing
-// caller/test that creates a quotation without one keeps working exactly as
-// before; only a caller that supplies a key gets replay-safety.
+// input.idempotencyKey — optional (required: false); only a caller that
+// supplies a key gets replay-safety.
 export async function createQuotation(client, context, input) {
   requirePermission(context, "sales.quotation.create");
   assertValidUntilNotPast(input.validUntil);
@@ -3309,16 +3306,11 @@ export async function completeFulfillmentRequest(
   return getSalesOrder(client, context, request.sales_order_id);
 }
 
-// Gap closure (POS Completion Program, comprehensive completion pass):
-// pass1-operations.js's exports were declared in index.d.ts and fully
-// implemented, but never actually re-exported here -- making price-list-
-// item management, customer-specific pricing rules, sales advances,
-// drop-ship requests and commission accrual completely unreachable from
-// any HTTP route or UI in the entire application, despite being real,
-// tested code. Most directly relevant to POS: upsertSalesCustomerPrice
-// is the ONLY way to create a tenant.sales_pricing_rules row, the table
-// F275's customer-sensitive pricing fix reads -- without this export,
-// nothing could ever populate it outside a raw SQL insert.
+// pass1-operations.js: price-list-item management, customer-specific
+// pricing rules, sales advances, drop-ship requests and commission accrual.
+// upsertSalesCustomerPrice is the ONLY way to create a
+// tenant.sales_pricing_rules row, which POS customer-sensitive pricing
+// (F275) reads.
 export * from "./pass1-operations.js";
 export * from "./price-lists.js";
 export * from "./order-execution.js";

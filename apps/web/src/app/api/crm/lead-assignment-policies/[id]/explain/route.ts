@@ -10,16 +10,11 @@ import { workspaceRoute } from "@/core/workspace-route";
 
 type RouteContext = { params: Promise<{ id: string }> };
 
-// F005 Stage A2 §3. explainLeadAssignmentCandidates (eligibility.js) was
-// already used internally by resolveLeadAssignment for round_robin/
-// workload owner selection — F005-CAP-001's own canonical sentence is
-// "route a lead to the best eligible owner AND EXPLAIN WHY that owner
-// won," so this is the feature's own primary, non-boilerplate mandate,
-// not an optional add-on. It IS already exported at the package level
-// (lead-governance.js re-exports assignment/index.js, which the
-// top-level index.js re-exports) — the prior pass's "not even exported"
-// claim was wrong, matching the same two-tier-export confusion found
-// and corrected earlier this session for F012/F017. Returns per-
+// F005. explainLeadAssignmentCandidates (eligibility.js), also used by
+// resolveLeadAssignment for round_robin/workload owner selection: route a
+// lead to the best eligible owner AND explain why that owner won. Exported
+// at the package level via lead-governance.js's re-export of
+// assignment/index.js. Returns per-
 // candidate {userId, name, eligible, reasons} — no sensitive data
 // beyond a name, already the function's own deliberate design.
 export async function GET(request: Request, context: RouteContext) {

@@ -6,7 +6,7 @@ import { workspaceRoute } from "@/core/workspace-route";
 
 type RouteContext = { params: Promise<{ id: string }> };
 
-// F003/F002 Stage A2 — the reverse view: which Contacts relate to this
+// F003/F002 — the reverse view: which Contacts relate to this
 // Account, with their role and primary flag. Same governed
 // contact-relationships.js service, read-only here.
 export async function GET(request: Request, context: RouteContext) {

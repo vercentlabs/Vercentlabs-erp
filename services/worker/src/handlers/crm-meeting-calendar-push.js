@@ -14,7 +14,7 @@ export const payloadSchema = z
   })
   .strict();
 
-// F014 closeout: pushes ONE Meeting (create/update/cancel) to its host's
+// F014: pushes ONE Meeting (create/update/cancel) to its host's
 // connected Gmail/Microsoft365 calendar — the outbound counterpart to the
 // pre-existing inbound-only fetchProviderCalendarDelta sync. Triggered
 // per-event by meeting-operations.js/bookMeeting (see their own

@@ -24,7 +24,7 @@ export type WorkspaceContext = {
 // The one place a server component/layout resolves "who is this, which
 // organization/company/branch are they in, which of the 12 modules can
 // they reach, and what actionable counts (pending approvals, unread
-// notifications) belong in the shell's badges" — Phase 5's canonical
+// notifications) belong in the shell's badges" — the canonical
 // workspace session contract. Badge counts are only computed when the
 // session actually holds the relevant permission (approvals.manage) or is
 // always-safe (a user's own unread count), never a decorative volume.

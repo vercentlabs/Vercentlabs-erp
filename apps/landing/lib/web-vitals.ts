@@ -2,20 +2,18 @@ import { onCLS, onINP, onLCP, type Metric } from "web-vitals";
 import { track, type AnalyticsEventName } from "./analytics";
 
 /**
- * Real User Monitoring (RUM) foundation — Phase 7. Collects only LCP, INP,
+ * Real User Monitoring (RUM) foundation. Collects only LCP, INP,
  * and CLS (the 3 Core Web Vitals with documented field targets), routed
  * through the same track() entry point every other event uses. No new
  * analytics provider or storage backend is wired: with none configured,
  * track() forwards to an optional window sink and a dev console log, same
  * as every other event today. This means field data will show "0 events
  * collected" until a real provider is wired and this site has real
- * production traffic — that's stated honestly in
- * docs/landing-redesign/phase-7/core-web-vitals-audit.md, not hidden.
+ * production traffic.
  *
- * Deliberately NOT collected: FCP, TTFB (both optional per the governing
- * brief) — Lighthouse's lab runs already cover both, and adding 2 more
- * event types for marginal RUM value against zero current traffic wasn't
- * judged worth the taxonomy growth this phase. Revisit once real traffic
+ * Deliberately NOT collected: FCP, TTFB — Lighthouse's lab runs already
+ * cover both, and adding 2 more event types for marginal RUM value against
+ * zero current traffic isn't worth the taxonomy growth. Revisit once real traffic
  * and a real provider exist.
  */
 
@@ -31,7 +29,7 @@ const EVENT_BY_METRIC_NAME: Partial<Record<Metric["name"], AnalyticsEventName>> 
  * query string) never becomes an analytics dimension. Query strings are
  * never read here at all.
  */
-export function normalizeRoutePattern(pathname: string): string {
+function normalizeRoutePattern(pathname: string): string {
   const segments = pathname.split("/").filter(Boolean);
   if (segments.length === 0) return "/";
   const [first, second, third] = segments;

@@ -100,7 +100,7 @@ export async function POST(
                 ).toISOString(),
                 locationType: "other",
               })
-            : // Checkpoint audit (Prompt 3 continuation): "task" must go through
+            : // "task" must go through
               // createCrmTask, exactly like call/meeting go through their own
               // governed functions — the generic createCrmRecord("activities", ...)
               // path below now rejects activityType:"task" outright (see the

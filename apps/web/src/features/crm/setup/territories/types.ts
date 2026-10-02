@@ -45,7 +45,7 @@ export type Territory = {
   managerUserId: string | null;
   assignmentRules: TerritoryCoverage | null;
   status: "active" | "archived";
-  // F020 Stage A2 §8 — computed by the generic list route (never by client
+  // F020 — computed by the generic list route (never by client
   // aggregation), the exact same predicate the CRM dashboard's
   // uncovered_territories metric already uses.
   hasPrimaryCoverage?: boolean;

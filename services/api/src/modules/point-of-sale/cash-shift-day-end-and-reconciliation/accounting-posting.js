@@ -17,21 +17,17 @@
 // 'cash'/'bank' keys, everything else needs one-time admin configuration
 // via Accounting's existing generic account-mapping API before F305
 // posting will succeed for that mapping_key (there is no POS-specific
-// mapping UI; this reuses Accounting's own configuration surface, per the
-// task's own instruction not to add functionality outside canonical
-// scope).
+// mapping UI; this reuses Accounting's own configuration surface).
 //
-// POS Completion Program Prompt 2 closed three previously-disclosed
-// financial-integrity gaps here: (A) a return's journal now also reverses
-// the original sale's loyalty accrual/redemption, sourced from loyalty.js's
-// own reverse_earn/reverse_redeem ledger entries; (B) refund tender
-// allocation now reads the exact per-payment split return-lifecycle.js
-// persists at refund time (tenant.pos_return_payment_refunds) instead of
-// reconstructing a proportional guess, with the old reconstruction kept
-// only as a backward-compatible fallback for returns completed before this
-// fix shipped; (C) loyalty accrual is valued at the ORIGINAL SALE's own
-// historical rate snapshot (pos_sales.loyalty_redemption_value_per_point_
-// snapshot), never the loyalty program's current live rate.
+// Financial-integrity rules: (A) a return's journal also reverses the
+// original sale's loyalty accrual/redemption, sourced from loyalty.js's own
+// reverse_earn/reverse_redeem ledger entries; (B) refund tender allocation
+// reads the exact per-payment split return-lifecycle.js persists at refund
+// time (tenant.pos_return_payment_refunds), with a proportional
+// reconstruction only as a fallback for returns that predate that table;
+// (C) loyalty accrual is valued at the ORIGINAL SALE's own historical rate
+// snapshot (pos_sales.loyalty_redemption_value_per_point_snapshot), never
+// the loyalty program's current live rate.
 import {
   createJournalEntry,
   postJournalEntry,
@@ -193,8 +189,7 @@ async function buildSaleJournalLines(client, context, accountingContext, company
   }
 
   // F306 loyalty deferred-revenue accrual, when this sale's own points
-  // program was active. Gap C fix (POS Completion Program Prompt 2):
-  // valued at THIS SALE'S OWN historical rate snapshot
+  // program was active. Rule (C): valued at THIS SALE'S OWN historical rate snapshot
   // (loyalty_redemption_value_per_point_snapshot, captured at
   // sale-completion time in sale-completion.js), never the program's
   // CURRENT live rate -- an admin changing the program's rate must never
@@ -279,13 +274,11 @@ async function buildReturnJournalLines(client, context, accountingContext, compa
     lines.push({ accountId: tax.account_id, description: `Output tax reversal — ${posReturn.return_number}`, debit: asDatabaseDecimal(taxTotal), credit: 0, referenceType: "pos_return", referenceId: posReturn.id });
   }
 
-  // Gap B fix (POS Completion Program Prompt 2): read the EXACT per-payment
-  // refund evidence return-lifecycle.js now persists at refund time
-  // (tenant.pos_return_payment_refunds, migration 130) instead of
-  // reconstructing a proportional guess. Falls back to the old
-  // reconstruction ONLY for a return completed before this fix shipped
-  // (no persisted rows exist for it yet) -- not a regression, a
-  // backward-compatibility path for already-existing data.
+  // Rule (B): read the EXACT per-payment refund evidence
+  // return-lifecycle.js persists at refund time
+  // (tenant.pos_return_payment_refunds, migration 130). Falls back to a
+  // proportional reconstruction ONLY for a return with no persisted rows
+  // (completed before that table existed).
   const refundTotal = decimal(posReturn.refund_total);
   if (refundTotal > 0n) {
     const persistedRefunds = await client.query(
@@ -349,13 +342,12 @@ async function buildReturnJournalLines(client, context, accountingContext, compa
     }
   }
 
-  // Gap A fix (POS Completion Program Prompt 2): a return's journal
-  // previously reversed revenue/tax/tender/COGS but never the original
-  // sale's loyalty accrual, even though loyalty.js's own
-  // reversePosLoyaltyForReturn already computes and ledgers the exact
-  // reversed points (reverse_earn) and restored-redemption points
-  // (reverse_redeem) for this return. Valued at the ORIGINAL SALE's own
-  // historical rate snapshot (Gap C), never the program's current rate.
+  // Rule (A): besides revenue/tax/tender/COGS, a return's journal reverses
+  // the original sale's loyalty accrual, using the exact reversed points
+  // (reverse_earn) and restored-redemption points (reverse_redeem) that
+  // loyalty.js's reversePosLoyaltyForReturn ledgers for this return. Valued
+  // at the ORIGINAL SALE's own historical rate snapshot (rule C), never the
+  // program's current rate.
   const loyaltyReversal = await client.query(
     `SELECT entry_type,sum(abs(points))::numeric(18,6) AS points
        FROM tenant.pos_loyalty_ledger

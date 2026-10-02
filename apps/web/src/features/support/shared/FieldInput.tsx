@@ -30,7 +30,7 @@ export type FieldDef = {
   rowKey?: string;
 };
 
-export function resolveOptions(
+function resolveOptions(
   field: FieldDef,
   options: SupportOptions | undefined,
 ): SelectOption[] {

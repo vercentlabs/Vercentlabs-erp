@@ -5,13 +5,11 @@ import { ok, readJson } from "@/core/http";
 import { crmContext } from "@/features/crm/shared/crm-context";
 import { workspaceRoute } from "@/core/workspace-route";
 
-// F025 Stage A2 §11. capturePredictiveForecast (opportunity-revenue-
-// intelligence.js) already existed, fully built, with zero frontend
-// consumer — the dossier's "predictive confidence" requirement. A
-// manager-triggered capture (mirroring F010's manual pipeline-snapshot
+// F025 predictive confidence. capturePredictiveForecast (opportunity-
+// revenue-intelligence.js). A manager-triggered capture (mirroring F010's manual pipeline-snapshot
 // pattern), never a background job — this returns its result directly
-// so the caller sees it immediately, rather than requiring a separate
-// "latest snapshot" read endpoint this pass doesn't otherwise need.
+// so the caller sees it immediately, without a separate "latest
+// snapshot" read endpoint.
 // Organisation-wide figures (every won deal, every open deal): forecast
 // governors only (crm.forecast.manage), not every seller.
 export async function POST(request: Request) {

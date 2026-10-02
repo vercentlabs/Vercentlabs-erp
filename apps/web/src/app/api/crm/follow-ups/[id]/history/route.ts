@@ -5,8 +5,7 @@ import { ok } from "@/core/http";
 import { crmContext } from "@/features/crm/shared/crm-context";
 import { workspaceRoute } from "@/core/workspace-route";
 
-// F016 Stage A2 §7. listCrmFollowUpHistory already existed with no
-// frontend consumer — covers "escalation history" (escalateOverdueFollowUps
+// F016. listCrmFollowUpHistory — covers "escalation history" (escalateOverdueFollowUps
 // writes an 'escalated' event into the same ledger) alongside the rest of
 // the Follow-up's lifecycle events.
 export async function GET(

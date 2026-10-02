@@ -4,7 +4,7 @@ import { cx } from "@/lib/utils";
 import { getApprovedScreenshot } from "@/lib/product/screenshots";
 import { Reveal } from "@/components/motion/reveal";
 
-export function ProductFrame({
+function ProductFrame({
   children,
   moduleAccentColor,
   caption,

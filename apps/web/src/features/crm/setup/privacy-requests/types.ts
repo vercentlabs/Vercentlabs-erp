@@ -12,8 +12,8 @@ export type PrivacyRequestType =
   | "restriction"
   | "objection"
   | "consent_withdrawal";
-export type PrivacySubjectType = "lead" | "contact" | "party";
-export type PrivacyRequestStatus =
+type PrivacySubjectType = "lead" | "contact" | "party";
+type PrivacyRequestStatus =
   | "received"
   | "verification_pending"
   | "in_progress"

@@ -1,7 +1,7 @@
 // F005 Lead assignment — eligibility primitives: who may receive a Lead
 // (CRM access + company/branch scope + active membership), who is
 // currently unavailable (out-of-office), least-loaded/territory candidate
-// resolution, and — new in CRM vNext Prompt 4 — a full per-candidate
+// resolution, and a full per-candidate
 // explain trace so "why did this owner win" is reconstructible for
 // support/audit rather than a single opaque policy-mode label.
 import { LeadGovernanceError, text, UUID } from "./shared.js";

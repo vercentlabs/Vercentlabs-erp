@@ -2,7 +2,7 @@
 // analytics/analytics-service.js) — every field
 // here is a real, permission-scoped aggregation computed there; this type
 // only names what the backend already returns, it does not derive anything.
-export type CrmDashboardMetrics = {
+type CrmDashboardMetrics = {
   currencyCode: string | null;
   openLeads: number;
   qualifiedLeads: number;
@@ -34,7 +34,7 @@ export type CrmDashboardMetrics = {
   uncoveredTerritories: number;
 };
 
-export type CrmDashboardStage = {
+type CrmDashboardStage = {
   id: string;
   name: string;
   sequence: number;
@@ -42,7 +42,7 @@ export type CrmDashboardStage = {
   amount: number | string;
 };
 
-export type CrmDashboardSource = {
+type CrmDashboardSource = {
   name: string;
   leadCount: number;
   convertedCount: number;

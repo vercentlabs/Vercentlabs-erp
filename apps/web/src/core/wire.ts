@@ -9,7 +9,7 @@
 const SCALE = BigInt(1000000);
 const ZERO = BigInt(0);
 
-export function scaledToDecimalString(value: bigint): string {
+function scaledToDecimalString(value: bigint): string {
   const negative = value < ZERO;
   const absolute = negative ? -value : value;
   const whole = absolute / SCALE;

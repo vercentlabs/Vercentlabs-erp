@@ -3,8 +3,7 @@
 // graph.js / stage-migration.js — the SAME catalog the Lead 360's "Move
 // to stage" UI already reads (getLeadTransitionGraph). These rows ARE
 // camelCased (dto() in lifecycle/shared.js), unlike account-intelligence.js/
-// assignment-engine.js/scoring model-config.js in the other Tranche I
-// screens.
+// assignment-engine.js/scoring model-config.js in the other setup screens.
 export type LeadStage = {
   id: string;
   code: string;

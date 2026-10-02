@@ -6,9 +6,8 @@
 // membership's manager (crm_sales_team_members -> crm_sales_teams.
 // manager_user_id). No generic org-wide "manager" concept exists in this
 // codebase outside the CRM sales-team hierarchy (organization_memberships.
-// role is only owner/admin/member) — this is the real, populated schema
-// Prompt 4/5's assignment/territory code already relies on, not new
-// invented schema. Returns null (no crash, no fake escalation target) when
+// role is only owner/admin/member) — the same schema the assignment/
+// territory code relies on. Returns null (no crash, no fake escalation target) when
 // the user has no active team membership or their team has no manager
 // configured — callers must treat that as "escalation not resolvable",
 // not as an error.

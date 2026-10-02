@@ -1,12 +1,7 @@
 // F027 Lead scoring — the ONE deterministic scoring engine
-// (crm_lead_scoring_models / crm_lead_scoring_model_rules, "System A").
-// Moved here (from the legacy flat lead-intelligence.js) as part of CRM
-// vNext Prompt 4, which also retired a second, parallel legacy scoring
-// path ("System B", tenant.crm_scoring_rules) that had been silently
-// overwriting crm_leads.score on every Lead create/update with no model
-// version, cap or decay — see index.js's create/update paths and
-// CrmError-throwing callers, now all pointed at recalculateLeadScoreInternal
-// below instead.
+// (crm_lead_scoring_models / crm_lead_scoring_model_rules), versioned,
+// capped and decayed. Lead create/update paths call
+// recalculateLeadScoreInternal below; nothing else writes crm_leads.score.
 import { CrmLeadIntelligenceError, assertSensitiveLeadIntelligenceAccess, getScopedLead, crmLeadIntelligenceHash, text, number, object, array, clamp } from "./shared.js";
 import { calculatePredictiveScoreBreakdown } from "./predictive-model.js";
 
@@ -111,8 +106,8 @@ export async function activeModel(client, organizationId, modelType = "rule_base
 }
 
 // Internal, unchecked recalculation — used by system-triggered recalculation
-// (Lead create/update, qualification decisions, stage transitions are NOT
-// a trigger per the dossier's own explicit list) where the ACTING user may
+// (Lead create/update, qualification decisions; stage transitions are NOT
+// a trigger) where the ACTING user may
 // not personally hold crm.leads.view_sensitive (an ordinary rep creating a
 // Lead should not need that permission just to have it auto-scored). Skips
 // gracefully when no active model is configured, rather than blocking the

@@ -14,13 +14,11 @@ const object = (value) =>
 const integer = (value, fallback = 0) =>
   Number.isInteger(Number(value)) ? Number(value) : fallback;
 
-// F018 §9 closeout — claim/messages/status previously had NO inbox-
-// membership check at all: any caller holding the ordinary
-// crm.communications.manage permission could claim, read or change the
-// status of ANY shared inbox's thread by id, regardless of
-// crm_shared_inbox_members — "a user must not access another team's
-// inbox merely by guessing a thread ID" was not actually enforced. This
-// is the ONE membership gate all three call.
+// Shared-inbox membership gate: crm.communications.manage alone must not
+// let a caller claim, read or change the status of ANY shared inbox's
+// thread by id — a user must not access another team's inbox merely by
+// guessing a thread ID. This is the ONE membership gate claim, messages
+// and status all call.
 export async function assertSharedInboxMember(client, context, inboxId) {
   if (!inboxId || canOverridePrivateCrmContent(context)) return;
   const result = await client.query(
@@ -113,12 +111,10 @@ export async function claimSharedInboxThread(
   return result.rows[0];
 }
 
-// F018 closeout (§33 shared-inbox reachability, §8-9 thread/inbox
-// authorization): the messages within one thread — the piece a real reply
-// UI needs that getCommunicationsDashboard (list-of-threads only) never
-// provided. A thread must not become an authorization bypass: (1) the
-// caller must be a member of the thread's own shared inbox (§9,
-// assertSharedInboxMember — previously unchecked entirely), (2) each
+// The messages within one thread — what a reply UI needs beyond
+// getCommunicationsDashboard's list of threads. A thread must not become an
+// authorization bypass: (1) the caller must be a member of the thread's own
+// shared inbox (assertSharedInboxMember), (2) each
 // message's audience is resolved from its OWN linked communication's
 // visibility tier (team/private/participant, the SAME canonical fragment
 // every other surface uses — mixed threads with some team-visible and
@@ -169,7 +165,7 @@ export async function listThreadMessages(client, context, threadId) {
   return { thread: thread.rows[0], messages: projectedMessages };
 }
 
-// F018 closeout (§33 status): open -> pending/closed, mirroring the enum
+// Thread status: open -> pending/closed, mirroring the enum
 // migration 031 already declares. A closed/spam/archived thread can be
 // reopened by setting it back to 'open' — no separate "reopen" verb, this
 // is a plain governed status field, not a ticketing state machine.

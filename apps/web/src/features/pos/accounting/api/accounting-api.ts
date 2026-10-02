@@ -56,7 +56,7 @@ export type PosAccountingMappingRow = {
   accountCode: string | null;
   accountName: string | null;
 };
-export type PosAccountOption = {
+type PosAccountOption = {
   id: string;
   code: string;
   name: string;

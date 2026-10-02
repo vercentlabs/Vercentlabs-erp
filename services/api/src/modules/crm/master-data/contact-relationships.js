@@ -1,5 +1,4 @@
-// F003 governed Contact<->Account relationship model (CRM vNext Prompt 3
-// continuation, CRM-VNEXT-081). See migration
+// F003 governed Contact<->Account relationship model. See migration
 // 088_f003_contact_account_relationships.sql for the schema design
 // rationale (relationship_type vs stakeholder_role, is_primary semantics
 // distinct from contacts.is_primary, no effective-dating).

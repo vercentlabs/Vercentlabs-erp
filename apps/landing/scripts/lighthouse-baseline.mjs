@@ -1,13 +1,12 @@
 #!/usr/bin/env node
 /**
- * Real Lighthouse baseline — Phase 7. Requires the real production standalone
+ * Real Lighthouse baseline. Requires the real production standalone
  * server already running (never `next dev`; see package.json's
  * `start:standalone`). Runs both mobile and desktop presets against the 11
- * representative routes named in the governing Phase 7 brief, writes raw
+ * representative routes below, writes raw
  * JSON reports (gitignored, under test-results/) plus a machine-readable
- * summary.json this script also prints as a markdown table — the source
- * every number in docs/landing-redesign/phase-7/baseline-measurements.md
- * traces back to. No score in that doc is ever hand-typed from memory.
+ * summary.json this script also prints as a markdown table — report scores
+ * from that output, never hand-typed from memory.
  *
  * Uses Lighthouse's programmatic Node API (not the `npx lighthouse` CLI via
  * a subprocess). The CLI-via-subprocess approach was tried first and is

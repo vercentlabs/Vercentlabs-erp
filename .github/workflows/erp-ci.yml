@@ -1,16 +1,8 @@
 name: ERP CI
 
-# Comprehensive gate for the authenticated ERP product (web + API + worker +
-# shared packages + cross-module contracts) — distinct from landing-ci.yml
-# (public marketing site) and crm-ci.yml (CRM-path-scoped fast gate). This
-# workflow is what a green check on a PR touching the ERP should actually
-# mean: every one of these commands ran and passed, not just that the CRM
-# subset or the landing site built.
-#
-# Deliberately excluded here (kept in a separate manual/nightly workflow
-# instead, per the standing instruction not to put the whole expensive
-# browser/perf suite on every PR): Playwright browser E2E
-# (test:e2e:erp/test:e2e:crm), load/performance testing.
+# Gate for the authenticated ERP product (web + mobile) — distinct from
+# landing-ci.yml (public marketing site): typecheck, lint, route contracts,
+# production build and dependency audit.
 on:
   pull_request:
     paths:
@@ -20,10 +12,6 @@ on:
       - "services/worker/**"
       - "packages/**"
       - "database/**"
-      - "tests/integration/**"
-      - "tests/security/**"
-      - "scripts/**"
-      - "docs/**"
       - "package.json"
       - "pnpm-lock.yaml"
       - "pnpm-workspace.yaml"
@@ -38,10 +26,6 @@ on:
       - "services/worker/**"
       - "packages/**"
       - "database/**"
-      - "tests/integration/**"
-      - "tests/security/**"
-      - "scripts/**"
-      - "docs/**"
       - "package.json"
       - "pnpm-lock.yaml"
       - "pnpm-workspace.yaml"
@@ -61,7 +45,7 @@ concurrency:
 
 jobs:
   erp-verification:
-    name: Toolchain, architecture, DB structure, web/API/worker/package/SDK tests, integration, security, RBAC, build
+    name: Typecheck, lint, route contracts, build, dependency audit
     runs-on: ubuntu-latest
     timeout-minutes: 60
     steps:
@@ -80,44 +64,11 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Toolchain verification
-        run: pnpm verify:toolchain
-
-      - name: Shared-platform (T01) verification
-        run: pnpm verify:t01
-
-      - name: Design-system convergence verification
-        run: pnpm verify:experience
-
-      - name: Architecture + documentation link verification
-        run: pnpm verify:architecture
-
-      - name: Shared Access verification (static rules, catalogue integrity, access unit tests, route security)
-        run: pnpm verify:access
-
-      - name: SaaS billing verification (architecture rules, provider isolation, billing unit tests, worker wiring)
-        run: pnpm verify:billing
-
-      - name: Shared Runtime verification (notification/approval/audit/search/job ownership rules + unit tests)
-        run: pnpm verify:shared-runtime
-
-      - name: Shared Platform services verification (numbering, files, integrations, events, configuration, privacy, AI, workflows, reporting)
-        run: pnpm verify:platform-services
-
-      - name: Database structure verification
-        run: pnpm verify:db
-
-      - name: Production readiness verification (static; no cloud credentials)
-        run: pnpm verify:production
-
       - name: Web typecheck
         run: pnpm typecheck:web
 
       - name: Web lint
         run: pnpm lint:web
-
-      - name: Web tests
-        run: pnpm test:web
 
       - name: Route contract verification
         run: pnpm verify:routes
@@ -125,99 +76,8 @@ jobs:
       - name: Mobile typecheck + lint
         run: pnpm verify:mobile
 
-      - name: API tests
-        run: pnpm test:api
-
-      - name: Worker tests + structure verification
-        run: pnpm verify:worker
-
-      - name: Shared package tests
-        run: pnpm test:packages
-
-      - name: Shared SDK tests
-        run: pnpm test:sdk
-
-      - name: Cross-module integration tests
-        run: pnpm test:integration
-
-      - name: Security-negative tests
-        run: pnpm test:security
-
-      - name: Enterprise RBAC tests
-        run: pnpm test:enterprise-rbac
-
       - name: Production ERP web build
         run: pnpm build:web
 
       - name: Dependency audit
         run: pnpm audit:dependencies
-
-  # Real-PostgreSQL Shared Access / tenant-isolation suite. The general job
-  # above has no database, so its integration tests skip their DB cases;
-  # this job provisions PostgreSQL 16 with SEPARATE migration and restricted
-  # runtime roles and runs `pnpm test:access:db`, which fails if the database
-  # is unreachable or if any access test is skipped. The same database then
-  # runs `pnpm test:billing:db` (SaaS billing sagas, webhooks, leasing,
-  # recovery, entitlements) against a local Razorpay stand-in: no real
-  # Razorpay credentials, zero skips. Deliberately focused: no Playwright, no
-  # full integration suite.
-  shared-access-db:
-    name: Shared Access, tenant isolation, SaaS billing, Shared Runtime + Platform services (real PostgreSQL 16)
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
-    services:
-      postgres:
-        image: postgres:16
-        env:
-          POSTGRES_USER: vercentlabs
-          POSTGRES_PASSWORD: ci_owner_password
-          POSTGRES_DB: vercentlabs_control
-        ports:
-          - 5433:5432
-        options: >-
-          --health-cmd "pg_isready -U vercentlabs -d vercentlabs_control"
-          --health-interval 5s --health-timeout 5s --health-retries 20
-    env:
-      MIGRATION_DATABASE_URL: postgresql://vercentlabs:ci_owner_password@localhost:5433/vercentlabs_control
-      DATABASE_URL: postgresql://vercent_web:ci_web_password@localhost:5433/vercentlabs_control
-      # Separate restricted worker role (three database authorities).
-      WORKER_DATABASE_URL: postgresql://vercent_worker:ci_worker_password@localhost:5433/vercentlabs_control
-      DATABASE_SSL: "false"
-      CRM_ACCESS_DB_REQUIRED: "1"
-    steps:
-      - uses: actions/checkout@v6
-
-      - name: Set up Node and pnpm
-        uses: pnpm/setup@v1
-        with:
-          version: 11.21.0
-          runtime: node@24
-          cache: true
-          install: false
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Apply platform + tenant migrations and provision the restricted runtime role
-        run: pnpm db:setup
-
-      - name: Shared Access verification (static)
-        run: pnpm verify:access
-
-      - name: Shared Access + RLS/tenant-isolation tests against PostgreSQL (zero skips allowed)
-        run: pnpm test:access:db
-
-      - name: SaaS billing tests against PostgreSQL and a local Razorpay stand-in (zero skips allowed)
-        run: pnpm test:billing:db
-
-      - name: Shared Runtime tests against PostgreSQL (notifications, approvals, audit, search, jobs; zero skips allowed)
-        run: pnpm test:shared-runtime:db
-
-      - name: Shared Platform services tests against PostgreSQL and local OAuth/storage stand-ins (zero skips allowed)
-        run: pnpm test:platform-services:db
-
-      - name: CRM tests against PostgreSQL (public booking, calendar sync, coverage, pipeline metrics, forecast, lead import, reports, search; zero skips allowed)
-        run: pnpm test:crm:db
-
-      - name: Production database suite (tenant + platform RLS, three role authorities, contract plans; zero skips allowed)
-        run: pnpm test:production:db

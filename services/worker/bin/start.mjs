@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Production and development entrypoint (pnpm start:worker / pnpm
 // dev:worker). Deliberately a standalone process, never started via a
-// Next.js route/layout/module import (Part 86) — this file is the only
+// Next.js route/layout/module import — this file is the only
 // thing that ever calls createWorker().start().
 import { validateRazorpayConfig } from "@vercentlabs/api";
 import { createLogger } from "@vercentlabs/observability";

@@ -13,10 +13,9 @@ const ALLOWED_SCHEMES = new Set(["http:", "https:"]);
 const LOCALHOST_HOSTNAMES = new Set(["localhost", "localhost.localdomain", "ip6-localhost", "ip6-loopback"]);
 
 // IPv4 ranges blocked unless WORKER_ALLOW_PRIVATE_WEBHOOK_TARGETS is set —
-// this is a public SaaS product with no documented requirement for
-// self-hosted customers to reach internal webhook endpoints (Prompt 13's
-// own "default to public HTTP(S) endpoints" instruction), so the default
-// posture rejects every one of these, including 169.254.169.254 (the
+// this is a public SaaS product with no requirement for self-hosted
+// customers to reach internal webhook endpoints (webhooks default to public
+// HTTP(S) endpoints), so the default posture rejects every one of these, including 169.254.169.254 (the
 // cloud-provider instance-metadata address, the single most common real
 // SSRF target in practice).
 const BLOCKED_IPV4_RANGES = [
@@ -131,7 +130,7 @@ export function validateWebhookUrl(rawUrl, { allowPrivate = false } = {}) {
   return parsed;
 }
 
-// The real DNS-rebinding-resistant check (Part 29): resolves the hostname
+// The real DNS-rebinding-resistant check: resolves the hostname
 // to its candidate IP addresses ONCE, validates every one of them, and
 // returns the validated address for the caller to connect to DIRECTLY
 // (see deliver.js's undici Agent with a pinned `lookup`) — there is no

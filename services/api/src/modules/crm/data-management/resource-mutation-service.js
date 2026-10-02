@@ -39,10 +39,9 @@ export async function createCrmRecord(client, context, resource, input) {
       throw new CrmError(410, "Use the governed Meetings operations.", "CRM_MEETING_API_MOVED");
     if (activityType === "follow_up")
       throw new CrmError(410, "Use the governed Follow-ups operations.", "CRM_FOLLOW_UP_API_MOVED");
-    // Checkpoint audit (Prompt 3 continuation): task was not redirected here
-    // either — POST /api/crm/activities with {activityType:"task",...} would
-    // have inserted a crm_activities row directly, bypassing createCrmTask's
-    // own governance (status always 'planned', activityType/status rejected
+    // Tasks are redirected too — otherwise POST /api/crm/activities with
+    // {activityType:"task",...} would insert a crm_activities row directly,
+    // bypassing createCrmTask's own governance (status always 'planned', activityType/status rejected
     // as caller-supplied input, recurrenceConfig validation).
     if (activityType === "task")
       throw new CrmError(410, "Use the governed Tasks operations.", "CRM_TASK_API_MOVED");
@@ -263,28 +262,22 @@ export async function updateCrmRecord(
       throw new CrmError(410, "Use the governed Meetings operations.", "CRM_MEETING_API_MOVED");
     if (before.activityType === "follow_up" || requestedActivityType === "follow_up")
       throw new CrmError(410, "Use the governed Follow-ups operations.", "CRM_FOLLOW_UP_API_MOVED");
-    // Checkpoint audit (Prompt 3 continuation): Tasks (activity_type='task')
-    // were the one activity kind NOT redirected here, even though
-    // task-operations.js is exactly as governed as Calls/Meetings/Follow-ups
-    // (claim-conflict handling, dependency-blocked completion, terminal-state
-    // read-only enforcement, recurrence generation) — a caller could PATCH
-    // /api/crm/activities/[taskId] with {status:"completed"} directly through
-    // this generic path and skip every one of those checks. Same fix shape
-    // as the other three activity kinds.
+    // Tasks (activity_type='task') are redirected like Calls/Meetings/
+    // Follow-ups: task-operations.js enforces claim-conflict handling,
+    // dependency-blocked completion, terminal-state read-only enforcement
+    // and recurrence generation, which a direct PATCH of
+    // /api/crm/activities/[taskId] through this generic path would skip.
     if (before.activityType === "task" || requestedActivityType === "task")
       throw new CrmError(410, "Use the governed Tasks operations.", "CRM_TASK_API_MOVED");
   }
   if (resource === "opportunities") assertOpportunityUpdateAllowed(context, before, input);
-  // Checkpoint audit (Prompt 3 continuation): initially suspected Opportunities
-  // had no guard against stageId/status/probability/outcome fields being
-  // forged through this generic path. FALSE ALARM — record-policy.js's
+  // No Opportunity controlled-field guard is needed here: record-policy.js's
   // assertWritableScope already blocks the full controlled-field set
   // (pipelineId/stageId/probability/forecastCategory/status/actualCloseDate/
   // lostReasonId/lossNotes/outcomeReasonId/outcomeNotes) further down this
   // same call chain, and crm-opportunities-f009.test.mjs already covers it
   // ("outcome and stage-owned fields cannot be forged through generic
-  // PATCH"). Do not re-add a redundant/conflicting guard here — this was
-  // caught by re-running that test after an incorrect first attempt.
+  // PATCH"). Do not add a redundant/conflicting guard here.
   if (resource === "leads") assertLeadUpdateFieldsGoverned(input);
   assertWritableScope(definition, context, input);
   await assertOwnerAssignmentAllowed(client, definition, context, input);
@@ -368,9 +361,7 @@ export async function updateCrmRecord(
   const versionChecked =
     expectations.expectedUpdatedAt &&
     (resource === "leads" || resource === "opportunities" || Boolean(GENERIC_VERSIONED_RESOURCES[resource]));
-  // Real bug found and root-caused while building the UI 2.0 Lead Edit
-  // form's optimistic-concurrency handling (not assumed -- confirmed by
-  // instrumenting this exact query): `crm_leads.updated_at` is `timestamptz`
+  // Optimistic-concurrency precision: `crm_leads.updated_at` is `timestamptz`
   // with genuine microsecond precision (e.g. `.700902`), but `before`
   // (read moments earlier via getLeadRecordForUpdate/camelizeRow) comes
   // back from `pg`'s default type parser as a JS `Date`, which can only
@@ -379,9 +370,8 @@ export async function updateCrmRecord(
   // full-precision stored value fails almost every time, even with zero
   // real concurrent writes, because no API response can ever hand a
   // client more than millisecond precision to begin with (JSON/ISO-8601
-  // via JS Date). This made every checked write on leads/opportunities/
-  // the generic versioned resources (this same shared function) fail with
-  // a false CRM_STALE_WRITE close to 100% of the time. Compares at
+  // via JS Date) — every checked write would fail with a false
+  // CRM_STALE_WRITE. Compares at
   // millisecond precision on both sides instead -- the only precision any
   // client-supplied `expectedUpdatedAt` can ever meaningfully carry, so
   // this only removes a false-positive rejection, never masks a real
@@ -502,9 +492,9 @@ export async function archiveCrmRecord(
     throw new CrmError(410, "Use the governed Meetings operations.", "CRM_MEETING_API_MOVED");
   if (resource === "activities" && before.activityType === "follow_up")
     throw new CrmError(410, "Use the governed Follow-ups operations.", "CRM_FOLLOW_UP_API_MOVED");
-  // Checkpoint audit (Prompt 3 continuation): task was not redirected here
-  // either — DELETE /api/crm/activities/[taskId] would have run the generic
-  // archive path instead of the governed cancelCrmTask transition.
+  // Tasks are redirected too — otherwise DELETE /api/crm/activities/[taskId]
+  // would run the generic archive path instead of the governed
+  // cancelCrmTask transition.
   if (resource === "activities" && before.activityType === "task")
     throw new CrmError(410, "Use the governed Tasks operations.", "CRM_TASK_API_MOVED");
   const parameters = [context.organizationId, id];
@@ -597,7 +587,7 @@ export async function archiveCrmRecord(
   const userParameter = auditColumns(resource).updatedBy
     ? addParameter(parameters, context.userId)
     : null;
-  // Stage A2 §14: derive the archive-path version check from the same
+  // Derive the archive-path version check from the same
   // GENERIC_VERSIONED_RESOURCES map as the PATCH path above, rather than a
   // second hand-maintained resource list — a resource added to that map for
   // edit-concurrency protection now also gets it on archive, with no risk of
@@ -605,14 +595,12 @@ export async function archiveCrmRecord(
   const archiveVersionChecked =
     (resource === "opportunities" || Boolean(GENERIC_VERSIONED_RESOURCES[resource])) &&
     Boolean(expectations.expectedUpdatedAt);
-  // Same millisecond-truncation fix as the PATCH versionGuard above (line
-  // ~701): `before.updatedAt` can only ever carry millisecond precision (it
+  // Same millisecond-truncation rule as the PATCH versionGuard above:
+  // `before.updatedAt` can only ever carry millisecond precision (it
   // came back through pg's default Date parser), while the stored
   // `updated_at` is a full-microsecond-precision timestamptz — an untruncated
   // `=` here would reject almost every archive as a false CRM_STALE_WRITE
-  // even with zero real concurrent writes. Widening this path (Stage A2
-  // §14) to many more resources made this latent bug reachable far more
-  // often, so it is fixed here rather than shipped forward.
+  // even with zero real concurrent writes.
   const archiveVersionGuard = archiveVersionChecked
     ? ` AND date_trunc('milliseconds', record.updated_at) = date_trunc('milliseconds', ${addParameter(parameters, before.updatedAt)}::timestamptz)`
     : "";

@@ -33,10 +33,9 @@ function isActive(pathname: string, href: string) {
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 
-// Checkpoint audit (ERP completion gap register, Phase 6): ProfileMenu
-// (the sign-out entry point) lives in PrimarySidebar, which is
-// `hidden lg:flex` — below 1024px there was no sign-out control
-// anywhere in the app at all. DrawerRow's Link-only shape can't express
+// ProfileMenu (the sign-out entry point) lives in PrimarySidebar, which is
+// `hidden lg:flex` — so below 1024px the drawer needs its own sign-out
+// control. DrawerRow's Link-only shape can't express
 // an action, so this is a small, separate row type for it.
 function DrawerActionRow({
   label,
@@ -116,8 +115,7 @@ function DrawerRow({
 
 // Phone/tablet nav surface (<1024px) — the primary icon rail is hidden at
 // this breakpoint (PrimarySidebar has `hidden lg:flex`) in favor of this
-// top bar + full-label drawer, per Phase 2's explicit "never just squeeze
-// both sidebars into 390px" instruction.
+// top bar + full-label drawer — never both sidebars squeezed into 390px.
 const BADGE_SOURCE_VALUE: Record<
   string,
   (counts: {

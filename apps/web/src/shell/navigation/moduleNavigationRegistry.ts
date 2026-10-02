@@ -1,10 +1,10 @@
 // The single GLOBAL navigation authority — primary sidebar, mobile drawer,
-// and (in a later prompt) the command menu must all read from this file
+// and the command menu must all read from this file
 // for Home/Work/Search/Approvals/Notifications/Jobs/Help/Settings and from
 // module-navigation-registry.ts's MODULE_NAVIGATION for the 12 modules'
 // own entries. MODULE_NAV_ENTRIES below is DERIVED from MODULE_NAVIGATION
-// (icon/label/route), never hand-duplicated — Phase 2's explicit
-// "one registry must be the authority" rule.
+// (icon/label/route), never hand-duplicated — one registry is the
+// authority.
 import {
   Home,
   ListChecks,
@@ -21,9 +21,7 @@ import {
 import { MODULE_NAVIGATION } from "./module-navigation-registry";
 import type { NavIcon } from "./navigation-types";
 
-export type { NavIcon };
-
-export type NavAvailability = "implemented" | "foundation" | "planned";
+type NavAvailability = "implemented" | "foundation" | "planned";
 
 export type ModuleNavEntry = {
   moduleKey: string;

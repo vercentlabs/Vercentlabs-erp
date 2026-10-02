@@ -10,13 +10,11 @@ import { workspaceRoute } from "@/core/workspace-route";
 
 type RouteContext = { params: Promise<{ id: string }> };
 
-// F003 Stage A2 — listContactAccountRelationships/addContactAccountRelationship
-// (contact-relationships.js) already governed a full multi-account Contact
-// relationship model (tenant.crm_contact_account_relationships, migration
-// 088) — organization scope, relationship/stakeholder role, primary
-// semantics, audit, merge reconciliation — already tested
-// (crm-contact-account-relationships-f003.test.mjs) with zero frontend
-// consumer before this pass. Not a new migration; a wiring gap.
+// F003 — listContactAccountRelationships/addContactAccountRelationship
+// (contact-relationships.js): the multi-account Contact relationship model
+// (tenant.crm_contact_account_relationships, migration 088) — organization
+// scope, relationship/stakeholder role, primary semantics, audit, merge
+// reconciliation (see crm-contact-account-relationships-f003.test.mjs).
 export async function GET(request: Request, context: RouteContext) {
   return workspaceRoute(
     request,

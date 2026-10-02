@@ -59,15 +59,12 @@ const REMINDER_STATUS_TONE: Record<
   cancelled: "neutral",
 };
 
-// F016 Tranche J (Stage A) — dedicated Follow-up detail view; getCrmFollowUp/
-// updateCrmFollowUp (follow-up-operations.js) were already real, already
-// routed, with no frontend consumer. Stage A2 §7 closeout: a custom
-// snooze-duration control, reminder-plan editing, reminder delivery-status/
-// retry-failure visibility and an escalation/lifecycle history timeline
-// were all genuine, confirmed gaps — the backend (snoozeCrmFollowUp already
-// took an arbitrary dueAt; listRemindersForActivity/acknowledgeReminder/
-// listCrmFollowUpHistory already existed, already tested) had zero
-// frontend consumer for any of them. All now wired below.
+// F016 — the Follow-up detail view (getCrmFollowUp/updateCrmFollowUp,
+// follow-up-operations.js): a custom snooze-duration control
+// (snoozeCrmFollowUp takes an arbitrary dueAt), reminder-plan editing,
+// reminder delivery-status/retry-failure visibility
+// (listRemindersForActivity/acknowledgeReminder) and an escalation/
+// lifecycle history timeline (listCrmFollowUpHistory).
 export function FollowUpDetailScreen({ followUpId }: { followUpId: string }) {
   const router = useRouter();
   const workspace = useWorkspaceContext();
@@ -339,10 +336,10 @@ export function FollowUpDetailScreen({ followUpId }: { followUpId: string }) {
   );
 }
 
-// F016 Stage A2 §7. listRemindersForActivity/acknowledgeReminder already
-// existed, fully tested — this surfaces the real delivery status
-// (pending/dispatching/sent/failed/acknowledged) and failure_reason the
-// dispatch worker (crm-follow-up-reminder-dispatch.js) already records.
+// F016. listRemindersForActivity/acknowledgeReminder — surfaces the real
+// delivery status (pending/dispatching/sent/failed/acknowledged) and
+// failure_reason the dispatch worker (crm-follow-up-reminder-dispatch.js)
+// records.
 function RemindersPanel({ followUpId }: { followUpId: string }) {
   const workspace = useWorkspaceContext();
   const queryClient = useQueryClient();
@@ -419,7 +416,7 @@ function RemindersPanel({ followUpId }: { followUpId: string }) {
   );
 }
 
-// F016 Stage A2 §7. listCrmFollowUpHistory already existed — covers
+// F016. listCrmFollowUpHistory — covers
 // escalation history (escalateOverdueFollowUps writes an 'escalated'
 // event into the same ledger) alongside the rest of the lifecycle.
 function HistoryPanel({ followUpId }: { followUpId: string }) {

@@ -41,11 +41,9 @@ import {
 import { CompleteMeetingDialog } from "../components/CompleteMeetingDialog";
 import type { Meeting } from "../types";
 
-// F014 Tranche J (Stage A) — dedicated Meeting detail view; getCrmMeeting/
-// updateCrmMeeting (meeting-operations.js) were already real, already
-// routed, with no frontend consumer. Attendees remain read-only plain
-// text here (a real contact-picker UI is a separate, disclosed gap, not
-// rebuilt in this edit dialog).
+// F014 — the Meeting detail view (getCrmMeeting/updateCrmMeeting,
+// meeting-operations.js). Attendees are read-only plain text here (there
+// is no contact-picker UI in this edit dialog).
 export function MeetingDetailScreen({ meetingId }: { meetingId: string }) {
   const router = useRouter();
   const queryClient = useQueryClient();

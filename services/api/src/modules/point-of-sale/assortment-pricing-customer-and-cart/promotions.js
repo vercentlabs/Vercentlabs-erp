@@ -25,7 +25,7 @@ export async function commitPosPromotionApplications(client, context, saleId, sa
     if (promotion.rows[0].usage_limit_total != null && promotion.rows[0].usage_count >= promotion.rows[0].usage_limit_total) {
       throw posError(409, "A promotion in this cart reached its usage limit before checkout completed.", "POS_PROMOTION_USAGE_LIMIT_REACHED");
     }
-    // Concurrency (Phase 4): same race as coupons' commitPosCouponRedemption
+    // Concurrency: same race as coupons' commitPosCouponRedemption
     // -- the preview-time per-customer check in cart-pricing.js's
     // evaluatePromotions() can pass on two racing terminals for the same
     // customer's last remaining use; holding this promotion's own row lock

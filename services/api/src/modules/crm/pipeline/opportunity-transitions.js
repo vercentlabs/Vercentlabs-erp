@@ -240,13 +240,10 @@ export async function moveOpportunityStage(
     }
     outcomeReasonLabel = reason.name;
   }
-  // F012 integrity closeout (Prompts 1-5): crm_playbook_questions already
-  // had a real blocks_stage_exit flag (Prompt 1 schema) — the dossier's
-  // stage-level "required fields/guidance" requirement — but no code
-  // anywhere ever checked it. A question marked blocks_stage_exit=true did
-  // nothing at all; Opportunities could leave the stage with zero required
-  // questions answered. This is the same governed playbook infrastructure
-  // used elsewhere (crm_playbook_responses), not a parallel system.
+  // F012 stage exit gate: a crm_playbook_questions row marked
+  // blocks_stage_exit=true must be answered before an Opportunity can leave
+  // the stage. Uses the same governed playbook infrastructure as elsewhere
+  // (crm_playbook_responses), not a parallel system.
   const blockingQuestions = await client.query(
     `SELECT question.id, question.prompt
        FROM tenant.crm_playbook_questions question
@@ -324,12 +321,9 @@ export async function moveOpportunityStage(
     ],
   );
   const updated = camelizeRow(result.rows[0]);
-  // Integrity closeout (Prompts 1-5): this UPDATE above adopts the
-  // destination stage's configured probability (or forces 0/100 on
-  // Won/Lost) but previously never wrote a crm_opportunity_probability_
-  // history row — an Opportunity moved through several stages showed zero
-  // probability history unless a manual override also happened separately.
-  // Every stage-driven probability change is now recorded with an explicit
+  // The UPDATE above adopts the destination stage's configured probability
+  // (or forces 0/100 on Won/Lost); every stage-driven probability change is
+  // also recorded in crm_opportunity_probability_history with an explicit
   // source, distinguishing it from a manual override.
   const fromProbability = Number(opportunity.probability || 0);
   const toProbability = Number(updated.probability || 0);

@@ -10,7 +10,7 @@ import {
 
 import type { MfgOptions } from "@/features/manufacturing/shared/client";
 
-export type OptionSource =
+type OptionSource =
   "items" | "warehouses" | "uoms" | "boms" | "workOrders" | "salesOrders";
 export type FieldValue = string | number;
 export type FieldDef = {
@@ -33,7 +33,7 @@ export type FieldDef = {
   rowKey?: string;
 };
 
-export function resolveOptions(
+function resolveOptions(
   field: FieldDef,
   options: MfgOptions | undefined,
 ): SelectOption[] {

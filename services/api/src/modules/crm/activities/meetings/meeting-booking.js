@@ -353,13 +353,13 @@ export async function bookMeeting(client, context, meetingLinkId, input = {}) {
     entityId: booking.rows[0].id,
     payload: { startsAt: desiredStart, meetingLinkId: link.rows[0].id, meetingActivityId: meetingActivity.rows[0].id },
   });
-  // F014 closeout: push this newly-booked Meeting to the host's real
+  // Push this newly-booked Meeting to the host's real
   // connected calendar (if any) instead of leaving provider='internal'
   // as the only record of it — see pushProviderCalendarEvent's own
   // comment. A no-op (not an error) when the host has no connected
   // outbound-capable account.
   await enqueueCalendarPushJob(client, context, meetingActivity.rows[0].id, "create", meetingActivity.rows[0].updated_at);
-  // F014 Stage A2 closeout: a publicly-booked Meeting joins the same
+  // A publicly-booked Meeting joins the same
   // shared reminder engine an internally-scheduled one does (see
   // createCrmMeeting) — the host still gets reminded even though no
   // authenticated user scheduled it.

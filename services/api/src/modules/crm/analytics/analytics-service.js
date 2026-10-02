@@ -70,8 +70,7 @@ export async function getCrmDashboard(client, context, options = {}) {
     `(($3::uuid IS NOT NULL AND (${alias}.branch_id IS NULL OR ${alias}.branch_id = $3)) OR ($3::uuid IS NULL AND $4::boolean))`;
   // Mirrors recordScope()'s owner-scoping rule so dashboard totals never
   // reveal counts/sums that include records a restricted caller could not
-  // otherwise list or open individually (docs/implementation/
-  // ERP_SECURITY_HARDENING_003.md, Part 2, "CRM Analytics Security").
+  // otherwise list or open individually.
   // Own + unassigned + owned by a member of a team the caller manages — the
   // shared rule (crm-access-scope.js); $5 = view-all, $6 = caller.
   const permitted = (alias, column) => `($5::boolean OR ${resourceVisibleSql(context, alias, column, "$6")})`;
@@ -125,10 +124,8 @@ export async function getCrmDashboard(client, context, options = {}) {
      SELECT
       (SELECT organization.base_currency FROM public.organizations organization WHERE organization.id = $1) AS currency_code,
       lead_counts.*, activity_counts.*,
-      -- F020 (Territories/sales teams) — LAST PROMPT 1/3 closeout: the
-      -- dossier's required "coverage gap" signal (a territory with nobody
-      -- currently, effectively assigned as its primary owner) had no
-      -- detection/reporting anywhere. A territory with only an 'overlay'/
+      -- F020 (Territories/sales teams) coverage gap: a territory with
+      -- nobody currently, effectively assigned as its primary owner. A territory with only an 'overlay'/
       -- 'shared'/'manager' assignment role and no 'primary' one still
       -- counts as a coverage gap — those roles supplement primary
       -- ownership, they do not substitute for it.
@@ -268,8 +265,7 @@ export async function getCrmReport(client, context, report, filters = {}) {
     `(($3::uuid IS NOT NULL AND (${alias}.branch_id IS NULL OR ${alias}.branch_id = $3)) OR ($3::uuid IS NULL AND $4::boolean))`;
   // Same owner-scoping rule as recordScope()/getCrmDashboard() — reports
   // built from crm_leads/crm_opportunities/crm_activities (the three
-  // resources with an ownerField, see Part 2 of docs/implementation/
-  // ERP_SECURITY_HARDENING_003.md) must not aggregate rows a restricted
+  // resources with an ownerField) must not aggregate rows a restricted
   // caller could not otherwise see individually. Reports built from other
   // tables (campaigns, account plans, pipeline inspections, conversations,
   // buying committees, partner accounts, AI predictions) are unaffected —
@@ -308,7 +304,7 @@ export async function getCrmReport(client, context, report, filters = {}) {
   if (report === "conversion")
     sql = `SELECT date_trunc('month', lead.created_at)::date AS period, count(*)::int AS leads, count(*) FILTER (WHERE lead.record_status='converted')::int AS converted, round((count(*) FILTER (WHERE lead.record_status='converted')::numeric / NULLIF(count(*),0))*100,2) AS conversion_rate FROM tenant.crm_leads lead WHERE lead.organization_id=$1 ${dateClause("lead.created_at")} AND ${companyVisible("lead")} AND ${branchVisible("lead")} AND ${ownerVisible("lead", "owner_user_id")} GROUP BY period ORDER BY period`;
   else if (report === "sources")
-    // F030 Stage A2 §12 — added source.id for the same reason as
+    // source.id is selected for the same reason as
     // pipeline's stage.id above.
     sql = `SELECT source.id AS source_id, COALESCE(source.name,'Unspecified') AS source, count(lead.id)::int AS leads, count(lead.id) FILTER (WHERE lead.record_status='converted')::int AS converted, COALESCE(sum(opportunity.amount) FILTER (WHERE opportunity.status='won'),0)::numeric AS won_revenue FROM tenant.crm_leads lead LEFT JOIN tenant.crm_lead_sources source ON source.id=lead.source_id LEFT JOIN tenant.crm_opportunities opportunity ON opportunity.lead_id=lead.id AND opportunity.organization_id=lead.organization_id AND ${ownerVisible("opportunity", "owner_user_id")} WHERE lead.organization_id=$1 ${dateClause("lead.created_at")} AND ${companyVisible("lead")} AND ${branchVisible("lead")} AND ${ownerVisible("lead", "owner_user_id")} GROUP BY source.id, source.name ORDER BY leads DESC`;
   else if (report === "activities")

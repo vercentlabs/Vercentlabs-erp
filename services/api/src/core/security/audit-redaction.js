@@ -1,11 +1,7 @@
-// Reconstructed gap: security.ts's audit() function unconditionally calls
-// redactAuditPayload() (imported from "@/shared/security/redaction") on
-// every metadata/before/after payload it persists, but that source file
-// was never itself among the 42 recovered files. Rebuilt conservatively —
-// a denylist of key-name patterns that commonly carry secrets — rather
-// than skipped, since omitting it would mean audit_events could receive
-// sensitive fields verbatim. See docs/frontend-rebuild/
-// PLATFORM_PORT_REGISTER.csv, the "(dependency of security.ts)" row.
+// redactAuditPayload() runs on every metadata/before/after payload the
+// audit() function persists. Conservative by design — a denylist of
+// key-name patterns that commonly carry secrets — so audit_events never
+// receives sensitive fields verbatim.
 const SENSITIVE_KEY_PATTERN =
   /password|secret|token|credential|api[-_]?key|authorization|private[-_]?key|encrypted|access[-_]?token|refresh[-_]?token|client[-_]?secret/i;
 

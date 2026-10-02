@@ -1,4 +1,4 @@
-export const DEFAULT_LOCALE = "en-IN";
+const DEFAULT_LOCALE = "en-IN";
 
 // A stored locale is untrusted text until the runtime confirms it is a valid BCP 47 tag.
 export function resolveLocale(stored: string | null | undefined): string {

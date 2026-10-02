@@ -95,7 +95,7 @@ async function openEncryptedDatabase(identity: DatabaseIdentity) {
   }
 }
 
-export async function initializeDatabase() {
+async function initializeDatabase() {
   if (!databasePromise) {
     databasePromise = (async () => {
       try {
@@ -179,7 +179,7 @@ export async function writeCache(cacheKey: string, resource: string, payload: un
 }
 
 export type QueuedMutation = { id: string; operation: string; resource: string; recordId: string | null; payload: string; idempotencyKey: string; attempts: number; nextAttemptAt: number | null };
-export type DeadLetterMutation = QueuedMutation & { lastError: string; lastHttpStatus: number | null; failedAt: number };
+type DeadLetterMutation = QueuedMutation & { lastError: string; lastHttpStatus: number | null; failedAt: number };
 
 export async function enqueueMutation(input: { id: string; operation: string; resource: string; recordId?: string; payload: unknown; idempotencyKey: string }) {
   const database = await initializeDatabase();
@@ -269,40 +269,4 @@ export async function failMutation(
     now,
     id,
   );
-}
-
-export async function deadLetterMutations() {
-  const database = await initializeDatabase();
-  return database.getAllAsync<DeadLetterMutation>(
-    `SELECT id,operation,resource,record_id AS recordId,payload,
-            idempotency_key AS idempotencyKey,attempts,NULL AS nextAttemptAt,
-            last_error AS lastError,last_http_status AS lastHttpStatus,
-            failed_at AS failedAt
-       FROM mutation_dead_letters ORDER BY failed_at DESC LIMIT 100`,
-  );
-}
-
-export async function retryDeadLetterMutation(id: string) {
-  const database = await initializeDatabase();
-  const now = Date.now();
-  await database.withTransactionAsync(async () => {
-    await database.runAsync(
-      `INSERT OR REPLACE INTO mutation_queue(
-         id,operation,resource,record_id,payload,idempotency_key,state,attempts,
-         last_error,created_at,updated_at,next_attempt_at,last_http_status
-       )
-       SELECT id,operation,resource,record_id,payload,idempotency_key,'pending',0,
-              NULL,created_at,?, ?, NULL
-         FROM mutation_dead_letters WHERE id=?`,
-      now,
-      now,
-      id,
-    );
-    await database.runAsync("DELETE FROM mutation_dead_letters WHERE id=?", id);
-  });
-}
-
-export async function discardDeadLetterMutation(id: string) {
-  const database = await initializeDatabase();
-  await database.runAsync("DELETE FROM mutation_dead_letters WHERE id=?", id);
 }

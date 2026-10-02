@@ -32,9 +32,8 @@ async function fetchCompanies(): Promise<CompanyOption[]> {
   return payload.companies ?? [];
 }
 
-// Company/branch context switching (Phase 4). Organization is not a
-// selector here — the prompt is explicit that Organization/Company/Branch
-// are the global shell's context, while Warehouse/Accounting Period/Store-
+// Company/branch context switching. Organization is not a selector here —
+// Organization/Company/Branch are the global shell's context, while Warehouse/Accounting Period/Store-
 // Terminal/Project stay module-specific and must never become global
 // selectors. Switching always calls the server (never trusts a locally-
 // held id), then clears every query cached under the previous
@@ -80,9 +79,8 @@ export function ContextSwitcher() {
   });
 
   function handleSelect(companyId: string, branchId: string | null) {
-    // Phase 4's unsaved-changes warning: this shell has no form-dirty
-    // tracker yet (no screen with unsaved state exists this pass), so
-    // there is nothing real to warn about. The switch itself already
+    // Unsaved-changes warning: this shell has no form-dirty tracker yet,
+    // so there is nothing real to warn about. The switch itself already
     // redirects safely by construction — server-resolved context plus a
     // full router.refresh() re-renders every current route's data, and a
     // route that no longer exists in the new context falls back to that

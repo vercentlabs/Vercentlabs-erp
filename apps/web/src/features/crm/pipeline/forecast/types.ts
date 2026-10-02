@@ -6,7 +6,7 @@
 // deals (see the register's Checkpoint re-audit #3).
 export type CrmForecastRow = {
   owner: string;
-  // F025 Stage A2 §11 — added so "By owner" rows can drill into a real,
+  // F025 — added so "By owner" rows can drill into a real,
   // authorized Opportunity list filtered by owner, instead of the
   // display-name-only row this report previously returned (a name is
   // not a safe/unique filter key).
@@ -16,7 +16,7 @@ export type CrmForecastRow = {
   pipeline: number | string;
   weighted: number | string;
   won: number | string;
-  // F025 Stage A2 §11 — per-category breakdown (open pipeline only).
+  // F025 — per-category breakdown (open pipeline only).
   bestCase: number | string;
   commitAmount: number | string;
 };
@@ -24,11 +24,8 @@ export type CrmForecastRow = {
 export type CrmForecastFilters = { from?: string; to?: string };
 
 // tenant.crm_forecast_periods / crm_forecast_submissions via the generic
-// /api/crm/[resource] boundary — F025's own dossier names "submit, roll
-// up, adjust and later reproduce a forecast period" as its primary
-// capability (F025-CAP-001), not the read-only aggregate view this
-// screen had before this pass. Both tables/resources already existed,
-// fully field-complete, with zero frontend consumer (confirmed by grep).
+// /api/crm/[resource] boundary — submit, roll up, adjust and later
+// reproduce a forecast period (F025's primary capability).
 export type ForecastPeriod = {
   id: string;
   companyId: string | null;
@@ -38,8 +35,7 @@ export type ForecastPeriod = {
   periodEnd: string;
   currencyCode: string | null;
   freezeAt: string | null;
-  // F025 Stage A2 §11 correction — this was wrongly typed "active" |
-  // "inactive"; tenant.crm_forecast_periods' real CHECK constraint
+  // tenant.crm_forecast_periods' real CHECK constraint
   // (003_crm_enterprise_core.sql) is planned/open/frozen/closed. 'frozen'
   // stays mutable (see assertForecastPeriodMutable); only 'closed' locks
   // a period against further submission.
@@ -64,8 +60,7 @@ export type ForecastSubmission = {
   currencyCode: string | null;
   confidencePercent: number | string | null;
   notes: string | null;
-  // F025 Stage A2 §11 correction — this was wrongly typed "active" |
-  // "inactive"; the real, enforced lifecycle (assertLifecycleUpdate,
+  // The real, enforced lifecycle (assertLifecycleUpdate,
   // record-policy.js) is draft/submitted/approved/rejected/superseded.
   status: "draft" | "submitted" | "approved" | "rejected" | "superseded";
   updatedAt: string;
@@ -73,7 +68,7 @@ export type ForecastSubmission = {
 };
 
 // getForecastCalibration's row shape (opportunity-revenue-intelligence.js)
-// — the dossier's "accuracy/backtesting" requirement. Compares each
+// — forecast accuracy/backtesting. Compares each
 // closed period's real predictive-forecast snapshot against the period's
 // actual won revenue; never recalculates a new prediction from today's
 // data and calls it historical.

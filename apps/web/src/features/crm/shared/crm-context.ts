@@ -32,8 +32,6 @@ export function crmContext(session: WorkspaceSessionContext) {
   };
 }
 
-export type CrmApiContext = ReturnType<typeof crmContext>;
-
 // Loads a record for an edit page inside the tenant-scoped transaction (row-level security needs
 // app.current_organization_id; a bare connection sees no rows, which is how every existing record used to
 // appear "not found" on its edit screen). Only a genuine 404 becomes notFound; any other failure (database

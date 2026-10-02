@@ -1,8 +1,6 @@
-// Prompt 6 (CRM-CAP-004, F018 — Email), final closeout pass. This is the
-// ONE canonical communication audience/content projector — the dossier's
-// "participant/team visibility" (F018-CAP-002) plus "sensitive fields/
-// content MUST support stricter field/content visibility than record
-// visibility" (F018-SEC-002) are two SEPARATE authorization decisions:
+// F018 — Email. The ONE canonical communication audience/content
+// projector. Participant/team visibility and stricter-than-record content
+// visibility are two SEPARATE authorization decisions:
 //
 //   AUDIENCE  — may this caller know the communication exists at all?
 //               (parent-record scope + visibility tier: team/private/
@@ -13,13 +11,9 @@
 //               being the sender/a participant on THIS communication —
 //               you can always read what you sent or personally received)
 //
-// Before this module, three call sites (index.js's recordScope,
-// communications.js's getCommunicationTimeline, timeline.js's
-// visibilityPredicate) each hand-rolled an equivalent but independently-
-// written private/team predicate, and none supported a metadata-only
-// projection at all — without crm.leads.view_sensitive the whole
-// communication was invisible, never merely content-redacted. All three
-// (plus the shared inbox and mobile) now call into this module.
+// Every read surface (recordScope, getCommunicationTimeline, the Timeline's
+// visibilityPredicate, the shared inbox and mobile) calls into this module
+// rather than hand-rolling its own private/team predicate.
 //
 // Lives in the record kernel because generic CRM record scope and projection
 // (record-policy.js) apply it to the "communications" resource; the
@@ -46,9 +40,8 @@ export function communicationVisibilitySql(context, values, alias = "communicati
   // protocol sends parameter values before Postgres has parsed enough of
   // the query to infer this placeholder's type from a bare `OR $N OR`
   // position, producing a real, reproducible "could not determine data
-  // type of parameter" 500 on every call (found via live-browser Prompt 3
-  // QA against a real database — every prior test here used a mocked
-  // client.query, which never parses/type-checks SQL at all). Every other
+  // type of parameter" 500 on every call (mocked client.query tests never
+  // parse/type-check SQL, so only a real database catches this). Every other
   // boolean parameter in this codebase (e.g. getCrmDashboard's
   // allowAllCompanies) already casts explicitly for the same reason.
   // Private/participant communications: override is CRM administration.

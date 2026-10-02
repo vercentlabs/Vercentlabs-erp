@@ -510,8 +510,7 @@ export async function updateCrmContact(
       );
     }
     const existing = await getCrmContact(client, context, id);
-    // Integrity closeout (Prompts 1-5): same gap as Accounts — this ran a
-    // plain UPDATE ... WHERE id=$2 with no expected-version check at all.
+    // Expected-version check, same contract as Accounts.
     assertExpectedRecordVersion(existing, expectations.expectedUpdatedAt, {
       entityLabel: "Contact",
       codePrefix: "CRM_CONTACT",

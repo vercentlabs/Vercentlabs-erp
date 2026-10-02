@@ -20,7 +20,7 @@ export type CalendarEvent = {
   uid: string;
 };
 
-export function buildIcs(event: CalendarEvent): string {
+function buildIcs(event: CalendarEvent): string {
   return [
     "BEGIN:VCALENDAR",
     "VERSION:2.0",

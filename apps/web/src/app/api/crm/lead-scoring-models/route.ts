@@ -7,14 +7,11 @@ import { ok, readJson } from "@/core/http";
 import { crmContext } from "@/features/crm/shared/crm-context";
 import { workspaceRoute } from "@/core/workspace-route";
 
-// F027 Tranche I (Stage A). listLeadScoringModels/createLeadScoringModel/
-// etc (model-config.js) already governed the real scoring engine
-// (scoring-engine.js's activeModel() reads tenant.crm_lead_scoring_models
-// exclusively) — this module's own header comment explicitly documents
-// that it REPLACES the legacy generic "scoring-rules" resource
-// (tenant.crm_scoring_rules), which the engine has never read for actual
-// scoring. Confirmed by reading scoring-engine.js before wiring anything,
-// so as not to build a setup screen for a dead system. Module-access-only
+// F027. listLeadScoringModels/createLeadScoringModel/etc (model-config.js)
+// govern the real scoring engine (scoring-engine.js's activeModel() reads
+// tenant.crm_lead_scoring_models exclusively) — NOT the legacy generic
+// "scoring-rules" resource (tenant.crm_scoring_rules), which the engine
+// never reads. Module-access-only
 // at the route: assertSensitiveLeadIntelligenceAccess/assertConfigPermission
 // gate reads/writes internally.
 export async function GET(request: Request) {

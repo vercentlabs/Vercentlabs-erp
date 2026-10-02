@@ -6,7 +6,6 @@ import type {
   CrmListResponse,
   ForecastCalibrationRow,
   ForecastPeriod,
-  ForecastSubmission,
   PredictiveForecastResult,
 } from "../types";
 import { CrmApiError } from "../../../shared/http/crm-api-error.ts";
@@ -39,10 +38,9 @@ export async function getCrmForecast(filters: CrmForecastFilters): Promise<{
   return parseResponse(response);
 }
 
-// F025 Tranche K — the periods admin surface + a rep's own submission
-// for a period. Both reuse the generic /api/crm/[resource] boundary
-// (forecast-periods/forecast-submissions were already fully field-
-// complete, zero frontend consumer before this pass).
+// F025 — the periods admin surface + a rep's own submission for a period.
+// Both reuse the generic /api/crm/[resource] boundary
+// (forecast-periods/forecast-submissions).
 export async function listForecastPeriods(): Promise<
   CrmListResponse<ForecastPeriod>
 > {
@@ -54,35 +52,8 @@ export async function createForecastPeriod(
   return request("/api/crm/forecast-periods", { method: "POST", json: input });
 }
 
-export async function listForecastSubmissions(
-  periodId: string,
-): Promise<CrmListResponse<ForecastSubmission>> {
-  return request(
-    `/api/crm/forecast-submissions?periodId=${encodeURIComponent(periodId)}&limit=200`,
-  );
-}
-export async function createForecastSubmission(
-  input: Record<string, unknown>,
-): Promise<{ record: ForecastSubmission }> {
-  return request("/api/crm/forecast-submissions", {
-    method: "POST",
-    json: input,
-  });
-}
-export async function updateForecastSubmission(
-  id: string,
-  input: Record<string, unknown>,
-  expectedUpdatedAt?: string,
-): Promise<{ record: ForecastSubmission }> {
-  return request(`/api/crm/forecast-submissions/${id}`, {
-    method: "PATCH",
-    json: { input, expectedUpdatedAt },
-  });
-}
-
-// F025 Stage A2 §11 — accuracy/backtesting (getForecastCalibration) and
-// predictive confidence (capturePredictiveForecast) already existed,
-// fully built and tested, with zero frontend consumer.
+// F025 — accuracy/backtesting (getForecastCalibration) and predictive
+// confidence (capturePredictiveForecast).
 export async function getForecastCalibration(
   limit?: number,
 ): Promise<{ rows: ForecastCalibrationRow[] }> {
@@ -102,7 +73,7 @@ export async function capturePredictiveSnapshot(
 
 // F025 governed forecast (services/api/.../forecast-service.js). Submissions,
 // reviews and period lifecycle changes go only through these endpoints.
-export type ForecastFigures = {
+type ForecastFigures = {
   pipeline: number;
   bestCase: number;
   commit: number;

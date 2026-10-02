@@ -21,15 +21,6 @@ export async function createLeadScoringModel(
     json: input,
   });
 }
-export async function updateLeadScoringModel(
-  id: string,
-  input: Record<string, unknown>,
-): Promise<{ record: LeadScoringModel }> {
-  return request(`/api/crm/lead-scoring-models/${id}`, {
-    method: "PATCH",
-    json: input,
-  });
-}
 export async function activateLeadScoringModel(
   id: string,
 ): Promise<{ model: LeadScoringModel; recalcJob: unknown }> {

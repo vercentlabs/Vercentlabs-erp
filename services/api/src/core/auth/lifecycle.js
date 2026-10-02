@@ -1,14 +1,11 @@
 // Identity-lifecycle flows (SP004/SP005): email verification, password
 // reset, and organization invitations. The schema for all three
 // (email_verification_tokens, password_reset_tokens,
-// organization_invitations) already existed in
-// database/platform/migrations/001_auth_and_onboarding.sql, and the
-// mailer (auth-mailer.js, deliverAuthMessage) was already built and
-// explicitly documented as "needed directly by Phase 4's verify-email /
-// reset-password / invitation flows" — but nothing ever called either.
-// This module is the missing domain layer connecting them: the tables and
-// the mailer are real and untouched here, only the logic that generates,
-// stores, validates and consumes tokens is new.
+// organization_invitations) is in
+// database/platform/migrations/001_auth_and_onboarding.sql and delivery goes
+// through the mailer (auth-mailer.js, deliverAuthMessage). This module is
+// the domain layer between them: it generates, stores, validates and
+// consumes the tokens.
 import { randomUUID } from "node:crypto";
 
 import { setTenantContext } from "@vercentlabs/database";

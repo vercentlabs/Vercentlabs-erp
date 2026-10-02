@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 
-// Visually restrained — no marketing hero, per Prompt 2 Phase 4. Auth
+// Visually restrained — no marketing hero. Auth
 // screens are a narrow centered card on a plain canvas.
 export default function AuthLayout({ children }: { children: ReactNode }) {
   return (

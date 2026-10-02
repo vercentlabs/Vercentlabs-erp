@@ -2,17 +2,15 @@
 // pricing/tax/discount/promotion/coupon evaluator. Both the cart-based
 // checkout flow (cart.js) and the legacy flat-lines completePointOfSale
 // payload (index.js) call this same function so there is exactly one
-// business calculator, not two divergent ones (session brief PHASE 3
-// point 4 / PHASE 4). Never trust a client-supplied unitPrice, discount,
+// business calculator, not two divergent ones. Never trust a client-supplied unitPrice, discount,
 // tax, or total — every monetary figure here is derived server-side from
 // tenant.price_list_items, tenant.tax_rates, tenant.pos_promotions and
 // tenant.pos_coupons, using the fixed-point decimal primitives in
 // services/api/src/core/decimal.js (never native `Number` arithmetic for
-// money) — the security defect this session was explicitly asked to fix.
+// money).
 //
-// Evaluation order (per docs/03-modules/point-of-sale/architecture/
-// POS_JOURNEY_SCAN_TO_CART.md: "...select effective price/customer
-// context -> deterministic discount/promotion/coupon/tax evaluation..."):
+// Evaluation order (select effective price/customer context ->
+// deterministic discount/promotion/coupon/tax evaluation):
 // resolve unit price -> manual line discount -> promotions -> coupon ->
 // cart-level manual discount (allocated proportionally) -> tax on the
 // resulting taxable base. Unlike Sales' previewSalesDocument, where the
@@ -21,9 +19,7 @@
 // tax line already computed on each line's own pre-header-discount
 // amount), POS applies every discount layer -- manual, promotion, coupon,
 // and cart-level -- BEFORE tax, because retail/GST practice taxes the
-// price actually paid, and the journey doc's own step ordering names
-// "discount/promotion/coupon" before "tax" in the same evaluation step.
-// This is a deliberate, documented divergence from Sales' header-discount
+// price actually paid. This is a deliberate, documented divergence from Sales' header-discount
 // behavior, not an oversight.
 import { add, sub, mul, div, percent, max, min, roundMoney, asDatabaseDecimal, decimal, allocate } from "../../../core/decimal.js";
 import { resolveTaxRateComponents } from "../../../core/tax-engine.js";
@@ -260,9 +256,7 @@ async function evaluatePromotions(client, context, store, customerId, lines, car
       explanations.push({ code: promotion.code, applied: false, reason: "This customer is not eligible for this promotion." });
       continue;
     }
-    // F280/Phase 4: usage_limit_per_customer existed as a column since
-    // migration 113 but was never actually enforced anywhere -- a
-    // configured per-customer cap did nothing. Checked here (preview) and
+    // F280: usage_limit_per_customer (migration 113) is enforced: checked here (preview) and
     // re-checked under lock at commit time (commitPosPromotionApplications
     // in promotions.js), the same two-layer pattern coupons already use.
     if (customerId && promotion.usage_limit_per_customer != null) {
@@ -704,7 +698,7 @@ export async function priceCartLines(client, context, { store, policy, customerI
     // the authoritative concurrency-safe figure.
     loyalty: {
       programId: loyaltyResult.program?.id || null,
-      // Gap C fix (POS Completion Program Prompt 2): the rate resolved
+      // The rate resolved
       // HERE, at pricing time, is what sale-completion.js snapshots onto
       // pos_sales.loyalty_redemption_value_per_point_snapshot -- the
       // immutable historical rate this specific sale's accrual is valued

@@ -27,7 +27,7 @@ export async function commitPosCouponRedemption(client, context, cartId, saleId,
   if (coupon.rows[0].usage_limit_total != null && coupon.rows[0].committed_count >= coupon.rows[0].usage_limit_total) {
     throw posError(409, "This coupon reached its usage limit before checkout completed.", "POS_COUPON_USAGE_LIMIT_REACHED");
   }
-  // Concurrency (F281/Phase 4): the preview-time check in cart-pricing.js's
+  // Concurrency (F281): the preview-time check in cart-pricing.js's
   // evaluateCoupon() re-runs on every reprice, but two terminals can BOTH
   // pass that preview for the same customer's last remaining use and then
   // both reach completion. Holding the coupon's own row lock (FOR UPDATE
@@ -74,10 +74,9 @@ export async function commitPosCouponRedemption(client, context, cartId, saleId,
 // sale it was redeemed on is FULLY returned. Only implemented for the
 // full-return case (an already-supported, already-lockable path through
 // completePointOfSaleReturn); a partial return leaves the redemption
-// committed as-is -- proportional partial-reversal is intentionally left
-// PARTIAL (documented in the tracker) since it would require deciding how
-// to re-derive a *fractional* coupon usage credit, which the dossier does
-// not specify and which risks an unsafe, under-specified scope expansion.
+// committed as-is -- proportional partial-reversal is intentionally not
+// implemented, since it would require deciding how to re-derive a
+// *fractional* coupon usage credit, which is an unspecified business rule.
 export async function releasePosCouponRedemptionForFullReturn(client, context, saleId) {
   const redemption = await client.query(
     `SELECT * FROM tenant.pos_coupon_redemptions WHERE organization_id=$1 AND sale_id=$2 AND status='committed' FOR UPDATE`,

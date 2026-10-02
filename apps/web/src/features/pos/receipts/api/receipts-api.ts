@@ -2,7 +2,7 @@
 
 import { post, request } from "@/features/pos/shared/http";
 
-export type PosReceiptSale = {
+type PosReceiptSale = {
   id: string;
   receipt_number: string;
   store_name: string;

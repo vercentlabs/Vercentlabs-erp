@@ -4,7 +4,7 @@ import { Badge, Checkbox, Select } from "@vercentlabs/design-system";
 
 import type { GrantableRole } from "./api/access-api";
 
-export const RISK_LABEL: Record<GrantableRole["risk_level"], string> = {
+const RISK_LABEL: Record<GrantableRole["risk_level"], string> = {
   standard: "Standard",
   sensitive: "Sensitive",
   privileged: "Privileged",

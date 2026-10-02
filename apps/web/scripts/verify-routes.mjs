@@ -4,16 +4,7 @@
 // checks structural invariants that would otherwise only surface at
 // `next build` time or in the browser.
 //
-// Restored (checks 1-3 only) from the pre-clean-slate-rebuild archive —
-// see docs/frontend-rebuild/README.md. The original also had checks 4-6
-// (navigation registry / Quick Create / topbar destination href
-// resolution), dropped here because they hardcoded expectations about the
-// old navigation registry (src/core/navigation/) and specific CRM routes
-// that don't exist in the new architecture yet, by design — nothing has
-// been built past the bootstrap placeholder. Restore that logic once the
-// new app shell has a real navigation registry to check against (see
-// docs/ux/UI_REWRITE_TRACKER.md's "Immediate next action"), rather than
-// guessing its shape now. This intentionally does NOT attempt to import or
+// This intentionally does NOT attempt to import or
 // render every module — that would require full Next.js/webpack resolution
 // of path aliases, CSS imports and React Server Component boundaries. It
 // instead checks the same class of mistake statically and cheaply:
@@ -129,13 +120,9 @@ function checkDynamicSiblings(dir) {
 checkDynamicSiblings(appRoot);
 
 // --- Check 4: every CRM API route calls requireCrmAccess -------------------
-// Formalizes the manual `grep -L requireCrmAccess` sweep run by hand at
-// every checkpoint during the CRM clean rebuild (Prompt 3) into a
-// permanent, CI-enforceable check — see docs/frontend-rebuild/
-// CRM_CLEAN_REBUILD_REGISTER.md's "Checkpoint re-audit #2" for the real,
-// session-wide authorization gap this sweep originally caught (every CRM
-// route checked only authentication + org membership, never module
-// entitlement or action permission). Static text search only — this does
+// A CRM route that checks only authentication + org membership, never
+// module entitlement or action permission, is an authorization gap. Static
+// text search only — this does
 // NOT prove a session without the permission actually receives a 403 at
 // runtime (that needs real request/DB-backed behavioral tests, tracked
 // separately), only that the route calls the shared gate at all. The one
@@ -163,20 +150,13 @@ walk(appRoot, (file, name) => {
 });
 
 // --- Check 5: no CRM API route reads tenant data through withClient -------
-// Formalizes the Prompt 3 live-browser QA discovery: `withClient()` (src/
-// core/db.ts) opens a bare pool connection and never sets Postgres's
+// `withClient()` (src/core/db.ts) opens a bare pool connection and never sets Postgres's
 // `app.current_organization_id` session variable, which every tenant-
 // schema table's RLS policy (`organization_id = tenant.
-// current_organization_id()`) is keyed on. Every services/api test that
-// exercised this codebase before this pass used a mocked `client.query`
-// that has no concept of RLS, so this was invisible until a real browser
-// hit a real Postgres database: `getCrmDashboard`, the generic `[resource]`
-// list/get boundary, and 57 other CRM read routes silently returned EMPTY
-// results for every tenant with real data — with_client's own bare
-// connection was denied every row by RLS, not by any application-level
-// filter. Fixed by switching every CRM route to `tenantTransaction(session.
-// organizationId, ...)`, the same helper already used for CRM writes
-// (which is why writes always worked and reads never did). withClient()
+// current_organization_id()`) is keyed on — so a CRM read through it
+// silently returns EMPTY results (mocked `client.query` unit tests have no
+// concept of RLS and can't catch this). Every CRM route uses
+// `tenantTransaction(session.organizationId, ...)` instead. withClient()
 // itself remains legitimate for routes reading ONLY non-RLS platform-
 // schema tables (auth/login, workspace/companies, notifications,
 // approvals, and this app's own /api/privacy/* routes, which wire the

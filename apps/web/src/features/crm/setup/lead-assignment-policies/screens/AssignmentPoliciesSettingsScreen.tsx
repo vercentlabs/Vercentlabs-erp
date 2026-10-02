@@ -68,10 +68,9 @@ function targetSummary(row: LeadAssignmentPolicy) {
   return row.members.length ? row.members.map((m) => m.name).join(", ") : "—";
 }
 
-// F005 Tranche I (Stage A) — the governed policy setup UI for
-// tenant.crm_lead_assignment_policies, the table lead-governance.js's
-// resolveLeadAssignment already reads at assignment time. This service
-// (assignment-engine.js) had zero setup UI before this pass.
+// F005 — the governed policy setup UI for
+// tenant.crm_lead_assignment_policies, the table resolveLeadAssignment
+// reads at assignment time (assignment-engine.js).
 export function AssignmentPoliciesSettingsScreen() {
   const workspace = useWorkspaceContext();
   const queryClient = useQueryClient();
@@ -469,12 +468,10 @@ function PolicyDialog({
   );
 }
 
-// F005-CAP-001's own canonical sentence: "route a lead to the best
-// eligible owner and explain why that owner won." explainLeadAssignment-
-// Candidates already computed exactly this (per-candidate eligible/
-// reasons) inside resolveLeadAssignment's own round_robin/workload
-// resolution — this dialog is the first place a human can see it
-// directly, not a new decision engine.
+// F005: route a lead to the best eligible owner and explain why that owner
+// won. explainLeadAssignmentCandidates computes exactly this (per-candidate
+// eligible/reasons) inside resolveLeadAssignment's round_robin/workload
+// resolution — this dialog shows it, it is not a new decision engine.
 function ExplainDialog({
   policy,
   onOpenChange,

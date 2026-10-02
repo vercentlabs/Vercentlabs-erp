@@ -46,7 +46,7 @@ export function buildSearch(
 
 
 
-// Stage A2 §15 pagination/enterprise-scale audit: every generic resource's
+// Pagination stability: every generic resource's
 // orderBy (resource-registry.js) sorts on business columns (name, status,
 // timestamps, priority CASE expressions, ...) with no unique tiebreaker.
 // None of those are guaranteed unique — two territories can share a name,
@@ -113,7 +113,7 @@ export function buildFilters(
     ["pipelineId", "pipeline_id"],
     ["sourceId", "source_id"],
     ["campaignId", "campaign_id"],
-    // F020 Tranche D (Stage A) — sales-team-members/territory-assignments
+    // F020 — sales-team-members/territory-assignments
     // are inherently parent-scoped (a membership belongs to exactly one
     // team, an assignment to exactly one territory); listing either
     // without this filter would return every membership/assignment across
@@ -121,16 +121,16 @@ export function buildFilters(
     // not just a UX inconvenience.
     ["teamId", "team_id"],
     ["territoryId", "territory_id"],
-    // F002 Tranche E (Stage A) — same reasoning for account-plans/
+    // F002 — same reasoning for account-plans/
     // account-stakeholders/communications: each row belongs to exactly one
     // Account (party_id) or, for stakeholders, one account plan
     // (account_plan_id). Without these keys an Account 360's plan/
-    // stakeholder/communications panel would have had to list the whole
+    // stakeholder/communications panel would have to list the whole
     // organization's rows and filter client-side, which is both wasteful
     // and a real cross-account data exposure over the wire.
     ["partyId", "party_id"],
     ["accountPlanId", "account_plan_id"],
-    // F003 Tranche F (Stage A) — same reasoning for communications scoped
+    // F003 — same reasoning for communications scoped
     // to a Contact rather than an Account (tenant.crm_communications has
     // both party_id and contact_id columns).
     ["contactId", "contact_id"],
@@ -142,7 +142,7 @@ export function buildFilters(
     // actually has that column (the includes() guard below), so no other resource is affected.
     ["channel", "channel"],
     ["direction", "direction"],
-    // F025 Tranche K (Stage A) — forecast-submissions belongs to exactly
+    // F025 — forecast-submissions belongs to exactly
     // one forecast period; without this, a period's submission list
     // would return every period's rows across the organization.
     ["periodId", "period_id"],
@@ -191,10 +191,9 @@ export function buildFilters(
     if (followup === "upcoming")
       sql += ` AND ${alias}.next_follow_up_at >= now()`;
     if (followup === "none") sql += ` AND ${alias}.next_follow_up_at IS NULL`;
-    // F024 Stage A2 §10 — the CRM dashboard's "dwell-breached"/"high-
-    // priority" Lead counts previously had no matching list filter, so
-    // neither metric could safely drill down (CrmDashboardScreen.tsx's
-    // own prior disclosure comment). These reuse the EXACT predicates
+    // F024 — list filters behind the CRM dashboard's "dwell-breached"/
+    // "high-priority" Lead counts, so both metrics can drill down. These
+    // reuse the EXACT predicates
     // getCrmDashboard already uses (analytics-service.js), never a
     // semantically different approximation, so the drilled list's count
     // always reconciles to the dashboard's own number.
@@ -220,7 +219,7 @@ export function buildFilters(
     // F026 — won/lost reasons report drill-down ("none" = closed without a reason).
     if (filters.outcomeReasonId === "none") sql += ` AND ${alias}.outcome_reason_id IS NULL`;
     else if (UUID_PATTERN.test(String(filters.outcomeReasonId || ""))) sql += ` AND ${alias}.outcome_reason_id = ${addParameter(parameters, filters.outcomeReasonId)}::uuid`;
-    // F024 Stage A2 §10 — same reasoning as the Lead filters above: reuses
+    // F024 — same reasoning as the Lead filters above: reuses
     // getCrmDashboard's exact "stalled" predicate (per-stage SLA policy,
     // falling back to the stage's own stale_after_days) so the drilled
     // Opportunity list's count always reconciles to the dashboard number.
@@ -337,7 +336,7 @@ export async function getSalesStageResourceRecord(client, context, id) {
 
 
 
-// F020 Stage A2 §8. The exact same "no effectively-active primary
+// F020. The exact same "no effectively-active primary
 // assignment" predicate the CRM dashboard's uncovered_territories metric
 // already uses (analytics-service.js) — reused here, not re-derived, so
 // the aggregate count and this per-row detail can never silently drift
@@ -357,17 +356,9 @@ async function annotateTerritoryCoverage(client, context, rows) {
   return rows.map((row) => ({ ...row, hasPrimaryCoverage: coveredIds.has(row.id) }));
 }
 
-// Stage A2 Prompt 3 live-browser QA discovery: apps/web's Opportunity
-// types.ts has carried stageName/partyName/contactName/ownerName fields
-// since an earlier pass, with an honest comment admitting "this pass has
-// not independently verified field-by-field" that the backend actually
-// projects them — it never did. The base query is a plain
-// `SELECT record.*`, no joins, so every Opportunity list row and every
-// Opportunity 360 page showed "Stage —"/"Account —" even for opportunities
-// with a real, non-null stage_id/party_id/contact_id/owner_user_id —
-// confirmed directly against the real database (118/118 opportunities in
-// a live fixture org have a non-null stage_id, all rendering blank).
-// Batch-resolved here (one query per related table, not N+1) rather than
+// Opportunity display names: apps/web's Opportunity types carry
+// stageName/partyName/contactName/ownerName, but the base query is a plain
+// `SELECT record.*` with no joins. Batch-resolved here (one query per related table, not N+1) rather than
 // joined into the base SELECT, to avoid reshaping every other resource's
 // shared query path for a fix that only opportunities needs.
 async function annotateOpportunityRelations(client, context, rows) {
@@ -531,8 +522,8 @@ export async function snapshotLeadBulkJobSelection(
 
 
 
-// F029 (Bulk actions) — LAST PROMPT 1/3 closeout: Opportunities had no async
-// bulk path (see enqueueOpportunityBulkUpdateJob in opportunity-operations.js
+// F029 (Bulk actions) — async Opportunity bulk path (see
+// enqueueOpportunityBulkUpdateJob in opportunity-operations.js
 // for the rest of the job lifecycle). Mirrors snapshotLeadBulkJobSelection
 // exactly; the one Opportunity-specific addition is the hard `status='open'`
 // constraint, matching the invariant bulkUpdateOpportunities' synchronous

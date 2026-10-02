@@ -17,18 +17,14 @@ import type { RegisterConfig } from "@/features/manufacturing/shared/Register";
 
 type Col = ColumnDef<Row, unknown>;
 // `cell` is only set when given: an explicit undefined would replace the grid's default renderer with nothing.
-export const col = (
+const col = (
   id: string,
   header: string,
   accessorFn: (row: Row) => string,
   cell?: Col["cell"],
 ): Col =>
   (cell ? { id, header, accessorFn, cell } : { id, header, accessorFn }) as Col;
-export const badge = (
-  id: string,
-  header: string,
-  value: (row: Row) => unknown,
-): Col =>
+const badge = (id: string, header: string, value: (row: Row) => unknown): Col =>
   ({
     id,
     header,
@@ -39,15 +35,7 @@ export const badge = (
       </StatusBadge>
     ),
   }) as Col;
-export const strong = (
-  id: string,
-  header: string,
-  value: (row: Row) => string,
-): Col =>
-  col(id, header, value, ({ row }) => (
-    <span className="font-medium text-text">{value(row.original)}</span>
-  ));
-export const link = (
+const link = (
   id: string,
   header: string,
   value: (row: Row) => string,
@@ -61,7 +49,7 @@ export const link = (
       {value(row.original)}
     </Link>
   ));
-export const text = (row: Row, keys: string[]) =>
+const text = (row: Row, keys: string[]) =>
   keys.map((key) => String(row[key] ?? "")).join(" ");
 
 const BOM_STATUSES = [

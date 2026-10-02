@@ -20,7 +20,7 @@ export type PipelineFilters = {
   forecastCategory?: string;
 };
 
-export const PIPELINE_FILTER_KEYS: Array<keyof PipelineFilters> = [
+const PIPELINE_FILTER_KEYS: Array<keyof PipelineFilters> = [
   "from",
   "to",
   "scope",
@@ -33,7 +33,7 @@ export const PIPELINE_FILTER_KEYS: Array<keyof PipelineFilters> = [
   "forecastCategory",
 ];
 
-export type MetricDefinition = {
+type MetricDefinition = {
   key: string;
   label: string;
   unit: "money" | "count" | "percent";
@@ -43,13 +43,13 @@ export type MetricDefinition = {
   timeBasis: string;
 };
 
-export type PipelineCurrency = {
+type PipelineCurrency = {
   reportingCurrency: string | null;
   unconvertedCount: number;
   unconvertedCurrencies: string[];
 };
 
-export type QuotaSummary =
+type QuotaSummary =
   | { available: false; reason: string }
   | {
       available: true;
@@ -77,7 +77,7 @@ export type PipelineDashboard = {
   definitions: MetricDefinition[];
 };
 
-export type DrilldownRecord = {
+type DrilldownRecord = {
   id: string;
   code: string;
   name: string;

@@ -4,7 +4,7 @@ import { CRM_PERMISSIONS } from "@vercentlabs/permissions";
 import { crmContext } from "@/features/crm/shared/crm-context";
 import { workspaceRoute } from "@/core/workspace-route";
 
-// F021 Stage A2 §9. Download authorization is unchanged: the requester (or a
+// F021. Download authorization: the requester (or a
 // view_all holder) only, never a public link (getCrmLeadExportJob). The CSV
 // is a Shared Platform file artifact in object storage; it answers 410 once
 // expired. It was formula-injection-neutralised when generated (rowsToCsv,

@@ -22,14 +22,13 @@ function table(resource) {
   return value;
 }
 
-// Phase 2 (F268-F273): tables that carry a store_id (or, for 'pos_stores'
+// F268-F273: tables that carry a store_id (or, for 'pos_stores'
 // itself, are keyed by store id directly) get row-filtered to the caller's
 // assigned stores once an organization has opted into pos_store_access --
 // see accessiblePosStoreIds's doc comment in shared/access-control.js for
-// the same "permissive until configured" convention. pos_payments gained a
-// real store_id column in migration 120 (F283-F286) and pos_reconciliations
-// gained one in migration 127 (F304), closing the gap this comment used to
-// describe for both. pos_cash_movements still has no store_id column of
+// the same "permissive until configured" convention. pos_payments
+// (migration 120) and pos_reconciliations (migration 127) carry a real
+// store_id column. pos_cash_movements still has no store_id column of
 // its own (only shift_id) -- filtered via a shift_id subquery below instead
 // of a table-level column, since a join would require touching this
 // function's `SELECT *` shape for every other resource too.

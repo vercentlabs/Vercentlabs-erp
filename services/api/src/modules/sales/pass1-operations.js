@@ -175,7 +175,7 @@ export async function upsertSalesPriceListItem(client, c, input = {}) {
     const uom = await client.query(`SELECT id FROM tenant.units_of_measure WHERE organization_id=$1 AND id=$2 AND status='active'`, [c.organizationId, uomId]);
     if (!uom.rows[0]) throw new SalesError(409, "Selected UOM is not active.", "SALES_PRICE_UOM_INVALID");
   }
-  // F274 gap closure (POS Completion Program): an optional variant scopes
+  // F274: an optional variant scopes
   // this rate to one specific variant of the item (e.g. a Large vs. a
   // Small) rather than every variant generically -- POS's own price
   // resolver (cart-pricing.js) already prefers a variant-specific row

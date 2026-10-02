@@ -22,14 +22,11 @@ import {
 import type { Territory, TerritoryAssignment } from "../types";
 import { dateFormatter } from "./sales-organization-format";
 
-// F020 Stage A2 §8 — the real, DB-enforced values (migration 003's
-// assignment_role CHECK). Was previously a free-text field, which let a
-// caller type e.g. "Primary" (capitalized) and silently fall outside both
-// this dashboard's uncovered_territories count and F005's
-// activeTerritoryUserIds exact-match filter — a real correctness gap, not
-// just a UX one. 'overlay' is the dossier's own named "overlay/secondary
-// assignment" concept — already modeled in the schema since the original
-// migration, just never exposed as a selectable option.
+// F020 — the real, DB-enforced values (migration 003's
+// assignment_role CHECK). Never free text: e.g. "Primary" (capitalized)
+// would silently fall outside both the dashboard's uncovered_territories
+// count and F005's activeTerritoryUserIds exact-match filter. 'overlay' is
+// the overlay/secondary assignment concept.
 const ASSIGNMENT_ROLE_OPTIONS: SelectOption[] = [
   { value: "primary", label: "Primary owner" },
   { value: "overlay", label: "Overlay (secondary coverage)" },

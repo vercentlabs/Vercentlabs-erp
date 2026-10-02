@@ -652,15 +652,10 @@ export async function fetchProviderCalendarDelta(account, options = {}) {
   );
 }
 
-// Prompt 6 (F014) closeout — DEC-CRM-P1-F014 lists "calendar sync" as
-// REQUIRED enterprise scope, and the pre-existing implementation only ever
-// PULLED external calendar events in (fetchProviderCalendarDelta above);
-// a CRM-created Meeting was never pushed OUT to the host's real calendar —
-// bookMeeting hardcoded provider='vercentlabs' on its own internal
-// crm_calendar_events row, which is exactly the "faked synchronization by
-// storing only an external URL" pattern the dossier warns against. This is
-// the symmetric outbound counterpart: create/update/cancel one event on
-// the host's connected Gmail/Microsoft365 calendar. Deliberately a plain,
+// Outbound calendar sync — the symmetric counterpart of
+// fetchProviderCalendarDelta above: create/update/cancel one event on the
+// host's connected Gmail/Microsoft365 calendar, so a CRM-created Meeting is
+// really synchronized rather than only stored internally. Deliberately a plain,
 // injectable-fetchImpl function (same shape as fetchProviderCalendarDelta)
 // so it is testable with a deterministic mock adapter, never a paid
 // external account — and deliberately NOT called from inside a DB

@@ -12,8 +12,8 @@ const VIEWPORTS = [
   { name: "mobile", width: 390, height: 844 },
 ];
 
-// Manifest: route + human label. Every major CRM page archetype named in
-// the Prompt 3 brief, plus the app shell/home.
+// Manifest: route + human label. Every major CRM page archetype, plus the
+// app shell/home.
 const ROUTES = [
   ["home", "/crm", "CRM Home"],
   ["lead-list", "/crm/leads", "Lead List"],

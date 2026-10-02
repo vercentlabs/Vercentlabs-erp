@@ -33,9 +33,9 @@ const CONTACT_FIELDS: ComparisonField[] = [
   { label: "Created", key: "createdAt", format: "date" },
 ];
 
-// F003 Tranche F — mirrors AccountDuplicatesPanel exactly. Same disclosed
-// limitation: findContactDuplicates has no restricted-match/sensitive
-// projection layer of its own (confirmed by reading its source) — every
+// F003 — mirrors AccountDuplicatesPanel exactly. Same limitation:
+// findContactDuplicates has no restricted-match/sensitive projection layer
+// of its own — every
 // returned row (email/mobile/phone) is shown as-is here, honestly, rather
 // than inventing a redaction the backend doesn't implement.
 // Related records by kind, in words (one line per table, however many columns point at it).

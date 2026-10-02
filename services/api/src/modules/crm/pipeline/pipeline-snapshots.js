@@ -2,9 +2,7 @@ import { CrmError } from "../data-management/errors.js";
 import { queueOutboxEvent } from "../data-management/outbox.js";
 import { canViewAllCrmRecords } from "../data-management/record-policy.js";
 
-// F010 integrity closeout — historical pipeline snapshots (dossier
-// F010-CAP-002 / DEC-CRM-P1-F010, a REQUIRED enterprise-scope item, not a
-// manual-only convenience). Two capture modes share this same aggregation
+// F010 — historical pipeline snapshots. Two capture modes share this same aggregation
 // and persistence logic:
 //   - "scheduled": the daily worker tick (services/worker/src/handlers/
 //     crm-pipeline-snapshot-capture.js), one durable baseline per calendar
@@ -15,8 +13,7 @@ import { canViewAllCrmRecords } from "../data-management/record-policy.js";
 //     capture, e.g. before/after a pipeline review).
 // Deliberately does NOT reuse crm_opportunity_forecast_snapshots — that
 // table is a per-Opportunity point snapshot (forecast_category/probability/
-// amount for one deal), not a pipeline-level stage aggregate; it does not
-// model what this dossier requirement actually asks for.
+// amount for one deal), not a pipeline-level stage aggregate.
 
 const CURRENCY_FALLBACK = "INR";
 

@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { cx } from "@/lib/utils";
 
-export function LogoMark({ className }: { className?: string }) {
+function LogoMark({ className }: { className?: string }) {
   return (
     <svg viewBox="0 0 40 40" width="30" height="30" className={className} aria-hidden="true">
       <rect x="1" y="1" width="38" height="38" rx="3" fill="none" stroke="currentColor" strokeWidth="2" />

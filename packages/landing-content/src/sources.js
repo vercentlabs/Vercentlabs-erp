@@ -1,9 +1,7 @@
 /**
  * Editorial source registry — every external (non-Vercentlabs) factual claim
  * used in comparison or resource content must trace to a real entry here,
- * with a live-fetched sourceUrl and a real retrievedAt date (see
- * .claude/rules/landing-content.md rule 2 and
- * docs/landing-redesign/phase-6/source-and-citation-policy.md).
+ * with a live-fetched sourceUrl and a real retrievedAt date.
  *
  * Tiered by sourceType: "vendor" (a competitor's own official pages — the
  * primary source for that competitor's own facts), "standard"/"government"

@@ -295,7 +295,7 @@ export async function ingestMailboxDelta(
         context.userId,
       ],
     );
-    // F018 §1 closeout — resolves this message's actual participants
+    // Resolves this message's actual participants
     // (sender/recipients/cc/bcc) against public.users (internal) and
     // tenant.contacts (external, metadata only — never application
     // access), so the 'participant' visibility tier and content
@@ -444,22 +444,17 @@ export async function recordEmailEngagementEvent(client, context, input = {}) {
   return { duplicate: false, event: event.rows[0] };
 }
 
-// Prompt 6 (F018) closeout: Prompt-3 built a real consent ledger
-// (crm_consent_events) and a Lead-level do_not_contact flag (already
+// Email consent gate. Besides crm_email_suppressions (provider bounce/
+// complaint/manual unsubscribe), an explicit Lead do-not-contact flag (also
 // enforced for outbound Calls — see call-operations.js's
-// CRM_CALL_DO_NOT_CONTACT), but the email send path never consulted
-// either — only crm_email_suppressions (a narrower, provider-bounce/
-// complaint/manual-unsubscribe concept) gated a send. This closes that
-// specific gap: an explicit Lead do-not-contact flag, or the most recent
-// crm_consent_events row recording an explicit withdrawal/suppression for
-// this subject+channel, now blocks the send the same way suppression
-// already does. This deliberately does NOT introduce an opt-in-required
+// CRM_CALL_DO_NOT_CONTACT), or the most recent crm_consent_events row
+// recording an explicit withdrawal/suppression for this subject+channel,
+// blocks the send. This deliberately does NOT introduce an opt-in-required
 // gate — crm_leads.consent_email defaults to false for essentially every
 // existing Lead (capture-time flag, not a ledger), so treating "no
 // consent recorded" as blocking would break ordinary business email that
 // was never subject to a strict opt-in requirement. It only respects an
-// EXPLICIT negative signal, matching the dossier's own language ("opt-
-// out... do-not-contact... suppression"), not a broader redesign.
+// EXPLICIT negative signal (opt-out, do-not-contact, suppression).
 export async function assertEmailConsent(client, context, { leadId, contactId, partyId }) {
   if (leadId) {
     const lead = await client.query(
@@ -575,7 +570,7 @@ export async function queueOutboundEmail(client, context, input = {}) {
       context.userId,
     ],
   );
-  // F018 §1 closeout — resolves this message's real participants
+  // Resolves this message's real participants
   // (sender/recipients/cc/bcc) the same way ingestMailboxDelta does for
   // inbound mail, so an outbound 'participant'-visibility send has
   // something real to check against too.
@@ -627,7 +622,7 @@ export async function queueOutboundEmail(client, context, input = {}) {
   return message.rows[0];
 }
 
-// F018 final closeout — the ONE canonical Communications projection this
+// The ONE canonical Communications projection this
 // codebase's five read surfaces (record 360, canonical Timeline's
 // communication branch, shared inbox thread messages, the generic
 // communication API, mobile) all call — see data-management/communication-access.js
@@ -635,11 +630,10 @@ export async function queueOutboundEmail(client, context, input = {}) {
 // record scope + team/private/participant tier) is enforced here in SQL;
 // CONTENT (full vs metadata-only) is applied per-row afterward via
 // projectCrmCommunications, so a caller who can see the Lead but lacks
-// crm.leads.view_sensitive now gets metadata stubs ("Email sent, 10 Sep,
-// 10:30") for team-visible mail instead of either full content (the old
-// leak) or a blanket 403 (the old, coarser "you can't see anything" gate)
-// — this is what the dossier's F018-SEC-002 ("stricter field/content
-// visibility than record visibility") actually asks for.
+// crm.leads.view_sensitive gets metadata stubs ("Email sent, 10 Sep,
+// 10:30") for team-visible mail instead of either full content (a leak)
+// or a blanket 403 — content visibility is stricter than record
+// visibility.
 export async function getCommunicationTimeline(client, context, input = {}) {
   if (input.leadId) {
     const leadValues = [context.organizationId, assertId(input.leadId, "leadId")];

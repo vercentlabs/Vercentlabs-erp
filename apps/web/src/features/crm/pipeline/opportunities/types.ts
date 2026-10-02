@@ -54,7 +54,7 @@ export type OpportunityListFilters = {
   stageId?: string;
   pipelineId?: string;
   partyId?: string;
-  // F024 Stage A2 §10 — mirrors getCrmDashboard's exact "stalled"
+  // F024 — mirrors getCrmDashboard's exact "stalled"
   // predicate, so a drilled list's count always reconciles to the
   // dashboard's own metric.
   stalled?: "true";

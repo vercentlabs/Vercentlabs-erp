@@ -4,7 +4,7 @@ import { ok, readJson } from "@/core/http";
 import { crmContext } from "@/features/crm/shared/crm-context";
 import { workspaceRoute } from "@/core/workspace-route";
 
-// F028 Tranche C. Module-access-only at the route: the real gates are
+// F028. Module-access-only at the route: the real gates are
 // inside assignRecordTag/listRecordTags themselves — resolveCrmEntityAccess
 // for parent-record visibility, crm.leads.manage for the mutation, same
 // layering as Notes/Attachments/Custom fields.

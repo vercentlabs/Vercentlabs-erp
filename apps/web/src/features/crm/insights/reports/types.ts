@@ -15,24 +15,3 @@ export type CrmReportResult = {
 };
 
 export type CrmReportFilters = { from?: string; to?: string };
-
-// Matches getCrmReport's exhaustive if/else-if chain exactly — anything not
-// in this list throws CRM_REPORT_NOT_FOUND (404) server-side.
-export const CRM_REPORT_OPTIONS = [
-  { value: "pipeline", label: "Pipeline by stage" },
-  { value: "conversion", label: "Lead conversion, by month" },
-  { value: "sources", label: "Lead sources" },
-  { value: "activities", label: "Activity throughput" },
-  { value: "forecast", label: "Forecast, by owner" },
-  { value: "win-loss", label: "Won and lost reasons" },
-  { value: "campaigns", label: "Campaign performance" },
-  { value: "attribution", label: "Multi-touch attribution" },
-  { value: "revenue-operations", label: "Revenue operations" },
-  { value: "account-health", label: "Account health" },
-  { value: "privacy", label: "Privacy requests" },
-  { value: "pipeline-intelligence", label: "Pipeline intelligence" },
-  { value: "engagement-intelligence", label: "Engagement intelligence" },
-  { value: "relationship-coverage", label: "Relationship coverage" },
-  { value: "partner-pipeline", label: "Partner pipeline" },
-  { value: "ai-governance", label: "AI governance" },
-] as const;

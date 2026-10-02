@@ -8,7 +8,7 @@ import { z } from "zod";
 const uuid = z.string().uuid();
 const optionalDate = z.string().date().nullish();
 
-export const documentLineSchema = z.object({
+const documentLineSchema = z.object({
   itemId: uuid,
   variantId: uuid.nullish(),
   quantity: z.union([z.number(), z.string()]),
@@ -21,7 +21,7 @@ export const documentLineSchema = z.object({
   manualPriceReason: z.string().trim().max(500).nullish(),
 });
 
-export const documentChargeSchema = z.object({
+const documentChargeSchema = z.object({
   chargeType: z.string().trim().max(60).optional(),
   label: z.string().trim().max(120).optional(),
   calculationType: z.enum(["fixed", "percentage"]),

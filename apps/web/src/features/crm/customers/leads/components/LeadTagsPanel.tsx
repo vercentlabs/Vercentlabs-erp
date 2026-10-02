@@ -20,7 +20,7 @@ import {
   TagApiError,
 } from "../api/lead-tags-api";
 
-// F028 Tranche C — tag ASSIGNMENT on a Lead 360, distinct from the Setup
+// F028 — tag ASSIGNMENT on a Lead 360, distinct from the Setup
 // tag-definitions library (CRM Setup > Custom fields and tags). Lead-only:
 // tenant.crm_lead_tags is the only tag-assignment junction the schema has.
 export function LeadTagsPanel({

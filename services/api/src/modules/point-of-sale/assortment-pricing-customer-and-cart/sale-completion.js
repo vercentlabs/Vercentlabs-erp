@@ -10,9 +10,8 @@
 // opportunities rather than living in crm/index.js.
 //
 // completePointOfSale is the legacy flat-lines predecessor to
-// completePosCart (no cart aggregate involved) -- kept working, not
-// rebuilt, per the standing "do not rebuild functionality that already
-// works" instruction; both share the private helpers below.
+// completePosCart (no cart aggregate involved) -- still supported; both
+// share the private helpers below.
 import { nextDocumentNumber } from "../../../core/platform/numbering/index.js";
 import { beginIdempotentOperation, completeIdempotentOperation } from "../../../core/idempotency.js";
 import { add, sub, mul, div, percent, max, roundMoney, asDatabaseDecimal, decimal } from "../../../core/decimal.js";
@@ -38,8 +37,7 @@ import { lockCapturedCartPaymentLegs } from "../tender-and-payment-execution/pay
 // Sale-line stock issue routes through Stock's own postStockMovement
 // (services/api/src/modules/stock/index.js) rather than a local fork, so
 // stock_balances and stock_valuation_layers stay authoritative after a
-// completed sale — see docs/implementation/ERP_P0_INTEGRITY_FIXES_012.md
-// Section 6. The augmented-permissions pattern below mirrors the existing
+// completed sale. The augmented-permissions pattern below mirrors the
 // precedent in stock/index.js's own completeStockTransfer(): the caller
 // already passed requirePermission(context, "pos.sale.create") above, so
 // this business operation is what authorizes the resulting stock
@@ -59,8 +57,7 @@ async function stockAvailable(client, context, itemId, warehouseId) {
 // Sale-line stock issue routes through Stock's own postStockMovement
 // (services/api/src/modules/stock/index.js) rather than a local fork, so
 // stock_balances and stock_valuation_layers stay authoritative after a
-// completed sale — see docs/implementation/ERP_P0_INTEGRITY_FIXES_012.md
-// Section 6. The augmented-permissions pattern below mirrors the existing
+// completed sale. The augmented-permissions pattern below mirrors the
 // precedent in stock/index.js's own completeStockTransfer(): the caller
 // already passed requirePermission(context, "pos.sale.create") above, so
 // this business operation is what authorizes the resulting stock
@@ -684,7 +681,7 @@ export async function completePosCart(client, context, cartId, input = {}) {
   );
   const cart = cartResult.rows[0];
   if (!cart) throw posError(404, "POS cart was not found.", "POS_CART_NOT_FOUND");
-  // Phase 2 (F268-F273): same store-assignment boundary as every other
+  // F268-F273: same store-assignment boundary as every other
   // cart operation (see features/cart.js's lockCart/getPosCart) -- this
   // query is a bespoke SELECT rather than a call into lockCart, so it needs
   // its own check.

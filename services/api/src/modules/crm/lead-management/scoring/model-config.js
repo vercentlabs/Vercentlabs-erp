@@ -1,10 +1,6 @@
 // F027 Lead scoring — scoring model/rule configuration (crm_lead_scoring_
-// models / crm_lead_scoring_model_rules). New for CRM vNext Prompt 4: this
-// is the Settings UX's backing surface (CRM Settings > Lead management >
-// Lead scoring), replacing the legacy tenant.crm_scoring_rules generic CRUD
-// resource that was, until this prompt, silently governing the real
-// crm_leads.score column while this richer model sat unused for that
-// purpose. One model of each type may be status='active' per org
+// models / crm_lead_scoring_model_rules) — the backing surface for CRM
+// Settings > Lead management > Lead scoring. One model of each type may be status='active' per org
 // (crm_lead_scoring_models_one_active_per_type_idx, F027): the rule model
 // owns the transparent score, the predictive model the separate propensity.
 // Activating a new one retires the previous of the same type and enqueues a

@@ -4,14 +4,13 @@ import { prepareFileUpload, readFileContent, storeFile } from "../../../../core/
 import { CrmError } from "../errors.js";
 import { listCrmRecords } from "../resource-query-service.js";
 
-// F021 Stage A2 §9. Async, job-based Lead export — the "DEFINITELY
-// REQUIRED" async/job/manifest/download-authorization architecture the
-// interactive CSV download (CrmImportExportScreen.tsx's handleExport)
-// never had. Reuses tenant.background_jobs, the same generic durable
+// F021. Async, job-based Lead export with a manifest and download
+// authorization (unlike the interactive CSV download in
+// CrmImportExportScreen.tsx's handleExport). Reuses tenant.background_jobs, the same generic durable
 // queue crm.leads.bulk_update already uses (lead-operations.js) — not a
 // second job system. Reuses listCrmRecords("leads", filters) verbatim
 // for row generation, the exact same governed/scoped read the Leads list
-// UI itself calls, so CAP-003's "identical row/field scope" is true by
+// UI itself calls, so the export has identical row/field scope by
 // construction, not by parallel re-implementation.
 export const LEAD_EXPORT_JOB_TYPE = "crm.leads.export";
 const EXPORT_ROW_CAP = 10_000;

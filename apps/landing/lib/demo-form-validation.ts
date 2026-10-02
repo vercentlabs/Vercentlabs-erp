@@ -1,7 +1,7 @@
 /**
  * Shared client+server validation for the demo-request form. Deliberately not
  * a dependency on zod (apps/landing has no runtime-validation dependency yet,
- * and this shape is simple enough not to need one — see phase-3 decision-log.md).
+ * and this shape is simple enough not to need one).
  */
 
 export interface DemoFormValues {
@@ -67,10 +67,9 @@ export function validateDemoForm(values: Partial<DemoFormValues>): DemoFormError
   }
   if (!str(values.companyName)) errors.companyName = "Enter your company name.";
   // Role, industry, company size, and primary interest are deliberately optional —
-  // docs/landing-redesign/phase-1/conversion-architecture.md's single-step form
-  // spec requires only name/email/company/phone, on the evidence that mid-market
-  // buyers abandon forms with more required fields; qualification happens on the
-  // sales call, not at the form. See docs/landing-redesign/phase-3/decision-log.md.
+  // the single-step form requires only name/email/company/phone, because
+  // mid-market buyers abandon forms with more required fields; qualification
+  // happens on the sales call, not at the form.
   if (!values.consentEmail) errors.consentEmail = "Please confirm we can contact you about this request.";
 
   // Honeypot: a real user never fills these. If they're non-empty, reject outright.
@@ -79,8 +78,4 @@ export function validateDemoForm(values: Partial<DemoFormValues>): DemoFormError
   }
 
   return errors;
-}
-
-export function isDemoFormValid(values: Partial<DemoFormValues>): boolean {
-  return Object.keys(validateDemoForm(values)).length === 0;
 }

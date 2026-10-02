@@ -20,8 +20,6 @@ export function Tag({ children, tone = "neutral", className }: { children: React
   );
 }
 
-export const Badge = Tag;
-
 export function ModuleTag({ name, accentColor, className }: { name: string; accentColor: string; className?: string }) {
   return (
     <span

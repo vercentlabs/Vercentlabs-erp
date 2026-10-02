@@ -1,6 +1,6 @@
 import type { Href } from "expo-router";
 
-export type CrmMobileSupport =
+type CrmMobileSupport =
   | "native"
   | "native-read"
   | "native-action"

@@ -84,9 +84,3 @@ export async function listConsentEvents(
     `/api/crm/consent-events?leadId=${encodeURIComponent(leadId)}&limit=50`,
   );
 }
-
-export async function createConsentEvent(
-  input: Record<string, unknown>,
-): Promise<{ record: ConsentEvent }> {
-  return request("/api/crm/consent-events", { method: "POST", json: input });
-}

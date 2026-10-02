@@ -5,11 +5,11 @@
 // convention every other POS feature folder (day-end-reports, returns,
 // receipts) already uses -- never a translated camelCase DTO.
 
-export type PosTransactionStatus =
+type PosTransactionStatus =
   "draft" | "completed" | "partially_returned" | "returned" | "voided";
-export type PosAccountingPostingStatus =
+type PosAccountingPostingStatus =
   "pending" | "posted" | "failed" | "not_applicable";
-export type PosPaymentMethod =
+type PosPaymentMethod =
   "cash" | "card" | "upi" | "bank_transfer" | "wallet" | "store_credit";
 
 export type PosTransactionRow = {
@@ -51,7 +51,7 @@ export type PosTransactionListFilters = {
   offset?: number;
 };
 
-export type PosTransactionSale = PosTransactionRow & {
+type PosTransactionSale = PosTransactionRow & {
   subtotal: string;
   rounding_adjustment: string;
   paid_total: string;
@@ -75,7 +75,7 @@ export type PosTransactionSale = PosTransactionRow & {
   loyalty_redeem_amount: string;
 };
 
-export type PosTransactionLine = {
+type PosTransactionLine = {
   id: string;
   line_number: number;
   item_id: string;
@@ -94,7 +94,7 @@ export type PosTransactionLine = {
   returned_quantity: string;
 };
 
-export type PosTransactionPayment = {
+type PosTransactionPayment = {
   id: string;
   payment_method: PosPaymentMethod;
   amount: string;
@@ -112,7 +112,7 @@ export type PosTransactionPayment = {
   failure_reason: string | null;
 };
 
-export type PosTransactionReturn = {
+type PosTransactionReturn = {
   id: string;
   return_number: string;
   status: string;
@@ -126,13 +126,13 @@ export type PosTransactionReturn = {
   completed_at: string | null;
 };
 
-export type PosTransactionPromotionEvidence = {
+type PosTransactionPromotionEvidence = {
   code: string;
   name: string;
   discount_amount: string;
 };
 
-export type PosTransactionStockMovement = {
+type PosTransactionStockMovement = {
   id: string;
   movement_number: string;
   movement_type: string;
@@ -145,7 +145,7 @@ export type PosTransactionStockMovement = {
   description: string;
 };
 
-export type PosTransactionAuditEvent = {
+type PosTransactionAuditEvent = {
   id: string;
   event_type: string;
   payload: Record<string, unknown>;

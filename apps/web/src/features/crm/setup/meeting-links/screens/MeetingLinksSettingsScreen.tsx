@@ -44,9 +44,8 @@ const PROVIDER_OPTIONS: SelectOption[] = [
   { value: "zoom", label: "Zoom" },
 ];
 
-// F014 Stage A2 §5. meeting-links is a generic-resource-backed table with
-// no dedicated CRM module — confirmed by grep before building this — so
-// this screen (like Territories/Qualification-and-Playbooks) is the only
+// F014. meeting-links is a generic-resource-backed table with no dedicated
+// CRM module, so this screen (like Territories/Qualification-and-Playbooks) is the only
 // place its config gets a UI. Public booking (BookMeetingScreen) reads
 // exactly this row's availability/duration/buffers/provider — no separate
 // config surface.

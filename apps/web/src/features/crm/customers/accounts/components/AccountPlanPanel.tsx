@@ -60,10 +60,8 @@ function textToSuccessPlan(value: string): Record<string, unknown> {
   return trimmed ? { notes: trimmed } : {};
 }
 
-// F002 Tranche E — crm_account_plans/crm_account_stakeholders already
-// existed (003_crm_enterprise_core.sql) as registered generic resources
-// with zero frontend wiring before this pass (confirmed by grep — no
-// apps/web file referenced either table/resource).
+// F002 — crm_account_plans/crm_account_stakeholders
+// (003_crm_enterprise_core.sql), registered generic resources.
 export function AccountPlanPanel({
   accountId,
   canManage,

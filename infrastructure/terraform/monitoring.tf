@@ -1,5 +1,4 @@
-# A small set of actionable alerts (severity and response in
-# docs/operations/PRODUCTION_RUNBOOK.md#alerts). Application signals come
+# A small set of actionable alerts. Application signals come
 # from structured JSON logs (@vercentlabs/observability) through log-based
 # metrics; platform signals from built-in GKE / Cloud SQL / load balancer
 # metrics.

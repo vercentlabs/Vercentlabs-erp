@@ -1,6 +1,6 @@
 // F027 Lead scoring — public barrel for the lead-management capability
 // directory's scoring module. Canonical
-// implementation location (CRM vNext Prompt 4); lead-intelligence.js
+// implementation location; lead-intelligence.js
 // re-exports the scoring-specific surface for compatibility.
 export {
   evaluateLeadScoreRule,

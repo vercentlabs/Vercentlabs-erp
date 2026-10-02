@@ -1,5 +1,4 @@
-// F008 governed duplicate-rule configuration (CRM vNext Prompt 3
-// continuation, CRM-VNEXT-044). See migration 090_f008_duplicate_rules.sql
+// F008 governed duplicate-rule configuration. See migration 090_f008_duplicate_rules.sql
 // for the security design: a rule row is pure structured data selecting one
 // of the fixed comparisons below — never free-text/executable SQL.
 import { CrmError } from "../data-management/errors.js";

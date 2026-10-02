@@ -18,8 +18,7 @@ import { STAGE_MIGRATION_JOB_TYPE } from "./stage-migration.js";
 
 export { getLeadStage };
 
-// Vercentlabs standard Lead pipeline (see docs/03-modules/crm/DECISIONS.md
-// "Default Lead pipeline = five operational stages"): a deliberately richer
+// Vercentlabs standard Lead pipeline (five operational stages): a deliberately richer
 // default than the original 3-stage new/contacted/working pipeline, while
 // keeping the three-axis model intact — this is ONLY the pipeline-stage
 // axis (F007). Qualification (F006: not_reviewed/qualified/unqualified) and
@@ -46,8 +45,7 @@ export const FIVE_STAGE_LEAD_TEMPLATE = Object.freeze([
 // Nurturing, plus one re-engagement edge back to Attempting Contact so a
 // nurtured Lead can be worked again. Deliberately NOT an all-to-all or
 // bidirectional-adjacency graph — every edge here is a real, intentional
-// business transition (see docs/03-modules/crm/features/F007-lead-stages-
-// and-statuses.md's transition-graph requirement).
+// business transition.
 export const FIVE_STAGE_LEAD_GRAPH = Object.freeze([
   ["new", "attempting"],
   ["attempting", "contacted"],
@@ -178,8 +176,8 @@ async function seedFreshFiveStageTemplate(client, context) {
 // original 3-stage default with no admin customization at all — never a
 // heuristic guess. Every check here must pass for an automatic upgrade to
 // be safe; if any single check is ambiguous, the org is treated as
-// CUSTOMIZED and left alone (see docs/03-modules/point-of-sale-unrelated
-// principle applied here: fail closed toward preserving customer intent).
+// CUSTOMIZED and left alone (fail closed toward preserving customer
+// intent).
 export async function classifyLeadStageCustomization(client, context, stages) {
   if (stages.length !== 3) return "CUSTOMIZED";
   const byCode = Object.fromEntries(stages.map((s) => [s.code, s]));

@@ -44,10 +44,8 @@ import type { Call } from "../types";
 const minutesText = (seconds: number) =>
   seconds < 60 ? `${seconds} seconds` : `${Math.round(seconds / 60)} minutes`;
 
-// F013 Tranche J (Stage A) — a dedicated Call detail view was missing;
-// getCrmCall/updateCrmCall (call-operations.js) were already real,
-// already-tested, already routed (/api/crm/calls/[id] GET/PATCH) with no
-// frontend consumer. Edit is an inline dialog over CALL_FIELDS' writable
+// F013 — the Call detail view, over getCrmCall/updateCrmCall
+// (call-operations.js; /api/crm/calls/[id] GET/PATCH). Edit is an inline dialog over CALL_FIELDS' writable
 // subset, not a separate route — the create form's schedule/log mode
 // toggle has no meaning for an already-existing call, so this is
 // deliberately not a reuse of CallFormScreen.

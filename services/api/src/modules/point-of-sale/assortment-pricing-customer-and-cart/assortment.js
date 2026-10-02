@@ -72,10 +72,10 @@ export async function searchPointOfSalePosProducts(client, context, storeId, inp
 }
 
 // F273: exact barcode lookup for keyboard-wedge scanner input (the
-// dossier's first-class path) — a scanner emits the barcode followed by
+// first-class path) — a scanner emits the barcode followed by
 // an Enter keystroke, so this is a single exact-match lookup, not a
 // substring search. Manual search (searchPointOfSalePosProducts above)
-// remains the fallback the dossier requires for unknown/unreadable
+// remains the fallback for unknown/unreadable
 // barcodes, damaged labels, or a cashier simply typing an item's name.
 export async function lookupPointOfSaleBarcode(client, context, storeId, barcode) {
   requirePermission(context, "pos.view");

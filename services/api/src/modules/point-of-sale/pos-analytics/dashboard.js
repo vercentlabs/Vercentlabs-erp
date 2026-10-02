@@ -1,10 +1,8 @@
 import { requirePermission } from "../shared/access-control.js";
 
 // POS-CAP-009 (F307 POS analytics). getPointOfSaleDashboard is today's
-// coarse today-only aggregate -- the real date-range/store/terminal/
-// cashier drilldown analytics this capability still needs belongs here
-// alongside it once built (see the POS implementation tracker's gap
-// matrix for F307's remaining scope).
+// coarse today-only aggregate. Date-range/store/terminal/cashier drilldown
+// analytics are not built yet; they belong here alongside it.
 export async function getPointOfSaleDashboard(client, context) {
   requirePermission(context, "pos.view");
   const sales = await client.query(

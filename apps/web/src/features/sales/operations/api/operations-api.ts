@@ -70,7 +70,7 @@ export type PricingRuleRow = {
   valid_to: string | null;
   status: string;
 };
-export type AvailabilityPromise = {
+type AvailabilityPromise = {
   basis:
     | "in_stock"
     | "incoming_supply"

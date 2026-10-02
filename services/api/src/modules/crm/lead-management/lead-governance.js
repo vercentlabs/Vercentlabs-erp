@@ -1,8 +1,6 @@
-// F005 Lead assignment logic moved to
-// lead-management/assignment/ as part of
-// CRM vNext Prompt 4 — re-exported below for existing call sites (the
-// package root re-exports this whole module, star-export style). This
-// file now only keeps the Lead-configuration/layout-validation helpers
+// F005 Lead assignment logic lives in lead-management/assignment/ —
+// re-exported below for existing call sites (the package root re-exports
+// this whole module, star-export style). This file only keeps the Lead-configuration/layout-validation helpers
 // that are NOT F005-specific. (Duplicate checks: lead-duplicates.js.)
 import { LeadGovernanceError, matches, text } from "./assignment/shared.js";
 

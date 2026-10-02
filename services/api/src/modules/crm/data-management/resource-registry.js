@@ -564,21 +564,13 @@ export const resources = Object.freeze({
     orderBy: "updated_at DESC",
     statusColumn: "status",
     companyScoped: true,
-    // F025 (Sales forecast) — LAST PROMPT 1/3 closeout: this resource had
-    // no ownerField, so recordScope() never applied per-owner restriction —
-    // any caller holding the base view/manage permission saw every
-    // submission company-wide regardless of whose forecast it was, not the
-    // dossier's required "rep sees own -> manager sees team -> exec sees
-    // org" rollup. This closes the most severe version of that gap (an
-    // ordinary rep could see every other rep's forecast submission) the
-    // same way every other owned CRM resource is scoped; a caller with
-    // crm.records.view_all still sees everything (canViewAllCrmRecords
-    // bypasses ownerField, matching every other resource's convention).
-    // Stage A2 §11 closeout: full team-hierarchy-aware rollup (a manager
-    // sees exactly their F020 team's submissions, not just their own,
-    // without needing org-wide view-all) is now real — see recordScope's
-    // own forecast-submissions branch, joining crm_sales_team_members/
-    // crm_sales_teams verbatim.
+    // F025 (Sales forecast) — owner-scoped like every other owned CRM
+    // resource: rep sees own -> manager sees team -> exec sees org. A
+    // caller with crm.records.view_all still sees everything
+    // (canViewAllCrmRecords bypasses ownerField). A manager sees exactly
+    // their F020 team's submissions without org-wide view-all — see
+    // recordScope's forecast-submissions branch, joining
+    // crm_sales_team_members/crm_sales_teams.
     ownerField: "ownerUserId",
     fields: {
       companyId: "company_id",

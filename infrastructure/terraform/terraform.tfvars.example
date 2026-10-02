@@ -5,7 +5,7 @@ environment       = "production"
 github_repository = "example-org/vercentlabs-erp"
 alert_email       = "oncall@example.com"
 
-# Cloud SQL sizing and the connection budget (see README.md).
+# Cloud SQL sizing and the connection budget.
 sql_tier            = "db-custom-2-7680"
 sql_max_connections = 200
 web_max_replicas    = 6

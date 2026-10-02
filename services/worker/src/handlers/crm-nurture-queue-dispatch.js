@@ -12,7 +12,7 @@ export const payloadSchema = z.object({}).strict();
 // per-organization configurable schedule).
 const DEFAULT_BUSINESS_HOURS = { timezone: "Asia/Kolkata", weekdays: [1, 2, 3, 4, 5], start: "09:00", end: "18:00" };
 
-// F016 §7 closeout — "no-activity rule" notifications must respect working
+// F016 — "no-activity rule" notifications must respect working
 // hours like every other F016 delivery channel, not fire silently at 2am.
 // addBusinessMinutes's own window-seeking logic (a nominal 1-minute add)
 // is reused rather than re-derived: if the result is more than ~1 minute
@@ -24,9 +24,8 @@ function isWithinBusinessHours(now) {
   return adjusted.getTime() - now.getTime() <= 60_000;
 }
 
-// CRM-VNEXT-052 closeout (nurture-queue half — the Scheduled Follow-ups
-// half was already closed by crm-follow-up-reminder-dispatch.js). System
-// context is permission-neutral/org-wide, matching every other scheduled
+// Nurture-queue notification dispatch (Scheduled Follow-up reminders are
+// dispatched by crm-follow-up-reminder-dispatch.js). System context is permission-neutral/org-wide, matching every other scheduled
 // scan — a due nurture item must notify its owner regardless of which
 // company/branch happened to be active when it was generated.
 function systemContext(organizationId) {

@@ -1,22 +1,20 @@
 import { ProcurementError, transitionProcurementRecord } from "../modules/procurement/index.js";
 import { postStockMovement } from "../modules/stock/index.js";
 
-// docs/04-cross-module/PROCUREMENT_TO_STOCK_RECEIVING.md requires that
-// "posting an approved receipt calls a Stock public contract" -- Procurement's
-// own applyReceiptToOrder() only ever updated its own purchase-order-line
-// bookkeeping (received_quantity), never Stock's real inventory. Approving a
-// GRN therefore had zero effect on tenant.stock_balances. This is the same
-// class of gap Sales found and fixed for its own fulfilment path
-// (services/api/src/orchestration/sales-stock-fulfillment.js) -- Procurement
-// had not been fixed until now. Not best-effort: a receipt/reversal claims a
+// Posting an approved receipt calls a Stock public contract: Procurement's
+// own applyReceiptToOrder() only updates its purchase-order-line
+// bookkeeping (received_quantity), so this is what moves Stock's real
+// inventory (tenant.stock_balances) — the same pattern as Sales' fulfilment
+// path (services/api/src/orchestration/sales-stock-fulfillment.js). Not
+// best-effort: a receipt/reversal claims a
 // specific physical quantity moved, so the Stock movement must actually
 // succeed for the transition to be considered complete, matching Sales'
 // documented choice for the same reason.
 //
 // Only lines carrying a warehouseId are stock-tracked (services/require-only
-// lines, or a line missing warehouse master data, are skipped -- matching
-// the constitution's own line-level "not a stock-tracked line" convention
-// already used by sales-stock-fulfillment.js).
+// lines, or a line missing warehouse master data, are skipped -- the same
+// line-level "not a stock-tracked line" convention as
+// sales-stock-fulfillment.js).
 export async function transitionProcurementReceiptWithStockMovement(
   client,
   procurementContext,

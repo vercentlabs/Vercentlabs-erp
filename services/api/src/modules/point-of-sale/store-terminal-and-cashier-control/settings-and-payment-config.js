@@ -1,21 +1,18 @@
 // POS-CAP-001 (F268-F271) + POS-CAP-003 (F282-F286) configuration surface.
 //
-// Two things the POS module has always READ but never let anyone WRITE
-// without SQL:
+// Writes two things the rest of the POS module READS:
 //
 //  1. tenant.pos_settings -- the company-level policy every checkout, return
 //     and offline-sync path consults (discount limits and the supervisor-
 //     approval threshold, return-approval rules, negative stock, price
 //     override, cart expiry, shift reconciliation). cart.js, sale-completion.js,
-//     offline-sync.js and return-lifecycle.js each SELECT these columns; none
-//     could ever change them, so the documented "limits" were fixed at their
-//     migration defaults for every tenant.
+//     offline-sync.js and return-lifecycle.js each SELECT these columns.
 //
 //  2. Per-store payment methods and provider selection. A store can only take
 //     card/UPI/wallet/bank-transfer once BOTH pos_stores.allowed_payment_methods
 //     lists the method AND an active pos_payment_provider_configs row names a
-//     provider for it (payments.js checks both). With no way to create either,
-//     every store was cash-only regardless of the tender UI.
+//     provider for it (payments.js checks both); otherwise the store is
+//     cash-only regardless of the tender UI.
 //
 // Both are configuration, not transactions, so the guarantees here are
 // validation + authorization + an audit event per change -- never a silent

@@ -1,9 +1,8 @@
 import { ANALYTICS_EVENTS, type HomepageAnalyticsId } from "@vercentlabs/landing-content";
 
 /**
- * Single analytics entry point (per docs/landing-redesign/phase-3/phase-4-brief.md's
- * predecessor instruction: "stub event dispatch behind one entry point so the
- * provider can be swapped later without touching every call site"). No analytics
+ * Single analytics entry point, so the provider can be swapped later without
+ * touching every call site. No analytics
  * provider is wired into this repository yet — track() currently only forwards to
  * an optional window-level sink (for a future provider script to attach to) and,
  * in development, the console. It never throws: analytics must never block a
@@ -35,7 +34,7 @@ export interface SafeAnalyticsProperties {
   campaignName?: string;
   referrerCategory?: string;
   /**
-   * Web Vitals only (Phase 7) — route *pattern*, never a literal URL with
+   * Web Vitals only — route *pattern*, never a literal URL with
    * query params, so a ?rid=/attribution-bearing path never becomes an
    * analytics dimension. See lib/web-vitals.ts.
    */
@@ -45,7 +44,7 @@ export interface SafeAnalyticsProperties {
   navigationType?: string;
 }
 
-export interface QueuedAnalyticsEvent {
+interface QueuedAnalyticsEvent {
   event: AnalyticsEventName;
   properties?: SafeAnalyticsProperties;
 }

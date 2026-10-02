@@ -59,7 +59,7 @@ export type AccountListResponse = {
 // the CRM backend that does not run camelizeRow — so these types are
 // deliberately snake_case, not a typo relative to the camelCase convention
 // used everywhere else in this codebase.
-export type AccountHierarchyNode = {
+type AccountHierarchyNode = {
   id: string;
   parent_party_id: string | null;
   display_name: string;
@@ -70,7 +70,7 @@ export type AccountHierarchyNode = {
   parent_restricted?: boolean;
 };
 
-export type AccountHierarchyEvent = {
+type AccountHierarchyEvent = {
   id: string;
   action: "parent_set" | "parent_cleared";
   previous_parent_name: string | null;

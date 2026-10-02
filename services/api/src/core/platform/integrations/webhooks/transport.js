@@ -3,7 +3,7 @@ import { Agent, request as undiciRequest } from "undici";
 import { resolveSafeAddress, validateWebhookUrl, SsrfError } from "./ssrf.js";
 import { boundedRetryAfterMilliseconds } from "./backoff.js";
 
-const MAX_RESPONSE_BYTES = 64 * 1024; // bounded read — Part 18/70: a huge response must never consume excessive worker memory
+const MAX_RESPONSE_BYTES = 64 * 1024; // bounded read: a huge response must never consume excessive worker memory
 const RETRYABLE_STATUS_CODES = new Set([408, 425, 429, 500, 502, 503, 504]);
 
 export class WebhookDeliveryError extends Error {
@@ -42,7 +42,7 @@ function classifyStatus(statusCode) {
 // — a redirect target is a different, unvalidated destination, and
 // silently following it would reopen the exact SSRF hole the lookup-
 // pinning below closes. Every DNS resolution used for the actual TCP
-// connection goes through resolveSafeAddress() (Part 29's real,
+// connection goes through resolveSafeAddress() (the real,
 // non-time-gapped protection), not merely the pre-flight
 // validateWebhookUrl() structural check.
 // `body` is the exact serialized request body (what the signature covers);

@@ -99,8 +99,8 @@ function TopBarIconLink({
 }
 
 // Persistent strip above every workspace page (desktop and mobile) —
-// breadcrumbs (Phase 19) on the left; on the right, search, the company/
-// branch context switcher (Phase 4), Settings and the profile menu. One
+// breadcrumbs on the left; on the right, search, the company/branch
+// context switcher, Settings and the profile menu. One
 // place for all of it rather than each page building its own header.
 //
 // Search/Settings/Profile are desktop-only here (`hidden lg:flex`): below

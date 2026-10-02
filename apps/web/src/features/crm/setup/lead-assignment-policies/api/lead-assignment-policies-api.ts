@@ -45,17 +45,6 @@ export async function setLeadAssignmentPolicyStatus(
     json: { status, expectedUpdatedAt },
   });
 }
-export async function archiveLeadAssignmentPolicy(
-  id: string,
-  expectedUpdatedAt: string,
-): Promise<{ record: LeadAssignmentPolicy }> {
-  const response = await fetch(
-    `/api/crm/lead-assignment-policies/${id}?expectedUpdatedAt=${encodeURIComponent(expectedUpdatedAt)}`,
-    { method: "DELETE" },
-  );
-  return parseResponse(response);
-}
-
 export type AssignmentExplanation = {
   userId: string;
   name: string | null;

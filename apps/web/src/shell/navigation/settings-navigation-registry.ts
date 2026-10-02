@@ -1,15 +1,14 @@
-// The canonical settings navigation registry (Phase 6, UI refinement +
-// platform checkpoint D). Mirrors module-navigation-registry.ts's honesty
-// discipline: an item is AVAILABLE only once the prompt that built its
-// screen flips it here — never speculatively. Every item not yet built is
+// The canonical settings navigation registry. Mirrors
+// module-navigation-registry.ts's honesty discipline: an item is AVAILABLE
+// only once its screen is built — never speculatively. Every item not yet built is
 // PLANNED (disabled, visible for orientation, never a clickable dead
 // link — see SettingsIndexScreen). A permission-gated item that IS built
 // but the caller lacks the permission for renders as UNAVAILABLE, not
 // PLANNED, so the messaging is accurate ("you don't have access" vs
 // "this doesn't exist yet").
-export type SettingsItemStatus = "AVAILABLE" | "PLANNED";
+type SettingsItemStatus = "AVAILABLE" | "PLANNED";
 
-export type SettingsNavItem = {
+type SettingsNavItem = {
   id: string;
   label: string;
   route: string;

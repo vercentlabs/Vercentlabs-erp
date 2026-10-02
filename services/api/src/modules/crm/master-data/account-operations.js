@@ -566,10 +566,9 @@ export async function updateCrmAccount(
     }
     assertSensitiveAccountMutationAllowed(context, input);
     const existing = await getCrmAccount(client, context, id);
-    // Integrity closeout (Prompts 1-5): this previously ran a plain
-    // UPDATE ... WHERE id=$2 with no expected-version check at all — two
-    // concurrent editors could silently overwrite each other. Mirrors
-    // Lead's exact contract (assertLeadExpectedVersion / CRM_STALE_WRITE).
+    // Expected-version check so two concurrent editors can never silently
+    // overwrite each other. Mirrors Lead's exact contract
+    // (assertLeadExpectedVersion / CRM_STALE_WRITE).
     assertExpectedRecordVersion(existing, expectations.expectedUpdatedAt, {
       entityLabel: "Account",
       codePrefix: "CRM_ACCOUNT",

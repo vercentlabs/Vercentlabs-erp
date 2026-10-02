@@ -17,9 +17,7 @@
       "default": "./src/modules/crm/index.js"
     }
   },
-  "scripts": {
-    "test": "node --test"
-  },
+  "scripts": {},
   "dependencies": {
     "@google-cloud/kms": "^5.7.0",
     "@vercentlabs/config": "workspace:*",

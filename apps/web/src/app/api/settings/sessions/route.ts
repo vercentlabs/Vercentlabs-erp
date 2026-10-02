@@ -28,7 +28,7 @@ export async function GET() {
   }
 }
 
-// "Sign out all other sessions" (SP006/Phase 3) — the caller's own
+// "Sign out all other sessions" (SP006) — the caller's own
 // session (already proven via the cookie requireApiUser() resolves) is
 // always excluded, so this can never end with the caller locking
 // themselves out.

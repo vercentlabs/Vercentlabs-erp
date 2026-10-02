@@ -21,16 +21,6 @@ export async function createMeetingLink(
 ): Promise<{ record: MeetingLink }> {
   return request("/api/crm/meeting-links", { method: "POST", json: input });
 }
-export async function updateMeetingLink(
-  id: string,
-  input: Record<string, unknown>,
-  expectedUpdatedAt: string,
-): Promise<{ record: MeetingLink }> {
-  return request(`/api/crm/meeting-links/${id}`, {
-    method: "PATCH",
-    json: { input, expectedUpdatedAt },
-  });
-}
 export async function archiveMeetingLink(
   id: string,
   expectedUpdatedAt: string,

@@ -4,8 +4,6 @@
 // module availability/enablement/entitlement, permissions, company/branch
 // scope and field rules. Import from "@vercentlabs/api/access" (or the root
 // "@vercentlabs/api" barrel); never from the files behind it.
-//
-// See docs/01-standards/SHARED_PLATFORM_ARCHITECTURE.md.
 export {
   ACCESS_ERROR_CODES,
   AccessDeniedError,

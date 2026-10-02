@@ -1,10 +1,6 @@
-// Prompt 6 (CRM-CAP-004, F019 — Activity Timeline). Re-audit found TWO
-// divergent, hand-rolled timeline implementations (Lead's paginated
-// getLeadTimelinePage, Opportunity's unpaginated 40-row page-component
-// snapshot with an ungated activities query) and NONE at all for Account/
-// Contact — exactly "four subtly different security implementations" the
-// dossier warns against, except two of the four didn't even exist yet.
-// This module is the one canonical projection all four record types use.
+// F019 — Activity Timeline. The one canonical timeline projection all four
+// record types (Lead, Account, Contact, Opportunity) use — never one
+// hand-rolled implementation (and security model) per record type.
 //
 // Design notes:
 //  - Sources merged: crm_activities (Calls/Meetings/Tasks/Follow-ups/Email/
@@ -13,23 +9,16 @@
 //    not a generic entity_type/entity_id pair — branched per entityType
 //    below), crm_notes (respecting the F017 private-visibility column),
 //    public.attachments (the governed file upload record — 'crm.<entityType>'
-//    is the same entity_type convention the Lead attachment route already
-//    writes; this merge is what makes "files" show up on Lead/Opportunity's
-//    migrated Timeline per the dossier's explicit requirement, and will
-//    cover Account/Contact/Opportunity automatically once F017 extends
-//    attachment upload to those record types too — no further Timeline
-//    change needed then).
+//    is the entity_type convention the attachment service writes, so files
+//    show up on every record type's Timeline).
 //    Deliberately NOT merged: crm_outbox_events (internal/non-user-facing),
 //    lifecycle/stage/score/assignment/consent/merge history (these remain
 //    separate detail panels per record type — folding several more
-//    differently-shaped history tables into one feed was judged out of
-//    proportion for this pass; each already has its own real, tested
-//    query elsewhere, and the dossier's own worked example already
-//    describes these as distinct panels alongside a unified activity feed,
-//    not literally one merged row shape).
-//  - Authorization is enforced at TWO levels, matching §65's explicit
-//    requirement that parent-record access alone cannot decide item
-//    visibility: (1) resolveCrmEntityAccess() (data-management/entity-access.js) gates the whole call on the
+//    differently-shaped history tables into one feed is out of proportion;
+//    each has its own tested query elsewhere, shown as distinct panels
+//    alongside the unified activity feed).
+//  - Authorization is enforced at TWO levels, because parent-record access
+//    alone cannot decide item visibility: (1) resolveCrmEntityAccess() (data-management/entity-access.js) gates the whole call on the
 //    entity-type-appropriate sensitive-content permission (mirrors Lead's
 //    canViewSensitiveLeadContent, Account's canViewSensitiveAccountContent,
 //    Contact's canViewSensitiveContactContent, Opportunity's established
@@ -42,8 +31,7 @@
 //    Note never crosses this query for anyone but its author or an
 //    explicit view-all override.
 //  - Pagination is real cursor-based (occurred_at, id) tuple comparison,
-//    not OFFSET — the previously-identified duplicate/skip risk under
-//    concurrent inserts (an OFFSET page shifts when a new row is inserted
+//    not OFFSET — the duplicate/skip risk under concurrent inserts (an OFFSET page shifts when a new row is inserted
 //    ahead of it) cannot happen here: a cursor value that already has a
 //    stable position never moves.
 import { canOverridePrivateCrmContent } from "../../data-management/crm-access-scope.js";
@@ -89,17 +77,15 @@ function visibilityPredicate(kind, context, values) {
     const userIdParam = add(values, context.userId);
     const viewAllParam = add(values, canOverridePrivateCrmContent(context));
     // ::boolean is required, not cosmetic — see data-management/communication-access.js's
-    // communicationVisibilitySql for the full explanation (found via
-    // live-browser Prompt 3 QA against a real database): without it,
+    // communicationVisibilitySql for the full explanation: without it,
     // Postgres cannot infer this bare `OR $N` placeholder's type and
     // rejects the whole UNION query with "could not determine data type
     // of parameter $N".
     return `(visibility<>'private' OR created_by=${userIdParam} OR ${viewAllParam}::boolean)`;
   }
   if (kind === "communication") {
-    // F018 final closeout — reuses the SAME canonical audience fragment
-    // (team/private/participant) every other communication read path now
-    // uses, rather than this module's own private-only equivalent.
+    // Reuses the SAME canonical audience fragment (team/private/
+    // participant) every other communication read path uses.
     return communicationVisibilitySql(context, values, "communication");
   }
   return null;
@@ -123,7 +109,7 @@ function buildBranch(kind, entityType, entityId, context, values) {
     const communicationColumn = COMMUNICATION_COLUMN[entityType];
     if (!communicationColumn) return null;
     const entityIdParam = add(values, entityId);
-    // F018 closeout — a private communication (migration 104) must stay
+    // A private communication (migration 104) must stay
     // invisible to anyone but its sender or an organization-wide view-all
     // override, even inside the unified feed.
     return `SELECT id,'communication'::text AS kind,channel AS subtype,subject AS title,occurred_at,status,NULL::uuid AS actor_user_id,created_by
@@ -281,16 +267,10 @@ export async function getCrmTimelinePage(client, context, entityType, entityId, 
   return { rows, hasMore, nextCursor };
 }
 
-// F019 §16 closeout — Lead's own dedicated Activities-only/Communications-
-// only list tabs (distinct from the unified Timeline above) previously ran
-// through a separate hand-rolled implementation (lead-detail-data.ts's
-// getLeadTimelinePage) with its own re-derived authorization/privacy
-// predicate and OFFSET pagination. This is that same OFFSET-paginated,
-// single-kind contract (unchanged from the caller's point of view — the
-// route preserves its `{source, offset, limit} -> {rows, hasMore}` shape
-// with full, un-narrowed rows, exactly as before, so neither dedicated
-// tab's rendering needed to change), but now backed by the SAME
-// resolveCrmEntityAccess gate and the SAME visibilityPredicate the unified
+// Lead's dedicated Activities-only/Communications-only list tabs (distinct
+// from the unified Timeline above): an OFFSET-paginated, single-kind
+// contract (`{source, offset, limit} -> {rows, hasMore}` with full,
+// un-narrowed rows), backed by the SAME resolveCrmEntityAccess gate and the SAME visibilityPredicate the unified
 // Timeline's buildBranch uses — one authorization implementation per kind,
 // reused by both pagination styles, even though the SELECT list differs.
 export async function getCrmTimelinePageBySource(client, context, entityType, entityId, { source, offset = 0, limit = 50 } = {}) {

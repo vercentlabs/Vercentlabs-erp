@@ -16,8 +16,7 @@ import {
 // Handlers / Server Components — never imported by a Client Component,
 // enforced by the `server-only` sentinel above). Business/security LOGIC
 // lives in @vercentlabs/api as framework-agnostic, client-injected
-// functions (see docs/frontend-rebuild/PLATFORM_PORT_REGISTER.csv); this
-// module only owns the actual database connection those functions are
+// functions; this module only owns the actual database connection those functions are
 // handed.
 let pool: Pool | null = null;
 
@@ -60,16 +59,6 @@ export async function tenantTransaction<T>(
   } finally {
     client.release();
   }
-}
-
-// Preferred form for new code: the tenant comes from the authenticated
-// principal/session object itself, so a caller cannot pass a
-// browser-supplied organizationId by mistake.
-export async function workspaceTransaction<T>(
-  principal: { readonly organizationId: string },
-  handler: (client: PoolClient) => Promise<T>,
-): Promise<T> {
-  return tenantTransaction(principal.organizationId, handler);
 }
 
 // One connection under the organisation's context WITHOUT a request-wide

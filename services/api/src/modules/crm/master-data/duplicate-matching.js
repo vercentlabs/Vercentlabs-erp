@@ -1,8 +1,6 @@
 // F008 rule-driven duplicate matching for Accounts, Contacts and the
-// Lead<->Contact cross-object pair (CRM vNext Prompt 3 continuation,
-// CRM-VNEXT-044/045). Replaces the previously hardcoded-weight
-// findAccountDuplicates/findContactDuplicates (foundation.js re-exports
-// these for backward compatibility with existing callers).
+// Lead<->Contact cross-object pair. foundation.js re-exports
+// findAccountDuplicates/findContactDuplicates for existing callers.
 //
 // Every comparison below is a fixed, code-reviewed SQL fragment — rule rows
 // only ever select WHICH of these fragments participates and with what
@@ -351,8 +349,7 @@ export async function findContactDuplicates(client, context, input = {}) {
 // the same real person, so this is the one clearly meaningful cross-object
 // pair (Lead<->Account or Contact<->Account would compare a person's record
 // against a company's, which is not a meaningful identity comparison and
-// was deliberately not built — "do not force meaningless object
-// comparisons"). Reuses the contact rule set (email/mobile/name) since it's
+// is deliberately not built). Reuses the contact rule set (email/mobile/name) since it's
 // the same underlying identity question asked from the Lead side.
 export async function findLeadContactCrossMatches(client, context, input = {}) {
   const rules = await getActiveDuplicateRules(client, context, "contact");

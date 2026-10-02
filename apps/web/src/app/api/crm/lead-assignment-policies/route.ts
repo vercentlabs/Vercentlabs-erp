@@ -8,14 +8,11 @@ import { ok, readJson } from "@/core/http";
 import { crmContext } from "@/features/crm/shared/crm-context";
 import { workspaceRoute } from "@/core/workspace-route";
 
-// F005 Tranche I (Stage A). listLeadAssignmentPolicies/saveLeadAssignment-
-// Policy (assignment-engine.js) already existed, already governed the
-// real assignment engine (lead-governance.js reads from the SAME
-// tenant.crm_lead_assignment_policies table), with zero setup UI before
-// this pass. Deliberately NOT the generic "assignment-rules" resource
-// (tenant.crm_assignment_rules) — that table is a different, unused
-// table the real engine never reads; confirmed by grep before wiring
-// anything, so as not to build a setup screen for a dead system.
+// F005. listLeadAssignmentPolicies/saveLeadAssignmentPolicy
+// (assignment-engine.js) govern the real assignment engine
+// (tenant.crm_lead_assignment_policies). Deliberately NOT the generic
+// "assignment-rules" resource (tenant.crm_assignment_rules) — that table
+// is unused; the real engine never reads it.
 export async function GET(request: Request) {
   return workspaceRoute(
     request,

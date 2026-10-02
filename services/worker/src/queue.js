@@ -120,8 +120,7 @@ export async function extendJobLease(client, jobId, workerId, leaseMilliseconds)
 // A retryable failure returns the job to 'pending' with a future run_at;
 // exhausting max_attempts moves it to the terminal 'dead' state instead.
 // `dead: true` forces immediate termination regardless of attempt count —
-// used for a malformed payload (Part 6: it will never become valid on
-// retry, so waiting out the full attempt budget only delays discovering
+// used for a malformed payload (it will never become valid on retry, so waiting out the full attempt budget only delays discovering
 // that). `error` is redacted by the caller (see worker.js) before it ever
 // reaches this function — this function does not redact on its own, since
 // it has no way to distinguish a safe from an unsafe payload shape.

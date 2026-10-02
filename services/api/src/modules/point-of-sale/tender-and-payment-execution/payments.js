@@ -4,8 +4,7 @@
 // index.js's completePosCart/completePointOfSale (immediately final, no
 // provider involved); everything here is additive.
 //
-// Absolute rules enforced throughout this file (see the task brief this
-// was built from for the full rationale):
+// Absolute rules enforced throughout this file:
 //   - Raw PAN/CVV are never accepted or stored anywhere -- only a
 //     provider reference/token ever touches this schema.
 //   - A client can never assert "it succeeded." The only things trusted

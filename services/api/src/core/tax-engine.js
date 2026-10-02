@@ -1,14 +1,10 @@
 import { decimal, div } from "./decimal.js";
 
-// Shared authoritative tax-rate/component resolution, extracted verbatim
-// (same SQL, same intra/inter-state CGST+SGST vs IGST split, same
-// fall-through for non-GST tax types) from Sales' calculateLine
-// (services/api/src/modules/sales/index.js) so POS (F278) can reuse the
-// exact same tax authority instead of forking a second one, per the
-// session brief's explicit instruction not to implement two divergent
-// business calculators. Sales' own call site was refactored to call this
-// function; services/api/tests/sales-*.test.mjs is the regression gate
-// that proves the extraction changed no Sales behavior.
+// Shared authoritative tax-rate/component resolution (intra/inter-state
+// CGST+SGST vs IGST split, fall-through for non-GST tax types), used by both
+// Sales' calculateLine (services/api/src/modules/sales/index.js) and POS so
+// there is one tax authority, never two divergent business calculators.
+// services/api/tests/sales-*.test.mjs guards Sales behavior.
 //
 // Deliberately pure/side-effect-free beyond the one SELECT: callers own
 // the taxable-base computation (this only resolves WHICH rate/components

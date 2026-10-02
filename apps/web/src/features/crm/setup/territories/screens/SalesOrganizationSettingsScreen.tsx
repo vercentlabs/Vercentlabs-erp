@@ -48,9 +48,8 @@ import { TerritoryMatchCheck } from "../components/TerritoryMatchCheck";
 // constants. All four resources reuse the generic /api/crm/[resource]
 // boundary (crm.settings.manage). Hierarchy (parentTeamId/parentTerritoryId)
 // is server-cycle-guarded (resource-mutation-service.js); membership/
-// assignment lists are server-scoped by teamId/territoryId (Tranche D —
-// buildFilters had no such key before this pass, which would otherwise
-// have leaked every team's/territory's rows into one dialog).
+// assignment lists are server-scoped by teamId/territoryId (otherwise every
+// team's/territory's rows would leak into one dialog).
 // Revenue/bookings/margin quotas are money; new logos, quantity and activity
 // quotas are counts and must not carry a currency.
 const MONETARY_QUOTA_TYPES = new Set(["revenue", "bookings", "margin"]);
@@ -302,9 +301,8 @@ export function SalesOrganizationSettingsScreen() {
           </StatusBadge>
         ),
       },
-      // F020 Stage A2 §8 — the dossier's required "coverage gap" signal,
-      // now visible per-row (previously only an aggregate count on the CRM
-      // dashboard). A non-active territory intentionally shows no badge —
+      // F020 — the "coverage gap" signal, per row (the CRM dashboard shows
+      // the aggregate count). A non-active territory intentionally shows no badge —
       // coverage only matters for territories currently in use.
       {
         id: "covers",

@@ -27,16 +27,6 @@ export async function createQualificationCriterion(
     json: input,
   });
 }
-export async function updateQualificationCriterion(
-  id: string,
-  input: Record<string, unknown>,
-  expectedUpdatedAt: string,
-): Promise<{ record: QualificationCriterion }> {
-  return request(`/api/crm/qualification-criteria/${id}`, {
-    method: "PATCH",
-    json: { input, expectedUpdatedAt },
-  });
-}
 export async function archiveQualificationCriterion(
   id: string,
   expectedUpdatedAt: string,

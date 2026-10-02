@@ -13,7 +13,7 @@ export const payloadSchema = z
   })
   .strict();
 
-// F021 Stage A2 §9. Managed mode (like crm.leads.bulk_update) so the
+// F021. Managed mode (like crm.leads.bulk_update) so the
 // handler can open its own tenant client via runtime.withTenantClient and
 // reach runtime.job.id — completeCrmLeadExportJob (lead-export.js) writes
 // the real domain manifest (including the generated CSV) directly, so

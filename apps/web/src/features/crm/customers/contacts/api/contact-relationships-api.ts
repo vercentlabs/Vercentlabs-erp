@@ -75,21 +75,6 @@ export async function addContactRelationship(
     json: input,
   });
 }
-export async function updateContactRelationship(
-  contactId: string,
-  relationshipId: string,
-  input: Record<string, unknown>,
-): Promise<{ rows: ContactAccountRelationship[] }> {
-  const response = await fetch(
-    `/api/crm/contacts/${contactId}/relationships/${relationshipId}`,
-    {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(input),
-    },
-  );
-  return parseResponse(response);
-}
 export async function setPrimaryContactRelationship(
   contactId: string,
   relationshipId: string,

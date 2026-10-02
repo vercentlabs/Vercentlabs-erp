@@ -74,12 +74,6 @@ export * from "./orchestration/sales-stock-reservation.js";
 
 export * from "./orchestration/sales-stock-fulfillment.js";
 
-// Platform reactivation port (Prompt 2 of 15) — see
-// docs/frontend-rebuild/PLATFORM_PORT_REGISTER.csv for the source mapping.
-// Every symbol below is ported from docs/frontend-rebuild/
-// recovered pre-rebuild snapshot (last present at commit d4df5eb1) and re-reviewed for the current security
-// standard; none of the ACTIVE code re-exported here reads from that
-// parked directory at runtime.
 // Shared Access public boundary (see core/access/index.js).
 export * from "./core/access/index.js";
 // Shared Platform domain boundaries.
@@ -97,7 +91,7 @@ export * from "./core/platform/configuration/index.js";
 export * from "./core/platform/privacy/index.js";
 export * from "./core/platform/ai/index.js";
 
-// Prompt 2B — global shell closure: cross-module approval inbox,
+// Global shell: cross-module approval inbox,
 // notification center, and background-job visibility.
 export * from "./core/platform/notifications/index.js";
 export * from "./core/platform/approvals/index.js";

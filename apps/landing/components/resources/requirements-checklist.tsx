@@ -28,9 +28,7 @@ const STORAGE_KEY = "vercentlabs-requirements-checklist-progress-v1";
  * progress are a progressive-enhancement layer only: progress is
  * localStorage-only, never sent to analytics or a server (this can reveal
  * a buyer's real evaluation criteria, which is exactly the kind of
- * confidential signal .claude/rules/landing-content.md's evidence rules
- * and docs/landing-redesign/phase-6/requirements-checklist-spec.md treat
- * as private by default). Only the *filter selection itself* (which
+ * confidential signal that must stay private by default). Only the *filter selection itself* (which
  * module a visitor is looking at) is tracked — never which boxes are
  * checked.
  */

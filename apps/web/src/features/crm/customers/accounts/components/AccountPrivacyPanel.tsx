@@ -22,14 +22,14 @@ const REQUEST_TYPE_OPTIONS: SelectOption[] = [
   { value: "consent_withdrawal", label: "Consent withdrawal" },
 ];
 
-// F002 Stage A2 §13. A single, narrow entry point into the shared
+// F002. A single, narrow entry point into the shared
 // PLATFORM privacy authority (core/privacy.js) from Account 360 —
 // gated by platform.privacy.manage, NOT crm.accounts.manage, so an
 // ordinary CRM user who can view/edit this Account does not thereby
 // gain privacy-administration authority. Hidden entirely (not just
-// disabled) for anyone without the permission, matching this prompt's
-// own "ordinary REP users must not gain privacy-administration
-// authority merely because they can view an Account" instruction.
+// disabled) for anyone without the permission: ordinary reps must not
+// gain privacy-administration authority merely because they can view an
+// Account.
 export function AccountPrivacyPanel({
   accountId,
   accountName,

@@ -20,13 +20,10 @@ function assertId(value, label) {
   }
 }
 
-// Moved to master-data/duplicate-matching.js this
-// prompt (CRM vNext Prompt 3 continuation): rewritten to be rule-driven
-// (tenant.crm_duplicate_rules) instead of hardcoded weights, to use the
-// indexed normalized_* columns instead of an unindexed regexp_replace scan,
-// and (Contact) to include standalone (party_id IS NULL) contacts via a
-// LEFT JOIN instead of silently excluding them via an INNER JOIN. Re-exported
-// here so every existing `@vercentlabs/api` caller keeps working unchanged.
+// Duplicate matching lives in master-data/duplicate-matching.js (rule-driven
+// via tenant.crm_duplicate_rules, using the indexed normalized_* columns,
+// and including standalone party_id IS NULL contacts). Re-exported here so
+// every existing `@vercentlabs/api` caller keeps working unchanged.
 export {
   findAccountDuplicates,
   findContactDuplicates,

@@ -54,8 +54,6 @@ export type WorkspaceRouteContext = SecureRouteContext<
   WorkspaceSessionContext,
   PoolClient
 >;
-export type { SecureRouteOptions as WorkspaceRouteOptions };
-
 // The preferred protected-route composition (see core/secure-route.ts for
 // the enforced order). Usage, inside an exported HTTP method function:
 //

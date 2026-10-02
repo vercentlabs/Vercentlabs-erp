@@ -136,7 +136,7 @@ export async function endTerritoryAssignment(
   });
 }
 
-// F020 Stage A2 §8 — quota-plans (tenant.crm_quota_plans) is a real,
+// F020 — quota-plans (tenant.crm_quota_plans) is a real,
 // already-migrated generic resource FK'd to team/territory/user, with
 // zero frontend consumer before this pass (confirmed by grep). Reuses
 // the same generic /api/crm/[resource] boundary.
@@ -147,16 +147,6 @@ export async function createQuotaPlan(
   input: Record<string, unknown>,
 ): Promise<{ record: QuotaPlan }> {
   return request("/api/crm/quota-plans", { method: "POST", json: input });
-}
-export async function updateQuotaPlan(
-  id: string,
-  input: Record<string, unknown>,
-  expectedUpdatedAt: string,
-): Promise<{ record: QuotaPlan }> {
-  return request(`/api/crm/quota-plans/${id}`, {
-    method: "PATCH",
-    json: { input, expectedUpdatedAt },
-  });
 }
 export async function archiveQuotaPlan(
   id: string,

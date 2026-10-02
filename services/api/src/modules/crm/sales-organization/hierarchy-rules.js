@@ -12,8 +12,8 @@ export async function assertTerritoryParentAllowed(client, context, resource, id
   ) {
     // F020 CAP-001: mirrors setAccountParent's cycle guard (account-intelligence.js)
     // — the same self-parent/ancestor-cycle problem, solved the same way, for
-    // territory hierarchy. Previously unguarded: any parent could be assigned,
-    // including one that would make the territory its own ancestor.
+    // territory hierarchy: no parent that would make the territory its own
+    // ancestor.
     if (prepared.parentTerritoryId === id)
       throw new CrmError(
         409,
@@ -48,10 +48,8 @@ export async function assertSalesTeamParentAllowed(client, context, resource, id
     Object.prototype.hasOwnProperty.call(prepared, "parentTeamId") &&
     prepared.parentTeamId
   ) {
-    // F020 Tranche D (Stage A): same self-parent/ancestor-cycle guard as
-    // territories immediately above, for sales-team hierarchy. Previously
-    // unguarded — any parent team could be assigned, including one that
-    // would make the team its own ancestor.
+    // F020: same self-parent/ancestor-cycle guard as territories
+    // immediately above, for sales-team hierarchy.
     if (prepared.parentTeamId === id)
       throw new CrmError(
         409,

@@ -5,10 +5,8 @@
 // real-time feed of stock movements a completed POS sale/return actually
 // caused (F294), plus a store-scoped view into the same offline-sync
 // exceptions the dedicated Offline Sync Conflicts screen resolves (F297/
-// F298). This replaced two separate `planned()` nav placeholders
-// ("POS Inventory" and "Stock Sync") -- the F294/F295/F296 dossiers
-// describe one coherent read-only inventory-visibility workflow for POS,
-// not two independent screens, and Stock itself (not POS) remains the only
+// F298). One coherent read-only inventory-visibility workflow for POS, not
+// two independent screens, and Stock itself (not POS) remains the only
 // place a balance/movement is ever written -- see inventory-api.ts and
 // services/api/src/modules/point-of-sale/inventory-and-offline-continuity/
 // inventory-visibility.js.

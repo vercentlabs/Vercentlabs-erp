@@ -29,14 +29,10 @@ function assertCanCreateRelationshipRecords(context) {
 }
 
 
-// F027 Prompt 4: the legacy static-predicate scoring engine
-// (tenant.crm_scoring_rules, ruleMatches/calculateLeadScore/recordLeadScore)
-// was retired here — it had no model version, cap or decay, and was
-// silently governing crm_leads.score on every Lead create/update in
-// parallel with the real deterministic engine (System A,
-// recalculateLeadScoreInternal, now the sole writer). See migration
-// 096_f027_scoring_consolidation.sql. The generic criteria matcher that used
-// to live here is data-management/condition-matching.js.
+// Lead scoring has exactly one writer: the deterministic engine
+// (recalculateLeadScoreInternal); see migration
+// 096_f027_scoring_consolidation.sql. The generic criteria matcher is
+// data-management/condition-matching.js.
 
 
 

@@ -71,14 +71,12 @@ export async function listLeadImportBatchesRequest(): Promise<{
   return request("/api/crm/leads/import/batches");
 }
 
-// F021 Stage A2 §9. Export is now a real async, server-side job
+// F021. Export is a real async, server-side job
 // (tenant.background_jobs, job_type='crm.leads.export') — CSV generation,
 // formula-injection neutralization (rowsToCsv/csvCell,
 // @vercentlabs/reporting-engine) and row/field authorization all happen
 // server-side via the SAME governed listCrmRecords("leads", ...) read the
-// interactive list uses. Replaces the prior client-side "fetch every page
-// then build CSV in the browser" approach, which used a local CSV writer
-// with no formula-injection protection at all — a real, now-fixed gap.
+// interactive list uses — never a CSV built in the browser.
 export async function startLeadExportRequest(
   filters: Record<string, string | undefined> = {},
 ): Promise<{ job: LeadExportJob }> {

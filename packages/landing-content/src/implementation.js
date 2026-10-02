@@ -9,8 +9,8 @@ import { CTAS } from "./navigation.js";
  * approved launch capability register (capabilities/launch-capabilities.js).
  *
  * No specific timeframes, durations, or completion-rate guarantees appear
- * anywhere below — CLAUDE.md's evidence rules explicitly forbid fabricating
- * migration times or support-response guarantees. This describes a real
+ * anywhere below — never fabricate migration times or support-response
+ * guarantees. This describes a real
  * methodology, not a service-level commitment.
  */
 export const IMPLEMENTATION_PAGE = Object.freeze({

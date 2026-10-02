@@ -10,7 +10,7 @@ import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext"
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import { listAccountContactRelationships } from "@/features/crm/customers/contacts/api/contact-relationships-api";
 
-// F002/F003 Stage A2 — the reverse view of ContactRelationshipsPanel:
+// F002/F003 — the reverse view of ContactRelationshipsPanel:
 // every Contact related to this Account, with role and primary flag.
 // Read-only here (managed from the Contact's own 360, matching this
 // codebase's convention of one governed edit surface per relationship,

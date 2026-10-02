@@ -3,13 +3,10 @@
  * Freshness lifecycle report — flags any route whose CONTENT_FRESHNESS
  * lastReviewedAt has exceeded its review interval. Comparisons get the
  * shortest interval (competitor pricing/features change fast); glossary
- * gets the longest (stable, evergreen definitions). See
- * docs/landing-redesign/phase-6/freshness-and-sitemap-policy.md for the
- * rationale behind each interval. This is a report only — it never edits
+ * gets the longest (stable, evergreen definitions). This is a report only — it never edits
  * CONTENT_FRESHNESS or bumps a date itself; a human reviews the flagged
  * route and updates the entry with a real reviewReason once actually
- * reviewed (see .claude/rules/landing-content.md rule 5: never bump
- * lastModifiedAt for a change that didn't happen).
+ * reviewed (never bump lastModifiedAt for a change that didn't happen).
  */
 import { CONTENT_FRESHNESS } from "../src/index.js";
 

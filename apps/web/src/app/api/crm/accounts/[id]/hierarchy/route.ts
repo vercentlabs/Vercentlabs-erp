@@ -5,12 +5,8 @@ import { ok, readJson } from "@/core/http";
 import { crmContext } from "@/features/crm/shared/crm-context";
 import { workspaceRoute } from "@/core/workspace-route";
 
-// F002 Tranche E (Stage A). getAccountHierarchy/setAccountParent
-// (account-intelligence.js) were already a real, already-tested,
-// already-cycle-guarded service — see crm-account-hierarchy-f002.test.mjs,
-// which predates this pass. Never reachable from the frontend before this
-// route: confirmed by grep that no apps/web file referenced either
-// function. GET stays module-access-only (matches the Account GET
+// F002. getAccountHierarchy/setAccountParent (account-intelligence.js),
+// cycle-guarded — see crm-account-hierarchy-f002.test.mjs. GET stays module-access-only (matches the Account GET
 // convention); PATCH requires crm.accounts.manage (matches the Account
 // PATCH/DELETE convention in accounts/[id]/route.ts).
 type RouteContext = { params: Promise<{ id: string }> };

@@ -485,11 +485,10 @@ export async function completeStockTransfer(client, c, id) {
   return { ...done.rows[0], replayed: false };
 }
 
-// Diagnostic/repair for the historical stock_balances drift Prompt 11/12
-// found: before this prompt, Manufacturing and Point of Sale each posted
-// stock_movements rows without ever updating stock_balances, so the two
-// can disagree for any (item, warehouse, location, batch) combination
-// that ever received a movement from either module prior to this fix.
+// Diagnostic/repair for historical stock_balances drift: older
+// Manufacturing and Point of Sale movements were posted to stock_movements
+// without updating stock_balances, so the two can disagree for any (item,
+// warehouse, location, batch) combination that received such a movement.
 // stock_movements is the append-only ledger; the ledger-derived quantity
 // (sum of signed quantities) is always the source of truth. Dry-run by
 // default (repair=false) — never mutates unless explicitly asked, is

@@ -61,9 +61,8 @@ export async function archiveAccount(
   return parseResponse(response);
 }
 
-// F002 Tranche E — hierarchy, duplicates and merge all reuse real,
-// already-tested backend services (account-intelligence.js,
-// duplicate-matching.js) that had no frontend wiring before this pass.
+// F002 — hierarchy, duplicates and merge reuse the backend services in
+// account-intelligence.js and duplicate-matching.js.
 export async function getAccountHierarchy(
   id: string,
 ): Promise<AccountHierarchy> {

@@ -13,10 +13,7 @@ import type { PoolClient } from "pg";
 import { tenantTransaction } from "@/core/db";
 import { requireWorkspace, type WorkspaceSessionContext } from "@/core/session";
 
-export type {
-  AccessPrincipal,
-  WorkspaceAccessSnapshot,
-} from "@vercentlabs/api";
+export type { WorkspaceAccessSnapshot } from "@vercentlabs/api";
 
 // Request-scoped only: React cache() memoizes within one server render and
 // never across requests, so permission/module/subscription changes take

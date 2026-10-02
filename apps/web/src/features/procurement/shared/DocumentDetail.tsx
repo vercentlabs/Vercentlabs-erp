@@ -61,18 +61,18 @@ export type ActionDef = {
   extra?: (record: ProcRecord) => Record<string, unknown>;
 };
 
-export type LinkDef = {
+type LinkDef = {
   label: string;
   href: (record: ProcRecord) => string;
   from: string[];
   permission: string;
 };
-export type LineGrid = {
+type LineGrid = {
   title: string;
   key: string;
   columns: (lookup: Lookup) => ColumnDef<Record<string, unknown>, unknown>[];
 };
-export type ExtraSection = {
+type ExtraSection = {
   id: string;
   label: string;
   render: (

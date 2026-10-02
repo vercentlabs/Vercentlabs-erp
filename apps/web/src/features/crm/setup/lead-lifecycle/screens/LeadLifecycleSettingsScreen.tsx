@@ -9,11 +9,10 @@ import { StagesSection } from "../components/StagesSection";
 import { TransitionsSection } from "../components/TransitionsSection";
 import { ReasonsSection } from "../components/ReasonsSection";
 
-// F007 Tranche I (Stage A) — the REAL Lead lifecycle catalog/transition-
-// graph setup UI. stage-catalog.js/transition-graph.js/stage-migration.js
-// already governed the SAME crm_lead_stages/crm_lead_stage_transitions the
-// Lead 360's own "Move to stage" UI already reads (getLeadTransitionGraph)
-// — zero setup UI existed before this pass, confirmed by grep.
+// F007 — the Lead lifecycle catalog/transition-graph setup UI.
+// stage-catalog.js/transition-graph.js/stage-migration.js govern the SAME
+// crm_lead_stages/crm_lead_stage_transitions the Lead 360's "Move to stage"
+// UI reads (getLeadTransitionGraph).
 export function LeadLifecycleSettingsScreen() {
   const workspace = useWorkspaceContext();
   const canManage = workspace.permissions.includes(

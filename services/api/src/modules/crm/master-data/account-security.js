@@ -1,10 +1,8 @@
 // Canonical Account sensitive-field projection — mirrors lead-security.js
-// and contact-security.js exactly (CRM vNext Prompt 1's established
-// pattern: one server-side projection per entity, reused by every
-// consumer, never a UI-only redaction). Closes CRM-VNEXT-004/035: Account
-// legal/tax identifiers (GSTIN, PAN, MSME registration number) were
-// previously returned to any caller with ordinary account view access,
-// with no distinction from the record-level `crm.view` permission.
+// and contact-security.js exactly (one server-side projection per entity,
+// reused by every consumer, never a UI-only redaction). Account legal/tax
+// identifiers (GSTIN, PAN, MSME registration number) need more than the
+// record-level `crm.view` permission.
 export const ACCOUNT_SENSITIVE_PERMISSION = "crm.accounts.view_sensitive";
 
 // normalizedPan is a GENERATED column derived directly from pan (added by

@@ -67,7 +67,7 @@ function parseListFilters(url: URL) {
   return filters;
 }
 
-// Governed generic CRM resource boundary (Phase 5/6). Thin by design: this
+// Governed generic CRM resource boundary. Thin by design: this
 // route authenticates, resolves workspace + CRM context, validates the
 // resource key, opens a tenant-scoped transaction, and delegates entirely
 // to @vercentlabs/api's resource-registry-driven listCrmRecords/

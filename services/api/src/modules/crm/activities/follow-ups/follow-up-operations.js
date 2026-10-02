@@ -1,13 +1,9 @@
 import { crmOwnerScopeSql } from "../../data-management/crm-access-scope.js";
-// Prompt 6 (CRM-CAP-004, F016 — Follow-ups and reminders). Re-audit
-// confirmed this feature had no dedicated implementation at all before this
-// pass: no table beyond the shared crm_activities.reminder_at column, no
-// worker, no route, no UI. This module specializes the same canonical
-// crm_activities row Calls/Meetings/Tasks already use (activity_type=
-// 'follow_up'), following task-operations.js's established structure
-// exactly, plus the new first-class crm_activity_reminders table for the
-// dossier's REQUIRED "multiple reminders" scope (a single timestamp column
-// cannot represent that).
+// F016 — Follow-ups and reminders. This module specializes the same
+// canonical crm_activities row Calls/Meetings/Tasks use (activity_type=
+// 'follow_up'), following task-operations.js's structure, plus the
+// first-class crm_activity_reminders table for multiple reminders per
+// follow-up (a single timestamp column cannot represent that).
 import { CrmError } from "../../data-management/errors.js";
 import { taskOverdueSql } from "../../data-management/activity-query-rules.js";
 import { queueOutboxEvent } from "../../data-management/outbox.js";
@@ -26,7 +22,7 @@ import { getManagerForUser } from "../shared/notify.js";
 // for it is a deliberate, proportionate scope decision for this pass.
 const DEFAULT_BUSINESS_HOURS = { timezone: "Asia/Kolkata", weekdays: [1, 2, 3, 4, 5], start: "09:00", end: "18:00" };
 
-// Reminder delivery must respect working hours (DEC-CRM-P1-F016): if the
+// Reminder delivery must respect working hours: if the
 // naive offset-before-due instant falls outside the configured window, defer
 // it to the next window rather than firing at 2am. addBusinessMinutes's own
 // window-seeking logic (lead-intelligence.js) already does exactly this —
@@ -43,9 +39,8 @@ const CHANNELS = new Set(["call", "email", "meeting", "whatsapp", "sms", "other"
 const REMINDER_CHANNELS = new Set(["in_app", "email"]);
 const EDITABLE = new Set(["planned", "in_progress", "overdue"]);
 const TERMINAL = new Set(["completed", "cancelled"]);
-// Default reminder plan when the caller doesn't specify one — matches the
-// dossier's own worked example ("24 hours before / 1 hour before / at due
-// time"), expressed as minutes-before-due.
+// Default reminder plan when the caller doesn't specify one — 24 hours
+// before / 1 hour before / at due time, expressed as minutes-before-due.
 const DEFAULT_REMINDER_OFFSETS = [1440, 60, 0];
 const MAX_REMINDERS_PER_FOLLOW_UP = 10;
 
@@ -341,11 +336,11 @@ export async function resetStuckDispatchingReminders(client, context, { olderTha
   return result.rows.length;
 }
 
-// Escalation (DEC-CRM-P1-F016): an open Follow-up past its own configured
+// Escalation: an open Follow-up past its own configured
 // follow_up_escalate_after_minutes window (opt-in per Follow-up — see
 // migration 101) is escalated once to the assignee's sales-team manager, if
 // one is resolvable. No manager found is a legitimate, logged outcome, not
-// an error — this pass does not invent a fallback escalation target (e.g.
+// an error — there is deliberately no fallback escalation target (e.g.
 // "any view_all holder"), since that could notify an unrelated admin about
 // an ordinary seller's overdue follow-up.
 export async function escalateOverdueFollowUps(client, context) {
@@ -388,7 +383,7 @@ export async function escalateOverdueFollowUps(client, context) {
   return escalated;
 }
 
-// Real delivery-receipt tracking (DEC-CRM-P1-F016), honest about what each
+// Real delivery-receipt tracking, honest about what each
 // channel can actually confirm: in-app has no "delivered" signal beyond
 // "the row was inserted for the user to see" (there is no read-receipt
 // pixel/webhook for an in-app bell item), so the dispatch worker sets
@@ -487,10 +482,10 @@ export async function updateCrmFollowUp(client, context, id, input = {}) {
   const before = await getCrmFollowUp(client, context, id, { lock: true });
   if (TERMINAL.has(before.status)) throw new CrmError(409, "Completed or cancelled Follow-ups are read-only.", "CRM_FOLLOW_UP_READ_ONLY");
   stale(before, input.expectedUpdatedAt, input.expectedStatus);
-  // F016 Stage A2 closeout: reminderOffsets/reminderChannel are request-level
-  // delivery instructions, not crm_activities columns — same stripping
-  // discipline createCrmFollowUp already uses, so a caller can now edit an
-  // existing Follow-up's reminder plan, not only set one at creation.
+  // reminderOffsets/reminderChannel are request-level delivery
+  // instructions, not crm_activities columns — same stripping discipline
+  // createCrmFollowUp uses, so a caller can edit an existing Follow-up's
+  // reminder plan, not only set one at creation.
   const reminderPlanGiven = hasOwn(input, "reminderOffsets") || hasOwn(input, "reminderChannel");
   const reminderOffsets = hasOwn(input, "reminderOffsets") ? input.reminderOffsets : undefined;
   const reminderChannel = hasOwn(input, "reminderChannel") ? text(input.reminderChannel).toLowerCase() : undefined;
@@ -532,7 +527,7 @@ export async function updateCrmFollowUp(client, context, id, input = {}) {
   return followUp;
 }
 
-// Snooze: the dossier-named reschedule action, distinct from a plain edit —
+// Snooze: a reschedule action distinct from a plain edit —
 // tracked with its own event type and snooze_count so "this follow-up was
 // pushed back 3 times" is visible history, not silently indistinguishable
 // from a normal due-date edit.

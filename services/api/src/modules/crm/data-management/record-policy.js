@@ -15,8 +15,7 @@ export { canViewAllCrmRecords };
 // A caller may see every record in their company/branch scope ("crm.records
 // .view_all" — granted to CRM/sales manager and administrator roles) or,
 // lacking that permission, only records they own/are assigned (definition.
-// ownerField, currently set for leads, opportunities and activities — see
-// docs/implementation/ERP_SECURITY_HARDENING_003.md, Part 2). Records with
+// ownerField, currently set for leads, opportunities and activities). Records with
 // no owner yet (owner_user_id/assigned_to IS NULL, e.g. a freshly captured
 // lead awaiting assignment) remain visible to anyone who can otherwise see
 // the resource, mirroring the existing company_id/branch_id IS NULL
@@ -83,16 +82,12 @@ function communicationParentScopeSql(context, parameters, alias) {
     "opportunity",
   );
   // allowAllCompanies is checked FIRST, before touching `parameters` at
-  // all: a real, reproducible bug (found via live-browser Prompt 3 QA
-  // against a real database, invisible to every mocked-client unit test)
-  // previously called addParameter(parameters, context.activeCompanyId)
-  // unconditionally whenever activeCompanyId was set, then discarded it in
-  // favor of the literal "true" whenever allowAllCompanies was also true —
-  // leaving a bound parameter that appears nowhere in the returned SQL
-  // text. Postgres cannot infer that orphaned placeholder's type at parse
-  // time and rejects the whole query with "could not determine data type
-  // of parameter $N", for every organization_owner/view_all caller (i.e.
-  // most real usage) hitting the Communications resource.
+  // all: binding activeCompanyId and then emitting the literal "true"
+  // instead would leave a bound parameter that appears nowhere in the
+  // returned SQL text. Postgres cannot infer that orphaned placeholder's
+  // type at parse time and rejects the whole query with "could not
+  // determine data type of parameter $N" (invisible to mocked-client unit
+  // tests).
   const partyCompanyVisible = context.allowAllCompanies
     ? "true"
     : context.activeCompanyId
@@ -123,20 +118,19 @@ export function crmResourceName(definition) {
 export function recordScope(definition, context, parameters, alias = "record") {
   let sql = "";
   if (definition.table === "tenant.crm_communications") {
-    // F018 final closeout — AUDIENCE ("may this caller know this
-    // communication exists") and CONTENT ("may this caller read subject/
-    // body/recipients") are now two separate authorization decisions, not
-    // one combined gate. This SQL fragment only ever decides audience:
+    // AUDIENCE ("may this caller know this communication exists") and
+    // CONTENT ("may this caller read subject/body/recipients") are two
+    // separate authorization decisions, not one combined gate. This SQL fragment only ever decides audience:
     // company/branch/owner boundary comes from the communication's actual
-    // parent record's own scope (communicationParentScopeSql — unchanged,
-    // still closes the "anyone with the sensitive permission could read
-    // every company's mail org-wide" gap this comment used to describe),
+    // parent record's own scope (communicationParentScopeSql, so the
+    // sensitive permission alone never reads every company's mail
+    // org-wide),
     // and the visibility tier (team/private/participant) is the ONE
     // canonical fragment every other audience call site (getCommunication-
     // Timeline, the canonical Timeline's communication branch, the shared
     // inbox) also uses — see communication-access.js. Content
     // (whether the caller sees full subject/body or only a metadata stub)
-    // is no longer a row-visibility decision here at all: it is applied by
+    // is not a row-visibility decision here at all: it is applied by
     // the route layer via projectCrmCommunication(s) AFTER this query
     // returns, for every one of those same call sites, so a caller without
     // crm.leads.view_sensitive can still know a team-visible communication
@@ -171,7 +165,7 @@ export function recordScope(definition, context, parameters, alias = "record") {
       // return here would discard any parameter(s) already bound above
       // (e.g. the saved_views clause) while leaving them in the
       // `parameters` array the caller still sends, producing a Postgres
-      // bind-parameter-count mismatch (Prompt 14, Part 44).
+      // bind-parameter-count mismatch.
       return sql + " AND false";
     }
   }
@@ -239,8 +233,7 @@ export function assertWritableScope(definition, context, input) {
 // hand a record off to a different, arbitrary user — that requires the same
 // elevated permission that grants company-wide visibility. Checked against
 // the RAW input (hasOwnProperty), not the merged/defaulted payload, so an
-// update that never mentions ownerField is unaffected. See Part 2 of
-// docs/implementation/ERP_SECURITY_HARDENING_003.md.
+// update that never mentions ownerField is unaffected.
 export async function assertOwnerAssignmentAllowed(client, definition, context, input) {
   if (!definition.ownerField || canViewAllCrmResource(context, crmResourceName(definition))) return;
   if (!Object.prototype.hasOwnProperty.call(input, definition.ownerField))
@@ -321,7 +314,7 @@ export async function projectCrmRecord(client, context, resource, record) {
     const restricted = await restrictedCustomFieldKeys(client, context, [record.objectDefinitionId]);
     return redactCustomRecordData(record, restricted.get(record.objectDefinitionId));
   }
-  // F018 final closeout — the generic CRM resource route (and mobile's
+  // The generic CRM resource route (and mobile's
   // generic [resource]/[id] route, which falls through to this SAME
   // getCrmRecord/listCrmRecords pair for "communications") is one of the
   // five surfaces the canonical communication projector must cover.
@@ -444,7 +437,7 @@ export function assertLifecycleUpdate(resource, before, input, context = {}) {
         "CRM_FORECAST_TRANSITION_INVALID",
       );
     }
-    // F025 Stage A2 §11 — a rep may draft/submit/revise their own
+    // F025 — a rep may draft/submit/revise their own
     // forecast, but only a reviewer (a caller who is NOT the submission's
     // own owner — in practice, per the recordScope change above, their
     // Sales Team's manager or a crm.records.view_all holder, since anyone
@@ -464,8 +457,7 @@ export function assertLifecycleUpdate(resource, before, input, context = {}) {
       );
     }
   }
-  // F025 Stage A2 §11 — managerAdjustment is, by its own name and the
-  // dossier's own requirement, a reviewer's override recorded ALONGSIDE
+  // F025 — managerAdjustment is a reviewer's override recorded ALONGSIDE
   // a rep's own submitted numbers (never the Opportunity's amount/
   // probability, which this field never touches), so a rep editing their
   // own draft must not also be able to set it on themselves. Independent

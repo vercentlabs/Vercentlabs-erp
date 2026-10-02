@@ -12,8 +12,8 @@ import { COMPANY_IDENTITY } from "@vercentlabs/landing-content";
  *     └─ creator/publisher of → SoftwareApplication "Vercentlabs ERP"  /#software
  * Every other page refers to these by @id instead of re-declaring them.
  */
-export const ORGANIZATION_ID = absoluteUrl("/#organization");
-export const WEBSITE_ID = absoluteUrl("/#website");
+const ORGANIZATION_ID = absoluteUrl("/#organization");
+const WEBSITE_ID = absoluteUrl("/#website");
 
 /**
  * The one, stable @id for the site-wide SoftwareApplication entity (declared

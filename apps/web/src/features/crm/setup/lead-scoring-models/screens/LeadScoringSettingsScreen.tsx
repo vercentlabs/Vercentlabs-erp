@@ -81,13 +81,9 @@ function ScoreBands({ model }: { model: LeadScoringModel }) {
   );
 }
 
-// F027 Tranche I (Stage A) — the REAL Lead scoring configuration surface.
-// scoring-engine.js's own header explicitly documents that this model
-// (crm_lead_scoring_models/crm_lead_scoring_model_rules) replaced a
-// retired legacy system ("System B", tenant.crm_scoring_rules) that used
-// to silently overwrite crm_leads.score with no version/cap/decay —
-// confirmed by reading the engine before wiring anything, so this screen
-// governs the table the engine actually reads.
+// F027 — the Lead scoring configuration surface, for the tables the
+// scoring engine actually reads (crm_lead_scoring_models/
+// crm_lead_scoring_model_rules), never the unused tenant.crm_scoring_rules.
 export function LeadScoringSettingsScreen() {
   const workspace = useWorkspaceContext();
   const queryClient = useQueryClient();

@@ -13,7 +13,7 @@ import {
 // F312-320: the inspection list -- creation and results/release live on the dedicated detail screen
 // (InspectionDetailScreen) since a plan's points drive a dynamic per-point results form a generic
 // register cannot express.
-export function inspectionsRegister(scope: "all" | "open"): RegisterConfig {
+function inspectionsRegister(scope: "all" | "open"): RegisterConfig {
   return {
     key: `inspections-${scope}`,
     title: scope === "open" ? "Open inspections" : "Inspections",

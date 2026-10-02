@@ -15,24 +15,19 @@ import { JOB_TYPE as FORECAST_SNAPSHOT_JOB_TYPE } from "./handlers/crm-forecast-
 const logger = createLogger("worker-scheduler");
 
 // Scheduled sources: the activity.overdue detection tick, the Lead SLA
-// breach/reassignment scan (F005/F014 gap-closing — see
-// crm-lead-sla-scan.js for why this one specifically needed automating: the
-// domain logic already existed and was correct, it just only ever ran when
-// a human clicked "Scan now"), the Sales quotation-expiry scan
-// (F038 gap-closing — see sales-quotation-expiry-scan.js; unlike the Lead
-// SLA case, the domain logic itself didn't exist yet either), the Lead
+// breach/reassignment scan (F005/F014 — see crm-lead-sla-scan.js; the same
+// logic also runs when a human clicks "Scan now"), the Sales
+// quotation-expiry scan (F038 — see sales-quotation-expiry-scan.js), the Lead
 // stage-dwell scan, and the F010 daily pipeline-snapshot capture (see
 // crm-pipeline-snapshot-capture.js — uses a calendar-date idempotency key,
 // `snapshotDay` below, rather than `bucket`, since it must fire once a day
-// rather than once per tick). Per Part 24
-// ("if only event enum names exist with no schedule definition: do not
-// invent a broad scheduler DSL"; crm_automation_rules has no
-// schedule/cron/interval column at all, confirmed by direct schema
-// inspection), neither of these is a generic per-rule scheduling grammar
-// — both are one-off, system-level ticks on the same fixed interval.
+// rather than once per tick). crm_automation_rules has no
+// schedule/cron/interval column, so there is deliberately no generic
+// per-rule scheduling DSL — these are one-off, system-level ticks on the
+// same fixed interval.
 //
 // Duplicate-occurrence prevention across multiple scheduler instances
-// (Part 54/58) reuses the SAME mechanism as ordinary job idempotency —
+// reuses the SAME mechanism as ordinary job idempotency —
 // no separate advisory-lock system was built. `bucket` is a deterministic
 // function of wall-clock time and the configured tick interval, so two
 // scheduler processes racing to enqueue for the same organization and the
@@ -42,7 +37,7 @@ const logger = createLogger("worker-scheduler");
 // of creating a duplicate (see queue.js's enqueueJob doc comment).
 export async function runSchedulerTick(pool, config) {
   const bucket = Math.floor(Date.now() / config.worker.schedulerTickMilliseconds);
-  // F010 integrity closeout: the daily pipeline-snapshot baseline uses a
+  // F010: the daily pipeline-snapshot baseline uses a
   // calendar-date idempotency key (UTC) rather than `bucket` — the tick may
   // fire many times a day (schedulerTickMilliseconds is on the order of
   // minutes), but only the FIRST tick each day should actually enqueue the
@@ -136,7 +131,7 @@ export async function runSchedulerTick(pool, config) {
       logger.error("follow-up reminder dispatch tick failed for organization", { organizationId, error: String(error?.message || error) });
     }
     try {
-      // CRM-VNEXT-052 closeout (nurture-queue half): same per-tick cadence
+      // Nurture-queue dispatch: same per-tick cadence
       // as the reminder dispatch above — claimDueNurtureQueueItems() only
       // claims rows whose due_at has actually passed, so an idle tick is
       // cheap and a no-op.

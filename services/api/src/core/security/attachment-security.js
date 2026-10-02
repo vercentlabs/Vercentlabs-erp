@@ -1,6 +1,4 @@
-// Ported verbatim (TS -> JS syntax only) from docs/frontend-rebuild/
-// the recovered pre-rebuild snapshot (last present at commit d4df5eb1), apps/web/src/core/attachment-security.ts. No DB
-// dependency; lowest-risk port in the platform set.
+// Attachment validation helpers. No DB dependency.
 import { createHash } from "node:crypto";
 import { isProductionRuntime } from "@vercentlabs/config";
 

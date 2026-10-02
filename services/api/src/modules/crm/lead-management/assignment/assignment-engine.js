@@ -1,10 +1,7 @@
 // F005 Lead assignment — the governed assignment policy engine: criteria
 // matching, per-mode owner resolution (fixed/round_robin/workload/
-// territory), the fallback queue, and policy CRUD. Moved here (from the
-// legacy flat lead-governance.js) as part of CRM vNext Prompt 4, which also
-// unlocked territory/workload policy creation (schema already supported
-// them since migration 053; only the write-layer rejected them) and added
-// a full per-candidate explain trace so "why did this owner win" — and,
+// territory), the fallback queue, and policy CRUD, plus a full
+// per-candidate explain trace so "why did this owner win" — and,
 // symmetrically, why every other candidate did not — is reconstructible
 // for support/audit rather than a single opaque policy-mode label.
 import { LeadGovernanceError, text, UUID, matches } from "./shared.js";
@@ -216,13 +213,9 @@ export async function saveLeadAssignmentPolicy(client, context, input = {}) {
     throw new LeadGovernanceError(400, `${mode === "round_robin" ? "Round-robin" : "Workload-based"} assignment requires at least one member.`, "CRM_ASSIGNMENT_RULE_INVALID");
   if (!["active", "inactive"].includes(status))
     throw new LeadGovernanceError(400, "Assignment-rule status is invalid.", "CRM_ASSIGNMENT_RULE_INVALID");
-  // Stage A2 §14 concurrency audit: this is the REAL, actively-used
-  // assignment-policy table (see the module comment above) — it had no
-  // optimistic-concurrency check at all on update, unlike every other
-  // governed CRM configuration resource fixed in this pass. Two admins
-  // editing the same policy (e.g. one changing round-robin members while
-  // another changes its criteria) could silently overwrite each other.
-  // Checked here, before any further validation queries, so a stale/missing
+  // Optimistic concurrency: two admins editing the same policy (e.g. one
+  // changing round-robin members while another changes its criteria) must
+  // never silently overwrite each other. Checked here, before any further validation queries, so a stale/missing
   // version is rejected as cheaply as the other input-shape checks above.
   let before = null;
   if (id) {
@@ -315,7 +308,7 @@ export async function setLeadAssignmentPolicyStatus(client, context, policyId, s
     for (const userId of row.mode === "fixed" ? [row.assignee_user_id] : row.mode === "territory" ? [] : row.member_user_ids || [])
       await assertEligibleLeadAssignee(client, context, userId);
   }
-  // Stage A2 §14: same checked-write contract as saveLeadAssignmentPolicy
+  // Same checked-write contract as saveLeadAssignmentPolicy
   // above — an activate/deactivate/archive toggle is still a mutation two
   // admins could race on.
   const expected = text(expectedUpdatedAt);

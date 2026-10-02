@@ -1,8 +1,7 @@
 // F291/F292 -- "find the original transaction" step of the returns UI.
 // createPointOfSaleReturn/approvePointOfSaleReturn/completePointOfSaleReturn
 // (return-lifecycle.js, this same POS-CAP-005 capability) already own the
-// real return lifecycle; this is the one missing piece -- looking a sale
-// up by its receipt number and reporting exactly how much of each line is
+// real return lifecycle; this looks a sale up by its receipt number and reporting exactly how much of each line is
 // still returnable, using the SAME eligibility rule (status IN
 // ('completed', 'partially_returned')) and remaining-quantity math
 // (quantity - returned_quantity) createPointOfSaleReturn itself already

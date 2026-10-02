@@ -221,7 +221,7 @@ export class ContextSwitchError extends Error {
 // The exact same "unrestricted role OR explicit membership grant" predicate
 // resolveSessionContext's own company/branch lateral joins use — kept as
 // one shared fragment so listing and switching can never drift from what
-// session resolution itself considers accessible (Phase 4).
+// session resolution itself considers accessible.
 const UNRESTRICTED_ROLE_EXISTS = `
   EXISTS (
     SELECT 1
@@ -313,7 +313,7 @@ export async function switchActiveCompany(client, session, companyId, branchId) 
 
 // The single query that resolves a session token into a full workspace
 // context: user identity, active organization membership, role/permission
-// composition, and (deliberately, per Part 10 of the original design) the
+// composition, and (deliberately) the
 // user's active company/branch selection scoped to what they're actually
 // allowed to see. Company/branch resolution intentionally never filters
 // business-record queries itself — it only decides what a shell/nav layer

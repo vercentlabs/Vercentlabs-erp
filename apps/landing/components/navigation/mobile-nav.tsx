@@ -21,8 +21,8 @@ interface MobileNavProps {
 
 /**
  * A dedicated mobile experience, not a shrunk mega menu: module groups collapse
- * into a two-level accordion (group -> module, matching the brief's "maximum
- * practical depth should be two levels"), focus moves in on open and returns to
+ * into a two-level accordion (group -> module; two levels is the maximum
+ * practical depth), focus moves in on open and returns to
  * the trigger on close, and background scroll is locked while open.
  */
 export function MobileNav({ open, onClose }: MobileNavProps) {

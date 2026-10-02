@@ -26,5 +26,3 @@ export function posContext(session: WorkspaceSessionContext) {
     permissions: session.permissions,
   };
 }
-
-export type PosApiContext = ReturnType<typeof posContext>;

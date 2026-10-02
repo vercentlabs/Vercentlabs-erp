@@ -5,9 +5,7 @@ import { Lock } from "lucide-react";
 import { requireWorkspace } from "@/core/session";
 import { SETTINGS_NAVIGATION } from "@/shell/navigation/settings-navigation-registry";
 
-// Phase 6 (platform checkpoint D): a real, permission-aware settings
-// index (it replaced the former generic placeholder page for /settings).
-// Every item is classified AVAILABLE or PLANNED against
+// A real, permission-aware settings index for /settings. Every item is classified AVAILABLE or PLANNED against
 // settings-navigation-registry.ts; a built-but-permission-gated item
 // renders its own third state (UNAVAILABLE) inline. Only AVAILABLE items
 // are ever a clickable Link — the same "never render a live link to

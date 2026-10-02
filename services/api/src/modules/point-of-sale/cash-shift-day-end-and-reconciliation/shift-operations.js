@@ -1,8 +1,7 @@
 // POS-CAP-007 (F299-F305 cash, shift, day-end and reconciliation). Shift
 // open/close lifecycle. Cash movements (F300) live alongside this in
 // cash-movements.js; day-end/Z-report (F303), reconciliation (F304) and
-// accounting posting (F305) belong in this same capability directory once
-// built.
+// accounting posting (F305) belong in this same capability directory.
 import { nextDocumentNumber } from "../../../core/platform/numbering/index.js";
 import { requireCompanyRecord } from "../../../core/references.js";
 import { decimal, sub, asDatabaseDecimal } from "../../../core/decimal.js";
@@ -22,10 +21,9 @@ export async function openShift(client, context, input) {
     error.code = "POS_TERMINAL_STORE_MISMATCH";
     throw error;
   }
-  // Phase 2 (F270): input.cashierUserId let ANY caller with pos.shift.open
-  // name an arbitrary user as the shift's cashier, with no check that
-  // person is a real member, holds any POS permission, or has store
-  // access -- opening a shift "as" someone else is a supervisory action
+  // F270: input.cashierUserId must not let ANY caller with pos.shift.open
+  // name an arbitrary user as the shift's cashier -- opening a shift "as"
+  // someone else is a supervisory action
   // (assigning a cashier to a shift), not something an ordinary cashier
   // does for themselves, and the assigned cashier must be as eligible for
   // this store as the person opening the shift is.

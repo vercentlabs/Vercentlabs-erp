@@ -1,9 +1,4 @@
-// Prompt 6 (CRM-CAP-004, F017 — Notes & Files). Re-audit confirmed Notes
-// had no dedicated domain module at all: a single Lead-only POST route
-// with its own inline raw SQL (apps/web/src/app/api/crm/leads/[id]/notes/
-// route.ts), no GET/PATCH/DELETE anywhere, no versioning, no optimistic
-// concurrency, and no Account/Contact/Opportunity support. This module is
-// the ONE canonical Notes domain — list/create/read/update/archive,
+// F017 — Notes & Files. This module is the ONE canonical Notes domain — list/create/read/update/archive,
 // history/versioning, parent-record authorization, private-visibility
 // enforcement — that every entity type's routes call into, mirroring
 // task-operations.js/follow-up-operations.js's established structure.
@@ -11,8 +6,8 @@
 // Authorization reuses resolveCrmEntityAccess (data-management/entity-access.js) verbatim —
 // the SAME per-entity-type sensitive-content gate and company/branch scope
 // check the canonical Timeline already uses, not a re-derived equivalent
-// (the dossier's explicit "object-specific wrapper functions are
-// acceptable, separate security implementations are not").
+// (object-specific wrapper functions are acceptable, separate security
+// implementations are not).
 import { assertCanWriteCrmRecordContent, canOverridePrivateCrmContent } from "../../data-management/crm-access-scope.js";
 import { CrmError } from "../../data-management/errors.js";
 import { queueOutboxEvent } from "../../data-management/outbox.js";
@@ -56,8 +51,7 @@ function visibilityPredicate(values, context, alias = "note") {
   const userIdParam = values.push(context.userId), userIdPlaceholder = `$${userIdParam}`;
   const viewAllParam = values.push(canOverridePrivateCrmContent(context)), viewAllPlaceholder = `$${viewAllParam}`;
   // ::boolean is required, not cosmetic — see data-management/communication-access.js's
-  // communicationVisibilitySql for the full explanation (found via
-  // live-browser Prompt 3 QA against a real database): without it,
+  // communicationVisibilitySql for the full explanation: without it,
   // Postgres cannot infer this bare `OR $N` placeholder's type and rejects
   // the query with "could not determine data type of parameter $N".
   return ` AND (${alias}.visibility<>'private' OR ${alias}.created_by=${userIdPlaceholder} OR ${viewAllPlaceholder}::boolean)`;

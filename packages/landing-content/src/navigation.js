@@ -77,15 +77,10 @@ export const ANNOUNCEMENT_BANNER = null;
 /**
  * Analytics event names not tied to a specific homepage section (those are
  * declared per-section via `analyticsId` in homepage.js instead — see
- * apps/landing/lib/analytics.ts's HomepageAnalyticsId type). Reconciled in
- * Phase 3 against what apps/landing actually calls track() with, and again in
- * Phase 4 for the new module/platform events — this array and index.d.ts's
- * ANALYTICS_EVENTS tuple type must be kept in exact sync (a Phase 4 Cycle 2
- * review caught this array drifting behind the .d.ts: the type declared 7
- * event names the runtime array never actually had, which typechecked clean
- * only because nothing at runtime validates track() calls against this array).
- * This is no longer
- * just a documented convention: tests/analytics-events-sync.test.mjs parses
+ * apps/landing/lib/analytics.ts's HomepageAnalyticsId type). This array and
+ * index.d.ts's ANALYTICS_EVENTS tuple type must be kept in exact sync —
+ * nothing at runtime validates track() calls against this array, so drift
+ * would otherwise typecheck clean. tests/analytics-events-sync.test.mjs parses
  * index.d.ts's literal-union source and fails the build if it and this array
  * ever diverge again. "product_tour_play" remains reserved for a page that
  * doesn't exist yet.

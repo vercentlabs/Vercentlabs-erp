@@ -7,11 +7,11 @@ import { workspaceRoute } from "@/core/workspace-route";
 
 type RouteContext = { params: Promise<{ id: string }> };
 
-// F015 Stage A2 §6. addTaskDependency/removeTaskDependency/
-// listTaskDependencies (task-operations.js) already enforce cycle
-// prevention, self-dependency rejection and completion-while-blocked
-// rejection server-side — this route (and its sibling [dependsOnTaskId]
-// route) is the first UI consumer, not a new authorization surface.
+// F015. addTaskDependency/removeTaskDependency/listTaskDependencies
+// (task-operations.js) enforce cycle prevention, self-dependency rejection
+// and completion-while-blocked rejection server-side — this route (and its
+// sibling [dependsOnTaskId] route) is a thin consumer, not a new
+// authorization surface.
 export async function GET(request: Request, context: RouteContext) {
   return workspaceRoute(
     request,

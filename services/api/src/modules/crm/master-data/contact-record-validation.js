@@ -17,9 +17,8 @@ const LANGUAGE_MAX = 35;
 function isValidIanaTimeZone(value) {
   try {
     // Intl.DateTimeFormat throws RangeError for any string that is not a
-    // real IANA zone name — this is the canonical-identifier check the
-    // dossier requires ("never an ambiguous locale string"), not a
-    // hand-rolled allowlist.
+    // real IANA zone name — a canonical-identifier check (never an
+    // ambiguous locale string), not a hand-rolled allowlist.
     new Intl.DateTimeFormat(undefined, { timeZone: value }).format();
     return true;
   } catch {

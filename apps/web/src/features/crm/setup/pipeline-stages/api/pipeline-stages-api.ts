@@ -41,15 +41,6 @@ export async function createStage(
 ): Promise<{ record: CrmSalesStage }> {
   return request("/api/crm/pipeline-stages", { method: "POST", json: input });
 }
-export async function updateStage(
-  id: string,
-  input: Record<string, unknown>,
-): Promise<{ record: CrmSalesStage }> {
-  return request(`/api/crm/pipeline-stages/${id}`, {
-    method: "PATCH",
-    json: input,
-  });
-}
 export async function setStageActive(
   id: string,
   active: boolean,

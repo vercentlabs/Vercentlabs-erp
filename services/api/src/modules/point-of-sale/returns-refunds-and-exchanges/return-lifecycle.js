@@ -70,7 +70,7 @@ function allocateRefundAcrossPayments(refundTotal, legs) {
   return legs.map((leg) => shareByPaymentId.get(leg.payment.id));
 }
 
-// Gap B fix (POS Completion Program Prompt 2): the one durable, exact
+// The one durable, exact
 // record of "this return refunded exactly this much against this
 // specific original payment" — tenant.pos_return_payment_refunds
 // (migration 130), immutable. Accounting's own buildReturnJournalLines
@@ -513,7 +513,7 @@ export async function completePointOfSaleReturn(client, context, returnId, input
           idempotencyKey: `${input.idempotencyKey}:refund:${payment.id}`,
           outcome: input.refundOutcome,
         });
-        // Gap B fix (POS Completion Program Prompt 2): `share` is the
+        // `share` is the
         // EXACT amount just refunded against THIS payment for THIS
         // return -- persist it now, at the only point it's ever known
         // precisely, instead of letting Accounting reconstruct it later

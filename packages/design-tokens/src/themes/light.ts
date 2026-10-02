@@ -1,8 +1,7 @@
 import * as semantic from "../semantic/index.ts";
 
 /**
- * The only theme today — the rebuild brief is explicit that this is a
- * light-canvas-first product; dark mode is intentionally out of scope
+ * The only theme today — this is a light-canvas-first product; dark mode is intentionally out of scope
  * until it has its own design pass (see apps/web/src/app/tokens.css's
  * dark-mode media query stub).
  */

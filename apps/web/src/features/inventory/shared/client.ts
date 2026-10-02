@@ -37,7 +37,7 @@ function call<T>(path: string, init?: RequestInit): Promise<T> {
   }).then(parse<T>);
 }
 
-export const qs = (params: Record<string, string | undefined>) => {
+const qs = (params: Record<string, string | undefined>) => {
   const search = new URLSearchParams();
   for (const [key, value] of Object.entries(params))
     if (value) search.set(key, value);

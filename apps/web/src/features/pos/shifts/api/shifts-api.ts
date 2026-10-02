@@ -64,7 +64,7 @@ export const listPosShiftsPage = (query: PosShiftFilters = {}) => {
   return request<{ rows: PosShift[]; total: number }>(`/shifts?${params}`);
 };
 
-export type PosShiftSaleSummary = {
+type PosShiftSaleSummary = {
   id: string;
   receipt_number: string;
   customer_name: string | null;
@@ -72,13 +72,13 @@ export type PosShiftSaleSummary = {
   status: string;
   created_at: string;
 };
-export type PosShiftPaymentBreakdown = {
+type PosShiftPaymentBreakdown = {
   payment_method: string;
   status: string;
   amount: string;
   count: number;
 };
-export type PosCashMovement = {
+type PosCashMovement = {
   id: string;
   movement_number: string;
   movement_type: string;

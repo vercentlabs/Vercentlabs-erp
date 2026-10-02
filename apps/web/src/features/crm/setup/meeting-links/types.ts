@@ -4,7 +4,7 @@
 // DB-generated, never client-settable) but IS returned on reads because
 // the generic query service does SELECT record.* — see resource-query-
 // service.js's getCrmRecord/listCrmRecords.
-export type AvailabilityWindow = { start: string; end: string };
+type AvailabilityWindow = { start: string; end: string };
 export type MeetingLinkAvailability = Partial<
   Record<
     | "monday"

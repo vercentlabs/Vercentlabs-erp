@@ -13,7 +13,7 @@ const contentSecurityPolicy = [
   // 'unsafe-inline' is required in every environment, matching apps/web's proven
   // CSP: Next.js emits its own inline bootstrap/hydration <script> tags on every
   // page. A stricter nonce-based policy needs middleware to mint a per-request
-  // nonce — out of scope for this phase's foundation; see docs/landing-redesign/phase-2/phase-3-brief.md.
+  // nonce, which is not implemented yet.
   "script-src 'self' 'unsafe-inline' https://www.googletagmanager.com" + (isProduction ? "" : " 'unsafe-eval'"),
   "style-src 'self' 'unsafe-inline'",
   "connect-src 'self' https://*.google-analytics.com https://*.analytics.google.com https://www.googletagmanager.com",
@@ -37,8 +37,7 @@ const nextConfig = {
   },
   async redirects() {
     return [
-      // /security is canonical (docs/landing-redesign/phase-1/information-architecture.md,
-      // Tier 4) — /product/security is kept only as a redirect for anyone who types the
+      // /security is canonical — /product/security is kept only as a redirect for anyone who types the
       // /product/{page} pattern by analogy with the other platform pages.
       { source: "/product/security", destination: "/security", permanent: true },
     ];

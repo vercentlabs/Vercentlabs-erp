@@ -144,12 +144,3 @@ export const initiatePosPayment = (input: {
 }) => post<{ payment: PosPayment }>("/payments/initiate", input);
 export const getPosPayment = (id: string) =>
   request<{ payment: PosPayment }>(`/payments/${id}`);
-export const refundPosPayment = (
-  id: string,
-  input: { amount: number; idempotencyKey: string; outcome?: string },
-) => post<{ payment: PosPayment }>(`/payments/${id}/refund`, input);
-export const requestPosPaymentOverride = (id: string, reason: string) =>
-  post<{
-    paymentId: string;
-    approvalRequest: { id: string; status: string; version: number };
-  }>(`/payments/${id}/override`, { reason });

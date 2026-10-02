@@ -10,8 +10,7 @@ import {
   type WorkspaceContextValue,
 } from "@/shell/workspace-context/WorkspaceContext";
 
-// Desktop (>=1024px) three-region model per Prompt 2 Phase 6, closed out in
-// Prompt 2B: primary icon rail (fixed 64px) + module secondary sidebar
+// Desktop (>=1024px) three-region model: primary icon rail (fixed 64px) + module secondary sidebar
 // (240px, only when a module route is active — see SecondarySidebar.tsx)
 // + workspace content, with a persistent top strip (breadcrumbs + search,
 // company/branch context switcher, settings and the profile menu). Below 1024px the icon rail and secondary

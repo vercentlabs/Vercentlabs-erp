@@ -1,4 +1,4 @@
-// Scope-safe TanStack Query key convention (Phase 21). Every query key in
+// Scope-safe TanStack Query key convention. Every query key in
 // this app must start with [organizationId, companyId] so that a context
 // switch's queryClient.removeQueries({ queryKey: [oldOrgId] }) can never
 // miss a scoped query, and so two different companies' cached responses

@@ -3,8 +3,7 @@ import { colors, alpha } from "../primitives/colors.ts";
 /**
  * Semantic color tokens. Components should reach for these, not raw
  * palette values, so a future rebrand only touches this file plus
- * theme.json — never module/component code. See
- * docs/frontend-rebuild/HCI_STANDARD.md for usage rules.
+ * theme.json — never module/component code.
  */
 
 export const surface = {

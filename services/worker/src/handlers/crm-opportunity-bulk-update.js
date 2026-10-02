@@ -5,7 +5,7 @@ import {
 } from "@vercentlabs/api/crm";
 import { extendJobLease } from "../queue.js";
 
-// F029 (Bulk actions) — LAST PROMPT 1/3 closeout: mirrors
+// F029 (Bulk actions) — mirrors
 // crm-lead-bulk-update.js exactly, substituting Opportunity for Lead. See
 // services/api/src/modules/crm/opportunity-operations.js's
 // enqueueOpportunityBulkUpdateJob for the enqueue side and

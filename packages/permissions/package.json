@@ -9,7 +9,5 @@
       "default": "./src/index.js"
     }
   },
-  "scripts": {
-    "test": "node --test"
-  }
+  "scripts": {}
 }

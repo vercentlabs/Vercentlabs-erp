@@ -19,7 +19,7 @@ const ENTITY_TYPES = new Set(["lead", "opportunity", "party", "contact", "campai
 // access," which callers must treat as an empty timeline, never an error
 // that could distinguish "record doesn't exist" from "record exists but
 // you can't see it."
-// Exported so other CRM-CAP-004 domain modules that operate against the
+// Exported so other CRM activity domain modules that operate against the
 // same 5 entity types (Notes, governed attachments) reuse this ONE
 // authorization implementation rather than re-deriving an equivalent one —
 // see notes.js's own import of this function.

@@ -13,11 +13,6 @@
     "typecheck": "node scripts/prepare-typecheck.mjs && tsc --noEmit",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "test": "node --test",
-    "test:e2e": "playwright test",
-    "test:browser": "playwright test",
-    "test:e2e:install": "playwright install chromium --with-deps",
-    "test:a11y": "playwright test tests/e2e/accessibility.spec.ts",
     "lighthouse:baseline": "node scripts/lighthouse-baseline.mjs"
   },
   "dependencies": {
@@ -30,7 +25,6 @@
     "web-vitals": "^6.1.0"
   },
   "devDependencies": {
-    "@axe-core/playwright": "^4.12.1",
     "@playwright/test": "1.61.1",
     "@tailwindcss/postcss": "^4.1.18",
     "@types/node": "^20",

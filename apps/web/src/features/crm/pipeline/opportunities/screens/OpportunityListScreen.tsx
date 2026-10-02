@@ -114,7 +114,7 @@ export function OpportunityListScreen() {
   const [bulkBusy, setBulkBusy] = useState(false);
   const [bulkResult, setBulkResult] = useState<string | null>(null);
 
-  // URL-addressable list state (Tranche 9), same pattern as Leads.
+  // URL-addressable list state, same pattern as Leads.
   useEffect(() => {
     const params = new URLSearchParams();
     for (const [key, value] of Object.entries(filters)) {

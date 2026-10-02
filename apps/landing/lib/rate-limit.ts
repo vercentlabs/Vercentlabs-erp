@@ -3,7 +3,7 @@
  * a known limitation, not an oversight: apps/landing has no shared store
  * (Redis, etc.) wired up yet, so limits reset on deploy/restart and don't
  * coordinate across multiple instances. Sufficient as a first line of defense
- * against basic abuse; see docs/landing-redesign/phase-3/decision-log.md.
+ * against basic abuse.
  */
 
 const buckets = new Map<string, { count: number; resetAt: number }>();

@@ -1,6 +1,6 @@
 // crm_activities rows where activity_type='meeting', camelized by
 // meeting-operations.js's dto(). See MEETING_FIELDS for the writable subset.
-export type MeetingAttendee = {
+type MeetingAttendee = {
   contactId?: string | null;
   name: string;
   email: string;

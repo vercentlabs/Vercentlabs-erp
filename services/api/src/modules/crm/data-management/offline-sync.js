@@ -299,10 +299,9 @@ export async function applyOfflineMutation(client, context, input = {}) {
         recurringRule: p.recurringRule || p.recurring_rule || null,
       });
     } else if (activityType === "follow_up") {
-      // §21 closeout — this used to fall through to the generic raw INSERT
-      // below, bypassing createCrmFollowUp's own validation (parent scope,
-      // reminder-offset/channel handling) entirely for an offline-queued
-      // Follow-up. createCrmFollowUp itself rejects activityType/status in
+      // Routed through createCrmFollowUp rather than the generic raw INSERT
+      // below, so an offline-queued Follow-up gets the same validation
+      // (parent scope, reminder-offset/channel handling). createCrmFollowUp itself rejects activityType/status in
       // its input (server-governed), so those keys are stripped here.
       const { activityType: _activityType, status: _status, ...rest } = p;
       row = await createCrmFollowUp(client, context, {
@@ -343,9 +342,9 @@ export async function applyOfflineMutation(client, context, input = {}) {
     if (target?.activity_type === "task") {
       row = await completeCrmTask(client, context, m.recordId, { outcome: text(m.payload.outcome) || null });
     } else if (target?.activity_type === "follow_up") {
-      // §21 closeout — previously fell through to the generic raw UPDATE
-      // below, bypassing completeCrmFollowUp's own reminder-cancellation
-      // side effect entirely for an offline-queued completion.
+      // Routed through completeCrmFollowUp rather than the generic raw
+      // UPDATE below, so an offline-queued completion still cancels its
+      // reminders.
       row = await completeCrmFollowUp(client, context, m.recordId, { outcome: text(m.payload.outcome) || null });
     } else {
       row = (

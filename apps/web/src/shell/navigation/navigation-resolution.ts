@@ -23,7 +23,7 @@ export function allItems(module: ModuleNavigation): SecondaryNavItem[] {
 }
 
 /** A permanent sidebar workspace (not a view/feature/configuration inside one). */
-export function isSidebarItem(item: SecondaryNavItem): boolean {
+function isSidebarItem(item: SecondaryNavItem): boolean {
   return !item.parent;
 }
 

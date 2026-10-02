@@ -63,15 +63,12 @@ const FIELD_KEY_OPTIONS = QUALIFICATION_FIELD_KEYS.map((value) => ({
 
 const dateFormatter = new Intl.DateTimeFormat("en-IN", { dateStyle: "medium" });
 
-// F006 Tranche I (Stage A) — qualification-criteria is a genuine match
-// (not a dead-table decoy like F005/F027's generic resources): confirmed
-// lead-qualification.js's evaluateLeadQualificationReadiness reads this
-// exact table/columns before wiring anything. Playbooks (tenant.
-// crm_playbooks) is a separate, generic, pipeline-scoped resource not
-// actually consumed by any Lead-qualification logic (confirmed by grep)
-// — included here only because the nav registry's pre-existing
-// "Qualification / Playbooks" placeholder groups both under one
-// destination; not fabricated as a Lead-specific feature.
+// F006 — qualification-criteria is the table lead-qualification.js's
+// evaluateLeadQualificationReadiness reads. Playbooks (tenant.crm_playbooks)
+// is a separate, generic, pipeline-scoped resource not consumed by any
+// Lead-qualification logic — included here only because the nav registry
+// groups both under one "Qualification / Playbooks" destination; it is not
+// a Lead-specific feature.
 export function QualificationAndPlaybooksSettingsScreen() {
   const workspace = useWorkspaceContext();
   const queryClient = useQueryClient();

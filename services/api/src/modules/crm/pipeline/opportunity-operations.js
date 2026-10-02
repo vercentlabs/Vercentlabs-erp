@@ -97,17 +97,13 @@ export const OPPORTUNITY_BULK_FIELDS = new Map([
 // Shared by both the synchronous (bulkUpdateOpportunities, <=200 records)
 // and asynchronous (enqueueOpportunityBulkUpdateJob, worker-processed) bulk
 // paths so a value the sync path rejects cannot silently succeed through the
-// async one, or vice versa — F029-BR-001 "the same business rules" applies
-// across both volumes, not just within one of them.
+// async one, or vice versa — the same business rules apply at both volumes.
 //
-// Integrity closeout (Prompts 1-5): this whitelist restricted which
-// *columns* could be touched, but never validated the *values* — a
-// malformed forecastCategory would previously have bubbled up as a raw
-// Postgres CHECK-constraint error instead of a clean validation error,
-// ownerUserId was never confirmed to be an active org member (unlike the
-// single-record updateCrmRecord path, which already does this via
-// validateOrganizationUserReferences), and expectedCloseDate was never
-// confirmed to be a real date.
+// Validates *values*, not just which columns may be touched: forecastCategory
+// gets a clean validation error (never a raw Postgres CHECK-constraint
+// error), ownerUserId must be an active org member (like the single-record
+// updateCrmRecord path's validateOrganizationUserReferences), and
+// expectedCloseDate must be a real date.
 export async function normalizeOpportunityBulkChanges(client, context, input) {
   const changes = input && typeof input === "object" ? { ...input } : {};
   const unsupported = Object.keys(changes).filter(
@@ -228,7 +224,7 @@ export async function bulkUpdateOpportunities(client, context, input) {
   return { mode: "synchronous", preview, requested: ids.length, updated: counts.applied, ...counts, items };
 }
 
-// F029 (Bulk actions) — LAST PROMPT 1/3 closeout: async bulk-job path for
+// F029 (Bulk actions) — async bulk-job path for
 // Opportunities, mirroring Leads' enqueueLeadBulkUpdateJob/getLeadBulkJob/
 // cancelLeadBulkJob/retryFailedLeadBulkJobItems/resolveLeadBulkExecutionContext
 // (lead-operations.js) exactly, so a filter-snapshot selection larger than
@@ -236,10 +232,9 @@ export async function bulkUpdateOpportunities(client, context, input) {
 // of an outright rejection. Unlike the synchronous path (one mass UPDATE
 // statement), the worker that processes this job (services/worker/src/
 // handlers/crm-opportunity-bulk-update.js) applies each change through the
-// generic single-record updateCrmRecord(..., "opportunities", ...) command —
-// per F029-CAP-003 ("Bulk jobs invoke normal CRM domain commands per record"),
-// this is the more literally compliant of the two paths, at the cost of being
-// slower per record; both share the identical field/value validation via
+// generic single-record updateCrmRecord(..., "opportunities", ...) command
+// (bulk jobs invoke normal CRM domain commands per record), at the cost of
+// being slower per record; both share the identical field/value validation via
 // normalizeOpportunityBulkChanges above, so a value the sync path rejects
 // cannot silently succeed through the async path or vice versa.
 export const OPPORTUNITY_BULK_MAX_ITEMS = 50_000;

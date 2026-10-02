@@ -1,6 +1,5 @@
 // Stable public POS API boundary. Implementation is owned by the nine
-// canonical POS-CAP-00x capability directories (docs/02-register/
-// CAPABILITY_REGISTER.csv), plus shared/ for cross-cutting infrastructure
+// POS-CAP-00x capability directories, plus shared/ for cross-cutting infrastructure
 // (error factory, permission/store-access checks, the audit event writer,
 // and the generic multi-resource list) that has no single capability
 // owner -- mirroring services/api/src/modules/crm/index.js's own "implementation

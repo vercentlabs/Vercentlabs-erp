@@ -1,8 +1,7 @@
 import { assignLeadOwner } from "./lead-assignment.js";
 // F027 Lead scoring: the error class, sensitive-scope guard, scoped-Lead
-// fetch and content hash used to be defined here; they moved to
-// lead-management/scoring/shared.js as
-// part of CRM vNext Prompt 4 so the scoring engine and this file's own
+// fetch and content hash live in lead-management/scoring/shared.js so the
+// scoring engine and this file's own
 // (non-F027) SLA/nurture functions can both depend on them without a
 // circular import. Re-exported below for compatibility.
 import {
@@ -18,9 +17,9 @@ import {
 } from "./scoring/shared.js";
 export { CrmLeadIntelligenceError, assertSensitiveLeadIntelligenceAccess, getScopedLead, crmLeadIntelligenceHash };
 // F027 Lead scoring: evaluateLeadScoreRule/calculateLeadScoreBreakdown/
-// recalculateLeadScore/getLeadScoreExplanation moved to
-// lead-management/scoring/scoring-engine.js
-// as part of CRM vNext Prompt 4 — re-exported below for compatibility.
+// recalculateLeadScore/getLeadScoreExplanation live in
+// lead-management/scoring/scoring-engine.js — re-exported below for
+// compatibility.
 export { evaluateLeadScoreRule, calculateLeadScoreBreakdown, recalculateLeadScore, getLeadScoreExplanation } from "./scoring/scoring-engine.js";
 import { recalculateLeadScore } from "./scoring/scoring-engine.js";
 
@@ -577,9 +576,8 @@ export async function updateLeadNurtureItem(
   return result.rows[0];
 }
 
-// F016 Follow-ups and reminders: per owner decision, the nurture queue IS
-// F016's real implementation (it already has the snooze/claim/complete/
-// dedup/priority-scoring behavior the dossier asks for) rather than the
+// F016 Follow-ups and reminders: the nurture queue (snooze/claim/complete/
+// dedup/priority-scoring) is the follow-up implementation, rather than the
 // thin next_follow_up_at field. "My Follow-ups" means mine, full stop —
 // mirroring the existing rule for the old next_follow_up_at-based list
 // (see apps/web/src/orchestration/work/follow-ups.ts), a manager's
@@ -610,8 +608,7 @@ export async function listMyNurtureQueueItems(client, context, limit = 50) {
   return result.rows;
 }
 
-// CRM-VNEXT-052 closeout (nurture-queue half): the real delivery mechanism
-// this queue never had. Claims due, not-yet-notified items via
+// Nurture-queue notification delivery. Claims due, not-yet-notified items via
 // `FOR UPDATE SKIP LOCKED` and marks notified_at atomically in the same
 // UPDATE — deliberately a single-attempt notification (not a retryable
 // pending/dispatching/sent state machine like F016's Scheduled Follow-up

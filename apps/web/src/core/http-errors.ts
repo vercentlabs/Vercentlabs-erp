@@ -53,14 +53,12 @@ function hasHttpErrorShape(
 // framework-level boundary turns the thrown NEXT_REDIRECT error into an
 // actual HTTP redirect. Every CRM (and other) API route calls
 // requireWorkspace() and wraps it in its own try/catch, so that redirect
-// throw was caught before it ever reached Next's boundary — with no
-// special handling, it fell through to the generic 500 branch, turning
-// every unauthenticated/unverified/org-less API request into an opaque
-// "The request could not be completed." (500), not a real 401. Found via
-// the Prompt 3 Stage A behavioral-route-security audit; confirmed real by
-// reading Next's own redirect.js (throws `Object.defineProperty(new
-// Error("NEXT_REDIRECT"), ...)` with a `.digest` of
-// `NEXT_REDIRECT;{type};{url};{statusCode};`), not assumed.
+// throw is caught before it ever reaches Next's boundary — without special
+// handling it would fall through to the generic 500 branch, turning every
+// unauthenticated/unverified/org-less API request into an opaque 500
+// instead of a real 401. (Next's redirect.js throws
+// `Object.defineProperty(new Error("NEXT_REDIRECT"), ...)` with a `.digest`
+// of `NEXT_REDIRECT;{type};{url};{statusCode};`.)
 function redirectAuthMessage(url: string): { message: string; code: string } {
   if (url.startsWith("/login"))
     return { message: "Authentication required.", code: "AUTH_REQUIRED" };

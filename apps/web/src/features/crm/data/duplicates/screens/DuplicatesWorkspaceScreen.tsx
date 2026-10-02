@@ -34,17 +34,16 @@ import { ContactDuplicatesPanel } from "@/features/crm/customers/contacts/compon
 import { SuspectedDuplicates, type EntityType } from "./SuspectedDuplicates";
 import { FullDuplicateScan } from "../components/FullDuplicateScan";
 
-// F008 Tranche G — a standalone duplicate-triage destination
+// F008 — a standalone duplicate-triage destination
 // (/crm/data/duplicates), not tied to already being on a specific
 // record's 360. Reuses the SAME governed duplicate-matching engine
 // (findLeadDuplicates/findAccountDuplicates/findContactDuplicates) and
-// the SAME resolution panels already built for each record type — no
-// fuzzy matching or new merge logic invented here, per the mega-prompt's
-// own instruction not to rebuild the matching engine in the browser.
+// the SAME resolution panels used for each record type — no fuzzy
+// matching or merge logic in the browser.
 // Candidate discovery is search-driven (pick a record, see ITS
 // candidates) rather than a full-database pairwise scan: no backend
-// function exists for the latter, and building one is a materially
-// larger, separate capability, not a UI wiring gap.
+// function exists for the latter (a materially larger, separate
+// capability).
 export function DuplicatesWorkspaceScreen() {
   const workspace = useWorkspaceContext();
   const canView =

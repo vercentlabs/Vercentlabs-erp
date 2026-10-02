@@ -10,7 +10,7 @@
 // that permission.
 //
 // userId is null — there is no human actor. Every mutation this context
-// makes is attributable in application-level audit trails (Part 43) as
+// makes is attributable in application-level audit trails as
 // "system: <job type>", not as any real user, and is never presented as
 // if a person performed it.
 export function buildSystemContext(organizationId, { activeCompanyId = null, activeBranchId = null } = {}) {

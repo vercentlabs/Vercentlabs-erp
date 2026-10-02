@@ -11,8 +11,7 @@ import {
 } from "../../../../shared/http/request-json.ts";
 import { CrmApiError, type CrmApiErrorClass } from "./crm-api-error.ts";
 
-export const CRM_REQUEST_FALLBACK_MESSAGE =
-  "The request could not be completed.";
+const CRM_REQUEST_FALLBACK_MESSAGE = "The request could not be completed.";
 
 export type CrmErrorDetails =
   // no details (most clients)
@@ -22,7 +21,7 @@ export type CrmErrorDetails =
   // the response's `details` field (Lead lifecycle)
   | "details-field";
 
-export function parseCrmResponse<T>(
+function parseCrmResponse<T>(
   response: Response,
   ErrorClass: CrmApiErrorClass = CrmApiError,
   details: CrmErrorDetails = "none",
@@ -37,7 +36,7 @@ export function parseCrmResponse<T>(
   });
 }
 
-export async function crmRequest<T>(
+async function crmRequest<T>(
   url: string,
   init: JsonRequestInit | undefined,
   ErrorClass: CrmApiErrorClass = CrmApiError,

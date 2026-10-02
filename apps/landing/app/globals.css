@@ -2,8 +2,7 @@
 @import "tailwindcss";
 
 /*
- * Design tokens for the "Control Surface" creative direction
- * (docs/landing-redesign/phase-1/creative-direction.md, phase-2/design-system-specification.md).
+ * Design tokens for the "Control Surface" creative direction.
  *
  * Every hex value below is copied verbatim from packages/landing-content/src/tokens.js —
  * that file is the single source of truth. apps/landing/tests/tokens-sync.test.mjs
@@ -278,9 +277,8 @@
 
 /*
  * Print: site chrome (header/footer/sticky mobile CTA) never belongs in a
- * printed page — found by Cycle 2's UX/CRO review testing the requirements
- * checklist's "Print this checklist" button with real print-media emulation
- * and confirming the full header/footer/nav printed alongside the checklist.
+ * printed page (e.g. the requirements checklist's "Print this checklist"
+ * button would otherwise print the full header/footer/nav too).
  * Page-specific content (e.g. the checklist's own breadcrumbs/FAQ/related
  * links) is hidden via print:hidden Tailwind utility classes at the call
  * site instead, since what belongs on a printed page differs per page.

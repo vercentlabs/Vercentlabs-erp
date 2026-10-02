@@ -4,8 +4,8 @@
 # rest by Cloud SQL.
 #
 # Database USERS are not created here: their passwords would land in
-# Terraform state. The bootstrap in docs/operations/PRODUCTION_RUNBOOK.md
-# creates the migration owner with gcloud; the migration Job creates and
+# Terraform state. The operator bootstrap creates the migration owner with
+# gcloud; the migration Job creates and
 # re-provisions the web/worker runtime roles (`pnpm db:provision:runtime-role`).
 # Operators write the three connection
 # strings to the Secret Manager secrets declared in secrets.tf.

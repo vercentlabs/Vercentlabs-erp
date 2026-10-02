@@ -172,7 +172,7 @@ export function LeadListScreen() {
   } | null>(null);
   const [rowError, setRowError] = useState<string | null>(null);
 
-  // URL-addressable list state (Tranche 9): every filter/page change is
+  // URL-addressable list state: every filter/page change is
   // reflected in the URL so a saved link, browser back, or a reload all
   // restore the exact same view.
   useEffect(() => {

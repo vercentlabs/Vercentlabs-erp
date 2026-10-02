@@ -3,7 +3,7 @@
 
 type Tone = "success" | "warning" | "danger" | "neutral" | "info";
 
-export const STATE_LABELS: Record<
+const STATE_LABELS: Record<
   string,
   { label: string; tone: Tone; detail?: string }
 > = {

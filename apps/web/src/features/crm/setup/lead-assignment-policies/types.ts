@@ -11,7 +11,7 @@ export const ASSIGNMENT_MODES = [
 ] as const;
 export type AssignmentMode = (typeof ASSIGNMENT_MODES)[number];
 
-export type LeadAssignmentCriteria = {
+type LeadAssignmentCriteria = {
   sourceId?: string;
   countryCode?: string;
   industry?: string;

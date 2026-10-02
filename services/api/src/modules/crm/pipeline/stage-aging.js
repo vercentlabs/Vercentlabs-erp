@@ -3,17 +3,13 @@ import { recordScope } from "../data-management/record-policy.js";
 import { CrmError } from "../data-management/errors.js";
 import { addParameter, camelizeRow } from "../data-management/record-utils.js";
 
-// F010 — authoritative per-stage pipeline totals. Integrity closeout
-// (Prompts 1-5): the pipeline board previously derived its per-stage "open
-// value" badges by summing row.amount over whatever Opportunity rows the
-// page happened to load (capped at 500 across the whole pipeline) — correct
-// only when a pipeline's true open-Opportunity count never exceeds that
-// cap. This is a real, unbounded server-side GROUP BY aggregate,
+// F010 — authoritative per-stage pipeline totals. Never derive per-stage
+// "open value" by summing whatever Opportunity rows a page loaded (capped
+// at 500): this is a real, unbounded server-side GROUP BY aggregate,
 // independent of any card-list pagination, so the totals stay correct no
 // matter how many Opportunities the pipeline actually holds. Grouped by
 // (stage, currency) rather than summed naively across currencies, matching
-// the same discipline the pipeline board's own client-side stageValue()
-// already applied to whatever slice it could see.
+// the same discipline as the pipeline board's client-side stageValue().
 export async function listOpportunityPipelineStageTotals(client, context, pipelineId) {
   if (!pipelineId) return {};
   const parameters = [context.organizationId, pipelineId];

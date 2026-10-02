@@ -19,9 +19,9 @@ import { CRM_PERMISSIONS } from "@vercentlabs/permissions";
 // module access being the correct floor. Keep this list short and each
 // entry justified; it is a documented exception, not an escape hatch.
 // Currently empty: saved views (its only entry) were removed in migration 179.
-export const SELF_SCOPED_CRM_RESOURCES = new Set<string>([]);
+const SELF_SCOPED_CRM_RESOURCES = new Set<string>([]);
 
-export const RESOURCE_MANAGE_PERMISSIONS: Partial<Record<string, string>> = {
+const RESOURCE_MANAGE_PERMISSIONS: Partial<Record<string, string>> = {
   leads: CRM_PERMISSIONS.leadsManage,
   opportunities: CRM_PERMISSIONS.opportunitiesManage,
   // F020: team structure and territory structure are separate authorities
@@ -35,35 +35,31 @@ export const RESOURCE_MANAGE_PERMISSIONS: Partial<Record<string, string>> = {
   "custom-field-definitions": CRM_PERMISSIONS.settingsManage,
   "lost-reasons": CRM_PERMISSIONS.settingsManage,
   pipelines: CRM_PERMISSIONS.settingsManage,
-  // Tranche E (F002) shipped AccountPlanPanel/stakeholder UI reachable by
-  // any org member with crm.view — this map was not extended at the time,
-  // a real gap (not a redirect-governed resource like "stages", so it
-  // silently fell through to module-access-only). Fixed here, retroactively,
-  // per this file's own documented policy.
+  // F002 AccountPlanPanel/stakeholder UI (not a redirect-governed resource
+  // like "stages", so without an entry here it would fall through to
+  // module-access-only).
   "account-plans": CRM_PERMISSIONS.accountsManage,
   "account-stakeholders": CRM_PERMISSIONS.accountsManage,
-  // Tranche I (F006/F027) — qualification-criteria/playbooks setup UI.
+  // F006/F027 — qualification-criteria/playbooks setup UI.
   "qualification-criteria": CRM_PERMISSIONS.settingsManage,
   playbooks: CRM_PERMISSIONS.settingsManage,
-  // Tranche K (F025) — forecast-periods is admin-configured; forecast-
+  // F025 — forecast-periods is admin-configured; forecast-
   // submissions is rep-authored (own Opportunity-derived numbers), so it
   // reuses crm.opportunities.manage rather than crm.settings.manage —
   // this resource already has ownerField scoping (see its own registry
   // comment), so a plain manage permission plus that scoping is the
   // correct floor for a rep submitting their own forecast.
-  // F025 completion: period governance and submission are explicit forecast
+  // Period governance and submission are explicit forecast
   // permissions (submissions are also governed by the forecast service's
   // lifecycle and immutability rules).
   "forecast-periods": CRM_PERMISSIONS.forecastManage,
   "forecast-submissions": CRM_PERMISSIONS.forecastSubmit,
-  // Stage A2 §5 (F014) — meeting-links config (availability/duration/
+  // F014 — meeting-links config (availability/duration/
   // buffers/provider) is what a public booking page is generated from,
   // so only settings-manage should create/edit one.
   "meeting-links": CRM_PERMISSIONS.settingsManage,
-  // Stage A2 §8 (F020) — quota-plans configuration (team/territory/user
-  // target amounts) is a settings-manage concern, same as territories
-  // themselves.
-  // F020/F025 completion: targets are governed with forecast periods.
+  // F020 — quota-plans configuration (team/territory/user target amounts);
+  // targets are governed with forecast periods.
   "quota-plans": CRM_PERMISSIONS.forecastManage,
   // Consent/GDPR module — crm_consent_events (immutable evidence log) and
   // crm_privacy_requests (the DSR queue) already have a full backend

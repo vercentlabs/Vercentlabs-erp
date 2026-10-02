@@ -5,7 +5,7 @@ import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import type { NextResponse } from "next/server";
 
-import { resolveSessionContext, type ModuleAccess } from "@vercentlabs/api";
+import { resolveSessionContext } from "@vercentlabs/api";
 
 import { withIngressClient } from "@/core/db";
 import { HttpError } from "@/core/http-errors";
@@ -108,7 +108,7 @@ export async function requireVerifiedUser(): Promise<SessionContext> {
 // who voluntarily enrolled with no org/admin policy forcing them must still
 // be asked for a code every login, or self-service MFA would enroll a
 // factor that's never actually checked.
-export async function requireMfaVerifiedUser(): Promise<SessionContext> {
+async function requireMfaVerifiedUser(): Promise<SessionContext> {
   const session = await requireVerifiedUser();
   if (
     (session.mfaEnrolled || session.mfaPolicyRequired) &&
@@ -191,5 +191,3 @@ export function nextPath(session: SessionContext) {
   if (!session.organizationId) return "/onboarding";
   return "/";
 }
-
-export type { ModuleAccess };

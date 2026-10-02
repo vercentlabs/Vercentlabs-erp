@@ -1,6 +1,6 @@
 // Organisation webhooks for registered domain events.
 //
-// Signing contract (v1), documented in SHARED_PLATFORM_ARCHITECTURE.md:
+// Signing contract (v1):
 //   X-Vercentlabs-Event:        the event type, e.g. crm.leads.assigned
 //   X-Vercentlabs-Event-Id:     the stable event id
 //   X-Vercentlabs-Delivery-Id:  the stable delivery id (same on every retry)

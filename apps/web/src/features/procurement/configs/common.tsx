@@ -113,10 +113,3 @@ export const lineColumns = (
         : "—",
   },
 ];
-
-export const currencyField = {
-  name: "currencyCode",
-  label: "Currency",
-  kind: "text" as const,
-  defaultValue: "INR",
-};

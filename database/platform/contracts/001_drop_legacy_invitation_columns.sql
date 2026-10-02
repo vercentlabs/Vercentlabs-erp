@@ -1,7 +1,8 @@
 BEGIN;
 
--- CONTRACT (run only with `pnpm db:migrate:contract`, after every instance
--- runs Prompt 6 code). Invitations are fully normalized
+-- CONTRACT (run only with `pnpm db:migrate:contract`, after every running
+-- instance uses the normalized invitation tables, i.e. includes commit
+-- f9291c12). Invitations are fully normalized
 -- (organization_invitation_roles / _company_access / _branch_access /
 -- _department_access / _team_access); no code reads or writes the legacy
 -- mirrors any more.

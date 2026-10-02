@@ -2,7 +2,7 @@ name: Terraform plan
 
 # Manually triggered `terraform plan` for one environment. Read-only: this
 # workflow never applies. Apply is an operator action after reviewing the
-# plan (infrastructure/terraform/README.md). Pull requests never receive
+# plan. Pull requests never receive
 # cloud credentials; infrastructure-ci.yml covers fmt/validate on PRs.
 #
 # GitHub environment "<environment>-infrastructure" (required reviewers):

@@ -152,7 +152,7 @@ export type SecureRouteDeps<
   ): Promise<T>;
 };
 
-export function isMutationRequest(request: Request) {
+function isMutationRequest(request: Request) {
   return !SAFE_METHODS.has(String(request.method || "GET").toUpperCase());
 }
 

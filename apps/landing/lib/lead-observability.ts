@@ -1,6 +1,6 @@
 /**
- * Provider-neutral, structured lead-delivery observability (Phase 7,
- * Workstream 13 — "the single highest-severity risk on this entire list").
+ * Provider-neutral, structured lead-delivery observability (a silently lost
+ * lead is the highest-severity failure this site can have).
  * No monitoring backend (Sentry/Datadog/CloudWatch) is provisioned in this
  * repo — this emits one structured, single-line JSON log per outcome,
  * parseable by any of those later without code changes here. Never logs the

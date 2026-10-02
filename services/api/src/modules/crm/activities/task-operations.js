@@ -89,8 +89,8 @@ const RECURRENCE_FREQUENCIES = new Set(["daily", "weekly", "monthly"]);
 // recurring_rule (text, pre-existing) stays a human-readable label a
 // caller may still set/display; recurrenceConfig is the machine-readable
 // field the actual engine reads — a small structured shape, not a full
-// RRULE parser, proportionate to the dossier's own worked scope (daily/
-// weekly/monthly/interval/weekdays/end-date/count).
+// RRULE parser, proportionate to the supported scope (daily/weekly/
+// monthly/interval/weekdays/end-date/count).
 function normalizeRecurrenceConfig(value) {
   if (value === null || value === undefined || value === "") return null;
   if (typeof value !== "object" || Array.isArray(value))
@@ -343,8 +343,8 @@ async function relationRecord(client, context, entityType, entityId) {
 }
 // F015 team/queue: fetch and validate the referenced crm_sales_team row —
 // must be active, in-organization and, when the Task already carries a
-// company, in the same company (no cross-company queue inference, per the
-// dossier's explicit "no cross-company/branch inference" requirement).
+// company, in the same company (no cross-company/branch queue
+// inference).
 async function assertTeamValid(client, context, teamId, companyId) {
   const result = await client.query(
     `SELECT id,company_id,manager_user_id FROM tenant.crm_sales_teams WHERE organization_id=$1 AND id=$2 AND status='active' LIMIT 1`,
@@ -394,8 +394,7 @@ async function validate(client, context, prepared, existing = null) {
     // Assigning INTO a queue (creating/updating with a team) is already
     // gated by crm.activities.manage at the route level; directly handing a
     // queued Task to a SPECIFIC other person (rather than leaving it
-    // unclaimed for anyone to claim) is a manager action — the dossier's
-    // "owner/manager permissions" requirement — unless the caller is
+    // unclaimed for anyone to claim) is a manager action unless the caller is
     // assigning it to themselves.
     if (effective.assignedTo && effective.assignedTo !== context.userId && !canManageAllTasks(context) && context.userId !== team.managerUserId)
       throw new CrmError(403, "Only the Team's manager can assign this Task to a specific person.", "CRM_TASK_ASSIGN_FORBIDDEN");

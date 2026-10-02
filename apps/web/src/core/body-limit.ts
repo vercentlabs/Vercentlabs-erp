@@ -1,6 +1,6 @@
 import { HttpError } from "./http-errors.ts";
 
-export const MAX_JSON_BYTES = 100_000;
+const MAX_JSON_BYTES = 100_000;
 
 // Bounds the bytes actually received; Content-Length may be absent or false.
 export async function readJsonBody(

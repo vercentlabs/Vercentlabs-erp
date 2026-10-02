@@ -90,12 +90,7 @@ export function buildLeadAgingBuckets(rows, now = new Date()) {
   }
   return buckets;
 }
-// F019 §31 closeout — the getLeadTimeline function that used to live here
-// was removed: it was never exported from index.js (so no route could ever
-// call it) and its "conversions" query selected from
-// tenant.crm_lead_conversions, a table that does not exist in any
-// migration — dead, broken, superseded code, not an active implementation.
-// Lead's real timeline is served by getCrmTimelinePageBySource (the
+// Lead's timeline is served by getCrmTimelinePageBySource (the
 // canonical Timeline domain module) and getLeadDetailData's own eager
 // activities/communications/assignment/qualification/scoring queries.
 export async function previewLeadAssignment(client, context, input) {

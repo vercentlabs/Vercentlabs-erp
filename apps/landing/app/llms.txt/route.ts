@@ -16,8 +16,7 @@ import { SITE, absoluteUrl } from "@/lib/site";
 
 /**
  * llms.txt — NOT a ranking mechanism and not treated as one anywhere on
- * this site (see .claude/rules/landing-content.md and
- * docs/landing-redesign/phase-6/decision-log.md's llms.txt entry). This is
+ * this site. This is
  * an optional interoperability artifact: a plain-text index of real,
  * canonical routes, generated from the same content data every other page
  * reads from — so it can't silently drift out of sync with the live site

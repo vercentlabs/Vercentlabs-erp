@@ -1,7 +1,6 @@
 // F294/F296 (POS-CAP-006) -- read-only POS visibility into Stock's own
 // source-of-truth tables. POS never becomes a private source of truth for
-// stock balances/valuation (see this capability's F294/F296 dossiers'
-// [SPEC-INTENT] non-goal), so nothing here ever writes tenant.stock_balances
+// stock balances/valuation, so nothing here ever writes tenant.stock_balances
 // or tenant.stock_movements -- every write still goes exclusively through
 // Stock's own postStockMovement (see sale-completion.js/return-lifecycle.js,
 // which already call it as postCanonicalStockMovement). This module only

@@ -777,8 +777,7 @@ export async function holdPosCart(client, context, cartId, input = {}) {
 // -- cross-terminal transfer would mean rewriting terminal_id/shift_id on
 // an already-priced cart, which needs its own authorization-checked
 // claim/transfer operation (ownership, active-shift, inventory, conflict
-// checks) that the canonical dossier does not clearly require; deferred
-// rather than built as an unsafe shortcut. pos_carts_one_active_per_terminal_uidx
+// checks) — not built, rather than built as an unsafe shortcut. pos_carts_one_active_per_terminal_uidx
 // means resuming can collide with a DIFFERENT cart the cashier started on
 // this terminal after holding this one -- checked explicitly here so that
 // shows up as a clear conflict, not a raw unique-constraint 500. reprice()

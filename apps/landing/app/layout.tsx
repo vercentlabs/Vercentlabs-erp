@@ -47,11 +47,9 @@ export default function RootLayout({ children }: { children: ReactNode }) {
         {/* tabIndex={-1}: without it, the skip link scrolls the viewport to
             #main-content but never moves keyboard focus there (an <a
             href="#fragment"> only focuses the target if it's natively
-            focusable or has a tabindex) — a real WCAG 2.4.1 gap found in
-            Phase 7 via a real keyboard test. Phase 8's cross-browser smoke
-            suite then found WebKit doesn't reliably honor this native
-            behavior either — see components/layout/skip-link.tsx and
-            docs/landing-redesign/phase-8/decision-log.md. */}
+            focusable or has a tabindex) — a WCAG 2.4.1 gap. WebKit doesn't
+            reliably honor this native behavior either — see
+            components/layout/skip-link.tsx. */}
         {/* No focus:outline-none here: the global :focus-visible base rule
             in globals.css already gives this element a visible ring when it
             receives programmatic focus from the skip link. A Tailwind

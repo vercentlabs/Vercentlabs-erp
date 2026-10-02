@@ -1,6 +1,6 @@
 // Inbound email: route registry + verified, idempotent receipt.
 //
-// Provider contract (documented in SHARED_PLATFORM_ARCHITECTURE.md): the mail
+// Provider contract: the mail
 // provider (or a small adapter in front of it) POSTs a normalised JSON message
 // to /api/platform/mail/inbound/{routeKey} with
 //   X-Inbound-Signature: sha256=<hex HMAC-SHA256(route signing secret, raw body)>

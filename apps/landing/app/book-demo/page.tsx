@@ -19,18 +19,17 @@ export const metadata = buildPageMetadata({
  * `?module=`, `?industry=`, `?workflow=`, `?solution=`, or `?intent=specialist`
  * preselect the relevant module checkboxes and change the page's lead copy —
  * read via the page's native `searchParams` prop (a Server Component
- * convention), not `useSearchParams()`/`Suspense`. That avoids the exact
- * hydration-race defect class the thank-you page hit in Phase 3 (see
- * docs/landing-redesign/phase-3/implementation-summary.md, defect #1). Every
+ * convention), not `useSearchParams()`/`Suspense`. That avoids the
+ * hydration-race defect class that useSearchParams() caused on the thank-you
+ * page. Every
  * value is validated against a real, typed registry server-side before use —
  * an unrecognized slug is silently ignored, never trusted as-is, and no PII
  * ever flows through these params. Checked in this priority order when more
  * than one is present (a real referring page only ever sends one, but
  * resolution stays deterministic either way): module, industry, workflow,
  * solution, intent. `intent=specialist` (sent by the homepage's "Talk to an
- * ERP Specialist" CTA — see CTAS.talkToSpecialist in navigation.js) previously
- * had no effect at all despite the CTA's distinct label implying a different
- * experience — a real gap found in Phase 7's Cycle 2 CRO review.
+ * ERP Specialist" CTA — see CTAS.talkToSpecialist in navigation.js) gives
+ * that CTA the distinct experience its label implies.
  */
 export default async function BookDemoPage({
   searchParams,

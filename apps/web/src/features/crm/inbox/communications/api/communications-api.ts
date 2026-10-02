@@ -1,7 +1,6 @@
 "use client";
 
 import type {
-  Communication,
   CommunicationListFilters,
   CommunicationListResponse,
 } from "../types";
@@ -23,10 +22,4 @@ export async function listCommunications(
     if (value !== undefined && value !== "") params.set(key, String(value));
   }
   return request(`/api/crm/communications?${params.toString()}`);
-}
-
-export async function getCommunication(
-  id: string,
-): Promise<{ record: Communication }> {
-  return request(`/api/crm/communications/${id}`);
 }

@@ -5,12 +5,11 @@ import { ok, readJson } from "@/core/http";
 import { crmContext } from "@/features/crm/shared/crm-context";
 import { workspaceRoute } from "@/core/workspace-route";
 
-// F007 Tranche I (Stage A). listLeadStages/createLeadStage/updateLeadStage/
+// F007. listLeadStages/createLeadStage/updateLeadStage/
 // reactivateLeadStage/deactivateLeadStageWithMigration (stage-catalog.js /
-// stage-migration.js) already governed the real Lead lifecycle catalog
-// (the SAME crm_lead_stages the Lead 360's own "Move to stage" UI already
-// reads via /api/crm/leads/transition-graph) with zero setup UI before
-// this pass. No internal permission check in these functions (unlike
+// stage-migration.js) govern the Lead lifecycle catalog (the SAME
+// crm_lead_stages the Lead 360's "Move to stage" UI reads via
+// /api/crm/leads/transition-graph). No internal permission check in these functions (unlike
 // model-config.js's assertConfigPermission) — gated explicitly here,
 // matching the F005 assignment-policy route convention.
 export async function GET(request: Request) {

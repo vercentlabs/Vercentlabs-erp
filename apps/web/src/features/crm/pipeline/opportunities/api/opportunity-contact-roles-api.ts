@@ -72,21 +72,6 @@ export async function addOpportunityContactRole(
   );
   return parseResponse(response);
 }
-export async function updateOpportunityContactRole(
-  opportunityId: string,
-  roleId: string,
-  input: Record<string, unknown>,
-): Promise<{ rows: OpportunityContactRoleRow[] }> {
-  const response = await fetch(
-    `/api/crm/opportunities/${opportunityId}/contact-roles/${roleId}`,
-    {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(input),
-    },
-  );
-  return parseResponse(response);
-}
 export async function setPrimaryOpportunityContactRole(
   opportunityId: string,
   roleId: string,

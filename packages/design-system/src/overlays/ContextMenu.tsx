@@ -11,8 +11,8 @@ export interface ContextMenuTriggerProps {
  * Right-click (and long-press on touch) context menu for arbitrary content
  * — a table row, a card, a canvas node. Every action exposed only through
  * a context menu must also be reachable another way (a visible row action,
- * a toolbar button) — a context menu is a shortcut, never the only path,
- * per ACCESSIBILITY_STANDARD.md's non-drag/non-pointer-only requirement.
+ * a toolbar button) — a context menu is a shortcut, never the only path
+ * (no pointer-only interactions).
  */
 export function ContextMenuTrigger({ children, menu }: ContextMenuTriggerProps) {
   return (

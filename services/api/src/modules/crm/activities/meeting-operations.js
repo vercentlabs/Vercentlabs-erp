@@ -537,7 +537,7 @@ export async function createCrmMeeting(client, context, input = {}) {
       meeting.calendarEventId = calendarEventId;
       await enqueueCalendarPushJob(client, context, meeting.id, "create", meeting.updatedAt);
     }
-    // F014 Stage A2 closeout: a scheduled Meeting joins the SAME shared
+    // A scheduled Meeting joins the SAME shared
     // reminder engine Follow-ups already uses (crm_activity_reminders,
     // keyed generically by activity_id) — not a second reminder system.
     // Never for "log" mode, since there is nothing forward-in-time to

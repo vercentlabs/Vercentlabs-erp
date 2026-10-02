@@ -34,12 +34,10 @@ const ACCOUNT_FIELDS: ComparisonField[] = [
   { label: "Created", key: "createdAt", format: "date" },
 ];
 
-// F002 Tranche E — findAccountDuplicates/previewAccountMergeForCaller/
-// mergeAccountsGoverned (duplicate-matching.js, account-intelligence.js)
-// were already real, already-tested backend services with zero frontend
-// wiring before this pass. Unlike Lead's duplicate finder, this function
-// has no restricted-match projection layer of its own (confirmed by
-// reading its source) — every returned row is shown as-is, honestly
+// F002 — findAccountDuplicates/previewAccountMergeForCaller/
+// mergeAccountsGoverned (duplicate-matching.js, account-intelligence.js).
+// Unlike Lead's duplicate finder, this function has no restricted-match
+// projection layer of its own — every returned row is shown as-is, honestly
 // reflecting what the API actually returns rather than inventing a
 // redaction UI the backend doesn't implement.
 // Related records by kind, in words (one line per table, however many columns point at it).

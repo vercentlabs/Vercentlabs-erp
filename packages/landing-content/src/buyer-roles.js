@@ -1,15 +1,12 @@
 /**
  * Buyer-role perspectives woven into industry and workflow pages (via the
- * shared RolePerspective component), not built as standalone pages — per
- * Phase 5's brief: "not necessarily new dedicated indexable pages."
+ * shared RolePerspective component), not built as standalone pages.
  *
- * Grounded in docs/landing-redesign/phase-1/icp-and-buyer-map.md's buying
- * committees (Owner/MD, Plant/Operations Head, Finance Head/CFO for
- * Manufacturing; Owner/Operations Director, Purchasing Manager for
- * Distribution/Retail; Managing Partner, Project/Delivery Heads, Finance,
- * HR for Professional Services) and docs/landing-redesign/phase-1/
- * product-intelligence.md's per-module "Best marketing angle" lines —
- * every `proofPoint` traces to a real, cited capability, not invented.
+ * Grounded in each ICP's buying committee (Owner/MD, Plant/Operations Head,
+ * Finance Head/CFO for Manufacturing; Owner/Operations Director, Purchasing
+ * Manager for Distribution/Retail; Managing Partner, Project/Delivery Heads,
+ * Finance, HR for Professional Services) — every `proofPoint` traces to a
+ * real, cited capability, not invented.
  */
 export const BUYER_ROLES = Object.freeze([
   {

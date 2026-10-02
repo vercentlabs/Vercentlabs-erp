@@ -43,9 +43,8 @@ const ROLE_OPTIONS: SelectOption[] = [
   })),
 ];
 
-// F003 Stage A2 — the already-built, already-tested multi-account Contact
-// relationship model (tenant.crm_contact_account_relationships, migration
-// 088) had zero frontend consumer. A Contact can concurrently relate to
+// F003 — the multi-account Contact relationship model
+// (tenant.crm_contact_account_relationships, migration 088). A Contact can concurrently relate to
 // several Accounts, each with its own relationship type + stakeholder
 // role; exactly one relationship is is_primary, mirrored onto the legacy
 // contacts.accountId/isPrimary fields server-side so existing callers

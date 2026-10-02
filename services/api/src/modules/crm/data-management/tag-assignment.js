@@ -2,17 +2,12 @@
 // existing tenant.crm_lead_tags junction (002_crm_module.sql). Tag
 // DEFINITIONS (tenant.crm_tags) already go through the generic
 // resource-mutation-service (see resource-registry.js's "tags" entry);
-// this module is the missing piece: assigning a defined tag to an
-// actual record. Confirmed by direct search that crm_lead_tags was
-// only ever written to by lead-conversion's own tag-copy INSERT
-// (conversions/lead-conversion.js) — no
-// assign/remove/list command and no UI existed before this file.
+// this module assigns a defined tag to an actual record.
+// (conversions/lead-conversion.js also copies tags on conversion.)
 //
 // Lead-scoped only, deliberately: crm_lead_tags is the ONLY tag
 // junction table that exists in the schema (no crm_account_tags /
-// crm_contact_tags / crm_opportunity_tags). F028's own dossier
-// (F028-DATA-001) names crm_lead_tags specifically as the authoritative
-// structure. Extending tag assignment to other entities would require a
+// crm_contact_tags / crm_opportunity_tags). Extending tag assignment to other entities would require a
 // new migration adding new junction tables — a deliberate, separate
 // schema decision, not something to improvise here.
 import { CrmError } from "./errors.js";
