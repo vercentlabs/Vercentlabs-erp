@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 
@@ -22,9 +22,13 @@ export function VerifyEmailClient({
   const [resendError, setResendError] = useState<string | null>(null);
   const [resending, setResending] = useState(false);
 
+  // The token is single-use, so the request is sent once per link even when
+  // React runs this effect twice (development strict mode).
+  const requestedToken = useRef<string | null>(null);
+
   useEffect(() => {
-    if (!token) return;
-    let cancelled = false;
+    if (!token || requestedToken.current === token) return;
+    requestedToken.current = token;
     (async () => {
       try {
         const response = await fetch("/api/auth/verify-email", {
@@ -36,7 +40,6 @@ export function VerifyEmailClient({
           ok?: boolean;
           message?: string;
         };
-        if (cancelled) return;
         if (!response.ok || payload.ok === false) {
           setStatus("error");
           setError(
@@ -51,17 +54,10 @@ export function VerifyEmailClient({
           router.refresh();
         }, 1500);
       } catch {
-        if (!cancelled) {
-          setStatus("error");
-          setError(
-            "Something went wrong. Check your connection and try again.",
-          );
-        }
+        setStatus("error");
+        setError("Something went wrong. Check your connection and try again.");
       }
     })();
-    return () => {
-      cancelled = true;
-    };
   }, [token, router]);
 
   async function handleResend() {

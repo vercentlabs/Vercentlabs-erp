@@ -94,9 +94,19 @@ export async function consumeEmailVerificationToken(client, token) {
   ).rows[0];
   if (!claimed) {
     const existing = (
-      await client.query(`SELECT used_at, expires_at FROM email_verification_tokens WHERE token_hash = $1`, [hash])
+      await client.query(
+        `SELECT token.used_at, token.expires_at, token.user_id, app_user.email_verified_at
+           FROM email_verification_tokens token JOIN users app_user ON app_user.id = token.user_id
+          WHERE token.token_hash = $1`,
+        [hash],
+      )
     ).rows[0];
     if (!existing) throw new AuthLifecycleError(400, "This verification link is invalid.", "AUTH_TOKEN_INVALID");
+    // The link was opened again (a second tab, a mail scanner, a double
+    // request) after it had already verified the account: that is the
+    // outcome the visitor wanted, not an error. Nothing is changed and no
+    // session is created here, so repeating it is harmless.
+    if (existing.used_at && existing.email_verified_at) return { userId: existing.user_id, alreadyVerified: true };
     if (existing.used_at) throw new AuthLifecycleError(400, "This verification link has already been used.", "AUTH_TOKEN_USED");
     throw new AuthLifecycleError(400, "This verification link has expired. Request a new one.", "AUTH_TOKEN_EXPIRED");
   }
