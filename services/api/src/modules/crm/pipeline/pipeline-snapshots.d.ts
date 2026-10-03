@@ -9,7 +9,7 @@ export type CrmPipelineSnapshotCaptureResult = {
 };
 
 // Raw snake_case rows straight from the query (listPipelineSnapshots does
-// not camelize) — id, organization_id, pipeline_id, company_id, stage_id,
+// not camelize) — id, organization_id, pipeline_id, stage_id,
 // currency_code, snapshot_date, opportunity_count, amount, weighted_amount,
 // source, captured_by, captured_at. Callers (the API route) camelize.
 export type CrmPipelineStageSnapshot = Record<string, unknown>;

@@ -83,15 +83,14 @@ export async function listSalesPriceListItems(client, c, priceListId, { limit, o
 
 export async function listSalesPricingOptions(client, c) {
   need(c, "sales.view");
-  const companyId = c.activeCompanyId || null;
   const [items, customers, uoms, variants] = await Promise.all([
     client.query(
-      `SELECT id,code,name,uom_id FROM tenant.items WHERE organization_id=$1 AND status='active' AND ($2::uuid IS NULL OR company_id IS NULL OR company_id=$2) ORDER BY name LIMIT 500`,
-      [c.organizationId, companyId],
+      `SELECT id,code,name,uom_id FROM tenant.items WHERE organization_id=$1 AND status='active' ORDER BY name LIMIT 500`,
+      [c.organizationId],
     ),
     client.query(
-      `SELECT id,code,display_name FROM tenant.business_parties WHERE organization_id=$1 AND status='active' AND party_type IN ('customer','both') AND ($2::uuid IS NULL OR company_id IS NULL OR company_id=$2) ORDER BY display_name LIMIT 500`,
-      [c.organizationId, companyId],
+      `SELECT id,code,display_name FROM tenant.business_parties WHERE organization_id=$1 AND status='active' AND party_type IN ('customer','both') ORDER BY display_name LIMIT 500`,
+      [c.organizationId],
     ),
     client.query(`SELECT id,code,name FROM tenant.units_of_measure WHERE organization_id=$1 AND status='active' ORDER BY name LIMIT 200`, [c.organizationId]),
     client.query(`SELECT id,item_id,sku,name FROM tenant.item_variants WHERE organization_id=$1 AND status='active' ORDER BY sku LIMIT 1000`, [c.organizationId]),
@@ -103,12 +102,6 @@ export async function listSalesCustomerPrices(client, c, { partyId, limit, offse
   need(c, "sales.view");
   const values = [c.organizationId];
   let scope = "";
-  if (!c.allowAllCompanies) {
-    if (c.activeCompanyId) {
-      values.push(c.activeCompanyId);
-      scope = ` AND (rule.company_id IS NULL OR rule.company_id=$${values.length})`;
-    } else scope = " AND false";
-  }
   if (partyId) {
     values.push(uuid(partyId, "Customer"));
     scope += ` AND rule.party_id=$${values.length}`;

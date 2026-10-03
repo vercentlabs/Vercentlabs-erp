@@ -1,9 +1,6 @@
 import { z } from "zod";
 
-import {
-  procurementRecordCompanyId,
-  runProcurementMatchWithVendorBillImport,
-} from "@vercentlabs/api";
+import { runProcurementMatchWithVendorBillImport } from "@vercentlabs/api";
 
 import { accountingContextForVendorBill } from "@/features/procurement/shared/cross-module-contexts";
 import { procurementMutation } from "@/features/procurement/shared/route-helpers";
@@ -30,20 +27,11 @@ export async function POST(request: Request) {
     request,
     schema,
     async (client, context, input, session) => {
-      const companyId =
-        (await procurementRecordCompanyId(
-          client,
-          context.organizationId,
-          "purchase-orders",
-          input.purchaseOrderId,
-        )) ??
-        context.activeCompanyId ??
-        "";
       return {
         result: await runProcurementMatchWithVendorBillImport(
           client,
           context,
-          accountingContextForVendorBill(session, companyId),
+          accountingContextForVendorBill(session),
           input,
         ),
       };

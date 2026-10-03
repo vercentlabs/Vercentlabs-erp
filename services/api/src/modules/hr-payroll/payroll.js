@@ -20,17 +20,17 @@ const monthEnd = (ymd) => {
   return addDays(`${m === 12 ? y + 1 : y}-${String(m === 12 ? 1 : m + 1).padStart(2, "0")}-01`, -1);
 };
 async function settings(client, c) {
-  await qx(client, `INSERT INTO tenant.hr_payroll_settings(organization_id,company_id) VALUES ($1,$2) ON CONFLICT DO NOTHING`, [c.organizationId, c.companyId]);
-  return (await qx(client, `SELECT * FROM tenant.hr_payroll_settings WHERE organization_id=$1 AND company_id=$2`, [c.organizationId, c.companyId])).rows[0];
+  await qx(client, `INSERT INTO tenant.hr_payroll_settings(organization_id) VALUES ($1) ON CONFLICT DO NOTHING`, [c.organizationId]);
+  return (await qx(client, `SELECT * FROM tenant.hr_payroll_settings WHERE organization_id=$1`, [c.organizationId])).rows[0];
 }
 
 // ---------------------------------------------------------------- periods (F423)
 export async function listPayrollPeriods(client, c, filters = {}) {
   needAny(c, VIEW);
-  const params = [c.organizationId, c.companyId];
+  const params = [c.organizationId];
   let extra = "";
-  if (filters.year) { params.push(Math.trunc(Number(filters.year))); extra = ` AND extract(year FROM p.period_start)=$3`; }
-  const { rows } = await qx(client, `SELECT p.*, r.id AS run_id, r.payroll_number, r.status AS run_status, r.net_pay FROM tenant.hr_payroll_periods p LEFT JOIN tenant.hr_payroll_runs r ON r.period_id=p.id AND r.run_type='regular' AND r.status <> 'cancelled' WHERE p.organization_id=$1 AND p.company_id=$2${extra} ORDER BY p.period_start DESC LIMIT 400`, params);
+  if (filters.year) { params.push(Math.trunc(Number(filters.year))); extra = ` AND extract(year FROM p.period_start)=$2`; }
+  const { rows } = await qx(client, `SELECT p.*, r.id AS run_id, r.payroll_number, r.status AS run_status, r.net_pay FROM tenant.hr_payroll_periods p LEFT JOIN tenant.hr_payroll_runs r ON r.period_id=p.id AND r.run_type='regular' AND r.status <> 'cancelled' WHERE p.organization_id=$1${extra} ORDER BY p.period_start DESC LIMIT 400`, params);
   return rows;
 }
 export async function generatePayrollPeriods(client, c, input) {
@@ -44,9 +44,9 @@ export async function generatePayrollPeriods(client, c, input) {
   const skipped = [];
   const add = async (code, start, end) => {
     const pay = payDay === null ? end : `${addDays(end, 1).slice(0, 7)}-${String(payDay).padStart(2, "0")}`;
-    const exists = await qx(client, `SELECT 1 FROM tenant.hr_payroll_periods WHERE organization_id=$1 AND company_id=$2 AND (period_code=$3 OR (period_start <= $5 AND period_end >= $4))`, [c.organizationId, c.companyId, code, start, end]);
+    const exists = await qx(client, `SELECT 1 FROM tenant.hr_payroll_periods WHERE organization_id=$1 AND (period_code=$2 OR (period_start <= $4 AND period_end >= $3))`, [c.organizationId, code, start, end]);
     if (exists.rows[0]) { skipped.push(code); return; }
-    await qx(client, `INSERT INTO tenant.hr_payroll_periods(organization_id,company_id,period_code,period_start,period_end,payment_date,created_by) VALUES ($1,$2,$3,$4,$5,$6,$7)`, [c.organizationId, c.companyId, code, start, end, pay < end ? end : pay, c.userId]);
+    await qx(client, `INSERT INTO tenant.hr_payroll_periods(organization_id,period_code,period_start,period_end,payment_date,created_by) VALUES ($1,$2,$3,$4,$5,$6)`, [c.organizationId, code, start, end, pay < end ? end : pay, c.userId]);
     made.push(code);
   };
   if (cfg.payroll_frequency === "monthly") {
@@ -64,11 +64,11 @@ export async function generatePayrollPeriods(client, c, input) {
 }
 export async function lockPayrollPeriod(client, c, id, { force = false, reason } = {}) {
   need(c, PREPARE);
-  const p = (await qx(client, `SELECT * FROM tenant.hr_payroll_periods WHERE organization_id=$1 AND company_id=$2 AND id=$3 FOR UPDATE`, [c.organizationId, c.companyId, uuid(id, "Period")])).rows[0];
+  const p = (await qx(client, `SELECT * FROM tenant.hr_payroll_periods WHERE organization_id=$1 AND id=$2 FOR UPDATE`, [c.organizationId, uuid(id, "Period")])).rows[0];
   if (!p) throw new HrError(404, "Payroll period was not found.", "HR_PERIOD_NOT_FOUND");
   if (p.status !== "open") throw new HrError(409, "Only an open period can be locked.", "HR_PERIOD_STATE");
   const pending = {
-    leave: (await qx(client, `SELECT count(*)::int AS n FROM tenant.hr_leave_requests WHERE organization_id=$1 AND company_id=$2 AND status='submitted' AND start_date <= $4 AND end_date >= $3`, [c.organizationId, c.companyId, p.period_start, p.period_end])).rows[0].n,
+    leave: (await qx(client, `SELECT count(*)::int AS n FROM tenant.hr_leave_requests WHERE organization_id=$1 AND status='submitted' AND start_date <= $3 AND end_date >= $2`, [c.organizationId, p.period_start, p.period_end])).rows[0].n,
   };
   const open = pending.leave;
   if (open > 0 && !(force && text(reason))) throw new HrError(409, `Resolve first: ${pending.leave} leave request(s) awaiting a decision in this period. Or lock it anyway with a reason.`, "HR_PERIOD_PENDING_ITEMS");
@@ -78,7 +78,7 @@ export async function lockPayrollPeriod(client, c, id, { force = false, reason }
 }
 export async function unlockPayrollPeriod(client, c, id, reason) {
   need(c, APPROVE);
-  const p = (await qx(client, `SELECT * FROM tenant.hr_payroll_periods WHERE organization_id=$1 AND company_id=$2 AND id=$3 FOR UPDATE`, [c.organizationId, c.companyId, uuid(id, "Period")])).rows[0];
+  const p = (await qx(client, `SELECT * FROM tenant.hr_payroll_periods WHERE organization_id=$1 AND id=$2 FOR UPDATE`, [c.organizationId, uuid(id, "Period")])).rows[0];
   if (!p) throw new HrError(404, "Payroll period was not found.", "HR_PERIOD_NOT_FOUND");
   if (p.status !== "locked") throw new HrError(409, "Only a locked period can be unlocked.", "HR_PERIOD_STATE");
   if (!text(reason)) throw new HrError(400, "Give a reason for unlocking the period.", "HR_REASON_REQUIRED");
@@ -90,7 +90,7 @@ export async function unlockPayrollPeriod(client, c, id, reason) {
 }
 export async function closePayrollPeriod(client, c, id) {
   need(c, "hr_payroll.payroll.post");
-  const p = (await qx(client, `SELECT * FROM tenant.hr_payroll_periods WHERE organization_id=$1 AND company_id=$2 AND id=$3 FOR UPDATE`, [c.organizationId, c.companyId, uuid(id, "Period")])).rows[0];
+  const p = (await qx(client, `SELECT * FROM tenant.hr_payroll_periods WHERE organization_id=$1 AND id=$2 FOR UPDATE`, [c.organizationId, uuid(id, "Period")])).rows[0];
   if (!p) throw new HrError(404, "Payroll period was not found.", "HR_PERIOD_NOT_FOUND");
   if (p.status === "closed") throw new HrError(409, "The period is already closed.", "HR_PERIOD_STATE");
   const run = await qx(client, `SELECT status FROM tenant.hr_payroll_runs WHERE period_id=$1 AND run_type='regular' AND status <> 'cancelled'`, [p.id]);
@@ -187,56 +187,54 @@ async function computeEmployee(client, c, run, emp, cfg) {
 }
 
 async function eligibleEmployees(client, c, run, employeeIds) {
-  const params = [c.organizationId, c.companyId, run.period_start, run.period_end];
+  const params = [c.organizationId, run.period_start, run.period_end];
   let extra = "";
   if (employeeIds?.length) { params.push(employeeIds); extra += ` AND id = ANY($${params.length}::uuid[])`; }
   const scope = run.scope ?? {};
   if (scope.departmentId) { params.push(scope.departmentId); extra += ` AND department_id=$${params.length}`; }
-  if (scope.branchId) { params.push(scope.branchId); extra += ` AND branch_id=$${params.length}`; }
   // someone already paid by another live regular run of the same period is not paid twice -- $N for
   // run.id is only added (and only referenced) when this clause is actually used
   let notElsewhere = "";
   if (run.run_type === "regular") {
     params.push(run.id);
-    notElsewhere = ` AND NOT EXISTS (SELECT 1 FROM tenant.hr_payslips ps JOIN tenant.hr_payroll_runs pr ON pr.id=ps.payroll_run_id WHERE ps.employee_id=tenant.hr_employees.id AND pr.id <> $${params.length} AND pr.run_type='regular' AND pr.status <> 'cancelled' AND pr.period_start=$3 AND pr.period_end=$4)`;
+    notElsewhere = ` AND NOT EXISTS (SELECT 1 FROM tenant.hr_payslips ps JOIN tenant.hr_payroll_runs pr ON pr.id=ps.payroll_run_id WHERE ps.employee_id=tenant.hr_employees.id AND pr.id <> $${params.length} AND pr.run_type='regular' AND pr.status <> 'cancelled' AND pr.period_start=$2 AND pr.period_end=$3)`;
   }
-  return (await qx(client, `SELECT * FROM tenant.hr_employees WHERE organization_id=$1 AND company_id=$2 AND status <> 'draft' AND joining_date <= $4 AND (separation_date IS NULL OR separation_date >= $3)${extra}${notElsewhere} ORDER BY employee_number`, params)).rows;
+  return (await qx(client, `SELECT * FROM tenant.hr_employees WHERE organization_id=$1 AND status <> 'draft' AND joining_date <= $3 AND (separation_date IS NULL OR separation_date >= $2)${extra}${notElsewhere} ORDER BY employee_number`, params)).rows;
 }
 
 export async function startPayrollRun(client, c, input) {
   need(c, PREPARE);
-  const period = (await qx(client, `SELECT * FROM tenant.hr_payroll_periods WHERE organization_id=$1 AND company_id=$2 AND id=$3`, [c.organizationId, c.companyId, uuid(input.periodId, "Period")])).rows[0];
+  const period = (await qx(client, `SELECT * FROM tenant.hr_payroll_periods WHERE organization_id=$1 AND id=$2`, [c.organizationId, uuid(input.periodId, "Period")])).rows[0];
   if (!period) throw new HrError(404, "Payroll period was not found.", "HR_PERIOD_NOT_FOUND");
   if (period.status === "closed") throw new HrError(409, "That period is closed.", "HR_PERIOD_STATE");
   const type = oneOf(String(input.runType ?? "regular"), ["regular", "off_cycle"], "Run type");
   const departmentId = uuidOrNull(input.departmentId, "Department");
-  const branchId = uuidOrNull(input.branchId, "Branch");
-  const scope = { ...(departmentId ? { departmentId } : {}), ...(branchId ? { branchId } : {}) };
-  const scopeKey = type === "off_cycle" ? "off" : departmentId || branchId ? `${departmentId ? `d:${departmentId}` : ""}${branchId ? `|b:${branchId}` : ""}` : "all";
+  const scope = departmentId ? { departmentId } : {};
+  const scopeKey = type === "off_cycle" ? "off" : departmentId ? `d:${departmentId}` : "all";
   if (type === "regular") {
     const exists = await qx(client, `SELECT payroll_number FROM tenant.hr_payroll_runs WHERE period_id=$1 AND run_type='regular' AND scope_key=$2 AND status <> 'cancelled'`, [period.id, scopeKey]);
     if (exists.rows[0]) throw new HrError(409, `Payroll ${exists.rows[0].payroll_number} already exists for this period and group.`, "HR_RUN_EXISTS");
-    // a company-wide payroll and a group payroll for the same period would pay people twice
+    // an organization-wide payroll and a group payroll for the same period would pay people twice
     const clash = await qx(client, `SELECT payroll_number FROM tenant.hr_payroll_runs WHERE period_id=$1 AND run_type='regular' AND status <> 'cancelled' AND ($2='all' OR scope_key='all')`, [period.id, scopeKey]);
     if (clash.rows[0]) throw new HrError(409, `Payroll ${clash.rows[0].payroll_number} already covers this period for everyone or for this group.`, "HR_RUN_EXISTS");
   }
   let base = `PAY-${period.period_code}`;
   if (type === "off_cycle") base = `${base}-OC`;
   else if (scopeKey !== "all") {
-    const label = departmentId ? (await qx(client, `SELECT code FROM tenant.hr_departments WHERE id=$1`, [departmentId])).rows[0]?.code : (await qx(client, `SELECT code FROM public.branches WHERE id=$1`, [branchId])).rows[0]?.code;
+    const label = (await qx(client, `SELECT code FROM tenant.hr_departments WHERE id=$1`, [departmentId])).rows[0]?.code;
     base = `${base}-${String(label ?? "GRP").toUpperCase()}`;
   }
   // a cancelled run keeps its number; running again gets the next revision
   let number = base;
   for (let n = 1; (await qx(client, `SELECT 1 FROM tenant.hr_payroll_runs WHERE organization_id=$1 AND payroll_number=$2`, [c.organizationId, number])).rows[0]; n += 1) number = `${base}-${type === "off_cycle" ? "" : "R"}${n + 1}`;
-  const { rows } = await qx(client, `INSERT INTO tenant.hr_payroll_runs(organization_id,company_id,payroll_number,period_start,period_end,payment_date,status,created_by,period_id,run_type,notes,scope,scope_key) VALUES ($1,$2,$3,$4,$5,$6,'draft',$7,$8,$9,$10,$11::jsonb,$12) RETURNING *`,
-    [c.organizationId, c.companyId, number, period.period_start, period.period_end, period.payment_date, c.userId, period.id, type, textOrNull(input.notes, 500), JSON.stringify(scope), scopeKey]);
+  const { rows } = await qx(client, `INSERT INTO tenant.hr_payroll_runs(organization_id,payroll_number,period_start,period_end,payment_date,status,created_by,period_id,run_type,notes,scope,scope_key) VALUES ($1,$2,$3,$4,$5,'draft',$6,$7,$8,$9,$10::jsonb,$11) RETURNING *`,
+    [c.organizationId, number, period.period_start, period.period_end, period.payment_date, c.userId, period.id, type, textOrNull(input.notes, 500), JSON.stringify(scope), scopeKey]);
   await recordEvent(client, c, "payroll_run", rows[0].id, "hr.payroll.started", { number });
   return rows[0];
 }
 
 async function loadRun(client, c, id, lock = false) {
-  const { rows } = await qx(client, `SELECT * FROM tenant.hr_payroll_runs WHERE organization_id=$1 AND company_id=$2 AND id=$3${lock ? " FOR UPDATE" : ""}`, [c.organizationId, c.companyId, uuid(id, "Payroll run")]);
+  const { rows } = await qx(client, `SELECT * FROM tenant.hr_payroll_runs WHERE organization_id=$1 AND id=$2${lock ? " FOR UPDATE" : ""}`, [c.organizationId, uuid(id, "Payroll run")]);
   if (!rows[0]) throw new HrError(404, "Payroll run was not found.", "HR_RUN_NOT_FOUND");
   return rows[0];
 }
@@ -257,13 +255,13 @@ export async function runPayrollCalculation(client, c, id, input = {}) {
   for (const emp of emps) {
     const r = await computeEmployee(client, c, run, emp, cfg);
     for (const ex of r.exceptions) {
-      await qx(client, `INSERT INTO tenant.hr_payroll_exceptions(organization_id,company_id,payroll_run_id,employee_id,code,severity,message) VALUES ($1,$2,$3,$4,$5,$6,$7)`, [c.organizationId, c.companyId, run.id, emp.id, ex.code, ex.severity, ex.message]);
+      await qx(client, `INSERT INTO tenant.hr_payroll_exceptions(organization_id,payroll_run_id,employee_id,code,severity,message) VALUES ($1,$2,$3,$4,$5,$6)`, [c.organizationId, run.id, emp.id, ex.code, ex.severity, ex.message]);
       if (ex.severity === "error") errors += 1;
     }
     if (r.skip) continue;
-    const slip = (await qx(client, `INSERT INTO tenant.hr_payslips(organization_id,company_id,payroll_run_id,employee_id,payslip_number,working_days,paid_days,leave_days,absent_days,overtime_minutes,gross_pay,total_deductions,employer_contributions,net_pay,status,generated_at,source_snapshot,calc_hash,lop_days)
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,'calculated',now(),$15::jsonb,$16,$17) RETURNING *`,
-      [c.organizationId, c.companyId, run.id, emp.id, `PS-${run.payroll_number}-${emp.employee_number}`, r.days.working, r.days.paid, r.days.leave, r.days.lop, 0, r.gross, r.deductions, r.employer, r.net, JSON.stringify(r.snapshot), r.hash, r.days.lop])).rows[0];
+    const slip = (await qx(client, `INSERT INTO tenant.hr_payslips(organization_id,payroll_run_id,employee_id,payslip_number,working_days,paid_days,leave_days,absent_days,overtime_minutes,gross_pay,total_deductions,employer_contributions,net_pay,status,generated_at,source_snapshot,calc_hash,lop_days)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,'calculated',now(),$14::jsonb,$15,$16) RETURNING *`,
+      [c.organizationId, run.id, emp.id, `PS-${run.payroll_number}-${emp.employee_number}`, r.days.working, r.days.paid, r.days.leave, r.days.lop, 0, r.gross, r.deductions, r.employer, r.net, JSON.stringify(r.snapshot), r.hash, r.days.lop])).rows[0];
     for (const l of r.lines) {
       await qx(client, `INSERT INTO tenant.hr_payslip_lines(organization_id,payslip_id,salary_component_id,statutory_component_id,component_code,component_name,component_type,amount,taxable_amount,employer_amount,line_sequence,component_kind) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`,
         [c.organizationId, slip.id, l.componentId, l.statutoryId, l.code, l.name, l.type, l.amount, l.taxable, l.employer, l.sequence, l.kind]);
@@ -331,11 +329,11 @@ export async function cancelPayroll(client, c, id, reason) {
 
 export async function listPayrollExceptions(client, c, filters = {}) {
   needAny(c, VIEW);
-  const params = [c.organizationId, c.companyId];
+  const params = [c.organizationId];
   let extra = "";
   if (filters.runId) { params.push(uuid(filters.runId, "Payroll run")); extra += ` AND x.payroll_run_id=$${params.length}`; }
   if (filters.open === true) extra += ` AND NOT x.resolved`;
-  const { rows } = await qx(client, `SELECT x.*, r.payroll_number, e.employee_number, trim(e.first_name || ' ' || e.last_name) AS employee_name FROM tenant.hr_payroll_exceptions x JOIN tenant.hr_payroll_runs r ON r.id=x.payroll_run_id LEFT JOIN tenant.hr_employees e ON e.id=x.employee_id WHERE x.organization_id=$1 AND x.company_id=$2${extra} ORDER BY x.resolved, x.severity, x.created_at DESC LIMIT 1000`, params);
+  const { rows } = await qx(client, `SELECT x.*, r.payroll_number, e.employee_number, trim(e.first_name || ' ' || e.last_name) AS employee_name FROM tenant.hr_payroll_exceptions x JOIN tenant.hr_payroll_runs r ON r.id=x.payroll_run_id LEFT JOIN tenant.hr_employees e ON e.id=x.employee_id WHERE x.organization_id=$1${extra} ORDER BY x.resolved, x.severity, x.created_at DESC LIMIT 1000`, params);
   return rows;
 }
 export async function resolvePayrollException(client, c, id, note) {
@@ -357,10 +355,10 @@ export async function resolvePayrollException(client, c, id, note) {
 // ---------------------------------------------------------------- reading runs and payslips
 export async function listPayrollRuns(client, c, filters = {}) {
   needAny(c, VIEW);
-  const params = [c.organizationId, c.companyId];
+  const params = [c.organizationId];
   let extra = "";
-  if (filters.status) { params.push(String(filters.status)); extra = ` AND r.status=$3`; }
-  const { rows } = await qx(client, `SELECT r.*, (SELECT count(*) FROM tenant.hr_payroll_exceptions x WHERE x.payroll_run_id=r.id AND x.severity='error' AND NOT x.resolved)::int AS blocking, (SELECT count(*) FROM tenant.hr_payroll_exceptions x WHERE x.payroll_run_id=r.id AND x.severity='warning' AND NOT x.resolved)::int AS warnings FROM tenant.hr_payroll_runs r WHERE r.organization_id=$1 AND r.company_id=$2${extra} ORDER BY r.period_start DESC, r.created_at DESC LIMIT 500`, params);
+  if (filters.status) { params.push(String(filters.status)); extra = ` AND r.status=$2`; }
+  const { rows } = await qx(client, `SELECT r.*, (SELECT count(*) FROM tenant.hr_payroll_exceptions x WHERE x.payroll_run_id=r.id AND x.severity='error' AND NOT x.resolved)::int AS blocking, (SELECT count(*) FROM tenant.hr_payroll_exceptions x WHERE x.payroll_run_id=r.id AND x.severity='warning' AND NOT x.resolved)::int AS warnings FROM tenant.hr_payroll_runs r WHERE r.organization_id=$1${extra} ORDER BY r.period_start DESC, r.created_at DESC LIMIT 500`, params);
   return rows;
 }
 export async function getPayrollRun(client, c, id) {
@@ -373,12 +371,12 @@ export async function getPayrollRun(client, c, id) {
 }
 export async function listPayslips(client, c, filters = {}) {
   needAny(c, ["hr_payroll.payslip.view", "hr_payroll.payroll.prepare", "hr_payroll.payroll.approve"]);
-  const params = [c.organizationId, c.companyId];
+  const params = [c.organizationId];
   let extra = "";
   if (filters.runId) { params.push(uuid(filters.runId, "Payroll run")); extra += ` AND p.payroll_run_id=$${params.length}`; }
   if (filters.employeeId) { params.push(uuid(filters.employeeId, "Employee")); extra += ` AND p.employee_id=$${params.length}`; }
   if (filters.status) { params.push(String(filters.status)); extra += ` AND p.status=$${params.length}`; }
-  const { rows } = await qx(client, `SELECT p.*, r.payroll_number, r.period_start, r.period_end, e.employee_number, trim(e.first_name || ' ' || e.last_name) AS employee_name FROM tenant.hr_payslips p JOIN tenant.hr_payroll_runs r ON r.id=p.payroll_run_id JOIN tenant.hr_employees e ON e.id=p.employee_id WHERE p.organization_id=$1 AND p.company_id=$2${extra} ORDER BY r.period_start DESC, e.employee_number LIMIT 1000`, params);
+  const { rows } = await qx(client, `SELECT p.*, r.payroll_number, r.period_start, r.period_end, e.employee_number, trim(e.first_name || ' ' || e.last_name) AS employee_name FROM tenant.hr_payslips p JOIN tenant.hr_payroll_runs r ON r.id=p.payroll_run_id JOIN tenant.hr_employees e ON e.id=p.employee_id WHERE p.organization_id=$1${extra} ORDER BY r.period_start DESC, e.employee_number LIMIT 1000`, params);
   return rows;
 }
 export async function getPayslip(client, c, id) {
@@ -436,10 +434,10 @@ export async function releasePayslipHold(client, c, id) {
 
 export async function getPayrollDashboard(client, c) {
   needAny(c, VIEW);
-  const latest = (await qx(client, `SELECT * FROM tenant.hr_payroll_runs WHERE organization_id=$1 AND company_id=$2 AND status <> 'cancelled' ORDER BY period_start DESC, created_at DESC LIMIT 1`, [c.organizationId, c.companyId])).rows[0] ?? null;
-  const counts = (await qx(client, `SELECT status, count(*)::int AS n FROM tenant.hr_payroll_runs WHERE organization_id=$1 AND company_id=$2 GROUP BY status`, [c.organizationId, c.companyId])).rows;
-  const openExceptions = (await qx(client, `SELECT count(*)::int AS n FROM tenant.hr_payroll_exceptions x JOIN tenant.hr_payroll_runs r ON r.id=x.payroll_run_id WHERE x.organization_id=$1 AND x.company_id=$2 AND NOT x.resolved AND r.status IN ('draft','calculated','pending_approval')`, [c.organizationId, c.companyId])).rows[0].n;
-  const nextPeriod = (await qx(client, `SELECT p.* FROM tenant.hr_payroll_periods p WHERE p.organization_id=$1 AND p.company_id=$2 AND p.status <> 'closed' AND NOT EXISTS (SELECT 1 FROM tenant.hr_payroll_runs r WHERE r.period_id=p.id AND r.run_type='regular' AND r.status <> 'cancelled') ORDER BY p.period_start LIMIT 1`, [c.organizationId, c.companyId])).rows[0] ?? null;
+  const latest = (await qx(client, `SELECT * FROM tenant.hr_payroll_runs WHERE organization_id=$1 AND status <> 'cancelled' ORDER BY period_start DESC, created_at DESC LIMIT 1`, [c.organizationId])).rows[0] ?? null;
+  const counts = (await qx(client, `SELECT status, count(*)::int AS n FROM tenant.hr_payroll_runs WHERE organization_id=$1 GROUP BY status`, [c.organizationId])).rows;
+  const openExceptions = (await qx(client, `SELECT count(*)::int AS n FROM tenant.hr_payroll_exceptions x JOIN tenant.hr_payroll_runs r ON r.id=x.payroll_run_id WHERE x.organization_id=$1 AND NOT x.resolved AND r.status IN ('draft','calculated','pending_approval')`, [c.organizationId])).rows[0].n;
+  const nextPeriod = (await qx(client, `SELECT p.* FROM tenant.hr_payroll_periods p WHERE p.organization_id=$1 AND p.status <> 'closed' AND NOT EXISTS (SELECT 1 FROM tenant.hr_payroll_runs r WHERE r.period_id=p.id AND r.run_type='regular' AND r.status <> 'cancelled') ORDER BY p.period_start LIMIT 1`, [c.organizationId])).rows[0] ?? null;
   return { latestRun: latest, runsByStatus: Object.fromEntries(counts.map((r) => [r.status, r.n])), openExceptions, nextPeriodToRun: nextPeriod };
 }
 void has; void dateOrNull; void uuidOrNull; void seq;

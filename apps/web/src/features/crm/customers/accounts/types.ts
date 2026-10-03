@@ -5,7 +5,6 @@
 export type Account = {
   id: string;
   code: string;
-  companyId: string | null;
   partyType: "customer" | "both" | "prospect";
   displayName: string;
   legalName: string | null;
@@ -24,7 +23,6 @@ export type Account = {
   state: string | null;
   postalCode: string | null;
   countryCode: string | null;
-  companyScopeName: string | null;
   ownerUserId?: string | null;
   ownerName?: string | null;
   relationships?: { contacts: number; opportunities: number };
@@ -117,7 +115,6 @@ export type AccountMergePreview = {
 
 export type AccountPlan = {
   id: string;
-  companyId: string | null;
   partyId: string;
   ownerUserId: string | null;
   executiveSponsorUserId: string | null;
@@ -142,7 +139,6 @@ export type AccountPlan = {
 
 export type AccountStakeholder = {
   id: string;
-  companyId: string | null;
   accountPlanId: string;
   contactId: string | null;
   name: string;

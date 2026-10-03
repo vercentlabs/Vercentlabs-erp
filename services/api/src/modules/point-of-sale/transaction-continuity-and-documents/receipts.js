@@ -22,8 +22,8 @@ export async function getPosSaleReceipt(client, context, saleId) {
        JOIN tenant.pos_terminals terminal ON terminal.organization_id=sale.organization_id AND terminal.id=sale.terminal_id
        LEFT JOIN tenant.business_parties party ON party.organization_id=sale.organization_id AND party.id=sale.customer_id
        LEFT JOIN public.users cashier ON cashier.id=sale.created_by
-      WHERE sale.organization_id=$1 AND sale.company_id=$2 AND sale.id=$3`,
-    [context.organizationId, context.companyId, saleId],
+      WHERE sale.organization_id=$1 AND sale.id=$2`,
+    [context.organizationId, saleId],
   );
   const sale = saleResult.rows[0];
   if (!sale) throw posError(404, "Sale was not found.", "POS_SALE_NOT_FOUND");
@@ -52,9 +52,9 @@ export async function getPosSaleReceipt(client, context, saleId) {
     `SELECT print_event.id, print_event.print_type, print_event.requested_at, printer.full_name AS requested_by_name
        FROM tenant.pos_receipt_print_events print_event
        LEFT JOIN public.users printer ON printer.id = print_event.requested_by
-      WHERE print_event.organization_id=$1 AND print_event.company_id=$2 AND print_event.sale_id=$3
+      WHERE print_event.organization_id=$1 AND print_event.sale_id=$2
       ORDER BY print_event.requested_at DESC`,
-    [context.organizationId, context.companyId, saleId],
+    [context.organizationId, saleId],
   );
 
   return {
@@ -79,23 +79,23 @@ export async function getPosSaleReceipt(client, context, saleId) {
 export async function recordPosReceiptPrintAttempt(client, context, saleId) {
   requirePermission(context, "pos.view");
   const saleResult = await client.query(
-    `SELECT id, store_id FROM tenant.pos_sales WHERE organization_id=$1 AND company_id=$2 AND id=$3`,
-    [context.organizationId, context.companyId, saleId],
+    `SELECT id, store_id FROM tenant.pos_sales WHERE organization_id=$1 AND id=$2`,
+    [context.organizationId, saleId],
   );
   const sale = saleResult.rows[0];
   if (!sale) throw posError(404, "Sale was not found.", "POS_SALE_NOT_FOUND");
   await assertPosStoreAccess(client, context, sale.store_id);
 
   const priorCount = await client.query(
-    `SELECT count(*)::int AS count FROM tenant.pos_receipt_print_events WHERE organization_id=$1 AND company_id=$2 AND sale_id=$3`,
-    [context.organizationId, context.companyId, saleId],
+    `SELECT count(*)::int AS count FROM tenant.pos_receipt_print_events WHERE organization_id=$1 AND sale_id=$2`,
+    [context.organizationId, saleId],
   );
   const printType = Number(priorCount.rows[0].count) === 0 ? "original" : "reprint";
 
   const result = await client.query(
-    `INSERT INTO tenant.pos_receipt_print_events (organization_id,company_id,sale_id,print_type,requested_by)
-     VALUES ($1,$2,$3,$4,$5) RETURNING *`,
-    [context.organizationId, context.companyId, saleId, printType, context.userId],
+    `INSERT INTO tenant.pos_receipt_print_events (organization_id,sale_id,print_type,requested_by)
+     VALUES ($1,$2,$3,$4) RETURNING *`,
+    [context.organizationId, saleId, printType, context.userId],
   );
   const response = result.rows[0];
   await event(client, context, "pos_sale", saleId, "pos.receipt.print_requested", { printType });
@@ -105,8 +105,8 @@ export async function recordPosReceiptPrintAttempt(client, context, saleId) {
 export async function listPosReceiptPrintEvents(client, context, saleId) {
   requirePermission(context, "pos.view");
   const saleResult = await client.query(
-    `SELECT id, store_id FROM tenant.pos_sales WHERE organization_id=$1 AND company_id=$2 AND id=$3`,
-    [context.organizationId, context.companyId, saleId],
+    `SELECT id, store_id FROM tenant.pos_sales WHERE organization_id=$1 AND id=$2`,
+    [context.organizationId, saleId],
   );
   const sale = saleResult.rows[0];
   if (!sale) throw posError(404, "Sale was not found.", "POS_SALE_NOT_FOUND");
@@ -116,9 +116,9 @@ export async function listPosReceiptPrintEvents(client, context, saleId) {
     `SELECT print_event.id, print_event.print_type, print_event.requested_at, printer.full_name AS requested_by_name
        FROM tenant.pos_receipt_print_events print_event
        LEFT JOIN public.users printer ON printer.id = print_event.requested_by
-      WHERE print_event.organization_id=$1 AND print_event.company_id=$2 AND print_event.sale_id=$3
+      WHERE print_event.organization_id=$1 AND print_event.sale_id=$2
       ORDER BY print_event.requested_at DESC`,
-    [context.organizationId, context.companyId, saleId],
+    [context.organizationId, saleId],
   );
   return result.rows;
 }

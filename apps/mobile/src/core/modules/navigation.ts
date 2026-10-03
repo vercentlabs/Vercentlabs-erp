@@ -103,20 +103,6 @@ export const administrationNavigation: readonly WorkspaceDestination[] = [
     href: "/(protected)/workspace/settings/organization",
   },
   {
-    key: "companies",
-    label: "Companies",
-    icon: "briefcase-outline",
-    permission: "company.manage",
-    href: "/(protected)/workspace/settings/companies",
-  },
-  {
-    key: "branches",
-    label: "Branches",
-    icon: "git-branch-outline",
-    permission: "branch.manage",
-    href: "/(protected)/workspace/settings/branches",
-  },
-  {
     key: "departments",
     label: "Departments",
     icon: "layers-outline",

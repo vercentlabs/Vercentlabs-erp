@@ -9,7 +9,7 @@
 import { createHash } from "node:crypto";
 import { CrmError } from "../data-management/errors.js";
 import { activeRuleSetTimestamp, getActiveDuplicateRules } from "./duplicate-rules.js";
-import { crmAccountCompanySql, crmAccountVisibleSql, crmContactVisibleSql } from "../data-management/crm-access-scope.js";
+import { crmAccountVisibleSql, crmContactVisibleSql } from "../data-management/crm-access-scope.js";
 import { projectAccountForContext } from "./account-security.js";
 import { projectContactForContext } from "./contact-security.js";
 
@@ -230,7 +230,7 @@ export async function findAccountDuplicates(client, context, input = {}) {
   if (legalFuzzyRule && name) {
     // Compare the distinctive part of the name: legal suffixes and common
     // business words ("Pvt Ltd", "Analytics", "Industries"...) alone must not
-    // make two different companies look alike.
+    // make two different customer companies look alike.
     const bind = p(name);
     const weight = p(legalFuzzyRule.weight);
     const threshold = p(Number(legalFuzzyRule.fuzzyThreshold || 0.55));
@@ -245,9 +245,8 @@ export async function findAccountDuplicates(client, context, input = {}) {
   const excludeParam = p(excludeId);
   const result = await client.query(
     `SELECT party.id, party.code, party.display_name, party.legal_name, party.gstin, party.pan,
-            party.party_type, party.status, party.company_id,
+            party.party_type, party.status,
             (true${crmAccountVisibleSql(context, p, "party")}) AS caller_can_access,
-            (true${crmAccountCompanySql(context, p, "party")}) AS in_company_scope,
             (${scoreTerms.join(" + ")})::int AS match_score,
             (${signalTerms.length > 1 ? signalTerms.join(" || ") : signalTerms[0]}) AS matched_signals
        FROM tenant.business_parties party
@@ -423,6 +422,6 @@ export async function findLeadContactCrossMatches(client, context, input = {}) {
 // separate sensitive-field projection (GSTIN/PAN, email/mobile).
 export function projectDuplicateMatchesForCaller(context, kind, rows) {
   const project = kind === "account" ? projectAccountForContext : projectContactForContext;
-  return rows.map(({ caller_can_access: accessible, in_company_scope: _inCompany, ...row }) =>
+  return rows.map(({ caller_can_access: accessible, ...row }) =>
     accessible === false ? { restricted: true, classification: row.classification ?? null } : project(context, row));
 }

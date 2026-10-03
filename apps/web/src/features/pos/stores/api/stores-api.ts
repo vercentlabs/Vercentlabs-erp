@@ -6,7 +6,6 @@ export type PosStore = {
   id: string;
   code: string;
   name: string;
-  branch_id?: string;
   warehouseId?: string;
   warehouse_id?: string;
   priceListId?: string;
@@ -17,7 +16,6 @@ export type PosStore = {
   active: boolean;
 };
 export type PosStoreSetupOptions = {
-  branches: { id: string; name: string; code: string }[];
   warehouses: { id: string; name: string; code: string }[];
   priceLists: {
     id: string;

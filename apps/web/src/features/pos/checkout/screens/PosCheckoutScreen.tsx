@@ -1394,7 +1394,7 @@ export function PosCheckoutScreen() {
 // F279: manual discount, line- or cart-level. Type/value/reason go to the
 // same applyPosCartLineDiscount / setPosCartDiscount the API has always
 // exposed; the server decides whether the resulting percentage needs a
-// supervisor (the threshold is company policy -- pos_settings -- not
+// supervisor (the threshold is organization policy -- pos_settings -- not
 // something the client should second-guess), so this only explains that
 // possibility rather than trying to predict it.
 function DiscountDialog({

@@ -9,12 +9,7 @@ installReadTimeout();
 
 // The one QueryClient for the whole app shell — no module may
 // create its own. Query-key scope safety convention every query in this
-// app must follow: [organizationId, companyId, ...rest]. On a company/
-// branch switch, AppShell's context-switch handler calls
-// queryClient.removeQueries() for the previous scope before the new
-// WorkspaceContextProvider value commits, so no cross-company response
-// can still be read from cache after the switch (see
-// shell/workspace-context/ContextSwitcher.tsx).
+// app must follow: [organizationId, ...rest] (see queryKeys.ts).
 export function QueryProvider({ children }: { children: ReactNode }) {
   const [client] = useState(
     () =>

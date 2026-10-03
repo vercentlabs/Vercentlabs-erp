@@ -15,9 +15,6 @@ function dwellSweepContext(organizationId) {
   return Object.freeze({
     organizationId,
     userId: null,
-    activeCompanyId: null,
-    activeBranchId: null,
-    allowAllCompanies: true,
     permissions: ["crm.leads.view_sensitive", "crm.records.view_all"],
     roleSlugs: ["system_worker"],
   });

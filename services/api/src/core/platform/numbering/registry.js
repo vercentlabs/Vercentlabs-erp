@@ -3,18 +3,16 @@
 // family, for module-owned partitions such as one receipt series per POS
 // terminal); an unregistered type fails closed.
 //
-//   scope "organization"  one counter per organisation. Used by the document
-//                         families whose identifiers are unique per
-//                         organisation (CRM codes, Sales, Accounting,
-//                         Procurement); they were issued by the retired
-//                         public.numbering_series and keep their format.
-//   scope "company"       one counter per company (every newer module).
+// Every type keeps one counter per organisation. The older families (CRM
+// codes, Sales, Accounting, Procurement) were issued by the retired
+// public.numbering_series and keep their format: their prefix carries its own
+// separator. Newer modules join a module-supplied prefix with "-".
 //
 // `configurable: false` marks types whose format a module owns in its own
 // settings (a POS store's receipt prefix, HR's employee-number prefix):
 // Settings > Numbering shows them read-only.
-const org = (key, moduleKey, label, prefix, padding = 5) => ({ key, moduleKey, label, scope: "organization", defaultPrefix: prefix, defaultPadding: padding, configurable: true });
-const co = (key, moduleKey, label, prefix, extra = {}) => ({ key, moduleKey, label, scope: "company", defaultPrefix: `${prefix}-`, defaultPadding: 6, configurable: true, ...extra });
+const org = (key, moduleKey, label, prefix, padding = 5) => ({ key, moduleKey, label, prefixSeparator: "", defaultPrefix: prefix, defaultPadding: padding, configurable: true });
+const std = (key, moduleKey, label, prefix, extra = {}) => ({ key, moduleKey, label, prefixSeparator: "-", defaultPrefix: `${prefix}-`, defaultPadding: 6, configurable: true, ...extra });
 
 export const DOCUMENT_TYPES = Object.freeze(
   [
@@ -42,7 +40,7 @@ export const DOCUMENT_TYPES = Object.freeze(
     org("accounting_revaluation_run", "accounting", "FX revaluation run", "FXR-"),
     org("accounting_compliance_request", "accounting", "Compliance request", "CMP-"),
     org("accounting_cash_forecast", "accounting", "Cash forecast", "CF-"),
-    // Procurement (organisation-wide; previously legacy series with a per-company fallback)
+    // Procurement
     org("purchase_requisition", "procurement", "Purchase requisition", "PR-", 6),
     org("sourcing_event", "procurement", "Sourcing event (RFQ)", "RFQ-", 6),
     org("procurement_agreement", "procurement", "Purchase agreement", "AGR-", 6),
@@ -52,63 +50,63 @@ export const DOCUMENT_TYPES = Object.freeze(
     org("return_to_vendor", "procurement", "Return to vendor", "RTV-", 6),
     org("procurement_match_exception", "procurement", "Invoice match exception", "MATCH-", 6),
     // Stock
-    co("stock_movement", "stock", "Stock movement", "STK"),
-    co("stock_transfer", "stock", "Stock transfer", "TRF"),
-    co("stock_pick_list", "stock", "Pick list", "PCK"),
-    co("stock_count", "stock", "Stock count", "CNT", { configurable: false }),
+    std("stock_movement", "stock", "Stock movement", "STK"),
+    std("stock_transfer", "stock", "Stock transfer", "TRF"),
+    std("stock_pick_list", "stock", "Pick list", "PCK"),
+    std("stock_count", "stock", "Stock count", "CNT", { configurable: false }),
     // Assets
-    co("asset", "assets", "Asset", "AST", { configurable: false }),
-    co("asset_calibration", "assets", "Asset calibration", "CAL"),
-    co("asset_depreciation_run", "assets", "Depreciation run", "DEP"),
-    co("asset_disposal", "assets", "Asset disposal", "DSP"),
-    co("asset_inspection", "assets", "Asset inspection", "INS"),
-    co("asset_maintenance_order", "assets", "Maintenance order", "AMO"),
-    co("asset_transfer", "assets", "Asset transfer", "ATR"),
-    co("asset_value_adjustment", "assets", "Asset value adjustment", "ADJ"),
-    co("asset_verification", "assets", "Asset verification", "VER"),
+    std("asset", "assets", "Asset", "AST", { configurable: false }),
+    std("asset_calibration", "assets", "Asset calibration", "CAL"),
+    std("asset_depreciation_run", "assets", "Depreciation run", "DEP"),
+    std("asset_disposal", "assets", "Asset disposal", "DSP"),
+    std("asset_inspection", "assets", "Asset inspection", "INS"),
+    std("asset_maintenance_order", "assets", "Maintenance order", "AMO"),
+    std("asset_transfer", "assets", "Asset transfer", "ATR"),
+    std("asset_value_adjustment", "assets", "Asset value adjustment", "ADJ"),
+    std("asset_verification", "assets", "Asset verification", "VER"),
     // Projects
-    co("project", "projects", "Project", "PRJ"),
-    co("project_billing", "projects", "Project billing", "PBL"),
-    co("project_issue", "projects", "Project issue", "ISS"),
-    co("project_risk", "projects", "Project risk", "RSK"),
-    co("project_task", "projects", "Project task (per project)", "TASK", { family: true, configurable: false }),
+    std("project", "projects", "Project", "PRJ"),
+    std("project_billing", "projects", "Project billing", "PBL"),
+    std("project_issue", "projects", "Project issue", "ISS"),
+    std("project_risk", "projects", "Project risk", "RSK"),
+    std("project_task", "projects", "Project task (per project)", "TASK", { family: true, configurable: false }),
     // Manufacturing
-    co("manufacturing_work_order", "manufacturing", "Work order", "WO"),
-    co("manufacturing_mrp_run", "manufacturing", "MRP run", "MRP"),
-    co("manufacturing_engineering_change", "manufacturing", "Engineering change", "ECN"),
+    std("manufacturing_work_order", "manufacturing", "Work order", "WO"),
+    std("manufacturing_mrp_run", "manufacturing", "MRP run", "MRP"),
+    std("manufacturing_engineering_change", "manufacturing", "Engineering change", "ECN"),
     // Quality
-    co("quality_inspection", "quality", "Inspection", "QI"),
-    co("quality_hold", "quality", "Quality hold", "QH"),
-    co("quality_nonconformance", "quality", "Non-conformance", "NC"),
-    co("quality_capa", "quality", "CAPA", "CAPA"),
-    co("quality_audit", "quality", "Quality audit", "QA"),
-    co("quality_document", "quality", "Controlled document", "QD"),
-    co("quality_calibration", "quality", "Calibration", "CAL"),
-    co("quality_certificate", "quality", "Certificate of analysis", "COA"),
-    co("quality_complaint", "quality", "Customer complaint", "CC"),
+    std("quality_inspection", "quality", "Inspection", "QI"),
+    std("quality_hold", "quality", "Quality hold", "QH"),
+    std("quality_nonconformance", "quality", "Non-conformance", "NC"),
+    std("quality_capa", "quality", "CAPA", "CAPA"),
+    std("quality_audit", "quality", "Quality audit", "QA"),
+    std("quality_document", "quality", "Controlled document", "QD"),
+    std("quality_calibration", "quality", "Calibration", "CAL"),
+    std("quality_certificate", "quality", "Certificate of analysis", "COA"),
+    std("quality_complaint", "quality", "Customer complaint", "CC"),
     // Support
-    co("support_ticket", "support", "Support ticket", "TKT"),
-    co("support_knowledge_article", "support", "Knowledge article", "KB"),
-    co("support_entitlement", "support", "Entitlement", "ENT"),
+    std("support_ticket", "support", "Support ticket", "TKT"),
+    std("support_knowledge_article", "support", "Knowledge article", "KB"),
+    std("support_entitlement", "support", "Entitlement", "ENT"),
     // HR & Payroll
-    co("hr_employee", "hr-payroll", "Employee", "EMP", { configurable: false }),
-    co("hr_candidate", "hr-payroll", "Candidate", "CAN"),
-    co("hr_job_opening", "hr-payroll", "Job opening", "JOB"),
-    co("hr_offer", "hr-payroll", "Offer", "OFR"),
-    co("hr_expense", "hr-payroll", "Expense claim", "EXP"),
-    co("hr_loan", "hr-payroll", "Loan / advance", "LN", { configurable: false }),
-    co("hr_payroll_run", "hr-payroll", "Payroll run", "PAY"),
-    co("hr_bank_file", "hr-payroll", "Bank file", "BNK"),
-    co("hr_final_settlement", "hr-payroll", "Final settlement", "FS"),
+    std("hr_employee", "hr-payroll", "Employee", "EMP", { configurable: false }),
+    std("hr_candidate", "hr-payroll", "Candidate", "CAN"),
+    std("hr_job_opening", "hr-payroll", "Job opening", "JOB"),
+    std("hr_offer", "hr-payroll", "Offer", "OFR"),
+    std("hr_expense", "hr-payroll", "Expense claim", "EXP"),
+    std("hr_loan", "hr-payroll", "Loan / advance", "LN", { configurable: false }),
+    std("hr_payroll_run", "hr-payroll", "Payroll run", "PAY"),
+    std("hr_bank_file", "hr-payroll", "Bank file", "BNK"),
+    std("hr_final_settlement", "hr-payroll", "Final settlement", "FS"),
     // Point of sale (formats owned by store / terminal settings)
-    co("pos_receipt", "point-of-sale", "POS receipt", "RCPT", { configurable: false }),
-    co("pos_return", "point-of-sale", "POS return", "RET", { configurable: false }),
-    co("pos_cash_movement", "point-of-sale", "Cash movement", "CASH", { configurable: false }),
-    co("pos_day_end_report", "point-of-sale", "Day-end report", "ZREP", { configurable: false }),
-    co("pos_day_end_correction", "point-of-sale", "Day-end correction", "ZCORR", { configurable: false }),
-    co("pos_reconciliation", "point-of-sale", "Reconciliation", "RECN", { configurable: false }),
-    co("pos_reconciliation_correction", "point-of-sale", "Reconciliation correction", "RCORR", { configurable: false }),
-    co("pos_shift", "point-of-sale", "Shift (per terminal)", "SHIFT", { family: true, configurable: false }),
+    std("pos_receipt", "point-of-sale", "POS receipt", "RCPT", { configurable: false }),
+    std("pos_return", "point-of-sale", "POS return", "RET", { configurable: false }),
+    std("pos_cash_movement", "point-of-sale", "Cash movement", "CASH", { configurable: false }),
+    std("pos_day_end_report", "point-of-sale", "Day-end report", "ZREP", { configurable: false }),
+    std("pos_day_end_correction", "point-of-sale", "Day-end correction", "ZCORR", { configurable: false }),
+    std("pos_reconciliation", "point-of-sale", "Reconciliation", "RECN", { configurable: false }),
+    std("pos_reconciliation_correction", "point-of-sale", "Reconciliation correction", "RCORR", { configurable: false }),
+    std("pos_shift", "point-of-sale", "Shift (per terminal)", "SHIFT", { family: true, configurable: false }),
   ].map((entry) => Object.freeze(entry)),
 );
 

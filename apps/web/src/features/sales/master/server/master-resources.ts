@@ -16,9 +16,6 @@ type DuplicateClient = {
 type DuplicateContext = {
   organizationId: string;
   userId: string;
-  activeCompanyId: string | null;
-  activeBranchId: string | null;
-  allowAllCompanies?: boolean;
   permissions: string[];
 };
 

@@ -23,7 +23,7 @@ export async function queueOutboxEvent(
 export function safeLeadOutboxState(record) {
   if (!record || typeof record !== "object") return {};
   return Object.fromEntries(
-    ["status", "sourceId", "ownerUserId", "companyId", "branchId"]
+    ["status", "sourceId", "ownerUserId"]
       .filter((field) => record[field] !== undefined)
       .map((field) => [field, record[field]]),
   );

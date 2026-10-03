@@ -3,7 +3,6 @@ import { z } from "zod";
 import {
   createInboundMailRoute,
   INBOUND_MAIL_TARGETS,
-  listAccessibleCompanies,
   listInboundMailEvents,
   listInboundMailRoutes,
 } from "@vercentlabs/api";
@@ -21,30 +20,20 @@ export async function GET(request: Request) {
       permission: CORE_PERMISSIONS.integrationsView,
       action: "integrations.inbound_mail.list",
     },
-    async ({ client, session }) => {
-      const companies = (
-        await listAccessibleCompanies(
-          client,
-          session.organizationId,
-          session.userId,
-        )
-      ).map(({ id, name }) => ({ id, name }));
-      return ok({
+    async ({ client, session }) =>
+      ok({
         routes: await listInboundMailRoutes(client, session.organizationId),
         events: await listInboundMailEvents(client, session.organizationId, {
           limit: 25,
         }),
         targets: INBOUND_MAIL_TARGETS,
-        companies,
-      });
-    },
+      }),
   );
 }
 
 const schema = z.object({
   name: z.string().trim().min(1).max(120),
   target: z.string().max(80),
-  companyId: z.string().uuid(),
   recordedAsUserId: z.string().uuid().nullable().optional(),
 });
 

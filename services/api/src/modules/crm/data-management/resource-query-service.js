@@ -276,11 +276,6 @@ export function buildFilters(
 export async function listSalesStageResourceRecords(client, context, filters = {}) {
   const parameters = [context.organizationId];
   let where = "stage.organization_id=$1";
-  if (context.activeCompanyId) {
-    where += ` AND (pipeline.company_id IS NULL OR pipeline.company_id=${addParameter(parameters, context.activeCompanyId)})`;
-  } else if (!context.allowAllCompanies) {
-    where += " AND false";
-  }
   if (filters.status && filters.status !== "all")
     where += ` AND stage.status=${addParameter(parameters, String(filters.status))}`;
   if (filters.pipelineId) {
@@ -304,7 +299,7 @@ export async function listSalesStageResourceRecords(client, context, filters = {
   );
   const total = Number(countResult.rows[0]?.total || 0);
   const result = await client.query(
-    `SELECT stage.*,pipeline.name AS pipeline_name,pipeline.company_id AS pipeline_company_id
+    `SELECT stage.*,pipeline.name AS pipeline_name
        FROM tenant.crm_pipeline_stages stage
        JOIN tenant.crm_pipelines pipeline ON pipeline.organization_id=stage.organization_id AND pipeline.id=stage.pipeline_id
       WHERE ${where}
@@ -319,15 +314,11 @@ export async function listSalesStageResourceRecords(client, context, filters = {
 
 export async function getSalesStageResourceRecord(client, context, id) {
   const parameters = [context.organizationId, id];
-  let scope = "";
-  if (context.activeCompanyId)
-    scope += ` AND (pipeline.company_id IS NULL OR pipeline.company_id=${addParameter(parameters, context.activeCompanyId)})`;
-  else if (!context.allowAllCompanies) scope += " AND false";
   const result = await client.query(
-    `SELECT stage.*,pipeline.name AS pipeline_name,pipeline.company_id AS pipeline_company_id
+    `SELECT stage.*,pipeline.name AS pipeline_name
        FROM tenant.crm_pipeline_stages stage
        JOIN tenant.crm_pipelines pipeline ON pipeline.organization_id=stage.organization_id AND pipeline.id=stage.pipeline_id
-      WHERE stage.organization_id=$1 AND stage.id=$2${scope} LIMIT 1`,
+      WHERE stage.organization_id=$1 AND stage.id=$2 LIMIT 1`,
     parameters,
   );
   if (!result.rows[0]) throw new CrmError(404, "CRM record not found.");

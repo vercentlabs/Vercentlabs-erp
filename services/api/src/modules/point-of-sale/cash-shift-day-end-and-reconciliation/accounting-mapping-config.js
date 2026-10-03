@@ -16,12 +16,12 @@ import { requirePermission } from "../shared/access-control.js";
 import { posAccountingContext } from "../shared/accounting-bridge.js";
 
 // The exact mapping_key vocabulary accounting-posting.js resolves.
-// "seeded" keys come pre-provisioned for every company by Accounting's own
+// "seeded" keys come pre-provisioned for every organization by Accounting's own
 // foundation.js (zero POS-specific configuration ever needed); the rest
 // are genuinely new, POS-specific concepts requiring one-time setup here.
 export const POS_MAPPING_KEYS = Object.freeze([
-  { key: "cash", label: "Cash tender", description: "Cash sales/refunds — pre-seeded for every company.", seeded: true },
-  { key: "bank", label: "Bank-transfer tender", description: "Bank-transfer sales/refunds — pre-seeded for every company.", seeded: true },
+  { key: "cash", label: "Cash tender", description: "Cash sales/refunds — pre-seeded for every organization.", seeded: true },
+  { key: "bank", label: "Bank-transfer tender", description: "Bank-transfer sales/refunds — pre-seeded for every organization.", seeded: true },
   { key: "revenue", label: "Revenue", description: "Sales revenue recognition — pre-seeded, shared with Sales' own invoices.", seeded: true },
   { key: "output_tax", label: "Output tax", description: "Tax collected on sales — pre-seeded, shared with Sales.", seeded: true },
   { key: "rounding", label: "Rounding", description: "Rounding differences — pre-seeded, shared with Sales.", seeded: true },
@@ -44,11 +44,11 @@ export async function getPosAccountingMappingConfig(client, context) {
   ]);
   const mappingsByKey = new Map();
   for (const mapping of settings.mappings) {
-    // Only the ledger-wide default row (no branch/party/item/item_group/
+    // Only the ledger-wide default row (no party/item/item_group/
     // tax_category override) is what this screen configures — a more
     // specific override is an advanced case still only reachable through
     // Accounting's own raw API, not hidden, just not this screen's job.
-    if (!mapping.branch_id && !mapping.party_id && !mapping.item_id && !mapping.item_group_id && !mapping.tax_category_id && mapping.status === "active") {
+    if (!mapping.party_id && !mapping.item_id && !mapping.item_group_id && !mapping.tax_category_id && mapping.status === "active") {
       if (!mappingsByKey.has(mapping.mapping_key)) mappingsByKey.set(mapping.mapping_key, mapping);
     }
   }
@@ -79,7 +79,7 @@ export async function upsertPosAccountingMapping(client, context, input = {}) {
   const options = await getAccountingOptions(client, accountingContext);
   const primaryLedger = options.ledgers.find((ledger) => ledger.ledger_type === "primary") || options.ledgers[0];
   if (!primaryLedger) {
-    const error = new Error("No active Accounting ledger exists for this company yet.");
+    const error = new Error("No active Accounting ledger exists for this organization yet.");
     error.status = 409;
     error.code = "POS_ACCOUNTING_LEDGER_MISSING";
     throw error;
@@ -94,11 +94,11 @@ export async function upsertPosAccountingMapping(client, context, input = {}) {
   // table's own existing status column, not a second business rule.
   await client.query(
     `UPDATE tenant.accounting_account_mappings
-        SET status='inactive',updated_by=$5,updated_at=now()
-      WHERE organization_id=$1 AND company_id=$2 AND ledger_id=$3 AND mapping_key=$4
-        AND branch_id IS NULL AND party_id IS NULL AND item_id IS NULL AND item_group_id IS NULL AND tax_category_id IS NULL
+        SET status='inactive',updated_by=$4,updated_at=now()
+      WHERE organization_id=$1 AND ledger_id=$2 AND mapping_key=$3
+        AND party_id IS NULL AND item_id IS NULL AND item_group_id IS NULL AND tax_category_id IS NULL
         AND status='active'`,
-    [context.organizationId, context.companyId, primaryLedger.id, mappingKey, context.userId],
+    [context.organizationId, primaryLedger.id, mappingKey, context.userId],
   );
   return upsertAccountMapping(client, accountingContext, {
     ledgerId: primaryLedger.id,

@@ -57,7 +57,7 @@ function toForm(values: PosSettingsValues): FormState {
   };
 }
 
-// The company-level policy every checkout, return and offline-sync path
+// The organization-level policy every checkout, return and offline-sync path
 // already consults. Until this screen existed none of it could be changed
 // without editing the database, so every tenant ran on the migration defaults.
 // Server-side validation is authoritative (including the rule that the
@@ -177,7 +177,7 @@ function SettingsForm({
     <div className="flex flex-col gap-6">
       <PageHeader
         title="POS settings"
-        description="Company-wide rules for discounts, returns, stock, carts and shifts. Changes apply to the next sale, return or shift — sales already made are never rewritten."
+        description="Organization-wide rules for discounts, returns, stock, carts and shifts. Changes apply to the next sale, return or shift — sales already made are never rewritten."
         primaryAction={
           <div className="flex items-center gap-2">
             {dirty && (
@@ -201,7 +201,7 @@ function SettingsForm({
       {saved && !dirty && <PosAlert tone="success">Settings saved.</PosAlert>}
       {!data.configured && (
         <PosAlert tone="info">
-          This company has not saved POS settings yet, so the standard defaults
+          Your organization has not saved POS settings yet, so the standard defaults
           below are in effect. Saving creates its own settings.
         </PosAlert>
       )}

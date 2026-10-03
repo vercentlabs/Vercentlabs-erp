@@ -132,7 +132,6 @@ export type SalesQuotationDetail = {
 };
 
 export type SalesOptions = {
-  companies: Array<{ id: string; name: string; base_currency: string }>;
   parties: Array<{
     id: string;
     code: string;

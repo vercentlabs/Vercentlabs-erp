@@ -11,14 +11,13 @@ function required(value, name) {
 
 /**
  * Serialize Quality hold changes and Stock movements for one item within one
- * company. The item-level lock intentionally covers all warehouses/batches for
+ * organization. The item-level lock intentionally covers all warehouses/batches for
  * the item so wildcard warehouse/batch holds cannot race a more-specific issue.
  */
 export async function lockInventoryItem(client, context, itemId) {
   const organizationId = required(context?.organizationId, "Organization");
-  const companyId = required(context?.companyId, "Company");
   const item = required(itemId, "Item");
-  const lockKey = `quality-stock:${organizationId}:${companyId}:${item}`;
+  const lockKey = `quality-stock:${organizationId}:${item}`;
   await client.query(`SELECT pg_advisory_xact_lock(hashtextextended($1,0))`, [lockKey]);
   return lockKey;
 }

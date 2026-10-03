@@ -1,29 +1,6 @@
 // Server-side record lookups the Sales routes need before calling a domain
-// operation: the owning company of a document (so a cross-module Stock
-// context is built from server records, never from the request) and the
-// lineage of an amended order version. Always inside the caller's
-// organisation-context transaction.
-import { SalesError } from "./index.js";
-
-async function companyOf(client, text, values, missing) {
-  const result = await client.query(text, values);
-  if (!result.rows[0]) throw new SalesError(404, missing, "NOT_FOUND");
-  return String(result.rows[0].company_id);
-}
-
-export function salesOrderCompanyId(client, organizationId, orderId) {
-  return companyOf(client, `SELECT company_id FROM tenant.sales_orders WHERE organization_id=$1 AND id=$2`, [organizationId, orderId], "Sales order not found.");
-}
-
-export function salesFulfillmentRequestCompanyId(client, organizationId, requestId) {
-  return companyOf(
-    client,
-    `SELECT sales_order.company_id FROM tenant.sales_fulfillment_requests request JOIN tenant.sales_orders sales_order ON sales_order.id=request.sales_order_id WHERE request.organization_id=$1 AND request.id=$2`,
-    [organizationId, requestId],
-    "Fulfilment request not found.",
-  );
-}
-
+// operation: the lineage of an amended order version. Always inside the
+// caller's organisation-context transaction.
 // An order version is an *amendment* if an amendment row points at it. In that
 // case approving/rejecting it must go through the amendment functions, with the
 // version being replaced and the status to resume taken from server records --

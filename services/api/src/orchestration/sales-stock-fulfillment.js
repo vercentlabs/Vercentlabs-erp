@@ -1,4 +1,3 @@
-import { SalesError } from "../modules/sales/index.js";
 import { completeFulfillmentRequest } from "../modules/sales/index.js";
 import { postStockMovement } from "../modules/stock/index.js";
 import { consumeSalesOrderReservation } from "./sales-stock-reservation.js";
@@ -26,7 +25,7 @@ export async function completeFulfillmentRequestWithStockMovement(
   const lineContext = new Map();
   if (lineIds.length) {
     const found = await client.query(
-      `SELECT line.id, line.item_id, line.warehouse_id, line.conversion_factor, sales_order.id AS order_id, sales_order.company_id
+      `SELECT line.id, line.item_id, line.warehouse_id, line.conversion_factor, sales_order.id AS order_id
          FROM tenant.sales_order_lines line
          JOIN tenant.sales_order_versions version ON version.id = line.sales_order_version_id
          JOIN tenant.sales_orders sales_order ON sales_order.id = version.sales_order_id
@@ -35,16 +34,6 @@ export async function completeFulfillmentRequestWithStockMovement(
     );
     for (const row of found.rows) lineContext.set(String(row.id), row);
   }
-  for (const row of lineContext.values()) {
-    if (row.warehouse_id && row.company_id !== stockContext.companyId) {
-      throw new SalesError(
-        409,
-        "Sales and Stock active-company context must match.",
-        "SALES_STOCK_COMPANY_MISMATCH",
-      );
-    }
-  }
-
   const result = await completeFulfillmentRequest(
     client,
     salesContext,

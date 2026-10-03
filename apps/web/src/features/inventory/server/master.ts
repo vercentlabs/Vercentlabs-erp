@@ -176,7 +176,6 @@ function validate(input: Record<string, unknown>) {
 export function shapeMasterCreate(
   resource: InventoryMasterResource,
   raw: Record<string, unknown>,
-  activeCompanyId: string,
 ) {
   const input = { ...DEFAULTS[resource], ...normalise(raw) };
   for (const [key, label] of REQUIRED[resource]) {
@@ -187,19 +186,11 @@ export function shapeMasterCreate(
   // Codes are identifiers people type and scan: normalise the case so "abc" and "ABC" cannot coexist.
   if (typeof input.code === "string") input.code = input.code.toUpperCase();
   validate(input);
-  // Company-scoped tables carry the ACTIVE company; the engine refuses any other.
-  if (
-    resource === "items" ||
-    resource === "warehouses" ||
-    resource === "item-variants"
-  )
-    input.companyId = activeCompanyId;
   return input;
 }
 
 export function shapeMasterUpdate(raw: Record<string, unknown>) {
   const input = normalise(raw);
-  delete input.companyId; // a record never moves company
   if (typeof input.code === "string") input.code = input.code.toUpperCase();
   validate(input);
   return input;

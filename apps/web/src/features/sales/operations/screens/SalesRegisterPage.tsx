@@ -45,7 +45,7 @@ export type RegisterConfig<T> = {
 
 // One list page for every operational register (deliveries, invoices, advances,
 // adjustments, returns, drop-ships, commissions). The server scopes rows to the
-// caller's company; search is applied over the fetched page (registers are
+// caller's organisation; search is applied over the fetched page (registers are
 // capped at 100 rows server-side, which the footer says out loud).
 export function SalesRegisterPage<T extends { id: string }>({
   config,

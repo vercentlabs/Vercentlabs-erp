@@ -14,7 +14,7 @@ const OUTCOMES = new Set(["held", "no_show"]);
 const EDITABLE_STATUSES = new Set(["planned", "overdue"]);
 const ATTENDEE_RESPONSES = new Set(["needs_action", "accepted", "declined", "tentative"]);
 const MEETING_FIELDS = new Set([
-  "companyId", "branchId", "entityType", "entityId", "subject", "description", "priority", "assignedTo",
+  "entityType", "entityId", "subject", "description", "priority", "assignedTo",
   "startAt", "endAt", "locationType", "location", "meetingUrl", "attendees",
 ]);
 const CREATE_FIELDS = new Set([...MEETING_FIELDS, "mode", "occurredAt", "durationMinutes", "outcomeCode", "outcome"]);
@@ -81,8 +81,6 @@ function normalizeUrl(value) {
 function normalizeBase(input, { create = false } = {}) {
   assertAllowed(input, create ? CREATE_FIELDS : MEETING_FIELDS);
   const out = {};
-  if (hasOwn(input, "companyId")) out.companyId = assertUuid(input.companyId, "Company", true);
-  if (hasOwn(input, "branchId")) out.branchId = assertUuid(input.branchId, "Branch", true);
   if (hasOwn(input, "entityType")) {
     const value = text(input.entityType).toLowerCase() || "general";
     if (!RELATED.has(value)) throw new CrmError(400, "Related record type is invalid.", "CRM_MEETING_RELATION_INVALID");
@@ -124,25 +122,11 @@ function normalizeBase(input, { create = false } = {}) {
 }
 function scopeSql(context, values, alias = "activity") {
   let sql = "";
-  if (context.activeCompanyId) sql += ` AND (${alias}.company_id IS NULL OR ${alias}.company_id=${add(values, context.activeCompanyId)})`;
-  else if (!context.allowAllCompanies) return " AND false";
-  if (context.activeBranchId) sql += ` AND (${alias}.branch_id IS NULL OR ${alias}.branch_id=${add(values, context.activeBranchId)})`;
-  else if (!context.allowAllCompanies) return " AND false";
   // Own + managed-team members + unassigned queue (crm-access-scope.js).
   sql += crmOwnerScopeSql(context, (value) => add(values, value), `${alias}.assigned_to`, `${alias}.organization_id`, { resource: "activities", alias: alias });
   if (!canViewSensitiveLeadContent(context))
     sql += ` AND COALESCE(${alias}.entity_type,'general') <> 'lead'`;
   return sql;
-}
-function assertWritableScope(context, prepared) {
-  if (!context.activeCompanyId && !context.allowAllCompanies)
-    throw new CrmError(403, "Select an allowed company before maintaining Meetings.", "CRM_MEETING_SCOPE_FORBIDDEN");
-  if (context.activeCompanyId && prepared.companyId && prepared.companyId !== context.activeCompanyId)
-    throw new CrmError(403, "The Meeting belongs to another company.", "CRM_MEETING_SCOPE_FORBIDDEN");
-  if (!context.activeBranchId && !context.allowAllCompanies)
-    throw new CrmError(403, "Select an allowed branch before maintaining Meetings.", "CRM_MEETING_SCOPE_FORBIDDEN");
-  if (context.activeBranchId && prepared.branchId && prepared.branchId !== context.activeBranchId)
-    throw new CrmError(403, "The Meeting belongs to another branch.", "CRM_MEETING_SCOPE_FORBIDDEN");
 }
 async function relationRecord(client, context, entityType, entityId) {
   if (entityType === "general") {
@@ -157,13 +141,13 @@ async function relationRecord(client, context, entityType, entityId) {
     const values = [context.organizationId, entityId];
     const scope = leadScopeSql(context, values, "lead");
     result = await client.query(
-      `SELECT lead.id,lead.company_id,lead.branch_id FROM tenant.crm_leads lead
+      `SELECT lead.id FROM tenant.crm_leads lead
        WHERE lead.organization_id=$1 AND lead.id=$2 AND lead.record_status <> 'archived'${scope} LIMIT 1`,
       values,
     );
   } else if (entityType === "contact") {
     result = await client.query(
-      `SELECT contact.id,party.company_id,NULL::uuid AS branch_id
+      `SELECT contact.id
          FROM tenant.contacts contact
          JOIN tenant.business_parties party ON party.organization_id=contact.organization_id AND party.id=contact.party_id
         WHERE contact.organization_id=$1 AND contact.id=$2 AND contact.status='active' AND party.status='active' LIMIT 1`,
@@ -171,30 +155,26 @@ async function relationRecord(client, context, entityType, entityId) {
     );
   } else if (entityType === "party") {
     result = await client.query(
-      `SELECT party.id,party.company_id,NULL::uuid AS branch_id
+      `SELECT party.id
          FROM tenant.business_parties party
         WHERE party.organization_id=$1 AND party.id=$2 AND party.status='active' LIMIT 1`,
       [context.organizationId, entityId],
     );
   } else if (entityType === "opportunity") {
     result = await client.query(
-      `SELECT id,company_id,branch_id FROM tenant.crm_opportunities
+      `SELECT id FROM tenant.crm_opportunities
        WHERE organization_id=$1 AND id=$2 AND status <> 'archived' LIMIT 1`,
       [context.organizationId, entityId],
     );
   } else if (entityType === "campaign") {
     result = await client.query(
-      `SELECT id,company_id,NULL::uuid AS branch_id FROM tenant.crm_campaigns
+      `SELECT id FROM tenant.crm_campaigns
        WHERE organization_id=$1 AND id=$2 AND status <> 'cancelled' LIMIT 1`,
       [context.organizationId, entityId],
     );
   }
   const row = result?.rows?.[0];
   if (!row) throw new CrmError(409, "The related CRM record is unavailable.", "CRM_MEETING_RELATION_INVALID");
-  if (context.activeCompanyId && row.company_id && row.company_id !== context.activeCompanyId)
-    throw new CrmError(403, "The related CRM record belongs to another company.", "CRM_MEETING_RELATION_SCOPE_INVALID");
-  if (context.activeBranchId && row.branch_id && row.branch_id !== context.activeBranchId)
-    throw new CrmError(403, "The related CRM record belongs to another branch.", "CRM_MEETING_RELATION_SCOPE_INVALID");
   return row;
 }
 function email(value) {
@@ -204,7 +184,7 @@ function email(value) {
     throw new CrmError(400, "Meeting attendee email is invalid.", "CRM_MEETING_ATTENDEE_INVALID");
   return normalized;
 }
-async function normalizeAttendees(client, context, input, { companyId = null } = {}) {
+async function normalizeAttendees(client, context, input) {
   if (input === undefined) return undefined;
   if (!Array.isArray(input)) throw new CrmError(400, "Meeting attendees must be an array.", "CRM_MEETING_ATTENDEE_INVALID");
   if (input.length > 100) throw new CrmError(400, "A Meeting can contain at most 100 attendees.", "CRM_MEETING_ATTENDEE_INVALID");
@@ -226,7 +206,7 @@ async function normalizeAttendees(client, context, input, { companyId = null } =
     if (name && name.length > 200) throw new CrmError(400, "Meeting attendee name is too long.", "CRM_MEETING_ATTENDEE_INVALID");
     if (contactId) {
       const found = await client.query(
-        `SELECT contact.id,trim(concat_ws(' ',contact.first_name,contact.last_name)) AS full_name,contact.email,party.company_id
+        `SELECT contact.id,trim(concat_ws(' ',contact.first_name,contact.last_name)) AS full_name,contact.email
            FROM tenant.contacts contact
            JOIN tenant.business_parties party ON party.organization_id=contact.organization_id AND party.id=contact.party_id
           WHERE contact.organization_id=$1 AND contact.id=$2 AND contact.status='active' AND party.status='active' LIMIT 1`,
@@ -234,9 +214,6 @@ async function normalizeAttendees(client, context, input, { companyId = null } =
       );
       const contact = found.rows[0];
       if (!contact) throw new CrmError(409, "Meeting attendee Contact is unavailable.", "CRM_MEETING_ATTENDEE_INVALID");
-      const attendeeCompanyId = companyId || context.activeCompanyId || null;
-      if (attendeeCompanyId && contact.company_id && contact.company_id !== attendeeCompanyId)
-        throw new CrmError(403, "Meeting attendee belongs to another company.", "CRM_MEETING_ATTENDEE_SCOPE_INVALID");
       attendeeEmail ||= email(contact.email);
       name ||= text(contact.full_name) || null;
     }
@@ -255,29 +232,11 @@ async function validatePrepared(client, context, prepared, existing = null, { mo
   effective.entityType ||= "general";
   effective.priority ||= "medium";
   effective.assignedTo ||= context.userId;
-  effective.companyId ??= context.activeCompanyId || null;
-  effective.branchId ??= context.activeBranchId || null;
   effective.locationType ||= "other";
-  assertWritableScope(context, effective);
   if (!effective.subject) throw new CrmError(400, "Meeting subject is required.", "CRM_MEETING_SUBJECT_INVALID");
-  const related = await relationRecord(client, context, effective.entityType, effective.entityId || null);
-  if (!effective.companyId && related?.company_id) {
-    effective.companyId = related.company_id;
-    prepared.companyId = related.company_id;
-  }
-  if (!effective.branchId && related?.branch_id) {
-    effective.branchId = related.branch_id;
-    prepared.branchId = related.branch_id;
-  }
-  if (related?.company_id && effective.companyId && related.company_id !== effective.companyId)
-    throw new CrmError(409, "The related CRM record belongs to another company.", "CRM_MEETING_RELATION_SCOPE_INVALID");
-  if (related?.branch_id && effective.branchId && related.branch_id !== effective.branchId)
-    throw new CrmError(409, "The related CRM record belongs to another branch.", "CRM_MEETING_RELATION_SCOPE_INVALID");
+  await relationRecord(client, context, effective.entityType, effective.entityId || null);
   try {
-    await assertEligibleLeadAssignee(client, context, effective.assignedTo, {
-      companyId: effective.companyId || null,
-      branchId: effective.branchId || null,
-    });
+    await assertEligibleLeadAssignee(client, context, effective.assignedTo);
   } catch (error) {
     if (error?.code === "CRM_LEAD_ASSIGNEE_SCOPE_INVALID") throw new CrmError(409, error.message, "CRM_MEETING_ASSIGNEE_INVALID");
     throw error;
@@ -296,7 +255,7 @@ async function validatePrepared(client, context, prepared, existing = null, { mo
     throw new CrmError(400, "In-person Meetings require a location.", "CRM_MEETING_LOCATION_REQUIRED");
   if (effective.locationType === "online" && !effective.meetingUrl)
     throw new CrmError(400, "Online Meetings require a meeting URL.", "CRM_MEETING_URL_REQUIRED");
-  if (hasOwn(prepared, "attendees")) prepared.attendees = await normalizeAttendees(client, context, prepared.attendees, { companyId: effective.companyId || null });
+  if (hasOwn(prepared, "attendees")) prepared.attendees = await normalizeAttendees(client, context, prepared.attendees);
   return effective;
 }
 async function recordEvent(client, context, activityId, eventType, before, after, attendeeCount = 0) {
@@ -316,8 +275,6 @@ function safeEventPayload(meeting, attendeeCount = 0) {
     entityType: meeting.entityType,
     entityId: meeting.entityId,
     assignedTo: meeting.assignedTo,
-    companyId: meeting.companyId,
-    branchId: meeting.branchId,
     locationType: meeting.locationType,
     outcomeCode: meeting.outcomeCode,
     durationSeconds: meeting.durationSeconds,
@@ -468,8 +425,6 @@ export async function createCrmMeeting(client, context, input = {}) {
   prepared.entityType ||= "general";
   prepared.priority ||= "medium";
   prepared.assignedTo ||= context.userId;
-  prepared.companyId ??= context.activeCompanyId || null;
-  prepared.branchId ??= context.activeBranchId || null;
   prepared.locationType ||= "other";
   await validatePrepared(client, context, prepared, null, { mode });
 
@@ -502,12 +457,12 @@ export async function createCrmMeeting(client, context, input = {}) {
 
   const result = await client.query(
     `INSERT INTO tenant.crm_activities(
-       organization_id,company_id,branch_id,entity_type,entity_id,activity_type,subject,description,status,priority,assigned_to,
+       organization_id,entity_type,entity_id,activity_type,subject,description,status,priority,assigned_to,
        start_at,due_at,end_at,completed_at,outcome,location,meeting_location_type,meeting_url,meeting_outcome_code,
        meeting_started_at,meeting_ended_at,meeting_duration_seconds,created_by,updated_by)
-     VALUES($1,$2,$3,$4,$5,'meeting',$6,$7,$8,$9,$10,$11,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$22)
+     VALUES($1,$2,$3,'meeting',$4,$5,$6,$7,$8,$9,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$20)
      RETURNING *`,
-    [context.organizationId, prepared.companyId, prepared.branchId, prepared.entityType, prepared.entityId || null, prepared.subject,
+    [context.organizationId, prepared.entityType, prepared.entityId || null, prepared.subject,
       prepared.description || null, status, prepared.priority, prepared.assignedTo, startAt, endAt, completedAt, outcome,
       prepared.location || null, prepared.locationType, prepared.meetingUrl || null, outcomeCode, actualStartedAt, actualEndedAt,
       durationSeconds, context.userId],
@@ -566,7 +521,7 @@ export async function updateCrmMeeting(client, context, id, input = {}) {
     throw new CrmError(400, "Changing the related-record type also requires selecting its related record.", "CRM_MEETING_RELATION_REQUIRED");
   await validatePrepared(client, context, prepared, before, { mode: "update" });
   const mapping = {
-    companyId: "company_id", branchId: "branch_id", entityType: "entity_type", entityId: "entity_id", subject: "subject",
+    entityType: "entity_type", entityId: "entity_id", subject: "subject",
     description: "description", priority: "priority", assignedTo: "assigned_to", startAt: "start_at", endAt: "end_at",
     locationType: "meeting_location_type", location: "location", meetingUrl: "meeting_url",
   };

@@ -27,11 +27,11 @@ export async function releaseQualityHold(client, context, holdId, input = {}) {
 
   const snapshot = await client.query(
     `SELECT id,item_id FROM tenant.quality_holds
-     WHERE organization_id=$1 AND company_id=$2 AND id=$3`,
-    [context.organizationId, context.companyId, holdId],
+     WHERE organization_id=$1 AND id=$2`,
+    [context.organizationId, holdId],
   );
   if (!snapshot.rows[0]) {
-    const error = new Error("Quality hold was not found for the active company.");
+    const error = new Error("Quality hold was not found.");
     error.status = 404;
     error.code = "QUALITY_HOLD_NOT_FOUND";
     throw error;
@@ -42,8 +42,8 @@ export async function releaseQualityHold(client, context, holdId, input = {}) {
 
   const locked = await client.query(
     `SELECT * FROM tenant.quality_holds
-     WHERE organization_id=$1 AND company_id=$2 AND id=$3 FOR UPDATE`,
-    [context.organizationId, context.companyId, holdId],
+     WHERE organization_id=$1 AND id=$2 FOR UPDATE`,
+    [context.organizationId, holdId],
   );
   const hold = locked.rows[0];
   if (!hold || hold.status !== "active") {
@@ -92,23 +92,23 @@ export async function releaseQualityHold(client, context, holdId, input = {}) {
 
   await client.query(
     `INSERT INTO tenant.quality_hold_releases
-      (organization_id,company_id,hold_id,quantity,reason,released_by,idempotency_key)
-     VALUES ($1,$2,$3,$4,$5,$6,$7)`,
-    [context.organizationId, context.companyId, holdId, String(requested), reason, context.userId, input.idempotencyKey],
+      (organization_id,hold_id,quantity,reason,released_by,idempotency_key)
+     VALUES ($1,$2,$3,$4,$5,$6)`,
+    [context.organizationId, holdId, String(requested), reason, context.userId, input.idempotencyKey],
   );
   const nextReleased = alreadyReleased + requested;
   const fullyReleased = scopeHold || nextReleased >= total;
   const updated = await client.query(
     `UPDATE tenant.quality_holds
-     SET released_quantity=$4,
-       status=CASE WHEN $5 THEN 'released' ELSE 'active' END,
-       released_by=CASE WHEN $5 THEN $6 ELSE released_by END,
-       released_at=CASE WHEN $5 THEN now() ELSE released_at END,
-       release_reason=CASE WHEN $5 THEN $7 ELSE release_reason END,
+     SET released_quantity=$3,
+       status=CASE WHEN $4 THEN 'released' ELSE 'active' END,
+       released_by=CASE WHEN $4 THEN $5 ELSE released_by END,
+       released_at=CASE WHEN $4 THEN now() ELSE released_at END,
+       release_reason=CASE WHEN $4 THEN $6 ELSE release_reason END,
        version=version+1
-     WHERE organization_id=$1 AND company_id=$2 AND id=$3
+     WHERE organization_id=$1 AND id=$2
      RETURNING *`,
-    [context.organizationId, context.companyId, holdId, String(nextReleased), fullyReleased, context.userId, reason],
+    [context.organizationId, holdId, String(nextReleased), fullyReleased, context.userId, reason],
   );
   await recordEvent(client, context, "hold", holdId, fullyReleased ? "quality.hold.released" : "quality.hold.partially_released", {
     quantity: requested,

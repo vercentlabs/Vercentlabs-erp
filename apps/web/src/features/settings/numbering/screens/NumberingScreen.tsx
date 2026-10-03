@@ -4,7 +4,6 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Button,
   Dialog,
-  EmptyState,
   ErrorState,
   NumberField,
   PageHeader,
@@ -29,7 +28,6 @@ type NumberingType = {
   documentType: string;
   label: string;
   moduleKey: string;
-  scope: "organization" | "company";
   configurable: boolean;
   customized: boolean;
   prefix: string;
@@ -40,12 +38,10 @@ type NumberingType = {
   nextNumberPreview: string;
 };
 type Payload = {
-  companies: Array<{ id: string; name: string }>;
   overview: {
-    companyId: string;
     fiscalYearStartMonth: number;
     types: NumberingType[];
-  } | null;
+  };
 };
 
 const MODULE_NAME = new Map<string, string>(
@@ -90,18 +86,13 @@ function preview(
 
 export function NumberingScreen({ canManage }: { canManage: boolean }) {
   const queryClient = useQueryClient();
-  const [companyId, setCompanyId] = useState<string | null>(null);
   const [editing, setEditing] = useState<NumberingType | null>(null);
   const query = useQuery({
-    queryKey: ["settings", "numbering", companyId],
-    queryFn: () =>
-      requestJson<Payload>(
-        `/api/settings/numbering${companyId ? `?companyId=${companyId}` : ""}`,
-      ),
+    queryKey: ["settings", "numbering"],
+    queryFn: () => requestJson<Payload>("/api/settings/numbering"),
     enabled: canManage,
   });
   const overview = query.data?.overview ?? null;
-  const activeCompanyId = overview?.companyId ?? null;
   const groups = useMemo(() => {
     const map = new Map<string, NumberingType[]>();
     for (const type of overview?.types ?? [])
@@ -124,19 +115,6 @@ export function NumberingScreen({ canManage }: { canManage: boolean }) {
         title="Numbering"
         description="How document numbers are formed. Changes apply to documents created from now on; issued numbers never change."
       />
-      {query.data && query.data.companies.length > 1 && (
-        <div className="max-w-sm">
-          <Select
-            label="Company"
-            options={query.data.companies.map((company) => ({
-              value: company.id,
-              label: company.name,
-            }))}
-            selectedKey={activeCompanyId}
-            onSelectionChange={(key) => setCompanyId(String(key))}
-          />
-        </div>
-      )}
       {query.isLoading ? (
         <p className="text-sm text-text-secondary">Loading…</p>
       ) : query.isError ? (
@@ -145,12 +123,7 @@ export function NumberingScreen({ canManage }: { canManage: boolean }) {
           description={(query.error as Error).message}
           action={{ label: "Retry", onPress: () => query.refetch() }}
         />
-      ) : !overview ? (
-        <EmptyState
-          title="No company yet"
-          description="Add a company first; numbering is configured per company."
-        />
-      ) : (
+      ) : !overview ? null : (
         groups.map(([moduleKey, types]) => (
           <section
             key={moduleKey}
@@ -178,16 +151,9 @@ export function NumberingScreen({ canManage }: { canManage: boolean }) {
                   {types.map((type) => (
                     <TableRow key={type.documentType}>
                       <TableCell>
-                        <div className="flex flex-col gap-0.5">
-                          <span className="font-medium text-text">
-                            {type.label}
-                          </span>
-                          <span className="text-xs text-text-muted">
-                            {type.scope === "organization"
-                              ? "Shared by all companies"
-                              : "This company only"}
-                          </span>
-                        </div>
+                        <span className="font-medium text-text">
+                          {type.label}
+                        </span>
                       </TableCell>
                       <TableCell>
                         <span className="font-mono text-sm">
@@ -217,10 +183,9 @@ export function NumberingScreen({ canManage }: { canManage: boolean }) {
           </section>
         ))
       )}
-      {editing && activeCompanyId && (
+      {editing && (
         <EditNumberingDialog
           type={editing}
-          companyId={activeCompanyId}
           fiscalYearStartMonth={overview?.fiscalYearStartMonth ?? 4}
           onClose={() => setEditing(null)}
           onSaved={() => {
@@ -237,13 +202,11 @@ export function NumberingScreen({ canManage }: { canManage: boolean }) {
 
 function EditNumberingDialog({
   type,
-  companyId,
   fiscalYearStartMonth,
   onClose,
   onSaved,
 }: {
   type: NumberingType;
-  companyId: string;
   fiscalYearStartMonth: number;
   onClose: () => void;
   onSaved: () => void;
@@ -253,14 +216,12 @@ function EditNumberingDialog({
   const [resetPolicy, setResetPolicy] = useState<ResetPolicy>(type.resetPolicy);
   const [advanceTo, setAdvanceTo] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const scopeCompanyId = type.scope === "company" ? companyId : null;
   const save = useMutation({
     mutationFn: async () => {
       await requestJson("/api/settings/numbering", {
         method: "PUT",
         json: {
           documentType: type.documentType,
-          companyId: scopeCompanyId,
           prefix: prefix.trim().toUpperCase(),
           padding,
           resetPolicy,
@@ -272,7 +233,6 @@ function EditNumberingDialog({
           method: "POST",
           json: {
             documentType: type.documentType,
-            companyId: scopeCompanyId,
             nextValue: advanceTo,
           },
         });
@@ -301,11 +261,6 @@ function EditNumberingDialog({
       isOpen
       onOpenChange={(open) => !open && onClose()}
       title={`${type.label} numbering`}
-      description={
-        type.scope === "organization"
-          ? "Shared by all companies in this organization."
-          : "Applies to this company only."
-      }
     >
       <div className="flex flex-col gap-4">
         <TextField

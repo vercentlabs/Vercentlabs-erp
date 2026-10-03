@@ -12,7 +12,7 @@ const PRIORITIES = new Set(["low", "medium", "high", "urgent"]);
 const RELATED = new Set(["lead", "opportunity", "party", "contact", "campaign", "general"]);
 const EDITABLE_STATUSES = new Set(["planned", "overdue"]);
 const CALL_FIELDS = new Set([
-  "companyId", "branchId", "entityType", "entityId", "subject", "description", "priority", "assignedTo",
+  "entityType", "entityId", "subject", "description", "priority", "assignedTo",
   "startAt", "dueAt", "reminderAt", "direction", "phoneNumber",
 ]);
 const CREATE_FIELDS = new Set([...CALL_FIELDS, "mode", "occurredAt", "durationSeconds", "outcomeCode", "outcome"]);
@@ -76,8 +76,6 @@ function normalizePhone(value) {
 function normalizeBase(input, { create = false } = {}) {
   assertAllowed(input, create ? CREATE_FIELDS : CALL_FIELDS);
   const out = {};
-  if (hasOwn(input, "companyId")) out.companyId = assertUuid(input.companyId, "Company", true);
-  if (hasOwn(input, "branchId")) out.branchId = assertUuid(input.branchId, "Branch", true);
   if (hasOwn(input, "entityType")) {
     const value = text(input.entityType).toLowerCase() || "general";
     if (!RELATED.has(value)) throw new CrmError(400, "Related record type is invalid.", "CRM_CALL_RELATION_INVALID");
@@ -113,25 +111,11 @@ function normalizeBase(input, { create = false } = {}) {
 }
 function scopeSql(context, values, alias = "activity") {
   let sql = "";
-  if (context.activeCompanyId) sql += ` AND (${alias}.company_id IS NULL OR ${alias}.company_id=${add(values, context.activeCompanyId)})`;
-  else if (!context.allowAllCompanies) return " AND false";
-  if (context.activeBranchId) sql += ` AND (${alias}.branch_id IS NULL OR ${alias}.branch_id=${add(values, context.activeBranchId)})`;
-  else if (!context.allowAllCompanies) return " AND false";
   // Own + managed-team members + unassigned queue (crm-access-scope.js).
   sql += crmOwnerScopeSql(context, (value) => add(values, value), `${alias}.assigned_to`, `${alias}.organization_id`, { resource: "activities", alias: alias });
   if (!canViewSensitiveLeadContent(context))
     sql += ` AND COALESCE(${alias}.entity_type,'general') <> 'lead'`;
   return sql;
-}
-function assertWritableScope(context, prepared) {
-  if (!context.activeCompanyId && !context.allowAllCompanies)
-    throw new CrmError(403, "Select an allowed company before maintaining Calls.", "CRM_CALL_SCOPE_FORBIDDEN");
-  if (context.activeCompanyId && prepared.companyId && prepared.companyId !== context.activeCompanyId)
-    throw new CrmError(403, "The Call belongs to another company.", "CRM_CALL_SCOPE_FORBIDDEN");
-  if (!context.activeBranchId && !context.allowAllCompanies)
-    throw new CrmError(403, "Select an allowed branch before maintaining Calls.", "CRM_CALL_SCOPE_FORBIDDEN");
-  if (context.activeBranchId && prepared.branchId && prepared.branchId !== context.activeBranchId)
-    throw new CrmError(403, "The Call belongs to another branch.", "CRM_CALL_SCOPE_FORBIDDEN");
 }
 async function relationRecord(client, context, entityType, entityId) {
   if (entityType === "general") {
@@ -146,14 +130,14 @@ async function relationRecord(client, context, entityType, entityId) {
     const values = [context.organizationId, entityId];
     const scope = leadScopeSql(context, values, "lead");
     query = await client.query(
-      `SELECT lead.id,lead.company_id,lead.branch_id,COALESCE(lead.mobile,lead.phone) AS phone,lead.do_not_contact
+      `SELECT lead.id,COALESCE(lead.mobile,lead.phone) AS phone,lead.do_not_contact
          FROM tenant.crm_leads lead
         WHERE lead.organization_id=$1 AND lead.id=$2 AND lead.record_status <> 'archived'${scope} LIMIT 1`,
       values,
     );
   } else if (entityType === "contact") {
     query = await client.query(
-      `SELECT contact.id,party.company_id,NULL::uuid AS branch_id,COALESCE(contact.mobile,contact.phone) AS phone,false AS do_not_contact
+      `SELECT contact.id,COALESCE(contact.mobile,contact.phone) AS phone,false AS do_not_contact
          FROM tenant.contacts contact
          JOIN tenant.business_parties party ON party.organization_id=contact.organization_id AND party.id=contact.party_id
         WHERE contact.organization_id=$1 AND contact.id=$2 AND contact.status='active' AND party.status='active' LIMIT 1`,
@@ -161,7 +145,7 @@ async function relationRecord(client, context, entityType, entityId) {
     );
   } else if (entityType === "party") {
     query = await client.query(
-      `SELECT party.id,party.company_id,NULL::uuid AS branch_id,
+      `SELECT party.id,
               (SELECT COALESCE(contact.mobile,contact.phone) FROM tenant.contacts contact
                 WHERE contact.organization_id=party.organization_id AND contact.party_id=party.id AND contact.status='active'
                 ORDER BY contact.is_primary DESC,contact.created_at ASC LIMIT 1) AS phone,
@@ -172,7 +156,7 @@ async function relationRecord(client, context, entityType, entityId) {
     );
   } else if (entityType === "opportunity") {
     query = await client.query(
-      `SELECT opportunity.id,opportunity.company_id,opportunity.branch_id,
+      `SELECT opportunity.id,
               COALESCE(direct_contact.mobile,direct_contact.phone,
                 (SELECT COALESCE(account_contact.mobile,account_contact.phone) FROM tenant.contacts account_contact
                   WHERE account_contact.organization_id=opportunity.organization_id
@@ -187,7 +171,7 @@ async function relationRecord(client, context, entityType, entityId) {
     );
   } else if (entityType === "campaign") {
     query = await client.query(
-      `SELECT id,company_id,NULL::uuid AS branch_id,NULL::text AS phone,false AS do_not_contact
+      `SELECT id,NULL::text AS phone,false AS do_not_contact
          FROM tenant.crm_campaigns
         WHERE organization_id=$1 AND id=$2 AND status <> 'cancelled' LIMIT 1`,
       [context.organizationId, entityId],
@@ -195,10 +179,6 @@ async function relationRecord(client, context, entityType, entityId) {
   }
   const row = query?.rows?.[0];
   if (!row) throw new CrmError(409, "The related CRM record is unavailable.", "CRM_CALL_RELATION_INVALID");
-  if (context.activeCompanyId && row.company_id && row.company_id !== context.activeCompanyId)
-    throw new CrmError(403, "The related CRM record belongs to another company.", "CRM_CALL_RELATION_SCOPE_INVALID");
-  if (context.activeBranchId && row.branch_id && row.branch_id !== context.activeBranchId)
-    throw new CrmError(403, "The related CRM record belongs to another branch.", "CRM_CALL_RELATION_SCOPE_INVALID");
   return row;
 }
 async function validatePrepared(client, context, prepared, existing = null, { mode = "update" } = {}) {
@@ -206,38 +186,16 @@ async function validatePrepared(client, context, prepared, existing = null, { mo
   effective.entityType ||= "general";
   effective.priority ||= "medium";
   effective.assignedTo ||= context.userId;
-  effective.companyId ??= context.activeCompanyId || null;
-  effective.branchId ??= context.activeBranchId || null;
-  assertWritableScope(context, effective);
   if (!effective.subject) throw new CrmError(400, "Call subject is required.", "CRM_CALL_SUBJECT_INVALID");
   if (!effective.direction) throw new CrmError(400, "Call direction is required.", "CRM_CALL_DIRECTION_INVALID");
   const related = await relationRecord(client, context, effective.entityType, effective.entityId || null);
-  // A related CRM record owns its company/branch boundary. In an all-company
-  // administrator context there may be no active selector, so inherit that
-  // boundary instead of creating an organization-wide Call that could later
-  // be visible from another company through the nullable-company scope rule.
-  if (!effective.companyId && related?.company_id) {
-    effective.companyId = related.company_id;
-    prepared.companyId = related.company_id;
-  }
-  if (!effective.branchId && related?.branch_id) {
-    effective.branchId = related.branch_id;
-    prepared.branchId = related.branch_id;
-  }
-  if (related?.company_id && effective.companyId && related.company_id !== effective.companyId)
-    throw new CrmError(409, "The related CRM record belongs to another company.", "CRM_CALL_RELATION_SCOPE_INVALID");
-  if (related?.branch_id && effective.branchId && related.branch_id !== effective.branchId)
-    throw new CrmError(409, "The related CRM record belongs to another branch.", "CRM_CALL_RELATION_SCOPE_INVALID");
   if (effective.direction === "outbound" && related?.do_not_contact)
     throw new CrmError(409, "This Lead is marked do not contact. Outbound Calls are blocked.", "CRM_CALL_DO_NOT_CONTACT");
   if (!effective.phoneNumber && related?.phone) prepared.phoneNumber = normalizePhone(related.phone);
   if (!(prepared.phoneNumber ?? effective.phoneNumber))
     throw new CrmError(400, "A dialable phone number is required for the Call.", "CRM_CALL_PHONE_REQUIRED");
   try {
-    await assertEligibleLeadAssignee(client, context, effective.assignedTo, {
-      companyId: effective.companyId || null,
-      branchId: effective.branchId || null,
-    });
+    await assertEligibleLeadAssignee(client, context, effective.assignedTo);
   } catch (error) {
     if (error?.code === "CRM_LEAD_ASSIGNEE_SCOPE_INVALID") throw new CrmError(409, error.message, "CRM_CALL_ASSIGNEE_INVALID");
     throw error;
@@ -265,8 +223,6 @@ function safeEventPayload(call) {
     entityType: call.entityType,
     entityId: call.entityId,
     assignedTo: call.assignedTo,
-    companyId: call.companyId,
-    branchId: call.branchId,
     outcomeCode: call.outcomeCode,
     durationSeconds: call.durationSeconds,
   };
@@ -369,8 +325,6 @@ export async function createCrmCall(client, context, input = {}) {
   prepared.entityType ||= "general";
   prepared.priority ||= "medium";
   prepared.assignedTo ||= context.userId;
-  prepared.companyId ??= context.activeCompanyId || null;
-  prepared.branchId ??= context.activeBranchId || null;
   await validatePrepared(client, context, prepared, null, { mode });
 
   let status = "planned";
@@ -396,12 +350,12 @@ export async function createCrmCall(client, context, input = {}) {
   }
   const result = await client.query(
     `INSERT INTO tenant.crm_activities(
-       organization_id,company_id,branch_id,entity_type,entity_id,activity_type,subject,description,status,priority,assigned_to,
+       organization_id,entity_type,entity_id,activity_type,subject,description,status,priority,assigned_to,
        start_at,due_at,reminder_at,completed_at,outcome,call_direction,call_phone,call_outcome_code,call_started_at,call_ended_at,
        call_duration_seconds,created_by,updated_by)
-     VALUES($1,$2,$3,$4,$5,'call',$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$22)
+     VALUES($1,$2,$3,'call',$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$20)
      RETURNING *`,
-    [context.organizationId, prepared.companyId, prepared.branchId, prepared.entityType, prepared.entityId || null, prepared.subject,
+    [context.organizationId, prepared.entityType, prepared.entityId || null, prepared.subject,
       prepared.description || null, status, prepared.priority, prepared.assignedTo, prepared.startAt || null, prepared.dueAt || null,
       prepared.reminderAt || null, completedAt, outcome, prepared.direction, prepared.phoneNumber, outcomeCode, actualStartedAt,
       actualEndedAt, durationSeconds, context.userId],
@@ -428,7 +382,7 @@ export async function updateCrmCall(client, context, id, input = {}) {
     throw new CrmError(400, "Changing the related-record type also requires selecting its related record.", "CRM_CALL_RELATION_REQUIRED");
   await validatePrepared(client, context, prepared, before, { mode: "schedule" });
   const mapping = {
-    companyId: "company_id", branchId: "branch_id", entityType: "entity_type", entityId: "entity_id", subject: "subject",
+    entityType: "entity_type", entityId: "entity_id", subject: "subject",
     description: "description", priority: "priority", assignedTo: "assigned_to", startAt: "start_at", dueAt: "due_at",
     reminderAt: "reminder_at", direction: "call_direction", phoneNumber: "call_phone",
   };

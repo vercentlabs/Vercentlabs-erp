@@ -49,7 +49,6 @@ export async function GET(
           const o = (await getAccountingOptions(
             client,
             context,
-            context.activeCompanyId,
           )) as unknown as Record<string, Rec[]>;
           return {
             options: {
@@ -80,7 +79,6 @@ export async function GET(
             settings: await getAccountingSettings(
               client,
               context,
-              context.activeCompanyId,
             ),
           };
         case "dashboard":
@@ -91,7 +89,6 @@ export async function GET(
               (await getAccountingOptions(
                 client,
                 context,
-                context.activeCompanyId,
               )) as unknown as { accounts: unknown[] }
             ).accounts,
           };
@@ -154,7 +151,6 @@ export async function GET(
             blockers: await getPeriodCloseBlockers(
               client,
               context,
-              context.activeCompanyId ?? "",
               get("periodId") ?? "",
             ),
           };

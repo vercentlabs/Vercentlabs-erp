@@ -48,10 +48,6 @@ export function normalizeAccountInput(input = {}) {
     const value = text(normalized[field]).toUpperCase();
     normalized[field] = value || null;
   }
-  if (hasOwn(normalized, "companyId")) {
-    const value = text(normalized.companyId);
-    normalized.companyId = value || null;
-  }
   if (hasOwn(normalized, "partyType")) {
     normalized.partyType = text(normalized.partyType).toLowerCase();
   }

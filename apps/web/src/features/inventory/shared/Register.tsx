@@ -153,7 +153,7 @@ const initial = (fields: FieldDef[], row?: Row): Record<string, FieldValue> =>
   );
 
 // One list-create-edit screen for every Inventory register. Search is applied in the browser over
-// the rows the server returns (already scoped to the active company); every field is validated by
+// the rows the server returns (already scoped to the organization); every field is validated by
 // the domain and every action re-checks its own permission there.
 export function Register({ config }: { config: RegisterConfig }) {
   const workspace = useWorkspaceContext();

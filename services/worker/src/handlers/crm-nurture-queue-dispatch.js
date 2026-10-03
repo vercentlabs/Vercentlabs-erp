@@ -26,15 +26,12 @@ function isWithinBusinessHours(now) {
 
 // Nurture-queue notification dispatch (Scheduled Follow-up reminders are
 // dispatched by crm-follow-up-reminder-dispatch.js). System context is permission-neutral/org-wide, matching every other scheduled
-// scan — a due nurture item must notify its owner regardless of which
-// company/branch happened to be active when it was generated.
+// scan — a due nurture item must notify its owner regardless of who
+// generated it.
 function systemContext(organizationId) {
   return Object.freeze({
     organizationId,
     userId: null,
-    activeCompanyId: null,
-    activeBranchId: null,
-    allowAllCompanies: true,
     permissions: [],
     roleSlugs: ["system_worker"],
   });

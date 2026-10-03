@@ -1,7 +1,6 @@
 import { z } from "zod";
 
 import {
-  procurementRecordCompanyId,
   transitionProcurementReceiptWithStockMovement,
   transitionProcurementRecord,
 } from "@vercentlabs/api";
@@ -29,23 +28,16 @@ export async function POST(
         resource === "receipts" &&
         (action === "approve" || action === "reverse")
       ) {
-        const companyId = await procurementRecordCompanyId(
-          client,
-          context.organizationId,
-          "receipts",
-          id,
-        );
-        if (companyId)
-          return {
-            record: await transitionProcurementReceiptWithStockMovement(
-              client,
-              context,
-              stockContextForReceiving(session, companyId),
-              id,
-              action,
-              input,
-            ),
-          };
+        return {
+          record: await transitionProcurementReceiptWithStockMovement(
+            client,
+            context,
+            stockContextForReceiving(session),
+            id,
+            action,
+            input,
+          ),
+        };
       }
       return {
         record: await transitionProcurementRecord(

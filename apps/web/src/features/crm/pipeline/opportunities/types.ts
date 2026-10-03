@@ -6,8 +6,6 @@
 export type Opportunity = {
   id: string;
   code: string;
-  companyId: string | null;
-  branchId: string | null;
   pipelineId: string;
   stageId: string;
   stageName?: string | null;

@@ -100,8 +100,8 @@ function buildBranch(kind, entityType, entityId, context, values) {
   if (kind === "activity") {
     const entityIdParam = add(values, entityId);
     // Access to the parent record is not access to every activity on it:
-    // activities keep their own rule (assignee/team/unassigned, company,
-    // branch) exactly as in the Activities list — recordScope.
+    // activities keep their own rule (assignee/team/unassigned)
+    // exactly as in the Activities list — recordScope.
     return `SELECT activity.id,'activity'::text AS kind,activity.activity_type AS subtype,activity.subject AS title,COALESCE(activity.completed_at,activity.due_at,activity.created_at) AS occurred_at,activity.status,activity.assigned_to AS actor_user_id,activity.created_by
        FROM tenant.crm_activities activity WHERE activity.organization_id=$1 AND activity.entity_type='${entityType}' AND activity.entity_id=${entityIdParam}${recordScope(resources.activities, context, values, "activity")}`;
   }
@@ -177,14 +177,14 @@ function buildBranch(kind, entityType, entityId, context, values) {
   return null;
 }
 
-function buildBranches(context, entityType, entityId, wantedKinds, values) {
-  const branches = [];
+function buildUnionParts(context, entityType, entityId, wantedKinds, values) {
+  const unionParts = [];
   for (const kind of SOURCE_KINDS) {
     if (!wantedKinds.has(kind)) continue;
     const branch = buildBranch(kind, entityType, entityId, context, values);
-    if (branch) branches.push(branch);
+    if (branch) unionParts.push(branch);
   }
-  return branches;
+  return unionParts;
 }
 
 // Full-row (SELECT *, every column) query for exactly ONE source kind —
@@ -242,8 +242,8 @@ export async function getCrmTimelinePage(client, context, entityType, entityId, 
   }
 
   const values = [context.organizationId];
-  const branches = buildBranches(context, entityType, entityId, wantedKinds, values);
-  if (!branches.length) return { rows: [], hasMore: false, nextCursor: null };
+  const unionParts = buildUnionParts(context, entityType, entityId, wantedKinds, values);
+  if (!unionParts.length) return { rows: [], hasMore: false, nextCursor: null };
 
   let cursorClause = "";
   if (cursorOccurredAt && cursorId) {
@@ -253,7 +253,7 @@ export async function getCrmTimelinePage(client, context, entityType, entityId, 
   }
   const limitParam = add(values, boundedLimit + 1);
 
-  const sql = `WITH combined AS (${branches.join(" UNION ALL ")})
+  const sql = `WITH combined AS (${unionParts.join(" UNION ALL ")})
     SELECT combined.*,actor.full_name AS actor_name FROM combined
     LEFT JOIN public.users actor ON actor.id=COALESCE(combined.actor_user_id,combined.created_by)${cursorClause}
     ORDER BY combined.occurred_at DESC, combined.id DESC

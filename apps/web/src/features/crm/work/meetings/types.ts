@@ -9,8 +9,6 @@ type MeetingAttendee = {
 
 export type Meeting = {
   id: string;
-  companyId: string | null;
-  branchId: string | null;
   entityType:
     "lead" | "opportunity" | "party" | "contact" | "campaign" | "general";
   entityId: string | null;

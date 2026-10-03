@@ -1,6 +1,5 @@
 export type PointOfSaleContext = {
   organizationId: string;
-  companyId: string;
   userId: string;
   permissions: readonly string[];
   roleSlugs: readonly string[];
@@ -25,7 +24,7 @@ export declare function listPointOfSaleResource(
     withTotal?: boolean;
   },
 ): Promise<any[] | { rows: any[]; total: number }>;
-export declare function listPosStoreSetupOptions(client: any, context: PointOfSaleContext): Promise<{ branches: any[]; warehouses: any[]; priceLists: any[] }>;
+export declare function listPosStoreSetupOptions(client: any, context: PointOfSaleContext): Promise<{ warehouses: any[]; priceLists: any[] }>;
 export type PosSettingsValues = {
   require_shift_reconciliation: boolean;
   allow_negative_stock: boolean;
@@ -97,7 +96,6 @@ export type PosDayEndLineage = { shiftIds: string[]; saleIds: string[]; returnId
 export type PosDayEndReport = {
   id: string;
   organization_id: string;
-  company_id: string;
   store_id: string;
   terminal_id: string | null;
   scope_type: "shift" | "business_day";
@@ -154,9 +152,9 @@ export declare function listPosDayEndReports(client: any, context: PointOfSaleCo
 export declare function getPosDayEndReport(client: any, context: PointOfSaleContext, reportId: string): Promise<PosDayEndReport>;
 
 // F304 — payment reconciliation.
-export type PosSettlementBatch = { id: string; organization_id: string; company_id: string; store_id: string | null; payment_method: string; provider_key: string; batch_reference: string; settlement_date: string; total_amount: string; total_fee_amount: string; entry_count: number; status: "imported" | "matched" | "closed"; [key: string]: any };
+export type PosSettlementBatch = { id: string; organization_id: string; store_id: string | null; payment_method: string; provider_key: string; batch_reference: string; settlement_date: string; total_amount: string; total_fee_amount: string; entry_count: number; status: "imported" | "matched" | "closed"; [key: string]: any };
 export type PosSettlementEntry = { id: string; batch_id: string; provider_reference: string; amount: string; fee_amount: string; settled_at: string; matched_payment_id: string | null; match_status: "unmatched" | "matched" | "duplicate"; [key: string]: any };
-export type PosReconciliation = { id: string; organization_id: string; company_id: string; store_id: string | null; day_end_report_id: string | null; shift_id: string | null; payment_method: string; reconciliation_number: string | null; expected_amount: string; counted_amount: string; settled_amount: string; variance_amount: string; fee_total: string; missing_count: number; duplicate_count: number; status: "draft" | "matched" | "variance" | "resolved"; matched_by: string | null; matched_at: string | null; resolved_by: string | null; resolved_at: string | null; resolution_notes: string | null; approved_by: string | null; approved_at: string | null; [key: string]: any };
+export type PosReconciliation = { id: string; organization_id: string; store_id: string | null; day_end_report_id: string | null; shift_id: string | null; payment_method: string; reconciliation_number: string | null; expected_amount: string; counted_amount: string; settled_amount: string; variance_amount: string; fee_total: string; missing_count: number; duplicate_count: number; status: "draft" | "matched" | "variance" | "resolved"; matched_by: string | null; matched_at: string | null; resolved_by: string | null; resolved_at: string | null; resolution_notes: string | null; approved_by: string | null; approved_at: string | null; [key: string]: any };
 export declare function importPosSettlementBatch(client: any, context: PointOfSaleContext, input: { storeId?: string | null; paymentMethod: "card" | "upi" | "bank_transfer" | "wallet" | "store_credit"; providerKey: string; batchReference: string; settlementDate: string; entries: Array<{ providerReference: string; amount: number; feeAmount?: number; settledAt?: string }> }): Promise<{ batch: PosSettlementBatch; entries: PosSettlementEntry[]; replayed: boolean }>;
 export declare function generatePosReconciliation(client: any, context: PointOfSaleContext, reportId: string, input?: { idempotencyKey?: string }): Promise<{ reportId: string; reconciliations: PosReconciliation[]; replayed: boolean }>;
 export declare function resolvePosReconciliation(client: any, context: PointOfSaleContext, reconciliationId: string, input: { resolutionNotes: string }): Promise<PosReconciliation>;
@@ -402,7 +400,6 @@ export type PosPaymentStatus = "initiated" | "pending" | "authorized" | "capture
 export type PosPayment = {
   id: string;
   organization_id: string;
-  company_id: string;
   cart_id: string | null;
   sale_id: string | null;
   store_id: string | null;
@@ -453,7 +450,7 @@ export type PosPaymentAdapter = {
   initiate: (context: PointOfSaleContext, input: Record<string, any>) => Promise<{ providerReference: string; status: string; failureReason?: string; raw?: unknown }>;
   refund: (context: PointOfSaleContext, input: Record<string, any>) => Promise<{ providerRefundReference: string; status: string }>;
   verifyWebhookSignature: (rawBody: string, signatureHeader: string | null, env?: Record<string, string | undefined>) => boolean;
-  parseWebhookEvent: (rawBody: string) => { eventId: string; eventType: string; organizationId: string; companyId: string; paymentId: string; providerReference: string | null; status: string; failureReason: string | null; raw: unknown };
+  parseWebhookEvent: (rawBody: string) => { eventId: string; eventType: string; organizationId: string; paymentId: string; providerReference: string | null; status: string; failureReason: string | null; raw: unknown };
 };
 export declare function resolvePaymentAdapter(providerKey: string): PosPaymentAdapter;
 export declare class PaymentAdapterError extends Error {

@@ -2,7 +2,7 @@ import { MfgError, need, nonNegative, positive, recordEvent, text, uuid } from "
 import { recordScrap } from "./shopfloor.js";
 
 async function loadOrder(client, c, id, { lock = false } = {}) {
-  const { rows } = await client.query(`SELECT * FROM tenant.manufacturing_work_orders WHERE organization_id=$1 AND company_id=$2 AND id=$3${lock ? " FOR UPDATE" : ""}`, [c.organizationId, c.companyId, uuid(id, "Work order")]);
+  const { rows } = await client.query(`SELECT * FROM tenant.manufacturing_work_orders WHERE organization_id=$1 AND id=$2${lock ? " FOR UPDATE" : ""}`, [c.organizationId, uuid(id, "Work order")]);
   if (!rows[0]) throw new MfgError(404, "Work order was not found.", "MFG_WORK_ORDER_NOT_FOUND");
   return rows[0];
 }
@@ -46,8 +46,8 @@ export async function recordInspection(client, c, workOrderId, input = {}) {
   const followUp = result === "fail" && ["scrap", "hold"].includes(input.followUp) ? input.followUp : "none";
   if (result === "fail" && !text(input.defectCode, 80)) throw new MfgError(400, "Name the defect for a failed inspection.", "MFG_DEFECT_REQUIRED");
   const { rows } = await client.query(
-    `INSERT INTO tenant.manufacturing_inspections(organization_id,company_id,work_order_id,operation_id,quantity_inspected,quantity_rejected,result,defect_code,notes,follow_up,inspected_by) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING *`,
-    [c.organizationId, c.companyId, wo.id, operationId, inspected, rejected, result, text(input.defectCode, 80) || null, text(input.notes, 1000) || null, followUp, c.userId],
+    `INSERT INTO tenant.manufacturing_inspections(organization_id,work_order_id,operation_id,quantity_inspected,quantity_rejected,result,defect_code,notes,follow_up,inspected_by) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING *`,
+    [c.organizationId, wo.id, operationId, inspected, rejected, result, text(input.defectCode, 80) || null, text(input.notes, 1000) || null, followUp, c.userId],
   );
   if (followUp === "scrap") await recordScrap(client, c, wo.id, { scope: "product", quantity: rejected, category: "scrap", reasonCode: "defect", note: `Inspection: ${text(input.defectCode, 80)}`, operationId });
   if (followUp === "hold" && wo.status !== "on_hold") await holdProductionOrder(client, c, wo.id, `Failed inspection: ${text(input.defectCode, 80)}`);
@@ -60,8 +60,8 @@ export async function listManufacturingInspections(client, c, { limit = 250 } = 
   const { rows } = await client.query(
     `SELECT i.id,i.result,i.quantity_inspected::text AS quantity_inspected,i.quantity_rejected::text AS quantity_rejected,i.defect_code,i.notes,i.follow_up,i.created_at,wo.id AS work_order_id,wo.work_order_number,item.code AS item_code,op.sequence,op.name AS operation_name
        FROM tenant.manufacturing_inspections i JOIN tenant.manufacturing_work_orders wo ON wo.id=i.work_order_id JOIN tenant.items item ON item.id=wo.item_id LEFT JOIN tenant.manufacturing_work_order_operations op ON op.id=i.operation_id
-      WHERE i.organization_id=$1 AND i.company_id=$2 ORDER BY i.created_at DESC LIMIT $3`,
-    [c.organizationId, c.companyId, Math.min(Math.max(Number(limit) || 250, 1), 500)],
+      WHERE i.organization_id=$1 ORDER BY i.created_at DESC LIMIT $2`,
+    [c.organizationId, Math.min(Math.max(Number(limit) || 250, 1), 500)],
   );
   return rows;
 }

@@ -17,7 +17,6 @@ const resources = Object.freeze({
     searchColumns: ["code", "display_name", "legal_name", "gstin", "pan"],
     orderBy: "display_name ASC, code ASC",
     fields: {
-      companyId: "company_id",
       code: "code",
       partyType: "party_type",
       displayName: "display_name",
@@ -39,9 +38,8 @@ const resources = Object.freeze({
     },
     // Inserts write every mapped column, so NOT NULL columns with a database
     // default need the same default here when a caller (e.g. CRM) omits them.
-    defaults: { salesBlock: "none" },
-    scope: "company-nullable",
-    companyField: "companyId",
+    defaults: { salesBlock: "none", creditLimit: 0 },
+    scope: "organization",
     archiveStatus: "inactive",
   },
   contacts: {
@@ -66,7 +64,7 @@ const resources = Object.freeze({
       isPrimary: "is_primary",
       status: "status",
     },
-    scope: "party-company",
+    scope: "organization",
     relationField: "partyId",
     archiveStatus: "inactive",
   },
@@ -97,7 +95,7 @@ const resources = Object.freeze({
       isPrimary: "is_primary",
       status: "status",
     },
-    scope: "party-company",
+    scope: "organization",
     relationField: "partyId",
     archiveStatus: "inactive",
   },
@@ -135,7 +133,6 @@ const resources = Object.freeze({
     searchColumns: ["code", "name", "description", "hsn_sac_code", "barcode"],
     orderBy: "name ASC, code ASC",
     fields: {
-      companyId: "company_id",
       code: "code",
       name: "name",
       description: "description",
@@ -154,8 +151,7 @@ const resources = Object.freeze({
       taxCategoryId: "tax_category_id",
       status: "status",
     },
-    scope: "company-nullable",
-    companyField: "companyId",
+    scope: "organization",
     archiveStatus: "inactive",
   },
   "item-variants": {
@@ -163,7 +159,6 @@ const resources = Object.freeze({
     searchColumns: ["sku", "name", "barcode"],
     orderBy: "name ASC, sku ASC",
     fields: {
-      companyId: "company_id",
       itemId: "item_id",
       sku: "sku",
       name: "name",
@@ -174,8 +169,7 @@ const resources = Object.freeze({
       standardCost: "standard_cost",
       status: "status",
     },
-    scope: "item-company",
-    companyField: "companyId",
+    scope: "organization",
     relationField: "itemId",
     archiveStatus: "inactive",
   },
@@ -190,7 +184,7 @@ const resources = Object.freeze({
       conversionFactor: "conversion_factor",
       status: "status",
     },
-    scope: "item-company",
+    scope: "organization",
     relationField: "itemId",
     archiveStatus: "inactive",
   },
@@ -212,7 +206,6 @@ const resources = Object.freeze({
     searchColumns: ["code", "name", "tax_type"],
     orderBy: "effective_from DESC NULLS LAST, rate ASC, name ASC",
     fields: {
-      companyId: "company_id",
       taxCategoryId: "tax_category_id",
       name: "name",
       code: "code",
@@ -222,8 +215,7 @@ const resources = Object.freeze({
       effectiveTo: "effective_to",
       status: "status",
     },
-    scope: "company-nullable",
-    companyField: "companyId",
+    scope: "organization",
     archiveStatus: "inactive",
   },
   warehouses: {
@@ -231,17 +223,13 @@ const resources = Object.freeze({
     searchColumns: ["code", "name", "warehouse_type"],
     orderBy: "name ASC, code ASC",
     fields: {
-      companyId: "company_id",
-      branchId: "branch_id",
       name: "name",
       code: "code",
       warehouseType: "warehouse_type",
       allowNegativeStock: "allow_negative_stock",
       status: "status",
     },
-    scope: "company-required",
-    companyField: "companyId",
-    branchField: "branchId",
+    scope: "organization",
     archiveStatus: "inactive",
   },
   "warehouse-locations": {
@@ -257,7 +245,7 @@ const resources = Object.freeze({
       capacity: "capacity",
       status: "status",
     },
-    scope: "warehouse-company",
+    scope: "organization",
     relationField: "warehouseId",
     archiveStatus: "inactive",
   },
@@ -295,17 +283,15 @@ const resources = Object.freeze({
   "fiscal-periods": {
     table: "tenant.fiscal_periods",
     searchColumns: ["name", "fiscal_year", "status"],
-    orderBy: "start_date DESC, company_id ASC",
+    orderBy: "start_date DESC",
     fields: {
-      companyId: "company_id",
       name: "name",
       fiscalYear: "fiscal_year",
       startDate: "start_date",
       endDate: "end_date",
       status: "status",
     },
-    scope: "company-required",
-    companyField: "companyId",
+    scope: "organization",
     archiveStatus: "locked",
   },
   currencies: {
@@ -328,7 +314,6 @@ const resources = Object.freeze({
     searchColumns: ["from_currency_code", "to_currency_code", "source"],
     orderBy: "rate_date DESC, from_currency_code ASC, to_currency_code ASC",
     fields: {
-      companyId: "company_id",
       fromCurrencyCode: "from_currency_code",
       toCurrencyCode: "to_currency_code",
       rateDate: "rate_date",
@@ -336,8 +321,7 @@ const resources = Object.freeze({
       source: "source",
       status: "status",
     },
-    scope: "company-nullable",
-    companyField: "companyId",
+    scope: "organization",
     archiveStatus: "inactive",
   },
 });
@@ -377,75 +361,10 @@ function addParameter(parameters, value) {
   return `$${parameters.length}`;
 }
 
-function buildScopeClause(definition, context, parameters, alias = "t") {
-  if (context.allowAllCompanies || definition.scope === "organization") {
-    return "";
-  }
-
-  if (!context.activeCompanyId) {
-    return " AND false";
-  }
-
-  if (
-    (definition.branchField || definition.scope === "warehouse-company") &&
-    !context.activeBranchId
-  ) {
-    return " AND false";
-  }
-
-  const companyParameter = addParameter(parameters, context.activeCompanyId);
-
-  switch (definition.scope) {
-    case "company-nullable":
-      return ` AND (${alias}.company_id IS NULL OR ${alias}.company_id = ${companyParameter})`;
-    case "company-required": {
-      const branchClause = definition.branchField
-        ? ` AND (${alias}.branch_id IS NULL OR ${alias}.branch_id = ${addParameter(parameters, context.activeBranchId)})`
-        : "";
-      return ` AND ${alias}.company_id = ${companyParameter}${branchClause}`;
-    }
-    case "party-company":
-      return ` AND EXISTS (
-        SELECT 1
-        FROM tenant.business_parties scoped_party
-        WHERE scoped_party.id = ${alias}.party_id
-          AND scoped_party.organization_id = ${alias}.organization_id
-          AND (
-            scoped_party.company_id IS NULL
-            OR scoped_party.company_id = ${companyParameter}
-          )
-      )`;
-    case "item-company":
-      return ` AND EXISTS (
-        SELECT 1
-        FROM tenant.items scoped_item
-        WHERE scoped_item.id = ${alias}.item_id
-          AND scoped_item.organization_id = ${alias}.organization_id
-          AND (
-            scoped_item.company_id IS NULL
-            OR scoped_item.company_id = ${companyParameter}
-          )
-      )`;
-    case "warehouse-company": {
-      const branchClause = ` AND (
-            scoped_warehouse.branch_id IS NULL
-            OR scoped_warehouse.branch_id = ${addParameter(
-              parameters,
-              context.activeBranchId,
-            )}
-          )`;
-      return ` AND EXISTS (
-        SELECT 1
-        FROM tenant.warehouses scoped_warehouse
-        WHERE scoped_warehouse.id = ${alias}.warehouse_id
-          AND scoped_warehouse.organization_id = ${alias}.organization_id
-          AND scoped_warehouse.company_id = ${companyParameter}
-          ${branchClause}
-      )`;
-    }
-    default:
-      return "";
-  }
+// Every business-data resource is organisation-wide: organisation row-level
+// security is the whole scope, so there is no extra clause.
+function buildScopeClause() {
+  return "";
 }
 
 function buildSearchClause(definition, search, parameters, alias = "t") {
@@ -504,130 +423,10 @@ function databaseError(error) {
   return error;
 }
 
-async function assertRelationScope(client, context, definition, input) {
-  if (context.allowAllCompanies || definition.scope === "organization") {
-    return input;
-  }
-
-  if (!context.activeCompanyId) {
-    throw new BusinessDataError(
-      403,
-      "Select an allowed company before maintaining this resource.",
-    );
-  }
-
-  const scopedInput = { ...input };
-
-  if (
-    (definition.branchField || definition.scope === "warehouse-company") &&
-    !context.activeBranchId
-  ) {
-    throw new BusinessDataError(
-      403,
-      "Select an allowed branch before maintaining this resource.",
-    );
-  }
-  if (definition.companyField) {
-    const value = scopedInput[definition.companyField];
-    if (value === null || value === undefined || value === "") {
-      scopedInput[definition.companyField] = context.activeCompanyId;
-    } else if (String(value) !== context.activeCompanyId) {
-      throw new BusinessDataError(
-        403,
-        "The record is outside the active company context.",
-      );
-    }
-  }
-
-  if (definition.branchField) {
-    const value = scopedInput[definition.branchField];
-    if (value === null || value === undefined || value === "") {
-      scopedInput[definition.branchField] = context.activeBranchId;
-    } else if (String(value) !== context.activeBranchId) {
-      throw new BusinessDataError(
-        403,
-        "The record is outside the active branch context.",
-      );
-    }
-  }
-
-  if (definition.scope === "party-company") {
-    const result = await client.query(
-      `
-        SELECT id
-        FROM tenant.business_parties
-        WHERE organization_id = $1
-          AND id = $2
-          AND (company_id IS NULL OR company_id = $3)
-      `,
-      [
-        context.organizationId,
-        scopedInput[definition.relationField],
-        context.activeCompanyId,
-      ],
-    );
-    if (!result.rows[0]) {
-      throw new BusinessDataError(
-        403,
-        "The selected business partner is outside the active company context.",
-      );
-    }
-  }
-
-  if (definition.scope === "item-company") {
-    const result = await client.query(
-      `
-        SELECT id
-        FROM tenant.items
-        WHERE organization_id = $1
-          AND id = $2
-          AND (company_id IS NULL OR company_id = $3)
-      `,
-      [
-        context.organizationId,
-        scopedInput[definition.relationField],
-        context.activeCompanyId,
-      ],
-    );
-    if (!result.rows[0]) {
-      throw new BusinessDataError(
-        403,
-        "The selected item is outside the active company context.",
-      );
-    }
-  }
-
-  if (definition.scope === "warehouse-company") {
-    const values = [
-      context.organizationId,
-      scopedInput[definition.relationField],
-      context.activeCompanyId,
-    ];
-    let branchClause = "";
-    if (context.activeBranchId) {
-      values.push(context.activeBranchId);
-      branchClause = "AND (branch_id IS NULL OR branch_id = $4)";
-    }
-    const result = await client.query(
-      `
-        SELECT id
-        FROM tenant.warehouses
-        WHERE organization_id = $1
-          AND id = $2
-          AND company_id = $3
-          ${branchClause}
-      `,
-      values,
-    );
-    if (!result.rows[0]) {
-      throw new BusinessDataError(
-        403,
-        "The selected warehouse is outside the active operating context.",
-      );
-    }
-  }
-
-  return scopedInput;
+// Relations (party, item, warehouse) are enforced by organisation-scoped
+// foreign keys.
+async function assertRelationScope(_client, _context, _definition, input) {
+  return input;
 }
 
 // contacts/addresses each have a DB-enforced "one active primary" rule
@@ -1030,50 +829,6 @@ async function optionRows(client, sql, values) {
 }
 
 export async function getBusinessDataOptions(client, context) {
-  const companyScope = context.allowAllCompanies
-    ? ""
-    : "AND $2::uuid IS NOT NULL AND id = $2";
-  const companyValues = context.allowAllCompanies
-    ? [context.organizationId]
-    : [context.organizationId, context.activeCompanyId];
-
-  const branchScope = context.allowAllCompanies
-    ? ""
-    : context.activeBranchId
-      ? "AND id = $2"
-      : "AND false";
-  const branchValues = context.allowAllCompanies
-    ? [context.organizationId]
-    : context.activeBranchId
-      ? [context.organizationId, context.activeBranchId]
-      : [context.organizationId];
-
-  const companies = await optionRows(
-    client,
-    `
-      SELECT id, name
-      FROM public.companies
-      WHERE organization_id = $1
-        AND status = 'active'
-        ${companyScope}
-      ORDER BY is_primary DESC, name
-    `,
-    companyValues,
-  );
-
-  const branches = await optionRows(
-    client,
-    `
-      SELECT id, name
-      FROM public.branches
-      WHERE organization_id = $1
-        AND status = 'active'
-        ${branchScope}
-      ORDER BY is_primary DESC, name
-    `,
-    branchValues,
-  );
-
   const parties = await optionRows(
     client,
     `
@@ -1081,16 +836,9 @@ export async function getBusinessDataOptions(client, context) {
       FROM tenant.business_parties
       WHERE organization_id = $1
         AND status = 'active'
-        ${
-          context.allowAllCompanies
-            ? ""
-            : "AND $2::uuid IS NOT NULL AND (company_id IS NULL OR company_id = $2)"
-        }
       ORDER BY display_name
     `,
-    context.allowAllCompanies
-      ? [context.organizationId]
-      : [context.organizationId, context.activeCompanyId],
+    [context.organizationId],
   );
 
   const uoms = await optionRows(
@@ -1133,25 +881,9 @@ export async function getBusinessDataOptions(client, context) {
       FROM tenant.warehouses
       WHERE organization_id = $1
         AND status = 'active'
-        ${context.allowAllCompanies ? "" : "AND $2::uuid IS NOT NULL AND company_id = $2"}
-        ${
-          context.allowAllCompanies
-            ? ""
-            : context.activeBranchId
-              ? "AND (branch_id IS NULL OR branch_id = $3)"
-              : "AND false"
-        }
       ORDER BY name
     `,
-    context.allowAllCompanies
-      ? [context.organizationId]
-      : context.activeBranchId
-        ? [
-            context.organizationId,
-            context.activeCompanyId,
-            context.activeBranchId,
-          ]
-        : [context.organizationId, context.activeCompanyId],
+    [context.organizationId],
   );
 
   const warehouseLocations = await optionRows(
@@ -1164,25 +896,9 @@ export async function getBusinessDataOptions(client, context) {
        AND warehouse.organization_id = location.organization_id
       WHERE location.organization_id = $1
         AND location.status = 'active'
-        ${context.allowAllCompanies ? "" : "AND $2::uuid IS NOT NULL AND warehouse.company_id = $2"}
-        ${
-          context.allowAllCompanies
-            ? ""
-            : context.activeBranchId
-              ? "AND (warehouse.branch_id IS NULL OR warehouse.branch_id = $3)"
-              : "AND false"
-        }
       ORDER BY warehouse.name, location.name
     `,
-    context.allowAllCompanies
-      ? [context.organizationId]
-      : context.activeBranchId
-        ? [
-            context.organizationId,
-            context.activeCompanyId,
-            context.activeBranchId,
-          ]
-        : [context.organizationId, context.activeCompanyId],
+    [context.organizationId],
   );
 
   const paymentTerms = await optionRows(
@@ -1214,16 +930,9 @@ export async function getBusinessDataOptions(client, context) {
       FROM tenant.items
       WHERE organization_id = $1
         AND status = 'active'
-        ${
-          context.allowAllCompanies
-            ? ""
-            : "AND $2::uuid IS NOT NULL AND (company_id IS NULL OR company_id = $2)"
-        }
       ORDER BY name
     `,
-    context.allowAllCompanies
-      ? [context.organizationId]
-      : [context.organizationId, context.activeCompanyId],
+    [context.organizationId],
   );
 
   const priceLists = await optionRows(
@@ -1238,8 +947,6 @@ export async function getBusinessDataOptions(client, context) {
   );
 
   return {
-    companies,
-    branches,
     parties,
     uoms,
     itemGroups,
@@ -1261,44 +968,31 @@ export async function getBusinessDataOverview(client, context) {
           SELECT count(*)::int
           FROM tenant.business_parties party
           WHERE party.organization_id = $1 AND party.status = 'active'
-            AND ($4::boolean OR ($2::uuid IS NOT NULL AND (party.company_id IS NULL OR party.company_id = $2)))
         ) AS parties,
         (
           SELECT count(*)::int
           FROM tenant.contacts contact
           WHERE contact.organization_id = $1 AND contact.status = 'active'
-            AND ($4::boolean OR ($2::uuid IS NOT NULL AND EXISTS (
-              SELECT 1
-              FROM tenant.business_parties party
-              WHERE party.organization_id = contact.organization_id
-                AND party.id = contact.party_id
-                AND (party.company_id IS NULL OR party.company_id = $2)
-            )))
         ) AS contacts,
         (
           SELECT count(*)::int
           FROM tenant.items item
           WHERE item.organization_id = $1 AND item.status = 'active'
-            AND ($4::boolean OR ($2::uuid IS NOT NULL AND (item.company_id IS NULL OR item.company_id = $2)))
         ) AS items,
         (
           SELECT count(*)::int
           FROM tenant.warehouses warehouse
           WHERE warehouse.organization_id = $1 AND warehouse.status = 'active'
-            AND ($4::boolean OR ($2::uuid IS NOT NULL AND warehouse.company_id = $2))
-            AND ($4::boolean OR ($3::uuid IS NOT NULL AND (warehouse.branch_id IS NULL OR warehouse.branch_id = $3)))
         ) AS warehouses,
         (
           SELECT count(*)::int
           FROM tenant.tax_rates tax_rate
           WHERE tax_rate.organization_id = $1 AND tax_rate.status = 'active'
-            AND ($4::boolean OR ($2::uuid IS NOT NULL AND (tax_rate.company_id IS NULL OR tax_rate.company_id = $2)))
         ) AS tax_rates,
         (
           SELECT count(*)::int
           FROM tenant.fiscal_periods fiscal_period
           WHERE fiscal_period.organization_id = $1
-            AND ($4::boolean OR ($2::uuid IS NOT NULL AND fiscal_period.company_id = $2))
         ) AS fiscal_periods,
         (
           SELECT count(*)::int
@@ -1312,12 +1006,7 @@ export async function getBusinessDataOverview(client, context) {
             AND status IN ('failed', 'completed_with_errors')
         ) AS import_issues
     `,
-    [
-      context.organizationId,
-      context.activeCompanyId,
-      context.activeBranchId,
-      Boolean(context.allowAllCompanies),
-    ],
+    [context.organizationId],
   );
 
   return camelizeRow(result.rows[0] || {});
@@ -1424,21 +1113,9 @@ export async function seedBusinessDataFoundation(client, context) {
         organization.id,
         organization.country_code,
         organization.base_currency,
-        organization.fiscal_year_start_month,
-        company.id AS company_id,
-        branch.id AS branch_id,
-        branch.name AS branch_name,
-        branch.code AS branch_code
+        organization.fiscal_year_start_month
       FROM public.organizations organization
-      JOIN public.companies company
-        ON company.organization_id = organization.id
-       AND company.is_primary = true
-      JOIN public.branches branch
-        ON branch.organization_id = organization.id
-       AND branch.company_id = company.id
-       AND branch.is_primary = true
       WHERE organization.id = $1
-      LIMIT 1
     `,
     [context.organizationId],
   );
@@ -1446,8 +1123,8 @@ export async function seedBusinessDataFoundation(client, context) {
   const organization = organizationResult.rows[0];
   if (!organization) {
     throw new BusinessDataError(
-      409,
-      "The organisation requires a primary company and branch before business data can be seeded.",
+      404,
+      "The organisation was not found.",
     );
   }
 
@@ -1623,26 +1300,16 @@ export async function seedBusinessDataFoundation(client, context) {
   const warehouseResult = await client.query(
     `
       INSERT INTO tenant.warehouses (
-        organization_id, company_id, branch_id, name, code,
+        organization_id, name, code,
         warehouse_type, created_by, updated_by
       )
-      VALUES ($1, $2, $3, $4, $5, 'stores', $6, $6)
+      VALUES ($1, 'Main Warehouse', 'MAIN', 'stores', $2, $2)
       ON CONFLICT (organization_id, code) DO UPDATE SET
-        name = EXCLUDED.name,
-        company_id = EXCLUDED.company_id,
-        branch_id = EXCLUDED.branch_id,
         updated_by = EXCLUDED.updated_by,
         updated_at = now()
       RETURNING id
     `,
-    [
-      context.organizationId,
-      organization.company_id,
-      organization.branch_id,
-      `${organization.branch_name} Main Warehouse`,
-      `${organization.branch_code}-MAIN`,
-      context.userId,
-    ],
+    [context.organizationId, context.userId],
   );
 
   await client.query(
@@ -1662,36 +1329,34 @@ export async function seedBusinessDataFoundation(client, context) {
       WITH period AS (
         SELECT make_date(
           CASE
-            WHEN extract(month FROM current_date)::integer >= $3
+            WHEN extract(month FROM current_date)::integer >= $2
             THEN extract(year FROM current_date)::integer
             ELSE extract(year FROM current_date)::integer - 1
           END,
-          $3,
+          $2,
           1
         ) AS start_date
       )
       INSERT INTO tenant.fiscal_periods (
-        organization_id, company_id, name, fiscal_year,
+        organization_id, name, fiscal_year,
         start_date, end_date, created_by, updated_by
       )
       SELECT
         $1,
-        $2,
         'FY ' || to_char(start_date, 'YYYY')
           || '-' || to_char(start_date + interval '1 year', 'YY'),
         to_char(start_date, 'YYYY')
           || '-' || to_char(start_date + interval '1 year', 'YY'),
         start_date,
         (start_date + interval '1 year - 1 day')::date,
-        $4,
-        $4
+        $3,
+        $3
       FROM period
-      ON CONFLICT (organization_id, company_id, start_date, end_date)
+      ON CONFLICT (organization_id, start_date, end_date)
       DO NOTHING
     `,
     [
       context.organizationId,
-      organization.company_id,
       organization.fiscal_year_start_month,
       context.userId,
     ],
@@ -1712,18 +1377,17 @@ export async function seedBusinessDataFoundation(client, context) {
       await client.query(
         `
           INSERT INTO tenant.tax_rates (
-            organization_id, company_id, tax_category_id, name, code,
+            organization_id, tax_category_id, name, code,
             tax_type, rate, effective_from, created_by, updated_by
           )
           VALUES (
-            $1, $2, $3, $4, $5, 'gst', $6, current_date, $7, $7
+            $1, $2, $3, $4, 'gst', $5, current_date, $6, $6
           )
-          ON CONFLICT (organization_id, company_id, code, effective_from)
+          ON CONFLICT (organization_id, code, effective_from)
           DO NOTHING
         `,
         [
           context.organizationId,
-          organization.company_id,
           categoryResult.rows[0].id,
           `GST ${rate}%`,
           `GST-${rate}`,

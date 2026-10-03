@@ -26,8 +26,8 @@ export async function recordPosCashMovement(client, context, shiftId, input) {
   if (!input.reason || !String(input.reason).trim()) throw posError(400, "A reason is required.", "POS_CASH_MOVEMENT_REASON_REQUIRED");
 
   const shift = await client.query(
-    `SELECT * FROM tenant.pos_shifts WHERE organization_id=$1 AND company_id=$2 AND id=$3 AND status='open'`,
-    [context.organizationId, context.companyId, shiftId],
+    `SELECT * FROM tenant.pos_shifts WHERE organization_id=$1 AND id=$2 AND status='open'`,
+    [context.organizationId, shiftId],
   );
   if (!shift.rows[0]) throw posError(409, "An open shift is required to record a cash movement.", "POS_SHIFT_NOT_OPEN");
   await assertPosStoreAccess(client, context, shift.rows[0].store_id);
@@ -48,9 +48,9 @@ export async function recordPosCashMovement(client, context, shiftId, input) {
   const signedAmount = movementType === "paid_out" ? -amount : amount;
   const movementNumber = await nextDocumentNumber(client, context, { documentType: "pos_cash_movement", prefix: "CASH" });
   const result = await client.query(
-    `INSERT INTO tenant.pos_cash_movements (organization_id,company_id,shift_id,movement_number,movement_type,amount,reason,created_by)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *`,
-    [context.organizationId, context.companyId, shiftId, movementNumber, movementType, asDatabaseDecimal(signedAmount), String(input.reason).trim(), context.userId],
+    `INSERT INTO tenant.pos_cash_movements (organization_id,shift_id,movement_number,movement_type,amount,reason,created_by)
+     VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *`,
+    [context.organizationId, shiftId, movementNumber, movementType, asDatabaseDecimal(signedAmount), String(input.reason).trim(), context.userId],
   );
   const response = result.rows[0];
   await completeIdempotentOperation(client, context, idempotency, { response, aggregateType: "pos_cash_movement", aggregateId: response.id });
@@ -59,16 +59,15 @@ export async function recordPosCashMovement(client, context, shiftId, input) {
 
 export async function listPosCashMovements(client, context, shiftId) {
   requirePermission(context, "pos.view");
-  const shift = await client.query(`SELECT store_id FROM tenant.pos_shifts WHERE organization_id=$1 AND company_id=$2 AND id=$3`, [
+  const shift = await client.query(`SELECT store_id FROM tenant.pos_shifts WHERE organization_id=$1 AND id=$2`, [
     context.organizationId,
-    context.companyId,
     shiftId,
   ]);
   if (!shift.rows[0]) throw posError(404, "Shift was not found.", "POS_SHIFT_NOT_FOUND");
   await assertPosStoreAccess(client, context, shift.rows[0].store_id);
   const result = await client.query(
-    `SELECT * FROM tenant.pos_cash_movements WHERE organization_id=$1 AND company_id=$2 AND shift_id=$3 ORDER BY created_at`,
-    [context.organizationId, context.companyId, shiftId],
+    `SELECT * FROM tenant.pos_cash_movements WHERE organization_id=$1 AND shift_id=$2 ORDER BY created_at`,
+    [context.organizationId, shiftId],
   );
   return result.rows;
 }

@@ -8,9 +8,6 @@ export type ReleaseGovernanceClient = {
 export type ReleaseGovernanceContext = {
   organizationId: string;
   userId: string;
-  activeCompanyId: string | null;
-  activeBranchId: string | null;
-  allowAllCompanies: boolean;
   permissions: string[];
   roleSlugs: string[];
 };

@@ -1,5 +1,5 @@
 export type SalesQueryClient = { query(text: string, values?: unknown[]): Promise<{ rows: any[]; rowCount?: number | null }> };
-export type SalesContext = { organizationId: string; userId: string | null; activeCompanyId: string | null; activeBranchId: string | null; allowAllCompanies: boolean; permissions: string[]; roleSlugs: string[] };
+export type SalesContext = { organizationId: string; userId: string | null; permissions: string[]; roleSlugs: string[] };
 export class SalesError extends Error { readonly status: number; readonly code: string; constructor(status: number, message: string, code?: string); }
 export function previewSalesDocument(client: SalesQueryClient, context: SalesContext, input: Record<string, any>, options?: { order?: boolean }): Promise<any>;
 export function createQuotation(client: SalesQueryClient, context: SalesContext, input: Record<string, any>): Promise<any>;

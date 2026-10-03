@@ -52,11 +52,8 @@ export const resources = Object.freeze({
     ],
     orderBy: "updated_at DESC, created_at DESC, id DESC",
     statusColumn: "status",
-    companyScoped: true,
     ownerField: "ownerUserId",
     fields: {
-      companyId: "company_id",
-      branchId: "branch_id",
       code: "code",
       firstName: "first_name",
       lastName: "last_name",
@@ -97,11 +94,8 @@ export const resources = Object.freeze({
     search: ["code", "name", "description", "next_step", "loss_notes"],
     orderBy: "expected_close_date ASC NULLS LAST, updated_at DESC",
     statusColumn: "status",
-    companyScoped: true,
     ownerField: "ownerUserId",
     fields: {
-      companyId: "company_id",
-      branchId: "branch_id",
       code: "code",
       pipelineId: "pipeline_id",
       stageId: "stage_id",
@@ -134,11 +128,8 @@ export const resources = Object.freeze({
     search: ["subject", "description", "outcome", "location"],
     orderBy: "COALESCE(due_at, start_at, created_at) ASC, created_at DESC",
     statusColumn: "status",
-    companyScoped: true,
     ownerField: "assignedTo",
     fields: {
-      companyId: "company_id",
-      branchId: "branch_id",
       entityType: "entity_type",
       entityId: "entity_id",
       activityType: "activity_type",
@@ -163,9 +154,7 @@ export const resources = Object.freeze({
     search: ["code", "name", "description", "campaign_type"],
     orderBy: "start_date DESC NULLS LAST, created_at DESC",
     statusColumn: "status",
-    companyScoped: true,
     fields: {
-      companyId: "company_id",
       code: "code",
       name: "name",
       campaignType: "campaign_type",
@@ -190,7 +179,6 @@ export const resources = Object.freeze({
     ],
     orderBy: "occurred_at DESC, created_at DESC",
     statusColumn: "status",
-    companyScoped: false,
     fields: {
       channel: "channel",
       direction: "direction",
@@ -214,9 +202,7 @@ export const resources = Object.freeze({
     search: ["name", "code", "description"],
     orderBy: "is_default DESC, name ASC",
     statusColumn: "status",
-    companyScoped: true,
     fields: {
-      companyId: "company_id",
       name: "name",
       code: "code",
       description: "description",
@@ -229,7 +215,6 @@ export const resources = Object.freeze({
     search: ["name", "code", "forecast_category"],
     orderBy: "pipeline_id ASC, sequence ASC",
     statusColumn: "status",
-    companyScoped: false,
     fields: {
       pipelineId: "pipeline_id",
       name: "name",
@@ -248,7 +233,6 @@ export const resources = Object.freeze({
     search: ["name", "code", "channel"],
     orderBy: "is_default DESC, name ASC",
     statusColumn: "status",
-    companyScoped: false,
     fields: {
       name: "name",
       code: "code",
@@ -262,7 +246,6 @@ export const resources = Object.freeze({
     search: ["name", "code", "category"],
     orderBy: "status='active' DESC, sequence ASC, name ASC",
     statusColumn: "status",
-    companyScoped: false,
     fields: {
       name: "name",
       code: "code",
@@ -277,7 +260,6 @@ export const resources = Object.freeze({
     search: ["name", "color"],
     orderBy: "name ASC",
     statusColumn: "status",
-    companyScoped: false,
     fields: { name: "name", color: "color", status: "status" },
   },
   "qualification-criteria": {
@@ -285,7 +267,6 @@ export const resources = Object.freeze({
     search: ["criterion_key", "label"],
     orderBy: "sequence ASC, criterion_key ASC",
     statusColumn: "status",
-    companyScoped: false,
     fields: {
       criterionKey: "criterion_key",
       label: "label",
@@ -302,7 +283,6 @@ export const resources = Object.freeze({
     search: ["name", "field_name", "operator"],
     orderBy: "sequence ASC, name ASC",
     statusColumn: "status",
-    companyScoped: false,
     fields: {
       name: "name",
       sequence: "sequence",
@@ -318,7 +298,6 @@ export const resources = Object.freeze({
     search: ["name", "assignment_mode"],
     orderBy: "sequence ASC, name ASC",
     statusColumn: "status",
-    companyScoped: false,
     fields: {
       name: "name",
       sequence: "sequence",
@@ -334,7 +313,6 @@ export const resources = Object.freeze({
     search: ["name", "description"],
     orderBy: "updated_at DESC, name ASC",
     statusColumn: "status",
-    companyScoped: false,
     fields: {
       name: "name",
       description: "description",
@@ -346,7 +324,6 @@ export const resources = Object.freeze({
     table: "tenant.crm_sequence_steps",
     search: ["subject_template", "body_template", "action_type"],
     orderBy: "sequence_id ASC, step_order ASC",
-    companyScoped: false,
     fields: {
       sequenceId: "sequence_id",
       stepOrder: "step_order",
@@ -362,7 +339,6 @@ export const resources = Object.freeze({
     search: ["status"],
     orderBy: "next_run_at ASC NULLS LAST, enrolled_at DESC",
     statusColumn: "status",
-    companyScoped: false,
     fields: {
       sequenceId: "sequence_id",
       leadId: "lead_id",
@@ -379,7 +355,6 @@ export const resources = Object.freeze({
     search: ["name", "event_type"],
     orderBy: "sequence ASC, name ASC",
     statusColumn: "status",
-    companyScoped: false,
     fields: {
       name: "name",
       eventType: "event_type",
@@ -394,10 +369,7 @@ export const resources = Object.freeze({
     search: ["name", "public_key", "success_message"],
     orderBy: "status ASC, name ASC",
     statusColumn: "status",
-    companyScoped: true,
     fields: {
-      companyId: "company_id",
-      branchId: "branch_id",
       name: "name",
       sourceId: "source_id",
       campaignId: "campaign_id",
@@ -414,7 +386,6 @@ export const resources = Object.freeze({
     search: ["name", "website", "strengths", "weaknesses"],
     orderBy: "name ASC",
     statusColumn: "status",
-    companyScoped: false,
     fields: {
       name: "name",
       website: "website",
@@ -427,9 +398,7 @@ export const resources = Object.freeze({
     table: "tenant.crm_forecast_targets",
     search: ["currency_code"],
     orderBy: "period_start DESC, user_id NULLS FIRST",
-    companyScoped: true,
     fields: {
-      companyId: "company_id",
       userId: "user_id",
       periodStart: "period_start",
       periodEnd: "period_end",
@@ -442,7 +411,6 @@ export const resources = Object.freeze({
     search: ["provider", "display_name", "status"],
     orderBy: "provider ASC, display_name ASC",
     statusColumn: "status",
-    companyScoped: false,
     fields: {
       provider: "provider",
       displayName: "display_name",
@@ -458,9 +426,7 @@ export const resources = Object.freeze({
     search: ["code", "name"],
     orderBy: "name ASC",
     statusColumn: "status",
-    companyScoped: true,
     fields: {
-      companyId: "company_id",
       parentTeamId: "parent_team_id",
       code: "code",
       name: "name",
@@ -475,9 +441,7 @@ export const resources = Object.freeze({
     search: ["member_role", "status"],
     orderBy: "effective_from DESC, created_at DESC",
     statusColumn: "status",
-    companyScoped: true,
     fields: {
-      companyId: "company_id",
       teamId: "team_id",
       userId: "user_id",
       memberRole: "member_role",
@@ -492,9 +456,7 @@ export const resources = Object.freeze({
     search: ["code", "name", "territory_type"],
     orderBy: "name ASC",
     statusColumn: "status",
-    companyScoped: true,
     fields: {
-      companyId: "company_id",
       parentTerritoryId: "parent_territory_id",
       code: "code",
       name: "name",
@@ -508,9 +470,7 @@ export const resources = Object.freeze({
     table: "tenant.crm_territory_assignments",
     search: ["assignee_type", "assignment_role", "source"],
     orderBy: "effective_from DESC, created_at DESC",
-    companyScoped: true,
     fields: {
-      companyId: "company_id",
       territoryId: "territory_id",
       assigneeType: "assignee_type",
       assigneeId: "assignee_id",
@@ -525,9 +485,7 @@ export const resources = Object.freeze({
     search: ["name", "quota_type"],
     orderBy: "period_start DESC, name ASC",
     statusColumn: "status",
-    companyScoped: true,
     fields: {
-      companyId: "company_id",
       teamId: "team_id",
       territoryId: "territory_id",
       userId: "user_id",
@@ -546,9 +504,7 @@ export const resources = Object.freeze({
     search: ["name", "period_type"],
     orderBy: "period_start DESC",
     statusColumn: "status",
-    companyScoped: true,
     fields: {
-      companyId: "company_id",
       name: "name",
       periodType: "period_type",
       periodStart: "period_start",
@@ -563,7 +519,6 @@ export const resources = Object.freeze({
     search: ["status", "notes"],
     orderBy: "updated_at DESC",
     statusColumn: "status",
-    companyScoped: true,
     // F025 (Sales forecast) — owner-scoped like every other owned CRM
     // resource: rep sees own -> manager sees team -> exec sees org. A
     // caller with crm.records.view_all still sees everything
@@ -573,7 +528,6 @@ export const resources = Object.freeze({
     // crm_sales_team_members/crm_sales_teams.
     ownerField: "ownerUserId",
     fields: {
-      companyId: "company_id",
       periodId: "period_id",
       teamId: "team_id",
       territoryId: "territory_id",
@@ -594,9 +548,7 @@ export const resources = Object.freeze({
     search: ["account_tier", "lifecycle_stage", "health_status"],
     orderBy: "next_review_at ASC NULLS LAST, updated_at DESC",
     statusColumn: "status",
-    companyScoped: true,
     fields: {
-      companyId: "company_id",
       partyId: "party_id",
       ownerUserId: "owner_user_id",
       executiveSponsorUserId: "executive_sponsor_user_id",
@@ -621,9 +573,7 @@ export const resources = Object.freeze({
     search: ["name", "title", "stakeholder_role", "sentiment"],
     orderBy: "influence_level DESC, name ASC",
     statusColumn: "status",
-    companyScoped: true,
     fields: {
-      companyId: "company_id",
       accountPlanId: "account_plan_id",
       contactId: "contact_id",
       name: "name",
@@ -642,9 +592,7 @@ export const resources = Object.freeze({
     search: ["name", "framework", "description"],
     orderBy: "name ASC",
     statusColumn: "status",
-    companyScoped: true,
     fields: {
-      companyId: "company_id",
       pipelineId: "pipeline_id",
       name: "name",
       framework: "framework",
@@ -658,9 +606,7 @@ export const resources = Object.freeze({
     search: ["question_key", "prompt", "response_type"],
     orderBy: "sequence ASC, prompt ASC",
     statusColumn: "status",
-    companyScoped: true,
     fields: {
-      companyId: "company_id",
       playbookId: "playbook_id",
       stageId: "stage_id",
       questionKey: "question_key",
@@ -678,9 +624,7 @@ export const resources = Object.freeze({
     table: "tenant.crm_playbook_responses",
     search: ["source"],
     orderBy: "responded_at DESC",
-    companyScoped: true,
     fields: {
-      companyId: "company_id",
       playbookId: "playbook_id",
       questionId: "question_id",
       opportunityId: "opportunity_id",
@@ -695,9 +639,7 @@ export const resources = Object.freeze({
     table: "tenant.crm_consent_events",
     search: ["channel", "purpose", "action", "source"],
     orderBy: "occurred_at DESC",
-    companyScoped: true,
     fields: {
-      companyId: "company_id",
       leadId: "lead_id",
       contactId: "contact_id",
       partyId: "party_id",
@@ -722,9 +664,7 @@ export const resources = Object.freeze({
     ],
     orderBy: "due_at ASC, created_at DESC",
     statusColumn: "status",
-    companyScoped: true,
     fields: {
-      companyId: "company_id",
       requestType: "request_type",
       subjectType: "subject_type",
       subjectId: "subject_id",
@@ -742,9 +682,7 @@ export const resources = Object.freeze({
     table: "tenant.crm_data_quality_scores",
     search: ["entity_type", "calculation_version"],
     orderBy: "overall_score ASC, calculated_at DESC",
-    companyScoped: true,
     fields: {
-      companyId: "company_id",
       entityType: "entity_type",
       entityId: "entity_id",
       completenessScore: "completeness_score",
@@ -762,9 +700,7 @@ export const resources = Object.freeze({
     search: ["name", "subject_template", "body_template", "template_type"],
     orderBy: "updated_at DESC, name ASC",
     statusColumn: "status",
-    companyScoped: true,
     fields: {
-      companyId: "company_id",
       templateType: "template_type",
       name: "name",
       subjectTemplate: "subject_template",
@@ -782,9 +718,7 @@ export const resources = Object.freeze({
     search: ["name", "slug", "meeting_provider", "location_template"],
     orderBy: "status ASC, name ASC",
     statusColumn: "status",
-    companyScoped: true,
     fields: {
-      companyId: "company_id",
       ownerUserId: "owner_user_id",
       name: "name",
       slug: "slug",
@@ -809,9 +743,7 @@ export const resources = Object.freeze({
     ],
     orderBy: "updated_at DESC",
     statusColumn: "status",
-    companyScoped: true,
     fields: {
-      companyId: "company_id",
       userId: "user_id",
       provider: "provider",
       externalAccountId: "external_account_id",
@@ -830,9 +762,7 @@ export const resources = Object.freeze({
     search: ["title", "provider", "external_id", "channel", "status"],
     orderBy: "started_at DESC",
     statusColumn: "status",
-    companyScoped: true,
     fields: {
-      companyId: "company_id",
       leadId: "lead_id",
       opportunityId: "opportunity_id",
       partyId: "party_id",
@@ -857,9 +787,7 @@ export const resources = Object.freeze({
     search: ["title", "content", "insight_type", "review_status"],
     orderBy: "created_at DESC",
     statusColumn: "review_status",
-    companyScoped: true,
     fields: {
-      companyId: "company_id",
       conversationId: "conversation_id",
       insightType: "insight_type",
       title: "title",
@@ -878,9 +806,7 @@ export const resources = Object.freeze({
     table: "tenant.crm_pipeline_inspections",
     search: ["health_status", "calculation_version"],
     orderBy: "inspected_at DESC",
-    companyScoped: true,
     fields: {
-      companyId: "company_id",
       opportunityId: "opportunity_id",
       inspectedAt: "inspected_at",
       stageAgeDays: "stage_age_days",
@@ -901,9 +827,7 @@ export const resources = Object.freeze({
     orderBy:
       "CASE severity WHEN 'critical' THEN 1 WHEN 'high' THEN 2 WHEN 'medium' THEN 3 ELSE 4 END, detected_at DESC",
     statusColumn: "status",
-    companyScoped: true,
     fields: {
-      companyId: "company_id",
       opportunityId: "opportunity_id",
       riskType: "risk_type",
       severity: "severity",
@@ -928,9 +852,7 @@ export const resources = Object.freeze({
     orderBy:
       "CASE priority WHEN 'urgent' THEN 1 WHEN 'high' THEN 2 WHEN 'medium' THEN 3 ELSE 4 END, due_at ASC NULLS LAST, created_at DESC",
     statusColumn: "status",
-    companyScoped: true,
     fields: {
-      companyId: "company_id",
       entityType: "entity_type",
       entityId: "entity_id",
       recommendationType: "recommendation_type",
@@ -954,9 +876,7 @@ export const resources = Object.freeze({
     search: ["name", "decision_process", "status"],
     orderBy: "decision_date ASC NULLS LAST, updated_at DESC",
     statusColumn: "status",
-    companyScoped: true,
     fields: {
-      companyId: "company_id",
       partyId: "party_id",
       opportunityId: "opportunity_id",
       name: "name",
@@ -972,9 +892,7 @@ export const resources = Object.freeze({
     orderBy:
       "CASE influence_level WHEN 'critical' THEN 1 WHEN 'high' THEN 2 WHEN 'medium' THEN 3 ELSE 4 END, name ASC",
     statusColumn: "status",
-    companyScoped: true,
     fields: {
-      companyId: "company_id",
       committeeId: "committee_id",
       contactId: "contact_id",
       name: "name",
@@ -998,9 +916,7 @@ export const resources = Object.freeze({
     ],
     orderBy: "strength DESC, updated_at DESC",
     statusColumn: "status",
-    companyScoped: true,
     fields: {
-      companyId: "company_id",
       fromEntityType: "from_entity_type",
       fromEntityId: "from_entity_id",
       toEntityType: "to_entity_type",
@@ -1019,9 +935,7 @@ export const resources = Object.freeze({
     search: ["title", "description", "signal_type", "source", "status"],
     orderBy: "occurred_at DESC",
     statusColumn: "status",
-    companyScoped: true,
     fields: {
-      companyId: "company_id",
       partyId: "party_id",
       opportunityId: "opportunity_id",
       signalType: "signal_type",
@@ -1041,9 +955,7 @@ export const resources = Object.freeze({
     search: ["name", "partner_type", "tier", "region", "status"],
     orderBy: "tier DESC, name ASC",
     statusColumn: "status",
-    companyScoped: true,
     fields: {
-      companyId: "company_id",
       partyId: "party_id",
       name: "name",
       partnerType: "partner_type",
@@ -1062,9 +974,7 @@ export const resources = Object.freeze({
     search: ["deal_registration_code", "partner_owner_name", "notes", "status"],
     orderBy: "registered_at DESC",
     statusColumn: "status",
-    companyScoped: true,
     fields: {
-      companyId: "company_id",
       partnerAccountId: "partner_account_id",
       opportunityId: "opportunity_id",
       leadId: "lead_id",
@@ -1085,14 +995,12 @@ export const resources = Object.freeze({
     search: ["object_key", "singular_label", "plural_label", "description"],
     orderBy: "plural_label ASC",
     statusColumn: "status",
-    companyScoped: false,
     fields: {
       objectKey: "object_key",
       singularLabel: "singular_label",
       pluralLabel: "plural_label",
       description: "description",
       primaryNameField: "primary_name_field",
-      companyScoped: "company_scoped",
       status: "status",
     },
   },
@@ -1101,7 +1009,6 @@ export const resources = Object.freeze({
     search: ["field_key", "label", "data_type"],
     orderBy: "object_definition_id ASC, sequence ASC",
     statusColumn: "status",
-    companyScoped: false,
     fields: {
       objectDefinitionId: "object_definition_id",
       fieldKey: "field_key",
@@ -1124,9 +1031,7 @@ export const resources = Object.freeze({
     search: ["record_name", "status"],
     orderBy: "updated_at DESC, record_name ASC",
     statusColumn: "status",
-    companyScoped: true,
     fields: {
-      companyId: "company_id",
       objectDefinitionId: "object_definition_id",
       recordName: "record_name",
       ownerUserId: "owner_user_id",
@@ -1139,9 +1044,7 @@ export const resources = Object.freeze({
     search: ["visit_type", "address", "objective", "outcome", "status"],
     orderBy: "planned_start_at ASC",
     statusColumn: "status",
-    companyScoped: true,
     fields: {
-      companyId: "company_id",
       partyId: "party_id",
       contactId: "contact_id",
       opportunityId: "opportunity_id",
@@ -1165,9 +1068,7 @@ export const resources = Object.freeze({
     search: ["entity_type", "provider", "status", "error_message"],
     orderBy: "requested_at DESC",
     statusColumn: "status",
-    companyScoped: true,
     fields: {
-      companyId: "company_id",
       entityType: "entity_type",
       entityId: "entity_id",
       provider: "provider",
@@ -1193,9 +1094,7 @@ export const resources = Object.freeze({
     ],
     orderBy: "generated_at DESC",
     statusColumn: "status",
-    companyScoped: true,
     fields: {
-      companyId: "company_id",
       entityType: "entity_type",
       entityId: "entity_id",
       predictionType: "prediction_type",
@@ -1215,9 +1114,7 @@ export const resources = Object.freeze({
     table: "tenant.crm_ai_feedback",
     search: ["outcome", "feedback"],
     orderBy: "created_at DESC",
-    companyScoped: true,
     fields: {
-      companyId: "company_id",
       predictionId: "prediction_id",
       recommendationId: "recommendation_id",
       userId: "user_id",

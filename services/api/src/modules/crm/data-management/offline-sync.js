@@ -233,8 +233,6 @@ export async function applyOfflineMutation(client, context, input = {}) {
       Object.prototype.hasOwnProperty.call(p, "ownerUserId") ||
       Object.prototype.hasOwnProperty.call(p, "owner_user_id");
     row = await createCrmRecord(client, context, "leads", {
-      companyId: p.companyId || p.company_id || context.activeCompanyId || null,
-      branchId: p.branchId || p.branch_id || context.activeBranchId || null,
       code: text(p.code),
       firstName: text(p.firstName || p.first_name),
       lastName: text(p.lastName || p.last_name) || null,
@@ -285,8 +283,6 @@ export async function applyOfflineMutation(client, context, input = {}) {
       throw new CrmOfflineSyncError(410, "Use the governed Meetings mobile endpoint for offline Meeting creation.", "CRM_MEETING_API_MOVED");
     if (activityType === "task") {
       row = await createCrmTask(client, context, {
-        companyId: p.companyId || p.company_id || context.activeCompanyId || null,
-        branchId: p.branchId || p.branch_id || context.activeBranchId || null,
         entityType: text(p.entityType || p.entity_type || "general"),
         entityId: p.entityId || p.entity_id || null,
         subject: text(p.subject),
@@ -306,8 +302,6 @@ export async function applyOfflineMutation(client, context, input = {}) {
       const { activityType: _activityType, status: _status, ...rest } = p;
       row = await createCrmFollowUp(client, context, {
         ...rest,
-        companyId: p.companyId || p.company_id || context.activeCompanyId || null,
-        branchId: p.branchId || p.branch_id || context.activeBranchId || null,
         entityType: text(p.entityType || p.entity_type || "general"),
         entityId: p.entityId || p.entity_id || null,
         assignedTo: p.assignedTo || p.assigned_to || context.userId,
@@ -315,9 +309,8 @@ export async function applyOfflineMutation(client, context, input = {}) {
     } else {
       row = (
         await client.query(
-          `INSERT INTO tenant.crm_activities(organization_id,company_id,branch_id,entity_type,entity_id,activity_type,subject,description,status,priority,assigned_to,start_at,due_at,created_by,updated_by) VALUES($1,$2,$3,$4,$5,$6,$7,$8,'planned',$9,$10,$11,$12,$13,$13) RETURNING *`,
-          [context.organizationId, p.companyId || p.company_id || context.activeCompanyId || null,
-           p.branchId || p.branch_id || context.activeBranchId || null, text(p.entityType || p.entity_type || "general"),
+          `INSERT INTO tenant.crm_activities(organization_id,entity_type,entity_id,activity_type,subject,description,status,priority,assigned_to,start_at,due_at,created_by,updated_by) VALUES($1,$2,$3,$4,$5,$6,'planned',$7,$8,$9,$10,$11,$11) RETURNING *`,
+          [context.organizationId, text(p.entityType || p.entity_type || "general"),
            p.entityId || p.entity_id || null, activityType, text(p.subject), text(p.description) || null,
            text(p.priority || "medium"), p.assignedTo || p.assigned_to || context.userId,
            p.startAt || p.start_at || null, p.dueAt || p.due_at || null, context.userId],

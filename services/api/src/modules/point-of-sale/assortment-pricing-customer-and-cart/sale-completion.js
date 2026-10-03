@@ -47,9 +47,9 @@ async function stockAvailable(client, context, itemId, warehouseId) {
   const result = await client.query(
     `SELECT coalesce(sum(quantity-reserved_quantity),0)::text AS available
      FROM tenant.stock_balances
-     WHERE organization_id=$1 AND company_id=$2
-       AND item_id=$3 AND warehouse_id=$4`,
-    [context.organizationId, context.companyId, itemId, warehouseId],
+     WHERE organization_id=$1
+       AND item_id=$2 AND warehouse_id=$3`,
+    [context.organizationId, itemId, warehouseId],
   );
   return Number(result.rows[0].available);
 }
@@ -96,7 +96,7 @@ async function resolvePointOfSaleUnitPrice(client, context, shift, policy, line,
 
   if (line.priceOverride) {
     if (!policy.allow_price_override) {
-      throw posError(409, "Price override is disabled for this company.", "POS_PRICE_OVERRIDE_DISABLED");
+      throw posError(409, "Price override is disabled for this organization.", "POS_PRICE_OVERRIDE_DISABLED");
     }
     requirePermission(context, "pos.price.override");
     return decimal(requestedPrice);
@@ -181,17 +181,15 @@ export async function completePointOfSale(client, context, input) {
      JOIN tenant.pos_stores store
        ON store.id=shift.store_id
       AND store.organization_id=shift.organization_id
-      AND store.company_id=shift.company_id
      JOIN tenant.pos_terminals terminal
        ON terminal.id=shift.terminal_id
       AND terminal.organization_id=shift.organization_id
-      AND terminal.company_id=shift.company_id
       AND terminal.store_id=shift.store_id
-     WHERE shift.organization_id=$1 AND shift.company_id=$2
-       AND shift.id=$3 AND shift.status='open'
+     WHERE shift.organization_id=$1
+       AND shift.id=$2 AND shift.status='open'
        AND store.active=true AND terminal.status='active'
      FOR UPDATE`,
-    [context.organizationId, context.companyId, input.shiftId],
+    [context.organizationId, input.shiftId],
   );
   const shift = shiftResult.rows[0];
   if (!shift) {
@@ -209,8 +207,8 @@ export async function completePointOfSale(client, context, input) {
   const settings = await client.query(
     `SELECT allow_negative_stock,allow_price_override,max_line_discount_percent,discount_approval_threshold_percent
      FROM tenant.pos_settings
-     WHERE organization_id=$1 AND company_id=$2`,
-    [context.organizationId, context.companyId],
+     WHERE organization_id=$1`,
+    [context.organizationId],
   );
   const policy = settings.rows[0] || {
     allow_negative_stock: false,
@@ -221,10 +219,7 @@ export async function completePointOfSale(client, context, input) {
 
   // F276: reference the authoritative CRM/Sales customer master
   // (tenant.business_parties) rather than trusting a free-text/unvalidated
-  // id — a customer record can be organization-shared (company_id IS NULL)
-  // or company-specific, matching how Sales/CRM already resolve it, so this
-  // is not a plain company_id=$2 equality check like requireCompanyRecord's
-  // other kinds. Found via audit: this previously accepted any UUID (or
+  // id. Found via audit: this previously accepted any UUID (or
   // none) with zero validation, alongside an always-trusted free-text
   // customerName. Validated before the line loop so the resolved customer
   // can also supply the buyer's state code for tax-jurisdiction resolution
@@ -232,12 +227,12 @@ export async function completePointOfSale(client, context, input) {
   if (input.customerId) {
     const customer = await client.query(
       `SELECT id FROM tenant.business_parties
-       WHERE organization_id=$1 AND (company_id IS NULL OR company_id=$2)
-         AND id=$3 AND party_type IN ('customer','both') AND status='active'`,
-      [context.organizationId, context.companyId, input.customerId],
+       WHERE organization_id=$1
+         AND id=$2 AND party_type IN ('customer','both') AND status='active'`,
+      [context.organizationId, input.customerId],
     );
     if (!customer.rows[0]) {
-      throw posError(404, "Selected customer was not found or is not an active customer for this company.", "POS_CUSTOMER_NOT_FOUND");
+      throw posError(404, "Selected customer was not found or is not an active customer.", "POS_CUSTOMER_NOT_FOUND");
     }
   }
 
@@ -304,18 +299,18 @@ export async function completePointOfSale(client, context, input) {
 
     // F274 gap closure: line.variantId was persisted onto pos_sale_lines
     // with no application-level check that it actually belongs to
-    // line.itemId, is active, or is scoped to this company -- unlike the
-    // cart path's resolveItemAndVariant, which validates all three. A DB
-    // FK stops a nonexistent variant, but not a real, valid variant
-    // belonging to a DIFFERENT item/company from being silently attached
+    // line.itemId or is active -- unlike the cart path's
+    // resolveItemAndVariant, which validates both. A DB FK stops a
+    // nonexistent variant, but not a real, valid variant belonging to a
+    // DIFFERENT item from being silently attached
     // to this sale line.
     if (line.variantId) {
       const variant = await client.query(
-        `SELECT id,company_id,status FROM tenant.item_variants WHERE organization_id=$1 AND id=$2 AND item_id=$3`,
+        `SELECT id,status FROM tenant.item_variants WHERE organization_id=$1 AND id=$2 AND item_id=$3`,
         [context.organizationId, line.variantId, line.itemId],
       );
       const variantRow = variant.rows[0];
-      if (!variantRow || variantRow.status !== "active" || (variantRow.company_id && variantRow.company_id !== context.companyId)) {
+      if (!variantRow || variantRow.status !== "active") {
         throw posError(404, "The selected product variant was not found.", "POS_SALE_VARIANT_NOT_FOUND");
       }
     }
@@ -368,7 +363,6 @@ export async function completePointOfSale(client, context, input) {
     const taxableAmount = max(0, sub(lineSubtotal, discountAmount));
     const { taxRate, components } = await resolveTaxRateComponents(client, {
       organizationId: context.organizationId,
-      companyId: context.companyId,
       taxCategoryId: item.tax_category_id,
       sellerStateCode,
       buyerStateCode,
@@ -449,7 +443,7 @@ export async function completePointOfSale(client, context, input) {
   // fail with a raw, unhandled unique-constraint violation. Found via
   // genuine real-Postgres/real-browser testing this session (two real
   // terminals in the same org), not by inspection. The sequence is now
-  // shared per company, matching the constraint's actual scope; a
+  // shared per organization, matching the constraint's actual scope; a
   // terminal's own receipt_prefix still lets it produce visually distinct
   // numbers if configured, but correctness no longer depends on that.
   const receiptNumber = input.receiptNumber || await nextDocumentNumber(client, context, {
@@ -459,17 +453,16 @@ export async function completePointOfSale(client, context, input) {
 
   const sale = await client.query(
     `INSERT INTO tenant.pos_sales
-      (organization_id,company_id,store_id,terminal_id,shift_id,receipt_number,
+      (organization_id,store_id,terminal_id,shift_id,receipt_number,
        customer_id,customer_name,currency_code,subtotal,discount_total,tax_total,
        rounding_adjustment,grand_total,paid_total,change_total,status,
        idempotency_key,created_by,completed_at,loyalty_program_id,loyalty_points_earned,
        loyalty_redemption_value_per_point_snapshot)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,
-       'completed',$17,$18,now(),$19,$20,$21)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,
+       'completed',$16,$17,now(),$18,$19,$20)
      RETURNING *`,
     [
       context.organizationId,
-      context.companyId,
       shift.store_id,
       shift.terminal_id,
       input.shiftId,
@@ -560,12 +553,11 @@ export async function completePointOfSale(client, context, input) {
   for (const payment of input.payments) {
     await client.query(
       `INSERT INTO tenant.pos_payments
-        (organization_id,company_id,sale_id,shift_id,payment_method,amount,
+        (organization_id,sale_id,shift_id,payment_method,amount,
          provider_reference,authorization_reference,status,captured_at,created_by)
-       VALUES ($1,$2,$3,$4,'cash',$5,NULL,NULL,'captured',now(),$6)`,
+       VALUES ($1,$2,$3,'cash',$4,NULL,NULL,'captured',now(),$5)`,
       [
         context.organizationId,
-        context.companyId,
         sale.rows[0].id,
         input.shiftId,
         asDatabaseDecimal(decimal(payment.amount)),
@@ -584,12 +576,11 @@ export async function completePointOfSale(client, context, input) {
     });
     await client.query(
       `INSERT INTO tenant.pos_cash_movements
-        (organization_id,company_id,shift_id,movement_number,movement_type,
+        (organization_id,shift_id,movement_number,movement_type,
          amount,reference_type,reference_id,created_by)
-       VALUES ($1,$2,$3,$4,'sale',$5,'pos_sale',$6,$7)`,
+       VALUES ($1,$2,$3,'sale',$4,'pos_sale',$5,$6)`,
       [
         context.organizationId,
-        context.companyId,
         input.shiftId,
         cashMovementNumber,
         asDatabaseDecimal(grandTotal),
@@ -675,9 +666,9 @@ export async function completePosCart(client, context, cartId, input = {}) {
      JOIN tenant.pos_stores store ON store.organization_id=cart.organization_id AND store.id=cart.store_id
      JOIN tenant.pos_terminals terminal ON terminal.organization_id=cart.organization_id AND terminal.id=cart.terminal_id
      JOIN tenant.pos_shifts shift ON shift.organization_id=cart.organization_id AND shift.id=cart.shift_id
-     WHERE cart.organization_id=$1 AND cart.company_id=$2 AND cart.id=$3
+     WHERE cart.organization_id=$1 AND cart.id=$2
      FOR UPDATE OF cart`,
-    [context.organizationId, context.companyId, cartId],
+    [context.organizationId, cartId],
   );
   const cart = cartResult.rows[0];
   if (!cart) throw posError(404, "POS cart was not found.", "POS_CART_NOT_FOUND");
@@ -755,7 +746,7 @@ export async function completePosCart(client, context, cartId, input = {}) {
     );
   }
 
-  // See the matching comment in completePointOfSale: shared per-company,
+  // See the matching comment in completePointOfSale: shared per-organization,
   // not per-terminal, to match pos_sales_organization_id_receipt_number_key.
   const receiptNumber = await nextDocumentNumber(client, context, {
     documentType: "pos_receipt",
@@ -764,16 +755,15 @@ export async function completePosCart(client, context, cartId, input = {}) {
 
   const sale = await client.query(
     `INSERT INTO tenant.pos_sales
-      (organization_id,company_id,store_id,terminal_id,shift_id,receipt_number,
+      (organization_id,store_id,terminal_id,shift_id,receipt_number,
        customer_id,currency_code,subtotal,discount_total,tax_total,rounding_adjustment,
        grand_total,paid_total,change_total,status,idempotency_key,created_by,completed_at,
        cart_id,coupon_code,loyalty_program_id,loyalty_points_earned,loyalty_redeem_points,loyalty_redeem_amount,
        loyalty_redemption_value_per_point_snapshot)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,'completed',$16,$17,now(),$18,$19,$20,$21,$22,$23,$24)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,'completed',$15,$16,now(),$17,$18,$19,$20,$21,$22,$23)
      RETURNING *`,
     [
       context.organizationId,
-      context.companyId,
       cart.store_id,
       cart.terminal_id,
       cart.shift_id,
@@ -866,9 +856,9 @@ export async function completePosCart(client, context, cartId, input = {}) {
   for (const leg of cashLegs) {
     await client.query(
       `INSERT INTO tenant.pos_payments
-        (organization_id,company_id,sale_id,shift_id,payment_method,amount,status,captured_at,created_by)
-       VALUES ($1,$2,$3,$4,'cash',$5,'captured',now(),$6)`,
-      [context.organizationId, context.companyId, saleId, cart.shift_id, asDatabaseDecimal(leg.amount), context.userId],
+        (organization_id,sale_id,shift_id,payment_method,amount,status,captured_at,created_by)
+       VALUES ($1,$2,$3,'cash',$4,'captured',now(),$5)`,
+      [context.organizationId, saleId, cart.shift_id, asDatabaseDecimal(leg.amount), context.userId],
     );
   }
   // F283/F284/F285/F286: each already-captured non-cash leg is attached to
@@ -894,9 +884,9 @@ export async function completePosCart(client, context, cartId, input = {}) {
     const cashMovementNumber = await nextDocumentNumber(client, context, { documentType: "pos_cash_movement", prefix: "CASH" });
     await client.query(
       `INSERT INTO tenant.pos_cash_movements
-        (organization_id,company_id,shift_id,movement_number,movement_type,amount,reference_type,reference_id,created_by)
-       VALUES ($1,$2,$3,$4,'sale',$5,'pos_sale',$6,$7)`,
-      [context.organizationId, context.companyId, cart.shift_id, cashMovementNumber, asDatabaseDecimal(cashTotal), saleId, context.userId],
+        (organization_id,shift_id,movement_number,movement_type,amount,reference_type,reference_id,created_by)
+       VALUES ($1,$2,$3,'sale',$4,'pos_sale',$5,$6)`,
+      [context.organizationId, cart.shift_id, cashMovementNumber, asDatabaseDecimal(cashTotal), saleId, context.userId],
     );
   }
 

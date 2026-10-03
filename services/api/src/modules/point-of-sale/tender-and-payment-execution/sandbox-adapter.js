@@ -76,7 +76,6 @@ export async function sandboxRefund(_context, { providerReference, outcome = "im
 // trusted state transition.
 export function buildSandboxWebhookDelivery({
   organizationId,
-  companyId,
   paymentId,
   providerReference,
   status,
@@ -89,7 +88,6 @@ export function buildSandboxWebhookDelivery({
     eventId: eventId || randomUUID(),
     eventType,
     organizationId,
-    companyId,
     paymentId,
     providerReference,
     status,
@@ -105,7 +103,6 @@ export function parseSandboxWebhookEvent(rawBody) {
     eventId: String(payload.eventId || ""),
     eventType: String(payload.eventType || ""),
     organizationId: payload.organizationId,
-    companyId: payload.companyId,
     paymentId: payload.paymentId,
     providerReference: payload.providerReference,
     status: payload.status,

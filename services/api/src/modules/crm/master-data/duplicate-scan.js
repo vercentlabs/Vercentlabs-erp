@@ -98,8 +98,8 @@ export async function getLatestDuplicateFullScan(client, context, entityType) {
 }
 
 // Labels are resolved through each record's own visibility rule, so a
-// pair is only ever shown when the caller can open BOTH records (company
-// boundary included) — a scan match is never a way to discover a record.
+// pair is only ever shown when the caller can open BOTH records — a scan
+// match is never a way to discover a record.
 async function labelsFor(client, context, entityType, ids) {
   if (!ids.length) return new Map();
   const parameters = [context.organizationId, ids];

@@ -71,7 +71,7 @@ export async function POST(
           client,
           context,
           name,
-          shapeMasterCreate(name, input, context.activeCompanyId),
+          shapeMasterCreate(name, input),
         ),
       };
     },

@@ -16,14 +16,9 @@ import {
 import {
   AccessApiError,
   getAccessOptions,
-  saveUserAccessScope,
 } from "@/features/settings/access/api/access-api";
 import { EffectiveAccessSummary } from "@/features/settings/access/EffectiveAccessSummary";
 import { RoleSelector } from "@/features/settings/access/RoleSelector";
-import {
-  ScopeSelector,
-  type AccessScope,
-} from "@/features/settings/access/ScopeSelector";
 import {
   RolesApiError,
   setUserRoles,
@@ -52,10 +47,6 @@ function errorMessage(error: unknown, fallback: string) {
     : fallback;
 }
 
-function Scope({ names, empty }: { names: string[]; empty: string }) {
-  return <span>{names.length ? names.join(", ") : empty}</span>;
-}
-
 export function UsersScreen({
   abilities,
   currentUserId,
@@ -76,13 +67,6 @@ export function UsersScreen({
   });
 
   const [statusTarget, setStatusTarget] = useState<MemberRow | null>(null);
-  const [accessTarget, setAccessTarget] = useState<MemberRow | null>(null);
-  const [scope, setScope] = useState<AccessScope>({
-    companyIds: [],
-    branchIds: [],
-    departmentIds: [],
-    teamIds: [],
-  });
   const [rolesTarget, setRolesTarget] = useState<MemberRow | null>(null);
   const [roleSelection, setRoleSelection] = useState<{
     roleIds: string[];
@@ -110,17 +94,6 @@ export function UsersScreen({
         errorMessage(error, "The member's status could not be changed."),
       );
     },
-  });
-
-  const accessMutation = useMutation({
-    mutationFn: () => saveUserAccessScope(accessTarget!.user_id, scope),
-    onSuccess: () => {
-      setDialogError(null);
-      setAccessTarget(null);
-      refresh();
-    },
-    onError: (error: unknown) =>
-      setDialogError(errorMessage(error, "Access could not be updated.")),
   });
 
   const rolesMutation = useMutation({
@@ -152,7 +125,6 @@ export function UsersScreen({
 
   const members = query.data?.members ?? [];
   const options = optionsQuery.data;
-  const grantableCompanies = options?.scope?.companies ?? [];
   const roles = options?.roles ?? [];
   const selectedRoles = roles.filter((role) =>
     roleSelection.roleIds.includes(role.id),
@@ -162,17 +134,6 @@ export function UsersScreen({
   // would refuse it anyway).
   const lockedRoles = selectedRoles.filter((role) => !role.grantable);
 
-  const openAccess = (member: MemberRow) => {
-    // Ids come straight from the server — never reconstructed from names.
-    setScope({
-      companyIds: member.company_ids,
-      branchIds: member.branch_ids,
-      departmentIds: member.department_ids ?? [],
-      teamIds: member.team_ids ?? [],
-    });
-    setDialogError(null);
-    setAccessTarget(member);
-  };
   const openRoles = (member: MemberRow) => {
     setRoleSelection({
       roleIds: member.role_ids,
@@ -186,11 +147,7 @@ export function UsersScreen({
     <div className="flex flex-1 flex-col gap-6">
       <PageHeader
         title="Users"
-        description={
-          options?.scope && !options.scope.unrestricted
-            ? "Members in the companies and branches you administer."
-            : "Members of your organization, their roles and their company and branch access."
-        }
+        description="Members of your organization and their roles."
       />
 
       {actionError ? (
@@ -213,7 +170,7 @@ export function UsersScreen({
       ) : members.length === 0 ? (
         <EmptyState
           title="No users to show"
-          description="Users appear here once they have access inside your administration scope."
+          description="Users appear here once they join your organization."
         />
       ) : (
         <ul className="flex max-w-[960px] flex-col gap-2" aria-label="Users">
@@ -256,20 +213,6 @@ export function UsersScreen({
                         <span className="text-text-muted">{` + ${additional.join(", ")}`}</span>
                       )}
                     </dd>
-                    <dt className="text-text-muted">Companies</dt>
-                    <dd>
-                      <Scope
-                        names={member.company_names}
-                        empty="No company access"
-                      />
-                    </dd>
-                    <dt className="text-text-muted">Branches</dt>
-                    <dd>
-                      <Scope
-                        names={member.branch_names}
-                        empty="No branch access"
-                      />
-                    </dd>
                   </dl>
                 </div>
                 <div className="flex flex-wrap gap-2">
@@ -280,15 +223,6 @@ export function UsersScreen({
                       onPress={() => openRoles(member)}
                     >
                       Manage roles
-                    </Button>
-                  )}
-                  {abilities.canManageUsers && (
-                    <Button
-                      variant="secondary"
-                      size="compact"
-                      onPress={() => openAccess(member)}
-                    >
-                      Manage access
                     </Button>
                   )}
                   {abilities.canManageUsers && !isSelf && (
@@ -328,45 +262,6 @@ export function UsersScreen({
         isConfirming={statusMutation.isPending}
         onConfirm={() => statusTarget && statusMutation.mutate(statusTarget)}
       />
-
-      <Dialog
-        isOpen={Boolean(accessTarget)}
-        onOpenChange={(open) => !open && setAccessTarget(null)}
-        title={`Manage access — ${accessTarget?.full_name ?? ""}`}
-      >
-        <div className="flex flex-col gap-4">
-          <p className="text-sm text-text-secondary">
-            Choose the companies, branches, departments and teams this person
-            can work in.
-          </p>
-          {optionsQuery.isLoading ? (
-            <p className="text-sm text-text-secondary">Loading…</p>
-          ) : (
-            <ScopeSelector
-              companies={grantableCompanies}
-              departments={options?.scope?.departments ?? []}
-              teams={options?.scope?.teams ?? []}
-              companyIds={scope.companyIds}
-              branchIds={scope.branchIds}
-              departmentIds={scope.departmentIds}
-              teamIds={scope.teamIds}
-              onChange={setScope}
-            />
-          )}
-          {dialogError && accessTarget ? (
-            <p role="alert" className="text-sm text-danger">
-              {dialogError}
-            </p>
-          ) : null}
-          <Button
-            variant="primary"
-            isLoading={accessMutation.isPending}
-            onPress={() => accessMutation.mutate()}
-          >
-            Save access
-          </Button>
-        </div>
-      </Dialog>
 
       <Dialog
         isOpen={Boolean(rolesTarget)}

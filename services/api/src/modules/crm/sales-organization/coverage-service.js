@@ -32,10 +32,6 @@ export function assertCrmPermission(context, permission, message = "You do not h
 
 const today = () => new Date().toISOString().slice(0, 10);
 
-function companyClause(context, parameters, alias) {
-  return context.activeCompanyId ? ` AND (${alias}.company_id IS NULL OR ${alias}.company_id=${addParameter(parameters, context.activeCompanyId)})` : "";
-}
-
 /** The coverage workspace: team and territory hierarchies with coverage, gaps and unassigned work. */
 export async function getSalesCoverage(client, context, { asOf } = {}) {
   assertCrmPermission(context, "crm.coverage.view", "You do not have access to sales coverage.");
@@ -55,7 +51,7 @@ export async function getSalesCoverage(client, context, { asOf } = {}) {
        LEFT JOIN tenant.crm_sales_team_members member ON member.organization_id=team.organization_id AND member.team_id=team.id
          AND (member.effective_to IS NULL OR member.effective_to >= $2::date - 365)
        LEFT JOIN public.users member_user ON member_user.id=member.user_id
-      WHERE team.organization_id=$1${companyClause(context, teamParameters, "team")}
+      WHERE team.organization_id=$1
       GROUP BY team.id, manager.full_name
       ORDER BY team.name`,
     teamParameters,
@@ -79,7 +75,7 @@ export async function getSalesCoverage(client, context, { asOf } = {}) {
           ORDER BY assignment.effective_from DESC LIMIT 1) primary_assignment ON true
        LEFT JOIN public.users primary_user ON primary_assignment.assignee_type='user' AND primary_user.id=primary_assignment.assignee_id
        LEFT JOIN tenant.crm_sales_teams primary_team ON primary_assignment.assignee_type='team' AND primary_team.organization_id=territory.organization_id AND primary_team.id=primary_assignment.assignee_id
-      WHERE territory.organization_id=$1 AND territory.status IN ('draft','active','inactive')${companyClause(context, territoryParameters, "territory")}
+      WHERE territory.organization_id=$1 AND territory.status IN ('draft','active','inactive')
       ORDER BY territory.name`,
     territoryParameters,
   );
@@ -307,7 +303,7 @@ export async function transferTerritoryCoverage(client, context, territoryId, in
 
   const parameters = [context.organizationId, territoryId];
   const territory = await client.query(
-    `SELECT territory.* FROM tenant.crm_territories territory WHERE territory.organization_id=$1 AND territory.id=$2${companyClause(context, parameters, "territory")} FOR UPDATE`,
+    `SELECT territory.* FROM tenant.crm_territories territory WHERE territory.organization_id=$1 AND territory.id=$2 FOR UPDATE`,
     parameters,
   );
   if (!territory.rows[0]) throw new CrmError(404, "Territory not found.", "CRM_TERRITORY_NOT_FOUND");
@@ -340,9 +336,9 @@ export async function transferTerritoryCoverage(client, context, territoryId, in
     [context.organizationId, territoryId, effectiveFrom, context.userId],
   );
   const inserted = await client.query(
-    `INSERT INTO tenant.crm_territory_assignments(organization_id,company_id,territory_id,assignee_type,assignee_id,assignment_role,effective_from,source,created_by)
-     VALUES($1,$2,$3,$4,$5,'primary',$6,'manual',$7) RETURNING id`,
-    [context.organizationId, territory.rows[0].company_id, territoryId, assigneeType, assigneeId, effectiveFrom, context.userId],
+    `INSERT INTO tenant.crm_territory_assignments(organization_id,territory_id,assignee_type,assignee_id,assignment_role,effective_from,source,created_by)
+     VALUES($1,$2,$3,$4,'primary',$5,'manual',$6) RETURNING id`,
+    [context.organizationId, territoryId, assigneeType, assigneeId, effectiveFrom, context.userId],
   );
   const previous = current.rows.map((row) => ({ assigneeType: row.assignee_type, assigneeId: row.assignee_id }));
   await audit(client, {

@@ -12,14 +12,13 @@ export { canViewAllCrmRecords };
 
 
 
-// A caller may see every record in their company/branch scope ("crm.records
+// A caller may see every record in the organization ("crm.records
 // .view_all" — granted to CRM/sales manager and administrator roles) or,
 // lacking that permission, only records they own/are assigned (definition.
 // ownerField, currently set for leads, opportunities and activities). Records with
 // no owner yet (owner_user_id/assigned_to IS NULL, e.g. a freshly captured
 // lead awaiting assignment) remain visible to anyone who can otherwise see
-// the resource, mirroring the existing company_id/branch_id IS NULL
-// convention immediately below.
+// the resource.
 // (canViewAllCrmRecords now lives in crm-access-scope.js with the team rule.)
 
 
@@ -65,9 +64,9 @@ export function aiFeedbackLeadScope(definition, context, parameters, alias) {
 
 
 
-// crm_communications carries no company_id/branch_id/owner column of its
-// own — it is organization-scoped only, with company/branch/owner meaning
-// derived entirely from whichever parent record it is linked to. A
+// crm_communications carries no owner column of its own — it is
+// organization-scoped only, with owner meaning derived entirely from
+// whichever parent record it is linked to. A
 // communication is visible (once the caller already holds the separate
 // content permission — see recordScope) only if its actual parent is
 // itself visible under that parent resource's own real scope rules, so
@@ -81,23 +80,10 @@ function communicationParentScopeSql(context, parameters, alias) {
     parameters,
     "opportunity",
   );
-  // allowAllCompanies is checked FIRST, before touching `parameters` at
-  // all: binding activeCompanyId and then emitting the literal "true"
-  // instead would leave a bound parameter that appears nowhere in the
-  // returned SQL text. Postgres cannot infer that orphaned placeholder's
-  // type at parse time and rejects the whole query with "could not
-  // determine data type of parameter $N" (invisible to mocked-client unit
-  // tests).
-  const partyCompanyVisible = context.allowAllCompanies
-    ? "true"
-    : context.activeCompanyId
-      ? `(party.company_id IS NULL OR party.company_id = ${addParameter(parameters, context.activeCompanyId)})`
-      : "false";
-  // …and the Account ownership rule (crm-access-scope.js), so a
-  // communication logged against an Account is visible exactly when the
-  // Account is.
-  const partyVisible = `${partyCompanyVisible}${crmAccountAccessSql(context, (value) => addParameter(parameters, value), "party")}`;
-  const standaloneVisible = context.allowAllCompanies ? "true" : "false";
+  // The Account ownership rule (crm-access-scope.js), so a communication
+  // logged against an Account is visible exactly when the Account is.
+  const partyVisible = `true${crmAccountAccessSql(context, (value) => addParameter(parameters, value), "party")}`;
+  const standaloneVisible = "true";
   return ` AND (
     (${alias}.lead_id IS NOT NULL AND EXISTS (SELECT 1 FROM tenant.crm_leads lead WHERE lead.organization_id=${alias}.organization_id AND lead.id=${alias}.lead_id${leadScope}))
     OR (${alias}.lead_id IS NULL AND ${alias}.opportunity_id IS NOT NULL AND EXISTS (SELECT 1 FROM tenant.crm_opportunities opportunity WHERE opportunity.organization_id=${alias}.organization_id AND opportunity.id=${alias}.opportunity_id${opportunityScope}))
@@ -121,10 +107,9 @@ export function recordScope(definition, context, parameters, alias = "record") {
     // AUDIENCE ("may this caller know this communication exists") and
     // CONTENT ("may this caller read subject/body/recipients") are two
     // separate authorization decisions, not one combined gate. This SQL fragment only ever decides audience:
-    // company/branch/owner boundary comes from the communication's actual
-    // parent record's own scope (communicationParentScopeSql, so the
-    // sensitive permission alone never reads every company's mail
-    // org-wide),
+    // the owner boundary comes from the communication's actual parent
+    // record's own scope (communicationParentScopeSql, so the sensitive
+    // permission alone never reads every owner's mail org-wide),
     // and the visibility tier (team/private/participant) is the ONE
     // canonical fragment every other audience call site (getCommunication-
     // Timeline, the canonical Timeline's communication branch, the shared
@@ -143,40 +128,6 @@ export function recordScope(definition, context, parameters, alias = "record") {
     if (definition.table === "tenant.crm_activities")
       sql += ` AND COALESCE(${alias}.entity_type,'general') <> 'lead'`;
   }
-  if (definition.companyScoped) {
-    // `allowAllCompanies` (organization_owner/system_administrator) means
-    // "permitted to access every company," NOT "the active company
-    // selector should be ignored." Whenever a specific company is actually
-    // selected (the normal case for every role, including owners/admins —
-    // see apps/web/src/core/auth.ts's session resolution, which always picks
-    // a real company), records outside it stay filtered out for everyone.
-    // allowAllCompanies only changes behavior when NO company is selected
-    // at all: a restricted user is denied (fail closed), an elevated user
-    // sees across every company (the genuine "no company chosen yet" case).
-    // Before this fix, allowAllCompanies skipped company filtering
-    // unconditionally, so an owner/admin's company switcher never actually
-    // scoped anything — e.g. a lead created while switched to Company A
-    // was still visible while switched to Company B, because the read path
-    // never applied the filter for that role at all.
-    if (context.activeCompanyId) {
-      sql += ` AND (${alias}.company_id IS NULL OR ${alias}.company_id = ${addParameter(parameters, context.activeCompanyId)})`;
-    } else if (!context.allowAllCompanies) {
-      // Must return `sql + " AND false"`, not a bare " AND false" — a bare
-      // return here would discard any parameter(s) already bound above
-      // (e.g. the saved_views clause) while leaving them in the
-      // `parameters` array the caller still sends, producing a Postgres
-      // bind-parameter-count mismatch.
-      return sql + " AND false";
-    }
-  }
-  if (definition.fields?.branchId) {
-    // Same reasoning as the company block above.
-    if (context.activeBranchId) {
-      sql += ` AND (${alias}.branch_id IS NULL OR ${alias}.branch_id = ${addParameter(parameters, context.activeBranchId)})`;
-    } else if (!context.allowAllCompanies) {
-      return sql + " AND false";
-    }
-  }
   if (definition.ownerField) {
     // One rule for every owner-scoped resource (leads, opportunities,
     // activities, forecast submissions): own + managed-team members +
@@ -191,47 +142,10 @@ export function recordScope(definition, context, parameters, alias = "record") {
 
 
 
-export function assertWritableScope(definition, context, input) {
-  if (
-    definition.companyScoped &&
-    !context.allowAllCompanies &&
-    !context.activeCompanyId
-  ) {
-    throw new CrmError(
-      403,
-      "Select an allowed company before maintaining CRM records.",
-    );
-  }
-  if (
-    definition.companyScoped &&
-    input.companyId &&
-    context.activeCompanyId &&
-    input.companyId !== context.activeCompanyId
-  ) {
-    throw new CrmError(403, "The CRM record belongs to another company.");
-  }
-  if (
-    definition.fields?.branchId &&
-    ((!context.activeBranchId && !context.allowAllCompanies) ||
-      (context.activeBranchId &&
-        input.branchId &&
-        input.branchId !== context.activeBranchId))
-  ) {
-    throw new CrmError(
-      403,
-      context.activeBranchId
-        ? "The CRM record belongs to another branch."
-        : "Select an allowed branch before maintaining this CRM resource.",
-    );
-  }
-}
-
-
-
 // A caller without crm.records.view_all can create/own a record themselves
 // (or leave ownership to the existing lead-assignment engine) but cannot
 // hand a record off to a different, arbitrary user — that requires the same
-// elevated permission that grants company-wide visibility. Checked against
+// elevated permission that grants organization-wide visibility. Checked against
 // the RAW input (hasOwnProperty), not the merged/defaulted payload, so an
 // update that never mentions ownerField is unaffected.
 export async function assertOwnerAssignmentAllowed(client, definition, context, input) {
@@ -532,22 +446,19 @@ export function assertLifecycleUpdate(resource, before, input, context = {}) {
 
 // Child-record scope for Account/Contact 360. Being allowed to open an
 // Account is NOT permission to see every record hanging off it: each child
-// applies its OWN canonical rule (recordScope — company/branch boundary,
-// then owner/team/unassigned/view-all), and every count, total and
-// timeline row is computed from those same scoped rows, so a rep who sees
-// 2 of 5 deals is told "2", never "5". Sales and Accounting documents are
-// shown only to callers who hold that module's view permission, inside the
-// active company. Customer-service events are Account-level (no owner) and
-// keep the company boundary. One parameter array per statement.
+// applies its OWN canonical rule (recordScope — owner/team/unassigned/
+// view-all), and every count, total and timeline row is computed from
+// those same scoped rows, so a rep who sees 2 of 5 deals is told "2", never
+// "5". Sales and Accounting documents are shown only to callers who hold
+// that module's view permission. Customer-service events are Account-level
+// (no owner). One parameter array per statement.
 export function crmHasPermission(context, key) {
   return Boolean(context.roleSlugs?.includes("organization_owner")) || Boolean(context.permissions?.includes(key));
 }
 
 export function crmChildScopes(context, parameters) {
   const bind = (value) => { parameters.push(value); return `$${parameters.length}`; };
-  const company = (alias) => context.activeCompanyId
-    ? ` AND (${alias}.company_id IS NULL OR ${alias}.company_id = ${bind(context.activeCompanyId)})`
-    : context.allowAllCompanies ? "" : " AND false";
+
   return {
     opportunity: (alias = "opportunity") => recordScope(resources.opportunities, context, parameters, alias),
     activity: (alias = "activity") => recordScope(resources.activities, context, parameters, alias),
@@ -556,6 +467,5 @@ export function crmChildScopes(context, parameters) {
     // never re-derives (or bypasses) another module's authorization.
     sales: (alias) => salesDocumentVisibilitySql(context, bind, alias),
     accounting: (alias) => receivablesDocumentVisibilitySql(context, bind, alias),
-    company,
   };
 }

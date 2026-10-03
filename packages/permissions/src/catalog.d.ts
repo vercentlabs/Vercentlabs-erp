@@ -1,8 +1,6 @@
 export const CORE_PERMISSIONS: Readonly<{
   workspaceView: "workspace.view";
   organizationManage: "organization.manage";
-  companyManage: "company.manage";
-  branchManage: "branch.manage";
   departmentManage: "department.manage";
   costCenterManage: "cost_center.manage";
   teamManage: "team.manage";

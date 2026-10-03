@@ -2,7 +2,6 @@
 // (pipelines has no governance redirect, unlike stages).
 export type CrmPipeline = {
   id: string;
-  companyId: string | null;
   name: string;
   code: string;
   description: string | null;

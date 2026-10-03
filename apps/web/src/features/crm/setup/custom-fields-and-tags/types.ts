@@ -26,7 +26,6 @@ export type CrmCustomObjectDefinition = {
   pluralLabel: string;
   description: string | null;
   primaryNameField: string | null;
-  companyScoped: boolean;
   status: "active" | "inactive";
   createdAt: string;
   updatedAt: string;

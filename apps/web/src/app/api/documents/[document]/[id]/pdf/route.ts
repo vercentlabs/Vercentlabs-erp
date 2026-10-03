@@ -8,7 +8,7 @@ import { workspaceRoute } from "@/core/workspace-route";
 
 // Printable PDF of a registered document (POS receipt, Sales quotation, Sales
 // order). Module access + the renderer's permission are checked here; the
-// module's own read then applies its permission, company/store scope and field
+// module's own read then applies its permission, store scope and field
 // redaction. No template, HTML or file path is ever taken from the request.
 export async function GET(
   request: Request,

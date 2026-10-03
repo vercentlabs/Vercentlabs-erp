@@ -1,7 +1,7 @@
 // Registered report datasets. A dataset exists only when it can be served by
 // the owning module's authoritative, scoped read - the same list function the
 // module's screens use - so a report never sees more than the screen does
-// (company/branch/record scope, ownership rules, margin redaction). Columns
+// (record scope, ownership rules, margin redaction). Columns
 // are an explicit allow-list: contact PII (email, phone) is not exportable
 // through shared reports at all.
 import { listSalesOrders } from "../../modules/sales/index.js";

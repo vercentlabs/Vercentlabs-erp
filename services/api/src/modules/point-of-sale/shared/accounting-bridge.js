@@ -27,8 +27,6 @@ import { ACCOUNTING_PERMISSIONS } from "@vercentlabs/permissions";
 export function posAccountingContext(context) {
   return {
     ...context,
-    activeCompanyId: context.companyId,
-    allowAllCompanies: false,
     permissions: [
       ...(context.permissions || []),
       ACCOUNTING_PERMISSIONS.view,

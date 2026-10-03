@@ -20,7 +20,6 @@ export declare const today: () => string;
 // this folder's original index.d.ts declares for the one legacy function reused as-is (releaseQualityHold).
 export declare function qualityContext(session: Record<string, unknown>): {
   organizationId: string;
-  companyId: string;
   userId: string;
   permissions: readonly string[];
   roleSlugs: readonly string[];

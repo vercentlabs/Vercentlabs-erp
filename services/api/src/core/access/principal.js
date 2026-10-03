@@ -2,10 +2,9 @@
 // reduced to the security-relevant facts every authorization decision needs.
 //
 // Built ONLY from a server-resolved session (resolveSessionContext in
-// ../session.js) plus server-resolved company/branch grants — never from
-// request input. Business modules receive this shape instead of inventing
+// ../session.js) — never from request input. Business modules receive this shape instead of inventing
 // their own `{ organizationId, userId, permissions, … }` contexts.
-import { PERMISSION_BYPASS_ROLE_SLUGS, UNRESTRICTED_SCOPE_ROLE_SLUGS } from "@vercentlabs/permissions";
+import { PERMISSION_BYPASS_ROLE_SLUGS } from "@vercentlabs/permissions";
 
 import { ACCESS_ERROR_CODES, AccessDeniedError } from "./errors.js";
 
@@ -38,11 +37,8 @@ export function mfaAssuranceSatisfied(session) {
   return !((session.mfaEnrolled || session.mfaPolicyRequired) && !session.mfaVerified);
 }
 
-// scope: optional server-resolved grants, e.g. from listAccessibleCompanies.
-// When omitted, the principal carries only the active company/branch and
-// `companyScope.resolved` is false — callers needing full scope must build
-// a WorkspaceAccessSnapshot instead.
-export function createAccessPrincipal(session, scope = {}) {
+// Access is role + permission based across the whole organization.
+export function createAccessPrincipal(session) {
   if (!session || !session.userId) {
     throw new AccessDeniedError(ACCESS_ERROR_CODES.AUTH_REQUIRED);
   }
@@ -50,8 +46,6 @@ export function createAccessPrincipal(session, scope = {}) {
     throw new AccessDeniedError(ACCESS_ERROR_CODES.MEMBERSHIP_INACTIVE);
   }
   const roleSlugs = sortedUnique(session.roleSlugs);
-  const unrestrictedScope = roleSlugs.some((slug) => UNRESTRICTED_SCOPE_ROLE_SLUGS.includes(slug));
-  const resolved = Array.isArray(scope.companyIds) && Array.isArray(scope.branchIds);
   return Object.freeze({
     kind: "user",
     userId: session.userId,
@@ -60,14 +54,6 @@ export function createAccessPrincipal(session, scope = {}) {
     roleSlugs,
     permissions: sortedUnique(session.permissions),
     permissionBypass: roleSlugs.some((slug) => PERMISSION_BYPASS_ROLE_SLUGS.includes(slug)),
-    activeCompanyId: session.activeCompanyId ?? null,
-    activeBranchId: session.activeBranchId ?? null,
-    companyScope: Object.freeze({
-      unrestricted: unrestrictedScope,
-      resolved,
-      companyIds: resolved ? sortedUnique(scope.companyIds) : sortedUnique([session.activeCompanyId]),
-      branchIds: resolved ? sortedUnique(scope.branchIds) : sortedUnique([session.activeBranchId]),
-    }),
     locale: session.locale ?? null,
     timezone: session.timezone ?? null,
     assurance: Object.freeze({
@@ -109,17 +95,14 @@ export function withoutClientTenantIdentity(input) {
   return copy;
 }
 
-// Compatibility adapter: the legacy `{ organizationId, userId, roleSlugs,
-// permissions, activeCompanyId, activeBranchId }` shape many domain modules
-// accept, derived from the principal instead of re-reading the session.
+// Compatibility adapter: the `{ organizationId, userId, roleSlugs,
+// permissions }` shape many domain modules accept, derived from the
+// principal instead of re-reading the session.
 export function principalToDomainContext(principal) {
   return {
     organizationId: principal.organizationId,
     userId: principal.userId,
     roleSlugs: [...principal.roleSlugs],
     permissions: [...principal.permissions],
-    activeCompanyId: principal.activeCompanyId,
-    activeBranchId: principal.activeBranchId,
-    allowAllCompanies: principal.companyScope.unrestricted,
   };
 }

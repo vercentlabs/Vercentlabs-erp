@@ -69,7 +69,7 @@ export function PosCashiersScreen() {
     queryFn: listPosTerminals,
     enabled: canManage,
   });
-  // Every grant for the company, fetched once -- lets the dialog show
+  // Every grant in the organization, fetched once -- lets the dialog show
   // per-terminal grants (not just the flat "which stores" summary
   // listPosEligibleCashiers itself returns) without a separate request per
   // cashier.
@@ -221,7 +221,7 @@ export function PosCashiersScreen() {
         <PosAlert tone="info">
           Only active organization members already holding a POS role appear
           here. Assigning no stores leaves a cashier unrestricted (able to
-          operate any store) until the first assignment is made for this company
+          operate any store) until the first assignment is made in your organization
           — the same &ldquo;unconfigured is permissive&rdquo; rule the checkout
           enforcement itself uses. Within an assigned store, a cashier may
           further be restricted to specific terminals instead of all of them.

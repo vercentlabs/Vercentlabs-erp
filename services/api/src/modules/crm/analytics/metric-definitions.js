@@ -7,8 +7,7 @@
 //
 // Currency: amounts are converted to the organisation's base (reporting)
 // currency with tenant.exchange_rates (the shared, dated rate table Accounting
-// uses): the latest active rate on or before the valuation date, a
-// company-specific rate preferred over an organisation-wide one. Valuation
+// uses): the latest active rate on or before the valuation date. Valuation
 // date: the close date for won/lost deals, the as-of date (today) for open
 // deals. Conversion keeps full precision; sums are rounded half away from zero
 // to 2 decimals once, at the aggregate. A deal whose currency has no rate is

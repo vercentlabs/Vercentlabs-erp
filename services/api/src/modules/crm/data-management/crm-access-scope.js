@@ -4,8 +4,7 @@ import { CrmError } from "./errors.js";
 // report and single-record check so they can never disagree:
 //
 //   • organisation owner / crm.records.view_all (CRM Administrator, Sales
-//     Head, Sales Operations, …) — every record in the caller's company/
-//     branch scope (that outer boundary is applied separately, always);
+//     Head, Sales Operations, …) — every record in the organization;
 //   • everyone else — records they own, records owned by ACTIVE members of
 //     an ACTIVE Sales Team they manage (crm_sales_teams.manager_user_id —
 //     the existing F020 hierarchy, never a second team system), and
@@ -33,8 +32,8 @@ export const CRM_RESOURCE_VIEW_ALL_PERMISSIONS = Object.freeze({
   leads: "crm.leads.view_all",
 });
 
-// Relationship grants (read visibility beyond owner/team, never beyond the
-// company boundary), expressed through existing data rather than a new
+// Relationship grants (read visibility beyond owner/team), expressed
+// through existing data rather than a new
 // sharing model:
 //   crm.customers.view_all — every CUSTOMER Account (party_type customer /
 //     both, not prospects), its Contacts, and the Activities logged on them
@@ -59,7 +58,7 @@ export function canOverridePrivateCrmContent(context) {
 }
 
 // Writing a note or file on a record is changing that record's dossier, so
-// seeing a record (e.g. Auditor / Read-only company-wide read) is never
+// seeing a record (e.g. Auditor / Read-only organization-wide read) is never
 // enough: the caller must manage that kind of record, or log CRM work
 // (crm.activities.manage).
 const CONTENT_WRITE_PERMISSION = Object.freeze({
@@ -85,7 +84,7 @@ export function canViewAllCrmResource(context, resource) {
 
 const CUSTOMER_PARTY_TYPES = "('customer','both')";
 
-// Extra OR-branches a restricted caller gets for `resource` rows aliased
+// Extra OR-clauses a restricted caller gets for `resource` rows aliased
 // `alias` (SQL only; one EXISTS per grant, no per-row queries).
 export function relationshipGrantSql(context, resource, alias, organizationExpr) {
   if (!alias) return [];
@@ -181,7 +180,6 @@ export async function assertCrmOwnerAssignable(client, context, requestedUserId,
 // fabricated). A restricted caller sees shared Accounts, Accounts they or
 // their managed team own, and Accounts on which they or their team own an
 // Opportunity (so a rep can always open the customer behind their deal).
-// The company boundary is applied separately by each caller, as for records.
 export function crmAccountAccessSql(context, bind, accountAlias) {
   if (canViewAllCrmRecords(context)) return "";
   const me = bind(context.userId);
@@ -202,7 +200,7 @@ export function crmAccountAccessSql(context, bind, accountAlias) {
 }
 
 // Contact access inherits Account access. A standalone Contact (no Account)
-// has no company or owner of its own, so it is visible to view-all callers,
+// has no owner of its own, so it is visible to view-all callers,
 // its creator, and the creator's sales-team manager — never to everyone.
 export function crmContactAccessSql(context, bind, contactAlias, accountAlias) {
   if (canViewAllCrmRecords(context)) return "";
@@ -214,26 +212,14 @@ export function crmContactAccessSql(context, bind, contactAlias, accountAlias) {
 }
 
 // The full "may this caller see this Account / Contact" predicate: the
-// company boundary FIRST (always ANDed — ownership, team membership or a
-// linked deal can never cross it), then the ownership rule above. Every
-// Account/Contact read (lists, detail, 360, hierarchy, merge, relationship
-// lists, pickers) uses these, so there is one definition.
-// Company boundary alone (no ownership) — for org-wide integrity checks
-// that must stay inside the caller's companies (e.g. conversion reuse).
-export function crmAccountCompanySql(context, bind, accountAlias) {
-  if (context.activeCompanyId)
-    return ` AND (${accountAlias}.company_id IS NULL OR ${accountAlias}.company_id = ${bind(context.activeCompanyId)})`;
-  return context.allowAllCompanies ? "" : " AND false";
-}
-
+// ownership rule above, organization-wide. Every Account/Contact read
+// (lists, detail, 360, hierarchy, merge, relationship lists, pickers) uses
+// these, so there is one definition.
 export function crmAccountVisibleSql(context, bind, accountAlias) {
-  const company = crmAccountCompanySql(context, bind, accountAlias);
-  return company === " AND false" ? company : `${company}${crmAccountAccessSql(context, bind, accountAlias)}`;
+  return crmAccountAccessSql(context, bind, accountAlias);
 }
 
 // accountAlias must be LEFT JOINed on contact.party_id (NULL for standalone).
 export function crmContactVisibleSql(context, bind, contactAlias, accountAlias) {
-  if (context.activeCompanyId)
-    return ` AND (${contactAlias}.party_id IS NULL OR ${accountAlias}.company_id IS NULL OR ${accountAlias}.company_id = ${bind(context.activeCompanyId)})${crmContactAccessSql(context, bind, contactAlias, accountAlias)}`;
-  return context.allowAllCompanies ? crmContactAccessSql(context, bind, contactAlias, accountAlias) : " AND false";
+  return crmContactAccessSql(context, bind, contactAlias, accountAlias);
 }

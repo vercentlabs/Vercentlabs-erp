@@ -87,9 +87,6 @@ export type CrmListRequest = {
 export type CrmContext = {
   organizationId: string;
   userId: string;
-  activeCompanyId: string | null;
-  activeBranchId: string | null;
-  allowAllCompanies?: boolean;
   // canViewAllCrmRecords() (crm-access-scope.js) reads these
   // to decide record-ownership scope. Always populated — from the real
   // authenticated session for human requests (crmContext()), or from a

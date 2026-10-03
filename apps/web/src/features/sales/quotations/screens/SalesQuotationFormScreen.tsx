@@ -373,7 +373,7 @@ function FormBody({
     }),
   );
   const priceListOptions: SelectOption[] = [
-    { value: "", label: "Company default price list" },
+    { value: "", label: "Organisation default price list" },
     ...options.priceLists
       .filter((list) => list.currency_code === currencyCode)
       .map((list) => ({ value: list.id, label: list.name })),

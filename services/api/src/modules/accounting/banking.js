@@ -10,13 +10,12 @@ import {
   event,
   getPrimaryLedger,
   isoDate,
-  loadCompany,
+  loadOrganization,
   optionalUuid,
   requirePermission,
   requiredText,
   text,
   uuid,
-  validateBranch,
 } from "./core.js";
 
 
@@ -84,22 +83,20 @@ function parseCsvRows(csvText, mapping = {}) {
 export async function listBankAccounts(client, context, filters = {}) {
   requirePermission(context, ACCOUNTING_PERMISSIONS.view);
   const values = [context.organizationId]; let where = "";
-  if (!context.allowAllCompanies && context.activeCompanyId) { values.push(context.activeCompanyId); where += ` AND bank.company_id=$${values.length}`; }
   if (filters.status && filters.status !== "all") { values.push(text(filters.status, 20)); where += ` AND bank.status=$${values.length}`; }
-  const result = await client.query(`SELECT bank.*,account.code AS gl_account_code,account.name AS gl_account_name,company.name AS company_name,branch.name AS branch_name FROM tenant.accounting_bank_accounts bank JOIN tenant.accounting_accounts account ON account.id=bank.gl_account_id JOIN public.companies company ON company.id=bank.company_id LEFT JOIN public.branches branch ON branch.id=bank.branch_id WHERE bank.organization_id=$1${where} ORDER BY company.name,bank.code`, values);
+  const result = await client.query(`SELECT bank.*,account.code AS gl_account_code,account.name AS gl_account_name FROM tenant.accounting_bank_accounts bank JOIN tenant.accounting_accounts account ON account.id=bank.gl_account_id WHERE bank.organization_id=$1${where} ORDER BY bank.code`, values);
   return result.rows;
 }
 
 export async function createBankAccount(client, context, input) {
   requirePermission(context, ACCOUNTING_PERMISSIONS.bankManage);
-  const company = await loadCompany(client, context, input.companyId);
-  const branch = await validateBranch(client, context, company.id, input.branchId || context.activeBranchId);
-  const ledger = await getPrimaryLedger(client, context, company.id, input.ledgerId);
+  const organization = await loadOrganization(client, context);
+  const ledger = await getPrimaryLedger(client, context, input.ledgerId);
   const glAccountId = uuid(input.glAccountId, "Bank GL account");
-  const accountResult = await client.query(`SELECT id,account_type,currency_code,status FROM tenant.accounting_accounts WHERE organization_id=$1 AND company_id=$2 AND ledger_id=$3 AND id=$4`, [context.organizationId, company.id, ledger.id, glAccountId]);
+  const accountResult = await client.query(`SELECT id,account_type,currency_code,status FROM tenant.accounting_accounts WHERE organization_id=$1 AND ledger_id=$2 AND id=$3`, [context.organizationId, ledger.id, glAccountId]);
   const account = accountResult.rows[0];
   if (!account || account.status !== "active" || !['bank','cash'].includes(account.account_type)) throw new AccountingError(409, "The GL account must be an active bank or cash account.");
-  const result = await client.query(`INSERT INTO tenant.accounting_bank_accounts (organization_id,company_id,branch_id,ledger_id,gl_account_id,code,bank_name,account_name,masked_account_number,ifsc_swift,currency_code,account_type,statement_import_format,status,created_by,updated_by) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,'active',$14,$14) RETURNING *`, [context.organizationId, company.id, branch?.id || null, ledger.id, glAccountId, requiredText(input.code, "Bank code", 30).toUpperCase(), requiredText(input.bankName, "Bank name", 200), requiredText(input.accountName, "Account name", 200), text(input.maskedAccountNumber, 100) || null, text(input.ifscSwift, 50) || null, currency(input.currencyCode || account.currency_code || company.base_currency), ["current","savings","cash","credit_card","loan","virtual","other"].includes(input.accountType) ? input.accountType : "current", ["csv","ofx","mt940","camt053","api","manual"].includes(input.statementImportFormat) ? input.statementImportFormat : "csv", context.userId]);
+  const result = await client.query(`INSERT INTO tenant.accounting_bank_accounts (organization_id,ledger_id,gl_account_id,code,bank_name,account_name,masked_account_number,ifsc_swift,currency_code,account_type,statement_import_format,status,created_by,updated_by) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,'active',$12,$12) RETURNING *`, [context.organizationId, ledger.id, glAccountId, requiredText(input.code, "Bank code", 30).toUpperCase(), requiredText(input.bankName, "Bank name", 200), requiredText(input.accountName, "Account name", 200), text(input.maskedAccountNumber, 100) || null, text(input.ifscSwift, 50) || null, currency(input.currencyCode || account.currency_code || organization.base_currency), ["current","savings","cash","credit_card","loan","virtual","other"].includes(input.accountType) ? input.accountType : "current", ["csv","ofx","mt940","camt053","api","manual"].includes(input.statementImportFormat) ? input.statementImportFormat : "csv", context.userId]);
   await event(client, context, "bank_account", result.rows[0].id, "accounting.bank_account.created", null, "active", {});
   return result.rows[0];
 }
@@ -110,7 +107,6 @@ export async function importBankStatement(client, context, input) {
   const bankResult = await client.query(`SELECT * FROM tenant.accounting_bank_accounts WHERE organization_id=$1 AND id=$2 AND status='active' FOR UPDATE`, [context.organizationId, bankId]);
   const bank = bankResult.rows[0];
   if (!bank) throw new AccountingError(404, "Bank account not found.");
-  if (!context.allowAllCompanies && context.activeCompanyId && bank.company_id !== context.activeCompanyId) throw new AccountingError(403, "Switch to the bank account company before importing a statement.");
   const csvText = typeof input.csvText === "string" ? input.csvText : null;
   const statementLines = Array.isArray(input.lines) && input.lines.length ? input.lines
     : csvText ? parseCsvRows(csvText, input.columnMapping || {}) : [];
@@ -128,7 +124,7 @@ export async function importBankStatement(client, context, input) {
   const periodStart = isoDate(input.periodStart, "Statement start date");
   const periodEnd = isoDate(input.periodEnd, "Statement end date");
   if (periodStart > periodEnd) throw new AccountingError(400, "Statement start date cannot be after the end date.");
-  const result = await client.query(`INSERT INTO tenant.accounting_bank_statements (organization_id,company_id,bank_account_id,statement_number,statement_date,period_start,period_end,opening_balance,closing_balance,currency_code,import_source,source_file_name,source_hash,status,created_by,updated_by) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,'imported',$14,$14) RETURNING *`, [context.organizationId, bank.company_id, bank.id, statementNumber, isoDate(input.statementDate || periodEnd, "Statement date"), periodStart, periodEnd, asDatabaseDecimal(decimal(input.openingBalance || 0)), asDatabaseDecimal(decimal(input.closingBalance || 0)), currency(input.currencyCode || bank.currency_code), importSource, text(input.sourceFileName, 255) || null, sourceHash, context.userId]);
+  const result = await client.query(`INSERT INTO tenant.accounting_bank_statements (organization_id,bank_account_id,statement_number,statement_date,period_start,period_end,opening_balance,closing_balance,currency_code,import_source,source_file_name,source_hash,status,created_by,updated_by) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,'imported',$13,$13) RETURNING *`, [context.organizationId, bank.id, statementNumber, isoDate(input.statementDate || periodEnd, "Statement date"), periodStart, periodEnd, asDatabaseDecimal(decimal(input.openingBalance || 0)), asDatabaseDecimal(decimal(input.closingBalance || 0)), currency(input.currencyCode || bank.currency_code), importSource, text(input.sourceFileName, 255) || null, sourceHash, context.userId]);
   const statement = result.rows[0];
   for (let index = 0; index < statementLines.length; index += 1) {
     const line = statementLines[index];
@@ -143,7 +139,6 @@ export async function importBankStatement(client, context, input) {
 export async function listBankStatements(client, context, filters = {}) {
   requirePermission(context, ACCOUNTING_PERMISSIONS.view);
   const values = [context.organizationId]; let where = "";
-  if (!context.allowAllCompanies && context.activeCompanyId) { values.push(context.activeCompanyId); where += ` AND statement.company_id=$${values.length}`; }
   if (filters.bankAccountId) { values.push(uuid(filters.bankAccountId, "Bank account")); where += ` AND statement.bank_account_id=$${values.length}`; }
   if (filters.status && filters.status !== "all") { values.push(text(filters.status, 30)); where += ` AND statement.status=$${values.length}`; }
   const result = await client.query(`SELECT statement.*,bank.code AS bank_code,bank.bank_name,bank.account_name,COALESCE(sum(CASE WHEN line.match_status='matched' THEN 1 ELSE 0 END),0)::int AS matched_lines,count(line.id)::int AS total_lines FROM tenant.accounting_bank_statements statement JOIN tenant.accounting_bank_accounts bank ON bank.id=statement.bank_account_id LEFT JOIN tenant.accounting_bank_statement_lines line ON line.bank_statement_id=statement.id WHERE statement.organization_id=$1${where} GROUP BY statement.id,bank.code,bank.bank_name,bank.account_name ORDER BY statement.statement_date DESC,statement.created_at DESC LIMIT 200`, values);
@@ -163,18 +158,18 @@ export async function getBankStatement(client, context, idValue) {
 export async function suggestBankMatches(client, context, statementLineIdValue) {
   requirePermission(context, ACCOUNTING_PERMISSIONS.bankReconcile);
   const lineId = uuid(statementLineIdValue, "Statement line");
-  const lineResult = await client.query(`SELECT line.*,statement.company_id,statement.bank_account_id,bank.gl_account_id FROM tenant.accounting_bank_statement_lines line JOIN tenant.accounting_bank_statements statement ON statement.id=line.bank_statement_id JOIN tenant.accounting_bank_accounts bank ON bank.id=statement.bank_account_id WHERE line.organization_id=$1 AND line.id=$2`, [context.organizationId, lineId]);
+  const lineResult = await client.query(`SELECT line.*,statement.bank_account_id,bank.gl_account_id FROM tenant.accounting_bank_statement_lines line JOIN tenant.accounting_bank_statements statement ON statement.id=line.bank_statement_id JOIN tenant.accounting_bank_accounts bank ON bank.id=statement.bank_account_id WHERE line.organization_id=$1 AND line.id=$2`, [context.organizationId, lineId]);
   const line = lineResult.rows[0];
   if (!line) throw new AccountingError(404, "Bank statement line not found.");
   const amount = decimal(line.debit_amount) > 0n ? line.debit_amount : line.credit_amount;
   const candidates = await client.query(`SELECT journal_line.id AS journal_line_id,entry.entry_number,entry.accounting_date,entry.reference,entry.description,journal_line.debit_amount,journal_line.credit_amount,journal_line.base_debit_amount,journal_line.base_credit_amount,party.display_name AS party_name,
-    CASE WHEN abs((CASE WHEN $5::boolean THEN journal_line.debit_amount ELSE journal_line.credit_amount END)-$4::numeric)<0.01 THEN 100 ELSE 70 END AS confidence
+    CASE WHEN abs((CASE WHEN $4::boolean THEN journal_line.debit_amount ELSE journal_line.credit_amount END)-$3::numeric)<0.01 THEN 100 ELSE 70 END AS confidence
     FROM tenant.accounting_journal_lines journal_line JOIN tenant.accounting_journal_entries entry ON entry.id=journal_line.journal_entry_id LEFT JOIN tenant.business_parties party ON party.id=journal_line.party_id
-    WHERE journal_line.organization_id=$1 AND entry.company_id=$2 AND journal_line.account_id=$3 AND entry.status='posted'
-      AND abs((CASE WHEN $5::boolean THEN journal_line.debit_amount ELSE journal_line.credit_amount END)-$4::numeric)<=greatest(1,$4::numeric*0.01)
-      AND entry.accounting_date BETWEEN $6::date-INTERVAL '10 days' AND $6::date+INTERVAL '10 days'
+    WHERE journal_line.organization_id=$1 AND journal_line.account_id=$2 AND entry.status='posted'
+      AND abs((CASE WHEN $4::boolean THEN journal_line.debit_amount ELSE journal_line.credit_amount END)-$3::numeric)<=greatest(1,$3::numeric*0.01)
+      AND entry.accounting_date BETWEEN $5::date-INTERVAL '10 days' AND $5::date+INTERVAL '10 days'
       AND NOT EXISTS (SELECT 1 FROM tenant.accounting_reconciliation_matches match WHERE match.organization_id=$1 AND match.journal_line_id=journal_line.id)
-    ORDER BY confidence DESC,abs(entry.accounting_date-$6::date),entry.created_at DESC LIMIT 20`, [context.organizationId, line.company_id, line.gl_account_id, amount, decimal(line.credit_amount) > 0n, line.transaction_date]);
+    ORDER BY confidence DESC,abs(entry.accounting_date-$5::date),entry.created_at DESC LIMIT 20`, [context.organizationId, line.gl_account_id, amount, decimal(line.credit_amount) > 0n, line.transaction_date]);
   return candidates.rows;
 }
 
@@ -188,7 +183,7 @@ export async function startBankReconciliation(client, context, input) {
   const ledgerBalance = decimal(ledger.rows[0]?.balance || 0);
   const statementBalance = decimal(statement.closing_balance);
   const difference = statementBalance - ledgerBalance;
-  const result = await client.query(`INSERT INTO tenant.accounting_reconciliations (organization_id,company_id,bank_account_id,bank_statement_id,reconciliation_date,statement_balance,ledger_balance,difference,status,created_by) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,'in_progress',$9) ON CONFLICT (organization_id,bank_account_id,reconciliation_date) DO UPDATE SET bank_statement_id=EXCLUDED.bank_statement_id,statement_balance=EXCLUDED.statement_balance,ledger_balance=EXCLUDED.ledger_balance,difference=EXCLUDED.difference,status='in_progress' RETURNING *`, [context.organizationId, statement.company_id, statement.bank_account_id, statement.id, statement.period_end, asDatabaseDecimal(statementBalance), asDatabaseDecimal(ledgerBalance), asDatabaseDecimal(difference), context.userId]);
+  const result = await client.query(`INSERT INTO tenant.accounting_reconciliations (organization_id,bank_account_id,bank_statement_id,reconciliation_date,statement_balance,ledger_balance,difference,status,created_by) VALUES ($1,$2,$3,$4,$5,$6,$7,'in_progress',$8) ON CONFLICT (organization_id,bank_account_id,reconciliation_date) DO UPDATE SET bank_statement_id=EXCLUDED.bank_statement_id,statement_balance=EXCLUDED.statement_balance,ledger_balance=EXCLUDED.ledger_balance,difference=EXCLUDED.difference,status='in_progress' RETURNING *`, [context.organizationId, statement.bank_account_id, statement.id, statement.period_end, asDatabaseDecimal(statementBalance), asDatabaseDecimal(ledgerBalance), asDatabaseDecimal(difference), context.userId]);
   await client.query(`UPDATE tenant.accounting_bank_statements SET status='reconciling',updated_by=$3 WHERE organization_id=$1 AND id=$2`, [context.organizationId, statement.id, context.userId]);
   return result.rows[0];
 }

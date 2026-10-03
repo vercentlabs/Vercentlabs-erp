@@ -2,7 +2,7 @@
 //
 // Writes two things the rest of the POS module READS:
 //
-//  1. tenant.pos_settings -- the company-level policy every checkout, return
+//  1. tenant.pos_settings -- the organization-level policy every checkout, return
 //     and offline-sync path consults (discount limits and the supervisor-
 //     approval threshold, return-approval rules, negative stock, price
 //     override, cart expiry, shift reconciliation). cart.js, sale-completion.js,
@@ -48,9 +48,8 @@ const ALL_PAYMENT_METHODS = Object.freeze(["cash", ...NON_CASH_PAYMENT_METHODS])
 
 export async function getPosSettings(client, context) {
   requirePermission(context, "pos.settings.manage");
-  const result = await client.query(`SELECT ${SETTINGS_COLUMNS.join(",")},updated_at FROM tenant.pos_settings WHERE organization_id=$1 AND company_id=$2`, [
+  const result = await client.query(`SELECT ${SETTINGS_COLUMNS.join(",")},updated_at FROM tenant.pos_settings WHERE organization_id=$1`, [
     context.organizationId,
-    context.companyId,
   ]);
   const row = result.rows[0];
   return {
@@ -111,19 +110,19 @@ export async function updatePosSettings(client, context, input = {}) {
   }
 
   const columns = Object.keys(changes);
-  const insertColumns = ["organization_id", "company_id", ...columns];
+  const insertColumns = ["organization_id", ...columns];
   const placeholders = insertColumns.map((_, index) => `$${index + 1}`);
-  const values = [context.organizationId, context.companyId, ...columns.map((column) => changes[column])];
+  const values = [context.organizationId, ...columns.map((column) => changes[column])];
   const result = await client.query(
     `INSERT INTO tenant.pos_settings (${insertColumns.join(",")}) VALUES (${placeholders.join(",")})
-     ON CONFLICT (organization_id,company_id) DO UPDATE SET ${columns.map((column) => `${column}=EXCLUDED.${column}`).join(",")},updated_at=now()
+     ON CONFLICT (organization_id) DO UPDATE SET ${columns.map((column) => `${column}=EXCLUDED.${column}`).join(",")},updated_at=now()
      RETURNING ${SETTINGS_COLUMNS.join(",")},updated_at`,
     values,
   );
 
   const before = Object.fromEntries(columns.map((column) => [column, current.settings[column]]));
   const after = Object.fromEntries(columns.map((column) => [column, result.rows[0][column]]));
-  await event(client, context, "pos_settings", context.companyId, "pos.settings.updated", { before, after });
+  await event(client, context, "pos_settings", context.organizationId, "pos.settings.updated", { before, after });
 
   return {
     configured: true,
@@ -135,9 +134,8 @@ export async function updatePosSettings(client, context, input = {}) {
 // --- per-store payment methods and providers ----------------------------------
 
 async function loadStore(client, context, storeId) {
-  const result = await client.query(`SELECT id,name,code,allowed_payment_methods FROM tenant.pos_stores WHERE organization_id=$1 AND company_id=$2 AND id=$3`, [
+  const result = await client.query(`SELECT id,name,code,allowed_payment_methods FROM tenant.pos_stores WHERE organization_id=$1 AND id=$2`, [
     context.organizationId,
-    context.companyId,
     storeId,
   ]);
   if (!result.rows[0]) throw posError(404, "POS store was not found.", "POS_STORE_NOT_FOUND");
@@ -211,10 +209,10 @@ export async function setPosStorePaymentConfig(client, context, storeId, input =
   ]);
   for (const entry of desired) {
     await client.query(
-      `INSERT INTO tenant.pos_payment_provider_configs (organization_id,company_id,store_id,payment_method,provider_key,credential_env_var,active,created_by)
-       VALUES ($1,$2,$3,$4,$5,$6,true,$7)
+      `INSERT INTO tenant.pos_payment_provider_configs (organization_id,store_id,payment_method,provider_key,credential_env_var,active,created_by)
+       VALUES ($1,$2,$3,$4,$5,true,$6)
        ON CONFLICT (organization_id,store_id,payment_method) DO UPDATE SET provider_key=EXCLUDED.provider_key,credential_env_var=EXCLUDED.credential_env_var,active=true,updated_at=now()`,
-      [context.organizationId, context.companyId, store.id, entry.method, entry.providerKey, entry.credentialEnvVar, context.userId],
+      [context.organizationId, store.id, entry.method, entry.providerKey, entry.credentialEnvVar, context.userId],
     );
   }
   // A method that was switched off keeps its row (history/intent) but is

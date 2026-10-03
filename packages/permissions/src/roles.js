@@ -41,23 +41,20 @@ function unique(values) {
   return [...new Set(values)];
 }
 
-// Company Administrator is a delegated ADMINISTRATION role, not a business
-// superuser: an explicit least-privilege allow-list (never ALL_PERMISSIONS
-// minus a deny-list, which silently inherits every future business
-// permission). It administers companies, branches and users inside the
-// companies/branches it is explicitly granted, and may assign only roles
-// whose permissions fit its own authority (grant ceiling). Business authority
-// is composed by assigning the matching module role as well (e.g. Sales Head,
-// CRM Administrator). It deliberately lacks organization.manage (new legal
-// entities), roles.manage (organisation-global role definitions),
-// modules.manage (organisation-global module enablement), SoD override, audit
-// and billing. packages/permissions/tests/catalog-integrity.test.mjs pins this.
-export const COMPANY_ADMINISTRATOR_PERMISSIONS = Object.freeze([
+// User Administrator is a delegated ADMINISTRATION role, not a business superuser: an
+// explicit least-privilege allow-list (never ALL_PERMISSIONS minus a
+// deny-list, which silently inherits every future business permission). It
+// administers users and may assign only roles whose permissions fit its own
+// authority (grant ceiling); it never administers owners or system
+// administrators. Business authority is composed by assigning the matching
+// module role as well (e.g. Sales Head, CRM Administrator). It deliberately
+// lacks organization.manage, roles.manage (organisation-global role
+// definitions), modules.manage (organisation-global module enablement), SoD
+// override, audit and billing.
+export const USER_ADMINISTRATOR_PERMISSIONS = Object.freeze([
   "workspace.view",
   "notifications.view",
   "profile.manage",
-  "company.manage",
-  "branch.manage",
   "department.manage",
   "cost_center.manage",
   "team.manage",
@@ -88,14 +85,14 @@ export const ROLE_TEMPLATES = Object.freeze([
     permissions: ALL_PERMISSIONS,
   },
   {
-    name: "Company Administrator",
-    slug: "company_administrator",
+    name: "User Administrator",
+    slug: "user_administrator",
     description:
-      "Delegated company, branch and user administration inside explicitly granted companies and branches. No business-module, module-enablement, role-definition or billing authority.",
+      "Delegated user and role-assignment administration. No business-module, module-enablement, role-definition or billing authority.",
     moduleKey: "platform",
     riskLevel: "privileged",
     assignable: true,
-    permissions: COMPANY_ADMINISTRATOR_PERMISSIONS,
+    permissions: USER_ADMINISTRATOR_PERMISSIONS,
   },
   {
     name: "Employee",
@@ -485,10 +482,8 @@ export const ROLE_TEMPLATES = Object.freeze([
       "accounting.budget.manage",
       "accounting.tax.manage",
       "accounting.fx.manage",
-      "accounting.intercompany.manage",
       "accounting.assets.manage",
       "accounting.recurring.manage",
-      "accounting.consolidation.manage",
       "accounting.settings.manage",
       "accounting.audit.view",
     ]),

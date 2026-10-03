@@ -3,8 +3,6 @@
 // subset.
 export type FollowUp = {
   id: string;
-  companyId: string | null;
-  branchId: string | null;
   entityType:
     "lead" | "opportunity" | "party" | "contact" | "campaign" | "general";
   entityId: string | null;

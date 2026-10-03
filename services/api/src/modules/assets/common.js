@@ -75,15 +75,13 @@ export const fromCents = (cents) => {
 };
 
 export function assetsContext(session) {
-  const companyId = session.activeCompanyId || session.companyId;
-  if (!companyId) throw new AssetError(400, "Select an active company before using Assets.", "ACTIVE_COMPANY_REQUIRED");
-  return { organizationId: session.organizationId, companyId, userId: session.userId, permissions: session.permissions || [], roleSlugs: session.roleSlugs || [] };
+  return { organizationId: session.organizationId, userId: session.userId, permissions: session.permissions || [], roleSlugs: session.roleSlugs || [] };
 }
 
 export async function recordAssetEvent(client, c, assetId, eventType, payload = {}) {
   await client.query(
-    `INSERT INTO tenant.asset_events(organization_id,company_id,asset_id,event_type,payload,actor_user_id) VALUES($1,$2,$3,$4,$5::jsonb,$6)`,
-    [c.organizationId, c.companyId, assetId, eventType, JSON.stringify(payload), c.userId],
+    `INSERT INTO tenant.asset_events(organization_id,asset_id,event_type,payload,actor_user_id) VALUES($1,$2,$3,$4::jsonb,$5)`,
+    [c.organizationId, assetId, eventType, JSON.stringify(payload), c.userId],
   );
 }
 
@@ -103,12 +101,12 @@ export async function nextNumber(client, c, documentType, prefix) {
 }
 
 export async function loadAsset(client, c, assetId, { lock = false } = {}) {
-  const res = await qx(client, `SELECT * FROM tenant.assets WHERE organization_id=$1 AND company_id=$2 AND id=$3${lock ? " FOR UPDATE" : ""}`, [c.organizationId, c.companyId, uuid(assetId, "Asset")]);
+  const res = await qx(client, `SELECT * FROM tenant.assets WHERE organization_id=$1 AND id=$2${lock ? " FOR UPDATE" : ""}`, [c.organizationId, uuid(assetId, "Asset")]);
   if (!res.rows[0]) throw new AssetError(404, "Asset was not found.", "ASSET_NOT_FOUND");
   return res.rows[0];
 }
 
 export async function loadSettings(client, c) {
-  const res = await client.query(`SELECT * FROM tenant.asset_settings WHERE organization_id=$1 AND company_id=$2`, [c.organizationId, c.companyId]);
+  const res = await client.query(`SELECT * FROM tenant.asset_settings WHERE organization_id=$1`, [c.organizationId]);
   return res.rows[0] || { require_capitalization_approval: true, require_disposal_approval: true, prohibit_self_approval: true, default_depreciation_method: "straight_line", post_to_accounting: true, require_transfer_approval: true, require_value_adjustment_approval: true, depreciation_convention: "full_month", warranty_alert_days: 30, maintenance_lead_days: 7, calibration_alert_days: 30 };
 }

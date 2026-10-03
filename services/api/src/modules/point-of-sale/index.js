@@ -12,7 +12,7 @@ export { listPointOfSaleResource } from "./shared/resource-registry.js";
 export { listPosStoreSetupOptions, createStore, updatePosStore, setPosStoreActive } from "./store-terminal-and-cashier-control/store-operations.js";
 export { createTerminal, updatePosTerminal, setPosTerminalStatus } from "./store-terminal-and-cashier-control/terminal-operations.js";
 export { listPosEligibleCashiers, listPosStoreAccess, grantPosStoreAccess, revokePosStoreAccess } from "./store-terminal-and-cashier-control/cashier-access.js";
-// Company POS policy and per-store payment methods/providers -- the
+// Organization POS policy and per-store payment methods/providers -- the
 // configuration checkout, returns and tender already READ (POS-CAP-001 / -003).
 export {
   getPosSettings,

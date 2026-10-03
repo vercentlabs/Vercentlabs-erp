@@ -469,7 +469,7 @@ export function InventorySettingsScreen() {
     <div className="flex flex-col gap-4">
       <PageHeader
         title="Costing and settings"
-        description="How stock is valued and whether it may go negative, for the active company."
+        description="How stock is valued and whether it may go negative."
       />
       <InvPanel
         title="Costing method"

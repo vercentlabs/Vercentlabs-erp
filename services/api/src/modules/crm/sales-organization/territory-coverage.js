@@ -82,12 +82,6 @@ export function territoryCoverageMatch(rules, lead) {
 // deeper place in the hierarchy, then code) so "Pune" beats "Maharashtra".
 export async function matchLeadTerritory(client, context, lead) {
   const values = [context.organizationId];
-  let companyFilter = "";
-  const companyId = lead?.companyId || context.activeCompanyId || null;
-  if (companyId) {
-    values.push(companyId);
-    companyFilter = ` AND (territory.company_id IS NULL OR territory.company_id=$${values.length})`;
-  }
   const { rows } = await client.query(
     `WITH RECURSIVE depth AS (
        SELECT id, 0 AS level FROM tenant.crm_territories WHERE organization_id=$1 AND parent_territory_id IS NULL
@@ -97,7 +91,7 @@ export async function matchLeadTerritory(client, context, lead) {
      SELECT territory.id,territory.code,territory.name,territory.assignment_rules,COALESCE(depth.level,0) AS level
        FROM tenant.crm_territories territory
        LEFT JOIN depth ON depth.id=territory.id
-      WHERE territory.organization_id=$1 AND territory.status='active' AND territory.assignment_rules <> '{}'::jsonb${companyFilter}`,
+      WHERE territory.organization_id=$1 AND territory.status='active' AND territory.assignment_rules <> '{}'::jsonb`,
     values,
   );
   const matches = rows

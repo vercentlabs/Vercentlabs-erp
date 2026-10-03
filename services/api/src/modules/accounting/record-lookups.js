@@ -16,11 +16,11 @@ export async function accountingDocumentContentHash(client, organizationId, docu
   return result.rows[0]?.content_hash ? String(result.rows[0].content_hash) : "";
 }
 
-// The company's active primary ledger (null when it has none).
-export async function primaryAccountingLedgerId(client, organizationId, companyId) {
+// The organisation's active primary ledger (null when it has none).
+export async function primaryAccountingLedgerId(client, organizationId) {
   const result = await client.query(
-    `SELECT id FROM tenant.accounting_ledgers WHERE organization_id=$1 AND company_id=$2 AND ledger_type='primary' AND status='active' LIMIT 1`,
-    [organizationId, companyId],
+    `SELECT id FROM tenant.accounting_ledgers WHERE organization_id=$1 AND ledger_type='primary' AND status='active' LIMIT 1`,
+    [organizationId],
   );
   return result.rows[0]?.id ? String(result.rows[0].id) : null;
 }

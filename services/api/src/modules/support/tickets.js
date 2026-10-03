@@ -12,8 +12,8 @@ const VIEW = ["support.view", MANAGE];
 
 // ---------------------------------------------------------------- settings
 async function loadSettings(client, c) {
-  const { rows } = await qx(client, `SELECT * FROM tenant.support_settings WHERE organization_id=$1 AND company_id=$2`, [c.organizationId, c.companyId]);
-  return rows[0] ?? { organization_id: c.organizationId, company_id: c.companyId, default_priority: "normal", require_resolution_code: true, prohibit_self_closure: false, reopen_window_days: 7 };
+  const { rows } = await qx(client, `SELECT * FROM tenant.support_settings WHERE organization_id=$1`, [c.organizationId]);
+  return rows[0] ?? { organization_id: c.organizationId, default_priority: "normal", require_resolution_code: true, prohibit_self_closure: false, reopen_window_days: 7 };
 }
 export async function getSupportSettings(client, c) {
   needAny(c, VIEW);
@@ -23,9 +23,9 @@ export async function saveSupportSettings(client, c, input) {
   need(c, "support.settings.manage");
   const priority = oneOf(String(input.defaultPriority ?? "normal"), PRIORITIES, "Default priority");
   const reopenDays = Math.trunc(nonNegative(input.reopenWindowDays ?? 7, "Reopen window", 7));
-  const { rows } = await qx(client, `INSERT INTO tenant.support_settings(organization_id,company_id,default_priority,require_resolution_code,prohibit_self_closure,reopen_window_days) VALUES ($1,$2,$3,$4,$5,$6)
-    ON CONFLICT (organization_id,company_id) DO UPDATE SET default_priority=$3,require_resolution_code=$4,prohibit_self_closure=$5,reopen_window_days=$6,updated_at=now() RETURNING *`,
-    [c.organizationId, c.companyId, priority, input.requireResolutionCode !== false, input.prohibitSelfClosure === true, reopenDays]);
+  const { rows } = await qx(client, `INSERT INTO tenant.support_settings(organization_id,default_priority,require_resolution_code,prohibit_self_closure,reopen_window_days) VALUES ($1,$2,$3,$4,$5)
+    ON CONFLICT (organization_id) DO UPDATE SET default_priority=$2,require_resolution_code=$3,prohibit_self_closure=$4,reopen_window_days=$5,updated_at=now() RETURNING *`,
+    [c.organizationId, priority, input.requireResolutionCode !== false, input.prohibitSelfClosure === true, reopenDays]);
   return rows[0];
 }
 
@@ -34,7 +34,7 @@ export async function listCategories(client, c) {
   needAny(c, VIEW);
   const { rows } = await qx(client, `SELECT cat.*, p.name AS parent_name, q.name AS default_queue_name FROM tenant.support_categories cat
     LEFT JOIN tenant.support_categories p ON p.id=cat.parent_category_id LEFT JOIN tenant.support_queues q ON q.id=cat.default_queue_id
-    WHERE cat.organization_id=$1 AND cat.company_id=$2 ORDER BY cat.code`, [c.organizationId, c.companyId]);
+    WHERE cat.organization_id=$1 ORDER BY cat.code`, [c.organizationId]);
   return rows;
 }
 export async function saveCategory(client, c, input) {
@@ -47,14 +47,14 @@ export async function saveCategory(client, c, input) {
   const priority = oneOf(String(input.defaultPriority ?? "normal"), PRIORITIES, "Default priority");
   const queueId = uuidOrNull(input.defaultQueueId, "Default queue");
   if (input.id) {
-    const { rows } = await qx(client, `UPDATE tenant.support_categories SET name=$4,description=$5,parent_category_id=$6,default_priority=$7,default_queue_id=$8,active=$9,updated_at=now() WHERE organization_id=$1 AND company_id=$2 AND id=$3 RETURNING *`,
-      [c.organizationId, c.companyId, uuid(input.id, "Category"), name, textOrNull(input.description, 500), parentId, priority, queueId, input.active !== false]);
+    const { rows } = await qx(client, `UPDATE tenant.support_categories SET name=$3,description=$4,parent_category_id=$5,default_priority=$6,default_queue_id=$7,active=$8,updated_at=now() WHERE organization_id=$1 AND id=$2 RETURNING *`,
+      [c.organizationId, uuid(input.id, "Category"), name, textOrNull(input.description, 500), parentId, priority, queueId, input.active !== false]);
     if (!rows[0]) throw new SupportError(404, "Category was not found.", "SUPPORT_CATEGORY_NOT_FOUND");
     return rows[0];
   }
   try {
-    const { rows } = await qx(client, `INSERT INTO tenant.support_categories(organization_id,company_id,code,name,description,parent_category_id,default_priority,default_queue_id,created_by) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *`,
-      [c.organizationId, c.companyId, code, name, textOrNull(input.description, 500), parentId, priority, queueId, c.userId]);
+    const { rows } = await qx(client, `INSERT INTO tenant.support_categories(organization_id,code,name,description,parent_category_id,default_priority,default_queue_id,created_by) VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *`,
+      [c.organizationId, code, name, textOrNull(input.description, 500), parentId, priority, queueId, c.userId]);
     return rows[0];
   } catch (e) {
     if (e.code === "23505") throw new SupportError(409, `Category ${code} already exists.`, "SUPPORT_CATEGORY_DUPLICATE");
@@ -88,10 +88,10 @@ export async function createTicket(client, c, input) {
   const assignedUserId = uuidOrNull(input.assignedUserId, "Agent");
 
   const { rows } = await qx(client, `INSERT INTO tenant.support_tickets
-      (organization_id,company_id,branch_id,ticket_number,subject,description,channel,category_id,assigned_user_id,customer_id,contact_id,
+      (organization_id,ticket_number,subject,description,channel,category_id,assigned_user_id,customer_id,contact_id,
        customer_name,customer_email,customer_phone,tags,priority,status,source_reference,created_by,updated_by)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15::jsonb,$16,'new',$17,$18,$18) RETURNING *`,
-    [c.organizationId, c.companyId, uuidOrNull(input.branchId, "Branch"), ticketNumber, subject, description, channel, categoryId, assignedUserId,
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13::jsonb,$14,'new',$15,$16,$16) RETURNING *`,
+    [c.organizationId, ticketNumber, subject, description, channel, categoryId, assignedUserId,
       customerId, contactId, textOrNull(input.customerName, 200), emailOrNull(input.customerEmail), textOrNull(input.customerPhone, 30),
       JSON.stringify(Array.isArray(input.tags) ? input.tags.map((t) => text(t, 40)).filter(Boolean) : []),
       priority, textOrNull(input.sourceReference, 300), c.userId]);
@@ -106,7 +106,7 @@ export async function createTicket(client, c, input) {
 
 // F343/365: list and get, with assignee/status/priority/customer filters.
 export async function listTickets(client, c, filters = {}) {
-  const params = [c.organizationId, c.companyId];
+  const params = [c.organizationId];
   const where = [];
   needAny(c, VIEW);
   if (filters.status) { params.push(String(filters.status)); where.push(`t.status=$${params.length}`); }
@@ -115,7 +115,7 @@ export async function listTickets(client, c, filters = {}) {
   if (filters.customerId) { params.push(uuid(filters.customerId, "Customer")); where.push(`t.customer_id=$${params.length}`); }
   if (filters.tag) { params.push(JSON.stringify([String(filters.tag)])); where.push(`t.tags @> $${params.length}::jsonb`); }
   if (filters.scope === "mine") { params.push(c.userId); where.push(`t.assigned_user_id=$${params.length}`); }
-  const { rows } = await qx(client, `SELECT ${TICKET_SELECT} FROM tenant.support_tickets t ${TICKET_JOIN} WHERE t.organization_id=$1 AND t.company_id=$2 ${where.length ? "AND " + where.join(" AND ") : ""} ORDER BY t.created_at DESC LIMIT 1000`, params);
+  const { rows } = await qx(client, `SELECT ${TICKET_SELECT} FROM tenant.support_tickets t ${TICKET_JOIN} WHERE t.organization_id=$1 ${where.length ? "AND " + where.join(" AND ") : ""} ORDER BY t.created_at DESC LIMIT 1000`, params);
   return rows;
 }
 export async function getTicket(client, c, id) {
@@ -130,7 +130,7 @@ export async function updateTicket(client, c, id, input) {
   needAny(c, ["support.ticket.assign", MANAGE, "support.communication.manage"]);
   const t = await getTicket(client, c, id);
   const set = [];
-  const params = [c.organizationId, c.companyId, t.id];
+  const params = [c.organizationId, t.id];
   const add = (col, value) => { params.push(value); set.push(`${col}=$${params.length}`); };
   if (input.subject !== undefined) add("subject", text(input.subject, 200) || t.subject);
   if (input.categoryId !== undefined) add("category_id", uuidOrNull(input.categoryId, "Category"));
@@ -139,7 +139,7 @@ export async function updateTicket(client, c, id, input) {
   if (!set.length) return t;
   set.push(`updated_by=$${params.length + 1}`, `updated_at=now()`);
   params.push(c.userId);
-  const { rows } = await qx(client, `UPDATE tenant.support_tickets t SET ${set.join(",")} WHERE t.organization_id=$1 AND t.company_id=$2 AND t.id=$3 RETURNING *`, params);
+  const { rows } = await qx(client, `UPDATE tenant.support_tickets t SET ${set.join(",")} WHERE t.organization_id=$1 AND t.id=$2 RETURNING *`, params);
   await recordEvent(client, c, t.id, "ticket", t.id, "support.ticket.updated", { fields: Object.keys(input) });
   return rows[0];
 }
@@ -147,13 +147,13 @@ export async function updateTicket(client, c, id, input) {
 // F351/F364: assign (or reassign) to an agent.
 export async function assignTicket(client, c, id, input) {
   need(c, "support.ticket.assign");
-  const cur = await qx(client, `SELECT * FROM tenant.support_tickets WHERE organization_id=$1 AND company_id=$2 AND id=$3 FOR UPDATE`, [c.organizationId, c.companyId, uuid(id, "Ticket")]);
+  const cur = await qx(client, `SELECT * FROM tenant.support_tickets WHERE organization_id=$1 AND id=$2 FOR UPDATE`, [c.organizationId, uuid(id, "Ticket")]);
   if (!cur.rows[0]) throw new SupportError(404, "Ticket was not found.", "SUPPORT_TICKET_NOT_FOUND");
   const t = cur.rows[0];
   if (["closed", "cancelled", "merged"].includes(t.status)) throw new SupportError(409, "A closed or cancelled ticket cannot be reassigned.", "SUPPORT_TICKET_STATE");
   const userId = input.userId !== undefined ? uuidOrNull(input.userId, "Agent") : c.userId;
-  const { rows } = await qx(client, `UPDATE tenant.support_tickets SET assigned_user_id=$4,status=CASE WHEN status='new' THEN 'open' ELSE status END,updated_by=$5,updated_at=now() WHERE organization_id=$1 AND company_id=$2 AND id=$3 RETURNING *`,
-    [c.organizationId, c.companyId, t.id, userId, c.userId]);
+  const { rows } = await qx(client, `UPDATE tenant.support_tickets SET assigned_user_id=$3,status=CASE WHEN status='new' THEN 'open' ELSE status END,updated_by=$4,updated_at=now() WHERE organization_id=$1 AND id=$2 RETURNING *`,
+    [c.organizationId, t.id, userId, c.userId]);
   await qx(client, `INSERT INTO tenant.support_ticket_assignments(organization_id,ticket_id,from_user_id,to_user_id,reason,assigned_by) VALUES ($1,$2,$3,$4,$5,$6)`,
     [c.organizationId, t.id, t.assigned_user_id, userId, textOrNull(input.reason, 300), c.userId]);
   await recordEvent(client, c, t.id, "ticket", t.id, "support.ticket.assigned", { userId });
@@ -180,7 +180,7 @@ export async function transitionTicket(client, c, id, input, { internal = false 
   // message (inbound mail), not a staff action gated behind support.ticket.assign
   if (!internal) need(c, action === "resolve" ? "support.ticket.resolve" : action === "close" ? "support.ticket.close" : "support.ticket.assign");
 
-  const cur = await qx(client, `SELECT * FROM tenant.support_tickets WHERE organization_id=$1 AND company_id=$2 AND id=$3 FOR UPDATE`, [c.organizationId, c.companyId, uuid(id, "Ticket")]);
+  const cur = await qx(client, `SELECT * FROM tenant.support_tickets WHERE organization_id=$1 AND id=$2 FOR UPDATE`, [c.organizationId, uuid(id, "Ticket")]);
   if (!cur.rows[0]) throw new SupportError(404, "Ticket was not found.", "SUPPORT_TICKET_NOT_FOUND");
   const t = cur.rows[0];
   if (t.status !== transition[0]) throw new SupportError(409, `Ticket is ${t.status}, not ${transition[0]}.`, "SUPPORT_TICKET_STATE");
@@ -194,15 +194,15 @@ export async function transitionTicket(client, c, id, input, { internal = false 
     if (!text(input.reason)) throw new SupportError(400, "Give a reason for reopening.", "SUPPORT_REASON_REQUIRED");
   }
 
-  const { rows } = await qx(client, `UPDATE tenant.support_tickets SET status=$4,
-      resolved_at=CASE WHEN $4='resolved' THEN now() ELSE resolved_at END,
-      closed_at=CASE WHEN $4='closed' THEN now() ELSE closed_at END,
-      resolution_code=CASE WHEN $4='resolved' THEN $5 ELSE resolution_code END,
-      resolution_summary=CASE WHEN $4='resolved' THEN $6 ELSE resolution_summary END,
-      reopened_count=CASE WHEN $4='open' AND $7='reopen' THEN reopened_count+1 ELSE reopened_count END,
-      updated_by=$8, updated_at=now()
-    WHERE organization_id=$1 AND company_id=$2 AND id=$3 RETURNING *`,
-    [c.organizationId, c.companyId, t.id, transition[1], textOrNull(input.resolutionCode, 60), textOrNull(input.resolutionSummary, 4000), action, c.userId]);
+  const { rows } = await qx(client, `UPDATE tenant.support_tickets SET status=$3,
+      resolved_at=CASE WHEN $3='resolved' THEN now() ELSE resolved_at END,
+      closed_at=CASE WHEN $3='closed' THEN now() ELSE closed_at END,
+      resolution_code=CASE WHEN $3='resolved' THEN $4 ELSE resolution_code END,
+      resolution_summary=CASE WHEN $3='resolved' THEN $5 ELSE resolution_summary END,
+      reopened_count=CASE WHEN $3='open' AND $6='reopen' THEN reopened_count+1 ELSE reopened_count END,
+      updated_by=$7, updated_at=now()
+    WHERE organization_id=$1 AND id=$2 RETURNING *`,
+    [c.organizationId, t.id, transition[1], textOrNull(input.resolutionCode, 60), textOrNull(input.resolutionSummary, 4000), action, c.userId]);
 
   await qx(client, `INSERT INTO tenant.support_ticket_status_history(organization_id,ticket_id,from_status,to_status,reason,changed_by) VALUES ($1,$2,$3,$4,$5,$6)`, [c.organizationId, t.id, transition[0], transition[1], textOrNull(input.reason, 500), c.userId]);
   await recordEvent(client, c, t.id, "ticket", t.id, `support.ticket.${action}`, {});
@@ -225,10 +225,10 @@ export async function addCommunication(client, c, ticketId, input) {
   if (privateNote && direction !== "internal") throw new SupportError(400, "A private note must have direction 'internal'.", "SUPPORT_COMMUNICATION_INVALID");
   const body = text(input.body, 8000);
   if (!body) throw new SupportError(400, "A message needs a body.", "SUPPORT_COMMUNICATION_INVALID");
-  const { rows } = await qx(client, `INSERT INTO tenant.support_communications(organization_id,company_id,ticket_id,direction,channel,subject,body,sender_name,sender_address,recipient_address,external_message_id,private_note,created_by) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) RETURNING *`,
-    [c.organizationId, c.companyId, t.id, direction, oneOf(String(input.channel ?? t.channel), CHANNELS, "Channel"), textOrNull(input.subject, 200), body, textOrNull(input.senderName, 200), textOrNull(input.senderAddress, 320), textOrNull(input.recipientAddress, 320), textOrNull(input.externalMessageId, 300), privateNote, c.userId]);
+  const { rows } = await qx(client, `INSERT INTO tenant.support_communications(organization_id,ticket_id,direction,channel,subject,body,sender_name,sender_address,recipient_address,external_message_id,private_note,created_by) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) RETURNING *`,
+    [c.organizationId, t.id, direction, oneOf(String(input.channel ?? t.channel), CHANNELS, "Channel"), textOrNull(input.subject, 200), body, textOrNull(input.senderName, 200), textOrNull(input.senderAddress, 320), textOrNull(input.recipientAddress, 320), textOrNull(input.externalMessageId, 300), privateNote, c.userId]);
 
-  if (direction === "outbound") await qx(client, `UPDATE tenant.support_tickets SET first_responded_at=coalesce(first_responded_at,now()),status=CASE WHEN status='new' THEN 'open' ELSE status END,updated_by=$4,updated_at=now() WHERE organization_id=$1 AND company_id=$2 AND id=$3`, [c.organizationId, c.companyId, t.id, c.userId]);
+  if (direction === "outbound") await qx(client, `UPDATE tenant.support_tickets SET first_responded_at=coalesce(first_responded_at,now()),status=CASE WHEN status='new' THEN 'open' ELSE status END,updated_by=$3,updated_at=now() WHERE organization_id=$1 AND id=$2`, [c.organizationId, t.id, c.userId]);
   if (direction === "inbound" && ["pending_customer"].includes(t.status)) {
     // a customer reply while waiting on them moves it back to open and resumes the SLA clock -- a
     // system side effect of their own message, so it bypasses the staff assign/resolve permission gate
@@ -253,8 +253,8 @@ export async function addAttachment(client, c, ticketId, input, { storage, purpo
   if (!input?.prepared) throw new SupportError(400, "Upload the file itself; a file reference cannot be attached.", "SUPPORT_ATTACHMENT_UPLOAD_REQUIRED");
   if (input.prepared.sizeBytes > 26214400) throw new SupportError(400, "Attachments are limited to 25 MB.", "SUPPORT_ATTACHMENT_TOO_LARGE");
   const file = await storeFile(client, { organizationId: c.organizationId, entityType: "support.ticket", entityId: t.id, prepared: input.prepared, uploadedBy: c.userId ?? null, purpose }, { storage });
-  const { rows } = await qx(client, `INSERT INTO tenant.support_attachments(organization_id,company_id,ticket_id,communication_id,file_name,content_type,size_bytes,storage_key,private_note,uploaded_by,file_id) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING *`,
-    [c.organizationId, c.companyId, t.id, uuidOrNull(input.communicationId ?? communicationId, "Communication"), file.fileName, file.mimeType, file.sizeBytes, `platform-file:${file.id}`, Boolean(input.privateNote), c.userId ?? null, file.id]);
+  const { rows } = await qx(client, `INSERT INTO tenant.support_attachments(organization_id,ticket_id,communication_id,file_name,content_type,size_bytes,storage_key,private_note,uploaded_by,file_id) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING *`,
+    [c.organizationId, t.id, uuidOrNull(input.communicationId ?? communicationId, "Communication"), file.fileName, file.mimeType, file.sizeBytes, `platform-file:${file.id}`, Boolean(input.privateNote), c.userId ?? null, file.id]);
   await recordEvent(client, c, t.id, "attachment", rows[0].id, "support.attachment.added", { fileName: file.fileName });
   return rows[0];
 }
@@ -302,17 +302,20 @@ export async function getTicketHistory(client, c, ticketId) {
 // the party has no CRM footprint or the write fails for an unrelated reason.
 async function syncCrmServiceEvent(client, c, ticket, eventType) {
   if (!ticket.customer_id) return;
+  await client.query("SAVEPOINT support_crm_sync");
   try {
     await client.query(
-      `INSERT INTO tenant.crm_customer_service_events(organization_id,company_id,party_id,contact_id,external_system,external_case_id,event_type,title,description,status,priority,occurred_at,created_by)
-       VALUES ($1,$2,$3,$4,'support',$5,$6,$7,$8,$9,$10,now(),$11)
+      `INSERT INTO tenant.crm_customer_service_events(organization_id,party_id,contact_id,external_system,external_case_id,event_type,title,description,status,priority,occurred_at,created_by)
+       VALUES ($1,$2,$3,'support',$4,$5,$6,$7,$8,$9,now(),$10)
        ON CONFLICT (organization_id,external_system,external_case_id) DO UPDATE SET event_type=EXCLUDED.event_type,status=EXCLUDED.status,priority=EXCLUDED.priority,occurred_at=now()`,
-      [c.organizationId, c.companyId, ticket.customer_id, ticket.contact_id, ticket.ticket_number, eventType, ticket.subject,
+      [c.organizationId, ticket.customer_id, ticket.contact_id, ticket.ticket_number, eventType, ticket.subject,
         ticket.description?.slice(0, 500) ?? null, ticket.status === "resolved" || ticket.status === "closed" ? "resolved" : "open",
         ["urgent", "critical"].includes(ticket.priority) ? "urgent" : ticket.priority === "high" ? "high" : ticket.priority === "low" ? "low" : "medium", c.userId],
     );
+    await client.query("RELEASE SAVEPOINT support_crm_sync");
   } catch {
     // CRM's table may not exist in an environment without that module's migrations; Support never
     // depends on this succeeding.
+    await client.query("ROLLBACK TO SAVEPOINT support_crm_sync");
   }
 }

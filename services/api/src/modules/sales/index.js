@@ -54,12 +54,12 @@ function hasPermission(context, permission) {
   );
 }
 // The Sales module's canonical document visibility rule (quotations and
-// sales orders): sales.view, then the active company for a company-scoped
-// caller. Exported so other modules (e.g. CRM Account 360) apply exactly
-// this rule instead of re-deriving Sales authorization.
-export function salesDocumentVisibilitySql(context, bind, alias) {
+// sales orders): sales.view across the organisation. Exported so other
+// modules (e.g. CRM Account 360) apply exactly this rule instead of
+// re-deriving Sales authorization.
+export function salesDocumentVisibilitySql(context, _bind, _alias) {
   if (!hasPermission(context, "sales.view")) return " AND false";
-  return !context.allowAllCompanies && context.activeCompanyId ? ` AND ${alias}.company_id=${bind(context.activeCompanyId)}` : "";
+  return "";
 }
 function requirePermission(context, permission) {
   if (!hasPermission(context, permission))
@@ -108,10 +108,6 @@ function stable(value) {
 }
 
 async function loadDocumentContext(client, context, input, options = {}) {
-  const companyId = uuid(input.companyId || context.activeCompanyId, "Company");
-  const branchId = input.branchId
-    ? uuid(input.branchId, "Branch")
-    : context.activeBranchId;
   const partyId = uuid(input.partyId, "Customer");
   const ownerUserId = uuid(input.ownerUserId || context.userId, "Owner");
   const currencyCode = String(input.currencyCode || "")
@@ -120,42 +116,15 @@ async function loadDocumentContext(client, context, input, options = {}) {
   if (!/^[A-Z]{3}$/.test(currencyCode))
     throw new SalesError(400, "Currency is required.");
 
-  const companyResult = await client.query(
-    `SELECT company.id,company.name,company.base_currency,company.country_code
-       FROM public.companies company
-      WHERE company.organization_id=$1 AND company.id=$2`,
-    [context.organizationId, companyId],
+  const organizationResult = await client.query(
+    `SELECT id,name,base_currency,country_code FROM public.organizations WHERE id=$1`,
+    [context.organizationId],
   );
-  const company = companyResult.rows[0];
-  if (!company)
-    throw new SalesError(
-      409,
-      "The selected company is outside this organisation.",
-    );
-  if (
-    !context.allowAllCompanies &&
-    context.activeCompanyId &&
-    companyId !== context.activeCompanyId
-  )
-    throw new SalesError(
-      403,
-      "Select the active company before creating this document.",
-    );
-
-  if (branchId) {
-    const branch = await client.query(
-      `SELECT 1 FROM public.branches WHERE organization_id=$1 AND company_id=$2 AND id=$3`,
-      [context.organizationId, companyId, branchId],
-    );
-    if (!branch.rows[0])
-      throw new SalesError(
-        409,
-        "The selected branch does not belong to the company.",
-      );
-  }
+  const organization = organizationResult.rows[0];
+  if (!organization) throw new SalesError(404, "Organisation not found.");
 
   const partyResult = await client.query(
-    `SELECT id,company_id,code,party_type,display_name,legal_name,gstin,pan,currency_code,credit_limit,payment_term_id,status,
+    `SELECT id,code,party_type,display_name,legal_name,gstin,pan,currency_code,credit_limit,payment_term_id,status,
             default_price_list_id,tax_treatment,sales_block,sales_block_reason
        FROM tenant.business_parties WHERE organization_id=$1 AND id=$2`,
     [context.organizationId, partyId],
@@ -183,11 +152,6 @@ async function loadDocumentContext(client, context, input, options = {}) {
       409,
       `${party.display_name} is blocked for ${party.sales_block === "all" ? "new quotations and orders" : "new orders"}: ${party.sales_block_reason}`,
       "SALES_CUSTOMER_BLOCKED",
-    );
-  if (party.company_id && party.company_id !== companyId)
-    throw new SalesError(
-      409,
-      "The selected customer belongs to another company.",
     );
 
   const owner = await client.query(
@@ -267,13 +231,13 @@ async function loadDocumentContext(client, context, input, options = {}) {
   const currency = currencyResult.rows[0];
   if (!currency || currency.status !== "active")
     throw new SalesError(409, "The selected currency is not active.");
-  const baseCurrencyCode = String(company.base_currency).trim();
+  const baseCurrencyCode = String(organization.base_currency).trim();
   let exchangeRate = decimal(input.exchangeRate || 1);
   if (currencyCode === baseCurrencyCode) exchangeRate = decimal(1);
   else if (exchangeRate <= 0n || input.exchangeRate == null) {
     const rate = await client.query(
-      `SELECT rate FROM tenant.exchange_rates WHERE organization_id=$1 AND (company_id=$2 OR company_id IS NULL) AND from_currency_code=$3 AND to_currency_code=$4 AND rate_date<=current_date AND status='active' ORDER BY company_id NULLS LAST,rate_date DESC LIMIT 1`,
-      [context.organizationId, companyId, currencyCode, baseCurrencyCode],
+      `SELECT rate FROM tenant.exchange_rates WHERE organization_id=$1 AND from_currency_code=$2 AND to_currency_code=$3 AND rate_date<=current_date AND status='active' ORDER BY rate_date DESC LIMIT 1`,
+      [context.organizationId, currencyCode, baseCurrencyCode],
     );
     if (!rate.rows[0])
       throw new SalesError(
@@ -333,14 +297,12 @@ async function loadDocumentContext(client, context, input, options = {}) {
   );
   const settings = settingsResult.rows[0] || {};
   return {
-    companyId,
-    branchId: branchId || null,
     partyId,
     ownerUserId,
     currencyCode,
     baseCurrencyCode,
     exchangeRate,
-    company,
+    organization,
     party,
     contact,
     billing,
@@ -355,15 +317,12 @@ async function loadDocumentContext(client, context, input, options = {}) {
 async function calculateLine(client, context, master, line, sequence, input) {
   const itemId = uuid(line.itemId, `Line ${sequence} item`);
   const itemResult = await client.query(
-    `SELECT item.id,item.company_id,item.code,item.name,item.description,item.hsn_sac_code,item.uom_id,item.standard_cost,item.sales_price,item.tax_category_id,uom.code AS uom_code,uom.name AS uom_name FROM tenant.items item JOIN tenant.units_of_measure uom ON uom.id=item.uom_id WHERE item.organization_id=$1 AND item.id=$2 AND item.status='active'`,
+    `SELECT item.id,item.code,item.name,item.description,item.hsn_sac_code,item.uom_id,item.standard_cost,item.sales_price,item.tax_category_id,uom.code AS uom_code,uom.name AS uom_name FROM tenant.items item JOIN tenant.units_of_measure uom ON uom.id=item.uom_id WHERE item.organization_id=$1 AND item.id=$2 AND item.status='active'`,
     [context.organizationId, itemId],
   );
   const item = itemResult.rows[0];
-  if (!item || (item.company_id && item.company_id !== master.companyId))
-    throw new SalesError(
-      409,
-      `Line ${sequence} item is inactive or belongs to another company.`,
-    );
+  if (!item)
+    throw new SalesError(409, `Line ${sequence} item is inactive.`);
   let variant = null;
   if (line.variantId) {
     const variantResult = await client.query(
@@ -431,10 +390,9 @@ async function calculateLine(client, context, master, line, sequence, input) {
     }
   }
   const rules = await client.query(
-    `SELECT id,code,adjustment_type,adjustment_value FROM tenant.sales_pricing_rules WHERE organization_id=$1 AND status='active' AND (company_id IS NULL OR company_id=$2) AND (party_id IS NULL OR party_id=$3) AND (party_type IS NULL OR party_type=$4 OR party_type='both') AND (item_id IS NULL OR item_id=$5) AND (item_group_id IS NULL OR item_group_id=(SELECT group_id FROM tenant.items WHERE id=$5)) AND (price_list_id IS NULL OR price_list_id=$6) AND minimum_quantity<=$7 AND (valid_from IS NULL OR valid_from<=current_date) AND (valid_to IS NULL OR valid_to>=current_date) ORDER BY priority,id`,
+    `SELECT id,code,adjustment_type,adjustment_value FROM tenant.sales_pricing_rules WHERE organization_id=$1 AND status='active' AND (party_id IS NULL OR party_id=$2) AND (party_type IS NULL OR party_type=$3 OR party_type='both') AND (item_id IS NULL OR item_id=$4) AND (item_group_id IS NULL OR item_group_id=(SELECT group_id FROM tenant.items WHERE id=$4)) AND (price_list_id IS NULL OR price_list_id=$5) AND minimum_quantity<=$6 AND (valid_from IS NULL OR valid_from<=current_date) AND (valid_to IS NULL OR valid_to>=current_date) ORDER BY priority,id`,
     [
       context.organizationId,
-      master.companyId,
       master.partyId,
       master.party.party_type,
       itemId,
@@ -495,7 +453,6 @@ async function calculateLine(client, context, master, line, sequence, input) {
   const buyerStateCode = String(input.placeOfSupply || master.shipping.row?.state_code || master.billing.row?.state_code || "").trim();
   const { taxRate, components } = await resolveTaxRateComponents(client, {
     organizationId: context.organizationId,
-    companyId: master.companyId,
     taxCategoryId: item.tax_category_id,
     sellerStateCode,
     buyerStateCode,
@@ -558,17 +515,16 @@ async function calculateLine(client, context, master, line, sequence, input) {
     netAmount === 0n ? 0n : mul(div(marginAmount, netAmount), 100);
   if (line.warehouseId) {
     const warehouse = await client.query(
-      `SELECT 1 FROM tenant.warehouses WHERE organization_id=$1 AND company_id=$2 AND id=$3 AND status='active'`,
+      `SELECT 1 FROM tenant.warehouses WHERE organization_id=$1 AND id=$2 AND status='active'`,
       [
         context.organizationId,
-        master.companyId,
         uuid(line.warehouseId, `Line ${sequence} warehouse`),
       ],
     );
     if (!warehouse.rows[0])
       throw new SalesError(
         409,
-        `Line ${sequence} warehouse is inactive or belongs to another company.`,
+        `Line ${sequence} warehouse is inactive.`,
       );
   }
   return {
@@ -892,11 +848,9 @@ async function insertQuotationVersion(
       ],
     );
   await client.query(
-    `UPDATE tenant.sales_quotations SET current_version_id=$1,company_id=$2,branch_id=$3,party_id=$4,contact_id=$5,owner_user_id=$6,source_opportunity_id=COALESCE($7,source_opportunity_id),valid_until=$8,lifecycle_status='draft',approval_status='not_required',acceptance_status='not_sent',updated_by=$9,updated_at=now() WHERE organization_id=$10 AND id=$11`,
+    `UPDATE tenant.sales_quotations SET current_version_id=$1,party_id=$2,contact_id=$3,owner_user_id=$4,source_opportunity_id=COALESCE($5,source_opportunity_id),valid_until=$6,lifecycle_status='draft',approval_status='not_required',acceptance_status='not_sent',updated_by=$7,updated_at=now() WHERE organization_id=$8 AND id=$9`,
     [
       versionId,
-      preview.master.companyId,
-      preview.master.branchId,
       preview.master.partyId,
       preview.master.contact?.id || null,
       preview.master.ownerUserId,
@@ -924,7 +878,7 @@ export async function createQuotation(client, context, input) {
   const preview = await previewSalesDocument(client, context, input);
   const idempotency = await beginIdempotentOperation(
     client,
-    { ...context, companyId: preview.master.companyId },
+    context,
     {
       operation: "sales.quotation.create",
       key: input.idempotencyKey,
@@ -950,11 +904,9 @@ export async function createQuotation(client, context, input) {
     "quotation",
   );
   const result = await client.query(
-    `INSERT INTO tenant.sales_quotations (organization_id,company_id,branch_id,quotation_number,source_opportunity_id,party_id,contact_id,owner_user_id,valid_until,created_by,updated_by) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$10) RETURNING id,quotation_number`,
+    `INSERT INTO tenant.sales_quotations (organization_id,quotation_number,source_opportunity_id,party_id,contact_id,owner_user_id,valid_until,created_by,updated_by) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$8) RETURNING id,quotation_number`,
     [
       context.organizationId,
-      preview.master.companyId,
-      preview.master.branchId,
       number,
       input.opportunityId || null,
       preview.master.partyId,
@@ -983,7 +935,7 @@ export async function createQuotation(client, context, input) {
     { versionId: version.id, versionNumber: version.version_number },
   );
   const response = { ...quotation, currentVersionId: version.id, replayed: false };
-  await completeIdempotentOperation(client, { ...context, companyId: preview.master.companyId }, idempotency, {
+  await completeIdempotentOperation(client, context, idempotency, {
     response,
     aggregateType: "sales_quotation",
     aggregateId: quotation.id,
@@ -1582,11 +1534,9 @@ async function insertOrderFromPreview(
     "sales_order",
   );
   const orderResult = await client.query(
-    `INSERT INTO tenant.sales_orders (organization_id,company_id,branch_id,sales_order_number,source_quotation_id,source_quotation_version_id,source_opportunity_id,party_id,contact_id,owner_user_id,order_date,requested_delivery_date,created_by,updated_by) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,COALESCE($11,current_date),$12,$13,$13) RETURNING *`,
+    `INSERT INTO tenant.sales_orders (organization_id,sales_order_number,source_quotation_id,source_quotation_version_id,source_opportunity_id,party_id,contact_id,owner_user_id,order_date,requested_delivery_date,created_by,updated_by) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,COALESCE($9,current_date),$10,$11,$11) RETURNING *`,
     [
       context.organizationId,
-      preview.master.companyId,
-      preview.master.branchId,
       number,
       source.quotationId || null,
       source.quotationVersionId || null,
@@ -1749,8 +1699,6 @@ export async function convertQuotationToOrder(client, context, id) {
   const detail = await getQuotation(client, context, id);
   const q = detail.quotation;
   const input = {
-    companyId: q.company_id,
-    branchId: q.branch_id,
     partyId: q.party_id,
     contactId: q.contact_id,
     opportunityId: q.source_opportunity_id,
@@ -2352,7 +2300,6 @@ export async function cancelSalesOrder(client, context, id, reason) {
     orderId: id,
     status: "cancelled",
     sourceOpportunityId: order.source_opportunity_id || null,
-    companyId: order.company_id,
   };
 }
 
@@ -2430,8 +2377,6 @@ async function buildHandoffPayload(
     salesOrderId: order.id,
     salesOrderNumber: order.sales_order_number,
     salesOrderVersionId: order.current_version_id,
-    companyId: order.company_id,
-    branchId: order.branch_id,
     partyId: order.party_id,
     quantityBasis,
     lines,
@@ -2567,17 +2512,9 @@ export async function createInvoiceRequest(client, context, id, input) {
 
 export async function getSalesDashboard(client, context) {
   requirePermission(context, "sales.view");
-  const companyFilter =
-    !context.allowAllCompanies && context.activeCompanyId
-      ? " AND company_id=$2"
-      : "";
-  const params =
-    !context.allowAllCompanies && context.activeCompanyId
-      ? [context.organizationId, context.activeCompanyId]
-      : [context.organizationId];
   const result = await client.query(
-    `SELECT (SELECT count(*) FROM tenant.sales_quotations WHERE organization_id=$1${companyFilter} AND lifecycle_status IN ('draft','pending_approval','approved','sent','viewed')) AS active_quotations,(SELECT count(*) FROM tenant.sales_quotations WHERE organization_id=$1${companyFilter} AND lifecycle_status IN ('sent','viewed') AND valid_until<=current_date+7) AS expiring_quotations,(SELECT count(*) FROM tenant.sales_quotations WHERE organization_id=$1${companyFilter} AND approval_status='pending') AS pending_quote_approvals,(SELECT COALESCE(sum(version.base_currency_total),0) FROM tenant.sales_orders sales_order JOIN tenant.sales_order_versions version ON version.id=sales_order.current_version_id WHERE sales_order.organization_id=$1${companyFilter.replaceAll("company_id", "sales_order.company_id")} AND sales_order.lifecycle_status='confirmed') AS confirmed_order_value,(SELECT count(*) FROM tenant.sales_orders WHERE organization_id=$1${companyFilter} AND lifecycle_status='on_hold') AS orders_on_hold,(SELECT count(*) FROM tenant.sales_orders WHERE organization_id=$1${companyFilter} AND billing_status='ready') AS ready_to_invoice`,
-    params,
+    `SELECT (SELECT count(*) FROM tenant.sales_quotations WHERE organization_id=$1 AND lifecycle_status IN ('draft','pending_approval','approved','sent','viewed')) AS active_quotations,(SELECT count(*) FROM tenant.sales_quotations WHERE organization_id=$1 AND lifecycle_status IN ('sent','viewed') AND valid_until<=current_date+7) AS expiring_quotations,(SELECT count(*) FROM tenant.sales_quotations WHERE organization_id=$1 AND approval_status='pending') AS pending_quote_approvals,(SELECT COALESCE(sum(version.base_currency_total),0) FROM tenant.sales_orders sales_order JOIN tenant.sales_order_versions version ON version.id=sales_order.current_version_id WHERE sales_order.organization_id=$1 AND sales_order.lifecycle_status='confirmed') AS confirmed_order_value,(SELECT count(*) FROM tenant.sales_orders WHERE organization_id=$1 AND lifecycle_status='on_hold') AS orders_on_hold,(SELECT count(*) FROM tenant.sales_orders WHERE organization_id=$1 AND billing_status='ready') AS ready_to_invoice`,
+    [context.organizationId],
   );
   return result.rows[0];
 }
@@ -2592,25 +2529,12 @@ export async function getSalesReport(client, context, key) {
     "order-status",
   ]);
   if (!allowed.has(key)) throw new SalesError(404, "Unknown Sales report.");
-  // SECURITY: sales_quotations/sales_orders both carry a NOT NULL company_id,
-  // so leaving these org-only (as they were) let a user restricted to one
-  // company see every other company's quotations/orders/margins in reports -
-  // same cross-company leak class fixed in getSalesOptions above, and the
-  // same fail-closed semantics when there's no active company.
-  const companyScoped = !context.allowAllCompanies;
-  const companyId = companyScoped ? context.activeCompanyId || null : null;
-  const companyClause = (column) =>
-    companyScoped ? (companyId ? ` AND ${column}=$2` : " AND false") : "";
-  const params =
-    companyScoped && companyId
-      ? [context.organizationId, companyId]
-      : [context.organizationId];
   const queries = {
-    "expiring-quotations": `SELECT quotation.id,quotation.quotation_number,quotation.valid_until,version.customer_snapshot->>'displayName' AS customer,version.currency_code,version.grand_total FROM tenant.sales_quotations quotation JOIN tenant.sales_quotation_versions version ON version.id=quotation.current_version_id WHERE quotation.organization_id=$1${companyClause("quotation.company_id")} AND quotation.lifecycle_status IN ('sent','viewed') AND quotation.valid_until<=current_date+30 ORDER BY quotation.valid_until`,
-    "pending-approvals": `SELECT id,quotation_number,lifecycle_status,approval_status,updated_at FROM tenant.sales_quotations WHERE organization_id=$1${companyClause("company_id")} AND approval_status='pending' ORDER BY updated_at`,
-    "active-holds": `SELECT hold.id,sales_order.id AS sales_order_id,sales_order.sales_order_number,hold.hold_type,hold.reason,hold.placed_at FROM tenant.sales_order_holds hold JOIN tenant.sales_orders sales_order ON sales_order.id=hold.sales_order_id WHERE hold.organization_id=$1${companyClause("sales_order.company_id")} AND hold.status='active' ORDER BY hold.placed_at`,
-    fulfillment: `SELECT id AS sales_order_id,sales_order_number,fulfillment_status,requested_delivery_date,updated_at FROM tenant.sales_orders WHERE organization_id=$1${companyClause("company_id")} AND lifecycle_status IN ('confirmed','on_hold') ORDER BY requested_delivery_date NULLS LAST`,
-    "billing-readiness": `SELECT id AS sales_order_id,sales_order_number,billing_status,payment_status,updated_at FROM tenant.sales_orders WHERE organization_id=$1${companyClause("company_id")} AND billing_status IN ('ready','partially_invoiced','blocked') ORDER BY updated_at DESC`,
+    "expiring-quotations": `SELECT quotation.id,quotation.quotation_number,quotation.valid_until,version.customer_snapshot->>'displayName' AS customer,version.currency_code,version.grand_total FROM tenant.sales_quotations quotation JOIN tenant.sales_quotation_versions version ON version.id=quotation.current_version_id WHERE quotation.organization_id=$1 AND quotation.lifecycle_status IN ('sent','viewed') AND quotation.valid_until<=current_date+30 ORDER BY quotation.valid_until`,
+    "pending-approvals": `SELECT id,quotation_number,lifecycle_status,approval_status,updated_at FROM tenant.sales_quotations WHERE organization_id=$1 AND approval_status='pending' ORDER BY updated_at`,
+    "active-holds": `SELECT hold.id,sales_order.id AS sales_order_id,sales_order.sales_order_number,hold.hold_type,hold.reason,hold.placed_at FROM tenant.sales_order_holds hold JOIN tenant.sales_orders sales_order ON sales_order.id=hold.sales_order_id WHERE hold.organization_id=$1 AND hold.status='active' ORDER BY hold.placed_at`,
+    fulfillment: `SELECT id AS sales_order_id,sales_order_number,fulfillment_status,requested_delivery_date,updated_at FROM tenant.sales_orders WHERE organization_id=$1 AND lifecycle_status IN ('confirmed','on_hold') ORDER BY requested_delivery_date NULLS LAST`,
+    "billing-readiness": `SELECT id AS sales_order_id,sales_order_number,billing_status,payment_status,updated_at FROM tenant.sales_orders WHERE organization_id=$1 AND billing_status IN ('ready','partially_invoiced','blocked') ORDER BY updated_at DESC`,
     // F059: one reconciled stage per order from Sales, Stock (reservations,
     // deliveries) and Accounting (invoices, payments), with the exceptions
     // that need someone's attention.
@@ -2643,11 +2567,11 @@ export async function getSalesReport(client, context, key) {
                                 sum(invoice.outstanding_amount) FILTER (WHERE invoice.due_date<current_date) AS overdue
                            FROM tenant.accounting_customer_invoices invoice
                           WHERE invoice.organization_id=orders.organization_id AND invoice.source_sales_order_id=orders.id AND invoice.status NOT IN ('draft','cancelled','reversed')) billing ON true
-     WHERE orders.organization_id=$1${companyClause("orders.company_id")} AND orders.lifecycle_status IN ('confirmed','on_hold','closed')
+     WHERE orders.organization_id=$1 AND orders.lifecycle_status IN ('confirmed','on_hold','closed')
      GROUP BY orders.id,version.customer_snapshot
      ORDER BY orders.sales_order_number DESC LIMIT 500`,
   };
-  return (await client.query(queries[key], params)).rows;
+  return (await client.query(queries[key], [context.organizationId])).rows;
 }
 
 export async function getSalesOptions(
@@ -2657,28 +2581,11 @@ export async function getSalesOptions(
   partyId = null,
 ) {
   requirePermission(context, "sales.view");
-  // SECURITY: every one of these is an org-wide picker/lookup consumed while
-  // creating or editing a quotation/order, so an unscoped query here leaks
-  // every OTHER company's customers, contacts, addresses, items, warehouses
-  // and CRM opportunities to a user restricted to one company - the same
-  // company/branch boundary CRM's own getCrmOptions enforces via its
-  // companyVisible() predicate. allowAllCompanies bypasses the filter
-  // entirely (org owners/admins); otherwise a row is visible only if it has
-  // no company_id (shared) or matches the caller's active company - and if
-  // the caller has no active company at all, nothing company-scoped is
-  // visible (fail closed), matching CRM's own semantics exactly.
-  const companyScoped = !context.allowAllCompanies;
-  const companyId = companyScoped ? context.activeCompanyId || null : null;
-  const companyClause = (column = "company_id") =>
-    companyScoped ? (companyId ? ` AND (${column} IS NULL OR ${column}=$2)` : " AND false") : "";
-  const companyParams = companyScoped && companyId ? [companyId] : [];
   // Contacts/addresses join across every customer in the org; once a
   // specific customer is chosen this scopes to just its own records instead
   // of fetching every customer's contacts/addresses on every load.
   const partyFilterId = partyId ? uuid(partyId, "Customer") : null;
   const [
-    companies,
-    branches,
     parties,
     contacts,
     addresses,
@@ -2694,38 +2601,30 @@ export async function getSalesOptions(
     opportunities,
   ] = await Promise.all([
     client.query(
-      `SELECT id,name,legal_name,base_currency FROM public.companies WHERE organization_id=$1 ORDER BY is_primary DESC,name`,
+      `SELECT id,code,party_type,display_name,legal_name,currency_code,credit_limit,payment_term_id,default_price_list_id,tax_treatment,default_shipping_method,default_delivery_terms,default_incoterm,sales_block,sales_block_reason FROM tenant.business_parties WHERE organization_id=$1 AND status='active' AND party_type IN ('customer','prospect','both') ORDER BY display_name LIMIT 500`,
       [context.organizationId],
-    ),
-    client.query(
-      `SELECT id,company_id,name,code FROM public.branches WHERE organization_id=$1 ORDER BY is_primary DESC,name`,
-      [context.organizationId],
-    ),
-    client.query(
-      `SELECT id,company_id,code,party_type,display_name,legal_name,currency_code,credit_limit,payment_term_id,default_price_list_id,tax_treatment,default_shipping_method,default_delivery_terms,default_incoterm,sales_block,sales_block_reason FROM tenant.business_parties WHERE organization_id=$1 AND status='active' AND party_type IN ('customer','prospect','both')${companyClause()} ORDER BY display_name LIMIT 500`,
-      [context.organizationId, ...companyParams],
     ),
     client.query(
       `SELECT contact.id,contact.party_id,contact.first_name,contact.last_name,contact.email,contact.mobile,contact.designation,contact.phone,contact.is_primary
          FROM tenant.contacts contact
          JOIN tenant.business_parties party ON party.organization_id=contact.organization_id AND party.id=contact.party_id
-        WHERE contact.organization_id=$1 AND contact.status='active'${companyClause("party.company_id")}${partyFilterId ? ` AND contact.party_id=$${2 + companyParams.length}` : ""} ORDER BY contact.is_primary DESC,contact.first_name LIMIT 500`,
+        WHERE contact.organization_id=$1 AND contact.status='active'${partyFilterId ? ` AND contact.party_id=$2` : ""} ORDER BY contact.is_primary DESC,contact.first_name LIMIT 500`,
       partyFilterId
-        ? [context.organizationId, ...companyParams, partyFilterId]
-        : [context.organizationId, ...companyParams],
+        ? [context.organizationId, partyFilterId]
+        : [context.organizationId],
     ),
     client.query(
       `SELECT address.id,address.party_id,address.address_type,address.line1,address.city,address.state,address.state_code,address.postal_code,address.line2,address.district,address.country_code,address.gstin,address.is_primary
          FROM tenant.addresses address
          JOIN tenant.business_parties party ON party.organization_id=address.organization_id AND party.id=address.party_id
-        WHERE address.organization_id=$1 AND address.status='active'${companyClause("party.company_id")}${partyFilterId ? ` AND address.party_id=$${2 + companyParams.length}` : ""} ORDER BY address.is_primary DESC,address.city LIMIT 500`,
+        WHERE address.organization_id=$1 AND address.status='active'${partyFilterId ? ` AND address.party_id=$2` : ""} ORDER BY address.is_primary DESC,address.city LIMIT 500`,
       partyFilterId
-        ? [context.organizationId, ...companyParams, partyFilterId]
-        : [context.organizationId, ...companyParams],
+        ? [context.organizationId, partyFilterId]
+        : [context.organizationId],
     ),
     client.query(
-      `SELECT id,company_id,code,name,item_type,uom_id,sales_price,standard_cost,tax_category_id FROM tenant.items WHERE organization_id=$1 AND status='active'${companyClause()} ORDER BY name LIMIT 500`,
-      [context.organizationId, ...companyParams],
+      `SELECT id,code,name,item_type,uom_id,sales_price,standard_cost,tax_category_id FROM tenant.items WHERE organization_id=$1 AND status='active' ORDER BY name LIMIT 500`,
+      [context.organizationId],
     ),
     client.query(
       `SELECT id,code,name,decimal_places FROM tenant.units_of_measure WHERE organization_id=$1 AND status='active' ORDER BY category,name`,
@@ -2742,12 +2641,12 @@ export async function getSalesOptions(
     // Sellable SKUs of an item (size/colour/pack) -- optional per line; when
     // chosen, its own price/cost override the item's if set.
     client.query(
-      `SELECT id,item_id,sku,name,sales_price,standard_cost FROM tenant.item_variants WHERE organization_id=$1 AND status='active'${companyClause()} ORDER BY name LIMIT 2000`,
-      [context.organizationId, ...companyParams],
+      `SELECT id,item_id,sku,name,sales_price,standard_cost FROM tenant.item_variants WHERE organization_id=$1 AND status='active' ORDER BY name LIMIT 2000`,
+      [context.organizationId],
     ),
     client.query(
-      `SELECT id,company_id,branch_id,code,name FROM tenant.warehouses WHERE organization_id=$1 AND status='active'${companyClause()} ORDER BY name LIMIT 500`,
-      [context.organizationId, ...companyParams],
+      `SELECT id,code,name FROM tenant.warehouses WHERE organization_id=$1 AND status='active' ORDER BY name LIMIT 500`,
+      [context.organizationId],
     ),
     client.query(
       `SELECT id,code,name,currency_code,tax_inclusive FROM tenant.price_lists WHERE organization_id=$1 AND price_list_type='sales' AND status='active' ORDER BY name`,
@@ -2766,10 +2665,10 @@ export async function getSalesOptions(
       [context.organizationId],
     ),
     client.query(
-      `SELECT id,company_id,branch_id,party_id,contact_id,owner_user_id,name,amount,currency_code,expected_close_date FROM tenant.crm_opportunities WHERE organization_id=$1 AND status='open'${companyClause()}${opportunityId ? ` AND id=$${2 + companyParams.length}` : ""} ORDER BY updated_at DESC LIMIT 200`,
+      `SELECT id,party_id,contact_id,owner_user_id,name,amount,currency_code,expected_close_date FROM tenant.crm_opportunities WHERE organization_id=$1 AND status='open'${opportunityId ? ` AND id=$2` : ""} ORDER BY updated_at DESC LIMIT 200`,
       opportunityId
-        ? [context.organizationId, ...companyParams, opportunityId]
-        : [context.organizationId, ...companyParams],
+        ? [context.organizationId, opportunityId]
+        : [context.organizationId],
     ),
   ]);
   let opportunityItems = [];
@@ -2786,8 +2685,6 @@ export async function getSalesOptions(
   // path that leaks it to any sales.view user regardless of that permission.
   return redactMargin(
     {
-      companies: companies.rows,
-      branches: branches.rows,
       parties: parties.rows,
       contacts: contacts.rows,
       addresses: addresses.rows,
@@ -2848,13 +2745,10 @@ export async function amendSalesOrder(client, context, id, input) {
   const preview = await previewSalesDocument(client, context, input, {
     order: true,
   });
-  if (
-    preview.master.companyId !== order.company_id ||
-    preview.master.partyId !== order.party_id
-  ) {
+  if (preview.master.partyId !== order.party_id) {
     throw new SalesError(
       409,
-      "An amendment cannot change the order company or customer.",
+      "An amendment cannot change the order customer.",
     );
   }
   const current = (

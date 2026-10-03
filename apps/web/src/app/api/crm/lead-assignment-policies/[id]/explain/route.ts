@@ -23,9 +23,6 @@ export async function GET(request: Request, context: RouteContext) {
     { module: "crm", permission: CRM_PERMISSIONS.settingsManage },
     async ({ client, session }) => {
       const { id } = await context.params;
-      const url = new URL(request.url);
-      const companyId = url.searchParams.get("companyId") || undefined;
-      const branchId = url.searchParams.get("branchId") || undefined;
       // listLeadAssignmentPolicies returns RAW snake_case rows (assignment-
       // engine.js does not camelize — confirmed this session, see
       // features/crm/setup/lead-assignment-policies/types.ts's own note).
@@ -47,7 +44,6 @@ export async function GET(request: Request, context: RouteContext) {
         client,
         crmContext(session),
         memberUserIds,
-        { companyId, branchId },
       );
       return ok({ rows });
     },

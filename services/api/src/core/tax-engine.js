@@ -13,14 +13,14 @@ import { decimal, div } from "./decimal.js";
 // it without this function taking a position on that policy.
 export async function resolveTaxRateComponents(
   client,
-  { organizationId, companyId, taxCategoryId, sellerStateCode, buyerStateCode, exempt = false },
+  { organizationId, taxCategoryId, sellerStateCode, buyerStateCode, exempt = false },
 ) {
   let taxRate = decimal(0);
   let components = [];
   if (taxCategoryId && !exempt) {
     const rateResult = await client.query(
-      `SELECT tax_type,rate,name,code FROM tenant.tax_rates WHERE organization_id=$1 AND tax_category_id=$2 AND (company_id=$3 OR company_id IS NULL) AND status='active' AND (effective_from IS NULL OR effective_from<=current_date) AND (effective_to IS NULL OR effective_to>=current_date) ORDER BY company_id NULLS LAST,effective_from DESC NULLS LAST,rate DESC LIMIT 1`,
-      [organizationId, taxCategoryId, companyId],
+      `SELECT tax_type,rate,name,code FROM tenant.tax_rates WHERE organization_id=$1 AND tax_category_id=$2 AND status='active' AND (effective_from IS NULL OR effective_from<=current_date) AND (effective_to IS NULL OR effective_to>=current_date) ORDER BY effective_from DESC NULLS LAST,rate DESC LIMIT 1`,
+      [organizationId, taxCategoryId],
     );
     const rate = rateResult.rows[0];
     if (rate) {

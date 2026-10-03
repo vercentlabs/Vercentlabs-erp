@@ -1,5 +1,5 @@
 type Client = { query(text: string, values?: unknown[]): Promise<{ rows: any[] }> };
-type Session = { organizationId: string; userId: string; activeCompanyId?: string | null; activeBranchId?: string | null; permissions: readonly string[]; roleSlugs: readonly string[] };
+type Session = { organizationId: string; userId: string; permissions: readonly string[]; roleSlugs: readonly string[] };
 
 export const SEARCH_LIMITS: Readonly<{ minLength: number; maxLength: number; perProvider: number; total: number }>;
 export class SearchError extends Error {

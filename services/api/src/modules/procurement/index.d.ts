@@ -1,5 +1,5 @@
 export type ProcurementClient={query(text:string,values?:unknown[]):Promise<{rows:Array<Record<string,any>>}>};
-export type ProcurementContext={organizationId:string;userId:string;activeCompanyId:string|null;activeBranchId:string|null;allowAllCompanies:boolean;permissions:string[];roleSlugs:string[]};
+export type ProcurementContext={organizationId:string;userId:string;permissions:string[];roleSlugs:string[]};
 export declare class ProcurementError extends Error{status:number;code:string;constructor(status:number,message:string,code?:string)}
 export declare function contentHash(value:unknown):string;
 export declare function procurementContext(session:Record<string,any>):ProcurementContext;

@@ -21,14 +21,6 @@ function sameTimestamp(left, right) {
   }
 }
 
-function pipelineScope(context, values, alias = "pipeline") {
-  if (context.activeCompanyId) {
-    values.push(context.activeCompanyId);
-    return ` AND (${alias}.company_id IS NULL OR ${alias}.company_id=$${values.length})`;
-  }
-  return context.allowAllCompanies ? "" : " AND false";
-}
-
 function stageType(row) {
   if (row?.is_won ?? row?.isWon) return "won";
   if (row?.is_lost ?? row?.isLost) return "lost";
@@ -171,20 +163,19 @@ function normalizeStageInput(input, { create = false } = {}) {
 
 async function visiblePipeline(client, context, pipelineId, { requireActive = false, lock = false } = {}) {
   const values = [context.organizationId, pipelineId];
-  const scope = pipelineScope(context, values, "pipeline");
   const result = await client.query(
     `SELECT pipeline.* FROM tenant.crm_pipelines pipeline
-      WHERE pipeline.organization_id=$1 AND pipeline.id=$2${scope}${requireActive ? " AND pipeline.status='active'" : ""}
+      WHERE pipeline.organization_id=$1 AND pipeline.id=$2${requireActive ? " AND pipeline.status='active'" : ""}
       LIMIT 1${lock ? " FOR UPDATE" : ""}`,
     values,
   );
   if (!result.rows[0])
-    throw new CrmError(404, "Sales pipeline not found in the active company scope.", "CRM_SALES_STAGE_PIPELINE_NOT_FOUND");
+    throw new CrmError(404, "Sales pipeline not found.", "CRM_SALES_STAGE_PIPELINE_NOT_FOUND");
   return dto(result.rows[0]);
 }
 
 function stageSelect() {
-  return `SELECT stage.*,pipeline.name AS pipeline_name,pipeline.company_id AS pipeline_company_id,pipeline.status AS pipeline_status,
+  return `SELECT stage.*,pipeline.name AS pipeline_name,pipeline.status AS pipeline_status,
     (SELECT count(*)::int FROM tenant.crm_opportunities opportunity
       WHERE opportunity.organization_id=stage.organization_id AND opportunity.stage_id=stage.id AND opportunity.status<>'archived') AS opportunity_count,
     (SELECT count(*)::int FROM tenant.crm_opportunities opportunity
@@ -200,14 +191,14 @@ function enrichStage(row) {
 
 export async function listSalesStagePipelines(client, context, options = {}) {
   const values = [context.organizationId];
-  let where = "pipeline.organization_id=$1" + pipelineScope(context, values, "pipeline");
+  let where = "pipeline.organization_id=$1";
   const status = ["active", "inactive", "all"].includes(String(options.status)) ? String(options.status) : "all";
   if (status !== "all") {
     values.push(status);
     where += ` AND pipeline.status=$${values.length}`;
   }
   const result = await client.query(
-    `SELECT pipeline.id,pipeline.name,pipeline.code,pipeline.company_id,pipeline.is_default,pipeline.status,pipeline.updated_at,
+    `SELECT pipeline.id,pipeline.name,pipeline.code,pipeline.is_default,pipeline.status,pipeline.updated_at,
       (SELECT count(*)::int FROM tenant.crm_pipeline_stages stage WHERE stage.organization_id=pipeline.organization_id AND stage.pipeline_id=pipeline.id AND stage.status='active' AND NOT stage.is_won AND NOT stage.is_lost) AS active_open_stage_count,
       (SELECT count(*)::int FROM tenant.crm_pipeline_stages stage WHERE stage.organization_id=pipeline.organization_id AND stage.pipeline_id=pipeline.id AND stage.status='active' AND stage.is_won) AS active_won_stage_count,
       (SELECT count(*)::int FROM tenant.crm_pipeline_stages stage WHERE stage.organization_id=pipeline.organization_id AND stage.pipeline_id=pipeline.id AND stage.status='active' AND stage.is_lost) AS active_lost_stage_count
@@ -240,9 +231,8 @@ export async function listSalesStages(client, context, options = {}) {
 export async function getSalesStage(client, context, id, { lock = false } = {}) {
   if (!uuid.test(String(id))) throw new CrmError(404, "Sales stage not found.", "CRM_SALES_STAGE_NOT_FOUND");
   const values = [context.organizationId, id];
-  const scope = pipelineScope(context, values, "pipeline");
   const result = await client.query(
-    `${stageSelect()} WHERE stage.organization_id=$1 AND stage.id=$2${scope} LIMIT 1${lock ? " FOR UPDATE OF stage" : ""}`,
+    `${stageSelect()} WHERE stage.organization_id=$1 AND stage.id=$2 LIMIT 1${lock ? " FOR UPDATE OF stage" : ""}`,
     values,
   );
   if (!result.rows[0]) throw new CrmError(404, "Sales stage not found.", "CRM_SALES_STAGE_NOT_FOUND");

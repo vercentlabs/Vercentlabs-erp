@@ -4,7 +4,7 @@
 // task-operations.js/follow-up-operations.js's established structure.
 //
 // Authorization reuses resolveCrmEntityAccess (data-management/entity-access.js) verbatim —
-// the SAME per-entity-type sensitive-content gate and company/branch scope
+// the SAME per-entity-type sensitive-content gate and owner scope
 // check the canonical Timeline already uses, not a re-derived equivalent
 // (object-specific wrapper functions are acceptable, separate security
 // implementations are not).
@@ -44,7 +44,7 @@ function normalizeVisibility(value, fallback = "shared") {
 }
 
 // F017 private-Note rule, reused verbatim from timeline.js's own note
-// branch: visible to everyone unless private, in which case only its
+// part: visible to everyone unless private, in which case only its
 // author or a view-all/org-owner override can see it — never leaked via a
 // list row even to an otherwise-authorized parent-record viewer.
 function visibilityPredicate(values, context, alias = "note") {

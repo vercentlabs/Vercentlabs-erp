@@ -38,13 +38,11 @@ const LEVEL_LABEL: Record<ModuleAccessLevel, string> = {
 };
 
 const ADMINISTRATION: ReadonlyArray<[string, string]> = [
-  ["organization.manage", "Organisation settings and new companies"],
+  ["organization.manage", "Organisation settings"],
   ["modules.manage", "Turn modules on or off"],
   ["roles.manage", "Define roles"],
   ["roles.assign", "Assign roles"],
   ["users.manage", "Manage users and their access"],
-  ["company.manage", "Manage companies"],
-  ["branch.manage", "Manage branches"],
   ["billing.manage", "Billing and plan"],
   ["platform.security.manage", "Organisation security policy"],
 ];
@@ -57,7 +55,7 @@ const ORGANISATION_HIGH_RISK: ReadonlyArray<[string, string]> = [
 ];
 
 const CRM_RECORD_SCOPE: Record<"all" | "team", string> = {
-  all: "All CRM records in their companies",
+  all: "All CRM records",
   team: "Their own and their sales team's CRM records",
 };
 

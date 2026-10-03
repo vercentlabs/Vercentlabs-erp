@@ -2,7 +2,7 @@
 // archiveCrmRecord for every resource in resource-registry.js.
 //
 // This file owns the generic mechanics (governed-resource redirects, scope and
-// owner checks, code numbering, company/branch defaults, the INSERT/UPDATE/
+// owner checks, code numbering, the INSERT/UPDATE/
 // archive SQL, optimistic-concurrency guards, the outbox event and the
 // projection). Behaviour that belongs to one aggregate lives with its owner
 // and is called here at fixed points:
@@ -15,7 +15,7 @@ import { runCrmAutomation } from "./automation/automation-engine.js";
 import { CrmError } from "./errors.js";
 import { assertSalesTeamParentAllowed, assertTerritoryParentAllowed } from "../sales-organization/hierarchy-rules.js";
 import { queueOutboxEvent } from "./outbox.js";
-import { assertLeadLinkedContentAllowed, assertLifecycleUpdate, assertOwnerAssignmentAllowed, assertWritableScope, projectCrmRecord, recordScope } from "./record-policy.js";
+import { assertLeadLinkedContentAllowed, assertLifecycleUpdate, assertOwnerAssignmentAllowed, projectCrmRecord, recordScope } from "./record-policy.js";
 import { addParameter, camelizeRow } from "./record-utils.js";
 import { getCrmRecord, nextCode } from "./resource-query-service.js";
 import { auditColumns, definitionFor } from "./resource-registry.js";
@@ -71,7 +71,6 @@ export async function createCrmRecord(client, context, resource, input) {
   assertLeadLinkedContentAllowed(context, resource, input);
   if (resource === "leads") assertLeadCreateInput(context, input);
   if (resource === "opportunities") assertOpportunityCreateInput(input);
-  assertWritableScope(definition, context, input);
   await assertOwnerAssignmentAllowed(client, definition, context, input);
   const { ownerChangeRequested, requestedOwnerUserId } =
     resource === "leads" ? leadOwnerRequest(input) : { ownerChangeRequested: false, requestedOwnerUserId: undefined };
@@ -89,19 +88,6 @@ export async function createCrmRecord(client, context, resource, input) {
       context.organizationId,
       definition.codeEntity,
     );
-  if (
-    definition.companyScoped &&
-    !prepared.companyId &&
-    context.activeCompanyId
-  )
-    prepared.companyId = context.activeCompanyId;
-  if (
-    definition.companyScoped &&
-    !prepared.branchId &&
-    context.activeBranchId &&
-    definition.fields.branchId
-  )
-    prepared.branchId = context.activeBranchId;
   if (resource === "custom-field-definitions" && prepared.required === true) {
     await assertCustomFieldRequiredRolloutSafe(
       client,
@@ -272,14 +258,13 @@ export async function updateCrmRecord(
   }
   if (resource === "opportunities") assertOpportunityUpdateAllowed(context, before, input);
   // No Opportunity controlled-field guard is needed here: record-policy.js's
-  // assertWritableScope already blocks the full controlled-field set
+  // assertLifecycleUpdate already blocks the full controlled-field set
   // (pipelineId/stageId/probability/forecastCategory/status/actualCloseDate/
   // lostReasonId/lossNotes/outcomeReasonId/outcomeNotes) further down this
   // same call chain, and crm-opportunities-f009.test.mjs already covers it
   // ("outcome and stage-owned fields cannot be forged through generic
   // PATCH"). Do not add a redundant/conflicting guard here.
   if (resource === "leads") assertLeadUpdateFieldsGoverned(input);
-  assertWritableScope(definition, context, input);
   await assertOwnerAssignmentAllowed(client, definition, context, input);
   const { ownerChangeRequested, requestedOwnerUserId } =
     resource === "leads" ? leadOwnerRequest(input) : { ownerChangeRequested: false, requestedOwnerUserId: undefined };
@@ -300,7 +285,6 @@ export async function updateCrmRecord(
   if (resource === "custom-records") {
     const callerSuppliedData = Object.prototype.hasOwnProperty.call(prepared, "data");
     prepared.objectDefinitionId ??= before.objectDefinitionId;
-    prepared.companyId ??= before.companyId;
     prepared.data ??= before.data;
     await validateCustomRecord(
       client,

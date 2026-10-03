@@ -15,8 +15,8 @@ export async function getPointOfSaleDashboard(client, context) {
      RIGHT JOIN tenant.pos_shifts shift
        ON shift.organization_id=sale.organization_id
       AND shift.id=sale.shift_id
-     WHERE shift.organization_id=$1 AND shift.company_id=$2`,
-    [context.organizationId, context.companyId],
+     WHERE shift.organization_id=$1`,
+    [context.organizationId],
   );
   const returns = await client.query(
     `SELECT count(*) FILTER (
@@ -24,8 +24,8 @@ export async function getPointOfSaleDashboard(client, context) {
          AND status IN ('approved','completed')
      )::int AS returns_today
      FROM tenant.pos_returns
-     WHERE organization_id=$1 AND company_id=$2`,
-    [context.organizationId, context.companyId],
+     WHERE organization_id=$1`,
+    [context.organizationId],
   );
   return { ...sales.rows[0], ...returns.rows[0] };
 }

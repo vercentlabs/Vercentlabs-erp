@@ -57,14 +57,6 @@ export async function getLeadStage(client, context, idOrCode) {
 
 export function scopedLeadWhere(context, values) {
   let sql = "";
-  if (context.activeCompanyId) {
-    values.push(context.activeCompanyId);
-    sql += ` AND (lead.company_id IS NULL OR lead.company_id=$${values.length})`;
-  } else if (!context.allowAllCompanies) sql += " AND false";
-  if (context.activeBranchId) {
-    values.push(context.activeBranchId);
-    sql += ` AND (lead.branch_id IS NULL OR lead.branch_id=$${values.length})`;
-  }
   sql += crmOwnerScopeSql(context, (value) => { values.push(value); return `$${values.length}`; }, "lead.owner_user_id", "lead.organization_id", { resource: "leads", alias: "lead" });
   return sql;
 }

@@ -11,7 +11,6 @@ export declare const ACCOUNTING_COMMAND_KEYS: Readonly<{
 export type AccountingJournalLineInput = {
   accountId: string;
   partyId?: string | null;
-  branchId?: string | null;
   departmentId?: string | null;
   costCenterId?: string | null;
   description?: string | null;
@@ -24,8 +23,6 @@ export type AccountingJournalLineInput = {
   referenceId?: string | null;
 };
 export type AccountingJournalInput = {
-  companyId: string;
-  branchId?: string | null;
   ledgerId?: string | null;
   journalId: string;
   entryDate?: string;
@@ -47,7 +44,6 @@ export type AccountingInvoiceLineInput = {
   taxAmount?: string | number;
   accountId?: string | null;
   taxAccountId?: string | null;
-  branchId?: string | null;
   departmentId?: string | null;
   costCenterId?: string | null;
 };

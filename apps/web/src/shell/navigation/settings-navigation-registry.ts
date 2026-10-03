@@ -65,22 +65,6 @@ export const SETTINGS_NAVIGATION: readonly SettingsNavSection[] = [
         requiredPermission: "organization.manage",
       },
       {
-        id: "companies",
-        label: "Companies",
-        route: "/settings/companies",
-        status: "AVAILABLE",
-        description: "Legal entities within your organization.",
-        requiredPermission: "company.manage",
-      },
-      {
-        id: "branches",
-        label: "Branches",
-        route: "/settings/branches",
-        status: "AVAILABLE",
-        description: "Locations within each company.",
-        requiredPermission: "branch.manage",
-      },
-      {
         id: "modules",
         label: "Modules",
         route: "/settings/modules",
@@ -108,7 +92,7 @@ export const SETTINGS_NAVIGATION: readonly SettingsNavSection[] = [
         label: "Users",
         route: "/settings/users",
         status: "AVAILABLE",
-        description: "Members, their roles, and company and branch access.",
+        description: "Members and their roles.",
         requiredPermission: "users.view",
       },
       {

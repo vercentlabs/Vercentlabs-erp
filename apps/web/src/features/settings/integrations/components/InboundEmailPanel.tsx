@@ -26,7 +26,6 @@ type Route = {
   id: string;
   name: string;
   targetLabel: string;
-  companyName: string | null;
   routeKeyPrefix: string;
   status: "active" | "disabled";
   lastReceivedAt: string | null;
@@ -46,7 +45,6 @@ type Payload = {
   routes: Route[];
   events: InboundEvent[];
   targets: Array<{ key: string; label: string }>;
-  companies: Array<{ id: string; name: string }>;
 };
 
 const QUERY_KEY = ["settings", "integrations", "inbound-mail"];
@@ -93,7 +91,7 @@ export function InboundEmailPanel({ canManage }: { canManage: boolean }) {
         action={{ label: "Retry", onPress: () => query.refetch() }}
       />
     );
-  const { routes, events, targets, companies } = query.data!;
+  const { routes, events, targets } = query.data!;
 
   return (
     <div className="flex flex-col gap-4">
@@ -105,11 +103,7 @@ export function InboundEmailPanel({ canManage }: { canManage: boolean }) {
           HMAC-SHA256 of the raw body with the route&apos;s signing secret).
         </p>
         {canManage && (
-          <Button
-            variant="primary"
-            onPress={() => setCreating(true)}
-            isDisabled={companies.length === 0}
-          >
+          <Button variant="primary" onPress={() => setCreating(true)}>
             New inbound address
           </Button>
         )}
@@ -145,14 +139,7 @@ export function InboundEmailPanel({ canManage }: { canManage: boolean }) {
                     </div>
                   </TableCell>
                   <TableCell>
-                    <div className="flex flex-col">
-                      <span>{route.targetLabel}</span>
-                      {route.companyName && (
-                        <span className="text-xs text-text-muted">
-                          {route.companyName}
-                        </span>
-                      )}
-                    </div>
+                    {route.targetLabel}
                   </TableCell>
                   <TableCell>
                     {route.lastReceivedAt
@@ -235,7 +222,6 @@ export function InboundEmailPanel({ canManage }: { canManage: boolean }) {
       {creating && (
         <CreateRouteDialog
           targets={targets}
-          companies={companies}
           onClose={() => setCreating(false)}
           onCreated={(name, webhookUrl, signingSecret) => {
             setCreating(false);
@@ -260,24 +246,21 @@ export function InboundEmailPanel({ canManage }: { canManage: boolean }) {
 
 function CreateRouteDialog({
   targets,
-  companies,
   onClose,
   onCreated,
 }: {
   targets: Payload["targets"];
-  companies: Payload["companies"];
   onClose: () => void;
   onCreated: (name: string, webhookUrl: string, signingSecret: string) => void;
 }) {
   const [name, setName] = useState("Support inbox");
   const [target, setTarget] = useState(targets[0]?.key ?? "");
-  const [companyId, setCompanyId] = useState(companies[0]?.id ?? "");
   const [error, setError] = useState<string | null>(null);
   const create = useMutation({
     mutationFn: () =>
       requestJson<{ webhookUrl: string; signingSecret: string }>(
         "/api/settings/integrations/inbound-mail",
-        { method: "POST", json: { name, target, companyId } },
+        { method: "POST", json: { name, target } },
       ),
     onSuccess: (result) =>
       onCreated(name, result.webhookUrl, result.signingSecret),
@@ -305,15 +288,6 @@ function CreateRouteDialog({
             label: option.label,
           }))}
         />
-        <Select
-          label="Company"
-          selectedKey={companyId}
-          onSelectionChange={(key) => setCompanyId(String(key))}
-          options={companies.map((company) => ({
-            value: company.id,
-            label: company.name,
-          }))}
-        />
         {error && (
           <p role="alert" className="text-sm text-danger">
             {error}
@@ -325,7 +299,7 @@ function CreateRouteDialog({
           </Button>
           <Button
             variant="primary"
-            isDisabled={!name.trim() || !target || !companyId}
+            isDisabled={!name.trim() || !target}
             isLoading={create.isPending}
             onPress={() => create.mutate()}
           >

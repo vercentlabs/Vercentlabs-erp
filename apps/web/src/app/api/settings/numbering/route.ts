@@ -1,10 +1,6 @@
 import { z } from "zod";
 
-import {
-  getNumberingOverview,
-  listAccessibleCompanies,
-  setNumberingPolicy,
-} from "@vercentlabs/api";
+import { getNumberingOverview, setNumberingPolicy } from "@vercentlabs/api";
 import { CORE_PERMISSIONS } from "@vercentlabs/permissions";
 
 import { ok, readJson } from "@/core/http";
@@ -17,34 +13,15 @@ export async function GET(request: Request) {
   return workspaceRoute(
     request,
     { permission: CORE_PERMISSIONS.numberingManage, action: "numbering.view" },
-    async ({ client, session }) => {
-      const companies = (
-        await listAccessibleCompanies(
-          client,
-          session.organizationId,
-          session.userId,
-        )
-      ).map(({ id, name }) => ({ id, name }));
-      const requested = new URL(request.url).searchParams.get("companyId");
-      const companyId = companies.some((company) => company.id === requested)
-        ? requested
-        : companies[0]?.id;
-      if (!companyId) return ok({ companies, overview: null });
-      return ok({
-        companies,
-        overview: await getNumberingOverview(
-          client,
-          session.organizationId,
-          companyId,
-        ),
-      });
-    },
+    async ({ client, session }) =>
+      ok({
+        overview: await getNumberingOverview(client, session.organizationId),
+      }),
   );
 }
 
 const policySchema = z.object({
   documentType: z.string().trim().min(1).max(160),
-  companyId: z.string().uuid().nullable().optional(),
   prefix: z.string().trim().min(1).max(24),
   padding: z.number().int().min(1).max(12),
   resetPolicy: z.enum(["never", "calendar_year", "fiscal_year"]),

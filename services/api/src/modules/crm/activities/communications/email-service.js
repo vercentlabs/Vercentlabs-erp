@@ -190,12 +190,11 @@ export async function upsertEmailSignature(client, context, input = {}) {
       )
     : await client.query(
         `INSERT INTO tenant.crm_email_signatures(
-           organization_id,company_id,user_id,name,body_html,body_text,is_default,
+           organization_id,user_id,name,body_html,body_text,is_default,
            status,created_by,updated_by
-         ) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$9) RETURNING *`,
+         ) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$8) RETURNING *`,
         [
           context.organizationId,
-          input.companyId || context.activeCompanyId || null,
           input.userId || context.userId,
           text(input.name),
           bodyHtml,
@@ -237,16 +236,12 @@ export async function ingestMailboxDelta(
   let duplicates = 0;
   for (const message of messages) {
     const thread = await client.query(
-      `INSERT INTO tenant.crm_email_threads(organization_id,company_id,inbox_id,sync_account_id,provider,external_thread_id,subject,preview,participant_addresses,lead_id,opportunity_id,party_id,contact_id,first_response_due_at,last_message_at,unread_count,status,metadata,created_by,updated_by)
-       VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,CASE WHEN $14='inbound' THEN now()+COALESCE((SELECT sla_minutes FROM tenant.crm_shared_inboxes WHERE organization_id=$1 AND id=$3),240)*interval '1 minute' END,$15,CASE WHEN $16 THEN 1 ELSE 0 END,'open',$17,$18,$18)
-       ON CONFLICT (organization_id,provider,external_thread_id) DO UPDATE SET subject=COALESCE(EXCLUDED.subject,tenant.crm_email_threads.subject),preview=EXCLUDED.preview,participant_addresses=EXCLUDED.participant_addresses,last_message_at=GREATEST(tenant.crm_email_threads.last_message_at,EXCLUDED.last_message_at),first_responded_at=CASE WHEN $14='outbound' AND tenant.crm_email_threads.first_response_due_at IS NOT NULL THEN COALESCE(tenant.crm_email_threads.first_responded_at,EXCLUDED.last_message_at) ELSE tenant.crm_email_threads.first_responded_at END,unread_count=tenant.crm_email_threads.unread_count+EXCLUDED.unread_count,updated_at=now()
+      `INSERT INTO tenant.crm_email_threads(organization_id,inbox_id,sync_account_id,provider,external_thread_id,subject,preview,participant_addresses,lead_id,opportunity_id,party_id,contact_id,first_response_due_at,last_message_at,unread_count,status,metadata,created_by,updated_by)
+       VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,CASE WHEN $13='inbound' THEN now()+COALESCE((SELECT sla_minutes FROM tenant.crm_shared_inboxes WHERE organization_id=$1 AND id=$2),240)*interval '1 minute' END,$14,CASE WHEN $15 THEN 1 ELSE 0 END,'open',$16,$17,$17)
+       ON CONFLICT (organization_id,provider,external_thread_id) DO UPDATE SET subject=COALESCE(EXCLUDED.subject,tenant.crm_email_threads.subject),preview=EXCLUDED.preview,participant_addresses=EXCLUDED.participant_addresses,last_message_at=GREATEST(tenant.crm_email_threads.last_message_at,EXCLUDED.last_message_at),first_responded_at=CASE WHEN $13='outbound' AND tenant.crm_email_threads.first_response_due_at IS NOT NULL THEN COALESCE(tenant.crm_email_threads.first_responded_at,EXCLUDED.last_message_at) ELSE tenant.crm_email_threads.first_responded_at END,unread_count=tenant.crm_email_threads.unread_count+EXCLUDED.unread_count,updated_at=now()
        RETURNING *`,
       [
         context.organizationId,
-        input.companyId ||
-          account.company_id ||
-          context.activeCompanyId ||
-          null,
         input.inboxId || null,
         account.id,
         provider,
@@ -528,12 +523,11 @@ export async function queueOutboundEmail(client, context, input = {}) {
     `queued-${randomBytes(16).toString("hex")}`;
   const threadExternalId = text(input.externalThreadId) || providerMessageId;
   const thread = await client.query(
-    `INSERT INTO tenant.crm_email_threads(organization_id,company_id,inbox_id,sync_account_id,provider,external_thread_id,subject,participant_addresses,lead_id,opportunity_id,party_id,contact_id,last_message_at,status,created_by,updated_by)
-     VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,now(),'open',$13,$13)
+    `INSERT INTO tenant.crm_email_threads(organization_id,inbox_id,sync_account_id,provider,external_thread_id,subject,participant_addresses,lead_id,opportunity_id,party_id,contact_id,last_message_at,status,created_by,updated_by)
+     VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,now(),'open',$12,$12)
      ON CONFLICT (organization_id,provider,external_thread_id) DO UPDATE SET last_message_at=now(),first_responded_at=CASE WHEN tenant.crm_email_threads.first_response_due_at IS NOT NULL THEN COALESCE(tenant.crm_email_threads.first_responded_at,now()) ELSE tenant.crm_email_threads.first_responded_at END,updated_at=now() RETURNING *`,
     [
       context.organizationId,
-      input.companyId || context.activeCompanyId || null,
       input.inboxId || null,
       input.syncAccountId || null,
       text(input.provider) || "manual",

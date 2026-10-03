@@ -1,11 +1,11 @@
 // Rebuilds a member's CURRENT authority for work that runs later on their
 // behalf (a background report run): active membership, active role
-// assignments -> permissions, and company/branch access as it is now - never
-// the permissions they had when they clicked "Run". Returns null when the
-// member can no longer act (removed, deactivated, lost the company).
+// assignments -> permissions as they are now - never the permissions they
+// had when they clicked "Run". Returns null when the member can no longer
+// act (removed or deactivated).
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-export async function resolveMemberExecutionContext(client, organizationId, { userId, activeCompanyId = null, activeBranchId = null }) {
+export async function resolveMemberExecutionContext(client, organizationId, { userId }) {
   if (!UUID.test(String(userId || ""))) return null;
   const { rows } = await client.query(
     `SELECT COALESCE(array_agg(DISTINCT role.slug) FILTER (WHERE role.slug IS NOT NULL), ARRAY[]::text[]) AS role_slugs,
@@ -24,22 +24,5 @@ export async function resolveMemberExecutionContext(client, organizationId, { us
   if (!rows[0]) return null;
   const roleSlugs = rows[0].role_slugs;
   const permissions = rows[0].permissions;
-  const allowAllCompanies = roleSlugs.includes("organization_owner") || roleSlugs.includes("system_administrator");
-  if (activeCompanyId) {
-    const { rows: company } = await client.query(
-      `SELECT 1 FROM public.companies company WHERE company.organization_id=$1 AND company.id=$2 AND company.status='active'
-          AND ($3::boolean OR EXISTS (SELECT 1 FROM public.membership_company_access access WHERE access.organization_id=$1 AND access.user_id=$4 AND access.company_id=company.id))`,
-      [organizationId, activeCompanyId, allowAllCompanies, userId],
-    );
-    if (!company[0]) return null;
-  }
-  if (activeBranchId) {
-    const { rows: branch } = await client.query(
-      `SELECT 1 FROM public.branches branch WHERE branch.organization_id=$1 AND branch.id=$2 AND branch.status='active'
-          AND ($3::boolean OR EXISTS (SELECT 1 FROM public.membership_branch_access access WHERE access.organization_id=$1 AND access.user_id=$4 AND access.branch_id=branch.id))`,
-      [organizationId, activeBranchId, allowAllCompanies, userId],
-    );
-    if (!branch[0]) return null;
-  }
-  return Object.freeze({ organizationId, userId, activeCompanyId, activeBranchId, companyId: activeCompanyId, allowAllCompanies, permissions, roleSlugs, emailVerified: true });
+  return Object.freeze({ organizationId, userId, permissions, roleSlugs, emailVerified: true });
 }

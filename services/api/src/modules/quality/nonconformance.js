@@ -15,16 +15,16 @@ const SEVERITIES = ["minor", "major", "critical"];
 // ---------------------------------------------------------------- F322-324: quality holds
 export async function listQualityHolds(client, c, filters = {}) {
   needAny(c, VIEW);
-  const params = [c.organizationId, c.companyId];
+  const params = [c.organizationId];
   let where = "";
   if (filters.status) { params.push(String(filters.status)); where += ` AND status=$${params.length}`; }
   if (filters.itemId) { params.push(uuid(filters.itemId, "Item")); where += ` AND item_id=$${params.length}`; }
-  const { rows } = await qx(client, `SELECT * FROM tenant.quality_holds WHERE organization_id=$1 AND company_id=$2${where} ORDER BY placed_at DESC LIMIT 1000`, params);
+  const { rows } = await qx(client, `SELECT * FROM tenant.quality_holds WHERE organization_id=$1${where} ORDER BY placed_at DESC LIMIT 1000`, params);
   return rows;
 }
 export async function getQualityHold(client, c, id) {
   needAny(c, VIEW);
-  const { rows } = await qx(client, `SELECT * FROM tenant.quality_holds WHERE organization_id=$1 AND company_id=$2 AND id=$3`, [c.organizationId, c.companyId, uuid(id, "Hold")]);
+  const { rows } = await qx(client, `SELECT * FROM tenant.quality_holds WHERE organization_id=$1 AND id=$2`, [c.organizationId, uuid(id, "Hold")]);
   if (!rows[0]) throw new QualityError(404, "Quality hold was not found.", "QUALITY_HOLD_NOT_FOUND");
   return rows[0];
 }
@@ -42,17 +42,17 @@ export async function createQualityHold(client, c, input, { internal = false } =
   // source_id is NOT NULL (every hold traces to a record) but a manual, ad-hoc hold has no specific
   // receipt/work-order/inspection behind it; the hold's own id (generated up front) fills that role.
   const holdId = crypto.randomUUID();
-  const { rows } = await qx(client, `INSERT INTO tenant.quality_holds(id,organization_id,company_id,hold_number,hold_type,source_type,source_id,item_id,warehouse_id,warehouse_location_id,batch_id,serial_id,quantity,reason,placed_by)
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15) RETURNING *`,
-    [holdId, c.organizationId, c.companyId, holdNumber, holdType, text(input.sourceType, 60) || "manual", uuidOrNull(input.sourceId, "Source") ?? holdId, itemId, uuidOrNull(input.warehouseId, "Warehouse"), uuidOrNull(input.warehouseLocationId, "Location"), uuidOrNull(input.batchId, "Batch"), uuidOrNull(input.serialId, "Serial"), String(nonNegative(input.quantity ?? 0, "Quantity")), reason, c.userId]);
+  const { rows } = await qx(client, `INSERT INTO tenant.quality_holds(id,organization_id,hold_number,hold_type,source_type,source_id,item_id,warehouse_id,warehouse_location_id,batch_id,serial_id,quantity,reason,placed_by)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14) RETURNING *`,
+    [holdId, c.organizationId, holdNumber, holdType, text(input.sourceType, 60) || "manual", uuidOrNull(input.sourceId, "Source") ?? holdId, itemId, uuidOrNull(input.warehouseId, "Warehouse"), uuidOrNull(input.warehouseLocationId, "Location"), uuidOrNull(input.batchId, "Batch"), uuidOrNull(input.serialId, "Serial"), String(nonNegative(input.quantity ?? 0, "Quantity")), reason, c.userId]);
   await recordEvent(client, c, "hold", rows[0].id, "quality.hold.placed", { holdType, itemId });
   return rows[0];
 }
 export async function cancelQualityHold(client, c, id, reason) {
   need(c, "quality.hold");
   if (!text(reason)) throw new QualityError(400, "Give a reason for cancelling this hold.", "QUALITY_REASON_REQUIRED");
-  const { rows } = await qx(client, `UPDATE tenant.quality_holds SET status='cancelled',released_by=$4,released_at=now(),release_reason=$5 WHERE organization_id=$1 AND company_id=$2 AND id=$3 AND status='active' RETURNING *`,
-    [c.organizationId, c.companyId, uuid(id, "Hold"), c.userId, text(reason, 500)]);
+  const { rows } = await qx(client, `UPDATE tenant.quality_holds SET status='cancelled',released_by=$3,released_at=now(),release_reason=$4 WHERE organization_id=$1 AND id=$2 AND status='active' RETURNING *`,
+    [c.organizationId, uuid(id, "Hold"), c.userId, text(reason, 500)]);
   if (!rows[0]) throw new QualityError(409, "Only an active hold can be cancelled.", "QUALITY_HOLD_STATE_INVALID");
   await recordEvent(client, c, "hold", rows[0].id, "quality.hold.cancelled", { reason: text(reason, 300) });
   return rows[0];
@@ -65,16 +65,16 @@ export async function cancelQualityHold(client, c, id, reason) {
 // ---------------------------------------------------------------- F321,325-329: non-conformance
 export async function listNonconformances(client, c, filters = {}) {
   needAny(c, VIEW);
-  const params = [c.organizationId, c.companyId];
+  const params = [c.organizationId];
   let where = "";
   if (filters.status) { params.push(String(filters.status)); where += ` AND status=$${params.length}`; }
   if (filters.severity) { params.push(String(filters.severity)); where += ` AND severity=$${params.length}`; }
-  const { rows } = await qx(client, `SELECT * FROM tenant.quality_nonconformances WHERE organization_id=$1 AND company_id=$2${where} ORDER BY created_at DESC LIMIT 1000`, params);
+  const { rows } = await qx(client, `SELECT * FROM tenant.quality_nonconformances WHERE organization_id=$1${where} ORDER BY created_at DESC LIMIT 1000`, params);
   return rows;
 }
 export async function getNonconformance(client, c, id) {
   needAny(c, VIEW);
-  const nc = (await qx(client, `SELECT * FROM tenant.quality_nonconformances WHERE organization_id=$1 AND company_id=$2 AND id=$3`, [c.organizationId, c.companyId, uuid(id, "Non-conformance")])).rows[0];
+  const nc = (await qx(client, `SELECT * FROM tenant.quality_nonconformances WHERE organization_id=$1 AND id=$2`, [c.organizationId, uuid(id, "Non-conformance")])).rows[0];
   if (!nc) throw new QualityError(404, "Non-conformance was not found.", "QUALITY_NC_NOT_FOUND");
   const capas = await qx(client, `SELECT * FROM tenant.quality_capa WHERE organization_id=$1 AND nonconformance_id=$2 ORDER BY created_at`, [c.organizationId, nc.id]);
   return { ...nc, capas: capas.rows };
@@ -85,9 +85,9 @@ export async function createNonconformance(client, c, input) {
   if (!description) throw new QualityError(400, "Describe the non-conformance.", "QUALITY_NC_INVALID");
   const severity = oneOf(String(input.severity ?? "minor"), SEVERITIES, "Severity");
   const number = await nextDocumentNumber(client, c, { documentType: "quality_nonconformance", prefix: "NC" });
-  const { rows } = await qx(client, `INSERT INTO tenant.quality_nonconformances(organization_id,company_id,nonconformance_number,inspection_id,source_type,source_id,item_id,supplier_id,batch_id,serial_id,severity,category,description,detected_quantity,affected_quantity,estimated_cost,status,owner_user_id,due_date,created_by)
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,'open',$17,$18,$19) RETURNING *`,
-    [c.organizationId, c.companyId, number, uuidOrNull(input.inspectionId, "Inspection"), text(input.sourceType, 60) || "manual", uuidOrNull(input.sourceId, "Source"), uuidOrNull(input.itemId, "Item"), uuidOrNull(input.supplierId, "Supplier"), uuidOrNull(input.batchId, "Batch"), uuidOrNull(input.serialId, "Serial"), severity, text(input.category, 100) || "general", description, String(nonNegative(input.detectedQuantity ?? 0, "Detected quantity")), String(nonNegative(input.affectedQuantity ?? 0, "Affected quantity")), input.estimatedCost === undefined || input.estimatedCost === "" ? null : nonNegative(input.estimatedCost, "Estimated cost"), uuidOrNull(input.ownerUserId, "Owner") ?? c.userId, input.dueDate || null, c.userId]);
+  const { rows } = await qx(client, `INSERT INTO tenant.quality_nonconformances(organization_id,nonconformance_number,inspection_id,source_type,source_id,item_id,supplier_id,batch_id,serial_id,severity,category,description,detected_quantity,affected_quantity,estimated_cost,status,owner_user_id,due_date,created_by)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,'open',$16,$17,$18) RETURNING *`,
+    [c.organizationId, number, uuidOrNull(input.inspectionId, "Inspection"), text(input.sourceType, 60) || "manual", uuidOrNull(input.sourceId, "Source"), uuidOrNull(input.itemId, "Item"), uuidOrNull(input.supplierId, "Supplier"), uuidOrNull(input.batchId, "Batch"), uuidOrNull(input.serialId, "Serial"), severity, text(input.category, 100) || "general", description, String(nonNegative(input.detectedQuantity ?? 0, "Detected quantity")), String(nonNegative(input.affectedQuantity ?? 0, "Affected quantity")), input.estimatedCost === undefined || input.estimatedCost === "" ? null : nonNegative(input.estimatedCost, "Estimated cost"), uuidOrNull(input.ownerUserId, "Owner") ?? c.userId, input.dueDate || null, c.userId]);
   await recordEvent(client, c, "nonconformance", rows[0].id, "quality.nonconformance.created", { severity });
   return rows[0];
 }
@@ -96,7 +96,7 @@ export async function transitionNonconformance(client, c, id, input) {
   need(c, "quality.nonconformance.manage");
   const action = oneOf(String(input.action ?? ""), Object.keys(NC_TRANSITIONS), "Action");
   const transition = NC_TRANSITIONS[action];
-  const nc = (await qx(client, `SELECT * FROM tenant.quality_nonconformances WHERE organization_id=$1 AND company_id=$2 AND id=$3 FOR UPDATE`, [c.organizationId, c.companyId, uuid(id, "Non-conformance")])).rows[0];
+  const nc = (await qx(client, `SELECT * FROM tenant.quality_nonconformances WHERE organization_id=$1 AND id=$2 FOR UPDATE`, [c.organizationId, uuid(id, "Non-conformance")])).rows[0];
   if (!nc) throw new QualityError(404, "Non-conformance was not found.", "QUALITY_NC_NOT_FOUND");
   if (nc.status !== transition[0]) throw new QualityError(409, `Non-conformance is ${nc.status}, not ${transition[0]}.`, "QUALITY_NC_STATE");
   if (action === "contain" && !text(input.containmentAction)) throw new QualityError(400, "Describe the containment action.", "QUALITY_NC_INVALID");
@@ -111,7 +111,7 @@ export async function transitionNonconformance(client, c, id, input) {
 export async function setDisposition(client, c, id, input) {
   need(c, "quality.nonconformance.manage");
   const disposition = oneOf(String(input.disposition ?? ""), DISPOSITIONS, "Disposition");
-  const nc = (await qx(client, `SELECT * FROM tenant.quality_nonconformances WHERE organization_id=$1 AND company_id=$2 AND id=$3 FOR UPDATE`, [c.organizationId, c.companyId, uuid(id, "Non-conformance")])).rows[0];
+  const nc = (await qx(client, `SELECT * FROM tenant.quality_nonconformances WHERE organization_id=$1 AND id=$2 FOR UPDATE`, [c.organizationId, uuid(id, "Non-conformance")])).rows[0];
   if (!nc) throw new QualityError(404, "Non-conformance was not found.", "QUALITY_NC_NOT_FOUND");
   if (["closed", "cancelled"].includes(nc.status)) throw new QualityError(409, "This non-conformance is already closed.", "QUALITY_NC_STATE");
   const quantity = nonNegative(input.dispositionQuantity ?? nc.affected_quantity, "Disposition quantity");
@@ -128,7 +128,7 @@ export async function setDisposition(client, c, id, input) {
 }
 export async function approveUseAsIs(client, c, id, input) {
   need(c, MANAGE);
-  const nc = (await qx(client, `SELECT * FROM tenant.quality_nonconformances WHERE organization_id=$1 AND company_id=$2 AND id=$3 FOR UPDATE`, [c.organizationId, c.companyId, uuid(id, "Non-conformance")])).rows[0];
+  const nc = (await qx(client, `SELECT * FROM tenant.quality_nonconformances WHERE organization_id=$1 AND id=$2 FOR UPDATE`, [c.organizationId, uuid(id, "Non-conformance")])).rows[0];
   if (!nc) throw new QualityError(404, "Non-conformance was not found.", "QUALITY_NC_NOT_FOUND");
   if (nc.disposition !== "use_as_is" || !nc.use_as_is_requested_at) throw new QualityError(409, "There is no pending use-as-is request on this non-conformance.", "QUALITY_NC_STATE");
   if (nc.use_as_is_approved_at) throw new QualityError(409, "This use-as-is request was already decided.", "QUALITY_NC_STATE");
@@ -147,7 +147,7 @@ export async function approveUseAsIs(client, c, id, input) {
 }
 export async function closeNonconformance(client, c, id, input = {}) {
   need(c, "quality.nonconformance.manage");
-  const nc = (await qx(client, `SELECT * FROM tenant.quality_nonconformances WHERE organization_id=$1 AND company_id=$2 AND id=$3 FOR UPDATE`, [c.organizationId, c.companyId, uuid(id, "Non-conformance")])).rows[0];
+  const nc = (await qx(client, `SELECT * FROM tenant.quality_nonconformances WHERE organization_id=$1 AND id=$2 FOR UPDATE`, [c.organizationId, uuid(id, "Non-conformance")])).rows[0];
   if (!nc) throw new QualityError(404, "Non-conformance was not found.", "QUALITY_NC_NOT_FOUND");
   if (!nc.disposition) throw new QualityError(409, "Set a disposition before closing.", "QUALITY_NC_DISPOSITION_REQUIRED");
   if (nc.disposition === "use_as_is" && !nc.use_as_is_approved_at) throw new QualityError(409, "The use-as-is disposition needs a second person's approval before this can close.", "QUALITY_NC_USE_AS_IS_UNAPPROVED");

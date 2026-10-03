@@ -1,4 +1,4 @@
-// Self-serve organization registration ("create your own account/company").
+// Self-serve organization registration ("create your own account").
 // Real gap this closes: organization creation was invite-only/administrative
 // with zero self-serve path (SP004's documented model) -- every
 // organization in the system, including every test fixture, was created by
@@ -24,6 +24,8 @@ import { setTenantContext } from "@vercentlabs/database";
 import { ROLE_TEMPLATES } from "@vercentlabs/permissions";
 
 import { hashPassword } from "../auth/session.js";
+import { seedBusinessDataFoundation } from "../master-data.js";
+import { initializeAccountingOrganization } from "../../modules/accounting/foundation.js";
 import { passwordPolicyIssues } from "../auth/password-policy.js";
 
 export class OrganizationRegistrationError extends Error {
@@ -161,6 +163,13 @@ export async function registerOrganization(client, input) {
     `INSERT INTO user_role_assignments (organization_id, user_id, role_id, is_primary, status) VALUES ($1, $2, $3, true, 'active')`,
     [organizationId, userId, ownerRoleId],
   );
+
+  // Default master data (currencies, units of measure, tax categories and
+  // rates, payment terms, price lists, the main warehouse and the current
+  // fiscal period) so every module works from the first sign-in.
+  await seedBusinessDataFoundation(client, { organizationId, userId });
+  // The organization's books: primary ledger, chart of accounts and mappings.
+  await initializeAccountingOrganization(client, { organizationId, userId });
 
   return { userId, organizationId, email, fullName };
 }

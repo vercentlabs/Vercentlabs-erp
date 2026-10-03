@@ -104,7 +104,6 @@ export type SalesOrderDetail = {
     contact_id: string | null;
     billing_address_id: string | null;
     shipping_address_id: string | null;
-    company_id: string;
     order_date: string | null;
     requested_delivery_date: string | null;
     source_quotation_id: string | null;

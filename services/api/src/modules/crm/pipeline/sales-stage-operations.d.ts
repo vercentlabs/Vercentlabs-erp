@@ -4,7 +4,6 @@ export type CrmSalesStagePipeline = Record<string, unknown> & {
   id: string;
   name: string;
   code: string;
-  companyId: string | null;
   isDefault: boolean;
   status: "active" | "inactive";
   updatedAt: string;

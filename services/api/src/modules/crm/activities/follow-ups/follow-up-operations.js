@@ -45,7 +45,7 @@ const DEFAULT_REMINDER_OFFSETS = [1440, 60, 0];
 const MAX_REMINDERS_PER_FOLLOW_UP = 10;
 
 const FOLLOW_UP_FIELDS = new Set([
-  "companyId", "branchId", "entityType", "entityId", "subject", "description",
+  "entityType", "entityId", "subject", "description",
   "assignedTo", "dueAt", "followUpReason", "followUpChannel", "escalateAfterMinutes",
 ]);
 const EXPECTATION_FIELDS = new Set(["expectedUpdatedAt", "expectedStatus"]);
@@ -76,8 +76,6 @@ function assertAllowed(input, allowed) {
 function normalize(input, { create = false } = {}) {
   assertAllowed(input, create ? FOLLOW_UP_FIELDS : new Set([...FOLLOW_UP_FIELDS, ...EXPECTATION_FIELDS]));
   const out = {};
-  if (hasOwn(input, "companyId")) out.companyId = uuid(input.companyId, "Company", true);
-  if (hasOwn(input, "branchId")) out.branchId = uuid(input.branchId, "Branch", true);
   if (hasOwn(input, "entityType")) {
     const value = text(input.entityType).toLowerCase() || "general";
     if (!RELATED.has(value)) throw new CrmError(400, "Related record type is invalid.", "CRM_FOLLOW_UP_RELATION_INVALID");
@@ -124,21 +122,11 @@ function normalize(input, { create = false } = {}) {
 }
 function scopeSql(context, values, alias = "activity") {
   let sql = "";
-  if (context.activeCompanyId) sql += ` AND (${alias}.company_id IS NULL OR ${alias}.company_id=${add(values, context.activeCompanyId)})`;
-  else if (!context.allowAllCompanies) return " AND false";
-  if (context.activeBranchId) sql += ` AND (${alias}.branch_id IS NULL OR ${alias}.branch_id=${add(values, context.activeBranchId)})`;
-  else if (!context.allowAllCompanies) return " AND false";
   // Own + managed-team members + unassigned queue (crm-access-scope.js).
   sql += crmOwnerScopeSql(context, (value) => add(values, value), `${alias}.assigned_to`, `${alias}.organization_id`, { resource: "activities", alias: alias });
   if (!canViewSensitiveLeadContent(context))
     sql += ` AND COALESCE(${alias}.entity_type,'general') <> 'lead'`;
   return sql;
-}
-function assertWritableScope(context) {
-  if (!context.activeCompanyId && !context.allowAllCompanies)
-    throw new CrmError(403, "Select an allowed company before maintaining Follow-ups.", "CRM_FOLLOW_UP_SCOPE_FORBIDDEN");
-  if (!context.activeBranchId && !context.allowAllCompanies)
-    throw new CrmError(403, "Select an allowed branch before maintaining Follow-ups.", "CRM_FOLLOW_UP_SCOPE_FORBIDDEN");
 }
 // Mirrors task-operations.js's relationRecord exactly — the SAME
 // corrected Prompt-5 record-scope architecture, reused rather than
@@ -152,8 +140,8 @@ async function relationRecord(client, context, entityType, entityId) {
   }
   if (!entityId) throw new CrmError(400, "Select the related CRM record for this Follow-up.", "CRM_FOLLOW_UP_RELATION_REQUIRED");
   const specs = {
-    opportunity: ["tenant.crm_opportunities", "status <> 'archived'", "company_id", "branch_id"],
-    campaign: ["tenant.crm_campaigns", "status <> 'cancelled'", "company_id", "NULL::uuid"],
+    opportunity: ["tenant.crm_opportunities", "status <> 'archived'"],
+    campaign: ["tenant.crm_campaigns", "status <> 'cancelled'"],
   };
   let result;
   if (entityType === "lead") {
@@ -162,43 +150,30 @@ async function relationRecord(client, context, entityType, entityId) {
     const values = [context.organizationId, entityId];
     const scope = leadScopeSql(context, values, "lead");
     result = await client.query(
-      `SELECT lead.id,lead.company_id,lead.branch_id FROM tenant.crm_leads lead WHERE lead.organization_id=$1 AND lead.id=$2 AND lead.record_status <> 'archived'${scope} LIMIT 1`,
+      `SELECT lead.id FROM tenant.crm_leads lead WHERE lead.organization_id=$1 AND lead.id=$2 AND lead.record_status <> 'archived'${scope} LIMIT 1`,
       values,
     );
   } else if (specs[entityType]) {
-    const [table, state, company, branch] = specs[entityType];
-    result = await client.query(`SELECT id,${company} AS company_id,${branch} AS branch_id FROM ${table} WHERE organization_id=$1 AND id=$2 AND ${state} LIMIT 1`, [context.organizationId, entityId]);
+    const [table, state] = specs[entityType];
+    result = await client.query(`SELECT id FROM ${table} WHERE organization_id=$1 AND id=$2 AND ${state} LIMIT 1`, [context.organizationId, entityId]);
   } else if (entityType === "party") {
-    result = await client.query(`SELECT id,company_id,NULL::uuid AS branch_id FROM tenant.business_parties WHERE organization_id=$1 AND id=$2 AND status='active' LIMIT 1`, [context.organizationId, entityId]);
+    result = await client.query(`SELECT id FROM tenant.business_parties WHERE organization_id=$1 AND id=$2 AND status='active' LIMIT 1`, [context.organizationId, entityId]);
   } else if (entityType === "contact") {
-    result = await client.query(`SELECT contact.id,party.company_id,NULL::uuid AS branch_id FROM tenant.contacts contact JOIN tenant.business_parties party ON party.organization_id=contact.organization_id AND party.id=contact.party_id WHERE contact.organization_id=$1 AND contact.id=$2 AND contact.status='active' AND party.status='active' LIMIT 1`, [context.organizationId, entityId]);
+    result = await client.query(`SELECT contact.id FROM tenant.contacts contact JOIN tenant.business_parties party ON party.organization_id=contact.organization_id AND party.id=contact.party_id WHERE contact.organization_id=$1 AND contact.id=$2 AND contact.status='active' AND party.status='active' LIMIT 1`, [context.organizationId, entityId]);
   }
   const row = result?.rows?.[0];
   if (!row) throw new CrmError(409, "The related CRM record is unavailable.", "CRM_FOLLOW_UP_RELATION_INVALID");
-  if (context.activeCompanyId && row.company_id && row.company_id !== context.activeCompanyId)
-    throw new CrmError(403, "The related CRM record belongs to another company.", "CRM_FOLLOW_UP_RELATION_SCOPE_INVALID");
-  if (context.activeBranchId && row.branch_id && row.branch_id !== context.activeBranchId)
-    throw new CrmError(403, "The related CRM record belongs to another branch.", "CRM_FOLLOW_UP_RELATION_SCOPE_INVALID");
   return row;
 }
 async function validate(client, context, prepared, existing = null) {
   const effective = { ...(existing || {}), ...prepared };
   effective.entityType ||= "general";
   effective.assignedTo ||= context.userId;
-  effective.companyId ??= context.activeCompanyId || null;
-  effective.branchId ??= context.activeBranchId || null;
-  assertWritableScope(context);
   if (!effective.subject) throw new CrmError(400, "Follow-up subject is required.", "CRM_FOLLOW_UP_SUBJECT_INVALID");
   if (!effective.dueAt) throw new CrmError(400, "Follow-up date/time is required.", "CRM_FOLLOW_UP_DUE_REQUIRED");
-  const related = await relationRecord(client, context, effective.entityType, effective.entityId || null);
-  if (!effective.companyId && related?.company_id) prepared.companyId = effective.companyId = related.company_id;
-  if (!effective.branchId && related?.branch_id) prepared.branchId = effective.branchId = related.branch_id;
-  if (related?.company_id && effective.companyId && related.company_id !== effective.companyId)
-    throw new CrmError(409, "The related CRM record belongs to another company.", "CRM_FOLLOW_UP_RELATION_SCOPE_INVALID");
-  if (related?.branch_id && effective.branchId && related.branch_id !== effective.branchId)
-    throw new CrmError(409, "The related CRM record belongs to another branch.", "CRM_FOLLOW_UP_RELATION_SCOPE_INVALID");
+  await relationRecord(client, context, effective.entityType, effective.entityId || null);
   try {
-    await assertEligibleLeadAssignee(client, context, effective.assignedTo, { companyId: effective.companyId || null, branchId: effective.branchId || null });
+    await assertEligibleLeadAssignee(client, context, effective.assignedTo);
   } catch (error) {
     if (error?.code === "CRM_LEAD_ASSIGNEE_SCOPE_INVALID") throw new CrmError(409, error.message, "CRM_FOLLOW_UP_ASSIGNEE_INVALID");
     throw error;
@@ -218,7 +193,7 @@ async function event(client, context, activityId, type, before, after, metadata 
   );
 }
 function safe(followUp) {
-  return { id: followUp.id, status: followUp.status, entityType: followUp.entityType, entityId: followUp.entityId, assignedTo: followUp.assignedTo, companyId: followUp.companyId, branchId: followUp.branchId, dueAt: followUp.dueAt };
+  return { id: followUp.id, status: followUp.status, entityType: followUp.entityType, entityId: followUp.entityId, assignedTo: followUp.assignedTo, dueAt: followUp.dueAt };
 }
 async function touchParent(client, context, followUp) {
   if (followUp.entityType === "lead" && followUp.entityId)
@@ -459,11 +434,11 @@ export async function createCrmFollowUp(client, context, input = {}) {
   const effective = await validate(client, context, prepared);
   const result = await client.query(
     `INSERT INTO tenant.crm_activities(
-       organization_id,company_id,branch_id,entity_type,entity_id,activity_type,subject,description,status,priority,
+       organization_id,entity_type,entity_id,activity_type,subject,description,status,priority,
        assigned_to,due_at,follow_up_reason,follow_up_channel,follow_up_escalate_after_minutes,created_by,updated_by
-     ) VALUES($1,$2,$3,$4,$5,'follow_up',$6,$7,'planned','medium',$8,$9,$10,$11,$12,$13,$13) RETURNING *`,
+     ) VALUES($1,$2,$3,'follow_up',$4,$5,'planned','medium',$6,$7,$8,$9,$10,$11,$11) RETURNING *`,
     [
-      context.organizationId, effective.companyId, effective.branchId, effective.entityType, effective.entityId || null,
+      context.organizationId, effective.entityType, effective.entityId || null,
       effective.subject, effective.description || null, effective.assignedTo, effective.dueAt,
       effective.followUpReason || null, effective.followUpChannel || null, effective.escalateAfterMinutes || null,
       context.userId,
@@ -496,7 +471,7 @@ export async function updateCrmFollowUp(client, context, id, input = {}) {
   const pairs = [];
   const values = [];
   const columns = {
-    companyId: "company_id", branchId: "branch_id", entityType: "entity_type", entityId: "entity_id",
+    entityType: "entity_type", entityId: "entity_id",
     subject: "subject", description: "description", assignedTo: "assigned_to", dueAt: "due_at",
     followUpReason: "follow_up_reason", followUpChannel: "follow_up_channel", escalateAfterMinutes: "follow_up_escalate_after_minutes",
   };

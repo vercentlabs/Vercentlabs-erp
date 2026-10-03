@@ -164,20 +164,20 @@ export async function getMetricDrilldown(client, context, { metric: metricKey, f
 
 // Quota plans overlapping [from, to], prorated by overlapping days and with the
 // rate to the reporting currency at the period end (NULL when missing).
-function quotaPlansSql(org, from, to, company, level) {
+function quotaPlansSql(org, from, to, level) {
   return `SELECT plan.user_id, plan.team_id, plan.territory_id,
                 plan.target_amount * (LEAST(plan.period_end, ${to}) - GREATEST(plan.period_start, ${from}) + 1)::numeric
                   / (plan.period_end - plan.period_start + 1)::numeric AS prorated,
                 CASE WHEN COALESCE(plan.currency_code, organization.base_currency)=organization.base_currency THEN 1::numeric ELSE (
                   SELECT rate.rate FROM tenant.exchange_rates rate
-                   WHERE rate.organization_id=plan.organization_id AND (rate.company_id=plan.company_id OR rate.company_id IS NULL)
+                   WHERE rate.organization_id=plan.organization_id
                      AND rate.from_currency_code=plan.currency_code AND rate.to_currency_code=organization.base_currency
                      AND rate.rate_date<=${to} AND rate.status='active'
-                   ORDER BY rate.company_id IS NOT NULL DESC, rate.rate_date DESC LIMIT 1) END AS rate
+                   ORDER BY rate.rate_date DESC LIMIT 1) END AS rate
            FROM tenant.crm_quota_plans plan
            JOIN public.organizations organization ON organization.id=plan.organization_id
           WHERE plan.organization_id=${org} AND plan.status IN ('active','closed') AND plan.quota_type IN ('revenue','bookings')
-            AND plan.period_end>=${from} AND plan.period_start<=${to}${company} AND (${level})`;
+            AND plan.period_end>=${from} AND plan.period_start<=${to} AND (${level})`;
 }
 
 const canSeeOrganizationQuotas = (context) =>
@@ -202,7 +202,6 @@ export async function getQuotaSummary(client, context, rawFilters = {}, won = nu
   const org = addParameter(parameters, context.organizationId);
   const from = `${addParameter(parameters, filters.from)}::date`;
   const to = `${addParameter(parameters, filters.to)}::date`;
-  const company = context.activeCompanyId ? ` AND (plan.company_id IS NULL OR plan.company_id=${addParameter(parameters, context.activeCompanyId)})` : "";
   let level;
   if (own || filters.ownerId) {
     const user = addParameter(parameters, own ? context.userId : filters.ownerId === "unassigned" ? null : filters.ownerId);
@@ -222,7 +221,7 @@ export async function getQuotaSummary(client, context, rawFilters = {}, won = nu
     `SELECT count(*)::int AS plans,
             round(COALESCE(sum(prorated * rate) FILTER (WHERE rate IS NOT NULL),0),2) AS quota,
             count(*) FILTER (WHERE rate IS NULL)::int AS unconverted_plans
-       FROM (${quotaPlansSql(org, from, to, company, level)}) plans`,
+       FROM (${quotaPlansSql(org, from, to, level)}) plans`,
     parameters,
   );
   const quota = Number(rows[0]?.quota || 0);
@@ -247,10 +246,9 @@ export async function getUserQuotas(client, context, rawFilters = {}) {
   const org = addParameter(parameters, context.organizationId);
   const from = `${addParameter(parameters, filters.from)}::date`;
   const to = `${addParameter(parameters, filters.to)}::date`;
-  const company = context.activeCompanyId ? ` AND (plan.company_id IS NULL OR plan.company_id=${addParameter(parameters, context.activeCompanyId)})` : "";
   const level = canSeeOrganizationQuotas(context) ? "plan.user_id IS NOT NULL" : `plan.user_id=${addParameter(parameters, context.userId)}`;
   const { rows } = await client.query(
-    `SELECT user_id, round(COALESCE(sum(prorated * rate) FILTER (WHERE rate IS NOT NULL),0),2) AS quota FROM (${quotaPlansSql(org, from, to, company, level)}) plans GROUP BY user_id`,
+    `SELECT user_id, round(COALESCE(sum(prorated * rate) FILTER (WHERE rate IS NOT NULL),0),2) AS quota FROM (${quotaPlansSql(org, from, to, level)}) plans GROUP BY user_id`,
     parameters,
   );
   return new Map(rows.map((row) => [String(row.user_id), Number(row.quota)]));

@@ -23,7 +23,7 @@ const SORT_COLUMNS = Object.freeze({
 
 export async function listPosTransactions(client, context, options = {}) {
   requirePermission(context, "pos.view");
-  const values = [context.organizationId, context.companyId];
+  const values = [context.organizationId];
   const clauses = [];
 
   if (options.search) {
@@ -85,7 +85,7 @@ export async function listPosTransactions(client, context, options = {}) {
   const offset = Math.max(Number(options.offset) || 0, 0);
 
   const countResult = await client.query(
-    `SELECT count(*)::int AS count FROM tenant.pos_sales sale WHERE sale.organization_id=$1 AND sale.company_id=$2${whereSql}`,
+    `SELECT count(*)::int AS count FROM tenant.pos_sales sale WHERE sale.organization_id=$1${whereSql}`,
     values,
   );
 
@@ -100,7 +100,7 @@ export async function listPosTransactions(client, context, options = {}) {
        JOIN tenant.pos_stores store ON store.organization_id=sale.organization_id AND store.id=sale.store_id
        JOIN tenant.pos_terminals terminal ON terminal.organization_id=sale.organization_id AND terminal.id=sale.terminal_id
        LEFT JOIN public.users cashier ON cashier.id=sale.created_by
-      WHERE sale.organization_id=$1 AND sale.company_id=$2${whereSql}
+      WHERE sale.organization_id=$1${whereSql}
       ORDER BY ${sortColumn} ${sortDir}, sale.id DESC
       LIMIT $${pagedValues.length - 1} OFFSET $${pagedValues.length}`,
     pagedValues,
@@ -129,8 +129,8 @@ export async function getPosTransactionDetail(client, context, saleId) {
        JOIN tenant.pos_shifts shift ON shift.organization_id=sale.organization_id AND shift.id=sale.shift_id
        LEFT JOIN tenant.business_parties party ON party.organization_id=sale.organization_id AND party.id=sale.customer_id
        LEFT JOIN public.users cashier ON cashier.id=sale.created_by
-      WHERE sale.organization_id=$1 AND sale.company_id=$2 AND sale.id=$3`,
-    [context.organizationId, context.companyId, saleId],
+      WHERE sale.organization_id=$1 AND sale.id=$2`,
+    [context.organizationId, saleId],
   );
   const sale = saleResult.rows[0];
   if (!sale) throw posError(404, "Sale was not found.", "POS_SALE_NOT_FOUND");
@@ -182,12 +182,12 @@ export async function getPosTransactionDetail(client, context, saleId) {
     `SELECT event.id, event.event_type, event.payload, event.occurred_at, actor.full_name AS actor_name
        FROM tenant.pos_events event
        LEFT JOIN public.users actor ON actor.id = event.actor_user_id
-      WHERE event.organization_id=$1 AND event.company_id=$2
-        AND ((event.aggregate_type IN ('sale','pos_sale') AND event.aggregate_id=$3)
+      WHERE event.organization_id=$1
+        AND ((event.aggregate_type IN ('sale','pos_sale') AND event.aggregate_id=$2)
           OR (event.aggregate_type='payment'
-              AND event.aggregate_id IN (SELECT id FROM tenant.pos_payments WHERE organization_id=$1 AND sale_id=$3)))
+              AND event.aggregate_id IN (SELECT id FROM tenant.pos_payments WHERE organization_id=$1 AND sale_id=$2)))
       ORDER BY event.occurred_at DESC`,
-    [context.organizationId, context.companyId, saleId],
+    [context.organizationId, saleId],
   );
 
   return {

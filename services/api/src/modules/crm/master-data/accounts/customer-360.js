@@ -40,14 +40,13 @@ export async function recordCustomerServiceEvent(
   if (!title) throw new CrmAccountIntelligenceError(400, "Title is required.");
   const result = await client.query(
     `INSERT INTO tenant.crm_customer_service_events(
-       organization_id,company_id,party_id,contact_id,external_system,external_case_id,event_type,title,description,status,priority,occurred_at,metadata,created_by
-     ) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,COALESCE($12::timestamptz,now()),$13::jsonb,$14)
+       organization_id,party_id,contact_id,external_system,external_case_id,event_type,title,description,status,priority,occurred_at,metadata,created_by
+     ) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,COALESCE($11::timestamptz,now()),$12::jsonb,$13)
      ON CONFLICT (organization_id,external_system,external_case_id)
      DO UPDATE SET event_type=EXCLUDED.event_type,title=EXCLUDED.title,description=EXCLUDED.description,status=EXCLUDED.status,priority=EXCLUDED.priority,occurred_at=EXCLUDED.occurred_at,metadata=EXCLUDED.metadata
      RETURNING *`,
     [
       context.organizationId,
-      input.companyId || context.activeCompanyId || null,
       partyId,
       input.contactId || null,
       text(input.externalSystem || input.external_system || "manual"),
@@ -83,7 +82,7 @@ export async function getCustomer360(client, context, partyId) {
        (SELECT count(*)::int FROM tenant.sales_orders sales_order WHERE sales_order.organization_id=$1 AND sales_order.party_id=$2${m.sales("sales_order")}) AS orders,
        (SELECT count(*)::int FROM tenant.accounting_customer_invoices invoice WHERE invoice.organization_id=$1 AND invoice.party_id=$2${m.accounting("invoice")}) AS invoices,
        (SELECT COALESCE(sum(invoice.outstanding_amount),0) FROM tenant.accounting_customer_invoices invoice WHERE invoice.organization_id=$1 AND invoice.party_id=$2 AND invoice.status NOT IN ('paid','cancelled','reversed')${m.accounting("invoice")}) AS outstanding,
-       (SELECT count(*)::int FROM tenant.crm_customer_service_events event WHERE event.organization_id=$1 AND event.party_id=$2 AND event.status NOT IN ('resolved','closed')${m.company("event")}) AS open_service_cases`,
+       (SELECT count(*)::int FROM tenant.crm_customer_service_events event WHERE event.organization_id=$1 AND event.party_id=$2 AND event.status NOT IN ('resolved','closed')) AS open_service_cases`,
     metricParameters,
   );
   const timelineParameters = [context.organizationId, partyId];
@@ -132,7 +131,7 @@ export async function getCustomer360(client, context, partyId) {
        UNION ALL
        SELECT 'support',event.id,event.occurred_at,event.title,event.status,NULL,NULL,
               jsonb_build_object('eventType',event.event_type,'priority',event.priority,'externalSystem',event.external_system,'externalCaseId',event.external_case_id,'description',event.description)
-       FROM tenant.crm_customer_service_events event WHERE event.organization_id=$1 AND event.party_id=$2${t.company("event")}
+       FROM tenant.crm_customer_service_events event WHERE event.organization_id=$1 AND event.party_id=$2
      ) timeline
      ORDER BY occurred_at DESC,entry_type,entry_id LIMIT 500`,
     timelineParameters,

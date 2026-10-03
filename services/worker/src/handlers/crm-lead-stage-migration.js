@@ -14,7 +14,7 @@ export const payloadSchema = z
 
 // Migration is an org-wide governance action (deactivating a stage) — it
 // must move every affected Lead regardless of the triggering admin's own
-// company/branch/owner scope, since the alternative is silently leaving
+// owner scope, since the alternative is silently leaving
 // out-of-scope Leads stranded on the very stage being retired. The
 // crmSettingsManage + elevated-actor gate already happened once, at
 // enqueue time (the API route). Mirrors crm-lead-sla-scan.js's own
@@ -24,9 +24,6 @@ function migrationSystemContext(organizationId, payload) {
   return Object.freeze({
     organizationId,
     userId: payload.requesterUserId,
-    activeCompanyId: null,
-    activeBranchId: null,
-    allowAllCompanies: true,
     permissions: ["crm.records.view_all", "crm.leads.manage", "crm.settings.manage"],
     roleSlugs: ["system_worker"],
   });

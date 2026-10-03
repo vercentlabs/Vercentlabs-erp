@@ -3,7 +3,7 @@
 // cash-movements.js; day-end/Z-report (F303), reconciliation (F304) and
 // accounting posting (F305) belong in this same capability directory.
 import { nextDocumentNumber } from "../../../core/platform/numbering/index.js";
-import { requireCompanyRecord } from "../../../core/references.js";
+import { requireOrganizationRecord } from "../../../core/references.js";
 import { decimal, sub, asDatabaseDecimal } from "../../../core/decimal.js";
 import { beginIdempotentOperation, completeIdempotentOperation } from "../../../core/idempotency.js";
 import { posError } from "../shared/errors.js";
@@ -13,8 +13,8 @@ import { event } from "../shared/audit.js";
 export async function openShift(client, context, input) {
   requirePermission(context, "pos.shift.open");
   await assertPosStoreAccess(client, context, input.storeId, input.terminalId);
-  const store = await requireCompanyRecord(client, context, "pos_store", input.storeId);
-  const terminal = await requireCompanyRecord(client, context, "pos_terminal", input.terminalId);
+  const store = await requireOrganizationRecord(client, context, "pos_store", input.storeId);
+  const terminal = await requireOrganizationRecord(client, context, "pos_terminal", input.terminalId);
   if (terminal.store_id !== store.id) {
     const error = new Error("The POS terminal does not belong to the selected store.");
     error.status = 409;
@@ -35,7 +35,7 @@ export async function openShift(client, context, input) {
     // caller's -- deliberately not carrying over the caller's roleSlugs/
     // permissions (a supervisor's own pos.store.manage must not silently
     // vouch for someone else's store access).
-    await assertPosStoreAccess(client, { organizationId: context.organizationId, companyId: context.companyId, userId: input.cashierUserId, roleSlugs: [], permissions: [] }, store.id, terminal.id);
+    await assertPosStoreAccess(client, { organizationId: context.organizationId, userId: input.cashierUserId, roleSlugs: [], permissions: [] }, store.id, terminal.id);
   }
   // F301: previously relied only on the DB's one-open-shift-per-terminal
   // unique index to reject a genuine double-attempt -- correct for a
@@ -59,13 +59,12 @@ export async function openShift(client, context, input) {
   });
   const shift = await client.query(
     `INSERT INTO tenant.pos_shifts
-      (organization_id,company_id,store_id,terminal_id,shift_number,
+      (organization_id,store_id,terminal_id,shift_number,
        cashier_user_id,status,opening_cash,expected_cash,opened_at,opened_by)
-     VALUES ($1,$2,$3,$4,$5,$6,'open',$7,$7,now(),$8)
+     VALUES ($1,$2,$3,$4,$5,'open',$6,$6,now(),$7)
      RETURNING *`,
     [
       context.organizationId,
-      context.companyId,
       input.storeId,
       input.terminalId,
       shiftNumber,
@@ -81,12 +80,11 @@ export async function openShift(client, context, input) {
     });
     await client.query(
       `INSERT INTO tenant.pos_cash_movements
-        (organization_id,company_id,shift_id,movement_number,movement_type,
+        (organization_id,shift_id,movement_number,movement_type,
          amount,reason,created_by)
-       VALUES ($1,$2,$3,$4,'opening',$5,'Opening float',$6)`,
+       VALUES ($1,$2,$3,'opening',$4,'Opening float',$5)`,
       [
         context.organizationId,
-        context.companyId,
         shift.rows[0].id,
         cashMovementNumber,
         String(input.openingCash || 0),
@@ -107,28 +105,27 @@ export async function openShift(client, context, input) {
 // gate; still store-scoped like every other per-shift read in this module.
 export async function getPosShift(client, context, shiftId) {
   requirePermission(context, "pos.view");
-  const shift = await client.query(`SELECT * FROM tenant.pos_shifts WHERE organization_id=$1 AND company_id=$2 AND id=$3`, [
+  const shift = await client.query(`SELECT * FROM tenant.pos_shifts WHERE organization_id=$1 AND id=$2`, [
     context.organizationId,
-    context.companyId,
     shiftId,
   ]);
   if (!shift.rows[0]) throw posError(404, "Shift was not found.", "POS_SHIFT_NOT_FOUND");
   await assertPosStoreAccess(client, context, shift.rows[0].store_id);
 
   const cashMovements = await client.query(
-    `SELECT * FROM tenant.pos_cash_movements WHERE organization_id=$1 AND company_id=$2 AND shift_id=$3 ORDER BY created_at`,
-    [context.organizationId, context.companyId, shiftId],
+    `SELECT * FROM tenant.pos_cash_movements WHERE organization_id=$1 AND shift_id=$2 ORDER BY created_at`,
+    [context.organizationId, shiftId],
   );
   const sales = await client.query(
     `SELECT id, receipt_number, customer_name, grand_total, status, created_at
-     FROM tenant.pos_sales WHERE organization_id=$1 AND company_id=$2 AND shift_id=$3 ORDER BY created_at`,
-    [context.organizationId, context.companyId, shiftId],
+     FROM tenant.pos_sales WHERE organization_id=$1 AND shift_id=$2 ORDER BY created_at`,
+    [context.organizationId, shiftId],
   );
   const payments = await client.query(
     `SELECT payment_method, status, sum(amount)::text AS amount, count(*)::int AS count
-     FROM tenant.pos_payments WHERE organization_id=$1 AND company_id=$2 AND shift_id=$3
+     FROM tenant.pos_payments WHERE organization_id=$1 AND shift_id=$2
      GROUP BY payment_method, status ORDER BY payment_method, status`,
-    [context.organizationId, context.companyId, shiftId],
+    [context.organizationId, shiftId],
   );
 
   return {
@@ -143,9 +140,9 @@ export async function closeShift(client, context, shiftId, input) {
   requirePermission(context, "pos.shift.close");
   const shift = await client.query(
     `SELECT * FROM tenant.pos_shifts
-     WHERE organization_id=$1 AND company_id=$2 AND id=$3
+     WHERE organization_id=$1 AND id=$2
        AND status='open' FOR UPDATE`,
-    [context.organizationId, context.companyId, shiftId],
+    [context.organizationId, shiftId],
   );
   if (!shift.rows[0]) throw posError(404, "Open shift not found.", "POS_SHIFT_NOT_OPEN");
   await assertPosStoreAccess(client, context, shift.rows[0].store_id);
@@ -159,15 +156,15 @@ export async function closeShift(client, context, shiftId, input) {
   // payment or stock commitment yet -- it is designed to outlive the shift
   // that held it and be resumed on a later one (same terminal).
   const unresolvedCart = await client.query(
-    `SELECT id FROM tenant.pos_carts WHERE organization_id=$1 AND company_id=$2 AND shift_id=$3 AND status IN ('draft','priced') LIMIT 1`,
-    [context.organizationId, context.companyId, shiftId],
+    `SELECT id FROM tenant.pos_carts WHERE organization_id=$1 AND shift_id=$2 AND status IN ('draft','priced') LIMIT 1`,
+    [context.organizationId, shiftId],
   );
   if (unresolvedCart.rows[0]) {
     throw posError(409, "Complete, hold, or cancel every active cart on this shift before closing it.", "POS_SHIFT_HAS_UNRESOLVED_CART");
   }
   const unresolvedReturn = await client.query(
-    `SELECT id FROM tenant.pos_returns WHERE organization_id=$1 AND company_id=$2 AND shift_id=$3 AND status IN ('pending_approval','approved') LIMIT 1`,
-    [context.organizationId, context.companyId, shiftId],
+    `SELECT id FROM tenant.pos_returns WHERE organization_id=$1 AND shift_id=$2 AND status IN ('pending_approval','approved') LIMIT 1`,
+    [context.organizationId, shiftId],
   );
   if (unresolvedReturn.rows[0]) {
     throw posError(409, "Resolve every pending return on this shift before closing it.", "POS_SHIFT_HAS_UNRESOLVED_RETURN");
@@ -190,13 +187,12 @@ export async function closeShift(client, context, shiftId, input) {
 
   const result = await client.query(
     `UPDATE tenant.pos_shifts
-     SET status='closed',expected_cash=$4,counted_cash=$5,cash_variance=$6,
-       closed_at=now(),closed_by=$7,close_notes=$8
-     WHERE organization_id=$1 AND company_id=$2 AND id=$3
+     SET status='closed',expected_cash=$3,counted_cash=$4,cash_variance=$5,
+       closed_at=now(),closed_by=$6,close_notes=$7
+     WHERE organization_id=$1 AND id=$2
      RETURNING *`,
     [
       context.organizationId,
-      context.companyId,
       shiftId,
       asDatabaseDecimal(expected),
       asDatabaseDecimal(counted),

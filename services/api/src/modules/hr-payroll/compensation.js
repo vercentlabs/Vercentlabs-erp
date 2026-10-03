@@ -96,10 +96,10 @@ export function evaluateExpression(src, vars) {
 // ---------------------------------------------------------------- components (F418-F420)
 export async function listSalaryComponents(client, c, filters = {}) {
   needAny(c, [...SEE, "hr_payroll.statutory.manage", "hr_payroll.payroll.prepare"]);
-  const params = [c.organizationId, c.companyId];
+  const params = [c.organizationId];
   let extra = "";
-  if (filters.type) { params.push(String(filters.type)); extra = ` AND t.component_type=$3`; }
-  const { rows } = await qx(client, `SELECT t.*, (SELECT count(*) FROM tenant.hr_salary_structure_lines l WHERE l.salary_component_id=t.id)::int AS structures FROM tenant.hr_salary_components t WHERE t.organization_id=$1 AND t.company_id=$2${extra} ORDER BY t.component_type, t.display_order, t.code`, params);
+  if (filters.type) { params.push(String(filters.type)); extra = ` AND t.component_type=$2`; }
+  const { rows } = await qx(client, `SELECT t.*, (SELECT count(*) FROM tenant.hr_salary_structure_lines l WHERE l.salary_component_id=t.id)::int AS structures FROM tenant.hr_salary_components t WHERE t.organization_id=$1${extra} ORDER BY t.component_type, t.display_order, t.code`, params);
   return rows;
 }
 export async function saveSalaryComponent(client, c, input) {
@@ -115,25 +115,25 @@ export async function saveSalaryComponent(client, c, input) {
   if (type === "earning" && kind === "statutory") throw new HrError(400, "An earning cannot be a statutory component.", "HR_COMPONENT_INVALID");
   const vals = [name, kind, calc, input.taxable !== false, input.prorated !== false, input.pfWage === true, input.esicWage !== false, Math.trunc(nonNegative(input.displayOrder, "Order", 100)), textOrNull(input.description, 500), uuidOrNull(input.accountingAccountId, "Account"), input.active !== false];
   if (input.id) {
-    const cur = (await qx(client, `SELECT t.*, (SELECT count(*) FROM tenant.hr_salary_structure_lines l WHERE l.salary_component_id=t.id)::int AS used FROM tenant.hr_salary_components t WHERE t.organization_id=$1 AND t.company_id=$2 AND t.id=$3`, [c.organizationId, c.companyId, uuid(input.id, "Component")])).rows[0];
+    const cur = (await qx(client, `SELECT t.*, (SELECT count(*) FROM tenant.hr_salary_structure_lines l WHERE l.salary_component_id=t.id)::int AS used FROM tenant.hr_salary_components t WHERE t.organization_id=$1 AND t.id=$2`, [c.organizationId, uuid(input.id, "Component")])).rows[0];
     if (!cur) throw new HrError(404, "Component was not found.", "HR_COMPONENT_NOT_FOUND");
     if (cur.used > 0 && cur.component_type !== type) throw new HrError(409, "A component that structures use cannot change between earning, deduction and employer contribution.", "HR_COMPONENT_IN_USE");
     if (cur.used > 0 && !vals[10]) throw new HrError(409, "A component in use by a structure cannot be deactivated. Revise the structures first.", "HR_COMPONENT_IN_USE");
-    const { rows } = await qx(client, `UPDATE tenant.hr_salary_components SET name=$4, component_type=$12, component_kind=$5, calculation_type=$6, taxable=$7, prorated=$8, pf_wage=$9, esic_wage=$10, display_order=$11, description=$13, accounting_account_id=$14, active=$15 WHERE organization_id=$1 AND company_id=$2 AND id=$3 RETURNING *`,
-      [c.organizationId, c.companyId, cur.id, vals[0], vals[1], vals[2], vals[3], vals[4], vals[5], vals[6], vals[7], type, vals[8], vals[9], vals[10]]);
+    const { rows } = await qx(client, `UPDATE tenant.hr_salary_components SET name=$3, component_type=$11, component_kind=$4, calculation_type=$5, taxable=$6, prorated=$7, pf_wage=$8, esic_wage=$9, display_order=$10, description=$12, accounting_account_id=$13, active=$14 WHERE organization_id=$1 AND id=$2 RETURNING *`,
+      [c.organizationId, cur.id, vals[0], vals[1], vals[2], vals[3], vals[4], vals[5], vals[6], vals[7], type, vals[8], vals[9], vals[10]]);
     return rows[0];
   }
-  const dup = await qx(client, `SELECT 1 FROM tenant.hr_salary_components WHERE organization_id=$1 AND company_id=$2 AND code=$3`, [c.organizationId, c.companyId, code]);
+  const dup = await qx(client, `SELECT 1 FROM tenant.hr_salary_components WHERE organization_id=$1 AND code=$2`, [c.organizationId, code]);
   if (dup.rows[0]) throw new HrError(409, `Component ${code} already exists.`, "HR_COMPONENT_DUPLICATE");
-  const { rows } = await qx(client, `INSERT INTO tenant.hr_salary_components(organization_id,company_id,code,name,component_type,component_kind,calculation_type,taxable,prorated,pf_wage,esic_wage,display_order,description,accounting_account_id,active,affects_gross,affects_net,created_by)
-    VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18) RETURNING *`,
-    [c.organizationId, c.companyId, code, vals[0], type, vals[1], vals[2], vals[3], vals[4], vals[5], vals[6], vals[7], vals[8], vals[9], vals[10], type === "earning", type !== "employer_contribution", c.userId]);
+  const { rows } = await qx(client, `INSERT INTO tenant.hr_salary_components(organization_id,code,name,component_type,component_kind,calculation_type,taxable,prorated,pf_wage,esic_wage,display_order,description,accounting_account_id,active,affects_gross,affects_net,created_by)
+    VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17) RETURNING *`,
+    [c.organizationId, code, vals[0], type, vals[1], vals[2], vals[3], vals[4], vals[5], vals[6], vals[7], vals[8], vals[9], vals[10], type === "earning", type !== "employer_contribution", c.userId]);
   return rows[0];
 }
 
 // ---------------------------------------------------------------- structures (F421)
 async function loadStructure(client, c, id, lock = false) {
-  const { rows } = await qx(client, `SELECT * FROM tenant.hr_salary_structures WHERE organization_id=$1 AND company_id=$2 AND id=$3${lock ? " FOR UPDATE" : ""}`, [c.organizationId, c.companyId, uuid(id, "Structure")]);
+  const { rows } = await qx(client, `SELECT * FROM tenant.hr_salary_structures WHERE organization_id=$1 AND id=$2${lock ? " FOR UPDATE" : ""}`, [c.organizationId, uuid(id, "Structure")]);
   if (!rows[0]) throw new HrError(404, "Salary structure was not found.", "HR_STRUCTURE_NOT_FOUND");
   return rows[0];
 }
@@ -143,10 +143,10 @@ async function loadLines(client, structureId) {
 
 export async function listSalaryStructures(client, c, filters = {}) {
   needAny(c, SEE);
-  const params = [c.organizationId, c.companyId];
+  const params = [c.organizationId];
   let extra = "";
-  if (filters.status) { params.push(String(filters.status)); extra = ` AND s.status=$3`; }
-  const { rows } = await qx(client, `SELECT s.*, (SELECT count(*) FROM tenant.hr_salary_structure_lines l WHERE l.salary_structure_id=s.id)::int AS line_count, (SELECT count(*) FROM tenant.hr_employee_compensation e WHERE e.salary_structure_id=s.id AND e.status='active')::int AS employees FROM tenant.hr_salary_structures s WHERE s.organization_id=$1 AND s.company_id=$2${extra} ORDER BY s.code, s.version DESC`, params);
+  if (filters.status) { params.push(String(filters.status)); extra = ` AND s.status=$2`; }
+  const { rows } = await qx(client, `SELECT s.*, (SELECT count(*) FROM tenant.hr_salary_structure_lines l WHERE l.salary_structure_id=s.id)::int AS line_count, (SELECT count(*) FROM tenant.hr_employee_compensation e WHERE e.salary_structure_id=s.id AND e.status='active')::int AS employees FROM tenant.hr_salary_structures s WHERE s.organization_id=$1${extra} ORDER BY s.code, s.version DESC`, params);
   return rows;
 }
 export async function getSalaryStructure(client, c, id) {
@@ -168,7 +168,7 @@ async function normaliseLines(client, c, lines) {
   let seq = 0;
   for (const raw of lines) {
     seq += 1;
-    const comp = (await qx(client, `SELECT * FROM tenant.hr_salary_components WHERE organization_id=$1 AND company_id=$2 AND active AND (id=$3::uuid OR code=$4)`, [c.organizationId, c.companyId, uuidOrNull(raw.componentId, "Component"), raw.componentCode ? text(raw.componentCode, 30).toUpperCase() : null])).rows[0];
+    const comp = (await qx(client, `SELECT * FROM tenant.hr_salary_components WHERE organization_id=$1 AND active AND (id=$2::uuid OR code=$3)`, [c.organizationId, uuidOrNull(raw.componentId, "Component"), raw.componentCode ? text(raw.componentCode, 30).toUpperCase() : null])).rows[0];
     if (!comp) throw new HrError(400, `Line ${seq}: the salary component was not found or is inactive.`, "HR_STRUCTURE_INVALID");
     if (seenCodes.has(comp.code)) throw new HrError(400, `${comp.code} appears twice in the structure.`, "HR_STRUCTURE_INVALID");
     seenCodes.add(comp.code);
@@ -221,11 +221,11 @@ export async function createSalaryStructure(client, c, input) {
   const name = text(input.name, 120);
   if (!/^[A-Z0-9_-]{2,30}$/.test(code) || !name) throw new HrError(400, "A structure needs a code and a name.", "HR_STRUCTURE_INVALID");
   const freq = oneOf(String(input.payFrequency ?? "monthly"), ["weekly", "biweekly", "monthly"], "Pay frequency");
-  const cfg = (await qx(client, `SELECT default_currency_code FROM tenant.hr_payroll_settings WHERE organization_id=$1 AND company_id=$2`, [c.organizationId, c.companyId])).rows[0];
-  const dup = await qx(client, `SELECT 1 FROM tenant.hr_salary_structures WHERE organization_id=$1 AND company_id=$2 AND code=$3`, [c.organizationId, c.companyId, code]);
+  const cfg = (await qx(client, `SELECT default_currency_code FROM tenant.hr_payroll_settings WHERE organization_id=$1`, [c.organizationId])).rows[0];
+  const dup = await qx(client, `SELECT 1 FROM tenant.hr_salary_structures WHERE organization_id=$1 AND code=$2`, [c.organizationId, code]);
   if (dup.rows[0]) throw new HrError(409, `Structure ${code} already exists. Revise it to make a new version.`, "HR_STRUCTURE_DUPLICATE");
   const lines = await normaliseLines(client, c, input.lines);
-  const { rows } = await qx(client, `INSERT INTO tenant.hr_salary_structures(organization_id,company_id,code,name,version,status,currency_code,pay_frequency,created_by,notes) VALUES ($1,$2,$3,$4,1,'draft',$5,$6,$7,$8) RETURNING *`, [c.organizationId, c.companyId, code, name, cfg?.default_currency_code ?? "INR", freq, c.userId, textOrNull(input.notes, 1000)]);
+  const { rows } = await qx(client, `INSERT INTO tenant.hr_salary_structures(organization_id,code,name,version,status,currency_code,pay_frequency,created_by,notes) VALUES ($1,$2,$3,1,'draft',$4,$5,$6,$7) RETURNING *`, [c.organizationId, code, name, cfg?.default_currency_code ?? "INR", freq, c.userId, textOrNull(input.notes, 1000)]);
   await writeLines(client, c, rows[0].id, lines);
   await recordEvent(client, c, "salary_structure", rows[0].id, "hr.structure.created", { code });
   return { ...rows[0], lines: await loadLines(client, rows[0].id) };
@@ -265,7 +265,7 @@ export async function decideSalaryStructure(client, c, id, { approve, note }) {
     return rows[0];
   }
   // one active version per code: the version it replaces stays on the compensation already frozen on it
-  await qx(client, `UPDATE tenant.hr_salary_structures SET status='inactive' WHERE organization_id=$1 AND company_id=$2 AND code=$3 AND status='active' AND id <> $4`, [c.organizationId, c.companyId, s.code, s.id]);
+  await qx(client, `UPDATE tenant.hr_salary_structures SET status='inactive' WHERE organization_id=$1 AND code=$2 AND status='active' AND id <> $3`, [c.organizationId, s.code, s.id]);
   const { rows } = await qx(client, `UPDATE tenant.hr_salary_structures SET status='active', approved_by=$2, approved_at=now() WHERE id=$1 RETURNING *`, [s.id, c.userId]);
   await recordEvent(client, c, "salary_structure", s.id, "hr.structure.approved", { code: s.code, version: s.version });
   return rows[0];
@@ -274,10 +274,10 @@ export async function reviseSalaryStructure(client, c, id) {
   need(c, MANAGE);
   const s = await loadStructure(client, c, id, true);
   if (!["active", "inactive"].includes(s.status)) throw new HrError(409, "Only an active structure can be revised.", "HR_STRUCTURE_STATE");
-  const open = await qx(client, `SELECT 1 FROM tenant.hr_salary_structures WHERE organization_id=$1 AND company_id=$2 AND code=$3 AND status IN ('draft','pending_approval')`, [c.organizationId, c.companyId, s.code]);
+  const open = await qx(client, `SELECT 1 FROM tenant.hr_salary_structures WHERE organization_id=$1 AND code=$2 AND status IN ('draft','pending_approval')`, [c.organizationId, s.code]);
   if (open.rows[0]) throw new HrError(409, "There is already a version of this structure being prepared.", "HR_STRUCTURE_OPEN");
-  const next = (await qx(client, `SELECT max(version)+1 AS v FROM tenant.hr_salary_structures WHERE organization_id=$1 AND company_id=$2 AND code=$3`, [c.organizationId, c.companyId, s.code])).rows[0].v;
-  const { rows } = await qx(client, `INSERT INTO tenant.hr_salary_structures(organization_id,company_id,code,name,version,status,currency_code,pay_frequency,created_by,supersedes_id,notes) VALUES ($1,$2,$3,$4,$5,'draft',$6,$7,$8,$9,$10) RETURNING *`, [c.organizationId, c.companyId, s.code, s.name, next, s.currency_code, s.pay_frequency, c.userId, s.id, s.notes]);
+  const next = (await qx(client, `SELECT max(version)+1 AS v FROM tenant.hr_salary_structures WHERE organization_id=$1 AND code=$2`, [c.organizationId, s.code])).rows[0].v;
+  const { rows } = await qx(client, `INSERT INTO tenant.hr_salary_structures(organization_id,code,name,version,status,currency_code,pay_frequency,created_by,supersedes_id,notes) VALUES ($1,$2,$3,$4,'draft',$5,$6,$7,$8,$9) RETURNING *`, [c.organizationId, s.code, s.name, next, s.currency_code, s.pay_frequency, c.userId, s.id, s.notes]);
   await qx(client, `INSERT INTO tenant.hr_salary_structure_lines(organization_id,salary_structure_id,salary_component_id,sequence,amount,percentage,formula,minimum_amount,maximum_amount,percent_of,is_balance) SELECT organization_id,$2,salary_component_id,sequence,amount,percentage,formula,minimum_amount,maximum_amount,percent_of,is_balance FROM tenant.hr_salary_structure_lines WHERE salary_structure_id=$1`, [s.id, rows[0].id]);
   return { ...rows[0], lines: await loadLines(client, rows[0].id) };
 }
@@ -342,17 +342,17 @@ export async function compensationDuring(client, employeeId, from, to) {
 
 export async function listCompensation(client, c, filters = {}) {
   needAny(c, SEE);
-  const params = [c.organizationId, c.companyId];
+  const params = [c.organizationId];
   let extra = "";
   if (filters.employeeId) { params.push(uuid(filters.employeeId, "Employee")); extra += ` AND k.employee_id=$${params.length}`; }
   if (filters.status) { params.push(String(filters.status)); extra += ` AND k.status=$${params.length}`; }
-  const { rows } = await qx(client, `SELECT k.*, e.employee_number, trim(e.first_name || ' ' || e.last_name) AS employee_name, s.code AS structure_code, s.name AS structure_name FROM tenant.hr_employee_compensation k JOIN tenant.hr_employees e ON e.id=k.employee_id JOIN tenant.hr_salary_structures s ON s.id=k.salary_structure_id WHERE k.organization_id=$1 AND k.company_id=$2${extra} ORDER BY e.employee_number, k.effective_from DESC LIMIT 1000`, params);
+  const { rows } = await qx(client, `SELECT k.*, e.employee_number, trim(e.first_name || ' ' || e.last_name) AS employee_name, s.code AS structure_code, s.name AS structure_name FROM tenant.hr_employee_compensation k JOIN tenant.hr_employees e ON e.id=k.employee_id JOIN tenant.hr_salary_structures s ON s.id=k.salary_structure_id WHERE k.organization_id=$1${extra} ORDER BY e.employee_number, k.effective_from DESC LIMIT 1000`, params);
   return rows;
 }
 
 export async function proposeCompensation(client, c, input) {
   need(c, MANAGE);
-  const e = (await qx(client, `SELECT * FROM tenant.hr_employees WHERE organization_id=$1 AND company_id=$2 AND id=$3`, [c.organizationId, c.companyId, uuid(input.employeeId, "Employee")])).rows[0];
+  const e = (await qx(client, `SELECT * FROM tenant.hr_employees WHERE organization_id=$1 AND id=$2`, [c.organizationId, uuid(input.employeeId, "Employee")])).rows[0];
   if (!e) throw new HrError(404, "Employee was not found.", "HR_EMPLOYEE_NOT_FOUND");
   if (!["draft", "active", "on_leave", "on_notice", "suspended"].includes(e.status)) throw new HrError(409, "A separated employee's pay cannot be changed.", "HR_EMPLOYEE_CLOSED");
   const s = await loadStructure(client, c, input.structureId);
@@ -368,11 +368,11 @@ export async function proposeCompensation(client, c, input) {
   const later = await qx(client, `SELECT effective_from FROM tenant.hr_employee_compensation WHERE employee_id=$1 AND status='active' AND effective_from > $2 LIMIT 1`, [e.id, from]);
   if (later.rows[0]) throw new HrError(409, `Pay is already set from ${later.rows[0].effective_from}, which is after this date.`, "HR_COMPENSATION_ORDER");
   const breakup = computeBreakup(await loadLines(client, s.id), ctc);
-  const cfg = (await qx(client, `SELECT default_currency_code FROM tenant.hr_payroll_settings WHERE organization_id=$1 AND company_id=$2`, [c.organizationId, c.companyId])).rows[0];
+  const cfg = (await qx(client, `SELECT default_currency_code FROM tenant.hr_payroll_settings WHERE organization_id=$1`, [c.organizationId])).rows[0];
   try {
-    const { rows } = await qx(client, `INSERT INTO tenant.hr_employee_compensation(organization_id,company_id,employee_id,salary_structure_id,effective_from,annual_ctc,monthly_gross,currency_code,created_by,requested_by,status,breakup,structure_version,reason,source_change_id,source_offer_id)
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$9,'pending_approval',$10::jsonb,$11,$12,$13,$14) RETURNING *`,
-      [c.organizationId, c.companyId, e.id, s.id, from, ctc, breakup.monthlyGross, cfg?.default_currency_code ?? "INR", c.userId, JSON.stringify(breakup), s.version, textOrNull(input.reason, 500), uuidOrNull(input.sourceChangeId, "Change"), uuidOrNull(input.sourceOfferId, "Offer")]);
+    const { rows } = await qx(client, `INSERT INTO tenant.hr_employee_compensation(organization_id,employee_id,salary_structure_id,effective_from,annual_ctc,monthly_gross,currency_code,created_by,requested_by,status,breakup,structure_version,reason,source_change_id,source_offer_id)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$8,'pending_approval',$9::jsonb,$10,$11,$12,$13) RETURNING *`,
+      [c.organizationId, e.id, s.id, from, ctc, breakup.monthlyGross, cfg?.default_currency_code ?? "INR", c.userId, JSON.stringify(breakup), s.version, textOrNull(input.reason, 500), uuidOrNull(input.sourceChangeId, "Change"), uuidOrNull(input.sourceOfferId, "Offer")]);
     await recordEvent(client, c, "employee", e.id, "hr.compensation.proposed", { from, annualCtc: ctc });
     return rows[0];
   } catch (err) {
@@ -383,7 +383,7 @@ export async function proposeCompensation(client, c, input) {
 export async function decideCompensation(client, c, id, { approve, note }) {
   need(c, MANAGE);
   if (!canSeeSensitive(c)) throw new HrError(403, "Approving pay needs the sensitive-data permission.", "HR_SENSITIVE_FORBIDDEN");
-  const { rows } = await qx(client, `SELECT * FROM tenant.hr_employee_compensation WHERE organization_id=$1 AND company_id=$2 AND id=$3 FOR UPDATE`, [c.organizationId, c.companyId, uuid(id, "Compensation")]);
+  const { rows } = await qx(client, `SELECT * FROM tenant.hr_employee_compensation WHERE organization_id=$1 AND id=$2 FOR UPDATE`, [c.organizationId, uuid(id, "Compensation")]);
   const k = rows[0];
   if (!k) throw new HrError(404, "Compensation was not found.", "HR_COMPENSATION_NOT_FOUND");
   if (k.status !== "pending_approval") throw new HrError(409, "Only pay awaiting approval can be decided.", "HR_COMPENSATION_STATE");

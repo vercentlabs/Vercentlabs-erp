@@ -12,7 +12,7 @@ import {
 
 // One list/create endpoint for every Procurement resource. The resource key is
 // validated by the domain (configFor -> 404), which also applies that resource's
-// own view/create permission, company scoping and sensitive-field redaction.
+// own view/create permission and sensitive-field redaction.
 export async function GET(
   request: Request,
   ctx: { params: Promise<{ resource: string }> },

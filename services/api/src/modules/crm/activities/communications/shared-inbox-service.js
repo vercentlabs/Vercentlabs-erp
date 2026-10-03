@@ -31,11 +31,10 @@ export async function assertSharedInboxMember(client, context, inboxId) {
 
 export async function createSharedInbox(client, context, input = {}) {
   const result = await client.query(
-    `INSERT INTO tenant.crm_shared_inboxes(organization_id,company_id,sync_account_id,name,channel,address,sla_minutes,collision_timeout_minutes,business_hours,status,created_by,updated_by)
-     VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,'active',$10,$10) RETURNING *`,
+    `INSERT INTO tenant.crm_shared_inboxes(organization_id,sync_account_id,name,channel,address,sla_minutes,collision_timeout_minutes,business_hours,status,created_by,updated_by)
+     VALUES($1,$2,$3,$4,$5,$6,$7,$8,'active',$9,$9) RETURNING *`,
     [
       context.organizationId,
-      input.companyId || context.activeCompanyId || null,
       input.syncAccountId
         ? assertId(input.syncAccountId, "Sync account")
         : null,

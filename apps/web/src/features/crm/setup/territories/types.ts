@@ -3,7 +3,6 @@
 // and "territories" definitions for the authoritative field map.
 export type SalesTeam = {
   id: string;
-  companyId: string | null;
   parentTeamId: string | null;
   code: string;
   name: string;
@@ -37,7 +36,6 @@ export const TERRITORY_TYPES = [
 
 export type Territory = {
   id: string;
-  companyId: string | null;
   parentTerritoryId: string | null;
   code: string;
   name: string;
@@ -55,7 +53,6 @@ export type Territory = {
 
 export type SalesTeamMember = {
   id: string;
-  companyId: string | null;
   teamId: string;
   userId: string;
   memberRole: string | null;
@@ -69,7 +66,6 @@ export type SalesTeamMember = {
 
 export type TerritoryAssignment = {
   id: string;
-  companyId: string | null;
   territoryId: string;
   assigneeType: "user" | "team";
   assigneeId: string;
@@ -86,7 +82,6 @@ export type TerritoryAssignment = {
 // means a quota is assigned to at least one of team/territory/user.
 export type QuotaPlan = {
   id: string;
-  companyId: string | null;
   teamId: string | null;
   territoryId: string | null;
   userId: string | null;

@@ -17,8 +17,8 @@ export async function listStockQuarantine(client, c) {
          LEFT JOIN tenant.warehouses warehouse ON warehouse.organization_id=hold.organization_id AND warehouse.id=hold.warehouse_id
          LEFT JOIN tenant.stock_batches batch ON batch.organization_id=hold.organization_id AND batch.id=hold.batch_id
          LEFT JOIN tenant.stock_serials serial ON serial.organization_id=hold.organization_id AND serial.id=hold.serial_id
-        WHERE hold.organization_id=$1 AND hold.company_id=$2 AND hold.status='active' ORDER BY hold.placed_at DESC LIMIT 250`,
-      [c.organizationId, c.companyId],
+        WHERE hold.organization_id=$1 AND hold.status='active' ORDER BY hold.placed_at DESC LIMIT 250`,
+      [c.organizationId],
     )
   ).rows;
   const located = (
@@ -28,8 +28,8 @@ export async function listStockQuarantine(client, c) {
          JOIN tenant.items item ON item.organization_id=balance.organization_id AND item.id=balance.item_id
          JOIN tenant.warehouses warehouse ON warehouse.organization_id=balance.organization_id AND warehouse.id=balance.warehouse_id
          LEFT JOIN tenant.stock_batches batch ON batch.organization_id=balance.organization_id AND batch.id=balance.batch_id
-        WHERE balance.organization_id=$1 AND balance.company_id=$2 AND balance.quantity>0 ORDER BY item.name LIMIT 250`,
-      [c.organizationId, c.companyId],
+        WHERE balance.organization_id=$1 AND balance.quantity>0 ORDER BY item.name LIMIT 250`,
+      [c.organizationId],
     )
   ).rows;
   return { holds, located };

@@ -20,8 +20,6 @@ import { HR_PAYROLL_PERMISSIONS } from "./hr-payroll.js";
 export const CORE_PERMISSIONS = Object.freeze({
   workspaceView: "workspace.view",
   organizationManage: "organization.manage",
-  companyManage: "company.manage",
-  branchManage: "branch.manage",
   departmentManage: "department.manage",
   costCenterManage: "cost_center.manage",
   teamManage: "team.manage",

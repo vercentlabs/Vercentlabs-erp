@@ -17,7 +17,6 @@ import {
 import { getAccessOptions } from "@/features/settings/access/api/access-api";
 import { EffectiveAccessSummary } from "@/features/settings/access/EffectiveAccessSummary";
 import { RoleSelector } from "@/features/settings/access/RoleSelector";
-import { ScopeSelector } from "@/features/settings/access/ScopeSelector";
 import {
   createInvitation,
   InvitationRow,
@@ -48,10 +47,6 @@ const EMPTY_FORM = {
   email: "",
   roleIds: [] as string[],
   primaryRoleId: "",
-  companyIds: [] as string[],
-  branchIds: [] as string[],
-  departmentIds: [] as string[],
-  teamIds: [] as string[],
 };
 
 export function InvitationsScreen({ canManage }: { canManage: boolean }) {
@@ -135,7 +130,6 @@ export function InvitationsScreen({ canManage }: { canManage: boolean }) {
   const options = optionsQuery.data;
   const roles = options?.roles ?? [];
   const selectedRoles = roles.filter((role) => form.roleIds.includes(role.id));
-  const scoped = options?.scope ? !options.scope.unrestricted : false;
   const seats = query.data?.seats;
   const seatsFull = seats?.available === 0;
   const seatLine =
@@ -146,7 +140,6 @@ export function InvitationsScreen({ canManage }: { canManage: boolean }) {
     form.email.trim() !== "" &&
     form.roleIds.length > 0 &&
     Boolean(form.primaryRoleId) &&
-    (!scoped || form.companyIds.length > 0) &&
     !seatsFull;
 
   return (
@@ -209,13 +202,6 @@ export function InvitationsScreen({ canManage }: { canManage: boolean }) {
                   <span className="text-xs text-text-secondary">
                     {invitation.primary_role_name ?? "No role"}
                     {others.length > 0 ? ` + ${others.join(", ")}` : ""}
-                    {" · "}
-                    {invitation.company_names.length
-                      ? invitation.company_names.join(", ")
-                      : "Organisation-wide"}
-                    {invitation.branch_names.length
-                      ? ` (${invitation.branch_names.join(", ")})`
-                      : ""}
                   </span>
                   <span className="text-xs text-text-muted">
                     Invited by {invitation.invited_by_name} · expires{" "}
@@ -275,28 +261,6 @@ export function InvitationsScreen({ canManage }: { canManage: boolean }) {
               roles={roles}
               roleIds={form.roleIds}
               primaryRoleId={form.primaryRoleId}
-              onChange={(next) =>
-                setForm((current) => ({ ...current, ...next }))
-              }
-            />
-          </div>
-          <div className="flex flex-col gap-2">
-            <span className="text-xs font-semibold tracking-wide text-text-muted uppercase">
-              Access scope
-            </span>
-            {scoped && (
-              <p className="text-xs text-text-muted">
-                Choose at least one company you administer.
-              </p>
-            )}
-            <ScopeSelector
-              companies={options?.scope?.companies ?? []}
-              departments={options?.scope?.departments ?? []}
-              teams={options?.scope?.teams ?? []}
-              companyIds={form.companyIds}
-              branchIds={form.branchIds}
-              departmentIds={form.departmentIds}
-              teamIds={form.teamIds}
               onChange={(next) =>
                 setForm((current) => ({ ...current, ...next }))
               }

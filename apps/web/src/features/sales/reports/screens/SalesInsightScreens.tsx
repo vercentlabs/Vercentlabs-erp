@@ -93,7 +93,7 @@ export function SalesHomeScreen() {
     <div className="flex flex-col gap-6">
       <PageHeader
         title="Sales"
-        description="Quote-to-cash at a glance. Figures are live and limited to the companies you can access."
+        description="Quote-to-cash at a glance. Figures are live across your organisation."
       />
       {query.isError ? (
         <ErrorState

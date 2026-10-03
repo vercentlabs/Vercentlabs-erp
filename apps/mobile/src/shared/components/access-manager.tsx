@@ -158,10 +158,6 @@ export function AccessManager({
       roleIds: values(user.role_ids),
       primaryRoleId: text(user.primary_role_id),
       status: text(user.status || "active"),
-      companyIds: values(user.company_ids),
-      branchIds: values(user.branch_ids),
-      departmentIds: values(user.department_ids),
-      teamIds: values(user.team_ids),
       accessStartsAt: user.access_starts_at || null,
       accessExpiresAt: user.access_expires_at || null,
       reason: "Mobile access administration update",
@@ -446,42 +442,6 @@ export function AccessManager({
                   }
                 />
                 <ChoiceList
-                  title="Company access"
-                  options={options.companies || []}
-                  selected={values(form.companyIds)}
-                  multiple
-                  onChange={(value) =>
-                    setForm((current) => ({ ...current, companyIds: value }))
-                  }
-                />
-                <ChoiceList
-                  title="Branch access"
-                  options={options.branches || []}
-                  selected={values(form.branchIds)}
-                  multiple
-                  onChange={(value) =>
-                    setForm((current) => ({ ...current, branchIds: value }))
-                  }
-                />
-                <ChoiceList
-                  title="Department access"
-                  options={options.departments || []}
-                  selected={values(form.departmentIds)}
-                  multiple
-                  onChange={(value) =>
-                    setForm((current) => ({ ...current, departmentIds: value }))
-                  }
-                />
-                <ChoiceList
-                  title="Team access"
-                  options={options.teams || []}
-                  selected={values(form.teamIds)}
-                  multiple
-                  onChange={(value) =>
-                    setForm((current) => ({ ...current, teamIds: value }))
-                  }
-                />
-                <ChoiceList
                   title="Warning-level access conflicts reviewed"
                   options={[
                     { id: "false", name: "No" },
@@ -708,10 +668,6 @@ export function AccessManager({
                     email: inviteEmail,
                     roleIds: inviteRoles,
                     primaryRoleId: invitePrimaryRole,
-                    companyIds: [],
-                    branchIds: [],
-                    departmentIds: [],
-                    teamIds: [],
                     accessStartsAt: null,
                     accessExpiresAt: null,
                     acknowledgeWarningConflicts: inviteWarningReviewed,

@@ -62,22 +62,20 @@ export const daysBetween = (from, to) => Math.round((Date.parse(`${to}T00:00:00Z
 export const round2 = (n) => Math.round((Number(n) + Number.EPSILON) * 100) / 100;
 
 export function hrContext(session) {
-  const companyId = session.activeCompanyId || session.companyId;
-  if (!companyId) throw new HrError(400, "Select an active company before using HR & Payroll.", "ACTIVE_COMPANY_REQUIRED");
-  return { organizationId: session.organizationId, companyId, userId: session.userId, permissions: session.permissions || [], roleSlugs: session.roleSlugs || [] };
+  return { organizationId: session.organizationId, userId: session.userId, permissions: session.permissions || [], roleSlugs: session.roleSlugs || [] };
 }
 
 export async function recordEvent(client, c, aggregateType, aggregateId, eventType, payload = {}) {
   await client.query(
-    `INSERT INTO tenant.hr_payroll_events(organization_id,company_id,aggregate_type,aggregate_id,event_type,payload,actor_user_id) VALUES($1,$2,$3,$4,$5,$6::jsonb,$7)`,
-    [c.organizationId, c.companyId, aggregateType, aggregateId, eventType, JSON.stringify(payload), c.userId],
+    `INSERT INTO tenant.hr_payroll_events(organization_id,aggregate_type,aggregate_id,event_type,payload,actor_user_id) VALUES($1,$2,$3,$4,$5::jsonb,$6)`,
+    [c.organizationId, aggregateType, aggregateId, eventType, JSON.stringify(payload), c.userId],
   );
 }
 
 // The employee record linked to the signed-in user (employee self-service). Null when the user has
 // no HR profile.
 export async function ownEmployee(client, c) {
-  const { rows } = await qx(client, `SELECT * FROM tenant.hr_employees WHERE organization_id=$1 AND company_id=$2 AND user_id=$3 AND status <> 'draft' LIMIT 1`, [c.organizationId, c.companyId, c.userId]);
+  const { rows } = await qx(client, `SELECT * FROM tenant.hr_employees WHERE organization_id=$1 AND user_id=$2 AND status <> 'draft' LIMIT 1`, [c.organizationId, c.userId]);
   return rows[0] ?? null;
 }
 export async function requireOwnEmployee(client, c) {

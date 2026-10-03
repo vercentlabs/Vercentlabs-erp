@@ -9,7 +9,6 @@ import { ERP_MODULE_CATALOG } from "@vercentlabs/shared-types";
 
 import { getBillingSummary } from "../billing/index.js";
 import { evaluateModuleAccess, getEnabledModuleKeys, isModulePermitted } from "./module-entitlements.js";
-import { listAccessibleCompanies } from "../auth/session.js";
 import { createAccessPrincipal } from "./principal.js";
 
 function subscriptionView(summary) {
@@ -25,17 +24,8 @@ function subscriptionView(summary) {
 }
 
 // Pure assembly — unit-testable without a database.
-export function assembleWorkspaceAccessSnapshot({ session, companies, enabledModuleKeys, billingSummary, now = new Date() }) {
-  const companyList = (companies || []).map((company) =>
-    Object.freeze({ id: company.id, name: company.name ?? null }),
-  );
-  const branchList = (companies || []).flatMap((company) =>
-    (company.branches || []).map((branch) => Object.freeze({ id: branch.id, name: branch.name ?? null, companyId: branch.company_id ?? branch.companyId ?? company.id })),
-  );
-  const principal = createAccessPrincipal(session, {
-    companyIds: companyList.map((company) => company.id),
-    branchIds: branchList.map((branch) => branch.id),
-  });
+export function assembleWorkspaceAccessSnapshot({ session, enabledModuleKeys, billingSummary, now = new Date() }) {
+  const principal = createAccessPrincipal(session);
   const modules = ERP_MODULE_CATALOG.map((module) =>
     Object.freeze(
       evaluateModuleAccess({
@@ -54,8 +44,6 @@ export function assembleWorkspaceAccessSnapshot({ session, companies, enabledMod
     enabledModules: keys((entry) => entry.enabled),
     entitledModules: keys((entry) => entry.entitled),
     accessibleModules: keys((entry) => entry.accessible),
-    companies: Object.freeze(companyList),
-    branches: Object.freeze(branchList),
     generatedAt: now.toISOString(),
   });
 }
@@ -77,11 +65,5 @@ export async function buildWorkspaceAccessSnapshot(client, session, { env = proc
   } catch {
     billingSummary = null;
   }
-  let companies;
-  try {
-    companies = await listAccessibleCompanies(client, session.organizationId, session.userId);
-  } catch {
-    companies = [];
-  }
-  return assembleWorkspaceAccessSnapshot({ session, companies, enabledModuleKeys, billingSummary, now });
+  return assembleWorkspaceAccessSnapshot({ session, enabledModuleKeys, billingSummary, now });
 }

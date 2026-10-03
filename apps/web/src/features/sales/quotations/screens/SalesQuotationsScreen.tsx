@@ -47,7 +47,7 @@ const STATUS_OPTIONS = [
 
 // F036 -- the quotation register. Search and status are applied server-side
 // (listQuotations' own filters); the domain layer scopes rows to the caller's
-// company and redacts margin, so nothing here re-derives access.
+// organisation and redacts margin, so nothing here re-derives access.
 export function SalesQuotationsScreen() {
   const workspace = useWorkspaceContext();
   const router = useRouter();

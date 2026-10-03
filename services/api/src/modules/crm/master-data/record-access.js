@@ -1,14 +1,14 @@
 // Scoped Account and Contact loaders shared by hierarchy, merge and Customer
-// 360: the same company boundary and ownership rule as the Account/Contact
+// 360: the same ownership rule as the Account/Contact
 // lists (crm-access-scope.js), optional row locks, and redaction of a parent
 // Account the caller cannot open.
 
 import { crmAccountVisibleSql, crmContactVisibleSql } from "../data-management/crm-access-scope.js";
 import { CrmAccountIntelligenceError, assertId } from "./account-intelligence-error.js";
 
-// Same company boundary and ownership rule as the Account/Contact lists
+// Same ownership rule as the Account/Contact lists
 // (crm-access-scope.js): 360, hierarchy and merge could previously open any
-// Account or Contact in the organisation by id, across companies.
+// Account or Contact in the organisation by id.
 export function intelligenceScope(context, parameters, alias, kind) {
   const bind = (value) => { parameters.push(value); return `$${parameters.length}`; };
   return kind === "account" ? crmAccountVisibleSql(context, bind, alias) : crmContactVisibleSql(context, bind, alias, "party");

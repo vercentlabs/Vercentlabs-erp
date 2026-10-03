@@ -41,7 +41,7 @@
 // is included.
 import { nextDocumentNumber } from "../../../core/platform/numbering/index.js";
 import { beginIdempotentOperation, completeIdempotentOperation } from "../../../core/idempotency.js";
-import { requireCompanyRecord } from "../../../core/references.js";
+import { requireOrganizationRecord } from "../../../core/references.js";
 import { add, sub, decimal, asDatabaseDecimal } from "../../../core/decimal.js";
 import { posError } from "../shared/errors.js";
 import { requirePermission, assertPosStoreAccess } from "../shared/access-control.js";
@@ -72,9 +72,9 @@ async function resolveScope(client, context, store, input) {
       `SELECT shift.*, (shift.closed_at AT TIME ZONE store.timezone)::date AS business_date
        FROM tenant.pos_shifts shift
        JOIN tenant.pos_stores store ON store.organization_id=shift.organization_id AND store.id=shift.store_id
-       WHERE shift.organization_id=$1 AND shift.company_id=$2 AND shift.id=$3
-         AND shift.store_id=$4 AND shift.status='closed'`,
-      [context.organizationId, context.companyId, input.shiftId, store.id],
+       WHERE shift.organization_id=$1 AND shift.id=$2
+         AND shift.store_id=$3 AND shift.status='closed'`,
+      [context.organizationId, input.shiftId, store.id],
     );
     const shift = shiftResult.rows[0];
     if (!shift) {
@@ -98,7 +98,7 @@ async function resolveScope(client, context, store, input) {
   }
   let terminalId = null;
   if (input.terminalId) {
-    const terminal = await requireCompanyRecord(client, context, "pos_terminal", input.terminalId);
+    const terminal = await requireOrganizationRecord(client, context, "pos_terminal", input.terminalId);
     if (terminal.store_id !== store.id) {
       throw posError(409, "The selected terminal does not belong to the selected store.", "POS_TERMINAL_STORE_MISMATCH");
     }
@@ -108,12 +108,12 @@ async function resolveScope(client, context, store, input) {
     `SELECT shift.id
      FROM tenant.pos_shifts shift
      JOIN tenant.pos_stores store ON store.organization_id=shift.organization_id AND store.id=shift.store_id
-     WHERE shift.organization_id=$1 AND shift.company_id=$2 AND shift.store_id=$3
-       AND ($4::uuid IS NULL OR shift.terminal_id=$4)
+     WHERE shift.organization_id=$1 AND shift.store_id=$2
+       AND ($3::uuid IS NULL OR shift.terminal_id=$3)
        AND shift.status='closed'
-       AND (shift.closed_at AT TIME ZONE store.timezone)::date=$5::date
+       AND (shift.closed_at AT TIME ZONE store.timezone)::date=$4::date
      ORDER BY shift.closed_at`,
-    [context.organizationId, context.companyId, store.id, terminalId, input.businessDate],
+    [context.organizationId, store.id, terminalId, input.businessDate],
   );
   return {
     scopeType,
@@ -133,29 +133,29 @@ async function computeTotals(client, context, shiftIds) {
             coalesce(sum(rounding_adjustment),0)::text AS rounding_total,
             coalesce(sum(grand_total),0)::text AS grand_sales_total
      FROM tenant.pos_sales
-     WHERE organization_id=$1 AND company_id=$2 AND shift_id=ANY($3::uuid[])
+     WHERE organization_id=$1 AND shift_id=ANY($2::uuid[])
        AND status IN ('completed','partially_returned','returned')`,
-    [context.organizationId, context.companyId, shiftIds],
+    [context.organizationId, shiftIds],
   );
   const saleIds = await client.query(
     `SELECT id FROM tenant.pos_sales
-     WHERE organization_id=$1 AND company_id=$2 AND shift_id=ANY($3::uuid[])
+     WHERE organization_id=$1 AND shift_id=ANY($2::uuid[])
        AND status IN ('completed','partially_returned','returned')
      ORDER BY id`,
-    [context.organizationId, context.companyId, shiftIds],
+    [context.organizationId, shiftIds],
   );
 
   const returnsAgg = await client.query(
     `SELECT count(*)::int AS return_count, coalesce(sum(refund_total),0)::text AS return_total
      FROM tenant.pos_returns
-     WHERE organization_id=$1 AND company_id=$2 AND shift_id=ANY($3::uuid[]) AND status='completed'`,
-    [context.organizationId, context.companyId, shiftIds],
+     WHERE organization_id=$1 AND shift_id=ANY($2::uuid[]) AND status='completed'`,
+    [context.organizationId, shiftIds],
   );
   const returnIds = await client.query(
     `SELECT id FROM tenant.pos_returns
-     WHERE organization_id=$1 AND company_id=$2 AND shift_id=ANY($3::uuid[]) AND status='completed'
+     WHERE organization_id=$1 AND shift_id=ANY($2::uuid[]) AND status='completed'
      ORDER BY id`,
-    [context.organizationId, context.companyId, shiftIds],
+    [context.organizationId, shiftIds],
   );
 
   const cashAgg = await client.query(
@@ -164,22 +164,22 @@ async function computeTotals(client, context, shiftIds) {
             coalesce(sum(amount) FILTER (WHERE movement_type='paid_out'),0)::text AS paid_out_total,
             coalesce(sum(amount),0)::text AS expected_cash_total
      FROM tenant.pos_cash_movements
-     WHERE organization_id=$1 AND company_id=$2 AND shift_id=ANY($3::uuid[])`,
-    [context.organizationId, context.companyId, shiftIds],
+     WHERE organization_id=$1 AND shift_id=ANY($2::uuid[])`,
+    [context.organizationId, shiftIds],
   );
   const cashMovementIds = await client.query(
     `SELECT id FROM tenant.pos_cash_movements
-     WHERE organization_id=$1 AND company_id=$2 AND shift_id=ANY($3::uuid[])
+     WHERE organization_id=$1 AND shift_id=ANY($2::uuid[])
      ORDER BY id`,
-    [context.organizationId, context.companyId, shiftIds],
+    [context.organizationId, shiftIds],
   );
 
   const countedAgg = await client.query(
     `SELECT count(*) FILTER (WHERE counted_cash IS NOT NULL)::int AS counted_count,
             coalesce(sum(counted_cash),0)::text AS counted_cash_total
      FROM tenant.pos_shifts
-     WHERE organization_id=$1 AND company_id=$2 AND id=ANY($3::uuid[])`,
-    [context.organizationId, context.companyId, shiftIds],
+     WHERE organization_id=$1 AND id=ANY($2::uuid[])`,
+    [context.organizationId, shiftIds],
   );
 
   const tenderAgg = await client.query(
@@ -189,11 +189,11 @@ async function computeTotals(client, context, shiftIds) {
      FROM tenant.pos_payments payment
      JOIN tenant.pos_sales sale
        ON sale.organization_id=payment.organization_id AND sale.id=payment.sale_id
-     WHERE payment.organization_id=$1 AND payment.company_id=$2 AND payment.shift_id=ANY($3::uuid[])
+     WHERE payment.organization_id=$1 AND payment.shift_id=ANY($2::uuid[])
        AND sale.status IN ('completed','partially_returned','returned')
      GROUP BY payment.payment_method
      ORDER BY payment.payment_method`,
-    [context.organizationId, context.companyId, shiftIds],
+    [context.organizationId, shiftIds],
   );
 
   const grossSalesTotal = decimal(salesAgg.rows[0].gross_sales_total);
@@ -241,7 +241,7 @@ export async function generatePosDayEndReport(client, context, input = {}) {
   });
   if (idempotency.replayed) return { ...idempotency.response, replayed: true };
 
-  const store = await requireCompanyRecord(client, context, "pos_store", input.storeId);
+  const store = await requireOrganizationRecord(client, context, "pos_store", input.storeId);
   const scope = await resolveScope(client, context, store, input);
 
   const existingResult =
@@ -253,11 +253,11 @@ export async function generatePosDayEndReport(client, context, input = {}) {
         )
       : await client.query(
           `SELECT * FROM tenant.pos_day_end_reports
-           WHERE organization_id=$1 AND company_id=$2 AND store_id=$3
-             AND coalesce(terminal_id,'00000000-0000-0000-0000-000000000000'::uuid)=coalesce($4::uuid,'00000000-0000-0000-0000-000000000000'::uuid)
-             AND business_date=$5 AND scope_type='business_day' AND status<>'void'
+           WHERE organization_id=$1 AND store_id=$2
+             AND coalesce(terminal_id,'00000000-0000-0000-0000-000000000000'::uuid)=coalesce($3::uuid,'00000000-0000-0000-0000-000000000000'::uuid)
+             AND business_date=$4 AND scope_type='business_day' AND status<>'void'
            FOR UPDATE`,
-          [context.organizationId, context.companyId, store.id, scope.terminalId, scope.businessDate],
+          [context.organizationId, store.id, scope.terminalId, scope.businessDate],
         );
   const existing = existingResult.rows[0] || null;
 
@@ -320,15 +320,14 @@ export async function generatePosDayEndReport(client, context, input = {}) {
     });
     const inserted = await client.query(
       `INSERT INTO tenant.pos_day_end_reports
-        (organization_id,company_id,store_id,terminal_id,scope_type,shift_id,business_date,status,report_number,
+        (organization_id,store_id,terminal_id,scope_type,shift_id,business_date,status,report_number,
          sale_count,gross_sales_total,discount_total,tax_total,net_sales_total,rounding_total,grand_sales_total,
          return_count,return_total,tender_totals,opening_cash_total,paid_in_total,paid_out_total,expected_cash_total,
          counted_cash_total,cash_variance_total,lineage,generated_by)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,'draft',$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18::jsonb,$19,$20,$21,$22,$23,$24,$25::jsonb,$26)
+       VALUES ($1,$2,$3,$4,$5,$6,'draft',$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17::jsonb,$18,$19,$20,$21,$22,$23,$24::jsonb,$25)
        RETURNING *`,
       [
         context.organizationId,
-        context.companyId,
         store.id,
         scope.terminalId,
         scope.scopeType,
@@ -370,8 +369,8 @@ export async function generatePosDayEndReport(client, context, input = {}) {
 
 async function lockReport(client, context, reportId) {
   const result = await client.query(
-    `SELECT * FROM tenant.pos_day_end_reports WHERE organization_id=$1 AND company_id=$2 AND id=$3 FOR UPDATE`,
-    [context.organizationId, context.companyId, reportId],
+    `SELECT * FROM tenant.pos_day_end_reports WHERE organization_id=$1 AND id=$2 FOR UPDATE`,
+    [context.organizationId, reportId],
   );
   if (!result.rows[0]) throw posError(404, "POS day-end report was not found.", "POS_DAY_END_REPORT_NOT_FOUND");
   return result.rows[0];
@@ -387,10 +386,10 @@ export async function reviewPosDayEndReport(client, context, reportId, input = {
   }
   const updated = await client.query(
     `UPDATE tenant.pos_day_end_reports
-     SET status='reviewed',reviewed_by=$4,reviewed_at=now(),updated_at=now()
-     WHERE organization_id=$1 AND company_id=$2 AND id=$3 AND status='draft'
+     SET status='reviewed',reviewed_by=$3,reviewed_at=now(),updated_at=now()
+     WHERE organization_id=$1 AND id=$2 AND status='draft'
      RETURNING *`,
-    [context.organizationId, context.companyId, reportId, context.userId],
+    [context.organizationId, reportId, context.userId],
   );
   if (!updated.rows[0]) throw posError(409, "This day-end report changed state concurrently. Retry.", "POS_DAY_END_STATE_CONFLICT");
   await event(client, context, reportId, "pos.day_end_report.reviewed", { reviewNotes: input.reviewNotes || null });
@@ -414,10 +413,10 @@ export async function finalizePosDayEndReport(client, context, reportId, input =
   }
   const updated = await client.query(
     `UPDATE tenant.pos_day_end_reports
-     SET status='closed',finalized_by=$4,finalized_at=now(),updated_at=now()
-     WHERE organization_id=$1 AND company_id=$2 AND id=$3 AND status='reviewed'
+     SET status='closed',finalized_by=$3,finalized_at=now(),updated_at=now()
+     WHERE organization_id=$1 AND id=$2 AND status='reviewed'
      RETURNING *`,
-    [context.organizationId, context.companyId, reportId, context.userId],
+    [context.organizationId, reportId, context.userId],
   );
   if (!updated.rows[0]) throw posError(409, "This day-end report changed state concurrently. Retry.", "POS_DAY_END_STATE_CONFLICT");
   await event(client, context, reportId, "pos.day_end_report.finalized", { closeNotes: input.closeNotes || null });
@@ -449,12 +448,11 @@ export async function recordPosDayEndVariance(client, context, reportId, input =
   });
   const inserted = await client.query(
     `INSERT INTO tenant.pos_day_end_report_corrections
-      (organization_id,company_id,original_report_id,correction_number,variance_type,reason,adjustment,created_by)
-     VALUES ($1,$2,$3,$4,$5,$6,$7::jsonb,$8)
+      (organization_id,original_report_id,correction_number,variance_type,reason,adjustment,created_by)
+     VALUES ($1,$2,$3,$4,$5,$6::jsonb,$7)
      RETURNING *`,
     [
       context.organizationId,
-      context.companyId,
       reportId,
       correctionNumber,
       varianceType,
@@ -472,7 +470,7 @@ export async function recordPosDayEndVariance(client, context, reportId, input =
 
 export async function listPosDayEndReports(client, context, options = {}) {
   requirePermission(context, "pos.report.view");
-  const values = [context.organizationId, context.companyId];
+  const values = [context.organizationId];
   const clauses = [];
   if (options.storeId) {
     values.push(options.storeId);
@@ -501,7 +499,7 @@ export async function listPosDayEndReports(client, context, options = {}) {
   values.push(Math.min(Number(options.limit) || 100, 200), Number(options.offset) || 0);
   const result = await client.query(
     `SELECT * FROM tenant.pos_day_end_reports
-     WHERE organization_id=$1 AND company_id=$2 ${clauses.map((c) => `AND ${c}`).join(" ")}
+     WHERE organization_id=$1 ${clauses.map((c) => `AND ${c}`).join(" ")}
      ORDER BY business_date DESC,created_at DESC
      LIMIT $${values.length - 1} OFFSET $${values.length}`,
     values,
@@ -512,8 +510,8 @@ export async function listPosDayEndReports(client, context, options = {}) {
 export async function getPosDayEndReport(client, context, reportId) {
   requirePermission(context, "pos.report.view");
   const result = await client.query(
-    `SELECT * FROM tenant.pos_day_end_reports WHERE organization_id=$1 AND company_id=$2 AND id=$3`,
-    [context.organizationId, context.companyId, reportId],
+    `SELECT * FROM tenant.pos_day_end_reports WHERE organization_id=$1 AND id=$2`,
+    [context.organizationId, reportId],
   );
   const report = result.rows[0];
   if (!report) throw posError(404, "POS day-end report was not found.", "POS_DAY_END_REPORT_NOT_FOUND");

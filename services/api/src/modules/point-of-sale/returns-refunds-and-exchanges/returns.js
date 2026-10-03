@@ -16,8 +16,8 @@ export async function findPosSaleForReturn(client, context, { receiptNumber }) {
   if (!normalized) throw posError(400, "A receipt number is required.", "POS_RETURN_RECEIPT_REQUIRED");
   const saleResult = await client.query(
     `SELECT * FROM tenant.pos_sales
-      WHERE organization_id=$1 AND company_id=$2 AND receipt_number=$3 AND status IN ('completed','partially_returned')`,
-    [context.organizationId, context.companyId, normalized],
+      WHERE organization_id=$1 AND receipt_number=$2 AND status IN ('completed','partially_returned')`,
+    [context.organizationId, normalized],
   );
   const sale = saleResult.rows[0];
   if (!sale) throw posError(404, "No eligible sale found for that receipt number.", "POS_RETURN_SALE_NOT_FOUND");

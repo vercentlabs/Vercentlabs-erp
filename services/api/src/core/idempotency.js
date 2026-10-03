@@ -64,21 +64,20 @@ export async function beginIdempotentOperation(
     }
     return { enabled: false, replayed: false, operation: normalizedOperation(operation) };
   }
-  if (!context?.organizationId || !context?.companyId) {
-    throw new IdempotencyError(400, "Organization and active company are required for idempotency.", "IDEMPOTENCY_SCOPE_REQUIRED");
+  if (!context?.organizationId) {
+    throw new IdempotencyError(400, "Organization is required for idempotency.", "IDEMPOTENCY_SCOPE_REQUIRED");
   }
 
   const normalized = normalizedOperation(operation);
   const requestHash = requestPayloadHash(payload);
   const inserted = await client.query(
     `INSERT INTO tenant.operation_idempotency
-      (organization_id,company_id,operation,idempotency_key,request_hash,status,created_by)
-     VALUES ($1,$2,$3,$4,$5,'processing',$6)
-     ON CONFLICT (organization_id,company_id,operation,idempotency_key) DO NOTHING
+      (organization_id,operation,idempotency_key,request_hash,status,created_by)
+     VALUES ($1,$2,$3,$4,'processing',$5)
+     ON CONFLICT (organization_id,operation,idempotency_key) DO NOTHING
      RETURNING id`,
     [
       context.organizationId,
-      context.companyId,
       normalized,
       idempotencyKey,
       requestHash,
@@ -99,9 +98,9 @@ export async function beginIdempotentOperation(
   const existing = await client.query(
     `SELECT id,request_hash,status,response_payload,aggregate_type,aggregate_id
      FROM tenant.operation_idempotency
-     WHERE organization_id=$1 AND company_id=$2 AND operation=$3 AND idempotency_key=$4
+     WHERE organization_id=$1 AND operation=$2 AND idempotency_key=$3
      FOR UPDATE`,
-    [context.organizationId, context.companyId, normalized, idempotencyKey],
+    [context.organizationId, normalized, idempotencyKey],
   );
   const row = existing.rows[0];
   if (!row) {
@@ -139,12 +138,11 @@ export async function completeIdempotentOperation(
   if (!token?.enabled || token.replayed) return response;
   const updated = await client.query(
     `UPDATE tenant.operation_idempotency
-     SET status='completed',response_payload=$6::jsonb,aggregate_type=$7,aggregate_id=$8,completed_at=now(),updated_at=now()
-     WHERE organization_id=$1 AND company_id=$2 AND operation=$3 AND idempotency_key=$4 AND request_hash=$5
+     SET status='completed',response_payload=$5::jsonb,aggregate_type=$6,aggregate_id=$7,completed_at=now(),updated_at=now()
+     WHERE organization_id=$1 AND operation=$2 AND idempotency_key=$3 AND request_hash=$4
      RETURNING id`,
     [
       context.organizationId,
-      context.companyId,
       token.operation,
       token.key,
       token.requestHash,

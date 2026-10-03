@@ -7,7 +7,6 @@ import { posContext } from "@/features/pos/shared/pos-context";
 import { workspaceRoute } from "@/core/workspace-route";
 
 const createStoreSchema = z.object({
-  branchId: z.string().uuid(),
   warehouseId: z.string().uuid(),
   code: z.string().trim().min(1).max(40),
   name: z.string().trim().min(1).max(200),

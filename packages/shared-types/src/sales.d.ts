@@ -32,8 +32,6 @@ export type SalesChargeInput = {
 };
 
 export type SalesDocumentInput = {
-  companyId: string;
-  branchId?: string | null;
   partyId: string;
   contactId?: string | null;
   opportunityId?: string | null;

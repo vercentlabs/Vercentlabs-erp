@@ -58,15 +58,13 @@ export const PRIORITIES = ["low", "normal", "high", "urgent", "critical"];
 export const CHANNELS = ["web", "email", "phone", "chat", "whatsapp", "social", "internal"];
 
 export function supportContext(session) {
-  const companyId = session.activeCompanyId || session.companyId;
-  if (!companyId) throw new SupportError(400, "Select an active company before using Support.", "ACTIVE_COMPANY_REQUIRED");
-  return { organizationId: session.organizationId, companyId, userId: session.userId, permissions: session.permissions || [], roleSlugs: session.roleSlugs || [] };
+  return { organizationId: session.organizationId, userId: session.userId, permissions: session.permissions || [], roleSlugs: session.roleSlugs || [] };
 }
 
 export async function recordEvent(client, c, ticketId, aggregateType, aggregateId, eventType, payload = {}) {
   await client.query(
-    `INSERT INTO tenant.support_events(organization_id,company_id,ticket_id,aggregate_type,aggregate_id,event_type,payload,actor_user_id) VALUES($1,$2,$3,$4,$5,$6,$7::jsonb,$8)`,
-    [c.organizationId, c.companyId, ticketId || null, aggregateType, aggregateId, eventType, JSON.stringify(payload), c.userId],
+    `INSERT INTO tenant.support_events(organization_id,ticket_id,aggregate_type,aggregate_id,event_type,payload,actor_user_id) VALUES($1,$2,$3,$4,$5,$6::jsonb,$7)`,
+    [c.organizationId, ticketId || null, aggregateType, aggregateId, eventType, JSON.stringify(payload), c.userId],
   );
 }
 

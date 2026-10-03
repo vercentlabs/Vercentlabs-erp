@@ -34,15 +34,6 @@ export function canOverrideLeadDuplicate(context) {
 }
 
 function canDisclose(context, row) {
-  if (context.activeCompanyId) {
-    if (row.company_id && row.company_id !== context.activeCompanyId)
-      return false;
-  } else if (!context.allowAllCompanies) return false;
-
-  if (context.activeBranchId) {
-    if (row.branch_id && row.branch_id !== context.activeBranchId) return false;
-  } else if (!context.allowAllCompanies) return false;
-
   // Own, unassigned, or owned by a member of a team the caller manages
   // (crm-access-scope.js) — the same rule as every Lead list.
   return canViewAll(context) || !row.owner_user_id || row.owner_user_id === context.userId ||
@@ -173,7 +164,7 @@ export async function evaluateLeadDuplicateRisk(
 
   const result = await client.query(
     `SELECT id,code,full_name,company_name,status,record_status,
-            company_id,branch_id,owner_user_id,
+            owner_user_id,
             normalized_email,normalized_mobile,normalized_business_phone,
             normalized_name,normalized_company_name
        FROM tenant.crm_leads

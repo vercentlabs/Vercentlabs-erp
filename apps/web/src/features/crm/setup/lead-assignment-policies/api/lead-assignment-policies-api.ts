@@ -53,15 +53,9 @@ export type AssignmentExplanation = {
 };
 export async function explainAssignmentPolicy(
   id: string,
-  companyId?: string,
-  branchId?: string,
 ): Promise<{ rows: AssignmentExplanation[] }> {
-  const params = new URLSearchParams();
-  if (companyId) params.set("companyId", companyId);
-  if (branchId) params.set("branchId", branchId);
-  const query = params.toString();
   const response = await fetch(
-    `/api/crm/lead-assignment-policies/${id}/explain${query ? `?${query}` : ""}`,
+    `/api/crm/lead-assignment-policies/${id}/explain`,
   );
   return parseResponse(response);
 }

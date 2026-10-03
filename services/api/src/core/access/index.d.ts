@@ -42,14 +42,6 @@ export type AccessPrincipal = Readonly<{
   roleSlugs: readonly string[];
   permissions: readonly string[];
   permissionBypass: boolean;
-  activeCompanyId: string | null;
-  activeBranchId: string | null;
-  companyScope: Readonly<{
-    unrestricted: boolean;
-    resolved: boolean;
-    companyIds: readonly string[];
-    branchIds: readonly string[];
-  }>;
   locale: string | null;
   timezone: string | null;
   assurance: Readonly<{
@@ -68,8 +60,6 @@ export type AccessSessionInput = {
   sessionId?: string | null;
   roleSlugs?: readonly string[];
   permissions?: readonly string[];
-  activeCompanyId?: string | null;
-  activeBranchId?: string | null;
   locale?: string | null;
   timezone?: string | null;
   emailVerified?: boolean;
@@ -82,10 +72,7 @@ export declare const CLIENT_TENANT_IDENTITY_KEYS: readonly string[];
 export declare function isUuid(value: unknown): value is string;
 export declare function permissionUnion(roleGrants: ReadonlyArray<{ permissions?: readonly string[] }>): readonly string[];
 export declare function mfaAssuranceSatisfied(session: AccessSessionInput): boolean;
-export declare function createAccessPrincipal(
-  session: AccessSessionInput | null | undefined,
-  scope?: { companyIds?: readonly string[]; branchIds?: readonly string[] },
-): AccessPrincipal;
+export declare function createAccessPrincipal(session: AccessSessionInput | null | undefined): AccessPrincipal;
 export declare function principalHasPermission(principal: AccessPrincipal | null | undefined, permission: string): boolean;
 export declare function assertNoClientTenantOverride(input: unknown, principal: AccessPrincipal): void;
 export declare function withoutClientTenantIdentity<T>(input: T): T;
@@ -94,9 +81,6 @@ export declare function principalToDomainContext(principal: AccessPrincipal): {
   userId: string;
   roleSlugs: string[];
   permissions: string[];
-  activeCompanyId: string | null;
-  activeBranchId: string | null;
-  allowAllCompanies: boolean;
 };
 
 export type AccessSubscription = Readonly<{
@@ -115,14 +99,11 @@ export type WorkspaceAccessSnapshot = Readonly<{
   enabledModules: readonly string[];
   entitledModules: readonly string[];
   accessibleModules: readonly string[];
-  companies: ReadonlyArray<Readonly<{ id: string; name: string | null }>>;
-  branches: ReadonlyArray<Readonly<{ id: string; name: string | null; companyId: string }>>;
   generatedAt: string;
 }>;
 
 export declare function assembleWorkspaceAccessSnapshot(input: {
   session: AccessSessionInput;
-  companies: ReadonlyArray<{ id: string; name?: string | null; branches?: ReadonlyArray<{ id: string; name?: string | null; company_id?: string; companyId?: string }> }>;
   enabledModuleKeys: ReadonlySet<string> | null;
   billingSummary: { modules?: readonly string[]; enforcementMode?: string; [key: string]: unknown } | null;
   now?: Date;
@@ -142,25 +123,13 @@ export declare function snapshotModuleAccess(snapshot: WorkspaceAccessSnapshot, 
 export declare function checkSnapshotModuleAccess(snapshot: WorkspaceAccessSnapshot, moduleKey: string): AccessDenialFragment | null;
 
 export declare function checkOrganizationScope(principal: AccessPrincipal, organizationId: string | null | undefined): AccessDenialFragment | null;
-export declare function canAccessCompany(principal: AccessPrincipal, companyId: string | null | undefined): boolean;
-export declare function canAccessBranch(
-  principal: AccessPrincipal,
-  branchId: string | null | undefined,
-  options?: { companyId?: string | null; branches?: ReadonlyArray<{ id: string; companyId: string }> },
-): boolean;
-export declare function checkCompanyScope(principal: AccessPrincipal, companyId: string | null | undefined): AccessDenialFragment | null;
-export declare function checkBranchScope(
-  principal: AccessPrincipal,
-  branchId: string | null | undefined,
-  options?: { companyId?: string | null; branches?: ReadonlyArray<{ id: string; companyId: string }> },
-): AccessDenialFragment | null;
 
 export type FieldRule = { permission: string; fields: readonly string[] };
 export declare function hiddenFieldsFor(principal: AccessPrincipal, rules: readonly FieldRule[]): string[];
 export declare function projectFields<T>(principal: AccessPrincipal, rowOrRows: T, rules: readonly FieldRule[]): T;
 export declare function assertWritableFields<T>(principal: AccessPrincipal, payload: T, rules: readonly FieldRule[], options?: { module?: string }): T;
 
-export type AccessResource = { organizationId?: string | null; companyId?: string | null; branchId?: string | null; [key: string]: unknown };
+export type AccessResource = { organizationId?: string | null; [key: string]: unknown };
 export type AccessDecision =
   | Readonly<{ allowed: true; principal: AccessPrincipal; module: string | null; action: string | null }>
   | Readonly<{
@@ -183,7 +152,7 @@ export type AuthorizeInput = {
   /** Waive only the module view permission (own-records self-service). */
   selfService?: boolean;
   resource?: AccessResource | null;
-  context?: { companyId?: string | null; branchId?: string | null; [key: string]: unknown };
+  context?: Record<string, unknown>;
   recordPolicy?: (input: {
     principal: AccessPrincipal;
     snapshot?: WorkspaceAccessSnapshot | null;

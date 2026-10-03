@@ -45,16 +45,12 @@ export async function ingestCalendarDelta(
   let processed = 0;
   for (const event of events) {
     const result = await client.query(
-      `INSERT INTO tenant.crm_calendar_events(organization_id,company_id,sync_account_id,provider,external_event_id,etag,title,description,starts_at,ends_at,timezone,all_day,location,organizer_email,online_meeting_url,visibility,provider_status,lead_id,opportunity_id,party_id,contact_id,metadata,created_by,updated_by)
-       VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$23)
+      `INSERT INTO tenant.crm_calendar_events(organization_id,sync_account_id,provider,external_event_id,etag,title,description,starts_at,ends_at,timezone,all_day,location,organizer_email,online_meeting_url,visibility,provider_status,lead_id,opportunity_id,party_id,contact_id,metadata,created_by,updated_by)
+       VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$22)
        ON CONFLICT (organization_id,provider,external_event_id) DO UPDATE SET etag=EXCLUDED.etag,title=EXCLUDED.title,description=EXCLUDED.description,starts_at=EXCLUDED.starts_at,ends_at=EXCLUDED.ends_at,timezone=EXCLUDED.timezone,all_day=EXCLUDED.all_day,location=EXCLUDED.location,organizer_email=EXCLUDED.organizer_email,online_meeting_url=EXCLUDED.online_meeting_url,visibility=EXCLUDED.visibility,provider_status=EXCLUDED.provider_status,metadata=EXCLUDED.metadata,updated_at=now()
        RETURNING id`,
       [
         context.organizationId,
-        input.companyId ||
-          account.company_id ||
-          context.activeCompanyId ||
-          null,
         account.id,
         provider,
         event.externalEventId,
@@ -228,11 +224,11 @@ export async function upsertMeetingCalendarEvent(client, context, meeting) {
   }
   const inserted = await client.query(
     `INSERT INTO tenant.crm_calendar_events(
-       organization_id,company_id,provider,external_event_id,title,description,starts_at,ends_at,location,online_meeting_url,
+       organization_id,provider,external_event_id,title,description,starts_at,ends_at,location,online_meeting_url,
        provider_status,lead_id,opportunity_id,party_id,contact_id,created_by,updated_by)
-     VALUES($1,$2,'internal',$3,$4,$5,$6,$7,$8,$9,'pending_sync',$10,$11,$12,$13,$14,$14) RETURNING id`,
+     VALUES($1,'internal',$2,$3,$4,$5,$6,$7,$8,'pending_sync',$9,$10,$11,$12,$13,$13) RETURNING id`,
     [
-      context.organizationId, meeting.companyId || null, `meeting-${meeting.id}`, meeting.subject, meeting.description || null,
+      context.organizationId, `meeting-${meeting.id}`, meeting.subject, meeting.description || null,
       meeting.startAt, meeting.endAt, meeting.location || null, meeting.meetingUrl || null,
       parents.leadId, parents.opportunityId, parents.partyId, parents.contactId, context.userId,
     ],

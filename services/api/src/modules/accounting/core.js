@@ -108,54 +108,41 @@ export async function allocateNumber(client, organizationId, entityType) {
   return nextDocumentNumber(client, { organizationId }, { documentType: entityType });
 }
 
-export async function loadCompany(client, context, companyIdValue) {
-  const companyId = uuid(companyIdValue || context.activeCompanyId, "Company");
+// The organisation is the accounting entity: one set of books per
+// organisation, carrying the base (functional) currency.
+export async function loadOrganization(client, context) {
   const result = await client.query(
-    `SELECT company.id,company.name,company.legal_name,company.base_currency,company.country_code
-       FROM public.companies company
-      WHERE company.organization_id=$1 AND company.id=$2`,
-    [context.organizationId, companyId],
+    `SELECT organization.id,organization.name,organization.legal_name,organization.base_currency,organization.country_code
+       FROM public.organizations organization
+      WHERE organization.id=$1`,
+    [context.organizationId],
   );
-  const company = result.rows[0];
-  if (!company) throw new AccountingError(404, "Company was not found in this organisation.");
-  if (!context.allowAllCompanies && context.activeCompanyId && context.activeCompanyId !== companyId) {
-    throw new AccountingError(403, "Select this company before performing the accounting action.");
-  }
-  return company;
+  const organization = result.rows[0];
+  if (!organization) throw new AccountingError(404, "Organisation was not found.");
+  return organization;
 }
 
-export async function validateBranch(client, context, companyId, branchIdValue) {
-  const branchId = branchIdValue ? uuid(branchIdValue, "Branch") : null;
-  if (!branchId) return null;
-  const result = await client.query(
-    `SELECT id,name FROM public.branches WHERE organization_id=$1 AND company_id=$2 AND id=$3`,
-    [context.organizationId, companyId, branchId],
-  );
-  if (!result.rows[0]) throw new AccountingError(409, "The selected branch does not belong to the company.");
-  return result.rows[0];
-}
-
-export async function getPrimaryLedger(client, context, companyId, ledgerIdValue = null) {
-  const values = [context.organizationId, companyId];
+export async function getPrimaryLedger(client, context, ledgerIdValue = null) {
+  const values = [context.organizationId];
   let where = "AND ledger.ledger_type='primary'";
   if (ledgerIdValue) { values.push(uuid(ledgerIdValue, "Ledger")); where = `AND ledger.id=$${values.length}`; }
   const result = await client.query(
     `SELECT ledger.* FROM tenant.accounting_ledgers ledger
-      WHERE ledger.organization_id=$1 AND ledger.company_id=$2 ${where} AND ledger.status='active'
+      WHERE ledger.organization_id=$1 ${where} AND ledger.status='active'
       ORDER BY ledger.ledger_type='primary' DESC,ledger.created_at LIMIT 1`,
     values,
   );
-  if (!result.rows[0]) throw new AccountingError(409, "An active accounting ledger is not configured for the company.");
+  if (!result.rows[0]) throw new AccountingError(409, "An active accounting ledger is not configured for the organisation.");
   return result.rows[0];
 }
 
-export async function getOpenPeriod(client, context, companyId, accountingDateValue) {
+export async function getOpenPeriod(client, context, accountingDateValue) {
   const accountingDate = isoDate(accountingDateValue, "Accounting date");
   const result = await client.query(
     `SELECT * FROM tenant.fiscal_periods
-      WHERE organization_id=$1 AND company_id=$2 AND $3::date BETWEEN start_date AND end_date
+      WHERE organization_id=$1 AND $2::date BETWEEN start_date AND end_date
       ORDER BY period_type='standard' DESC,start_date DESC LIMIT 1`,
-    [context.organizationId, companyId, accountingDate],
+    [context.organizationId, accountingDate],
   );
   const period = result.rows[0];
   if (!period) throw new AccountingError(409, "No fiscal period covers the accounting date.");
@@ -171,60 +158,58 @@ export async function getCurrencyPrecision(client, context, currencyCode) {
   return Number(result.rows[0]?.decimal_places ?? 2);
 }
 
-export async function getExchangeRate(client, context, companyId, fromCurrency, toCurrency, rateDate, suppliedRate = null) {
+export async function getExchangeRate(client, context, fromCurrency, toCurrency, rateDate, suppliedRate = null) {
   const from = currency(fromCurrency);
   const to = currency(toCurrency);
   if (from === to) return decimal(1);
   if (suppliedRate !== null && suppliedRate !== undefined && String(suppliedRate).trim() !== "") return positiveAmount(suppliedRate, "Exchange rate");
   const result = await client.query(
     `SELECT rate FROM tenant.exchange_rates
-      WHERE organization_id=$1 AND (company_id=$2 OR company_id IS NULL)
-        AND from_currency_code=$3 AND to_currency_code=$4 AND rate_date<=$5::date AND status='active'
-      ORDER BY company_id IS NOT NULL DESC,rate_date DESC LIMIT 1`,
-    [context.organizationId, companyId, from, to, isoDate(rateDate)],
+      WHERE organization_id=$1
+        AND from_currency_code=$2 AND to_currency_code=$3 AND rate_date<=$4::date AND status='active'
+      ORDER BY rate_date DESC LIMIT 1`,
+    [context.organizationId, from, to, isoDate(rateDate)],
   );
   if (!result.rows[0]) throw new AccountingError(409, `No exchange rate exists from ${from} to ${to} on the accounting date.`);
   return positiveAmount(result.rows[0].rate, "Exchange rate");
 }
 
-export async function getAccountMapping(client, context, companyId, ledgerId, mappingKey, selectors = {}) {
+export async function getAccountMapping(client, context, ledgerId, mappingKey, selectors = {}) {
   const result = await client.query(
     `SELECT mapping.account_id,account.code,account.name,account.account_type,account.account_class
        FROM tenant.accounting_account_mappings mapping
        JOIN tenant.accounting_accounts account ON account.id=mapping.account_id
-      WHERE mapping.organization_id=$1 AND mapping.company_id=$2 AND mapping.ledger_id=$3
-        AND mapping.mapping_key=$4 AND mapping.status='active'
-        AND (mapping.branch_id IS NULL OR mapping.branch_id=$5)
-        AND (mapping.party_id IS NULL OR mapping.party_id=$6)
-        AND (mapping.item_id IS NULL OR mapping.item_id=$7)
-        AND (mapping.item_group_id IS NULL OR mapping.item_group_id=$8)
-        AND (mapping.tax_category_id IS NULL OR mapping.tax_category_id=$9)
-        AND (mapping.effective_from IS NULL OR mapping.effective_from<=$10::date)
-        AND (mapping.effective_to IS NULL OR mapping.effective_to>=$10::date)
+      WHERE mapping.organization_id=$1 AND mapping.ledger_id=$2
+        AND mapping.mapping_key=$3 AND mapping.status='active'
+        AND (mapping.party_id IS NULL OR mapping.party_id=$4)
+        AND (mapping.item_id IS NULL OR mapping.item_id=$5)
+        AND (mapping.item_group_id IS NULL OR mapping.item_group_id=$6)
+        AND (mapping.tax_category_id IS NULL OR mapping.tax_category_id=$7)
+        AND (mapping.effective_from IS NULL OR mapping.effective_from<=$8::date)
+        AND (mapping.effective_to IS NULL OR mapping.effective_to>=$8::date)
       ORDER BY
         (mapping.item_id IS NOT NULL)::int DESC,
         (mapping.party_id IS NOT NULL)::int DESC,
         (mapping.item_group_id IS NOT NULL)::int DESC,
         (mapping.tax_category_id IS NOT NULL)::int DESC,
-        (mapping.branch_id IS NOT NULL)::int DESC,
         mapping.priority ASC
       LIMIT 1`,
-    [context.organizationId, companyId, ledgerId, mappingKey, selectors.branchId || null, selectors.partyId || null,
+    [context.organizationId, ledgerId, mappingKey, selectors.partyId || null,
       selectors.itemId || null, selectors.itemGroupId || null, selectors.taxCategoryId || null, selectors.date || today()],
   );
   if (!result.rows[0]) throw new AccountingError(409, `Account mapping ${mappingKey} is not configured.`);
   return result.rows[0];
 }
 
-export async function ensureParty(client, context, companyId, partyIdValue, allowedTypes) {
+export async function ensureParty(client, context, partyIdValue, allowedTypes) {
   const partyId = uuid(partyIdValue, "Party");
   const result = await client.query(
     `SELECT * FROM tenant.business_parties
-      WHERE organization_id=$1 AND id=$2 AND status='active' AND (company_id IS NULL OR company_id=$3)`,
-    [context.organizationId, partyId, companyId],
+      WHERE organization_id=$1 AND id=$2 AND status='active'`,
+    [context.organizationId, partyId],
   );
   const party = result.rows[0];
-  if (!party) throw new AccountingError(404, "The party is inactive or unavailable for this company.");
+  if (!party) throw new AccountingError(404, "The party is inactive or unavailable.");
   if (allowedTypes && !allowedTypes.includes(party.party_type)) throw new AccountingError(409, `Party type ${party.party_type} is not valid for this transaction.`);
   return party;
 }

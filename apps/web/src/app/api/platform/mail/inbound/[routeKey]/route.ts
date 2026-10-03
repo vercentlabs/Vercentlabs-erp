@@ -3,8 +3,8 @@ import { readRequestBytes, receiveInboundMail } from "@vercentlabs/api";
 import { ingressTransaction, tenantTransaction } from "@/core/db";
 
 // Public provider webhook for inbound email. Not a session route: it is
-// authenticated by the opaque route key (resolves the organisation, target and
-// company server-side) AND an HMAC of the exact raw body with that route's
+// authenticated by the opaque route key (resolves the organisation and target
+// server-side) AND an HMAC of the exact raw body with that route's
 // signing secret. Organisation ids in the body are ignored. Errors reveal
 // nothing beyond a stable code.
 export async function POST(

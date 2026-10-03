@@ -26,10 +26,6 @@ export type InvitationRow = {
   roles: Array<{ id: string; name: string; isPrimary: boolean }>;
   primary_role_id: string | null;
   primary_role_name: string | null;
-  company_ids: string[];
-  company_names: string[];
-  branch_ids: string[];
-  branch_names: string[];
   status: "pending" | "accepted" | "revoked" | "expired";
   expires_at: string;
   accepted_at: string | null;
@@ -58,10 +54,6 @@ export type InvitationInput = {
   email: string;
   roleIds: string[];
   primaryRoleId: string;
-  companyIds: string[];
-  branchIds: string[];
-  departmentIds: string[];
-  teamIds: string[];
 };
 
 export async function createInvitation(

@@ -77,25 +77,25 @@ export async function resolveBuyerStateCode(client, context, customerId, sellerS
   return result.rows[0]?.state_code || sellerStateCode;
 }
 
-async function resolveItemAndVariant(client, context, companyId, itemId, variantId) {
+async function resolveItemAndVariant(client, context, itemId, variantId) {
   const itemResult = await client.query(
-    `SELECT id,company_id,code,name,description,sales_price,standard_cost,tax_category_id,group_id,status,tracking_type
+    `SELECT id,code,name,description,sales_price,standard_cost,tax_category_id,group_id,status,tracking_type
      FROM tenant.items WHERE organization_id=$1 AND id=$2`,
     [context.organizationId, itemId],
   );
   const item = itemResult.rows[0];
-  if (!item || item.status !== "active" || (item.company_id && item.company_id !== companyId)) {
+  if (!item || item.status !== "active") {
     throw posError(404, "One or more POS sale items were not found.", "POS_SALE_ITEM_NOT_FOUND");
   }
   let variant = null;
   if (variantId) {
     const variantResult = await client.query(
-      `SELECT id,item_id,company_id,name,sku,sales_price,status
+      `SELECT id,item_id,name,sku,sales_price,status
        FROM tenant.item_variants WHERE organization_id=$1 AND id=$2 AND item_id=$3`,
       [context.organizationId, variantId, itemId],
     );
     variant = variantResult.rows[0];
-    if (!variant || variant.status !== "active" || (variant.company_id && variant.company_id !== companyId)) {
+    if (!variant || variant.status !== "active") {
       throw posError(404, "The selected product variant was not found.", "POS_SALE_VARIANT_NOT_FOUND");
     }
   }
@@ -117,16 +117,15 @@ export async function applyCustomerPricingRules(client, context, store, customer
   const rules = await client.query(
     `SELECT adjustment_type,adjustment_value FROM tenant.sales_pricing_rules
      WHERE organization_id=$1 AND status='active'
-       AND (company_id IS NULL OR company_id=$2)
-       AND party_id=$3 AND (party_type IS NULL OR party_type IN ('customer','both'))
-       AND (item_id IS NULL OR item_id=$4)
-       AND (item_group_id IS NULL OR item_group_id=$5)
-       AND (price_list_id IS NULL OR price_list_id=$6)
-       AND minimum_quantity<=$7
+       AND party_id=$2 AND (party_type IS NULL OR party_type IN ('customer','both'))
+       AND (item_id IS NULL OR item_id=$3)
+       AND (item_group_id IS NULL OR item_group_id=$4)
+       AND (price_list_id IS NULL OR price_list_id=$5)
+       AND minimum_quantity<=$6
        AND (valid_from IS NULL OR valid_from<=current_date)
        AND (valid_to IS NULL OR valid_to>=current_date)
      ORDER BY priority,id`,
-    [context.organizationId, context.companyId, customerId, itemId, itemGroupId, store.price_list_id, asDatabaseDecimal(quantity)],
+    [context.organizationId, customerId, itemId, itemGroupId, store.price_list_id, asDatabaseDecimal(quantity)],
   );
   let price = listUnitPrice;
   for (const rule of rules.rows) {
@@ -141,7 +140,7 @@ export async function applyCustomerPricingRules(client, context, store, customer
 async function resolveUnitPrice(client, context, store, policy, line, item, variant, customerId) {
   if (line.priceOverride) {
     if (!policy.allow_price_override) {
-      throw posError(409, "Price override is disabled for this company.", "POS_PRICE_OVERRIDE_DISABLED");
+      throw posError(409, "Price override is disabled for this organization.", "POS_PRICE_OVERRIDE_DISABLED");
     }
     if (!context.permissions?.includes("pos.price.override") && !context.roleSlugs?.includes("organization_owner")) {
       const error = new Error("Missing permission: pos.price.override");
@@ -233,13 +232,12 @@ export function normalizedDiscountAmount(discount, base, maxPercent, label) {
 async function evaluatePromotions(client, context, store, customerId, lines, cartSubtotal) {
   const promotions = await client.query(
     `SELECT * FROM tenant.pos_promotions
-     WHERE organization_id=$1 AND status='active'
-       AND (company_id IS NULL OR company_id=$2) AND (store_id IS NULL OR store_id=$3)
+     WHERE organization_id=$1 AND status='active' AND (store_id IS NULL OR store_id=$2)
        AND (effective_from IS NULL OR effective_from<=current_date)
        AND (effective_to IS NULL OR effective_to>=current_date)
        AND (usage_limit_total IS NULL OR usage_count<usage_limit_total)
      ORDER BY priority ASC,id ASC`,
-    [context.organizationId, context.companyId, store.id],
+    [context.organizationId, store.id],
   );
 
   const applications = [];
@@ -346,11 +344,10 @@ async function evaluateCoupon(client, context, store, customerId, lines, cartSub
   const normalized = String(couponCode).trim().toUpperCase();
   const result = await client.query(
     `SELECT * FROM tenant.pos_coupons
-     WHERE organization_id=$1 AND upper(code)=$2 AND status='active'
-       AND (company_id IS NULL OR company_id=$3) AND (store_id IS NULL OR store_id=$4)
+     WHERE organization_id=$1 AND upper(code)=$2 AND status='active' AND (store_id IS NULL OR store_id=$3)
        AND (effective_from IS NULL OR effective_from<=current_date)
        AND (effective_to IS NULL OR effective_to>=current_date)`,
-    [context.organizationId, normalized, context.companyId, store.id],
+    [context.organizationId, normalized, store.id],
   );
   const coupon = result.rows[0];
   if (!coupon) throw posError(404, "Coupon code is invalid, inactive or expired.", "POS_COUPON_NOT_FOUND");
@@ -458,7 +455,7 @@ export async function priceCartLines(client, context, { store, policy, customerI
     lineNumber += 1;
     const quantity = decimal(rawLine.quantity);
     if (quantity <= 0n) throw posError(400, "POS sale quantity must be greater than zero.", "POS_SALE_QUANTITY_INVALID");
-    const { item, variant } = await resolveItemAndVariant(client, context, context.companyId, rawLine.itemId, rawLine.variantId || null);
+    const { item, variant } = await resolveItemAndVariant(client, context, rawLine.itemId, rawLine.variantId || null);
     const unitPrice = await resolveUnitPrice(client, context, store, policy, { ...rawLine, quantity: asDatabaseDecimal(quantity) }, item, variant, customerId);
     const listPrice = unitPrice;
     const grossAmount = roundMoney(mul(quantity, unitPrice), decimalPlaces);
@@ -589,7 +586,6 @@ export async function priceCartLines(client, context, { store, policy, customerI
     );
     const { taxRate, components } = await resolveTaxRateComponents(client, {
       organizationId: context.organizationId,
-      companyId: context.companyId,
       taxCategoryId: line.taxCategoryId,
       sellerStateCode,
       buyerStateCode,

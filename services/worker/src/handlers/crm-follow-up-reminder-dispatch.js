@@ -17,15 +17,12 @@ export const payloadSchema = z.object({}).strict();
 // F016 — the reminder-delivery + escalation timer this feature previously
 // had no worker for at all (see crm_activity_reminders, migration 101/102).
 // System context is permission-neutral/org-wide, matching every other
-// scheduled scan in this file — a reminder must fire regardless of which
-// company/branch its own creator happened to have selected.
+// scheduled scan in this file — a reminder must fire regardless of its own
+// creator's record visibility.
 function systemContext(organizationId) {
   return Object.freeze({
     organizationId,
     userId: null,
-    activeCompanyId: null,
-    activeBranchId: null,
-    allowAllCompanies: true,
     permissions: [],
     roleSlugs: ["system_worker"],
   });

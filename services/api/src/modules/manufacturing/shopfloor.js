@@ -20,7 +20,7 @@ const asStock = (c) => ({ ...c, permissions: [...new Set([...(c.permissions || [
 const seeCost = (c) => has(c, "manufacturing.costing.view");
 
 async function loadOrder(client, c, id, { lock = false } = {}) {
-  const { rows } = await client.query(`SELECT * FROM tenant.manufacturing_work_orders WHERE organization_id=$1 AND company_id=$2 AND id=$3${lock ? " FOR UPDATE" : ""}`, [c.organizationId, c.companyId, uuid(id, "Work order")]);
+  const { rows } = await client.query(`SELECT * FROM tenant.manufacturing_work_orders WHERE organization_id=$1 AND id=$2${lock ? " FOR UPDATE" : ""}`, [c.organizationId, uuid(id, "Work order")]);
   if (!rows[0]) throw new MfgError(404, "Work order was not found.", "MFG_WORK_ORDER_NOT_FOUND");
   return rows[0];
 }
@@ -29,7 +29,7 @@ const requireStatus = (wo, ...allowed) => {
 };
 
 async function settingsOf(client, c) {
-  const { rows } = await client.query(`SELECT * FROM tenant.manufacturing_settings WHERE organization_id=$1 AND company_id=$2`, [c.organizationId, c.companyId]);
+  const { rows } = await client.query(`SELECT * FROM tenant.manufacturing_settings WHERE organization_id=$1`, [c.organizationId]);
   return { default_wip_warehouse_id: null, default_finished_goods_warehouse_id: null, default_scrap_warehouse_id: null, backflush_materials: false, require_operation_completion: true, allow_overproduction: false, ...(rows[0] || {}), configured: Boolean(rows[0]) };
 }
 
@@ -43,8 +43,8 @@ export async function updateManufacturingSettings(client, c, input = {}) {
   const pickWarehouse = async (value, fallback) => {
     if (value === undefined) return fallback;
     if (!value) return null;
-    const wh = (await client.query(`SELECT id FROM tenant.warehouses WHERE organization_id=$1 AND company_id=$2 AND id=$3 AND status='active'`, [c.organizationId, c.companyId, uuid(value, "Warehouse")])).rows[0];
-    if (!wh) throw new MfgError(404, "Warehouse was not found for the active company.", "MFG_WAREHOUSE_NOT_FOUND");
+    const wh = (await client.query(`SELECT id FROM tenant.warehouses WHERE organization_id=$1 AND id=$2 AND status='active'`, [c.organizationId, uuid(value, "Warehouse")])).rows[0];
+    if (!wh) throw new MfgError(404, "Warehouse was not found.", "MFG_WAREHOUSE_NOT_FOUND");
     return wh.id;
   };
   const wip = await pickWarehouse(input.defaultWipWarehouseId, current.default_wip_warehouse_id);
@@ -52,11 +52,11 @@ export async function updateManufacturingSettings(client, c, input = {}) {
   const scrap = await pickWarehouse(input.defaultScrapWarehouseId, current.default_scrap_warehouse_id);
   const bool = (v, fallback) => (v === undefined ? fallback : v === true || v === "true");
   const { rows } = await client.query(
-    `INSERT INTO tenant.manufacturing_settings(organization_id,company_id,default_wip_warehouse_id,default_finished_goods_warehouse_id,default_scrap_warehouse_id,backflush_materials,require_operation_completion,allow_overproduction)
-     VALUES($1,$2,$3,$4,$5,$6,$7,$8)
-     ON CONFLICT (organization_id,company_id) DO UPDATE SET default_wip_warehouse_id=EXCLUDED.default_wip_warehouse_id,default_finished_goods_warehouse_id=EXCLUDED.default_finished_goods_warehouse_id,default_scrap_warehouse_id=EXCLUDED.default_scrap_warehouse_id,
+    `INSERT INTO tenant.manufacturing_settings(organization_id,default_wip_warehouse_id,default_finished_goods_warehouse_id,default_scrap_warehouse_id,backflush_materials,require_operation_completion,allow_overproduction)
+     VALUES($1,$2,$3,$4,$5,$6,$7)
+     ON CONFLICT (organization_id) DO UPDATE SET default_wip_warehouse_id=EXCLUDED.default_wip_warehouse_id,default_finished_goods_warehouse_id=EXCLUDED.default_finished_goods_warehouse_id,default_scrap_warehouse_id=EXCLUDED.default_scrap_warehouse_id,
        backflush_materials=EXCLUDED.backflush_materials,require_operation_completion=EXCLUDED.require_operation_completion,allow_overproduction=EXCLUDED.allow_overproduction,updated_at=now() RETURNING *`,
-    [c.organizationId, c.companyId, wip, fg, scrap, bool(input.backflushMaterials, current.backflush_materials), bool(input.requireOperationCompletion, current.require_operation_completion), bool(input.allowOverproduction, current.allow_overproduction)],
+    [c.organizationId, wip, fg, scrap, bool(input.backflushMaterials, current.backflush_materials), bool(input.requireOperationCompletion, current.require_operation_completion), bool(input.allowOverproduction, current.allow_overproduction)],
   );
   return { ...rows[0], configured: true };
 }
@@ -67,8 +67,8 @@ export async function updateManufacturingSettings(client, c, input = {}) {
 async function availableBalances(client, c, itemId, warehouseId) {
   return (
     await client.query(
-      `SELECT warehouse_location_id,batch_id,quantity,reserved_quantity FROM tenant.stock_balances WHERE organization_id=$1 AND company_id=$2 AND item_id=$3 AND warehouse_id=$4 AND quantity>reserved_quantity ORDER BY (quantity-reserved_quantity) DESC,warehouse_location_id NULLS FIRST`,
-      [c.organizationId, c.companyId, itemId, warehouseId],
+      `SELECT warehouse_location_id,batch_id,quantity,reserved_quantity FROM tenant.stock_balances WHERE organization_id=$1 AND item_id=$2 AND warehouse_id=$3 AND quantity>reserved_quantity ORDER BY (quantity-reserved_quantity) DESC,warehouse_location_id NULLS FIRST`,
+      [c.organizationId, itemId, warehouseId],
     )
   ).rows;
 }
@@ -97,7 +97,7 @@ async function issueFromWarehouse(client, c, { itemId, warehouseId, quantity, wo
 
 // Reservations for one material: drop what the order holds and hold what is still needed.
 async function syncReservation(client, c, wo, material, { allowShortage = true } = {}) {
-  const held = (await client.query(`SELECT id FROM tenant.stock_reservations WHERE organization_id=$1 AND company_id=$2 AND reference_type=$3 AND reference_id=$4 AND item_id=$5 AND warehouse_id=$6 AND status='active'`, [c.organizationId, c.companyId, REFERENCE, wo.id, material.item_id, material.warehouse_id])).rows;
+  const held = (await client.query(`SELECT id FROM tenant.stock_reservations WHERE organization_id=$1 AND reference_type=$2 AND reference_id=$3 AND item_id=$4 AND warehouse_id=$5 AND status='active'`, [c.organizationId, REFERENCE, wo.id, material.item_id, material.warehouse_id])).rows;
   for (const r of held) await releaseStockReservation(client, asStock(c), r.id, { status: "released" });
   const netIssued = Number(material.issued_quantity) - Number(material.returned_quantity);
   let remaining = round(Math.max(Number(material.required_quantity) - netIssued, 0));
@@ -117,15 +117,15 @@ async function syncReservation(client, c, wo, material, { allowShortage = true }
   return { reserved, short: Math.max(remaining, 0) };
 }
 async function releaseAllReservations(client, c, wo) {
-  const held = (await client.query(`SELECT id FROM tenant.stock_reservations WHERE organization_id=$1 AND company_id=$2 AND reference_type=$3 AND reference_id=$4 AND status='active'`, [c.organizationId, c.companyId, REFERENCE, wo.id])).rows;
+  const held = (await client.query(`SELECT id FROM tenant.stock_reservations WHERE organization_id=$1 AND reference_type=$2 AND reference_id=$3 AND status='active'`, [c.organizationId, REFERENCE, wo.id])).rows;
   for (const r of held) await releaseStockReservation(client, asStock(c), r.id, { status: "released" });
 }
 
 async function addPosting(client, c, wo, { type, itemId, warehouseId, quantity, unitCost, movementId, key, batchId = null, locationId = null, serialId = null }) {
   await client.query(
-    `INSERT INTO tenant.manufacturing_production_postings(organization_id,company_id,work_order_id,posting_number,posting_type,item_id,warehouse_id,warehouse_location_id,batch_id,serial_id,quantity,unit_cost,stock_movement_id,idempotency_key,posted_by)
-     VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)`,
-    [c.organizationId, c.companyId, wo.id, `MFG-${type.toUpperCase().slice(0, 4)}-${randomUUID().slice(0, 8)}`, type, itemId, warehouseId, locationId, batchId, serialId, quantity, unitCost, movementId ?? null, key ?? `${wo.id}:${type}:${randomUUID()}`, c.userId],
+    `INSERT INTO tenant.manufacturing_production_postings(organization_id,work_order_id,posting_number,posting_type,item_id,warehouse_id,warehouse_location_id,batch_id,serial_id,quantity,unit_cost,stock_movement_id,idempotency_key,posted_by)
+     VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)`,
+    [c.organizationId, wo.id, `MFG-${type.toUpperCase().slice(0, 4)}-${randomUUID().slice(0, 8)}`, type, itemId, warehouseId, locationId, batchId, serialId, quantity, unitCost, movementId ?? null, key ?? `${wo.id}:${type}:${randomUUID()}`, c.userId],
   );
 }
 
@@ -151,7 +151,7 @@ export async function createProductionOrder(client, c, input = {}) {
   if (start && end && end < start) throw new MfgError(400, "Planned end cannot be before planned start.", "MFG_DATE_INVALID");
   const day = start ? start.toISOString().slice(0, 10) : new Date().toISOString().slice(0, 10);
   const bom = input.bomId
-    ? (await client.query(`SELECT * FROM tenant.manufacturing_boms WHERE organization_id=$1 AND company_id=$2 AND id=$3`, [c.organizationId, c.companyId, uuid(input.bomId, "BOM")])).rows[0]
+    ? (await client.query(`SELECT * FROM tenant.manufacturing_boms WHERE organization_id=$1 AND id=$2`, [c.organizationId, uuid(input.bomId, "BOM")])).rows[0]
     : await resolveBomForItem(client, c, uuid(input.itemId, "Product"), day);
   if (!bom) throw new MfgError(404, "No active BOM applies to that product on the planned start date.", "MFG_NO_ACTIVE_BOM");
   if (bom.status !== "active") throw new MfgError(409, "Only an active (approved) BOM can be produced from.", "MFG_ACTIVE_BOM_REQUIRED");
@@ -160,8 +160,8 @@ export async function createProductionOrder(client, c, input = {}) {
   const fgId = input.finishedGoodsWarehouseId || settings.default_finished_goods_warehouse_id;
   if (!wipId || !fgId) throw new MfgError(400, "Choose the WIP and finished-goods warehouses (or set defaults in Manufacturing settings).", "MFG_WAREHOUSE_REQUIRED");
   for (const id of [wipId, fgId, input.materialWarehouseId].filter(Boolean)) {
-    const wh = (await client.query(`SELECT 1 FROM tenant.warehouses WHERE organization_id=$1 AND company_id=$2 AND id=$3 AND status='active'`, [c.organizationId, c.companyId, uuid(id, "Warehouse")])).rows[0];
-    if (!wh) throw new MfgError(404, "Warehouse was not found for the active company.", "MFG_WAREHOUSE_NOT_FOUND");
+    const wh = (await client.query(`SELECT 1 FROM tenant.warehouses WHERE organization_id=$1 AND id=$2 AND status='active'`, [c.organizationId, uuid(id, "Warehouse")])).rows[0];
+    if (!wh) throw new MfgError(404, "Warehouse was not found.", "MFG_WAREHOUSE_NOT_FOUND");
   }
   const materialWh = input.materialWarehouseId || wipId;
   const sourceType = input.sourceType === "make_to_order" ? "make_to_order" : "make_to_stock";
@@ -169,23 +169,23 @@ export async function createProductionOrder(client, c, input = {}) {
   let sourceLabel = text(input.sourceLabel, 200) || null;
   if (sourceType === "make_to_order") {
     sourceId = uuid(input.sourceId, "Sales order");
-    const order = (await client.query(`SELECT sales_order_number,lifecycle_status FROM tenant.sales_orders WHERE organization_id=$1 AND company_id=$2 AND id=$3`, [c.organizationId, c.companyId, sourceId])).rows[0];
-    if (!order) throw new MfgError(404, "Sales order was not found for the active company.", "MFG_SALES_ORDER_NOT_FOUND");
+    const order = (await client.query(`SELECT sales_order_number,lifecycle_status FROM tenant.sales_orders WHERE organization_id=$1 AND id=$2`, [c.organizationId, sourceId])).rows[0];
+    if (!order) throw new MfgError(404, "Sales order was not found.", "MFG_SALES_ORDER_NOT_FOUND");
     if (["cancelled", "closed", "draft"].includes(order.lifecycle_status)) throw new MfgError(409, `A ${order.lifecycle_status} sales order cannot drive production.`, "MFG_SALES_ORDER_STATE_INVALID");
     sourceLabel = sourceLabel || order.sales_order_number;
   }
   const key = text(input.idempotencyKey, 200) || null;
   if (key) {
-    const replay = (await client.query(`SELECT * FROM tenant.manufacturing_work_orders WHERE organization_id=$1 AND company_id=$2 AND content_hash=$3`, [c.organizationId, c.companyId, `idem:${key}`])).rows[0];
+    const replay = (await client.query(`SELECT * FROM tenant.manufacturing_work_orders WHERE organization_id=$1 AND content_hash=$2`, [c.organizationId, `idem:${key}`])).rows[0];
     if (replay) return { ...replay, replayed: true };
   }
   const number = await nextDocumentNumber(client, c, { documentType: "manufacturing_work_order", prefix: "WO" });
   const priority = ["low", "normal", "high", "urgent"].includes(input.priority) ? input.priority : "normal";
   const wo = (
     await client.query(
-      `INSERT INTO tenant.manufacturing_work_orders(organization_id,company_id,work_order_number,item_id,bom_id,quantity_planned,status,source_type,source_id,source_label,priority,planned_start_at,planned_end_at,wip_warehouse_id,finished_goods_warehouse_id,content_hash,created_by,notes)
-       VALUES($1,$2,$3,$4,$5,$6,'planned',$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17) RETURNING *`,
-      [c.organizationId, c.companyId, number, bom.item_id, bom.id, quantity, sourceType, sourceId, sourceLabel, priority, start, end, wipId, fgId, key ? `idem:${key}` : `snap:${bom.id}:${bom.version}:${quantity}`, c.userId, text(input.notes, 2000) || null],
+      `INSERT INTO tenant.manufacturing_work_orders(organization_id,work_order_number,item_id,bom_id,quantity_planned,status,source_type,source_id,source_label,priority,planned_start_at,planned_end_at,wip_warehouse_id,finished_goods_warehouse_id,content_hash,created_by,notes)
+       VALUES($1,$2,$3,$4,$5,'planned',$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16) RETURNING *`,
+      [c.organizationId, number, bom.item_id, bom.id, quantity, sourceType, sourceId, sourceLabel, priority, start, end, wipId, fgId, key ? `idem:${key}` : `snap:${bom.id}:${bom.version}:${quantity}`, c.userId, text(input.notes, 2000) || null],
     )
   ).rows[0];
   await client.query(
@@ -280,7 +280,7 @@ export async function issueMaterials(client, c, id, input = {}) {
   return response;
 }
 async function releaseStockReservationsOf(client, c, wo, material) {
-  const held = (await client.query(`SELECT id FROM tenant.stock_reservations WHERE organization_id=$1 AND company_id=$2 AND reference_type=$3 AND reference_id=$4 AND item_id=$5 AND warehouse_id=$6 AND status='active'`, [c.organizationId, c.companyId, REFERENCE, wo.id, material.item_id, material.warehouse_id])).rows;
+  const held = (await client.query(`SELECT id FROM tenant.stock_reservations WHERE organization_id=$1 AND reference_type=$2 AND reference_id=$3 AND item_id=$4 AND warehouse_id=$5 AND status='active'`, [c.organizationId, REFERENCE, wo.id, material.item_id, material.warehouse_id])).rows;
   for (const r of held) await releaseStockReservation(client, asStock(c), r.id, { status: "released" });
 }
 
@@ -331,7 +331,7 @@ export async function reportProduction(client, c, id, input = {}) {
     if (!batchId) {
       const number = text(input.batchNumber, 120);
       if (!number) throw new MfgError(400, `${product.code} is batch-tracked: give the batch number produced.`, "MFG_BATCH_REQUIRED");
-      const existing = (await client.query(`SELECT id FROM tenant.stock_batches WHERE organization_id=$1 AND company_id=$2 AND item_id=$3 AND lower(batch_number)=lower($4)`, [c.organizationId, c.companyId, product.id, number])).rows[0];
+      const existing = (await client.query(`SELECT id FROM tenant.stock_batches WHERE organization_id=$1 AND item_id=$2 AND lower(batch_number)=lower($3)`, [c.organizationId, product.id, number])).rows[0];
       batchId = existing ? existing.id : (await createStockBatch(client, asStock(c), { itemId: product.id, batchNumber: number, manufacturedOn: dateOrNull(input.manufacturedOn, "Manufactured date") || new Date().toISOString().slice(0, 10), expiresOn: input.expiresOn })).id;
     }
   } else if (product.tracking_type === "serial") {
@@ -391,14 +391,14 @@ export async function reportProduction(client, c, id, input = {}) {
   if (completing) {
     await releaseAllReservations(client, c, updated);
     await client.query(
-      `INSERT INTO tenant.manufacturing_cost_snapshots(organization_id,company_id,work_order_id,material_cost,labor_cost,overhead_cost,scrap_cost,total_cost,cost_per_unit,snapshot_type,subcontract_cost) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,'completion',$10)`,
-      [c.organizationId, c.companyId, wo.id, updated.material_cost, updated.labor_cost, updated.overhead_cost, updated.scrap_cost, round(Number(updated.material_cost) + Number(updated.labor_cost) + Number(updated.overhead_cost) + Number(updated.subcontract_cost)), round((Number(updated.material_cost) + Number(updated.labor_cost) + Number(updated.overhead_cost) + Number(updated.subcontract_cost)) / Math.max(Number(updated.quantity_completed), 1)), updated.subcontract_cost],
+      `INSERT INTO tenant.manufacturing_cost_snapshots(organization_id,work_order_id,material_cost,labor_cost,overhead_cost,scrap_cost,total_cost,cost_per_unit,snapshot_type,subcontract_cost) VALUES($1,$2,$3,$4,$5,$6,$7,$8,'completion',$9)`,
+      [c.organizationId, wo.id, updated.material_cost, updated.labor_cost, updated.overhead_cost, updated.scrap_cost, round(Number(updated.material_cost) + Number(updated.labor_cost) + Number(updated.overhead_cost) + Number(updated.subcontract_cost)), round((Number(updated.material_cost) + Number(updated.labor_cost) + Number(updated.overhead_cost) + Number(updated.subcontract_cost)) / Math.max(Number(updated.quantity_completed), 1)), updated.subcontract_cost],
     );
   }
   // Make-to-order: the goods just made are held for the sales order that asked for them.
   let reservedForOrder = 0;
   if (wo.source_type === "make_to_order" && wo.source_id && !serialNumbers) {
-    const balance = (await client.query(`SELECT warehouse_location_id,batch_id,(quantity-reserved_quantity) AS free FROM tenant.stock_balances WHERE organization_id=$1 AND company_id=$2 AND item_id=$3 AND warehouse_id=$4 AND warehouse_location_id IS NOT DISTINCT FROM $5 AND batch_id IS NOT DISTINCT FROM $6`, [c.organizationId, c.companyId, wo.item_id, wo.finished_goods_warehouse_id, locationId, batchId])).rows[0];
+    const balance = (await client.query(`SELECT warehouse_location_id,batch_id,(quantity-reserved_quantity) AS free FROM tenant.stock_balances WHERE organization_id=$1 AND item_id=$2 AND warehouse_id=$3 AND warehouse_location_id IS NOT DISTINCT FROM $4 AND batch_id IS NOT DISTINCT FROM $5`, [c.organizationId, wo.item_id, wo.finished_goods_warehouse_id, locationId, batchId])).rows[0];
     if (balance && Number(balance.free) >= quantity) {
       await reserveStock(client, asStock(c), { itemId: wo.item_id, warehouseId: wo.finished_goods_warehouse_id, warehouseLocationId: locationId, batchId, quantity, referenceType: "sales_order", referenceId: wo.source_id, idempotencyKey: `${key}:mto` });
       reservedForOrder = quantity;
@@ -443,8 +443,8 @@ export async function recordScrap(client, c, id, input = {}) {
     await syncReservation(client, c, wo, material, { allowShortage: true });
   }
   const { rows } = await client.query(
-    `INSERT INTO tenant.manufacturing_scrap_records(organization_id,company_id,work_order_id,operation_id,item_id,category,scope,quantity,unit_cost,reason_code,note,stock_movement_id,posted_by) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) RETURNING *`,
-    [c.organizationId, c.companyId, wo.id, operationId, itemId, category, scope, quantity, unitCost, input.reasonCode, text(input.note, 1000) || null, movementId, c.userId],
+    `INSERT INTO tenant.manufacturing_scrap_records(organization_id,work_order_id,operation_id,item_id,category,scope,quantity,unit_cost,reason_code,note,stock_movement_id,posted_by) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) RETURNING *`,
+    [c.organizationId, wo.id, operationId, itemId, category, scope, quantity, unitCost, input.reasonCode, text(input.note, 1000) || null, movementId, c.userId],
   );
   await recordEvent(client, c, "work_order", wo.id, "manufacturing.scrap.recorded", { scope, category, quantity });
   return rows[0];
@@ -453,7 +453,7 @@ export async function recordScrap(client, c, id, input = {}) {
 // ---------------------------------------------------------------- reads (F155, F156, F166)
 export async function listProductionOrders(client, c, { status = null, sourceType = null, limit = 250 } = {}) {
   need(c, "manufacturing.view");
-  const values = [c.organizationId, c.companyId];
+  const values = [c.organizationId];
   let filter = "";
   if (status) { values.push(String(status)); filter += ` AND wo.status=$${values.length}`; }
   if (sourceType) { values.push(String(sourceType)); filter += ` AND wo.source_type=$${values.length}`; }
@@ -463,7 +463,7 @@ export async function listProductionOrders(client, c, { status = null, sourceTyp
             wo.planned_start_at,wo.planned_end_at,wo.actual_start_at,wo.actual_end_at,item.code AS item_code,item.name AS item_name,
             (SELECT count(*)::int FROM tenant.manufacturing_work_order_operations o WHERE o.work_order_id=wo.id) AS operation_count,
             (SELECT count(*)::int FROM tenant.manufacturing_work_order_operations o WHERE o.work_order_id=wo.id AND o.status IN ('completed','skipped')) AS operations_done
-       FROM tenant.manufacturing_work_orders wo JOIN tenant.items item ON item.id=wo.item_id WHERE wo.organization_id=$1 AND wo.company_id=$2${filter} ORDER BY wo.created_at DESC LIMIT $${values.length}`,
+       FROM tenant.manufacturing_work_orders wo JOIN tenant.items item ON item.id=wo.item_id WHERE wo.organization_id=$1${filter} ORDER BY wo.created_at DESC LIMIT $${values.length}`,
     values,
   );
   return rows;
@@ -480,9 +480,9 @@ export async function getProductionOrder(client, c, id) {
       `SELECT material.id,material.item_id,item.code AS item_code,item.name AS item_name,material.warehouse_id,warehouse.name AS warehouse_name,material.issue_method,material.required_quantity::text AS required_quantity,material.issued_quantity::text AS issued_quantity,material.returned_quantity::text AS returned_quantity,
               material.issued_cost::text AS issued_cost,
               COALESCE((SELECT sum(r.quantity) FROM tenant.stock_reservations r WHERE r.organization_id=material.organization_id AND r.reference_type='manufacturing_work_order' AND r.reference_id=material.work_order_id AND r.item_id=material.item_id AND r.warehouse_id=material.warehouse_id AND r.status='active'),0)::text AS reserved_quantity,
-              COALESCE((SELECT sum(b.quantity-b.reserved_quantity) FROM tenant.stock_balances b WHERE b.organization_id=material.organization_id AND b.company_id=$3 AND b.item_id=material.item_id AND b.warehouse_id=material.warehouse_id),0)::text AS available_quantity
+              COALESCE((SELECT sum(b.quantity-b.reserved_quantity) FROM tenant.stock_balances b WHERE b.organization_id=material.organization_id AND b.item_id=material.item_id AND b.warehouse_id=material.warehouse_id),0)::text AS available_quantity
          FROM tenant.manufacturing_work_order_materials material JOIN tenant.items item ON item.id=material.item_id JOIN tenant.warehouses warehouse ON warehouse.id=material.warehouse_id WHERE material.organization_id=$1 AND material.work_order_id=$2 ORDER BY item.name`,
-      [c.organizationId, wo.id, c.companyId],
+      [c.organizationId, wo.id],
     )
   ).rows;
   const postings = (await client.query(`SELECT p.posting_type,p.quantity::text AS quantity,p.unit_cost::text AS unit_cost,p.posted_at,item.code AS item_code FROM tenant.manufacturing_production_postings p JOIN tenant.items item ON item.id=p.item_id WHERE p.organization_id=$1 AND p.work_order_id=$2 ORDER BY p.posted_at DESC LIMIT 200`, [c.organizationId, wo.id])).rows;
@@ -510,10 +510,10 @@ export async function listMaterialReservations(client, c) {
   const { rows } = await client.query(
     `SELECT material.id,wo.id AS work_order_id,wo.work_order_number,wo.status AS work_order_status,item.code AS item_code,item.name AS item_name,warehouse.name AS warehouse_name,material.required_quantity::text AS required_quantity,(material.issued_quantity-material.returned_quantity)::text AS issued_quantity,
             COALESCE((SELECT sum(r.quantity) FROM tenant.stock_reservations r WHERE r.organization_id=material.organization_id AND r.reference_type='manufacturing_work_order' AND r.reference_id=wo.id AND r.item_id=material.item_id AND r.warehouse_id=material.warehouse_id AND r.status='active'),0)::text AS reserved_quantity,
-            COALESCE((SELECT sum(b.quantity-b.reserved_quantity) FROM tenant.stock_balances b WHERE b.organization_id=material.organization_id AND b.company_id=$2 AND b.item_id=material.item_id AND b.warehouse_id=material.warehouse_id),0)::text AS free_quantity
+            COALESCE((SELECT sum(b.quantity-b.reserved_quantity) FROM tenant.stock_balances b WHERE b.organization_id=material.organization_id AND b.item_id=material.item_id AND b.warehouse_id=material.warehouse_id),0)::text AS free_quantity
        FROM tenant.manufacturing_work_order_materials material JOIN tenant.manufacturing_work_orders wo ON wo.id=material.work_order_id JOIN tenant.items item ON item.id=material.item_id JOIN tenant.warehouses warehouse ON warehouse.id=material.warehouse_id
-      WHERE material.organization_id=$1 AND wo.company_id=$2 AND wo.status IN ('planned','released','in_progress','on_hold') ORDER BY wo.work_order_number,item.name`,
-    [c.organizationId, c.companyId],
+      WHERE material.organization_id=$1 AND wo.status IN ('planned','released','in_progress','on_hold') ORDER BY wo.work_order_number,item.name`,
+    [c.organizationId],
   );
   return rows.map((r) => {
     const need = Math.max(Number(r.required_quantity) - Number(r.issued_quantity), 0);
@@ -525,14 +525,14 @@ export async function listMaterialReservations(client, c) {
 // by-product receipts (F164, F167, F174).
 export async function listProductionPostings(client, c, { types = null, limit = 250 } = {}) {
   need(c, "manufacturing.view");
-  const values = [c.organizationId, c.companyId];
+  const values = [c.organizationId];
   let filter = "";
   if (types) { values.push(String(types).split(",").map((t) => t.trim()).filter(Boolean)); filter = ` AND p.posting_type=ANY($${values.length}::text[])`; }
   values.push(Math.min(Math.max(Number(limit) || 250, 1), 500));
   const { rows } = await client.query(
     `SELECT p.id,p.posting_type,p.quantity::text AS quantity,p.unit_cost::text AS unit_cost,p.posted_at,p.batch_id,wo.work_order_number,item.code AS item_code,item.name AS item_name,warehouse.name AS warehouse_name
        FROM tenant.manufacturing_production_postings p JOIN tenant.manufacturing_work_orders wo ON wo.id=p.work_order_id JOIN tenant.items item ON item.id=p.item_id JOIN tenant.warehouses warehouse ON warehouse.id=p.warehouse_id
-      WHERE p.organization_id=$1 AND p.company_id=$2${filter} ORDER BY p.posted_at DESC LIMIT $${values.length}`,
+      WHERE p.organization_id=$1${filter} ORDER BY p.posted_at DESC LIMIT $${values.length}`,
     values,
   );
   return seeCost(c) ? rows : rows.map((r) => ({ ...r, unit_cost: null }));
@@ -542,8 +542,8 @@ export async function listScrapRecords(client, c) {
   need(c, "manufacturing.view");
   const { rows } = await client.query(
     `SELECT s.id,s.category,s.scope,s.quantity::text AS quantity,s.unit_cost::text AS unit_cost,s.reason_code,s.note,s.created_at,wo.work_order_number,item.code AS item_code,item.name AS item_name
-       FROM tenant.manufacturing_scrap_records s JOIN tenant.manufacturing_work_orders wo ON wo.id=s.work_order_id JOIN tenant.items item ON item.id=s.item_id WHERE s.organization_id=$1 AND s.company_id=$2 ORDER BY s.created_at DESC LIMIT 300`,
-    [c.organizationId, c.companyId],
+       FROM tenant.manufacturing_scrap_records s JOIN tenant.manufacturing_work_orders wo ON wo.id=s.work_order_id JOIN tenant.items item ON item.id=s.item_id WHERE s.organization_id=$1 ORDER BY s.created_at DESC LIMIT 300`,
+    [c.organizationId],
   );
   return seeCost(c) ? rows : rows.map((r) => ({ ...r, unit_cost: null }));
 }

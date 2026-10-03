@@ -25,11 +25,11 @@ export async function saveProjectSettings(client, c, input) {
   const hpd = input.hoursPerDay === undefined ? Number(cur.hours_per_day) : positive(input.hoursPerDay, "Hours per day");
   if (hpd > 24) throw new ProjectError(400, "Hours per day cannot exceed 24.", "PROJECT_NUMBER_INVALID");
   const res = await client.query(
-    `INSERT INTO tenant.project_settings(organization_id,company_id,require_time_approval,prohibit_self_approval,default_currency_code,hours_per_day,require_membership_for_time,require_close_checks)
-     VALUES($1,$2,$3,$4,$5,$6,$7,$8)
-     ON CONFLICT (organization_id,company_id) DO UPDATE SET require_time_approval=EXCLUDED.require_time_approval,prohibit_self_approval=EXCLUDED.prohibit_self_approval,default_currency_code=EXCLUDED.default_currency_code,hours_per_day=EXCLUDED.hours_per_day,require_membership_for_time=EXCLUDED.require_membership_for_time,require_close_checks=EXCLUDED.require_close_checks,updated_at=now()
+    `INSERT INTO tenant.project_settings(organization_id,require_time_approval,prohibit_self_approval,default_currency_code,hours_per_day,require_membership_for_time,require_close_checks)
+     VALUES($1,$2,$3,$4,$5,$6,$7)
+     ON CONFLICT (organization_id) DO UPDATE SET require_time_approval=EXCLUDED.require_time_approval,prohibit_self_approval=EXCLUDED.prohibit_self_approval,default_currency_code=EXCLUDED.default_currency_code,hours_per_day=EXCLUDED.hours_per_day,require_membership_for_time=EXCLUDED.require_membership_for_time,require_close_checks=EXCLUDED.require_close_checks,updated_at=now()
      RETURNING *`,
-    [c.organizationId, c.companyId, b("requireTimeApproval", "require_time_approval"), b("prohibitSelfApproval", "prohibit_self_approval"), text(input.defaultCurrencyCode || cur.default_currency_code, 3).toUpperCase() || "INR", hpd, b("requireMembershipForTime", "require_membership_for_time"), b("requireCloseChecks", "require_close_checks")],
+    [c.organizationId, b("requireTimeApproval", "require_time_approval"), b("prohibitSelfApproval", "prohibit_self_approval"), text(input.defaultCurrencyCode || cur.default_currency_code, 3).toUpperCase() || "INR", hpd, b("requireMembershipForTime", "require_membership_for_time"), b("requireCloseChecks", "require_close_checks")],
   );
   return res.rows[0];
 }
@@ -41,7 +41,7 @@ const LIST_SQL = `SELECT p.*,u.full_name AS manager_name,cust.display_name AS cu
 
 export async function listProjectsDesk(client, c, filters = {}) {
   need(c, "projects.view");
-  const values = [c.organizationId, c.companyId];
+  const values = [c.organizationId];
   const where = [];
   const add = (sql, v) => { values.push(v); where.push(sql.replaceAll("?", `$${values.length}`)); };
   if (!isBroad(c)) add("(p.project_manager_id=? OR EXISTS (SELECT 1 FROM tenant.project_members m WHERE m.project_id=p.id AND m.user_id=? AND m.active=true))", c.userId);
@@ -51,7 +51,7 @@ export async function listProjectsDesk(client, c, filters = {}) {
   if (filters.customerId) add("p.customer_id=?", uuid(filters.customerId, "Customer"));
   if (filters.managerId) add("p.project_manager_id=?", uuid(filters.managerId, "Manager"));
   if (filters.search) add("(p.project_number ILIKE ? OR p.name ILIKE ?)", `%${text(filters.search, 100)}%`);
-  const res = await qx(client, `${LIST_SQL} WHERE p.organization_id=$1 AND p.company_id=$2${where.map((w) => ` AND ${w}`).join("")} ORDER BY p.created_at DESC LIMIT 500`, values);
+  const res = await qx(client, `${LIST_SQL} WHERE p.organization_id=$1${where.map((w) => ` AND ${w}`).join("")} ORDER BY p.created_at DESC LIMIT 500`, values);
   return res.rows.map((r) => maskProject(c, r));
 }
 
@@ -70,8 +70,8 @@ async function requireOrgUser(client, c, userId, label) {
 }
 
 async function requireCustomer(client, c, customerId) {
-  const r = await client.query(`SELECT 1 FROM tenant.business_parties WHERE organization_id=$1 AND id=$2 AND party_type IN ('customer','both') AND (company_id IS NULL OR company_id=$3)`, [c.organizationId, customerId, c.companyId]);
-  if (!r.rows[0]) throw new ProjectError(409, "The customer was not found in this company.", "PROJECT_CUSTOMER_INVALID");
+  const r = await client.query(`SELECT 1 FROM tenant.business_parties WHERE organization_id=$1 AND id=$2 AND party_type IN ('customer','both')`, [c.organizationId, customerId]);
+  if (!r.rows[0]) throw new ProjectError(409, "The customer was not found.", "PROJECT_CUSTOMER_INVALID");
 }
 
 export async function createProjectRecord(client, c, input) {
@@ -86,24 +86,19 @@ export async function createProjectRecord(client, c, input) {
   if (start && end && end < start) throw new ProjectError(400, "The planned end cannot be before the start.", "PROJECT_DATE_INVALID");
   const manager = uuidOrNull(input.projectManagerId, "Project manager") || c.userId;
   await requireOrgUser(client, c, manager, "The project manager");
-  const branchId = uuidOrNull(input.branchId, "Branch");
-  if (branchId) {
-    const b = await client.query(`SELECT 1 FROM public.branches WHERE organization_id=$1 AND company_id=$2 AND id=$3`, [c.organizationId, c.companyId, branchId]);
-    if (!b.rows[0]) throw new ProjectError(409, "The branch does not belong to this company.", "PROJECT_REFERENCE_INVALID");
-  }
   const salesOrderId = uuidOrNull(input.salesOrderId, "Sales order");
   if (salesOrderId) {
-    const so = await client.query(`SELECT 1 FROM tenant.sales_orders WHERE organization_id=$1 AND company_id=$2 AND id=$3`, [c.organizationId, c.companyId, salesOrderId]);
-    if (!so.rows[0]) throw new ProjectError(409, "The sales order was not found in this company.", "PROJECT_REFERENCE_INVALID");
+    const so = await client.query(`SELECT 1 FROM tenant.sales_orders WHERE organization_id=$1 AND id=$2`, [c.organizationId, salesOrderId]);
+    if (!so.rows[0]) throw new ProjectError(409, "The sales order was not found.", "PROJECT_REFERENCE_INVALID");
   }
   const currency = textOrNull(input.currencyCode, 3)?.toUpperCase() || settings.default_currency_code || "INR";
   const number = input.projectNumber ? requiredText(input.projectNumber, "Project number", 60) : await nextNumber(client, c, "project", "PRJ");
   let p;
   try {
     p = (await qx(client,
-      `INSERT INTO tenant.projects(organization_id,company_id,branch_id,project_number,name,description,customer_id,sales_order_id,contract_reference,project_manager_id,status,billing_method,currency_code,planned_start_date,planned_end_date,approved_budget,contracted_revenue,billable,content_hash,created_by,project_type,template_id,priority,category)
-       VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,'draft',$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23) RETURNING *`,
-      [c.organizationId, c.companyId, branchId, number, requiredText(input.name, "Name", 300), textOrNull(input.description, 3000), customerId, salesOrderId, textOrNull(input.contractReference, 200), manager, "non_billable", currency, start, end, "0", "0", false, hashOf({ name: input.name, customerId, start, end }), c.userId, type, null, oneOf(input.priority || "normal", PRIORITIES, "Priority"), textOrNull(input.category, 100)])).rows[0];
+      `INSERT INTO tenant.projects(organization_id,project_number,name,description,customer_id,sales_order_id,contract_reference,project_manager_id,status,billing_method,currency_code,planned_start_date,planned_end_date,approved_budget,contracted_revenue,billable,content_hash,created_by,project_type,template_id,priority,category)
+       VALUES($1,$2,$3,$4,$5,$6,$7,$8,'draft',$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21) RETURNING *`,
+      [c.organizationId, number, requiredText(input.name, "Name", 300), textOrNull(input.description, 3000), customerId, salesOrderId, textOrNull(input.contractReference, 200), manager, "non_billable", currency, start, end, "0", "0", false, hashOf({ name: input.name, customerId, start, end }), c.userId, type, null, oneOf(input.priority || "normal", PRIORITIES, "Priority"), textOrNull(input.category, 100)])).rows[0];
   } catch (error) {
     if (error.code === "23505") throw new ProjectError(409, "A project with that number already exists.", "PROJECT_DUPLICATE");
     throw error;
@@ -118,7 +113,7 @@ export async function updateProjectRecord(client, c, projectId, input) {
   const p = await loadProject(client, c, projectId, { lock: true });
   if (["completed", "cancelled"].includes(p.status)) throw new ProjectError(409, `This project is ${p.status}; reopen it before editing.`, "PROJECT_CLOSED");
   const sets = [];
-  const vals = [c.organizationId, c.companyId, p.id];
+  const vals = [c.organizationId, p.id];
   const set = (col, v) => { vals.push(v); sets.push(`${col}=$${vals.length}`); };
   if (input.name !== undefined) set("name", requiredText(input.name, "Name", 300));
   if (input.description !== undefined) set("description", textOrNull(input.description, 3000));
@@ -145,7 +140,7 @@ export async function updateProjectRecord(client, c, projectId, input) {
     set("customer_id", customer);
   }
   if (!sets.length) return maskProject(c, p);
-  const res = await qx(client, `UPDATE tenant.projects SET ${sets.join(",")},updated_at=now() WHERE organization_id=$1 AND company_id=$2 AND id=$3 RETURNING *`, vals);
+  const res = await qx(client, `UPDATE tenant.projects SET ${sets.join(",")},updated_at=now() WHERE organization_id=$1 AND id=$2 RETURNING *`, vals);
   await recordEvent(client, c, "project", p.id, "project.updated", { fields: sets.length });
   return maskProject(c, res.rows[0]);
 }
@@ -259,26 +254,26 @@ export async function removeProjectMember(client, c, projectId, userId) {
 
 export async function listProjectTeams(client, c, filters = {}) {
   need(c, "projects.view");
-  const values = [c.organizationId, c.companyId];
+  const values = [c.organizationId];
   const where = [];
   const add = (sql, v) => { values.push(v); where.push(sql.replaceAll("?", `$${values.length}`)); };
   if (filters.projectId) add("m.project_id=?", uuid(filters.projectId, "Project"));
   if (filters.userId) add("m.user_id=?", uuid(filters.userId, "User"));
   if (!isBroad(c)) add("(p.project_manager_id=? OR EXISTS (SELECT 1 FROM tenant.project_members mm WHERE mm.project_id=p.id AND mm.user_id=? AND mm.active=true))", c.userId);
-  const res = await qx(client, `SELECT m.*,p.project_number,p.name AS project_name,p.status AS project_status,u.full_name FROM tenant.project_members m JOIN tenant.projects p ON p.id=m.project_id LEFT JOIN public.users u ON u.id=m.user_id WHERE m.organization_id=$1 AND p.company_id=$2${where.map((w) => ` AND ${w}`).join("")} ORDER BY p.project_number,u.full_name LIMIT 500`, values);
+  const res = await qx(client, `SELECT m.*,p.project_number,p.name AS project_name,p.status AS project_status,u.full_name FROM tenant.project_members m JOIN tenant.projects p ON p.id=m.project_id LEFT JOIN public.users u ON u.id=m.user_id WHERE m.organization_id=$1${where.map((w) => ` AND ${w}`).join("")} ORDER BY p.project_number,u.full_name LIMIT 500`, values);
   const rates = canSeeRates(c);
   return res.rows.map((r) => (rates ? r : { ...r, cost_rate: null, bill_rate: null }));
 }
 
 export async function listProjectOptions(client, c) {
   need(c, "projects.view");
-  const q = async (sql, params = [c.organizationId, c.companyId]) => (await client.query(sql, params)).rows;
+  const q = async (sql, params = [c.organizationId]) => (await client.query(sql, params)).rows;
   const narrow = !isBroad(c);
   return {
-    projects: await q(`SELECT p.id,p.project_number AS code,p.name FROM tenant.projects p WHERE p.organization_id=$1 AND p.company_id=$2 AND p.status NOT IN ('cancelled')${narrow ? " AND (p.project_manager_id=$3 OR EXISTS (SELECT 1 FROM tenant.project_members m WHERE m.project_id=p.id AND m.user_id=$3 AND m.active=true))" : ""} ORDER BY p.project_number DESC LIMIT 500`, narrow ? [c.organizationId, c.companyId, c.userId] : undefined),
-    users: await q(`SELECT u.id,u.email AS code,u.full_name AS name FROM public.users u JOIN public.organization_memberships m ON m.user_id=u.id WHERE m.organization_id=$1 AND m.status='active' AND $2::uuid IS NOT NULL ORDER BY u.full_name LIMIT 500`),
-    customers: await q(`SELECT id,code,display_name AS name FROM tenant.business_parties WHERE organization_id=$1 AND party_type IN ('customer','both') AND status='active' AND (company_id IS NULL OR company_id=$2) ORDER BY display_name LIMIT 500`),
-    tasks: await q(`SELECT t.id,t.task_number AS code,p.project_number||' / '||t.name AS name FROM tenant.project_tasks t JOIN tenant.projects p ON p.id=t.project_id WHERE t.organization_id=$1 AND p.company_id=$2 AND t.status NOT IN ('done','cancelled')${narrow ? " AND (p.project_manager_id=$3 OR EXISTS (SELECT 1 FROM tenant.project_members m WHERE m.project_id=p.id AND m.user_id=$3 AND m.active=true))" : ""} ORDER BY p.project_number,t.sort_order LIMIT 500`, narrow ? [c.organizationId, c.companyId, c.userId] : undefined),
+    projects: await q(`SELECT p.id,p.project_number AS code,p.name FROM tenant.projects p WHERE p.organization_id=$1 AND p.status NOT IN ('cancelled')${narrow ? " AND (p.project_manager_id=$2 OR EXISTS (SELECT 1 FROM tenant.project_members m WHERE m.project_id=p.id AND m.user_id=$2 AND m.active=true))" : ""} ORDER BY p.project_number DESC LIMIT 500`, narrow ? [c.organizationId, c.userId] : undefined),
+    users: await q(`SELECT u.id,u.email AS code,u.full_name AS name FROM public.users u JOIN public.organization_memberships m ON m.user_id=u.id WHERE m.organization_id=$1 AND m.status='active' ORDER BY u.full_name LIMIT 500`),
+    customers: await q(`SELECT id,code,display_name AS name FROM tenant.business_parties WHERE organization_id=$1 AND party_type IN ('customer','both') AND status='active' ORDER BY display_name LIMIT 500`),
+    tasks: await q(`SELECT t.id,t.task_number AS code,p.project_number||' / '||t.name AS name FROM tenant.project_tasks t JOIN tenant.projects p ON p.id=t.project_id WHERE t.organization_id=$1 AND t.status NOT IN ('done','cancelled')${narrow ? " AND (p.project_manager_id=$2 OR EXISTS (SELECT 1 FROM tenant.project_members m WHERE m.project_id=p.id AND m.user_id=$2 AND m.active=true))" : ""} ORDER BY p.project_number,t.sort_order LIMIT 500`, narrow ? [c.organizationId, c.userId] : undefined),
   };
 }
 

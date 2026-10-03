@@ -77,11 +77,7 @@ export async function POST(
     request,
     body,
     async (client, context, rawInput) => {
-      // Every document is created in the session's active company; a company id in the body is never trusted.
-      const input: Record<string, unknown> = {
-        ...rawInput,
-        companyId: context.activeCompanyId,
-      };
+      const input: Record<string, unknown> = { ...rawInput };
       if (APPROVAL_DOCUMENTS[action] && !input.contentHash) {
         input.contentHash = await accountingDocumentContentHash(
           client,
@@ -99,12 +95,11 @@ export async function POST(
           const ledgerId = await primaryAccountingLedgerId(
             client,
             context.organizationId,
-            context.activeCompanyId,
           );
           if (!ledgerId)
             throw new HttpError(
               409,
-              "This company has no active primary ledger.",
+              "Your organization has no active primary ledger.",
             );
           return {
             record: await createAccountingAccount(client, context, {

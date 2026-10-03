@@ -88,15 +88,13 @@ export function workingDaysBetween(from, to) {
 }
 
 export function projectsContext(session) {
-  const companyId = session.activeCompanyId || session.companyId;
-  if (!companyId) throw new ProjectError(400, "Select an active company before using Projects.", "ACTIVE_COMPANY_REQUIRED");
-  return { organizationId: session.organizationId, companyId, userId: session.userId, permissions: session.permissions || [], roleSlugs: session.roleSlugs || [] };
+  return { organizationId: session.organizationId, userId: session.userId, permissions: session.permissions || [], roleSlugs: session.roleSlugs || [] };
 }
 
 export async function recordEvent(client, c, aggregateType, aggregateId, eventType, payload = {}) {
   await client.query(
-    `INSERT INTO tenant.project_events(organization_id,company_id,aggregate_type,aggregate_id,event_type,payload,actor_user_id) VALUES($1,$2,$3,$4,$5,$6::jsonb,$7)`,
-    [c.organizationId, c.companyId, aggregateType, aggregateId, eventType, JSON.stringify(payload), c.userId],
+    `INSERT INTO tenant.project_events(organization_id,aggregate_type,aggregate_id,event_type,payload,actor_user_id) VALUES($1,$2,$3,$4,$5::jsonb,$6)`,
+    [c.organizationId, aggregateType, aggregateId, eventType, JSON.stringify(payload), c.userId],
   );
 }
 
@@ -124,7 +122,7 @@ export const canSeeFinance = (c) => c.roleSlugs?.includes("organization_owner") 
 export const canSeeRates = (c) => canSeeFinance(c) || has(c, "projects.resources.manage");
 
 export async function loadSettings(client, c) {
-  const res = await client.query(`SELECT * FROM tenant.project_settings WHERE organization_id=$1 AND company_id=$2`, [c.organizationId, c.companyId]);
+  const res = await client.query(`SELECT * FROM tenant.project_settings WHERE organization_id=$1`, [c.organizationId]);
   return res.rows[0] || { require_time_approval: true, require_expense_approval: true, prohibit_self_approval: true, default_currency_code: "INR", hours_per_day: 8, require_membership_for_time: true, require_baseline_approval: true, require_budget_approval: true, require_billing_approval: true, require_close_checks: true, default_billing_method: "non_billable" };
 }
 
@@ -133,9 +131,9 @@ export async function isMember(client, c, projectId, userId = c.userId) {
   return Boolean(r.rows[0]);
 }
 
-// Loads a project the caller may see: company scope always, membership for narrow users.
+// Loads a project the caller may see: membership for narrow users.
 export async function loadProject(client, c, projectId, { lock = false, write = false } = {}) {
-  const res = await qx(client, `SELECT * FROM tenant.projects WHERE organization_id=$1 AND company_id=$2 AND id=$3${lock ? " FOR UPDATE" : ""}`, [c.organizationId, c.companyId, uuid(projectId, "Project")]);
+  const res = await qx(client, `SELECT * FROM tenant.projects WHERE organization_id=$1 AND id=$2${lock ? " FOR UPDATE" : ""}`, [c.organizationId, uuid(projectId, "Project")]);
   const p = res.rows[0];
   if (!p) throw new ProjectError(404, "Project was not found.", "PROJECT_NOT_FOUND");
   if (!isBroad(c) && p.project_manager_id !== c.userId && !(await isMember(client, c, p.id))) throw new ProjectError(404, "Project was not found.", "PROJECT_NOT_FOUND");

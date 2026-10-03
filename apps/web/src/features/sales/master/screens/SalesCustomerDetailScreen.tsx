@@ -482,7 +482,7 @@ export function SalesCustomerDetailScreen({
                     label: "Price list",
                     value: priceList
                       ? `${priceList.name} (${priceList.currency_code})`
-                      : "Company default",
+                      : "Organisation default",
                   },
                   {
                     label: "GST treatment",

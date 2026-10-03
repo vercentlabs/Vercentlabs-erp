@@ -144,7 +144,6 @@ export async function assignLeadOwner(
         client,
         context,
         normalizedOwner,
-        { companyId: before.companyId, branchId: before.branchId },
       );
     } catch (error) {
       if (error?.code !== "CRM_LEAD_ASSIGNEE_SCOPE_INVALID") throw error;

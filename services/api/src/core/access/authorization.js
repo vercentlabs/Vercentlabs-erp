@@ -2,7 +2,7 @@
 //
 //   authentication → MFA assurance → active membership/organization
 //   → module (released → enabled → entitled → permitted)
-//   → permission(s) → organization scope → company scope → branch scope
+//   → permission(s) → organization scope
 //   → domain record policy (owned by the business module, passed in)
 //
 // authorize() is pure: it decides from a principal/snapshot already
@@ -14,7 +14,7 @@
 import { ACCESS_ERROR_CODES, accessStatusFor, denialToError } from "./errors.js";
 import { checkSnapshotModuleAccess } from "./module-access.js";
 import { principalHasPermission } from "./principal.js";
-import { checkBranchScope, checkCompanyScope, checkOrganizationScope } from "./scope-access.js";
+import { checkOrganizationScope } from "./scope-access.js";
 
 function deny(fragment, { action, conceal = false, module, permission } = {}) {
   return Object.freeze({
@@ -63,16 +63,6 @@ export function authorize({ principal, snapshot, module, permission, permissions
   const conceal = Boolean(resource);
   const organizationDenial = checkOrganizationScope(actor, resource?.organizationId);
   if (organizationDenial) return deny(organizationDenial, { ...meta, conceal });
-
-  const companyId = resource?.companyId ?? context?.companyId ?? null;
-  const branchId = resource?.branchId ?? context?.branchId ?? null;
-  if ((companyId || branchId) && !actor.companyScope.unrestricted && !actor.companyScope.resolved) {
-    throw new TypeError("authorize(): company/branch scope checks require a principal from a WorkspaceAccessSnapshot.");
-  }
-  const companyDenial = checkCompanyScope(actor, companyId);
-  if (companyDenial) return deny(companyDenial, { ...meta, conceal });
-  const branchDenial = checkBranchScope(actor, branchId, { companyId, branches: snapshot?.branches });
-  if (branchDenial) return deny(branchDenial, { ...meta, conceal });
 
   if (recordPolicy) {
     const recordDenial = recordPolicy({ principal: actor, snapshot, resource, context, action });

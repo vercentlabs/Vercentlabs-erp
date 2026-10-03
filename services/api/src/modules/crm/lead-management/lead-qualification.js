@@ -71,18 +71,6 @@ function canOverrideQualification(context) {
 
 function addScope(context, parameters, alias = "lead") {
   let sql = "";
-  if (context.activeCompanyId) {
-    parameters.push(context.activeCompanyId);
-    sql += ` AND (${alias}.company_id IS NULL OR ${alias}.company_id=$${parameters.length})`;
-  } else if (!context.allowAllCompanies) {
-    return " AND false";
-  }
-  if (context.activeBranchId) {
-    parameters.push(context.activeBranchId);
-    sql += ` AND (${alias}.branch_id IS NULL OR ${alias}.branch_id=$${parameters.length})`;
-  } else if (!context.allowAllCompanies) {
-    return sql + " AND false";
-  }
   sql += crmOwnerScopeSql(context, (value) => { parameters.push(value); return `$${parameters.length}`; }, `${alias}.owner_user_id`, `${alias}.organization_id`, { resource: "leads", alias: alias });
   return sql;
 }

@@ -43,15 +43,10 @@ const periodClosed = (message = "This forecast period no longer accepts changes.
 async function loadPeriod(client, context, periodId, { lock = false } = {}) {
   if (!UUID.test(String(periodId || ""))) throw new CrmError(404, "Forecast period not found.", "CRM_FORECAST_PERIOD_NOT_FOUND");
   const parameters = [context.organizationId, periodId];
-  let company = "";
-  if (context.activeCompanyId) {
-    parameters.push(context.activeCompanyId);
-    company = ` AND (company_id IS NULL OR company_id=$3)`;
-  }
   const { rows } = await client.query(
-    `SELECT id, organization_id, company_id, name, period_type, period_start::text AS period_start, period_end::text AS period_end, currency_code, status,
+    `SELECT id, organization_id, name, period_type, period_start::text AS period_start, period_end::text AS period_end, currency_code, status,
             frozen_at, closed_at, updated_at
-       FROM tenant.crm_forecast_periods WHERE organization_id=$1 AND id=$2${company}${lock ? " FOR UPDATE" : ""}`,
+       FROM tenant.crm_forecast_periods WHERE organization_id=$1 AND id=$2${lock ? " FOR UPDATE" : ""}`,
     parameters,
   );
   if (!rows[0]) throw new CrmError(404, "Forecast period not found.", "CRM_FORECAST_PERIOD_NOT_FOUND");
@@ -60,13 +55,10 @@ async function loadPeriod(client, context, periodId, { lock = false } = {}) {
 
 // The organisation-wide view a snapshot records (visibility is applied when
 // a snapshot is read, never when it is captured).
-function systemView(context, period) {
+function systemView(context) {
   return Object.freeze({
     organizationId: context.organizationId,
     userId: context.userId ?? null,
-    activeCompanyId: period.company_id ?? null,
-    activeBranchId: null,
-    allowAllCompanies: true,
     permissions: ["crm.records.view_all"],
     roleSlugs: ["system_worker"],
   });
@@ -258,9 +250,9 @@ export async function submitForecast(client, context, input = {}) {
   } else {
     row = (
       await client.query(
-        `INSERT INTO tenant.crm_forecast_submissions(organization_id,company_id,period_id,owner_user_id,submitted_by,pipeline_amount,best_case_amount,commit_amount,closed_amount,notes,baseline,currency_code,status,submitted_at,created_by,updated_by)
-         VALUES($1,$2,$3,$4,$4,$5,$6,$7,$8,$9,$10::jsonb,$11,'submitted',now(),$4,$4) RETURNING *`,
-        [context.organizationId, period.company_id, period.id, context.userId, baseline.pipeline, bestCaseAmount, commitAmount, baseline.won, notes || null, JSON.stringify(baseline), period.currency_code],
+        `INSERT INTO tenant.crm_forecast_submissions(organization_id,period_id,owner_user_id,submitted_by,pipeline_amount,best_case_amount,commit_amount,closed_amount,notes,baseline,currency_code,status,submitted_at,created_by,updated_by)
+         VALUES($1,$2,$3,$3,$4,$5,$6,$7,$8,$9::jsonb,$10,'submitted',now(),$3,$3) RETURNING *`,
+        [context.organizationId, period.id, context.userId, baseline.pipeline, bestCaseAmount, commitAmount, baseline.won, notes || null, JSON.stringify(baseline), period.currency_code],
       )
     ).rows[0];
   }
@@ -350,7 +342,7 @@ export async function captureForecastPeriodSnapshot(client, context, { periodId,
   const existing = await client.query(`SELECT * FROM tenant.crm_forecast_snapshot_captures WHERE organization_id=$1 AND period_id=$2 AND capture_key=$3`, [context.organizationId, period.id, key]);
   if (existing.rows[0]) return { capture: camelizeRow(existing.rows[0]), replayed: true };
 
-  const view = systemView(context, period);
+  const view = systemView(context);
   const owners = await ownerFigures(client, view, period, date);
   const submissions = await client.query(
     `SELECT owner_user_id::text AS owner_user_id, commit_amount, manager_adjustment FROM tenant.crm_forecast_submissions
@@ -371,9 +363,8 @@ export async function captureForecastPeriodSnapshot(client, context, { periodId,
        LEFT JOIN tenant.crm_pipeline_stages stage ON stage.organization_id=opportunity.organization_id AND stage.id=opportunity.stage_id
       WHERE opportunity.organization_id=$1 AND opportunity.status='open' AND opportunity.forecast_category<>'omitted'
         AND opportunity.expected_close_date BETWEEN $2::date AND $3::date
-        AND ($4::uuid IS NULL OR opportunity.company_id IS NULL OR opportunity.company_id=$4)
       ORDER BY opportunity.id`,
-    [context.organizationId, period.period_start, period.period_end, period.company_id],
+    [context.organizationId, period.period_start, period.period_end],
   );
   const dealsByOwner = new Map();
   for (const deal of deals.rows) {
@@ -418,11 +409,11 @@ export async function captureForecastPeriodSnapshot(client, context, { periodId,
   }
   for (const row of rows) {
     await client.query(
-      `INSERT INTO tenant.crm_forecast_snapshots(organization_id,company_id,period_id,capture_id,snapshot_at,snapshot_type,scope_type,scope_id,owner_user_id,team_id,parent_team_id,currency_code,
+      `INSERT INTO tenant.crm_forecast_snapshots(organization_id,period_id,capture_id,snapshot_at,snapshot_type,scope_type,scope_id,owner_user_id,team_id,parent_team_id,currency_code,
          pipeline_amount,best_case_amount,commit_amount,weighted_amount,won_amount,submitted_commit,manager_adjustment,deal_count,totals,opportunity_snapshot,created_by)
-       VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21::jsonb,$22::jsonb,$23)`,
+       VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20::jsonb,$21::jsonb,$22)`,
       [
-        context.organizationId, period.company_id, period.id, capture.id, capture.captured_at, source, row.scopeType, row.scopeId,
+        context.organizationId, period.id, capture.id, capture.captured_at, source, row.scopeType, row.scopeId,
         row.scopeType === "owner" ? row.scopeId : null, row.scopeType === "team" ? row.scopeId : row.teamId ?? null, row.parentTeamId ?? null, currency,
         row.figures.pipeline, row.figures.bestCase, row.figures.commit, row.figures.weighted, row.figures.won, row.submittedCommit ?? null, row.managerAdjustment ?? null, row.figures.deals,
         JSON.stringify({ label: row.label ?? null, adjustedCommit: row.adjustedCommit, metricVersion: METRIC_VERSION }), JSON.stringify(row.deals ?? []), context.userId ?? null,
@@ -515,15 +506,10 @@ export async function getForecastAccuracy(client, context, { limit = 6, horizonD
   const owner = all ? (ownerUserId && UUID.test(String(ownerUserId)) ? String(ownerUserId) : null) : context.userId;
   if (!all && ownerUserId && String(ownerUserId) !== String(context.userId)) throw new CrmError(403, "You can only see your own forecast accuracy.", "CRM_PERMISSION_REQUIRED");
   const parameters = [context.organizationId, periods, horizon, owner];
-  let company = "";
-  if (context.activeCompanyId) {
-    parameters.push(context.activeCompanyId);
-    company = ` AND (period.company_id IS NULL OR period.company_id=$5)`;
-  }
   const { rows } = await client.query(
     `WITH closed AS (
        SELECT period.* FROM tenant.crm_forecast_periods period
-        WHERE period.organization_id=$1 AND period.status='closed'${company}
+        WHERE period.organization_id=$1 AND period.status='closed'
         ORDER BY period.period_end DESC LIMIT $2),
      chosen AS (
        SELECT closed.id AS period_id, COALESCE(
@@ -566,7 +552,7 @@ export async function getForecastAccuracy(client, context, { limit = 6, horizonD
     const forecast = row.capture_id ? Number(row.adjusted_commit ?? row.commit_amount ?? 0) : null;
     // Actual = the canonical Won metric for the period (converted, same
     // definition the dashboard uses), organisation-wide or for the owner.
-    const actualView = all ? { ...context, allowAllCompanies: true, permissions: [...(context.permissions || []), "crm.records.view_all"] } : context;
+    const actualView = all ? { ...context, permissions: [...(context.permissions || []), "crm.records.view_all"] } : context;
     const actual = (await getPipelineMetrics(client, actualView, { from: row.period_start, to: row.period_end, ...(owner ? { ownerId: owner } : {}) })).metrics.won_amount ?? 0;
     const errorAmount = forecast === null ? null : fromCents(toCents(actual) - toCents(forecast));
     results.push({
@@ -603,7 +589,7 @@ export async function getForecastAccuracy(client, context, { limit = 6, horizonD
 
 /** Worker: capture today's scheduled snapshot for every open or frozen period that covers today. */
 export async function captureScheduledForecastSnapshots(client, organizationId, { date = today() } = {}) {
-  const context = Object.freeze({ organizationId, userId: null, activeCompanyId: null, activeBranchId: null, allowAllCompanies: true, permissions: ["crm.records.view_all"], roleSlugs: ["system_worker"] });
+  const context = Object.freeze({ organizationId, userId: null, permissions: ["crm.records.view_all"], roleSlugs: ["system_worker"] });
   const { rows } = await client.query(
     `SELECT id FROM tenant.crm_forecast_periods WHERE organization_id=$1 AND status IN ('open','frozen') AND period_start<=$2::date AND period_end>=$2::date ORDER BY period_start`,
     [organizationId, date],

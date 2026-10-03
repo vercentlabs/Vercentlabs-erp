@@ -1,4 +1,4 @@
-export type StockContext={organizationId:string;companyId:string;userId:string;permissions:string[];roleSlugs:string[]};
+export type StockContext={organizationId:string;userId:string;permissions:string[];roleSlugs:string[]};
 export declare class StockError extends Error{status:number;code:string;}
 export declare function stockContext(session:Record<string,unknown>):StockContext;
 export declare function getStockDashboard(client:any,context:StockContext):Promise<Record<string,unknown>>;

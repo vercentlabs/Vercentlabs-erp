@@ -31,8 +31,8 @@ function event(client, context, reconciliationId, eventType, payload = {}) {
 
 async function lockDayEndReport(client, context, reportId) {
   const result = await client.query(
-    `SELECT * FROM tenant.pos_day_end_reports WHERE organization_id=$1 AND company_id=$2 AND id=$3 FOR UPDATE`,
-    [context.organizationId, context.companyId, reportId],
+    `SELECT * FROM tenant.pos_day_end_reports WHERE organization_id=$1 AND id=$2 FOR UPDATE`,
+    [context.organizationId, reportId],
   );
   if (!result.rows[0]) throw posError(404, "POS day-end report was not found.", "POS_DAY_END_REPORT_NOT_FOUND");
   return result.rows[0];
@@ -59,8 +59,8 @@ export async function importPosSettlementBatch(client, context, input = {}) {
   if (input.storeId) await assertPosStoreAccess(client, context, input.storeId);
 
   const existing = await client.query(
-    `SELECT * FROM tenant.pos_settlement_batches WHERE organization_id=$1 AND company_id=$2 AND provider_key=$3 AND batch_reference=$4`,
-    [context.organizationId, context.companyId, providerKey, batchReference],
+    `SELECT * FROM tenant.pos_settlement_batches WHERE organization_id=$1 AND provider_key=$2 AND batch_reference=$3`,
+    [context.organizationId, providerKey, batchReference],
   );
   if (existing.rows[0]) {
     const entryRows = await client.query(
@@ -72,9 +72,9 @@ export async function importPosSettlementBatch(client, context, input = {}) {
 
   const batchResult = await client.query(
     `INSERT INTO tenant.pos_settlement_batches
-      (organization_id,company_id,store_id,payment_method,provider_key,batch_reference,settlement_date,imported_by)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *`,
-    [context.organizationId, context.companyId, input.storeId || null, paymentMethod, providerKey, batchReference, settlementDate, context.userId],
+      (organization_id,store_id,payment_method,provider_key,batch_reference,settlement_date,imported_by)
+     VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *`,
+    [context.organizationId, input.storeId || null, paymentMethod, providerKey, batchReference, settlementDate, context.userId],
   );
   const batch = batchResult.rows[0];
 
@@ -105,10 +105,10 @@ export async function importPosSettlementBatch(client, context, input = {}) {
       } else {
         const candidate = await client.query(
           `SELECT * FROM tenant.pos_payments
-            WHERE organization_id=$1 AND company_id=$2 AND payment_method=$3 AND provider_reference=$4
+            WHERE organization_id=$1 AND payment_method=$2 AND provider_reference=$3
               AND status IN ('captured','partially_refunded','refunded') AND settlement_entry_id IS NULL
             FOR UPDATE`,
-          [context.organizationId, context.companyId, paymentMethod, providerReference],
+          [context.organizationId, paymentMethod, providerReference],
         );
         if (candidate.rows[0]) {
           matchStatus = "matched";
@@ -119,9 +119,9 @@ export async function importPosSettlementBatch(client, context, input = {}) {
 
     const entryResult = await client.query(
       `INSERT INTO tenant.pos_settlement_entries
-        (organization_id,company_id,batch_id,provider_reference,amount,fee_amount,settled_at,matched_payment_id,match_status)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *`,
-      [context.organizationId, context.companyId, batch.id, providerReference, asDatabaseDecimal(amount), asDatabaseDecimal(feeAmount), settledAt.toISOString(), matchedPaymentId, matchStatus],
+        (organization_id,batch_id,provider_reference,amount,fee_amount,settled_at,matched_payment_id,match_status)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *`,
+      [context.organizationId, batch.id, providerReference, asDatabaseDecimal(amount), asDatabaseDecimal(feeAmount), settledAt.toISOString(), matchedPaymentId, matchStatus],
     );
     insertedEntries.push(entryResult.rows[0]);
 
@@ -196,8 +196,8 @@ export async function generatePosReconciliation(client, context, reportId, input
   if (!shiftIds.length) throw posError(409, "This day-end report has no shifts to reconcile.", "POS_RECONCILIATION_NO_SHIFTS");
 
   const methodsResult = await client.query(
-    `SELECT DISTINCT payment_method FROM tenant.pos_payments WHERE organization_id=$1 AND company_id=$2 AND shift_id=ANY($3::uuid[])`,
-    [context.organizationId, context.companyId, shiftIds],
+    `SELECT DISTINCT payment_method FROM tenant.pos_payments WHERE organization_id=$1 AND shift_id=ANY($2::uuid[])`,
+    [context.organizationId, shiftIds],
   );
   const methods = new Set(["cash", ...methodsResult.rows.map((row) => row.payment_method)]);
 
@@ -227,9 +227,9 @@ export async function generatePosReconciliation(client, context, reportId, input
         `SELECT coalesce(sum(amount),0)::text AS expected,coalesce(sum(settled_amount),0)::text AS settled,
                 coalesce(sum(settlement_fee_amount),0)::text AS fee
            FROM tenant.pos_payments
-          WHERE organization_id=$1 AND company_id=$2 AND shift_id=ANY($3::uuid[]) AND payment_method=$4
+          WHERE organization_id=$1 AND shift_id=ANY($2::uuid[]) AND payment_method=$3
             AND status IN ('captured','partially_refunded','refunded')`,
-        [context.organizationId, context.companyId, shiftIds, method],
+        [context.organizationId, shiftIds, method],
       );
       expectedAmount = decimal(paymentAgg.rows[0].expected);
       settledAmount = decimal(paymentAgg.rows[0].settled);
@@ -242,9 +242,9 @@ export async function generatePosReconciliation(client, context, reportId, input
          FROM tenant.pos_settlement_entries entry
          JOIN tenant.pos_settlement_batches batch
            ON batch.organization_id=entry.organization_id AND batch.id=entry.batch_id
-        WHERE entry.organization_id=$1 AND entry.company_id=$2 AND batch.payment_method=$3
-          AND batch.settlement_date=$4 AND (batch.store_id IS NULL OR batch.store_id=$5)`,
-        [context.organizationId, context.companyId, method, report.business_date, report.store_id],
+        WHERE entry.organization_id=$1 AND batch.payment_method=$2
+          AND batch.settlement_date=$3 AND (batch.store_id IS NULL OR batch.store_id=$4)`,
+        [context.organizationId, method, report.business_date, report.store_id],
       );
       missingCount = exceptionAgg.rows[0].missing_count;
       duplicateCount = exceptionAgg.rows[0].duplicate_count;
@@ -275,12 +275,12 @@ export async function generatePosReconciliation(client, context, reportId, input
       });
       const inserted = await client.query(
         `INSERT INTO tenant.pos_reconciliations
-          (organization_id,company_id,store_id,day_end_report_id,shift_id,payment_method,reconciliation_number,
+          (organization_id,store_id,day_end_report_id,shift_id,payment_method,reconciliation_number,
            expected_amount,counted_amount,variance_amount,settled_amount,fee_total,missing_count,duplicate_count,
            status,matched_by,matched_at,provider_settlement_reference)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$9,$11,$12,$13,$14,$15,now(),$16)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$8,$10,$11,$12,$13,$14,now(),$15)
          RETURNING *`,
-        [context.organizationId, context.companyId, report.store_id, reportId,
+        [context.organizationId, report.store_id, reportId,
           report.scope_type === "shift" ? report.shift_id : null, method, reconciliationNumber,
           asDatabaseDecimal(expectedAmount), asDatabaseDecimal(settledAmount), asDatabaseDecimal(varianceAmount),
           asDatabaseDecimal(feeTotal), missingCount, duplicateCount, status, context.userId, providerSettlementReference],
@@ -302,8 +302,8 @@ export async function generatePosReconciliation(client, context, reportId, input
 
 async function lockReconciliation(client, context, reconciliationId) {
   const result = await client.query(
-    `SELECT * FROM tenant.pos_reconciliations WHERE organization_id=$1 AND company_id=$2 AND id=$3 FOR UPDATE`,
-    [context.organizationId, context.companyId, reconciliationId],
+    `SELECT * FROM tenant.pos_reconciliations WHERE organization_id=$1 AND id=$2 FOR UPDATE`,
+    [context.organizationId, reconciliationId],
   );
   if (!result.rows[0]) throw posError(404, "POS reconciliation was not found.", "POS_RECONCILIATION_NOT_FOUND");
   return result.rows[0];
@@ -360,10 +360,10 @@ export async function recordPosReconciliationCorrection(client, context, reconci
   });
   const inserted = await client.query(
     `INSERT INTO tenant.pos_reconciliation_corrections
-      (organization_id,company_id,reconciliation_id,correction_number,reason,adjustment,created_by)
-     VALUES ($1,$2,$3,$4,$5,$6::jsonb,$7)
+      (organization_id,reconciliation_id,correction_number,reason,adjustment,created_by)
+     VALUES ($1,$2,$3,$4,$5::jsonb,$6)
      RETURNING *`,
-    [context.organizationId, context.companyId, reconciliationId, correctionNumber, String(input.reason).trim(), JSON.stringify(input.adjustment || []), context.userId],
+    [context.organizationId, reconciliationId, correctionNumber, String(input.reason).trim(), JSON.stringify(input.adjustment || []), context.userId],
   );
   await event(client, context, reconciliationId, "pos.reconciliation.correction_recorded", { correctionId: inserted.rows[0].id });
   return inserted.rows[0];
@@ -371,7 +371,7 @@ export async function recordPosReconciliationCorrection(client, context, reconci
 
 export async function listPosReconciliations(client, context, options = {}) {
   requirePermission(context, "pos.reconciliation.view");
-  const values = [context.organizationId, context.companyId];
+  const values = [context.organizationId];
   const clauses = [];
   if (options.storeId) {
     values.push(options.storeId);
@@ -388,7 +388,7 @@ export async function listPosReconciliations(client, context, options = {}) {
   values.push(Math.min(Number(options.limit) || 100, 200), Number(options.offset) || 0);
   const result = await client.query(
     `SELECT * FROM tenant.pos_reconciliations
-     WHERE organization_id=$1 AND company_id=$2 ${clauses.map((c) => `AND ${c}`).join(" ")}
+     WHERE organization_id=$1 ${clauses.map((c) => `AND ${c}`).join(" ")}
      ORDER BY created_at DESC
      LIMIT $${values.length - 1} OFFSET $${values.length}`,
     values,
@@ -399,8 +399,8 @@ export async function listPosReconciliations(client, context, options = {}) {
 export async function getPosReconciliation(client, context, reconciliationId) {
   requirePermission(context, "pos.reconciliation.view");
   const result = await client.query(
-    `SELECT * FROM tenant.pos_reconciliations WHERE organization_id=$1 AND company_id=$2 AND id=$3`,
-    [context.organizationId, context.companyId, reconciliationId],
+    `SELECT * FROM tenant.pos_reconciliations WHERE organization_id=$1 AND id=$2`,
+    [context.organizationId, reconciliationId],
   );
   const row = result.rows[0];
   if (!row) throw posError(404, "POS reconciliation was not found.", "POS_RECONCILIATION_NOT_FOUND");

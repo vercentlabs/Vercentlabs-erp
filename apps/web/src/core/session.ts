@@ -28,10 +28,6 @@ export type SessionContext = {
   membershipRole: "owner" | "admin" | "member" | null;
   roleSlugs: string[];
   permissions: string[];
-  activeCompanyId: string | null;
-  companyName: string | null;
-  activeBranchId: string | null;
-  branchName: string | null;
 };
 
 export type WorkspaceSessionContext = SessionContext & {

@@ -34,14 +34,6 @@ export type MemberRow = {
   role_ids: string[];
   primary_role_id: string | null;
   primary_role_name: string | null;
-  company_ids: string[];
-  company_names: string[];
-  branch_ids: string[];
-  branch_names: string[];
-  department_ids: string[];
-  department_names: string[];
-  team_ids: string[];
-  team_names: string[];
 };
 
 export async function listMembers(): Promise<{ members: MemberRow[] }> {

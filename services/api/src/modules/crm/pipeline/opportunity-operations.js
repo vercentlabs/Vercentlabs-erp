@@ -304,8 +304,6 @@ export async function enqueueOpportunityBulkUpdateJob(client, context, input) {
   const commandFingerprint = opportunityBulkCommandFingerprint(selection, changes);
   const payload = {
     requesterUserId: context.userId,
-    activeCompanyId: context.activeCompanyId || null,
-    activeBranchId: context.activeBranchId || null,
     commandFingerprint,
     changes,
   };
@@ -477,45 +475,12 @@ export async function resolveOpportunityBulkExecutionContext(client, organizatio
   if (!row) return null;
   const roleSlugs = row.role_slugs || [];
   const permissions = row.permissions || [];
-  const allowAllCompanies = roleSlugs.includes("organization_owner") || roleSlugs.includes("system_administrator");
-  if (!allowAllCompanies && !permissions.includes("crm.opportunities.manage")) return null;
-
-  const activeCompanyId = input.activeCompanyId || null;
-  const activeBranchId = input.activeBranchId || null;
-  if (activeCompanyId) {
-    const company = await client.query(
-      `SELECT company.id
-         FROM public.companies company
-        WHERE company.organization_id=$1 AND company.id=$2 AND company.status='active'
-          AND ($3::boolean OR EXISTS(
-            SELECT 1 FROM public.membership_company_access access
-             WHERE access.organization_id=$1 AND access.user_id=$4 AND access.company_id=company.id
-          ))`,
-      [organizationId, activeCompanyId, allowAllCompanies, userId],
-    );
-    if (!company.rows[0]) return null;
-  } else if (!allowAllCompanies) return null;
-  if (activeBranchId) {
-    const branch = await client.query(
-      `SELECT branch.id
-         FROM public.branches branch
-        WHERE branch.organization_id=$1 AND branch.id=$2 AND branch.status='active'
-          AND ($3::uuid IS NULL OR branch.company_id=$3)
-          AND ($4::boolean OR EXISTS(
-            SELECT 1 FROM public.membership_branch_access access
-             WHERE access.organization_id=$1 AND access.user_id=$5 AND access.branch_id=branch.id
-          ))`,
-      [organizationId, activeBranchId, activeCompanyId, allowAllCompanies, userId],
-    );
-    if (!branch.rows[0]) return null;
-  } else if (!allowAllCompanies) return null;
+  const elevated = roleSlugs.includes("organization_owner") || roleSlugs.includes("system_administrator");
+  if (!elevated && !permissions.includes("crm.opportunities.manage")) return null;
 
   return {
     organizationId,
     userId,
-    activeCompanyId,
-    activeBranchId,
-    allowAllCompanies,
     permissions,
     roleSlugs,
   };

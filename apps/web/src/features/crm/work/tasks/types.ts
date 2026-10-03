@@ -2,8 +2,6 @@
 // task-operations.js's dto(). See TASK_FIELDS for the writable subset.
 export type Task = {
   id: string;
-  companyId: string | null;
-  branchId: string | null;
   entityType:
     "lead" | "opportunity" | "party" | "contact" | "campaign" | "general";
   entityId: string | null;

@@ -23,7 +23,7 @@ const need = (c, p) => {
 };
 
 async function loadCount(client, c, id, { lock = false } = {}) {
-  const { rows } = await client.query(`SELECT * FROM tenant.stock_counts WHERE organization_id=$1 AND company_id=$2 AND id=$3${lock ? " FOR UPDATE" : ""}`, [c.organizationId, c.companyId, uuid(id, "Count")]);
+  const { rows } = await client.query(`SELECT * FROM tenant.stock_counts WHERE organization_id=$1 AND id=$2${lock ? " FOR UPDATE" : ""}`, [c.organizationId, uuid(id, "Count")]);
   if (!rows[0]) throw new StockError(404, "Count was not found.", "STOCK_COUNT_NOT_FOUND");
   return rows[0];
 }
@@ -36,8 +36,8 @@ export async function createStockCount(client, c, input = {}) {
   const countType = String(input.countType || "");
   if (!["cycle", "physical"].includes(countType)) throw new StockError(400, "Count type must be cycle or physical.", "STOCK_COUNT_TYPE_INVALID");
   const warehouseId = uuid(input.warehouseId, "Warehouse");
-  const warehouse = (await client.query(`SELECT id FROM tenant.warehouses WHERE organization_id=$1 AND id=$2 AND company_id=$3 AND status='active'`, [c.organizationId, warehouseId, c.companyId])).rows[0];
-  if (!warehouse) throw new StockError(404, "Warehouse was not found for the active company.", "STOCK_WAREHOUSE_NOT_FOUND");
+  const warehouse = (await client.query(`SELECT id FROM tenant.warehouses WHERE organization_id=$1 AND id=$2 AND status='active'`, [c.organizationId, warehouseId])).rows[0];
+  if (!warehouse) throw new StockError(404, "Warehouse was not found.", "STOCK_WAREHOUSE_NOT_FOUND");
   const locationId = input.warehouseLocationId ? uuid(input.warehouseLocationId, "Location") : null;
   const groupId = input.groupId ? uuid(input.groupId, "Category") : null;
   if (countType === "cycle" && !locationId && !groupId && !(Array.isArray(input.itemIds) && input.itemIds.length)) {
@@ -45,25 +45,25 @@ export async function createStockCount(client, c, input = {}) {
   }
   const key = text(input.idempotencyKey, 200) || null;
   if (key) {
-    const replay = (await client.query(`SELECT * FROM tenant.stock_counts WHERE organization_id=$1 AND company_id=$2 AND idempotency_key=$3`, [c.organizationId, c.companyId, key])).rows[0];
+    const replay = (await client.query(`SELECT * FROM tenant.stock_counts WHERE organization_id=$1 AND idempotency_key=$2`, [c.organizationId, key])).rows[0];
     if (replay) return { ...replay, replayed: true };
   }
   const freeze = countType === "physical" ? input.freezeStock !== false : Boolean(input.freezeStock);
   if (freeze) {
-    const other = (await client.query(`SELECT count_number FROM tenant.stock_counts WHERE organization_id=$1 AND company_id=$2 AND warehouse_id=$3 AND freeze_stock AND status IN ('counting','review') LIMIT 1`, [c.organizationId, c.companyId, warehouseId])).rows[0];
+    const other = (await client.query(`SELECT count_number FROM tenant.stock_counts WHERE organization_id=$1 AND warehouse_id=$2 AND freeze_stock AND status IN ('counting','review') LIMIT 1`, [c.organizationId, warehouseId])).rows[0];
     if (other) throw new StockError(409, `Warehouse is already frozen by count ${other.count_number}.`, "STOCK_COUNT_FREEZE_CONFLICT");
   }
   const countNumber = await nextDocumentNumber(client, c, { documentType: "stock_count", prefix: countType === "physical" ? "PHY" : "CYC" });
   const count = (
     await client.query(
-      `INSERT INTO tenant.stock_counts(organization_id,company_id,count_number,count_type,warehouse_id,warehouse_location_id,group_id,freeze_stock,blind,notes,created_by,idempotency_key)
-       VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) RETURNING *`,
-      [c.organizationId, c.companyId, countNumber, countType, warehouseId, locationId, groupId, freeze, Boolean(input.blind), text(input.notes, 2000) || null, c.userId, key],
+      `INSERT INTO tenant.stock_counts(organization_id,count_number,count_type,warehouse_id,warehouse_location_id,group_id,freeze_stock,blind,notes,created_by,idempotency_key)
+       VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING *`,
+      [c.organizationId, countNumber, countType, warehouseId, locationId, groupId, freeze, Boolean(input.blind), text(input.notes, 2000) || null, c.userId, key],
     )
   ).rows[0];
 
   // Snapshot: every non-serial balance in scope (a physical count covers the whole warehouse).
-  const values = [c.organizationId, c.companyId, warehouseId];
+  const values = [c.organizationId, warehouseId];
   let scope = "";
   if (locationId) { values.push(locationId); scope += ` AND balance.warehouse_location_id=$${values.length}`; }
   if (groupId) { values.push(groupId); scope += ` AND item.group_id=$${values.length}`; }
@@ -72,7 +72,7 @@ export async function createStockCount(client, c, input = {}) {
     `INSERT INTO tenant.stock_count_lines(organization_id,count_id,item_id,warehouse_location_id,batch_id,system_quantity)
      SELECT balance.organization_id,'${count.id}'::uuid,balance.item_id,balance.warehouse_location_id,balance.batch_id,balance.quantity
        FROM tenant.stock_balances balance JOIN tenant.items item ON item.organization_id=balance.organization_id AND item.id=balance.item_id
-      WHERE balance.organization_id=$1 AND balance.company_id=$2 AND balance.warehouse_id=$3 AND item.tracking_type<>'serial'${scope}`,
+      WHERE balance.organization_id=$1 AND balance.warehouse_id=$2 AND item.tracking_type<>'serial'${scope}`,
     values,
   );
   return { ...count, lineCount: snapshot.rowCount, replayed: false };
@@ -84,8 +84,8 @@ export async function addStockCountLine(client, c, countId, input = {}) {
   const count = await loadCount(client, c, countId, { lock: true });
   requireStatus(count, "counting");
   const itemId = uuid(input.itemId, "Item");
-  const item = (await client.query(`SELECT id,tracking_type,track_inventory FROM tenant.items WHERE organization_id=$1 AND id=$2 AND status='active' AND (company_id IS NULL OR company_id=$3)`, [c.organizationId, itemId, c.companyId])).rows[0];
-  if (!item || !item.track_inventory) throw new StockError(404, "Stock item was not found for the active company.", "STOCK_ITEM_NOT_FOUND");
+  const item = (await client.query(`SELECT id,tracking_type,track_inventory FROM tenant.items WHERE organization_id=$1 AND id=$2 AND status='active'`, [c.organizationId, itemId])).rows[0];
+  if (!item || !item.track_inventory) throw new StockError(404, "Stock item was not found.", "STOCK_ITEM_NOT_FOUND");
   if (item.tracking_type === "serial") throw new StockError(409, "Serial-tracked items are not counted here.", "STOCK_COUNT_SERIAL_UNSUPPORTED");
   if (item.tracking_type === "batch" && !input.batchId) throw new StockError(400, "Choose the batch for a batch-tracked item.", "STOCK_BATCH_REQUIRED");
   const locationId = input.warehouseLocationId ? uuid(input.warehouseLocationId, "Location") : null;
@@ -195,7 +195,7 @@ export async function cancelStockCount(client, c, countId, reason) {
 
 export async function listStockCounts(client, c, { countType = null, status = null, limit = 250 } = {}) {
   need(c, "stock.view");
-  const values = [c.organizationId, c.companyId];
+  const values = [c.organizationId];
   let filter = "";
   if (countType) { values.push(String(countType)); filter += ` AND count.count_type=$${values.length}`; }
   if (status) { values.push(String(status)); filter += ` AND count.status=$${values.length}`; }
@@ -205,7 +205,7 @@ export async function listStockCounts(client, c, { countType = null, status = nu
             (SELECT count(*)::int FROM tenant.stock_count_lines l WHERE l.count_id=count.id) AS line_count,
             (SELECT count(*)::int FROM tenant.stock_count_lines l WHERE l.count_id=count.id AND l.counted_quantity IS NOT NULL AND l.counted_quantity<>l.system_quantity) AS variance_lines
        FROM tenant.stock_counts count JOIN tenant.warehouses warehouse ON warehouse.organization_id=count.organization_id AND warehouse.id=count.warehouse_id
-      WHERE count.organization_id=$1 AND count.company_id=$2${filter} ORDER BY count.created_at DESC LIMIT $${values.length}`,
+      WHERE count.organization_id=$1${filter} ORDER BY count.created_at DESC LIMIT $${values.length}`,
     values,
   );
   return rows;
@@ -224,10 +224,10 @@ export async function getStockCount(client, c, countId) {
          JOIN tenant.items item ON item.organization_id=line.organization_id AND item.id=line.item_id
          LEFT JOIN tenant.warehouse_locations location ON location.organization_id=line.organization_id AND location.id=line.warehouse_location_id
          LEFT JOIN tenant.stock_batches batch ON batch.organization_id=line.organization_id AND batch.id=line.batch_id
-         LEFT JOIN tenant.stock_balances balance ON balance.organization_id=line.organization_id AND balance.company_id=$3 AND balance.item_id=line.item_id AND balance.warehouse_id=$4
+         LEFT JOIN tenant.stock_balances balance ON balance.organization_id=line.organization_id AND balance.item_id=line.item_id AND balance.warehouse_id=$3
               AND balance.warehouse_location_id IS NOT DISTINCT FROM line.warehouse_location_id AND balance.batch_id IS NOT DISTINCT FROM line.batch_id
         WHERE line.organization_id=$1 AND line.count_id=$2 ORDER BY item.name,location.code NULLS FIRST,batch.batch_number NULLS FIRST`,
-      [c.organizationId, count.id, c.companyId, count.warehouse_id],
+      [c.organizationId, count.id, count.warehouse_id],
     )
   ).rows;
   // Blind count: the counter must not see the expected quantity until the count is submitted.

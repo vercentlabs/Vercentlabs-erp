@@ -81,9 +81,9 @@ function allocateRefundAcrossPayments(refundTotal, legs) {
 async function recordReturnPaymentRefund(client, context, { returnId, saleId, paymentId, paymentMethod, providerReference, amount }) {
   await client.query(
     `INSERT INTO tenant.pos_return_payment_refunds
-      (organization_id,company_id,return_id,sale_id,payment_id,payment_method,provider_reference,refund_amount,created_by)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
-    [context.organizationId, context.companyId, returnId, saleId, paymentId, paymentMethod, providerReference, asDatabaseDecimal(amount), context.userId],
+      (organization_id,return_id,sale_id,payment_id,payment_method,provider_reference,refund_amount,created_by)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
+    [context.organizationId, returnId, saleId, paymentId, paymentMethod, providerReference, asDatabaseDecimal(amount), context.userId],
   );
 }
 
@@ -102,10 +102,10 @@ export async function createPointOfSaleReturn(client, context, input) {
 
   const saleResult = await client.query(
     `SELECT * FROM tenant.pos_sales
-     WHERE organization_id=$1 AND company_id=$2 AND id=$3
+     WHERE organization_id=$1 AND id=$2
        AND status IN ('completed','partially_returned')
      FOR UPDATE`,
-    [context.organizationId, context.companyId, input.saleId],
+    [context.organizationId, input.saleId],
   );
   const sale = saleResult.rows[0];
   if (!sale) throw posError(404, "Eligible sale not found.", "POS_RETURN_SALE_NOT_FOUND");
@@ -161,8 +161,8 @@ export async function createPointOfSaleReturn(client, context, input) {
   const settings = await client.query(
     `SELECT require_return_approval,prohibit_self_return_approval
      FROM tenant.pos_settings
-     WHERE organization_id=$1 AND company_id=$2`,
-    [context.organizationId, context.companyId],
+     WHERE organization_id=$1`,
+    [context.organizationId],
   );
   const policy = settings.rows[0] || {
     require_return_approval: true,
@@ -176,16 +176,15 @@ export async function createPointOfSaleReturn(client, context, input) {
 
   const result = await client.query(
     `INSERT INTO tenant.pos_returns
-      (organization_id,company_id,store_id,terminal_id,shift_id,sale_id,
+      (organization_id,store_id,terminal_id,shift_id,sale_id,
        return_number,reason,status,refund_total,requested_by,
        approved_by,approved_at)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11::uuid,
-       CASE WHEN $9='approved' THEN $11::uuid ELSE NULL END,
-       CASE WHEN $9='approved' THEN now() ELSE NULL END)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10::uuid,
+       CASE WHEN $8='approved' THEN $10::uuid ELSE NULL END,
+       CASE WHEN $8='approved' THEN now() ELSE NULL END)
      RETURNING *`,
     [
       context.organizationId,
-      context.companyId,
       sale.store_id,
       sale.terminal_id,
       sale.shift_id,
@@ -239,8 +238,8 @@ export async function approvePointOfSaleReturn(client, context, returnId, input 
 
   const found = await client.query(
     `SELECT * FROM tenant.pos_returns
-     WHERE organization_id=$1 AND company_id=$2 AND id=$3 FOR UPDATE`,
-    [context.organizationId, context.companyId, returnId],
+     WHERE organization_id=$1 AND id=$2 FOR UPDATE`,
+    [context.organizationId, returnId],
   );
   const row = found.rows[0];
   if (!row) throw posError(404, "POS return was not found.", "POS_RETURN_NOT_FOUND");
@@ -259,18 +258,18 @@ export async function approvePointOfSaleReturn(client, context, returnId, input 
   }
   const settings = await client.query(
     `SELECT prohibit_self_return_approval FROM tenant.pos_settings
-     WHERE organization_id=$1 AND company_id=$2`,
-    [context.organizationId, context.companyId],
+     WHERE organization_id=$1`,
+    [context.organizationId],
   );
   if (settings.rows[0]?.prohibit_self_return_approval !== false && row.requested_by === context.userId) {
     throw posError(409, "The return requester cannot approve the same return.", "SELF_APPROVAL_BLOCKED");
   }
   const approved = await client.query(
     `UPDATE tenant.pos_returns
-     SET status='approved',approved_by=$4,approved_at=now()
-     WHERE organization_id=$1 AND company_id=$2 AND id=$3 AND status='pending_approval'
+     SET status='approved',approved_by=$3,approved_at=now()
+     WHERE organization_id=$1 AND id=$2 AND status='pending_approval'
      RETURNING *`,
-    [context.organizationId, context.companyId, returnId, context.userId],
+    [context.organizationId, returnId, context.userId],
   );
   if (!approved.rows[0]) throw posError(409, "POS return state changed before approval.", "POS_RETURN_STATE_CONFLICT");
   await event(client, context, "return", returnId, "pos.return.approved", {
@@ -301,11 +300,10 @@ export async function completePointOfSaleReturn(client, context, returnId, input
      JOIN tenant.pos_sales sale
        ON sale.organization_id=return_record.organization_id
       AND sale.id=return_record.sale_id
-      AND sale.company_id=return_record.company_id
-     WHERE return_record.organization_id=$1 AND return_record.company_id=$2
-       AND return_record.id=$3
+     WHERE return_record.organization_id=$1
+       AND return_record.id=$2
      FOR UPDATE OF return_record,sale`,
-    [context.organizationId, context.companyId, returnId],
+    [context.organizationId, returnId],
   );
   const returnRecord = found.rows[0];
   if (!returnRecord) throw posError(404, "POS return was not found.", "POS_RETURN_NOT_FOUND");
@@ -331,10 +329,10 @@ export async function completePointOfSaleReturn(client, context, returnId, input
   // remaining-refundable headroom.
   const payments = await client.query(
     `SELECT * FROM tenant.pos_payments
-     WHERE organization_id=$1 AND company_id=$2 AND sale_id=$3
+     WHERE organization_id=$1 AND sale_id=$2
        AND status IN ('captured','partially_refunded')
      ORDER BY id FOR UPDATE`,
-    [context.organizationId, context.companyId, returnRecord.sale_id],
+    [context.organizationId, returnRecord.sale_id],
   );
   if (!payments.rows.length) {
     throw posError(409, "This sale has no captured payment left to refund.", "POS_REFUND_NO_PAYMENT");
@@ -416,9 +414,9 @@ export async function completePointOfSaleReturn(client, context, returnId, input
   const fullyReturned = Boolean(saleState.rows[0]?.fully_returned);
   const nextSaleStatus = fullyReturned ? "returned" : "partially_returned";
   await client.query(
-    `UPDATE tenant.pos_sales SET status=$4
-     WHERE organization_id=$1 AND company_id=$2 AND id=$3`,
-    [context.organizationId, context.companyId, returnRecord.sale_id, nextSaleStatus],
+    `UPDATE tenant.pos_sales SET status=$3
+     WHERE organization_id=$1 AND id=$2`,
+    [context.organizationId, returnRecord.sale_id, nextSaleStatus],
   );
 
   // F281 reversal dependency (PHASE 9): a coupon redeemed on this sale is
@@ -477,12 +475,11 @@ export async function completePointOfSaleReturn(client, context, returnId, input
         });
         await client.query(
           `INSERT INTO tenant.pos_cash_movements
-            (organization_id,company_id,shift_id,movement_number,movement_type,
+            (organization_id,shift_id,movement_number,movement_type,
              amount,reason,reference_type,reference_id,created_by)
-           VALUES ($1,$2,$3,$4,'refund',$5,$6,'pos_return',$7,$8)`,
+           VALUES ($1,$2,$3,'refund',$4,$5,'pos_return',$6,$7)`,
           [
             context.organizationId,
-            context.companyId,
             returnRecord.shift_id,
             cashMovementNumber,
             asDatabaseDecimal(sub(decimal(0), share)),
@@ -536,10 +533,10 @@ export async function completePointOfSaleReturn(client, context, returnId, input
 
   const completed = await client.query(
     `UPDATE tenant.pos_returns
-     SET status='completed',completed_by=$4,completed_at=now()
-     WHERE organization_id=$1 AND company_id=$2 AND id=$3 AND status='approved'
+     SET status='completed',completed_by=$3,completed_at=now()
+     WHERE organization_id=$1 AND id=$2 AND status='approved'
      RETURNING *`,
-    [context.organizationId, context.companyId, returnId, context.userId],
+    [context.organizationId, returnId, context.userId],
   );
   if (!completed.rows[0]) throw posError(409, "POS return state changed before completion.", "POS_RETURN_STATE_CONFLICT");
   await event(client, context, "return", returnId, "pos.return.completed", {

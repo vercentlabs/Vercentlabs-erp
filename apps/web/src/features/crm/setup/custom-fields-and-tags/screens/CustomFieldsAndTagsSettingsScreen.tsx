@@ -221,12 +221,6 @@ export function CustomFieldsAndTagsSettingsScreen() {
           ),
         },
         {
-          id: "companyScoped",
-          header: "Kept separately per company",
-          accessorFn: (row) =>
-            row.companyScoped ? "Yes" : "No, shared by all companies",
-        },
-        {
           id: "status",
           header: "Status",
           accessorKey: "status",
@@ -597,7 +591,6 @@ function CustomObjectDialog({
   const [objectKey, setObjectKey] = useState("");
   const [singularLabel, setSingularLabel] = useState("");
   const [pluralLabel, setPluralLabel] = useState("");
-  const [companyScoped, setCompanyScoped] = useState(false);
   const [keyEdited, setKeyEdited] = useState(false);
 
   const mutation = useMutation({
@@ -606,7 +599,6 @@ function CustomObjectDialog({
         objectKey,
         singularLabel,
         pluralLabel,
-        companyScoped,
       }),
     onSuccess: () => {
       onCreated();
@@ -614,7 +606,6 @@ function CustomObjectDialog({
       setObjectKey("");
       setSingularLabel("");
       setPluralLabel("");
-      setCompanyScoped(false);
       setKeyEdited(false);
     },
     onError,
@@ -651,9 +642,6 @@ function CustomObjectDialog({
             setObjectKey(v.toLowerCase());
           }}
         />
-        <Checkbox isSelected={companyScoped} onChange={setCompanyScoped}>
-          Keep these records separate for each company
-        </Checkbox>
         <div className="flex justify-end gap-2">
           <Button variant="secondary" onPress={() => onOpenChange(false)}>
             Cancel

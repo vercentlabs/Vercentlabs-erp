@@ -31,8 +31,6 @@ const documentChargeSchema = z.object({
 
 export const documentSchema = z.object({
   partyId: uuid,
-  companyId: uuid.nullish(),
-  branchId: uuid.nullish(),
   contactId: uuid.nullish(),
   ownerUserId: uuid.nullish(),
   opportunityId: uuid.nullish(),

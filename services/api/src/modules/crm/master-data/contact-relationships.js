@@ -48,8 +48,8 @@ function dto(row) {
   );
 }
 
-// Both ends of a relationship must be visible to the caller (company
-// boundary + ownership, crm-access-scope.js) — an id alone is never enough.
+// Both ends of a relationship must be visible to the caller (ownership,
+// crm-access-scope.js) — an id alone is never enough.
 async function assertActiveAccount(client, context, partyId) {
   const parameters = [context.organizationId, partyId];
   const bind = (value) => { parameters.push(value); return `$${parameters.length}`; };

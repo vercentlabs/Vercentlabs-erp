@@ -36,10 +36,6 @@ export declare function createOrganizationInvitation(
     roleId?: string;
     roleIds?: string[];
     primaryRoleId?: string;
-    companyIds?: string[];
-    branchIds?: string[];
-    departmentIds?: string[];
-    teamIds?: string[];
     inviter: { roleSlugs: string[]; permissions: string[] };
     acknowledgeWarningConflicts?: boolean;
   },

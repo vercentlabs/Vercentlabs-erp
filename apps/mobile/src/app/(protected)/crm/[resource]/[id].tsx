@@ -23,8 +23,6 @@ const allowed = new Set(["leads", "opportunities", "activities"]);
 const hidden = new Set([
   "id",
   "organizationId",
-  "companyId",
-  "branchId",
   "createdBy",
   "updatedBy",
   "deletedAt",

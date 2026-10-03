@@ -26,10 +26,10 @@ export async function getStandardCost(client, c, { itemId, quantity = 1 } = {}) 
   const components = (
     await client.query(
       `SELECT component.item_id,item.code,item.name,component.quantity,component.scrap_percent,
-              CASE WHEN item.standard_cost>0 THEN item.standard_cost ELSE COALESCE((SELECT sum(b.quantity*b.average_cost)/NULLIF(sum(b.quantity),0) FROM tenant.stock_balances b WHERE b.organization_id=item.organization_id AND b.company_id=$3 AND b.item_id=item.id),0) END AS price,
+              CASE WHEN item.standard_cost>0 THEN item.standard_cost ELSE COALESCE((SELECT sum(b.quantity*b.average_cost)/NULLIF(sum(b.quantity),0) FROM tenant.stock_balances b WHERE b.organization_id=item.organization_id AND b.item_id=item.id),0) END AS price,
               (item.standard_cost>0) AS has_standard
          FROM tenant.manufacturing_bom_components component JOIN tenant.items item ON item.id=component.item_id WHERE component.organization_id=$1 AND component.bom_id=$2 ORDER BY component.line_number`,
-      [c.organizationId, bom.id, c.companyId],
+      [c.organizationId, bom.id],
     )
   ).rows;
   const materialLines = components.map((k) => {
@@ -42,14 +42,14 @@ export async function getStandardCost(client, c, { itemId, quantity = 1 } = {}) 
 
 // ---------------------------------------------------------------- actual cost and variance (F183, F185)
 async function completedOrders(client, c, { from, to, itemId = null }) {
-  const values = [c.organizationId, c.companyId, from, to];
+  const values = [c.organizationId, from, to];
   let filter = "";
   if (itemId) { values.push(uuid(itemId, "Product")); filter = ` AND wo.item_id=$${values.length}`; }
   return (
     await client.query(
       `SELECT wo.id,wo.work_order_number,wo.item_id,item.code AS item_code,item.name AS item_name,wo.quantity_planned,wo.quantity_completed,wo.quantity_scrapped,wo.material_cost,wo.labor_cost,wo.overhead_cost,wo.subcontract_cost,wo.cost_absorbed,wo.actual_end_at
          FROM tenant.manufacturing_work_orders wo JOIN tenant.items item ON item.id=wo.item_id
-        WHERE wo.organization_id=$1 AND wo.company_id=$2 AND wo.status='completed' AND wo.quantity_completed>0 AND wo.actual_end_at>=$3::date AND wo.actual_end_at<($4::date+1)${filter} ORDER BY wo.actual_end_at DESC LIMIT 500`,
+        WHERE wo.organization_id=$1 AND wo.status='completed' AND wo.quantity_completed>0 AND wo.actual_end_at>=$2::date AND wo.actual_end_at<($3::date+1)${filter} ORDER BY wo.actual_end_at DESC LIMIT 500`,
       values,
     )
   ).rows;
@@ -81,9 +81,9 @@ export async function getVarianceReport(client, c, input = {}) {
     const materials = (
       await client.query(
         `SELECT m.item_id,m.required_quantity,m.issued_quantity-m.returned_quantity AS net_qty,m.issued_cost-m.returned_cost AS actual_cost,
-                CASE WHEN item.standard_cost>0 THEN item.standard_cost ELSE COALESCE((SELECT sum(b.quantity*b.average_cost)/NULLIF(sum(b.quantity),0) FROM tenant.stock_balances b WHERE b.organization_id=m.organization_id AND b.company_id=$3 AND b.item_id=m.item_id),0) END AS std_price
+                CASE WHEN item.standard_cost>0 THEN item.standard_cost ELSE COALESCE((SELECT sum(b.quantity*b.average_cost)/NULLIF(sum(b.quantity),0) FROM tenant.stock_balances b WHERE b.organization_id=m.organization_id AND b.item_id=m.item_id),0) END AS std_price
            FROM tenant.manufacturing_work_order_materials m JOIN tenant.items item ON item.id=m.item_id WHERE m.organization_id=$1 AND m.work_order_id=$2`,
-        [c.organizationId, o.id, c.companyId],
+        [c.organizationId, o.id],
       )
     ).rows;
     let price = 0;
@@ -114,25 +114,25 @@ export async function getProductionDashboard(client, c) {
   const today = iso(new Date());
   const counts = (await client.query(
     `SELECT count(*) FILTER (WHERE status='planned')::int AS planned,count(*) FILTER (WHERE status='released')::int AS released,count(*) FILTER (WHERE status='in_progress')::int AS in_progress,count(*) FILTER (WHERE status='on_hold')::int AS on_hold,
-            count(*) FILTER (WHERE status IN ('planned','released','in_progress','on_hold') AND COALESCE(due_date,planned_end_at::date)<$3::date)::int AS late,
+            count(*) FILTER (WHERE status IN ('planned','released','in_progress','on_hold') AND COALESCE(due_date,planned_end_at::date)<$2::date)::int AS late,
             count(*) FILTER (WHERE status='completed' AND actual_end_at>=now()-interval '30 days')::int AS completed_30d,
             COALESCE(sum(GREATEST(material_cost+labor_cost+overhead_cost+subcontract_cost-cost_absorbed,0)) FILTER (WHERE status IN ('released','in_progress','on_hold')),0)::text AS wip_value
-       FROM tenant.manufacturing_work_orders WHERE organization_id=$1 AND company_id=$2`,
-    [c.organizationId, c.companyId, today],
+       FROM tenant.manufacturing_work_orders WHERE organization_id=$1`,
+    [c.organizationId, today],
   )).rows[0];
   const shortages = (await client.query(
     `SELECT count(DISTINCT wo.id)::int AS orders FROM tenant.manufacturing_work_order_materials m JOIN tenant.manufacturing_work_orders wo ON wo.id=m.work_order_id
-      WHERE m.organization_id=$1 AND wo.company_id=$2 AND wo.status IN ('planned','released','in_progress') AND GREATEST(m.required_quantity-(m.issued_quantity-m.returned_quantity),0) >
+      WHERE m.organization_id=$1 AND wo.status IN ('planned','released','in_progress') AND GREATEST(m.required_quantity-(m.issued_quantity-m.returned_quantity),0) >
             COALESCE((SELECT sum(r.quantity) FROM tenant.stock_reservations r WHERE r.organization_id=m.organization_id AND r.reference_type='manufacturing_work_order' AND r.reference_id=wo.id AND r.item_id=m.item_id AND r.status='active'),0)+0.000001`,
-    [c.organizationId, c.companyId],
+    [c.organizationId],
   )).rows[0];
   const attention = (
     await client.query(
       `SELECT wo.id,wo.work_order_number,wo.status,item.code AS item_code,COALESCE(wo.due_date,wo.planned_end_at::date)::text AS due,wo.hold_reason
          FROM tenant.manufacturing_work_orders wo JOIN tenant.items item ON item.id=wo.item_id
-        WHERE wo.organization_id=$1 AND wo.company_id=$2 AND wo.status IN ('planned','released','in_progress','on_hold') AND (wo.status='on_hold' OR COALESCE(wo.due_date,wo.planned_end_at::date)<$3::date)
+        WHERE wo.organization_id=$1 AND wo.status IN ('planned','released','in_progress','on_hold') AND (wo.status='on_hold' OR COALESCE(wo.due_date,wo.planned_end_at::date)<$2::date)
         ORDER BY (wo.status='on_hold') DESC,COALESCE(wo.due_date,wo.planned_end_at::date) LIMIT 10`,
-      [c.organizationId, c.companyId, today],
+      [c.organizationId, today],
     )
   ).rows;
   return { orders: { planned: counts.planned, released: counts.released, inProgress: counts.in_progress, onHold: counts.on_hold, late: counts.late, completedLast30Days: counts.completed_30d }, ordersWithShortages: shortages.orders, wipValue: seeCost(c) ? counts.wip_value : null, attention };

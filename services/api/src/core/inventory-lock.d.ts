@@ -1,1 +1,1 @@
-export declare function lockInventoryItem(client:any, context:{organizationId:string;companyId:string}, itemId:string):Promise<string>;
+export declare function lockInventoryItem(client:any, context:{organizationId:string}, itemId:string):Promise<string>;

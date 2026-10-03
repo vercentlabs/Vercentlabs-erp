@@ -54,9 +54,6 @@ export async function captureCrmLead(
   const context = {
     organizationId: form.organization_id,
     userId: form.owner_user_id || null,
-    activeCompanyId: form.company_id,
-    activeBranchId: form.branch_id,
-    allowAllCompanies: false,
   };
   if (!context.userId) {
     const owner = await client.query(
@@ -87,15 +84,10 @@ export async function captureCrmLead(
     form.source_id,
   );
   const configuredCaptureOwner = form.owner_user_id
-    ? await getEligibleLeadAssignee(client, context, form.owner_user_id, {
-        companyId: form.company_id,
-        branchId: form.branch_id,
-      })
+    ? await getEligibleLeadAssignee(client, context, form.owner_user_id)
     : null;
   const lead = await createCrmRecord(client, context, "leads", {
     ...input,
-    companyId: form.company_id,
-    branchId: form.branch_id,
     sourceId: resolvedSourceId,
     campaignId: form.campaign_id,
     ownerUserId: configuredCaptureOwner?.id || null,
@@ -142,9 +134,9 @@ export async function captureCrmLead(
   for (const [field, channel] of [["consentEmail", "email"], ["consentSms", "sms"], ["consentWhatsapp", "whatsapp"]]) {
     if (input[field])
       await client.query(
-        `INSERT INTO tenant.crm_consent_events(organization_id,company_id,lead_id,channel,purpose,action,lawful_basis,source,evidence,created_by)
-         VALUES($1,$2,$3,$4,'sales','granted','consent','form',$5::jsonb,$6)`,
-        [form.organization_id, form.company_id, lead.id, channel, JSON.stringify({ formId: formKey }), context.userId],
+        `INSERT INTO tenant.crm_consent_events(organization_id,lead_id,channel,purpose,action,lawful_basis,source,evidence,created_by)
+         VALUES($1,$2,$3,'sales','granted','consent','form',$4::jsonb,$5)`,
+        [form.organization_id, lead.id, channel, JSON.stringify({ formId: formKey }), context.userId],
       );
   }
   if (form.campaign_id) {

@@ -15,10 +15,6 @@ const schema = z
     email: z.string().trim().toLowerCase().email().max(320),
     roleIds: z.array(z.string().uuid()).min(1).max(50),
     primaryRoleId: z.string().uuid(),
-    companyIds: z.array(z.string().uuid()).max(200).default([]),
-    branchIds: z.array(z.string().uuid()).max(500).default([]),
-    departmentIds: z.array(z.string().uuid()).max(500).default([]),
-    teamIds: z.array(z.string().uuid()).max(500).default([]),
     acknowledgeWarningConflicts: z.boolean().optional(),
   })
   .refine((body) => body.roleIds.includes(body.primaryRoleId), {
@@ -27,9 +23,8 @@ const schema = z
   });
 
 // Invitation administration (the public accept flow stays in
-// auth/invitations/[token]). Roles and scope are validated by
-// createOrganizationInvitation: grant ceiling, SoD, owner prohibition and,
-// for delegated administrators, the scope ceiling.
+// auth/invitations/[token]). Roles are validated by
+// createOrganizationInvitation: grant ceiling, SoD and owner prohibition.
 export async function POST(request: Request) {
   return workspaceRoute(
     request,
@@ -46,10 +41,6 @@ export async function POST(request: Request) {
         email: body.email,
         roleIds: body.roleIds,
         primaryRoleId: body.primaryRoleId,
-        companyIds: body.companyIds,
-        branchIds: body.branchIds,
-        departmentIds: body.departmentIds,
-        teamIds: body.teamIds,
         acknowledgeWarningConflicts: body.acknowledgeWarningConflicts,
         inviter: {
           roleSlugs: session.roleSlugs,

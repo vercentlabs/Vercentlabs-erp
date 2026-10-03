@@ -27,7 +27,7 @@ export default async function HomePage() {
     <div className="flex flex-1 flex-col gap-8">
       <div>
         <p className="text-sm text-text-secondary">
-          {session.companyName ? session.companyName : session.organizationName}
+          {session.organizationName}
         </p>
         <h1 className="text-2xl font-semibold text-text">{`Welcome, ${firstName}`}</h1>
       </div>

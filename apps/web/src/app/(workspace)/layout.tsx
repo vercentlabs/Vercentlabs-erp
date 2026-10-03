@@ -20,10 +20,6 @@ export default async function WorkspaceLayout({
       workspace={{
         organizationId: session.organizationId,
         organizationName: session.organizationName,
-        companyId: session.activeCompanyId,
-        companyName: session.companyName,
-        branchId: session.activeBranchId,
-        branchName: session.branchName,
         userId: session.userId,
         fullName: session.fullName,
         email: session.email,

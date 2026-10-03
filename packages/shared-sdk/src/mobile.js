@@ -226,12 +226,6 @@ export function createMobileClient({
     workspace() {
       return perform("/workspace");
     },
-    setWorkspaceContext(input) {
-      return perform("/workspace", {
-        method: "PATCH",
-        body: JSON.stringify(input),
-      });
-    },
     setWorkspaceOrganization(input) {
       return perform("/workspace/organization", {
         method: "PATCH",

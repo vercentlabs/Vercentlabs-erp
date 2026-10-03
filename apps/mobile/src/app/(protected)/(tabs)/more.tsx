@@ -86,14 +86,11 @@ export default function MoreScreen() {
             {auth.session.workspace.organizationName ||
               "Workspace setup required"}
           </Text>
-          <Text style={{ ...type.caption, color: colors.textMuted }}>
-            {[
-              auth.session.workspace.companyName,
-              auth.session.workspace.branchName,
-            ]
-              .filter(Boolean)
-              .join(" · ") || "Complete onboarding on the web application."}
-          </Text>
+          {auth.session.workspace.organizationName ? null : (
+            <Text style={{ ...type.caption, color: colors.textMuted }}>
+              Complete onboarding on the web application.
+            </Text>
+          )}
         </View>
         <Button label="Sign out" variant="secondary" onPress={auth.signOut} />
       </View>

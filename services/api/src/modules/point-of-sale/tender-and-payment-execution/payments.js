@@ -43,9 +43,9 @@ async function lockOpenCart(client, context, cartId) {
     `SELECT cart.*, store.currency_code AS store_currency_code
      FROM tenant.pos_carts cart
      JOIN tenant.pos_stores store ON store.organization_id=cart.organization_id AND store.id=cart.store_id
-     WHERE cart.organization_id=$1 AND cart.company_id=$2 AND cart.id=$3
+     WHERE cart.organization_id=$1 AND cart.id=$2
      FOR UPDATE OF cart`,
-    [context.organizationId, context.companyId, cartId],
+    [context.organizationId, cartId],
   );
   const cart = result.rows[0];
   if (!cart) throw posError(404, "POS cart was not found.", "POS_CART_NOT_FOUND");
@@ -107,13 +107,12 @@ export async function initiatePosPayment(client, context, input = {}) {
 
   const inserted = await client.query(
     `INSERT INTO tenant.pos_payments
-      (organization_id,company_id,cart_id,store_id,shift_id,payment_method,amount,currency_code,
+      (organization_id,cart_id,store_id,shift_id,payment_method,amount,currency_code,
        provider_key,idempotency_key,status,initiated_by,initiated_at,created_by)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,'initiated',$11,now(),$11)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,'initiated',$10,now(),$10)
      RETURNING *`,
     [
       context.organizationId,
-      context.companyId,
       cart.id,
       cart.store_id,
       cart.shift_id,
@@ -166,8 +165,8 @@ export async function initiatePosPayment(client, context, input = {}) {
 export async function getPosPaymentStatus(client, context, paymentId) {
   requirePermission(context, "pos.view");
   const result = await client.query(
-    `SELECT * FROM tenant.pos_payments WHERE organization_id=$1 AND company_id=$2 AND id=$3`,
-    [context.organizationId, context.companyId, paymentId],
+    `SELECT * FROM tenant.pos_payments WHERE organization_id=$1 AND id=$2`,
+    [context.organizationId, paymentId],
   );
   if (!result.rows[0]) throw posError(404, "POS payment was not found.", "POS_PAYMENT_NOT_FOUND");
   return result.rows[0];
@@ -181,8 +180,8 @@ export async function getPosPaymentStatus(client, context, paymentId) {
 export async function voidPosPayment(client, context, paymentId) {
   requirePermission(context, "pos.sale.create");
   const locked = await client.query(
-    `SELECT * FROM tenant.pos_payments WHERE organization_id=$1 AND company_id=$2 AND id=$3 FOR UPDATE`,
-    [context.organizationId, context.companyId, paymentId],
+    `SELECT * FROM tenant.pos_payments WHERE organization_id=$1 AND id=$2 FOR UPDATE`,
+    [context.organizationId, paymentId],
   );
   const payment = locked.rows[0];
   if (!payment) throw posError(404, "POS payment was not found.", "POS_PAYMENT_NOT_FOUND");
@@ -216,18 +215,17 @@ export async function handlePosPaymentWebhook(client, { providerKey, rawBody, si
   } catch {
     throw posError(400, "The webhook payload could not be parsed.", "POS_PAYMENT_WEBHOOK_PAYLOAD_INVALID");
   }
-  if (!parsedEvent.eventId || !parsedEvent.organizationId || !parsedEvent.companyId || !parsedEvent.paymentId) {
+  if (!parsedEvent.eventId || !parsedEvent.organizationId || !parsedEvent.paymentId) {
     throw posError(400, "The webhook payload is missing required fields.", "POS_PAYMENT_WEBHOOK_PAYLOAD_INVALID");
   }
 
   const dedupe = await client.query(
-    `INSERT INTO tenant.pos_payment_webhook_events (organization_id,company_id,provider_key,event_id,event_type,payment_id,payload)
-     VALUES ($1,$2,$3,$4,$5,$6,$7::jsonb)
+    `INSERT INTO tenant.pos_payment_webhook_events (organization_id,provider_key,event_id,event_type,payment_id,payload)
+     VALUES ($1,$2,$3,$4,$5,$6::jsonb)
      ON CONFLICT (organization_id,provider_key,event_id) DO NOTHING
      RETURNING id`,
     [
       parsedEvent.organizationId,
-      parsedEvent.companyId,
       providerKey,
       parsedEvent.eventId,
       parsedEvent.eventType || "payment.updated",
@@ -243,9 +241,9 @@ export async function handlePosPaymentWebhook(client, { providerKey, rawBody, si
 
   const locked = await client.query(
     `SELECT * FROM tenant.pos_payments
-     WHERE organization_id=$1 AND company_id=$2 AND id=$3 AND provider_key=$4
+     WHERE organization_id=$1 AND id=$2 AND provider_key=$3
      FOR UPDATE`,
-    [parsedEvent.organizationId, parsedEvent.companyId, parsedEvent.paymentId, providerKey],
+    [parsedEvent.organizationId, parsedEvent.paymentId, providerKey],
   );
   const payment = locked.rows[0];
   if (!payment) {
@@ -278,7 +276,7 @@ export async function handlePosPaymentWebhook(client, { providerKey, rawBody, si
   );
   await event(
     client,
-    { organizationId: parsedEvent.organizationId, companyId: parsedEvent.companyId, userId: null },
+    { organizationId: parsedEvent.organizationId, userId: null },
     "payment",
     payment.id,
     "pos.payment.webhook_received",
@@ -306,8 +304,8 @@ export async function refundPosPayment(client, context, input = {}) {
   if (idempotency.replayed) return { ...idempotency.response, replayed: true };
 
   const locked = await client.query(
-    `SELECT * FROM tenant.pos_payments WHERE organization_id=$1 AND company_id=$2 AND id=$3 FOR UPDATE`,
-    [context.organizationId, context.companyId, input.paymentId],
+    `SELECT * FROM tenant.pos_payments WHERE organization_id=$1 AND id=$2 FOR UPDATE`,
+    [context.organizationId, input.paymentId],
   );
   const payment = locked.rows[0];
   if (!payment) throw posError(404, "POS payment was not found.", "POS_PAYMENT_NOT_FOUND");
@@ -370,8 +368,8 @@ export async function requestPosPaymentOverride(client, context, input = {}) {
     throw posError(400, "An override reason is required.", "POS_OVERRIDE_REASON_REQUIRED");
   }
   const locked = await client.query(
-    `SELECT * FROM tenant.pos_payments WHERE organization_id=$1 AND company_id=$2 AND id=$3 FOR UPDATE`,
-    [context.organizationId, context.companyId, input.paymentId],
+    `SELECT * FROM tenant.pos_payments WHERE organization_id=$1 AND id=$2 FOR UPDATE`,
+    [context.organizationId, input.paymentId],
   );
   const payment = locked.rows[0];
   if (!payment) throw posError(404, "POS payment was not found.", "POS_PAYMENT_NOT_FOUND");
@@ -392,16 +390,10 @@ export async function requestPosPaymentOverride(client, context, input = {}) {
   return { paymentId: payment.id, approvalRequest: { id: approval.id, status: approval.status, version: approval.version } };
 }
 
-// NOTE on context.companyId here: these two functions are invoked from the
-// GLOBAL cross-module approval inbox (services/api/src/core/approvals.js),
-// whose moduleContext() builds { activeCompanyId, ... } rather than the
-// { companyId, ... } shape every other POS domain function expects (POS
-// always scopes to exactly one active company, unlike modules with an
-// allowAllCompanies fallback). Rather than depend on a field that may not
-// be populated the way POS expects, the payment's OWN company_id (read
-// back from the locked row, which is unambiguous and already
-// organization-scoped) is what every subsequent query and event() call
-// uses -- context.organizationId is still the caller's, verified by RLS.
+// These two functions are invoked from the GLOBAL cross-module approval
+// inbox (services/api/src/core/approvals.js); the payment row is re-read
+// and locked here, never trusted from the approval payload alone --
+// context.organizationId is still the caller's, verified by RLS.
 export async function approvePosPaymentOverride(client, context, payload = {}) {
   requirePermission(context, "pos.payment.override");
   const locked = await client.query(
@@ -424,7 +416,7 @@ export async function approvePosPaymentOverride(client, context, payload = {}) {
   await finalizeApprovalRequest(client, {
     organizationId: context.organizationId, commandKey: "pos.payment.override.approve", entityId: payment.id, decision: "approved", actorUserId: context.userId,
   });
-  await event(client, { organizationId: context.organizationId, companyId: payment.company_id, userId: context.userId }, "payment", payment.id, "pos.payment.override_approved", {
+  await event(client, context, "payment", payment.id, "pos.payment.override_approved", {
     reason: payload.reason || null,
   });
   return updated.rows[0];
@@ -447,7 +439,7 @@ export async function rejectPosPaymentOverrideApproval(client, context, payload 
   await finalizeApprovalRequest(client, {
     organizationId: context.organizationId, commandKey: "pos.payment.override.approve", entityId: payment.id, decision: "rejected", actorUserId: context.userId, note: payload.note ?? null,
   });
-  await event(client, { organizationId: context.organizationId, companyId: payment.company_id, userId: context.userId }, "payment", payment.id, "pos.payment.override_rejected", {});
+  await event(client, context, "payment", payment.id, "pos.payment.override_rejected", {});
   return updated.rows[0];
 }
 
@@ -461,9 +453,9 @@ export async function lockCapturedCartPaymentLegs(client, context, cartId, legs)
   for (const leg of legs) {
     const result = await client.query(
       `SELECT * FROM tenant.pos_payments
-       WHERE organization_id=$1 AND company_id=$2 AND id=$3 AND cart_id=$4 AND payment_method=$5
+       WHERE organization_id=$1 AND id=$2 AND cart_id=$3 AND payment_method=$4
        FOR UPDATE`,
-      [context.organizationId, context.companyId, leg.paymentId, cartId, leg.method],
+      [context.organizationId, leg.paymentId, cartId, leg.method],
     );
     const payment = result.rows[0];
     if (!payment) {

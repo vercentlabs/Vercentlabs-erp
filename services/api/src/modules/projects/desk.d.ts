@@ -1,4 +1,4 @@
-export type ProjectDeskContext = { organizationId: string; companyId: string; userId: string; permissions: readonly string[]; roleSlugs: readonly string[] };
+export type ProjectDeskContext = { organizationId: string; userId: string; permissions: readonly string[]; roleSlugs: readonly string[] };
 export declare class ProjectError extends Error { status: number; code: string; details?: unknown; constructor(status: number, message: string, code?: string); }
 export declare function projectsContext(session: Record<string, unknown>): ProjectDeskContext;
 export declare function computeSchedule(input: Record<string, unknown>): { rows: Array<Record<string, any>>; projectEnd: string; criticalPath: string[] };

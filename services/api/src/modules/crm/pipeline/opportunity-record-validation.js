@@ -7,8 +7,6 @@ const TEXT_LIMITS = Object.freeze({
 });
 
 const UUID_FIELDS = Object.freeze([
-  "companyId",
-  "branchId",
   "pipelineId",
   "stageId",
   "leadId",

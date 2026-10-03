@@ -40,9 +40,9 @@ export function buildDepreciationLines({ method, openingCents, salvageCents, mon
 async function insertLines(client, c, asset, lines, method) {
   for (const l of lines) {
     await client.query(
-      `INSERT INTO tenant.asset_depreciation_schedules(organization_id,company_id,asset_id,period_start,period_end,opening_book_value,depreciation_amount,closing_book_value,status,method)
-       VALUES($1,$2,$3,$4,$5,$6,$7,$8,'planned',$9) ON CONFLICT (asset_id,period_end) DO NOTHING`,
-      [c.organizationId, c.companyId, asset.id, l.periodStart, l.periodEnd, fromCents(l.opening), fromCents(l.amount), fromCents(l.closing), method]);
+      `INSERT INTO tenant.asset_depreciation_schedules(organization_id,asset_id,period_start,period_end,opening_book_value,depreciation_amount,closing_book_value,status,method)
+       VALUES($1,$2,$3,$4,$5,$6,$7,'planned',$8) ON CONFLICT (asset_id,period_end) DO NOTHING`,
+      [c.organizationId, asset.id, l.periodStart, l.periodEnd, fromCents(l.opening), fromCents(l.amount), fromCents(l.closing), method]);
   }
 }
 
@@ -59,11 +59,11 @@ export async function generateSchedule(client, c, asset, category, settings) {
 export async function listDepreciationSchedule(client, c, filters = {}) {
   need(c, "assets.view");
   need(c, "assets.reports.view");
-  const values = [c.organizationId, c.companyId];
+  const values = [c.organizationId];
   let where = "";
   if (filters.assetId) { values.push(uuid(filters.assetId, "Asset")); where += ` AND s.asset_id=$${values.length}`; }
   if (filters.status) { values.push(String(filters.status)); where += ` AND s.status=$${values.length}`; }
-  const res = await qx(client, `SELECT s.*,a.asset_number,a.name AS asset_name FROM tenant.asset_depreciation_schedules s JOIN tenant.assets a ON a.id=s.asset_id WHERE s.organization_id=$1 AND s.company_id=$2${where} ORDER BY s.period_end,a.asset_number LIMIT 500`, values);
+  const res = await qx(client, `SELECT s.*,a.asset_number,a.name AS asset_name FROM tenant.asset_depreciation_schedules s JOIN tenant.assets a ON a.id=s.asset_id WHERE s.organization_id=$1${where} ORDER BY s.period_end,a.asset_number LIMIT 500`, values);
   return res.rows;
 }
 
@@ -71,13 +71,13 @@ export async function listDepreciationSchedule(client, c, filters = {}) {
 export async function listDepreciationRuns(client, c) {
   need(c, "assets.view");
   need(c, "assets.reports.view");
-  const res = await qx(client, `SELECT * FROM tenant.asset_depreciation_runs WHERE organization_id=$1 AND company_id=$2 ORDER BY period_end DESC,created_at DESC LIMIT 200`, [c.organizationId, c.companyId]);
+  const res = await qx(client, `SELECT * FROM tenant.asset_depreciation_runs WHERE organization_id=$1 ORDER BY period_end DESC,created_at DESC LIMIT 200`, [c.organizationId]);
   return res.rows;
 }
 
 export async function getDepreciationRun(client, c, runId) {
   need(c, "assets.reports.view");
-  const run = await qx(client, `SELECT * FROM tenant.asset_depreciation_runs WHERE organization_id=$1 AND company_id=$2 AND id=$3`, [c.organizationId, c.companyId, uuid(runId, "Run")]);
+  const run = await qx(client, `SELECT * FROM tenant.asset_depreciation_runs WHERE organization_id=$1 AND id=$2`, [c.organizationId, uuid(runId, "Run")]);
   if (!run.rows[0]) throw new AssetError(404, "Depreciation run was not found.", "ASSET_NOT_FOUND");
   const lines = await qx(client, `SELECT s.*,a.asset_number,a.name AS asset_name FROM tenant.asset_depreciation_schedules s JOIN tenant.assets a ON a.id=s.asset_id WHERE s.organization_id=$1 AND s.run_id=$2 ORDER BY a.asset_number,s.period_end`, [c.organizationId, run.rows[0].id]);
   return { run: run.rows[0], lines: lines.rows };
@@ -86,17 +86,17 @@ export async function getDepreciationRun(client, c, runId) {
 export async function createDepreciationRun(client, c, input) {
   need(c, "assets.depreciate");
   const cutoff = dateRequired(input.periodEnd, "Period end");
-  const live = await client.query(`SELECT id FROM tenant.asset_depreciation_runs WHERE organization_id=$1 AND company_id=$2 AND period_end=$3 AND status<>'reversed'`, [c.organizationId, c.companyId, cutoff]);
+  const live = await client.query(`SELECT id FROM tenant.asset_depreciation_runs WHERE organization_id=$1 AND period_end=$2 AND status<>'reversed'`, [c.organizationId, cutoff]);
   if (live.rows[0]) throw new AssetError(409, "A depreciation run already exists for that period.", "ASSET_RUN_EXISTS");
   const eligible = await qx(client,
     `SELECT s.id,s.depreciation_amount FROM tenant.asset_depreciation_schedules s JOIN tenant.assets a ON a.id=s.asset_id
-     WHERE s.organization_id=$1 AND s.company_id=$2 AND s.status='planned' AND s.run_id IS NULL AND s.period_end<=$3 AND s.depreciation_amount>0
-       AND a.status IN ('available','assigned','in_maintenance','pending_disposal') FOR UPDATE OF s`, [c.organizationId, c.companyId, cutoff]);
+     WHERE s.organization_id=$1 AND s.status='planned' AND s.run_id IS NULL AND s.period_end<=$2 AND s.depreciation_amount>0
+       AND a.status IN ('available','assigned','in_maintenance','pending_disposal') FOR UPDATE OF s`, [c.organizationId, cutoff]);
   if (!eligible.rows.length) throw new AssetError(409, "There is no depreciation to run up to that date.", "ASSET_RUN_EMPTY");
   const total = eligible.rows.reduce((s, r) => s + toCents(r.depreciation_amount), 0n);
   const number = await nextNumber(client, c, "asset_depreciation_run", "DEP");
-  const run = (await qx(client, `INSERT INTO tenant.asset_depreciation_runs(organization_id,company_id,run_number,period_start,period_end,status,total_depreciation,asset_count,created_by) VALUES($1,$2,$3,$4,$4,'calculated',$5,$6,$7) RETURNING *`,
-    [c.organizationId, c.companyId, number, cutoff, fromCents(total), new Set(eligible.rows.map((r) => r.id)).size, c.userId])).rows[0];
+  const run = (await qx(client, `INSERT INTO tenant.asset_depreciation_runs(organization_id,run_number,period_start,period_end,status,total_depreciation,asset_count,created_by) VALUES($1,$2,$3,$3,'calculated',$4,$5,$6) RETURNING *`,
+    [c.organizationId, number, cutoff, fromCents(total), new Set(eligible.rows.map((r) => r.id)).size, c.userId])).rows[0];
   await client.query(`UPDATE tenant.asset_depreciation_schedules SET run_id=$1,status='ready' WHERE id=ANY($2::uuid[])`, [run.id, eligible.rows.map((r) => r.id)]);
   await client.query(`UPDATE tenant.asset_depreciation_runs SET asset_count=(SELECT count(DISTINCT asset_id) FROM tenant.asset_depreciation_schedules WHERE run_id=$1) WHERE id=$1`, [run.id]);
   return run;
@@ -104,7 +104,7 @@ export async function createDepreciationRun(client, c, input) {
 
 export async function approveDepreciationRun(client, c, runId) {
   need(c, "assets.accounting.handoff");
-  const run = (await qx(client, `SELECT * FROM tenant.asset_depreciation_runs WHERE organization_id=$1 AND company_id=$2 AND id=$3 FOR UPDATE`, [c.organizationId, c.companyId, uuid(runId, "Run")])).rows[0];
+  const run = (await qx(client, `SELECT * FROM tenant.asset_depreciation_runs WHERE organization_id=$1 AND id=$2 FOR UPDATE`, [c.organizationId, uuid(runId, "Run")])).rows[0];
   if (!run) throw new AssetError(404, "Depreciation run was not found.", "ASSET_NOT_FOUND");
   if (run.status !== "calculated") throw new AssetError(409, "Only a calculated run can be approved.", "ASSET_STATE_INVALID");
   const settings = await loadSettings(client, c);
@@ -114,7 +114,7 @@ export async function approveDepreciationRun(client, c, runId) {
 
 export async function postDepreciationRun(client, c, runId) {
   need(c, "assets.accounting.handoff");
-  const run = (await qx(client, `SELECT * FROM tenant.asset_depreciation_runs WHERE organization_id=$1 AND company_id=$2 AND id=$3 FOR UPDATE`, [c.organizationId, c.companyId, uuid(runId, "Run")])).rows[0];
+  const run = (await qx(client, `SELECT * FROM tenant.asset_depreciation_runs WHERE organization_id=$1 AND id=$2 FOR UPDATE`, [c.organizationId, uuid(runId, "Run")])).rows[0];
   if (!run) throw new AssetError(404, "Depreciation run was not found.", "ASSET_NOT_FOUND");
   if (run.status === "posted") return run;
   if (run.status !== "approved") throw new AssetError(409, "A run must be approved before it is posted.", "ASSET_STATE_INVALID");
@@ -143,10 +143,10 @@ export async function postDepreciationRun(client, c, runId) {
 export async function reverseDepreciationRun(client, c, runId, reason) {
   need(c, "assets.accounting.handoff");
   const why = requiredText(reason, "Reason", 500);
-  const run = (await qx(client, `SELECT * FROM tenant.asset_depreciation_runs WHERE organization_id=$1 AND company_id=$2 AND id=$3 FOR UPDATE`, [c.organizationId, c.companyId, uuid(runId, "Run")])).rows[0];
+  const run = (await qx(client, `SELECT * FROM tenant.asset_depreciation_runs WHERE organization_id=$1 AND id=$2 FOR UPDATE`, [c.organizationId, uuid(runId, "Run")])).rows[0];
   if (!run) throw new AssetError(404, "Depreciation run was not found.", "ASSET_NOT_FOUND");
   if (run.status !== "posted") throw new AssetError(409, "Only a posted run can be reversed.", "ASSET_STATE_INVALID");
-  const later = await client.query(`SELECT 1 FROM tenant.asset_depreciation_runs WHERE organization_id=$1 AND company_id=$2 AND status='posted' AND period_end>$3`, [c.organizationId, c.companyId, run.period_end]);
+  const later = await client.query(`SELECT 1 FROM tenant.asset_depreciation_runs WHERE organization_id=$1 AND status='posted' AND period_end>$2`, [c.organizationId, run.period_end]);
   if (later.rows[0]) throw new AssetError(409, "A later depreciation run is posted; reverse the latest run first.", "ASSET_RUN_ORDER");
   await reverseAssetJournal(client, c, run.accounting_journal_id, why);
   const lines = await client.query(`SELECT s.id,s.asset_id,s.depreciation_amount FROM tenant.asset_depreciation_schedules s WHERE s.run_id=$1 FOR UPDATE`, [run.id]);

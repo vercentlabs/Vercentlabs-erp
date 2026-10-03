@@ -33,11 +33,11 @@ async function activePipelineIds(client, context) {
 // thereby produce an incomplete/misleading historical record.
 export async function capturePipelineSnapshots(client, context, options = {}) {
   const source = options.source === "manual" ? "manual" : "scheduled";
-  // A capture aggregates EVERY open Opportunity in the company into stored
+  // A capture aggregates EVERY open Opportunity in the organization into stored
   // totals, so a person may only trigger one if they could read the result
   // (same rule as listPipelineSnapshots). The scheduled worker is unaffected.
   if (source === "manual" && !canViewAllCrmRecords(context))
-    throw new CrmError(403, "Capturing pipeline history covers company-wide totals and needs access to all CRM records.", "CRM_PIPELINE_SNAPSHOT_FORBIDDEN");
+    throw new CrmError(403, "Capturing pipeline history covers organization-wide totals and needs access to all CRM records.", "CRM_PIPELINE_SNAPSHOT_FORBIDDEN");
   const capturedBy = options.capturedBy ?? null;
   const snapshotDate = options.snapshotDate || new Date().toISOString().slice(0, 10);
   const pipelineIds = options.pipelineId
@@ -49,36 +49,35 @@ export async function capturePipelineSnapshots(client, context, options = {}) {
   for (const pipelineId of pipelineIds) {
     // Bounded by construction: GROUP BY collapses an arbitrarily large
     // Opportunity set (including pipelines with >500 open Opportunities)
-    // into one row per (company, stage, currency) combination — the
+    // into one row per (stage, currency) combination — the
     // aggregate itself, never the underlying Opportunity rows, is what
     // gets processed and persisted.
     const aggregate = await client.query(
-      `SELECT record.company_id, record.stage_id,
+      `SELECT record.stage_id,
               COALESCE(record.currency_code, '${CURRENCY_FALLBACK}') AS currency_code,
               count(*)::int AS opportunity_count,
               COALESCE(sum(record.amount), 0)::numeric AS amount,
               COALESCE(sum(record.expected_revenue), 0)::numeric AS weighted_amount
          FROM tenant.crm_opportunities record
         WHERE record.organization_id=$1 AND record.pipeline_id=$2 AND record.status='open'
-        GROUP BY record.company_id, record.stage_id, COALESCE(record.currency_code, '${CURRENCY_FALLBACK}')`,
+        GROUP BY record.stage_id, COALESCE(record.currency_code, '${CURRENCY_FALLBACK}')`,
       [context.organizationId, pipelineId],
     );
     for (const row of aggregate.rows) {
       const conflictClause =
         source === "scheduled"
-          ? `ON CONFLICT (organization_id, pipeline_id, coalesce(company_id, '00000000-0000-0000-0000-000000000000'::uuid), stage_id, currency_code, snapshot_date) WHERE source = 'scheduled' DO NOTHING`
+          ? `ON CONFLICT (organization_id, pipeline_id, stage_id, currency_code, snapshot_date) WHERE source = 'scheduled' DO NOTHING`
           : "";
       const insertResult = await client.query(
         `INSERT INTO tenant.crm_pipeline_stage_snapshots(
-           organization_id, pipeline_id, company_id, stage_id, currency_code, snapshot_date,
+           organization_id, pipeline_id, stage_id, currency_code, snapshot_date,
            opportunity_count, amount, weighted_amount, source, captured_by
-         ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
+         ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
          ${conflictClause}
          RETURNING id`,
         [
           context.organizationId,
           pipelineId,
-          row.company_id,
           row.stage_id,
           row.currency_code,
           snapshotDate,
@@ -107,18 +106,16 @@ export async function capturePipelineSnapshots(client, context, options = {}) {
 }
 
 // Retrieval boundary (distinct from capture's deliberately org-wide scope):
-// requires access to all CRM records (see below) — company-wide aggregates
-// must never reach a seller or team-scoped manager. A manager without org-wide visibility only sees
-// their own active company's rows (or company-unassigned/org-wide rows),
-// mirroring the live pipeline board's own companyVisible() boundary.
+// requires access to all CRM records (see below) — organization-wide
+// aggregates must never reach a seller or team-scoped manager.
 export async function listPipelineSnapshots(client, context, options = {}) {
-  // Snapshots are stored company-wide stage totals; they cannot be narrowed
+  // Snapshots are stored organization-wide stage totals; they cannot be narrowed
   // to one seller or team, so only callers who may already see every record
   // (organisation owner, crm.records.view_all) may read them. A Sales
   // Representative or team-scoped Sales Manager would otherwise learn the
-  // whole company's pipeline from the aggregates.
+  // whole organization's pipeline from the aggregates.
   if (!canViewAllCrmRecords(context)) {
-    throw new CrmError(403, "Pipeline history shows company-wide totals and needs access to all CRM records.", "CRM_PIPELINE_SNAPSHOT_FORBIDDEN");
+    throw new CrmError(403, "Pipeline history shows organization-wide totals and needs access to all CRM records.", "CRM_PIPELINE_SNAPSHOT_FORBIDDEN");
   }
   const pipelineId = options.pipelineId || null;
   const limit = Math.max(1, Math.min(200, Math.trunc(Number(options.limit) || 30)));
@@ -127,17 +124,6 @@ export async function listPipelineSnapshots(client, context, options = {}) {
   if (pipelineId) {
     parameters.push(pipelineId);
     where += ` AND snap.pipeline_id=$${parameters.length}`;
-  }
-  // Company boundary for everyone: "view all records" means every record
-  // in the caller's own company scope, never across companies. Only a
-  // cross-company role (allowAllCompanies) with no company selected sees all.
-  {
-    if (context.activeCompanyId) {
-      parameters.push(context.activeCompanyId);
-      where += ` AND (snap.company_id IS NULL OR snap.company_id=$${parameters.length})`;
-    } else if (!context.allowAllCompanies) {
-      where += " AND false";
-    }
   }
   parameters.push(limit);
   const result = await client.query(

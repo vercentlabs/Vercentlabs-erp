@@ -11,7 +11,7 @@
 import { randomUUID } from "node:crypto";
 
 import { createApprovalRequest, finalizeApprovalRequest } from "../../../core/platform/approvals/index.js";
-import { requireCompanyRecord } from "../../../core/references.js";
+import { requireOrganizationRecord } from "../../../core/references.js";
 import { decimal, div, mul, min, max, asDatabaseDecimal, formatDecimal } from "../../../core/decimal.js";
 import { priceCartLines } from "./cart-pricing.js";
 import { posError } from "../shared/errors.js";
@@ -24,8 +24,8 @@ async function loadPolicy(client, context) {
   const result = await client.query(
     `SELECT allow_negative_stock,allow_price_override,max_line_discount_percent,max_cart_discount_percent,
             discount_approval_threshold_percent,cart_expiry_minutes
-     FROM tenant.pos_settings WHERE organization_id=$1 AND company_id=$2`,
-    [context.organizationId, context.companyId],
+     FROM tenant.pos_settings WHERE organization_id=$1`,
+    [context.organizationId],
   );
   return (
     result.rows[0] || {
@@ -44,8 +44,8 @@ async function lockCart(client, context, cartId, { requireOpen = true } = {}) {
     `SELECT cart.*,store.warehouse_id,store.currency_code,store.price_list_id
      FROM tenant.pos_carts cart
      JOIN tenant.pos_stores store ON store.organization_id=cart.organization_id AND store.id=cart.store_id
-     WHERE cart.organization_id=$1 AND cart.company_id=$2 AND cart.id=$3 FOR UPDATE OF cart`,
-    [context.organizationId, context.companyId, cartId],
+     WHERE cart.organization_id=$1 AND cart.id=$2 FOR UPDATE OF cart`,
+    [context.organizationId, cartId],
   );
   const cart = result.rows[0];
   if (!cart) throw posError(404, "POS cart was not found.", "POS_CART_NOT_FOUND");
@@ -167,9 +167,9 @@ async function reprice(client, context, cart, policy) {
       `UPDATE tenant.pos_carts
        SET status='draft',version=version+1,subtotal=0,manual_discount_total=0,promotion_discount_total=0,
            coupon_discount_total=0,discount_total=0,tax_total=0,rounding_adjustment=0,grand_total=0,
-           tax_components='[]'::jsonb,updated_at=now(),updated_by=$4
-       WHERE organization_id=$1 AND company_id=$2 AND id=$3`,
-      [context.organizationId, context.companyId, cart.id, context.userId],
+           tax_components='[]'::jsonb,updated_at=now(),updated_by=$3
+       WHERE organization_id=$1 AND id=$2`,
+      [context.organizationId, cart.id, context.userId],
     );
     return getPosCart(client, context, cart.id);
   }
@@ -240,13 +240,12 @@ async function reprice(client, context, cart, policy) {
   const totals = priced.totals;
   await client.query(
     `UPDATE tenant.pos_carts
-     SET status='priced',version=version+1,subtotal=$4,manual_discount_total=$5,promotion_discount_total=$6,
-         coupon_discount_total=$7,discount_total=$8,tax_total=$9,rounding_adjustment=$10,grand_total=$11,
-         priced_at=now(),updated_at=now(),updated_by=$12
-     WHERE organization_id=$1 AND company_id=$2 AND id=$3`,
+     SET status='priced',version=version+1,subtotal=$3,manual_discount_total=$4,promotion_discount_total=$5,
+         coupon_discount_total=$6,discount_total=$7,tax_total=$8,rounding_adjustment=$9,grand_total=$10,
+         priced_at=now(),updated_at=now(),updated_by=$11
+     WHERE organization_id=$1 AND id=$2`,
     [
       context.organizationId,
-      context.companyId,
       cart.id,
       totals.subtotal,
       totals.manualDiscountTotal,
@@ -266,14 +265,14 @@ async function reprice(client, context, cart, policy) {
 export async function createPosCart(client, context, input) {
   requirePermission(context, "pos.sale.create");
   await assertPosStoreAccess(client, context, input.storeId, input.terminalId);
-  const store = await requireCompanyRecord(client, context, "pos_store", input.storeId);
-  const terminal = await requireCompanyRecord(client, context, "pos_terminal", input.terminalId);
+  const store = await requireOrganizationRecord(client, context, "pos_store", input.storeId);
+  const terminal = await requireOrganizationRecord(client, context, "pos_terminal", input.terminalId);
   if (terminal.store_id !== store.id) {
     throw posError(409, "The POS terminal does not belong to the selected store.", "POS_TERMINAL_STORE_MISMATCH");
   }
   const shiftResult = await client.query(
-    `SELECT id FROM tenant.pos_shifts WHERE organization_id=$1 AND company_id=$2 AND id=$3 AND terminal_id=$4 AND status='open'`,
-    [context.organizationId, context.companyId, input.shiftId, input.terminalId],
+    `SELECT id FROM tenant.pos_shifts WHERE organization_id=$1 AND id=$2 AND terminal_id=$3 AND status='open'`,
+    [context.organizationId, input.shiftId, input.terminalId],
   );
   if (!shiftResult.rows[0]) throw posError(409, "An open POS shift on this terminal is required.", "POS_SHIFT_NOT_OPEN");
 
@@ -283,21 +282,20 @@ export async function createPosCart(client, context, input) {
   // calls createPosCart every time it opens the checkout screen) is more
   // useful than surfacing a raw unique-constraint 409 to the frontend.
   const active = await client.query(
-    `SELECT id FROM tenant.pos_carts WHERE organization_id=$1 AND company_id=$2 AND terminal_id=$3 AND status IN ('draft','priced')`,
-    [context.organizationId, context.companyId, input.terminalId],
+    `SELECT id FROM tenant.pos_carts WHERE organization_id=$1 AND terminal_id=$2 AND status IN ('draft','priced')`,
+    [context.organizationId, input.terminalId],
   );
   if (active.rows[0]) return getPosCart(client, context, active.rows[0].id);
 
   const policy = await loadPolicy(client, context);
   const result = await client.query(
     `INSERT INTO tenant.pos_carts
-      (organization_id,company_id,store_id,terminal_id,shift_id,cashier_user_id,customer_id,
+      (organization_id,store_id,terminal_id,shift_id,cashier_user_id,customer_id,
        currency_code,expires_at,created_by)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,now()+make_interval(mins=>$9),$10)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,now()+make_interval(mins=>$8),$9)
      RETURNING *`,
     [
       context.organizationId,
-      context.companyId,
       input.storeId,
       input.terminalId,
       input.shiftId,
@@ -313,9 +311,8 @@ export async function createPosCart(client, context, input) {
 
 export async function getPosCart(client, context, cartId) {
   requirePermission(context, "pos.view");
-  const cartResult = await client.query(`SELECT * FROM tenant.pos_carts WHERE organization_id=$1 AND company_id=$2 AND id=$3`, [
+  const cartResult = await client.query(`SELECT * FROM tenant.pos_carts WHERE organization_id=$1 AND id=$2`, [
     context.organizationId,
-    context.companyId,
     cartId,
   ]);
   const cart = cartResult.rows[0];
@@ -578,14 +575,10 @@ async function ensureDiscountApprovalRequested(client, context, cart, cartLineId
 // (c) has already run assertSeparationOfDuties() to block the original
 // requester from deciding their own request. `context` here is
 // approvals.js's moduleContext(session) shape (organizationId, userId,
-// activeCompanyId, allowAllCompanies, permissions, roleSlugs) -- NOT the
-// PointOfSaleContext shape the rest of this file uses (that has
-// `companyId`, not `activeCompanyId`), so this adapts it after looking up
-// which company the cart actually belongs to (never trusting the caller
-// for that either).
+// permissions, roleSlugs).
 export async function approvePosCartDiscountApproval(client, context, payload) {
   const row = await lockDiscountApprovalForDecision(client, context, payload);
-  requirePermission(posContextFor(context, row.company_id), "pos.discount.approve");
+  requirePermission(context, "pos.discount.approve");
   // Defense in depth: decideApproval's assertSeparationOfDuties already
   // blocks the same session from deciding its own request; re-check here
   // too so this function is never accidentally safe to call in a way that
@@ -606,7 +599,7 @@ export async function approvePosCartDiscountApproval(client, context, payload) {
 
 export async function rejectPosCartDiscountApproval(client, context, payload) {
   const row = await lockDiscountApprovalForDecision(client, context, payload);
-  requirePermission(posContextFor(context, row.company_id), "pos.discount.approve");
+  requirePermission(context, "pos.discount.approve");
   await client.query(`UPDATE tenant.pos_cart_discount_approvals SET status='rejected' WHERE organization_id=$1 AND id=$2`, [
     context.organizationId,
     row.id,
@@ -620,28 +613,14 @@ export async function rejectPosCartDiscountApproval(client, context, payload) {
 
 async function lockDiscountApprovalForDecision(client, context, payload) {
   const result = await client.query(
-    `SELECT a.*, c.company_id FROM tenant.pos_cart_discount_approvals a
-       JOIN tenant.pos_carts c ON c.organization_id=a.organization_id AND c.id=a.cart_id
+    `SELECT a.* FROM tenant.pos_cart_discount_approvals a
       WHERE a.organization_id=$1 AND a.id=$2 FOR UPDATE OF a`,
     [context.organizationId, payload?.discountApprovalId],
   );
   const row = result.rows[0];
   if (!row) throw posError(404, "Discount approval request was not found.", "POS_DISCOUNT_APPROVAL_NOT_FOUND");
   if (row.status !== "pending") throw posError(409, `This discount approval was already ${row.status}.`, "POS_DISCOUNT_APPROVAL_NOT_PENDING");
-  if (!context.allowAllCompanies && context.activeCompanyId && context.activeCompanyId !== row.company_id) {
-    throw posError(403, "You are not authorized to decide discount approvals for this company.", "FORBIDDEN");
-  }
   return row;
-}
-
-function posContextFor(approvalsModuleContext, companyId) {
-  return {
-    organizationId: approvalsModuleContext.organizationId,
-    companyId,
-    userId: approvalsModuleContext.userId,
-    roleSlugs: approvalsModuleContext.roleSlugs,
-    permissions: approvalsModuleContext.permissions,
-  };
 }
 
 // Checkout-time enforcement (F279 requirement K: "a checkout with an
@@ -742,10 +721,10 @@ export async function setPosCartCustomer(client, context, cartId, input) {
   if (input.customerId) {
     const customer = await client.query(
       `SELECT id FROM tenant.business_parties
-       WHERE organization_id=$1 AND (company_id IS NULL OR company_id=$2) AND id=$3 AND party_type IN ('customer','both') AND status='active'`,
-      [context.organizationId, context.companyId, input.customerId],
+       WHERE organization_id=$1 AND id=$2 AND party_type IN ('customer','both') AND status='active'`,
+      [context.organizationId, input.customerId],
     );
-    if (!customer.rows[0]) throw posError(404, "Selected customer was not found or is not an active customer for this company.", "POS_CUSTOMER_NOT_FOUND");
+    if (!customer.rows[0]) throw posError(404, "Selected customer was not found or is not an active customer.", "POS_CUSTOMER_NOT_FOUND");
   }
   // F306: a loyalty redemption is validated against ONE specific
   // customer's balance -- changing (or clearing) the cart's customer
@@ -766,9 +745,9 @@ export async function holdPosCart(client, context, cartId, input = {}) {
   checkVersion(cart, input.expectedVersion);
   if (cart.status !== "priced") throw posError(409, "Only a priced cart can be held.", "POS_CART_NOT_PRICED");
   await client.query(
-    `UPDATE tenant.pos_carts SET status='held',held_at=now(),version=version+1,expires_at=NULL,updated_at=now(),updated_by=$4
-     WHERE organization_id=$1 AND company_id=$2 AND id=$3`,
-    [context.organizationId, context.companyId, cartId, context.userId],
+    `UPDATE tenant.pos_carts SET status='held',held_at=now(),version=version+1,expires_at=NULL,updated_at=now(),updated_by=$3
+     WHERE organization_id=$1 AND id=$2`,
+    [context.organizationId, cartId, context.userId],
   );
   return getPosCart(client, context, cartId);
 }
@@ -789,17 +768,17 @@ export async function resumePosCart(client, context, cartId) {
   const cart = await lockCart(client, context, cartId, { requireOpen: false });
   if (cart.status !== "held") throw posError(409, "Only a held cart can be resumed.", "POS_CART_NOT_HELD");
   const conflict = await client.query(
-    `SELECT id FROM tenant.pos_carts WHERE organization_id=$1 AND company_id=$2 AND terminal_id=$3 AND status IN ('draft','priced') AND id<>$4`,
-    [context.organizationId, context.companyId, cart.terminal_id, cartId],
+    `SELECT id FROM tenant.pos_carts WHERE organization_id=$1 AND terminal_id=$2 AND status IN ('draft','priced') AND id<>$3`,
+    [context.organizationId, cart.terminal_id, cartId],
   );
   if (conflict.rows[0]) {
     throw posError(409, "This terminal already has another active cart. Hold or complete it before resuming this one.", "POS_TERMINAL_CART_CONFLICT");
   }
   const policy = await loadPolicy(client, context);
   await client.query(
-    `UPDATE tenant.pos_carts SET status='priced',version=version+1,expires_at=now()+make_interval(mins=>$4),updated_at=now(),updated_by=$5
-     WHERE organization_id=$1 AND company_id=$2 AND id=$3`,
-    [context.organizationId, context.companyId, cartId, policy.cart_expiry_minutes, context.userId],
+    `UPDATE tenant.pos_carts SET status='priced',version=version+1,expires_at=now()+make_interval(mins=>$3),updated_at=now(),updated_by=$4
+     WHERE organization_id=$1 AND id=$2`,
+    [context.organizationId, cartId, policy.cart_expiry_minutes, context.userId],
   );
   return reprice(client, context, { ...cart, status: "priced" }, policy);
 }
@@ -811,13 +790,12 @@ export async function resumePosCart(client, context, cartId) {
 // list, not a single-row lookup).
 export async function listHeldPosCarts(client, context, { search } = {}) {
   requirePermission(context, "pos.view");
-  const configured = await client.query(`SELECT 1 FROM tenant.pos_store_access WHERE organization_id=$1 AND company_id=$2 LIMIT 1`, [
+  const configured = await client.query(`SELECT 1 FROM tenant.pos_store_access WHERE organization_id=$1 LIMIT 1`, [
     context.organizationId,
-    context.companyId,
   ]);
   const bypass = context.roleSlugs?.includes("organization_owner") || context.roleSlugs?.includes("system_administrator") || context.permissions?.includes("pos.store.manage") || context.permissions?.includes("pos.settings.manage");
   let storeFilter = "";
-  const values = [context.organizationId, context.companyId];
+  const values = [context.organizationId];
   if (configured.rows[0] && !bypass) {
     values.push(context.userId);
     storeFilter = ` AND cart.store_id IN (SELECT store_id FROM tenant.pos_store_access WHERE organization_id=$1 AND user_id=$${values.length})`;
@@ -835,7 +813,7 @@ export async function listHeldPosCarts(client, context, { search } = {}) {
        JOIN tenant.pos_stores store ON store.organization_id=cart.organization_id AND store.id=cart.store_id
        JOIN tenant.pos_terminals terminal ON terminal.organization_id=cart.organization_id AND terminal.id=cart.terminal_id
        LEFT JOIN tenant.business_parties party ON party.organization_id=cart.organization_id AND party.id=cart.customer_id
-      WHERE cart.organization_id=$1 AND cart.company_id=$2 AND cart.status='held' AND cart.held_at > now() - interval '24 hours'${storeFilter}${searchFilter}
+      WHERE cart.organization_id=$1 AND cart.status='held' AND cart.held_at > now() - interval '24 hours'${storeFilter}${searchFilter}
       ORDER BY cart.held_at DESC
       LIMIT 100`,
     values,
@@ -856,7 +834,7 @@ export async function listHeldPosCarts(client, context, { search } = {}) {
 export async function listPosDiscountApprovals(client, context, { status = "pending", limit = 100 } = {}) {
   requirePermission(context, "pos.view");
   const canDecide = context.roleSlugs?.includes("organization_owner") || context.permissions?.includes("pos.discount.approve");
-  const values = [context.organizationId, context.companyId];
+  const values = [context.organizationId];
   let filters = "";
   if (status && status !== "all") {
     values.push(status);
@@ -887,7 +865,7 @@ export async function listPosDiscountApprovals(client, context, { status = "pend
        LEFT JOIN tenant.pos_cart_lines line ON line.organization_id=a.organization_id AND line.id=a.cart_line_id
        LEFT JOIN public.users requester ON requester.id=a.requested_by
        LEFT JOIN public.users approver ON approver.id=a.approved_by
-      WHERE a.organization_id=$1 AND cart.company_id=$2${filters}
+      WHERE a.organization_id=$1${filters}
       ORDER BY (a.status='pending') DESC, a.approved_at DESC NULLS FIRST, a.id
       LIMIT $${values.length}`,
     values,
@@ -902,9 +880,9 @@ export async function cancelPosCart(client, context, cartId, input = {}) {
     throw posError(409, `This cart is ${cart.status} and cannot be cancelled.`, "POS_CART_NOT_CANCELLABLE");
   }
   await client.query(
-    `UPDATE tenant.pos_carts SET status='cancelled',cancelled_at=now(),cancel_reason=$4,version=version+1,updated_at=now(),updated_by=$5
-     WHERE organization_id=$1 AND company_id=$2 AND id=$3`,
-    [context.organizationId, context.companyId, cartId, input.reason || null, context.userId],
+    `UPDATE tenant.pos_carts SET status='cancelled',cancelled_at=now(),cancel_reason=$3,version=version+1,updated_at=now(),updated_by=$4
+     WHERE organization_id=$1 AND id=$2`,
+    [context.organizationId, cartId, input.reason || null, context.userId],
   );
   await client.query(
     `UPDATE tenant.pos_coupon_redemptions SET status='released',released_at=now()

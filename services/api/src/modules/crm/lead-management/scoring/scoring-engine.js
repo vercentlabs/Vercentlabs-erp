@@ -181,8 +181,8 @@ async function persistSnapshot(client, context, lead, model, breakdown, reason) 
   };
   const contentHash = crmLeadIntelligenceHash({ leadId: lead.id, score: breakdown.score, grade: breakdown.grade, explanation, calculatedAt: breakdown.calculatedAt });
   await client.query(
-    `INSERT INTO tenant.crm_lead_score_snapshots(organization_id,company_id,lead_id,model_id,score,grade,contributions,explanation,content_hash,calculated_at,calculated_by) VALUES($1,$2,$3,$4,$5,$6,$7::jsonb,$8,$9,$10,$11)`,
-    [context.organizationId, lead.company_id, lead.id, model.id, breakdown.score, breakdown.grade, JSON.stringify(breakdown.contributions), explanation, contentHash, breakdown.calculatedAt, context.userId],
+    `INSERT INTO tenant.crm_lead_score_snapshots(organization_id,lead_id,model_id,score,grade,contributions,explanation,content_hash,calculated_at,calculated_by) VALUES($1,$2,$3,$4,$5,$6::jsonb,$7,$8,$9,$10)`,
+    [context.organizationId, lead.id, model.id, breakdown.score, breakdown.grade, JSON.stringify(breakdown.contributions), explanation, contentHash, breakdown.calculatedAt, context.userId],
   );
   return { explanation, contentHash };
 }

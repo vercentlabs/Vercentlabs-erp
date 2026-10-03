@@ -49,7 +49,7 @@ export type ListConfig = {
 };
 
 // One list screen for every Procurement resource. Search and status are applied
-// server-side; the domain scopes rows to the caller's company and permission.
+// server-side; the domain scopes rows to the caller's permission.
 export function ResourceListPage({ config }: { config: ListConfig }) {
   const workspace = useWorkspaceContext();
   const router = useRouter();

@@ -22,10 +22,10 @@ export const camelize = (row) =>
     ]),
   );
 
-// Company/branch/owner record-scoped Opportunity lookup, locked for update.
+// Owner record-scoped Opportunity lookup, locked for update.
 // Every child-entity write in this capability (items, team members,
 // competitors, stage migration) goes through this first — the child table
-// itself has no company_id/branch_id of its own to scope by, so the parent
+// itself has no owner of its own to scope by, so the parent
 // Opportunity's scope is the only enforcement point.
 // F012 gap-closure (benchmark: "Sales stages configuration in top ERPs"
 // report) — mirrors lead-lifecycle's own isElevatedLifecycleActor exactly:

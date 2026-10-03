@@ -75,7 +75,7 @@ export async function listPointOfSaleResource(
 ) {
   requirePermission(context, "pos.view");
   const target = table(resource);
-  const values = [context.organizationId, context.companyId];
+  const values = [context.organizationId];
   let filter = "";
   if (shiftId && ["pos_sales", "pos_payments", "pos_cash_movements", "pos_reconciliations"].includes(target)) {
     values.push(shiftId);
@@ -171,7 +171,7 @@ export async function listPointOfSaleResource(
   }
   let total;
   if (withTotal) {
-    const countResult = await client.query(`SELECT count(*)::int AS total FROM tenant.${target} WHERE organization_id=$1 AND company_id=$2${filter}`, values);
+    const countResult = await client.query(`SELECT count(*)::int AS total FROM tenant.${target} WHERE organization_id=$1${filter}`, values);
     total = countResult.rows[0]?.total ?? 0;
   }
   values.push(Math.min(Number(limit) || 100, 200), Number(offset) || 0);
@@ -185,8 +185,8 @@ export async function listPointOfSaleResource(
       : "";
   const result = await client.query(
     `SELECT *${extraColumns} FROM tenant.${target}
-     WHERE organization_id=$1 AND company_id=$2${filter}
-     ORDER BY created_at DESC NULLS LAST,id DESC
+     WHERE organization_id=$1${filter}
+     ORDER BY ${target === "pos_payments" ? "initiated_at" : "created_at"} DESC NULLS LAST,id DESC
      LIMIT $${values.length - 1} OFFSET $${values.length}`,
     values,
   );

@@ -1,6 +1,6 @@
 // Access administration public boundary: role catalogue, role/permission
 // management, grant ceilings, separation of duties and delegated
-// administration scope. Implementation lives in ./administration-service.js
+// administration. Implementation lives in ./administration-service.js
 // and ../organization/administration.js; this file is the stable import
 // surface for Settings routes and future administration capabilities.
 import { analyzePermissionConflicts } from "@vercentlabs/permissions";
@@ -21,7 +21,6 @@ export {
   setUserRoles,
   updateRole,
   validateRoleSelection,
-  validateScopeGrantCeiling,
 } from "./administration-service.js";
 export {
   analyzePermissionConflicts,

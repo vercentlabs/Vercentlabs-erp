@@ -110,11 +110,6 @@ export function PosStoresScreen() {
       new Map((optionsQuery.data?.warehouses ?? []).map((w) => [w.id, w.name])),
     [optionsQuery.data],
   );
-  const branchById = useMemo(
-    () =>
-      new Map((optionsQuery.data?.branches ?? []).map((b) => [b.id, b.name])),
-    [optionsQuery.data],
-  );
 
   function invalidate() {
     queryClient.invalidateQueries({
@@ -152,11 +147,6 @@ export function PosStoresScreen() {
       },
       { id: "code", header: "Code", accessorKey: "code" },
       {
-        id: "branch",
-        header: "Branch",
-        accessorFn: (row) => branchById.get(row.branch_id ?? "") ?? "—",
-      },
-      {
         id: "warehouse",
         header: "Warehouse",
         accessorFn: (row) =>
@@ -179,7 +169,7 @@ export function PosStoresScreen() {
         ),
       },
     ],
-    [branchById, warehouseById],
+    [warehouseById],
   );
 
   if (!canManage)
@@ -361,7 +351,6 @@ export function PosStoresScreen() {
 }
 
 type SetupOptions = {
-  branches: { id: string; name: string }[];
   warehouses: { id: string; name: string }[];
   priceLists: { id: string; name: string; currency_code: string }[];
 };
@@ -381,7 +370,6 @@ function CreateStoreDialog({
 }) {
   const [name, setName] = useState("");
   const [code, setCode] = useState("");
-  const [branchId, setBranchId] = useState("");
   const [warehouseId, setWarehouseId] = useState("");
   const [priceListId, setPriceListId] = useState("");
   const [currencyCode, setCurrencyCode] = useState("INR");
@@ -391,7 +379,6 @@ function CreateStoreDialog({
       createPosStore({
         name,
         code,
-        branchId,
         warehouseId,
         priceListId: priceListId || undefined,
         currencyCode,
@@ -401,7 +388,6 @@ function CreateStoreDialog({
       onOpenChange(false);
       setName("");
       setCode("");
-      setBranchId("");
       setWarehouseId("");
       setPriceListId("");
     },
@@ -413,16 +399,6 @@ function CreateStoreDialog({
       <div className="flex flex-col gap-4">
         <TextField label="Name" isRequired value={name} onChange={setName} />
         <TextField label="Code" isRequired value={code} onChange={setCode} />
-        <Select
-          label="Branch"
-          isRequired
-          options={options.branches.map((b) => ({
-            value: b.id,
-            label: b.name,
-          }))}
-          selectedKey={branchId}
-          onSelectionChange={(key) => setBranchId(String(key ?? ""))}
-        />
         <Select
           label="Warehouse"
           isRequired
@@ -457,7 +433,7 @@ function CreateStoreDialog({
             onPress={() => mutation.mutate()}
             isLoading={mutation.isPending}
             isDisabled={
-              !name.trim() || !code.trim() || !branchId || !warehouseId
+              !name.trim() || !code.trim() || !warehouseId
             }
           >
             Create store
@@ -482,7 +458,6 @@ function EditStoreDialog({
   onError: (error: unknown) => void;
 }) {
   const [name, setName] = useState(store.name);
-  const [branchId, setBranchId] = useState(store.branch_id ?? "");
   const [warehouseId, setWarehouseId] = useState(
     store.warehouse_id ?? store.warehouseId ?? "",
   );
@@ -495,7 +470,6 @@ function EditStoreDialog({
     mutationFn: () =>
       updatePosStoreRecord(store.id, {
         name,
-        branchId,
         warehouseId,
         priceListId: priceListId || null,
         timezone,
@@ -512,15 +486,6 @@ function EditStoreDialog({
     >
       <div className="flex flex-col gap-4">
         <TextField label="Name" isRequired value={name} onChange={setName} />
-        <Select
-          label="Branch"
-          options={options.branches.map((b) => ({
-            value: b.id,
-            label: b.name,
-          }))}
-          selectedKey={branchId}
-          onSelectionChange={(key) => setBranchId(String(key ?? ""))}
-        />
         <Select
           label="Warehouse"
           options={options.warehouses.map((w) => ({

@@ -89,7 +89,6 @@ export async function GET(
               departmentId: get("departmentId"),
               employmentType: get("employmentType"),
               managerId: get("managerId"),
-              branchId: get("branchId"),
             }),
           };
         case "employee":

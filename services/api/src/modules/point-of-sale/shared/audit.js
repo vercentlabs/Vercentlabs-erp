@@ -5,8 +5,8 @@
 export async function event(client, context, aggregateType, aggregateId, eventType, payload = {}) {
   await client.query(
     `INSERT INTO tenant.pos_events
-      (organization_id,company_id,aggregate_type,aggregate_id,event_type,payload,actor_user_id)
-     VALUES ($1,$2,$3,$4,$5,$6::jsonb,$7)`,
-    [context.organizationId, context.companyId, aggregateType, aggregateId, eventType, JSON.stringify(payload), context.userId || null],
+      (organization_id,aggregate_type,aggregate_id,event_type,payload,actor_user_id)
+     VALUES ($1,$2,$3,$4,$5::jsonb,$6)`,
+    [context.organizationId, aggregateType, aggregateId, eventType, JSON.stringify(payload), context.userId || null],
   );
 }

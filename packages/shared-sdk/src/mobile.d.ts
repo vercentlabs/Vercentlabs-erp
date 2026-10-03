@@ -24,10 +24,6 @@ export type MobileSession = {
     organizationId: string | null;
     organizationName: string | null;
     membershipRole: "owner" | "admin" | "member" | null;
-    activeCompanyId: string | null;
-    companyName: string | null;
-    activeBranchId: string | null;
-    branchName: string | null;
   };
   access: { roleSlugs: string[]; permissions: string[] };
 };
@@ -67,21 +63,6 @@ export type MobileClient = {
     session: MobileSession;
     shell: {
       organizations: Array<{ id: string; name: string }>;
-      companies: Array<{ id: string; name: string }>;
-      branches: Array<{ id: string; company_id: string; name: string }>;
-      unreadNotifications: number;
-    };
-  }>;
-  setWorkspaceContext(input: {
-    companyId: string;
-    branchId: string | null;
-  }): Promise<{
-    message: string;
-    session: MobileSession;
-    shell: {
-      organizations: Array<{ id: string; name: string }>;
-      companies: Array<{ id: string; name: string }>;
-      branches: Array<{ id: string; company_id: string; name: string }>;
       unreadNotifications: number;
     };
   }>;
@@ -90,8 +71,6 @@ export type MobileClient = {
     session: MobileSession;
     shell: {
       organizations: Array<{ id: string; name: string }>;
-      companies: Array<{ id: string; name: string }>;
-      branches: Array<{ id: string; company_id: string; name: string }>;
       unreadNotifications: number;
     };
   }>;

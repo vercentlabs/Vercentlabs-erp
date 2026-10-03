@@ -13,8 +13,6 @@ export type InboundMailRouteSummary = {
   name: string;
   target: string;
   targetLabel: string;
-  companyId: string;
-  companyName: string | null;
   recordedAsUserId: string;
   recordedAsName: string | null;
   routeKeyPrefix: string;
@@ -27,7 +25,7 @@ export function listInboundMailRoutes(client: Client, organizationId: string): P
 export function createInboundMailRoute(
   client: Client,
   session: Session,
-  input: { name: string; target: string; companyId: string; recordedAsUserId?: string | null },
+  input: { name: string; target: string; recordedAsUserId?: string | null },
   env?: Env,
 ): Promise<{ route: InboundMailRouteSummary; routeKey: string; signingSecret: string }>;
 export function setInboundMailRouteStatus(client: Client, session: Session, routeId: string, status: "active" | "disabled"): Promise<InboundMailRouteSummary>;

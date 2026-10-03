@@ -24,7 +24,7 @@ export function createAccountingClient({ baseUrl = "", fetchImpl = fetch } = {})
   const create = (path, input) => request(path, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(input) });
   return Object.freeze({
     dashboard(filters) { return request(`/api/accounting/dashboard${encodeQuery(filters)}`); },
-    options(companyId) { return request(`/api/accounting/options${encodeQuery({ companyId })}`); },
+    options() { return request("/api/accounting/options"); },
     journals(filters) { return request(`/api/accounting/journals${encodeQuery(filters)}`); },
     journal(id) { return request(`/api/accounting/journals/${id}`); },
     createJournal(input) { return create("/api/accounting/journals", input); },

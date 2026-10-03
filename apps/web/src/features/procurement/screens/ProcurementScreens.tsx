@@ -91,7 +91,7 @@ export function ProcurementHomeScreen() {
     <div className="flex flex-col gap-6">
       <PageHeader
         title="Procurement"
-        description="Source-to-pay at a glance. Figures are live and limited to the companies you can access."
+        description="Source-to-pay at a glance. Figures are live across your organization."
       />
       {query.isError ? (
         <ErrorState

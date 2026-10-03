@@ -90,7 +90,7 @@ const employees: RegisterConfig = {
   key: "employees",
   title: "Employees",
   description:
-    "Everyone on the payroll of the active company. A new employee is created before joining; completing joining activates the record and starts probation and onboarding.",
+    "Everyone on the payroll. A new employee is created before joining; completing joining activates the record and starts probation and onboarding.",
   searchLabel: "Search employees",
   emptyTitle: "No employees yet",
   emptyDescription: "Add the first employee to start building the workforce.",
@@ -194,13 +194,6 @@ const employees: RegisterConfig = {
       label: "Reports to",
       kind: "select",
       options: "employees",
-    },
-    {
-      name: "branchId",
-      label: "Branch",
-      kind: "select",
-      options: "branches",
-      rowKey: "branch_id",
     },
     {
       name: "workLocation",

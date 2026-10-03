@@ -13,13 +13,10 @@
 // makes is attributable in application-level audit trails as
 // "system: <job type>", not as any real user, and is never presented as
 // if a person performed it.
-export function buildSystemContext(organizationId, { activeCompanyId = null, activeBranchId = null } = {}) {
+export function buildSystemContext(organizationId) {
   return Object.freeze({
     organizationId,
     userId: null,
-    activeCompanyId,
-    activeBranchId,
-    allowAllCompanies: true, // a system job scoped to one organization legitimately needs to see across companies/branches within it — this is a scope, not a permission, and does not touch crm.records.view_all
     permissions: [],
     roleSlugs: ["system_worker"],
   });

@@ -109,7 +109,7 @@ async function getScopedSensitiveEnrichmentLead(
   const values = [context.organizationId, leadId];
   const scope = leadScopeSql(context, values, "lead");
   const result = await client.query(
-    `SELECT lead.id,lead.company_id FROM tenant.crm_leads lead WHERE lead.organization_id=$1 AND lead.id=$2${scope}${lock ? " FOR UPDATE" : ""}`,
+    `SELECT lead.id FROM tenant.crm_leads lead WHERE lead.organization_id=$1 AND lead.id=$2${scope}${lock ? " FOR UPDATE" : ""}`,
     values,
   );
   if (!result.rows[0])
@@ -442,16 +442,11 @@ async function createLead(client, context, lead, options = {}) {
   );
   const assignmentInput = {
     ...lead,
-    companyId: options.companyId || context.activeCompanyId,
-    branchId: options.branchId || context.activeBranchId,
     sourceId,
     campaignId: options.campaignId || lead.campaignId || null,
   };
   const configuredOwner = options.ownerUserId
-    ? await getEligibleLeadAssignee(client, context, options.ownerUserId, {
-        companyId: assignmentInput.companyId,
-        branchId: assignmentInput.branchId,
-      })
+    ? await getEligibleLeadAssignee(client, context, options.ownerUserId)
     : null;
   const automaticAssignment = configuredOwner
     ? {
@@ -463,19 +458,17 @@ async function createLead(client, context, lead, options = {}) {
   const ownerUserId = automaticAssignment.ownerUserId || null;
   const inserted = await client.query(
     `INSERT INTO tenant.crm_leads(
-       organization_id,company_id,branch_id,code,first_name,last_name,email,phone,mobile,
+       organization_id,code,first_name,last_name,email,phone,mobile,
        company_name,job_title,website,industry,source_id,original_source_id,campaign_id,owner_user_id,
        estimated_value,currency_code,city,state,country_code,product_interest,
        consent_email,consent_sms,consent_whatsapp,custom_data,created_by,updated_by
      ) VALUES(
-       $1,$2,$3,'LEAD-'||upper(substr(replace(gen_random_uuid()::text,'-',''),1,10)),
-       $4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,
-       $23,$24,$25,$26::jsonb,$27,$27
+       $1,'LEAD-'||upper(substr(replace(gen_random_uuid()::text,'-',''),1,10)),
+       $2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,
+       $21,$22,$23,$24::jsonb,$25,$25
      ) RETURNING id`,
     [
       context.organizationId,
-      options.companyId || context.activeCompanyId,
-      options.branchId || context.activeBranchId,
       lead.firstName,
       lead.lastName,
       lead.email,
@@ -582,12 +575,10 @@ export async function saveLeadForm(client, context, input = {}) {
     return result.rows[0];
   }
   const result = await client.query(
-    `INSERT INTO tenant.crm_capture_forms(organization_id,company_id,branch_id,name,source_id,campaign_id,owner_user_id,allowed_origins,required_fields,success_message,status,created_by,updated_by,form_schema,landing_page,thank_you_url,consent_text,duplicate_strategy,captcha_mode)
-     VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,'inactive',$11,$11,$12::jsonb,$13::jsonb,$14,$15,$16,$17) RETURNING *`,
+    `INSERT INTO tenant.crm_capture_forms(organization_id,name,source_id,campaign_id,owner_user_id,allowed_origins,required_fields,success_message,status,created_by,updated_by,form_schema,landing_page,thank_you_url,consent_text,duplicate_strategy,captcha_mode)
+     VALUES($1,$2,$3,$4,$5,$6,$7,$8,'inactive',$9,$9,$10::jsonb,$11::jsonb,$12,$13,$14,$15) RETURNING *`,
     [
       context.organizationId,
-      input.companyId || context.activeCompanyId,
-      input.branchId || context.activeBranchId,
       text(input.name, 200),
       input.sourceId || null,
       input.campaignId || null,
@@ -664,8 +655,6 @@ export async function submitPublishedLeadForm(
   };
   const result = await createLead(client, context, lead, {
     duplicateStrategy: form.duplicate_strategy || "warn",
-    companyId: form.company_id,
-    branchId: form.branch_id,
     sourceId: form.source_id,
     campaignId: form.campaign_id,
     ownerUserId: form.owner_user_id,
@@ -682,16 +671,16 @@ export async function submitPublishedLeadForm(
   for (const [field, channel] of [["consentEmail", "email"], ["consentSms", "sms"], ["consentWhatsapp", "whatsapp"]]) {
     if (lead[field])
       await client.query(
-        `INSERT INTO tenant.crm_consent_events(organization_id,company_id,lead_id,channel,purpose,action,lawful_basis,source,evidence,created_by)
-         VALUES($1,$2,$3,$4,'sales','granted','consent','form',$5::jsonb,$6)`,
-        [context.organizationId, form.company_id, result.leadId, channel, JSON.stringify({ formId }), context.userId],
+        `INSERT INTO tenant.crm_consent_events(organization_id,lead_id,channel,purpose,action,lawful_basis,source,evidence,created_by)
+         VALUES($1,$2,$3,'sales','granted','consent','form',$4::jsonb,$5)`,
+        [context.organizationId, result.leadId, channel, JSON.stringify({ formId }), context.userId],
       );
   }
   if (input.consent)
     await client.query(
-      `INSERT INTO tenant.crm_consent_events(organization_id,company_id,lead_id,channel,purpose,action,lawful_basis,source,evidence,created_by)
-       VALUES($1,$2,$3,'all','marketing','granted','consent','form',$4::jsonb,$5)`,
-      [context.organizationId, form.company_id, result.leadId, JSON.stringify({ formId, consentText: form.consent_text }), context.userId],
+      `INSERT INTO tenant.crm_consent_events(organization_id,lead_id,channel,purpose,action,lawful_basis,source,evidence,created_by)
+       VALUES($1,$2,'all','marketing','granted','consent','form',$3::jsonb,$4)`,
+      [context.organizationId, result.leadId, JSON.stringify({ formId, consentText: form.consent_text }), context.userId],
     );
   await client.query(
     `INSERT INTO tenant.crm_lead_provenance(organization_id,lead_id,source_channel,source_record_id,provider,external_id,original_payload,attribution,consent_evidence,content_hash,created_by) VALUES($1,$2,'form',$3,'capture_form',$4,$5::jsonb,$6::jsonb,$7::jsonb,$8,$9) ON CONFLICT DO NOTHING`,
@@ -748,10 +737,9 @@ export async function createLeadAcquisitionConnection(
   )
     throw new CrmLeadAcquisitionError(400, "Unsupported acquisition provider.");
   const result = await client.query(
-    `INSERT INTO tenant.crm_lead_acquisition_connections(organization_id,company_id,provider,display_name,credential_reference,configuration,status,created_by,updated_by) VALUES($1,$2,$3,$4,$5,$6::jsonb,$7,$8,$8) ON CONFLICT(organization_id,provider,display_name) DO UPDATE SET credential_reference=EXCLUDED.credential_reference,configuration=EXCLUDED.configuration,status=EXCLUDED.status,updated_by=EXCLUDED.updated_by,updated_at=now() RETURNING *`,
+    `INSERT INTO tenant.crm_lead_acquisition_connections(organization_id,provider,display_name,credential_reference,configuration,status,created_by,updated_by) VALUES($1,$2,$3,$4,$5::jsonb,$6,$7,$7) ON CONFLICT(organization_id,provider,display_name) DO UPDATE SET credential_reference=EXCLUDED.credential_reference,configuration=EXCLUDED.configuration,status=EXCLUDED.status,updated_by=EXCLUDED.updated_by,updated_at=now() RETURNING *`,
     [
       context.organizationId,
-      input.companyId || context.activeCompanyId,
       provider,
       text(input.displayName || provider, 160),
       text(input.credentialReference, 500) || null,
@@ -782,7 +770,7 @@ export async function ingestLeadAcquisitionWebhook(
 ) {
   assertUuid(connectionId, "Acquisition connection");
   const connectionResult = await client.query(
-    `SELECT company_id,provider,configuration,status
+    `SELECT provider,configuration,status
        FROM tenant.crm_lead_acquisition_connections
       WHERE organization_id=$1 AND id=$2 AND status IN ('sandbox','connected')`,
     [context.organizationId, connectionId],
@@ -821,7 +809,6 @@ export async function ingestLeadAcquisitionWebhook(
   try {
     const result = await createLead(client, context, normalized.lead, {
       duplicateStrategy: "skip",
-      companyId: connection.company_id || context.activeCompanyId,
       sourceId: configuration.sourceId || configuration.source_id || null,
       campaignId: configuration.campaignId || configuration.campaign_id || null,
       ownerUserId:
@@ -940,16 +927,13 @@ export async function appendLeadChatMessage(
 export async function queueLeadEnrichment(client, context, input = {}) {
   assertUuid(input.entityId, "Entity");
   const entityType = text(input.entityType || "lead", 20).toLowerCase();
-  const scopedLead =
-    entityType === "lead"
-      ? await getScopedSensitiveEnrichmentLead(client, context, input.entityId, { lock: true })
-      : null;
+  if (entityType === "lead")
+    await getScopedSensitiveEnrichmentLead(client, context, input.entityId, { lock: true });
   const review = buildEnrichmentReview(input);
   const job = await client.query(
-    `INSERT INTO tenant.crm_enrichment_jobs(organization_id,company_id,entity_type,entity_id,provider,requested_fields,status,requested_by) VALUES($1,$2,$3,$4,$5,$6::jsonb,'queued',$7) RETURNING *`,
+    `INSERT INTO tenant.crm_enrichment_jobs(organization_id,entity_type,entity_id,provider,requested_fields,status,requested_by) VALUES($1,$2,$3,$4,$5::jsonb,'queued',$6) RETURNING *`,
     [
       context.organizationId,
-      scopedLead?.company_id || input.companyId || context.activeCompanyId,
       entityType,
       input.entityId,
       review.provider,

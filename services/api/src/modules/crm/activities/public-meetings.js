@@ -41,7 +41,7 @@ export async function resolvePublicMeetingBooking(queryable, token) {
 
 /** The anonymous context public pages act under: the host, no permissions. */
 export function publicMeetingContext({ organizationId, hostUserId }) {
-  return { organizationId, userId: hostUserId, activeCompanyId: null, activeBranchId: null, allowAllCompanies: true, permissions: [], roleSlugs: [] };
+  return { organizationId, userId: hostUserId, permissions: [], roleSlugs: [] };
 }
 
 export function assertPublicDate(date) {

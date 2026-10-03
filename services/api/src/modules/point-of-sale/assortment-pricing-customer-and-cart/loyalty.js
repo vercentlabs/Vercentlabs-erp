@@ -8,7 +8,7 @@
 // cashier authority) — see cart.js's redeemPosCartLoyaltyPoints.
 //
 // SCOPE ADAPTATION: unlike promotions/coupons (many rows, arbitrary
-// codes), a loyalty PROGRAM is one row per company (see migration 124's
+// codes), a loyalty PROGRAM is one row per organization (see migration 124's
 // comment for why) — so "program CRUD" here is get/upsert/setActive
 // rather than list/create/update/setActive against many rows.
 //
@@ -54,9 +54,8 @@ import { posError } from "../shared/errors.js";
 // --- cart-pricing.js integration -------------------------------------
 
 export async function resolveActivePosLoyaltyProgram(client, context) {
-  const result = await client.query(`SELECT * FROM tenant.pos_loyalty_programs WHERE organization_id=$1 AND company_id=$2 AND status='active'`, [
+  const result = await client.query(`SELECT * FROM tenant.pos_loyalty_programs WHERE organization_id=$1 AND status='active'`, [
     context.organizationId,
-    context.companyId,
   ]);
   return result.rows[0] || null;
 }
@@ -85,7 +84,7 @@ export function requirePosLoyaltyRedemptionEligible(program, balance, requestedP
   const requested = decimal(requestedPoints);
   if (requested <= 0n) return decimal(0);
   if (!program || program.status !== "active") {
-    throw posError(409, "No active loyalty program is configured for this company.", "POS_LOYALTY_PROGRAM_NOT_CONFIGURED");
+    throw posError(409, "No active loyalty program is configured for this organization.", "POS_LOYALTY_PROGRAM_NOT_CONFIGURED");
   }
   if (decimal(program.min_redemption_points) > 0n && requested < decimal(program.min_redemption_points)) {
     throw posError(409, `A minimum of ${program.min_redemption_points} points is required to redeem.`, "POS_LOYALTY_BELOW_MINIMUM");
@@ -173,20 +172,20 @@ export async function commitPosLoyaltyForSale(client, context, { saleId, custome
     const points = decimal(line.points || 0);
     if (points <= 0n) continue;
     await client.query(
-      `INSERT INTO tenant.pos_loyalty_ledger (organization_id,company_id,program_id,customer_id,entry_type,points,sale_id,sale_line_id,created_by)
-       VALUES ($1,$2,$3,$4,'earn',$5,$6,$7,$8)
+      `INSERT INTO tenant.pos_loyalty_ledger (organization_id,program_id,customer_id,entry_type,points,sale_id,sale_line_id,created_by)
+       VALUES ($1,$2,$3,'earn',$4,$5,$6,$7)
        ON CONFLICT DO NOTHING`,
-      [context.organizationId, context.companyId, programId || null, customerId, asDatabaseDecimal(points), saleId, line.saleLineId, context.userId],
+      [context.organizationId, programId || null, customerId, asDatabaseDecimal(points), saleId, line.saleLineId, context.userId],
     );
     earnTotal = add(earnTotal, points);
   }
 
   if (redeemPoints > 0n) {
     await client.query(
-      `INSERT INTO tenant.pos_loyalty_ledger (organization_id,company_id,program_id,customer_id,entry_type,points,sale_id,created_by,reason)
-       VALUES ($1,$2,$3,$4,'redeem',$5,$6,$7,'Redeemed at checkout')
+      `INSERT INTO tenant.pos_loyalty_ledger (organization_id,program_id,customer_id,entry_type,points,sale_id,created_by,reason)
+       VALUES ($1,$2,$3,'redeem',$4,$5,$6,'Redeemed at checkout')
        ON CONFLICT DO NOTHING`,
-      [context.organizationId, context.companyId, programId || null, customerId, asDatabaseDecimal(decimal(0) - redeemPoints), saleId, context.userId],
+      [context.organizationId, programId || null, customerId, asDatabaseDecimal(decimal(0) - redeemPoints), saleId, context.userId],
     );
   }
 
@@ -239,12 +238,11 @@ export async function reversePosLoyaltyForReturn(client, context, { returnId, sa
     if (reversalPoints <= 0n) continue;
     await client.query(
       `INSERT INTO tenant.pos_loyalty_ledger
-        (organization_id,company_id,program_id,customer_id,entry_type,points,sale_id,sale_line_id,return_id,original_entry_id,created_by,reason)
-       VALUES ($1,$2,$3,$4,'reverse_earn',$5,$6,$7,$8,$9,$10,'Return reversal')
+        (organization_id,program_id,customer_id,entry_type,points,sale_id,sale_line_id,return_id,original_entry_id,created_by,reason)
+       VALUES ($1,$2,$3,'reverse_earn',$4,$5,$6,$7,$8,$9,'Return reversal')
        ON CONFLICT DO NOTHING`,
       [
         context.organizationId,
-        context.companyId,
         programId || null,
         customerId,
         asDatabaseDecimal(decimal(0) - reversalPoints),
@@ -272,10 +270,10 @@ export async function reversePosLoyaltyForReturn(client, context, { returnId, sa
     if (redeemReversal > 0n) {
       await client.query(
         `INSERT INTO tenant.pos_loyalty_ledger
-          (organization_id,company_id,program_id,customer_id,entry_type,points,sale_id,return_id,original_entry_id,created_by,reason)
-         VALUES ($1,$2,$3,$4,'reverse_redeem',$5,$6,$7,$8,$9,'Return reversal credited back')
+          (organization_id,program_id,customer_id,entry_type,points,sale_id,return_id,original_entry_id,created_by,reason)
+         VALUES ($1,$2,$3,'reverse_redeem',$4,$5,$6,$7,$8,'Return reversal credited back')
          ON CONFLICT DO NOTHING`,
-        [context.organizationId, context.companyId, programId || null, customerId, asDatabaseDecimal(redeemReversal), saleId, returnId, redeemRow.id, context.userId],
+        [context.organizationId, programId || null, customerId, asDatabaseDecimal(redeemReversal), saleId, returnId, redeemRow.id, context.userId],
       );
       netDelta = add(netDelta, redeemReversal);
     }

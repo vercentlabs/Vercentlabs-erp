@@ -14,7 +14,7 @@ const RELATED = new Set(["lead", "opportunity", "party", "contact", "campaign", 
 const EDITABLE = new Set(["planned", "in_progress", "overdue"]);
 const TERMINAL = new Set(["completed", "cancelled"]);
 const TASK_FIELDS = new Set([
-  "companyId", "branchId", "entityType", "entityId", "subject", "description", "priority",
+  "entityType", "entityId", "subject", "description", "priority",
   "assignedTo", "teamId", "startAt", "dueAt", "reminderAt", "recurringRule", "recurrenceConfig",
 ]);
 const EXPECTATION_FIELDS = new Set(["expectedUpdatedAt", "expectedStatus"]);
@@ -45,8 +45,6 @@ function assertAllowed(input, allowed = new Set([...TASK_FIELDS, ...EXPECTATION_
 function normalize(input, { create = false } = {}) {
   assertAllowed(input, create ? TASK_FIELDS : new Set([...TASK_FIELDS, ...EXPECTATION_FIELDS]));
   const out = {};
-  if (hasOwn(input, "companyId")) out.companyId = uuid(input.companyId, "Company", true);
-  if (hasOwn(input, "branchId")) out.branchId = uuid(input.branchId, "Branch", true);
   if (hasOwn(input, "entityType")) {
     const value = text(input.entityType).toLowerCase() || "general";
     if (!RELATED.has(value)) throw new CrmError(400, "Related record type is invalid.", "CRM_TASK_RELATION_INVALID");
@@ -185,11 +183,11 @@ export async function generateNextTaskOccurrence(client, context, completedTask)
 
   const result = await client.query(
     `INSERT INTO tenant.crm_activities(
-       organization_id,company_id,branch_id,entity_type,entity_id,activity_type,subject,description,status,priority,
+       organization_id,entity_type,entity_id,activity_type,subject,description,status,priority,
        assigned_to,due_at,recurring_rule,recurrence_config,recurrence_parent_id,task_source,created_by,updated_by)
-     VALUES($1,$2,$3,$4,$5,'task',$6,$7,'planned',$8,$9,$10,$11,$12::jsonb,$13,'recurrence_generated',$14,$14) RETURNING *`,
+     VALUES($1,$2,$3,'task',$4,$5,'planned',$6,$7,$8,$9,$10::jsonb,$11,'recurrence_generated',$12,$12) RETURNING *`,
     [
-      context.organizationId, completedTask.companyId, completedTask.branchId, completedTask.entityType, completedTask.entityId || null,
+      context.organizationId, completedTask.entityType, completedTask.entityId || null,
       completedTask.subject, completedTask.description || null, completedTask.priority, completedTask.assignedTo, nextDueAt,
       completedTask.recurringRule || null, JSON.stringify(config), parentId, context.userId,
     ],
@@ -263,10 +261,6 @@ export async function listTaskDependencies(client, context, taskId) {
 }
 function scopeSql(context, values, alias = "activity") {
   let sql = "";
-  if (context.activeCompanyId) sql += ` AND (${alias}.company_id IS NULL OR ${alias}.company_id=${add(values, context.activeCompanyId)})`;
-  else if (!context.allowAllCompanies) return " AND false";
-  if (context.activeBranchId) sql += ` AND (${alias}.branch_id IS NULL OR ${alias}.branch_id=${add(values, context.activeBranchId)})`;
-  else if (!context.allowAllCompanies) return " AND false";
   if (!canViewAllCrmResource(context, "activities")) {
     // Visible to a non-view-all caller: Tasks assigned to them; ordinary
     // unassigned (non-team) Tasks (the pre-existing, unrestricted-triage
@@ -295,16 +289,6 @@ function scopeSql(context, values, alias = "activity") {
     sql += ` AND COALESCE(${alias}.entity_type,'general') <> 'lead'`;
   return sql;
 }
-function assertWritableScope(context, task) {
-  if (!context.activeCompanyId && !context.allowAllCompanies)
-    throw new CrmError(403, "Select an allowed company before maintaining Tasks.", "CRM_TASK_SCOPE_FORBIDDEN");
-  if (context.activeCompanyId && task.companyId && task.companyId !== context.activeCompanyId)
-    throw new CrmError(403, "The Task belongs to another company.", "CRM_TASK_SCOPE_FORBIDDEN");
-  if (!context.activeBranchId && !context.allowAllCompanies)
-    throw new CrmError(403, "Select an allowed branch before maintaining Tasks.", "CRM_TASK_SCOPE_FORBIDDEN");
-  if (context.activeBranchId && task.branchId && task.branchId !== context.activeBranchId)
-    throw new CrmError(403, "The Task belongs to another branch.", "CRM_TASK_SCOPE_FORBIDDEN");
-}
 async function relationRecord(client, context, entityType, entityId) {
   if (entityType === "general") {
     if (entityId) throw new CrmError(400, "General Tasks cannot carry a related-record ID.", "CRM_TASK_RELATION_INVALID");
@@ -312,8 +296,8 @@ async function relationRecord(client, context, entityType, entityId) {
   }
   if (!entityId) throw new CrmError(400, "Select the related CRM record for this Task.", "CRM_TASK_RELATION_REQUIRED");
   const specs = {
-    opportunity: ["tenant.crm_opportunities", "status <> 'archived'", "company_id", "branch_id"],
-    campaign: ["tenant.crm_campaigns", "status <> 'cancelled'", "company_id", "NULL::uuid"],
+    opportunity: ["tenant.crm_opportunities", "status <> 'archived'"],
+    campaign: ["tenant.crm_campaigns", "status <> 'cancelled'"],
   };
   let result;
   if (entityType === "lead") {
@@ -322,39 +306,31 @@ async function relationRecord(client, context, entityType, entityId) {
     const values = [context.organizationId, entityId];
     const scope = leadScopeSql(context, values, "lead");
     result = await client.query(
-      `SELECT lead.id,lead.company_id,lead.branch_id FROM tenant.crm_leads lead WHERE lead.organization_id=$1 AND lead.id=$2 AND lead.record_status <> 'archived'${scope} LIMIT 1`,
+      `SELECT lead.id FROM tenant.crm_leads lead WHERE lead.organization_id=$1 AND lead.id=$2 AND lead.record_status <> 'archived'${scope} LIMIT 1`,
       values,
     );
   } else if (specs[entityType]) {
-    const [table, state, company, branch] = specs[entityType];
-    result = await client.query(`SELECT id,${company} AS company_id,${branch} AS branch_id FROM ${table} WHERE organization_id=$1 AND id=$2 AND ${state} LIMIT 1`, [context.organizationId, entityId]);
+    const [table, state] = specs[entityType];
+    result = await client.query(`SELECT id FROM ${table} WHERE organization_id=$1 AND id=$2 AND ${state} LIMIT 1`, [context.organizationId, entityId]);
   } else if (entityType === "party") {
-    result = await client.query(`SELECT id,company_id,NULL::uuid AS branch_id FROM tenant.business_parties WHERE organization_id=$1 AND id=$2 AND status='active' LIMIT 1`, [context.organizationId, entityId]);
+    result = await client.query(`SELECT id FROM tenant.business_parties WHERE organization_id=$1 AND id=$2 AND status='active' LIMIT 1`, [context.organizationId, entityId]);
   } else if (entityType === "contact") {
-    result = await client.query(`SELECT contact.id,party.company_id,NULL::uuid AS branch_id FROM tenant.contacts contact JOIN tenant.business_parties party ON party.organization_id=contact.organization_id AND party.id=contact.party_id WHERE contact.organization_id=$1 AND contact.id=$2 AND contact.status='active' AND party.status='active' LIMIT 1`, [context.organizationId, entityId]);
+    result = await client.query(`SELECT contact.id FROM tenant.contacts contact JOIN tenant.business_parties party ON party.organization_id=contact.organization_id AND party.id=contact.party_id WHERE contact.organization_id=$1 AND contact.id=$2 AND contact.status='active' AND party.status='active' LIMIT 1`, [context.organizationId, entityId]);
   }
   const row = result?.rows?.[0];
   if (!row) throw new CrmError(409, "The related CRM record is unavailable.", "CRM_TASK_RELATION_INVALID");
-  if (context.activeCompanyId && row.company_id && row.company_id !== context.activeCompanyId)
-    throw new CrmError(403, "The related CRM record belongs to another company.", "CRM_TASK_RELATION_SCOPE_INVALID");
-  if (context.activeBranchId && row.branch_id && row.branch_id !== context.activeBranchId)
-    throw new CrmError(403, "The related CRM record belongs to another branch.", "CRM_TASK_RELATION_SCOPE_INVALID");
   return row;
 }
 // F015 team/queue: fetch and validate the referenced crm_sales_team row —
-// must be active, in-organization and, when the Task already carries a
-// company, in the same company (no cross-company/branch queue
-// inference).
-async function assertTeamValid(client, context, teamId, companyId) {
+// must be active and in-organization.
+async function assertTeamValid(client, context, teamId) {
   const result = await client.query(
-    `SELECT id,company_id,manager_user_id FROM tenant.crm_sales_teams WHERE organization_id=$1 AND id=$2 AND status='active' LIMIT 1`,
+    `SELECT id,manager_user_id FROM tenant.crm_sales_teams WHERE organization_id=$1 AND id=$2 AND status='active' LIMIT 1`,
     [context.organizationId, teamId],
   );
   const team = result.rows[0];
   if (!team) throw new CrmError(409, "The selected Team is unavailable.", "CRM_TASK_TEAM_INVALID");
-  if (companyId && team.company_id && team.company_id !== companyId)
-    throw new CrmError(403, "The selected Team belongs to another company.", "CRM_TASK_TEAM_SCOPE_INVALID");
-  return { id: team.id, companyId: team.company_id, managerUserId: team.manager_user_id };
+  return { id: team.id, managerUserId: team.manager_user_id };
 }
 async function isActiveTeamMember(client, context, teamId, userId) {
   if (!teamId || !userId) return false;
@@ -371,26 +347,17 @@ async function validate(client, context, prepared, existing = null) {
   const effective = { ...(existing || {}), ...prepared };
   effective.entityType ||= "general";
   effective.priority ||= "medium";
-  effective.companyId ??= context.activeCompanyId || null;
-  effective.branchId ??= context.activeBranchId || null;
   // A queued (team) Task legitimately starts unassigned — only default the
   // assignee to the caller for an ordinary personal Task. An explicit
   // assignedTo (including a deliberate null on a team Task, meaning "leave
   // it queued") is always respected as-is via the `??=` below.
   if (!effective.teamId) effective.assignedTo ??= context.userId;
   else effective.assignedTo ??= null;
-  assertWritableScope(context, effective);
   if (!effective.subject) throw new CrmError(400, "Task subject is required.", "CRM_TASK_SUBJECT_INVALID");
-  const related = await relationRecord(client, context, effective.entityType, effective.entityId || null);
-  if (!effective.companyId && related?.company_id) prepared.companyId = effective.companyId = related.company_id;
-  if (!effective.branchId && related?.branch_id) prepared.branchId = effective.branchId = related.branch_id;
-  if (related?.company_id && effective.companyId && related.company_id !== effective.companyId)
-    throw new CrmError(409, "The related CRM record belongs to another company.", "CRM_TASK_RELATION_SCOPE_INVALID");
-  if (related?.branch_id && effective.branchId && related.branch_id !== effective.branchId)
-    throw new CrmError(409, "The related CRM record belongs to another branch.", "CRM_TASK_RELATION_SCOPE_INVALID");
+  await relationRecord(client, context, effective.entityType, effective.entityId || null);
   let team = null;
   if (effective.teamId) {
-    team = await assertTeamValid(client, context, effective.teamId, effective.companyId || null);
+    team = await assertTeamValid(client, context, effective.teamId);
     // Assigning INTO a queue (creating/updating with a team) is already
     // gated by crm.activities.manage at the route level; directly handing a
     // queued Task to a SPECIFIC other person (rather than leaving it
@@ -403,7 +370,7 @@ async function validate(client, context, prepared, existing = null) {
   }
   if (effective.assignedTo && !effective.teamId) {
     try {
-      await assertEligibleLeadAssignee(client, context, effective.assignedTo, { companyId: effective.companyId || null, branchId: effective.branchId || null });
+      await assertEligibleLeadAssignee(client, context, effective.assignedTo);
     } catch (error) {
       if (error?.code === "CRM_LEAD_ASSIGNEE_SCOPE_INVALID") throw new CrmError(409, error.message, "CRM_TASK_ASSIGNEE_INVALID");
       throw error;
@@ -425,7 +392,7 @@ async function event(client, context, taskId, type, before, after, metadata = {}
   await client.query(`INSERT INTO tenant.crm_task_events(organization_id,activity_id,event_type,from_status,to_status,metadata,actor_user_id) VALUES($1,$2,$3,$4,$5,$6::jsonb,$7)`, [context.organizationId, taskId, type, before?.status || null, after?.status || null, JSON.stringify(metadata), context.userId]);
 }
 function safe(task) {
-  return { id: task.id, status: task.status, entityType: task.entityType, entityId: task.entityId, assignedTo: task.assignedTo, companyId: task.companyId, branchId: task.branchId, priority: task.priority, dueAt: task.dueAt };
+  return { id: task.id, status: task.status, entityType: task.entityType, entityId: task.entityId, assignedTo: task.assignedTo, priority: task.priority, dueAt: task.dueAt };
 }
 async function touchParent(client, context, task) {
   if (task.entityType === "lead" && task.entityId)
@@ -475,7 +442,7 @@ export async function createCrmTask(client, context, input = {}) {
   if (hasOwn(input, "activityType") || hasOwn(input, "status")) throw new CrmError(409, "Task type and initial status are server governed.", "CRM_TASK_LIFECYCLE_GOVERNED");
   const prepared = normalize(input, { create: true });
   const effective = await validate(client, context, prepared);
-  const result = await client.query(`INSERT INTO tenant.crm_activities(organization_id,company_id,branch_id,entity_type,entity_id,activity_type,subject,description,status,priority,assigned_to,team_id,start_at,due_at,reminder_at,recurring_rule,recurrence_config,created_by,updated_by) VALUES($1,$2,$3,$4,$5,'task',$6,$7,'planned',$8,$9,$10,$11,$12,$13,$14,$15::jsonb,$16,$16) RETURNING *`, [context.organizationId, effective.companyId, effective.branchId, effective.entityType, effective.entityId || null, effective.subject, effective.description || null, effective.priority, effective.assignedTo, effective.teamId || null, effective.startAt || null, effective.dueAt || null, effective.reminderAt || null, effective.recurringRule || null, effective.recurrenceConfig ? JSON.stringify(effective.recurrenceConfig) : null, context.userId]);
+  const result = await client.query(`INSERT INTO tenant.crm_activities(organization_id,entity_type,entity_id,activity_type,subject,description,status,priority,assigned_to,team_id,start_at,due_at,reminder_at,recurring_rule,recurrence_config,created_by,updated_by) VALUES($1,$2,$3,'task',$4,$5,'planned',$6,$7,$8,$9,$10,$11,$12,$13::jsonb,$14,$14) RETURNING *`, [context.organizationId, effective.entityType, effective.entityId || null, effective.subject, effective.description || null, effective.priority, effective.assignedTo, effective.teamId || null, effective.startAt || null, effective.dueAt || null, effective.reminderAt || null, effective.recurringRule || null, effective.recurrenceConfig ? JSON.stringify(effective.recurrenceConfig) : null, context.userId]);
   const task = dto(result.rows[0]);
   await event(client, context, task.id, "created", null, task);
   await queueOutboxEvent(client, context, "crm.task.created", "task", task.id, safe(task));
@@ -493,7 +460,7 @@ export async function updateCrmTask(client, context, id, input = {}) {
   const effective = await validate(client, context, prepared, before);
   const pairs = [];
   const values = [];
-  const columns = { companyId: "company_id", branchId: "branch_id", entityType: "entity_type", entityId: "entity_id", subject: "subject", description: "description", priority: "priority", assignedTo: "assigned_to", teamId: "team_id", startAt: "start_at", dueAt: "due_at", reminderAt: "reminder_at", recurringRule: "recurring_rule" };
+  const columns = { entityType: "entity_type", entityId: "entity_id", subject: "subject", description: "description", priority: "priority", assignedTo: "assigned_to", teamId: "team_id", startAt: "start_at", dueAt: "due_at", reminderAt: "reminder_at", recurringRule: "recurring_rule" };
   for (const [field, column] of Object.entries(columns)) if (hasOwn(prepared, field)) pairs.push(`${column}=${add(values, prepared[field])}`);
   if (hasOwn(prepared, "recurrenceConfig")) pairs.push(`recurrence_config=${add(values, prepared.recurrenceConfig ? JSON.stringify(prepared.recurrenceConfig) : null)}::jsonb`);
   if (!pairs.length) return before;
@@ -595,7 +562,7 @@ export async function releaseCrmTask(client, context, id, input = {}) {
   if (TERMINAL.has(before.status)) throw new CrmError(409, "This Task is already closed.", "CRM_TASK_ALREADY_CLOSED");
   stale(before, input.expectedUpdatedAt, input.expectedStatus);
   if (before.assignedTo !== context.userId && !canManageAllTasks(context)) {
-    const team = await assertTeamValid(client, context, before.teamId, before.companyId || null);
+    const team = await assertTeamValid(client, context, before.teamId);
     if (team.managerUserId !== context.userId)
       throw new CrmError(403, "Only the assignee or the Team's manager can release this Task back to the queue.", "CRM_TASK_RELEASE_FORBIDDEN");
   }

@@ -6,7 +6,7 @@
 // are never delivered or used as triggers.
 const pick = (source, fields) =>
   Object.fromEntries(fields.filter((field) => source?.[field] !== undefined && source?.[field] !== null).map((field) => [field, source[field]]));
-const leadState = (state) => pick(state, ["status", "sourceId", "ownerUserId", "companyId", "branchId"]);
+const leadState = (state) => pick(state, ["status", "sourceId", "ownerUserId"]);
 
 const define = (key, label, description, entityType, project, conditionFields) =>
   Object.freeze({ key, moduleKey: key.split(".")[0], label, description, entityType, payloadVersion: 1, project, conditionFields: Object.freeze(conditionFields) });

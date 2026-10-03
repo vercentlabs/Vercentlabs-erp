@@ -362,14 +362,6 @@ export function buildSalesOrderGovernanceSummary(
   return summary;
 }
 
-function companyScope(context, values, alias = "sales_order") {
-  if (!context.allowAllCompanies && context.activeCompanyId) {
-    values.push(context.activeCompanyId);
-    return ` AND ${alias}.company_id=$${values.length}`;
-  }
-  return "";
-}
-
 function canViewMargin(context) {
   return hasPermission(context, "sales.margin.view");
 }
@@ -383,9 +375,8 @@ function redactHealth(health, context) {
 
 async function loadOrderForAssessment(client, context, orderId) {
   const values = [context.organizationId, uuid(orderId, "Sales order")];
-  const scope = companyScope(context, values);
   const result = await client.query(
-    `SELECT sales_order.id,sales_order.company_id,sales_order.sales_order_number,
+    `SELECT sales_order.id,sales_order.sales_order_number,
             sales_order.party_id,sales_order.current_version_id,
             sales_order.lifecycle_status,sales_order.approval_status,
             sales_order.credit_status,sales_order.fulfillment_status,
@@ -478,7 +469,7 @@ async function loadOrderForAssessment(client, context, orderId) {
           WHERE return_request.organization_id=sales_order.organization_id
             AND return_request.sales_order_id=sales_order.id
        ) returns ON true
-      WHERE sales_order.organization_id=$1 AND sales_order.id=$2${scope}`,
+      WHERE sales_order.organization_id=$1 AND sales_order.id=$2`,
     values,
   );
   if (!result.rows[0]) {

@@ -76,15 +76,13 @@ export async function convertCrmLead(client, context, leadId, input = {}) {
   // explicit input.partyId to force reuse of a probable match).
   let partyId = input.partyId || null;
   // An explicitly chosen Account/Contact must be one the caller can open
-  // (company boundary + ownership) — an id alone never grants reuse.
+  // (ownership rule) — an id alone never grants reuse.
   if (partyId) await assertConversionTargetVisible(client, context, "account", partyId);
   if (!partyId) {
     const candidates = await findAccountDuplicates(client, context, {
       name: lead.company_name || lead.full_name,
     });
-    // Auto-reuse stays inside the caller's company boundary: an exact name
-    // match in another company is never silently attached.
-    partyId = candidates.find((row) => row.classification === "exact" && row.in_company_scope !== false)?.id || null;
+    partyId = candidates.find((row) => row.classification === "exact")?.id || null;
   }
   if (!partyId) {
     assertCanCreateRelationshipRecords(context);
@@ -94,10 +92,9 @@ export async function convertCrmLead(client, context, leadId, input = {}) {
       "business_party",
     );
     const party = await client.query(
-      `INSERT INTO tenant.business_parties (organization_id, company_id, code, party_type, display_name, legal_name, currency_code, created_by, updated_by) VALUES ($1, $2, $3, 'customer', $4, $5, $6, $7, $7) RETURNING id`,
+      `INSERT INTO tenant.business_parties (organization_id, code, party_type, display_name, legal_name, currency_code, created_by, updated_by) VALUES ($1, $2, 'customer', $3, $4, $5, $6, $6) RETURNING id`,
       [
         context.organizationId,
-        lead.company_id,
         partyCode,
         lead.company_name || lead.full_name,
         lead.company_name || null,
@@ -154,8 +151,6 @@ export async function convertCrmLead(client, context, leadId, input = {}) {
       context,
       "opportunities",
       {
-        companyId: lead.company_id,
-        branchId: lead.branch_id,
         leadId,
         partyId,
         contactId,

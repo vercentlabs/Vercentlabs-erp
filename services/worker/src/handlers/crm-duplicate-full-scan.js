@@ -14,15 +14,12 @@ export const payloadSchema = z
 // A full duplicate scan is a read-mostly discovery job (it only ever
 // inserts into the append-only crm_duplicate_scan_matches log), but it
 // still needs org-wide visibility to page through every record regardless
-// of the requester's own company/branch/owner scope — same reasoning as
+// of the requester's own owner scope — same reasoning as
 // leadStageMigrationHandler for building a dedicated elevated context here.
 function scanSystemContext(organizationId, payload) {
   return Object.freeze({
     organizationId,
     userId: payload.requesterUserId,
-    activeCompanyId: null,
-    activeBranchId: null,
-    allowAllCompanies: true,
     permissions: ["crm.records.view_all", "crm.data-quality.manage"],
     roleSlugs: ["system_worker"],
   });

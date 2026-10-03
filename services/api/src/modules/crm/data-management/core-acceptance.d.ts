@@ -8,9 +8,6 @@ export type CrmCoreAcceptanceClient = {
 export type CrmCoreAcceptanceContext = {
   organizationId: string;
   userId: string;
-  activeCompanyId: string | null;
-  activeBranchId: string | null;
-  allowAllCompanies: boolean;
   permissions: string[];
   roleSlugs: string[];
 };

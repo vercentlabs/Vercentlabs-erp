@@ -48,7 +48,6 @@ const TYPES = opts(
   "rounding",
   "fx_gain",
   "fx_loss",
-  "intercompany",
   "statistical",
   "group",
 );
@@ -110,7 +109,7 @@ const accounts: RegisterConfig = {
     "The ledger's accounts. Group accounts organise the tree; only posting accounts take journal lines.",
   searchLabel: "Search accounts",
   emptyTitle: "No accounts",
-  emptyDescription: "The default chart is created with the company.",
+  emptyDescription: "The default chart is created with the organization.",
   source: { kind: "view", view: "accounts" },
   createLabel: "New account",
   createPermission: "accounting.settings.manage",

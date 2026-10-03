@@ -9,12 +9,12 @@ const DISPOSABLE = ["available", "assigned", "in_maintenance", "retired", "lost"
 
 export async function listDisposals(client, c, filters = {}) {
   need(c, "assets.view");
-  const values = [c.organizationId, c.companyId];
+  const values = [c.organizationId];
   let where = "";
   if (filters.status) { values.push(String(filters.status)); where += ` AND d.status=$${values.length}`; }
   if (filters.group === "sale") where += ` AND d.disposal_method IN ('sale','return_to_vendor')`;
   if (filters.group === "retire") where += ` AND d.disposal_method IN ('scrap','write_off','donation')`;
-  const res = await qx(client, `SELECT d.*,a.asset_number,a.name AS asset_name FROM tenant.asset_disposals d JOIN tenant.assets a ON a.id=d.asset_id WHERE d.organization_id=$1 AND d.company_id=$2${where} ORDER BY d.created_at DESC LIMIT 300`, values);
+  const res = await qx(client, `SELECT d.*,a.asset_number,a.name AS asset_name FROM tenant.asset_disposals d JOIN tenant.assets a ON a.id=d.asset_id WHERE d.organization_id=$1${where} ORDER BY d.created_at DESC LIMIT 300`, values);
   return res.rows;
 }
 
@@ -34,16 +34,16 @@ export async function requestDisposal(client, c, assetId, input) {
   if (children.rows[0].n > 0) throw new AssetError(409, "This asset has component assets; dispose of or detach them first.", "ASSET_HAS_COMPONENTS");
   const number = await nextNumber(client, c, "asset_disposal", "DSP");
   const d = (await qx(client,
-    `INSERT INTO tenant.asset_disposals(organization_id,company_id,asset_id,disposal_number,disposal_date,disposal_method,proceeds_amount,disposal_cost,net_book_value,gain_loss_amount,buyer_party_id,reason,status,requested_by,previous_status,sale_reference)
-     VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,0,$10,$11,'pending_approval',$12,$13,$14) RETURNING *`,
-    [c.organizationId, c.companyId, a.id, number, dateRequired(input.disposalDate || today(), "Disposal date"), method, String(proceeds), String(nonNegative(input.disposalCost, "Disposal cost")), a.net_book_value, uuidOrNull(input.buyerPartyId, "Buyer"), requiredText(input.reason, "Reason", 1000), c.userId, a.status, textOrNull(input.saleReference, 200)])).rows[0];
+    `INSERT INTO tenant.asset_disposals(organization_id,asset_id,disposal_number,disposal_date,disposal_method,proceeds_amount,disposal_cost,net_book_value,gain_loss_amount,buyer_party_id,reason,status,requested_by,previous_status,sale_reference)
+     VALUES($1,$2,$3,$4,$5,$6,$7,$8,0,$9,$10,'pending_approval',$11,$12,$13) RETURNING *`,
+    [c.organizationId, a.id, number, dateRequired(input.disposalDate || today(), "Disposal date"), method, String(proceeds), String(nonNegative(input.disposalCost, "Disposal cost")), a.net_book_value, uuidOrNull(input.buyerPartyId, "Buyer"), requiredText(input.reason, "Reason", 1000), c.userId, a.status, textOrNull(input.saleReference, 200)])).rows[0];
   await client.query(`UPDATE tenant.assets SET status='pending_disposal',updated_at=now() WHERE id=$1`, [a.id]);
   await recordAssetEvent(client, c, a.id, "asset.disposal_requested", { disposalId: d.id, method });
   return d;
 }
 
 async function lockDisposal(client, c, id) {
-  const d = (await qx(client, `SELECT * FROM tenant.asset_disposals WHERE organization_id=$1 AND company_id=$2 AND id=$3 FOR UPDATE`, [c.organizationId, c.companyId, uuid(id, "Disposal")])).rows[0];
+  const d = (await qx(client, `SELECT * FROM tenant.asset_disposals WHERE organization_id=$1 AND id=$2 FOR UPDATE`, [c.organizationId, uuid(id, "Disposal")])).rows[0];
   if (!d) throw new AssetError(404, "Disposal was not found.", "ASSET_NOT_FOUND");
   return d;
 }
@@ -106,7 +106,7 @@ export async function completeDisposal(client, c, disposalId) {
   }
   await client.query(`UPDATE tenant.asset_depreciation_schedules SET status='reversed' WHERE asset_id=$1 AND status IN ('planned','ready') AND run_id IS NULL`, [a.id]);
   await client.query(`UPDATE tenant.asset_assignments SET assignment_status='returned',returned_at=now(),returned_by=$2 WHERE asset_id=$1 AND assignment_status='active'`, [a.id, c.userId]);
-  await client.query(`INSERT INTO tenant.asset_movements(organization_id,company_id,asset_id,movement_type,effective_date,from_user_id,from_department_id,from_location_id,reference_type,reference_id,reason,actor_user_id) VALUES($1,$2,$3,'status_change',$4,$5,$6,$7,'asset_disposal',$8,$9,$10)`, [c.organizationId, c.companyId, a.id, d.disposal_date, a.current_user_id, a.current_department_id, a.location_id, d.id, `Disposed (${d.disposal_method})`, c.userId]);
+  await client.query(`INSERT INTO tenant.asset_movements(organization_id,asset_id,movement_type,effective_date,from_user_id,from_department_id,from_location_id,reference_type,reference_id,reason,actor_user_id) VALUES($1,$2,'status_change',$3,$4,$5,$6,'asset_disposal',$7,$8,$9)`, [c.organizationId, a.id, d.disposal_date, a.current_user_id, a.current_department_id, a.location_id, d.id, `Disposed (${d.disposal_method})`, c.userId]);
   await client.query(`UPDATE tenant.assets SET status='disposed',disposed_at=$2,current_user_id=NULL,current_department_id=NULL,current_cost_center_id=NULL,net_book_value=0,updated_at=now() WHERE id=$1`, [a.id, d.disposal_date]);
   const res = (await qx(client, `UPDATE tenant.asset_disposals SET status='completed',net_book_value=$2,gain_loss_amount=$3,original_cost=$4,accumulated_depreciation=$5,completed_by=$6,completed_at=now(),accounting_journal_id=$7,disposal_journal_status=$8 WHERE id=$1 RETURNING *`, [d.id, fromCents(nbv), fromCents(gainLoss), fromCents(cost), fromCents(accDep), c.userId, accounting.journalEntryId, accounting.status])).rows[0];
   await recordAssetEvent(client, c, a.id, "asset.disposed", { disposalId: d.id, gainLoss: fromCents(gainLoss), accounting: accounting.status });

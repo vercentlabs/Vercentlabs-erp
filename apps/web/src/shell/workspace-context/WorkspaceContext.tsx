@@ -11,10 +11,6 @@ import { createContext, useContext, type ReactNode } from "react";
 export type WorkspaceContextValue = {
   organizationId: string;
   organizationName: string | null;
-  companyId: string | null;
-  companyName: string | null;
-  branchId: string | null;
-  branchName: string | null;
   userId: string;
   fullName: string;
   email: string;

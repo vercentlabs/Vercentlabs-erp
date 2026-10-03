@@ -1,5 +1,5 @@
 type Client = { query(text: string, values?: unknown[]): Promise<{ rows: any[] }> };
-type Session = { organizationId: string; userId: string; activeCompanyId?: string | null; activeBranchId?: string | null; permissions: readonly string[]; roleSlugs: readonly string[] };
+type Session = { organizationId: string; userId: string; permissions: readonly string[]; roleSlugs: readonly string[] };
 
 export type ApprovalInboxRow = {
   id: string;

@@ -232,7 +232,7 @@ const categories: RegisterConfig = {
   key: "categories",
   title: "Asset categories",
   description:
-    "Depreciation policy and the ledger accounts each category posts to. Accounts must be active posting accounts of this company.",
+    "Depreciation policy and the ledger accounts each category posts to. Accounts must be active posting accounts of your organization's ledger.",
   searchLabel: "Search categories",
   emptyTitle: "No categories",
   emptyDescription: "Create a category before registering assets.",

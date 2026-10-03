@@ -84,9 +84,9 @@ function normalizeSchedule(input) {
 }
 
 // Can this member run the dataset right now (module + dataset permissions)?
-async function memberCanRun(client, organizationId, userId, dataset, { activeCompanyId = null, activeBranchId = null, env = process.env } = {}) {
-  const context = await resolveMemberExecutionContext(client, organizationId, { userId, activeCompanyId, activeBranchId });
-  if (!context) return { ok: false, reason: "No longer an active member with access to this company." };
+async function memberCanRun(client, organizationId, userId, dataset, { env = process.env } = {}) {
+  const context = await resolveMemberExecutionContext(client, organizationId, { userId });
+  if (!context) return { ok: false, reason: "No longer an active member of the organization." };
   const snapshot = await buildWorkspaceAccessSnapshot(client, context, { env });
   if (!new Set(snapshot.accessibleModules || []).has(dataset.moduleKey)) return { ok: false, reason: "No access to the module." };
   if (!dataset.requiredPermissions.every((permission) => hasSessionPermission(context, permission))) return { ok: false, reason: "No permission for this report." };
@@ -113,15 +113,15 @@ export async function createReportSchedule(client, session, accessibleModules, i
   const schedule = normalizeSchedule(input);
   const refused = [];
   for (const recipient of schedule.recipients) {
-    const check = await memberCanRun(client, session.organizationId, recipient, dataset, { activeCompanyId: session.activeCompanyId ?? null, activeBranchId: session.activeBranchId ?? null, env });
+    const check = await memberCanRun(client, session.organizationId, recipient, dataset, { env });
     if (!check.ok) refused.push(recipient);
   }
   if (refused.length) throw new ReportError(400, "Some recipients cannot receive this report (they lack access to it).", "REPORT_SCHEDULE_RECIPIENTS_INVALID", { recipients: refused });
   const nextRunAt = nextScheduleOccurrence(schedule, now);
   const { rows } = await client.query(
-    `INSERT INTO report_schedules (organization_id, report_definition_id, frequency, time_of_day, weekday, month_day, timezone, recipients, company_id, branch_id, next_run_at, created_by)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8::uuid[],$9,$10,$11,$12) RETURNING *`,
-    [session.organizationId, definition.id, schedule.frequency, schedule.timeOfDay, schedule.weekday, schedule.monthDay, schedule.timezone, schedule.recipients, session.activeCompanyId ?? null, session.activeBranchId ?? null, nextRunAt, session.userId],
+    `INSERT INTO report_schedules (organization_id, report_definition_id, frequency, time_of_day, weekday, month_day, timezone, recipients, next_run_at, created_by)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8::uuid[],$9,$10) RETURNING *`,
+    [session.organizationId, definition.id, schedule.frequency, schedule.timeOfDay, schedule.weekday, schedule.monthDay, schedule.timezone, schedule.recipients, nextRunAt, session.userId],
   );
   await audit(client, { organizationId: session.organizationId, actorUserId: session.userId, eventType: "report.schedule_created", entityType: "report_schedule", entityId: rows[0].id, afterData: { definitionId: definition.id, ...schedule } });
   return projectSchedule(rows[0]);
@@ -201,7 +201,7 @@ export async function enqueueDueReportSchedules(client, organizationId, { now = 
         skipped += 1;
         continue;
       }
-      const check = await memberCanRun(client, organizationId, recipient, dataset, { activeCompanyId: schedule.company_id, activeBranchId: schedule.branch_id, env });
+      const check = await memberCanRun(client, organizationId, recipient, dataset, { env });
       if (!check.ok) {
         await record("skipped", check.reason);
         skipped += 1;
@@ -221,7 +221,7 @@ export async function enqueueDueReportSchedules(client, organizationId, { now = 
           `INSERT INTO tenant.background_jobs (organization_id, job_type, payload, status, run_at, priority, max_attempts, requested_by, idempotency_key, progress, result_manifest)
            VALUES ($1,$2,$3::jsonb,'pending',now(),70,3,$4,$5,'{}'::jsonb,'{}'::jsonb)
            ON CONFLICT (organization_id, idempotency_key) DO NOTHING RETURNING id`,
-          [organizationId, REPORT_RUN_JOB_TYPE, JSON.stringify({ reportRunId: run.id, activeCompanyId: schedule.company_id, activeBranchId: schedule.branch_id }), recipient, `report-schedule:${schedule.id}:${new Date(occurrenceAt).toISOString()}:${recipient}`],
+          [organizationId, REPORT_RUN_JOB_TYPE, JSON.stringify({ reportRunId: run.id }), recipient, `report-schedule:${schedule.id}:${new Date(occurrenceAt).toISOString()}:${recipient}`],
         )
       ).rows[0];
       if (job) await client.query(`UPDATE report_runs SET job_id=$2 WHERE id=$1`, [run.id, job.id]);

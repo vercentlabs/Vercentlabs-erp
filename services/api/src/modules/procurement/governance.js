@@ -284,25 +284,10 @@ export function buildProcurementGovernanceSummary(groups) {
   };
 }
 
-function companyScope(context, values, alias) {
-  if (context.activeCompanyId) {
-    values.push(context.activeCompanyId);
-    return ` AND ${alias}.company_id=$${values.length}`;
-  }
-  return "";
-}
-
-async function getPolicy(client, context, companyId = null) {
-  const selectedCompany = companyId || context.activeCompanyId;
-  const values = [context.organizationId];
-  let where = "";
-  if (selectedCompany) {
-    values.push(selectedCompany);
-    where = ` AND company_id=$${values.length}`;
-  }
+async function getPolicy(client, context) {
   const result = await client.query(
-    `SELECT * FROM tenant.procurement_governance_policies WHERE organization_id=$1${where} ORDER BY company_id LIMIT 1`,
-    values,
+    `SELECT * FROM tenant.procurement_governance_policies WHERE organization_id=$1 LIMIT 1`,
+    [context.organizationId],
   );
   return result.rows[0] || defaultPolicy();
 }
@@ -321,11 +306,9 @@ async function loadEntity(
       "Unsupported Procurement governance entity type.",
     );
   const id = uuid(entityId, "Procurement record");
-  const values = [context.organizationId, id];
-  const scope = companyScope(context, values, "record");
   const result = await client.query(
-    `SELECT record.* FROM tenant.${table} record WHERE record.organization_id=$1 AND record.id=$2${scope}${forUpdate ? " FOR UPDATE" : ""}`,
-    values,
+    `SELECT record.* FROM tenant.${table} record WHERE record.organization_id=$1 AND record.id=$2${forUpdate ? " FOR UPDATE" : ""}`,
+    [context.organizationId, id],
   );
   if (!result.rows[0])
     throw new ProcurementGovernanceError(
@@ -393,9 +376,7 @@ export async function assessProcurementRecordReadiness(
     "procurement.suppliers.view",
   ]);
   const row = await loadEntity(client, context, entityType, entityId);
-  const policy = defaultPolicy(
-    await getPolicy(client, context, row.company_id),
-  );
+  const policy = defaultPolicy(await getPolicy(client, context));
   const enriched = await enrichEntity(client, context, entityType, row, policy);
   return {
     record: enriched,

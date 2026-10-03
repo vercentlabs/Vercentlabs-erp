@@ -19,7 +19,7 @@ const POSITION_SQL = `
     SELECT balance.item_id,balance.warehouse_id,sum(balance.quantity) AS on_hand,sum(balance.reserved_quantity) AS reserved,
            sum(balance.quantity*balance.average_cost) AS carried_value
       FROM tenant.stock_balances balance
-     WHERE balance.organization_id=$1 AND balance.company_id=$2
+     WHERE balance.organization_id=$1
      GROUP BY balance.item_id,balance.warehouse_id
     HAVING sum(balance.quantity)<>0
   ),
@@ -27,7 +27,7 @@ const POSITION_SQL = `
     SELECT layer.item_id,layer.warehouse_id,layer.remaining_quantity,layer.unit_cost,layer.created_at,
            COALESCE(sum(layer.remaining_quantity) OVER (PARTITION BY layer.item_id,layer.warehouse_id ORDER BY layer.created_at DESC,layer.id DESC ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING),0) AS newer_quantity
       FROM tenant.stock_valuation_layers layer
-     WHERE layer.organization_id=$1 AND layer.company_id=$2 AND layer.remaining_quantity>0
+     WHERE layer.organization_id=$1 AND layer.remaining_quantity>0
   ),
   fifo AS (
     SELECT layered.item_id,layered.warehouse_id,layered.created_at,layered.unit_cost,
@@ -37,7 +37,7 @@ const POSITION_SQL = `
 
 export async function getStockValuationReport(client, c, { warehouseId = null, groupId = null } = {}) {
   need(c, "stock.valuation.view");
-  const values = [c.organizationId, c.companyId];
+  const values = [c.organizationId];
   let filter = "";
   if (warehouseId) { values.push(uuid(warehouseId, "Warehouse")); filter += ` AND position.warehouse_id=$${values.length}`; }
   if (groupId) { values.push(uuid(groupId, "Category")); filter += ` AND item.group_id=$${values.length}`; }
@@ -52,7 +52,7 @@ export async function getStockValuationReport(client, c, { warehouseId = null, g
        FROM position
        JOIN tenant.items item ON item.organization_id=$1 AND item.id=position.item_id
        JOIN tenant.warehouses warehouse ON warehouse.organization_id=$1 AND warehouse.id=position.warehouse_id
-       LEFT JOIN tenant.stock_settings settings ON settings.organization_id=$1 AND settings.company_id=$2
+       LEFT JOIN tenant.stock_settings settings ON settings.organization_id=$1
       WHERE true${filter}
       ORDER BY item.name,warehouse.name`,
     values,
@@ -70,7 +70,7 @@ export async function getStockValuationReport(client, c, { warehouseId = null, g
 // Movement summary (F137): what came in, went out and was adjusted over a period, per item.
 export async function getStockMovementSummary(client, c, { from = null, to = null, warehouseId = null } = {}) {
   need(c, "stock.reports.view");
-  const values = [c.organizationId, c.companyId];
+  const values = [c.organizationId];
   let filter = "";
   const day = /^\d{4}-\d{2}-\d{2}$/;
   if (from) { if (!day.test(String(from))) throw new StockError(400, "From date is invalid.", "STOCK_DATE_INVALID"); values.push(String(from)); filter += ` AND movement.occurred_at>=$${values.length}::date`; }
@@ -86,7 +86,7 @@ export async function getStockMovementSummary(client, c, { from = null, to = nul
             COALESCE(sum(movement.cost_variance),0)::text AS cost_variance,
             count(*)::int AS movements
        FROM tenant.stock_movements movement JOIN tenant.items item ON item.organization_id=movement.organization_id AND item.id=movement.item_id
-      WHERE movement.organization_id=$1 AND movement.company_id=$2${filter}
+      WHERE movement.organization_id=$1${filter}
       GROUP BY item.id,item.code,item.name ORDER BY item.name`,
     values,
   );

@@ -14,8 +14,8 @@ const PLAN_TYPES = ["incoming", "in_process", "final", "stock_audit", "supplier"
 
 // ---------------------------------------------------------------- settings
 async function loadSettings(client, c) {
-  const { rows } = await qx(client, `SELECT * FROM tenant.quality_settings WHERE organization_id=$1 AND company_id=$2`, [c.organizationId, c.companyId]);
-  return rows[0] ?? { organization_id: c.organizationId, company_id: c.companyId, require_release_approval: true, prohibit_self_release: true, auto_hold_on_failure: true, require_capa_verification: true };
+  const { rows } = await qx(client, `SELECT * FROM tenant.quality_settings WHERE organization_id=$1`, [c.organizationId]);
+  return rows[0] ?? { organization_id: c.organizationId, require_release_approval: true, prohibit_self_release: true, auto_hold_on_failure: true, require_capa_verification: true };
 }
 export async function getQualitySettings(client, c) {
   needAny(c, VIEW);
@@ -23,9 +23,9 @@ export async function getQualitySettings(client, c) {
 }
 export async function saveQualitySettings(client, c, input) {
   need(c, "quality.settings.manage");
-  const { rows } = await qx(client, `INSERT INTO tenant.quality_settings(organization_id,company_id,require_release_approval,prohibit_self_release,auto_hold_on_failure,require_capa_verification) VALUES ($1,$2,$3,$4,$5,$6)
-    ON CONFLICT (organization_id,company_id) DO UPDATE SET require_release_approval=$3,prohibit_self_release=$4,auto_hold_on_failure=$5,require_capa_verification=$6,updated_at=now() RETURNING *`,
-    [c.organizationId, c.companyId, input.requireReleaseApproval !== false, input.prohibitSelfRelease !== false, input.autoHoldOnFailure !== false, input.requireCapaVerification !== false]);
+  const { rows } = await qx(client, `INSERT INTO tenant.quality_settings(organization_id,require_release_approval,prohibit_self_release,auto_hold_on_failure,require_capa_verification) VALUES ($1,$2,$3,$4,$5)
+    ON CONFLICT (organization_id) DO UPDATE SET require_release_approval=$2,prohibit_self_release=$3,auto_hold_on_failure=$4,require_capa_verification=$5,updated_at=now() RETURNING *`,
+    [c.organizationId, input.requireReleaseApproval !== false, input.prohibitSelfRelease !== false, input.autoHoldOnFailure !== false, input.requireCapaVerification !== false]);
   return rows[0];
 }
 
@@ -39,17 +39,17 @@ function resolveSampleSize(plan, lotQuantity) {
 // ---------------------------------------------------------------- F308-311/F318: quality plans
 export async function listQualityPlans(client, c, filters = {}) {
   needAny(c, VIEW);
-  const params = [c.organizationId, c.companyId];
+  const params = [c.organizationId];
   let where = "";
   if (filters.planType) { params.push(String(filters.planType)); where += ` AND plan_type=$${params.length}`; }
   if (filters.status) { params.push(String(filters.status)); where += ` AND status=$${params.length}`; }
   if (filters.itemId) { params.push(uuid(filters.itemId, "Item")); where += ` AND item_id=$${params.length}`; }
-  const { rows } = await qx(client, `SELECT p.*, (SELECT count(*)::int FROM tenant.quality_inspection_points pt WHERE pt.plan_id=p.id) AS point_count FROM tenant.quality_plans p WHERE organization_id=$1 AND company_id=$2${where} ORDER BY code, version DESC`, params);
+  const { rows } = await qx(client, `SELECT p.*, (SELECT count(*)::int FROM tenant.quality_inspection_points pt WHERE pt.plan_id=p.id) AS point_count FROM tenant.quality_plans p WHERE organization_id=$1${where} ORDER BY code, version DESC`, params);
   return rows;
 }
 export async function getQualityPlan(client, c, id) {
   needAny(c, VIEW);
-  const plan = (await qx(client, `SELECT * FROM tenant.quality_plans WHERE organization_id=$1 AND company_id=$2 AND id=$3`, [c.organizationId, c.companyId, uuid(id, "Plan")])).rows[0];
+  const plan = (await qx(client, `SELECT * FROM tenant.quality_plans WHERE organization_id=$1 AND id=$2`, [c.organizationId, uuid(id, "Plan")])).rows[0];
   if (!plan) throw new QualityError(404, "Quality plan was not found.", "QUALITY_PLAN_NOT_FOUND");
   const points = await qx(client, `SELECT * FROM tenant.quality_inspection_points WHERE organization_id=$1 AND plan_id=$2 ORDER BY sequence`, [c.organizationId, plan.id]);
   return { ...plan, points: points.rows };
@@ -79,9 +79,9 @@ export async function createQualityPlan(client, c, input) {
   const samplingValue = Number(input.samplingValue ?? 100);
   if (samplingMethod === "percentage" && (samplingValue <= 0 || samplingValue > 100)) throw new QualityError(400, "A percentage sampling value must be between 0 and 100.", "QUALITY_PLAN_INVALID");
 
-  const { rows } = await qx(client, `INSERT INTO tenant.quality_plans(organization_id,company_id,code,name,description,plan_type,item_id,item_group_id,supplier_id,warehouse_id,manufacturing_operation_sequence,version,status,effective_from,effective_to,sampling_method,sampling_value,created_by)
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,1,'draft',$12,$13,$14,$15,$16) RETURNING *`,
-    [c.organizationId, c.companyId, code, name, textOrNull(input.description, 1000), planType, uuidOrNull(input.itemId, "Item"), uuidOrNull(input.itemGroupId, "Item group"), uuidOrNull(input.supplierId, "Supplier"), uuidOrNull(input.warehouseId, "Warehouse"), input.manufacturingOperationSequence ? Math.trunc(Number(input.manufacturingOperationSequence)) : null, input.effectiveFrom || null, input.effectiveTo || null, samplingMethod, String(samplingValue), c.userId]).catch((e) => {
+  const { rows } = await qx(client, `INSERT INTO tenant.quality_plans(organization_id,code,name,description,plan_type,item_id,item_group_id,supplier_id,warehouse_id,manufacturing_operation_sequence,version,status,effective_from,effective_to,sampling_method,sampling_value,created_by)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,1,'draft',$11,$12,$13,$14,$15) RETURNING *`,
+    [c.organizationId, code, name, textOrNull(input.description, 1000), planType, uuidOrNull(input.itemId, "Item"), uuidOrNull(input.itemGroupId, "Item group"), uuidOrNull(input.supplierId, "Supplier"), uuidOrNull(input.warehouseId, "Warehouse"), input.manufacturingOperationSequence ? Math.trunc(Number(input.manufacturingOperationSequence)) : null, input.effectiveFrom || null, input.effectiveTo || null, samplingMethod, String(samplingValue), c.userId]).catch((e) => {
     if (e.code === "23505") throw new QualityError(409, `Quality plan ${code} v1 already exists.`, "QUALITY_PLAN_DUPLICATE");
     throw e;
   });
@@ -97,7 +97,7 @@ export async function createQualityPlan(client, c, input) {
 // they hold quality.manage (matching the escape hatch every other module gives its managers).
 export async function approveQualityPlan(client, c, id) {
   need(c, "quality.plan.manage");
-  const plan = (await qx(client, `SELECT * FROM tenant.quality_plans WHERE organization_id=$1 AND company_id=$2 AND id=$3 FOR UPDATE`, [c.organizationId, c.companyId, uuid(id, "Plan")])).rows[0];
+  const plan = (await qx(client, `SELECT * FROM tenant.quality_plans WHERE organization_id=$1 AND id=$2 FOR UPDATE`, [c.organizationId, uuid(id, "Plan")])).rows[0];
   if (!plan) throw new QualityError(404, "Quality plan was not found.", "QUALITY_PLAN_NOT_FOUND");
   if (plan.status !== "draft") throw new QualityError(409, "Only a draft plan can be approved.", "QUALITY_PLAN_STATE");
   if (plan.created_by === c.userId && !has(c, MANAGE)) throw new QualityError(403, "You cannot approve your own quality plan.", "SELF_APPROVAL_BLOCKED");
@@ -108,9 +108,9 @@ export async function approveQualityPlan(client, c, id) {
 export async function reviseQualityPlan(client, c, id) {
   need(c, "quality.plan.manage");
   const plan = await getQualityPlan(client, c, id);
-  const { rows } = await qx(client, `INSERT INTO tenant.quality_plans(organization_id,company_id,code,name,description,plan_type,item_id,item_group_id,supplier_id,warehouse_id,manufacturing_operation_sequence,version,status,effective_from,effective_to,sampling_method,sampling_value,created_by)
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,'draft',$13,$14,$15,$16,$17) RETURNING *`,
-    [c.organizationId, c.companyId, plan.code, plan.name, plan.description, plan.plan_type, plan.item_id, plan.item_group_id, plan.supplier_id, plan.warehouse_id, plan.manufacturing_operation_sequence, plan.version + 1, plan.effective_from, plan.effective_to, plan.sampling_method, plan.sampling_value, c.userId]);
+  const { rows } = await qx(client, `INSERT INTO tenant.quality_plans(organization_id,code,name,description,plan_type,item_id,item_group_id,supplier_id,warehouse_id,manufacturing_operation_sequence,version,status,effective_from,effective_to,sampling_method,sampling_value,created_by)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,'draft',$12,$13,$14,$15,$16) RETURNING *`,
+    [c.organizationId, plan.code, plan.name, plan.description, plan.plan_type, plan.item_id, plan.item_group_id, plan.supplier_id, plan.warehouse_id, plan.manufacturing_operation_sequence, plan.version + 1, plan.effective_from, plan.effective_to, plan.sampling_method, plan.sampling_value, c.userId]);
   const revised = rows[0];
   for (const point of plan.points) {
     await qx(client, `INSERT INTO tenant.quality_inspection_points(organization_id,plan_id,sequence,characteristic,inspection_method,result_type,lower_limit,target_value,upper_limit,unit,allowed_values,critical,destructive,instructions) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11::jsonb,$12,$13,$14)`,
@@ -122,7 +122,7 @@ export async function reviseQualityPlan(client, c, id) {
 export async function retireQualityPlan(client, c, id, reason) {
   need(c, "quality.plan.manage");
   if (!text(reason)) throw new QualityError(400, "Give a reason for retiring this plan.", "QUALITY_REASON_REQUIRED");
-  const { rows } = await qx(client, `UPDATE tenant.quality_plans SET status='obsolete',updated_at=now() WHERE organization_id=$1 AND company_id=$2 AND id=$3 AND status IN ('active','inactive') RETURNING *`, [c.organizationId, c.companyId, uuid(id, "Plan")]);
+  const { rows } = await qx(client, `UPDATE tenant.quality_plans SET status='obsolete',updated_at=now() WHERE organization_id=$1 AND id=$2 AND status IN ('active','inactive') RETURNING *`, [c.organizationId, uuid(id, "Plan")]);
   if (!rows[0]) throw new QualityError(409, "Only an active or inactive plan can be retired.", "QUALITY_PLAN_STATE");
   await recordEvent(client, c, "quality_plan", rows[0].id, "quality.plan.retired", { reason: text(reason, 300) });
   return rows[0];
@@ -134,17 +134,17 @@ const SOURCE_TYPES = ["procurement_receipt", "stock_batch", "stock_serial", "man
 
 export async function listInspections(client, c, filters = {}) {
   needAny(c, VIEW);
-  const params = [c.organizationId, c.companyId];
+  const params = [c.organizationId];
   let where = "";
   if (filters.status) { params.push(String(filters.status)); where += ` AND status=$${params.length}`; }
   if (filters.sourceType) { params.push(String(filters.sourceType)); where += ` AND source_type=$${params.length}`; }
   if (filters.itemId) { params.push(uuid(filters.itemId, "Item")); where += ` AND item_id=$${params.length}`; }
-  const { rows } = await qx(client, `SELECT i.*, p.name AS plan_name, p.code AS plan_code FROM tenant.quality_inspections i JOIN tenant.quality_plans p ON p.id=i.plan_id WHERE i.organization_id=$1 AND i.company_id=$2${where} ORDER BY i.created_at DESC LIMIT 1000`, params);
+  const { rows } = await qx(client, `SELECT i.*, p.name AS plan_name, p.code AS plan_code FROM tenant.quality_inspections i JOIN tenant.quality_plans p ON p.id=i.plan_id WHERE i.organization_id=$1${where} ORDER BY i.created_at DESC LIMIT 1000`, params);
   return rows;
 }
 export async function getInspection(client, c, id) {
   needAny(c, VIEW);
-  const inspection = (await qx(client, `SELECT i.*, p.name AS plan_name, p.code AS plan_code FROM tenant.quality_inspections i JOIN tenant.quality_plans p ON p.id=i.plan_id WHERE i.organization_id=$1 AND i.company_id=$2 AND i.id=$3`, [c.organizationId, c.companyId, uuid(id, "Inspection")])).rows[0];
+  const inspection = (await qx(client, `SELECT i.*, p.name AS plan_name, p.code AS plan_code FROM tenant.quality_inspections i JOIN tenant.quality_plans p ON p.id=i.plan_id WHERE i.organization_id=$1 AND i.id=$2`, [c.organizationId, uuid(id, "Inspection")])).rows[0];
   if (!inspection) throw new QualityError(404, "Inspection was not found.", "QUALITY_INSPECTION_NOT_FOUND");
   const points = await qx(client, `SELECT * FROM tenant.quality_inspection_points WHERE organization_id=$1 AND plan_id=$2 ORDER BY sequence`, [c.organizationId, inspection.plan_id]);
   const results = await qx(client, `SELECT * FROM tenant.quality_inspection_results WHERE organization_id=$1 AND inspection_id=$2 ORDER BY inspection_point_id, sample_number`, [c.organizationId, inspection.id]);
@@ -152,14 +152,14 @@ export async function getInspection(client, c, id) {
 }
 export async function createInspection(client, c, input) {
   need(c, "quality.inspect");
-  const plan = (await qx(client, `SELECT * FROM tenant.quality_plans WHERE organization_id=$1 AND company_id=$2 AND id=$3 AND status='active'`, [c.organizationId, c.companyId, uuid(input.planId, "Plan")])).rows[0];
+  const plan = (await qx(client, `SELECT * FROM tenant.quality_plans WHERE organization_id=$1 AND id=$2 AND status='active'`, [c.organizationId, uuid(input.planId, "Plan")])).rows[0];
   if (!plan) throw new QualityError(400, "An active quality plan is required.", "QUALITY_PLAN_INACTIVE");
   const lotQuantity = nonNegative(input.lotQuantity ?? 0, "Lot quantity");
   const sampleQuantity = resolveSampleSize(plan, lotQuantity || 1);
   const inspectionNumber = await nextDocumentNumber(client, c, { documentType: "quality_inspection", prefix: "QI" });
-  const { rows } = await qx(client, `INSERT INTO tenant.quality_inspections(organization_id,company_id,inspection_number,plan_id,inspection_type,source_type,source_id,item_id,supplier_id,warehouse_id,batch_id,serial_id,lot_quantity,sample_quantity,status,created_by)
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,'draft',$15) RETURNING *`,
-    [c.organizationId, c.companyId, inspectionNumber, plan.id, oneOf(String(input.inspectionType ?? plan.plan_type), INSPECTION_TYPES, "Inspection type"), oneOf(String(input.sourceType ?? "manual"), SOURCE_TYPES, "Source type"), uuidOrNull(input.sourceId, "Source"), uuidOrNull(input.itemId, "Item") ?? plan.item_id, uuidOrNull(input.supplierId, "Supplier") ?? plan.supplier_id, uuidOrNull(input.warehouseId, "Warehouse") ?? plan.warehouse_id, uuidOrNull(input.batchId, "Batch"), uuidOrNull(input.serialId, "Serial"), String(lotQuantity), String(sampleQuantity), c.userId]);
+  const { rows } = await qx(client, `INSERT INTO tenant.quality_inspections(organization_id,inspection_number,plan_id,inspection_type,source_type,source_id,item_id,supplier_id,warehouse_id,batch_id,serial_id,lot_quantity,sample_quantity,status,created_by)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,'draft',$14) RETURNING *`,
+    [c.organizationId, inspectionNumber, plan.id, oneOf(String(input.inspectionType ?? plan.plan_type), INSPECTION_TYPES, "Inspection type"), oneOf(String(input.sourceType ?? "manual"), SOURCE_TYPES, "Source type"), uuidOrNull(input.sourceId, "Source"), uuidOrNull(input.itemId, "Item") ?? plan.item_id, uuidOrNull(input.supplierId, "Supplier") ?? plan.supplier_id, uuidOrNull(input.warehouseId, "Warehouse") ?? plan.warehouse_id, uuidOrNull(input.batchId, "Batch"), uuidOrNull(input.serialId, "Serial"), String(lotQuantity), String(sampleQuantity), c.userId]);
   await recordEvent(client, c, "inspection", rows[0].id, "quality.inspection.created", { planId: plan.id });
   return getInspection(client, c, rows[0].id);
 }
@@ -182,7 +182,7 @@ function checkTolerance(point, result) {
 }
 export async function recordInspectionResults(client, c, id, input) {
   need(c, "quality.inspect");
-  const inspection = (await qx(client, `SELECT * FROM tenant.quality_inspections WHERE organization_id=$1 AND company_id=$2 AND id=$3 FOR UPDATE`, [c.organizationId, c.companyId, uuid(id, "Inspection")])).rows[0];
+  const inspection = (await qx(client, `SELECT * FROM tenant.quality_inspections WHERE organization_id=$1 AND id=$2 FOR UPDATE`, [c.organizationId, uuid(id, "Inspection")])).rows[0];
   if (!inspection) throw new QualityError(404, "Inspection was not found.", "QUALITY_INSPECTION_NOT_FOUND");
   if (!["draft", "in_progress"].includes(inspection.status)) throw new QualityError(409, "This inspection is not open for results.", "QUALITY_INSPECTION_STATE");
   const points = (await qx(client, `SELECT * FROM tenant.quality_inspection_points WHERE organization_id=$1 AND plan_id=$2`, [c.organizationId, inspection.plan_id])).rows;
@@ -206,7 +206,7 @@ export async function recordInspectionResults(client, c, id, input) {
 }
 export async function completeInspection(client, c, id, input = {}) {
   need(c, "quality.inspect");
-  const inspection = (await qx(client, `SELECT * FROM tenant.quality_inspections WHERE organization_id=$1 AND company_id=$2 AND id=$3 FOR UPDATE`, [c.organizationId, c.companyId, uuid(id, "Inspection")])).rows[0];
+  const inspection = (await qx(client, `SELECT * FROM tenant.quality_inspections WHERE organization_id=$1 AND id=$2 FOR UPDATE`, [c.organizationId, uuid(id, "Inspection")])).rows[0];
   if (!inspection) throw new QualityError(404, "Inspection was not found.", "QUALITY_INSPECTION_NOT_FOUND");
   if (!["draft", "in_progress"].includes(inspection.status)) throw new QualityError(409, "This inspection is already finalized.", "QUALITY_INSPECTION_STATE");
   const results = (await qx(client, `SELECT * FROM tenant.quality_inspection_results WHERE organization_id=$1 AND inspection_id=$2`, [c.organizationId, inspection.id])).rows;
@@ -222,8 +222,8 @@ export async function completeInspection(client, c, id, input = {}) {
   const rejectedQuantity = overall === "failed" ? Math.max(Math.round(lot * rejectedRatio), lot > 0 && failed.length ? 1 : 0) : Number(input.rejectedQuantity ?? 0);
   const acceptedQuantity = Math.max(lot - rejectedQuantity, 0);
 
-  await qx(client, `UPDATE tenant.quality_inspections SET status=$4,overall_result=$4,accepted_quantity=$5,rejected_quantity=$6,inspected_by=$7,inspected_at=now(),notes=$8,updated_at=now() WHERE organization_id=$1 AND company_id=$2 AND id=$3 RETURNING *`,
-    [c.organizationId, c.companyId, inspection.id, overall, String(acceptedQuantity), String(rejectedQuantity), c.userId, textOrNull(input.notes, 2000)]);
+  await qx(client, `UPDATE tenant.quality_inspections SET status=$3,overall_result=$3,accepted_quantity=$4,rejected_quantity=$5,inspected_by=$6,inspected_at=now(),notes=$7,updated_at=now() WHERE organization_id=$1 AND id=$2 RETURNING *`,
+    [c.organizationId, inspection.id, overall, String(acceptedQuantity), String(rejectedQuantity), c.userId, textOrNull(input.notes, 2000)]);
 
   if (overall === "failed") {
     const settings = await loadSettings(client, c);
@@ -241,21 +241,21 @@ export async function completeInspection(client, c, id, input = {}) {
 }
 export async function releaseInspection(client, c, id, input = {}) {
   need(c, "quality.release");
-  const inspection = (await qx(client, `SELECT * FROM tenant.quality_inspections WHERE organization_id=$1 AND company_id=$2 AND id=$3 FOR UPDATE`, [c.organizationId, c.companyId, uuid(id, "Inspection")])).rows[0];
+  const inspection = (await qx(client, `SELECT * FROM tenant.quality_inspections WHERE organization_id=$1 AND id=$2 FOR UPDATE`, [c.organizationId, uuid(id, "Inspection")])).rows[0];
   if (!inspection) throw new QualityError(404, "Inspection was not found.", "QUALITY_INSPECTION_NOT_FOUND");
   if (!["passed", "conditionally_accepted"].includes(inspection.status)) throw new QualityError(409, "Only a passed or conditionally accepted inspection can be released.", "QUALITY_INSPECTION_STATE");
   const settings = await loadSettings(client, c);
   if (settings.prohibit_self_release && inspection.inspected_by === c.userId && !has(c, MANAGE)) throw new QualityError(403, "The inspector cannot release their own inspection.", "SELF_APPROVAL_BLOCKED");
-  const { rows } = await qx(client, `UPDATE tenant.quality_inspections SET released_by=$4,released_at=now(),notes=coalesce($5,notes),updated_at=now() WHERE organization_id=$1 AND company_id=$2 AND id=$3 RETURNING *`,
-    [c.organizationId, c.companyId, inspection.id, c.userId, textOrNull(input.notes, 2000)]);
+  const { rows } = await qx(client, `UPDATE tenant.quality_inspections SET released_by=$3,released_at=now(),notes=coalesce($4,notes),updated_at=now() WHERE organization_id=$1 AND id=$2 RETURNING *`,
+    [c.organizationId, inspection.id, c.userId, textOrNull(input.notes, 2000)]);
   await recordEvent(client, c, "inspection", inspection.id, "quality.inspection.released", {});
   return rows[0];
 }
 export async function cancelInspection(client, c, id, reason) {
   need(c, "quality.inspect");
   if (!text(reason)) throw new QualityError(400, "Give a reason for cancelling this inspection.", "QUALITY_REASON_REQUIRED");
-  const { rows } = await qx(client, `UPDATE tenant.quality_inspections SET status='cancelled',notes=coalesce(notes,'') || $4,updated_at=now() WHERE organization_id=$1 AND company_id=$2 AND id=$3 AND status IN ('draft','in_progress') RETURNING *`,
-    [c.organizationId, c.companyId, uuid(id, "Inspection"), `\nCancelled: ${text(reason, 300)}`]);
+  const { rows } = await qx(client, `UPDATE tenant.quality_inspections SET status='cancelled',notes=coalesce(notes,'') || $3,updated_at=now() WHERE organization_id=$1 AND id=$2 AND status IN ('draft','in_progress') RETURNING *`,
+    [c.organizationId, uuid(id, "Inspection"), `\nCancelled: ${text(reason, 300)}`]);
   if (!rows[0]) throw new QualityError(409, "Only a draft or in-progress inspection can be cancelled.", "QUALITY_INSPECTION_STATE");
   return rows[0];
 }

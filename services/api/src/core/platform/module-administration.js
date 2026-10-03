@@ -9,7 +9,7 @@
 // re-enabling restores eligibility.
 //
 // Organization-global: requires modules.manage (Organisation Owner / System
-// Administrator). There is no per-company enablement.
+// Administrator).
 import { moduleAccessPermission } from "@vercentlabs/permissions";
 import { ERP_MODULE_CATALOG } from "@vercentlabs/shared-types";
 

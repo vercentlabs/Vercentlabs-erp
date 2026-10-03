@@ -30,7 +30,7 @@ import { useTheme } from "@/shared/theme/theme";
 import { minimumTouchTarget } from "@/shared/theme/tokens";
 import { BrandMark } from "./brand-mark";
 
-type ContextPicker = "organization" | "company" | "branch" | null;
+type ContextPicker = "organization" | null;
 
 function initials(value: string) {
   return value
@@ -87,10 +87,6 @@ export function AppHeader({
   });
   const shell = workspace.data?.shell;
   const organizations = shell?.organizations ?? [];
-  const companies = shell?.companies ?? [];
-  const branches = (shell?.branches ?? []).filter(
-    (branch) => branch.company_id === session?.workspace.activeCompanyId,
-  );
 
   if (!session) return null;
 
@@ -99,32 +95,12 @@ export function AppHeader({
     router.push(href);
   };
 
-  const changeContext = async (id: string | null) => {
-    if (!id && picker !== "branch") return;
-
+  const changeContext = async (id: string) => {
     setChangingContext(true);
     try {
-      const result =
-        picker === "organization"
-          ? await mobileApi.setWorkspaceOrganization({
-              organizationId: String(id),
-            })
-          : await mobileApi.setWorkspaceContext({
-              companyId:
-                picker === "company"
-                  ? String(id)
-                  : String(session.workspace.activeCompanyId),
-              branchId:
-                picker === "branch"
-                  ? id
-                  : (shell?.branches ?? []).some(
-                        (branch) =>
-                          branch.id === session.workspace.activeBranchId &&
-                          branch.company_id === id,
-                      )
-                    ? session.workspace.activeBranchId
-                    : null,
-            });
+      const result = await mobileApi.setWorkspaceOrganization({
+        organizationId: id,
+      });
 
       await auth.applySession(result.session);
       queryClient.setQueryData(
@@ -289,7 +265,7 @@ export function AppHeader({
         >
           <Ionicons name="search" size={19} color={colors.textMuted} />
           <Text numberOfLines={1} style={{ ...type.caption, flex: 1, color: colors.textMuted }}>
-            Search partners, items, companies, branches or users
+            Search partners, items or users
           </Text>
         </Pressable>
         <Pressable
@@ -396,58 +372,6 @@ export function AppHeader({
             }}
           >
             {session.workspace.organizationName || "Not selected"}
-          </Text>
-        </Pressable>
-        <View style={{ width: 1, height: 28, backgroundColor: colors.border }} />
-        <Pressable
-          onPress={() => companies.length > 1 && setPicker("company")}
-          style={{ flex: 1, paddingHorizontal: spacing.xs }}
-        >
-          <Text
-            style={{
-              color: colors.textMuted,
-              fontSize: 8,
-              fontWeight: "800",
-              letterSpacing: 0.7,
-            }}
-          >
-            COMPANY
-          </Text>
-          <Text
-            numberOfLines={1}
-            style={{
-              color: colors.textSecondary,
-              fontSize: 11,
-              fontWeight: "700",
-            }}
-          >
-            {session.workspace.companyName || "Not selected"}
-          </Text>
-        </Pressable>
-        <View style={{ width: 1, height: 28, backgroundColor: colors.border }} />
-        <Pressable
-          onPress={() => setPicker("branch")}
-          style={{ flex: 1, paddingHorizontal: spacing.xs }}
-        >
-          <Text
-            style={{
-              color: colors.textMuted,
-              fontSize: 8,
-              fontWeight: "800",
-              letterSpacing: 0.7,
-            }}
-          >
-            BRANCH
-          </Text>
-          <Text
-            numberOfLines={1}
-            style={{
-              color: colors.textSecondary,
-              fontSize: 11,
-              fontWeight: "700",
-            }}
-          >
-            {session.workspace.branchName || "All branches"}
           </Text>
         </Pressable>
       </View>
@@ -566,12 +490,7 @@ export function AppHeader({
             <View style={{ flexDirection: "row", alignItems: "center" }}>
               <View style={{ flex: 1 }}>
                 <Text style={{ ...type.heading, color: colors.text }}>
-                  Select{" "}
-                  {picker === "organization"
-                    ? "organisation"
-                    : picker === "company"
-                      ? "company"
-                      : "branch"}
+                  Select organisation
                 </Text>
                 <Text style={{ ...type.caption, color: colors.textMuted }}>
                   This changes the operating scope across the workspace.
@@ -580,21 +499,7 @@ export function AppHeader({
               {changingContext ? <ActivityIndicator color={colors.primary} /> : null}
             </View>
             <ScrollView>
-              {picker === "branch" ? (
-                <Pressable
-                  disabled={changingContext}
-                  onPress={() => changeContext(null)}
-                  style={{ minHeight: 52, justifyContent: "center", borderBottomWidth: 1, borderBottomColor: colors.border }}
-                >
-                  <Text style={{ ...type.label, color: colors.text }}>All branches</Text>
-                </Pressable>
-              ) : null}
-              {(picker === "organization"
-                ? organizations
-                : picker === "company"
-                  ? companies
-                  : branches
-              ).map((option) => (
+              {organizations.map((option) => (
                 <Pressable
                   key={option.id}
                   disabled={changingContext}
@@ -602,11 +507,7 @@ export function AppHeader({
                   style={{ minHeight: 52, flexDirection: "row", alignItems: "center", borderBottomWidth: 1, borderBottomColor: colors.border }}
                 >
                   <Text style={{ ...type.label, flex: 1, color: colors.text }}>{option.name}</Text>
-                  {(picker === "organization"
-                    ? session.workspace.organizationId
-                    : picker === "company"
-                      ? session.workspace.activeCompanyId
-                      : session.workspace.activeBranchId) === option.id ? (
+                  {session.workspace.organizationId === option.id ? (
                     <Ionicons name="checkmark-circle" size={21} color={colors.primary} />
                   ) : null}
                 </Pressable>

@@ -183,10 +183,6 @@ function id(value, label = "Record") {
   return String(value);
 }
 
-function optionalId(value, label) {
-  return value ? id(value, label) : null;
-}
-
 function stable(value) {
   if (Array.isArray(value)) return `[${value.map(stable).join(",")}]`;
   if (value && typeof value === "object") {
@@ -262,13 +258,6 @@ function configFor(resource) {
   return config;
 }
 
-function ensureCompanyAccess(context, companyId) {
-  if (!companyId) return;
-  if (!context.allowAllCompanies && context.activeCompanyId && companyId !== context.activeCompanyId) {
-    throw new ProcurementError(403, "The selected company is outside your active company context.", "PROCUREMENT_COMPANY_SCOPE");
-  }
-}
-
 function normalizeLine(line, index, resource) {
   const normalized = { ...line };
   if (line.id) normalized.id = id(line.id, `${resource} line`);
@@ -307,13 +296,6 @@ function calculateTotals(lines) {
 
 function normalizeDocument(resource, input, context) {
   const value = externalPayload(input);
-  const companyId = value.companyId || context.activeCompanyId;
-  if (!companyId) {
-    throw new ProcurementError(409, "Select an active company.", "PROCUREMENT_COMPANY_REQUIRED");
-  }
-  value.companyId = id(companyId, "Company");
-  value.branchId = optionalId(value.branchId || context.activeBranchId, "Branch");
-  ensureCompanyAccess(context, value.companyId);
 
   const common = {
     ...value,
@@ -376,14 +358,11 @@ function normalizeDocument(resource, input, context) {
 function normalizeChild(resource, input, context) {
   const value = externalPayload(input);
   const config = configFor(resource);
-  const companyId = value.companyId || context.activeCompanyId || null;
-  if (companyId) ensureCompanyAccess(context, id(companyId, "Company"));
   if (config.parentResource && !value.parentId) {
     throw new ProcurementError(400, "Parent record is required.", "PROCUREMENT_PARENT_REQUIRED");
   }
   return {
     ...value,
-    companyId: companyId ? id(companyId, "Company") : null,
     parentId: value.parentId ? id(value.parentId, "Parent record") : null,
     status: "active",
   };
@@ -411,17 +390,17 @@ const CHILD_PARENT_EDITABLE_STATES = Object.freeze({
   "matching-records": ["open", "resolved", "overridden"],
 });
 
-async function loadReference(client, context, table, referenceId, companyId, label, options = {}) {
+async function loadReference(client, context, table, referenceId, label, options = {}) {
   const result = await client.query(
-    `SELECT id,company_id,status,data FROM tenant.${table}
-      WHERE organization_id=$1 AND id=$2 AND company_id=$3`,
-    [context.organizationId, id(referenceId, label), companyId],
+    `SELECT id,status,data FROM tenant.${table}
+      WHERE organization_id=$1 AND id=$2`,
+    [context.organizationId, id(referenceId, label)],
   );
   const row = result.rows[0];
   if (!row) {
     throw new ProcurementError(
       409,
-      `${label} does not exist in the selected company.`,
+      `${label} does not exist.`,
       "PROCUREMENT_REFERENCE_INVALID",
     );
   }
@@ -437,7 +416,6 @@ async function loadReference(client, context, table, referenceId, companyId, lab
 
 async function validateDocumentReferences(client, context, resource, payload) {
   const references = {};
-  const companyId = id(payload.companyId, "Company");
   const configured = DOCUMENT_REFERENCE_COLUMNS[resource] || {};
   for (const [payloadKey, [column, table]] of Object.entries(configured)) {
     if (!payload[payloadKey]) continue;
@@ -446,7 +424,6 @@ async function validateDocumentReferences(client, context, resource, payload) {
       context,
       table,
       payload[payloadKey],
-      companyId,
       payloadKey,
       {
         allowedStatuses:
@@ -466,7 +443,6 @@ async function validateDocumentReferences(client, context, resource, payload) {
       context,
       "procurement_purchase_orders",
       payload.purchaseOrderId,
-      companyId,
       "Purchase order",
       {
         allowedStatuses: ["approved", "dispatched", "acknowledged", "partially_received", "received"],
@@ -482,7 +458,6 @@ async function validateDocumentReferences(client, context, resource, payload) {
       context,
       "procurement_purchase_orders",
       payload.purchaseOrderId,
-      companyId,
       "Purchase order",
     );
     references.purchase_order_id = order.id;
@@ -522,7 +497,7 @@ async function validateChildParent(client, context, resource, payload, options =
   const parentConfig = configFor(config.parentResource);
   const parentId = id(payload.parentId, "Parent record");
   const result = await client.query(
-    `SELECT id,company_id,status FROM tenant.${parentConfig.table}
+    `SELECT id,status FROM tenant.${parentConfig.table}
       WHERE organization_id=$1 AND id=$2
       ${options.lock ? "FOR UPDATE" : ""}`,
     [context.organizationId, parentId],
@@ -530,9 +505,6 @@ async function validateChildParent(client, context, resource, payload, options =
   const parent = result.rows[0];
   if (!parent) {
     throw new ProcurementError(404, "The parent Procurement record was not found.");
-  }
-  if (payload.companyId && parent.company_id && payload.companyId !== parent.company_id) {
-    throw new ProcurementError(409, "The child and parent must belong to the same company.");
   }
   const allowed = CHILD_PARENT_EDITABLE_STATES[resource];
   if (allowed && !allowed.includes(parent.status)) {
@@ -542,7 +514,6 @@ async function validateChildParent(client, context, resource, payload, options =
       "PROCUREMENT_PARENT_LIFECYCLE_LOCK",
     );
   }
-  payload.companyId = parent.company_id;
   return parent;
 }
 
@@ -559,19 +530,8 @@ function searchText(config, payload, resource) {
   return candidates.filter(Boolean).join(" ").slice(0, 2000);
 }
 
-function companyWhere(context, values, alias = "") {
-  const prefix = alias ? `${alias}.` : "";
-  let clause = "";
-  if (!context.allowAllCompanies && context.activeCompanyId) {
-    values.push(context.activeCompanyId);
-    clause = ` AND (${prefix}company_id=$${values.length} OR ${prefix}company_id IS NULL)`;
-  }
-  return clause;
-}
-
 // Organisation-wide procurement document numbers from the one platform
-// numbering service (migration 181 merged the legacy series and the old
-// per-company "procurement:<type>" fallback counters).
+// numbering service.
 async function nextNumber(client, context, entityType) {
   return nextDocumentNumber(client, context, { documentType: entityType });
 }
@@ -616,7 +576,6 @@ async function insertChildRow(client, context, table, record, child, status = "a
   const columns = Object.keys(normalized);
   const values = [
     context.organizationId,
-    record.company_id,
     record.id,
     status,
     JSON.stringify(child),
@@ -627,13 +586,13 @@ async function insertChildRow(client, context, table, record, child, status = "a
   ];
   const columnSql = columns.length ? `,${columns.join(",")}` : "";
   const placeholderSql = columns.length
-    ? `,${columns.map((_, index) => `$${9 + index}`).join(",")}`
+    ? `,${columns.map((_, index) => `$${8 + index}`).join(",")}`
     : "";
   const result = await client.query(
     `INSERT INTO tenant.${table}(
-      organization_id,company_id,parent_id,status,data,content_hash,updated_by,idempotency_key${columnSql},
+      organization_id,parent_id,status,data,content_hash,updated_by,idempotency_key${columnSql},
       created_at,updated_at
-    ) VALUES($1,$2,$3,$4,$5::jsonb,$6,$7,$8${placeholderSql},now(),now())
+    ) VALUES($1,$2,$3,$4::jsonb,$5,$6,$7${placeholderSql},now(),now())
     ON CONFLICT DO NOTHING
     RETURNING *`,
     values,
@@ -710,12 +669,11 @@ async function event(client, context, record, resource, eventType, payload = {})
   await client.query(
     `
       INSERT INTO tenant.procurement_events(
-        organization_id,company_id,entity_type,entity_id,event_type,payload,actor_user_id
-      ) VALUES($1,$2,$3,$4,$5,$6::jsonb,$7)
+        organization_id,entity_type,entity_id,event_type,payload,actor_user_id
+      ) VALUES($1,$2,$3,$4,$5::jsonb,$6)
     `,
     [
       context.organizationId,
-      record.company_id || null,
       resource,
       record.id,
       eventType,
@@ -730,11 +688,11 @@ async function outbox(client, context, record, topic, payload = {}) {
   await client.query(
     `
       INSERT INTO tenant.procurement_outbox(
-        organization_id,company_id,topic,payload,idempotency_key,status
-      ) VALUES($1,$2,$3,$4::jsonb,$5,'pending')
+        organization_id,topic,payload,idempotency_key,status
+      ) VALUES($1,$2,$3::jsonb,$4,'pending')
       ON CONFLICT DO NOTHING
     `,
-    [context.organizationId, record.company_id || null, topic, JSON.stringify(payload), idempotencyKey],
+    [context.organizationId, topic, JSON.stringify(payload), idempotencyKey],
   );
 }
 
@@ -746,11 +704,6 @@ export function procurementContext(session) {
   return {
     organizationId: session.organizationId,
     userId: session.userId,
-    activeCompanyId: session.activeCompanyId || null,
-    activeBranchId: session.activeBranchId || null,
-    allowAllCompanies: (session.roleSlugs || []).some((value) =>
-      ["organization_owner", "system_administrator"].includes(value),
-    ),
     permissions: session.permissions || [],
     roleSlugs: session.roleSlugs || [],
   };
@@ -763,7 +716,6 @@ export async function listProcurementRecords(client, context, resource, filters 
   const offset = Math.max(Number(filters.offset || 0), 0);
   const values = [context.organizationId];
   let where = "organization_id=$1";
-  where += companyWhere(context, values);
   if (filters.parentId) {
     if (config.kind !== "child") {
       throw new ProcurementError(400, "Parent filtering is not supported for this resource.");
@@ -803,8 +755,7 @@ export async function getProcurementRecord(client, context, resource, recordId) 
   const config = configFor(resource);
   permission(context, config.view || "procurement.view");
   const values = [context.organizationId, id(recordId)];
-  let where = "organization_id=$1 AND id=$2";
-  where += companyWhere(context, values);
+  const where = "organization_id=$1 AND id=$2";
   const result = await client.query(
     `SELECT * FROM tenant.${config.table} WHERE ${where}`,
     values,
@@ -832,14 +783,14 @@ export async function createProcurementRecord(client, context, resource, input) 
 
   if (config.kind === "child") {
     const payload = normalizeChild(resource, input, context);
-    const parent = await validateChildParent(client, context, resource, payload, { lock: true });
+    await validateChildParent(client, context, resource, payload, { lock: true });
     const childIdempotencyKey = text(input.idempotencyKey, "Idempotency key", { max: 200 });
     payload.idempotencyKey = childIdempotencyKey || null;
     let row = await insertChildRow(
       client,
       context,
       config.table,
-      { id: payload.parentId, company_id: parent?.company_id || payload.companyId },
+      { id: payload.parentId },
       payload,
       "active",
     );
@@ -867,16 +818,14 @@ export async function createProcurementRecord(client, context, resource, input) 
   const result = await client.query(
     `
       INSERT INTO tenant.${config.table}(
-        organization_id,company_id,branch_id,status,search_text,data,content_hash,
+        organization_id,status,search_text,data,content_hash,
         created_by,updated_by,idempotency_key
-      ) VALUES($1,$2,$3,$4,$5,$6::jsonb,$7,$8,$8,$9)
+      ) VALUES($1,$2,$3,$4::jsonb,$5,$6,$6,$7)
       ON CONFLICT DO NOTHING
       RETURNING *
     `,
     [
       context.organizationId,
-      payload.companyId,
-      payload.branchId,
       status,
       searchText(config, payload, resource),
       JSON.stringify(payload),
@@ -960,22 +909,20 @@ export async function updateProcurementRecord(client, context, resource, recordI
   if (version !== Number(current.version)) {
     throw new ProcurementError(409, "This document changed after it was loaded. Refresh and try again.", "PROCUREMENT_VERSION_CONFLICT");
   }
-  let payload = normalizeDocument(resource, { ...(current.data || {}), ...input, companyId: current.company_id, branchId: current.branch_id }, context);
+  let payload = normalizeDocument(resource, { ...(current.data || {}), ...input }, context);
   payload = await ensureNumber(client, context, resource, payload);
   const references = await validateDocumentReferences(client, context, resource, payload);
   const result = await client.query(
     `
       UPDATE tenant.${config.table}
-      SET company_id=$3,branch_id=$4,search_text=$5,data=$6::jsonb,content_hash=$7,
-          version=version+1,updated_by=$8,updated_at=now()
-      WHERE organization_id=$1 AND id=$2 AND version=$9 AND status IN ('draft','rejected')
+      SET search_text=$3,data=$4::jsonb,content_hash=$5,
+          version=version+1,updated_by=$6,updated_at=now()
+      WHERE organization_id=$1 AND id=$2 AND version=$7 AND status IN ('draft','rejected')
       RETURNING *
     `,
     [
       context.organizationId,
       id(recordId),
-      payload.companyId,
-      payload.branchId,
       searchText(config, payload, resource),
       JSON.stringify(payload),
       contentHash(payload),
@@ -1044,9 +991,6 @@ async function applyReceiptToOrder(client, context, receipt, direction = 1) {
   const orderRow = orderResult.rows[0];
   if (!orderRow) {
     throw new ProcurementError(404, "Purchase order was not found.");
-  }
-  if (receipt.company_id && orderRow.company_id !== receipt.company_id) {
-    throw new ProcurementError(409, "The receipt and purchase order belong to different companies.");
   }
   if (!["approved", "dispatched", "acknowledged", "partially_received", "received"].includes(orderRow.status)) {
     throw new ProcurementError(
@@ -1242,7 +1186,6 @@ export async function amendPurchaseOrder(client, context, recordId, input = {}) 
   if (!currentRow) {
     throw new ProcurementError(404, "Purchase order was not found.");
   }
-  ensureCompanyAccess(context, currentRow.company_id);
   const current = await hydrateChildren(
     client,
     context,
@@ -1259,7 +1202,7 @@ export async function amendPurchaseOrder(client, context, recordId, input = {}) 
   const reason = text(input.reason, "Amendment reason", { required: true, max: 1000 });
   const merged = normalizeDocument(
     "purchase-orders",
-    { ...(current.data || current), ...input, companyId: current.company_id, branchId: current.branch_id },
+    { ...(current.data || current), ...input },
     context,
   );
   const references = await validateDocumentReferences(
@@ -1323,7 +1266,6 @@ async function decidePurchaseOrderAmendment(client, context, recordId, input, ap
   );
   const row = locked.rows[0];
   if (!row) throw new ProcurementError(404, "Purchase order was not found.");
-  ensureCompanyAccess(context, row.company_id);
   if (row.status !== "pending_amendment_approval") {
     throw new ProcurementError(409, "This purchase order amendment is not awaiting approval.", "PROCUREMENT_INVALID_TRANSITION");
   }
@@ -1401,7 +1343,7 @@ async function decidePurchaseOrderAmendment(client, context, recordId, input, ap
   if (!approved) {
     const restored = normalizeDocument(
       "purchase-orders",
-      { ...nextData, companyId: row.company_id, branchId: row.branch_id },
+      nextData,
       context,
     );
     const references = await validateDocumentReferences(client, context, "purchase-orders", restored);
@@ -1440,13 +1382,13 @@ function lineKey(line) {
   return String(line.purchaseOrderLineId || line.id || line.itemId || line.description || "");
 }
 
-async function matchingTolerancePolicy(client, context, companyId) {
+async function matchingTolerancePolicy(client, context) {
   const result = await client.query(
     `SELECT data FROM tenant.procurement_policies
-      WHERE organization_id=$1 AND (company_id=$2 OR company_id IS NULL)
+      WHERE organization_id=$1
         AND status='active' AND data->>'policyType'='matching_tolerance'
-      ORDER BY company_id IS NOT NULL DESC,updated_at DESC LIMIT 1`,
-    [context.organizationId, companyId],
+      ORDER BY updated_at DESC LIMIT 1`,
+    [context.organizationId],
   );
   const configured = Number(result.rows[0]?.data?.tolerancePercent ?? 0);
   if (!Number.isFinite(configured) || configured < 0 || configured > 100) {
@@ -1518,12 +1460,11 @@ export async function runProcurementMatch(client, context, input) {
   });
   const duplicate = await client.query(
     `SELECT id,status FROM tenant.procurement_invoice_matches
-      WHERE organization_id=$1 AND company_id=$2 AND supplier_id=$3
-        AND upper(invoice_number)=upper($4)
+      WHERE organization_id=$1 AND supplier_id=$2
+        AND upper(invoice_number)=upper($3)
       FOR UPDATE`,
     [
       context.organizationId,
-      purchaseOrder.company_id,
       supplierId,
       invoiceNumber,
     ],
@@ -1550,11 +1491,7 @@ export async function runProcurementMatch(client, context, input) {
     );
   }
 
-  const policyTolerancePercent = await matchingTolerancePolicy(
-    client,
-    context,
-    purchaseOrder.company_id,
-  );
+  const policyTolerancePercent = await matchingTolerancePolicy(client, context);
   const requestedTolerancePercent =
     value.tolerancePercent == null
       ? policyTolerancePercent
@@ -1673,8 +1610,6 @@ export async function runProcurementMatch(client, context, input) {
   const matchingRecord = {
     purchaseOrderId,
     supplierId,
-    companyId: purchaseOrder.company_id,
-    branchId: purchaseOrder.branch_id || null,
     currencyCode,
     invoiceId: value.invoiceId ? id(value.invoiceId, "Invoice") : null,
     invoiceNumber,
@@ -1700,14 +1635,13 @@ export async function runProcurementMatch(client, context, input) {
 
   const ledger = await client.query(
     `INSERT INTO tenant.procurement_invoice_matches(
-       organization_id,company_id,purchase_order_id,supplier_id,invoice_id,
+       organization_id,purchase_order_id,supplier_id,invoice_id,
        invoice_number,currency_code,match_mode,status,invoice_total,
        order_matched_total,variance_amount,payload,created_by
-     ) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13::jsonb,$14)
+     ) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12::jsonb,$13)
      RETURNING *`,
     [
       context.organizationId,
-      purchaseOrder.company_id,
       purchaseOrderId,
       supplierId,
       matchingRecord.invoiceId,
@@ -1726,13 +1660,12 @@ export async function runProcurementMatch(client, context, input) {
   const matchResult = await client.query(
     `
       INSERT INTO tenant.procurement_matching_records(
-        organization_id,company_id,parent_id,status,data,content_hash,updated_by
-      ) VALUES($1,$2,$3,$4,$5::jsonb,$6,$7)
+        organization_id,parent_id,status,data,content_hash,updated_by
+      ) VALUES($1,$2,$3,$4::jsonb,$5,$6)
       RETURNING *
     `,
     [
       context.organizationId,
-      purchaseOrder.company_id,
       purchaseOrder.id,
       status,
       JSON.stringify({
@@ -1751,8 +1684,6 @@ export async function runProcurementMatch(client, context, input) {
       context,
       "match-exceptions",
       {
-        companyId: purchaseOrder.company_id,
-        branchId: purchaseOrder.branch_id,
         purchaseOrderId,
         supplierId,
         invoiceNumber,
@@ -1852,15 +1783,14 @@ export async function runProcurementMatch(client, context, input) {
 export async function getProcurementDashboard(client, context) {
   permission(context, "procurement.view");
   const values = [context.organizationId];
-  const companyFilter = companyWhere(context, values, "record");
   const result = await client.query(
     `
       SELECT
-        (SELECT count(*) FROM tenant.procurement_purchase_orders record WHERE record.organization_id=$1 ${companyFilter} AND record.status IN ('approved','dispatched','acknowledged','partially_received','pending_amendment_approval'))::int open_orders,
-        (SELECT count(*) FROM tenant.procurement_receipts record WHERE record.organization_id=$1 ${companyFilter} AND record.status IN ('draft','submitted'))::int pending_receipts,
-        (SELECT count(*) FROM tenant.procurement_match_exceptions record WHERE record.organization_id=$1 ${companyFilter} AND record.status='open')::int match_exceptions,
-        (SELECT count(*) FROM tenant.procurement_suppliers record WHERE record.organization_id=$1 ${companyFilter} AND record.status IN ('conditional','blocked','suspended'))::int supplier_risks,
-        (SELECT coalesce(sum((record.data->'totals'->>'grandTotal')::numeric),0) FROM tenant.procurement_purchase_orders record WHERE record.organization_id=$1 ${companyFilter} AND record.status NOT IN ('cancelled','closed'))::text open_commitment_value
+        (SELECT count(*) FROM tenant.procurement_purchase_orders record WHERE record.organization_id=$1 AND record.status IN ('approved','dispatched','acknowledged','partially_received','pending_amendment_approval'))::int open_orders,
+        (SELECT count(*) FROM tenant.procurement_receipts record WHERE record.organization_id=$1 AND record.status IN ('draft','submitted'))::int pending_receipts,
+        (SELECT count(*) FROM tenant.procurement_match_exceptions record WHERE record.organization_id=$1 AND record.status='open')::int match_exceptions,
+        (SELECT count(*) FROM tenant.procurement_suppliers record WHERE record.organization_id=$1 AND record.status IN ('conditional','blocked','suspended'))::int supplier_risks,
+        (SELECT coalesce(sum((record.data->'totals'->>'grandTotal')::numeric),0) FROM tenant.procurement_purchase_orders record WHERE record.organization_id=$1 AND record.status NOT IN ('cancelled','closed'))::text open_commitment_value
     `,
     values,
   );

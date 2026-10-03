@@ -16,7 +16,7 @@ const text = (value) => String(value ?? "").trim();
 
 // F008/CRM-VNEXT-086 merge survivorship: the fixed, code-reviewed set of
 // fields a merge UI may offer a choice on. Deliberately narrow — system
-// fields (id, organization_id, company_id, status, code, party_id,
+// fields (id, organization_id, status, code, party_id,
 // parent_party_id, timestamps, created_by) are never selectable; they
 // follow the merge engine's own deterministic rules (parent_party_id via
 // reparenting, party_id via the relationship-reconciliation module, status

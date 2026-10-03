@@ -1,38 +1,10 @@
 // F005 Lead assignment — eligibility primitives: who may receive a Lead
-// (CRM access + company/branch scope + active membership), who is
+// (CRM access + active membership), who is
 // currently unavailable (out-of-office), least-loaded/territory candidate
 // resolution, and a full per-candidate
 // explain trace so "why did this owner win" is reconstructible for
 // support/audit rather than a single opaque policy-mode label.
 import { LeadGovernanceError, text, UUID } from "./shared.js";
-
-export function assigneeScopeSql(companyParameter, branchParameter) {
-  const unrestricted = `EXISTS (
-    SELECT 1 FROM public.user_role_assignments unrestricted_assignment
-    JOIN public.roles unrestricted_role
-      ON unrestricted_role.organization_id=unrestricted_assignment.organization_id
-     AND unrestricted_role.id=unrestricted_assignment.role_id
-     AND unrestricted_role.status='active'
-     AND unrestricted_role.slug IN ('organization_owner','system_administrator')
-    WHERE unrestricted_assignment.organization_id=membership.organization_id
-      AND unrestricted_assignment.user_id=membership.user_id
-      AND unrestricted_assignment.status='active'
-      AND unrestricted_assignment.starts_at<=now()
-      AND (unrestricted_assignment.expires_at IS NULL OR unrestricted_assignment.expires_at>now())
-  )`;
-  return `AND ($${companyParameter}::uuid IS NULL OR ${unrestricted} OR EXISTS (
-      SELECT 1 FROM public.membership_company_access company_access
-       WHERE company_access.organization_id=membership.organization_id
-         AND company_access.user_id=membership.user_id
-         AND company_access.company_id=$${companyParameter}
-    ))
-    AND ($${branchParameter}::uuid IS NULL OR ${unrestricted} OR EXISTS (
-      SELECT 1 FROM public.membership_branch_access branch_access
-       WHERE branch_access.organization_id=membership.organization_id
-         AND branch_access.user_id=membership.user_id
-         AND branch_access.branch_id=$${branchParameter}
-    ))`;
-}
 
 export function crmEligibleSql() {
   return `EXISTS (
@@ -52,7 +24,7 @@ export function crmEligibleSql() {
   )`;
 }
 
-export async function getEligibleLeadAssignee(client, context, userId, scope = {}) {
+export async function getEligibleLeadAssignee(client, context, userId) {
   if (!UUID.test(String(userId || ""))) return null;
   const result = await client.query(
     `SELECT user_account.id,user_account.full_name AS name,user_account.email
@@ -60,30 +32,30 @@ export async function getEligibleLeadAssignee(client, context, userId, scope = {
        JOIN public.users user_account ON user_account.id=membership.user_id
       WHERE membership.organization_id=$1 AND membership.user_id=$2
         AND membership.status='active' AND user_account.status='active'
-        AND ${crmEligibleSql()} ${assigneeScopeSql(3, 4)}
+        AND ${crmEligibleSql()}
       LIMIT 1`,
-    [context.organizationId, userId, scope.companyId || null, scope.branchId || null],
+    [context.organizationId, userId],
   );
   return result.rows[0] || null;
 }
 
-export async function assertEligibleLeadAssignee(client, context, userId, scope = {}) {
-  const assignee = await getEligibleLeadAssignee(client, context, userId, scope);
+export async function assertEligibleLeadAssignee(client, context, userId) {
+  const assignee = await getEligibleLeadAssignee(client, context, userId);
   if (!assignee)
     throw new LeadGovernanceError(
       409,
-      "The selected owner is not an active, eligible CRM member for this company and branch.",
+      "The selected owner is not an active, eligible CRM member.",
       "CRM_LEAD_ASSIGNEE_SCOPE_INVALID",
     );
   return assignee;
 }
 
-// Who may own a Lead here: $1 organization, $2 company, $3 branch, $4 search.
+// Who may own a Lead here: $1 organization, $2 search.
 function eligibleAssignees(context, input) {
-  const values = [context.organizationId, input.companyId || context.activeCompanyId || null, input.branchId || context.activeBranchId || null, text(input.search).slice(0, 120)];
+  const values = [context.organizationId, text(input.search).slice(0, 120)];
   const where = `membership.organization_id=$1 AND membership.status='active'
-    AND user_account.status='active' AND ${crmEligibleSql()} ${assigneeScopeSql(2, 3)}
-    AND ($4='' OR user_account.full_name ILIKE '%'||$4||'%' OR user_account.email ILIKE '%'||$4||'%')`;
+    AND user_account.status='active' AND ${crmEligibleSql()}
+    AND ($2='' OR user_account.full_name ILIKE '%'||$2||'%' OR user_account.email ILIKE '%'||$2||'%')`;
   return { values, where };
 }
 
@@ -99,7 +71,7 @@ export async function listEligibleLeadAssigneesForPicker(client, context, input 
       `SELECT user_account.id,user_account.full_name AS name,user_account.email
          FROM public.organization_memberships membership
          JOIN public.users user_account ON user_account.id=membership.user_id
-        WHERE ${where} ORDER BY user_account.full_name,user_account.id LIMIT $5`,
+        WHERE ${where} ORDER BY user_account.full_name,user_account.id LIMIT $3`,
       [...values, ASSIGNEE_PICKER_MAXIMUM + 1],
     )
   ).rows;
@@ -118,7 +90,7 @@ export async function listEligibleLeadAssignees(client, context, input = {}) {
     `SELECT user_account.id,user_account.full_name AS name,user_account.email
        FROM public.organization_memberships membership
        JOIN public.users user_account ON user_account.id=membership.user_id
-      WHERE ${where} ORDER BY user_account.full_name,user_account.id LIMIT $5 OFFSET $6`,
+      WHERE ${where} ORDER BY user_account.full_name,user_account.id LIMIT $3 OFFSET $4`,
     [...values, limit, offset],
   );
   const count = await client.query(
@@ -223,8 +195,8 @@ export async function eligiblePolicyMemberIds(client, context, memberUserIds, in
        JOIN public.organization_memberships membership
          ON membership.organization_id=$1 AND membership.user_id=candidate.user_id AND membership.status='active'
        JOIN public.users user_account ON user_account.id=membership.user_id AND user_account.status='active'
-      WHERE ${crmEligibleSql()} ${assigneeScopeSql(3, 4)} ${availabilitySql("candidate")} ORDER BY candidate.position`,
-    [context.organizationId, members, input.companyId || input.company_id || null, input.branchId || input.branch_id || null],
+      WHERE ${crmEligibleSql()} ${availabilitySql("candidate")} ORDER BY candidate.position`,
+    [context.organizationId, members],
   );
   return result.rows.map((row) => String(row.user_id));
 }
@@ -238,19 +210,6 @@ export async function eligiblePolicyMemberIds(client, context, memberUserIds, in
 export async function explainLeadAssignmentCandidates(client, context, memberUserIds, input) {
   const members = [...new Set((memberUserIds || []).map(String).filter(Boolean))];
   if (!members.length) return [];
-  const unrestricted = `EXISTS (
-    SELECT 1 FROM public.user_role_assignments unrestricted_assignment
-    JOIN public.roles unrestricted_role
-      ON unrestricted_role.organization_id=unrestricted_assignment.organization_id
-     AND unrestricted_role.id=unrestricted_assignment.role_id
-     AND unrestricted_role.status='active'
-     AND unrestricted_role.slug IN ('organization_owner','system_administrator')
-    WHERE unrestricted_assignment.organization_id=$1
-      AND unrestricted_assignment.user_id=candidate.user_id
-      AND unrestricted_assignment.status='active'
-      AND unrestricted_assignment.starts_at<=now()
-      AND (unrestricted_assignment.expires_at IS NULL OR unrestricted_assignment.expires_at>now())
-  )`;
   const result = await client.query(
     `SELECT candidate.user_id,
             (membership.user_id IS NOT NULL) AS is_member,
@@ -271,16 +230,6 @@ export async function explainLeadAssignmentCandidates(client, context, memberUse
                 AND (assignment.expires_at IS NULL OR assignment.expires_at>now())
                 AND (role.slug='organization_owner' OR permission.permission_key IS NOT NULL)
             ) END AS crm_eligible,
-            CASE WHEN membership.user_id IS NULL THEN false ELSE (
-              ($3::uuid IS NULL OR ${unrestricted} OR EXISTS (
-                SELECT 1 FROM public.membership_company_access company_access
-                 WHERE company_access.organization_id=$1 AND company_access.user_id=candidate.user_id AND company_access.company_id=$3
-              ))
-              AND ($4::uuid IS NULL OR ${unrestricted} OR EXISTS (
-                SELECT 1 FROM public.membership_branch_access branch_access
-                 WHERE branch_access.organization_id=$1 AND branch_access.user_id=candidate.user_id AND branch_access.branch_id=$4
-              ))
-            ) END AS in_scope,
             EXISTS (
               SELECT 1 FROM tenant.crm_lead_assignee_availability away
                WHERE away.organization_id=$1 AND away.user_id=candidate.user_id
@@ -291,15 +240,14 @@ export async function explainLeadAssignmentCandidates(client, context, memberUse
          ON membership.organization_id=$1 AND membership.user_id=candidate.user_id AND membership.status='active'
        LEFT JOIN public.users user_account ON user_account.id=candidate.user_id
       ORDER BY candidate.position`,
-    [context.organizationId, members, input.companyId || input.company_id || null, input.branchId || input.branch_id || null],
+    [context.organizationId, members],
   );
   return result.rows.map((row) => {
     const reasons = [];
     if (!row.is_member || !row.user_active) reasons.push("Inactive user");
     if (row.is_member && !row.crm_eligible) reasons.push("No CRM access");
-    if (row.is_member && !row.in_scope) reasons.push("Outside branch/territory scope");
     if (row.out_of_office) reasons.push("Out of office");
-    const eligible = row.is_member && row.user_active && row.crm_eligible && row.in_scope && !row.out_of_office;
+    const eligible = row.is_member && row.user_active && row.crm_eligible && !row.out_of_office;
     return { userId: String(row.user_id), name: row.name || null, eligible, reasons };
   });
 }

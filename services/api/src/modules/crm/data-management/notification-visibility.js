@@ -73,7 +73,7 @@ export async function redactInaccessibleCrmNotifications(client, context, notifi
   const allowed = new Map();
   if (canUseCrm) {
     // Always checked in SQL, even for view-all callers: the record must
-    // still exist inside their current company/branch boundary.
+    // still exist and be visible to them.
     for (const [segment, ids] of targets) allowed.set(segment, await visibleIds(client, context, segment, [...ids]));
   }
   return notifications.map((notification) => {

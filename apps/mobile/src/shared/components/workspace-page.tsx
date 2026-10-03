@@ -330,20 +330,6 @@ export function WorkspacePage({ area }: { area: string }) {
       const permissionSet = new Set(auth.session?.access.permissions || []);
       const quickActions = [
         [
-          "Add company",
-          "Expand the legal entity structure",
-          "briefcase-outline",
-          "/(protected)/workspace/settings/companies",
-          "company.manage",
-        ],
-        [
-          "Add branch",
-          "Create another operating location",
-          "git-branch-outline",
-          "/(protected)/workspace/settings/branches",
-          "branch.manage",
-        ],
-        [
           "Invite user",
           "Give a team member controlled access",
           "person-add-outline",
@@ -449,13 +435,11 @@ export function WorkspacePage({ area }: { area: string }) {
             <RecordCard
               row={{
                 title: "Operating context",
-                company: auth.session?.workspace.companyName || "Not selected",
-                branch: auth.session?.workspace.branchName || "All branches",
                 access:
                   auth.session?.access.roleSlugs[0] ||
                   auth.session?.workspace.membershipRole,
               }}
-              fields={["company", "branch", "access"]}
+              fields={["access"]}
             />
           </Panel>
           <View>
@@ -476,24 +460,6 @@ export function WorkspacePage({ area }: { area: string }) {
           <View
             style={{ flexDirection: "row", flexWrap: "wrap", gap: spacing.sm }}
           >
-            {permissionSet.has("company.manage") ? (
-              <Metric
-                label="Companies"
-                value={counts.companies}
-                description="Active legal entities"
-                icon="briefcase-outline"
-                href="/(protected)/workspace/settings/companies"
-              />
-            ) : null}
-            {permissionSet.has("branch.manage") ? (
-              <Metric
-                label="Branches"
-                value={counts.branches}
-                description="Operating locations"
-                icon="git-branch-outline"
-                href="/(protected)/workspace/settings/branches"
-              />
-            ) : null}
             {permissionSet.has("users.view") ? (
               <Metric
                 label="Active users"

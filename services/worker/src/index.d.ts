@@ -55,13 +55,10 @@ export declare const overdueActivityPayloadSchema: unknown;
 export type SystemContext = {
   organizationId: string;
   userId: null;
-  activeCompanyId: string | null;
-  activeBranchId: string | null;
-  allowAllCompanies: boolean;
   permissions: string[];
   roleSlugs: string[];
 };
-export declare function buildSystemContext(organizationId: string, options?: { activeCompanyId?: string | null; activeBranchId?: string | null }): SystemContext;
+export declare function buildSystemContext(organizationId: string): SystemContext;
 export declare const SYSTEM_ACTOR_ROLE_SLUG: string;
 
 export declare function runSchedulerTick(pool: any, config: WorkerConfig): Promise<{ organizations: number; enqueued: number; deduped: number }>;

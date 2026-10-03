@@ -55,9 +55,6 @@ export async function enqueueCrmLeadExportJob(client, context, input = {}) {
   const filters = sanitizeFilters(input.filters);
   const payload = {
     requesterUserId: context.userId,
-    activeCompanyId: context.activeCompanyId || null,
-    activeBranchId: context.activeBranchId || null,
-    allowAllCompanies: Boolean(context.allowAllCompanies),
     filters,
   };
   const inserted = await client.query(

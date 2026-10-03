@@ -27,18 +27,6 @@ const finite = (v) => (Number.isFinite(Number(v)) ? Number(v) : 0);
 
 function scopedLeadWhere(context, values, alias = "lead") {
   let sql = "";
-  if (context.activeCompanyId) {
-    values.push(context.activeCompanyId);
-    sql += ` AND (${alias}.company_id IS NULL OR ${alias}.company_id=$${values.length})`;
-  } else if (!context.allowAllCompanies) {
-    sql += " AND false";
-  }
-  if (context.activeBranchId) {
-    values.push(context.activeBranchId);
-    sql += ` AND (${alias}.branch_id IS NULL OR ${alias}.branch_id=$${values.length})`;
-  } else if (!context.allowAllCompanies) {
-    sql += " AND false";
-  }
   sql += crmOwnerScopeSql(context, (value) => { values.push(value); return `$${values.length}`; }, `${alias}.owner_user_id`, `${alias}.organization_id`, { resource: "leads", alias: alias });
   return sql;
 }
@@ -353,8 +341,6 @@ export async function enqueueLeadBulkUpdateJob(client, context, input) {
   const commandFingerprint = leadBulkCommandFingerprint(selection, changes);
   const payload = {
     requesterUserId: context.userId,
-    activeCompanyId: context.activeCompanyId || null,
-    activeBranchId: context.activeBranchId || null,
     commandFingerprint,
     changes,
   };
@@ -531,45 +517,11 @@ export async function resolveLeadBulkExecutionContext(client, organizationId, in
   if (!row) return null;
   const roleSlugs = row.role_slugs || [];
   const permissions = row.permissions || [];
-  const allowAllCompanies = roleSlugs.includes("organization_owner") || roleSlugs.includes("system_administrator");
   if (!roleSlugs.includes("organization_owner") && !permissions.includes(requiredPermission)) return null;
-
-  const activeCompanyId = input.activeCompanyId || null;
-  const activeBranchId = input.activeBranchId || null;
-  if (activeCompanyId) {
-    const company = await client.query(
-      `SELECT company.id
-         FROM public.companies company
-        WHERE company.organization_id=$1 AND company.id=$2 AND company.status='active'
-          AND ($3::boolean OR EXISTS(
-            SELECT 1 FROM public.membership_company_access access
-             WHERE access.organization_id=$1 AND access.user_id=$4 AND access.company_id=company.id
-          ))`,
-      [organizationId, activeCompanyId, allowAllCompanies, userId],
-    );
-    if (!company.rows[0]) return null;
-  } else if (!allowAllCompanies) return null;
-  if (activeBranchId) {
-    const branch = await client.query(
-      `SELECT branch.id
-         FROM public.branches branch
-        WHERE branch.organization_id=$1 AND branch.id=$2 AND branch.status='active'
-          AND ($3::uuid IS NULL OR branch.company_id=$3)
-          AND ($4::boolean OR EXISTS(
-            SELECT 1 FROM public.membership_branch_access access
-             WHERE access.organization_id=$1 AND access.user_id=$5 AND access.branch_id=branch.id
-          ))`,
-      [organizationId, activeBranchId, activeCompanyId, allowAllCompanies, userId],
-    );
-    if (!branch.rows[0]) return null;
-  } else if (!allowAllCompanies) return null;
 
   return {
     organizationId,
     userId,
-    activeCompanyId,
-    activeBranchId,
-    allowAllCompanies,
     permissions,
     roleSlugs,
   };

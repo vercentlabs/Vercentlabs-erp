@@ -10,15 +10,15 @@ const MANAGE = "hr_payroll.attendance.manage";
 const VIEW = [MANAGE, "hr_payroll.employee.view", "hr_payroll.employee.manage", "hr_payroll.reports.view"];
 
 async function settings(client, c) {
-  await qx(client, `INSERT INTO tenant.hr_payroll_settings(organization_id,company_id) VALUES ($1,$2) ON CONFLICT DO NOTHING`, [c.organizationId, c.companyId]);
-  return (await qx(client, `SELECT * FROM tenant.hr_payroll_settings WHERE organization_id=$1 AND company_id=$2`, [c.organizationId, c.companyId])).rows[0];
+  await qx(client, `INSERT INTO tenant.hr_payroll_settings(organization_id) VALUES ($1) ON CONFLICT DO NOTHING`, [c.organizationId]);
+  return (await qx(client, `SELECT * FROM tenant.hr_payroll_settings WHERE organization_id=$1`, [c.organizationId])).rows[0];
 }
 async function orgZone(client, c) {
   const { rows } = await qx(client, `SELECT coalesce(timezone,'UTC') AS tz FROM public.organizations WHERE id=$1`, [c.organizationId]);
   return rows[0]?.tz || "UTC";
 }
 async function loadEmployee(client, c, id) {
-  const { rows } = await qx(client, `SELECT * FROM tenant.hr_employees WHERE organization_id=$1 AND company_id=$2 AND id=$3`, [c.organizationId, c.companyId, uuid(id, "Employee")]);
+  const { rows } = await qx(client, `SELECT * FROM tenant.hr_employees WHERE organization_id=$1 AND id=$2`, [c.organizationId, uuid(id, "Employee")]);
   if (!rows[0]) throw new HrError(404, "Employee was not found.", "HR_EMPLOYEE_NOT_FOUND");
   return rows[0];
 }
@@ -39,7 +39,7 @@ async function actor(client, c, employeeId, { perm = MANAGE, allowManager = fals
 // ---------------------------------------------------------------- shifts (F403)
 export async function listShifts(client, c) {
   needAny(c, ["hr_payroll.view", "hr_payroll.shift.manage", MANAGE]);
-  const { rows } = await qx(client, `SELECT s.*, (SELECT count(*) FROM tenant.hr_employee_shift_assignments a WHERE a.shift_id=s.id AND (a.effective_to IS NULL OR a.effective_to >= current_date))::int AS assigned FROM tenant.hr_shifts s WHERE s.organization_id=$1 AND s.company_id=$2 ORDER BY s.code`, [c.organizationId, c.companyId]);
+  const { rows } = await qx(client, `SELECT s.*, (SELECT count(*) FROM tenant.hr_employee_shift_assignments a WHERE a.shift_id=s.id AND (a.effective_to IS NULL OR a.effective_to >= current_date))::int AS assigned FROM tenant.hr_shifts s WHERE s.organization_id=$1 ORDER BY s.code`, [c.organizationId]);
   return rows;
 }
 const TIME = /^([01]\d|2[0-3]):[0-5]\d(:[0-5]\d)?$/;
@@ -63,33 +63,33 @@ export async function saveShift(client, c, input) {
   if (brk >= minutes) throw new HrError(400, "The break is as long as the shift.", "HR_SHIFT_INVALID");
   const grace = Math.trunc(nonNegative(input.graceMinutes, "Grace"));
   if (input.id) {
-    const { rows } = await qx(client, `UPDATE tenant.hr_shifts SET name=$4, start_time=$5, end_time=$6, break_minutes=$7, grace_minutes=$8, working_days=$9::jsonb, overnight=$10, active=$11 WHERE organization_id=$1 AND company_id=$2 AND id=$3 RETURNING *`,
-      [c.organizationId, c.companyId, uuid(input.id, "Shift"), name, start, end, brk, grace, JSON.stringify(days), overnight, input.active !== false]);
+    const { rows } = await qx(client, `UPDATE tenant.hr_shifts SET name=$3, start_time=$4, end_time=$5, break_minutes=$6, grace_minutes=$7, working_days=$8::jsonb, overnight=$9, active=$10 WHERE organization_id=$1 AND id=$2 RETURNING *`,
+      [c.organizationId, uuid(input.id, "Shift"), name, start, end, brk, grace, JSON.stringify(days), overnight, input.active !== false]);
     if (!rows[0]) throw new HrError(404, "Shift was not found.", "HR_SHIFT_NOT_FOUND");
     return rows[0];
   }
-  const dup = await qx(client, `SELECT 1 FROM tenant.hr_shifts WHERE organization_id=$1 AND company_id=$2 AND code=$3`, [c.organizationId, c.companyId, code]);
+  const dup = await qx(client, `SELECT 1 FROM tenant.hr_shifts WHERE organization_id=$1 AND code=$2`, [c.organizationId, code]);
   if (dup.rows[0]) throw new HrError(409, `Shift ${code} already exists.`, "HR_SHIFT_DUPLICATE");
-  const { rows } = await qx(client, `INSERT INTO tenant.hr_shifts(organization_id,company_id,code,name,start_time,end_time,break_minutes,grace_minutes,working_days,overnight,active,created_by) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9::jsonb,$10,$11,$12) RETURNING *`,
-    [c.organizationId, c.companyId, code, name, start, end, brk, grace, JSON.stringify(days), overnight, input.active !== false, c.userId]);
+  const { rows } = await qx(client, `INSERT INTO tenant.hr_shifts(organization_id,code,name,start_time,end_time,break_minutes,grace_minutes,working_days,overnight,active,created_by) VALUES ($1,$2,$3,$4,$5,$6,$7,$8::jsonb,$9,$10,$11) RETURNING *`,
+    [c.organizationId, code, name, start, end, brk, grace, JSON.stringify(days), overnight, input.active !== false, c.userId]);
   return rows[0];
 }
 
 export async function listShiftAssignments(client, c, filters = {}) {
   needAny(c, ["hr_payroll.shift.manage", ...VIEW]);
-  const params = [c.organizationId, c.companyId];
+  const params = [c.organizationId];
   let extra = "";
-  if (filters.employeeId) { params.push(uuid(filters.employeeId, "Employee")); extra = ` AND a.employee_id=$3`; }
+  if (filters.employeeId) { params.push(uuid(filters.employeeId, "Employee")); extra = ` AND a.employee_id=$2`; }
   const { rows } = await qx(client, `SELECT a.*, s.code AS shift_code, s.name AS shift_name, s.start_time, s.end_time, e.employee_number, trim(e.first_name || ' ' || e.last_name) AS employee_name
     FROM tenant.hr_employee_shift_assignments a JOIN tenant.hr_shifts s ON s.id=a.shift_id JOIN tenant.hr_employees e ON e.id=a.employee_id
-    WHERE a.organization_id=$1 AND e.company_id=$2${extra} ORDER BY a.effective_from DESC LIMIT 1000`, params);
+    WHERE a.organization_id=$1${extra} ORDER BY a.effective_from DESC LIMIT 1000`, params);
   return rows;
 }
 export async function assignShift(client, c, input) {
   need(c, "hr_payroll.shift.manage");
   const e = await loadEmployee(client, c, input.employeeId);
   if (e.status === "separated") throw new HrError(409, "A separated employee cannot be assigned a shift.", "HR_EMPLOYEE_CLOSED");
-  const shift = (await qx(client, `SELECT * FROM tenant.hr_shifts WHERE organization_id=$1 AND company_id=$2 AND id=$3 AND active`, [c.organizationId, c.companyId, uuid(input.shiftId, "Shift")])).rows[0];
+  const shift = (await qx(client, `SELECT * FROM tenant.hr_shifts WHERE organization_id=$1 AND id=$2 AND active`, [c.organizationId, uuid(input.shiftId, "Shift")])).rows[0];
   if (!shift) throw new HrError(400, "Shift was not found or is inactive.", "HR_SHIFT_NOT_FOUND");
   const from = dateRequired(input.effectiveFrom, "Effective from");
   const to = dateOrNull(input.effectiveTo, "Effective to");
@@ -106,7 +106,7 @@ export async function assignShift(client, c, input) {
 // ---------------------------------------------------------------- holidays (F415)
 export async function listHolidayCalendars(client, c) {
   needAny(c, ["hr_payroll.view", ...VIEW]);
-  const { rows } = await qx(client, `SELECT h.*, (SELECT count(*) FROM tenant.hr_holidays d WHERE d.calendar_id=h.id)::int AS holidays, (SELECT count(*) FROM tenant.hr_employees e WHERE e.holiday_calendar_id=h.id)::int AS employees FROM tenant.hr_holiday_calendars h WHERE h.organization_id=$1 AND h.company_id=$2 ORDER BY h.code`, [c.organizationId, c.companyId]);
+  const { rows } = await qx(client, `SELECT h.*, (SELECT count(*) FROM tenant.hr_holidays d WHERE d.calendar_id=h.id)::int AS holidays, (SELECT count(*) FROM tenant.hr_employees e WHERE e.holiday_calendar_id=h.id)::int AS employees FROM tenant.hr_holiday_calendars h WHERE h.organization_id=$1 ORDER BY h.code`, [c.organizationId]);
   return rows;
 }
 export async function saveHolidayCalendar(client, c, input) {
@@ -115,29 +115,29 @@ export async function saveHolidayCalendar(client, c, input) {
   const name = text(input.name, 80);
   if (!/^[A-Z0-9_-]{1,20}$/.test(code) || !name) throw new HrError(400, "A calendar needs a code and a name.", "HR_CALENDAR_INVALID");
   const makeDefault = input.isDefault === true;
-  if (makeDefault) await qx(client, `UPDATE tenant.hr_holiday_calendars SET is_default=false WHERE organization_id=$1 AND company_id=$2 AND is_default AND ($3::uuid IS NULL OR id <> $3::uuid)`, [c.organizationId, c.companyId, uuidOrNull(input.id, "Calendar")]);
+  if (makeDefault) await qx(client, `UPDATE tenant.hr_holiday_calendars SET is_default=false WHERE organization_id=$1 AND is_default AND ($2::uuid IS NULL OR id <> $2::uuid)`, [c.organizationId, uuidOrNull(input.id, "Calendar")]);
   if (input.id) {
-    const { rows } = await qx(client, `UPDATE tenant.hr_holiday_calendars SET name=$4, is_default=$5, active=$6 WHERE organization_id=$1 AND company_id=$2 AND id=$3 RETURNING *`, [c.organizationId, c.companyId, uuid(input.id, "Calendar"), name, makeDefault, input.active !== false]);
+    const { rows } = await qx(client, `UPDATE tenant.hr_holiday_calendars SET name=$3, is_default=$4, active=$5 WHERE organization_id=$1 AND id=$2 RETURNING *`, [c.organizationId, uuid(input.id, "Calendar"), name, makeDefault, input.active !== false]);
     if (!rows[0]) throw new HrError(404, "Calendar was not found.", "HR_CALENDAR_NOT_FOUND");
     return rows[0];
   }
-  const dup = await qx(client, `SELECT 1 FROM tenant.hr_holiday_calendars WHERE organization_id=$1 AND company_id=$2 AND code=$3`, [c.organizationId, c.companyId, code]);
+  const dup = await qx(client, `SELECT 1 FROM tenant.hr_holiday_calendars WHERE organization_id=$1 AND code=$2`, [c.organizationId, code]);
   if (dup.rows[0]) throw new HrError(409, `Calendar ${code} already exists.`, "HR_CALENDAR_DUPLICATE");
-  const { rows } = await qx(client, `INSERT INTO tenant.hr_holiday_calendars(organization_id,company_id,code,name,is_default,created_by) VALUES ($1,$2,$3,$4,$5,$6) RETURNING *`, [c.organizationId, c.companyId, code, name, makeDefault, c.userId]);
+  const { rows } = await qx(client, `INSERT INTO tenant.hr_holiday_calendars(organization_id,code,name,is_default,created_by) VALUES ($1,$2,$3,$4,$5) RETURNING *`, [c.organizationId, code, name, makeDefault, c.userId]);
   return rows[0];
 }
 export async function listHolidays(client, c, filters = {}) {
   needAny(c, ["hr_payroll.view", ...VIEW]);
-  const params = [c.organizationId, c.companyId];
+  const params = [c.organizationId];
   let extra = "";
   if (filters.calendarId) { params.push(uuid(filters.calendarId, "Calendar")); extra += ` AND d.calendar_id=$${params.length}`; }
   if (filters.year) { params.push(Math.trunc(Number(filters.year))); extra += ` AND extract(year FROM d.holiday_date)=$${params.length}`; }
-  const { rows } = await qx(client, `SELECT d.*, h.code AS calendar_code, h.name AS calendar_name FROM tenant.hr_holidays d JOIN tenant.hr_holiday_calendars h ON h.id=d.calendar_id WHERE d.organization_id=$1 AND h.company_id=$2${extra} ORDER BY d.holiday_date LIMIT 1000`, params);
+  const { rows } = await qx(client, `SELECT d.*, h.code AS calendar_code, h.name AS calendar_name FROM tenant.hr_holidays d JOIN tenant.hr_holiday_calendars h ON h.id=d.calendar_id WHERE d.organization_id=$1${extra} ORDER BY d.holiday_date LIMIT 1000`, params);
   return rows;
 }
 export async function addHoliday(client, c, input) {
   need(c, "hr_payroll.settings.manage");
-  const cal = (await qx(client, `SELECT id FROM tenant.hr_holiday_calendars WHERE organization_id=$1 AND company_id=$2 AND id=$3`, [c.organizationId, c.companyId, uuid(input.calendarId, "Calendar")])).rows[0];
+  const cal = (await qx(client, `SELECT id FROM tenant.hr_holiday_calendars WHERE organization_id=$1 AND id=$2`, [c.organizationId, uuid(input.calendarId, "Calendar")])).rows[0];
   if (!cal) throw new HrError(404, "Calendar was not found.", "HR_CALENDAR_NOT_FOUND");
   const date = dateRequired(input.holidayDate, "Holiday date");
   const name = text(input.name, 120);
@@ -157,8 +157,8 @@ export async function assignHolidayCalendar(client, c, input) {
   need(c, "hr_payroll.settings.manage");
   const ids = Array.isArray(input.employeeIds) ? input.employeeIds.map((x) => uuid(x, "Employee")) : [uuid(input.employeeId, "Employee")];
   const calendarId = uuidOrNull(input.calendarId, "Calendar");
-  if (calendarId && !(await qx(client, `SELECT 1 FROM tenant.hr_holiday_calendars WHERE organization_id=$1 AND company_id=$2 AND id=$3 AND active`, [c.organizationId, c.companyId, calendarId])).rows[0]) throw new HrError(404, "Calendar was not found.", "HR_CALENDAR_NOT_FOUND");
-  const { rowCount } = await qx(client, `UPDATE tenant.hr_employees SET holiday_calendar_id=$3, updated_at=now() WHERE organization_id=$1 AND company_id=$2 AND id = ANY($4::uuid[])`, [c.organizationId, c.companyId, calendarId, ids]);
+  if (calendarId && !(await qx(client, `SELECT 1 FROM tenant.hr_holiday_calendars WHERE organization_id=$1 AND id=$2 AND active`, [c.organizationId, calendarId])).rows[0]) throw new HrError(404, "Calendar was not found.", "HR_CALENDAR_NOT_FOUND");
+  const { rowCount } = await qx(client, `UPDATE tenant.hr_employees SET holiday_calendar_id=$2, updated_at=now() WHERE organization_id=$1 AND id = ANY($3::uuid[])`, [c.organizationId, calendarId, ids]);
   return { updated: rowCount };
 }
 
@@ -166,7 +166,7 @@ export async function assignHolidayCalendar(client, c, input) {
 // Everything payroll and leave need to know about a day for an employee.
 export async function loadDayContext(client, c, employee, from, to) {
   const shifts = await qx(client, `SELECT a.effective_from, a.effective_to, s.* FROM tenant.hr_employee_shift_assignments a JOIN tenant.hr_shifts s ON s.id=a.shift_id WHERE a.employee_id=$1 AND a.effective_from <= $3 AND (a.effective_to IS NULL OR a.effective_to >= $2) ORDER BY a.effective_from`, [employee.id, from, to]);
-  const cal = employee.holiday_calendar_id ?? (await qx(client, `SELECT id FROM tenant.hr_holiday_calendars WHERE organization_id=$1 AND company_id=$2 AND is_default AND active`, [c.organizationId, c.companyId])).rows[0]?.id;
+  const cal = employee.holiday_calendar_id ?? (await qx(client, `SELECT id FROM tenant.hr_holiday_calendars WHERE organization_id=$1 AND is_default AND active`, [c.organizationId])).rows[0]?.id;
   const hol = cal ? await qx(client, `SELECT holiday_date, name FROM tenant.hr_holidays WHERE calendar_id=$1 AND holiday_type='public' AND holiday_date BETWEEN $2 AND $3`, [cal, from, to]) : { rows: [] };
   const holidays = new Map(hol.rows.map((h) => [h.holiday_date, h.name]));
   return {
@@ -196,10 +196,10 @@ const minutesOf = (t) => Number(String(t).slice(0, 2)) * 60 + Number(String(t).s
 const shiftMinutes = (s) => (s ? ((minutesOf(s.end_time) - minutesOf(s.start_time) + 1440) % 1440) - Number(s.break_minutes) : 480);
 
 async function assertDateOpen(client, c, date) {
-  const r = await qx(client, `SELECT payroll_number, status FROM tenant.hr_payroll_runs WHERE organization_id=$1 AND company_id=$2 AND status IN ('approved','posted','paid') AND period_start <= $3 AND period_end >= $3 LIMIT 1`, [c.organizationId, c.companyId, date]);
+  const r = await qx(client, `SELECT payroll_number, status FROM tenant.hr_payroll_runs WHERE organization_id=$1 AND status IN ('approved','posted','paid') AND period_start <= $2 AND period_end >= $2 LIMIT 1`, [c.organizationId, date]);
   if (r.rows[0]) throw new HrError(409, `${date} is in payroll ${r.rows[0].payroll_number}, which is ${r.rows[0].status}. Attendance for it is locked.`, "HR_PERIOD_LOCKED");
   // a payroll period that has been locked (or closed) freezes attendance even before a run exists
-  const p = await qx(client, `SELECT period_code, status FROM tenant.hr_payroll_periods WHERE organization_id=$1 AND company_id=$2 AND status IN ('locked','closed') AND period_start <= $3 AND period_end >= $3 LIMIT 1`, [c.organizationId, c.companyId, date]);
+  const p = await qx(client, `SELECT period_code, status FROM tenant.hr_payroll_periods WHERE organization_id=$1 AND status IN ('locked','closed') AND period_start <= $2 AND period_end >= $2 LIMIT 1`, [c.organizationId, date]);
   if (p.rows[0]) throw new HrError(409, `${date} is in payroll period ${p.rows[0].period_code}, which is ${p.rows[0].status}. Attendance for it is locked.`, "HR_PERIOD_LOCKED");
 }
 
@@ -266,11 +266,11 @@ export async function recomputeDay(client, c, employee, date) {
   }
   const source = punches.length ? (punches.some((p) => p.source === "regularized") ? "regularized" : "web") : "system";
   const { rows } = await qx(client,
-    `INSERT INTO tenant.hr_attendance(organization_id,company_id,employee_id,attendance_date,shift_id,check_in_at,check_out_at,worked_minutes,overtime_minutes,late_minutes,early_exit_minutes,status,source,notes,created_by)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
+    `INSERT INTO tenant.hr_attendance(organization_id,employee_id,attendance_date,shift_id,check_in_at,check_out_at,worked_minutes,overtime_minutes,late_minutes,early_exit_minutes,status,source,notes,created_by)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
      ON CONFLICT (employee_id,attendance_date) DO UPDATE SET shift_id=EXCLUDED.shift_id, check_in_at=EXCLUDED.check_in_at, check_out_at=EXCLUDED.check_out_at, worked_minutes=EXCLUDED.worked_minutes, overtime_minutes=EXCLUDED.overtime_minutes,
        late_minutes=EXCLUDED.late_minutes, early_exit_minutes=EXCLUDED.early_exit_minutes, status=EXCLUDED.status, source=EXCLUDED.source, notes=EXCLUDED.notes, updated_at=now() RETURNING *`,
-    [c.organizationId, c.companyId, employee.id, date, shift?.id ?? null, firstIn, lastOut, Math.max(worked, 0), overtime, late, early, status, source, notes, c.userId]);
+    [c.organizationId, employee.id, date, shift?.id ?? null, firstIn, lastOut, Math.max(worked, 0), overtime, late, early, status, source, notes, c.userId]);
   const row = rows[0];
   return row;
 }
@@ -299,8 +299,8 @@ export async function punch(client, c, input) {
   const lat = input.latitude === undefined || input.latitude === "" ? null : Number(input.latitude);
   const lon = input.longitude === undefined || input.longitude === "" ? null : Number(input.longitude);
   if ((lat !== null && !(lat >= -90 && lat <= 90)) || (lon !== null && !(lon >= -180 && lon <= 180))) throw new HrError(400, "That location is not valid.", "HR_PUNCH_INVALID");
-  const { rows } = await qx(client, `INSERT INTO tenant.hr_attendance_punches(organization_id,company_id,employee_id,punched_at,direction,source,latitude,longitude,note,created_by) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING *`,
-    [c.organizationId, c.companyId, employee.id, at.toISOString(), direction, source, lat, lon, textOrNull(input.note, 300), c.userId]);
+  const { rows } = await qx(client, `INSERT INTO tenant.hr_attendance_punches(organization_id,employee_id,punched_at,direction,source,latitude,longitude,note,created_by) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *`,
+    [c.organizationId, employee.id, at.toISOString(), direction, source, lat, lon, textOrNull(input.note, 300), c.userId]);
   // an 'out' after midnight closes the previous day's overnight 'in'
   let attendanceDate = date;
   if (direction === "out" && last) attendanceDate = await localDate(client, tz, last.punched_at);
@@ -325,10 +325,10 @@ export async function recordAttendance(client, c, input) {
   if ((cin && Number.isNaN(cin.getTime())) || (cout && Number.isNaN(cout.getTime())) || (cin && cout && cout <= cin)) throw new HrError(400, "The check-in and check-out times are not valid.", "HR_ATTENDANCE_INVALID");
   const worked = cin && cout ? Math.round((cout - cin) / 60000) : 0;
   const { rows } = await qx(client,
-    `INSERT INTO tenant.hr_attendance(organization_id,company_id,employee_id,attendance_date,check_in_at,check_out_at,worked_minutes,status,source,notes,override_reason,approved_by,created_by)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,'manual',$9,$10,$11,$11) ON CONFLICT (employee_id,attendance_date) DO UPDATE SET check_in_at=EXCLUDED.check_in_at, check_out_at=EXCLUDED.check_out_at, worked_minutes=EXCLUDED.worked_minutes, status=EXCLUDED.status,
+    `INSERT INTO tenant.hr_attendance(organization_id,employee_id,attendance_date,check_in_at,check_out_at,worked_minutes,status,source,notes,override_reason,approved_by,created_by)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,'manual',$8,$9,$10,$10) ON CONFLICT (employee_id,attendance_date) DO UPDATE SET check_in_at=EXCLUDED.check_in_at, check_out_at=EXCLUDED.check_out_at, worked_minutes=EXCLUDED.worked_minutes, status=EXCLUDED.status,
        source='manual', notes=EXCLUDED.notes, override_reason=EXCLUDED.override_reason, approved_by=EXCLUDED.approved_by, late_minutes=0, early_exit_minutes=0, overtime_minutes=0, updated_at=now() RETURNING *`,
-    [c.organizationId, c.companyId, employee.id, date, cin?.toISOString() ?? null, cout?.toISOString() ?? null, worked, status, textOrNull(input.notes, 300), text(input.reason, 300), c.userId]);
+    [c.organizationId, employee.id, date, cin?.toISOString() ?? null, cout?.toISOString() ?? null, worked, status, textOrNull(input.notes, 300), text(input.reason, 300), c.userId]);
   await qx(client, `DELETE FROM tenant.hr_overtime WHERE employee_id=$1 AND work_date=$2 AND status='pending'`, [employee.id, date]);
   await recordEvent(client, c, "employee", employee.id, "hr.attendance.recorded", { date, status, reason: text(input.reason, 300) });
   return rows[0];
@@ -336,7 +336,7 @@ export async function recordAttendance(client, c, input) {
 
 export async function listAttendance(client, c, filters = {}) {
   const own = await ownEmployee(client, c);
-  const params = [c.organizationId, c.companyId];
+  const params = [c.organizationId];
   let extra = "";
   // "Today" is the organisation's calendar day: attendance is recorded against it, and for part of every day it is a day
   // ahead of UTC, which would otherwise hide the record just made.
@@ -344,7 +344,7 @@ export async function listAttendance(client, c, filters = {}) {
   const from = dateOrNull(filters.from, "From") ?? addDays(orgToday, -30);
   const to = dateOrNull(filters.to, "To") ?? orgToday;
   params.push(from, to);
-  extra += ` AND a.attendance_date BETWEEN $3 AND $4`;
+  extra += ` AND a.attendance_date BETWEEN $2 AND $3`;
   if (filters.mine === true || !hasAny(c, VIEW)) {
     if (!own) throw new HrError(403, "You do not have permission to perform this HR operation.", "HR_FORBIDDEN");
     params.push(own.id);
@@ -353,7 +353,7 @@ export async function listAttendance(client, c, filters = {}) {
   if (filters.status) { params.push(String(filters.status)); extra += ` AND a.status=$${params.length}`; }
   if (filters.flag === "late") extra += ` AND a.late_minutes > 0`;
   if (filters.flag === "early") extra += ` AND a.early_exit_minutes > 0`;
-  const { rows } = await qx(client, `SELECT a.*, e.employee_number, trim(e.first_name || ' ' || e.last_name) AS employee_name, s.code AS shift_code FROM tenant.hr_attendance a JOIN tenant.hr_employees e ON e.id=a.employee_id LEFT JOIN tenant.hr_shifts s ON s.id=a.shift_id WHERE a.organization_id=$1 AND a.company_id=$2${extra} ORDER BY a.attendance_date DESC, e.employee_number LIMIT 2000`, params);
+  const { rows } = await qx(client, `SELECT a.*, e.employee_number, trim(e.first_name || ' ' || e.last_name) AS employee_name, s.code AS shift_code FROM tenant.hr_attendance a JOIN tenant.hr_employees e ON e.id=a.employee_id LEFT JOIN tenant.hr_shifts s ON s.id=a.shift_id WHERE a.organization_id=$1${extra} ORDER BY a.attendance_date DESC, e.employee_number LIMIT 2000`, params);
   return rows;
 }
 

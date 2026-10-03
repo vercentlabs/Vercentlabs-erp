@@ -41,9 +41,7 @@ export function communicationVisibilitySql(context, values, alias = "communicati
   // the query to infer this placeholder's type from a bare `OR $N OR`
   // position, producing a real, reproducible "could not determine data
   // type of parameter" 500 on every call (mocked client.query tests never
-  // parse/type-check SQL, so only a real database catches this). Every other
-  // boolean parameter in this codebase (e.g. getCrmDashboard's
-  // allowAllCompanies) already casts explicitly for the same reason.
+  // parse/type-check SQL, so only a real database catches this).
   // Private/participant communications: override is CRM administration.
   const viewAllParam = addParam(values, canOverridePrivateCrmContent(context));
   const orgIdParam = addParam(values, context.organizationId);

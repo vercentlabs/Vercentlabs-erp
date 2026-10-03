@@ -120,9 +120,9 @@ export async function previewLeadImport(client, context, input = {}) {
 
   const batch = (
     await client.query(
-      `INSERT INTO tenant.crm_lead_import_batches(organization_id,company_id,branch_id,file_name,source_format,field_mapping,duplicate_strategy,total_rows,valid_rows,invalid_rows,content_hash,dry_run_report,created_by)
-       VALUES($1,$2,$3,$4,'csv',$5::jsonb,$6,$7,$8,$9,$10,$11::jsonb,$12) RETURNING *`,
-      [context.organizationId, input.companyId || context.activeCompanyId, input.branchId || context.activeBranchId, fileName, JSON.stringify(input.fieldMapping || {}), duplicateStrategy, report.total, report.valid, report.invalid, contentHash, JSON.stringify(report), context.userId],
+      `INSERT INTO tenant.crm_lead_import_batches(organization_id,file_name,source_format,field_mapping,duplicate_strategy,total_rows,valid_rows,invalid_rows,content_hash,dry_run_report,created_by)
+       VALUES($1,$2,'csv',$3::jsonb,$4,$5,$6,$7,$8,$9::jsonb,$10) RETURNING *`,
+      [context.organizationId, fileName, JSON.stringify(input.fieldMapping || {}), duplicateStrategy, report.total, report.valid, report.invalid, contentHash, JSON.stringify(report), context.userId],
     )
   ).rows[0];
   // Bulk staging: one INSERT per 1,000 rows, not one round trip per row.
@@ -210,8 +210,6 @@ export async function processLeadImportChunk(client, context, batchId, { limit =
     try {
       const result = await createIngestedLead(client, context, row.normalized_data, {
         duplicateStrategy: batch.duplicate_strategy,
-        companyId: batch.company_id,
-        branchId: batch.branch_id,
         enforceScope: true,
       });
       if (result.action === "create")
@@ -267,7 +265,7 @@ export async function commitLeadImport(client, context, batchId) {
       [
         context.organizationId,
         LEAD_IMPORT_JOB_TYPE,
-        JSON.stringify({ batchId: batch.id, requesterUserId: context.userId, activeCompanyId: batch.company_id ?? context.activeCompanyId ?? null, activeBranchId: batch.branch_id ?? context.activeBranchId ?? null }),
+        JSON.stringify({ batchId: batch.id, requesterUserId: context.userId }),
         `${LEAD_IMPORT_JOB_TYPE}:${batch.id}`,
         context.userId,
       ],

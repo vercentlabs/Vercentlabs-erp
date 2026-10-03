@@ -41,13 +41,6 @@ export async function transitionProcurementReceiptWithStockMovement(
   );
 
   if (action !== "approve" && action !== "reverse") return result;
-  if (result.company_id && result.company_id !== stockContext.companyId) {
-    throw new ProcurementError(
-      409,
-      "The receipt and Stock active company must match.",
-      "PROCUREMENT_STOCK_COMPANY_MISMATCH",
-    );
-  }
 
   const movementType = action === "approve" ? "receipt" : "issue";
   const lines = Array.isArray(result.lines) ? result.lines : [];

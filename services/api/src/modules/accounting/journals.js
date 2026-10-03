@@ -13,7 +13,7 @@ import {
   getPrimaryLedger,
   hashPayload,
   isoDate,
-  loadCompany,
+  loadOrganization,
   optionalUuid,
   requirePermission,
   requiredText,
@@ -21,63 +21,60 @@ import {
   text,
   toBaseAmount,
   uuid,
-  validateBranch,
 } from "./core.js";
 
-async function loadJournal(client, context, companyId, ledgerId, journalIdValue) {
+async function loadJournal(client, context, ledgerId, journalIdValue) {
   const journalId = uuid(journalIdValue, "Journal");
   const result = await client.query(
     `SELECT * FROM tenant.accounting_journals
-      WHERE organization_id=$1 AND company_id=$2 AND ledger_id=$3 AND id=$4 AND status='active'`,
-    [context.organizationId, companyId, ledgerId, journalId],
+      WHERE organization_id=$1 AND ledger_id=$2 AND id=$3 AND status='active'`,
+    [context.organizationId, ledgerId, journalId],
   );
-  if (!result.rows[0]) throw new AccountingError(409, "The accounting journal is unavailable for this company and ledger.");
+  if (!result.rows[0]) throw new AccountingError(409, "The accounting journal is unavailable for this ledger.");
   return result.rows[0];
 }
 
 
-async function validateLineScopes(client, context, companyId, input) {
-  const collect = (key, fallback = null) => [...new Set(input.lines.map((line) => line[key] || fallback).filter(Boolean).map((value) => uuid(value, key)))];
+async function validateLineReferences(client, context, input) {
+  const collect = (key) => [...new Set(input.lines.map((line) => line[key]).filter(Boolean).map((value) => uuid(value, key)))];
   const partyIds = collect("partyId");
-  const branchIds = collect("branchId", input.branchId || null);
   const departmentIds = collect("departmentId");
   const costCenterIds = collect("costCenterId");
   const checks = [
-    [partyIds, `SELECT id FROM tenant.business_parties WHERE organization_id=$1 AND id=ANY($2::uuid[]) AND status='active' AND (company_id IS NULL OR company_id=$3)`, "party"],
-    [branchIds, `SELECT id FROM public.branches WHERE organization_id=$1 AND id=ANY($2::uuid[]) AND company_id=$3 AND status='active'`, "branch"],
-    [departmentIds, `SELECT id FROM public.departments WHERE organization_id=$1 AND id=ANY($2::uuid[]) AND status='active' AND (company_id IS NULL OR company_id=$3)`, "department"],
-    [costCenterIds, `SELECT id FROM public.cost_centers WHERE organization_id=$1 AND id=ANY($2::uuid[]) AND status='active' AND (company_id IS NULL OR company_id=$3)`, "cost centre"],
+    [partyIds, `SELECT id FROM tenant.business_parties WHERE organization_id=$1 AND id=ANY($2::uuid[]) AND status='active'`, "party"],
+    [departmentIds, `SELECT id FROM public.departments WHERE organization_id=$1 AND id=ANY($2::uuid[]) AND status='active'`, "department"],
+    [costCenterIds, `SELECT id FROM public.cost_centers WHERE organization_id=$1 AND id=ANY($2::uuid[]) AND status='active'`, "cost centre"],
   ];
   for (const [ids, query, label] of checks) {
     if (!ids.length) continue;
-    const result = await client.query(query, [context.organizationId, ids, companyId]);
-    if (result.rows.length !== ids.length) throw new AccountingError(409, `One or more journal ${label} references are outside the active company scope.`);
+    const result = await client.query(query, [context.organizationId, ids]);
+    if (result.rows.length !== ids.length) throw new AccountingError(409, `One or more journal ${label} references are inactive or unavailable.`);
   }
 }
 
-async function normalizeLines(client, context, company, ledger, input, accountingDate, options = {}) {
+async function normalizeLines(client, context, organization, ledger, input, accountingDate, options = {}) {
   if (!Array.isArray(input.lines) || input.lines.length < 2) throw new AccountingError(400, "A journal entry requires at least two lines.");
-  const documentCurrency = currency(input.currencyCode || company.base_currency);
+  const documentCurrency = currency(input.currencyCode || organization.base_currency);
   const functionalCurrency = currency(ledger.functional_currency_code);
-  const exchangeRate = await getExchangeRate(client, context, company.id, documentCurrency, functionalCurrency, accountingDate, input.exchangeRate);
+  const exchangeRate = await getExchangeRate(client, context, documentCurrency, functionalCurrency, accountingDate, input.exchangeRate);
   const precision = await getCurrencyPrecision(client, context, documentCurrency);
   const basePrecision = await getCurrencyPrecision(client, context, functionalCurrency);
   const precisionCache = new Map([[documentCurrency, precision], [functionalCurrency, basePrecision]]);
-  await validateLineScopes(client, context, company.id, input);
+  await validateLineReferences(client, context, input);
   const accountIds = [...new Set(input.lines.map((line) => uuid(line.accountId, "Account")))];
   const accounts = await client.query(
     `SELECT id,code,name,account_class,account_type,is_group,allow_manual_posting,currency_code,status
        FROM tenant.accounting_accounts
-      WHERE organization_id=$1 AND company_id=$2 AND ledger_id=$3 AND id=ANY($4::uuid[])`,
-    [context.organizationId, company.id, ledger.id, accountIds],
+      WHERE organization_id=$1 AND ledger_id=$2 AND id=ANY($3::uuid[])`,
+    [context.organizationId, ledger.id, accountIds],
   );
-  if (accounts.rows.length !== accountIds.length) throw new AccountingError(409, "One or more journal accounts are outside the active company ledger.");
+  if (accounts.rows.length !== accountIds.length) throw new AccountingError(409, "One or more journal accounts are outside the ledger.");
   const accountMap = new Map(accounts.rows.map((account) => [account.id, account]));
   const dimensionDefinitions = await client.query(
     `SELECT id,code,name,required_for_classes
        FROM tenant.accounting_dimensions
-      WHERE organization_id=$1 AND status='active' AND (company_id IS NULL OR company_id=$2)`,
-    [context.organizationId, company.id],
+      WHERE organization_id=$1 AND status='active'`,
+    [context.organizationId],
   );
   const dimensionDefinitionMap = new Map(dimensionDefinitions.rows.map((dimension) => [dimension.id, dimension]));
   const dimensionValueIds = [...new Set(input.lines.flatMap((line) => Array.isArray(line.dimensions)
@@ -89,11 +86,11 @@ async function normalizeLines(client, context, company, ledger, input, accountin
          JOIN tenant.accounting_dimensions dimension
            ON dimension.organization_id=value.organization_id AND dimension.id=value.dimension_id
         WHERE value.organization_id=$1 AND value.id=ANY($2::uuid[]) AND value.status='active'
-          AND dimension.status='active' AND (dimension.company_id IS NULL OR dimension.company_id=$3)`,
-      [context.organizationId, dimensionValueIds, company.id],
+          AND dimension.status='active'`,
+      [context.organizationId, dimensionValueIds],
     ) : { rows: [] };
   if (dimensionValues.rows.length !== dimensionValueIds.length) {
-    throw new AccountingError(409, "One or more journal dimension values are inactive or outside the company scope.");
+    throw new AccountingError(409, "One or more journal dimension values are inactive or unavailable.");
   }
   const dimensionValueMap = new Map(dimensionValues.rows.map((value) => [value.id, value]));
   let totalDebit = 0n;
@@ -110,7 +107,7 @@ async function normalizeLines(client, context, company, ledger, input, accountin
     if (account.currency_code && account.currency_code !== lineCurrency) throw new AccountingError(409, `Account ${account.code} only accepts ${account.currency_code}.`);
     const lineRate = lineCurrency === documentCurrency
       ? exchangeRate
-      : await getExchangeRate(client, context, company.id, lineCurrency, functionalCurrency, accountingDate, source.exchangeRate);
+      : await getExchangeRate(client, context, lineCurrency, functionalCurrency, accountingDate, source.exchangeRate);
     let linePrecision = precisionCache.get(lineCurrency);
     if (linePrecision === undefined) {
       linePrecision = await getCurrencyPrecision(client, context, lineCurrency);
@@ -161,7 +158,6 @@ async function normalizeLines(client, context, company, ledger, input, accountin
       sequence: index + 1,
       accountId,
       partyId: optionalUuid(source.partyId, "Party"),
-      branchId: optionalUuid(source.branchId || input.branchId, "Branch"),
       departmentId: optionalUuid(source.departmentId, "Department"),
       costCenterId: optionalUuid(source.costCenterId, "Cost centre"),
       description: text(source.description, 1000) || null,
@@ -188,12 +184,12 @@ async function insertJournalLines(client, context, entryId, lines) {
   for (const line of lines) {
     const inserted = await client.query(
       `INSERT INTO tenant.accounting_journal_lines (
-        organization_id,journal_entry_id,sequence,account_id,party_id,branch_id,department_id,cost_center_id,
+        organization_id,journal_entry_id,sequence,account_id,party_id,department_id,cost_center_id,
         description,currency_code,exchange_rate,debit_amount,credit_amount,base_debit_amount,base_credit_amount,
         due_date,reference_type,reference_id,tax_code,tax_base_amount,metadata,created_by
-      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21::jsonb,$22)
+      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20::jsonb,$21)
       RETURNING id`,
-      [context.organizationId, entryId, line.sequence, line.accountId, line.partyId, line.branchId, line.departmentId,
+      [context.organizationId, entryId, line.sequence, line.accountId, line.partyId, line.departmentId,
         line.costCenterId, line.description, line.currencyCode, asDatabaseDecimal(line.exchangeRate),
         asDatabaseDecimal(line.debit), asDatabaseDecimal(line.credit), asDatabaseDecimal(line.baseDebit),
         asDatabaseDecimal(line.baseCredit), line.dueDate, line.referenceType, line.referenceId, line.taxCode,
@@ -213,23 +209,22 @@ async function insertJournalLines(client, context, entryId, lines) {
 
 export async function createJournalEntry(client, context, input, options = {}) {
   if (!options.internal) requirePermission(context, ACCOUNTING_PERMISSIONS.journalCreate);
-  const company = await loadCompany(client, context, input.companyId);
-  const branch = await validateBranch(client, context, company.id, input.branchId || context.activeBranchId);
-  const ledger = await getPrimaryLedger(client, context, company.id, input.ledgerId);
-  const journal = await loadJournal(client, context, company.id, ledger.id, input.journalId);
+  const organization = await loadOrganization(client, context);
+  const ledger = await getPrimaryLedger(client, context, input.ledgerId);
+  const journal = await loadJournal(client, context, ledger.id, input.journalId);
   const accountingDate = isoDate(input.accountingDate || input.entryDate, "Accounting date");
-  const period = await getOpenPeriod(client, context, company.id, accountingDate);
-  const normalized = await normalizeLines(client, context, company, ledger, input, accountingDate, options);
+  const period = await getOpenPeriod(client, context, accountingDate);
+  const normalized = await normalizeLines(client, context, organization, ledger, input, accountingDate, options);
   const entryNumber = await allocateNumber(client, context.organizationId, "journal_entry");
   const contentHash = hashPayload({ input, lines: normalized.lines.map((line) => ({ ...line, debit: String(line.debit), credit: String(line.credit) })) });
   const result = await client.query(
     `INSERT INTO tenant.accounting_journal_entries (
-      organization_id,company_id,branch_id,ledger_id,journal_id,fiscal_period_id,entry_number,entry_date,
+      organization_id,ledger_id,journal_id,fiscal_period_id,entry_number,entry_date,
       accounting_date,document_date,entry_type,source_module,source_type,source_id,source_number,reference,
       description,currency_code,functional_currency_code,exchange_rate,status,content_hash,created_by,updated_by
-    ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,'draft',$21,$22,$22)
+    ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,'draft',$19,$20,$20)
     RETURNING *`,
-    [context.organizationId, company.id, branch?.id || null, ledger.id, journal.id, period.id, entryNumber,
+    [context.organizationId, ledger.id, journal.id, period.id, entryNumber,
       isoDate(input.entryDate || accountingDate, "Entry date"), accountingDate,
       input.documentDate ? isoDate(input.documentDate, "Document date") : null,
       text(input.entryType, 50) || "standard", text(options.sourceModule || input.sourceModule, 50) || "accounting",
@@ -248,21 +243,18 @@ export async function listJournalEntries(client, context, filters = {}) {
   requirePermission(context, ACCOUNTING_PERMISSIONS.view);
   const values = [context.organizationId];
   let where = "";
-  if (!context.allowAllCompanies && context.activeCompanyId) { values.push(context.activeCompanyId); where += ` AND entry.company_id=$${values.length}`; }
-  if (filters.companyId) { values.push(uuid(filters.companyId, "Company")); where += ` AND entry.company_id=$${values.length}`; }
   if (filters.status && filters.status !== "all") { values.push(text(filters.status, 30)); where += ` AND entry.status=$${values.length}`; }
   if (filters.search) { values.push(`%${text(filters.search, 100)}%`); where += ` AND (entry.entry_number ILIKE $${values.length} OR entry.description ILIKE $${values.length} OR entry.reference ILIKE $${values.length})`; }
   const result = await client.query(
     `SELECT entry.id,entry.entry_number,entry.accounting_date,entry.entry_type,entry.description,entry.reference,
             entry.currency_code,entry.functional_currency_code,entry.status,entry.source_module,entry.source_type,
-            journal.code AS journal_code,journal.name AS journal_name,company.name AS company_name,
+            journal.code AS journal_code,journal.name AS journal_name,
             COALESCE(sum(line.base_debit_amount),0) AS total_debit
        FROM tenant.accounting_journal_entries entry
        JOIN tenant.accounting_journals journal ON journal.id=entry.journal_id
-       JOIN public.companies company ON company.id=entry.company_id
        LEFT JOIN tenant.accounting_journal_lines line ON line.journal_entry_id=entry.id
       WHERE entry.organization_id=$1${where}
-      GROUP BY entry.id,journal.code,journal.name,company.name
+      GROUP BY entry.id,journal.code,journal.name
       ORDER BY entry.accounting_date DESC,entry.created_at DESC LIMIT 300`,
     values,
   );
@@ -273,28 +265,25 @@ export async function getJournalEntry(client, context, idValue) {
   requirePermission(context, ACCOUNTING_PERMISSIONS.view);
   const id = uuid(idValue, "Journal entry");
   const result = await client.query(
-    `SELECT entry.*,journal.code AS journal_code,journal.name AS journal_name,company.name AS company_name,
+    `SELECT entry.*,journal.code AS journal_code,journal.name AS journal_name,
             period.name AS period_name
        FROM tenant.accounting_journal_entries entry
        JOIN tenant.accounting_journals journal ON journal.id=entry.journal_id
-       JOIN public.companies company ON company.id=entry.company_id
        JOIN tenant.fiscal_periods period ON period.id=entry.fiscal_period_id
       WHERE entry.organization_id=$1 AND entry.id=$2`,
     [context.organizationId, id],
   );
   const entry = result.rows[0];
   if (!entry) throw new AccountingError(404, "Journal entry not found.");
-  if (!context.allowAllCompanies && context.activeCompanyId && entry.company_id !== context.activeCompanyId) throw new AccountingError(403, "Switch to the journal company to view it.");
   // Sequential, not Promise.all: a single pg client can only run one query at a time (concurrent
   // queries on the same connection are deprecated and will error in pg@9) -- same fix applied
   // to getCustomerInvoice/getVendorBill above.
   const lines = await client.query(
     `SELECT line.*,account.code AS account_code,account.name AS account_name,party.display_name AS party_name,
-            branch.name AS branch_name,department.name AS department_name,cost_center.name AS cost_center_name
+            department.name AS department_name,cost_center.name AS cost_center_name
        FROM tenant.accounting_journal_lines line
        JOIN tenant.accounting_accounts account ON account.id=line.account_id
        LEFT JOIN tenant.business_parties party ON party.id=line.party_id
-       LEFT JOIN public.branches branch ON branch.id=line.branch_id
        LEFT JOIN public.departments department ON department.id=line.department_id
        LEFT JOIN public.cost_centers cost_center ON cost_center.id=line.cost_center_id
       WHERE line.organization_id=$1 AND line.journal_entry_id=$2 ORDER BY line.sequence`,
@@ -330,7 +319,6 @@ async function lockEntry(client, context, idValue) {
   const result = await client.query(`SELECT * FROM tenant.accounting_journal_entries WHERE organization_id=$1 AND id=$2 FOR UPDATE`, [context.organizationId, id]);
   const entry = result.rows[0];
   if (!entry) throw new AccountingError(404, "Journal entry not found.");
-  if (!context.allowAllCompanies && context.activeCompanyId && entry.company_id !== context.activeCompanyId) throw new AccountingError(403, "Switch to the journal company before changing it.");
   return entry;
 }
 
@@ -344,7 +332,7 @@ export async function submitJournalEntry(client, context, idValue, assignedTo = 
   const rules = await client.query(
     `SELECT journal.approval_required,settings.journal_approval_threshold
        FROM tenant.accounting_journals journal
-       LEFT JOIN tenant.accounting_settings settings ON settings.organization_id=journal.organization_id AND settings.company_id=journal.company_id
+       LEFT JOIN tenant.accounting_settings settings ON settings.organization_id=journal.organization_id
       WHERE journal.organization_id=$1 AND journal.id=$2`,
     [context.organizationId, entry.journal_id],
   );
@@ -400,7 +388,7 @@ export async function postJournalEntry(client, context, idValue, options = {}) {
   if (!options.internal) requirePermission(context, ACCOUNTING_PERMISSIONS.journalPost);
   const entry = await lockEntry(client, context, idValue);
   if (entry.status !== "approved" && !(options.allowDraft && entry.status === "draft")) throw new AccountingError(409, "Only an approved journal can be posted.");
-  await getOpenPeriod(client, context, entry.company_id, entry.accounting_date);
+  await getOpenPeriod(client, context, entry.accounting_date);
   const updated = await client.query(
     `UPDATE tenant.accounting_journal_entries SET status='posted',posted_at=now(),posted_by=$3,updated_by=$3
       WHERE organization_id=$1 AND id=$2 RETURNING *`,
@@ -418,8 +406,6 @@ export async function reverseJournalEntry(client, context, idValue, input = {}) 
   const detail = await getJournalEntry(client, context, original.id);
   const accountingDate = isoDate(input.accountingDate || new Date().toISOString().slice(0, 10), "Reversal date");
   const reversal = await createJournalEntry(client, context, {
-    companyId: original.company_id,
-    branchId: original.branch_id,
     ledgerId: original.ledger_id,
     journalId: original.journal_id,
     entryDate: accountingDate,
@@ -432,7 +418,6 @@ export async function reverseJournalEntry(client, context, idValue, input = {}) 
     lines: detail.lines.map((line) => ({
       accountId: line.account_id,
       partyId: line.party_id,
-      branchId: line.branch_id,
       departmentId: line.department_id,
       costCenterId: line.cost_center_id,
       description: `Reversal: ${line.description || original.description}`,

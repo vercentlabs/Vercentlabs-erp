@@ -13,11 +13,11 @@ export async function getMaterialAvailability(client, c, input = {}) {
   const unit = await explodeBom(client, c, { bomId: input.bomId, itemId: input.itemId, quantity: 1, asOf: input.asOf });
   const lines = [];
   for (const total of explosion.purchasedTotals) {
-    const stock = (await client.query(`SELECT COALESCE(sum(quantity),0) AS q,COALESCE(sum(quantity-reserved_quantity),0) AS free FROM tenant.stock_balances WHERE organization_id=$1 AND company_id=$2 AND item_id=$3`, [c.organizationId, c.companyId, total.itemId])).rows[0];
+    const stock = (await client.query(`SELECT COALESCE(sum(quantity),0) AS q,COALESCE(sum(quantity-reserved_quantity),0) AS free FROM tenant.stock_balances WHERE organization_id=$1 AND item_id=$2`, [c.organizationId, total.itemId])).rows[0];
     const incoming = (await client.query(
       `SELECT COALESCE(sum(GREATEST(${PO_QTY}-line.received_quantity,0)),0) AS q FROM tenant.procurement_purchase_order_lines line JOIN tenant.procurement_purchase_orders po ON po.id=line.parent_id
-        WHERE line.organization_id=$1 AND po.company_id=$2 AND line.item_id=$3 AND po.status IN ('approved','dispatched','acknowledged','partially_received')`,
-      [c.organizationId, c.companyId, total.itemId],
+        WHERE line.organization_id=$1 AND line.item_id=$2 AND po.status IN ('approved','dispatched','acknowledged','partially_received')`,
+      [c.organizationId, total.itemId],
     )).rows[0];
     const required = Number(total.requiredQuantity);
     const free = Number(stock.free);

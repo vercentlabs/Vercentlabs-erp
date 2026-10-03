@@ -15,9 +15,6 @@ function crmSyncContext(salesContext) {
   return {
     organizationId: salesContext.organizationId,
     userId: salesContext.userId,
-    activeCompanyId: null,
-    activeBranchId: null,
-    allowAllCompanies: true,
     permissions: ["crm.opportunities.manage", "crm.records.view_all"],
     roleSlugs: [],
   };
@@ -30,21 +27,15 @@ function commissionAccrualContext(salesContext) {
   return {
     organizationId: salesContext.organizationId,
     userId: salesContext.userId,
-    activeCompanyId: null,
-    activeBranchId: null,
-    allowAllCompanies: true,
     permissions: ["sales.settings.manage"],
     roleSlugs: [],
   };
 }
 
-// Stock's context shape is single-company (no allowAllCompanies concept),
-// unlike CRM's - releasing a reservation must run scoped to the order's own
-// company, not the confirming rep's active company.
-function stockSyncContext(salesContext, companyId) {
+// Releasing a reservation needs Stock rights the cancelling rep may not hold.
+function stockSyncContext(salesContext) {
   return {
     organizationId: salesContext.organizationId,
-    companyId,
     userId: salesContext.userId,
     permissions: ["stock.view", "stock.reserve"],
     roleSlugs: [],
@@ -166,16 +157,14 @@ export async function cancelSalesOrderWithCrmSync(
   // permanently inflated. A missing/inconsistent reservation is a normal
   // outcome (not every order reserves stock), so this stays best-effort like
   // the CRM sync above.
-  if (result.companyId) {
-    try {
-      await releaseSalesOrderStockReservationsOnCancel(
-        client,
-        stockSyncContext(salesContext, result.companyId),
-        orderId,
-      );
-    } catch {
-      // Best-effort - order cancellation already succeeded and must stand.
-    }
+  try {
+    await releaseSalesOrderStockReservationsOnCancel(
+      client,
+      stockSyncContext(salesContext),
+      orderId,
+    );
+  } catch {
+    // Best-effort - order cancellation already succeeded and must stand.
   }
   return result;
 }

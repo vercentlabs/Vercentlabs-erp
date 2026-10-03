@@ -14,7 +14,6 @@ export type OptionSource =
   | "employees"
   | "departments"
   | "designations"
-  | "branches"
   | "leaveTypes"
   | "shifts"
   | "holidayCalendars"

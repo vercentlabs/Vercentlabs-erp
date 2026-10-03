@@ -163,7 +163,6 @@ export async function runCrmAutomation(
             context,
             "recommendations",
             {
-              companyId: payload.companyId || context.activeCompanyId,
               entityType,
               entityId,
               recommendationType:

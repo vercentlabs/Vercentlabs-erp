@@ -1,6 +1,6 @@
 // The one parent-record access check for record-attached content (Timeline,
 // Notes, governed attachments, custom-field values, tags, email lists): the
-// same company/branch scope, owner rule and entity-type-specific
+// same owner rule and entity-type-specific
 // sensitive-content permission each record type's own detail view enforces.
 
 import { crmAccountVisibleSql, crmContactVisibleSql, crmOwnerScopeSql } from "./crm-access-scope.js";
@@ -13,7 +13,7 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-
 const ENTITY_TYPES = new Set(["lead", "opportunity", "party", "contact", "campaign"]);
 
 // Resolves whether the caller may see this record's related content at
-// all — the same company/branch scope + entity-type-specific sensitive
+// all — the same owner scope + entity-type-specific sensitive
 // permission every existing detail-data function already enforces, not a
 // re-derived equivalent. Returns null (no crash, no partial leak) for "no
 // access," which callers must treat as an empty timeline, never an error
@@ -43,19 +43,15 @@ export async function resolveCrmEntityAccess(client, context, entityType, entity
     // deal id they cannot list cannot be read or written through here.
     const opportunityValues = [context.organizationId, entityId];
     const result = await client.query(
-      `SELECT opportunity.id,opportunity.company_id,opportunity.branch_id FROM tenant.crm_opportunities opportunity
+      `SELECT opportunity.id FROM tenant.crm_opportunities opportunity
         WHERE opportunity.organization_id=$1 AND opportunity.id=$2 AND opportunity.status <> 'archived'
          ${crmOwnerScopeSql(context, (value) => { opportunityValues.push(value); return `$${opportunityValues.length}`; }, "opportunity.owner_user_id", "opportunity.organization_id", { resource: "opportunities", alias: "opportunity" })} LIMIT 1`,
       opportunityValues,
     );
-    const row = result.rows[0];
-    if (!row) return false;
-    if (context.activeCompanyId && row.company_id && row.company_id !== context.activeCompanyId) return false;
-    if (context.activeBranchId && row.branch_id && row.branch_id !== context.activeBranchId) return false;
-    return true;
+    return Boolean(result.rows[0]);
   }
-  // Account/Contact: the same company boundary + ownership rule as their
-  // own lists (crm-access-scope.js), not the company check alone.
+  // Account/Contact: the same ownership rule as their own lists
+  // (crm-access-scope.js).
   if (entityType === "party") {
     if (!canViewSensitiveAccountContent(context)) return false;
     const values = [context.organizationId, entityId];
@@ -75,16 +71,13 @@ export async function resolveCrmEntityAccess(client, context, entityType, entity
     return Boolean(result.rows[0]);
   }
   // Campaigns carry no dedicated sensitive-content permission today (no
-  // personal/contact data of their own) — ordinary crm.view plus company
-  // scope is the same bar every other non-sensitive CRM resource uses.
+  // personal/contact data of their own) — ordinary crm.view is the same bar
+  // every other non-sensitive CRM resource uses.
   const result = await client.query(
-    `SELECT id,company_id FROM tenant.crm_campaigns WHERE organization_id=$1 AND id=$2 AND status <> 'cancelled' LIMIT 1`,
+    `SELECT id FROM tenant.crm_campaigns WHERE organization_id=$1 AND id=$2 AND status <> 'cancelled' LIMIT 1`,
     [context.organizationId, entityId],
   );
-  const row = result.rows[0];
-  if (!row) return false;
-  if (context.activeCompanyId && row.company_id && row.company_id !== context.activeCompanyId) return false;
-  return true;
+  return Boolean(result.rows[0]);
 }
 
 function add(values, value) { values.push(value); return `$${values.length}`; }

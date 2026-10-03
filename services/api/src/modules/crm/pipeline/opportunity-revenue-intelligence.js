@@ -365,11 +365,11 @@ export function summarizeWinLoss(rowsValue) {
 }
 
 async function requireOpportunity(client, context, opportunityId) {
-  // Company/branch/owner record scope, not just organization — this was a
+  // Owner record scope, not just organization — this was a
   // real gap found this prompt: every function in this file previously
   // only checked organization_id, meaning any authenticated actor holding
-  // crm.opportunities.manage (regardless of their own company/branch/team/
-  // owner scope) could read or write revenue schedules, splits, team
+  // crm.opportunities.manage (regardless of their own team/owner scope)
+  // could read or write revenue schedules, splits, team
   // membership, mutual action plans and win/loss reviews for ANY
   // opportunity in the organization. Mirrors the same recordScope() every
   // other Opportunity write path (moveOpportunityStage,
@@ -600,13 +600,11 @@ export async function cloneOpportunity(
   }
   const clone = await client.query(
     `INSERT INTO tenant.crm_opportunities
-     (organization_id,company_id,branch_id,code,pipeline_id,stage_id,party_id,contact_id,campaign_id,source_id,owner_user_id,name,description,amount,currency_code,probability,expected_close_date,status,forecast_category,next_step,custom_data,created_by,updated_by)
-     VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,'open',$18,$19,$20::jsonb,$21,$21)
+     (organization_id,code,pipeline_id,stage_id,party_id,contact_id,campaign_id,source_id,owner_user_id,name,description,amount,currency_code,probability,expected_close_date,status,forecast_category,next_step,custom_data,created_by,updated_by)
+     VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,'open',$16,$17,$18::jsonb,$19,$19)
      RETURNING *`,
     [
       context.organizationId,
-      source.company_id,
-      source.branch_id,
       blueprint.code,
       blueprint.pipelineId,
       blueprint.stageId,
@@ -691,8 +689,8 @@ export async function submitWinLossReview(client, context, input = {}) {
 // Deliberately org-wide, not recordScope()-filtered — same rationale as
 // F010's capturePipelineSnapshots (pipeline/
 // pipeline-snapshots.js): a predictive forecast snapshot is a system-of-record
-// artifact (crm_predictive_forecast_snapshots has no company_id column by
-// design), not one caller's restricted view, so a company-scoped manager
+// artifact (crm_predictive_forecast_snapshots has no owner column by
+// design), not one caller's restricted view, so a team-scoped manager
 // triggering a capture must not thereby produce an incomplete/misleading
 // org-level prediction. The access boundary is the capture action's own
 // permission gate (crmOpportunitiesManage, enforced by the calling route),
@@ -841,16 +839,13 @@ export async function getOpportunityRevenueDashboard(client, context) {
   const winLossParameters = [context.organizationId];
   const quotaParameters = [context.organizationId];
   const actionPlanParameters = [context.organizationId];
-  // Every query here is scoped, not just the summary: a company-restricted
-  // caller must never see other companies' loss reasons, competitor names,
-  // quota targets or action-plan status. Each is scoped through its real
-  // anchor: win/loss reviews
-  // and action plans via their parent Opportunity's own recordScope
-  // (mirroring the summary query exactly); quota plans/allocations via
-  // crm_quota_plans.company_id directly. crm_predictive_forecast_snapshots
-  // has no company_id and no opportunity_id in its schema — it is a
-  // genuine organization-level forecasting artifact, not a per-company or
-  // per-opportunity one, so it stays organization-scoped intentionally.
+  // Every Opportunity-anchored query here is scoped, not just the summary:
+  // a restricted caller must never see other owners' loss reasons,
+  // competitor names or action-plan status. Win/loss reviews and action
+  // plans are scoped via their parent Opportunity's own recordScope
+  // (mirroring the summary query exactly); quota plans/allocations and
+  // crm_predictive_forecast_snapshots are organization-level planning
+  // artifacts, so they stay organization-scoped intentionally.
   const winLossOpportunityScope = recordScope(
     resources.opportunities,
     context,
@@ -863,17 +858,8 @@ export async function getOpportunityRevenueDashboard(client, context) {
     actionPlanParameters,
     "opportunity",
   );
-  let quotaCompanyScope = "";
-  if (!context.allowAllCompanies) {
-    if (!context.activeCompanyId) {
-      quotaCompanyScope = " AND false";
-    } else {
-      quotaParameters.push(context.activeCompanyId);
-      quotaCompanyScope = ` AND (q.company_id IS NULL OR q.company_id = $${quotaParameters.length})`;
-    }
-  }
   // Sequential, not Promise.all: these 5 reads share one PoolClient with
-  // dynamic, differing parameter counts (recordScope()/quotaCompanyScope
+  // dynamic, differing parameter counts (recordScope()
   // append scope params conditionally) — firing them concurrently on a
   // single client risks the extended-query protocol interleaving Parse/Bind
   // across queries (observed live as "bind message supplies N parameters,
@@ -902,9 +888,9 @@ export async function getOpportunityRevenueDashboard(client, context) {
   );
   const quota = await client.query(
     `SELECT
-       (SELECT count(*)::int FROM tenant.crm_quota_plans q WHERE q.organization_id=$1${quotaCompanyScope}) AS plans,
-       (SELECT COALESCE(sum(q.target_amount),0)::numeric FROM tenant.crm_quota_plans q WHERE q.organization_id=$1${quotaCompanyScope}) AS target,
-       (SELECT COALESCE(sum(a.target_amount),0)::numeric FROM tenant.crm_quota_seasonality_allocations a JOIN tenant.crm_quota_plans q ON q.organization_id=a.organization_id AND q.id=a.quota_plan_id WHERE a.organization_id=$1${quotaCompanyScope}) AS allocated`,
+       (SELECT count(*)::int FROM tenant.crm_quota_plans q WHERE q.organization_id=$1) AS plans,
+       (SELECT COALESCE(sum(q.target_amount),0)::numeric FROM tenant.crm_quota_plans q WHERE q.organization_id=$1) AS target,
+       (SELECT COALESCE(sum(a.target_amount),0)::numeric FROM tenant.crm_quota_seasonality_allocations a JOIN tenant.crm_quota_plans q ON q.organization_id=a.organization_id AND q.id=a.quota_plan_id WHERE a.organization_id=$1) AS allocated`,
     quotaParameters,
   );
   const actionPlans = await client.query(

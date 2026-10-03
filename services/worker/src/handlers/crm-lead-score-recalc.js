@@ -18,9 +18,6 @@ function recalcSystemContext(organizationId, payload) {
   return Object.freeze({
     organizationId,
     userId: payload.requesterUserId,
-    activeCompanyId: null,
-    activeBranchId: null,
-    allowAllCompanies: true,
     permissions: ["crm.records.view_all", "crm.leads.view_sensitive"],
     roleSlugs: ["system_worker"],
   });

@@ -49,15 +49,13 @@ export const oneOf = (value, allowed, label) => {
 };
 export const today = () => new Date().toISOString().slice(0, 10);
 export function qualityContext(session) {
-  const companyId = session.activeCompanyId || session.companyId;
-  if (!companyId) throw new QualityError(400, "Select an active company before using Quality.", "ACTIVE_COMPANY_REQUIRED");
-  return { organizationId: session.organizationId, companyId, userId: session.userId, permissions: session.permissions || [], roleSlugs: session.roleSlugs || [] };
+  return { organizationId: session.organizationId, userId: session.userId, permissions: session.permissions || [], roleSlugs: session.roleSlugs || [] };
 }
 
 export async function recordEvent(client, c, aggregateType, aggregateId, eventType, payload = {}) {
   await client.query(
-    `INSERT INTO tenant.quality_events(organization_id,company_id,aggregate_type,aggregate_id,event_type,payload,actor_user_id) VALUES($1,$2,$3,$4,$5,$6::jsonb,$7)`,
-    [c.organizationId, c.companyId, aggregateType, aggregateId, eventType, JSON.stringify(payload), c.userId],
+    `INSERT INTO tenant.quality_events(organization_id,aggregate_type,aggregate_id,event_type,payload,actor_user_id) VALUES($1,$2,$3,$4,$5::jsonb,$6)`,
+    [c.organizationId, aggregateType, aggregateId, eventType, JSON.stringify(payload), c.userId],
   );
 }
 

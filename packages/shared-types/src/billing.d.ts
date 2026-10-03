@@ -23,8 +23,6 @@ export type BillingUsageMetric =
   | "storage_bytes";
 
 export interface BillingPlanLimits {
-  companies: number;
-  branches: number;
   storage_gb: number;
   api_requests_monthly: number;
   automation_actions_monthly: number;

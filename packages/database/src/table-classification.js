@@ -49,8 +49,6 @@ const BILLING_REASON = "Provider reconciliation/recovery works across organisati
 
 export const PUBLIC_TABLES = Object.freeze({
   // Shared Access and organisation structure
-  companies: scoped(),
-  branches: scoped(),
   departments: scoped(),
   teams: scoped(),
   cost_centers: scoped(),
@@ -59,8 +57,6 @@ export const PUBLIC_TABLES = Object.freeze({
   role_version_snapshots: scoped(),
   user_role_assignments: scoped(),
   access_assignment_events: scoped(),
-  membership_company_access: scoped(),
-  membership_branch_access: scoped(),
   membership_department_access: scoped(),
   membership_team_access: scoped(),
   // A user may also read their OWN memberships across organisations (session
@@ -68,8 +64,6 @@ export const PUBLIC_TABLES = Object.freeze({
   organization_memberships: scoped(null, { selfReadColumn: "user_id" }),
   organization_invitations: scoped(),
   organization_invitation_roles: scoped(),
-  organization_invitation_company_access: scoped(),
-  organization_invitation_branch_access: scoped(),
   organization_invitation_department_access: scoped(),
   organization_invitation_team_access: scoped(),
   organization_modules: scoped(),

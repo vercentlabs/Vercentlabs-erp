@@ -128,10 +128,6 @@ export async function applyLeadCreatePolicies(client, context, prepared, { dupli
         client,
         context,
         requestedOwnerUserId,
-        {
-          companyId: prepared.companyId || null,
-          branchId: prepared.branchId || null,
-        },
       );
     } catch (error) {
       if (error?.code === "CRM_LEAD_ASSIGNEE_SCOPE_INVALID")
@@ -274,11 +270,10 @@ export async function logLeadConsentChanges(client, context, leadId, before, aft
     events.push({ channel: "all", action: after.doNotContact ? "suppressed" : "resubscribed" });
   for (const event of events)
     await client.query(
-      `INSERT INTO tenant.crm_consent_events(organization_id,company_id,lead_id,channel,purpose,action,lawful_basis,source,evidence,created_by)
-       VALUES($1,$2,$3,$4,'sales',$5,'consent','manual',$6::jsonb,$7)`,
+      `INSERT INTO tenant.crm_consent_events(organization_id,lead_id,channel,purpose,action,lawful_basis,source,evidence,created_by)
+       VALUES($1,$2,$3,'sales',$4,'consent','manual',$5::jsonb,$6)`,
       [
         context.organizationId,
-        after.companyId || null,
         leadId,
         event.channel,
         event.action,

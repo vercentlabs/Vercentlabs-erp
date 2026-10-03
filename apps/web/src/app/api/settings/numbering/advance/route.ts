@@ -10,7 +10,6 @@ import { workspaceRoute } from "@/core/workspace-route";
 // current next number, so an issued identifier is never re-issued). Audited.
 const schema = z.object({
   documentType: z.string().trim().min(1).max(160),
-  companyId: z.string().uuid().nullable().optional(),
   nextValue: z.number().int().min(1),
 });
 

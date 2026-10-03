@@ -11,7 +11,6 @@ import {
 export async function checkSalesOrderLineAvailability(client,salesContext,stockContext,input={}){
   const line=await getSalesOrderLineReservationContext(client,salesContext,input);
   if(salesContext.organizationId!==stockContext.organizationId)throw new SalesError(403,"Sales and Stock organization context must match.","SALES_STOCK_CONTEXT_INVALID");
-  if(line.companyId!==stockContext.companyId)throw new SalesError(409,"Sales and Stock active-company context must match.","SALES_STOCK_COMPANY_MISMATCH");
   // Nothing left to reserve on this line and no quantity asked for: show the
   // stock position instead of failing with "quantity must be greater than zero".
   if((input.quantity==null||input.quantity==="")&&line.remainingReservableQuantity<=0){
@@ -39,11 +38,11 @@ async function explainAvailabilityPromise(client,stockContext,line,availableBase
             sum(greatest((pol.data->>'quantity')::numeric-COALESCE(pol.received_quantity,(pol.data->>'receivedQuantity')::numeric,0),0)) AS open_quantity
        FROM tenant.procurement_purchase_order_lines pol
        JOIN tenant.procurement_purchase_orders po ON po.organization_id=pol.organization_id AND po.id=pol.parent_id
-      WHERE pol.organization_id=$1 AND pol.company_id=$2 AND pol.item_id=$3 AND (pol.warehouse_id=$4 OR pol.warehouse_id IS NULL)
+      WHERE pol.organization_id=$1 AND pol.item_id=$2 AND (pol.warehouse_id=$3 OR pol.warehouse_id IS NULL)
         AND po.status IN ('approved','dispatched','acknowledged','partially_received','pending_amendment_approval')
       GROUP BY 1,2 HAVING sum(greatest((pol.data->>'quantity')::numeric-COALESCE(pol.received_quantity,(pol.data->>'receivedQuantity')::numeric,0),0))>0
       ORDER BY 2 NULLS LAST`,
-    [stockContext.organizationId,stockContext.companyId,line.itemId,line.warehouseId],
+    [stockContext.organizationId,line.itemId,line.warehouseId],
   )).rows.map((row)=>({purchaseOrderNumber:row.purchase_order_number,expectedDate:row.expected_date?String(row.expected_date).slice(0,10):null,openQuantity:Number(row.open_quantity)}));
   const leadTime=(await client.query(
     `SELECT min(lead_time_days)::int AS days FROM tenant.procurement_supplier_lead_times
@@ -69,7 +68,7 @@ export async function reserveSalesOrderLineFromStock(client,salesContext,stockCo
   // ordinary checks below would reject the very request that already succeeded.
   const suppliedKey=String(input.idempotencyKey||"").trim().slice(0,200);
   if(suppliedKey){
-    const prior=await client.query("SELECT response_payload FROM tenant.operation_idempotency WHERE organization_id=$1 AND company_id=$2 AND operation='stock.reservation.create' AND idempotency_key=$3 AND status='completed'",[stockContext.organizationId,stockContext.companyId,suppliedKey]);
+    const prior=await client.query("SELECT response_payload FROM tenant.operation_idempotency WHERE organization_id=$1 AND operation='stock.reservation.create' AND idempotency_key=$2 AND status='completed'",[stockContext.organizationId,suppliedKey]);
     if(prior.rows[0])return {replayed:true,reservation:{...prior.rows[0].response_payload,replayed:true}};
   }
   const checked=await checkSalesOrderLineAvailability(client,salesContext,stockContext,input);

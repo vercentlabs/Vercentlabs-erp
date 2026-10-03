@@ -299,7 +299,7 @@ function AccountMappingSection() {
   return (
     <PosPanel
       title="Accounting account mappings"
-      description="Which general-ledger account each POS financial concept posts to. Six keys come pre-configured for every company (shared with Sales); the rest are POS-specific and must be set before F305 posting will succeed for that tender/concept."
+      description="Which general-ledger account each POS financial concept posts to. Six keys come pre-configured for every organization (shared with Sales); the rest are POS-specific and must be set before F305 posting will succeed for that tender/concept."
     >
       {error && <PosAlert>{error}</PosAlert>}
       {!query.data?.ledger ? (
@@ -313,7 +313,7 @@ function AccountMappingSection() {
           />
         ) : (
           <PosAlert tone="warning">
-            No active Accounting ledger exists for this company yet — configure
+            No active Accounting ledger exists for your organization yet — configure
             Accounting before mapping POS accounts.
           </PosAlert>
         )

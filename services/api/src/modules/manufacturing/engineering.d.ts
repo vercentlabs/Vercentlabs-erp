@@ -1,5 +1,5 @@
 type Row = Record<string, unknown>;
-export type ManufacturingContext = { organizationId: string; companyId: string; userId: string; permissions: string[]; roleSlugs: string[] };
+export type ManufacturingContext = { organizationId: string; userId: string; permissions: string[]; roleSlugs: string[] };
 export declare function manufacturingContext(session: Record<string, unknown>): ManufacturingContext;
 export declare function createBom(client: any, context: ManufacturingContext, input?: Row): Promise<Row>;
 export declare function updateDraftBom(client: any, context: ManufacturingContext, bomId: string, input?: Row): Promise<Row>;

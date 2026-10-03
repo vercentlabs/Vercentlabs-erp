@@ -8,7 +8,6 @@ import { workspaceRoute } from "@/core/workspace-route";
 
 const updateStoreSchema = z.object({
   name: z.string().trim().min(1).max(200).optional(),
-  branchId: z.string().uuid().optional(),
   warehouseId: z.string().uuid().optional(),
   priceListId: z.string().uuid().nullable().optional(),
   currencyCode: z.string().trim().length(3).optional(),

@@ -56,12 +56,12 @@ export async function recordDocumentTaxLedger(client, context, document, detailL
     for (const component of taxComponents(source, direction)) {
       await client.query(
         `INSERT INTO tenant.accounting_tax_ledger (
-          organization_id,company_id,journal_entry_id,journal_line_id,source_type,source_id,party_id,
+          organization_id,journal_entry_id,journal_line_id,source_type,source_id,party_id,
           tax_registration,tax_type,direction,tax_period,taxable_amount,tax_amount,recoverable_amount,
           reverse_charge,place_of_supply,hsn_sac_code,status
-        ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,to_char($11::date,'YYYY-MM'),$12,$13,$14,$15,$16,$17,'open')
+        ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,to_char($10::date,'YYYY-MM'),$11,$12,$13,$14,$15,$16,'open')
         ON CONFLICT (organization_id,journal_line_id,tax_type,direction) DO NOTHING`,
-        [context.organizationId, document.company_id, journalEntryId, journalLine.id,
+        [context.organizationId, journalEntryId, journalLine.id,
           sourceType, document.id, document.party_id,
           document.customer_snapshot?.gstin || document.supplier_snapshot?.gstin || null,
           component.taxType, direction, document.accounting_date, asDatabaseDecimal(component.taxableAmount * sign),

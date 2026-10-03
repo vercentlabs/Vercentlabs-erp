@@ -223,8 +223,8 @@ export async function recordLeadBehaviorEvent(client, context, input = {}) {
     });
   await getScopedLead(client, context, leadId);
   const result = await client.query(
-    `INSERT INTO tenant.crm_lead_behavior_events(organization_id,company_id,lead_id,event_type,event_value,source_type,source_id,idempotency_key,metadata,occurred_at,created_by)
-     SELECT $1,lead.company_id,lead.id,$3,$4,$5,$6,$7,$8,$9,$10 FROM tenant.crm_leads lead WHERE lead.organization_id=$1 AND lead.id=$2
+    `INSERT INTO tenant.crm_lead_behavior_events(organization_id,lead_id,event_type,event_value,source_type,source_id,idempotency_key,metadata,occurred_at,created_by)
+     SELECT $1,lead.id,$3,$4,$5,$6,$7,$8,$9,$10 FROM tenant.crm_leads lead WHERE lead.organization_id=$1 AND lead.id=$2
      ON CONFLICT (organization_id,idempotency_key) DO UPDATE SET received_at=tenant.crm_lead_behavior_events.received_at
      RETURNING *`,
     [
@@ -278,14 +278,13 @@ export async function openLeadSlaCase(client, context, leadId, input = {}) {
     policy.business_hours,
   );
   const result = await client.query(
-    `INSERT INTO tenant.crm_lead_sla_cases(organization_id,company_id,lead_id,policy_id,owner_user_id,started_at,response_due_at,status,evidence,created_by,updated_by)
-     VALUES($1,$2,$3,$4,$5,$6,$7,'open',$8,$9,$9)
+    `INSERT INTO tenant.crm_lead_sla_cases(organization_id,lead_id,policy_id,owner_user_id,started_at,response_due_at,status,evidence,created_by,updated_by)
+     VALUES($1,$2,$3,$4,$5,$6,'open',$7,$8,$8)
      ON CONFLICT (organization_id,lead_id) WHERE status IN ('open','paused','breached')
      DO UPDATE SET policy_id=EXCLUDED.policy_id,owner_user_id=EXCLUDED.owner_user_id,response_due_at=EXCLUDED.response_due_at,evidence=tenant.crm_lead_sla_cases.evidence||EXCLUDED.evidence,updated_by=EXCLUDED.updated_by,updated_at=now()
      RETURNING *`,
     [
       context.organizationId,
-      lead.company_id,
       lead.id,
       policy.id,
       lead.owner_user_id,
@@ -375,16 +374,10 @@ export async function scanLeadSlaBreaches(
          ON lead.organization_id=sla.organization_id AND lead.id=sla.lead_id
       WHERE sla.organization_id=$1 AND sla.status='open'
         AND sla.first_responded_at IS NULL AND sla.response_due_at<$2
-        AND ($3::uuid IS NULL OR lead.company_id IS NULL OR lead.company_id=$3)
-        AND ($4::uuid IS NULL OR lead.branch_id IS NULL OR lead.branch_id=$4)
-        AND ($3::uuid IS NOT NULL OR $5::boolean)
       FOR UPDATE OF sla`,
     [
       context.organizationId,
       now,
-      context.activeCompanyId || null,
-      context.activeBranchId || null,
-      Boolean(context.allowAllCompanies),
     ],
   );
   for (const slaCase of result.rows) {
@@ -493,13 +486,12 @@ export async function refreshLeadNurtureQueue(
         ? new Date(lead.next_follow_up_at)
         : now;
     await client.query(
-      `INSERT INTO tenant.crm_lead_nurture_queue(organization_id,company_id,lead_id,policy_id,owner_user_id,priority_score,recommended_action,reason_codes,due_at,status,last_generated_at,created_by,updated_by)
-       VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,'active',$10,$11,$11)
+      `INSERT INTO tenant.crm_lead_nurture_queue(organization_id,lead_id,policy_id,owner_user_id,priority_score,recommended_action,reason_codes,due_at,status,last_generated_at,created_by,updated_by)
+       VALUES($1,$2,$3,$4,$5,$6,$7,$8,'active',$9,$10,$10)
        ON CONFLICT (organization_id,lead_id) WHERE status IN ('active','claimed','snoozed')
        DO UPDATE SET policy_id=EXCLUDED.policy_id,owner_user_id=EXCLUDED.owner_user_id,priority_score=EXCLUDED.priority_score,recommended_action=EXCLUDED.recommended_action,reason_codes=EXCLUDED.reason_codes,due_at=EXCLUDED.due_at,last_generated_at=EXCLUDED.last_generated_at,updated_by=EXCLUDED.updated_by,updated_at=now()`,
       [
         context.organizationId,
-        lead.company_id,
         lead.id,
         policy.id,
         lead.owner_user_id,

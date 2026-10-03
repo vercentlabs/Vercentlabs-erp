@@ -350,7 +350,7 @@ export async function regenerateRecoveryCodes(client, userId, code, env = proces
 // ---------------------------------------------------------------------
 // Organization-enforced MFA (SP007) -- platform.security.manage, granted
 // only to organization_owner/system_administrator by migration 047 (never
-// company_administrator, matching that role's existing exclusion from
+// the User Administrator role, matching that role's existing exclusion from
 // every other organisation/system-level platform.*.manage permission).
 // ---------------------------------------------------------------------
 export async function setOrganizationMfaEnforcement(client, session, enforced) {

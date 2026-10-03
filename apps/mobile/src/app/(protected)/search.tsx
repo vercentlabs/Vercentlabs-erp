@@ -18,7 +18,7 @@ export default function SearchScreen() {
     <Screen keyboardShouldPersistTaps="handled">
       <AppHeader eyebrow="Global search" title={term ? `Results for “${term}”` : "Search the workspace"} description="Search only the organisation, master-data and CRM records your role can access." />
       <View style={{ flexDirection: "row", gap: spacing.sm }}>
-        <TextInput autoFocus value={input} onChangeText={setInput} onSubmitEditing={() => setTerm(input.trim())} returnKeyType="search" accessibilityLabel="Search workspace" placeholder="Partners, items, companies, branches or users" placeholderTextColor={colors.textMuted} style={{ flex: 1, minHeight: 48, borderRadius: radii.sm, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface, paddingHorizontal: spacing.md, ...type.body, color: colors.text }} />
+        <TextInput autoFocus value={input} onChangeText={setInput} onSubmitEditing={() => setTerm(input.trim())} returnKeyType="search" accessibilityLabel="Search workspace" placeholder="Partners, items or users" placeholderTextColor={colors.textMuted} style={{ flex: 1, minHeight: 48, borderRadius: radii.sm, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface, paddingHorizontal: spacing.md, ...type.body, color: colors.text }} />
         <Pressable accessibilityRole="button" onPress={() => setTerm(input.trim())} style={{ minWidth: 68, justifyContent: "center", alignItems: "center", borderRadius: radii.sm, backgroundColor: colors.primary }}><Text style={{ ...type.label, color: colors.inverse }}>Find</Text></Pressable>
       </View>
       <View style={{ gap: spacing.sm, marginTop: spacing.xl }}>

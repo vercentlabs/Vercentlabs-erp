@@ -1,8 +1,7 @@
 // Shared Access — public boundary.
 //
 // The ONE place server code composes authentication, workspace membership,
-// module availability/enablement/entitlement, permissions, company/branch
-// scope and field rules. Import from "@vercentlabs/api/access" (or the root
+// module availability/enablement/entitlement, permissions and field rules. Import from "@vercentlabs/api/access" (or the root
 // "@vercentlabs/api" barrel); never from the files behind it.
 export {
   ACCESS_ERROR_CODES,
@@ -32,13 +31,7 @@ export {
   moduleAccessPermission,
   snapshotModuleAccess,
 } from "./module-access.js";
-export {
-  canAccessBranch,
-  canAccessCompany,
-  checkBranchScope,
-  checkCompanyScope,
-  checkOrganizationScope,
-} from "./scope-access.js";
+export { checkOrganizationScope } from "./scope-access.js";
 export { assertWritableFields, hiddenFieldsFor, projectFields } from "./field-access.js";
 export { authorize, requireAuthorization } from "./authorization.js";
 export { assertNoBlockingSodConflict } from "./administration.js";

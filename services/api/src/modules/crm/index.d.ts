@@ -10,14 +10,10 @@ type QueryClient = {
   ): Promise<{ rows: any[]; rowCount?: number | null }>;
 };
 // Context accepted by the CRM foundation APIs (lead assignment policies,
-// fallback and availability): a business-data context whose
-// allowAllCompanies flag may be omitted.
+// fallback and availability): a business-data context.
 export type CrmFoundationContext = {
   organizationId: string;
   userId: string;
-  activeCompanyId: string | null;
-  activeBranchId: string | null;
-  allowAllCompanies?: boolean;
 };
 export type PublicMeetingLinkRow = { organization_id: string; meeting_link_id: string; owner_user_id: string; [key: string]: any };
 export type PublicMeetingBookingRow = { organization_id: string; booking_id: string; host_user_id: string; token_type: string };
@@ -428,7 +424,6 @@ export type CrmPipelineStageSnapshot = {
   id: string;
   organization_id: string;
   pipeline_id: string;
-  company_id: string | null;
   stage_id: string;
   currency_code: string;
   snapshot_date: string;
@@ -481,7 +476,7 @@ export function explainLeadAssignmentCandidates(
   client: QueryClient,
   context: CrmFoundationContext,
   memberUserIds: string[],
-  input?: { companyId?: string; branchId?: string },
+  input?: Record<string, unknown>,
 ): Promise<Array<{ userId: string; name: string | null; eligible: boolean; reasons: string[] }>>;
 export function listLeadAssignmentPolicies(
   client: QueryClient,

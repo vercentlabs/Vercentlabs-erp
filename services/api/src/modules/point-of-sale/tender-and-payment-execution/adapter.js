@@ -21,7 +21,7 @@
 //     provider callback. This is never stubbed out, even for the sandbox
 //     adapter -- see sandbox-adapter.js's HMAC implementation.
 //
-//   parseWebhookEvent(rawBody) -> { eventId, eventType, organizationId, companyId, paymentId, providerReference, status, failureReason, raw }
+//   parseWebhookEvent(rawBody) -> { eventId, eventType, organizationId, paymentId, providerReference, status, failureReason, raw }
 //     Only called AFTER verifyWebhookSignature has already returned true.
 //     `eventId` is the provider's own delivery/event id, used for the
 //     webhook-delivery dedupe table -- a redelivery of the same eventId

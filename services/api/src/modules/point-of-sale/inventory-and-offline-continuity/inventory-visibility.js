@@ -15,8 +15,8 @@ async function resolveStoreWarehouse(client, context, storeId) {
   if (!storeId) throw posError(400, "A store is required.", "POS_STORE_REQUIRED");
   await assertPosStoreAccess(client, context, storeId);
   const store = await client.query(
-    `SELECT id, code, name, warehouse_id FROM tenant.pos_stores WHERE organization_id=$1 AND company_id=$2 AND id=$3`,
-    [context.organizationId, context.companyId, storeId],
+    `SELECT id, code, name, warehouse_id FROM tenant.pos_stores WHERE organization_id=$1 AND id=$2`,
+    [context.organizationId, storeId],
   );
   if (!store.rows[0]) throw posError(404, "POS store was not found.", "POS_STORE_NOT_FOUND");
   return store.rows[0];
@@ -29,7 +29,7 @@ async function resolveStoreWarehouse(client, context, storeId) {
 export async function listPosStoreInventory(client, context, { storeId, search = null, limit = 50, offset = 0 } = {}) {
   const store = await resolveStoreWarehouse(client, context, storeId);
   requirePermission(context, "stock.view");
-  const values = [context.organizationId, context.companyId, store.warehouse_id];
+  const values = [context.organizationId, store.warehouse_id];
   let filter = "";
   const trimmed = search ? String(search).trim() : "";
   if (trimmed) {
@@ -46,7 +46,7 @@ export async function listPosStoreInventory(client, context, { storeId, search =
             b.updated_at,
             EXISTS (
               SELECT 1 FROM tenant.quality_holds qh
-              WHERE qh.organization_id = b.organization_id AND qh.company_id = b.company_id
+              WHERE qh.organization_id = b.organization_id
                 AND qh.item_id = b.item_id AND qh.status = 'active'
                 AND qh.hold_type IN ('inventory','batch','serial')
                 AND (qh.warehouse_id IS NULL OR qh.warehouse_id = b.warehouse_id)
@@ -55,7 +55,7 @@ export async function listPosStoreInventory(client, context, { storeId, search =
        JOIN tenant.items i ON i.organization_id = b.organization_id AND i.id = b.item_id
        LEFT JOIN tenant.warehouse_locations wl ON wl.organization_id = b.organization_id AND wl.id = b.warehouse_location_id
        LEFT JOIN tenant.stock_batches bt ON bt.organization_id = b.organization_id AND bt.id = b.batch_id
-      WHERE b.organization_id = $1 AND b.company_id = $2 AND b.warehouse_id = $3${filter}
+      WHERE b.organization_id = $1 AND b.warehouse_id = $2${filter}
       ORDER BY i.name, wl.code NULLS FIRST
       LIMIT $${values.length - 1} OFFSET $${values.length}`,
     values,
@@ -74,7 +74,7 @@ export async function listPosStoreInventory(client, context, { storeId, search =
 export async function listPosStoreStockActivity(client, context, { storeId, limit = 50, offset = 0 } = {}) {
   const store = await resolveStoreWarehouse(client, context, storeId);
   requirePermission(context, "stock.view");
-  const values = [context.organizationId, context.companyId, store.warehouse_id, Math.min(Number(limit) || 50, 200), Number(offset) || 0];
+  const values = [context.organizationId, store.warehouse_id, Math.min(Number(limit) || 50, 200), Number(offset) || 0];
   const result = await client.query(
     `SELECT m.id, m.movement_number, m.movement_type, m.item_id, i.code AS item_code, i.name AS item_name,
             m.quantity::text AS quantity, m.unit_cost::text AS unit_cost, m.reference_type, m.reference_id, m.occurred_at,
@@ -84,10 +84,10 @@ export async function listPosStoreStockActivity(client, context, { storeId, limi
        JOIN tenant.items i ON i.organization_id = m.organization_id AND i.id = m.item_id
        LEFT JOIN tenant.pos_sales s ON m.reference_type = 'pos_sale' AND s.organization_id = m.organization_id AND s.id = m.reference_id
        LEFT JOIN tenant.pos_returns r ON m.reference_type = 'pos_return' AND r.organization_id = m.organization_id AND r.id = m.reference_id
-      WHERE m.organization_id = $1 AND m.company_id = $2 AND m.warehouse_id = $3
+      WHERE m.organization_id = $1 AND m.warehouse_id = $2
         AND m.reference_type IN ('pos_sale','pos_return')
       ORDER BY m.occurred_at DESC, m.id DESC
-      LIMIT $4 OFFSET $5`,
+      LIMIT $3 OFFSET $4`,
     values,
   );
   return { store, rows: result.rows };

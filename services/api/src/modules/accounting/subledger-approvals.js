@@ -63,9 +63,6 @@ async function lockDocument(client, context, kind, idValue) {
   );
   const document = result.rows[0];
   if (!document) throw new AccountingError(404, "Accounting document not found.");
-  if (!context.allowAllCompanies && context.activeCompanyId && document.company_id !== context.activeCompanyId) {
-    throw new AccountingError(403, "Switch to the document company before changing it.");
-  }
   return { config, document };
 }
 
@@ -90,8 +87,8 @@ async function contentHash(client, context, config, document) {
 async function approvalPolicy(client, context, document, config) {
   const result = await client.query(
     `SELECT ${config.requiredColumn} AS required,${config.thresholdColumn} AS threshold
-       FROM tenant.accounting_settings WHERE organization_id=$1 AND company_id=$2`,
-    [context.organizationId, document.company_id],
+       FROM tenant.accounting_settings WHERE organization_id=$1`,
+    [context.organizationId],
   );
   const policy = result.rows[0] || { required: false, threshold: 0 };
   const amount = decimal(document.base_currency_total ?? document.base_amount ?? document.grand_total ?? document.amount ?? 0);

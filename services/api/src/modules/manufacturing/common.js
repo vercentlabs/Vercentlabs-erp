@@ -36,7 +36,7 @@ export const dateOrNull = (value, label) => {
 
 export async function recordEvent(client, c, aggregateType, aggregateId, eventType, payload = {}) {
   await client.query(
-    `INSERT INTO tenant.manufacturing_events(organization_id,company_id,aggregate_type,aggregate_id,event_type,payload,actor_user_id) VALUES($1,$2,$3,$4,$5,$6::jsonb,$7)`,
-    [c.organizationId, c.companyId, aggregateType, aggregateId, eventType, JSON.stringify(payload), c.userId],
+    `INSERT INTO tenant.manufacturing_events(organization_id,aggregate_type,aggregate_id,event_type,payload,actor_user_id) VALUES($1,$2,$3,$4,$5::jsonb,$6)`,
+    [c.organizationId, aggregateType, aggregateId, eventType, JSON.stringify(payload), c.userId],
   );
 }

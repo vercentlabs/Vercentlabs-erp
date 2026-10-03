@@ -17,9 +17,6 @@ function systemContext(organizationId) {
   return Object.freeze({
     organizationId,
     userId: null,
-    activeCompanyId: null,
-    activeBranchId: null,
-    allowAllCompanies: true,
     permissions: [],
     roleSlugs: ["system_worker"],
   });

@@ -147,7 +147,6 @@ export async function getPipelineSummary(pipelineId: string): Promise<{
 export type PipelineSnapshot = {
   id: string;
   pipelineId: string;
-  companyId: string | null;
   stageId: string;
   currencyCode: string;
   snapshotDate: string;

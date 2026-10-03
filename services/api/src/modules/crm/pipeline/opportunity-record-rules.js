@@ -98,7 +98,7 @@ export async function validateOpportunityForUpdate(client, context, prepared, be
     : before;
   const candidate = { ...normalizedBefore, ...prepared };
   throwOpportunityValidation(validateOpportunityRecord(candidate, { mode: "update" }));
-  const relationshipFields = new Set(["companyId", "branchId", "leadId", "partyId", "contactId", "ownerUserId"]);
+  const relationshipFields = new Set(["leadId", "partyId", "contactId", "ownerUserId"]);
   if (Object.keys(prepared).some((field) => relationshipFields.has(field)))
     await validateOpportunityRelationships(client, context, prepared, before);
 }

@@ -51,7 +51,7 @@ export function logAccessDenial(decision, principal, ids = {}, logger = accessLo
 
 // Immutable access-assignment evidence (access_assignment_events, protected
 // by an UPDATE/DELETE-blocking trigger). One row per effective change to a
-// user's access: roles, company/branch scope, membership status, invitation
+// user's access: roles, membership status, invitation
 // acceptance. States are small id-level snapshots, never secrets. Written in
 // the SAME transaction as the change, so evidence exists iff the change
 // committed. Organization-level changes (module enablement, role

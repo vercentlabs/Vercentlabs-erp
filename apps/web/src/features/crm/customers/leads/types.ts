@@ -9,8 +9,6 @@ export type Lead = {
   id: string;
   code: string;
   organizationId: string;
-  companyId: string | null;
-  branchId: string | null;
   firstName: string;
   lastName: string | null;
   fullName?: string | null;

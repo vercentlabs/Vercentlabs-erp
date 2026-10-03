@@ -402,14 +402,12 @@ export async function validateCustomRecord(
     throw new CrmError(400, "Custom record data must be a JSON object.");
 
   const definitionResult = await client.query(
-    `SELECT id, company_scoped FROM tenant.crm_custom_object_definitions WHERE organization_id = $1 AND id = $2 AND status = 'active'`,
+    `SELECT id FROM tenant.crm_custom_object_definitions WHERE organization_id = $1 AND id = $2 AND status = 'active'`,
     [context.organizationId, prepared.objectDefinitionId],
   );
   const objectDefinition = definitionResult.rows[0];
   if (!objectDefinition)
     throw new CrmError(409, "The custom object definition is not active.");
-  if (objectDefinition.company_scoped && !prepared.companyId)
-    throw new CrmError(400, "A company is required for this custom object.");
 
   const fieldsResult = await client.query(
     `SELECT field_key, data_type, required, unique_value, options, validation, visible_to_roles, depends_on_field_key FROM tenant.crm_custom_field_definitions WHERE organization_id = $1 AND object_definition_id = $2 AND status = 'active' ORDER BY sequence, field_key`,

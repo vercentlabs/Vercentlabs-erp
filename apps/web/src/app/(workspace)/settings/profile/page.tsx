@@ -15,10 +15,6 @@ export default async function ProfilePage() {
         <dd className="text-text">{session.email}</dd>
         <dt className="text-text-muted">Organisation</dt>
         <dd className="text-text">{session.organizationName}</dd>
-        <dt className="text-text-muted">Company</dt>
-        <dd className="text-text">{session.companyName || "—"}</dd>
-        <dt className="text-text-muted">Branch</dt>
-        <dd className="text-text">{session.branchName || "—"}</dd>
         <dt className="text-text-muted">Locale</dt>
         <dd className="text-text">{session.locale}</dd>
         <dt className="text-text-muted">Timezone</dt>

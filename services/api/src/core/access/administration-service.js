@@ -4,10 +4,8 @@
 // services/api/src/core/master-data.js and idempotency.js).
 //
 // Security properties preserved from the original (re-reviewed, not
-// weakened): delegated-admin scope containment via fail-closed NOT EXISTS
-// anti-join subset checks (a scoped administrator can never see or grant
-// access outside their own company/branch/department/team scope);
-// grant-ceiling enforcement (nobody can grant a permission they do not
+// weakened): a delegated administrator can never administer an owner or
+// system administrator; grant-ceiling enforcement (nobody can grant a permission they do not
 // themselves hold, except organization_owner); separation-of-duties
 // conflict detection with a required, permission-gated acknowledgement
 // step for warning-level conflicts and a hard block for blocking-level
@@ -117,7 +115,7 @@ export async function validateRoleSelection(
   const privilegedSystemRole = roles.some(
     (role) =>
       role.is_system &&
-      ["organization_owner", "system_administrator", "company_administrator"].includes(
+      ["organization_owner", "system_administrator", "user_administrator"].includes(
         role.slug,
       ),
   );
@@ -156,9 +154,9 @@ export async function validateRoleSelection(
   if (!primaryRole) throw new AccessAdministrationError(400, "Select a valid primary role.");
   if (
     roles.some((role) =>
-      ["system_administrator", "company_administrator"].includes(role.slug),
+      ["system_administrator", "user_administrator"].includes(role.slug),
     ) &&
-    !["system_administrator", "company_administrator"].includes(primaryRole.slug)
+    !["system_administrator", "user_administrator"].includes(primaryRole.slug)
   ) {
     throw new AccessAdministrationError(
       400,
@@ -176,159 +174,56 @@ export function hasUnrestrictedAccessAdministration(roleSlugs) {
 }
 
 // ---------------------------------------------------------------------
-// Delegated administration scope — ONE SQL definition used both to list
+// Delegated administration — ONE SQL definition used both to list
 // (Settings users/invitations) and to assert (every mutation), so reads and
-// writes can never disagree. A target is inside a scoped administrator's
-// scope only when:
-//   - it holds at least one company grant (an unscoped target is
-//     organisation-level and belongs to unrestricted administrators);
-//   - every company/branch/department/team grant it holds is also held by
-//     the administrator;
-//   - it holds no unrestricted role (organization_owner /
-//     system_administrator) — a delegated admin never administers them.
+// writes can never disagree. Access is organisation-wide (roles and
+// permissions only), so a delegated administrator (users.manage without an
+// unrestricted role) may administer every member EXCEPT one holding an
+// unrestricted role (organization_owner / system_administrator).
 // Arguments are SQL expressions (e.g. "$1", "membership.user_id").
 // ---------------------------------------------------------------------
-const SCOPE_DIMENSIONS = Object.freeze([
-  ["company_id", "membership_company_access", "organization_invitation_company_access"],
-  ["branch_id", "membership_branch_access", "organization_invitation_branch_access"],
-  ["department_id", "membership_department_access", "organization_invitation_department_access"],
-  ["team_id", "membership_team_access", "organization_invitation_team_access"],
-]);
-
-function grantsSubsetSql(targetTable, targetKey, targetId, membershipTable, column, organizationId, actorUserId) {
+export function memberWithinAdministrationScopeSql({ organizationId, targetUserId }) {
   return [
     "NOT EXISTS (",
-    `  SELECT 1 FROM ${targetTable} target_access`,
-    `   WHERE target_access.organization_id = ${organizationId} AND target_access.${targetKey} = ${targetId}`,
-    "     AND NOT EXISTS (",
-    `       SELECT 1 FROM ${membershipTable} actor_access`,
-    "        WHERE actor_access.organization_id = target_access.organization_id",
-    `          AND actor_access.user_id = ${actorUserId}`,
-    `          AND actor_access.${column} = target_access.${column}))`,
-  ].join("\n");
-}
-
-export function memberWithinAdministrationScopeSql({ organizationId, actorUserId, targetUserId }) {
-  return [
-    "(",
-    `EXISTS (SELECT 1 FROM membership_company_access target_company WHERE target_company.organization_id = ${organizationId} AND target_company.user_id = ${targetUserId})`,
-    ...SCOPE_DIMENSIONS.map(([column, table]) => "AND " + grantsSubsetSql(table, "user_id", targetUserId, table, column, organizationId, actorUserId)),
-    "AND NOT EXISTS (",
     "  SELECT 1 FROM user_role_assignments target_assignment",
     "    JOIN roles target_role ON target_role.id = target_assignment.role_id AND target_role.organization_id = target_assignment.organization_id",
     `   WHERE target_assignment.organization_id = ${organizationId} AND target_assignment.user_id = ${targetUserId}`,
     "     AND target_assignment.status = 'active'",
     "     AND target_role.slug IN ('organization_owner', 'system_administrator'))",
-    ")",
   ].join("\n");
 }
 
-export function invitationWithinAdministrationScopeSql({ organizationId, actorUserId, invitationId }) {
+export function invitationWithinAdministrationScopeSql({ organizationId, invitationId }) {
   return [
-    "(",
-    `EXISTS (SELECT 1 FROM organization_invitation_company_access target_company WHERE target_company.organization_id = ${organizationId} AND target_company.invitation_id = ${invitationId})`,
-    ...SCOPE_DIMENSIONS.map(
-      ([column, membershipTable, invitationTable]) =>
-        "AND " + grantsSubsetSql(invitationTable, "invitation_id", invitationId, membershipTable, column, organizationId, actorUserId),
-    ),
-    "AND NOT EXISTS (",
+    "NOT EXISTS (",
     "  SELECT 1 FROM organization_invitation_roles target_invitation_role",
     "    JOIN roles target_role ON target_role.id = target_invitation_role.role_id AND target_role.organization_id = target_invitation_role.organization_id",
     `   WHERE target_invitation_role.organization_id = ${organizationId} AND target_invitation_role.invitation_id = ${invitationId}`,
     "     AND target_role.slug IN ('organization_owner', 'system_administrator'))",
-    ")",
   ].join("\n");
 }
 
 export async function assertUserWithinAdministrationScope(
   client,
-  { organizationId, actorUserId, actorRoleSlugs, targetUserId },
+  { organizationId, actorRoleSlugs, targetUserId },
 ) {
   if (hasUnrestrictedAccessAdministration(actorRoleSlugs)) return;
-  const predicate = memberWithinAdministrationScopeSql({ organizationId: "$1", actorUserId: "$2", targetUserId: "$3" });
-  const result = await client.query(`SELECT ${predicate} AS within_scope`, [organizationId, actorUserId, targetUserId]);
+  const predicate = memberWithinAdministrationScopeSql({ organizationId: "$1", targetUserId: "$2" });
+  const result = await client.query(`SELECT ${predicate} AS within_scope`, [organizationId, targetUserId]);
   if (!result.rows[0]?.within_scope) {
-    throw new AccessAdministrationError(403, "This user has access outside your administration scope.", "ACCESS_ADMIN_OUT_OF_SCOPE");
+    throw new AccessAdministrationError(403, "Only an owner or system administrator can administer this user.", "ACCESS_ADMIN_OUT_OF_SCOPE");
   }
 }
 
 export async function assertInvitationWithinAdministrationScope(
   client,
-  { organizationId, actorUserId, actorRoleSlugs, invitationId },
+  { organizationId, actorRoleSlugs, invitationId },
 ) {
   if (hasUnrestrictedAccessAdministration(actorRoleSlugs)) return;
-  const predicate = invitationWithinAdministrationScopeSql({ organizationId: "$1", actorUserId: "$2", invitationId: "$3" });
-  const result = await client.query(`SELECT ${predicate} AS within_scope`, [organizationId, actorUserId, invitationId]);
+  const predicate = invitationWithinAdministrationScopeSql({ organizationId: "$1", invitationId: "$2" });
+  const result = await client.query(`SELECT ${predicate} AS within_scope`, [organizationId, invitationId]);
   if (!result.rows[0]?.within_scope) {
-    throw new AccessAdministrationError(403, "This invitation has access outside your administration scope.", "ACCESS_ADMIN_OUT_OF_SCOPE");
-  }
-}
-
-// Departments and teams in a scope selection must exist in this
-// organisation, be active when newly granted, and sit under the rest of the
-// selection: a company-bound department under a selected company, a team
-// under a selected department (the same rule branches follow for companies).
-// Never trusts client-side filtering; stale and cross-organisation ids fail.
-export async function validateDepartmentTeamScope(client, organizationId, { companyIds, departmentIds, teamIds }, { previousDepartmentIds = [], previousTeamIds = [] } = {}) {
-  const departments = departmentIds.length
-    ? (await client.query("SELECT id, company_id, status FROM departments WHERE organization_id = $1 AND id = ANY($2::uuid[])", [organizationId, departmentIds])).rows
-    : [];
-  if (departments.length !== departmentIds.length) {
-    throw new AccessAdministrationError(422, "One or more departments do not belong to this organization.", "ACCESS_ADMIN_DEPARTMENT_INVALID");
-  }
-  if (departments.some((department) => department.status !== "active" && !previousDepartmentIds.includes(department.id))) {
-    throw new AccessAdministrationError(422, "Inactive departments cannot be newly granted.", "ACCESS_ADMIN_DEPARTMENT_INACTIVE");
-  }
-  if (departments.some((department) => department.company_id && !companyIds.includes(department.company_id))) {
-    throw new AccessAdministrationError(422, "Every department must belong to one of the selected companies.", "ACCESS_ADMIN_DEPARTMENT_OUTSIDE_COMPANY");
-  }
-  const teams = teamIds.length
-    ? (await client.query("SELECT id, department_id, status FROM teams WHERE organization_id = $1 AND id = ANY($2::uuid[])", [organizationId, teamIds])).rows
-    : [];
-  if (teams.length !== teamIds.length) {
-    throw new AccessAdministrationError(422, "One or more teams do not belong to this organization.", "ACCESS_ADMIN_TEAM_INVALID");
-  }
-  if (teams.some((team) => team.status !== "active" && !previousTeamIds.includes(team.id))) {
-    throw new AccessAdministrationError(422, "Inactive teams cannot be newly granted.", "ACCESS_ADMIN_TEAM_INACTIVE");
-  }
-  if (teams.some((team) => team.department_id && !departmentIds.includes(team.department_id))) {
-    throw new AccessAdministrationError(422, "Every team must belong to one of the selected departments.", "ACCESS_ADMIN_TEAM_OUTSIDE_DEPARTMENT");
-  }
-}
-
-export async function validateScopeGrantCeiling(
-  client,
-  { organizationId, actorUserId, actorRoleSlugs, companyIds, branchIds, departmentIds, teamIds },
-) {
-  if (hasUnrestrictedAccessAdministration(actorRoleSlugs)) return;
-
-  const checks = await client.query(
-    `SELECT
-       (SELECT count(*)::int FROM membership_company_access access
-         WHERE access.organization_id=$1 AND access.user_id=$2
-           AND access.company_id=ANY($3::uuid[])) AS company_count,
-       (SELECT count(*)::int FROM membership_branch_access access
-         WHERE access.organization_id=$1 AND access.user_id=$2
-           AND access.branch_id=ANY($4::uuid[])) AS branch_count,
-       (SELECT count(*)::int FROM membership_department_access access
-         WHERE access.organization_id=$1 AND access.user_id=$2
-           AND access.department_id=ANY($5::uuid[])) AS department_count,
-       (SELECT count(*)::int FROM membership_team_access access
-         WHERE access.organization_id=$1 AND access.user_id=$2
-           AND access.team_id=ANY($6::uuid[])) AS team_count`,
-    [organizationId, actorUserId, companyIds, branchIds, departmentIds, teamIds],
-  );
-  const row = checks.rows[0];
-  if (
-    row?.company_count !== companyIds.length ||
-    row?.branch_count !== branchIds.length ||
-    row?.department_count !== departmentIds.length ||
-    row?.team_count !== teamIds.length
-  ) {
-    throw new AccessAdministrationError(
-      403,
-      "You cannot grant company, branch, department or team access outside your own scope.",
-    );
+    throw new AccessAdministrationError(403, "Only an owner or system administrator can administer this invitation.", "ACCESS_ADMIN_OUT_OF_SCOPE");
   }
 }
 
@@ -652,7 +547,6 @@ export async function setUserRoles(client, session, { targetUserId, roleIds, pri
   requireSessionPermission(session, "roles.assign");
   await assertUserWithinAdministrationScope(client, {
     organizationId: session.organizationId,
-    actorUserId: session.userId,
     actorRoleSlugs: session.roleSlugs,
     targetUserId,
   });
@@ -747,10 +641,9 @@ export async function setUserRoles(client, session, { targetUserId, roleIds, pri
 }
 
 // ---------------------------------------------------------------------
-// Grantability (for the role/scope selectors). The server decides what an
-// actor may grant, with the SAME rules the mutations enforce
-// (validateRoleSelection / validateScopeGrantCeiling), so the UI never shows
-// a choice that will simply fail with 403.
+// Grantability (for the role selector). The server decides what an actor may
+// grant, with the SAME rules the mutations enforce (validateRoleSelection), so
+// the UI never shows a choice that will simply fail with 403.
 // ---------------------------------------------------------------------
 function requireAnyPermission(session, keys) {
   if (keys.some((key) => hasSessionPermission(session, key))) return;
@@ -783,192 +676,7 @@ export async function listGrantableRolesForActor(client, session) {
   });
 }
 
-// Companies (each with its branches) the actor may grant. Unrestricted
-// administrators: every active company/branch. Scoped administrators: only
-// their own active company and branch grants.
-export async function listGrantableScope(client, session) {
-  requireSessionPermission(session, "users.manage");
-  const unrestricted = hasUnrestrictedAccessAdministration(session.roleSlugs);
-  const companies = await client.query(
-    `SELECT company.id, company.name, company.code
-       FROM companies company
-      WHERE company.organization_id = $1 AND company.status = 'active'
-        AND ($3::boolean OR EXISTS (
-          SELECT 1 FROM membership_company_access access
-           WHERE access.organization_id = company.organization_id AND access.user_id = $2 AND access.company_id = company.id))
-      ORDER BY company.is_primary DESC, company.name ASC`,
-    [session.organizationId, session.userId, unrestricted],
-  );
-  const branches = await client.query(
-    `SELECT branch.id, branch.name, branch.code, branch.company_id
-       FROM branches branch
-      WHERE branch.organization_id = $1 AND branch.status = 'active'
-        AND ($3::boolean OR EXISTS (
-          SELECT 1 FROM membership_branch_access access
-           WHERE access.organization_id = branch.organization_id AND access.user_id = $2 AND access.branch_id = branch.id))
-      ORDER BY branch.is_primary DESC, branch.name ASC`,
-    [session.organizationId, session.userId, unrestricted],
-  );
-  // Departments and teams follow the same ceiling: unrestricted
-  // administrators see all active ones, delegated administrators only those
-  // they hold themselves.
-  const departments = await client.query(
-    `SELECT department.id, department.name, department.code, department.company_id
-       FROM departments department
-      WHERE department.organization_id = $1 AND department.status = 'active'
-        AND ($3::boolean OR EXISTS (
-          SELECT 1 FROM membership_department_access access
-           WHERE access.organization_id = department.organization_id AND access.user_id = $2 AND access.department_id = department.id))
-      ORDER BY department.name ASC`,
-    [session.organizationId, session.userId, unrestricted],
-  );
-  const teams = await client.query(
-    `SELECT team.id, team.name, team.code, team.department_id
-       FROM teams team
-      WHERE team.organization_id = $1 AND team.status = 'active'
-        AND ($3::boolean OR EXISTS (
-          SELECT 1 FROM membership_team_access access
-           WHERE access.organization_id = team.organization_id AND access.user_id = $2 AND access.team_id = team.id))
-      ORDER BY team.name ASC`,
-    [session.organizationId, session.userId, unrestricted],
-  );
-  return {
-    unrestricted,
-    companies: companies.rows.map((company) => ({
-      ...company,
-      branches: branches.rows.filter((branch) => branch.company_id === company.id).map(({ id, name, code }) => ({ id, name, code })),
-    })),
-    departments: departments.rows.map((row) => ({ id: row.id, name: row.name, code: row.code, companyId: row.company_id })),
-    teams: teams.rows.map((row) => ({ id: row.id, name: row.name, code: row.code, departmentId: row.department_id })),
-  };
-}
-
-// ---------------------------------------------------------------------
-// The ONE user access-scope mutation (company + branch productized;
-// department/team preserved when not supplied). Replaces the former
-// setUserCompanyAccess/setUserBranchAccess pair, which could leave a user
-// half-updated between two independent calls.
-// ---------------------------------------------------------------------
-function uniqueIds(values) {
-  return [...new Set((values || []).filter(Boolean))].sort();
-}
-
-export async function setUserAccessScope(client, session, targetUserId, { companyIds, branchIds, departmentIds, teamIds }) {
-  requireSessionPermission(session, "users.manage");
-  // 1. The actor must already administer the target (before anything is
-  //    read or written): a scoped admin cannot take over an out-of-scope
-  //    user by first stripping that user's external grants.
-  await assertUserWithinAdministrationScope(client, {
-    organizationId: session.organizationId,
-    actorUserId: session.userId,
-    actorRoleSlugs: session.roleSlugs,
-    targetUserId,
-  });
-  const membership = await client.query(
-    "SELECT 1 FROM organization_memberships WHERE organization_id = $1 AND user_id = $2",
-    [session.organizationId, targetUserId],
-  );
-  if (!membership.rows[0]) throw new AccessAdministrationError(404, "User is not a member of this organization.", "ACCESS_ADMIN_USER_NOT_FOUND");
-
-  const before = await getUserAccessState(client, session.organizationId, targetUserId);
-  const next = {
-    companyIds: uniqueIds(companyIds),
-    branchIds: uniqueIds(branchIds),
-    departmentIds: departmentIds === undefined ? before.departmentIds : uniqueIds(departmentIds),
-    teamIds: teamIds === undefined ? before.teamIds : uniqueIds(teamIds),
-  };
-
-  // 2. Every target must exist in this organization; newly granted
-  //    companies/branches must be active (existing grants to a since-
-  //    deactivated one may be kept); every branch must sit under a selected
-  //    company.
-  const companies = next.companyIds.length
-    ? (await client.query("SELECT id, status FROM companies WHERE organization_id = $1 AND id = ANY($2::uuid[])", [session.organizationId, next.companyIds])).rows
-    : [];
-  if (companies.length !== next.companyIds.length) {
-    throw new AccessAdministrationError(422, "One or more companies do not belong to this organization.", "ACCESS_ADMIN_COMPANY_INVALID");
-  }
-  if (companies.some((company) => company.status !== "active" && !before.companyIds.includes(company.id))) {
-    throw new AccessAdministrationError(422, "Inactive companies cannot be newly granted.", "ACCESS_ADMIN_COMPANY_INACTIVE");
-  }
-  const branches = next.branchIds.length
-    ? (await client.query("SELECT id, company_id, status FROM branches WHERE organization_id = $1 AND id = ANY($2::uuid[])", [session.organizationId, next.branchIds])).rows
-    : [];
-  if (branches.length !== next.branchIds.length) {
-    throw new AccessAdministrationError(422, "One or more branches do not belong to this organization.", "ACCESS_ADMIN_BRANCH_INVALID");
-  }
-  if (branches.some((branch) => branch.status !== "active" && !before.branchIds.includes(branch.id))) {
-    throw new AccessAdministrationError(422, "Inactive branches cannot be newly granted.", "ACCESS_ADMIN_BRANCH_INACTIVE");
-  }
-  if (branches.some((branch) => !next.companyIds.includes(branch.company_id))) {
-    throw new AccessAdministrationError(422, "Every branch must belong to one of the selected companies.", "ACCESS_ADMIN_BRANCH_OUTSIDE_COMPANY");
-  }
-
-  await validateDepartmentTeamScope(client, session.organizationId, next, { previousDepartmentIds: before.departmentIds, previousTeamIds: before.teamIds });
-
-  // 3. The new grants must stay inside the actor's own scope.
-  await validateScopeGrantCeiling(client, {
-    organizationId: session.organizationId,
-    actorUserId: session.userId,
-    actorRoleSlugs: session.roleSlugs,
-    ...next,
-  });
-
-  // 4. Apply as a diff: unchanged rows are not touched, so an unchanged save
-  //    does not trip the session-revocation triggers on these tables.
-  const tables = [
-    ["membership_company_access", "company_id", before.companyIds, next.companyIds],
-    ["membership_branch_access", "branch_id", before.branchIds, next.branchIds],
-    ["membership_department_access", "department_id", before.departmentIds, next.departmentIds],
-    ["membership_team_access", "team_id", before.teamIds, next.teamIds],
-  ];
-  let changed = false;
-  for (const [table, column, previous, desired] of tables) {
-    const removed = previous.filter((id) => !desired.includes(id));
-    const added = desired.filter((id) => !previous.includes(id));
-    if (removed.length) {
-      await client.query(`DELETE FROM ${table} WHERE organization_id = $1 AND user_id = $2 AND ${column} = ANY($3::uuid[])`, [session.organizationId, targetUserId, removed]);
-    }
-    if (added.length) {
-      await client.query(
-        `INSERT INTO ${table} (organization_id, user_id, ${column}) SELECT $1, $2, unnest($3::uuid[]) ON CONFLICT DO NOTHING`,
-        [session.organizationId, targetUserId, added],
-      );
-    }
-    changed ||= removed.length > 0 || added.length > 0;
-  }
-
-  const after = await getUserAccessState(client, session.organizationId, targetUserId);
-  if (changed) {
-    const scopeOf = (state) => ({ companyIds: state.companyIds, branchIds: state.branchIds, departmentIds: state.departmentIds, teamIds: state.teamIds });
-    await recordAccessAssignmentEvent(client, {
-      organizationId: session.organizationId,
-      userId: targetUserId,
-      actorUserId: session.userId,
-      eventType: ACCESS_EVIDENCE_EVENTS.SCOPE_CHANGED,
-      beforeState: scopeOf(before),
-      afterState: scopeOf(after),
-    });
-    await audit(client, {
-      organizationId: session.organizationId,
-      actorUserId: session.userId,
-      eventType: "user.access_updated",
-      entityType: "organization_membership",
-      entityId: targetUserId,
-      beforeData: scopeOf(before),
-      afterData: scopeOf(after),
-    });
-  }
-  return after;
-}
-
 export async function getUserAccessState(client, organizationId, userId) {
-  // Sequential, not Promise.all: a single pg client/connection can only
-  // run one query at a time -- see entitlements.js's getBillingSummary
-  // and module-entitlements.js's getAccessibleModules for the same fix,
-  // made for the same reason (a real "client.query() when the client is
-  // already executing a query" deprecation warning surfaced in production
-  // usage).
   const roles = await client.query(
     `SELECT ura.role_id,ura.is_primary,ura.starts_at,ura.expires_at,ura.status,r.slug,r.name
        FROM user_role_assignments ura JOIN roles r ON r.id=ura.role_id
@@ -976,27 +684,5 @@ export async function getUserAccessState(client, organizationId, userId) {
       ORDER BY ura.is_primary DESC,r.name`,
     [organizationId, userId],
   );
-  const companies = await client.query(
-    "SELECT company_id FROM membership_company_access WHERE organization_id=$1 AND user_id=$2 ORDER BY company_id",
-    [organizationId, userId],
-  );
-  const branches = await client.query(
-    "SELECT branch_id FROM membership_branch_access WHERE organization_id=$1 AND user_id=$2 ORDER BY branch_id",
-    [organizationId, userId],
-  );
-  const departments = await client.query(
-    "SELECT department_id FROM membership_department_access WHERE organization_id=$1 AND user_id=$2 ORDER BY department_id",
-    [organizationId, userId],
-  );
-  const teams = await client.query(
-    "SELECT team_id FROM membership_team_access WHERE organization_id=$1 AND user_id=$2 ORDER BY team_id",
-    [organizationId, userId],
-  );
-  return {
-    roles: roles.rows,
-    companyIds: companies.rows.map((row) => row.company_id),
-    branchIds: branches.rows.map((row) => row.branch_id),
-    departmentIds: departments.rows.map((row) => row.department_id),
-    teamIds: teams.rows.map((row) => row.team_id),
-  };
+  return { roles: roles.rows };
 }

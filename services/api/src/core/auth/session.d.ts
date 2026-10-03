@@ -20,9 +20,3 @@ export declare function revokeSessionById(client: any, userId: string, sessionId
 export declare function revokeOtherSessions(client: any, userId: string, currentSessionId: string, reason?: string): Promise<number>;
 export declare function resolveSessionContext(client: any, token: string, sessionType: "browser" | "mobile", env?: any): Promise<any | null>;
 
-export declare class ContextSwitchError extends Error {
-  status: number;
-  code?: string;
-}
-export declare function listAccessibleCompanies(client: any, organizationId: string, userId: string): Promise<Array<{ id: string; name: string; branches: Array<{ id: string; company_id: string; name: string }> }>>;
-export declare function switchActiveCompany(client: any, session: any, companyId: string, branchId?: string | null): Promise<{ companyId: string; branchId: string | null }>;

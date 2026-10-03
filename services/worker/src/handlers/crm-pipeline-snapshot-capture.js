@@ -6,7 +6,7 @@ export const JOB_TYPE = "crm.pipeline.capture_daily_snapshot";
 export const payloadSchema = z.object({}).strict();
 
 // F010 — the durable daily pipeline-history baseline. Deliberately org-wide/
-// permission-neutral (allowAllCompanies:true, no owner scope): a system
+// permission-neutral (no owner scope): a system
 // capture must record the pipeline's real total state, not one synthetic
 // actor's restricted view of it — see pipeline-snapshots.js's own
 // capturePipelineSnapshots() doc comment for why capture and retrieval use
@@ -15,9 +15,6 @@ function snapshotSystemContext(organizationId) {
   return Object.freeze({
     organizationId,
     userId: null,
-    activeCompanyId: null,
-    activeBranchId: null,
-    allowAllCompanies: true,
     permissions: [],
     roleSlugs: ["system_worker"],
   });

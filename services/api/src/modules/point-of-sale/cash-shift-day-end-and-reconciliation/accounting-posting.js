@@ -8,7 +8,7 @@
 // ACCOUNT MAPPING REUSE: revenue/output_tax/rounding/cogs all reuse the
 // SAME mapping_key vocabulary Sales' own receivables.js already posts
 // through (tenant.accounting_account_mappings, resolved via
-// getAccountMapping) -- these come pre-seeded for every company
+// getAccountMapping) -- these come pre-seeded for every organization
 // (foundation.js's MAPPING_SEED) and need zero POS-specific configuration.
 // Tender clearing accounts (pos_card_clearing/pos_upi_clearing/
 // pos_wallet_clearing/pos_store_credit_liability), inventory relief, and
@@ -32,7 +32,6 @@ import {
   createJournalEntry,
   postJournalEntry,
   getAccountMapping,
-  loadCompany,
   getPrimaryLedger,
 } from "../../accounting/index.js";
 import { add, sub, mul, div, decimal, asDatabaseDecimal, allocate } from "../../../core/decimal.js";
@@ -56,26 +55,26 @@ function event(client, context, aggregateId, eventType, payload = {}) {
 
 // Reuses the SAME "sales" journal type Accounting's own postCustomerInvoice
 // posts through (foundation.js's own JOURNAL_SEED provisions a 'SAL' sales
-// journal for every company — zero POS-specific configuration needed). A
+// journal for every organization — zero POS-specific configuration needed). A
 // POS return posts through the same journal as the sale it reverses; a
 // credit note within the sales journal is standard practice, not a new
 // journal type.
-async function salesJournalId(client, context, companyId, ledgerId) {
+async function salesJournalId(client, context, ledgerId) {
   const result = await client.query(
-    `SELECT id FROM tenant.accounting_journals WHERE organization_id=$1 AND company_id=$2 AND ledger_id=$3 AND journal_type='sales' AND status='active' ORDER BY created_at LIMIT 1`,
-    [context.organizationId, companyId, ledgerId],
+    `SELECT id FROM tenant.accounting_journals WHERE organization_id=$1 AND ledger_id=$2 AND journal_type='sales' AND status='active' ORDER BY created_at LIMIT 1`,
+    [context.organizationId, ledgerId],
   );
-  if (!result.rows[0]) throw posError(409, "A Sales accounting journal is not configured for this company.", "POS_ACCOUNTING_JOURNAL_NOT_CONFIGURED");
+  if (!result.rows[0]) throw posError(409, "A Sales accounting journal is not configured for this organization.", "POS_ACCOUNTING_JOURNAL_NOT_CONFIGURED");
   return result.rows[0].id;
 }
 
-async function tenderMappingAccount(client, accountingContext, company, ledger, method, date) {
+async function tenderMappingAccount(client, accountingContext, ledger, method, date) {
   const mappingKey = TENDER_MAPPING_KEY[method];
   if (!mappingKey) throw posError(409, `No accounting mapping is defined for payment method ${method}.`, "POS_ACCOUNTING_TENDER_MAPPING_UNKNOWN");
-  return getAccountMapping(client, accountingContext, company.id, ledger.id, mappingKey, { date });
+  return getAccountMapping(client, accountingContext, ledger.id, mappingKey, { date });
 }
 
-async function buildSaleJournalLines(client, context, accountingContext, company, ledger, sale) {
+async function buildSaleJournalLines(client, context, accountingContext, ledger, sale) {
   const date = new Date(sale.completed_at || sale.sale_date).toISOString().slice(0, 10);
   const lineRows = await client.query(
     `SELECT * FROM tenant.pos_sale_lines WHERE organization_id=$1 AND sale_id=$2 ORDER BY line_number`,
@@ -112,7 +111,7 @@ async function buildSaleJournalLines(client, context, accountingContext, company
   for (const row of paymentRows.rows) {
     const amount = decimal(row.amount);
     if (amount === 0n) continue;
-    const account = await tenderMappingAccount(client, accountingContext, company, ledger, row.payment_method, date);
+    const account = await tenderMappingAccount(client, accountingContext, ledger, row.payment_method, date);
     lines.push({
       accountId: account.account_id,
       description: `POS ${row.payment_method} tender — ${sale.receipt_number}`,
@@ -129,7 +128,7 @@ async function buildSaleJournalLines(client, context, accountingContext, company
   for (const line of lineRows.rows) {
     const net = sub(mul(decimal(line.quantity), decimal(line.unit_price)), decimal(line.discount_amount));
     if (net === 0n) continue;
-    const revenue = await getAccountMapping(client, accountingContext, company.id, ledger.id, "revenue", { itemId: line.item_id, date });
+    const revenue = await getAccountMapping(client, accountingContext, ledger.id, "revenue", { itemId: line.item_id, date });
     lines.push({
       accountId: revenue.account_id,
       description: line.description,
@@ -142,7 +141,7 @@ async function buildSaleJournalLines(client, context, accountingContext, company
 
   const taxTotal = decimal(sale.tax_total);
   if (taxTotal > 0n) {
-    const tax = await getAccountMapping(client, accountingContext, company.id, ledger.id, "output_tax", { date });
+    const tax = await getAccountMapping(client, accountingContext, ledger.id, "output_tax", { date });
     lines.push({
       accountId: tax.account_id,
       description: `Output tax — ${sale.receipt_number}`,
@@ -156,7 +155,7 @@ async function buildSaleJournalLines(client, context, accountingContext, company
 
   const rounding = decimal(sale.rounding_adjustment);
   if (rounding !== 0n) {
-    const roundingAccount = await getAccountMapping(client, accountingContext, company.id, ledger.id, "rounding", { date });
+    const roundingAccount = await getAccountMapping(client, accountingContext, ledger.id, "rounding", { date });
     lines.push({
       accountId: roundingAccount.account_id,
       description: `Rounding — ${sale.receipt_number}`,
@@ -168,8 +167,8 @@ async function buildSaleJournalLines(client, context, accountingContext, company
   }
 
   if (cogsTotal > 0n) {
-    const cogs = await getAccountMapping(client, accountingContext, company.id, ledger.id, "cogs", { date });
-    const inventory = await getAccountMapping(client, accountingContext, company.id, ledger.id, "inventory", { date });
+    const cogs = await getAccountMapping(client, accountingContext, ledger.id, "cogs", { date });
+    const inventory = await getAccountMapping(client, accountingContext, ledger.id, "inventory", { date });
     lines.push({
       accountId: cogs.account_id,
       description: `Cost of goods sold — ${sale.receipt_number}`,
@@ -202,15 +201,15 @@ async function buildSaleJournalLines(client, context, accountingContext, company
     if (pointsEarned > 0n && redemptionValue > 0n) {
       const accrualAmount = mul(pointsEarned, redemptionValue);
       if (accrualAmount > 0n) {
-        const expense = await getAccountMapping(client, accountingContext, company.id, ledger.id, "pos_loyalty_program_expense", { date });
-        const liability = await getAccountMapping(client, accountingContext, company.id, ledger.id, "pos_loyalty_liability", { date });
+        const expense = await getAccountMapping(client, accountingContext, ledger.id, "pos_loyalty_program_expense", { date });
+        const liability = await getAccountMapping(client, accountingContext, ledger.id, "pos_loyalty_liability", { date });
         lines.push({ accountId: expense.account_id, description: `Loyalty points accrual — ${sale.receipt_number}`, debit: asDatabaseDecimal(accrualAmount), credit: 0, referenceType: "pos_sale", referenceId: sale.id });
         lines.push({ accountId: liability.account_id, description: `Loyalty points accrual — ${sale.receipt_number}`, debit: 0, credit: asDatabaseDecimal(accrualAmount), referenceType: "pos_sale", referenceId: sale.id });
       }
     }
     if (redeemAmount > 0n) {
-      const liability = await getAccountMapping(client, accountingContext, company.id, ledger.id, "pos_loyalty_liability", { date });
-      const revenue = await getAccountMapping(client, accountingContext, company.id, ledger.id, "revenue", { date });
+      const liability = await getAccountMapping(client, accountingContext, ledger.id, "pos_loyalty_liability", { date });
+      const revenue = await getAccountMapping(client, accountingContext, ledger.id, "revenue", { date });
       lines.push({ accountId: liability.account_id, description: `Loyalty points redeemed — ${sale.receipt_number}`, debit: asDatabaseDecimal(redeemAmount), credit: 0, referenceType: "pos_sale", referenceId: sale.id });
       lines.push({ accountId: revenue.account_id, description: `Loyalty points redeemed — ${sale.receipt_number}`, debit: 0, credit: asDatabaseDecimal(redeemAmount), referenceType: "pos_sale", referenceId: sale.id });
     }
@@ -219,7 +218,7 @@ async function buildSaleJournalLines(client, context, accountingContext, company
   return { lines, tenderTotal, date };
 }
 
-async function buildReturnJournalLines(client, context, accountingContext, company, ledger, posReturn) {
+async function buildReturnJournalLines(client, context, accountingContext, ledger, posReturn) {
   const date = new Date(posReturn.completed_at || posReturn.created_at).toISOString().slice(0, 10);
   const lineRows = await client.query(
     `SELECT return_line.*,sale_line.item_id,sale_line.description,sale_line.tax_amount AS original_tax_amount,
@@ -251,7 +250,7 @@ async function buildReturnJournalLines(client, context, accountingContext, compa
     taxTotal = add(taxTotal, returnedTax);
     netTotal = add(netTotal, returnedNet);
     if (returnedNet !== 0n) {
-      const revenue = await getAccountMapping(client, accountingContext, company.id, ledger.id, "revenue", { itemId: line.item_id, date });
+      const revenue = await getAccountMapping(client, accountingContext, ledger.id, "revenue", { itemId: line.item_id, date });
       lines.push({ accountId: revenue.account_id, description: `Return — ${line.description}`, debit: asDatabaseDecimal(returnedNet), credit: 0, referenceType: "pos_return", referenceId: posReturn.id });
     }
     if (line.restock && line.stock_movement_id) {
@@ -261,8 +260,8 @@ async function buildReturnJournalLines(client, context, accountingContext, compa
       );
       const cost = decimal(movement.rows[0]?.cost || 0);
       if (cost > 0n) {
-        const cogs = await getAccountMapping(client, accountingContext, company.id, ledger.id, "cogs", { date });
-        const inventory = await getAccountMapping(client, accountingContext, company.id, ledger.id, "inventory", { date });
+        const cogs = await getAccountMapping(client, accountingContext, ledger.id, "cogs", { date });
+        const inventory = await getAccountMapping(client, accountingContext, ledger.id, "inventory", { date });
         lines.push({ accountId: inventory.account_id, description: `Inventory restocked — ${line.description}`, debit: asDatabaseDecimal(cost), credit: 0, referenceType: "pos_return", referenceId: posReturn.id });
         lines.push({ accountId: cogs.account_id, description: `Cost of goods sold reversal — ${line.description}`, debit: 0, credit: asDatabaseDecimal(cost), referenceType: "pos_return", referenceId: posReturn.id });
       }
@@ -270,7 +269,7 @@ async function buildReturnJournalLines(client, context, accountingContext, compa
   }
 
   if (taxTotal > 0n) {
-    const tax = await getAccountMapping(client, accountingContext, company.id, ledger.id, "output_tax", { date });
+    const tax = await getAccountMapping(client, accountingContext, ledger.id, "output_tax", { date });
     lines.push({ accountId: tax.account_id, description: `Output tax reversal — ${posReturn.return_number}`, debit: asDatabaseDecimal(taxTotal), credit: 0, referenceType: "pos_return", referenceId: posReturn.id });
   }
 
@@ -284,17 +283,17 @@ async function buildReturnJournalLines(client, context, accountingContext, compa
     const persistedRefunds = await client.query(
       `SELECT payment_method,sum(refund_amount)::numeric(20,6) AS amount
          FROM tenant.pos_return_payment_refunds
-        WHERE organization_id=$1 AND company_id=$2 AND return_id=$3
+        WHERE organization_id=$1 AND return_id=$2
         GROUP BY payment_method`,
-      [context.organizationId, company.id, posReturn.id],
+      [context.organizationId, posReturn.id],
     );
     if (persistedRefunds.rows.length) {
       for (const row of persistedRefunds.rows) {
         const amount = decimal(row.amount);
         if (amount <= 0n) continue;
         const account = row.payment_method === "cash"
-          ? await getAccountMapping(client, accountingContext, company.id, ledger.id, "cash", { date })
-          : await tenderMappingAccount(client, accountingContext, company, ledger, row.payment_method, date);
+          ? await getAccountMapping(client, accountingContext, ledger.id, "cash", { date })
+          : await tenderMappingAccount(client, accountingContext, ledger, row.payment_method, date);
         lines.push({
           accountId: account.account_id,
           description: `POS ${row.payment_method} refund — ${posReturn.return_number}`,
@@ -313,7 +312,7 @@ async function buildReturnJournalLines(client, context, accountingContext, compa
       );
       const cashPortion = decimal(cashMovement.rows[0]?.cash_refunded || 0);
       if (cashPortion > 0n) {
-        const cash = await getAccountMapping(client, accountingContext, company.id, ledger.id, "cash", { date });
+        const cash = await getAccountMapping(client, accountingContext, ledger.id, "cash", { date });
         lines.push({ accountId: cash.account_id, description: `POS cash refund — ${posReturn.return_number}`, debit: 0, credit: asDatabaseDecimal(cashPortion), referenceType: "pos_return", referenceId: posReturn.id });
       }
       const nonCashPortion = sub(refundTotal, cashPortion);
@@ -321,10 +320,10 @@ async function buildReturnJournalLines(client, context, accountingContext, compa
         const nonCashLegs = await client.query(
           `SELECT payment_method,sum(amount)::numeric(20,6) AS captured_amount
              FROM tenant.pos_payments
-            WHERE organization_id=$1 AND company_id=$2 AND sale_id=$3 AND payment_method<>'cash'
+            WHERE organization_id=$1 AND sale_id=$2 AND payment_method<>'cash'
               AND status IN ('captured','partially_refunded','refunded')
             GROUP BY payment_method`,
-          [context.organizationId, company.id, posReturn.sale_id],
+          [context.organizationId, posReturn.sale_id],
         );
         if (!nonCashLegs.rows.length) {
           throw posError(409, "This return's refund cannot be traced to a real tender leg on its sale.", "POS_ACCOUNTING_REFUND_TENDER_UNRESOLVED");
@@ -335,7 +334,7 @@ async function buildReturnJournalLines(client, context, accountingContext, compa
           const share = shares[index];
           if (share <= 0n) continue;
           const method = nonCashLegs.rows[index].payment_method;
-          const account = await tenderMappingAccount(client, accountingContext, company, ledger, method, date);
+          const account = await tenderMappingAccount(client, accountingContext, ledger, method, date);
           lines.push({ accountId: account.account_id, description: `POS ${method} refund — ${posReturn.return_number}`, debit: 0, credit: asDatabaseDecimal(share), referenceType: "pos_return", referenceId: posReturn.id });
         }
       }
@@ -369,8 +368,8 @@ async function buildReturnJournalLines(client, context, accountingContext, compa
         // liability) -- reversing it is debit liability / credit expense.
         const accrualReversal = mul(reverseEarnPoints, rate);
         if (accrualReversal > 0n) {
-          const expense = await getAccountMapping(client, accountingContext, company.id, ledger.id, "pos_loyalty_program_expense", { date });
-          const liability = await getAccountMapping(client, accountingContext, company.id, ledger.id, "pos_loyalty_liability", { date });
+          const expense = await getAccountMapping(client, accountingContext, ledger.id, "pos_loyalty_program_expense", { date });
+          const liability = await getAccountMapping(client, accountingContext, ledger.id, "pos_loyalty_liability", { date });
           lines.push({ accountId: liability.account_id, description: `Loyalty accrual reversal — ${posReturn.return_number}`, debit: asDatabaseDecimal(accrualReversal), credit: 0, referenceType: "pos_return", referenceId: posReturn.id });
           lines.push({ accountId: expense.account_id, description: `Loyalty accrual reversal — ${posReturn.return_number}`, debit: 0, credit: asDatabaseDecimal(accrualReversal), referenceType: "pos_return", referenceId: posReturn.id });
         }
@@ -381,8 +380,8 @@ async function buildReturnJournalLines(client, context, accountingContext, compa
         // liability.
         const redeemReversal = mul(reverseRedeemPoints, rate);
         if (redeemReversal > 0n) {
-          const liability = await getAccountMapping(client, accountingContext, company.id, ledger.id, "pos_loyalty_liability", { date });
-          const revenue = await getAccountMapping(client, accountingContext, company.id, ledger.id, "revenue", { date });
+          const liability = await getAccountMapping(client, accountingContext, ledger.id, "pos_loyalty_liability", { date });
+          const revenue = await getAccountMapping(client, accountingContext, ledger.id, "revenue", { date });
           lines.push({ accountId: revenue.account_id, description: `Loyalty redemption restored — ${posReturn.return_number}`, debit: asDatabaseDecimal(redeemReversal), credit: 0, referenceType: "pos_return", referenceId: posReturn.id });
           lines.push({ accountId: liability.account_id, description: `Loyalty redemption restored — ${posReturn.return_number}`, debit: 0, credit: asDatabaseDecimal(redeemReversal), referenceType: "pos_return", referenceId: posReturn.id });
         }
@@ -395,8 +394,8 @@ async function buildReturnJournalLines(client, context, accountingContext, compa
 
 async function lockPosSale(client, context, saleId) {
   const result = await client.query(
-    `SELECT * FROM tenant.pos_sales WHERE organization_id=$1 AND company_id=$2 AND id=$3 FOR UPDATE`,
-    [context.organizationId, context.companyId, saleId],
+    `SELECT * FROM tenant.pos_sales WHERE organization_id=$1 AND id=$2 FOR UPDATE`,
+    [context.organizationId, saleId],
   );
   if (!result.rows[0]) throw posError(404, "POS sale was not found.", "POS_SALE_NOT_FOUND");
   return result.rows[0];
@@ -404,8 +403,8 @@ async function lockPosSale(client, context, saleId) {
 
 async function lockPosReturn(client, context, returnId) {
   const result = await client.query(
-    `SELECT * FROM tenant.pos_returns WHERE organization_id=$1 AND company_id=$2 AND id=$3 FOR UPDATE`,
-    [context.organizationId, context.companyId, returnId],
+    `SELECT * FROM tenant.pos_returns WHERE organization_id=$1 AND id=$2 FOR UPDATE`,
+    [context.organizationId, returnId],
   );
   if (!result.rows[0]) throw posError(404, "POS return was not found.", "POS_RETURN_NOT_FOUND");
   return result.rows[0];
@@ -425,12 +424,11 @@ export async function postPosSaleToAccounting(client, context, saleId) {
   const accountingContext = posAccountingContext(context);
   await client.query("SAVEPOINT pos_accounting_sale_posting");
   try {
-    const company = await loadCompany(client, accountingContext, sale.company_id);
-    const ledger = await getPrimaryLedger(client, accountingContext, company.id);
-    const { lines, date } = await buildSaleJournalLines(client, context, accountingContext, company, ledger, sale);
-    const journalId = await salesJournalId(client, context, company.id, ledger.id);
+    const ledger = await getPrimaryLedger(client, accountingContext);
+    const { lines, date } = await buildSaleJournalLines(client, context, accountingContext, ledger, sale);
+    const journalId = await salesJournalId(client, context, ledger.id);
     const journal = await createJournalEntry(client, accountingContext, {
-      companyId: company.id, ledgerId: ledger.id, journalId, entryDate: date, accountingDate: date, documentDate: date,
+      ledgerId: ledger.id, journalId, entryDate: date, accountingDate: date, documentDate: date,
       entryType: "subledger", reference: sale.receipt_number, description: `POS sale ${sale.receipt_number}`,
       currencyCode: sale.currency_code, lines,
     }, { internal: true, sourceModule: "point_of_sale", sourceType: "pos_sale", sourceId: sale.id, sourceNumber: sale.receipt_number });
@@ -470,16 +468,15 @@ export async function postPosReturnToAccounting(client, context, returnId) {
   const accountingContext = posAccountingContext(context);
   await client.query("SAVEPOINT pos_accounting_return_posting");
   try {
-    const company = await loadCompany(client, accountingContext, posReturn.company_id);
-    const ledger = await getPrimaryLedger(client, accountingContext, company.id);
-    const { lines, date } = await buildReturnJournalLines(client, context, accountingContext, company, ledger, posReturn);
+    const ledger = await getPrimaryLedger(client, accountingContext);
+    const { lines, date } = await buildReturnJournalLines(client, context, accountingContext, ledger, posReturn);
     const originalSale = await client.query(
       `SELECT currency_code FROM tenant.pos_sales WHERE organization_id=$1 AND id=$2`,
       [context.organizationId, posReturn.sale_id],
     );
-    const journalId = await salesJournalId(client, context, company.id, ledger.id);
+    const journalId = await salesJournalId(client, context, ledger.id);
     const journal = await createJournalEntry(client, accountingContext, {
-      companyId: company.id, ledgerId: ledger.id, journalId, entryDate: date, accountingDate: date, documentDate: date,
+      ledgerId: ledger.id, journalId, entryDate: date, accountingDate: date, documentDate: date,
       entryType: "subledger", reference: posReturn.return_number, description: `POS return ${posReturn.return_number}`,
       currencyCode: originalSale.rows[0]?.currency_code || null, lines,
     }, { internal: true, sourceModule: "point_of_sale", sourceType: "pos_return", sourceId: posReturn.id, sourceNumber: posReturn.return_number });
@@ -513,8 +510,8 @@ export async function postPosReturnToAccounting(client, context, returnId) {
 export async function postPosDayEndReportToAccounting(client, context, reportId) {
   requirePermission(context, "pos.accounting.post");
   const reportResult = await client.query(
-    `SELECT * FROM tenant.pos_day_end_reports WHERE organization_id=$1 AND company_id=$2 AND id=$3`,
-    [context.organizationId, context.companyId, reportId],
+    `SELECT * FROM tenant.pos_day_end_reports WHERE organization_id=$1 AND id=$2`,
+    [context.organizationId, reportId],
   );
   const report = reportResult.rows[0];
   if (!report) throw posError(404, "POS day-end report was not found.", "POS_DAY_END_REPORT_NOT_FOUND");
@@ -546,7 +543,7 @@ export async function postPosDayEndReportToAccounting(client, context, reportId)
 
 export async function listPosAccountingPostingQueue(client, context, options = {}) {
   requirePermission(context, "pos.accounting.view");
-  const values = [context.organizationId, context.companyId];
+  const values = [context.organizationId];
   const clauses = [];
   const status = ["pending", "posted", "failed", "not_applicable"].includes(options.status) ? options.status : null;
   if (status) {
@@ -564,7 +561,7 @@ export async function listPosAccountingPostingQueue(client, context, options = {
     `SELECT id,'pos_sale' AS document_type,receipt_number AS document_number,store_id,grand_total,currency_code,
             accounting_posting_status,accounting_posting_error,accounting_posted_at,completed_at
        FROM tenant.pos_sales
-      WHERE organization_id=$1 AND company_id=$2 AND status IN ('completed','partially_returned','returned') AND ${clauses.join(" AND ")}
+      WHERE organization_id=$1 AND status IN ('completed','partially_returned','returned') AND ${clauses.join(" AND ")}
       ORDER BY completed_at DESC LIMIT $${values.length}`,
     values,
   );
@@ -572,7 +569,7 @@ export async function listPosAccountingPostingQueue(client, context, options = {
     `SELECT id,'pos_return' AS document_type,return_number AS document_number,store_id,refund_total AS grand_total,NULL AS currency_code,
             accounting_posting_status,accounting_posting_error,accounting_posted_at,completed_at
        FROM tenant.pos_returns
-      WHERE organization_id=$1 AND company_id=$2 AND status='completed' AND ${clauses.join(" AND ")}
+      WHERE organization_id=$1 AND status='completed' AND ${clauses.join(" AND ")}
       ORDER BY completed_at DESC LIMIT $${values.length}`,
     values,
   );

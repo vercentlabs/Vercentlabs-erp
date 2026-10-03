@@ -14,8 +14,6 @@ export const payloadSchema = z
   .object({
     batchId: z.string().uuid(),
     requesterUserId: z.string().uuid(),
-    activeCompanyId: z.string().uuid().nullable(),
-    activeBranchId: z.string().uuid().nullable(),
   })
   .strict();
 

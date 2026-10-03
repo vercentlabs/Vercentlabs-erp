@@ -190,10 +190,10 @@ export function opportunityFactsCte(context, filters, parameters) {
         LEFT JOIN primary_territory owner_territory ON owner_territory.assignee_type='user' AND owner_territory.assignee_id=o.owner_user_id
         LEFT JOIN LATERAL (
           SELECT rate.rate, rate.rate_date FROM tenant.exchange_rates rate
-           WHERE rate.organization_id=o.organization_id AND (rate.company_id=o.company_id OR rate.company_id IS NULL)
+           WHERE rate.organization_id=o.organization_id
              AND rate.from_currency_code=COALESCE(o.currency_code, organization.base_currency) AND rate.to_currency_code=organization.base_currency
              AND rate.rate_date<=${valuationDate} AND rate.status='active'
-           ORDER BY rate.company_id IS NOT NULL DESC, rate.rate_date DESC LIMIT 1) fx ON true
+           ORDER BY rate.rate_date DESC LIMIT 1) fx ON true
        WHERE ${where.join(" AND ")}${scope}
     ),
     opportunity_facts AS (

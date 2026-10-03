@@ -43,7 +43,7 @@ export async function getAccountHierarchy(client, context, partyId) {
   const root = await loadScopedAccount(client, context, partyId);
   // The walk follows the real structure, but only Accounts the caller may
   // open are returned (and counted): a parent/child id is never a way to
-  // discover an Account outside the caller's company or ownership scope.
+  // discover an Account outside the caller's ownership scope.
   const ancestorParameters = [context.organizationId, partyId];
   const descendantParameters = [context.organizationId, partyId];
   const historyParameters = [context.organizationId, partyId];

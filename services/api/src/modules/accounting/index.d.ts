@@ -1,10 +1,10 @@
 import type { QueryClient } from "../../index.js";
-export type AccountingContext = { organizationId: string; userId: string; activeCompanyId: string | null; activeBranchId: string | null; allowAllCompanies: boolean; permissions: string[]; roleSlugs: string[] };
+export type AccountingContext = { organizationId: string; userId: string; permissions: string[]; roleSlugs: string[] };
 export class AccountingError extends Error { readonly status: number; readonly code: string; constructor(status: number, message: string, code?: string); }
 export type AccountingRecord = Record<string, unknown>;
 export function getAccountingDashboard(client: QueryClient, context: AccountingContext, filters?: AccountingRecord): Promise<AccountingRecord>;
-export function getAccountingOptions(client: QueryClient, context: AccountingContext, companyId?: string | null): Promise<AccountingRecord>;
-export function getAccountingSettings(client: QueryClient, context: AccountingContext, companyId?: string | null): Promise<AccountingRecord>;
+export function getAccountingOptions(client: QueryClient, context: AccountingContext): Promise<AccountingRecord>;
+export function getAccountingSettings(client: QueryClient, context: AccountingContext): Promise<AccountingRecord>;
 export function updateAccountingSettings(client: QueryClient, context: AccountingContext, input: AccountingRecord): Promise<AccountingRecord>;
 export function createAccountingAccount(client: QueryClient, context: AccountingContext, input: AccountingRecord): Promise<AccountingRecord>;
 export function upsertAccountMapping(client: QueryClient, context: AccountingContext, input: AccountingRecord): Promise<AccountingRecord>;
@@ -53,7 +53,7 @@ export function startBankReconciliation(client: QueryClient, context: Accounting
 export function matchBankStatementLine(client: QueryClient, context: AccountingContext, reconciliationId: string, input: AccountingRecord): Promise<AccountingRecord>;
 export function completeBankReconciliation(client: QueryClient, context: AccountingContext, reconciliationId: string): Promise<AccountingRecord>;
 export function listFiscalPeriods(client: QueryClient, context: AccountingContext, filters?: AccountingRecord): Promise<AccountingRecord[]>;
-export function getPeriodCloseBlockers(client: QueryClient, context: AccountingContext, companyId: string, periodId: string): Promise<AccountingRecord[]>;
+export function getPeriodCloseBlockers(client: QueryClient, context: AccountingContext, periodId: string): Promise<AccountingRecord[]>;
 export function updateFiscalPeriodStatus(client: QueryClient, context: AccountingContext, id: string, input: AccountingRecord): Promise<AccountingRecord>;
 export function createCloseRun(client: QueryClient, context: AccountingContext, input: AccountingRecord): Promise<AccountingRecord>;
 export function listCloseRuns(client: QueryClient, context: AccountingContext): Promise<AccountingRecord[]>;
@@ -61,9 +61,9 @@ export function getCloseRun(client: QueryClient, context: AccountingContext, id:
 export function updateCloseTask(client: QueryClient, context: AccountingContext, runId: string, taskId: string, input: AccountingRecord): Promise<AccountingRecord>;
 export function completeCloseRun(client: QueryClient, context: AccountingContext, id: string, input?: AccountingRecord): Promise<AccountingRecord>;
 export function getAccountingReport(client: QueryClient, context: AccountingContext, reportKey: string, filters?: AccountingRecord): Promise<AccountingRecord[]>;
-export function initializeAccountingCompany(
+export function initializeAccountingOrganization(
   client: QueryClient,
-  input: { organizationId: string; companyId: string; userId: string },
+  input: { organizationId: string; userId: string },
 ): Promise<{ ledgerId: string; accountCount: number }>;
 export function getVendorBillMatch(client: QueryClient, context: AccountingContext, id: string): Promise<AccountingRecord | null>;
 export function evaluateVendorBillMatch(client: QueryClient, context: AccountingContext, id: string, input?: AccountingRecord): Promise<AccountingRecord>;

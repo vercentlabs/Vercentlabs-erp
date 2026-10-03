@@ -279,23 +279,14 @@ export function buildQuotationGovernanceSummary(
   return summary;
 }
 
-function companyScope(context, values, alias = "quotation") {
-  if (!context.allowAllCompanies && context.activeCompanyId) {
-    values.push(context.activeCompanyId);
-    return ` AND ${alias}.company_id=$${values.length}`;
-  }
-  return "";
-}
-
 function canViewMargin(context) {
   return hasPermission(context, "sales.margin.view");
 }
 
 async function loadQuotationForAssessment(client, context, quotationId) {
   const values = [context.organizationId, uuid(quotationId, "Quotation")];
-  const scope = companyScope(context, values);
   const result = await client.query(
-    `SELECT quotation.id AS quotation_id,quotation.company_id,
+    `SELECT quotation.id AS quotation_id,
             quotation.quotation_number,quotation.lifecycle_status,
             quotation.approval_status,quotation.acceptance_status,
             quotation.valid_until,quotation.contact_id,
@@ -319,7 +310,7 @@ async function loadQuotationForAssessment(client, context, quotationId) {
         AND version.id=quotation.current_version_id
        LEFT JOIN tenant.sales_settings settings
          ON settings.organization_id=quotation.organization_id
-      WHERE quotation.organization_id=$1 AND quotation.id=$2${scope}`,
+      WHERE quotation.organization_id=$1 AND quotation.id=$2`,
     values,
   );
   if (!result.rows[0]) {

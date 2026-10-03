@@ -49,9 +49,8 @@ const TYPE_OPTIONS = [
   { value: "both", label: "Customer and supplier" },
 ];
 
-// F031 -- the customer master as Sales sees it. Company scoping, duplicate
-// handling and the credit-limit rule all live server-side; this screen collects
-// and shows.
+// F031 -- the customer master as Sales sees it. Duplicate handling and the
+// credit-limit rule live server-side; this screen collects and shows.
 export function SalesCustomersScreen() {
   const workspace = useWorkspaceContext();
   const router = useRouter();
@@ -450,7 +449,7 @@ export function CustomerDialog({
           <Select
             label="Currency"
             options={[
-              { value: "", label: "Company default" },
+              { value: "", label: "Organisation default" },
               ...(options.data?.currencies ?? []).map((c) => ({
                 value: c.code,
                 label: `${c.code} — ${c.name}`,
@@ -486,7 +485,7 @@ export function CustomerDialog({
           <Select
             label="Price list"
             options={[
-              { value: "", label: "Company default" },
+              { value: "", label: "Organisation default" },
               ...(options.data?.priceLists ?? []).map((p) => ({
                 value: p.id,
                 label: `${p.name} (${p.currency_code})`,

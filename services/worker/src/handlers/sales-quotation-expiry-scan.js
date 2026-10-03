@@ -16,9 +16,6 @@ function expiryScanContext(organizationId) {
   return Object.freeze({
     organizationId,
     userId: null,
-    activeCompanyId: null,
-    activeBranchId: null,
-    allowAllCompanies: true,
     permissions: ["sales.settings.manage"],
     roleSlugs: ["system_worker"],
   });

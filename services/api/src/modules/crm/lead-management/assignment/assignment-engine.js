@@ -105,10 +105,7 @@ async function ownerForLeadPolicyWithTrace(client, context, policy, input) {
 
 async function assertEligibleLeadAssigneeSoft(client, context, userId, input) {
   try {
-    return await assertEligibleLeadAssignee(client, context, userId, {
-      companyId: input.companyId || input.company_id || null,
-      branchId: input.branchId || input.branch_id || null,
-    });
+    return await assertEligibleLeadAssignee(client, context, userId);
   } catch {
     return null;
   }
@@ -164,10 +161,7 @@ export async function resolveLeadAssignment(client, context, input) {
 }
 
 async function getEligibleLeadAssigneeSoft(client, context, userId, input) {
-  return getEligibleLeadAssignee(client, context, userId, {
-    companyId: input.companyId || input.company_id || null,
-    branchId: input.branchId || input.branch_id || null,
-  });
+  return getEligibleLeadAssignee(client, context, userId);
 }
 
 export async function resolveLeadOwner(client, context, input) {

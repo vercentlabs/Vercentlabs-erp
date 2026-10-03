@@ -95,7 +95,7 @@ export async function recalculateProgress(client, c, projectId) {
 // ------------------------------------------------------------------ tasks (F199, F200, F203)
 export async function listProjectTasks(client, c, filters = {}) {
   need(c, "projects.view");
-  const values = [c.organizationId, c.companyId];
+  const values = [c.organizationId];
   const where = [];
   const add = (sql, v) => { values.push(v); where.push(sql.replaceAll("?", `$${values.length}`)); };
   if (filters.projectId) add("t.project_id=?", uuid(filters.projectId, "Project"));
@@ -113,7 +113,7 @@ export async function listProjectTasks(client, c, filters = {}) {
        COALESCE((SELECT sum(e.hours) FROM tenant.project_time_entries e WHERE e.task_id=t.id AND e.status='approved'),0)::float AS actual_hours
      FROM tenant.project_tasks t JOIN tenant.projects p ON p.id=t.project_id AND p.organization_id=t.organization_id
      LEFT JOIN public.users u ON u.id=t.assignee_user_id LEFT JOIN tenant.project_milestones ms ON ms.id=t.milestone_id
-     WHERE t.organization_id=$1 AND p.company_id=$2${where.map((w) => ` AND ${w}`).join("")} ORDER BY p.project_number,t.sort_order,t.created_at LIMIT 800`, values);
+     WHERE t.organization_id=$1${where.map((w) => ` AND ${w}`).join("")} ORDER BY p.project_number,t.sort_order,t.created_at LIMIT 800`, values);
   return res.rows;
 }
 
@@ -333,7 +333,7 @@ export async function removeTaskDependency(client, c, predecessorTaskId, success
 // ------------------------------------------------------------------ milestones (F198)
 export async function listProjectMilestones(client, c, filters = {}) {
   need(c, "projects.view");
-  const values = [c.organizationId, c.companyId];
+  const values = [c.organizationId];
   const where = [];
   if (filters.projectId) { values.push(uuid(filters.projectId, "Project")); where.push(`m.project_id=$${values.length}`); }
   if (filters.status) { values.push(String(filters.status)); where.push(`m.status=$${values.length}`); }
@@ -343,7 +343,7 @@ export async function listProjectMilestones(client, c, filters = {}) {
        (SELECT count(*)::int FROM tenant.project_tasks t WHERE t.milestone_id=m.id) AS task_count,
        (SELECT count(*)::int FROM tenant.project_tasks t WHERE t.milestone_id=m.id AND t.status NOT IN ('done','cancelled')) AS open_tasks
      FROM tenant.project_milestones m JOIN tenant.projects p ON p.id=m.project_id AND p.organization_id=m.organization_id
-     WHERE m.organization_id=$1 AND p.company_id=$2${where.map((w) => ` AND ${w}`).join("")} ORDER BY p.project_number,m.sequence LIMIT 500`, values);
+     WHERE m.organization_id=$1${where.map((w) => ` AND ${w}`).join("")} ORDER BY p.project_number,m.sequence LIMIT 500`, values);
   return res.rows;
 }
 
@@ -521,13 +521,13 @@ export async function getProjectCalendar(client, c, filters = {}) {
   const from = dateOrNull(filters.from, "From") || today();
   const to = dateOrNull(filters.to, "To") || addDays(from, 30);
   if (to < from) throw new ProjectError(400, "The end cannot be before the start.", "PROJECT_DATE_INVALID");
-  const values = [c.organizationId, c.companyId, from, to];
+  const values = [c.organizationId, from, to];
   let scope = "";
   if (filters.projectId) { values.push(uuid(filters.projectId, "Project")); scope += ` AND p.id=$${values.length}`; }
   if (!isBroad(c)) { values.push(c.userId); scope += ` AND (p.project_manager_id=$${values.length} OR EXISTS (SELECT 1 FROM tenant.project_members m WHERE m.project_id=p.id AND m.user_id=$${values.length} AND m.active=true))`; }
-  const tasks = await qx(client, `SELECT t.id,t.task_number,t.name,t.planned_start_date AS start,t.planned_end_date AS "end",t.status,p.project_number,u.full_name AS assignee_name FROM tenant.project_tasks t JOIN tenant.projects p ON p.id=t.project_id LEFT JOIN public.users u ON u.id=t.assignee_user_id WHERE t.organization_id=$1 AND p.company_id=$2 AND t.status<>'cancelled' AND COALESCE(t.planned_start_date,t.planned_end_date)<=$4::date AND COALESCE(t.planned_end_date,t.planned_start_date)>=$3::date${scope}`, values);
-  const milestones = await qx(client, `SELECT m.id,m.name,m.planned_date AS date,m.status,p.project_number FROM tenant.project_milestones m JOIN tenant.projects p ON p.id=m.project_id WHERE m.organization_id=$1 AND p.company_id=$2 AND m.planned_date BETWEEN $3::date AND $4::date${scope}`, values);
-  const away = await qx(client, `SELECT e.user_id,u.full_name,l.start_date AS start,l.end_date AS "end" FROM tenant.hr_leave_requests l JOIN tenant.hr_employees e ON e.id=l.employee_id JOIN public.users u ON u.id=e.user_id WHERE l.organization_id=$1 AND l.company_id=$2 AND l.status='approved' AND l.start_date<=$4::date AND l.end_date>=$3::date AND e.user_id IN (SELECT m.user_id FROM tenant.project_members m JOIN tenant.projects p ON p.id=m.project_id WHERE m.active=true${scope})`, values);
+  const tasks = await qx(client, `SELECT t.id,t.task_number,t.name,t.planned_start_date AS start,t.planned_end_date AS "end",t.status,p.project_number,u.full_name AS assignee_name FROM tenant.project_tasks t JOIN tenant.projects p ON p.id=t.project_id LEFT JOIN public.users u ON u.id=t.assignee_user_id WHERE t.organization_id=$1 AND t.status<>'cancelled' AND COALESCE(t.planned_start_date,t.planned_end_date)<=$3::date AND COALESCE(t.planned_end_date,t.planned_start_date)>=$2::date${scope}`, values);
+  const milestones = await qx(client, `SELECT m.id,m.name,m.planned_date AS date,m.status,p.project_number FROM tenant.project_milestones m JOIN tenant.projects p ON p.id=m.project_id WHERE m.organization_id=$1 AND m.planned_date BETWEEN $2::date AND $3::date${scope}`, values);
+  const away = await qx(client, `SELECT e.user_id,u.full_name,l.start_date AS start,l.end_date AS "end" FROM tenant.hr_leave_requests l JOIN tenant.hr_employees e ON e.id=l.employee_id JOIN public.users u ON u.id=e.user_id WHERE l.organization_id=$1 AND l.status='approved' AND l.start_date<=$3::date AND l.end_date>=$2::date AND e.user_id IN (SELECT m.user_id FROM tenant.project_members m JOIN tenant.projects p ON p.id=m.project_id WHERE m.active=true${scope})`, values);
   return { from, to, tasks: tasks.rows, milestones: milestones.rows, away: away.rows };
 }
 
@@ -558,8 +558,8 @@ export async function saveStatusReport(client, c, projectId, input) {
   need(c, "projects.manage");
   const p = await loadProject(client, c, projectId, { lock: true });
   const health = oneOf(input.health, ["on_track", "at_risk", "off_track"], "Health");
-  const res = await qx(client, `INSERT INTO tenant.project_status_reports(organization_id,company_id,project_id,report_date,health,percent_complete,summary,accomplishments,next_steps,blockers,created_by) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING *`,
-    [c.organizationId, c.companyId, p.id, dateOrNull(input.reportDate, "Report date") || today(), health, p.percent_complete, requiredText(input.summary, "Summary", 3000), textOrNull(input.accomplishments, 3000), textOrNull(input.nextSteps, 3000), textOrNull(input.blockers, 3000), c.userId]);
+  const res = await qx(client, `INSERT INTO tenant.project_status_reports(organization_id,project_id,report_date,health,percent_complete,summary,accomplishments,next_steps,blockers,created_by) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING *`,
+    [c.organizationId, p.id, dateOrNull(input.reportDate, "Report date") || today(), health, p.percent_complete, requiredText(input.summary, "Summary", 3000), textOrNull(input.accomplishments, 3000), textOrNull(input.nextSteps, 3000), textOrNull(input.blockers, 3000), c.userId]);
   await client.query(`UPDATE tenant.projects SET health=$2,updated_at=now() WHERE id=$1`, [p.id, health]);
   await recordEvent(client, c, "project", p.id, "project.status_report", { health });
   return res.rows[0];

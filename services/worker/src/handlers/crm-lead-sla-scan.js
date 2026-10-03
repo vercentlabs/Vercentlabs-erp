@@ -28,9 +28,6 @@ function slaSweepContext(organizationId) {
   return Object.freeze({
     organizationId,
     userId: null,
-    activeCompanyId: null,
-    activeBranchId: null,
-    allowAllCompanies: true,
     // crm.leads.manage is required too: a breach with reassign_on_breach
     // configured calls assignLeadOwner(), which is gated behind
     // canAssignLeadOwners() (crm.records.view_all AND crm.leads.manage,

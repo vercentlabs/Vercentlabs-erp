@@ -2,7 +2,7 @@ export type AccountingClientOptions = { baseUrl?: string; fetchImpl?: typeof fet
 export type AccountingInput = Record<string, unknown>;
 export type AccountingClient = {
   dashboard(filters?: AccountingInput): Promise<unknown>;
-  options(companyId?: string): Promise<unknown>;
+  options(): Promise<unknown>;
   journals(filters?: AccountingInput): Promise<unknown>;
   journal(id: string): Promise<unknown>;
   createJournal(input: AccountingInput): Promise<unknown>;

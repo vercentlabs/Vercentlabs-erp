@@ -11,7 +11,6 @@ import {
   UTILITY_NAV,
 } from "@/shell/navigation/moduleNavigationRegistry";
 import { ProfileMenu } from "@/shell/primary-sidebar/ProfileMenu";
-import { ContextSwitcher } from "@/shell/workspace-context/ContextSwitcher";
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 
 // Search/Settings are the registry entries flagged `placement: "topbar"` —
@@ -108,7 +107,7 @@ function TopBarIconLink({
 // out, and this strip has no room for them beside the context switcher.
 export function WorkspaceTopBar() {
   const pathname = usePathname();
-  const { fullName, email } = useWorkspaceContext();
+  const { fullName, email, organizationName } = useWorkspaceContext();
 
   return (
     // Horizontal padding must match <main>'s (AppShell.tsx: px-6 md:px-8) so
@@ -133,7 +132,9 @@ export function WorkspaceTopBar() {
             <span className="truncate">Search…</span>
           </Link>
         ) : null}
-        <ContextSwitcher />
+        <span className="hidden max-w-[220px] truncate px-2 text-sm font-medium text-text md:inline">
+          {organizationName || "Workspace"}
+        </span>
         <div className="hidden items-center gap-1 lg:flex">
           {SETTINGS_ENTRY ? (
             <TopBarIconLink

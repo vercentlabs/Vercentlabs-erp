@@ -2,9 +2,9 @@
 // schema (since the very first CRM migrations) but no write path anywhere:
 // line items/products, the deal team (as a standalone concept, not only a
 // side effect of revenue-split configuration) and competitor linkage. Every
-// function here scopes through the parent Opportunity's own company/branch/
-// owner record scope (requireOpportunityInScope) since none of these child
-// tables carry their own company_id/branch_id column.
+// function here scopes through the parent Opportunity's own owner record
+// scope (requireOpportunityInScope) since none of these child tables carry
+// their own owner column.
 import {
   CrmError,
   queueOutboxEvent,

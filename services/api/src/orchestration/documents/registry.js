@@ -1,6 +1,6 @@
 // Registered printable documents. Each renderer loads its record through the
 // owning module's authoritative read - the SAME function (and therefore the
-// same permission, company/store scope and margin redaction) the screen uses
+// same permission, store scope and margin redaction) the screen uses
 // - then builds a plain document model for @vercentlabs/document-engine/pdf.
 // A PDF is a presentation of the record, never a new source of truth. There
 // is no arbitrary template, HTML, file path or SQL input.
@@ -26,19 +26,16 @@ const addressLines = (snapshot) => {
 };
 
 // Module contexts exactly as each module's own routes build them.
-const posContext = (session) => ({ organizationId: session.organizationId, companyId: session.activeCompanyId, userId: session.userId, roleSlugs: session.roleSlugs, permissions: session.permissions });
+const posContext = (session) => ({ organizationId: session.organizationId, userId: session.userId, roleSlugs: session.roleSlugs, permissions: session.permissions });
 const salesContext = (session) => ({
   organizationId: session.organizationId,
   userId: session.userId,
-  activeCompanyId: session.activeCompanyId,
-  activeBranchId: session.activeBranchId,
-  allowAllCompanies: session.roleSlugs.includes("organization_owner") || session.roleSlugs.includes("system_administrator"),
   permissions: session.permissions,
   roleSlugs: session.roleSlugs,
 });
 
-async function companyName(client, organizationId, companyId) {
-  const { rows } = await client.query(`SELECT COALESCE(NULLIF(legal_name, ''), name) AS name FROM public.companies WHERE organization_id=$1 AND id=$2`, [organizationId, companyId]);
+async function organizationName(client, organizationId) {
+  const { rows } = await client.query(`SELECT COALESCE(NULLIF(legal_name, ''), name) AS name FROM public.organizations WHERE id=$1`, [organizationId]);
   return rows[0]?.name ?? null;
 }
 
@@ -96,7 +93,7 @@ export const DOCUMENT_RENDERERS = Object.freeze([
         title: "Receipt",
         documentNumber: sale.receipt_number,
         issuedAt: date(sale.completed_at || sale.sale_date, sale.store_timezone),
-        organizationName: await companyName(client, session.organizationId, sale.company_id),
+        organizationName: await organizationName(client, session.organizationId),
         status: sale.status === "completed" ? null : `Status: ${sale.status}`,
         parties: [{ label: "Store", lines: [sale.store_name, sale.terminal_name].filter(Boolean) }, ...(sale.customer_display_name || sale.customer_name ? [{ label: "Customer", lines: [sale.customer_display_name || sale.customer_name] }] : [])],
         fields: [{ label: "Cashier", value: sale.cashier_name ?? "" }],
@@ -140,7 +137,7 @@ export const DOCUMENT_RENDERERS = Object.freeze([
         title: "Quotation",
         documentNumber: `${quote.quotation_number}${quote.version_number > 1 ? ` (revision ${quote.version_number})` : ""}`,
         issuedAt: date(quote.quotation_created_at, timezone),
-        organizationName: await companyName(client, session.organizationId, quote.company_id),
+        organizationName: await organizationName(client, session.organizationId),
         parties: [
           { label: "Customer", lines: [customer.displayName ?? customer.display_name ?? customer.name, customer.gstin ? `GSTIN ${customer.gstin}` : null].filter(Boolean) },
           { label: "Bill to", lines: addressLines(quote.billing_address_snapshot) },
@@ -178,7 +175,7 @@ export const DOCUMENT_RENDERERS = Object.freeze([
         title: "Sales order",
         documentNumber: `${order.sales_order_number}${order.version_number > 1 ? ` (version ${order.version_number})` : ""}`,
         issuedAt: day(order.order_date) ?? date(order.order_created_at, timezone),
-        organizationName: await companyName(client, session.organizationId, order.company_id),
+        organizationName: await organizationName(client, session.organizationId),
         parties: [
           { label: "Customer", lines: [customer.displayName ?? customer.display_name ?? customer.name, customer.gstin ? `GSTIN ${customer.gstin}` : null].filter(Boolean) },
           { label: "Bill to", lines: addressLines(order.billing_address_snapshot) },

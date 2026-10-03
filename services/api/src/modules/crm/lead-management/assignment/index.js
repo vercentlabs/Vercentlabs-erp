@@ -5,7 +5,6 @@
 // functions stay defined there).
 export { LeadGovernanceError } from "./shared.js";
 export {
-  assigneeScopeSql,
   crmEligibleSql,
   getEligibleLeadAssignee,
   assertEligibleLeadAssignee,

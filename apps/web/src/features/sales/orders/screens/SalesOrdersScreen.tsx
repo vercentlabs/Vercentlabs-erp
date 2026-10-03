@@ -46,7 +46,7 @@ const STATUS_OPTIONS = [
 ];
 
 // F042/F043 -- the sales-order register. Search and status are applied
-// server-side; the domain layer scopes rows to the caller's company.
+// server-side; the domain layer scopes rows to the caller's organisation.
 export function SalesOrdersScreen() {
   const workspace = useWorkspaceContext();
   const router = useRouter();

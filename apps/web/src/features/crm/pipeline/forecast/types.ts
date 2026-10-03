@@ -28,7 +28,6 @@ export type CrmForecastFilters = { from?: string; to?: string };
 // reproduce a forecast period (F025's primary capability).
 export type ForecastPeriod = {
   id: string;
-  companyId: string | null;
   name: string;
   periodType: string;
   periodStart: string;
@@ -46,7 +45,6 @@ export type ForecastPeriod = {
 
 export type ForecastSubmission = {
   id: string;
-  companyId: string | null;
   periodId: string;
   teamId: string | null;
   territoryId: string | null;

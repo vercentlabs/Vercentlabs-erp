@@ -106,21 +106,11 @@ function assertId(value, field = "Contact") {
   }
 }
 
-// Company boundary, then access inherited from the Account
-// (crm-access-scope.js). Standalone Contacts have no company, so outside
-// view-all they are limited to their creator and the creator's team manager.
+// Access inherited from the Account (crm-access-scope.js). Standalone
+// Contacts have no Account, so outside view-all they are limited to their
+// creator and the creator's team manager.
 function contactScope(context, parameters, contact = "contact", account = "account") {
   return crmContactVisibleSql(context, (value) => addParameter(parameters, value), contact, account);
-}
-
-function assertWritableScope(context) {
-  if (!context.activeCompanyId && !context.allowAllCompanies) {
-    throw new CrmError(
-      403,
-      "Select an allowed company before maintaining contacts.",
-      "CRM_CONTACT_SCOPE_FORBIDDEN",
-    );
-  }
 }
 
 function assertSensitiveContactMutationAllowed(context, input) {
@@ -141,13 +131,6 @@ function assertGovernedFields(input) {
       403,
       "Contact ownership is not available in the canonical Contact model.",
       "CRM_CONTACT_OWNER_FORBIDDEN",
-    );
-  }
-  if (hasOwn(input, "companyId") || hasOwn(input, "branchId")) {
-    throw new CrmError(
-      403,
-      "Contact scope is derived from the current workspace and linked account.",
-      "CRM_CONTACT_SCOPE_FORBIDDEN",
     );
   }
 }
@@ -219,7 +202,6 @@ function contactSelect() {
     SELECT contact.*,
       account.display_name AS account_name,
       account.status AS account_status,
-      account.company_id AS account_company_id,
       address.city AS account_city,
       address.state AS account_state,
       address.country_code AS account_country_code
@@ -310,8 +292,7 @@ export async function listCrmContacts(client, context, options = {}) {
     `WITH page AS (
        SELECT contact.*,
          account.display_name AS account_name,
-         account.status AS account_status,
-         account.company_id AS account_company_id
+         account.status AS account_status
        ${CONTACT_FROM} ${where}
        ORDER BY ${order.replace(/(^|, )/g, "$1contact.")}
        LIMIT ${limitParameter} OFFSET ${offsetParameter}
@@ -398,7 +379,6 @@ export async function createCrmContact(client, context, input = {}) {
   try {
     assertGovernedFields(input);
     assertSensitiveContactMutationAllowed(context, input);
-    assertWritableScope(context);
     if (input.status && String(input.status).trim().toLowerCase() !== "active") {
       throw new CrmError(
         400,
@@ -501,7 +481,6 @@ export async function updateCrmContact(
   try {
     assertGovernedFields(input);
     assertSensitiveContactMutationAllowed(context, input);
-    assertWritableScope(context);
     if (hasOwn(input, "status")) {
       throw new CrmError(
         409,
@@ -592,7 +571,6 @@ export async function updateCrmContact(
 
 export async function reactivateCrmContact(client, context, id, expectations = {}) {
   try {
-    assertWritableScope(context);
     const existing = await getCrmContact(client, context, id);
     assertExpectedRecordVersion(existing, expectations.expectedUpdatedAt, {
       entityLabel: "Contact",
@@ -647,7 +625,6 @@ export async function reactivateCrmContact(client, context, id, expectations = {
 
 export async function archiveCrmContact(client, context, id, expectations = {}) {
   try {
-    assertWritableScope(context);
     const existing = await getCrmContact(client, context, id);
     assertExpectedRecordVersion(existing, expectations.expectedUpdatedAt, {
       entityLabel: "Contact",

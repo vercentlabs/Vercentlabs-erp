@@ -1,6 +1,5 @@
 // The one global record-search provider registry. Each provider reuses the
-// module's own list function, which applies company/branch scope, record
-// ownership/team rules and sensitive-field projection; search never bypasses
+// module's own list function, which applies record ownership/team rules and sensitive-field projection; search never bypasses
 // that. Providers return a small safe DTO only (no email, phone, bank, cost...).
 // Register a provider here only when its domain list function is proven safe.
 import { listBusinessDataRecords } from "../../core/master-data.js";

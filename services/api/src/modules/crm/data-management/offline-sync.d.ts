@@ -2,8 +2,6 @@ import type { QueryClient } from "../../../index.js";
 export type CrmOfflineContext = {
   organizationId: string;
   userId: string;
-  activeCompanyId?: string | null;
-  activeBranchId?: string | null;
 };
 export const CRM_OFFLINE_CAPABILITY_IDS: readonly string[];
 export class CrmOfflineSyncError extends Error {

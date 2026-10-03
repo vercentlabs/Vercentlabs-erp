@@ -16,7 +16,7 @@ export async function searchPointOfSaleCustomers(client, context, input = {}) {
   const limit = Math.min(Math.max(Number(input.limit) || 20, 1), MAX_LIMIT);
   const offset = Math.max(Number(input.offset) || 0, 0);
 
-  const values = [context.organizationId, context.companyId];
+  const values = [context.organizationId];
   let filter = "";
   if (term) {
     values.push(`%${term.toLowerCase()}%`);
@@ -27,7 +27,7 @@ export async function searchPointOfSaleCustomers(client, context, input = {}) {
   const result = await client.query(
     `SELECT id,code,display_name,phone,email
        FROM tenant.business_parties
-      WHERE organization_id=$1 AND (company_id IS NULL OR company_id=$2)
+      WHERE organization_id=$1
         AND party_type IN ('customer','both') AND status='active'${filter}
       ORDER BY display_name
       LIMIT $${values.length - 1} OFFSET $${values.length}`,

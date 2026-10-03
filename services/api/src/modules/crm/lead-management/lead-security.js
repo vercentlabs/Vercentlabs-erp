@@ -59,18 +59,6 @@ export function projectLeadForContext(context, record) {
 
 export function leadScopeSql(context, values, alias = "lead") {
   let sql = "";
-  if (context.activeCompanyId) {
-    values.push(context.activeCompanyId);
-    sql += ` AND (${alias}.company_id IS NULL OR ${alias}.company_id=$${values.length})`;
-  } else if (!context.allowAllCompanies) {
-    return " AND false";
-  }
-  if (context.activeBranchId) {
-    values.push(context.activeBranchId);
-    sql += ` AND (${alias}.branch_id IS NULL OR ${alias}.branch_id=$${values.length})`;
-  } else if (!context.allowAllCompanies) {
-    return sql + " AND false";
-  }
   sql += crmOwnerScopeSql(context, (value) => { values.push(value); return `$${values.length}`; }, `${alias}.owner_user_id`, `${alias}.organization_id`, { resource: "leads", alias: alias });
   return sql;
 }

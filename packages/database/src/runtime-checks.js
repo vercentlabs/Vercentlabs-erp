@@ -71,16 +71,12 @@ export async function verifyRestrictedRuntimeRole(queryable, label = "DATABASE_U
 }
 
 /**
- * Compares applied expand migrations with the ones this build was compiled
- * against. Missing = the database is behind this code (not ready). Contract
- * migrations are never required for readiness.
+ * Compares applied migrations with the ones this build was compiled against.
+ * Missing = the database is behind this code (not ready).
  */
 export async function readMigrationStatus(queryable, expected = EXPECTED_MIGRATIONS) {
-  const { rows } = await queryable.query(`SELECT scope, filename FROM public.schema_migrations WHERE filename NOT LIKE 'contracts/%'`);
-  const applied = new Set(rows.map((row) => `${row.scope}/${row.filename}`));
-  const missing = [];
-  for (const scope of ["platform", "tenant"]) {
-    for (const filename of expected[scope] ?? []) if (!applied.has(`${scope}/${filename}`)) missing.push(`${scope}/${filename}`);
-  }
-  return { ready: missing.length === 0, missing, latest: { platform: expected.platform?.at(-1) ?? null, tenant: expected.tenant?.at(-1) ?? null } };
+  const { rows } = await queryable.query(`SELECT filename FROM public.schema_migrations`);
+  const applied = new Set(rows.map((row) => row.filename));
+  const missing = expected.filter((filename) => !applied.has(filename));
+  return { ready: missing.length === 0, missing, latest: expected.at(-1) ?? null };
 }

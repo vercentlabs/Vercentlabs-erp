@@ -14,7 +14,7 @@ export const payloadSchema = z
 
 // F012 safe stage deactivation is an org-wide governance action — it must
 // move every affected Opportunity regardless of the triggering admin's own
-// company/branch/owner scope, since the alternative is silently leaving
+// owner scope, since the alternative is silently leaving
 // out-of-scope Opportunities stranded on the very stage being retired. The
 // crmSettingsManage gate already happened once, at enqueue time (the API
 // route). Mirrors crm-lead-stage-migration.js's own reasoning exactly.
@@ -22,9 +22,6 @@ function migrationSystemContext(organizationId, payload) {
   return Object.freeze({
     organizationId,
     userId: payload.requesterUserId,
-    activeCompanyId: null,
-    activeBranchId: null,
-    allowAllCompanies: true,
     permissions: ["crm.records.view_all", "crm.opportunities.manage", "crm.settings.manage"],
     roleSlugs: ["system_worker"],
   });

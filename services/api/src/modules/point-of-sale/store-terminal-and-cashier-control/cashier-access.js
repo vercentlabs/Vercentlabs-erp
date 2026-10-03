@@ -8,7 +8,7 @@
 // still governed entirely by the platform's roles/permissions (pos_cashier/
 // pos_supervisor/pos_manager, or any custom role holding a pos.* grant);
 // this file only answers "at which store(s)."
-import { requireCompanyRecord } from "../../../core/references.js";
+import { requireOrganizationRecord } from "../../../core/references.js";
 import { posError } from "../shared/errors.js";
 import { requirePermission } from "../shared/access-control.js";
 
@@ -32,12 +32,12 @@ export async function listPosEligibleCashiers(client, context) {
        LEFT JOIN public.roles r
          ON r.id = ura.role_id AND r.organization_id = om.organization_id AND r.status = 'active' AND r.module_key = 'point-of-sale'
        LEFT JOIN tenant.pos_store_access psa
-         ON psa.organization_id = om.organization_id AND psa.user_id = om.user_id AND psa.company_id = $2
+         ON psa.organization_id = om.organization_id AND psa.user_id = om.user_id
       WHERE om.organization_id = $1 AND om.status = 'active' AND u.status = 'active'
       GROUP BY u.id, u.full_name, u.email
      HAVING count(r.id) > 0
       ORDER BY u.full_name`,
-    [context.organizationId, context.companyId],
+    [context.organizationId],
   );
   return result.rows.map((row) => ({
     id: row.id,
@@ -60,9 +60,9 @@ export async function listPosStoreAccess(client, context, storeId) {
        FROM tenant.pos_store_access psa
        JOIN public.users u ON u.id = psa.user_id
        LEFT JOIN tenant.pos_terminals terminal ON terminal.organization_id = psa.organization_id AND terminal.id = psa.terminal_id
-      WHERE psa.organization_id = $1 AND psa.company_id = $2 AND ($3::uuid IS NULL OR psa.store_id = $3)
+      WHERE psa.organization_id = $1 AND ($2::uuid IS NULL OR psa.store_id = $2)
       ORDER BY u.full_name, terminal.name NULLS FIRST`,
-    [context.organizationId, context.companyId, storeId || null],
+    [context.organizationId, storeId || null],
   );
   return result.rows.map((row) => ({
     id: row.id,
@@ -84,18 +84,18 @@ export async function grantPosStoreAccess(client, context, input) {
     input.userId,
   ]);
   if (!member.rows[0]) throw posError(404, "That user is not an active member of this organization.", "POS_STORE_ACCESS_USER_INVALID");
-  const store = await requireCompanyRecord(client, context, "pos_store", input.storeId);
+  const store = await requireOrganizationRecord(client, context, "pos_store", input.storeId);
   let terminalId = null;
   if (input.terminalId) {
-    const terminal = await requireCompanyRecord(client, context, "pos_terminal", input.terminalId);
+    const terminal = await requireOrganizationRecord(client, context, "pos_terminal", input.terminalId);
     if (terminal.store_id !== store.id) throw posError(409, "The selected terminal does not belong to the selected store.", "POS_TERMINAL_STORE_MISMATCH");
     terminalId = terminal.id;
   }
   await client.query(
-    `INSERT INTO tenant.pos_store_access (organization_id,company_id,user_id,store_id,terminal_id,created_by)
-     VALUES ($1,$2,$3,$4,$5,$6)
+    `INSERT INTO tenant.pos_store_access (organization_id,user_id,store_id,terminal_id,created_by)
+     VALUES ($1,$2,$3,$4,$5)
      ON CONFLICT (organization_id,user_id,store_id) WHERE terminal_id IS NULL DO NOTHING`,
-    [context.organizationId, context.companyId, input.userId, input.storeId, terminalId, context.userId],
+    [context.organizationId, input.userId, input.storeId, terminalId, context.userId],
   ).catch(async (error) => {
     // The two partial unique indexes (migration 128) can't both be named
     // in one ON CONFLICT target -- a terminal-specific insert that
@@ -103,10 +103,10 @@ export async function grantPosStoreAccess(client, context, input) {
     // a second INSERT statement guessing which index applies up front.
     if (error.code !== "23505") throw error;
     await client.query(
-      `INSERT INTO tenant.pos_store_access (organization_id,company_id,user_id,store_id,terminal_id,created_by)
-       VALUES ($1,$2,$3,$4,$5,$6)
+      `INSERT INTO tenant.pos_store_access (organization_id,user_id,store_id,terminal_id,created_by)
+       VALUES ($1,$2,$3,$4,$5)
        ON CONFLICT (organization_id,user_id,store_id,terminal_id) WHERE terminal_id IS NOT NULL DO NOTHING`,
-      [context.organizationId, context.companyId, input.userId, input.storeId, terminalId, context.userId],
+      [context.organizationId, input.userId, input.storeId, terminalId, context.userId],
     );
   });
   const row = await client.query(

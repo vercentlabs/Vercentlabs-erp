@@ -22,8 +22,6 @@ export class EntitlementError extends Error {
 
 
 const DEFAULT_LIMITS = Object.freeze({
-  companies: 1,
-  branches: 2,
   storage_gb: 25,
   api_requests_monthly: 100_000,
   automation_actions_monthly: 5_000,
@@ -145,9 +143,8 @@ export async function getBillingSummary(client, organizationId, env = process.en
 // BILLING_ENFORCEMENT_MODE is set explicitly). It grants unrestricted
 // module/limit access, matching this codebase's existing "observe mode
 // never blocks" contract, but it is an explicit, typed sentinel rather
-// than a bare null -- callers such as assertModuleEntitlement/
-// assertOrganizationLimit read summary.modules/summary.limits
-// unconditionally, so returning null here was a latent crash waiting for
+// than a bare null -- callers such as assertModuleEntitlement read
+// summary.modules/summary.limits unconditionally, so returning null here was a latent crash waiting for
 // the first real caller.
 function unprovisionedObserveSummary(env) {
   return {
@@ -309,27 +306,4 @@ export async function assertModuleEntitlement(client, organizationId, moduleKey,
     );
   }
   return summary;
-}
-
-export async function assertOrganizationLimit(client, organizationId, limitKey, env = process.env) {
-  const summary = await requireBillingWriteAccess(client, organizationId, env);
-  const maximum = Number(summary.limits[limitKey] || 0);
-  if (maximum <= 0 || summary.enforcementMode !== "enforce") return;
-
-  await client.query("SELECT pg_advisory_xact_lock(hashtext($1), hashtext($2))", [
-    organizationId,
-    `billing-limit:${limitKey}`,
-  ]);
-  const table = limitKey === "companies" ? "companies" : "branches";
-  const result = await client.query(
-    `SELECT count(*)::int AS count FROM ${table} WHERE organization_id = $1 AND status = 'active'`,
-    [organizationId],
-  );
-  const current = result.rows[0]?.count || 0;
-  if (current >= maximum) {
-    throw new EntitlementError(
-      402,
-      `The ${summary.planName} plan includes ${maximum} ${limitKey}. Upgrade the subscription before adding another.`,
-    );
-  }
 }

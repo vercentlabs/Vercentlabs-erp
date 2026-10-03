@@ -95,7 +95,7 @@ export function AssetsSettingsScreen() {
     <div className="flex flex-col gap-4">
       <PageHeader
         title="Asset settings"
-        description="Approval controls, depreciation defaults and maintenance lead time for this company."
+        description="Approval controls, depreciation defaults and maintenance lead time for your organization."
       />
       {error && <AssetsAlert>{error}</AssetsAlert>}
       {message && <AssetsAlert tone="success">{message}</AssetsAlert>}

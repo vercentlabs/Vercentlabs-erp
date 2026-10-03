@@ -5,7 +5,7 @@
 //   module released + enabled + entitled (WorkspaceAccessSnapshot), the
 //   dataset's permissions, then the module's own scoped read. Execution uses
 //   the requester's CURRENT authority, rebuilt from the database - a revoked
-//   permission or company access stops a queued run.
+//   permission stops a queued run.
 // A definition itself never carries a schedule (an inline schedule is refused);
 // recurring delivery is a separate report_schedules row (schedules.js).
 import { rowsToCsv } from "@vercentlabs/reporting-engine";
@@ -133,7 +133,7 @@ export async function requestReportRun(client, session, accessibleModules, input
     await client.query(
       `INSERT INTO tenant.background_jobs (organization_id, job_type, payload, status, run_at, priority, max_attempts, requested_by, progress, result_manifest)
        VALUES ($1,$2,$3::jsonb,'pending',now(),60,3,$4,'{}'::jsonb,'{}'::jsonb) RETURNING id`,
-      [session.organizationId, REPORT_RUN_JOB_TYPE, JSON.stringify({ reportRunId: run.id, activeCompanyId: session.activeCompanyId ?? null, activeBranchId: session.activeBranchId ?? null }), session.userId],
+      [session.organizationId, REPORT_RUN_JOB_TYPE, JSON.stringify({ reportRunId: run.id }), session.userId],
     )
   ).rows[0];
   await client.query(`UPDATE report_runs SET job_id=$2 WHERE id=$1`, [run.id, job.id]);
@@ -176,7 +176,7 @@ export async function executeReportRun(client, organizationId, payload, { env = 
   const run = (await client.query(`SELECT * FROM report_runs WHERE organization_id=$1 AND id=$2 FOR UPDATE`, [organizationId, payload.reportRunId])).rows[0];
   if (!run || !["queued", "running"].includes(run.status)) return { skipped: true };
   await client.query(`UPDATE report_runs SET status='running', started_at=COALESCE(started_at, now()) WHERE id=$1`, [run.id]);
-  const context = await resolveMemberExecutionContext(client, organizationId, { userId: run.requested_by, activeCompanyId: payload.activeCompanyId, activeBranchId: payload.activeBranchId });
+  const context = await resolveMemberExecutionContext(client, organizationId, { userId: run.requested_by });
   if (!context) throw new ReportError(403, "The requester can no longer run this report.", "REPORT_REQUESTER_UNAUTHORIZED");
   const snapshot = await buildWorkspaceAccessSnapshot(client, context, { env });
   const dataset = datasetFor(context, snapshot.accessibleModules, run.dataset_key);

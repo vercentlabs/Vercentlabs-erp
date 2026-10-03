@@ -18,8 +18,6 @@ export const BATCH_SIZE = 100;
 export const payloadSchema = z
   .object({
     requesterUserId: z.string().uuid(),
-    activeCompanyId: z.string().uuid().nullable(),
-    activeBranchId: z.string().uuid().nullable(),
     commandFingerprint: z.string().regex(/^[0-9a-f]{64}$/),
     changes: z
       .object({

@@ -4,7 +4,7 @@
 // provider (or a small adapter in front of it) POSTs a normalised JSON message
 // to /api/platform/mail/inbound/{routeKey} with
 //   X-Inbound-Signature: sha256=<hex HMAC-SHA256(route signing secret, raw body)>
-// The organisation, target and company come ONLY from the route; any
+// The organisation and target come ONLY from the route; any
 // organisation id in the body is ignored. A provider message id may be sent
 // once: a replay with identical content is a no-op, with different content it
 // is rejected.
@@ -42,8 +42,6 @@ function routeDto(row) {
     name: row.name,
     target: row.target,
     targetLabel: INBOUND_MAIL_TARGETS.find((target) => target.key === row.target)?.label ?? row.target,
-    companyId: row.company_id,
-    companyName: row.company_name ?? null,
     recordedAsUserId: row.recorded_as_user_id,
     recordedAsName: row.recorded_as_name ?? null,
     routeKeyPrefix: row.route_key_prefix,
@@ -56,9 +54,8 @@ function routeDto(row) {
 
 export async function listInboundMailRoutes(client, organizationId) {
   const { rows } = await client.query(
-    `SELECT route.*, company.name AS company_name, member.full_name AS recorded_as_name
+    `SELECT route.*, member.full_name AS recorded_as_name
        FROM inbound_mail_routes route
-       LEFT JOIN companies company ON company.id = route.company_id
        LEFT JOIN users member ON member.id = route.recorded_as_user_id
       WHERE route.organization_id=$1 ORDER BY (route.status='active') DESC, route.created_at DESC`,
     [organizationId],
@@ -71,20 +68,17 @@ export async function createInboundMailRoute(client, session, input, env = proce
   const name = String(input?.name || "").trim().slice(0, 120);
   if (!name) throw new InboundMailError(400, "Name the inbound address.", "PLATFORM_INBOUND_MAIL_INPUT_INVALID");
   if (!INBOUND_MAIL_TARGETS.some((target) => target.key === input?.target)) throw new InboundMailError(400, "Choose what incoming mail should do.", "PLATFORM_INBOUND_MAIL_TARGET_UNKNOWN");
-  if (!UUID.test(String(input?.companyId || ""))) throw new InboundMailError(400, "Choose the company.", "PLATFORM_INBOUND_MAIL_INPUT_INVALID");
-  const company = (await client.query(`SELECT id FROM companies WHERE organization_id=$1 AND id=$2 AND status='active'`, [session.organizationId, input.companyId])).rows[0];
-  if (!company) throw new InboundMailError(400, "Choose an active company.", "PLATFORM_INBOUND_MAIL_INPUT_INVALID");
   const recordedAs = UUID.test(String(input?.recordedAsUserId || "")) ? input.recordedAsUserId : session.userId;
   const member = (await client.query(`SELECT 1 FROM organization_memberships WHERE organization_id=$1 AND user_id=$2 AND status='active'`, [session.organizationId, recordedAs])).rows[0];
   if (!member) throw new InboundMailError(400, "Mail must be recorded as an active member.", "PLATFORM_INBOUND_MAIL_INPUT_INVALID");
   const routeKey = `imr_${randomBytes(24).toString("base64url")}`;
   const signingSecret = `whsec_${randomBytes(32).toString("base64url")}`;
   const { rows } = await client.query(
-    `INSERT INTO inbound_mail_routes (organization_id, name, route_key_hash, route_key_prefix, target, company_id, recorded_as_user_id, encrypted_signing_secret, created_by)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8::jsonb,$9) RETURNING *`,
-    [session.organizationId, name, hash(routeKey), routeKey.slice(0, 12), input.target, input.companyId, recordedAs, JSON.stringify(await encryptSecret({ secret: signingSecret }, env)), session.userId],
+    `INSERT INTO inbound_mail_routes (organization_id, name, route_key_hash, route_key_prefix, target, recorded_as_user_id, encrypted_signing_secret, created_by)
+     VALUES ($1,$2,$3,$4,$5,$6,$7::jsonb,$8) RETURNING *`,
+    [session.organizationId, name, hash(routeKey), routeKey.slice(0, 12), input.target, recordedAs, JSON.stringify(await encryptSecret({ secret: signingSecret }, env)), session.userId],
   );
-  await audit(client, { organizationId: session.organizationId, actorUserId: session.userId, eventType: "integration.inbound_route_created", entityType: "inbound_mail_route", entityId: rows[0].id, afterData: { name, target: input.target, companyId: input.companyId } });
+  await audit(client, { organizationId: session.organizationId, actorUserId: session.userId, eventType: "integration.inbound_route_created", entityType: "inbound_mail_route", entityId: rows[0].id, afterData: { name, target: input.target } });
   return { route: routeDto(rows[0]), routeKey, signingSecret };
 }
 

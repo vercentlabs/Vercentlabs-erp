@@ -20,7 +20,6 @@ export type MeetingLinkAvailability = Partial<
 
 export type MeetingLink = {
   id: string;
-  companyId: string | null;
   ownerUserId: string;
   name: string;
   slug: string | null;

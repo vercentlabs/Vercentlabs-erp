@@ -43,15 +43,15 @@ export async function addProjectComment(client, c, input) {
   await requireContributor(client, c, p);
   const mentions = [...new Set((input.mentions || []).map((m) => uuid(m, "Mention")))];
   for (const m of mentions) if (!(await isMember(client, c, p.id, m))) throw new ProjectError(409, "You can only mention people on the project team.", "PROJECT_MENTION_INVALID");
-  const res = await qx(client, `INSERT INTO tenant.project_comments(organization_id,company_id,project_id,entity_type,entity_id,body,mentions,internal,author_user_id) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *`,
-    [c.organizationId, c.companyId, p.id, type, id, requiredText(input.body, "Comment", 4000), mentions, input.internal !== false, c.userId]);
+  const res = await qx(client, `INSERT INTO tenant.project_comments(organization_id,project_id,entity_type,entity_id,body,mentions,internal,author_user_id) VALUES($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *`,
+    [c.organizationId, p.id, type, id, requiredText(input.body, "Comment", 4000), mentions, input.internal !== false, c.userId]);
   await recordEvent(client, c, "comment", res.rows[0].id, "project.comment.added", { entity: type, mentions: mentions.length });
   return res.rows[0];
 }
 
 export async function deleteProjectComment(client, c, commentId) {
   need(c, "projects.view");
-  const cm = (await qx(client, `SELECT * FROM tenant.project_comments WHERE organization_id=$1 AND company_id=$2 AND id=$3 AND deleted_at IS NULL`, [c.organizationId, c.companyId, uuid(commentId, "Comment")])).rows[0];
+  const cm = (await qx(client, `SELECT * FROM tenant.project_comments WHERE organization_id=$1 AND id=$2 AND deleted_at IS NULL`, [c.organizationId, uuid(commentId, "Comment")])).rows[0];
   if (!cm) throw new ProjectError(404, "Comment was not found.", "PROJECT_NOT_FOUND");
   const p = await loadProject(client, c, cm.project_id);
   if (cm.author_user_id !== c.userId && !isPm(c, p)) throw new ProjectError(403, "Only the author or a project manager can remove a comment.", "PROJECT_FORBIDDEN");
@@ -62,6 +62,6 @@ export async function deleteProjectComment(client, c, commentId) {
 // The comments that mention the caller (the "inbox" behind a mention).
 export async function listMyMentions(client, c) {
   need(c, "projects.view");
-  const res = await qx(client, `SELECT cm.id,cm.entity_type,cm.entity_id,cm.body,cm.created_at,p.project_number,u.full_name AS author_name FROM tenant.project_comments cm JOIN tenant.projects p ON p.id=cm.project_id LEFT JOIN public.users u ON u.id=cm.author_user_id WHERE cm.organization_id=$1 AND cm.company_id=$2 AND $3::uuid = ANY(cm.mentions) AND cm.deleted_at IS NULL ORDER BY cm.created_at DESC LIMIT 100`, [c.organizationId, c.companyId, c.userId]);
+  const res = await qx(client, `SELECT cm.id,cm.entity_type,cm.entity_id,cm.body,cm.created_at,p.project_number,u.full_name AS author_name FROM tenant.project_comments cm JOIN tenant.projects p ON p.id=cm.project_id LEFT JOIN public.users u ON u.id=cm.author_user_id WHERE cm.organization_id=$1 AND $2::uuid = ANY(cm.mentions) AND cm.deleted_at IS NULL ORDER BY cm.created_at DESC LIMIT 100`, [c.organizationId, c.userId]);
   return res.rows;
 }

@@ -12,7 +12,7 @@
 //
 // Authority: the route's narrow machine authority (see the threaded ticket, create a ticket, add an
 // inbound customer message) recorded as the route's configured member; the
-// organisation and company come only from the route. Business writes still
+// organisation comes only from the route. Business writes still
 // follow module enablement, plan entitlement and billing write access.
 import { requireBillingWriteAccess, getBillingSummary } from "../../core/billing/index.js";
 import { prepareFileUpload } from "../../core/platform/files/index.js";
@@ -35,7 +35,6 @@ const MAX_RAW_BODY = 30 * 1024 * 1024;
 function supportAuthority(route) {
   return {
     organizationId: route.organization_id,
-    companyId: route.company_id,
     userId: route.recorded_as_user_id,
     permissions: ["support.view", "support.ticket.create", "support.communication.manage"],
     roleSlugs: ["inbound_mail_route"],
@@ -76,15 +75,15 @@ async function findThread(client, route, message) {
     const { rows } = await client.query(
       `SELECT ticket.* FROM tenant.support_communications communication
          JOIN tenant.support_tickets ticket ON ticket.id = communication.ticket_id AND ticket.organization_id = communication.organization_id
-        WHERE communication.organization_id=$1 AND communication.company_id=$2 AND communication.external_message_id = ANY($3::text[])
+        WHERE communication.organization_id=$1 AND communication.external_message_id = ANY($2::text[])
         ORDER BY communication.created_at DESC LIMIT 1`,
-      [route.organization_id, route.company_id, message.references],
+      [route.organization_id, message.references],
     );
     if (rows[0]) return rows[0];
   }
   const token = /\[([A-Z0-9/_-]{1,24}-\d{1,12})\]/.exec(message.subject)?.[1];
   if (token) {
-    const { rows } = await client.query(`SELECT * FROM tenant.support_tickets WHERE organization_id=$1 AND company_id=$2 AND ticket_number=$3 LIMIT 1`, [route.organization_id, route.company_id, token]);
+    const { rows } = await client.query(`SELECT * FROM tenant.support_tickets WHERE organization_id=$1 AND ticket_number=$2 LIMIT 1`, [route.organization_id, token]);
     if (rows[0]) return rows[0];
   }
   return null;
@@ -94,8 +93,8 @@ async function deliverToSupport(client, route, message, prepared) {
   const authority = supportAuthority(route);
   const duplicate = (
     await client.query(
-      `SELECT id, ticket_id FROM tenant.support_communications WHERE organization_id=$1 AND company_id=$2 AND external_message_id=$3 LIMIT 1`,
-      [route.organization_id, route.company_id, message.messageId],
+      `SELECT id, ticket_id FROM tenant.support_communications WHERE organization_id=$1 AND external_message_id=$2 LIMIT 1`,
+      [route.organization_id, message.messageId],
     )
   ).rows[0];
   if (duplicate) return { outcome: "duplicate", ticketId: duplicate.ticket_id, communicationId: duplicate.id };

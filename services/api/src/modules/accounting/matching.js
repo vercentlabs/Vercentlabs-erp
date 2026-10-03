@@ -36,9 +36,6 @@ export async function evaluateVendorBillMatch(client, context, billIdValue, inpu
   const bill = billResult.rows[0];
   if (!bill) throw new AccountingError(404, "Vendor bill was not found.");
   if (!["draft", "approved"].includes(bill.status)) throw new AccountingError(409, "Only an unposted bill can be matched.");
-  if (!context.allowAllCompanies && context.activeCompanyId && bill.company_id !== context.activeCompanyId) {
-    throw new AccountingError(403, "Switch to the bill company before matching it.");
-  }
   const matchType = ["two_way", "three_way", "manual"].includes(input.matchType) ? input.matchType : "manual";
   const orderedAmount = decimal(input.orderedAmount ?? bill.grand_total);
   const receivedAmount = decimal(input.receivedAmount ?? (matchType === "three_way" ? 0 : bill.grand_total));

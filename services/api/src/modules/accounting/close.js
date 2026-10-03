@@ -6,7 +6,6 @@ import {
   decimal,
   event,
   getPrimaryLedger,
-  loadCompany,
   requirePermission,
   text,
   uuid,
@@ -21,47 +20,43 @@ const DEFAULT_TASKS = [
   [70, "lock", "Approve and lock the accounting period"],
 ];
 
-export async function listFiscalPeriods(client, context, filters = {}) {
+export async function listFiscalPeriods(client, context, _filters = {}) {
   requirePermission(context, ACCOUNTING_PERMISSIONS.view);
-  const values = [context.organizationId]; let where = "";
-  if (!context.allowAllCompanies && context.activeCompanyId) { values.push(context.activeCompanyId); where += ` AND period.company_id=$${values.length}`; }
-  if (filters.companyId) { values.push(uuid(filters.companyId, "Company")); where += ` AND period.company_id=$${values.length}`; }
-  const result = await client.query(`SELECT period.*,company.name AS company_name FROM tenant.fiscal_periods period JOIN public.companies company ON company.id=period.company_id WHERE period.organization_id=$1${where} ORDER BY period.start_date DESC`, values);
+  const result = await client.query(`SELECT period.* FROM tenant.fiscal_periods period WHERE period.organization_id=$1 ORDER BY period.start_date DESC`, [context.organizationId]);
   return result.rows;
 }
 
-async function periodBlockers(client, context, companyId, period) {
-  const parameters = [context.organizationId, companyId, period.start_date, period.end_date];
+async function periodBlockers(client, context, period) {
+  const parameters = [context.organizationId, period.start_date, period.end_date];
   const result = await client.query(
     `SELECT
       (SELECT count(*) FROM tenant.accounting_journal_entries entry
-        WHERE entry.organization_id=$1 AND entry.company_id=$2 AND entry.accounting_date BETWEEN $3 AND $4
+        WHERE entry.organization_id=$1 AND entry.accounting_date BETWEEN $2 AND $3
           AND entry.status IN ('draft','pending_approval','approved'))::int AS unposted_journals,
       (SELECT count(*) FROM tenant.accounting_reconciliations reconciliation
-        WHERE reconciliation.organization_id=$1 AND reconciliation.company_id=$2
-          AND reconciliation.reconciliation_date BETWEEN $3 AND $4
+        WHERE reconciliation.organization_id=$1
+          AND reconciliation.reconciliation_date BETWEEN $2 AND $3
           AND reconciliation.status IN ('in_progress','reopened'))::int AS open_bank_reconciliations,
       (SELECT count(*) FROM tenant.accounting_bank_statement_lines line
         JOIN tenant.accounting_bank_statements statement ON statement.id=line.bank_statement_id
-        WHERE line.organization_id=$1 AND statement.company_id=$2 AND statement.period_end BETWEEN $3 AND $4
+        WHERE line.organization_id=$1 AND statement.period_end BETWEEN $2 AND $3
           AND line.match_status NOT IN ('matched','ignored'))::int AS unreconciled_bank_lines,
       (SELECT count(*) FROM tenant.accounting_customer_invoices invoice
-        WHERE invoice.organization_id=$1 AND invoice.company_id=$2 AND invoice.accounting_date BETWEEN $3 AND $4
+        WHERE invoice.organization_id=$1 AND invoice.accounting_date BETWEEN $2 AND $3
           AND invoice.status IN ('draft','pending_approval','approved'))::int AS unposted_customer_documents,
       (SELECT count(*) FROM tenant.accounting_vendor_bills bill
-        WHERE bill.organization_id=$1 AND bill.company_id=$2 AND bill.accounting_date BETWEEN $3 AND $4
+        WHERE bill.organization_id=$1 AND bill.accounting_date BETWEEN $2 AND $3
           AND bill.status IN ('draft','pending_approval','approved'))::int AS unposted_vendor_documents,
       (SELECT count(*) FROM tenant.accounting_vendor_payments payment
-        WHERE payment.organization_id=$1 AND payment.company_id=$2 AND payment.accounting_date BETWEEN $3 AND $4
+        WHERE payment.organization_id=$1 AND payment.accounting_date BETWEEN $2 AND $3
           AND payment.status IN ('draft','pending_approval','approved'))::int AS unposted_vendor_payments,
       (SELECT count(*) FROM tenant.accounting_vendor_bill_matches match
         JOIN tenant.accounting_vendor_bills bill ON bill.id=match.vendor_bill_id
-        WHERE match.organization_id=$1 AND bill.company_id=$2 AND bill.accounting_date BETWEEN $3 AND $4
+        WHERE match.organization_id=$1 AND bill.accounting_date BETWEEN $2 AND $3
           AND match.status='exception')::int AS matching_exceptions,
       (SELECT count(*) FROM tenant.sales_invoice_requests request
-        JOIN tenant.sales_orders sales_order ON sales_order.id=request.sales_order_id
-        WHERE request.organization_id=$1 AND sales_order.company_id=$2
-          AND request.requested_at::date BETWEEN $3 AND $4 AND request.status='failed')::int AS failed_sales_invoice_requests`,
+        WHERE request.organization_id=$1
+          AND request.requested_at::date BETWEEN $2 AND $3 AND request.status='failed')::int AS failed_sales_invoice_requests`,
     parameters,
   );
   const counts = result.rows[0] || {};
@@ -70,13 +65,12 @@ async function periodBlockers(client, context, companyId, period) {
     .map(([key, value]) => ({ key, count: Number(value), message: `${String(key).replaceAll("_", " ")}: ${value}` }));
 }
 
-export async function getPeriodCloseBlockers(client, context, companyIdValue, periodIdValue) {
+export async function getPeriodCloseBlockers(client, context, periodIdValue) {
   requirePermission(context, ACCOUNTING_PERMISSIONS.view);
-  const company = await loadCompany(client, context, companyIdValue || context.activeCompanyId);
   const periodId = uuid(periodIdValue, "Fiscal period");
-  const periodResult = await client.query(`SELECT * FROM tenant.fiscal_periods WHERE organization_id=$1 AND company_id=$2 AND id=$3`, [context.organizationId, company.id, periodId]);
-  if (!periodResult.rows[0]) throw new AccountingError(404, "Fiscal period was not found for this company.");
-  return periodBlockers(client, context, company.id, periodResult.rows[0]);
+  const periodResult = await client.query(`SELECT * FROM tenant.fiscal_periods WHERE organization_id=$1 AND id=$2`, [context.organizationId, periodId]);
+  if (!periodResult.rows[0]) throw new AccountingError(404, "Fiscal period was not found.");
+  return periodBlockers(client, context, periodResult.rows[0]);
 }
 
 export async function updateFiscalPeriodStatus(client, context, idValue, input) {
@@ -100,28 +94,18 @@ export async function updateFiscalPeriodStatus(client, context, idValue, input) 
 
 export async function createCloseRun(client, context, input) {
   requirePermission(context, ACCOUNTING_PERMISSIONS.closeManage);
-  const company = await loadCompany(
-    client,
-    context,
-    input.companyId || context.activeCompanyId,
-  );
-  const ledger = await getPrimaryLedger(
-    client,
-    context,
-    company.id,
-    input.ledgerId,
-  );
+  const ledger = await getPrimaryLedger(client, context, input.ledgerId);
   const periodId = uuid(input.fiscalPeriodId, "Fiscal period");
   const period = await client.query(
     `SELECT *
        FROM tenant.fiscal_periods
-      WHERE organization_id=$1 AND company_id=$2 AND id=$3
+      WHERE organization_id=$1 AND id=$2
       FOR UPDATE`,
-    [context.organizationId, company.id, periodId],
+    [context.organizationId, periodId],
   );
   const fiscalPeriod = period.rows[0];
   if (!fiscalPeriod) {
-    throw new AccountingError(404, "Fiscal period was not found for this company.");
+    throw new AccountingError(404, "Fiscal period was not found.");
   }
   if (!["open", "soft_closed"].includes(fiscalPeriod.status)) {
     throw new AccountingError(
@@ -132,11 +116,11 @@ export async function createCloseRun(client, context, input) {
   const active = await client.query(
     `SELECT id
        FROM tenant.accounting_close_runs
-      WHERE organization_id=$1 AND company_id=$2 AND ledger_id=$3
-        AND fiscal_period_id=$4
+      WHERE organization_id=$1 AND ledger_id=$2
+        AND fiscal_period_id=$3
         AND status IN ('planned','in_progress','blocked')
       FOR UPDATE`,
-    [context.organizationId, company.id, ledger.id, periodId],
+    [context.organizationId, ledger.id, periodId],
   );
   if (active.rows[0]) {
     throw new AccountingError(
@@ -156,13 +140,12 @@ export async function createCloseRun(client, context, input) {
     : "month";
   const result = await client.query(
     `INSERT INTO tenant.accounting_close_runs (
-       organization_id,company_id,ledger_id,fiscal_period_id,run_number,
+       organization_id,ledger_id,fiscal_period_id,run_number,
        close_type,status,created_at
-     ) VALUES ($1,$2,$3,$4,$5,$6,'planned',now())
+     ) VALUES ($1,$2,$3,$4,$5,'planned',now())
      RETURNING *`,
     [
       context.organizationId,
-      company.id,
       ledger.id,
       periodId,
       runNumber,
@@ -203,19 +186,17 @@ export async function createCloseRun(client, context, input) {
 
 export async function listCloseRuns(client, context) {
   requirePermission(context, ACCOUNTING_PERMISSIONS.view);
-  const values = [context.organizationId]; let where = "";
-  if (!context.allowAllCompanies && context.activeCompanyId) { values.push(context.activeCompanyId); where = ` AND run.company_id=$2`; }
-  const result = await client.query(`SELECT run.*,period.name AS period_name,company.name AS company_name FROM tenant.accounting_close_runs run JOIN tenant.fiscal_periods period ON period.id=run.fiscal_period_id JOIN public.companies company ON company.id=run.company_id WHERE run.organization_id=$1${where} ORDER BY run.created_at DESC`, values);
+  const result = await client.query(`SELECT run.*,period.name AS period_name FROM tenant.accounting_close_runs run JOIN tenant.fiscal_periods period ON period.id=run.fiscal_period_id WHERE run.organization_id=$1 ORDER BY run.created_at DESC`, [context.organizationId]);
   return result.rows;
 }
 
 export async function getCloseRun(client, context, idValue) {
   requirePermission(context, ACCOUNTING_PERMISSIONS.view);
   const id = uuid(idValue, "Close run");
-  const run = await client.query(`SELECT run.*,period.name AS period_name,period.start_date AS period_start_date,period.end_date AS period_end_date,period.status AS period_status,company.name AS company_name FROM tenant.accounting_close_runs run JOIN tenant.fiscal_periods period ON period.id=run.fiscal_period_id JOIN public.companies company ON company.id=run.company_id WHERE run.organization_id=$1 AND run.id=$2`, [context.organizationId, id]);
+  const run = await client.query(`SELECT run.*,period.name AS period_name,period.start_date AS period_start_date,period.end_date AS period_end_date,period.status AS period_status FROM tenant.accounting_close_runs run JOIN tenant.fiscal_periods period ON period.id=run.fiscal_period_id WHERE run.organization_id=$1 AND run.id=$2`, [context.organizationId, id]);
   if (!run.rows[0]) throw new AccountingError(404, "Close run not found.");
   const tasks = await client.query(`SELECT * FROM tenant.accounting_close_tasks WHERE organization_id=$1 AND close_run_id=$2 ORDER BY sequence`, [context.organizationId, id]);
-  const blockers = await periodBlockers(client, context, run.rows[0].company_id, { start_date: run.rows[0].period_start_date, end_date: run.rows[0].period_end_date });
+  const blockers = await periodBlockers(client, context, { start_date: run.rows[0].period_start_date, end_date: run.rows[0].period_end_date });
   return { run: run.rows[0], tasks: tasks.rows, blockers };
 }
 
@@ -399,20 +380,20 @@ async function postYearEndClosingJournal(client, context, detail) {
      FROM tenant.accounting_accounts account
      JOIN tenant.accounting_journal_lines line ON line.organization_id=account.organization_id AND line.account_id=account.id
      JOIN tenant.accounting_journal_entries entry ON entry.id=line.journal_entry_id
-     WHERE account.organization_id=$1 AND account.company_id=$2 AND account.ledger_id=$3
+     WHERE account.organization_id=$1 AND account.ledger_id=$2
        AND account.account_class IN ('revenue','expense') AND entry.status='posted'
-       AND entry.accounting_date BETWEEN $4 AND $5
+       AND entry.accounting_date BETWEEN $3 AND $4
        AND NOT (entry.source_type='year_end_close' AND entry.entry_type='closing')
      GROUP BY account.id,account.code,account.name,account.account_class
      HAVING COALESCE(sum(line.base_debit_amount-line.base_credit_amount),0)<>0
      ORDER BY account.code`,
-    [context.organizationId, detail.run.company_id, detail.run.ledger_id, detail.run.period_start_date, detail.run.period_end_date],
+    [context.organizationId, detail.run.ledger_id, detail.run.period_start_date, detail.run.period_end_date],
   );
   if (!balances.rows.length) return null;
-  const setup = await client.query(`SELECT retained_earnings_account_id FROM tenant.accounting_settings WHERE organization_id=$1 AND company_id=$2`, [context.organizationId, detail.run.company_id]);
+  const setup = await client.query(`SELECT retained_earnings_account_id FROM tenant.accounting_settings WHERE organization_id=$1`, [context.organizationId]);
   const retainedAccountId = setup.rows[0]?.retained_earnings_account_id;
   if (!retainedAccountId) throw new AccountingError(409, "Retained earnings account is not configured.");
-  const journal = await client.query(`SELECT id FROM tenant.accounting_journals WHERE organization_id=$1 AND company_id=$2 AND ledger_id=$3 AND journal_type='closing' AND status='active' ORDER BY created_at LIMIT 1`, [context.organizationId, detail.run.company_id, detail.run.ledger_id]);
+  const journal = await client.query(`SELECT id FROM tenant.accounting_journals WHERE organization_id=$1 AND ledger_id=$2 AND journal_type='closing' AND status='active' ORDER BY created_at LIMIT 1`, [context.organizationId, detail.run.ledger_id]);
   if (!journal.rows[0]) throw new AccountingError(409, "Closing journal is not configured.");
   const lines = [];
   let totalDebit = 0n;
@@ -433,7 +414,6 @@ async function postYearEndClosingJournal(client, context, detail) {
   else if (difference < 0n) lines.push({ accountId: retainedAccountId, debit: asDatabaseDecimal(-difference), credit: 0, description: "Transfer annual profit or loss to retained earnings" });
   if (lines.length < 2) return null;
   const created = await createJournalEntry(client, context, {
-    companyId: detail.run.company_id,
     ledgerId: detail.run.ledger_id,
     journalId: journal.rows[0].id,
     entryDate: detail.run.period_end_date,
@@ -459,11 +439,9 @@ export async function completeCloseRun(client, context, idValue, input = {}) {
     `SELECT run.*,period.name AS period_name,
             period.start_date AS period_start_date,
             period.end_date AS period_end_date,
-            period.status AS period_status,
-            company.name AS company_name
+            period.status AS period_status
        FROM tenant.accounting_close_runs run
        JOIN tenant.fiscal_periods period ON period.id=run.fiscal_period_id
-       JOIN public.companies company ON company.id=run.company_id
       WHERE run.organization_id=$1 AND run.id=$2
       FOR UPDATE OF run,period`,
     [context.organizationId, id],
@@ -491,7 +469,7 @@ export async function completeCloseRun(client, context, idValue, input = {}) {
   const detail = {
     run,
     tasks: tasks.rows,
-    blockers: await periodBlockers(client, context, run.company_id, {
+    blockers: await periodBlockers(client, context, {
       start_date: run.period_start_date,
       end_date: run.period_end_date,
     }),

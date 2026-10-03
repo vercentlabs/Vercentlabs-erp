@@ -1,7 +1,7 @@
 import type { ObjectStorage } from "@vercentlabs/document-engine";
 
 type Client = { query(text: string, values?: unknown[]): Promise<{ rows: any[] }> };
-type Session = { organizationId: string; userId: string; activeCompanyId?: string | null; activeBranchId?: string | null; permissions: readonly string[]; roleSlugs: readonly string[] };
+type Session = { organizationId: string; userId: string; permissions: readonly string[]; roleSlugs: readonly string[] };
 type Env = Record<string, string | undefined>;
 
 export const REPORT_RUN_JOB_TYPE: string;
@@ -17,6 +17,6 @@ export function requestReportRun(client: Client, session: Session, accessibleMod
 export function listReportRuns(client: Client, session: Session): Promise<
   Array<{ id: string; datasetKey: string; datasetLabel: string; definitionName: string | null; status: string; rowCount: number | null; error: string | null; requestedByName: string | null; requestedAt: string; completedAt: string | null; downloadable: boolean; outputExpiresAt: string | null }>
 >;
-export function executeReportRun(client: Client, organizationId: string, payload: { reportRunId: string; activeCompanyId?: string | null; activeBranchId?: string | null }, options?: { env?: Env; storage?: ObjectStorage }): Promise<{ rowCount?: number; fileId?: string; skipped?: boolean }>;
+export function executeReportRun(client: Client, organizationId: string, payload: { reportRunId: string }, options?: { env?: Env; storage?: ObjectStorage }): Promise<{ rowCount?: number; fileId?: string; skipped?: boolean }>;
 export function failReportRun(client: Client, organizationId: string, reportRunId: string, error: unknown): Promise<void>;
 export function readReportRunOutput(client: Client, session: Session, runId: string, options?: { storage?: ObjectStorage }): Promise<{ id: string; fileName: string; mimeType: string; sizeBytes: number; contentSha256: string | null; body: Buffer }>;

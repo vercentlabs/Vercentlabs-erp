@@ -1,4 +1,4 @@
-import { requireCompanyRecord } from "../../../core/references.js";
+import { requireOrganizationRecord } from "../../../core/references.js";
 import { posError } from "../shared/errors.js";
 import { requirePermission, assertPosStoreAccess } from "../shared/access-control.js";
 
@@ -7,14 +7,14 @@ const MAX_SEARCH_RESULTS = 50;
 const MAX_SEARCH_TERM_LENGTH = 100;
 
 // F272: bounded product search by name/code/barcode, across both plain
-// items and item variants, scoped to the active store's company and
+// items and item variants, scoped to the organization and
 // excluding cost fields entirely (no cost leakage to ordinary cashiers —
 // standard_cost/purchase_price are never selected here, regardless of the
 // caller's permissions; a cashier does not need margin visibility to ring
 // up a sale).
 export async function searchPointOfSalePosProducts(client, context, storeId, input = {}) {
   requirePermission(context, "pos.view");
-  const store = await requireCompanyRecord(client, context, "pos_store", storeId);
+  const store = await requireOrganizationRecord(client, context, "pos_store", storeId);
   await assertPosStoreAccess(client, context, store.id);
   const term = String(input.query || "").trim().slice(0, MAX_SEARCH_TERM_LENGTH);
   if (!term) throw posError(400, "A search term is required.", "POS_SEARCH_TERM_REQUIRED");
@@ -27,10 +27,10 @@ export async function searchPointOfSalePosProducts(client, context, storeId, inp
         item.name, item.code, item.barcode,
         item.sales_price, item.uom_id, item.tracking_type
       FROM tenant.items item
-      WHERE item.organization_id=$1 AND (item.company_id IS NULL OR item.company_id=$2)
+      WHERE item.organization_id=$1
         AND item.status='active'
-        AND (lower(item.name) LIKE $3 OR lower(item.code) LIKE $3 OR item.barcode=$4)
-      LIMIT $5)
+        AND (lower(item.name) LIKE $2 OR lower(item.code) LIKE $2 OR item.barcode=$3)
+      LIMIT $4)
      UNION ALL
      (SELECT
         variant.item_id, variant.id AS variant_id,
@@ -39,12 +39,12 @@ export async function searchPointOfSalePosProducts(client, context, storeId, inp
       FROM tenant.item_variants variant
       JOIN tenant.items item
         ON item.organization_id=variant.organization_id AND item.id=variant.item_id
-      WHERE variant.organization_id=$1 AND (variant.company_id IS NULL OR variant.company_id=$2)
+      WHERE variant.organization_id=$1
         AND variant.status='active' AND item.status='active'
-        AND (lower(variant.name) LIKE $3 OR lower(variant.sku) LIKE $3 OR variant.barcode=$4)
-      LIMIT $5)
-     LIMIT $5`,
-    [context.organizationId, context.companyId, like, term, limit],
+        AND (lower(variant.name) LIKE $2 OR lower(variant.sku) LIKE $2 OR variant.barcode=$3)
+      LIMIT $4)
+     LIMIT $4`,
+    [context.organizationId, like, term, limit],
   );
 
   const itemIds = [...new Set(result.rows.map((row) => row.item_id))];
@@ -52,9 +52,9 @@ export async function searchPointOfSalePosProducts(client, context, storeId, inp
     ? await client.query(
         `SELECT item_id,coalesce(sum(quantity-reserved_quantity),0)::text AS available
          FROM tenant.stock_balances
-         WHERE organization_id=$1 AND company_id=$2 AND warehouse_id=$3 AND item_id=ANY($4::uuid[])
+         WHERE organization_id=$1 AND warehouse_id=$2 AND item_id=ANY($3::uuid[])
          GROUP BY item_id`,
-        [context.organizationId, context.companyId, store.warehouse_id, itemIds],
+        [context.organizationId, store.warehouse_id, itemIds],
       )
     : { rows: [] };
   const availableByItem = new Map(availability.rows.map((row) => [row.item_id, Number(row.available)]));
@@ -79,7 +79,7 @@ export async function searchPointOfSalePosProducts(client, context, storeId, inp
 // barcodes, damaged labels, or a cashier simply typing an item's name.
 export async function lookupPointOfSaleBarcode(client, context, storeId, barcode) {
   requirePermission(context, "pos.view");
-  const store = await requireCompanyRecord(client, context, "pos_store", storeId);
+  const store = await requireOrganizationRecord(client, context, "pos_store", storeId);
   await assertPosStoreAccess(client, context, store.id);
   const normalized = String(barcode || "").trim();
   if (!normalized) throw posError(400, "A barcode is required.", "POS_BARCODE_REQUIRED");
@@ -87,10 +87,10 @@ export async function lookupPointOfSaleBarcode(client, context, storeId, barcode
   const itemMatch = await client.query(
     `SELECT id AS item_id, NULL::uuid AS variant_id, name, code, barcode, sales_price, uom_id, tracking_type
      FROM tenant.items
-     WHERE organization_id=$1 AND (company_id IS NULL OR company_id=$2)
-       AND status='active' AND barcode=$3
+     WHERE organization_id=$1
+       AND status='active' AND barcode=$2
      LIMIT 1`,
-    [context.organizationId, context.companyId, normalized],
+    [context.organizationId, normalized],
   );
   const row =
     itemMatch.rows[0] ||
@@ -101,10 +101,10 @@ export async function lookupPointOfSaleBarcode(client, context, storeId, barcode
                 item.tracking_type
          FROM tenant.item_variants variant
          JOIN tenant.items item ON item.organization_id=variant.organization_id AND item.id=variant.item_id
-         WHERE variant.organization_id=$1 AND (variant.company_id IS NULL OR variant.company_id=$2)
-           AND variant.status='active' AND item.status='active' AND variant.barcode=$3
+         WHERE variant.organization_id=$1
+           AND variant.status='active' AND item.status='active' AND variant.barcode=$2
          LIMIT 1`,
-        [context.organizationId, context.companyId, normalized],
+        [context.organizationId, normalized],
       )
     ).rows[0];
 
@@ -113,8 +113,8 @@ export async function lookupPointOfSaleBarcode(client, context, storeId, barcode
   const available = await client.query(
     `SELECT coalesce(sum(quantity-reserved_quantity),0)::text AS available
      FROM tenant.stock_balances
-     WHERE organization_id=$1 AND company_id=$2 AND warehouse_id=$3 AND item_id=$4`,
-    [context.organizationId, context.companyId, store.warehouse_id, row.item_id],
+     WHERE organization_id=$1 AND warehouse_id=$2 AND item_id=$3`,
+    [context.organizationId, store.warehouse_id, row.item_id],
   );
 
   return {

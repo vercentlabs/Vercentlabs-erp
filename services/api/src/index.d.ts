@@ -134,9 +134,6 @@ export function computeStageAge(row: Record<string, unknown>, now?: Date): { ent
 export type BusinessDataContext = {
   organizationId: string;
   userId: string;
-  activeCompanyId: string | null;
-  activeBranchId: string | null;
-  allowAllCompanies: boolean;
 };
 
 export class BusinessDataError extends Error {
@@ -345,13 +342,11 @@ export function getEligibleLeadAssignee(
   client: QueryClient,
   context: CrmFoundationContext,
   userId: string,
-  scope?: Record<string, unknown>,
 ): Promise<Record<string, unknown> | null>;
 export function assertEligibleLeadAssignee(
   client: QueryClient,
   context: CrmFoundationContext,
   userId: string,
-  scope?: Record<string, unknown>,
 ): Promise<Record<string, unknown>>;
 
 export * from "./modules/sales/quotation-governance.js";

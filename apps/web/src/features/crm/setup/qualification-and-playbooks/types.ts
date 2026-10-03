@@ -60,7 +60,6 @@ export type QualificationCriterion = {
 // placeholder groups both under one settings destination.
 export type CrmPlaybook = {
   id: string;
-  companyId: string | null;
   pipelineId: string | null;
   name: string;
   framework: string | null;

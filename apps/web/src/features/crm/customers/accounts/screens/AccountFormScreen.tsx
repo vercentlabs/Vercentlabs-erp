@@ -371,7 +371,7 @@ export function AccountFormScreen({
         />
         <Select
           label="Owner"
-          description="Who looks after this account. Shared accounts are visible to everyone who works with this company's accounts."
+          description="Who looks after this account. Shared accounts are visible to everyone in your organization who works with accounts."
           options={ownerOptions}
           selectedKey={values.ownerUserId}
           onSelectionChange={(key) => set("ownerUserId", String(key ?? ""))}

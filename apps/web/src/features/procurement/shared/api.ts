@@ -3,14 +3,13 @@
 import { patch, post, request } from "@/features/procurement/shared/http";
 
 // A Procurement record as the API returns it: the document's own columns
-// (id, status, version, company_id, ...) merged with its JSON data (title,
+// (id, status, version, created_by, ...) merged with its JSON data (title,
 // supplierId, lines, totals, ...). The shape varies by resource, so fields are
 // read defensively at the edge; nothing here does arithmetic on money.
 export type ProcRecord = {
   id: string;
   status: string;
   version: number;
-  company_id?: string | null;
   created_by?: string | null;
   created_at?: string;
   updated_at?: string;

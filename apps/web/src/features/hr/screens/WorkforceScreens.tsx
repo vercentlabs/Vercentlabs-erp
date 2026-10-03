@@ -301,7 +301,6 @@ export function EmployeeDetailScreen({ id }: { id: string }) {
           <Field name="Department" value={e.department_name} />
           <Field name="Designation" value={e.designation_name} />
           <Field name="Grade" value={e.grade} />
-          <Field name="Branch" value={e.branch_name} />
           <Field name="Work location" value={e.work_location} />
           <Field
             name="Probation ends"

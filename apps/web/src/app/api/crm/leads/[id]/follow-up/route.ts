@@ -70,8 +70,6 @@ export async function POST(
         input.activityType === "call"
           ? await createCrmCall(client, crmApiContext, {
               mode: "schedule",
-              companyId: before.companyId || null,
-              branchId: before.branchId || null,
               entityType: "lead",
               entityId: id,
               subject: input.subject,
@@ -85,8 +83,6 @@ export async function POST(
           : input.activityType === "meeting"
             ? await createCrmMeeting(client, crmApiContext, {
                 mode: "schedule",
-                companyId: before.companyId || null,
-                branchId: before.branchId || null,
                 entityType: "lead",
                 entityId: id,
                 subject: input.subject,
@@ -108,8 +104,6 @@ export async function POST(
               // was silently broken for a "task" follow-up until this fix.
               input.activityType === "task"
               ? await createCrmTask(client, crmApiContext, {
-                  companyId: before.companyId || null,
-                  branchId: before.branchId || null,
                   entityType: "lead",
                   entityId: id,
                   subject: input.subject,
@@ -120,8 +114,6 @@ export async function POST(
                   dueAt: input.dueAt,
                 })
               : await createCrmRecord(client, crmApiContext, "activities", {
-                  companyId: before.companyId || null,
-                  branchId: before.branchId || null,
                   entityType: "lead",
                   entityId: id,
                   activityType: input.activityType,

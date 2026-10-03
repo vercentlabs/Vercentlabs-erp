@@ -2,10 +2,7 @@ import { z } from "zod";
 
 import { completeFulfillmentRequestWithStockMovement } from "@vercentlabs/api";
 
-import {
-  requestCompanyId,
-  stockContextFor,
-} from "@/features/sales/orders/server/stock-context";
+import { stockContextFor } from "@/features/sales/orders/server/stock-context";
 import { salesMutation } from "@/features/sales/shared/route-helpers";
 
 const schema = z.object({
@@ -32,17 +29,11 @@ export async function POST(
     "sales.fulfillment.request",
     schema,
     async (client, context, input) => {
-      const companyId = await requestCompanyId(
-        client,
-        context.organizationId,
-        id,
-      );
       const stock = stockContextFor(
         {
           organizationId: context.organizationId,
           userId: context.userId ?? "",
         },
-        companyId,
         "issue",
       );
       return {

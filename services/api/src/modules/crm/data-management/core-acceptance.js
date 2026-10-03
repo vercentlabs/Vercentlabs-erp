@@ -232,17 +232,6 @@ export function crmCoreAcceptanceContext(session = {}) {
   return {
     organizationId: string(session.organizationId),
     userId: string(session.userId),
-    activeCompanyId: session.activeCompanyId
-      ? string(session.activeCompanyId)
-      : null,
-    activeBranchId: session.activeBranchId
-      ? string(session.activeBranchId)
-      : null,
-    allowAllCompanies: Array.isArray(session.roleSlugs)
-      ? session.roleSlugs.some((role) =>
-          ["organization_owner", "system_administrator"].includes(role),
-        )
-      : false,
     permissions: Array.isArray(session.permissions) ? session.permissions : [],
     roleSlugs: Array.isArray(session.roleSlugs) ? session.roleSlugs : [],
   };

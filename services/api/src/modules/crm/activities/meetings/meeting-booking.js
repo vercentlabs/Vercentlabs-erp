@@ -255,11 +255,10 @@ export async function bookMeeting(client, context, meetingLinkId, input = {}) {
       "CRM_MEETING_SLOT_UNAVAILABLE",
     );
   const booking = await client.query(
-    `INSERT INTO tenant.crm_meeting_bookings(organization_id,company_id,meeting_link_id,host_user_id,guest_name,guest_email,guest_timezone,starts_at,ends_at,status,notes)
-     VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,'confirmed',$10) RETURNING *`,
+    `INSERT INTO tenant.crm_meeting_bookings(organization_id,meeting_link_id,host_user_id,guest_name,guest_email,guest_timezone,starts_at,ends_at,status,notes)
+     VALUES($1,$2,$3,$4,$5,$6,$7,$8,'confirmed',$9) RETURNING *`,
     [
       context.organizationId,
-      link.rows[0].company_id || context.activeCompanyId || null,
       link.rows[0].id,
       link.rows[0].owner_user_id,
       guest.guestName,
@@ -279,13 +278,12 @@ export async function bookMeeting(client, context, meetingLinkId, input = {}) {
   const meetingUrl = /^https?:\/\//i.test(locationTemplate || "") ? locationTemplate : null;
   const meetingActivity = await client.query(
     `INSERT INTO tenant.crm_activities(
-       organization_id,company_id,entity_type,activity_type,subject,status,priority,assigned_to,start_at,due_at,end_at,location,
+       organization_id,entity_type,activity_type,subject,status,priority,assigned_to,start_at,due_at,end_at,location,
        meeting_location_type,meeting_url,meeting_booking_id,created_by,updated_by)
-     VALUES($1,$2,'general','meeting',$3,'planned','medium',$4,$5,$5,$6,$7,$8,$9,$10,$4,$4)
+     VALUES($1,'general','meeting',$2,'planned','medium',$3,$4,$4,$5,$6,$7,$8,$9,$3,$3)
      RETURNING *`,
     [
       context.organizationId,
-      link.rows[0].company_id || context.activeCompanyId || null,
       link.rows[0].name,
       link.rows[0].owner_user_id,
       desiredStart,
@@ -302,7 +300,6 @@ export async function bookMeeting(client, context, meetingLinkId, input = {}) {
   // crm_calendar_events upsert.
   const calendarEventId = await upsertMeetingCalendarEvent(client, context, {
     id: meetingActivity.rows[0].id,
-    companyId: link.rows[0].company_id || context.activeCompanyId || null,
     subject: link.rows[0].name,
     description: null,
     startAt: desiredStart,

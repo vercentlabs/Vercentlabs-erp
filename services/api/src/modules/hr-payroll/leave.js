@@ -12,11 +12,11 @@ const VIEW = [MANAGE, APPROVE, "hr_payroll.employee.view", "hr_payroll.employee.
 const r4 = (n) => Math.round((Number(n) + Number.EPSILON) * 10000) / 10000;
 
 async function settings(client, c) {
-  await qx(client, `INSERT INTO tenant.hr_payroll_settings(organization_id,company_id) VALUES ($1,$2) ON CONFLICT DO NOTHING`, [c.organizationId, c.companyId]);
-  return (await qx(client, `SELECT * FROM tenant.hr_payroll_settings WHERE organization_id=$1 AND company_id=$2`, [c.organizationId, c.companyId])).rows[0];
+  await qx(client, `INSERT INTO tenant.hr_payroll_settings(organization_id) VALUES ($1) ON CONFLICT DO NOTHING`, [c.organizationId]);
+  return (await qx(client, `SELECT * FROM tenant.hr_payroll_settings WHERE organization_id=$1`, [c.organizationId])).rows[0];
 }
 async function loadEmployee(client, c, id) {
-  const { rows } = await qx(client, `SELECT * FROM tenant.hr_employees WHERE organization_id=$1 AND company_id=$2 AND id=$3`, [c.organizationId, c.companyId, uuid(id, "Employee")]);
+  const { rows } = await qx(client, `SELECT * FROM tenant.hr_employees WHERE organization_id=$1 AND id=$2`, [c.organizationId, uuid(id, "Employee")]);
   if (!rows[0]) throw new HrError(404, "Employee was not found.", "HR_EMPLOYEE_NOT_FOUND");
   return rows[0];
 }
@@ -36,7 +36,7 @@ const addMonths = (ymd, n) => {
 // ---------------------------------------------------------------- leave types (F410)
 export async function listLeaveTypes(client, c) {
   needAny(c, ["hr_payroll.view", ...VIEW]);
-  const { rows } = await qx(client, `SELECT * FROM tenant.hr_leave_types WHERE organization_id=$1 AND company_id=$2 ORDER BY code`, [c.organizationId, c.companyId]);
+  const { rows } = await qx(client, `SELECT * FROM tenant.hr_leave_types WHERE organization_id=$1 ORDER BY code`, [c.organizationId]);
   return rows;
 }
 export async function saveLeaveType(client, c, input) {
@@ -53,15 +53,15 @@ export async function saveLeaveType(client, c, input) {
   const values = [name, paid, carry, maxCarry, input.encashmentAllowed === true, input.requiresAttachment === true, input.halfDayAllowed !== false, Math.trunc(nonNegative(input.minNoticeDays, "Notice")), maxConsecutive, input.allowNegativeBalance === true,
     oneOf(String(input.applicableGender ?? "any"), ["any", "female", "male"], "Applicable to"), input.countsWeekends === true, input.active !== false];
   if (input.id) {
-    const { rows } = await qx(client, `UPDATE tenant.hr_leave_types SET name=$4, paid=$5, carry_forward_allowed=$6, max_carry_forward=$7, encashment_allowed=$8, requires_attachment=$9, half_day_allowed=$10, min_notice_days=$11, max_consecutive_days=$12, allow_negative_balance=$13, applicable_gender=$14, counts_weekends=$15, active=$16 WHERE organization_id=$1 AND company_id=$2 AND id=$3 RETURNING *`,
-      [c.organizationId, c.companyId, uuid(input.id, "Leave type"), ...values]);
+    const { rows } = await qx(client, `UPDATE tenant.hr_leave_types SET name=$3, paid=$4, carry_forward_allowed=$5, max_carry_forward=$6, encashment_allowed=$7, requires_attachment=$8, half_day_allowed=$9, min_notice_days=$10, max_consecutive_days=$11, allow_negative_balance=$12, applicable_gender=$13, counts_weekends=$14, active=$15 WHERE organization_id=$1 AND id=$2 RETURNING *`,
+      [c.organizationId, uuid(input.id, "Leave type"), ...values]);
     if (!rows[0]) throw new HrError(404, "Leave type was not found.", "HR_LEAVE_TYPE_NOT_FOUND");
     return rows[0];
   }
-  const dup = await qx(client, `SELECT 1 FROM tenant.hr_leave_types WHERE organization_id=$1 AND company_id=$2 AND code=$3`, [c.organizationId, c.companyId, code]);
+  const dup = await qx(client, `SELECT 1 FROM tenant.hr_leave_types WHERE organization_id=$1 AND code=$2`, [c.organizationId, code]);
   if (dup.rows[0]) throw new HrError(409, `Leave type ${code} already exists.`, "HR_LEAVE_TYPE_DUPLICATE");
-  const { rows } = await qx(client, `INSERT INTO tenant.hr_leave_types(organization_id,company_id,code,name,paid,carry_forward_allowed,max_carry_forward,encashment_allowed,requires_attachment,half_day_allowed,min_notice_days,max_consecutive_days,allow_negative_balance,applicable_gender,counts_weekends,active,created_by) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17) RETURNING *`,
-    [c.organizationId, c.companyId, code, ...values, c.userId]);
+  const { rows } = await qx(client, `INSERT INTO tenant.hr_leave_types(organization_id,code,name,paid,carry_forward_allowed,max_carry_forward,encashment_allowed,requires_attachment,half_day_allowed,min_notice_days,max_consecutive_days,allow_negative_balance,applicable_gender,counts_weekends,active,created_by) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16) RETURNING *`,
+    [c.organizationId, code, ...values, c.userId]);
   return rows[0];
 }
 
@@ -70,7 +70,7 @@ export async function listLeavePolicies(client, c) {
   needAny(c, ["hr_payroll.view", ...VIEW]);
   const { rows } = await qx(client, `SELECT p.*, (SELECT count(*) FROM tenant.hr_employees e WHERE e.leave_policy_id=p.id AND e.status <> 'separated')::int AS employees,
       coalesce((SELECT json_agg(json_build_object('id',en.id,'leaveTypeId',en.leave_type_id,'code',t.code,'name',t.name,'annualDays',en.annual_days,'accrualFrequency',en.accrual_frequency,'maxBalance',en.max_balance,'carryForwardLimit',en.carry_forward_limit,'eligibleAfterDays',en.eligible_after_days) ORDER BY t.code) FROM tenant.hr_leave_policy_entries en JOIN tenant.hr_leave_types t ON t.id=en.leave_type_id WHERE en.policy_id=p.id),'[]'::json) AS entries
-    FROM tenant.hr_leave_policies p WHERE p.organization_id=$1 AND p.company_id=$2 ORDER BY p.code`, [c.organizationId, c.companyId]);
+    FROM tenant.hr_leave_policies p WHERE p.organization_id=$1 ORDER BY p.code`, [c.organizationId]);
   return rows;
 }
 export async function saveLeavePolicy(client, c, input) {
@@ -81,20 +81,20 @@ export async function saveLeavePolicy(client, c, input) {
   const types = Array.isArray(input.employmentTypes) ? input.employmentTypes : typeof input.employmentTypes === "string" && input.employmentTypes ? input.employmentTypes.split(",").map((s) => s.trim()) : [];
   for (const t of types) oneOf(t, ["permanent", "contract", "intern", "consultant", "part_time", "temporary"], "Employment type");
   if (input.id) {
-    const { rows } = await qx(client, `UPDATE tenant.hr_leave_policies SET name=$4, employment_types=$5::text[], active=$6 WHERE organization_id=$1 AND company_id=$2 AND id=$3 RETURNING *`, [c.organizationId, c.companyId, uuid(input.id, "Policy"), name, types, input.active !== false]);
+    const { rows } = await qx(client, `UPDATE tenant.hr_leave_policies SET name=$3, employment_types=$4::text[], active=$5 WHERE organization_id=$1 AND id=$2 RETURNING *`, [c.organizationId, uuid(input.id, "Policy"), name, types, input.active !== false]);
     if (!rows[0]) throw new HrError(404, "Policy was not found.", "HR_POLICY_NOT_FOUND");
     return rows[0];
   }
-  const dup = await qx(client, `SELECT 1 FROM tenant.hr_leave_policies WHERE organization_id=$1 AND company_id=$2 AND code=$3`, [c.organizationId, c.companyId, code]);
+  const dup = await qx(client, `SELECT 1 FROM tenant.hr_leave_policies WHERE organization_id=$1 AND code=$2`, [c.organizationId, code]);
   if (dup.rows[0]) throw new HrError(409, `Policy ${code} already exists.`, "HR_POLICY_DUPLICATE");
-  const { rows } = await qx(client, `INSERT INTO tenant.hr_leave_policies(organization_id,company_id,code,name,employment_types,created_by) VALUES ($1,$2,$3,$4,$5::text[],$6) RETURNING *`, [c.organizationId, c.companyId, code, name, types, c.userId]);
+  const { rows } = await qx(client, `INSERT INTO tenant.hr_leave_policies(organization_id,code,name,employment_types,created_by) VALUES ($1,$2,$3,$4::text[],$5) RETURNING *`, [c.organizationId, code, name, types, c.userId]);
   return rows[0];
 }
 export async function setPolicyEntry(client, c, input) {
   need(c, MANAGE);
-  const p = (await qx(client, `SELECT id FROM tenant.hr_leave_policies WHERE organization_id=$1 AND company_id=$2 AND id=$3`, [c.organizationId, c.companyId, uuid(input.policyId, "Policy")])).rows[0];
+  const p = (await qx(client, `SELECT id FROM tenant.hr_leave_policies WHERE organization_id=$1 AND id=$2`, [c.organizationId, uuid(input.policyId, "Policy")])).rows[0];
   if (!p) throw new HrError(404, "Policy was not found.", "HR_POLICY_NOT_FOUND");
-  const t = (await qx(client, `SELECT * FROM tenant.hr_leave_types WHERE organization_id=$1 AND company_id=$2 AND id=$3 AND active`, [c.organizationId, c.companyId, uuid(input.leaveTypeId, "Leave type")])).rows[0];
+  const t = (await qx(client, `SELECT * FROM tenant.hr_leave_types WHERE organization_id=$1 AND id=$2 AND active`, [c.organizationId, uuid(input.leaveTypeId, "Leave type")])).rows[0];
   if (!t) throw new HrError(400, "Leave type was not found or is inactive.", "HR_LEAVE_TYPE_NOT_FOUND");
   if (!t.paid) throw new HrError(400, "Unpaid leave does not carry an entitlement. It is available to everyone without a balance.", "HR_POLICY_INVALID");
   const annual = nonNegative(input.annualDays, "Annual days");
@@ -116,22 +116,22 @@ export async function removePolicyEntry(client, c, id) {
 }
 export async function assignLeavePolicy(client, c, input) {
   need(c, MANAGE);
-  const p = (await qx(client, `SELECT * FROM tenant.hr_leave_policies WHERE organization_id=$1 AND company_id=$2 AND id=$3 AND active`, [c.organizationId, c.companyId, uuid(input.policyId, "Policy")])).rows[0];
+  const p = (await qx(client, `SELECT * FROM tenant.hr_leave_policies WHERE organization_id=$1 AND id=$2 AND active`, [c.organizationId, uuid(input.policyId, "Policy")])).rows[0];
   if (!p) throw new HrError(404, "Policy was not found or is inactive.", "HR_POLICY_NOT_FOUND");
   const ids = Array.isArray(input.employeeIds) ? input.employeeIds.map((x) => uuid(x, "Employee")) : input.employeeId ? [uuid(input.employeeId, "Employee")] : null;
-  const params = [c.organizationId, c.companyId, p.id, LIVE];
-  let where = `organization_id=$1 AND company_id=$2 AND status = ANY($4::text[])`;
-  if (ids) { params.push(ids); where += ` AND id = ANY($5::uuid[])`; }
-  else if (p.employment_types.length) { params.push(p.employment_types); where += ` AND employment_type = ANY($5::text[])`; }
+  const params = [c.organizationId, p.id, LIVE];
+  let where = `organization_id=$1 AND status = ANY($3::text[])`;
+  if (ids) { params.push(ids); where += ` AND id = ANY($4::uuid[])`; }
+  else if (p.employment_types.length) { params.push(p.employment_types); where += ` AND employment_type = ANY($4::text[])`; }
   else throw new HrError(400, "Choose the employees, or give the policy the employment types it covers.", "HR_POLICY_INVALID");
-  const { rows } = await qx(client, `UPDATE tenant.hr_employees SET leave_policy_id=$3, updated_at=now() WHERE ${where} RETURNING id`, params);
+  const { rows } = await qx(client, `UPDATE tenant.hr_employees SET leave_policy_id=$2, updated_at=now() WHERE ${where} RETURNING id`, params);
   await recordEvent(client, c, "leave_policy", p.id, "hr.leave_policy.assigned", { employees: rows.length });
   return { assigned: rows.length, employeeIds: rows.map((r) => r.id) };
 }
 async function policyEntries(client, c, employee) {
   let policyId = employee.leave_policy_id;
   if (!policyId) {
-    policyId = (await qx(client, `SELECT id FROM tenant.hr_leave_policies WHERE organization_id=$1 AND company_id=$2 AND active AND $3 = ANY(employment_types) ORDER BY code LIMIT 1`, [c.organizationId, c.companyId, employee.employment_type])).rows[0]?.id;
+    policyId = (await qx(client, `SELECT id FROM tenant.hr_leave_policies WHERE organization_id=$1 AND active AND $2 = ANY(employment_types) ORDER BY code LIMIT 1`, [c.organizationId, employee.employment_type])).rows[0]?.id;
   }
   if (!policyId) return [];
   return (await qx(client, `SELECT en.*, t.code AS type_code, t.name AS type_name, t.carry_forward_allowed, t.max_carry_forward FROM tenant.hr_leave_policy_entries en JOIN tenant.hr_leave_types t ON t.id=en.leave_type_id WHERE en.policy_id=$1 AND t.active`, [policyId])).rows;
@@ -140,20 +140,20 @@ async function policyEntries(client, c, employee) {
 // ---------------------------------------------------------------- ledger and balances (F412)
 async function post(client, c, e) {
   const days = r4(e.days);
-  const ins = await qx(client, `INSERT INTO tenant.hr_leave_ledger(organization_id,company_id,employee_id,leave_type_id,leave_year,entry_type,days,period_key,reference_id,note,created_by) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) ON CONFLICT DO NOTHING RETURNING id`,
-    [c.organizationId, c.companyId, e.employeeId, e.leaveTypeId, e.year, e.type, days, e.periodKey ?? null, e.referenceId ?? null, textOrNull(e.note, 300), c.userId]);
+  const ins = await qx(client, `INSERT INTO tenant.hr_leave_ledger(organization_id,employee_id,leave_type_id,leave_year,entry_type,days,period_key,reference_id,note,created_by) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) ON CONFLICT DO NOTHING RETURNING id`,
+    [c.organizationId, e.employeeId, e.leaveTypeId, e.year, e.type, days, e.periodKey ?? null, e.referenceId ?? null, textOrNull(e.note, 300), c.userId]);
   if (!ins.rows[0]) return false;
   const open = e.type === "opening" || (e.type === "carry_forward" && days > 0) ? days : 0;
   const accrued = e.type === "accrual" ? days : 0;
   const used = e.type === "usage" ? -days : e.type === "reversal" ? -days : 0;
   const adjusted = ["adjustment", "lapse", "encashment"].includes(e.type) || (e.type === "carry_forward" && days < 0) ? days : 0;
   await qx(client,
-    `INSERT INTO tenant.hr_leave_balances(organization_id,company_id,employee_id,leave_type_id,leave_year,opening_balance,accrued,used,adjusted,closing_balance)
-     VALUES ($1,$2,$3,$4,$5,$6::numeric,$7::numeric,$8::numeric,$9::numeric,$6::numeric+$7::numeric+$9::numeric-$8::numeric)
+    `INSERT INTO tenant.hr_leave_balances(organization_id,employee_id,leave_type_id,leave_year,opening_balance,accrued,used,adjusted,closing_balance)
+     VALUES ($1,$2,$3,$4,$5::numeric,$6::numeric,$7::numeric,$8::numeric,$5::numeric+$6::numeric+$8::numeric-$7::numeric)
      ON CONFLICT (employee_id,leave_type_id,leave_year) DO UPDATE SET
-       opening_balance=tenant.hr_leave_balances.opening_balance+$6::numeric, accrued=tenant.hr_leave_balances.accrued+$7::numeric, used=tenant.hr_leave_balances.used+$8::numeric, adjusted=tenant.hr_leave_balances.adjusted+$9::numeric,
-       closing_balance=(tenant.hr_leave_balances.opening_balance+$6::numeric)+(tenant.hr_leave_balances.accrued+$7::numeric)+(tenant.hr_leave_balances.adjusted+$9::numeric)-(tenant.hr_leave_balances.used+$8::numeric), updated_at=now()`,
-    [c.organizationId, c.companyId, e.employeeId, e.leaveTypeId, e.year, open, accrued, used, adjusted]);
+       opening_balance=tenant.hr_leave_balances.opening_balance+$5::numeric, accrued=tenant.hr_leave_balances.accrued+$6::numeric, used=tenant.hr_leave_balances.used+$7::numeric, adjusted=tenant.hr_leave_balances.adjusted+$8::numeric,
+       closing_balance=(tenant.hr_leave_balances.opening_balance+$5::numeric)+(tenant.hr_leave_balances.accrued+$6::numeric)+(tenant.hr_leave_balances.adjusted+$8::numeric)-(tenant.hr_leave_balances.used+$7::numeric), updated_at=now()`,
+    [c.organizationId, e.employeeId, e.leaveTypeId, e.year, open, accrued, used, adjusted]);
   return true;
 }
 async function balanceOf(client, employeeId, typeId, year) {
@@ -168,18 +168,18 @@ export async function listLeaveBalances(client, c, filters = {}) {
   const own = await ownEmployee(client, c);
   const cfg = await settings(client, c);
   const year = filters.leaveYear ? Math.trunc(Number(filters.leaveYear)) : leaveYearOf(today(), cfg.leave_year_start_month);
-  const params = [c.organizationId, c.companyId, year];
+  const params = [c.organizationId, year];
   let extra = "";
   if (filters.mine === true || !hasAny(c, VIEW)) {
     if (!own) throw new HrError(403, "You do not have permission to perform this HR operation.", "HR_FORBIDDEN");
     params.push(own.id);
-    extra = ` AND b.employee_id=$4`;
-  } else if (filters.employeeId) { params.push(uuid(filters.employeeId, "Employee")); extra = ` AND b.employee_id=$4`; }
+    extra = ` AND b.employee_id=$3`;
+  } else if (filters.employeeId) { params.push(uuid(filters.employeeId, "Employee")); extra = ` AND b.employee_id=$3`; }
   const { rows } = await qx(client,
     `SELECT b.*, e.employee_number, trim(e.first_name || ' ' || e.last_name) AS employee_name, t.code AS type_code, t.name AS type_name,
        coalesce((SELECT sum(r.days) FROM tenant.hr_leave_requests r WHERE r.employee_id=b.employee_id AND r.leave_type_id=b.leave_type_id AND r.leave_year=b.leave_year AND r.status='submitted'),0) AS pending
      FROM tenant.hr_leave_balances b JOIN tenant.hr_employees e ON e.id=b.employee_id JOIN tenant.hr_leave_types t ON t.id=b.leave_type_id
-     WHERE b.organization_id=$1 AND b.company_id=$2 AND b.leave_year=$3${extra} ORDER BY e.employee_number, t.code LIMIT 2000`, params);
+     WHERE b.organization_id=$1 AND b.leave_year=$2${extra} ORDER BY e.employee_number, t.code LIMIT 2000`, params);
   return rows.map((r) => ({ ...r, available: r4(Number(r.closing_balance) - Number(r.pending)) }));
 }
 export async function getLeaveLedger(client, c, filters = {}) {
@@ -196,7 +196,7 @@ export async function getLeaveLedger(client, c, filters = {}) {
 export async function adjustLeaveBalance(client, c, input) {
   need(c, MANAGE);
   const e = await loadEmployee(client, c, input.employeeId);
-  const t = (await qx(client, `SELECT * FROM tenant.hr_leave_types WHERE organization_id=$1 AND company_id=$2 AND id=$3`, [c.organizationId, c.companyId, uuid(input.leaveTypeId, "Leave type")])).rows[0];
+  const t = (await qx(client, `SELECT * FROM tenant.hr_leave_types WHERE organization_id=$1 AND id=$2`, [c.organizationId, uuid(input.leaveTypeId, "Leave type")])).rows[0];
   if (!t) throw new HrError(404, "Leave type was not found.", "HR_LEAVE_TYPE_NOT_FOUND");
   const days = Number(input.days);
   if (!Number.isFinite(days) || days === 0 || Math.abs(days) > 365) throw new HrError(400, "Give the days to add or remove (not zero).", "HR_ADJUST_INVALID");
@@ -216,10 +216,10 @@ export async function runLeaveAccrual(client, c, input = {}) {
   const asOf = dateOrNull(input.asOf, "As of") ?? today();
   const year = leaveYearOf(asOf, cfg.leave_year_start_month);
   const { start: yStart, end: yEnd } = leaveYearRange(year, cfg.leave_year_start_month);
-  const params = [c.organizationId, c.companyId, LIVE];
+  const params = [c.organizationId, LIVE];
   let extra = "";
-  if (input.employeeId) { params.push(uuid(input.employeeId, "Employee")); extra = ` AND id=$4`; }
-  const emps = (await qx(client, `SELECT * FROM tenant.hr_employees WHERE organization_id=$1 AND company_id=$2 AND status = ANY($3::text[]) AND joining_date <= '${asOf}'${extra} ORDER BY employee_number`, params)).rows;
+  if (input.employeeId) { params.push(uuid(input.employeeId, "Employee")); extra = ` AND id=$3`; }
+  const emps = (await qx(client, `SELECT * FROM tenant.hr_employees WHERE organization_id=$1 AND status = ANY($2::text[]) AND joining_date <= '${asOf}'${extra} ORDER BY employee_number`, params)).rows;
   let credited = 0;
   let totalDays = 0;
   const touched = new Set();
@@ -253,7 +253,7 @@ export async function runLeaveAccrual(client, c, input = {}) {
       }
     }
   }
-  await recordEvent(client, c, "leave_accrual", c.companyId, "hr.leave.accrual_run", { asOf, credited, employees: touched.size });
+  await recordEvent(client, c, "leave_accrual", c.organizationId, "hr.leave.accrual_run", { asOf, credited, employees: touched.size });
   return { asOf, leaveYear: year, employeesProcessed: emps.length, credits: credited, totalDays: r4(totalDays) };
 }
 
@@ -264,7 +264,7 @@ export async function runYearEndCarryForward(client, c, input = {}) {
   const fromYear = Math.trunc(Number(input.leaveYear ?? leaveYearOf(today(), cfg.leave_year_start_month) - 1));
   const { end } = leaveYearRange(fromYear, cfg.leave_year_start_month);
   if (end >= today()) throw new HrError(409, `Leave year ${fromYear} ends on ${end}. Carry forward runs after the year has ended.`, "HR_YEAR_NOT_ENDED");
-  const rows = (await qx(client, `SELECT b.*, t.carry_forward_allowed, t.max_carry_forward, e.status FROM tenant.hr_leave_balances b JOIN tenant.hr_leave_types t ON t.id=b.leave_type_id JOIN tenant.hr_employees e ON e.id=b.employee_id WHERE b.organization_id=$1 AND b.company_id=$2 AND b.leave_year=$3 AND e.status <> 'separated' AND b.closing_balance > 0`, [c.organizationId, c.companyId, fromYear])).rows;
+  const rows = (await qx(client, `SELECT b.*, t.carry_forward_allowed, t.max_carry_forward, e.status FROM tenant.hr_leave_balances b JOIN tenant.hr_leave_types t ON t.id=b.leave_type_id JOIN tenant.hr_employees e ON e.id=b.employee_id WHERE b.organization_id=$1 AND b.leave_year=$2 AND e.status <> 'separated' AND b.closing_balance > 0`, [c.organizationId, fromYear])).rows;
   let carried = 0;
   let lapsed = 0;
   let processed = 0;
@@ -288,7 +288,7 @@ export async function runYearEndCarryForward(client, c, input = {}) {
     }
     processed += 1;
   }
-  await recordEvent(client, c, "leave_carry_forward", c.companyId, "hr.leave.carry_forward_run", { fromYear, carried, lapsed });
+  await recordEvent(client, c, "leave_carry_forward", c.organizationId, "hr.leave.carry_forward_run", { fromYear, carried, lapsed });
   return { leaveYear: fromYear, balancesProcessed: processed, carriedForward: r4(carried), lapsed: r4(lapsed) };
 }
 
@@ -339,7 +339,7 @@ async function validateRequest(client, c, employee, type, cfg, input, { forHr, e
   if (type.max_consecutive_days !== null && days > Number(type.max_consecutive_days)) throw new HrError(409, `${type.name} is limited to ${type.max_consecutive_days} consecutive day(s).`, "HR_LEAVE_MAX_CONSECUTIVE");
   const overlap = await qx(client, `SELECT 1 FROM tenant.hr_leave_requests WHERE employee_id=$1 AND status IN ('submitted','approved') AND start_date <= $3 AND end_date >= $2 AND ($4::uuid IS NULL OR id <> $4::uuid) LIMIT 1`, [employee.id, startDate, endDate, exceptId]);
   if (overlap.rows[0]) throw new HrError(409, "The employee already has leave in that period.", "HR_LEAVE_OVERLAP");
-  const lockedRun = (await qx(client, `SELECT payroll_number FROM tenant.hr_payroll_runs WHERE organization_id=$1 AND company_id=$2 AND status IN ('approved','posted') AND period_start <= $4 AND period_end >= $3 LIMIT 1`, [c.organizationId, c.companyId, startDate, endDate])).rows[0];
+  const lockedRun = (await qx(client, `SELECT payroll_number FROM tenant.hr_payroll_runs WHERE organization_id=$1 AND status IN ('approved','posted') AND period_start <= $3 AND period_end >= $2 LIMIT 1`, [c.organizationId, startDate, endDate])).rows[0];
   if (lockedRun) throw new HrError(409, `Those dates fall in payroll ${lockedRun.payroll_number}, which is already approved.`, "HR_PERIOD_LOCKED");
   const year = leaveYearOf(startDate, cfg.leave_year_start_month);
   if (type.paid) {
@@ -363,13 +363,13 @@ export async function applyLeave(client, c, input) {
   const isSelf = Boolean(own && own.id === employee.id);
   const forHr = has(c, MANAGE);
   if (!isSelf && !forHr) throw new HrError(403, "You can only apply for your own leave.", "HR_FORBIDDEN");
-  const type = (await qx(client, `SELECT * FROM tenant.hr_leave_types WHERE organization_id=$1 AND company_id=$2 AND id=$3 AND active`, [c.organizationId, c.companyId, uuid(input.leaveTypeId, "Leave type")])).rows[0];
+  const type = (await qx(client, `SELECT * FROM tenant.hr_leave_types WHERE organization_id=$1 AND id=$2 AND active`, [c.organizationId, uuid(input.leaveTypeId, "Leave type")])).rows[0];
   if (!type) throw new HrError(400, "Leave type was not found or is inactive.", "HR_LEAVE_TYPE_NOT_FOUND");
   const cfg = await settings(client, c);
   const v = await validateRequest(client, c, employee, type, cfg, input, { forHr: forHr && !isSelf });
   const { rows } = await qx(client,
-    `INSERT INTO tenant.hr_leave_requests(organization_id,company_id,employee_id,leave_type_id,start_date,end_date,days,reason,attachment_reference,status,submitted_at,created_by,start_half,end_half,leave_year) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,'submitted',now(),$10,$11,$12,$13) RETURNING *`,
-    [c.organizationId, c.companyId, employee.id, type.id, v.startDate, v.endDate, v.days, textOrNull(input.reason, 1000), textOrNull(input.attachmentReference, 500), c.userId, v.startHalf, v.endHalf, v.year]);
+    `INSERT INTO tenant.hr_leave_requests(organization_id,employee_id,leave_type_id,start_date,end_date,days,reason,attachment_reference,status,submitted_at,created_by,start_half,end_half,leave_year) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,'submitted',now(),$9,$10,$11,$12) RETURNING *`,
+    [c.organizationId, employee.id, type.id, v.startDate, v.endDate, v.days, textOrNull(input.reason, 1000), textOrNull(input.attachmentReference, 500), c.userId, v.startHalf, v.endHalf, v.year]);
   await recordEvent(client, c, "employee", employee.id, "hr.leave.requested", { requestId: rows[0].id, days: v.days, type: type.code });
   return rows[0];
 }
@@ -377,15 +377,15 @@ export async function applyLeave(client, c, input) {
 async function markAttendance(client, c, employee, request, breakdown, type) {
   for (const b of breakdown) {
     await qx(client,
-      `INSERT INTO tenant.hr_attendance(organization_id,company_id,employee_id,attendance_date,status,source,notes,leave_request_id,half_day_part,created_by) VALUES ($1,$2,$3,$4,$5,'system',$6,$7,$8,$9)
+      `INSERT INTO tenant.hr_attendance(organization_id,employee_id,attendance_date,status,source,notes,leave_request_id,half_day_part,created_by) VALUES ($1,$2,$3,$4,'system',$5,$6,$7,$8)
        ON CONFLICT (employee_id,attendance_date) DO UPDATE SET status=EXCLUDED.status, source='system', notes=EXCLUDED.notes, leave_request_id=EXCLUDED.leave_request_id, half_day_part=EXCLUDED.half_day_part, late_minutes=0, early_exit_minutes=0, overtime_minutes=0, updated_at=now()`,
-      [c.organizationId, c.companyId, employee.id, b.date, b.portion === 1 ? "leave" : "half_day", `Leave ${type.code}`, request.id, b.half, c.userId]);
+      [c.organizationId, employee.id, b.date, b.portion === 1 ? "leave" : "half_day", `Leave ${type.code}`, request.id, b.half, c.userId]);
     await qx(client, `DELETE FROM tenant.hr_overtime WHERE employee_id=$1 AND work_date=$2 AND status='pending'`, [employee.id, b.date]);
   }
 }
 
 export async function decideLeave(client, c, id, { approve, note }) {
-  const { rows } = await qx(client, `SELECT * FROM tenant.hr_leave_requests WHERE organization_id=$1 AND company_id=$2 AND id=$3 FOR UPDATE`, [c.organizationId, c.companyId, uuid(id, "Leave request")]);
+  const { rows } = await qx(client, `SELECT * FROM tenant.hr_leave_requests WHERE organization_id=$1 AND id=$2 FOR UPDATE`, [c.organizationId, uuid(id, "Leave request")]);
   const r = rows[0];
   if (!r) throw new HrError(404, "Leave request was not found.", "HR_LEAVE_NOT_FOUND");
   const employee = await loadEmployee(client, c, r.employee_id);
@@ -418,7 +418,7 @@ export async function decideLeave(client, c, id, { approve, note }) {
 }
 
 export async function cancelLeave(client, c, id, reason) {
-  const { rows } = await qx(client, `SELECT * FROM tenant.hr_leave_requests WHERE organization_id=$1 AND company_id=$2 AND id=$3 FOR UPDATE`, [c.organizationId, c.companyId, uuid(id, "Leave request")]);
+  const { rows } = await qx(client, `SELECT * FROM tenant.hr_leave_requests WHERE organization_id=$1 AND id=$2 FOR UPDATE`, [c.organizationId, uuid(id, "Leave request")]);
   const r = rows[0];
   if (!r) throw new HrError(404, "Leave request was not found.", "HR_LEAVE_NOT_FOUND");
   const employee = await loadEmployee(client, c, r.employee_id);
@@ -430,7 +430,7 @@ export async function cancelLeave(client, c, id, reason) {
   if (!text(reason)) throw new HrError(400, "Give a reason for cancelling.", "HR_REASON_REQUIRED");
   if (r.status === "approved") {
     if (String(r.end_date) < today() && !has(c, MANAGE)) throw new HrError(409, "Leave that has already been taken can only be cancelled by HR.", "HR_LEAVE_PAST");
-    const lockedRun = (await qx(client, `SELECT payroll_number FROM tenant.hr_payroll_runs WHERE organization_id=$1 AND company_id=$2 AND status IN ('approved','posted') AND period_start <= $4 AND period_end >= $3 LIMIT 1`, [c.organizationId, c.companyId, r.start_date, r.end_date])).rows[0];
+    const lockedRun = (await qx(client, `SELECT payroll_number FROM tenant.hr_payroll_runs WHERE organization_id=$1 AND status IN ('approved','posted') AND period_start <= $3 AND period_end >= $2 LIMIT 1`, [c.organizationId, r.start_date, r.end_date])).rows[0];
     if (lockedRun) throw new HrError(409, `Those dates fall in payroll ${lockedRun.payroll_number}, which is already approved.`, "HR_PERIOD_LOCKED");
     const used = (await qx(client, `SELECT leave_year, -sum(days) AS d FROM tenant.hr_leave_ledger WHERE reference_id=$1 AND entry_type='usage' GROUP BY leave_year`, [r.id])).rows;
     for (const u of used) await post(client, c, { employeeId: employee.id, leaveTypeId: r.leave_type_id, year: u.leave_year, type: "reversal", days: Number(u.d), referenceId: r.id, periodKey: `rev-${r.id}-${u.leave_year}`, note: `Cancelled: ${text(reason, 200)}` });
@@ -448,7 +448,7 @@ export async function cancelLeave(client, c, id, reason) {
 
 export async function listLeaveRequests(client, c, filters = {}) {
   const own = await ownEmployee(client, c);
-  const params = [c.organizationId, c.companyId];
+  const params = [c.organizationId];
   let extra = "";
   if (filters.status) { params.push(String(filters.status)); extra += ` AND r.status=$${params.length}`; }
   if (filters.scope === "mine") {
@@ -461,7 +461,7 @@ export async function listLeaveRequests(client, c, filters = {}) {
     extra += ` AND e.manager_employee_id=$${params.length}`;
   } else needAny(c, VIEW);
   if (filters.employeeId && filters.scope !== "mine") { params.push(uuid(filters.employeeId, "Employee")); extra += ` AND r.employee_id=$${params.length}`; }
-  const { rows } = await qx(client, `SELECT r.*, e.employee_number, trim(e.first_name || ' ' || e.last_name) AS employee_name, t.code AS type_code, t.name AS type_name, t.paid FROM tenant.hr_leave_requests r JOIN tenant.hr_employees e ON e.id=r.employee_id JOIN tenant.hr_leave_types t ON t.id=r.leave_type_id WHERE r.organization_id=$1 AND r.company_id=$2${extra} ORDER BY r.start_date DESC, r.created_at DESC LIMIT 1000`, params);
+  const { rows } = await qx(client, `SELECT r.*, e.employee_number, trim(e.first_name || ' ' || e.last_name) AS employee_name, t.code AS type_code, t.name AS type_name, t.paid FROM tenant.hr_leave_requests r JOIN tenant.hr_employees e ON e.id=r.employee_id JOIN tenant.hr_leave_types t ON t.id=r.leave_type_id WHERE r.organization_id=$1${extra} ORDER BY r.start_date DESC, r.created_at DESC LIMIT 1000`, params);
   return rows;
 }
 
@@ -469,22 +469,22 @@ export async function getLeaveCalendar(client, c, filters = {}) {
   const own = await ownEmployee(client, c);
   const from = dateOrNull(filters.from, "From") ?? today();
   const to = dateOrNull(filters.to, "To") ?? addDays(from, 30);
-  const params = [c.organizationId, c.companyId, from, to];
+  const params = [c.organizationId, from, to];
   let extra = "";
   if (!hasAny(c, VIEW)) {
     if (!own) throw new HrError(403, "You do not have permission to perform this HR operation.", "HR_FORBIDDEN");
     params.push(own.id);
-    extra = ` AND (e.manager_employee_id=$5 OR e.id=$5)`;
+    extra = ` AND (e.manager_employee_id=$4 OR e.id=$4)`;
   }
-  const { rows } = await qx(client, `SELECT r.id, r.start_date, r.end_date, r.days, r.status, e.employee_number, trim(e.first_name || ' ' || e.last_name) AS employee_name, t.code AS type_code FROM tenant.hr_leave_requests r JOIN tenant.hr_employees e ON e.id=r.employee_id JOIN tenant.hr_leave_types t ON t.id=r.leave_type_id WHERE r.organization_id=$1 AND r.company_id=$2 AND r.status IN ('approved','submitted') AND r.start_date <= $4 AND r.end_date >= $3${extra} ORDER BY r.start_date`, params);
+  const { rows } = await qx(client, `SELECT r.id, r.start_date, r.end_date, r.days, r.status, e.employee_number, trim(e.first_name || ' ' || e.last_name) AS employee_name, t.code AS type_code FROM tenant.hr_leave_requests r JOIN tenant.hr_employees e ON e.id=r.employee_id JOIN tenant.hr_leave_types t ON t.id=r.leave_type_id WHERE r.organization_id=$1 AND r.status IN ('approved','submitted') AND r.start_date <= $3 AND r.end_date >= $2${extra} ORDER BY r.start_date`, params);
   return rows;
 }
 
 export async function getLeaveDashboard(client, c) {
   needAny(c, VIEW);
-  const pending = await qx(client, `SELECT count(*)::int AS n FROM tenant.hr_leave_requests WHERE organization_id=$1 AND company_id=$2 AND status='submitted'`, [c.organizationId, c.companyId]);
-  const today_ = await qx(client, `SELECT count(*)::int AS n FROM tenant.hr_leave_requests WHERE organization_id=$1 AND company_id=$2 AND status='approved' AND start_date <= current_date AND end_date >= current_date`, [c.organizationId, c.companyId]);
-  const onLeave = await qx(client, `SELECT count(*)::int AS n FROM tenant.hr_leave_requests WHERE organization_id=$1 AND company_id=$2 AND status='approved' AND start_date > current_date AND start_date <= current_date + 14`, [c.organizationId, c.companyId]);
+  const pending = await qx(client, `SELECT count(*)::int AS n FROM tenant.hr_leave_requests WHERE organization_id=$1 AND status='submitted'`, [c.organizationId]);
+  const today_ = await qx(client, `SELECT count(*)::int AS n FROM tenant.hr_leave_requests WHERE organization_id=$1 AND status='approved' AND start_date <= current_date AND end_date >= current_date`, [c.organizationId]);
+  const onLeave = await qx(client, `SELECT count(*)::int AS n FROM tenant.hr_leave_requests WHERE organization_id=$1 AND status='approved' AND start_date > current_date AND start_date <= current_date + 14`, [c.organizationId]);
   return { pendingApprovals: pending.rows[0].n, onLeaveToday: today_.rows[0].n, startingWithin14Days: onLeave.rows[0].n };
 }
 void uuidOrNull; void round2;
