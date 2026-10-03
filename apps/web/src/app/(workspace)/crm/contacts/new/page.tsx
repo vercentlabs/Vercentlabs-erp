@@ -12,7 +12,7 @@ export default async function NewContactPage({
   const session = await requireWorkspace();
   const canManage =
     session.roleSlugs.includes("organization_owner") ||
-    session.permissions.includes(CRM_PERMISSIONS.accountsManage);
+    session.permissions.includes(CRM_PERMISSIONS.accountsEdit);
   const { accountId } = await searchParams;
   return (
     <ContactFormScreen

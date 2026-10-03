@@ -10,7 +10,7 @@ export async function assertTerritoryParentAllowed(client, context, resource, id
     Object.prototype.hasOwnProperty.call(prepared, "parentTerritoryId") &&
     prepared.parentTerritoryId
   ) {
-    // F020 CAP-001: mirrors setAccountParent's cycle guard (account-intelligence.js)
+    // F020 CAP-001: mirrors setAccountParent's cycle guard (accounts/hierarchy.js)
     // — the same self-parent/ancestor-cycle problem, solved the same way, for
     // territory hierarchy: no parent that would make the territory its own
     // ancestor.

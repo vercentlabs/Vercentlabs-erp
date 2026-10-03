@@ -1,54 +1,22 @@
 import { getAccountHierarchy, setAccountParent } from "@vercentlabs/api/crm";
 import { CRM_PERMISSIONS } from "@vercentlabs/permissions";
 
-import { ok, readJson } from "@/core/http";
-import { crmContext } from "@/features/crm/shared/crm-context";
+import { ok } from "@/core/http";
 import { workspaceRoute } from "@/core/workspace-route";
+import { crmContext } from "@/features/crm/shared/crm-context";
+import { readBody, type AccountRouteParams } from "@/features/crm/accounts/server/account-http";
 
-// F002. getAccountHierarchy/setAccountParent (account-intelligence.js),
-// cycle-guarded — see crm-account-hierarchy-f002.test.mjs. GET stays module-access-only (matches the Account GET
-// convention); PATCH requires crm.accounts.manage (matches the Account
-// PATCH/DELETE convention in accounts/[id]/route.ts).
-type RouteContext = { params: Promise<{ id: string }> };
-
-export async function GET(request: Request, context: RouteContext) {
-  return workspaceRoute(
-    request,
-    { module: "crm" },
-    async ({ client, session }) => {
-      const { id } = await context.params;
-      const hierarchy = await getAccountHierarchy(
-        client,
-        crmContext(session),
-        id,
-      );
-      return ok(hierarchy);
-    },
+// The parent chain and the child accounts.
+export async function GET(request: Request, route: AccountRouteParams) {
+  return workspaceRoute(request, { module: "crm", permission: CRM_PERMISSIONS.accountsView }, async ({ client, session }) =>
+    ok({ hierarchy: await getAccountHierarchy(client, crmContext(session), (await route.params).id) }),
   );
 }
 
-export async function PATCH(request: Request, context: RouteContext) {
-  return workspaceRoute(
-    request,
-    {
-      module: "crm",
-      permission: CRM_PERMISSIONS.accountsManage,
-      billingWrite: true,
-    },
-    async ({ client, session }) => {
-      const { id } = await context.params;
-      const body = (await readJson(request)) as {
-        parentId?: string | null;
-        reason?: string | null;
-      };
-      const record = await setAccountParent(
-        client,
-        crmContext(session),
-        id,
-        body.parentId || null,
-        body.reason || null,
-      );
-      return ok({ record });
-    },
-  );
+// Body: { parentPartyId: uuid | null }
+export async function PUT(request: Request, route: AccountRouteParams) {
+  return workspaceRoute(request, { module: "crm", permission: CRM_PERMISSIONS.accountsEdit, billingWrite: true }, async ({ client, session }) => {
+    const { parentPartyId } = await readBody(request);
+    return ok(await setAccountParent(client, crmContext(session), (await route.params).id, { parentPartyId: typeof parentPartyId === "string" ? parentPartyId : null }));
+  });
 }

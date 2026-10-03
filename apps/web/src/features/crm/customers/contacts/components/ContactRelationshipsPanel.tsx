@@ -17,7 +17,7 @@ import {
 
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
-import { listAccounts } from "@/features/crm/customers/accounts/api/accounts-api";
+import { listAccounts } from "@/features/crm/accounts/api/accounts-api";
 import {
   addContactRelationship,
   ContactRelationshipApiError,

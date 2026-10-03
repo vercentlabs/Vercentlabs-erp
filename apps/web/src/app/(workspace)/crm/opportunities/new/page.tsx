@@ -4,10 +4,11 @@ import { OpportunityFormScreen } from "@/features/crm/pipeline/opportunities/scr
 
 export const metadata = { title: "New opportunity" };
 
-export default async function NewOpportunityPage() {
+export default async function NewOpportunityPage({ searchParams }: { searchParams: Promise<{ partyId?: string }> }) {
   const session = await requireWorkspace();
   const canManage =
     session.roleSlugs.includes("organization_owner") ||
     session.permissions.includes(CRM_PERMISSIONS.opportunitiesManage);
-  return <OpportunityFormScreen mode="create" canManage={canManage} />;
+  const { partyId } = await searchParams;
+  return <OpportunityFormScreen mode="create" canManage={canManage} initialPartyId={typeof partyId === "string" ? partyId : undefined} />;
 }

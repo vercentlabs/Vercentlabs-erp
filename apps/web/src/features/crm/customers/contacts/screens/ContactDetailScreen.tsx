@@ -35,7 +35,7 @@ import {
 } from "@/shared/format/human";
 import { MoreMenu } from "@/features/crm/shared/ui/MoreMenu";
 import { PropertyList } from "@/features/crm/shared/ui/PropertyList";
-import { getAccount } from "@/features/crm/customers/accounts/api/accounts-api";
+import { getAccount } from "@/features/crm/accounts/api/accounts-api";
 import { listOpportunities } from "@/features/crm/pipeline/opportunities/api/opportunities-api";
 import {
   archiveContact,
@@ -70,7 +70,7 @@ export function ContactDetailScreen({ contactId }: { contactId: string }) {
   const queryClient = useQueryClient();
   const workspace = useWorkspaceContext();
   const canManage = workspace.permissions.includes(
-    CRM_PERMISSIONS.accountsManage,
+    CRM_PERMISSIONS.accountsEdit,
   );
   const [conflictMessage, setConflictMessage] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
@@ -91,7 +91,7 @@ export function ContactDetailScreen({ contactId }: { contactId: string }) {
     queryFn: () => getAccount(contact!.accountId!),
     enabled: Boolean(contact?.accountId),
   });
-  const accountName = accountQuery.data?.record.displayName ?? null;
+  const accountName = accountQuery.data?.displayName ?? null;
 
   const dealsQuery = useQuery({
     queryKey: scopedQueryKey(

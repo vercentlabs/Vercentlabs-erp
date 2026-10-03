@@ -9,7 +9,7 @@ import { updateCrmRecord } from "../data-management/resource-mutation-service.js
 import { assignLead } from "../leads/assignment.js";
 import { ownerTeamCte } from "../analytics/opportunity-facts.js";
 import { getMetricRollup, getQuotaSummary } from "../analytics/pipeline-metrics.js";
-import { updateCrmAccount } from "../master-data/account-operations.js";
+import { assignAccount } from "../accounts/assignment.js";
 
 // F020 Sales organisation and coverage: who covers what, where coverage is
 // missing, and governed moves of ownership. Teams and territories keep their
@@ -247,7 +247,7 @@ export async function reassignCoverage(client, context, input = {}) {
     try {
       const version = expected[id] ? { expectedUpdatedAt: String(expected[id]), requireVersion: true } : {};
       if (type === "leads") await assignLead(client, context, id, { ownerUserId, reason: `coverage:${reason.slice(0, 80)}` });
-      else if (type === "accounts") await updateCrmAccount(client, context, id, { ownerUserId }, version);
+      else if (type === "accounts") await assignAccount(client, context, id, { ownerUserId, reason: `coverage:${reason.slice(0, 80)}` });
       else await updateCrmRecord(client, context, "opportunities", id, { ownerUserId }, version);
       await client.query("RELEASE SAVEPOINT crm_coverage_reassign");
       results.push({ id, status: "applied" });

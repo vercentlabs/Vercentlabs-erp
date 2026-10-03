@@ -27,11 +27,10 @@ function snakeCase(value) {
   return value.replace(/[A-Z]/g, (letter) => `_${letter.toLowerCase()}`);
 }
 
-// Strips both spellings — see account-security.js's projectAccountForContext
-// for why: account-intelligence.js's merge-preview/Customer-360 read paths
-// pass this RAW Postgres rows (never camelizeRow()'d), so a camelCase-only
-// delete list silently failed to strip normalized_email/normalized_mobile
-// from those rows.
+// Strips both spellings: the merge-preview read path passes this RAW
+// Postgres rows (never camelizeRow()'d), so a camelCase-only delete list
+// silently failed to strip normalized_email/normalized_mobile from those
+// rows.
 export function projectContactForContext(context, record) {
   if (!record || typeof record !== "object" || canViewSensitiveContactContent(context))
     return record;

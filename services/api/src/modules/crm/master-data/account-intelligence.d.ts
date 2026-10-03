@@ -1,35 +1,10 @@
 import type { CrmFoundationContext, QueryClient } from "../../../index.js";
 
-export const CRM_ACCOUNT_INTELLIGENCE_CAPABILITY_IDS: readonly string[];
 export class CrmAccountIntelligenceError extends Error {
   readonly status: number;
   readonly code: string;
 }
 export function crmAccountIntelligenceHash(value: unknown): string;
-export function getAccountHierarchy(
-  client: QueryClient,
-  context: CrmFoundationContext,
-  partyId: string,
-): Promise<Record<string, unknown>>;
-export function setAccountParent(
-  client: QueryClient,
-  context: CrmFoundationContext,
-  partyId: string,
-  parentPartyId: string | null,
-  reason?: string | null,
-): Promise<Record<string, unknown>>;
-export function previewAccountMerge(
-  client: QueryClient,
-  context: CrmFoundationContext,
-  sourceId: string,
-  survivorId: string,
-): Promise<Record<string, unknown>>;
-export function previewAccountMergeForCaller(
-  client: QueryClient,
-  context: CrmFoundationContext,
-  sourceId: string,
-  survivorId: string,
-): Promise<Record<string, unknown>>;
 export function previewContactMerge(
   client: QueryClient,
   context: CrmFoundationContext,
@@ -47,14 +22,6 @@ export type MergeOptions = {
   expectedSourceUpdatedAt?: string;
   expectedSurvivorUpdatedAt?: string;
 };
-export function mergeAccountsGoverned(
-  client: QueryClient,
-  context: CrmFoundationContext,
-  sourceId: string,
-  survivorId: string,
-  reason?: string | null,
-  options?: MergeOptions,
-): Promise<Record<string, unknown>>;
 export function mergeContactsGoverned(
   client: QueryClient,
   context: CrmFoundationContext,
@@ -69,22 +36,6 @@ export function resolveMergedEntity(
   entityType: "account" | "contact",
   sourceId: string,
 ): Promise<Record<string, unknown> | null>;
-export function recordCustomerServiceEvent(
-  client: QueryClient,
-  context: CrmFoundationContext,
-  partyId: string,
-  input: Record<string, unknown>,
-): Promise<Record<string, unknown>>;
-export function getCustomer360(
-  client: QueryClient,
-  context: CrmFoundationContext,
-  partyId: string,
-): Promise<Record<string, unknown>>;
-export function getCustomer360ForCaller(
-  client: QueryClient,
-  context: CrmFoundationContext,
-  partyId: string,
-): Promise<Record<string, unknown>>;
 export function previewPrivacyRequest(
   client: QueryClient,
   context: CrmFoundationContext,
@@ -110,13 +61,4 @@ export function runPrivacyRetention(
   client: QueryClient,
   context: CrmFoundationContext,
   input?: Record<string, unknown>,
-): Promise<Record<string, unknown>>;
-export function recordCrmAccountIntelligenceAcceptance(
-  client: QueryClient,
-  context: CrmFoundationContext,
-  input: Record<string, unknown>,
-): Promise<Record<string, unknown>>;
-export function getCrmAccountIntelligenceReadiness(
-  client: QueryClient,
-  context: CrmFoundationContext,
 ): Promise<Record<string, unknown>>;

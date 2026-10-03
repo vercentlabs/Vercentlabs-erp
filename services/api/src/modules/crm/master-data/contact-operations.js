@@ -1,6 +1,6 @@
 import { CrmError } from "../data-management/errors.js";
 import { queueOutboxEvent } from "../data-management/outbox.js";
-import { getCrmAccount } from "./account-operations.js";
+import { getAccount as getCrmAccount } from "../accounts/records.js";
 import {
   normalizeContactInput,
   validateContactInput,
@@ -23,9 +23,8 @@ import { assertExpectedRecordVersion } from "./record-version.js";
 import { crmContactVisibleSql } from "../data-management/crm-access-scope.js";
 import { crmChildScopes } from "../data-management/record-policy.js";
 
-// F008 create-time governed duplicate check (CRM-VNEXT-081), mirroring
-// account-operations.js's assertAccountDuplicatePolicy and Lead's
-// established exact-classification-blocks-unless-overridden contract.
+// F008 create-time governed duplicate check (CRM-VNEXT-081), mirroring the
+// account and lead exact-classification-blocks-unless-overridden contract.
 async function assertContactDuplicatePolicy(client, context, candidate, overrideReason) {
   const matches = await findContactDuplicates(client, context, {
     email: candidate.email,
@@ -35,7 +34,7 @@ async function assertContactDuplicatePolicy(client, context, candidate, override
   });
   const exact = matches.filter((row) => row.classification === "exact");
   if (!exact.length) return null;
-  const canOverride = Boolean(context.permissions?.includes("crm.accounts.manage"));
+  const canOverride = Boolean(context.permissions?.includes("crm.accounts.edit"));
   const reason = String(overrideReason || "").trim();
   if (!canOverride || reason.length < 10) {
     throw new CrmError(

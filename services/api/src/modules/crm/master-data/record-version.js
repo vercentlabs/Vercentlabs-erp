@@ -1,11 +1,11 @@
 import { CrmError } from "../data-management/errors.js";
 
-// Shared optimistic-concurrency helper for Account/Contact ordinary edits.
-// Used by updateCrmAccount/updateCrmContact and their archive counterparts.
+// Shared optimistic-concurrency helper for Contact ordinary edits.
+// Used by updateCrmContact and its archive counterparts.
 // Mirrors the exact contract Lead
 // updates already use (assertLeadExpectedVersion / CRM_STALE_WRITE), so the
 // web client's conflict-handling code (typed 409, "Refresh and try again")
-// works identically for Accounts and Contacts.
+// works identically for Contacts.
 export function assertExpectedRecordVersion(
   record,
   expectedUpdatedAt,

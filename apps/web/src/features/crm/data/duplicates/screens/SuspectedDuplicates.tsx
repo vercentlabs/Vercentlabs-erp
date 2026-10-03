@@ -5,10 +5,7 @@ import { Button } from "@vercentlabs/design-system";
 
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
-import {
-  findAccountDuplicates,
-  listAccounts,
-} from "@/features/crm/customers/accounts/api/accounts-api";
+import { checkAccountDuplicates, listAccounts } from "@/features/crm/accounts/api/accounts-api";
 import {
   findContactDuplicates,
   listContacts,
@@ -91,23 +88,24 @@ async function scan(type: EntityType): Promise<Suspect[]> {
           );
     });
   } else if (type === "account") {
-    const { rows } = await listAccounts({ limit: SCAN_SIZE, status: "active" });
+    const { rows } = await listAccounts({ limit: SCAN_SIZE, view: "active" });
     await inBatches(rows, 5, async (account) => {
-      const { duplicates } = await findAccountDuplicates({
+      const { matches } = await checkAccountDuplicates({
         displayName: account.displayName,
         legalName: account.legalName,
-        gstin: account.gstin,
-        pan: account.pan,
+        website: account.website,
+        city: account.city,
         excludeId: account.id,
-      }).catch(() => ({ duplicates: [] }));
-      for (const d of duplicates)
-        add(
-          account.id,
-          account.displayName,
-          d.id,
-          d.display_name,
-          d.matched_signals ?? [],
-        );
+      }).catch(() => ({ matches: [] }));
+      for (const match of matches)
+        if (match.canOpen)
+          add(
+            account.id,
+            account.displayName,
+            match.id,
+            match.name ?? match.code ?? "Account",
+            match.strength === "exact" ? ["exact", ...match.signals] : match.signals,
+          );
     });
   } else {
     const { rows } = await listContacts({ limit: SCAN_SIZE, status: "active" });

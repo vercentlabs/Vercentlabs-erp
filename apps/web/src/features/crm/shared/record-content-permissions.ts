@@ -5,8 +5,8 @@
 const CONTENT_WRITE_PERMISSION: Record<string, string> = {
   lead: "crm.leads.edit",
   opportunity: "crm.opportunities.manage",
-  party: "crm.accounts.manage",
-  contact: "crm.accounts.manage",
+  party: "crm.accounts.edit",
+  contact: "crm.accounts.edit",
   campaign: "crm.campaigns.manage",
 };
 

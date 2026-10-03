@@ -64,8 +64,8 @@ export function canOverridePrivateCrmContent(context) {
 const CONTENT_WRITE_PERMISSION = Object.freeze({
   lead: "crm.leads.edit",
   opportunity: "crm.opportunities.manage",
-  party: "crm.accounts.manage",
-  contact: "crm.accounts.manage",
+  party: "crm.accounts.edit",
+  contact: "crm.accounts.edit",
   campaign: "crm.campaigns.manage",
 });
 

@@ -1,76 +1,32 @@
-import {
-  archiveCrmAccount,
-  getCrmAccountForCaller,
-  updateCrmAccount,
-} from "@vercentlabs/api/crm";
+import { deleteUnusedAccount, getAccount, updateAccount } from "@vercentlabs/api/crm";
 import { CRM_PERMISSIONS } from "@vercentlabs/permissions";
 
-import { ok, readJson } from "@/core/http";
-import { crmContext } from "@/features/crm/shared/crm-context";
+import { ok } from "@/core/http";
 import { workspaceRoute } from "@/core/workspace-route";
+import { crmContext } from "@/features/crm/shared/crm-context";
+import { readBody, type AccountRouteParams } from "@/features/crm/accounts/server/account-http";
 
-type RouteContext = { params: Promise<{ id: string }> };
-
-export async function GET(request: Request, context: RouteContext) {
-  return workspaceRoute(
-    request,
-    { module: "crm" },
-    async ({ client, session }) => {
-      const { id } = await context.params;
-      const record = await getCrmAccountForCaller(
-        client,
-        crmContext(session),
-        id,
-      );
-      return ok({ record });
-    },
+export async function GET(request: Request, route: AccountRouteParams) {
+  return workspaceRoute(request, { module: "crm", permission: CRM_PERMISSIONS.accountsView }, async ({ client, session }) =>
+    ok({ record: await getAccount(client, crmContext(session), (await route.params).id) }),
   );
 }
 
-export async function PATCH(request: Request, context: RouteContext) {
-  return workspaceRoute(
-    request,
-    {
-      module: "crm",
-      permission: CRM_PERMISSIONS.accountsManage,
-      billingWrite: true,
-    },
-    async ({ client, session }) => {
-      const { id } = await context.params;
-      const body = (await readJson(request)) as {
-        input?: Record<string, unknown>;
-        expectedUpdatedAt?: string;
-      };
-      const record = await updateCrmAccount(
-        client,
-        crmContext(session),
-        id,
-        body.input ?? {},
-        { expectedUpdatedAt: body.expectedUpdatedAt, requireVersion: true },
-      );
-      return ok({ record });
-    },
-  );
+export async function PATCH(request: Request, route: AccountRouteParams) {
+  return workspaceRoute(request, { module: "crm", permission: CRM_PERMISSIONS.accountsEdit, billingWrite: true }, async ({ client, session }) => {
+    const { allowDuplicate, expectedUpdatedAt, ...input } = await readBody(request);
+    const record = await updateAccount(client, crmContext(session), (await route.params).id, input, {
+      allowDuplicate: allowDuplicate === true,
+      expectedUpdatedAt: typeof expectedUpdatedAt === "string" ? expectedUpdatedAt : null,
+    });
+    return ok({ record });
+  });
 }
 
-export async function DELETE(request: Request, context: RouteContext) {
-  return workspaceRoute(
-    request,
-    {
-      module: "crm",
-      permission: CRM_PERMISSIONS.accountsManage,
-      billingWrite: true,
-    },
-    async ({ client, session }) => {
-      const { id } = await context.params;
-      const url = new URL(request.url);
-      const expectedUpdatedAt =
-        url.searchParams.get("expectedUpdatedAt") ?? undefined;
-      const record = await archiveCrmAccount(client, crmContext(session), id, {
-        expectedUpdatedAt,
-        requireVersion: true,
-      });
-      return ok({ record });
-    },
+// Permanently deletes an account created by mistake. Refused when anything
+// refers to the account; such an account is archived instead.
+export async function DELETE(request: Request, route: AccountRouteParams) {
+  return workspaceRoute(request, { module: "crm", permission: CRM_PERMISSIONS.accountsDelete, billingWrite: true }, async ({ client, session }) =>
+    ok(await deleteUnusedAccount(client, crmContext(session), (await route.params).id)),
   );
 }

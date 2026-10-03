@@ -34,7 +34,7 @@ export function ContactListScreen() {
   const searchParams = useSearchParams();
   const workspace = useWorkspaceContext();
   const canManage = workspace.permissions.includes(
-    CRM_PERMISSIONS.accountsManage,
+    CRM_PERMISSIONS.accountsEdit,
   );
 
   const [filters, setFilters] = useState<ContactListFilters>({

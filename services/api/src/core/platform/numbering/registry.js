@@ -20,7 +20,8 @@ export const DOCUMENT_TYPES = Object.freeze(
     org("crm_lead", "crm", "Lead", "LEAD-"),
     org("crm_opportunity", "crm", "Opportunity", "OPP-"),
     org("crm_campaign", "crm", "Campaign", "CMP-"),
-    org("business_party", "crm", "Account / business party", "PTY-"),
+    org("business_party", "crm", "Account", "ACC-"),
+    org("customer", "sales", "Customer", "CUST-"),
     // Sales
     org("quotation", "sales", "Sales quotation", "QUO-"),
     org("sales_order", "sales", "Sales order", "SO-"),

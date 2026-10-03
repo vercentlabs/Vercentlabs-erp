@@ -10,7 +10,7 @@ export async function POST(request: Request) {
     request,
     {
       module: "crm",
-      permission: CRM_PERMISSIONS.accountsManage,
+      permission: CRM_PERMISSIONS.accountsEdit,
       billingWrite: true,
     },
     async ({ client, session }) => {

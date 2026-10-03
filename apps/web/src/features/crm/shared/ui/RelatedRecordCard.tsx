@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 
-import { getAccount } from "@/features/crm/customers/accounts/api/accounts-api";
+import { getAccount } from "@/features/crm/accounts/api/accounts-api";
 import { getContact } from "@/features/crm/customers/contacts/api/contacts-api";
 import { getLead } from "@/features/crm/leads/api/leads-api";
 import { getOpportunity } from "@/features/crm/pipeline/opportunities/api/opportunities-api";
@@ -22,7 +22,7 @@ async function loadName(type: string, id: string): Promise<string> {
     const lead = await getLead(id);
     return lead.fullName || lead.companyName || lead.code;
   }
-  if (type === "party") return (await getAccount(id)).record.displayName;
+  if (type === "party") return (await getAccount(id)).displayName;
   if (type === "contact") {
     const { record } = await getContact(id);
     return [record.firstName, record.lastName].filter(Boolean).join(" ");

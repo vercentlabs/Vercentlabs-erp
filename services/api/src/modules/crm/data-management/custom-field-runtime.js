@@ -28,7 +28,7 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-
 
 // F028 — writing a value is editing the record: the caller needs that record
 // type's manage permission, not just CRM access (organization owners pass).
-const MANAGE_PERMISSION = { lead: "crm.leads.edit", opportunity: "crm.opportunities.manage", party: "crm.accounts.manage", contact: "crm.accounts.manage" };
+const MANAGE_PERMISSION = { lead: "crm.leads.edit", opportunity: "crm.opportunities.manage", party: "crm.accounts.edit", contact: "crm.accounts.edit" };
 function assertCanEditValues(context, entityType) {
   if (context.roleSlugs?.includes("organization_owner")) return;
   if (!context.permissions?.includes(MANAGE_PERMISSION[entityType]))

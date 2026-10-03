@@ -133,7 +133,7 @@ export function shapeCustomerInput(
 // Accounts (findAccountDuplicates/recordAccountDuplicateOverride are
 // package-root exports, not CRM-internal) -- gated on `parties.manage`
 // (what Sales party mutations already require) instead of CRM's
-// `crm.accounts.manage`, so Sales users need no CRM permission to override.
+// `crm.accounts.edit`, so Sales users need no CRM permission to override.
 export async function assertPartyDuplicatePolicy(
   client: DuplicateClient,
   context: DuplicateContext,

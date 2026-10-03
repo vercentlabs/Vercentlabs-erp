@@ -9,8 +9,6 @@
 // and are imported from @vercentlabs/api/crm. Removing a name from the root is
 // a deliberate breaking change (see services/api/tests/crm-public-api-exports.test.mjs).
 
-export * from "../modules/crm/master-data/foundation.js";
-export * from "../modules/crm/master-data/account-operations.js";
 export * from "../modules/crm/master-data/contact-operations.js";
 export * from "../modules/crm/pipeline/opportunity-operations.js";
 export * from "../modules/crm/pipeline/sales-stage-operations.js";

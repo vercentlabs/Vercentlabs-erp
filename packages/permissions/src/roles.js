@@ -23,11 +23,20 @@ export const CURRENT_MODULE_KEYS = Object.freeze([
 
 const base = ["workspace.view", "notifications.view", "profile.manage"];
 const businessReader = [...base, "business_data.view"];
-const crmReader = [...businessReader, "crm.view", "crm.leads.view", "crm.reports.view"];
+const crmReader = [...businessReader, "crm.view", "crm.leads.view", "crm.accounts.view", "crm.reports.view"];
 // Working a lead day to day: everything a salesperson does to their own leads.
 const leadWorker = ["crm.leads.create", "crm.leads.edit", "crm.leads.assign", "crm.leads.qualify", "crm.leads.disqualify", "crm.leads.reopen", "crm.leads.convert"];
 // Running the lead desk: moving leads between people, archiving, import and export.
 const leadManager = [...leadWorker, "crm.leads.reassign", "crm.leads.delete", "crm.leads.import", "crm.leads.export"];
+// Working accounts day to day: adding companies, keeping them current and
+// giving an unowned account an owner.
+const accountWorker = ["crm.accounts.create", "crm.accounts.edit", "crm.accounts.assign"];
+// Running the account book: moving ownership, merging duplicates, archiving,
+// deleting mistakes, import/export and turning prospects into customers.
+const accountManager = [
+  ...accountWorker, "crm.accounts.reassign", "crm.accounts.archive", "crm.accounts.delete", "crm.accounts.merge",
+  "crm.accounts.import", "crm.accounts.export", "crm.accounts.create_customer",
+];
 const salesReader = [...businessReader, "sales.view", "sales.reports.view"];
 const accountingReader = [
   ...businessReader,
@@ -202,7 +211,8 @@ export const ROLE_TEMPLATES = Object.freeze([
       "crm.export",
       "crm.settings.manage",
       "crm.revenue.manage",
-      "crm.accounts.manage",
+      ...accountManager,
+      "crm.accounts.view_all",
       "crm.playbooks.manage",
       "crm.privacy.manage",
       "crm.data-quality.manage",
@@ -246,7 +256,8 @@ export const ROLE_TEMPLATES = Object.freeze([
       "crm.activities.manage",
       "crm.communications.manage",
       "crm.revenue.manage",
-      "crm.accounts.manage",
+      ...accountManager,
+      "crm.accounts.view_all",
       "crm.playbooks.manage",
       "crm.analytics.manage",
       "sales.quotation.send",
@@ -295,7 +306,7 @@ export const ROLE_TEMPLATES = Object.freeze([
       "crm.activities.manage",
       "crm.communications.manage",
       "crm.revenue.manage",
-      "crm.accounts.manage",
+      ...accountManager,
       "crm.playbooks.manage",
       "crm.analytics.manage",
       "sales.quotation.send",
@@ -334,7 +345,7 @@ export const ROLE_TEMPLATES = Object.freeze([
       "crm.opportunities.manage",
       "crm.activities.manage",
       "crm.communications.manage",
-      "crm.accounts.manage",
+      ...accountWorker,
       "crm.playbooks.manage",
       "crm.field-sales.manage",
       "sales.quotation.create",
@@ -361,6 +372,8 @@ export const ROLE_TEMPLATES = Object.freeze([
       "crm.records.view_all",
       "parties.manage",
       ...leadManager,
+      ...accountManager,
+      "crm.accounts.view_all",
       "crm.leads.view_sensitive",
       "crm.saved_views.share",
       "crm.opportunities.manage",
@@ -425,7 +438,8 @@ export const ROLE_TEMPLATES = Object.freeze([
       "crm.customers.view_all",
       "crm.contacts.view_sensitive",
       "parties.manage",
-      "crm.accounts.manage",
+      ...accountWorker,
+      "crm.accounts.view_sensitive",
       "crm.activities.manage",
       "crm.communications.manage",
       "crm.playbooks.manage",

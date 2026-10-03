@@ -40,7 +40,7 @@ import { recordScope } from "../../data-management/record-policy.js";
 import { resources } from "../../data-management/resource-registry.js";
 import { CrmError } from "../../data-management/errors.js";
 import { canViewSensitiveLeadContent } from "../../leads/access.js";
-import { canViewSensitiveAccountContent } from "../../master-data/account-security.js";
+import { canViewSensitiveAccountContent } from "../../accounts/access.js";
 import { canViewSensitiveContactContent } from "../../master-data/contact-security.js";
 import { communicationVisibilitySql, projectCrmCommunications } from "../../data-management/communication-access.js";
 
@@ -149,12 +149,13 @@ function buildBranch(kind, entityType, entityId, context, values) {
     return null;
   }
   if (kind === "history") {
-    if (entityType !== "lead") return null;
+    const source = entityType === "lead" ? ["crm_lead_history", "lead_id"] : entityType === "party" ? ["crm_account_history", "party_id"] : null;
+    if (!source) return null;
     const entityIdParam = add(values, entityId);
     return `SELECT history.id,'history'::text AS kind,history.event_type AS subtype,history.summary AS title,
          history.created_at AS occurred_at,NULL::text AS status,history.actor_user_id,history.actor_user_id AS created_by
-       FROM tenant.crm_lead_history history
-       WHERE history.organization_id=$1 AND history.lead_id=${entityIdParam}`;
+       FROM tenant.${source[0]} history
+       WHERE history.organization_id=$1 AND history.${source[1]}=${entityIdParam}`;
   }
   if (kind === "attachment") {
     const entityIdParam = add(values, entityId);

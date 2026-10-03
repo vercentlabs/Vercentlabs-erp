@@ -38,8 +38,8 @@ const RESOURCE_MANAGE_PERMISSIONS: Partial<Record<string, string>> = {
   // F002 AccountPlanPanel/stakeholder UI (not a redirect-governed resource
   // like "stages", so without an entry here it would fall through to
   // module-access-only).
-  "account-plans": CRM_PERMISSIONS.accountsManage,
-  "account-stakeholders": CRM_PERMISSIONS.accountsManage,
+  "account-plans": CRM_PERMISSIONS.accountsEdit,
+  "account-stakeholders": CRM_PERMISSIONS.accountsEdit,
   // Playbooks setup UI.
   playbooks: CRM_PERMISSIONS.settingsManage,
   // F025 — forecast-periods is admin-configured; forecast-

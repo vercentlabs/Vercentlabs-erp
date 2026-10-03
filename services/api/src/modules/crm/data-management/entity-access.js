@@ -3,10 +3,11 @@
 // same owner rule and entity-type-specific
 // sensitive-content permission each record type's own detail view enforces.
 
-import { crmAccountVisibleSql, crmContactVisibleSql, crmOwnerScopeSql } from "./crm-access-scope.js";
+import { crmContactVisibleSql, crmOwnerScopeSql } from "./crm-access-scope.js";
 import { CrmError } from "./errors.js";
 import { canViewSensitiveLeadContent, leadScopeSql } from "../leads/access.js";
-import { canViewSensitiveAccountContent } from "../master-data/account-security.js";
+import { accountCan, accountScopeSql } from "../accounts/access.js";
+import { ACCOUNT_PERMISSIONS } from "../accounts/constants.js";
 import { canViewSensitiveContactContent } from "../master-data/contact-security.js";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -53,10 +54,10 @@ export async function resolveCrmEntityAccess(client, context, entityType, entity
   // Account/Contact: the same ownership rule as their own lists
   // (crm-access-scope.js).
   if (entityType === "party") {
-    if (!canViewSensitiveAccountContent(context)) return false;
+    if (!accountCan(context, ACCOUNT_PERMISSIONS.view)) return false;
     const values = [context.organizationId, entityId];
     const result = await client.query(
-      `SELECT account.id FROM tenant.business_parties account WHERE account.organization_id=$1 AND account.id=$2 AND account.status='active'${crmAccountVisibleSql(context, (value) => add(values, value), "account")} LIMIT 1`,
+      `SELECT account.id FROM tenant.business_parties account WHERE account.organization_id=$1 AND account.id=$2 AND account.party_type <> 'supplier'${accountScopeSql(context, values, "account")} LIMIT 1`,
       values,
     );
     return Boolean(result.rows[0]);

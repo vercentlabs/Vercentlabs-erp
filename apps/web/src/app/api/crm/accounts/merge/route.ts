@@ -1,42 +1,32 @@
-import { mergeAccountsGoverned } from "@vercentlabs/api/crm";
+import { mergeAccounts, previewAccountMerge } from "@vercentlabs/api/crm";
 import { CRM_PERMISSIONS } from "@vercentlabs/permissions";
 
-import { HttpError, ok, readJson } from "@/core/http";
-import { crmContext } from "@/features/crm/shared/crm-context";
+import { HttpError, ok } from "@/core/http";
 import { workspaceRoute } from "@/core/workspace-route";
+import { crmContext } from "@/features/crm/shared/crm-context";
+import { readBody } from "@/features/crm/accounts/server/account-http";
 
+// The side-by-side merge preview. Query: keepId, duplicateId.
+export async function GET(request: Request) {
+  return workspaceRoute(request, { module: "crm", permission: CRM_PERMISSIONS.accountsMerge }, async ({ client, session }) => {
+    const url = new URL(request.url);
+    const keepId = url.searchParams.get("keepId");
+    const duplicateId = url.searchParams.get("duplicateId");
+    if (!keepId || !duplicateId) throw new HttpError(400, "Choose the two accounts to merge.");
+    return ok({ preview: await previewAccountMerge(client, crmContext(session), keepId, duplicateId) });
+  });
+}
+
+// Body: { keepId, duplicateId, choices: { [field]: "keep" | "duplicate" } }
 export async function POST(request: Request) {
-  return workspaceRoute(
-    request,
-    {
-      module: "crm",
-      permission: CRM_PERMISSIONS.accountsManage,
-      billingWrite: true,
-    },
-    async ({ client, session }) => {
-      const body = (await readJson(request)) as {
-        sourceId?: string;
-        survivorId?: string;
-        reason?: string | null;
-        fieldSelections?: Record<string, "source" | "survivor">;
-        expectedSourceUpdatedAt?: string;
-        expectedSurvivorUpdatedAt?: string;
-      };
-      if (!body.sourceId || !body.survivorId)
-        throw new HttpError(400, "Both sourceId and survivorId are required.");
-      const record = await mergeAccountsGoverned(
-        client,
-        crmContext(session),
-        body.sourceId!,
-        body.survivorId!,
-        body.reason ?? null,
-        {
-          fieldSelections: body.fieldSelections,
-          expectedSourceUpdatedAt: body.expectedSourceUpdatedAt,
-          expectedSurvivorUpdatedAt: body.expectedSurvivorUpdatedAt,
-        },
-      );
-      return ok({ record });
-    },
-  );
+  return workspaceRoute(request, { module: "crm", permission: CRM_PERMISSIONS.accountsMerge, billingWrite: true }, async ({ client, session }) => {
+    const body = await readBody(request);
+    return ok({
+      merge: await mergeAccounts(client, crmContext(session), {
+        keepId: String(body.keepId ?? ""),
+        duplicateId: String(body.duplicateId ?? ""),
+        choices: (body.choices ?? {}) as Record<string, "keep" | "duplicate">,
+      }),
+    });
+  });
 }

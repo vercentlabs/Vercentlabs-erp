@@ -236,13 +236,6 @@ export {
   applyOfflineBatch,
 } from "./data-management/offline-sync.js";
 export {
-  archiveCrmAccount,
-  createCrmAccount,
-  getCrmAccountForCaller,
-  listCrmAccounts,
-  updateCrmAccount,
-} from "./master-data/account-operations.js";
-export {
   archiveCrmContact,
   createCrmContact,
   getCrmContactForCaller,
@@ -418,16 +411,11 @@ export {
 } from "./activities/communications.js";
 export {
   executePrivacyRequest,
-  getAccountHierarchy,
-  getCustomer360ForCaller,
   getPrivacyRetentionDashboard,
-  mergeAccountsGoverned,
   mergeContactsGoverned,
-  previewAccountMergeForCaller,
   previewContactMergeForCaller,
   previewPrivacyRequest,
   runPrivacyRetention,
-  setAccountParent,
   updatePrivacyRetentionPolicy,
 } from "./master-data/account-intelligence.js";
 
@@ -495,3 +483,4 @@ export function failCalendarSync(
   error: unknown,
 ): Promise<{ failed: true; code: string }>;
 export * from "./leads/index.js";
+export * from "./accounts/index.js";

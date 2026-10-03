@@ -19,7 +19,7 @@ export default async function EditContactPage({
   const session = await requireWorkspace();
   const canManage =
     session.roleSlugs.includes("organization_owner") ||
-    session.permissions.includes(CRM_PERMISSIONS.accountsManage);
+    session.permissions.includes(CRM_PERMISSIONS.accountsEdit);
   const { contactId } = await params;
   const loaded = canManage
     ? await loadRecordForEdit(session, (client) =>

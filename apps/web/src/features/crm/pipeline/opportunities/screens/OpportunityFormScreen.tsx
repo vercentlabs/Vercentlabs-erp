@@ -80,17 +80,20 @@ export function OpportunityFormScreen({
   opportunity,
   canManage = true,
   notFound = false,
+  initialPartyId,
 }: {
   mode: "create" | "edit";
   opportunity?: Opportunity;
   canManage?: boolean;
   notFound?: boolean;
+  // Preselects the account when opened from an account page.
+  initialPartyId?: string;
 }) {
   const router = useRouter();
   const queryClient = useQueryClient();
   const workspace = useWorkspaceContext();
   const [values, setValues] = useState<FormValues>(
-    opportunity ? toForm(opportunity) : EMPTY,
+    opportunity ? toForm(opportunity) : { ...EMPTY, partyId: initialPartyId ?? "" },
   );
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [conflict, setConflict] = useState(false);

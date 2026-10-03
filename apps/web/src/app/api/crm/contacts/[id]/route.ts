@@ -32,7 +32,7 @@ export async function PATCH(request: Request, context: RouteContext) {
     request,
     {
       module: "crm",
-      permission: CRM_PERMISSIONS.accountsManage,
+      permission: CRM_PERMISSIONS.accountsEdit,
       billingWrite: true,
     },
     async ({ client, session }) => {
@@ -58,7 +58,7 @@ export async function DELETE(request: Request, context: RouteContext) {
     request,
     {
       module: "crm",
-      permission: CRM_PERMISSIONS.accountsManage,
+      permission: CRM_PERMISSIONS.accountsEdit,
       billingWrite: true,
     },
     async ({ client, session }) => {

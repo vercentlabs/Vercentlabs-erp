@@ -1,30 +1,16 @@
-import {
-  findAccountDuplicates,
-  projectDuplicateMatchesForCaller,
-} from "@vercentlabs/api/crm";
+import { findDuplicateAccounts } from "@vercentlabs/api/crm";
+import { CRM_PERMISSIONS } from "@vercentlabs/permissions";
 
-import { ok, readJson } from "@/core/http";
-import { crmContext } from "@/features/crm/shared/crm-context";
+import { ok } from "@/core/http";
 import { workspaceRoute } from "@/core/workspace-route";
+import { crmContext } from "@/features/crm/shared/crm-context";
+import { readBody } from "@/features/crm/accounts/server/account-http";
 
-// F002. findAccountDuplicates (duplicate-matching.js), also used by lead
-// conversion's own duplicate check, for the Account 360. Read-only, module-access-only,
-// same convention as /api/crm/leads/duplicates.
+// Checks the account being typed against existing accounts.
+// Body: { displayName, legalName?, website?, email?, phone?, city?, excludeId? }
 export async function POST(request: Request) {
-  return workspaceRoute(
-    request,
-    { module: "crm" },
-    async ({ client, session }) => {
-      const body = (await readJson(request)) as {
-        input?: Record<string, unknown>;
-      };
-      const context = crmContext(session);
-      const duplicates = await projectDuplicateMatchesForCaller(
-        context,
-        "account",
-        await findAccountDuplicates(client, context, body.input ?? {}),
-      );
-      return ok({ duplicates });
-    },
-  );
+  return workspaceRoute(request, { module: "crm", permission: CRM_PERMISSIONS.accountsView }, async ({ client, session }) => {
+    const { excludeId, ...input } = await readBody(request);
+    return ok(await findDuplicateAccounts(client, crmContext(session), input, { excludeId: typeof excludeId === "string" ? excludeId : null }));
+  });
 }

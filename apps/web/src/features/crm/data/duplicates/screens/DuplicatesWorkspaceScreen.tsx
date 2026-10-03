@@ -14,12 +14,8 @@ import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext"
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import { getLead, listLeads, type Lead } from "@/features/crm/leads/api/leads-api";
 import { LeadDuplicatesPanel } from "@/features/crm/leads/components/LeadDuplicatesPanel";
-import {
-  getAccount,
-  listAccounts,
-} from "@/features/crm/customers/accounts/api/accounts-api";
-import type { Account } from "@/features/crm/customers/accounts/types";
-import { AccountDuplicatesPanel } from "@/features/crm/customers/accounts/components/AccountDuplicatesPanel";
+import { getAccount, listAccounts, type Account } from "@/features/crm/accounts/api/accounts-api";
+import { AccountDuplicatesPanel } from "@/features/crm/accounts/components/AccountDuplicatesPanel";
 import {
   getContact,
   listContacts,
@@ -44,7 +40,7 @@ export function DuplicatesWorkspaceScreen() {
   const workspace = useWorkspaceContext();
   const canView =
     workspace.permissions.includes(CRM_PERMISSIONS.leadsEdit) ||
-    workspace.permissions.includes(CRM_PERMISSIONS.accountsManage);
+    workspace.permissions.includes(CRM_PERMISSIONS.accountsEdit);
   const [entityType, setEntityType] = useState<EntityType>("lead");
   const [search, setSearch] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -128,7 +124,7 @@ export function DuplicatesWorkspaceScreen() {
     return (
       <PermissionState
         title="You don't have access to duplicate management"
-        description="Ask an administrator for the Edit leads or Manage accounts permission."
+        description="Ask an administrator for the Edit leads or Edit accounts permission."
       />
     );
 
@@ -150,7 +146,7 @@ export function DuplicatesWorkspaceScreen() {
   const selectedAccount: Account | undefined =
     entityType === "account"
       ? (accountRows.find((row) => row.id === selectedId) ??
-        reviewedAccountQuery.data?.record)
+        reviewedAccountQuery.data)
       : undefined;
   const selectedContact: Contact | undefined =
     entityType === "contact"
@@ -176,7 +172,7 @@ export function DuplicatesWorkspaceScreen() {
       return [
         account.displayName,
         account.city,
-        account.gstin ? `GSTIN ${account.gstin}` : null,
+        account.code,
         account.email,
       ]
         .filter(Boolean)
@@ -296,16 +292,14 @@ export function DuplicatesWorkspaceScreen() {
         {selectedAccount && (
           <AccountDuplicatesPanel
             account={selectedAccount}
-            canManage={workspace.permissions.includes(
-              CRM_PERMISSIONS.accountsManage,
-            )}
+            canMerge={workspace.permissions.includes(CRM_PERMISSIONS.accountsMerge) || workspace.roleSlugs.includes("organization_owner")}
           />
         )}
         {selectedContact && (
           <ContactDuplicatesPanel
             contact={selectedContact}
             canManage={workspace.permissions.includes(
-              CRM_PERMISSIONS.accountsManage,
+              CRM_PERMISSIONS.accountsEdit,
             )}
           />
         )}

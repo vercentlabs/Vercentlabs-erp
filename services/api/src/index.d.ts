@@ -209,11 +209,6 @@ export * from "./modules/sales/index.js";
 export * from "./modules/accounting/index.js";
 
 export * from "./modules/procurement/index.js";
-export class CrmFoundationError extends Error {
-  readonly status: number;
-  readonly code: string;
-  constructor(status: number, message: string, code?: string);
-}
 export function findAccountDuplicates(
   client: QueryClient,
   context: CrmFoundationContext,
@@ -225,32 +220,6 @@ export function findContactDuplicates(
   input?: Record<string, unknown>,
 ): Promise<Array<Record<string, unknown>>>;
 export const DUPLICATE_FULL_SCAN_BATCH_SIZE: number;
-export function mergeAccounts(
-  client: QueryClient,
-  context: CrmFoundationContext,
-  sourceId: string,
-  survivorId: string,
-  reason?: string | null,
-): Promise<Record<string, unknown>>;
-export function mergeContacts(
-  client: QueryClient,
-  context: CrmFoundationContext,
-  sourceId: string,
-  survivorId: string,
-  reason?: string | null,
-): Promise<Record<string, unknown>>;
-export function getRelationshipGraph(
-  client: QueryClient,
-  context: CrmFoundationContext,
-  partyId: string,
-): Promise<Array<Record<string, unknown>>>;
-
-
-
-
-
-
-
 export function assertEligibleLeadAssignee(
   client: QueryClient,
   context: CrmFoundationContext,

@@ -10,7 +10,7 @@ import { createHash } from "node:crypto";
 import { CrmError } from "../data-management/errors.js";
 import { activeRuleSetTimestamp, getActiveDuplicateRules } from "./duplicate-rules.js";
 import { crmAccountVisibleSql, crmContactVisibleSql } from "../data-management/crm-access-scope.js";
-import { projectAccountForContext } from "./account-security.js";
+import { projectAccountForContext } from "../accounts/access.js";
 import { projectContactForContext } from "./contact-security.js";
 
 function signatureOf(parts) {

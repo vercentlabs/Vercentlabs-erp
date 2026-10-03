@@ -4,7 +4,8 @@
 // Register a provider here only when its domain list function is proven safe.
 import { listLeads } from "../../modules/crm/leads/index.js";
 import { listBusinessDataRecords } from "../../core/master-data.js";
-import { listCrmAccounts, listCrmContacts, listCrmRecords } from "../../modules/crm/index.js";
+import { listAccounts } from "../../modules/crm/accounts/index.js";
+import { listCrmContacts, listCrmRecords } from "../../modules/crm/index.js";
 
 const SALES_CUSTOMER_TYPES = ["customer", "prospect", "both"];
 const text = (value) => (value === null || value === undefined || value === "" ? null : String(value).slice(0, 160));
@@ -25,10 +26,10 @@ export const SEARCH_PROVIDERS = Object.freeze([
     key: "crm.accounts",
     label: "Accounts",
     moduleKey: "crm",
-    requiredPermission: "crm.view",
+    requiredPermission: "crm.accounts.view",
     async execute(client, context, term, limit) {
-      const { rows } = await listCrmAccounts(client, context, { search: term, limit, status: "active" });
-      return rows.map((row) => ({ recordId: row.id, title: text(row.displayName) || "Account", detail: text(row.code), href: `/crm/accounts/${row.id}` }));
+      const { accounts } = await listAccounts(client, context, { search: term, limit });
+      return accounts.map((account) => ({ recordId: account.id, title: text(account.displayName) || "Account", detail: joined(account.code, account.city), href: `/crm/accounts/${account.id}` }));
     },
   },
   {

@@ -6170,7 +6170,7 @@ CREATE TABLE tenant.business_parties (
     CONSTRAINT business_parties_privacy_status_check CHECK ((privacy_status = ANY (ARRAY['active'::text, 'restricted'::text, 'anonymized'::text, 'erased'::text]))),
     CONSTRAINT business_parties_sales_block_check CHECK ((sales_block = ANY (ARRAY['none'::text, 'orders'::text, 'all'::text]))),
     CONSTRAINT business_parties_sales_block_reason_check CHECK (((sales_block = 'none'::text) OR (length(btrim(COALESCE(sales_block_reason, ''::text))) >= 5))),
-    CONSTRAINT business_parties_status_check CHECK ((status = ANY (ARRAY['active'::text, 'inactive'::text]))),
+    CONSTRAINT business_parties_status_check CHECK ((status = ANY (ARRAY['active'::text, 'inactive'::text, 'archived'::text]))),
     CONSTRAINT business_parties_tax_treatment_check CHECK (((tax_treatment IS NULL) OR (tax_treatment = ANY (ARRAY['registered_regular'::text, 'registered_composition'::text, 'unregistered'::text, 'consumer'::text, 'overseas'::text, 'sez'::text, 'deemed_export'::text])))),
     CONSTRAINT business_parties_website_scheme_check CHECK (((website IS NULL) OR (website ~* '^https?://'::text)))
 );
@@ -6245,76 +6245,6 @@ ALTER TABLE ONLY tenant.crm_account_duplicate_overrides FORCE ROW LEVEL SECURITY
 --
 
 COMMENT ON TABLE tenant.crm_account_duplicate_overrides IS 'Immutable F008 audit ledger for Account exact-duplicate create/update overrides and probable-duplicate dismissals. Mirrors crm_lead_duplicate_overrides.';
-
-
---
--- Name: crm_account_hierarchy_events; Type: TABLE; Schema: tenant; Owner: -
---
-
-CREATE TABLE tenant.crm_account_hierarchy_events (
-    id uuid DEFAULT gen_random_uuid() NOT NULL,
-    organization_id uuid NOT NULL,
-    party_id uuid NOT NULL,
-    previous_parent_party_id uuid,
-    new_parent_party_id uuid,
-    action text NOT NULL,
-    reason text,
-    changed_by uuid,
-    changed_at timestamp with time zone DEFAULT now() NOT NULL,
-    CONSTRAINT crm_account_hierarchy_events_action_check CHECK ((action = ANY (ARRAY['parent_set'::text, 'parent_cleared'::text, 'merge_reparented'::text]))),
-    CONSTRAINT crm_account_hierarchy_events_check CHECK ((previous_parent_party_id IS DISTINCT FROM new_parent_party_id))
-);
-
-ALTER TABLE ONLY tenant.crm_account_hierarchy_events FORCE ROW LEVEL SECURITY;
-
-
---
--- Name: crm_account_intelligence_acceptance_runs; Type: TABLE; Schema: tenant; Owner: -
---
-
-CREATE TABLE tenant.crm_account_intelligence_acceptance_runs (
-    id uuid DEFAULT gen_random_uuid() NOT NULL,
-    organization_id uuid NOT NULL,
-    capability_id text NOT NULL,
-    status text NOT NULL,
-    evidence jsonb DEFAULT '{}'::jsonb NOT NULL,
-    content_hash text NOT NULL,
-    commit_sha text,
-    recorded_by uuid,
-    recorded_at timestamp with time zone DEFAULT now() NOT NULL,
-    CONSTRAINT crm_account_intelligence_acceptance_runs_capability_id_check CHECK ((capability_id = ANY (ARRAY['CRM-027'::text, 'CRM-028'::text, 'CRM-029'::text, 'CRM-030'::text, 'CRM-035'::text]))),
-    CONSTRAINT crm_account_intelligence_acceptance_runs_status_check CHECK ((status = ANY (ARRAY['passed'::text, 'failed'::text])))
-);
-
-ALTER TABLE ONLY tenant.crm_account_intelligence_acceptance_runs FORCE ROW LEVEL SECURITY;
-
-
---
--- Name: crm_account_merge_history; Type: TABLE; Schema: tenant; Owner: -
---
-
-CREATE TABLE tenant.crm_account_merge_history (
-    id uuid DEFAULT gen_random_uuid() NOT NULL,
-    organization_id uuid NOT NULL,
-    source_party_id uuid NOT NULL,
-    survivor_party_id uuid NOT NULL,
-    source_snapshot jsonb NOT NULL,
-    survivor_snapshot jsonb NOT NULL,
-    reason text,
-    merged_by uuid,
-    merged_at timestamp with time zone DEFAULT now() NOT NULL,
-    field_selections jsonb DEFAULT '{}'::jsonb NOT NULL,
-    CONSTRAINT crm_account_merge_history_check CHECK ((source_party_id <> survivor_party_id))
-);
-
-ALTER TABLE ONLY tenant.crm_account_merge_history FORCE ROW LEVEL SECURITY;
-
-
---
--- Name: COLUMN crm_account_merge_history.field_selections; Type: COMMENT; Schema: tenant; Owner: -
---
-
-COMMENT ON COLUMN tenant.crm_account_merge_history.field_selections IS 'Map of field -> "source"|"survivor" recording which candidate''s value was kept for each field the merge UI showed a conflict for.';
 
 
 --
@@ -22150,30 +22080,6 @@ ALTER TABLE ONLY tenant.crm_account_duplicate_overrides
 
 
 --
--- Name: crm_account_hierarchy_events crm_account_hierarchy_events_pkey; Type: CONSTRAINT; Schema: tenant; Owner: -
---
-
-ALTER TABLE ONLY tenant.crm_account_hierarchy_events
-    ADD CONSTRAINT crm_account_hierarchy_events_pkey PRIMARY KEY (id);
-
-
---
--- Name: crm_account_intelligence_acceptance_runs crm_account_intelligence_acceptance_runs_pkey; Type: CONSTRAINT; Schema: tenant; Owner: -
---
-
-ALTER TABLE ONLY tenant.crm_account_intelligence_acceptance_runs
-    ADD CONSTRAINT crm_account_intelligence_acceptance_runs_pkey PRIMARY KEY (id);
-
-
---
--- Name: crm_account_merge_history crm_account_merge_history_pkey; Type: CONSTRAINT; Schema: tenant; Owner: -
---
-
-ALTER TABLE ONLY tenant.crm_account_merge_history
-    ADD CONSTRAINT crm_account_merge_history_pkey PRIMARY KEY (id);
-
-
---
 -- Name: crm_account_plans crm_account_plans_organization_id_party_id_key; Type: CONSTRAINT; Schema: tenant; Owner: -
 --
 
@@ -30199,20 +30105,6 @@ CREATE INDEX crm_account_duplicate_overrides_party_idx ON tenant.crm_account_dup
 
 
 --
--- Name: crm_account_intelligence_acceptance_latest_idx; Type: INDEX; Schema: tenant; Owner: -
---
-
-CREATE INDEX crm_account_intelligence_acceptance_latest_idx ON tenant.crm_account_intelligence_acceptance_runs USING btree (organization_id, capability_id, recorded_at DESC);
-
-
---
--- Name: crm_account_merge_survivor_idx; Type: INDEX; Schema: tenant; Owner: -
---
-
-CREATE INDEX crm_account_merge_survivor_idx ON tenant.crm_account_merge_history USING btree (organization_id, survivor_party_id, merged_at DESC);
-
-
---
 -- Name: crm_account_plan_health_idx; Type: INDEX; Schema: tenant; Owner: -
 --
 
@@ -34158,20 +34050,6 @@ CREATE TRIGGER contacts_touch_updated_at BEFORE UPDATE ON tenant.contacts FOR EA
 --
 
 CREATE TRIGGER crm_account_duplicate_overrides_immutable BEFORE DELETE OR UPDATE ON tenant.crm_account_duplicate_overrides FOR EACH ROW EXECUTE FUNCTION tenant.crm_account_duplicate_override_immutable();
-
-
---
--- Name: crm_account_hierarchy_events crm_account_hierarchy_events_immutable; Type: TRIGGER; Schema: tenant; Owner: -
---
-
-CREATE TRIGGER crm_account_hierarchy_events_immutable BEFORE DELETE OR UPDATE ON tenant.crm_account_hierarchy_events FOR EACH ROW EXECUTE FUNCTION tenant.crm_account_intelligence_immutable_row();
-
-
---
--- Name: crm_account_intelligence_acceptance_runs crm_account_intelligence_acceptance_runs_immutable; Type: TRIGGER; Schema: tenant; Owner: -
---
-
-CREATE TRIGGER crm_account_intelligence_acceptance_runs_immutable BEFORE DELETE OR UPDATE ON tenant.crm_account_intelligence_acceptance_runs FOR EACH ROW EXECUTE FUNCTION tenant.crm_account_intelligence_immutable_row();
 
 
 --
@@ -40187,110 +40065,6 @@ ALTER TABLE ONLY tenant.crm_account_duplicate_overrides
 
 ALTER TABLE ONLY tenant.crm_account_duplicate_overrides
     ADD CONSTRAINT crm_account_duplicate_overrides_organization_id_party_id_fkey FOREIGN KEY (organization_id, party_id) REFERENCES tenant.business_parties(organization_id, id) ON DELETE RESTRICT;
-
-
---
--- Name: crm_account_hierarchy_events crm_account_hierarchy_events_changed_by_fkey; Type: FK CONSTRAINT; Schema: tenant; Owner: -
---
-
-ALTER TABLE ONLY tenant.crm_account_hierarchy_events
-    ADD CONSTRAINT crm_account_hierarchy_events_changed_by_fkey FOREIGN KEY (changed_by) REFERENCES public.users(id) ON DELETE SET NULL;
-
-
---
--- Name: crm_account_hierarchy_events crm_account_hierarchy_events_new_parent_organization_fkey; Type: FK CONSTRAINT; Schema: tenant; Owner: -
---
-
-ALTER TABLE ONLY tenant.crm_account_hierarchy_events
-    ADD CONSTRAINT crm_account_hierarchy_events_new_parent_organization_fkey FOREIGN KEY (organization_id, new_parent_party_id) REFERENCES tenant.business_parties(organization_id, id) ON DELETE SET NULL (new_parent_party_id);
-
-
---
--- Name: crm_account_hierarchy_events crm_account_hierarchy_events_new_parent_party_id_fkey; Type: FK CONSTRAINT; Schema: tenant; Owner: -
---
-
-ALTER TABLE ONLY tenant.crm_account_hierarchy_events
-    ADD CONSTRAINT crm_account_hierarchy_events_new_parent_party_id_fkey FOREIGN KEY (new_parent_party_id) REFERENCES tenant.business_parties(id) ON DELETE SET NULL;
-
-
---
--- Name: crm_account_hierarchy_events crm_account_hierarchy_events_organization_id_fkey; Type: FK CONSTRAINT; Schema: tenant; Owner: -
---
-
-ALTER TABLE ONLY tenant.crm_account_hierarchy_events
-    ADD CONSTRAINT crm_account_hierarchy_events_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id) ON DELETE CASCADE;
-
-
---
--- Name: crm_account_hierarchy_events crm_account_hierarchy_events_party_id_fkey; Type: FK CONSTRAINT; Schema: tenant; Owner: -
---
-
-ALTER TABLE ONLY tenant.crm_account_hierarchy_events
-    ADD CONSTRAINT crm_account_hierarchy_events_party_id_fkey FOREIGN KEY (party_id) REFERENCES tenant.business_parties(id) ON DELETE RESTRICT;
-
-
---
--- Name: crm_account_hierarchy_events crm_account_hierarchy_events_party_organization_fkey; Type: FK CONSTRAINT; Schema: tenant; Owner: -
---
-
-ALTER TABLE ONLY tenant.crm_account_hierarchy_events
-    ADD CONSTRAINT crm_account_hierarchy_events_party_organization_fkey FOREIGN KEY (organization_id, party_id) REFERENCES tenant.business_parties(organization_id, id) ON DELETE RESTRICT;
-
-
---
--- Name: crm_account_hierarchy_events crm_account_hierarchy_events_previous_parent_organization_fkey; Type: FK CONSTRAINT; Schema: tenant; Owner: -
---
-
-ALTER TABLE ONLY tenant.crm_account_hierarchy_events
-    ADD CONSTRAINT crm_account_hierarchy_events_previous_parent_organization_fkey FOREIGN KEY (organization_id, previous_parent_party_id) REFERENCES tenant.business_parties(organization_id, id) ON DELETE SET NULL (previous_parent_party_id);
-
-
---
--- Name: crm_account_hierarchy_events crm_account_hierarchy_events_previous_parent_party_id_fkey; Type: FK CONSTRAINT; Schema: tenant; Owner: -
---
-
-ALTER TABLE ONLY tenant.crm_account_hierarchy_events
-    ADD CONSTRAINT crm_account_hierarchy_events_previous_parent_party_id_fkey FOREIGN KEY (previous_parent_party_id) REFERENCES tenant.business_parties(id) ON DELETE SET NULL;
-
-
---
--- Name: crm_account_intelligence_acceptance_runs crm_account_intelligence_acceptance_runs_organization_id_fkey; Type: FK CONSTRAINT; Schema: tenant; Owner: -
---
-
-ALTER TABLE ONLY tenant.crm_account_intelligence_acceptance_runs
-    ADD CONSTRAINT crm_account_intelligence_acceptance_runs_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id) ON DELETE CASCADE;
-
-
---
--- Name: crm_account_intelligence_acceptance_runs crm_account_intelligence_acceptance_runs_recorded_by_fkey; Type: FK CONSTRAINT; Schema: tenant; Owner: -
---
-
-ALTER TABLE ONLY tenant.crm_account_intelligence_acceptance_runs
-    ADD CONSTRAINT crm_account_intelligence_acceptance_runs_recorded_by_fkey FOREIGN KEY (recorded_by) REFERENCES public.users(id) ON DELETE SET NULL;
-
-
---
--- Name: crm_account_merge_history crm_account_merge_history_merged_by_fkey; Type: FK CONSTRAINT; Schema: tenant; Owner: -
---
-
-ALTER TABLE ONLY tenant.crm_account_merge_history
-    ADD CONSTRAINT crm_account_merge_history_merged_by_fkey FOREIGN KEY (merged_by) REFERENCES public.users(id) ON DELETE SET NULL;
-
-
---
--- Name: crm_account_merge_history crm_account_merge_history_organization_id_fkey; Type: FK CONSTRAINT; Schema: tenant; Owner: -
---
-
-ALTER TABLE ONLY tenant.crm_account_merge_history
-    ADD CONSTRAINT crm_account_merge_history_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id) ON DELETE CASCADE;
-
-
---
--- Name: crm_account_merge_history crm_account_merge_history_survivor_party_id_fkey; Type: FK CONSTRAINT; Schema: tenant; Owner: -
---
-
-ALTER TABLE ONLY tenant.crm_account_merge_history
-    ADD CONSTRAINT crm_account_merge_history_survivor_party_id_fkey FOREIGN KEY (survivor_party_id) REFERENCES tenant.business_parties(id) ON DELETE RESTRICT;
 
 
 --
@@ -52256,24 +52030,6 @@ ALTER TABLE tenant.contacts ENABLE ROW LEVEL SECURITY;
 ALTER TABLE tenant.crm_account_duplicate_overrides ENABLE ROW LEVEL SECURITY;
 
 --
--- Name: crm_account_hierarchy_events; Type: ROW SECURITY; Schema: tenant; Owner: -
---
-
-ALTER TABLE tenant.crm_account_hierarchy_events ENABLE ROW LEVEL SECURITY;
-
---
--- Name: crm_account_intelligence_acceptance_runs; Type: ROW SECURITY; Schema: tenant; Owner: -
---
-
-ALTER TABLE tenant.crm_account_intelligence_acceptance_runs ENABLE ROW LEVEL SECURITY;
-
---
--- Name: crm_account_merge_history; Type: ROW SECURITY; Schema: tenant; Owner: -
---
-
-ALTER TABLE tenant.crm_account_merge_history ENABLE ROW LEVEL SECURITY;
-
---
 -- Name: crm_account_plans; Type: ROW SECURITY; Schema: tenant; Owner: -
 --
 
@@ -54548,13 +54304,6 @@ CREATE POLICY organization_isolation ON tenant.accounting_vendor_payment_allocat
 --
 
 CREATE POLICY organization_isolation ON tenant.accounting_vendor_payments USING ((organization_id = tenant.current_organization_id())) WITH CHECK ((organization_id = tenant.current_organization_id()));
-
-
---
--- Name: crm_account_merge_history organization_isolation; Type: POLICY; Schema: tenant; Owner: -
---
-
-CREATE POLICY organization_isolation ON tenant.crm_account_merge_history USING ((organization_id = tenant.current_organization_id())) WITH CHECK ((organization_id = tenant.current_organization_id()));
 
 
 --
@@ -57711,20 +57460,6 @@ CREATE POLICY tenant_organization_isolation ON tenant.crm_account_duplicate_over
 
 
 --
--- Name: crm_account_hierarchy_events tenant_organization_isolation; Type: POLICY; Schema: tenant; Owner: -
---
-
-CREATE POLICY tenant_organization_isolation ON tenant.crm_account_hierarchy_events USING ((organization_id = (current_setting('app.current_organization_id'::text, true))::uuid)) WITH CHECK ((organization_id = (current_setting('app.current_organization_id'::text, true))::uuid));
-
-
---
--- Name: crm_account_intelligence_acceptance_runs tenant_organization_isolation; Type: POLICY; Schema: tenant; Owner: -
---
-
-CREATE POLICY tenant_organization_isolation ON tenant.crm_account_intelligence_acceptance_runs USING ((organization_id = (current_setting('app.current_organization_id'::text, true))::uuid)) WITH CHECK ((organization_id = (current_setting('app.current_organization_id'::text, true))::uuid));
-
-
---
 -- Name: crm_activity_reminders tenant_organization_isolation; Type: POLICY; Schema: tenant; Owner: -
 --
 
@@ -60666,30 +60401,6 @@ GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.contacts TO vercent_worker;
 
 GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_account_duplicate_overrides TO vercent_app;
 GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_account_duplicate_overrides TO vercent_worker;
-
-
---
--- Name: TABLE crm_account_hierarchy_events; Type: ACL; Schema: tenant; Owner: -
---
-
-GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_account_hierarchy_events TO vercent_app;
-GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_account_hierarchy_events TO vercent_worker;
-
-
---
--- Name: TABLE crm_account_intelligence_acceptance_runs; Type: ACL; Schema: tenant; Owner: -
---
-
-GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_account_intelligence_acceptance_runs TO vercent_app;
-GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_account_intelligence_acceptance_runs TO vercent_worker;
-
-
---
--- Name: TABLE crm_account_merge_history; Type: ACL; Schema: tenant; Owner: -
---
-
-GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_account_merge_history TO vercent_app;
-GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_account_merge_history TO vercent_worker;
 
 
 --
@@ -64577,7 +64288,6 @@ INSERT INTO public.permissions VALUES ('billing.manage', 'Manage billing', 'Bill
 INSERT INTO public.permissions VALUES ('billing.checkout', 'Start checkout', 'Billing', 'Create and authorise a paid subscription through the configured payment provider.') ON CONFLICT DO NOTHING;
 INSERT INTO public.permissions VALUES ('billing.audit', 'Audit billing', 'Billing', 'Review provider events, payment reconciliation and billing history.') ON CONFLICT DO NOTHING;
 INSERT INTO public.permissions VALUES ('crm.revenue.manage', 'Manage CRM revenue operations', 'CRM', 'Manage sales teams, territories, quotas, forecast periods, submissions and manager adjustments.') ON CONFLICT DO NOTHING;
-INSERT INTO public.permissions VALUES ('crm.accounts.manage', 'Manage strategic accounts', 'CRM', 'Manage account plans, stakeholder maps, health, renewals and expansion opportunities.') ON CONFLICT DO NOTHING;
 INSERT INTO public.permissions VALUES ('crm.playbooks.manage', 'Manage sales playbooks', 'CRM', 'Configure qualification frameworks, required stage evidence and guided selling playbooks.') ON CONFLICT DO NOTHING;
 INSERT INTO public.permissions VALUES ('crm.privacy.manage', 'Manage CRM privacy', 'CRM', 'Manage consent evidence, suppression, privacy requests, retention and data-subject workflows.') ON CONFLICT DO NOTHING;
 INSERT INTO public.permissions VALUES ('crm.data-quality.manage', 'Manage CRM data quality', 'CRM', 'Manage data-quality scoring, duplicates, completeness, validation and remediation.') ON CONFLICT DO NOTHING;
@@ -64801,7 +64511,6 @@ INSERT INTO public.permissions VALUES ('platform.reports.manage', 'Manage shared
 INSERT INTO public.permissions VALUES ('platform.ai.manage', 'Manage AI governance', 'AI', 'Manage AI policies, request evidence and evaluations.') ON CONFLICT DO NOTHING;
 INSERT INTO public.permissions VALUES ('platform.workflows.manage', 'Manage platform workflows', 'Automation', 'Manage and execute shared workflow definitions.') ON CONFLICT DO NOTHING;
 INSERT INTO public.permissions VALUES ('crm.contacts.view_sensitive', 'View sensitive CRM Contact content', 'CRM', 'View Contact email, phone, mobile and private notes within normal record scope.') ON CONFLICT DO NOTHING;
-INSERT INTO public.permissions VALUES ('crm.accounts.view_sensitive', 'View sensitive CRM Account content', 'CRM', 'View Account GSTIN, PAN and MSME registration number within normal record scope.') ON CONFLICT DO NOTHING;
 INSERT INTO public.permissions VALUES ('pos.discount.approve', 'Approve POS discounts', 'Point of Sale', 'Decide a pending above-threshold discount request as the required separate approver') ON CONFLICT DO NOTHING;
 INSERT INTO public.permissions VALUES ('pos.payment.refund', 'Refund a POS payment', 'Point of Sale', 'Issue a refund against a captured POS payment, routed back to its original tender method.') ON CONFLICT DO NOTHING;
 INSERT INTO public.permissions VALUES ('pos.payment.override', 'Override a POS payment', 'Point of Sale', 'Request (or, held by a different identity, decide) a manual force-capture override for a POS payment a provider could not confirm.') ON CONFLICT DO NOTHING;

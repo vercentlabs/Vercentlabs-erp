@@ -163,20 +163,6 @@ export {
 
 // F002/F003/F004/F008 Accounts, Contacts, relationships, lead sources, duplicates, merge, Customer 360 and privacy.
 export {
-  archiveCrmAccount,
-  createCrmAccount,
-  getCrmAccountForCaller,
-  listCrmAccounts,
-  updateCrmAccount,
-} from "./master-data/account-operations.js";
-export {
-  getAccountHierarchy,
-  setAccountParent,
-} from "./master-data/accounts/account-hierarchy.js";
-export {
-  getCustomer360ForCaller,
-} from "./master-data/accounts/customer-360.js";
-export {
   archiveCrmContact,
   createCrmContact,
   getCrmContactForCaller,
@@ -212,9 +198,7 @@ export {
   processDuplicateFullScanBatch,
 } from "./master-data/duplicate-scan.js";
 export {
-  mergeAccountsGoverned,
   mergeContactsGoverned,
-  previewAccountMergeForCaller,
   previewContactMergeForCaller,
 } from "./master-data/merge/record-merge.js";
 export {
@@ -303,3 +287,4 @@ export {
 // Leads: the record, lifecycle, assignment, qualification, duplicates,
 // conversion, activities, sources, import/export, dashboard and report.
 export * from "./leads/index.js";
+export * from "./accounts/index.js";
