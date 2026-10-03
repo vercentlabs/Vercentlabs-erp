@@ -11,6 +11,7 @@
 //   Automation    -> automation/automation-engine.js (runCrmAutomation)
 import { afterOpportunityRowUpdated, assertOpportunityCreateInput, assertOpportunityExpectedRevenueNotSupplied, assertOpportunityUpdateAllowed, completeOpportunityCreate, normalizeOpportunityRecordInput, opportunityChangedFields, opportunityOutboxSnapshot, prepareOpportunityForCreate, validateOpportunityForUpdate, withOpportunityArchiveTransition } from "../pipeline/opportunity-record-rules.js";
 import { recordAccountHistory } from "../accounts/history.js";
+import { recordContactHistory } from "../contacts/history.js";
 import { runCrmAutomation } from "./automation/automation-engine.js";
 import { CrmError } from "./errors.js";
 import { assertSalesTeamParentAllowed, assertTerritoryParentAllowed } from "../sales-organization/hierarchy-rules.js";
@@ -137,6 +138,8 @@ export async function createCrmRecord(client, context, resource, input) {
     await completeOpportunityCreate(client, context, created);
     if (created.partyId)
       await recordAccountHistory(client, context, created.partyId, "opportunity_created", `Opportunity ${created.code ?? ""} created: ${created.name}`.replace("  ", " "), { opportunityId: created.id });
+    if (created.contactId)
+      await recordContactHistory(client, context, created.contactId, "opportunity_associated", `Primary contact of opportunity ${created.code ?? ""} ${created.name}`.replace("  ", " "), { opportunityId: created.id });
     await runCrmAutomation(
       client,
       context,

@@ -5,7 +5,7 @@ import { useQuery } from "@tanstack/react-query";
 import { ComboBox, Select } from "@vercentlabs/design-system";
 
 import { listAccounts } from "@/features/crm/accounts/api/accounts-api";
-import { listContacts } from "@/features/crm/customers/contacts/api/contacts-api";
+import { listContacts } from "@/features/crm/contacts/api/contacts-api";
 import { listLeads } from "@/features/crm/leads/api/leads-api";
 import { listOpportunities } from "@/features/crm/pipeline/opportunities/api/opportunities-api";
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";

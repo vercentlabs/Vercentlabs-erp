@@ -15,8 +15,8 @@ const ACTIVITY_TYPES = new Map(ACCOUNT_ACTIVITY_TYPES.map((entry) => [entry.code
 const FOLLOW_UP_CHANNEL = Object.freeze({ call: "call", email: "email", meeting: "meeting", task: "other", other: "other" });
 const text = (value) => String(value ?? "").trim();
 
-// Everything on the account itself, its contacts and its opportunities,
-// newest first. Loading the account first is what enforces visibility.
+// Everything on the account itself, on the people working there and on its
+// opportunities, newest first. Loading the account first is what enforces visibility.
 export async function listAccountActivities(client, context, partyId) {
   const account = await getAccount(client, context, partyId);
   const { rows } = await client.query(
@@ -32,8 +32,8 @@ export async function listAccountActivities(client, context, partyId) {
        LEFT JOIN tenant.contacts contact ON activity.entity_type = 'contact' AND contact.organization_id = activity.organization_id AND contact.id = activity.entity_id
        LEFT JOIN tenant.crm_opportunities opportunity ON activity.entity_type = 'opportunity' AND opportunity.organization_id = activity.organization_id AND opportunity.id = activity.entity_id
       WHERE activity.organization_id = $1 AND activity.activity_type <> 'note'
-        AND ((activity.entity_type = 'party' AND activity.entity_id = $2)
-          OR (activity.entity_type = 'contact' AND contact.party_id = $2)
+        AND ((activity.entity_type = 'party' AND activity.entity_id = $2) OR activity.related_party_id = $2
+          OR (activity.entity_type = 'contact' AND activity.related_party_id IS NULL AND contact.party_id = $2)
           OR (activity.entity_type = 'opportunity' AND opportunity.party_id = $2))
       ORDER BY COALESCE(activity.completed_at, activity.due_at, activity.created_at) DESC
       LIMIT 300`,
@@ -65,7 +65,7 @@ export async function listAccountActivities(client, context, partyId) {
 
 async function assertAccountContact(client, context, partyId, contactId) {
   if (!contactId) return null;
-  const { rows } = await client.query(`SELECT id FROM tenant.contacts WHERE organization_id = $1 AND id = $2 AND party_id = $3`,
+  const { rows } = await client.query(`SELECT contact_id AS id FROM tenant.crm_contact_account_relationships WHERE organization_id = $1 AND contact_id = $2 AND party_id = $3 AND status = 'active'`,
     [context.organizationId, requireUuid(contactId, "Contact"), partyId]);
   if (!rows[0]) throw new CrmError(400, "Choose a contact of this account.", "CRM_ACCOUNT_ACTIVITY_VALIDATION");
   return rows[0].id;

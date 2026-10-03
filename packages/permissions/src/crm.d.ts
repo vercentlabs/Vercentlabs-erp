@@ -4,7 +4,6 @@ export const CRM_PERMISSIONS: Readonly<{
   leadsViewAll: "crm.leads.view_all";
   customersViewAll: "crm.customers.view_all";
   leadsViewSensitive: "crm.leads.view_sensitive";
-  contactsViewSensitive: "crm.contacts.view_sensitive";
   savedViewsShare: "crm.saved_views.share";
   leadsView: "crm.leads.view";
   leadsCreate: "crm.leads.create";
@@ -29,6 +28,18 @@ export const CRM_PERMISSIONS: Readonly<{
   reportsView: "crm.reports.view";
   settingsManage: "crm.settings.manage";
   revenueManage: "crm.revenue.manage";
+  contactsView: "crm.contacts.view";
+  contactsViewAll: "crm.contacts.view_all";
+  contactsViewSensitive: "crm.contacts.view_sensitive";
+  contactsCreate: "crm.contacts.create";
+  contactsEdit: "crm.contacts.edit";
+  contactsArchive: "crm.contacts.archive";
+  contactsDelete: "crm.contacts.delete";
+  contactsAssign: "crm.contacts.assign";
+  contactsReassign: "crm.contacts.reassign";
+  contactsMerge: "crm.contacts.merge";
+  contactsImport: "crm.contacts.import";
+  contactsExport: "crm.contacts.export";
   accountsView: "crm.accounts.view";
   accountsViewAll: "crm.accounts.view_all";
   accountsViewSensitive: "crm.accounts.view_sensitive";

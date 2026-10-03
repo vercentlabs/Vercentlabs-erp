@@ -5,6 +5,7 @@
 // are an explicit allow-list: contact PII (email, phone) is not exportable
 // through shared reports at all.
 import { listAccounts } from "../../modules/crm/accounts/index.js";
+import { listContacts } from "../../modules/crm/contacts/index.js";
 import { getLeadsByStatusReport, listLeads } from "../../modules/crm/leads/index.js";
 import { listSalesOrders } from "../../modules/sales/index.js";
 import { BREAKDOWN_DIMENSIONS, getMetricDrilldown, getMetricRollup, listCrmRecords, PIPELINE_METRICS } from "../../modules/crm/index.js";
@@ -29,6 +30,49 @@ const analyticsFilters = (filters) => Object.fromEntries(CRM_ANALYTICS_FILTERS.m
 const PAGE = 500;
 
 export const REPORT_DATASETS = Object.freeze([
+  Object.freeze({
+    key: "crm.contacts",
+    moduleKey: "crm",
+    schedulePermission: "crm.reports.schedule",
+    label: "CRM contacts",
+    description: "Contacts you can see in CRM, with company, job title, role, owner and activity.",
+    requiredPermissions: Object.freeze(["crm.contacts.view", "crm.reports.view"]),
+    maxRows: 10_000,
+    columns: Object.freeze([
+      { key: "contactNumber", label: "Contact number" },
+      { key: "displayName", label: "Name" },
+      { key: "accountName", label: "Company" },
+      { key: "jobTitle", label: "Job title" },
+      { key: "department", label: "Department" },
+      { key: "roleLabel", label: "Role" },
+      { key: "isDecisionMaker", label: "Decision maker" },
+      { key: "status", label: "Status" },
+      { key: "ownerName", label: "Owner" },
+      { key: "sourceName", label: "Source" },
+      { key: "openOpportunities", label: "Open opportunities" },
+      { key: "lastActivityAt", label: "Last activity" },
+      { key: "createdAt", label: "Created" },
+    ]),
+    filters: Object.freeze([
+      { key: "status", label: "Status" },
+      { key: "ownerId", label: "Owner" },
+      { key: "accountId", label: "Account" },
+      { key: "department", label: "Department" },
+      { key: "role", label: "Role" },
+      { key: "createdFrom", label: "Created from (YYYY-MM-DD)" },
+      { key: "createdTo", label: "Created to (YYYY-MM-DD)" },
+      { key: "search", label: "Search" },
+    ]),
+    async execute(client, context, filters, maxRows) {
+      const rows = [];
+      for (let offset = 0; rows.length < maxRows; offset += 200) {
+        const page = await listContacts(client, context, { ...filters, sortBy: "createdAt", limit: 200, offset });
+        rows.push(...page.contacts);
+        if (page.contacts.length < 200 || offset + 200 >= page.total) break;
+      }
+      return rows.slice(0, maxRows);
+    },
+  }),
   Object.freeze({
     key: "crm.accounts",
     moduleKey: "crm",

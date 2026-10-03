@@ -31,8 +31,12 @@ export function canViewSensitiveAccountContent(context) {
 // " AND (…)" restricting `alias` to the accounts the caller can see; "" for
 // view-all callers. Adds its parameters to `values`.
 export function accountScopeSql(context, values, alias = "account") {
+  return accountScopeBind(context, (value) => { values.push(value); return `$${values.length}`; }, alias);
+}
+
+// The same, for callers that add parameters through a bind(value) function.
+export function accountScopeBind(context, bind, alias = "account") {
   if (canViewAllAccounts(context)) return "";
-  const bind = (value) => { values.push(value); return `$${values.length}`; };
   const ownerScope = crmAccountAccessSql(context, bind, alias);
   if (!ownerScope) return "";
   const me = bind(context.userId);

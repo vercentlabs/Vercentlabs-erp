@@ -9,7 +9,7 @@
 // A blocking match refuses the save unless the caller confirms it is not a
 // duplicate (allowDuplicate). Used by manual creation, import, integrations
 // and conversion.
-import { crmContactVisibleSql } from "../data-management/crm-access-scope.js";
+import { contactScopeSql } from "../contacts/access.js";
 import { CrmError } from "../data-management/errors.js";
 import { leadScopeSql } from "./access.js";
 import { isUuid } from "./validation.js";
@@ -69,7 +69,7 @@ export async function findLeadDuplicates(client, context, input = {}, { excludeL
 
   const contactValues = [context.organizationId, email || null, phones, name || null, company || null];
   const bind = (value) => { contactValues.push(value); return `$${contactValues.length}`; };
-  const contactVisible = crmContactVisibleSql(context, bind, "contact", "account");
+  const contactVisible = contactScopeSql(context, bind, "contact");
   const contacts = await client.query(
     `WITH probe AS (
        SELECT tenant.crm_normalize_email($2) AS email,

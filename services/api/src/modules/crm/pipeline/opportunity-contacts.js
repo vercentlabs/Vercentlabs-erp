@@ -11,7 +11,7 @@
 // exact precedent contact-relationships.js set for Contact<->Account.
 import { CrmError, queueOutboxEvent, text, camelize, requireOpportunityInScope } from "./shared.js";
 import { crmChildScopes } from "../data-management/record-policy.js";
-import { getCrmContact } from "../master-data/contact-operations.js";
+import { getContact } from "../contacts/records.js";
 
 // Same vocabulary as tenant.crm_contact_account_relationships.stakeholder_role
 // and tenant.crm_account_stakeholders.stakeholder_role — a deliberate
@@ -268,7 +268,7 @@ export async function listContactOpportunityRoles(client, context, contactId) {
   const id = text(contactId);
   // The Contact must be visible to the caller (404 otherwise), and each deal
   // keeps its own Opportunity scope — Contact access is not deal access.
-  await getCrmContact(client, context, id);
+  await getContact(client, context, id);
   const parameters = [context.organizationId, id];
   const scope = crmChildScopes(context, parameters);
   const result = await client.query(

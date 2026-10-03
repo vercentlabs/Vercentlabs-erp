@@ -209,17 +209,6 @@ export * from "./modules/sales/index.js";
 export * from "./modules/accounting/index.js";
 
 export * from "./modules/procurement/index.js";
-export function findAccountDuplicates(
-  client: QueryClient,
-  context: CrmFoundationContext,
-  input?: Record<string, unknown>,
-): Promise<Array<Record<string, unknown>>>;
-export function findContactDuplicates(
-  client: QueryClient,
-  context: CrmFoundationContext,
-  input?: Record<string, unknown>,
-): Promise<Array<Record<string, unknown>>>;
-export const DUPLICATE_FULL_SCAN_BATCH_SIZE: number;
 export function assertEligibleLeadAssignee(
   client: QueryClient,
   context: CrmFoundationContext,

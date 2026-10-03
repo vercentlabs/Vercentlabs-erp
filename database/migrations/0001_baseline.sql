@@ -554,19 +554,6 @@ $$;
 
 
 --
--- Name: crm_account_duplicate_override_immutable(); Type: FUNCTION; Schema: tenant; Owner: -
---
-
-CREATE FUNCTION tenant.crm_account_duplicate_override_immutable() RETURNS trigger
-    LANGUAGE plpgsql
-    AS $$
-BEGIN
-  RAISE EXCEPTION 'Account duplicate override history is immutable';
-END;
-$$;
-
-
---
 -- Name: crm_account_intelligence_immutable_row(); Type: FUNCTION; Schema: tenant; Owner: -
 --
 
@@ -615,33 +602,6 @@ $$;
 
 
 --
--- Name: crm_contact_account_relationships_touch(); Type: FUNCTION; Schema: tenant; Owner: -
---
-
-CREATE FUNCTION tenant.crm_contact_account_relationships_touch() RETURNS trigger
-    LANGUAGE plpgsql
-    AS $$
-BEGIN
-  NEW.updated_at := now();
-  RETURN NEW;
-END;
-$$;
-
-
---
--- Name: crm_contact_duplicate_override_immutable(); Type: FUNCTION; Schema: tenant; Owner: -
---
-
-CREATE FUNCTION tenant.crm_contact_duplicate_override_immutable() RETURNS trigger
-    LANGUAGE plpgsql
-    AS $$
-BEGIN
-  RAISE EXCEPTION 'Contact duplicate override history is immutable';
-END;
-$$;
-
-
---
 -- Name: crm_customer_success_immutable_row(); Type: FUNCTION; Schema: tenant; Owner: -
 --
 
@@ -650,30 +610,6 @@ CREATE FUNCTION tenant.crm_customer_success_immutable_row() RETURNS trigger
     AS $$
 BEGIN
   RAISE EXCEPTION '% records are immutable',TG_TABLE_NAME;
-END;
-$$;
-
-
---
--- Name: crm_duplicate_rules_touch(); Type: FUNCTION; Schema: tenant; Owner: -
---
-
-CREATE FUNCTION tenant.crm_duplicate_rules_touch() RETURNS trigger
-    LANGUAGE plpgsql
-    AS $$
-BEGIN
-  IF TG_OP = 'UPDATE' THEN
-    NEW.updated_at := now();
-    IF NEW.weight IS DISTINCT FROM OLD.weight
-      OR NEW.method IS DISTINCT FROM OLD.method
-      OR NEW.enabled IS DISTINCT FROM OLD.enabled
-      OR NEW.blocking IS DISTINCT FROM OLD.blocking
-      OR NEW.fuzzy_threshold IS DISTINCT FROM OLD.fuzzy_threshold
-    THEN
-      NEW.version := OLD.version + 1;
-    END IF;
-  END IF;
-  RETURN NEW;
 END;
 $$;
 
@@ -1038,32 +974,6 @@ BEGIN
   RAISE EXCEPTION 'Sales-stage configuration history is immutable';
 END;
 $$;
-
-
---
--- Name: crm_seed_duplicate_rules_defaults(); Type: FUNCTION; Schema: tenant; Owner: -
---
-
-CREATE FUNCTION tenant.crm_seed_duplicate_rules_defaults() RETURNS trigger
-    LANGUAGE plpgsql SECURITY DEFINER
-    SET search_path TO 'tenant', 'public'
-    AS $$
-BEGIN
-  INSERT INTO tenant.crm_duplicate_rules
-    (organization_id, entity_type, signal, method, weight, enabled, blocking, created_by, updated_by)
-  VALUES
-    (NEW.id, 'lead', 'email', 'exact', 70, true, true, NEW.created_by, NEW.created_by),
-    (NEW.id, 'lead', 'mobile', 'normalized', 55, true, true, NEW.created_by, NEW.created_by),
-    (NEW.id, 'lead', 'name_and_company', 'normalized', 30, true, false, NEW.created_by, NEW.created_by),
-    (NEW.id, 'contact', 'email', 'exact', 70, true, true, NEW.created_by, NEW.created_by),
-    (NEW.id, 'contact', 'mobile', 'normalized', 55, true, true, NEW.created_by, NEW.created_by),
-    (NEW.id, 'contact', 'name', 'normalized', 30, true, false, NEW.created_by, NEW.created_by),
-    (NEW.id, 'account', 'gstin', 'exact', 70, true, true, NEW.created_by, NEW.created_by),
-    (NEW.id, 'account', 'pan', 'exact', 45, true, false, NEW.created_by, NEW.created_by),
-    (NEW.id, 'account', 'legal_name', 'normalized', 35, true, false, NEW.created_by, NEW.created_by)
-  ON CONFLICT (organization_id, entity_type, signal, method) DO NOTHING;
-  RETURN NEW;
-END $$;
 
 
 --
@@ -6209,42 +6119,10 @@ CREATE TABLE tenant.contacts (
     normalized_mobile text GENERATED ALWAYS AS (tenant.crm_normalize_phone(COALESCE(mobile, phone))) STORED,
     normalized_name text GENERATED ALWAYS AS (tenant.crm_normalize_comparison_text(btrim(((first_name || ' '::text) || COALESCE(last_name, ''::text))))) STORED,
     CONSTRAINT contacts_privacy_status_check CHECK ((privacy_status = ANY (ARRAY['active'::text, 'restricted'::text, 'anonymized'::text, 'erased'::text]))),
-    CONSTRAINT contacts_status_check CHECK ((status = ANY (ARRAY['active'::text, 'inactive'::text])))
+    CONSTRAINT contacts_status_check CHECK ((status = ANY (ARRAY['active'::text, 'inactive'::text, 'archived'::text])))
 );
 
 ALTER TABLE ONLY tenant.contacts FORCE ROW LEVEL SECURITY;
-
-
---
--- Name: crm_account_duplicate_overrides; Type: TABLE; Schema: tenant; Owner: -
---
-
-CREATE TABLE tenant.crm_account_duplicate_overrides (
-    id uuid DEFAULT gen_random_uuid() NOT NULL,
-    organization_id uuid NOT NULL,
-    party_id uuid NOT NULL,
-    matched_party_ids uuid[] NOT NULL,
-    operation text NOT NULL,
-    reason text NOT NULL,
-    signature text NOT NULL,
-    rules_snapshot_at timestamp with time zone DEFAULT now() NOT NULL,
-    actor_user_id uuid NOT NULL,
-    created_at timestamp with time zone DEFAULT now() NOT NULL,
-    source_module text DEFAULT 'crm'::text NOT NULL,
-    CONSTRAINT crm_account_duplicate_overrides_matched_party_ids_check CHECK ((cardinality(matched_party_ids) > 0)),
-    CONSTRAINT crm_account_duplicate_overrides_operation_check CHECK ((operation = ANY (ARRAY['create'::text, 'update'::text, 'dismiss'::text]))),
-    CONSTRAINT crm_account_duplicate_overrides_reason_check CHECK (((length(btrim(reason)) >= 10) AND (length(btrim(reason)) <= 1000))),
-    CONSTRAINT crm_account_duplicate_overrides_source_module_check CHECK ((source_module = ANY (ARRAY['crm'::text, 'sales'::text])))
-);
-
-ALTER TABLE ONLY tenant.crm_account_duplicate_overrides FORCE ROW LEVEL SECURITY;
-
-
---
--- Name: TABLE crm_account_duplicate_overrides; Type: COMMENT; Schema: tenant; Owner: -
---
-
-COMMENT ON TABLE tenant.crm_account_duplicate_overrides IS 'Immutable F008 audit ledger for Account exact-duplicate create/update overrides and probable-duplicate dismissals. Mirrors crm_lead_duplicate_overrides.';
 
 
 --
@@ -7165,97 +7043,6 @@ ALTER TABLE ONLY tenant.crm_consent_events FORCE ROW LEVEL SECURITY;
 
 
 --
--- Name: crm_contact_account_relationships; Type: TABLE; Schema: tenant; Owner: -
---
-
-CREATE TABLE tenant.crm_contact_account_relationships (
-    id uuid DEFAULT gen_random_uuid() NOT NULL,
-    organization_id uuid NOT NULL,
-    contact_id uuid NOT NULL,
-    party_id uuid NOT NULL,
-    relationship_type text DEFAULT 'employment'::text NOT NULL,
-    stakeholder_role text,
-    is_primary boolean DEFAULT false NOT NULL,
-    status text DEFAULT 'active'::text NOT NULL,
-    notes text,
-    created_by uuid,
-    updated_by uuid,
-    created_at timestamp with time zone DEFAULT now() NOT NULL,
-    updated_at timestamp with time zone DEFAULT now() NOT NULL,
-    CONSTRAINT crm_contact_account_relationships_relationship_type_check CHECK ((relationship_type = ANY (ARRAY['employment'::text, 'affiliated'::text, 'other'::text]))),
-    CONSTRAINT crm_contact_account_relationships_stakeholder_role_check CHECK (((stakeholder_role IS NULL) OR (stakeholder_role = ANY (ARRAY['economic_buyer'::text, 'decision_maker'::text, 'champion'::text, 'influencer'::text, 'user'::text, 'blocker'::text, 'procurement'::text, 'legal'::text, 'technical'::text, 'other'::text])))),
-    CONSTRAINT crm_contact_account_relationships_status_check CHECK ((status = ANY (ARRAY['active'::text, 'inactive'::text])))
-);
-
-ALTER TABLE ONLY tenant.crm_contact_account_relationships FORCE ROW LEVEL SECURITY;
-
-
---
--- Name: TABLE crm_contact_account_relationships; Type: COMMENT; Schema: tenant; Owner: -
---
-
-COMMENT ON TABLE tenant.crm_contact_account_relationships IS 'F003: governed multi-Account Contact relationships. contacts.party_id/is_primary remain the fast primary-Account pointer, kept in sync with the is_primary=true row here by the application layer. Rollback: DROP TABLE — contacts.party_id/is_primary are untouched by this migration and remain independently correct if this table is ever dropped.';
-
-
---
--- Name: crm_contact_duplicate_overrides; Type: TABLE; Schema: tenant; Owner: -
---
-
-CREATE TABLE tenant.crm_contact_duplicate_overrides (
-    id uuid DEFAULT gen_random_uuid() NOT NULL,
-    organization_id uuid NOT NULL,
-    contact_id uuid NOT NULL,
-    matched_contact_ids uuid[] NOT NULL,
-    operation text NOT NULL,
-    reason text NOT NULL,
-    signature text NOT NULL,
-    rules_snapshot_at timestamp with time zone DEFAULT now() NOT NULL,
-    actor_user_id uuid NOT NULL,
-    created_at timestamp with time zone DEFAULT now() NOT NULL,
-    CONSTRAINT crm_contact_duplicate_overrides_matched_contact_ids_check CHECK ((cardinality(matched_contact_ids) > 0)),
-    CONSTRAINT crm_contact_duplicate_overrides_operation_check CHECK ((operation = ANY (ARRAY['create'::text, 'update'::text, 'dismiss'::text]))),
-    CONSTRAINT crm_contact_duplicate_overrides_reason_check CHECK (((length(btrim(reason)) >= 10) AND (length(btrim(reason)) <= 1000)))
-);
-
-ALTER TABLE ONLY tenant.crm_contact_duplicate_overrides FORCE ROW LEVEL SECURITY;
-
-
---
--- Name: TABLE crm_contact_duplicate_overrides; Type: COMMENT; Schema: tenant; Owner: -
---
-
-COMMENT ON TABLE tenant.crm_contact_duplicate_overrides IS 'Immutable F008 audit ledger for Contact exact-duplicate create/update overrides and probable-duplicate dismissals. Mirrors crm_lead_duplicate_overrides.';
-
-
---
--- Name: crm_contact_merge_history; Type: TABLE; Schema: tenant; Owner: -
---
-
-CREATE TABLE tenant.crm_contact_merge_history (
-    id uuid DEFAULT gen_random_uuid() NOT NULL,
-    organization_id uuid NOT NULL,
-    source_contact_id uuid NOT NULL,
-    survivor_contact_id uuid NOT NULL,
-    source_snapshot jsonb NOT NULL,
-    survivor_snapshot jsonb NOT NULL,
-    reason text,
-    merged_by uuid,
-    merged_at timestamp with time zone DEFAULT now() NOT NULL,
-    field_selections jsonb DEFAULT '{}'::jsonb NOT NULL,
-    CONSTRAINT crm_contact_merge_history_check CHECK ((source_contact_id <> survivor_contact_id))
-);
-
-ALTER TABLE ONLY tenant.crm_contact_merge_history FORCE ROW LEVEL SECURITY;
-
-
---
--- Name: COLUMN crm_contact_merge_history.field_selections; Type: COMMENT; Schema: tenant; Owner: -
---
-
-COMMENT ON COLUMN tenant.crm_contact_merge_history.field_selections IS 'Map of field -> "source"|"survivor" recording which candidate''s value was kept for each field the merge UI showed a conflict for.';
-
-
---
 -- Name: crm_conversation_insights; Type: TABLE; Schema: tenant; Owner: -
 --
 
@@ -7747,71 +7534,6 @@ CREATE TABLE tenant.crm_deal_risks (
 );
 
 ALTER TABLE ONLY tenant.crm_deal_risks FORCE ROW LEVEL SECURITY;
-
-
---
--- Name: crm_duplicate_rules; Type: TABLE; Schema: tenant; Owner: -
---
-
-CREATE TABLE tenant.crm_duplicate_rules (
-    id uuid DEFAULT gen_random_uuid() NOT NULL,
-    organization_id uuid NOT NULL,
-    entity_type text NOT NULL,
-    signal text NOT NULL,
-    method text NOT NULL,
-    weight integer DEFAULT 0 NOT NULL,
-    fuzzy_threshold numeric(3,2),
-    enabled boolean DEFAULT true NOT NULL,
-    blocking boolean DEFAULT false NOT NULL,
-    version integer DEFAULT 1 NOT NULL,
-    created_by uuid,
-    updated_by uuid,
-    created_at timestamp with time zone DEFAULT now() NOT NULL,
-    updated_at timestamp with time zone DEFAULT now() NOT NULL,
-    CONSTRAINT crm_duplicate_rules_entity_type_check CHECK ((entity_type = ANY (ARRAY['lead'::text, 'contact'::text, 'account'::text]))),
-    CONSTRAINT crm_duplicate_rules_fuzzy_threshold_check CHECK (((fuzzy_threshold IS NULL) OR ((fuzzy_threshold > (0)::numeric) AND (fuzzy_threshold <= (1)::numeric)))),
-    CONSTRAINT crm_duplicate_rules_method_check CHECK ((method = ANY (ARRAY['exact'::text, 'normalized'::text, 'fuzzy'::text]))),
-    CONSTRAINT crm_duplicate_rules_version_check CHECK ((version >= 1)),
-    CONSTRAINT crm_duplicate_rules_weight_check CHECK (((weight >= 0) AND (weight <= 100)))
-);
-
-ALTER TABLE ONLY tenant.crm_duplicate_rules FORCE ROW LEVEL SECURITY;
-
-
---
--- Name: TABLE crm_duplicate_rules; Type: COMMENT; Schema: tenant; Owner: -
---
-
-COMMENT ON TABLE tenant.crm_duplicate_rules IS 'F008: governed, structured (never free-text/executable) duplicate-matching rule configuration per organization. See duplicate-rules.js DUPLICATE_SIGNAL_CATALOG for the fixed set of (entity_type, signal, method) comparisons a rule row may reference.';
-
-
---
--- Name: crm_duplicate_scan_matches; Type: TABLE; Schema: tenant; Owner: -
---
-
-CREATE TABLE tenant.crm_duplicate_scan_matches (
-    id uuid DEFAULT gen_random_uuid() NOT NULL,
-    organization_id uuid NOT NULL,
-    job_id uuid NOT NULL,
-    entity_type text NOT NULL,
-    record_a_id uuid NOT NULL,
-    record_b_id uuid NOT NULL,
-    classification text NOT NULL,
-    matched_signals jsonb DEFAULT '[]'::jsonb NOT NULL,
-    created_at timestamp with time zone DEFAULT now() NOT NULL,
-    CONSTRAINT crm_duplicate_scan_matches_check CHECK ((record_a_id <> record_b_id)),
-    CONSTRAINT crm_duplicate_scan_matches_classification_check CHECK ((classification = ANY (ARRAY['exact'::text, 'probable'::text]))),
-    CONSTRAINT crm_duplicate_scan_matches_entity_type_check CHECK ((entity_type = ANY (ARRAY['lead'::text, 'contact'::text, 'account'::text])))
-);
-
-ALTER TABLE ONLY tenant.crm_duplicate_scan_matches FORCE ROW LEVEL SECURITY;
-
-
---
--- Name: TABLE crm_duplicate_scan_matches; Type: COMMENT; Schema: tenant; Owner: -
---
-
-COMMENT ON TABLE tenant.crm_duplicate_scan_matches IS 'F008 full-dataset duplicate scan results — an append-only discovery log per background job; resolution (dismiss/merge) is tracked by the existing per-entity override/merge-history tables, not here.';
 
 
 --
@@ -9002,26 +8724,6 @@ CREATE TABLE tenant.crm_meeting_links (
 );
 
 ALTER TABLE ONLY tenant.crm_meeting_links FORCE ROW LEVEL SECURITY;
-
-
---
--- Name: crm_merge_records; Type: TABLE; Schema: tenant; Owner: -
---
-
-CREATE TABLE tenant.crm_merge_records (
-    id uuid DEFAULT gen_random_uuid() NOT NULL,
-    organization_id uuid NOT NULL,
-    entity_type text NOT NULL,
-    source_id uuid NOT NULL,
-    target_id uuid NOT NULL,
-    merged_by uuid,
-    merged_at timestamp with time zone DEFAULT now() NOT NULL,
-    snapshot jsonb DEFAULT '{}'::jsonb NOT NULL,
-    CONSTRAINT crm_merge_records_check CHECK ((source_id <> target_id)),
-    CONSTRAINT crm_merge_records_entity_type_check CHECK ((entity_type = 'lead'::text))
-);
-
-ALTER TABLE ONLY tenant.crm_merge_records FORCE ROW LEVEL SECURITY;
 
 
 --
@@ -22064,22 +21766,6 @@ ALTER TABLE tenant.contacts
 
 
 --
--- Name: crm_account_duplicate_overrides crm_account_duplicate_overrides_organization_id_id_key; Type: CONSTRAINT; Schema: tenant; Owner: -
---
-
-ALTER TABLE ONLY tenant.crm_account_duplicate_overrides
-    ADD CONSTRAINT crm_account_duplicate_overrides_organization_id_id_key UNIQUE (organization_id, id);
-
-
---
--- Name: crm_account_duplicate_overrides crm_account_duplicate_overrides_pkey; Type: CONSTRAINT; Schema: tenant; Owner: -
---
-
-ALTER TABLE ONLY tenant.crm_account_duplicate_overrides
-    ADD CONSTRAINT crm_account_duplicate_overrides_pkey PRIMARY KEY (id);
-
-
---
 -- Name: crm_account_plans crm_account_plans_organization_id_party_id_key; Type: CONSTRAINT; Schema: tenant; Owner: -
 --
 
@@ -22504,46 +22190,6 @@ ALTER TABLE ONLY tenant.crm_consent_events
 
 
 --
--- Name: crm_contact_account_relationships crm_contact_account_relations_organization_id_contact_id_pa_key; Type: CONSTRAINT; Schema: tenant; Owner: -
---
-
-ALTER TABLE ONLY tenant.crm_contact_account_relationships
-    ADD CONSTRAINT crm_contact_account_relations_organization_id_contact_id_pa_key UNIQUE (organization_id, contact_id, party_id);
-
-
---
--- Name: crm_contact_account_relationships crm_contact_account_relationships_pkey; Type: CONSTRAINT; Schema: tenant; Owner: -
---
-
-ALTER TABLE ONLY tenant.crm_contact_account_relationships
-    ADD CONSTRAINT crm_contact_account_relationships_pkey PRIMARY KEY (id);
-
-
---
--- Name: crm_contact_duplicate_overrides crm_contact_duplicate_overrides_organization_id_id_key; Type: CONSTRAINT; Schema: tenant; Owner: -
---
-
-ALTER TABLE ONLY tenant.crm_contact_duplicate_overrides
-    ADD CONSTRAINT crm_contact_duplicate_overrides_organization_id_id_key UNIQUE (organization_id, id);
-
-
---
--- Name: crm_contact_duplicate_overrides crm_contact_duplicate_overrides_pkey; Type: CONSTRAINT; Schema: tenant; Owner: -
---
-
-ALTER TABLE ONLY tenant.crm_contact_duplicate_overrides
-    ADD CONSTRAINT crm_contact_duplicate_overrides_pkey PRIMARY KEY (id);
-
-
---
--- Name: crm_contact_merge_history crm_contact_merge_history_pkey; Type: CONSTRAINT; Schema: tenant; Owner: -
---
-
-ALTER TABLE ONLY tenant.crm_contact_merge_history
-    ADD CONSTRAINT crm_contact_merge_history_pkey PRIMARY KEY (id);
-
-
---
 -- Name: crm_conversation_insights crm_conversation_insights_organization_id_id_key; Type: CONSTRAINT; Schema: tenant; Owner: -
 --
 
@@ -22853,38 +22499,6 @@ ALTER TABLE ONLY tenant.crm_deal_risks
 
 ALTER TABLE ONLY tenant.crm_deal_risks
     ADD CONSTRAINT crm_deal_risks_pkey PRIMARY KEY (id);
-
-
---
--- Name: crm_duplicate_rules crm_duplicate_rules_organization_id_entity_type_signal_meth_key; Type: CONSTRAINT; Schema: tenant; Owner: -
---
-
-ALTER TABLE ONLY tenant.crm_duplicate_rules
-    ADD CONSTRAINT crm_duplicate_rules_organization_id_entity_type_signal_meth_key UNIQUE (organization_id, entity_type, signal, method);
-
-
---
--- Name: crm_duplicate_rules crm_duplicate_rules_pkey; Type: CONSTRAINT; Schema: tenant; Owner: -
---
-
-ALTER TABLE ONLY tenant.crm_duplicate_rules
-    ADD CONSTRAINT crm_duplicate_rules_pkey PRIMARY KEY (id);
-
-
---
--- Name: crm_duplicate_scan_matches crm_duplicate_scan_matches_organization_id_job_id_record_a__key; Type: CONSTRAINT; Schema: tenant; Owner: -
---
-
-ALTER TABLE ONLY tenant.crm_duplicate_scan_matches
-    ADD CONSTRAINT crm_duplicate_scan_matches_organization_id_job_id_record_a__key UNIQUE (organization_id, job_id, record_a_id, record_b_id);
-
-
---
--- Name: crm_duplicate_scan_matches crm_duplicate_scan_matches_pkey; Type: CONSTRAINT; Schema: tenant; Owner: -
---
-
-ALTER TABLE ONLY tenant.crm_duplicate_scan_matches
-    ADD CONSTRAINT crm_duplicate_scan_matches_pkey PRIMARY KEY (id);
 
 
 --
@@ -23605,22 +23219,6 @@ ALTER TABLE ONLY tenant.crm_meeting_links
 
 ALTER TABLE ONLY tenant.crm_meeting_links
     ADD CONSTRAINT crm_meeting_links_pkey PRIMARY KEY (id);
-
-
---
--- Name: crm_merge_records crm_merge_records_organization_id_entity_type_source_id_key; Type: CONSTRAINT; Schema: tenant; Owner: -
---
-
-ALTER TABLE ONLY tenant.crm_merge_records
-    ADD CONSTRAINT crm_merge_records_organization_id_entity_type_source_id_key UNIQUE (organization_id, entity_type, source_id);
-
-
---
--- Name: crm_merge_records crm_merge_records_pkey; Type: CONSTRAINT; Schema: tenant; Owner: -
---
-
-ALTER TABLE ONLY tenant.crm_merge_records
-    ADD CONSTRAINT crm_merge_records_pkey PRIMARY KEY (id);
 
 
 --
@@ -30098,13 +29696,6 @@ CREATE INDEX contacts_standalone_created_by_idx ON tenant.contacts USING btree (
 
 
 --
--- Name: crm_account_duplicate_overrides_party_idx; Type: INDEX; Schema: tenant; Owner: -
---
-
-CREATE INDEX crm_account_duplicate_overrides_party_idx ON tenant.crm_account_duplicate_overrides USING btree (organization_id, party_id, created_at DESC);
-
-
---
 -- Name: crm_account_plan_health_idx; Type: INDEX; Schema: tenant; Owner: -
 --
 
@@ -30371,41 +29962,6 @@ CREATE INDEX crm_consent_subject_idx ON tenant.crm_consent_events USING btree (o
 
 
 --
--- Name: crm_contact_account_relationships_contact_idx; Type: INDEX; Schema: tenant; Owner: -
---
-
-CREATE INDEX crm_contact_account_relationships_contact_idx ON tenant.crm_contact_account_relationships USING btree (organization_id, contact_id, status);
-
-
---
--- Name: crm_contact_account_relationships_party_idx; Type: INDEX; Schema: tenant; Owner: -
---
-
-CREATE INDEX crm_contact_account_relationships_party_idx ON tenant.crm_contact_account_relationships USING btree (organization_id, party_id, status);
-
-
---
--- Name: crm_contact_account_relationships_primary_idx; Type: INDEX; Schema: tenant; Owner: -
---
-
-CREATE UNIQUE INDEX crm_contact_account_relationships_primary_idx ON tenant.crm_contact_account_relationships USING btree (organization_id, contact_id) WHERE ((is_primary = true) AND (status = 'active'::text));
-
-
---
--- Name: crm_contact_duplicate_overrides_contact_idx; Type: INDEX; Schema: tenant; Owner: -
---
-
-CREATE INDEX crm_contact_duplicate_overrides_contact_idx ON tenant.crm_contact_duplicate_overrides USING btree (organization_id, contact_id, created_at DESC);
-
-
---
--- Name: crm_contact_merge_survivor_idx; Type: INDEX; Schema: tenant; Owner: -
---
-
-CREATE INDEX crm_contact_merge_survivor_idx ON tenant.crm_contact_merge_history USING btree (organization_id, survivor_contact_id, merged_at DESC);
-
-
---
 -- Name: crm_conversation_insights_review_idx; Type: INDEX; Schema: tenant; Owner: -
 --
 
@@ -30480,20 +30036,6 @@ CREATE UNIQUE INDEX crm_data_quality_scores_organization_id_id_uidx ON tenant.cr
 --
 
 CREATE INDEX crm_deal_risks_open_idx ON tenant.crm_deal_risks USING btree (organization_id, status, severity, detected_at DESC);
-
-
---
--- Name: crm_duplicate_rules_lookup_idx; Type: INDEX; Schema: tenant; Owner: -
---
-
-CREATE INDEX crm_duplicate_rules_lookup_idx ON tenant.crm_duplicate_rules USING btree (organization_id, entity_type, enabled);
-
-
---
--- Name: crm_duplicate_scan_matches_job_idx; Type: INDEX; Schema: tenant; Owner: -
---
-
-CREATE INDEX crm_duplicate_scan_matches_job_idx ON tenant.crm_duplicate_scan_matches USING btree (organization_id, job_id, entity_type);
 
 
 --
@@ -30711,13 +30253,6 @@ CREATE INDEX crm_meeting_events_f014_lookup_idx ON tenant.crm_meeting_events USI
 --
 
 CREATE UNIQUE INDEX crm_meeting_links_public_token_uidx ON tenant.crm_meeting_links USING btree (public_token);
-
-
---
--- Name: crm_merge_records_organization_id_id_uidx; Type: INDEX; Schema: tenant; Owner: -
---
-
-CREATE UNIQUE INDEX crm_merge_records_organization_id_id_uidx ON tenant.crm_merge_records USING btree (organization_id, id);
 
 
 --
@@ -33710,13 +33245,6 @@ CREATE TRIGGER billing_seat_changes_touch_updated_at BEFORE UPDATE ON public.bil
 
 
 --
--- Name: organizations crm_seed_duplicate_rules_defaults; Type: TRIGGER; Schema: public; Owner: -
---
-
-CREATE TRIGGER crm_seed_duplicate_rules_defaults AFTER INSERT ON public.organizations FOR EACH ROW EXECUTE FUNCTION tenant.crm_seed_duplicate_rules_defaults();
-
-
---
 -- Name: custom_field_value_history custom_field_value_history_immutable; Type: TRIGGER; Schema: public; Owner: -
 --
 
@@ -34046,13 +33574,6 @@ CREATE TRIGGER contacts_touch_updated_at BEFORE UPDATE ON tenant.contacts FOR EA
 
 
 --
--- Name: crm_account_duplicate_overrides crm_account_duplicate_overrides_immutable; Type: TRIGGER; Schema: tenant; Owner: -
---
-
-CREATE TRIGGER crm_account_duplicate_overrides_immutable BEFORE DELETE OR UPDATE ON tenant.crm_account_duplicate_overrides FOR EACH ROW EXECUTE FUNCTION tenant.crm_account_duplicate_override_immutable();
-
-
---
 -- Name: crm_ai_acceptance_evidence crm_ai_acceptance_immutable; Type: TRIGGER; Schema: tenant; Owner: -
 --
 
@@ -34074,20 +33595,6 @@ CREATE TRIGGER crm_communication_acceptance_immutable BEFORE DELETE OR UPDATE ON
 
 
 --
--- Name: crm_contact_account_relationships crm_contact_account_relationships_touch; Type: TRIGGER; Schema: tenant; Owner: -
---
-
-CREATE TRIGGER crm_contact_account_relationships_touch BEFORE UPDATE ON tenant.crm_contact_account_relationships FOR EACH ROW EXECUTE FUNCTION tenant.crm_contact_account_relationships_touch();
-
-
---
--- Name: crm_contact_duplicate_overrides crm_contact_duplicate_overrides_immutable; Type: TRIGGER; Schema: tenant; Owner: -
---
-
-CREATE TRIGGER crm_contact_duplicate_overrides_immutable BEFORE DELETE OR UPDATE ON tenant.crm_contact_duplicate_overrides FOR EACH ROW EXECUTE FUNCTION tenant.crm_contact_duplicate_override_immutable();
-
-
---
 -- Name: crm_customer_health_snapshots crm_customer_health_snapshots_immutable; Type: TRIGGER; Schema: tenant; Owner: -
 --
 
@@ -34099,13 +33606,6 @@ CREATE TRIGGER crm_customer_health_snapshots_immutable BEFORE DELETE OR UPDATE O
 --
 
 CREATE TRIGGER crm_customer_success_acceptance_runs_immutable BEFORE DELETE OR UPDATE ON tenant.crm_customer_success_acceptance_runs FOR EACH ROW EXECUTE FUNCTION tenant.crm_customer_success_immutable_row();
-
-
---
--- Name: crm_duplicate_rules crm_duplicate_rules_touch; Type: TRIGGER; Schema: tenant; Owner: -
---
-
-CREATE TRIGGER crm_duplicate_rules_touch BEFORE UPDATE ON tenant.crm_duplicate_rules FOR EACH ROW EXECUTE FUNCTION tenant.crm_duplicate_rules_touch();
 
 
 --
@@ -40044,30 +39544,6 @@ ALTER TABLE ONLY tenant.contacts
 
 
 --
--- Name: crm_account_duplicate_overrides crm_account_duplicate_overrides_actor_user_id_fkey; Type: FK CONSTRAINT; Schema: tenant; Owner: -
---
-
-ALTER TABLE ONLY tenant.crm_account_duplicate_overrides
-    ADD CONSTRAINT crm_account_duplicate_overrides_actor_user_id_fkey FOREIGN KEY (actor_user_id) REFERENCES public.users(id) ON DELETE RESTRICT;
-
-
---
--- Name: crm_account_duplicate_overrides crm_account_duplicate_overrides_organization_id_fkey; Type: FK CONSTRAINT; Schema: tenant; Owner: -
---
-
-ALTER TABLE ONLY tenant.crm_account_duplicate_overrides
-    ADD CONSTRAINT crm_account_duplicate_overrides_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id) ON DELETE CASCADE;
-
-
---
--- Name: crm_account_duplicate_overrides crm_account_duplicate_overrides_organization_id_party_id_fkey; Type: FK CONSTRAINT; Schema: tenant; Owner: -
---
-
-ALTER TABLE ONLY tenant.crm_account_duplicate_overrides
-    ADD CONSTRAINT crm_account_duplicate_overrides_organization_id_party_id_fkey FOREIGN KEY (organization_id, party_id) REFERENCES tenant.business_parties(organization_id, id) ON DELETE RESTRICT;
-
-
---
 -- Name: crm_account_plans crm_account_plans_created_by_fkey; Type: FK CONSTRAINT; Schema: tenant; Owner: -
 --
 
@@ -41180,94 +40656,6 @@ ALTER TABLE ONLY tenant.crm_consent_events
 
 
 --
--- Name: crm_contact_account_relationships crm_contact_account_relationshi_organization_id_contact_id_fkey; Type: FK CONSTRAINT; Schema: tenant; Owner: -
---
-
-ALTER TABLE ONLY tenant.crm_contact_account_relationships
-    ADD CONSTRAINT crm_contact_account_relationshi_organization_id_contact_id_fkey FOREIGN KEY (organization_id, contact_id) REFERENCES tenant.contacts(organization_id, id) ON DELETE CASCADE;
-
-
---
--- Name: crm_contact_account_relationships crm_contact_account_relationships_created_by_fkey; Type: FK CONSTRAINT; Schema: tenant; Owner: -
---
-
-ALTER TABLE ONLY tenant.crm_contact_account_relationships
-    ADD CONSTRAINT crm_contact_account_relationships_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.users(id) ON DELETE SET NULL;
-
-
---
--- Name: crm_contact_account_relationships crm_contact_account_relationships_organization_id_fkey; Type: FK CONSTRAINT; Schema: tenant; Owner: -
---
-
-ALTER TABLE ONLY tenant.crm_contact_account_relationships
-    ADD CONSTRAINT crm_contact_account_relationships_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id) ON DELETE CASCADE;
-
-
---
--- Name: crm_contact_account_relationships crm_contact_account_relationships_organization_id_party_id_fkey; Type: FK CONSTRAINT; Schema: tenant; Owner: -
---
-
-ALTER TABLE ONLY tenant.crm_contact_account_relationships
-    ADD CONSTRAINT crm_contact_account_relationships_organization_id_party_id_fkey FOREIGN KEY (organization_id, party_id) REFERENCES tenant.business_parties(organization_id, id) ON DELETE CASCADE;
-
-
---
--- Name: crm_contact_account_relationships crm_contact_account_relationships_updated_by_fkey; Type: FK CONSTRAINT; Schema: tenant; Owner: -
---
-
-ALTER TABLE ONLY tenant.crm_contact_account_relationships
-    ADD CONSTRAINT crm_contact_account_relationships_updated_by_fkey FOREIGN KEY (updated_by) REFERENCES public.users(id) ON DELETE SET NULL;
-
-
---
--- Name: crm_contact_duplicate_overrides crm_contact_duplicate_overrides_actor_user_id_fkey; Type: FK CONSTRAINT; Schema: tenant; Owner: -
---
-
-ALTER TABLE ONLY tenant.crm_contact_duplicate_overrides
-    ADD CONSTRAINT crm_contact_duplicate_overrides_actor_user_id_fkey FOREIGN KEY (actor_user_id) REFERENCES public.users(id) ON DELETE RESTRICT;
-
-
---
--- Name: crm_contact_duplicate_overrides crm_contact_duplicate_overrides_organization_id_contact_id_fkey; Type: FK CONSTRAINT; Schema: tenant; Owner: -
---
-
-ALTER TABLE ONLY tenant.crm_contact_duplicate_overrides
-    ADD CONSTRAINT crm_contact_duplicate_overrides_organization_id_contact_id_fkey FOREIGN KEY (organization_id, contact_id) REFERENCES tenant.contacts(organization_id, id) ON DELETE RESTRICT;
-
-
---
--- Name: crm_contact_duplicate_overrides crm_contact_duplicate_overrides_organization_id_fkey; Type: FK CONSTRAINT; Schema: tenant; Owner: -
---
-
-ALTER TABLE ONLY tenant.crm_contact_duplicate_overrides
-    ADD CONSTRAINT crm_contact_duplicate_overrides_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id) ON DELETE CASCADE;
-
-
---
--- Name: crm_contact_merge_history crm_contact_merge_history_merged_by_fkey; Type: FK CONSTRAINT; Schema: tenant; Owner: -
---
-
-ALTER TABLE ONLY tenant.crm_contact_merge_history
-    ADD CONSTRAINT crm_contact_merge_history_merged_by_fkey FOREIGN KEY (merged_by) REFERENCES public.users(id) ON DELETE SET NULL;
-
-
---
--- Name: crm_contact_merge_history crm_contact_merge_history_organization_id_fkey; Type: FK CONSTRAINT; Schema: tenant; Owner: -
---
-
-ALTER TABLE ONLY tenant.crm_contact_merge_history
-    ADD CONSTRAINT crm_contact_merge_history_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id) ON DELETE CASCADE;
-
-
---
--- Name: crm_contact_merge_history crm_contact_merge_history_survivor_contact_id_fkey; Type: FK CONSTRAINT; Schema: tenant; Owner: -
---
-
-ALTER TABLE ONLY tenant.crm_contact_merge_history
-    ADD CONSTRAINT crm_contact_merge_history_survivor_contact_id_fkey FOREIGN KEY (survivor_contact_id) REFERENCES tenant.contacts(id) ON DELETE RESTRICT;
-
-
---
 -- Name: crm_conversation_insights crm_conversation_insights_organization_id_conversation_id_fkey; Type: FK CONSTRAINT; Schema: tenant; Owner: -
 --
 
@@ -41833,46 +41221,6 @@ ALTER TABLE ONLY tenant.crm_deal_risks
 
 ALTER TABLE ONLY tenant.crm_deal_risks
     ADD CONSTRAINT crm_deal_risks_updated_by_fkey FOREIGN KEY (updated_by) REFERENCES public.users(id) ON DELETE SET NULL;
-
-
---
--- Name: crm_duplicate_rules crm_duplicate_rules_created_by_fkey; Type: FK CONSTRAINT; Schema: tenant; Owner: -
---
-
-ALTER TABLE ONLY tenant.crm_duplicate_rules
-    ADD CONSTRAINT crm_duplicate_rules_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.users(id) ON DELETE SET NULL;
-
-
---
--- Name: crm_duplicate_rules crm_duplicate_rules_organization_id_fkey; Type: FK CONSTRAINT; Schema: tenant; Owner: -
---
-
-ALTER TABLE ONLY tenant.crm_duplicate_rules
-    ADD CONSTRAINT crm_duplicate_rules_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id) ON DELETE CASCADE;
-
-
---
--- Name: crm_duplicate_rules crm_duplicate_rules_updated_by_fkey; Type: FK CONSTRAINT; Schema: tenant; Owner: -
---
-
-ALTER TABLE ONLY tenant.crm_duplicate_rules
-    ADD CONSTRAINT crm_duplicate_rules_updated_by_fkey FOREIGN KEY (updated_by) REFERENCES public.users(id) ON DELETE SET NULL;
-
-
---
--- Name: crm_duplicate_scan_matches crm_duplicate_scan_matches_job_id_fkey; Type: FK CONSTRAINT; Schema: tenant; Owner: -
---
-
-ALTER TABLE ONLY tenant.crm_duplicate_scan_matches
-    ADD CONSTRAINT crm_duplicate_scan_matches_job_id_fkey FOREIGN KEY (job_id) REFERENCES tenant.background_jobs(id) ON DELETE CASCADE;
-
-
---
--- Name: crm_duplicate_scan_matches crm_duplicate_scan_matches_organization_id_fkey; Type: FK CONSTRAINT; Schema: tenant; Owner: -
---
-
-ALTER TABLE ONLY tenant.crm_duplicate_scan_matches
-    ADD CONSTRAINT crm_duplicate_scan_matches_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id) ON DELETE CASCADE;
 
 
 --
@@ -43145,22 +42493,6 @@ ALTER TABLE ONLY tenant.crm_meeting_links
 
 ALTER TABLE ONLY tenant.crm_meeting_links
     ADD CONSTRAINT crm_meeting_links_updated_by_fkey FOREIGN KEY (updated_by) REFERENCES public.users(id) ON DELETE SET NULL;
-
-
---
--- Name: crm_merge_records crm_merge_records_merged_by_fkey; Type: FK CONSTRAINT; Schema: tenant; Owner: -
---
-
-ALTER TABLE ONLY tenant.crm_merge_records
-    ADD CONSTRAINT crm_merge_records_merged_by_fkey FOREIGN KEY (merged_by) REFERENCES public.users(id) ON DELETE SET NULL;
-
-
---
--- Name: crm_merge_records crm_merge_records_organization_id_fkey; Type: FK CONSTRAINT; Schema: tenant; Owner: -
---
-
-ALTER TABLE ONLY tenant.crm_merge_records
-    ADD CONSTRAINT crm_merge_records_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id) ON DELETE CASCADE;
 
 
 --
@@ -52024,12 +51356,6 @@ ALTER TABLE tenant.business_parties ENABLE ROW LEVEL SECURITY;
 ALTER TABLE tenant.contacts ENABLE ROW LEVEL SECURITY;
 
 --
--- Name: crm_account_duplicate_overrides; Type: ROW SECURITY; Schema: tenant; Owner: -
---
-
-ALTER TABLE tenant.crm_account_duplicate_overrides ENABLE ROW LEVEL SECURITY;
-
---
 -- Name: crm_account_plans; Type: ROW SECURITY; Schema: tenant; Owner: -
 --
 
@@ -52216,24 +51542,6 @@ ALTER TABLE tenant.crm_competitors ENABLE ROW LEVEL SECURITY;
 ALTER TABLE tenant.crm_consent_events ENABLE ROW LEVEL SECURITY;
 
 --
--- Name: crm_contact_account_relationships; Type: ROW SECURITY; Schema: tenant; Owner: -
---
-
-ALTER TABLE tenant.crm_contact_account_relationships ENABLE ROW LEVEL SECURITY;
-
---
--- Name: crm_contact_duplicate_overrides; Type: ROW SECURITY; Schema: tenant; Owner: -
---
-
-ALTER TABLE tenant.crm_contact_duplicate_overrides ENABLE ROW LEVEL SECURITY;
-
---
--- Name: crm_contact_merge_history; Type: ROW SECURITY; Schema: tenant; Owner: -
---
-
-ALTER TABLE tenant.crm_contact_merge_history ENABLE ROW LEVEL SECURITY;
-
---
 -- Name: crm_conversation_insights; Type: ROW SECURITY; Schema: tenant; Owner: -
 --
 
@@ -52334,18 +51642,6 @@ ALTER TABLE tenant.crm_data_quality_scores ENABLE ROW LEVEL SECURITY;
 --
 
 ALTER TABLE tenant.crm_deal_risks ENABLE ROW LEVEL SECURITY;
-
---
--- Name: crm_duplicate_rules; Type: ROW SECURITY; Schema: tenant; Owner: -
---
-
-ALTER TABLE tenant.crm_duplicate_rules ENABLE ROW LEVEL SECURITY;
-
---
--- Name: crm_duplicate_scan_matches; Type: ROW SECURITY; Schema: tenant; Owner: -
---
-
-ALTER TABLE tenant.crm_duplicate_scan_matches ENABLE ROW LEVEL SECURITY;
 
 --
 -- Name: crm_email_events; Type: ROW SECURITY; Schema: tenant; Owner: -
@@ -52604,12 +51900,6 @@ ALTER TABLE tenant.crm_meeting_events ENABLE ROW LEVEL SECURITY;
 --
 
 ALTER TABLE tenant.crm_meeting_links ENABLE ROW LEVEL SECURITY;
-
---
--- Name: crm_merge_records; Type: ROW SECURITY; Schema: tenant; Owner: -
---
-
-ALTER TABLE tenant.crm_merge_records ENABLE ROW LEVEL SECURITY;
 
 --
 -- Name: crm_mobile_acceptance_evidence; Type: ROW SECURITY; Schema: tenant; Owner: -
@@ -54454,13 +53744,6 @@ CREATE POLICY organization_isolation ON tenant.crm_consent_events USING ((organi
 
 
 --
--- Name: crm_contact_merge_history organization_isolation; Type: POLICY; Schema: tenant; Owner: -
---
-
-CREATE POLICY organization_isolation ON tenant.crm_contact_merge_history USING ((organization_id = tenant.current_organization_id())) WITH CHECK ((organization_id = tenant.current_organization_id()));
-
-
---
 -- Name: crm_conversation_insights organization_isolation; Type: POLICY; Schema: tenant; Owner: -
 --
 
@@ -54745,13 +54028,6 @@ CREATE POLICY organization_isolation ON tenant.crm_meeting_bookings USING ((orga
 --
 
 CREATE POLICY organization_isolation ON tenant.crm_meeting_links USING ((organization_id = tenant.current_organization_id())) WITH CHECK ((organization_id = tenant.current_organization_id()));
-
-
---
--- Name: crm_merge_records organization_isolation; Type: POLICY; Schema: tenant; Owner: -
---
-
-CREATE POLICY organization_isolation ON tenant.crm_merge_records USING ((organization_id = tenant.current_organization_id())) WITH CHECK ((organization_id = tenant.current_organization_id()));
 
 
 --
@@ -57453,13 +56729,6 @@ CREATE POLICY tenant_organization_isolation ON tenant.contacts USING ((organizat
 
 
 --
--- Name: crm_account_duplicate_overrides tenant_organization_isolation; Type: POLICY; Schema: tenant; Owner: -
---
-
-CREATE POLICY tenant_organization_isolation ON tenant.crm_account_duplicate_overrides USING ((organization_id = (current_setting('app.current_organization_id'::text, true))::uuid)) WITH CHECK ((organization_id = (current_setting('app.current_organization_id'::text, true))::uuid));
-
-
---
 -- Name: crm_activity_reminders tenant_organization_isolation; Type: POLICY; Schema: tenant; Owner: -
 --
 
@@ -57537,20 +56806,6 @@ CREATE POLICY tenant_organization_isolation ON tenant.crm_communication_particip
 
 
 --
--- Name: crm_contact_account_relationships tenant_organization_isolation; Type: POLICY; Schema: tenant; Owner: -
---
-
-CREATE POLICY tenant_organization_isolation ON tenant.crm_contact_account_relationships USING ((organization_id = (current_setting('app.current_organization_id'::text, true))::uuid)) WITH CHECK ((organization_id = (current_setting('app.current_organization_id'::text, true))::uuid));
-
-
---
--- Name: crm_contact_duplicate_overrides tenant_organization_isolation; Type: POLICY; Schema: tenant; Owner: -
---
-
-CREATE POLICY tenant_organization_isolation ON tenant.crm_contact_duplicate_overrides USING ((organization_id = (current_setting('app.current_organization_id'::text, true))::uuid)) WITH CHECK ((organization_id = (current_setting('app.current_organization_id'::text, true))::uuid));
-
-
---
 -- Name: crm_core_acceptance_runs tenant_organization_isolation; Type: POLICY; Schema: tenant; Owner: -
 --
 
@@ -57604,20 +56859,6 @@ CREATE POLICY tenant_organization_isolation ON tenant.crm_customer_success_miles
 --
 
 CREATE POLICY tenant_organization_isolation ON tenant.crm_customer_success_plans USING ((organization_id = (current_setting('app.current_organization_id'::text, true))::uuid)) WITH CHECK ((organization_id = (current_setting('app.current_organization_id'::text, true))::uuid));
-
-
---
--- Name: crm_duplicate_rules tenant_organization_isolation; Type: POLICY; Schema: tenant; Owner: -
---
-
-CREATE POLICY tenant_organization_isolation ON tenant.crm_duplicate_rules USING ((organization_id = (current_setting('app.current_organization_id'::text, true))::uuid)) WITH CHECK ((organization_id = (current_setting('app.current_organization_id'::text, true))::uuid));
-
-
---
--- Name: crm_duplicate_scan_matches tenant_organization_isolation; Type: POLICY; Schema: tenant; Owner: -
---
-
-CREATE POLICY tenant_organization_isolation ON tenant.crm_duplicate_scan_matches USING ((organization_id = (current_setting('app.current_organization_id'::text, true))::uuid)) WITH CHECK ((organization_id = (current_setting('app.current_organization_id'::text, true))::uuid));
 
 
 --
@@ -60396,14 +59637,6 @@ GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.contacts TO vercent_worker;
 
 
 --
--- Name: TABLE crm_account_duplicate_overrides; Type: ACL; Schema: tenant; Owner: -
---
-
-GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_account_duplicate_overrides TO vercent_app;
-GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_account_duplicate_overrides TO vercent_worker;
-
-
---
 -- Name: TABLE crm_account_plans; Type: ACL; Schema: tenant; Owner: -
 --
 
@@ -60652,30 +59885,6 @@ GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_consent_events TO vercent_
 
 
 --
--- Name: TABLE crm_contact_account_relationships; Type: ACL; Schema: tenant; Owner: -
---
-
-GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_contact_account_relationships TO vercent_app;
-GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_contact_account_relationships TO vercent_worker;
-
-
---
--- Name: TABLE crm_contact_duplicate_overrides; Type: ACL; Schema: tenant; Owner: -
---
-
-GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_contact_duplicate_overrides TO vercent_app;
-GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_contact_duplicate_overrides TO vercent_worker;
-
-
---
--- Name: TABLE crm_contact_merge_history; Type: ACL; Schema: tenant; Owner: -
---
-
-GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_contact_merge_history TO vercent_app;
-GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_contact_merge_history TO vercent_worker;
-
-
---
 -- Name: TABLE crm_conversation_insights; Type: ACL; Schema: tenant; Owner: -
 --
 
@@ -60809,22 +60018,6 @@ GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_data_quality_scores TO ver
 
 GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_deal_risks TO vercent_app;
 GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_deal_risks TO vercent_worker;
-
-
---
--- Name: TABLE crm_duplicate_rules; Type: ACL; Schema: tenant; Owner: -
---
-
-GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_duplicate_rules TO vercent_app;
-GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_duplicate_rules TO vercent_worker;
-
-
---
--- Name: TABLE crm_duplicate_scan_matches; Type: ACL; Schema: tenant; Owner: -
---
-
-GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_duplicate_scan_matches TO vercent_app;
-GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_duplicate_scan_matches TO vercent_worker;
 
 
 --
@@ -61169,14 +60362,6 @@ GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_meeting_events TO vercent_
 
 GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_meeting_links TO vercent_app;
 GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_meeting_links TO vercent_worker;
-
-
---
--- Name: TABLE crm_merge_records; Type: ACL; Schema: tenant; Owner: -
---
-
-GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_merge_records TO vercent_app;
-GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_merge_records TO vercent_worker;
 
 
 --

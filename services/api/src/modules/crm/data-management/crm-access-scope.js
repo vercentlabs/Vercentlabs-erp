@@ -199,27 +199,8 @@ export function crmAccountAccessSql(context, bind, accountAlias) {
           OR ${managedTeamMemberSql(bind, context, "account_opportunity.owner_user_id", "account_opportunity.organization_id", me)}))${grants.map((grant) => `\n    OR ${grant}`).join("")})`;
 }
 
-// Contact access inherits Account access. A standalone Contact (no Account)
-// has no owner of its own, so it is visible to view-all callers,
-// its creator, and the creator's sales-team manager — never to everyone.
-export function crmContactAccessSql(context, bind, contactAlias, accountAlias) {
-  if (canViewAllCrmRecords(context)) return "";
-  const me = bind(context.userId);
-  const accountAccess = crmAccountAccessSql(context, bind, accountAlias).replace(/^ AND /, "");
-  return ` AND ((${contactAlias}.party_id IS NOT NULL AND ${accountAccess})
-    OR (${contactAlias}.party_id IS NULL AND (${contactAlias}.created_by = ${me}
-      OR ${managedTeamMemberSql(bind, context, `${contactAlias}.created_by`, `${contactAlias}.organization_id`, me)})))`;
-}
-
-// The full "may this caller see this Account / Contact" predicate: the
-// ownership rule above, organization-wide. Every Account/Contact read
-// (lists, detail, 360, hierarchy, merge, relationship lists, pickers) uses
-// these, so there is one definition.
+// The "may this caller see this Account" predicate. Contact visibility lives
+// in contacts/access.js (contactScopeSql).
 export function crmAccountVisibleSql(context, bind, accountAlias) {
   return crmAccountAccessSql(context, bind, accountAlias);
-}
-
-// accountAlias must be LEFT JOINed on contact.party_id (NULL for standalone).
-export function crmContactVisibleSql(context, bind, contactAlias, accountAlias) {
-  return crmContactAccessSql(context, bind, contactAlias, accountAlias);
 }

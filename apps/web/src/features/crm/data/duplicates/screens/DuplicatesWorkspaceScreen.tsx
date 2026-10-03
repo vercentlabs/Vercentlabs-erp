@@ -16,31 +16,22 @@ import { getLead, listLeads, type Lead } from "@/features/crm/leads/api/leads-ap
 import { LeadDuplicatesPanel } from "@/features/crm/leads/components/LeadDuplicatesPanel";
 import { getAccount, listAccounts, type Account } from "@/features/crm/accounts/api/accounts-api";
 import { AccountDuplicatesPanel } from "@/features/crm/accounts/components/AccountDuplicatesPanel";
-import {
-  getContact,
-  listContacts,
-} from "@/features/crm/customers/contacts/api/contacts-api";
-import type { Contact } from "@/features/crm/customers/contacts/types";
-import { ContactDuplicatesPanel } from "@/features/crm/customers/contacts/components/ContactDuplicatesPanel";
+import { getContact, listContacts, type Contact } from "@/features/crm/contacts/api/contacts-api";
+import { ContactDuplicatesPanel } from "@/features/crm/contacts/components/ContactMergeAndDuplicates";
 
 import { SuspectedDuplicates, type EntityType } from "./SuspectedDuplicates";
-import { FullDuplicateScan } from "../components/FullDuplicateScan";
 
-// F008 — a standalone duplicate-triage destination
-// (/crm/data/duplicates), not tied to already being on a specific
-// record's 360. Reuses the SAME governed duplicate-matching engine
-// (findLeadDuplicates/findAccountDuplicates/findContactDuplicates) and
-// the SAME resolution panels used for each record type — no fuzzy
-// matching or merge logic in the browser.
-// Candidate discovery is search-driven (pick a record, see ITS
-// candidates) rather than a full-database pairwise scan: no backend
-// function exists for the latter (a materially larger, separate
-// capability).
+// One place to review duplicates of leads, accounts and contacts. Each
+// record type's own duplicate check finds the candidates and its own panel
+// resolves them (merge), so no matching or merge logic lives in the browser.
+// Discovery is search-driven: pick a record and see its candidates, or
+// review the suspects found among the most recently changed records.
 export function DuplicatesWorkspaceScreen() {
   const workspace = useWorkspaceContext();
   const canView =
     workspace.permissions.includes(CRM_PERMISSIONS.leadsEdit) ||
-    workspace.permissions.includes(CRM_PERMISSIONS.accountsEdit);
+    workspace.permissions.includes(CRM_PERMISSIONS.accountsEdit) ||
+    workspace.permissions.includes(CRM_PERMISSIONS.contactsEdit);
   const [entityType, setEntityType] = useState<EntityType>("lead");
   const [search, setSearch] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -151,7 +142,7 @@ export function DuplicatesWorkspaceScreen() {
   const selectedContact: Contact | undefined =
     entityType === "contact"
       ? (contactRows.find((row) => row.id === selectedId) ??
-        reviewedContactQuery.data?.record)
+        reviewedContactQuery.data)
       : undefined;
 
   function labelFor(type: EntityType, row: Lead | Account | Contact): string {
@@ -180,8 +171,9 @@ export function DuplicatesWorkspaceScreen() {
     }
     const contact = row as Contact;
     return [
-      `${contact.firstName} ${contact.lastName || ""}`.trim(),
-      contact.designation,
+      contact.displayName,
+      contact.jobTitle,
+      contact.accountName,
       contact.email,
     ]
       .filter(Boolean)
@@ -245,17 +237,6 @@ export function DuplicatesWorkspaceScreen() {
             }}
           />
         )}
-        {!reviewed &&
-          search.trim().length < 2 &&
-          workspace.permissions.includes(CRM_PERMISSIONS.dataQualityManage) && (
-            <FullDuplicateScan
-              type={entityType}
-              onReview={(id) => {
-                setReviewed({ type: entityType, id });
-                setSelectedId(id);
-              }}
-            />
-          )}
         {search.trim().length < 2 && !reviewed && (
           <p className="text-sm text-text-muted">
             Or search for any record to check it: type at least 2 characters.
@@ -298,9 +279,7 @@ export function DuplicatesWorkspaceScreen() {
         {selectedContact && (
           <ContactDuplicatesPanel
             contact={selectedContact}
-            canManage={workspace.permissions.includes(
-              CRM_PERMISSIONS.accountsEdit,
-            )}
+            canMerge={workspace.permissions.includes(CRM_PERMISSIONS.contactsMerge) || workspace.roleSlugs.includes("organization_owner")}
           />
         )}
         {(selectedLead || selectedAccount || selectedContact) && (

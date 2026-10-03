@@ -7,7 +7,6 @@ import { opportunityStageMigrationHandler, JOB_TYPE as OPPORTUNITY_STAGE_MIGRATI
 import { capturePipelineDailySnapshotHandler, JOB_TYPE as PIPELINE_SNAPSHOT_CAPTURE_JOB_TYPE, payloadSchema as pipelineSnapshotCapturePayloadSchema } from "./crm-pipeline-snapshot-capture.js";
 import { dispatchFollowUpRemindersHandler, JOB_TYPE as FOLLOW_UP_REMINDER_DISPATCH_JOB_TYPE, payloadSchema as followUpReminderDispatchPayloadSchema } from "./crm-follow-up-reminder-dispatch.js";
 import { pushMeetingCalendarEventHandler, JOB_TYPE as MEETING_CALENDAR_PUSH_JOB_TYPE, payloadSchema as meetingCalendarPushPayloadSchema } from "./crm-meeting-calendar-push.js";
-import { duplicateFullScanHandler, JOB_TYPE as DUPLICATE_FULL_SCAN_JOB_TYPE, payloadSchema as duplicateFullScanPayloadSchema } from "./crm-duplicate-full-scan.js";
 import { reportRunHandler, JOB_TYPE as REPORT_RUN_JOB_TYPE, payloadSchema as reportRunPayloadSchema } from "./platform-report-run.js";
 import { captureForecastSnapshotsHandler, JOB_TYPE as FORECAST_SNAPSHOT_JOB_TYPE, payloadSchema as forecastSnapshotPayloadSchema } from "./crm-forecast-snapshot-capture.js";
 import { syncCalendarAccountsHandler, JOB_TYPE as CALENDAR_SYNC_JOB_TYPE, payloadSchema as calendarSyncPayloadSchema } from "./crm-calendar-sync.js";
@@ -74,18 +73,6 @@ export function registerBuiltinHandlers() {
     // meeting+action collide on the same background_jobs row instead.
     idempotency: "IDEMPOTENCY_KEY_REQUIRED",
     maxAttempts: 5,
-    transactionMode: "managed",
-  });
-  registerJobHandler(DUPLICATE_FULL_SCAN_JOB_TYPE, {
-    schema: duplicateFullScanPayloadSchema,
-    handler: duplicateFullScanHandler,
-    backoff: internalJobBackoff,
-    // Re-running the same job id just re-pages from its own stored keyset
-    // position and ON CONFLICT-upserts the same match rows — no side
-    // effect on any other data, so no caller-supplied idempotency key is
-    // required.
-    idempotency: "NATURALLY_IDEMPOTENT",
-    maxAttempts: 3,
     transactionMode: "managed",
   });
   registerJobHandler(REPORT_RUN_JOB_TYPE, {

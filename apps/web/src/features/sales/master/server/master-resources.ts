@@ -1,9 +1,6 @@
 import "server-only";
 
-import {
-  findAccountDuplicates,
-  recordAccountDuplicateOverride,
-} from "@vercentlabs/api/crm";
+import { findDuplicateAccounts, recordAccountHistory } from "@vercentlabs/api/crm";
 
 import { HttpError } from "@/core/http";
 
@@ -128,12 +125,11 @@ export function shapeCustomerInput(
 }
 // A rep can otherwise create the same customer twice: business_parties has
 // unique constraints on code/gstin, but nothing catches a differently-coded
-// duplicate of the same legal entity. Reuses the same governed
-// exact-match-blocks-unless-overridden policy CRM already applies to
-// Accounts (findAccountDuplicates/recordAccountDuplicateOverride are
-// package-root exports, not CRM-internal) -- gated on `parties.manage`
-// (what Sales party mutations already require) instead of CRM's
-// `crm.accounts.edit`, so Sales users need no CRM permission to override.
+// duplicate of the same legal entity. Uses the same duplicate detection as
+// CRM Accounts (same name, website or GSTIN is an exact match) -- the
+// override is gated on `parties.manage` (what Sales party mutations already
+// require), so Sales users need no CRM permission, and the reason is kept in
+// the account history.
 export async function assertPartyDuplicatePolicy(
   client: DuplicateClient,
   context: DuplicateContext,
@@ -146,15 +142,17 @@ export async function assertPartyDuplicatePolicy(
   overrideReason: unknown,
   excludeId?: string,
 ): Promise<{ matchedPartyIds: string[]; reason: string } | null> {
-  const matches = await findAccountDuplicates(client, context, {
-    name: candidate.displayName ?? candidate.legalName,
-    gstin: candidate.gstin,
-    pan: candidate.pan,
-    excludeId,
-  });
-  const exact = (
-    matches as Array<{ classification: string; id: string }>
-  ).filter((row) => row.classification === "exact");
+  const { matches } = await findDuplicateAccounts(
+    client,
+    context as never,
+    {
+      displayName: String(candidate.displayName ?? candidate.legalName ?? ""),
+      legalName: candidate.legalName ? String(candidate.legalName) : null,
+      gstin: candidate.gstin ? String(candidate.gstin) : undefined,
+    },
+    { excludeId: excludeId ?? null },
+  );
+  const exact = matches.filter((match) => match.strength === "exact");
   if (!exact.length) return null;
   const canOverride = context.permissions.includes("parties.manage");
   const reason = String(overrideReason ?? "").trim();
@@ -179,14 +177,13 @@ export async function recordPartyDuplicateOverride(
   operation: "create" | "update",
   reason: string,
 ) {
-  return recordAccountDuplicateOverride(
+  return recordAccountHistory(
     client,
-    context,
+    context as never,
     partyId,
-    matchedPartyIds,
-    operation,
-    reason,
-    "sales",
+    "updated",
+    `Duplicate confirmed in Sales (${operation}): ${reason}`.slice(0, 500),
+    { duplicateConfirmed: matchedPartyIds, reason, source: "sales" },
   );
 }
 

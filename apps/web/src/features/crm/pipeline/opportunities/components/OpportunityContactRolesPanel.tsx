@@ -17,7 +17,7 @@ import {
 
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
-import { listContacts } from "@/features/crm/customers/contacts/api/contacts-api";
+import { listContacts } from "@/features/crm/contacts/api/contacts-api";
 import {
   addOpportunityContactRole,
   listOpportunityContactRoles,

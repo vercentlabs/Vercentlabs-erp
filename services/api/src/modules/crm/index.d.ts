@@ -236,33 +236,6 @@ export {
   applyOfflineBatch,
 } from "./data-management/offline-sync.js";
 export {
-  archiveCrmContact,
-  createCrmContact,
-  getCrmContactForCaller,
-  listCrmContacts,
-  reactivateCrmContact,
-  updateCrmContact,
-} from "./master-data/contact-operations.js";
-export {
-  addContactAccountRelationship,
-  listAccountContactRelationships,
-  listContactAccountRelationships,
-  removeContactAccountRelationship,
-  setPrimaryContactAccountRelationship,
-  updateContactAccountRelationship,
-} from "./master-data/contact-relationships.js";
-export {
-  findAccountDuplicates,
-  findContactDuplicates,
-  projectDuplicateMatchesForCaller,
-  recordAccountDuplicateOverride,
-} from "./master-data/duplicate-matching.js";
-export {
-  listDuplicateRules,
-  setDuplicateRuleEnabled,
-  upsertDuplicateRule,
-} from "./master-data/duplicate-rules.js";
-export {
   addOpportunityContactRole,
   listContactOpportunityRoles,
   listOpportunityContactRoles,
@@ -312,15 +285,9 @@ export function listPipelineSnapshots(client: QueryClient, context: any, options
 export function listOpportunityPipelineStageTotals(client: QueryClient, context: any, pipelineId: string | null): Promise<Record<string, { opportunityCount: number; byCurrency: Record<string, { opportunityCount: number; amount: number; weightedAmount: number }> }>>;
 export function listOpportunityStageAges(client: QueryClient, context: any, pipelineId?: string): Promise<Record<string, { enteredAt: string | null; ageDays: number | null; maximumDays: number | null; status: string }>>;
 export function processOpportunityStageMigrationBatch(client: QueryClient, systemContext: any, jobId: string): Promise<any>;
-export function processDuplicateFullScanBatch(client: QueryClient, systemContext: any, jobId: string): Promise<any>;
 // F012 safe stage deactivation + migration job (mirrors the F007 lead-stage-migration shape).
 export const OPPORTUNITY_STAGE_MIGRATION_JOB_TYPE: string;
 export function deactivateSalesStageWithMigration(client: QueryClient, context: any, id: string, options?: { migrateToStageId?: string; expectedUpdatedAt?: string }): Promise<{ deactivated: boolean; stage: any; migrationJob?: any }>;
-export const DUPLICATE_FULL_SCAN_JOB_TYPE: string;
-export function enqueueDuplicateFullScan(client: QueryClient, context: any, entityType: string): Promise<any>;
-export function getDuplicateFullScanJob(client: QueryClient, context: any, jobId: string): Promise<any>;
-export function getLatestDuplicateFullScan(client: QueryClient, context: any, entityType: string): Promise<any>;
-export function listDuplicateScanMatches(client: QueryClient, context: any, jobId: string): Promise<any[]>;
 // F005 — hand-written signature for a runtime export reached through
 // lead-governance.js's re-export of assignment/index.js.
 export function matchLeadTerritory(client: QueryClient, context: any, lead: Record<string, unknown>): Promise<{ territoryId: string; code: string; name: string; matchedOn: string[]; alternatives: Array<{ territoryId: string; name: string; matchedOn: string[] }> } | null>;
@@ -396,7 +363,7 @@ export function archiveCrmNote(client: QueryClient, context: any, id: string, in
 export function listCrmNoteVersions(client: QueryClient, context: any, id: string): Promise<any[]>;
 
 // Declarations kept with the F014/F018 and account-intelligence compatibility
-// boundaries (activities/communications.d.ts, master-data/account-intelligence.d.ts).
+// boundary (activities/communications.d.ts), and the privacy operations.
 export {
   bookMeeting,
   cancelMeetingBooking,
@@ -409,15 +376,11 @@ export {
   rescheduleMeetingBooking,
   prepareMeetingCalendarPush,
 } from "./activities/communications.js";
-export {
-  executePrivacyRequest,
-  getPrivacyRetentionDashboard,
-  mergeContactsGoverned,
-  previewContactMergeForCaller,
-  previewPrivacyRequest,
-  runPrivacyRetention,
-  updatePrivacyRetentionPolicy,
-} from "./master-data/account-intelligence.js";
+export function previewPrivacyRequest(client: QueryClient, context: CrmContext, requestId: string): Promise<Record<string, unknown>>;
+export function executePrivacyRequest(client: QueryClient, context: CrmContext, requestId: string, input?: Record<string, unknown>): Promise<Record<string, unknown>>;
+export function getPrivacyRetentionDashboard(client: QueryClient, context: CrmContext): Promise<Record<string, unknown>>;
+export function updatePrivacyRetentionPolicy(client: QueryClient, context: CrmContext, policyId: string, input: Record<string, unknown>): Promise<Record<string, unknown>>;
+export function runPrivacyRetention(client: QueryClient, context: CrmContext, input?: Record<string, unknown>): Promise<Record<string, unknown>>;
 
 // Record kernel: access scope, outbox and communication access.
 export function canViewAllCrmRecords(context: CrmContext): boolean;
@@ -484,3 +447,4 @@ export function failCalendarSync(
 ): Promise<{ failed: true; code: string }>;
 export * from "./leads/index.js";
 export * from "./accounts/index.js";
+export * from "./contacts/index.js";

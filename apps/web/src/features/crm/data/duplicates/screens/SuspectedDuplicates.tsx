@@ -6,10 +6,7 @@ import { Button } from "@vercentlabs/design-system";
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import { checkAccountDuplicates, listAccounts } from "@/features/crm/accounts/api/accounts-api";
-import {
-  findContactDuplicates,
-  listContacts,
-} from "@/features/crm/customers/contacts/api/contacts-api";
+import { checkContactDuplicates, listContacts } from "@/features/crm/contacts/api/contacts-api";
 import { checkLeadDuplicates, listLeads } from "@/features/crm/leads/api/leads-api";
 import { humanize } from "@/shared/format/human";
 import { LoadingState } from "@/shared/ui/LoadingState";
@@ -108,26 +105,28 @@ async function scan(type: EntityType): Promise<Suspect[]> {
           );
     });
   } else {
-    const { rows } = await listContacts({ limit: SCAN_SIZE, status: "active" });
+    const { rows } = await listContacts({ limit: SCAN_SIZE, view: "active" });
     await inBatches(rows, 5, async (contact) => {
-      const name = `${contact.firstName} ${contact.lastName ?? ""}`.trim();
-      const { duplicates } = await findContactDuplicates({
+      const { matches } = await checkContactDuplicates({
         firstName: contact.firstName,
         lastName: contact.lastName,
         email: contact.email,
-        mobile: contact.mobile,
+        secondaryEmail: contact.secondaryEmail,
         phone: contact.phone,
+        mobile: contact.mobile,
+        alternatePhone: contact.alternatePhone,
         accountId: contact.accountId,
         excludeId: contact.id,
-      }).catch(() => ({ duplicates: [] }));
-      for (const d of duplicates)
-        add(
-          contact.id,
-          name,
-          d.id,
-          `${d.first_name} ${d.last_name ?? ""}`.trim(),
-          d.matched_signals ?? [],
-        );
+      }).catch(() => ({ matches: [] }));
+      for (const match of matches)
+        if (match.canOpen)
+          add(
+            contact.id,
+            contact.displayName,
+            match.id,
+            match.name ?? match.code ?? "Contact",
+            match.strength === "exact" ? ["exact", ...match.signals] : match.signals,
+          );
     });
   }
   return [...found.values()].sort((a, b) =>

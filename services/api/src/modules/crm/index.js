@@ -161,55 +161,8 @@ export {
 // lead lifecycle/duplicate names this boundary's index.d.ts already declared.
 // Package consumers import them from @vercentlabs/api/crm.
 
-// F002/F003/F004/F008 Accounts, Contacts, relationships, lead sources, duplicates, merge, Customer 360 and privacy.
-export {
-  archiveCrmContact,
-  createCrmContact,
-  getCrmContactForCaller,
-  listCrmContacts,
-  reactivateCrmContact,
-  updateCrmContact,
-} from "./master-data/contact-operations.js";
-export {
-  addContactAccountRelationship,
-  listAccountContactRelationships,
-  listContactAccountRelationships,
-  removeContactAccountRelationship,
-  setPrimaryContactAccountRelationship,
-  updateContactAccountRelationship,
-} from "./master-data/contact-relationships.js";
-export {
-  findAccountDuplicates,
-  findContactDuplicates,
-  projectDuplicateMatchesForCaller,
-  recordAccountDuplicateOverride,
-} from "./master-data/duplicate-matching.js";
-export {
-  listDuplicateRules,
-  setDuplicateRuleEnabled,
-  upsertDuplicateRule,
-} from "./master-data/duplicate-rules.js";
-export {
-  DUPLICATE_FULL_SCAN_JOB_TYPE,
-  enqueueDuplicateFullScan,
-  getDuplicateFullScanJob,
-  getLatestDuplicateFullScan,
-  listDuplicateScanMatches,
-  processDuplicateFullScanBatch,
-} from "./master-data/duplicate-scan.js";
-export {
-  mergeContactsGoverned,
-  previewContactMergeForCaller,
-} from "./master-data/merge/record-merge.js";
-export {
-  executePrivacyRequest,
-  previewPrivacyRequest,
-} from "./master-data/privacy/privacy-requests.js";
-export {
-  getPrivacyRetentionDashboard,
-  runPrivacyRetention,
-  updatePrivacyRetentionPolicy,
-} from "./master-data/privacy/privacy-retention.js";
+// Privacy: data-subject requests and retention.
+export * from "./privacy/index.js";
 
 
 // F009-F012 Opportunity bulk jobs, contact roles, stage ageing, snapshots, forecasts and stage migration.
@@ -288,3 +241,4 @@ export {
 // conversion, activities, sources, import/export, dashboard and report.
 export * from "./leads/index.js";
 export * from "./accounts/index.js";
+export * from "./contacts/index.js";

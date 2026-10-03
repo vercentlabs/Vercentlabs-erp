@@ -241,16 +241,6 @@ export const MODULE_NAVIGATION: readonly ModuleNavigation[] = [
             description: "Review, dismiss and merge possible duplicates.",
             aliases: ["duplicate", "merge"],
           },
-          // F008 gap-closure — gated by crm.data-quality.manage (the same
-          // permission the merge/override actions in Duplicate Management
-          // require), not the generic settings-manage permission.
-          {
-            ...available("Duplicate Rules", "/crm/settings/duplicate-rules"),
-            parent: "crm-setup",
-            group: "lead-management",
-            description: "How records are matched as possible duplicates.",
-            requiredPermission: "crm.data-quality.manage",
-          },
           // Data management
           {
             ...available("Imports & Exports", "/crm/data/import-export"),

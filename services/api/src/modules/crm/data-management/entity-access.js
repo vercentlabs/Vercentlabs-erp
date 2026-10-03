@@ -3,12 +3,13 @@
 // same owner rule and entity-type-specific
 // sensitive-content permission each record type's own detail view enforces.
 
-import { crmContactVisibleSql, crmOwnerScopeSql } from "./crm-access-scope.js";
+import { crmOwnerScopeSql } from "./crm-access-scope.js";
 import { CrmError } from "./errors.js";
 import { canViewSensitiveLeadContent, leadScopeSql } from "../leads/access.js";
 import { accountCan, accountScopeSql } from "../accounts/access.js";
 import { ACCOUNT_PERMISSIONS } from "../accounts/constants.js";
-import { canViewSensitiveContactContent } from "../master-data/contact-security.js";
+import { contactCan, contactScopeSql } from "../contacts/access.js";
+import { CONTACT_PERMISSIONS } from "../contacts/constants.js";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const ENTITY_TYPES = new Set(["lead", "opportunity", "party", "contact", "campaign"]);
@@ -63,10 +64,10 @@ export async function resolveCrmEntityAccess(client, context, entityType, entity
     return Boolean(result.rows[0]);
   }
   if (entityType === "contact") {
-    if (!canViewSensitiveContactContent(context)) return false;
+    if (!contactCan(context, CONTACT_PERMISSIONS.view)) return false;
     const values = [context.organizationId, entityId];
     const result = await client.query(
-      `SELECT contact.id FROM tenant.contacts contact LEFT JOIN tenant.business_parties party ON party.organization_id=contact.organization_id AND party.id=contact.party_id WHERE contact.organization_id=$1 AND contact.id=$2 AND contact.status='active' AND (party.id IS NULL OR party.status='active')${crmContactVisibleSql(context, (value) => add(values, value), "contact", "party")} LIMIT 1`,
+      `SELECT contact.id FROM tenant.contacts contact WHERE contact.organization_id=$1 AND contact.id=$2${contactScopeSql(context, (value) => add(values, value), "contact")} LIMIT 1`,
       values,
     );
     return Boolean(result.rows[0]);

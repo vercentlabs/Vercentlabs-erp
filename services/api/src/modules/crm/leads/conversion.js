@@ -12,13 +12,15 @@
 import { CrmError } from "../data-management/errors.js";
 import { queueOutboxEvent } from "../data-management/outbox.js";
 import { createCrmRecord } from "../data-management/resource-mutation-service.js";
-import { crmContactVisibleSql } from "../data-management/crm-access-scope.js";
 import { accountScopeSql } from "../accounts/access.js";
 import { findDuplicateAccounts } from "../accounts/duplicates.js";
 import { recordAccountHistory } from "../accounts/history.js";
 import { createAccount } from "../accounts/records.js";
-import { createCrmContact } from "../master-data/contact-operations.js";
-import { findContactDuplicates } from "../master-data/duplicate-matching.js";
+import { contactScopeSql } from "../contacts/access.js";
+import { findDuplicateContacts } from "../contacts/duplicates.js";
+import { recordContactHistory } from "../contacts/history.js";
+import { createContact } from "../contacts/records.js";
+import { linkContactToAccount } from "../contacts/relationships.js";
 import { ensureDefaultSalesPipeline } from "../pipeline/default-pipeline.js";
 import { requireLeadPermission } from "./access.js";
 import { assertEligibleLeadAssignee } from "./assignment.js";
@@ -31,11 +33,19 @@ const TIMEFRAME_LABELS = new Map(LEAD_PURCHASE_TIMEFRAMES.map((entry) => [entry.
 const text = (value) => String(value ?? "").trim();
 
 const accountMatch = (match) => ({ id: match.id, name: match.name, code: match.code, strength: match.strength });
-const contactMatch = (row) => ({
-  id: row.id, partyId: row.party_id, name: `${row.first_name} ${row.last_name ?? ""}`.trim(), accountName: row.account_name,
-  email: row.email, phone: row.mobile || row.phone, strength: row.classification,
-});
-const visibleMatches = (rows) => rows.filter((row) => row.classification !== "none" && row.caller_can_access !== false);
+// People who look like the lead's person. One the caller cannot open is
+// reported (so a duplicate is never created behind their back) without its details.
+async function contactMatches(client, context, lead, partyId) {
+  const { matches } = await findDuplicateContacts(client, context, {
+    firstName: lead.first_name || lead.last_name, lastName: lead.first_name ? lead.last_name : null,
+    email: lead.email, mobile: lead.mobile, phone: lead.phone, accountId: partyId,
+  });
+  return matches
+    .filter((match) => match.canOpen || match.strength === "exact")
+    .map((match) => (match.canOpen
+      ? { id: match.id, partyId: match.accountId ?? null, name: match.name, accountName: match.accountName ?? null, email: match.email ?? null, phone: match.mobile ?? null, strength: match.strength, canOpen: true }
+      : { id: match.id, partyId: null, name: "A contact you do not have access to", accountName: null, email: null, phone: null, strength: match.strength, canOpen: false }));
+}
 // Accounts that look like the lead's company. One the caller cannot open is
 // reported (so a duplicate is never created behind their back) without its details.
 async function accountMatches(client, context, lead, name) {
@@ -45,24 +55,18 @@ async function accountMatches(client, context, lead, name) {
     .map((match) => (match.canOpen ? { ...accountMatch(match), canOpen: true } : { id: match.id, name: "An account you do not have access to", code: null, strength: match.strength, canOpen: false }));
 }
 
-// The reason recorded when the user confirms a new record despite a match.
-function overrideReason(input, lead) {
-  return text(input.duplicateOverrideReason) || `Confirmed as a separate record while converting lead ${lead.code}`;
-}
-
 function leadDisplayName(lead) {
   return lead.company_name || lead.full_name || lead.code;
 }
 
 async function assertVisible(client, context, kind, id) {
   const values = [context.organizationId, requireUuid(id, kind === "account" ? "Account" : "Contact")];
-  const bind = (value) => { values.push(value); return `${values.length}`; };
+  const bind = (value) => { values.push(value); return `$${values.length}`; };
   const sql = kind === "account"
     ? `SELECT account.id FROM tenant.business_parties account
         WHERE account.organization_id = $1 AND account.id = $2 AND account.status = 'active' AND account.party_type <> 'supplier'${accountScopeSql(context, values, "account")}`
     : `SELECT contact.id, contact.party_id FROM tenant.contacts contact
-         LEFT JOIN tenant.business_parties account ON account.organization_id = contact.organization_id AND account.id = contact.party_id
-        WHERE contact.organization_id = $1 AND contact.id = $2 AND contact.status = 'active'${crmContactVisibleSql(context, bind, "contact", "account")}`;
+        WHERE contact.organization_id = $1 AND contact.id = $2 AND contact.status = 'active'${contactScopeSql(context, bind, "contact")}`;
   const { rows } = await client.query(sql, values);
   if (!rows[0]) throw new CrmError(404, kind === "account" ? "Account not found." : "Contact not found.", kind === "account" ? "CRM_ACCOUNT_NOT_FOUND" : "CRM_CONTACT_NOT_FOUND");
   return rows[0];
@@ -92,9 +96,8 @@ export async function previewLeadConversion(client, context, leadId) {
   const lead = await getLead(client, context, leadId);
   await ensureDefaultSalesPipeline(client, context);
   const accounts = lead.companyName ? (await accountMatches(client, context, lead, lead.companyName)).filter((match) => match.canOpen) : [];
-  const contacts = await findContactDuplicates(client, context, {
-    email: lead.email, mobile: lead.mobile || lead.phone, firstName: lead.firstName || lead.lastName, lastName: lead.firstName ? lead.lastName : null,
-  });
+  const leadPerson = { first_name: lead.firstName, last_name: lead.lastName, email: lead.email, mobile: lead.mobile, phone: lead.phone };
+  const contacts = lead.fullName ? (await contactMatches(client, context, leadPerson, accounts[0]?.id)).filter((match) => match.canOpen) : [];
   const stages = await client.query(
     `SELECT stage.id, stage.name, pipeline.name AS pipeline_name
        FROM tenant.crm_pipelines pipeline
@@ -110,7 +113,7 @@ export async function previewLeadConversion(client, context, leadId) {
     blockedReason: lead.status === "converted" ? "This lead has already been converted."
       : lead.status !== "qualified" ? "Qualify this lead before converting it." : null,
     accountMatches: accounts,
-    contactMatches: visibleMatches(contacts).map(contactMatch),
+    contactMatches: contacts,
     stages: stages.rows.map((row) => ({ id: row.id, name: row.name, pipelineName: row.pipeline_name })),
     defaults: {
       accountName: lead.companyName || lead.fullName,
@@ -163,28 +166,28 @@ export async function convertLead(client, context, leadId, input = {}) {
   // ---- Contact: lead person → contact
   let contactId = null;
   if (contactInput.id) {
+    // An existing person is linked to the account (it becomes their primary
+    // company only if they have none); their other companies are kept.
     const contact = await assertVisible(client, context, "contact", contactInput.id);
-    if (contact.party_id && contact.party_id !== partyId)
-      throw new CrmError(409, "The selected contact belongs to a different account.", "CRM_LEAD_CONVERSION_CONTACT_MISMATCH");
+    if (contact.party_id !== partyId) await linkContactToAccount(client, context, contact.id, { accountId: partyId });
     contactId = contact.id;
   } else if (lead.full_name && (lead.email || lead.mobile || lead.phone)) {
     // A contact needs a name and a way to reach them; a lead with neither
     // converts to an account (and opportunity) without a contact.
-    const matches = visibleMatches(await findContactDuplicates(client, context, {
-      email: lead.email, mobile: lead.mobile || lead.phone, firstName: lead.first_name || lead.last_name, lastName: lead.first_name ? lead.last_name : null,
-    }));
+    const matches = await contactMatches(client, context, lead, partyId);
     if (matches.length && contactInput.allowDuplicate !== true)
-      throw new CrmError(409, "A contact like this already exists. Link it, or confirm a new contact.", "CRM_LEAD_CONVERSION_CONTACT_DUPLICATE", { matches: matches.map(contactMatch) });
-    const contact = await createCrmContact(client, context, {
+      throw new CrmError(409, "A contact like this already exists. Link it, or confirm a new contact.", "CRM_LEAD_CONVERSION_CONTACT_DUPLICATE", { matches });
+    const contact = await createContact(client, context, {
       accountId: partyId,
       firstName: lead.first_name || lead.last_name,
       lastName: lead.first_name ? lead.last_name : null,
-      designation: lead.job_title,
+      jobTitle: lead.job_title,
       email: lead.email,
       phone: lead.phone,
       mobile: lead.mobile,
-      ...(matches.length ? { duplicateOverrideReason: overrideReason(contactInput, lead) } : {}),
-    });
+      sourceId: lead.source_id,
+      ownerUserId,
+    }, { allowDuplicate: contactInput.allowDuplicate === true, origin: "lead_conversion", historySummary: `Contact created from lead ${lead.code}` });
     contactId = contact.id;
   }
 
@@ -233,6 +236,7 @@ export async function convertLead(client, context, leadId, input = {}) {
       WHERE organization_id = $1 AND id = $2`,
     [context.organizationId, lead.id, context.userId ?? null, partyId, contactId, opportunityId],
   );
+  if (contactId) await recordContactHistory(client, context, contactId, "lead_converted", `Lead ${lead.code} converted`, { leadId: lead.id, accountId: partyId, opportunityId });
   await recordAccountHistory(client, context, partyId, "lead_converted", `Lead ${lead.code} (${lead.full_name || lead.company_name || lead.code}) converted`, {
     leadId: lead.id, contactId, opportunityId,
   });

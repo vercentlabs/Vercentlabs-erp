@@ -41,7 +41,7 @@ import { resources } from "../../data-management/resource-registry.js";
 import { CrmError } from "../../data-management/errors.js";
 import { canViewSensitiveLeadContent } from "../../leads/access.js";
 import { canViewSensitiveAccountContent } from "../../accounts/access.js";
-import { canViewSensitiveContactContent } from "../../master-data/contact-security.js";
+import { canViewSensitiveContactContent } from "../../contacts/access.js";
 import { communicationVisibilitySql, projectCrmCommunications } from "../../data-management/communication-access.js";
 
 // Re-exported for existing importers; the implementation lives in the
@@ -149,7 +149,8 @@ function buildBranch(kind, entityType, entityId, context, values) {
     return null;
   }
   if (kind === "history") {
-    const source = entityType === "lead" ? ["crm_lead_history", "lead_id"] : entityType === "party" ? ["crm_account_history", "party_id"] : null;
+    const source = entityType === "lead" ? ["crm_lead_history", "lead_id"] : entityType === "party" ? ["crm_account_history", "party_id"]
+      : entityType === "contact" ? ["crm_contact_history", "contact_id"] : null;
     if (!source) return null;
     const entityIdParam = add(values, entityId);
     return `SELECT history.id,'history'::text AS kind,history.event_type AS subtype,history.summary AS title,

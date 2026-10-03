@@ -52,6 +52,14 @@ export const NOTIFICATION_CATEGORIES = Object.freeze([
     userConfigurable: true,
   },
   {
+    key: "crm_contact_assignment",
+    displayName: "Contact assigned to me",
+    description: "When a contact is assigned or reassigned to you.",
+    moduleKey: "crm",
+    defaultInAppEnabled: true,
+    userConfigurable: true,
+  },
+  {
     key: "crm_lead_reassigned",
     displayName: "Lead reassigned",
     description: "When a lead is reassigned to you, or a lead you owned is moved to someone else.",

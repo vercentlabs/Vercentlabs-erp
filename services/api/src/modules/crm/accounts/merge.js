@@ -52,7 +52,7 @@ const TRANSACTIONS = Object.freeze([
 
 // What moves, counted for the preview.
 const MOVABLE = Object.freeze([
-  ["contacts", "SELECT count(*)::int AS n FROM tenant.contacts WHERE organization_id = $1 AND party_id = $2"],
+  ["contacts", "SELECT count(*)::int AS n FROM tenant.crm_contact_account_relationships WHERE organization_id = $1 AND party_id = $2"],
   ["opportunities", "SELECT count(*)::int AS n FROM tenant.crm_opportunities WHERE organization_id = $1 AND party_id = $2"],
   ["leads", "SELECT count(*)::int AS n FROM tenant.crm_leads WHERE organization_id = $1 AND converted_party_id = $2"],
   ["activities", "SELECT count(*)::int AS n FROM tenant.crm_activities WHERE organization_id = $1 AND entity_type = 'party' AND entity_id = $2"],
@@ -137,9 +137,16 @@ export async function mergeAccounts(client, context, input = {}, { linkingCustom
   );
 
   const move = [organizationId, duplicate.id, keep.id];
-  // Contacts keep the kept account's primary contact, if it has one.
-  const keepHasPrimary = (await client.query(`SELECT 1 FROM tenant.contacts WHERE organization_id = $1 AND party_id = $2 AND is_primary`, [organizationId, keep.id])).rows[0];
-  await client.query(`UPDATE tenant.contacts SET party_id = $3${keepHasPrimary ? ", is_primary = false" : ""} WHERE organization_id = $1 AND party_id = $2`, move);
+  // People move with their links. Someone linked to both keeps one link, and
+  // the kept account keeps its own primary contact if it has one.
+  await client.query(
+    `DELETE FROM tenant.crm_contact_account_relationships dup_link USING tenant.crm_contact_account_relationships keep_link
+      WHERE dup_link.organization_id = $1 AND dup_link.party_id = $2 AND keep_link.organization_id = $1 AND keep_link.party_id = $3 AND keep_link.contact_id = dup_link.contact_id`,
+    move,
+  );
+  const keepHasPrimary = (await client.query(`SELECT 1 FROM tenant.crm_contact_account_relationships WHERE organization_id = $1 AND party_id = $2 AND is_primary_contact`, [organizationId, keep.id])).rows[0];
+  await client.query(`UPDATE tenant.crm_contact_account_relationships SET party_id = $3${keepHasPrimary ? ", is_primary_contact = false" : ""} WHERE organization_id = $1 AND party_id = $2`, move);
+  await client.query(`UPDATE tenant.crm_activities SET related_party_id = $3 WHERE organization_id = $1 AND related_party_id = $2`, move);
   await client.query(`UPDATE tenant.crm_opportunities SET party_id = $3 WHERE organization_id = $1 AND party_id = $2`, move);
   await client.query(`UPDATE tenant.crm_leads SET converted_party_id = $3 WHERE organization_id = $1 AND converted_party_id = $2`, move);
   await client.query(`UPDATE tenant.business_parties SET parent_party_id = $3 WHERE organization_id = $1 AND parent_party_id = $2 AND id <> $3`, move);

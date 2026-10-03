@@ -24,7 +24,8 @@ export const ACCOUNT_SELECT = `
          address.city AS address_city, address.state AS address_state, address.country_code AS address_country_code,
          follow_up.next_follow_up_at,
          pipeline.open_opportunities, pipeline.open_pipeline_value,
-         (SELECT count(*) FROM tenant.contacts contact WHERE contact.organization_id = account.organization_id AND contact.party_id = account.id AND contact.status = 'active')::int AS contact_count,
+         (SELECT count(*) FROM tenant.crm_contact_account_relationships link JOIN tenant.contacts contact ON contact.organization_id = link.organization_id AND contact.id = link.contact_id
+           WHERE link.organization_id = account.organization_id AND link.party_id = account.id AND link.status = 'active' AND contact.status = 'active')::int AS contact_count,
          COALESCE((SELECT jsonb_agg(jsonb_build_object('id', tag.id, 'name', tag.name, 'color', tag.color) ORDER BY tag.name)
                      FROM tenant.crm_account_tags account_tag
                      JOIN tenant.crm_tags tag ON tag.organization_id = account_tag.organization_id AND tag.id = account_tag.tag_id
@@ -207,8 +208,9 @@ export function buildAccountListWhere(context, filters = {}, values = []) {
       ? "|| ' ' || COALESCE(account.email, '') || ' ' || COALESCE(account.phone, '') || ' ' || COALESCE(account.secondary_phone, '')" : "";
     where.push(`(lower(COALESCE(account.code, '') || ' ' || COALESCE(account.display_name, '') || ' ' || COALESCE(account.legal_name, '') || ' '
         || COALESCE(account.website, '') || ' ' || COALESCE(account.customer_number, '') || ' ' || COALESCE(account.gstin, '') ${contactDetails}) LIKE ${pattern}
-      OR EXISTS (SELECT 1 FROM tenant.contacts contact WHERE contact.organization_id = account.organization_id AND contact.party_id = account.id
-                  AND lower(contact.first_name || ' ' || COALESCE(contact.last_name, '')) LIKE ${pattern}))`);
+      OR EXISTS (SELECT 1 FROM tenant.crm_contact_account_relationships link JOIN tenant.contacts contact ON contact.organization_id = link.organization_id AND contact.id = link.contact_id
+                  WHERE link.organization_id = account.organization_id AND link.party_id = account.id
+                    AND lower(COALESCE(contact.display_name, '') || ' ' || contact.first_name || ' ' || COALESCE(contact.last_name, '')) LIKE ${pattern}))`);
   }
   return `WHERE ${where.join(" AND ")}${accountScopeSql(context, values, "account")}`;
 }
@@ -396,7 +398,7 @@ export async function bulkSetAccountStatus(client, context, input = {}) {
 // Everything that can refer to an account. Any reference blocks deletion:
 // such an account is deactivated or archived instead.
 const REFERENCES = Object.freeze([
-  ["contacts", "SELECT 1 FROM tenant.contacts WHERE organization_id = $1 AND party_id = $2"],
+  ["contacts", "SELECT 1 FROM tenant.crm_contact_account_relationships WHERE organization_id = $1 AND party_id = $2"],
   ["opportunities", "SELECT 1 FROM tenant.crm_opportunities WHERE organization_id = $1 AND party_id = $2"],
   ["converted leads", "SELECT 1 FROM tenant.crm_leads WHERE organization_id = $1 AND converted_party_id = $2"],
   ["child accounts", "SELECT 1 FROM tenant.business_parties WHERE organization_id = $1 AND parent_party_id = $2"],

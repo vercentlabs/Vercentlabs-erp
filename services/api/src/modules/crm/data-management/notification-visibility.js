@@ -1,4 +1,5 @@
-import { crmAccountVisibleSql, crmContactVisibleSql } from "./crm-access-scope.js";
+import { crmAccountVisibleSql } from "./crm-access-scope.js";
+import { contactScopeSql } from "../contacts/access.js";
 import { recordScope } from "./record-policy.js";
 import { resources } from "./resource-registry.js";
 
@@ -53,7 +54,7 @@ async function visibleIds(client, context, segment, ids) {
     sql = `SELECT account.id FROM tenant.business_parties account WHERE account.organization_id=$1 AND account.id = ANY($2::uuid[])${crmAccountVisibleSql(context, bind, "account")}`;
   } else {
     sql = `SELECT contact.id FROM tenant.contacts contact LEFT JOIN tenant.business_parties account ON account.organization_id=contact.organization_id AND account.id=contact.party_id
-            WHERE contact.organization_id=$1 AND contact.id = ANY($2::uuid[])${crmContactVisibleSql(context, bind, "contact", "account")}`;
+            WHERE contact.organization_id=$1 AND contact.id = ANY($2::uuid[])${contactScopeSql(context, bind, "contact")}`;
   }
   const { rows } = await client.query(sql, parameters);
   return new Set(rows.map((row) => String(row.id).toLowerCase()));

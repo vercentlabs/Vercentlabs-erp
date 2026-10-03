@@ -5,7 +5,8 @@
 import { listLeads } from "../../modules/crm/leads/index.js";
 import { listBusinessDataRecords } from "../../core/master-data.js";
 import { listAccounts } from "../../modules/crm/accounts/index.js";
-import { listCrmContacts, listCrmRecords } from "../../modules/crm/index.js";
+import { listContacts } from "../../modules/crm/contacts/index.js";
+import { listCrmRecords } from "../../modules/crm/index.js";
 
 const SALES_CUSTOMER_TYPES = ["customer", "prospect", "both"];
 const text = (value) => (value === null || value === undefined || value === "" ? null : String(value).slice(0, 160));
@@ -36,10 +37,11 @@ export const SEARCH_PROVIDERS = Object.freeze([
     key: "crm.contacts",
     label: "Contacts",
     moduleKey: "crm",
-    requiredPermission: "crm.view",
+    requiredPermission: "crm.contacts.view",
     async execute(client, context, term, limit) {
-      const { rows } = await listCrmContacts(client, context, { search: term, limit, status: "active" });
-      return rows.map((row) => ({ recordId: row.id, title: joined(row.firstName, row.lastName) || "Contact", detail: text(row.jobTitle), href: `/crm/contacts/${row.id}` }));
+      const { contacts } = await listContacts(client, context, { search: term, limit });
+      // "Rahul Sharma — Procurement Head · ABC Manufacturing", not a bare name.
+      return contacts.map((contact) => ({ recordId: contact.id, title: text(contact.displayName) || "Contact", detail: joined(contact.jobTitle, contact.accountName ? `· ${contact.accountName}` : null), href: `/crm/contacts/${contact.id}` }));
     },
   },
   {
