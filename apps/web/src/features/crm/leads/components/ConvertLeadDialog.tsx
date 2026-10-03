@@ -77,15 +77,19 @@ function ConversionForm({ leadId, preview, options, onCancel, onMatchesChanged, 
   const [opportunityName, setOpportunityName] = useState(preview.defaults.opportunityName);
   const [amount, setAmount] = useState(preview.defaults.amount ? String(preview.defaults.amount) : "");
   const [productInterest, setProductInterest] = useState(preview.lead.productInterest ?? "");
-  const [ownerUserId, setOwnerUserId] = useState(preview.defaults.ownerUserId ?? options.currentUserId);
+  // Each new record starts with the lead owner and can be given to someone else.
+  const [ownerUserId, setOwnerUserId] = useState(preview.defaults.opportunityOwnerUserId ?? options.currentUserId);
+  const [accountOwnerUserId, setAccountOwnerUserId] = useState(preview.defaults.accountOwnerUserId ?? options.currentUserId);
+  const [contactOwnerUserId, setContactOwnerUserId] = useState(preview.defaults.contactOwnerUserId ?? options.currentUserId);
+  const ownerOptions = options.users.map((user) => ({ value: user.id, label: user.id === options.currentUserId ? `${user.name} (me)` : user.name }));
   const [stageId, setStageId] = useState(DEFAULT_STAGE);
   const [expectedCloseDate, setExpectedCloseDate] = useState("");
   const [error, setError] = useState<string | null>(null);
 
   const mutation = useMutation({
     mutationFn: () => convertLead(leadId, {
-      account: account === CREATE ? { name: accountName, allowDuplicate: confirmNewAccount } : { id: account },
-      contact: contact === CREATE ? { allowDuplicate: confirmNewContact } : { id: contact },
+      account: account === CREATE ? { name: accountName, ownerUserId: accountOwnerUserId, allowDuplicate: confirmNewAccount } : { id: account },
+      contact: contact === CREATE ? { ownerUserId: contactOwnerUserId, allowDuplicate: confirmNewContact } : { id: contact },
       opportunity: createOpportunity
         ? { name: opportunityName, amount, productInterest, ownerUserId, expectedCloseDate: expectedCloseDate || null, ...(stageId !== DEFAULT_STAGE ? { stageId } : {}) }
         : { create: false },
@@ -114,7 +118,10 @@ function ConversionForm({ leadId, preview, options, onCancel, onMatchesChanged, 
           </RadioGroup>
           {account === CREATE && (
             <div className="flex flex-col gap-3 pl-6">
-              <TextField label="Account name" isRequired value={accountName} onChange={setAccountName} />
+              <div className="grid gap-3 sm:grid-cols-2">
+                <TextField label="Account name" isRequired value={accountName} onChange={setAccountName} />
+                <Select label="Account owner" isRequired selectedKey={accountOwnerUserId} onSelectionChange={(key) => setAccountOwnerUserId(String(key))} options={ownerOptions} />
+              </div>
               {preview.accountMatches.length > 0 && (
                 <Checkbox isSelected={confirmNewAccount} onChange={setConfirmNewAccount}>
                   This is a different company from the existing {preview.accountMatches.length === 1 ? "account" : "accounts"} above
@@ -131,11 +138,14 @@ function ConversionForm({ leadId, preview, options, onCancel, onMatchesChanged, 
               {preview.canCreateContact ? `Create a new contact from ${preview.lead.fullName}` : "No contact (this lead has no name with an email or phone)"}
             </Radio>
           </RadioGroup>
-          {contact === CREATE && preview.canCreateContact && preview.contactMatches.length > 0 && (
-            <div className="pl-6">
-              <Checkbox isSelected={confirmNewContact} onChange={setConfirmNewContact}>
-                This is a different person from the existing {preview.contactMatches.length === 1 ? "contact" : "contacts"} above
-              </Checkbox>
+          {contact === CREATE && preview.canCreateContact && (
+            <div className="flex flex-col gap-3 pl-6">
+              <Select label="Contact owner" isRequired className="sm:max-w-xs" selectedKey={contactOwnerUserId} onSelectionChange={(key) => setContactOwnerUserId(String(key))} options={ownerOptions} />
+              {preview.contactMatches.length > 0 && (
+                <Checkbox isSelected={confirmNewContact} onChange={setConfirmNewContact}>
+                  This is a different person from the existing {preview.contactMatches.length === 1 ? "contact" : "contacts"} above
+                </Checkbox>
+              )}
             </div>
           )}
 
@@ -147,8 +157,7 @@ function ConversionForm({ leadId, preview, options, onCancel, onMatchesChanged, 
                 <TextField label="Estimated value" inputMode="decimal" value={amount} onChange={setAmount} />
                 <DateInput label="Expected close date" value={expectedCloseDate} onChange={setExpectedCloseDate} />
                 <TextField label="Product / service interest" className="sm:col-span-2" value={productInterest} onChange={setProductInterest} />
-                <Select label="Opportunity owner" isRequired selectedKey={ownerUserId} onSelectionChange={(key) => setOwnerUserId(String(key))}
-                  options={options.users.map((user) => ({ value: user.id, label: user.id === options.currentUserId ? `${user.name} (me)` : user.name }))} />
+                <Select label="Opportunity owner" isRequired selectedKey={ownerUserId} onSelectionChange={(key) => setOwnerUserId(String(key))} options={ownerOptions} />
                 <Select label="Sales stage" selectedKey={stageId} onSelectionChange={(key) => setStageId(String(key))}
                   options={[{ value: DEFAULT_STAGE, label: "First stage of the default pipeline" }, ...preview.stages.map((stage) => ({ value: stage.id, label: `${stage.pipelineName} — ${stage.name}` }))]} />
               </div>

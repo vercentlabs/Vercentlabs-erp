@@ -18,11 +18,13 @@ import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 
 import {
-  archiveLead, changeLeadStage, errorMessage, getLead, getLeadOptions, listLeadHistory, qualifyLead, reopenLead, restoreLead, type Lead, type LeadOptions,
+  archiveLead, assignLeadToMe, changeLeadStage, errorMessage, getLead, getLeadOptions, listLeadHistory, qualifyLead, reopenLead, restoreLead,
+  runLeadAssignmentRules, unassignLead, type Lead, type LeadOptions,
 } from "../api/leads-api";
 import { ConvertLeadDialog } from "../components/ConvertLeadDialog";
 import { LeadDuplicatesPanel } from "../components/LeadDuplicatesPanel";
-import { AssignLeadsDialog, DisqualifyLeadsDialog } from "../components/LeadActionDialogs";
+import { DisqualifyLeadsDialog } from "../components/LeadActionDialogs";
+import { AssignLeadsDialog, LeadAssignmentPanel } from "../components/LeadAssignment";
 import { LeadActivitiesPanel, LeadFollowUpsPanel, LeadTasksPanel, LogActivityDialog, ScheduleFollowUpDialog } from "../components/LeadWorkPanels";
 import { QualificationPanel } from "../components/QualificationPanel";
 import { ErrorBanner, FollowUpCell, LeadStageBadge, LeadStatusBadge, PriorityBadge, RatingBadge, STAGE_LABELS, leadName } from "../lead-format";
@@ -37,6 +39,7 @@ export function LeadDetailScreen({ leadId }: { leadId: string }) {
   const [dialog, setDialog] = useState<DialogKind>(null);
   const [tab, setTab] = useState("overview");
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
 
   const leadKey = scopedQueryKey(workspace, "crm", "lead", leadId);
   const leadQuery = useQuery({ queryKey: leadKey, queryFn: () => getLead(leadId), ...LIVE_LEAD_QUERY });
@@ -67,6 +70,14 @@ export function LeadDetailScreen({ leadId }: { leadId: string }) {
   const working = !archived && lead.status !== "converted";
   const canEdit = can.edit && working;
   const canAssign = working && (lead.ownerUserId ? can.reassign : can.assign);
+  const canTake = working && !lead.ownerUserId && can.assignSelf && options.assignment.allowSelfAssignment;
+  // Rules never run on an edit; this is the explicit way to route a lead again.
+  const runRules = () => action.mutate(async () => {
+    const outcome = await runLeadAssignmentRules(lead.id);
+    setNotice(!outcome.matched ? (outcome.message ?? "No rule matches this lead.")
+      : outcome.changed ? `Assigned by ${outcome.ruleName ? `rule "${outcome.ruleName}"` : "the default owner setting"}.`
+      : "The rules give this lead to its current owner; nothing changed.");
+  });
   const currency = lead.currencyCode ?? options.baseCurrency;
 
   const primaryAction = archived
@@ -84,6 +95,8 @@ export function LeadDetailScreen({ leadId }: { leadId: string }) {
   const menuActions: Array<{ id: string; label: string; show: boolean; run: () => void }> = [
     { id: "edit", label: "Edit lead", show: canEdit, run: () => router.push(`/crm/leads/${lead.id}/edit`) },
     { id: "assign", label: lead.ownerUserId ? "Reassign" : "Assign", show: canAssign, run: () => setDialog("assign") },
+    { id: "runRules", label: "Run assignment rules", show: canAssign, run: runRules },
+    { id: "unassign", label: "Return to unassigned queue", show: working && can.reassign && Boolean(lead.ownerUserId), run: () => action.mutate(() => unassignLead(lead.id, { expectedUpdatedAt: lead.updatedAt })) },
     { id: "disqualify", label: "Disqualify", show: working && can.disqualify && lead.status !== "disqualified", run: () => setDialog("disqualify") },
     { id: "reopen", label: "Reopen lead", show: working && can.reopen && lead.status === "qualified", run: () => action.mutate(() => reopenLead(lead.id)) },
     { id: "archive", label: "Archive lead", show: working && can.delete, run: () => setDialog("archive") },
@@ -112,6 +125,7 @@ export function LeadDetailScreen({ leadId }: { leadId: string }) {
           primaryAction,
           secondaryActions: (
             <>
+              {canTake && <Button variant="secondary" onPress={() => action.mutate(() => assignLeadToMe(lead.id, lead.updatedAt))} isLoading={action.isPending}>Assign to me</Button>}
               {canEdit && <Button variant="secondary" onPress={() => setDialog("activity")}>Log activity</Button>}
               {canEdit && <Button variant="secondary" onPress={() => setDialog("followUp")}>Schedule follow-up</Button>}
               {menuActions.length > 0 && (
@@ -128,6 +142,12 @@ export function LeadDetailScreen({ leadId }: { leadId: string }) {
         tabs={
           <div className="flex flex-col gap-3">
             <ErrorBanner message={error} />
+            {notice && (
+              <div role="status" className="flex items-start justify-between gap-3 rounded-[var(--radius-control)] border border-border bg-surface-muted px-3 py-2 text-sm">
+                <p>{notice}</p>
+                <Button variant="ghost" size="compact" onPress={() => setNotice(null)}>Dismiss</Button>
+              </div>
+            )}
             <StageBar lead={lead} options={options} canChange={canEdit && lead.status === "open"} isChanging={action.isPending}
               onChange={(stage) => action.mutate(() => changeLeadStage(lead.id, stage))} />
           </div>
@@ -182,14 +202,11 @@ export function LeadDetailScreen({ leadId }: { leadId: string }) {
                   { label: "Description", value: lead.description ? <span className="whitespace-pre-wrap">{lead.description}</span> : null, wide: true },
                 ]}
               />
+              <LeadAssignmentPanel lead={lead} options={options} />
               <PropertyList
-                title="Ownership and record"
+                title="Record"
                 columns={3}
                 items={[
-                  { label: "Lead owner", value: lead.ownerName ?? "Unassigned" },
-                  { label: "Assigned team", value: lead.teamName },
-                  { label: "Assigned at", value: formatDateTime(lead.assignedAt) },
-                  { label: "Last activity", value: formatDateTime(lead.lastActivityAt) },
                   { label: "Created", value: `${formatDateTime(lead.createdAt)}${lead.createdByName ? ` by ${lead.createdByName}` : ""}` },
                   { label: "Updated", value: `${formatDateTime(lead.updatedAt)}${lead.updatedByName ? ` by ${lead.updatedByName}` : ""}` },
                 ]}
@@ -215,7 +232,7 @@ export function LeadDetailScreen({ leadId }: { leadId: string }) {
         </Tabs>
       </RecordDetailsPage>
 
-      <AssignLeadsDialog isOpen={dialog === "assign"} onOpenChange={(open) => !open && setDialog(null)} leadIds={[lead.id]} options={options} onDone={refresh} />
+      <AssignLeadsDialog isOpen={dialog === "assign"} onOpenChange={(open) => !open && setDialog(null)} leadIds={[lead.id]} lead={lead} options={options} onDone={refresh} />
       <DisqualifyLeadsDialog isOpen={dialog === "disqualify"} onOpenChange={(open) => !open && setDialog(null)} leadIds={[lead.id]} options={options} onDone={refresh} />
       <LogActivityDialog isOpen={dialog === "activity"} onOpenChange={(open) => !open && setDialog(null)} leadId={lead.id} options={options} onDone={refresh} />
       <ScheduleFollowUpDialog isOpen={dialog === "followUp"} onOpenChange={(open) => !open && setDialog(null)} leadId={lead.id} options={options} onDone={refresh} />

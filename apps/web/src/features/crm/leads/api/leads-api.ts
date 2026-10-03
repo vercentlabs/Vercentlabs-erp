@@ -12,7 +12,7 @@ const { request, parseResponse } = crmApiClient(LeadApiError, "body");
 
 export type LeadStage = "new" | "attempting_contact" | "contacted" | "nurturing" | "ready_to_qualify";
 export type LeadStatus = "open" | "qualified" | "disqualified" | "converted";
-export type LeadViewKey = "all" | "mine" | "unassigned" | "new" | "follow_up" | "due_today" | "overdue" | "qualified" | "disqualified" | "converted" | "archived";
+export type LeadViewKey = "all" | "mine" | "unassigned" | "no_activity" | "new" | "follow_up" | "due_today" | "overdue" | "qualified" | "disqualified" | "converted" | "archived";
 export type TriState = "yes" | "no" | "unknown";
 
 export type LeadTag = { id: string; name: string; color: string };
@@ -49,6 +49,10 @@ export type Lead = {
   teamId: string | null;
   teamName: string | null;
   assignedAt: string | null;
+  assignedByName: string | null;
+  assignmentMethod: string | null;
+  assignmentRuleName: string | null;
+  firstActivityAt: string | null;
   stage: LeadStage;
   stageChangedAt: string;
   status: LeadStatus;
@@ -76,7 +80,8 @@ export type Lead = {
 };
 
 export type LeadCapabilities = Record<
-  "view" | "viewAll" | "viewSensitive" | "create" | "edit" | "delete" | "assign" | "reassign" | "import" | "export" | "qualify" | "disqualify" | "reopen" | "convert",
+  "view" | "viewAll" | "viewSensitive" | "create" | "edit" | "delete" | "assign" | "reassign" | "import" | "export" | "qualify" | "disqualify" | "reopen" | "convert"
+  | "assignSelf" | "bulkAssign" | "assignAcrossTeams" | "manageAssignmentRules",
   boolean
 >;
 
@@ -90,15 +95,21 @@ export type LeadOptions = {
   disqualificationReasons: CodeLabel[];
   activityTypes: CodeLabel[];
   followUpTypes: string[];
+  assignmentMethods: CodeLabel[];
+  ruleFields: Array<{ code: string; label: string; kind: "source" | "country" | "text" | "choice" }>;
+  ruleOperators: CodeLabel[];
+  assignment: { allowSelfAssignment: boolean; manualCreationMode: "creator" | "rules" };
   sources: LeadSource[];
   users: Array<{ id: string; name: string; email: string }>;
-  teams: Array<{ id: string; name: string }>;
+  teams: LeadTeamOption[];
   tags: LeadTag[];
   currencies: string[];
   baseCurrency: string;
   currentUserId: string;
   capabilities: LeadCapabilities;
 };
+
+export type LeadTeamOption = { id: string; name: string; managerUserId: string | null; memberIds: string[] };
 
 export type LeadSource = { id: string; code: string; name: string; description: string | null; isActive: boolean; isSystem: boolean; sortOrder: number; leadCount?: number };
 
@@ -115,6 +126,13 @@ export type LeadListFilters = {
   tagId?: string;
   createdFrom?: string;
   createdTo?: string;
+  countryCode?: string;
+  state?: string;
+  city?: string;
+  productInterest?: string;
+  olderThanDays?: string;
+  assignedFrom?: string;
+  assignedTo?: string;
   sortBy?: string;
   sortDirection?: "asc" | "desc";
   limit?: number;
@@ -169,42 +187,85 @@ export type LeadConversionPreview = {
   accountMatches: ConversionMatch[];
   contactMatches: ConversionMatch[];
   stages: Array<{ id: string; name: string; pipelineName: string }>;
-  defaults: { accountName: string | null; opportunityName: string; amount: number; ownerUserId: string | null };
+  defaults: {
+    accountName: string | null; opportunityName: string; amount: number; ownerUserId: string | null;
+    accountOwnerUserId: string | null; contactOwnerUserId: string | null; opportunityOwnerUserId: string | null;
+  };
 };
 
 export type LeadConversionInput = {
-  account?: { id?: string; name?: string; allowDuplicate?: boolean };
-  contact?: { id?: string; allowDuplicate?: boolean };
+  account?: { id?: string; name?: string; ownerUserId?: string; allowDuplicate?: boolean };
+  contact?: { id?: string; ownerUserId?: string; allowDuplicate?: boolean };
   opportunity?: { create?: boolean; name?: string; amount?: number | string; productInterest?: string; ownerUserId?: string; stageId?: string; expectedCloseDate?: string | null };
 };
 
 export type LeadDashboard = {
   period: { from: string; to: string };
-  totals: Record<"open" | "new" | "unassigned" | "createdInPeriod" | "followUpsDueToday" | "overdueFollowUps" | "qualified" | "disqualified" | "converted", number>;
+  totals: Record<"open" | "new" | "unassigned" | "assignedToday" | "noActivity" | "createdInPeriod" | "followUpsDueToday" | "overdueFollowUps" | "qualified" | "disqualified" | "converted", number>;
   byStatus: Array<{ key: string; label: string; total: number }>;
   byStage: Array<{ key: string; label: string; total: number }>;
   bySource: Array<{ label: string; total: number }>;
   byOwner: Array<{ label: string; total: number }>;
+  byTeam: Array<{ label: string; total: number }>;
+  workload: Array<{ userId: string | null; name: string; openLeads: number; overdueFollowUps: number; noActivity: number }>;
 };
 
 export type LeadReportRow = { group: string; total: number; open: number; qualified: number; disqualified: number; converted: number; conversionRate: number; estimatedValue: number };
 export type LeadReport = { groupBy: string; groupLabel: string; rows: LeadReportRow[]; totals: Omit<LeadReportRow, "group" | "conversionRate"> };
+
+export type LeadRuleCondition = { field: string; operator: string; value?: string };
 
 export type LeadAssignmentRule = {
   id: string;
   name: string;
   priority: number;
   isActive: boolean;
-  sourceId: string | null;
-  sourceName: string | null;
-  countryCode: string | null;
-  state: string | null;
-  city: string | null;
-  productKeyword: string | null;
-  ownerUserId: string | null;
-  ownerName: string | null;
-  teamId: string | null;
-  teamName: string | null;
+  conditions: LeadRuleCondition[];
+  targetType: "user" | "team";
+  targetUserId: string | null;
+  targetUserName: string | null;
+  targetTeamId: string | null;
+  targetTeamName: string | null;
+  strategy: "direct" | "round_robin";
+  leadCount: number;
+  createdByName: string | null;
+  updatedAt: string;
+};
+
+export type LeadAssignmentSettings = {
+  allowSelfAssignment: boolean;
+  manualCreationMode: "creator" | "rules";
+  fallbackMode: "unassigned" | "user" | "team";
+  fallbackUserId: string | null;
+  fallbackUserName: string | null;
+  fallbackTeamId: string | null;
+  fallbackTeamName: string | null;
+};
+
+export type LeadAssignmentHistoryEntry = {
+  id: string;
+  assignedAt: string;
+  method: string;
+  methodLabel: string;
+  ruleName: string | null;
+  previousOwnerName: string | null;
+  newOwnerName: string | null;
+  previousTeamName: string | null;
+  newTeamName: string | null;
+  ownerChanged: boolean;
+  teamChanged: boolean;
+  reason: string | null;
+  assignedByName: string | null;
+};
+
+export type LeadWorkloadRow = { userId: string; name: string; openLeads: number; qualifiedLeads: number; assignedToday: number; noActivity: number; overdueFollowUps: number };
+
+export type LeadAssignmentInput = {
+  ownerUserId?: string | null;
+  teamId?: string | null;
+  reason?: string;
+  expectedUpdatedAt?: string;
+  moveOpenActivities?: boolean;
 };
 
 export type LeadImportAnalysis = {
@@ -219,6 +280,9 @@ export type LeadImportAnalysis = {
 export type LeadImportResult = {
   total: number;
   created: number;
+  assigned: number;
+  unassigned: number;
+  ownerFallbacks: number;
   failed: number;
   duplicates: number;
   errors: Array<{ row: number; message: string; duplicate?: boolean }>;
@@ -254,7 +318,24 @@ export const mergeLead = (duplicateId: string, keepLeadId: string) => post<{ kep
 
 // ---- lifecycle
 export const changeLeadStage = (id: string, stage: string, note?: string) => post<{ changed: boolean }>(`${BASE}/${id}/stage`, { stage, note });
-export const assignLead = (id: string, input: { ownerUserId?: string | null; teamId?: string | null }) => post<{ changed: boolean }>(`${BASE}/${id}/assign`, input);
+// ---- assignment
+export const assignLead = (id: string, input: LeadAssignmentInput) => post<{ changed: boolean }>(`${BASE}/${id}/assign`, input);
+export const assignLeadToMe = (id: string, expectedUpdatedAt?: string) => post<{ changed: boolean }>(`${BASE}/${id}/assign-to-me`, { expectedUpdatedAt });
+export const unassignLead = (id: string, input: { reason?: string; expectedUpdatedAt?: string } = {}) => post<{ changed: boolean }>(`${BASE}/${id}/unassign`, input);
+export const runLeadAssignmentRules = (id: string) =>
+  post<{ changed: boolean; matched: boolean; ruleName?: string | null; message?: string }>(`${BASE}/${id}/run-assignment-rules`);
+export const listLeadAssignmentHistory = (id: string) =>
+  request<{ history: LeadAssignmentHistoryEntry[] }>(`${BASE}/${id}/assignment-history`).then((result) => result.history);
+export const getLeadWorkload = () => request<{ workload: LeadWorkloadRow[] }>(`${BASE}/assignment/workload`).then((result) => result.workload);
+export const getUserActiveLeadCount = (userId: string) =>
+  request<{ leads: { total: number; open: number; qualified: number } }>(`${BASE}/assignment/transfer${query({ userId })}`).then((result) => result.leads);
+export const transferUserLeads = (input: { fromUserId: string; toUserId?: string | null; teamId?: string | null; useRules?: boolean; reason?: string }) =>
+  post<{ total: number; moved: number; unassigned: number }>(`${BASE}/assignment/transfer`, input);
+export const getLeadAssignmentSettings = () => request<{ settings: LeadAssignmentSettings }>(`${BASE}/assignment-settings`).then((result) => result.settings);
+export const saveLeadAssignmentSettings = (input: Partial<LeadAssignmentSettings>) =>
+  request<{ settings: LeadAssignmentSettings }>(`${BASE}/assignment-settings`, { method: "PUT", json: input }).then((result) => result.settings);
+export const setLeadAssignmentRuleActive = (id: string, isActive: boolean) => post<{ changed: boolean }>(`${BASE}/assignment-rules/${id}/active`, { isActive });
+export const reorderLeadAssignmentRules = (ids: string[]) => post<{ rules: LeadAssignmentRule[] }>(`${BASE}/assignment-rules/reorder`, { ids }).then((result) => result.rules);
 export const saveLeadQualification = (id: string, input: Record<string, unknown>) =>
   request<{ changed: boolean }>(`${BASE}/${id}/qualification`, { method: "PUT", json: input });
 export const qualifyLead = (id: string, input: Record<string, unknown> = {}) => post<{ status: string }>(`${BASE}/${id}/qualify`, input);
@@ -303,12 +384,17 @@ async function upload<T>(url: string, file: File, fields: Record<string, string>
 }
 
 export const analyzeLeadImport = (file: File) => upload<{ analysis: LeadImportAnalysis }>(`${BASE}/import/analyze`, file).then((result) => result.analysis);
-export const importLeads = (file: File, options: { mapping: Record<string, string>; defaultSourceId?: string; defaultOwnerUserId?: string; skipDuplicates: boolean }) =>
+export const importLeads = (file: File, options: {
+  mapping: Record<string, string>; defaultSourceId?: string; defaultOwnerUserId?: string; skipDuplicates: boolean;
+  assignmentMode: "file" | "rules"; invalidOwnerAction: "error" | "fallback";
+}) =>
   upload<{ result: LeadImportResult }>(`${BASE}/import`, file, {
     mapping: JSON.stringify(options.mapping),
     defaultSourceId: options.defaultSourceId ?? "",
     defaultOwnerUserId: options.defaultOwnerUserId ?? "",
     skipDuplicates: String(options.skipDuplicates),
+    assignmentMode: options.assignmentMode,
+    invalidOwnerAction: options.invalidOwnerAction,
   }).then((result) => result.result);
 
 // The duplicate matches carried by a refused save, if that is why it failed.

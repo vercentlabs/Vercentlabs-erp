@@ -9,7 +9,8 @@ import { CrmError } from "../data-management/errors.js";
 import { queueOutboxEvent } from "../data-management/outbox.js";
 import { managedTeamMembersSql } from "../data-management/record-utils.js";
 import { leadCan, leadCapabilities, leadScopeSql, projectLeadForContext, requireLeadPermission } from "./access.js";
-import { applyLeadAssignment, matchLeadAssignmentRule } from "./assignment.js";
+import { applyLeadAssignment } from "./assignment.js";
+import { evaluateLeadAssignment, fallbackLeadAssignment, getLeadAssignmentSettings } from "./assignment-rules.js";
 import { LEAD_NUMBER_DOCUMENT_TYPE, LEAD_PERMISSIONS, LEAD_STAGES, leadStageLabel } from "./constants.js";
 import { assertNoBlockingLeadDuplicate } from "./duplicates.js";
 import { recordLeadHistory } from "./history.js";
@@ -26,6 +27,7 @@ const has = (object, key) => Object.prototype.hasOwnProperty.call(object, key);
 export const LEAD_SELECT = `
   SELECT lead.*, source.name AS source_name, owner.full_name AS owner_name, team.name AS team_name,
          creator.full_name AS created_by_name, updater.full_name AS updated_by_name,
+         assigner.full_name AS assigned_by_name, assignment_rule.name AS assignment_rule_name,
          follow_up.next_follow_up_at AS pending_follow_up_at,
          COALESCE((SELECT jsonb_agg(jsonb_build_object('id', tag.id, 'name', tag.name, 'color', tag.color) ORDER BY tag.name)
                      FROM tenant.crm_lead_tags lead_tag
@@ -36,6 +38,8 @@ export const LEAD_SELECT = `
     LEFT JOIN public.users owner ON owner.id = lead.owner_user_id
     LEFT JOIN public.users creator ON creator.id = lead.created_by
     LEFT JOIN public.users updater ON updater.id = lead.updated_by
+    LEFT JOIN public.users assigner ON assigner.id = lead.assigned_by
+    LEFT JOIN tenant.crm_lead_assignment_rules assignment_rule ON assignment_rule.organization_id = lead.organization_id AND assignment_rule.id = lead.assignment_rule_id
     LEFT JOIN tenant.crm_sales_teams team ON team.organization_id = lead.organization_id AND team.id = lead.team_id
     LEFT JOIN LATERAL (
       SELECT min(activity.due_at) AS next_follow_up_at
@@ -77,6 +81,12 @@ export function toLead(row) {
     teamId: row.team_id,
     teamName: row.team_name ?? null,
     assignedAt: row.assigned_at,
+    assignedBy: row.assigned_by ?? null,
+    assignedByName: row.assigned_by_name ?? null,
+    assignmentMethod: row.assignment_method ?? null,
+    assignmentRuleId: row.assignment_rule_id ?? null,
+    assignmentRuleName: row.assignment_rule_name ?? null,
+    firstActivityAt: row.first_activity_at ?? null,
     stage: row.stage,
     stageChangedAt: row.stage_changed_at,
     status: row.status,
@@ -137,6 +147,7 @@ export const LEAD_VIEWS = Object.freeze([
   { key: "all", label: "All Leads" },
   { key: "mine", label: "My Leads" },
   { key: "unassigned", label: "Unassigned Leads" },
+  { key: "no_activity", label: "Assigned, No Activity" },
   { key: "new", label: "New Leads" },
   { key: "follow_up", label: "Requiring Follow-up" },
   { key: "due_today", label: "Follow-ups Due Today" },
@@ -160,6 +171,8 @@ const SORT_COLUMNS = Object.freeze({
   sourceName: "lower(source.name)",
   nextFollowUpAt: "follow_up.next_follow_up_at",
   lastActivityAt: "lead.last_activity_at",
+  assignedAt: "lead.assigned_at",
+  teamName: "lower(team.name)",
   createdAt: "lead.created_at",
   updatedAt: "lead.updated_at",
 });
@@ -173,6 +186,8 @@ export function buildLeadListWhere(context, filters = {}, values = []) {
   where.push(view === "archived" ? "lead.archived_at IS NOT NULL" : "lead.archived_at IS NULL");
   if (view === "mine") where.push(`lead.owner_user_id = ${bind(context.userId)}`);
   if (view === "unassigned") where.push("lead.owner_user_id IS NULL AND lead.status = 'open'");
+  // Has an owner, but nobody has logged a call, email or meeting yet.
+  if (view === "no_activity") where.push("lead.owner_user_id IS NOT NULL AND lead.status = 'open' AND lead.first_activity_at IS NULL");
   if (view === "new") where.push("lead.stage = 'new' AND lead.status = 'open'");
   if (view === "follow_up") where.push("follow_up.next_follow_up_at IS NOT NULL");
   if (view === "due_today") where.push("follow_up.next_follow_up_at >= current_date AND follow_up.next_follow_up_at < current_date + interval '1 day'");
@@ -193,6 +208,15 @@ export function buildLeadListWhere(context, filters = {}, values = []) {
   else if (isUuid(filters.ownerId)) where.push(`lead.owner_user_id = ${bind(filters.ownerId)}`);
   if (isUuid(filters.tagId))
     where.push(`EXISTS (SELECT 1 FROM tenant.crm_lead_tags filter_tag WHERE filter_tag.organization_id = lead.organization_id AND filter_tag.lead_id = lead.id AND filter_tag.tag_id = ${bind(filters.tagId)})`);
+  // The unassigned queue is worked by geography, product and age.
+  const contains = (value) => `%${String(value).trim().toLowerCase().replace(/[\\%_]/g, "\\$&")}%`;
+  if (/^[A-Za-z]{2}$/.test(String(filters.countryCode ?? ""))) where.push(`lead.country_code = ${bind(String(filters.countryCode).toUpperCase())}`);
+  for (const [key, column] of Object.entries({ state: "lead.state", city: "lead.city", productInterest: "lead.product_interest" }))
+    if (String(filters[key] ?? "").trim()) where.push(`lower(COALESCE(${column}, '')) LIKE ${bind(contains(filters[key]))}`);
+  const olderThanDays = Number(filters.olderThanDays);
+  if (Number.isInteger(olderThanDays) && olderThanDays > 0 && olderThanDays <= 3650) where.push(`lead.created_at < now() - make_interval(days => ${bind(olderThanDays)}::int)`);
+  if (filters.assignedFrom) where.push(`lead.assigned_at >= ${bind(filters.assignedFrom)}::date`);
+  if (filters.assignedTo) where.push(`lead.assigned_at < ${bind(filters.assignedTo)}::date + interval '1 day'`);
   if (filters.createdFrom) where.push(`lead.created_at >= ${bind(filters.createdFrom)}::date`);
   if (filters.createdTo) where.push(`lead.created_at < ${bind(filters.createdTo)}::date + interval '1 day'`);
   if (Array.isArray(filters.ids) && filters.ids.length) where.push(`lead.id = ANY (${bind(filters.ids.filter(isUuid))}::uuid[])`);
@@ -252,33 +276,43 @@ async function setLeadTags(client, context, leadId, tagIds) {
   );
 }
 
+// The owner a new lead starts with. An explicit owner or team wins. Otherwise
+// `routing` decides:
+//   "auto"      typed in by hand: the organization's setting (creator, or the
+//               rules); imported or captured: the rules
+//   "rules"     the rules, then the fallback
+//   "fallback"  skip the rules, straight to the fallback (an import row whose
+//               owner could not be used)
+//   "none"      leave it unassigned
+async function initialLeadAssignment(client, context, input, normalized, { origin, routing }) {
+  const explicitMethod = origin === "manual" ? "manual" : origin;
+  if (input.ownerUserId || input.teamId) {
+    if (input.ownerUserId && input.ownerUserId !== context.userId) {
+      requireLeadPermission(context, LEAD_PERMISSIONS.assign, "You do not have permission to assign leads.");
+      if (!leadCan(context, LEAD_PERMISSIONS.assignAcrossTeams))
+        await assertCrmOwnerAssignable(client, context, input.ownerUserId, "You can only assign leads to yourself or to members of a team you manage.", { resource: "leads" });
+    }
+    return { ownerUserId: input.ownerUserId || null, teamId: input.teamId || null, method: explicitMethod, rule: null };
+  }
+  if (routing === "none") return { ownerUserId: null, teamId: null, method: null, rule: null };
+  if (routing === "fallback") return fallbackLeadAssignment(client, context);
+  if (routing === "auto" && origin === "manual" && (await getLeadAssignmentSettings(client, context)).manualCreationMode === "creator")
+    return { ownerUserId: context.userId, teamId: null, method: "creator", rule: null };
+  return evaluateLeadAssignment(client, context, normalized);
+}
+
 // options:
 //   allowDuplicate  the caller confirmed a blocking duplicate is a different record
-//   defaultOwner    "creator" (manual entry) or "none" (import, integrations):
-//                   who owns the lead when no owner is given and no rule matches
-//   origin          recorded in history: "manual" | "import" | "integration"
-export async function createLead(client, context, input = {}, { allowDuplicate = false, defaultOwner = "creator", origin = "manual" } = {}) {
+//   origin          "manual" | "import" | "integration": recorded in history and as the assignment method
+//   routing         see initialLeadAssignment
+//   assignmentReason  recorded in the assignment history
+export async function createLead(client, context, input = {}, { allowDuplicate = false, origin = "manual", routing = "auto", assignmentReason = null } = {}) {
   requireLeadPermission(context, LEAD_PERMISSIONS.create, "You do not have permission to create leads.");
   const normalized = normalizeLeadInput(input);
   assertValidLead(normalized);
   await assertActiveLeadSource(client, context, normalized.sourceId);
   const duplicates = await assertNoBlockingLeadDuplicate(client, context, normalized, { allowDuplicate });
-
-  // Owner: an explicit choice wins, then the first matching assignment rule,
-  // then the default for this kind of creation.
-  let assignment = { reason: "manual" };
-  if (has(input, "ownerUserId") || has(input, "teamId")) {
-    if (input.ownerUserId && input.ownerUserId !== context.userId) {
-      requireLeadPermission(context, LEAD_PERMISSIONS.assign, "You do not have permission to assign leads.");
-      await assertCrmOwnerAssignable(client, context, input.ownerUserId, "You can only assign leads to yourself or to members of a team you manage.", { resource: "leads" });
-    }
-    assignment = { ...assignment, ownerUserId: input.ownerUserId || null, teamId: input.teamId || null };
-  } else {
-    const rule = await matchLeadAssignmentRule(client, context, normalized);
-    assignment = rule
-      ? { ownerUserId: rule.ownerUserId, teamId: rule.teamId, reason: "rule", ruleName: rule.ruleName }
-      : { ownerUserId: defaultOwner === "creator" ? context.userId : null, teamId: null, reason: "creator" };
-  }
+  const assignment = await initialLeadAssignment(client, context, input, normalized, { origin, routing });
 
   const code = await nextDocumentNumber(client, { organizationId: context.organizationId }, { documentType: LEAD_NUMBER_DOCUMENT_TYPE });
   const fields = Object.keys(normalized).filter((field) => LEAD_WRITABLE_COLUMNS[field] && normalized[field] !== null);
@@ -294,7 +328,10 @@ export async function createLead(client, context, input = {}, { allowDuplicate =
     origin,
     ...(duplicates.hasBlockingMatch ? { duplicateConfirmed: duplicates.matches.filter((match) => match.strength === "exact").map((match) => ({ kind: match.kind, id: match.id })) } : {}),
   });
-  await applyLeadAssignment(client, context, lead, { ownerUserId: assignment.ownerUserId, teamId: assignment.teamId }, { reason: assignment.reason, ruleName: assignment.ruleName ?? null });
+  if (assignment.method)
+    await applyLeadAssignment(client, context, lead, { ownerUserId: assignment.ownerUserId, teamId: assignment.teamId }, {
+      method: assignment.method, rule: assignment.rule, reason: assignmentReason,
+    });
   if (has(input, "tagIds")) await setLeadTags(client, context, lead.id, input.tagIds);
   await queueOutboxEvent(client, context, "crm.leads.created", "leads", lead.id, { status: lead.status, sourceId: lead.source_id, ownerUserId: assignment.ownerUserId ?? null });
   // A rule may have routed the lead to someone outside the creator's own

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   AlertDialog,
@@ -19,6 +20,7 @@ import {
 } from "@/features/settings/access/api/access-api";
 import { EffectiveAccessSummary } from "@/features/settings/access/EffectiveAccessSummary";
 import { RoleSelector } from "@/features/settings/access/RoleSelector";
+import { getUserActiveLeadCount } from "@/features/crm/leads/api/leads-api";
 import {
   RolesApiError,
   setUserRoles,
@@ -76,6 +78,17 @@ export function UsersScreen({
   const [actionError, setActionError] = useState<string | null>(null);
 
   const refresh = () => queryClient.invalidateQueries({ queryKey: QUERY_KEY });
+
+  // Disabling someone who still owns leads would strand them. The count is a
+  // courtesy: it is skipped when this administrator cannot see CRM.
+  const disabling = statusTarget?.membership_status === "active" ? statusTarget : null;
+  const activeLeads = useQuery({
+    queryKey: [...QUERY_KEY, "active-leads", disabling?.user_id],
+    queryFn: () => getUserActiveLeadCount(disabling!.user_id),
+    enabled: Boolean(disabling),
+    retry: false,
+  });
+  const leadsOwned = disabling ? (activeLeads.data?.total ?? 0) : 0;
 
   const statusMutation = useMutation({
     mutationFn: (member: MemberRow) =>
@@ -252,9 +265,22 @@ export function UsersScreen({
             : "Enable this user?"
         }
         description={
-          statusTarget?.membership_status === "active"
-            ? `${statusTarget?.full_name} will lose access immediately and be signed out of every active session.`
-            : `${statusTarget?.full_name} will regain access to this organization.`
+          statusTarget?.membership_status === "active" ? (
+            <>
+              {`${statusTarget?.full_name} will lose access immediately and be signed out of every active session.`}
+              {leadsOwned > 0 && (
+                <span className="mt-2 block font-medium text-text">
+                  {`${statusTarget?.full_name} has ${leadsOwned} active ${leadsOwned === 1 ? "lead" : "leads"}. `}
+                  <Link className="text-brand underline" href={`/crm/settings/assignment?transferFrom=${statusTarget?.user_id}`}>
+                    Transfer active leads
+                  </Link>
+                  {" before disabling, or they stay with a user who cannot work them."}
+                </span>
+              )}
+            </>
+          ) : (
+            `${statusTarget?.full_name} will regain access to this organization.`
+          )
         }
         confirmLabel={
           statusTarget?.membership_status === "active" ? "Disable" : "Enable"

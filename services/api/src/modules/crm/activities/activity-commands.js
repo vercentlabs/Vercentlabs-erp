@@ -83,7 +83,7 @@ export async function completeCrmActivity(
   const activity = camelizeRow(result.rows[0]);
   if (activity.entityType === "lead" && activity.entityId)
     await client.query(
-      `UPDATE tenant.crm_leads SET last_activity_at = now(), updated_at = now() WHERE organization_id = $1 AND id = $2`,
+      `UPDATE tenant.crm_leads SET last_activity_at = now(), first_activity_at = COALESCE(first_activity_at, now()), updated_at = now() WHERE organization_id = $1 AND id = $2`,
       [context.organizationId, activity.entityId],
     );
   if (activity.entityType === "opportunity" && activity.entityId)

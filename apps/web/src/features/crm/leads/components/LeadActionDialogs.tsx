@@ -1,8 +1,8 @@
 "use client";
 
-// Assign, change stage and disqualify — used for one lead (from its page) and
-// for many (bulk selection on the list). They all go through the bulk
-// operation, which reports each lead's outcome.
+// Change stage and disqualify — used for one lead (from its page) and for many
+// (bulk selection on the list). Both go through the bulk operation, which
+// reports each lead's outcome. Assigning lives in LeadAssignment.tsx.
 import { useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { Button, Dialog, Select, TextArea } from "@vercentlabs/design-system";
@@ -18,10 +18,6 @@ type ActionDialogProps = {
   onDone: (result: LeadBulkResult) => void;
 };
 
-const UNASSIGNED = "__unassigned__";
-const NO_CHANGE = "__no_change__";
-const NO_TEAM = "__no_team__";
-
 function plural(count: number) {
   return count === 1 ? "this lead" : `${count} leads`;
 }
@@ -34,7 +30,7 @@ function singleFailure(result: LeadBulkResult) {
 function useBulkAction(leadIds: string[], onDone: (result: LeadBulkResult) => void, close: () => void) {
   const [error, setError] = useState<string | null>(null);
   const mutation = useMutation({
-    mutationFn: (input: { action: "assign" | "stage" | "disqualify" } & Record<string, unknown>) => bulkLeadAction({ ...input, leadIds }),
+    mutationFn: (input: { action: "stage" | "disqualify" } & Record<string, unknown>) => bulkLeadAction({ ...input, leadIds }),
     onSuccess: (result) => {
       const failure = singleFailure(result);
       if (failure) return setError(failure);
@@ -60,52 +56,6 @@ function DialogActions({ onCancel, onConfirm, confirmLabel, isLoading, isDisable
       <Button variant="secondary" onPress={onCancel}>Cancel</Button>
       <Button variant={danger ? "danger" : "primary"} onPress={onConfirm} isLoading={isLoading} isDisabled={isDisabled}>{confirmLabel}</Button>
     </div>
-  );
-}
-
-export function AssignLeadsDialog({ isOpen, onOpenChange, leadIds, options, onDone }: ActionDialogProps) {
-  const [owner, setOwner] = useState(NO_CHANGE);
-  const [team, setTeam] = useState(NO_CHANGE);
-  const { error, mutation } = useBulkAction(leadIds, onDone, () => onOpenChange(false));
-  const nothingChosen = owner === NO_CHANGE && team === NO_CHANGE;
-
-  return (
-    <Dialog isOpen={isOpen} onOpenChange={onOpenChange} title={`Assign ${plural(leadIds.length)}`} description="Choose a new owner, a sales team, or both.">
-      <div className="flex flex-col gap-4">
-        <ErrorBanner message={error} />
-        <Select
-          label="Lead owner"
-          selectedKey={owner}
-          onSelectionChange={(key) => setOwner(String(key))}
-          options={[
-            { value: NO_CHANGE, label: "Keep current owner" },
-            { value: UNASSIGNED, label: "Unassigned (back to the queue)" },
-            ...options.users.map((user) => ({ value: user.id, label: user.id === options.currentUserId ? `${user.name} (me)` : user.name })),
-          ]}
-        />
-        <Select
-          label="Assigned team"
-          selectedKey={team}
-          onSelectionChange={(key) => setTeam(String(key))}
-          options={[
-            { value: NO_CHANGE, label: "Keep current team" },
-            { value: NO_TEAM, label: "No team" },
-            ...options.teams.map((entry) => ({ value: entry.id, label: entry.name })),
-          ]}
-        />
-        <DialogActions
-          onCancel={() => onOpenChange(false)}
-          confirmLabel="Assign"
-          isLoading={mutation.isPending}
-          isDisabled={nothingChosen}
-          onConfirm={() => mutation.mutate({
-            action: "assign",
-            ...(owner !== NO_CHANGE ? { ownerUserId: owner === UNASSIGNED ? null : owner } : {}),
-            ...(team !== NO_CHANGE ? { teamId: team === NO_TEAM ? null : team } : {}),
-          })}
-        />
-      </div>
-    </Dialog>
   );
 }
 

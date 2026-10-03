@@ -100,7 +100,8 @@ export async function addLeadActivity(client, context, leadId, input = {}) {
     [context.organizationId, lead.id, type, subject, notes || null, outcome || null, context.userId, occurredAt.toISOString()],
   );
   await client.query(
-    `UPDATE tenant.crm_leads SET last_activity_at = GREATEST(COALESCE(last_activity_at, $3::timestamptz), $3::timestamptz), updated_by = $4
+    `UPDATE tenant.crm_leads SET last_activity_at = GREATEST(COALESCE(last_activity_at, $3::timestamptz), $3::timestamptz),
+            first_activity_at = LEAST(COALESCE(first_activity_at, $3::timestamptz), $3::timestamptz), updated_by = $4
       WHERE organization_id = $1 AND id = $2`,
     [context.organizationId, lead.id, occurredAt.toISOString(), context.userId],
   );

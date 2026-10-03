@@ -3,8 +3,10 @@
 // currencies, and what the caller is allowed to do.
 import { leadCapabilities, requireLeadPermission } from "./access.js";
 import { listLeadAssignmentOptions } from "./assignment.js";
+import { getLeadAssignmentSettings } from "./assignment-rules.js";
 import {
-  LEAD_ACTIVITY_TYPES, LEAD_DISQUALIFICATION_REASONS, LEAD_FOLLOW_UP_TYPES, LEAD_PERMISSIONS, LEAD_PURCHASE_TIMEFRAMES, LEAD_STAGES, LEAD_STATUSES,
+  LEAD_ACTIVITY_TYPES, LEAD_ASSIGNMENT_METHODS, LEAD_DISQUALIFICATION_REASONS, LEAD_FOLLOW_UP_TYPES, LEAD_PERMISSIONS, LEAD_PURCHASE_TIMEFRAMES, LEAD_RULE_FIELDS, LEAD_RULE_OPERATORS,
+  LEAD_STAGES, LEAD_STATUSES,
 } from "./constants.js";
 import { LEAD_VIEWS } from "./records.js";
 import { listLeadSources } from "./sources.js";
@@ -16,6 +18,7 @@ export async function getLeadOptions(client, context) {
     `SELECT id, name, color FROM tenant.crm_tags WHERE organization_id = $1 AND status = 'active' ORDER BY name`,
     [context.organizationId],
   );
+  const settings = await getLeadAssignmentSettings(client, context);
   const currencies = await client.query(
     `SELECT code, is_base FROM tenant.currencies WHERE organization_id = $1 AND status = 'active' ORDER BY is_base DESC, code`,
     [context.organizationId],
@@ -28,6 +31,10 @@ export async function getLeadOptions(client, context) {
     disqualificationReasons: LEAD_DISQUALIFICATION_REASONS,
     activityTypes: LEAD_ACTIVITY_TYPES,
     followUpTypes: LEAD_FOLLOW_UP_TYPES,
+    assignmentMethods: LEAD_ASSIGNMENT_METHODS,
+    ruleFields: LEAD_RULE_FIELDS.map(({ code, label, kind }) => ({ code, label, kind })),
+    ruleOperators: LEAD_RULE_OPERATORS,
+    assignment: { allowSelfAssignment: settings.allowSelfAssignment, manualCreationMode: settings.manualCreationMode },
     sources: await listLeadSources(client, context),
     users,
     teams,

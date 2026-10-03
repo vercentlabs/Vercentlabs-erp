@@ -86,7 +86,49 @@ export const LEAD_PERMISSIONS = Object.freeze({
   disqualify: "crm.leads.disqualify",
   reopen: "crm.leads.reopen",
   convert: "crm.leads.convert",
+  assignSelf: "crm.leads.assign_self",
+  bulkAssign: "crm.leads.bulk_assign",
+  assignAcrossTeams: "crm.leads.assign_across_teams",
+  manageAssignmentRules: "crm.leads.manage_assignment_rules",
 });
+
+// How a lead got its current owner or team.
+export const LEAD_ASSIGNMENT_METHODS = Object.freeze([
+  { code: "manual", label: "Manual" },
+  { code: "self", label: "Assigned to self" },
+  { code: "rule", label: "Automatic rule" },
+  { code: "round_robin", label: "Round-robin" },
+  { code: "fallback", label: "Default queue" },
+  { code: "bulk", label: "Bulk assignment" },
+  { code: "import", label: "Import" },
+  { code: "creator", label: "Creator" },
+  { code: "transfer", label: "Transfer" },
+  { code: "integration", label: "Web form / integration" },
+]);
+
+// The lead fields an assignment rule can test, and how.
+export const LEAD_RULE_FIELDS = Object.freeze([
+  { code: "sourceId", label: "Lead source", column: "source_id", kind: "source" },
+  { code: "countryCode", label: "Country", column: "country_code", kind: "country" },
+  { code: "state", label: "State", column: "state", kind: "text" },
+  { code: "city", label: "City", column: "city", kind: "text" },
+  { code: "productInterest", label: "Product / service interest", column: "product_interest", kind: "text" },
+  { code: "industry", label: "Industry", column: "industry", kind: "text" },
+  { code: "sourceDetail", label: "Campaign / source detail", column: "source_detail", kind: "text" },
+  { code: "companyName", label: "Company", column: "company_name", kind: "text" },
+  { code: "priority", label: "Priority", column: "priority", kind: "choice" },
+  { code: "rating", label: "Rating", column: "rating", kind: "choice" },
+]);
+
+export const LEAD_RULE_OPERATORS = Object.freeze([
+  { code: "equals", label: "equals" },
+  { code: "not_equals", label: "does not equal" },
+  { code: "contains", label: "contains" },
+  { code: "is_empty", label: "is empty" },
+  { code: "is_not_empty", label: "is not empty" },
+]);
+
+export const leadAssignmentMethodLabel = (code) => LEAD_ASSIGNMENT_METHODS.find((entry) => entry.code === code)?.label ?? code;
 
 export const LEAD_NUMBER_DOCUMENT_TYPE = "crm_lead";
 

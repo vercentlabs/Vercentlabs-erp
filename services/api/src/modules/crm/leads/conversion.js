@@ -119,14 +119,20 @@ export async function previewLeadConversion(client, context, leadId) {
       accountName: lead.companyName || lead.fullName,
       opportunityName: `${lead.companyName || lead.fullName} — ${lead.productInterest ? lead.productInterest.slice(0, 60) : "New opportunity"}`,
       amount: lead.estimatedValue,
+      // Account, contact and opportunity each default to the lead owner and
+      // can be given to someone else in the dialog.
       ownerUserId: lead.ownerUserId,
+      accountOwnerUserId: lead.ownerUserId,
+      contactOwnerUserId: lead.ownerUserId,
+      opportunityOwnerUserId: lead.ownerUserId,
     },
   };
 }
 
 // input:
-//   account:     { id } to link an existing account, or { name, allowDuplicate? } to create one
-//   contact:     { id } to link an existing contact, or { allowDuplicate? } to create one from the lead
+//   account:     { id } to link an existing account, or { name, ownerUserId?, allowDuplicate? } to create one
+//   contact:     { id } to link an existing contact, or { ownerUserId?, allowDuplicate? } to create one from the lead
+// Each new record's owner defaults to the lead owner.
 //   opportunity: { create?: boolean (default true), name, amount, productInterest, ownerUserId, stageId, expectedCloseDate }
 export async function convertLead(client, context, leadId, input = {}) {
   requireLeadPermission(context, LEAD_PERMISSIONS.convert, "You do not have permission to convert leads.");
@@ -139,8 +145,11 @@ export async function convertLead(client, context, leadId, input = {}) {
   const accountInput = input.account || {};
   const contactInput = input.contact || {};
   const opportunityInput = input.opportunity || {};
-  const ownerUserId = opportunityInput.ownerUserId || lead.owner_user_id || context.userId;
-  await assertEligibleLeadAssignee(client, context, ownerUserId);
+  const defaultOwnerUserId = lead.owner_user_id || context.userId;
+  const ownerUserId = opportunityInput.ownerUserId || defaultOwnerUserId;
+  const accountOwnerUserId = accountInput.ownerUserId || defaultOwnerUserId;
+  const contactOwnerUserId = contactInput.ownerUserId || defaultOwnerUserId;
+  for (const userId of new Set([ownerUserId, accountOwnerUserId, contactOwnerUserId])) await assertEligibleLeadAssignee(client, context, userId);
 
   // ---- Account: lead company → account
   let partyId;
@@ -158,7 +167,7 @@ export async function convertLead(client, context, leadId, input = {}) {
       sourceId: lead.source_id,
       sourceDetail: lead.source_detail,
       currencyCode: lead.currency_code?.trim() || null,
-      ownerUserId,
+      ownerUserId: accountOwnerUserId,
     }, { allowDuplicate: accountInput.allowDuplicate === true, origin: "lead_conversion", historySummary: `Account created from lead ${lead.code}` });
     partyId = account.id;
   }
@@ -186,7 +195,7 @@ export async function convertLead(client, context, leadId, input = {}) {
       phone: lead.phone,
       mobile: lead.mobile,
       sourceId: lead.source_id,
-      ownerUserId,
+      ownerUserId: contactOwnerUserId,
     }, { allowDuplicate: contactInput.allowDuplicate === true, origin: "lead_conversion", historySummary: `Contact created from lead ${lead.code}` });
     contactId = contact.id;
   }

@@ -7,7 +7,7 @@ import { crmContext } from "@/features/crm/shared/crm-context";
 import { readBody } from "@/features/crm/leads/server/lead-http";
 
 // Bulk operations on selected leads. Body: { action, leadIds, ... }
-//   assign      { ownerUserId?, teamId? }
+//   assign      { ownerUserId?, teamId?, reason?, moveOpenActivities?, requestKey? } — needs crm.leads.bulk_assign
 //   stage       { stage }
 //   disqualify  { reason, notes? }
 // Each lead succeeds or fails on its own; the response lists every outcome.

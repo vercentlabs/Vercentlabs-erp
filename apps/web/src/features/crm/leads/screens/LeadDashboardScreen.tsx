@@ -21,8 +21,10 @@ const GROUP_OPTIONS = [
   { value: "status", label: "Status" },
   { value: "stage", label: "Stage" },
   { value: "owner", label: "Owner" },
+  { value: "team", label: "Team" },
   { value: "source", label: "Source" },
   { value: "month", label: "Created month" },
+  { value: "assignedMonth", label: "Assigned month" },
 ];
 
 function monthStart() {
@@ -60,6 +62,8 @@ export function LeadDashboardScreen() {
                 <MetricLink href="/crm/leads?view=overdue" label="Overdue follow-ups" value={dashboard.totals.overdueFollowUps} />
                 <MetricLink href="/crm/leads?view=unassigned" label="Unassigned leads" value={dashboard.totals.unassigned} />
                 <MetricLink href="/crm/leads?view=new" label="New leads" value={dashboard.totals.new} />
+                <MetricLink href="/crm/leads?view=no_activity" label="Assigned, no activity yet" value={dashboard.totals.noActivity} />
+                <MetricCard label="Assigned today" value={dashboard.totals.assignedToday} />
               </div>
             </section>
 
@@ -85,6 +89,30 @@ export function LeadDashboardScreen() {
               <Breakdown title="Leads by stage" rows={dashboard.byStage.map((row) => ({ label: row.label, total: row.total }))} />
               <Breakdown title="Leads by source" rows={dashboard.bySource} />
               <Breakdown title="Leads by owner" rows={dashboard.byOwner} />
+              <Breakdown title="Leads by team" rows={dashboard.byTeam} />
+              <section className="flex flex-col gap-3 rounded-[var(--radius-card)] border border-border bg-surface p-4">
+                <h2 className="text-base font-semibold">Active leads per salesperson</h2>
+                {dashboard.workload.length === 0 ? <p className="text-sm text-text-secondary">No active leads.</p> : (
+                  <table className="w-full text-sm">
+                    <thead className="text-left text-text-secondary">
+                      <tr>
+                        <th className="py-1 font-medium">Owner</th>
+                        {["Active", "Overdue follow-ups", "No activity"].map((heading) => <th key={heading} className="py-1 text-right font-medium">{heading}</th>)}
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-border">
+                      {dashboard.workload.map((row) => (
+                        <tr key={row.userId ?? "unassigned"}>
+                          <td className="py-1.5">
+                            <Link className="hover:underline" href={row.userId ? `/crm/leads?ownerId=${row.userId}` : "/crm/leads?view=unassigned"}>{row.name}</Link>
+                          </td>
+                          {[row.openLeads, row.overdueFollowUps, row.noActivity].map((value, index) => <td key={index} className="py-1.5 text-right tabular-nums">{value}</td>)}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+              </section>
             </div>
           </>
         )}
@@ -129,6 +157,9 @@ function LeadsByStatusReport() {
   const [groupBy, setGroupBy] = useState("status");
   const [ownerId, setOwnerId] = useState(ANY);
   const [sourceId, setSourceId] = useState(ANY);
+  const [teamId, setTeamId] = useState(ANY);
+  const [assignedFrom, setAssignedFrom] = useState("");
+  const [assignedTo, setAssignedTo] = useState("");
   const [status, setStatus] = useState(ANY);
   const [stage, setStage] = useState(ANY);
   const [converted, setConverted] = useState(ANY);
@@ -138,9 +169,11 @@ function LeadsByStatusReport() {
   const options = optionsQuery.data;
 
   const filters: Record<string, string> = { groupBy };
-  for (const [key, value] of Object.entries({ ownerId, sourceId, status, stage, converted })) if (value !== ANY) filters[key] = value;
+  for (const [key, value] of Object.entries({ ownerId, teamId, sourceId, status, stage, converted })) if (value !== ANY) filters[key] = value;
   if (createdFrom) filters.createdFrom = createdFrom;
   if (createdTo) filters.createdTo = createdTo;
+  if (assignedFrom) filters.assignedFrom = assignedFrom;
+  if (assignedTo) filters.assignedTo = assignedTo;
 
   const reportQuery = useQuery({ queryKey: scopedQueryKey(workspace, "crm", "leads", "report", filters), queryFn: () => getLeadReport(filters), ...LIVE_LEAD_QUERY });
   const report = reportQuery.data;
@@ -156,6 +189,8 @@ function LeadsByStatusReport() {
         <Select label="Group by" selectedKey={groupBy} onSelectionChange={(key) => setGroupBy(String(key))} options={GROUP_OPTIONS} />
         <Select label="Owner" selectedKey={ownerId} onSelectionChange={(key) => setOwnerId(String(key))}
           options={any("Any owner", [{ value: "unassigned", label: "Unassigned" }, ...(options?.users ?? []).map((user) => ({ value: user.id, label: user.name }))])} />
+        <Select label="Team" selectedKey={teamId} onSelectionChange={(key) => setTeamId(String(key))}
+          options={any("Any team", (options?.teams ?? []).map((team) => ({ value: team.id, label: team.name })))} />
         <Select label="Source" selectedKey={sourceId} onSelectionChange={(key) => setSourceId(String(key))}
           options={any("Any source", (options?.sources ?? []).map((source) => ({ value: source.id, label: source.name })))} />
         <Select label="Status" selectedKey={status} onSelectionChange={(key) => setStatus(String(key))}
@@ -166,6 +201,8 @@ function LeadsByStatusReport() {
           options={any("Converted or not", [{ value: "yes", label: "Converted only" }, { value: "no", label: "Not converted" }])} />
         <DateInput label="Created from" value={createdFrom} onChange={setCreatedFrom} />
         <DateInput label="Created to" value={createdTo} onChange={setCreatedTo} />
+        <DateInput label="Assigned from" value={assignedFrom} onChange={setAssignedFrom} />
+        <DateInput label="Assigned to" value={assignedTo} onChange={setAssignedTo} />
       </div>
 
       {reportQuery.isLoading ? <LoadingState label="Loading report" rows={4} />

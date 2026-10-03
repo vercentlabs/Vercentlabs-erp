@@ -6,7 +6,7 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Download, Upload } from "lucide-react";
-import { Button, Checkbox, LinkButton, PageHeader, PermissionState, Select, buttonVariants } from "@vercentlabs/design-system";
+import { Button, Checkbox, LinkButton, PageHeader, PermissionState, Radio, RadioGroup, Select, buttonVariants } from "@vercentlabs/design-system";
 
 import { LoadingState } from "@/shared/ui/LoadingState";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
@@ -32,6 +32,8 @@ export function LeadImportScreen() {
   const [defaultSourceId, setDefaultSourceId] = useState(NONE);
   const [defaultOwnerUserId, setDefaultOwnerUserId] = useState(NONE);
   const [skipDuplicates, setSkipDuplicates] = useState(true);
+  const [assignmentMode, setAssignmentMode] = useState("file");
+  const [invalidOwnerAction, setInvalidOwnerAction] = useState("error");
   const [result, setResult] = useState<LeadImportResult | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -44,8 +46,10 @@ export function LeadImportScreen() {
     mutationFn: () => importLeads(file as File, {
       mapping,
       defaultSourceId: defaultSourceId === NONE ? undefined : defaultSourceId,
-      defaultOwnerUserId: defaultOwnerUserId === NONE ? undefined : defaultOwnerUserId,
+      defaultOwnerUserId: assignmentMode === "rules" || defaultOwnerUserId === NONE ? undefined : defaultOwnerUserId,
       skipDuplicates,
+      assignmentMode: assignmentMode === "rules" ? "rules" : "file",
+      invalidOwnerAction: invalidOwnerAction === "fallback" ? "fallback" : "error",
     }),
     onSuccess: (data) => {
       setResult(data);
@@ -151,14 +155,29 @@ export function LeadImportScreen() {
               onSelectionChange={(key) => setDefaultSourceId(String(key))}
               options={[{ value: NONE, label: "Leave empty" }, ...options.sources.map((source) => ({ value: source.id, label: source.name }))]}
             />
-            <Select
-              label="Lead owner"
-              description="Used for rows that have no owner email. Otherwise assignment rules apply; unmatched leads go to the unassigned queue."
-              selectedKey={defaultOwnerUserId}
-              onSelectionChange={(key) => setDefaultOwnerUserId(String(key))}
-              options={[{ value: NONE, label: "Assignment rules, else unassigned" }, ...options.users.map((user) => ({ value: user.id, label: user.name }))]}
-            />
           </div>
+          <RadioGroup label="Who owns the imported leads" value={assignmentMode} onChange={setAssignmentMode}>
+            <Radio value="file">Use the Owner Email column in the file</Radio>
+            <Radio value="rules">Ignore the file and run the assignment rules on every row</Radio>
+          </RadioGroup>
+          {assignmentMode === "file" && (
+            <div className="grid gap-4 pl-6 sm:grid-cols-2">
+              <Select
+                label="Rows without an owner email"
+                description="Imported leads are never given to you just because you ran the import."
+                selectedKey={defaultOwnerUserId}
+                onSelectionChange={(key) => setDefaultOwnerUserId(String(key))}
+                options={[{ value: NONE, label: "Leave unassigned" }, ...options.users.map((user) => ({ value: user.id, label: user.name }))]}
+              />
+              <Select
+                label="Rows whose owner cannot take leads"
+                description="For example an unknown email, a disabled user or someone without CRM access."
+                selectedKey={invalidOwnerAction}
+                onSelectionChange={(key) => setInvalidOwnerAction(String(key))}
+                options={[{ value: "error", label: "Report the row as an error" }, { value: "fallback", label: "Use the default owner or team" }]}
+              />
+            </div>
+          )}
           <Checkbox isSelected={skipDuplicates} onChange={setSkipDuplicates}>
             Skip rows that match an existing lead or contact (recommended)
           </Checkbox>
@@ -178,6 +197,9 @@ export function LeadImportScreen() {
             <Count label="Leads created" value={result.created} />
             <Count label="Rows failed" value={result.failed} />
             <Count label="Of which duplicates" value={result.duplicates} />
+            <Count label="Assigned to an owner" value={result.assigned} />
+            <Count label="Left unassigned" value={result.unassigned} />
+            {result.ownerFallbacks > 0 && <Count label="Sent to the default owner" value={result.ownerFallbacks} />}
           </dl>
           {result.errors.length > 0 && (
             <>

@@ -11,7 +11,7 @@ import { isXlsxFileName, parseXlsxUpload } from "../../../core/platform/data-exc
 import { CrmError } from "../data-management/errors.js";
 import { requireLeadPermission } from "./access.js";
 import { assertEligibleLeadAssignee } from "./assignment.js";
-import { LEAD_PERMISSIONS, LEAD_PURCHASE_TIMEFRAMES, leadDisqualificationReasonLabel, leadStageLabel, leadStatusLabel } from "./constants.js";
+import { LEAD_PERMISSIONS, LEAD_PURCHASE_TIMEFRAMES, leadAssignmentMethodLabel, leadDisqualificationReasonLabel, leadStageLabel, leadStatusLabel } from "./constants.js";
 import { LEAD_SELECT, buildLeadListWhere, createLead, toLead } from "./records.js";
 import { assertActiveLeadSource, findLeadSourceByName } from "./sources.js";
 
@@ -108,9 +108,18 @@ function rowToInput(record, mapping) {
 }
 
 // Step 2: create the leads.
-// options: mapping { header: fieldKey }, defaultSourceId, defaultOwnerUserId,
-//          skipDuplicates (default true: a duplicate row is reported, not created)
-export async function importLeads(client, context, { bytes, fileName, mapping = {}, defaultSourceId = null, defaultOwnerUserId = null, skipDuplicates = true }) {
+// options: mapping { header: fieldKey }, defaultSourceId, skipDuplicates (default
+//          true: a duplicate row is reported, not created), and how leads get an owner:
+//   assignmentMode     "file"  use the Owner Email column; a row without one gets
+//                              defaultOwnerUserId, or stays unassigned
+//                      "rules" ignore the column and run the assignment rules
+//   invalidOwnerAction for "file": a row whose owner cannot take leads is an
+//                      "error" (default) or goes to the "fallback" owner / team.
+// A row is never silently given to the person running the import.
+export async function importLeads(client, context, {
+  bytes, fileName, mapping = {}, defaultSourceId = null, defaultOwnerUserId = null, skipDuplicates = true,
+  assignmentMode = "file", invalidOwnerAction = "error",
+}) {
   requireLeadPermission(context, LEAD_PERMISSIONS.import, "You do not have permission to import leads.");
   const parsed = parseUpload(bytes, fileName);
   const unknown = Object.keys(mapping).filter((header) => !parsed.headers.includes(header));
@@ -118,9 +127,34 @@ export async function importLeads(client, context, { bytes, fileName, mapping = 
   if (!Object.values(mapping).some((field) => ["firstName", "lastName", "companyName"].includes(field)))
     throw new CrmError(400, "Map at least one of First Name, Last Name or Company.", "CRM_LEAD_IMPORT_MAPPING");
   if (defaultSourceId) await assertActiveLeadSource(client, context, defaultSourceId);
-  if (defaultOwnerUserId) await assertEligibleLeadAssignee(client, context, defaultOwnerUserId);
+  if (!["file", "rules"].includes(assignmentMode)) throw new CrmError(400, "Choose how the imported leads are assigned.", "CRM_LEAD_IMPORT_ASSIGNMENT");
+  const useRules = assignmentMode === "rules";
+  if (defaultOwnerUserId && !useRules) await assertEligibleLeadAssignee(client, context, defaultOwnerUserId);
 
+  // email → { id } when the user can own leads, { error } when they cannot.
   const ownerByEmail = new Map();
+  const resolveOwner = async (email) => {
+    const key = email.toLowerCase();
+    if (!ownerByEmail.has(key)) {
+      const owner = await client.query(
+        `SELECT app_user.id FROM users app_user JOIN organization_memberships membership ON membership.user_id = app_user.id
+          WHERE membership.organization_id = $1 AND lower(app_user.email) = $2`,
+        [context.organizationId, key],
+      );
+      let resolved = { error: `No user has the email "${email}".` };
+      if (owner.rows[0]) {
+        try {
+          await assertEligibleLeadAssignee(client, context, owner.rows[0].id);
+          resolved = { id: owner.rows[0].id };
+        } catch (error) {
+          if (!(error instanceof CrmError)) throw error;
+          resolved = { error: `Owner "${email}" cannot take leads: ${error.message}` };
+        }
+      }
+      ownerByEmail.set(key, resolved);
+    }
+    return ownerByEmail.get(key);
+  };
   const sourceByName = new Map();
   const results = [];
   for (const [index, record] of parsed.records.entries()) {
@@ -136,23 +170,18 @@ export async function importLeads(client, context, { bytes, fileName, mapping = 
         lead.sourceId = sourceByName.get(key);
       } else if (defaultSourceId) lead.sourceId = defaultSourceId;
 
-      if (ownerEmail) {
-        const key = ownerEmail.toLowerCase();
-        if (!ownerByEmail.has(key)) {
-          const owner = await client.query(
-            `SELECT app_user.id FROM users app_user JOIN organization_memberships membership ON membership.user_id = app_user.id
-              WHERE membership.organization_id = $1 AND membership.status = 'active' AND app_user.status = 'active' AND lower(app_user.email) = $2`,
-            [context.organizationId, key],
-          );
-          ownerByEmail.set(key, owner.rows[0]?.id ?? null);
-        }
-        if (!ownerByEmail.get(key)) throw new CrmError(400, `No active user has the email "${ownerEmail}".`, "CRM_LEAD_IMPORT_OWNER");
-        lead.ownerUserId = ownerByEmail.get(key);
-      } else if (defaultOwnerUserId) lead.ownerUserId = defaultOwnerUserId;
+      let routing = useRules ? "rules" : "none";
+      let assignmentReason = null;
+      if (!useRules && ownerEmail) {
+        const owner = await resolveOwner(ownerEmail);
+        if (owner.id) lead.ownerUserId = owner.id;
+        else if (invalidOwnerAction === "fallback") { routing = "fallback"; assignmentReason = owner.error; }
+        else throw new CrmError(400, owner.error, "CRM_LEAD_IMPORT_OWNER");
+      } else if (!useRules && defaultOwnerUserId) lead.ownerUserId = defaultOwnerUserId;
 
-      const created = await createLead(client, context, lead, { allowDuplicate: !skipDuplicates, defaultOwner: "none", origin: "import" });
+      const created = await createLead(client, context, lead, { allowDuplicate: !skipDuplicates, origin: "import", routing, assignmentReason });
       await client.query("RELEASE SAVEPOINT lead_import_row");
-      results.push({ row: rowNumber, ok: true, leadId: created.id, code: created.code });
+      results.push({ row: rowNumber, ok: true, leadId: created.id, code: created.code, assigned: Boolean(created.ownerUserId), fellBack: routing === "fallback" });
     } catch (error) {
       await client.query("ROLLBACK TO SAVEPOINT lead_import_row");
       if (!(error instanceof CrmError)) throw error;
@@ -172,6 +201,9 @@ export async function importLeads(client, context, { bytes, fileName, mapping = 
   return {
     total: results.length,
     created: results.length - failed.length,
+    assigned: results.filter((entry) => entry.ok && entry.assigned).length,
+    unassigned: results.filter((entry) => entry.ok && !entry.assigned).length,
+    ownerFallbacks: results.filter((entry) => entry.ok && entry.fellBack).length,
     failed: failed.length,
     duplicates: failed.filter((entry) => entry.duplicate).length,
     errors: failed.map(({ row, message, duplicate }) => ({ row, message, duplicate })),
@@ -209,6 +241,8 @@ const EXPORT_COLUMNS = Object.freeze([
   ["Disqualification Reason", (lead) => (lead.disqualificationReason ? leadDisqualificationReasonLabel(lead.disqualificationReason) : "")],
   ["Owner", (lead) => lead.ownerName],
   ["Team", (lead) => lead.teamName],
+  ["Assigned At", (lead) => lead.assignedAt],
+  ["Assignment Method", (lead) => (lead.assignmentMethod ? leadAssignmentMethodLabel(lead.assignmentMethod) : "")],
   ["Tags", (lead) => lead.tags.map((tag) => tag.name).join("; ")],
   ["Next Follow-up", (lead) => lead.nextFollowUpAt],
   ["Last Activity", (lead) => lead.lastActivityAt],

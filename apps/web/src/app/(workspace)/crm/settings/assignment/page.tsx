@@ -1,9 +1,9 @@
 import { requireWorkspace } from "@/core/session";
-import { LeadAssignmentRulesScreen } from "@/features/crm/leads/screens/LeadSettingsScreens";
+import { LeadAssignmentSettingsScreen } from "@/features/crm/leads/screens/LeadAssignmentSettingsScreen";
 
-export const metadata = { title: "Lead assignment rules" };
+export const metadata = { title: "Lead assignment" };
 
 export default async function Page() {
   await requireWorkspace();
-  return <LeadAssignmentRulesScreen />;
+  return <LeadAssignmentSettingsScreen />;
 }

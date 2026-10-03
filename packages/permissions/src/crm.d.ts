@@ -11,6 +11,10 @@ export const CRM_PERMISSIONS: Readonly<{
   leadsDelete: "crm.leads.delete";
   leadsAssign: "crm.leads.assign";
   leadsReassign: "crm.leads.reassign";
+  leadsAssignSelf: "crm.leads.assign_self";
+  leadsBulkAssign: "crm.leads.bulk_assign";
+  leadsAssignAcrossTeams: "crm.leads.assign_across_teams";
+  leadsManageAssignmentRules: "crm.leads.manage_assignment_rules";
   leadsImport: "crm.leads.import";
   leadsExport: "crm.leads.export";
   leadsQualify: "crm.leads.qualify";

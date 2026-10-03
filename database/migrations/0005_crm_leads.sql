@@ -4,10 +4,10 @@
 --   2. Leads
 --   3. Lead tags
 --   4. Lead history (audit trail)
---   5. Lead assignment rules
---   6. Row-level security and grants
---   7. Links from other CRM tables to leads and lead sources
---   8. Permissions
+--   5. Row-level security and grants
+--   6. Links from other CRM tables to leads and lead sources
+--   7. Permissions
+-- Lead assignment (rules, history, settings) is defined in 0008_crm_lead_assignment.sql.
 --
 -- Run once, after the earlier files in this folder.
 BEGIN;
@@ -221,40 +221,7 @@ CREATE TABLE tenant.crm_lead_history (
 );
 CREATE INDEX crm_lead_history_lead_idx ON tenant.crm_lead_history (organization_id, lead_id, created_at DESC);
 
--- ============================================================ 5. lead assignment rules
--- When a lead is created without an owner, the first active rule (lowest
--- priority number) whose every condition matches decides who gets it.
-
-CREATE TABLE tenant.crm_lead_assignment_rules (
-  id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
-  organization_id uuid NOT NULL REFERENCES public.organizations(id) ON DELETE CASCADE,
-  name text NOT NULL,
-  priority integer DEFAULT 100 NOT NULL,
-  is_active boolean DEFAULT true NOT NULL,
-  -- conditions (all that are set must match)
-  source_id uuid,
-  country_code character(2),
-  state text,
-  city text,
-  product_keyword text,
-  -- who receives the lead
-  owner_user_id uuid REFERENCES public.users(id) ON DELETE CASCADE,
-  team_id uuid,
-  created_by uuid REFERENCES public.users(id) ON DELETE SET NULL,
-  updated_by uuid REFERENCES public.users(id) ON DELETE SET NULL,
-  created_at timestamp with time zone DEFAULT now() NOT NULL,
-  updated_at timestamp with time zone DEFAULT now() NOT NULL,
-  CONSTRAINT crm_lead_assignment_rules_name_check CHECK (char_length(btrim(name)) BETWEEN 1 AND 120),
-  CONSTRAINT crm_lead_assignment_rules_priority_check CHECK (priority BETWEEN 1 AND 10000),
-  CONSTRAINT crm_lead_assignment_rules_condition_check CHECK (source_id IS NOT NULL OR country_code IS NOT NULL OR state IS NOT NULL OR city IS NOT NULL OR product_keyword IS NOT NULL),
-  CONSTRAINT crm_lead_assignment_rules_target_check CHECK (owner_user_id IS NOT NULL OR team_id IS NOT NULL),
-  CONSTRAINT crm_lead_assignment_rules_source_fkey FOREIGN KEY (organization_id, source_id) REFERENCES tenant.crm_lead_sources(organization_id, id) ON DELETE CASCADE,
-  CONSTRAINT crm_lead_assignment_rules_team_fkey FOREIGN KEY (organization_id, team_id) REFERENCES tenant.crm_sales_teams(organization_id, id) ON DELETE CASCADE
-);
-CREATE INDEX crm_lead_assignment_rules_order_idx ON tenant.crm_lead_assignment_rules (organization_id, priority, created_at) WHERE is_active;
-CREATE TRIGGER touch_updated_at BEFORE UPDATE ON tenant.crm_lead_assignment_rules FOR EACH ROW EXECUTE FUNCTION tenant.touch_updated_at();
-
--- ============================================================ 6. row-level security and grants
+-- ============================================================ 5. row-level security and grants
 -- Every lead table is isolated by organization.
 
 ALTER TABLE tenant.crm_lead_sources ENABLE ROW LEVEL SECURITY;
@@ -273,18 +240,13 @@ ALTER TABLE tenant.crm_lead_history ENABLE ROW LEVEL SECURITY;
 ALTER TABLE tenant.crm_lead_history FORCE ROW LEVEL SECURITY;
 CREATE POLICY organization_isolation ON tenant.crm_lead_history USING (organization_id = tenant.current_organization_id()) WITH CHECK (organization_id = tenant.current_organization_id());
 
-ALTER TABLE tenant.crm_lead_assignment_rules ENABLE ROW LEVEL SECURITY;
-ALTER TABLE tenant.crm_lead_assignment_rules FORCE ROW LEVEL SECURITY;
-CREATE POLICY organization_isolation ON tenant.crm_lead_assignment_rules USING (organization_id = tenant.current_organization_id()) WITH CHECK (organization_id = tenant.current_organization_id());
 
 GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE tenant.crm_lead_sources TO vercent_app, vercent_worker;
 GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE tenant.crm_leads TO vercent_app, vercent_worker;
 GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE tenant.crm_lead_tags TO vercent_app, vercent_worker;
 GRANT SELECT, INSERT ON TABLE tenant.crm_lead_history TO vercent_app, vercent_worker;
-GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE tenant.crm_lead_assignment_rules TO vercent_app;
-GRANT SELECT ON TABLE tenant.crm_lead_assignment_rules TO vercent_worker;
 
--- ============================================================ 7. links from other CRM tables
+-- ============================================================ 6. links from other CRM tables
 -- These tables hold a lead_id or a lead source_id; the links are declared here
 -- because the lead tables are created in this file.
 
@@ -312,7 +274,7 @@ ALTER TABLE tenant.crm_playbook_responses
 ALTER TABLE tenant.crm_sequence_enrollments
   ADD CONSTRAINT crm_sequence_enrollments_lead_id_organization_fkey FOREIGN KEY (organization_id, lead_id) REFERENCES tenant.crm_leads(organization_id, id) ON DELETE CASCADE;
 
--- ============================================================ 8. permissions
+-- ============================================================ 7. permissions
 -- One permission per lead action. Which roles hold them is decided by the
 -- role templates (packages/permissions/src/roles.js) when an organization is
 -- created.

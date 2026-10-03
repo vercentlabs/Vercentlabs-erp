@@ -14,7 +14,7 @@ export type LeadPurchaseTimeframe = "immediate" | "within_1_month" | "within_3_m
 export type LeadDisqualificationReason =
   | "not_interested" | "no_requirement" | "no_budget" | "not_decision_maker" | "bad_fit" | "duplicate"
   | "invalid_contact" | "unable_to_contact" | "competitor_selected" | "timing_not_suitable" | "other";
-export type LeadViewKey = "all" | "mine" | "unassigned" | "new" | "follow_up" | "due_today" | "overdue" | "qualified" | "disqualified" | "converted" | "archived";
+export type LeadViewKey = "all" | "mine" | "unassigned" | "no_activity" | "new" | "follow_up" | "due_today" | "overdue" | "qualified" | "disqualified" | "converted" | "archived";
 
 type CodeLabel<Code extends string = string> = { code: Code; label: string };
 
@@ -35,7 +35,15 @@ export const LEAD_PERMISSIONS: Readonly<{
   edit: "crm.leads.edit"; delete: "crm.leads.delete"; assign: "crm.leads.assign"; reassign: "crm.leads.reassign";
   import: "crm.leads.import"; export: "crm.leads.export"; qualify: "crm.leads.qualify"; disqualify: "crm.leads.disqualify";
   reopen: "crm.leads.reopen"; convert: "crm.leads.convert";
+  assignSelf: "crm.leads.assign_self"; bulkAssign: "crm.leads.bulk_assign"; assignAcrossTeams: "crm.leads.assign_across_teams";
+  manageAssignmentRules: "crm.leads.manage_assignment_rules";
 }>;
+export type LeadAssignmentMethod = "manual" | "self" | "rule" | "round_robin" | "fallback" | "bulk" | "import" | "creator" | "transfer" | "integration";
+export type LeadRuleOperator = "equals" | "not_equals" | "contains" | "is_empty" | "is_not_empty";
+export const LEAD_ASSIGNMENT_METHODS: ReadonlyArray<CodeLabel<LeadAssignmentMethod>>;
+export const LEAD_RULE_FIELDS: ReadonlyArray<{ code: string; label: string; column: string; kind: "source" | "country" | "text" | "choice" }>;
+export const LEAD_RULE_OPERATORS: ReadonlyArray<CodeLabel<LeadRuleOperator>>;
+export function leadAssignmentMethodLabel(code: string): string;
 export const LEAD_VIEWS: ReadonlyArray<{ key: LeadViewKey; label: string }>;
 export function leadStageLabel(code: string): string;
 export function leadStatusLabel(code: string): string;
@@ -77,6 +85,12 @@ export type Lead = {
   teamId: string | null;
   teamName: string | null;
   assignedAt: string | null;
+  assignedBy: string | null;
+  assignedByName: string | null;
+  assignmentMethod: LeadAssignmentMethod | null;
+  assignmentRuleId: string | null;
+  assignmentRuleName: string | null;
+  firstActivityAt: string | null;
   stage: LeadStage;
   stageChangedAt: string;
   status: LeadStatus;
@@ -118,6 +132,7 @@ export type LeadInput = Partial<{
 export type LeadListFilters = Partial<{
   view: LeadViewKey; search: string; status: string; stage: string; priority: string; rating: string;
   ownerId: string; teamId: string; sourceId: string; tagId: string; createdFrom: string; createdTo: string;
+  countryCode: string; state: string; city: string; productInterest: string; olderThanDays: number | string; assignedFrom: string; assignedTo: string;
   ids: string[]; sortBy: string; sortDirection: "asc" | "desc"; limit: number; offset: number;
 }>;
 
@@ -155,10 +170,24 @@ export type LeadHistoryEntry = {
 
 export type LeadSource = { id: string; code: string; name: string; description: string | null; isActive: boolean; isSystem: boolean; sortOrder: number; leadCount?: number };
 
+export type LeadRuleCondition = { field: string; operator: LeadRuleOperator; value?: string };
 export type LeadAssignmentRule = {
-  id: string; name: string; priority: number; isActive: boolean;
-  sourceId: string | null; sourceName: string | null; countryCode: string | null; state: string | null; city: string | null; productKeyword: string | null;
-  ownerUserId: string | null; ownerName: string | null; teamId: string | null; teamName: string | null;
+  id: string; name: string; priority: number; isActive: boolean; conditions: LeadRuleCondition[];
+  targetType: "user" | "team"; targetUserId: string | null; targetUserName: string | null; targetTeamId: string | null; targetTeamName: string | null;
+  strategy: "direct" | "round_robin"; leadCount: number; createdByName: string | null; updatedAt: string;
+};
+export type LeadAssignmentSettings = {
+  allowSelfAssignment: boolean; manualCreationMode: "creator" | "rules"; fallbackMode: "unassigned" | "user" | "team";
+  fallbackUserId: string | null; fallbackUserName: string | null; fallbackTeamId: string | null; fallbackTeamName: string | null;
+};
+export type LeadAssignmentHistoryEntry = {
+  id: string; assignedAt: string; method: LeadAssignmentMethod; methodLabel: string; ruleId: string | null; ruleName: string | null;
+  previousOwnerName: string | null; newOwnerName: string | null; previousTeamName: string | null; newTeamName: string | null;
+  ownerChanged: boolean; teamChanged: boolean; reason: string | null; assignedByName: string | null;
+};
+export type LeadWorkloadRow = { userId: string; name: string; openLeads: number; qualifiedLeads: number; assignedToday: number; noActivity: number; overdueFollowUps: number };
+export type LeadAssignmentInput = {
+  ownerUserId?: string | null; teamId?: string | null; reason?: string | null; expectedUpdatedAt?: string | null; moveOpenActivities?: boolean; requestKey?: string | null;
 };
 
 export type LeadConversionPreview = {
@@ -169,25 +198,30 @@ export type LeadConversionPreview = {
   accountMatches: Array<{ id: string; name: string; code: string; strength: string }>;
   contactMatches: Array<{ id: string; partyId: string | null; name: string; accountName: string | null; email: string | null; phone: string | null; strength: string }>;
   stages: Array<{ id: string; name: string; pipelineName: string }>;
-  defaults: { accountName: string | null; opportunityName: string; amount: number; ownerUserId: string | null };
+  defaults: {
+    accountName: string | null; opportunityName: string; amount: number; ownerUserId: string | null;
+    accountOwnerUserId: string | null; contactOwnerUserId: string | null; opportunityOwnerUserId: string | null;
+  };
 };
 
 export type LeadConversionInput = {
-  account?: { id?: string; name?: string; allowDuplicate?: boolean };
-  contact?: { id?: string; allowDuplicate?: boolean };
+  account?: { id?: string; name?: string; ownerUserId?: string; allowDuplicate?: boolean };
+  contact?: { id?: string; ownerUserId?: string; allowDuplicate?: boolean };
   opportunity?: { create?: boolean; name?: string; amount?: number | string | null; productInterest?: string; ownerUserId?: string; stageId?: string; expectedCloseDate?: string | null };
 };
 
 export type LeadDashboard = {
   period: { from: string; to: string };
   totals: {
-    open: number; new: number; unassigned: number; createdInPeriod: number; followUpsDueToday: number; overdueFollowUps: number;
+    open: number; new: number; unassigned: number; assignedToday: number; noActivity: number; createdInPeriod: number; followUpsDueToday: number; overdueFollowUps: number;
     qualified: number; disqualified: number; converted: number;
   };
   byStatus: Array<{ key: LeadStatus; label: string; total: number }>;
   byStage: Array<{ key: LeadStage; label: string; total: number }>;
   bySource: Array<{ label: string; total: number }>;
   byOwner: Array<{ label: string; total: number }>;
+  byTeam: Array<{ label: string; total: number }>;
+  workload: Array<{ userId: string | null; name: string; openLeads: number; overdueFollowUps: number; noActivity: number }>;
 };
 
 export type LeadReportRow = { group: string; total: number; open: number; qualified: number; disqualified: number; converted: number; conversionRate: number; estimatedValue: number };
@@ -198,7 +232,7 @@ export type LeadImportAnalysis = {
   suggestedMapping: Record<string, string>; fields: Array<{ key: string; label: string }>;
 };
 export type LeadImportResult = {
-  total: number; created: number; failed: number; duplicates: number;
+  total: number; created: number; assigned: number; unassigned: number; ownerFallbacks: number; failed: number; duplicates: number;
   errors: Array<{ row: number; message: string; duplicate?: boolean }>; errorCsv: string | null;
 };
 
@@ -213,7 +247,7 @@ export function projectLeadForContext<T>(context: CrmContext, record: T): T;
 // records
 export function listLeads(client: QueryClient, context: CrmContext, filters?: LeadListFilters): Promise<{ leads: Lead[]; total: number; limit: number; offset: number; capabilities: LeadCapabilities }>;
 export function getLead(client: QueryClient, context: CrmContext, leadId: string): Promise<Lead>;
-export function createLead(client: QueryClient, context: CrmContext, input: LeadInput, options?: { allowDuplicate?: boolean; defaultOwner?: "creator" | "none"; origin?: "manual" | "import" | "integration" }): Promise<Lead>;
+export function createLead(client: QueryClient, context: CrmContext, input: LeadInput, options?: { allowDuplicate?: boolean; origin?: "manual" | "import" | "integration"; routing?: "auto" | "rules" | "fallback" | "none"; assignmentReason?: string | null }): Promise<Lead>;
 export function updateLead(client: QueryClient, context: CrmContext, leadId: string, input: LeadInput, options?: { allowDuplicate?: boolean; expectedUpdatedAt?: string | null }): Promise<Lead>;
 export function changeLeadStage(client: QueryClient, context: CrmContext, leadId: string, input: Record<string, unknown>): Promise<{ changed: boolean }>;
 export function bulkChangeLeadStage(client: QueryClient, context: CrmContext, input: { leadIds: string[]; stage: string }): Promise<LeadBulkResult>;
@@ -221,13 +255,30 @@ export function archiveLead(client: QueryClient, context: CrmContext, leadId: st
 export function restoreLead(client: QueryClient, context: CrmContext, leadId: string): Promise<{ changed: boolean }>;
 
 // assignment
-export function assertEligibleLeadAssignee(client: QueryClient, context: CrmContext, userId: string): Promise<{ id: string; full_name: string }>;
-export function listLeadAssignmentOptions(client: QueryClient, context: CrmContext): Promise<{ users: Array<{ id: string; name: string; email: string }>; teams: Array<{ id: string; name: string }> }>;
-export function assignLead(client: QueryClient, context: CrmContext, leadId: string, input: Record<string, unknown>): Promise<{ changed: boolean }>;
-export function bulkAssignLeads(client: QueryClient, context: CrmContext, input: { leadIds: string[]; ownerUserId?: string | null; teamId?: string | null }): Promise<LeadBulkResult>;
+export type LeadTeamOption = { id: string; name: string; managerUserId: string | null; memberIds: string[] };
+export function assertEligibleLeadAssignee(client: QueryClient, context: CrmContext, userId: string, options?: { teamId?: string | null }): Promise<{ id: string; full_name: string }>;
+export function listLeadAssignmentOptions(client: QueryClient, context: CrmContext): Promise<{ users: Array<{ id: string; name: string; email: string }>; teams: LeadTeamOption[] }>;
+export function assignLead(client: QueryClient, context: CrmContext, leadId: string, input: LeadAssignmentInput): Promise<{ changed: boolean }>;
+export function reassignLead(client: QueryClient, context: CrmContext, leadId: string, input: LeadAssignmentInput): Promise<{ changed: boolean }>;
+export function assignLeadToTeam(client: QueryClient, context: CrmContext, leadId: string, input: LeadAssignmentInput): Promise<{ changed: boolean }>;
+export function assignLeadToSelf(client: QueryClient, context: CrmContext, leadId: string, input?: LeadAssignmentInput): Promise<{ changed: boolean }>;
+export function unassignLead(client: QueryClient, context: CrmContext, leadId: string, input?: LeadAssignmentInput): Promise<{ changed: boolean }>;
+export function bulkAssignLeads(client: QueryClient, context: CrmContext, input: LeadAssignmentInput & { leadIds: string[] }): Promise<LeadBulkResult>;
+export function countUserActiveLeads(client: QueryClient, context: CrmContext, userId: string): Promise<{ total: number; open: number; qualified: number }>;
+export function transferUserLeads(client: QueryClient, context: CrmContext, input: { fromUserId: string; toUserId?: string | null; teamId?: string | null; useRules?: boolean; reason?: string | null }): Promise<{ total: number; moved: number; unassigned: number }>;
+export function listLeadAssignmentHistory(client: QueryClient, context: CrmContext, leadId: string): Promise<LeadAssignmentHistoryEntry[]>;
+export function getLeadAssignmentWorkload(client: QueryClient, context: CrmContext): Promise<LeadWorkloadRow[]>;
+
+// assignment rules and settings
+export function getLeadAssignmentSettings(client: QueryClient, context: CrmContext): Promise<LeadAssignmentSettings>;
+export function saveLeadAssignmentSettings(client: QueryClient, context: CrmContext, input: Partial<LeadAssignmentSettings>): Promise<LeadAssignmentSettings>;
 export function listLeadAssignmentRules(client: QueryClient, context: CrmContext): Promise<LeadAssignmentRule[]>;
 export function saveLeadAssignmentRule(client: QueryClient, context: CrmContext, id: string | null, input: Record<string, unknown>): Promise<LeadAssignmentRule>;
+export function setLeadAssignmentRuleActive(client: QueryClient, context: CrmContext, id: string, isActive: boolean): Promise<{ changed: boolean }>;
+export function reorderLeadAssignmentRules(client: QueryClient, context: CrmContext, orderedIds: string[]): Promise<LeadAssignmentRule[]>;
 export function deleteLeadAssignmentRule(client: QueryClient, context: CrmContext, id: string): Promise<void>;
+export function evaluateLeadAssignment(client: QueryClient, context: CrmContext, lead: Partial<Lead>, options?: { excludeUserId?: string | null }): Promise<{ ownerUserId: string | null; teamId: string | null; method: LeadAssignmentMethod | null; rule: { id: string; name: string } | null }>;
+export function runLeadAssignmentRules(client: QueryClient, context: CrmContext, leadId: string, input?: { reason?: string }): Promise<{ changed: boolean; matched: boolean; ruleName?: string | null; method?: LeadAssignmentMethod; message?: string }>;
 
 // qualification
 export function saveLeadQualification(client: QueryClient, context: CrmContext, leadId: string, input: Record<string, unknown>): Promise<{ changed: boolean }>;
@@ -265,7 +316,7 @@ export function updateLeadSource(client: QueryClient, context: CrmContext, id: s
 export const LEAD_IMPORT_FIELDS: ReadonlyArray<{ key: string; label: string; aliases: string[]; sample: string }>;
 export function buildLeadImportTemplate(): string;
 export function analyzeLeadImport(client: QueryClient, context: CrmContext, file: { bytes: Uint8Array; fileName: string }): Promise<LeadImportAnalysis>;
-export function importLeads(client: QueryClient, context: CrmContext, input: { bytes: Uint8Array; fileName: string; mapping: Record<string, string>; defaultSourceId?: string | null; defaultOwnerUserId?: string | null; skipDuplicates?: boolean }): Promise<LeadImportResult>;
+export function importLeads(client: QueryClient, context: CrmContext, input: { bytes: Uint8Array; fileName: string; mapping: Record<string, string>; defaultSourceId?: string | null; defaultOwnerUserId?: string | null; skipDuplicates?: boolean; assignmentMode?: "file" | "rules"; invalidOwnerAction?: "error" | "fallback" }): Promise<LeadImportResult>;
 export function exportLeads(client: QueryClient, context: CrmContext, filters?: LeadListFilters): Promise<{ fileName: string; rowCount: number; csv: string }>;
 
 // dashboard and report
@@ -285,9 +336,13 @@ export type LeadOptions = {
   disqualificationReasons: ReadonlyArray<CodeLabel<LeadDisqualificationReason>>;
   activityTypes: ReadonlyArray<CodeLabel>;
   followUpTypes: ReadonlyArray<string>;
+  assignmentMethods: ReadonlyArray<CodeLabel<LeadAssignmentMethod>>;
+  ruleFields: Array<{ code: string; label: string; kind: "source" | "country" | "text" | "choice" }>;
+  ruleOperators: ReadonlyArray<CodeLabel<LeadRuleOperator>>;
+  assignment: { allowSelfAssignment: boolean; manualCreationMode: "creator" | "rules" };
   sources: LeadSource[];
   users: Array<{ id: string; name: string; email: string }>;
-  teams: Array<{ id: string; name: string }>;
+  teams: LeadTeamOption[];
   tags: LeadTag[];
   currencies: string[];
   baseCurrency: string;

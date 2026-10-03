@@ -7,9 +7,13 @@ export {
   LEAD_VIEWS, archiveLead, bulkChangeLeadStage, changeLeadStage, createLead, getLead, listLeads, restoreLead, updateLead,
 } from "./records.js";
 export {
-  assertEligibleLeadAssignee, assignLead, bulkAssignLeads, deleteLeadAssignmentRule, listLeadAssignmentOptions, listLeadAssignmentRules,
-  saveLeadAssignmentRule,
+  assertEligibleLeadAssignee, assignLead, assignLeadToSelf, assignLeadToTeam, bulkAssignLeads, countUserActiveLeads, getLeadAssignmentWorkload,
+  listLeadAssignmentHistory, listLeadAssignmentOptions, reassignLead, transferUserLeads, unassignLead,
 } from "./assignment.js";
+export {
+  deleteLeadAssignmentRule, evaluateLeadAssignment, getLeadAssignmentSettings, listLeadAssignmentRules, reorderLeadAssignmentRules,
+  runLeadAssignmentRules, saveLeadAssignmentRule, saveLeadAssignmentSettings, setLeadAssignmentRuleActive,
+} from "./assignment-rules.js";
 export { bulkDisqualifyLeads, disqualifyLead, qualifyLead, reopenLead, saveLeadQualification } from "./qualification.js";
 export { findLeadDuplicates } from "./duplicates.js";
 export { mergeLeads } from "./merge.js";

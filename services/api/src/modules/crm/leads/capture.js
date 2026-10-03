@@ -62,7 +62,7 @@ export async function captureCrmLead(client, formKey, input = {}, requestContext
   if (form.owner_user_id) lead.ownerUserId = form.owner_user_id;
 
   try {
-    const created = await createLead(client, context, lead, { defaultOwner: "none", origin: "integration" });
+    const created = await createLead(client, context, lead, { origin: "integration" });
     if (form.campaign_id) {
       await client.query(`UPDATE tenant.crm_leads SET campaign_id = $3 WHERE organization_id = $1 AND id = $2`, [form.organization_id, created.id, form.campaign_id]);
       await client.query(

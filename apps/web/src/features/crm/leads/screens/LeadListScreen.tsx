@@ -4,10 +4,10 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { ColumnDef, RowSelectionState, SortingState, VisibilityState } from "@tanstack/react-table";
-import { Columns3, Download, Plus, Upload } from "lucide-react";
+import { Columns3, Download, Filter, Plus, Upload } from "lucide-react";
 import {
   Button, Checkbox, EmptyState, EnterpriseDataGrid, EnterpriseListPage, ErrorState, LinkButton, NoResultsState, PermissionState, Popover,
-  PopoverTrigger, SearchField, Select, buttonVariants, type ActiveFilter,
+  PopoverTrigger, SearchField, Select, TextField, buttonVariants, type ActiveFilter,
 } from "@vercentlabs/design-system";
 
 import { formatDate, formatMoney } from "@/shared/format/human";
@@ -16,7 +16,8 @@ import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 
 import { getLeadOptions, leadExportUrl, listLeads, type Lead, type LeadBulkResult, type LeadListFilters, type LeadViewKey } from "../api/leads-api";
-import { AssignLeadsDialog, ChangeStageDialog, DisqualifyLeadsDialog } from "../components/LeadActionDialogs";
+import { ChangeStageDialog, DisqualifyLeadsDialog } from "../components/LeadActionDialogs";
+import { AssignLeadsDialog } from "../components/LeadAssignment";
 import { ErrorBanner, FollowUpCell, LeadStageBadge, LeadStatusBadge, PRIORITY_OPTIONS, PriorityBadge, RATING_OPTIONS, RatingBadge, leadName } from "../lead-format";
 import { LIVE_LEAD_QUERY } from "../live-query";
 
@@ -36,6 +37,7 @@ const OPTIONAL_COLUMNS: Array<{ id: string; label: string; hiddenByDefault?: boo
   { id: "nextFollowUpAt", label: "Next follow-up" },
   { id: "lastActivityAt", label: "Last activity", hiddenByDefault: true },
   { id: "teamName", label: "Team", hiddenByDefault: true },
+  { id: "assignedAt", label: "Assigned", hiddenByDefault: true },
   { id: "contact", label: "Contact", hiddenByDefault: true },
   { id: "tags", label: "Tags", hiddenByDefault: true },
   { id: "createdAt", label: "Created" },
@@ -54,9 +56,19 @@ function storedVisibility(): VisibilityState {
   }
 }
 
-type FilterKey = "stage" | "ownerId" | "sourceId" | "priority" | "rating";
+type FilterKey = "stage" | "ownerId" | "sourceId" | "priority" | "rating" | "teamId";
 type Filters = Record<FilterKey, string>;
-const NO_FILTERS: Filters = { stage: ANY, ownerId: ANY, sourceId: ANY, priority: ANY, rating: ANY };
+const NO_FILTERS: Filters = { stage: ANY, ownerId: ANY, sourceId: ANY, priority: ANY, rating: ANY, teamId: ANY };
+
+// Where the lead is, what it wants and how long it has waited: the filters
+// the unassigned queue is worked by.
+type QueueFilters = { state: string; city: string; productInterest: string; olderThanDays: string };
+const NO_QUEUE_FILTERS: QueueFilters = { state: "", city: "", productInterest: "", olderThanDays: "" };
+const QUEUE_FILTER_NAMES: Record<keyof QueueFilters, string> = { state: "State", city: "City", productInterest: "Interest", olderThanDays: "Waiting" };
+const AGE_OPTIONS = [
+  { value: ANY, label: "Any age" },
+  ...[1, 2, 3, 7, 14, 30].map((days) => ({ value: String(days), label: `Created more than ${days} ${days === 1 ? "day" : "days"} ago` })),
+];
 
 type DialogKind = "assign" | "stage" | "disqualify" | null;
 
@@ -75,7 +87,12 @@ export function LeadListScreen() {
     sourceId: params.get("sourceId") ?? ANY,
     priority: params.get("priority") ?? ANY,
     rating: params.get("rating") ?? ANY,
+    teamId: params.get("teamId") ?? ANY,
   });
+  const [queue, setQueueState] = useState<QueueFilters>({
+    state: params.get("state") ?? "", city: params.get("city") ?? "", productInterest: params.get("productInterest") ?? "", olderThanDays: params.get("olderThanDays") ?? "",
+  });
+  const [queueDraft, setQueueDraft] = useState<QueueFilters>(queue);
   const [created, setCreated] = useState({ from: params.get("createdFrom") ?? "", to: params.get("createdTo") ?? "" });
   const [sorting, setSortingState] = useState<SortingState>([{ id: "updatedAt", desc: true }]);
   const [pageIndex, setPageIndex] = useState(0);
@@ -92,6 +109,7 @@ export function LeadListScreen() {
   const setView = (next: LeadViewKey) => { setViewState(next); restart(); };
   const setFilters = (next: Filters) => { setFiltersState(next); restart(); };
   const setSorting = (next: SortingState) => { setSortingState(next); restart(); };
+  const setQueue = (next: QueueFilters) => { setQueueState(next); setQueueDraft(next); restart(); };
   const setSubmittedSearch = (next: string) => {
     if (next === submittedSearch) return;
     setSubmittedSearchState(next);
@@ -118,9 +136,10 @@ export function LeadListScreen() {
     ...Object.fromEntries(Object.entries(filters).filter(([, value]) => value !== ANY)),
     createdFrom: created.from || undefined,
     createdTo: created.to || undefined,
+    ...Object.fromEntries(Object.entries(queue).filter(([, value]) => value.trim())),
     sortBy: sorting[0]?.id,
     sortDirection: sorting[0]?.desc === false ? "asc" : "desc",
-  }), [view, submittedSearch, filters, created, sorting]);
+  }), [view, submittedSearch, filters, created, queue, sorting]);
 
   const listQuery = useQuery({
     queryKey: scopedQueryKey(workspace, "crm", "leads", listFilters, pageIndex),
@@ -161,7 +180,8 @@ export function LeadListScreen() {
     },
     { id: "nextFollowUpAt", accessorKey: "nextFollowUpAt", header: "Next follow-up", cell: ({ row }) => <FollowUpCell value={row.original.nextFollowUpAt} /> },
     { id: "lastActivityAt", accessorKey: "lastActivityAt", header: "Last activity", cell: ({ row }) => formatDate(row.original.lastActivityAt) },
-    { id: "teamName", header: "Team", enableSorting: false, cell: ({ row }) => row.original.teamName ?? "" },
+    { id: "teamName", accessorKey: "teamName", header: "Team", cell: ({ row }) => row.original.teamName ?? "" },
+    { id: "assignedAt", accessorKey: "assignedAt", header: "Assigned", cell: ({ row }) => formatDate(row.original.assignedAt) },
     {
       id: "contact",
       header: "Contact",
@@ -197,13 +217,17 @@ export function LeadListScreen() {
     if (key === "stage") return options.stages.find((entry) => entry.code === value)?.label ?? value;
     if (key === "ownerId") return ownerOptions.find((entry) => entry.value === value)?.label ?? value;
     if (key === "sourceId") return options.sources.find((entry) => entry.id === value)?.name ?? value;
+    if (key === "teamId") return options.teams.find((entry) => entry.id === value)?.name ?? value;
     return value.charAt(0).toUpperCase() + value.slice(1);
   };
-  const FILTER_NAMES: Record<FilterKey, string> = { stage: "Stage", ownerId: "Owner", sourceId: "Source", priority: "Priority", rating: "Rating" };
+  const FILTER_NAMES: Record<FilterKey, string> = { stage: "Stage", ownerId: "Owner", sourceId: "Source", priority: "Priority", rating: "Rating", teamId: "Team" };
   const activeFilters: ActiveFilter[] = [
     ...(Object.keys(filters) as FilterKey[])
       .filter((key) => filters[key] !== ANY)
       .map((key) => ({ id: key, label: `${FILTER_NAMES[key]}: ${labelOf(key, filters[key])}` })),
+    ...(Object.keys(queue) as Array<keyof QueueFilters>)
+      .filter((key) => queue[key].trim())
+      .map((key) => ({ id: `queue:${key}`, label: key === "olderThanDays" ? `Waiting: more than ${queue[key]} ${queue[key] === "1" ? "day" : "days"}` : `${QUEUE_FILTER_NAMES[key]}: ${queue[key]}` })),
     // Set by links from the dashboards; removable here.
     ...(created.from || created.to ? [{ id: "created", label: `Created: ${created.from ? formatDate(created.from) : "start"} – ${created.to ? formatDate(created.to) : "today"}` }] : []),
   ];
@@ -211,10 +235,12 @@ export function LeadListScreen() {
     if (id === "created") {
       setCreated({ from: "", to: "" });
       restart();
-    } else setFilters({ ...filters, [id]: ANY });
+    } else if (id.startsWith("queue:")) setQueue({ ...queue, [id.slice("queue:".length)]: "" });
+    else setFilters({ ...filters, [id]: ANY });
   };
   const clearFilters = () => {
     setCreated({ from: "", to: "" });
+    setQueue(NO_QUEUE_FILTERS);
     setFilters(NO_FILTERS);
   };
   const hasCriteria = Boolean(submittedSearch) || activeFilters.length > 0 || view !== "all";
@@ -272,6 +298,24 @@ export function LeadListScreen() {
                     options={filterOptions(options.sources.map((entry) => ({ value: entry.id, label: entry.name })), "Any source")} />
                   <Select aria-label="Priority" size="compact" selectedKey={filters.priority} onSelectionChange={(key) => setFilters({ ...filters, priority: String(key) })} options={filterOptions(PRIORITY_OPTIONS, "Any priority")} />
                   <Select aria-label="Rating" size="compact" selectedKey={filters.rating} onSelectionChange={(key) => setFilters({ ...filters, rating: String(key) })} options={filterOptions(RATING_OPTIONS, "Any rating")} />
+                  <PopoverTrigger>
+                    <Button variant="outline" size="compact"><Filter className="size-4" aria-hidden="true" />Location, interest and age</Button>
+                    <Popover>
+                      <div className="flex w-72 flex-col gap-3 p-1">
+                        <Select label="Team" size="compact" selectedKey={filters.teamId} onSelectionChange={(key) => setFilters({ ...filters, teamId: String(key) })}
+                          options={filterOptions(options.teams.map((entry) => ({ value: entry.id, label: entry.name })), "Any team")} />
+                        <TextField label="State" value={queueDraft.state} onChange={(state) => setQueueDraft({ ...queueDraft, state })} />
+                        <TextField label="City" value={queueDraft.city} onChange={(city) => setQueueDraft({ ...queueDraft, city })} />
+                        <TextField label="Product / service interest" value={queueDraft.productInterest} onChange={(productInterest) => setQueueDraft({ ...queueDraft, productInterest })} />
+                        <Select label="Waiting" size="compact" selectedKey={queueDraft.olderThanDays || ANY}
+                          onSelectionChange={(key) => setQueueDraft({ ...queueDraft, olderThanDays: String(key) === ANY ? "" : String(key) })} options={AGE_OPTIONS} />
+                        <div className="flex justify-end gap-2">
+                          <Button variant="ghost" size="compact" onPress={() => setQueue(NO_QUEUE_FILTERS)}>Clear</Button>
+                          <Button variant="primary" size="compact" onPress={() => setQueue(queueDraft)}>Apply</Button>
+                        </div>
+                      </div>
+                    </Popover>
+                  </PopoverTrigger>
                 </>
               )}
             </>
@@ -298,7 +342,7 @@ export function LeadListScreen() {
           onClearSelection: () => setSelection({}),
           actions: (
             <>
-              {(can?.assign || can?.reassign) && <Button variant="secondary" size="compact" onPress={() => setDialog("assign")}>Assign</Button>}
+              {(selectedIds.length === 1 ? can?.assign || can?.reassign : can?.bulkAssign) && <Button variant="secondary" size="compact" onPress={() => setDialog("assign")}>Assign</Button>}
               {can?.edit && <Button variant="secondary" size="compact" onPress={() => setDialog("stage")}>Change stage</Button>}
               {can?.disqualify && <Button variant="secondary" size="compact" onPress={() => setDialog("disqualify")}>Disqualify</Button>}
               {can?.export && (
@@ -355,7 +399,8 @@ export function LeadListScreen() {
 
       {options && (
         <>
-          <AssignLeadsDialog isOpen={dialog === "assign"} onOpenChange={(open) => !open && setDialog(null)} leadIds={selectedIds} options={options} onDone={refresh} />
+          <AssignLeadsDialog isOpen={dialog === "assign"} onOpenChange={(open) => !open && setDialog(null)} leadIds={selectedIds}
+            lead={selectedIds.length === 1 ? leads.find((entry) => entry.id === selectedIds[0]) : undefined} options={options} onDone={refresh} />
           <ChangeStageDialog isOpen={dialog === "stage"} onOpenChange={(open) => !open && setDialog(null)} leadIds={selectedIds} options={options} onDone={refresh} />
           <DisqualifyLeadsDialog isOpen={dialog === "disqualify"} onOpenChange={(open) => !open && setDialog(null)} leadIds={selectedIds} options={options} onDone={refresh} />
         </>

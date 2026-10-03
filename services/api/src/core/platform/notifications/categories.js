@@ -68,6 +68,14 @@ export const NOTIFICATION_CATEGORIES = Object.freeze([
     userConfigurable: true,
   },
   {
+    key: "crm_lead_assignment_failed",
+    displayName: "Lead assignment rule failed",
+    description: "When an assignment rule you manage could not assign a lead, for example because its user or team is inactive.",
+    moduleKey: "crm",
+    defaultInAppEnabled: true,
+    userConfigurable: true,
+  },
+  {
     key: "crm_follow_up_overdue",
     displayName: "Follow-up overdue",
     description: "When a follow-up assigned to you passes its due time.",
