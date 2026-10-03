@@ -18,7 +18,7 @@ import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 
 import {
-  archiveLead, assignLeadToMe, changeLeadStage, errorMessage, getLead, getLeadOptions, listLeadHistory, qualifyLead, reopenLead, restoreLead,
+  archiveLead, assignLeadToMe, changeLeadStage, errorMessage, getLead, getLeadOptions, listLeadHistory, reopenLead, restoreLead,
   runLeadAssignmentRules, unassignLead, type Lead, type LeadOptions,
 } from "../api/leads-api";
 import { ConvertLeadDialog } from "../components/ConvertLeadDialog";
@@ -26,11 +26,11 @@ import { LeadDuplicatesPanel } from "../components/LeadDuplicatesPanel";
 import { DisqualifyLeadsDialog } from "../components/LeadActionDialogs";
 import { AssignLeadsDialog, LeadAssignmentPanel } from "../components/LeadAssignment";
 import { LeadActivitiesPanel, LeadFollowUpsPanel, LeadTasksPanel, LogActivityDialog, ScheduleFollowUpDialog } from "../components/LeadWorkPanels";
-import { QualificationPanel } from "../components/QualificationPanel";
+import { QualificationPanel, QualificationSummary, QualifyLeadDialog } from "../components/QualificationPanel";
 import { ErrorBanner, FollowUpCell, LeadStageBadge, LeadStatusBadge, PriorityBadge, RatingBadge, STAGE_LABELS, leadName } from "../lead-format";
 import { LIVE_LEAD_QUERY } from "../live-query";
 
-type DialogKind = "assign" | "disqualify" | "convert" | "activity" | "followUp" | "archive" | null;
+type DialogKind = "assign" | "qualify" | "disqualify" | "convert" | "activity" | "followUp" | "archive" | null;
 
 export function LeadDetailScreen({ leadId }: { leadId: string }) {
   const workspace = useWorkspaceContext();
@@ -83,7 +83,7 @@ export function LeadDetailScreen({ leadId }: { leadId: string }) {
   const primaryAction = archived
     ? can.delete && <Button variant="primary" onPress={() => action.mutate(() => restoreLead(lead.id))} isLoading={action.isPending}>Restore lead</Button>
     : lead.status === "open" && can.qualify
-      ? <Button variant="primary" onPress={() => action.mutate(() => qualifyLead(lead.id))} isLoading={action.isPending}>Qualify</Button>
+      ? <Button variant="primary" onPress={() => setDialog("qualify")}>Qualify</Button>
       : lead.status === "qualified" && can.convert
         ? <Button variant="primary" onPress={() => setDialog("convert")}>Convert</Button>
         : lead.status === "disqualified" && can.reopen
@@ -148,6 +148,7 @@ export function LeadDetailScreen({ leadId }: { leadId: string }) {
                 <Button variant="ghost" size="compact" onPress={() => setNotice(null)}>Dismiss</Button>
               </div>
             )}
+            <QualificationSummary lead={lead} options={options} />
             <StageBar lead={lead} options={options} canChange={canEdit && lead.status === "open"} isChanging={action.isPending}
               onChange={(stage) => action.mutate(() => changeLeadStage(lead.id, stage))} />
           </div>
@@ -215,7 +216,9 @@ export function LeadDetailScreen({ leadId }: { leadId: string }) {
           </TabPanel>
 
           <TabPanel id="qualification">
-            <QualificationPanel lead={lead} options={options} onChanged={refresh} onDisqualify={() => setDialog("disqualify")} />
+            {/* Re-created when the lead changes, so the form starts from the saved answers. */}
+            <QualificationPanel key={lead.updatedAt} lead={lead} options={options} onChanged={refresh} onQualify={() => setDialog("qualify")}
+              onDisqualify={() => setDialog("disqualify")} onScheduleFollowUp={() => setDialog("followUp")} />
           </TabPanel>
           <TabPanel id="activities"><LeadActivitiesPanel leadId={lead.id} options={options} canEdit={canEdit} /></TabPanel>
           <TabPanel id="tasks"><LeadTasksPanel leadId={lead.id} options={options} canEdit={canEdit} /></TabPanel>
@@ -233,6 +236,9 @@ export function LeadDetailScreen({ leadId }: { leadId: string }) {
       </RecordDetailsPage>
 
       <AssignLeadsDialog isOpen={dialog === "assign"} onOpenChange={(open) => !open && setDialog(null)} leadIds={[lead.id]} lead={lead} options={options} onDone={refresh} />
+      {/* Qualifying normally continues straight into creating the account, contact and opportunity. */}
+      <QualifyLeadDialog isOpen={dialog === "qualify"} onOpenChange={(open) => !open && setDialog(null)} lead={lead} options={options}
+        onQualified={(convert) => { refresh(); setDialog(convert ? "convert" : null); }} />
       <DisqualifyLeadsDialog isOpen={dialog === "disqualify"} onOpenChange={(open) => !open && setDialog(null)} leadIds={[lead.id]} options={options} onDone={refresh} />
       <LogActivityDialog isOpen={dialog === "activity"} onOpenChange={(open) => !open && setDialog(null)} leadId={lead.id} options={options} onDone={refresh} />
       <ScheduleFollowUpDialog isOpen={dialog === "followUp"} onOpenChange={(open) => !open && setDialog(null)} leadId={lead.id} options={options} onDone={refresh} />

@@ -13,7 +13,8 @@ const { request, parseResponse } = crmApiClient(LeadApiError, "body");
 export type LeadStage = "new" | "attempting_contact" | "contacted" | "nurturing" | "ready_to_qualify";
 export type LeadStatus = "open" | "qualified" | "disqualified" | "converted";
 export type LeadViewKey = "all" | "mine" | "unassigned" | "no_activity" | "new" | "follow_up" | "due_today" | "overdue" | "qualified" | "disqualified" | "converted" | "archived";
-export type TriState = "yes" | "no" | "unknown";
+export type LeadQualificationStatus = "not_started" | "in_progress" | "qualified" | "disqualified";
+export type LeadQualificationRequirements = Record<"need" | "budget" | "authority" | "timeline", boolean>;
 
 export type LeadTag = { id: string; name: string; color: string };
 
@@ -56,12 +57,22 @@ export type Lead = {
   stage: LeadStage;
   stageChangedAt: string;
   status: LeadStatus;
-  needIdentified: TriState;
-  budgetStatus: "known" | "unknown";
-  budgetAmount: number | null;
-  decisionAuthority: TriState;
+  qualificationStatus: LeadQualificationStatus;
+  qualificationStartedAt: string | null;
+  needStatus: "yes" | "no" | "unknown";
+  businessNeed: string | null;
+  budgetStatus: "confirmed" | "likely" | "unknown" | "no_budget";
+  budgetMin: number | null;
+  budgetMax: number | null;
+  authorityStatus: "decision_maker" | "influencer" | "unknown" | "no_authority";
+  authorityDetail: string | null;
   qualificationNotes: string | null;
+  qualificationScore: number;
+  suggestedRating: "cold" | "warm" | "hot";
+  qualificationOverrideReason: string | null;
   qualifiedAt: string | null;
+  qualifiedByName: string | null;
+  disqualifiedByName: string | null;
   disqualificationReason: string | null;
   disqualificationNotes: string | null;
   disqualifiedAt: string | null;
@@ -81,7 +92,7 @@ export type Lead = {
 
 export type LeadCapabilities = Record<
   "view" | "viewAll" | "viewSensitive" | "create" | "edit" | "delete" | "assign" | "reassign" | "import" | "export" | "qualify" | "disqualify" | "reopen" | "convert"
-  | "assignSelf" | "bulkAssign" | "assignAcrossTeams" | "manageAssignmentRules",
+  | "overrideQualification" | "assignSelf" | "bulkAssign" | "assignAcrossTeams" | "manageAssignmentRules",
   boolean
 >;
 
@@ -93,6 +104,12 @@ export type LeadOptions = {
   statuses: CodeLabel[];
   purchaseTimeframes: CodeLabel[];
   disqualificationReasons: CodeLabel[];
+  qualificationStatuses: CodeLabel[];
+  needStatuses: CodeLabel[];
+  budgetStatuses: CodeLabel[];
+  authorityStatuses: CodeLabel[];
+  qualificationCriteria: Array<{ key: string; label: string }>;
+  qualificationRequirements: LeadQualificationRequirements;
   activityTypes: CodeLabel[];
   followUpTypes: string[];
   assignmentMethods: CodeLabel[];
@@ -126,6 +143,8 @@ export type LeadListFilters = {
   tagId?: string;
   createdFrom?: string;
   createdTo?: string;
+  qualificationStatus?: string;
+  disqualificationReason?: string;
   countryCode?: string;
   state?: string;
   city?: string;
@@ -177,6 +196,20 @@ export type LeadActivity = {
   createdByName: string | null;
 };
 
+export type LeadQualificationView = {
+  leadId: string;
+  status: LeadQualificationStatus;
+  requirements: LeadQualificationRequirements;
+  checklist: Array<{ key: string; label: string; done: boolean; required: boolean; value: string | null }>;
+  missing: Array<{ key: string; label: string }>;
+  score: number;
+  suggestedRating: "cold" | "warm" | "hot";
+  canOverride: boolean;
+  history: Array<{ id: string; eventType: string; summary: string; notes: string | null; changedAt: string; changedByName: string | null }>;
+};
+
+export type OpportunityMatch = { id: string; code: string; name: string; amount: number; currencyCode: string | null; partyId: string; stageName: string | null };
+
 export type ConversionMatch = { id: string; name: string; strength: string; code?: string; partyId?: string | null; accountName?: string | null; email?: string | null; phone?: string | null };
 
 export type LeadConversionPreview = {
@@ -186,6 +219,7 @@ export type LeadConversionPreview = {
   blockedReason: string | null;
   accountMatches: ConversionMatch[];
   contactMatches: ConversionMatch[];
+  opportunityMatches: OpportunityMatch[];
   stages: Array<{ id: string; name: string; pipelineName: string }>;
   defaults: {
     accountName: string | null; opportunityName: string; amount: number; ownerUserId: string | null;
@@ -201,7 +235,9 @@ export type LeadConversionInput = {
 
 export type LeadDashboard = {
   period: { from: string; to: string };
-  totals: Record<"open" | "new" | "unassigned" | "assignedToday" | "noActivity" | "createdInPeriod" | "followUpsDueToday" | "overdueFollowUps" | "qualified" | "disqualified" | "converted", number>;
+  totals: Record<"open" | "new" | "unassigned" | "assignedToday" | "noActivity" | "createdInPeriod" | "followUpsDueToday" | "overdueFollowUps" | "qualified" | "disqualified" | "converted" | "awaitingQualification" | "inQualification" | "qualifiedTotal" | "qualificationRate", number> & { averageDaysToQualify: number | null };
+  qualifiedByOwner: Array<{ label: string; total: number }>;
+  qualifiedBySource: Array<{ label: string; total: number }>;
   byStatus: Array<{ key: string; label: string; total: number }>;
   byStage: Array<{ key: string; label: string; total: number }>;
   bySource: Array<{ label: string; total: number }>;
@@ -336,6 +372,11 @@ export const saveLeadAssignmentSettings = (input: Partial<LeadAssignmentSettings
   request<{ settings: LeadAssignmentSettings }>(`${BASE}/assignment-settings`, { method: "PUT", json: input }).then((result) => result.settings);
 export const setLeadAssignmentRuleActive = (id: string, isActive: boolean) => post<{ changed: boolean }>(`${BASE}/assignment-rules/${id}/active`, { isActive });
 export const reorderLeadAssignmentRules = (ids: string[]) => post<{ rules: LeadAssignmentRule[] }>(`${BASE}/assignment-rules/reorder`, { ids }).then((result) => result.rules);
+export const getLeadQualification = (id: string) => request<{ qualification: LeadQualificationView }>(`${BASE}/${id}/qualification`).then((result) => result.qualification);
+export const getLeadQualificationSettings = () =>
+  request<{ requirements: LeadQualificationRequirements }>(`${BASE}/qualification-settings`).then((result) => result.requirements);
+export const saveLeadQualificationSettings = (input: LeadQualificationRequirements) =>
+  request<{ requirements: LeadQualificationRequirements }>(`${BASE}/qualification-settings`, { method: "PUT", json: input }).then((result) => result.requirements);
 export const saveLeadQualification = (id: string, input: Record<string, unknown>) =>
   request<{ changed: boolean }>(`${BASE}/${id}/qualification`, { method: "PUT", json: input });
 export const qualifyLead = (id: string, input: Record<string, unknown> = {}) => post<{ status: string }>(`${BASE}/${id}/qualify`, input);

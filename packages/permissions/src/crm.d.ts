@@ -21,6 +21,7 @@ export const CRM_PERMISSIONS: Readonly<{
   leadsDisqualify: "crm.leads.disqualify";
   leadsReopen: "crm.leads.reopen";
   leadsConvert: "crm.leads.convert";
+  leadsOverrideQualification: "crm.leads.override_qualification";
   opportunitiesManage: "crm.opportunities.manage";
   activitiesManage: "crm.activities.manage";
   campaignsManage: "crm.campaigns.manage";

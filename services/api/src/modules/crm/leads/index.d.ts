@@ -8,8 +8,12 @@ export type LeadStage = "new" | "attempting_contact" | "contacted" | "nurturing"
 export type LeadStatus = "open" | "qualified" | "disqualified" | "converted";
 export type LeadPriority = "low" | "medium" | "high";
 export type LeadRating = "cold" | "warm" | "hot";
-export type LeadTriState = "yes" | "no" | "unknown";
-export type LeadBudgetStatus = "known" | "unknown";
+export type LeadNeedStatus = "yes" | "no" | "unknown";
+export type LeadBudgetStatus = "confirmed" | "likely" | "unknown" | "no_budget";
+export type LeadAuthorityStatus = "decision_maker" | "influencer" | "unknown" | "no_authority";
+export type LeadQualificationStatus = "not_started" | "in_progress" | "qualified" | "disqualified";
+export type LeadQualificationCriterion = "need" | "budget" | "authority" | "timeline";
+export type LeadQualificationRequirements = Record<LeadQualificationCriterion, boolean>;
 export type LeadPurchaseTimeframe = "immediate" | "within_1_month" | "within_3_months" | "within_6_months" | "within_12_months" | "later" | "unknown";
 export type LeadDisqualificationReason =
   | "not_interested" | "no_requirement" | "no_budget" | "not_decision_maker" | "bad_fit" | "duplicate"
@@ -22,8 +26,13 @@ export const LEAD_STAGES: ReadonlyArray<CodeLabel<LeadStage>>;
 export const LEAD_STATUSES: ReadonlyArray<CodeLabel<LeadStatus>>;
 export const LEAD_PRIORITIES: ReadonlyArray<LeadPriority>;
 export const LEAD_RATINGS: ReadonlyArray<LeadRating>;
-export const LEAD_TRI_STATE: ReadonlyArray<LeadTriState>;
-export const LEAD_BUDGET_STATUSES: ReadonlyArray<LeadBudgetStatus>;
+export const LEAD_QUALIFICATION_STATUSES: ReadonlyArray<CodeLabel<LeadQualificationStatus>>;
+export const LEAD_NEED_STATUSES: ReadonlyArray<CodeLabel<LeadNeedStatus>>;
+export const LEAD_BUDGET_STATUSES: ReadonlyArray<CodeLabel<LeadBudgetStatus>>;
+export const LEAD_AUTHORITY_STATUSES: ReadonlyArray<CodeLabel<LeadAuthorityStatus>>;
+export const QUALIFICATION_CRITERIA: ReadonlyArray<{ key: LeadQualificationCriterion; label: string; checklist: string }>;
+export const DEFAULT_QUALIFICATION_REQUIREMENTS: Readonly<LeadQualificationRequirements>;
+export function leadQualificationStatusLabel(code: string): string;
 export const LEAD_PURCHASE_TIMEFRAMES: ReadonlyArray<CodeLabel<LeadPurchaseTimeframe>>;
 export const LEAD_DISQUALIFICATION_REASONS: ReadonlyArray<CodeLabel<LeadDisqualificationReason>>;
 export const DEFAULT_LEAD_SOURCES: ReadonlyArray<{ code: string; name: string; channel: string }>;
@@ -34,7 +43,7 @@ export const LEAD_PERMISSIONS: Readonly<{
   view: "crm.leads.view"; viewAll: "crm.leads.view_all"; viewSensitive: "crm.leads.view_sensitive"; create: "crm.leads.create";
   edit: "crm.leads.edit"; delete: "crm.leads.delete"; assign: "crm.leads.assign"; reassign: "crm.leads.reassign";
   import: "crm.leads.import"; export: "crm.leads.export"; qualify: "crm.leads.qualify"; disqualify: "crm.leads.disqualify";
-  reopen: "crm.leads.reopen"; convert: "crm.leads.convert";
+  reopen: "crm.leads.reopen"; convert: "crm.leads.convert"; overrideQualification: "crm.leads.override_qualification";
   assignSelf: "crm.leads.assign_self"; bulkAssign: "crm.leads.bulk_assign"; assignAcrossTeams: "crm.leads.assign_across_teams";
   manageAssignmentRules: "crm.leads.manage_assignment_rules";
 }>;
@@ -94,12 +103,23 @@ export type Lead = {
   stage: LeadStage;
   stageChangedAt: string;
   status: LeadStatus;
-  needIdentified: LeadTriState;
+  qualificationStatus: LeadQualificationStatus;
+  qualificationStartedAt: string | null;
+  needStatus: LeadNeedStatus;
+  businessNeed: string | null;
   budgetStatus: LeadBudgetStatus;
-  budgetAmount: number | null;
-  decisionAuthority: LeadTriState;
+  budgetMin: number | null;
+  budgetMax: number | null;
+  authorityStatus: LeadAuthorityStatus;
+  authorityDetail: string | null;
   qualificationNotes: string | null;
+  qualificationScore: number;
+  suggestedRating: LeadRating;
+  qualificationOverrideReason: string | null;
   qualifiedAt: string | null;
+  qualifiedBy: string | null;
+  qualifiedByName: string | null;
+  disqualifiedByName: string | null;
   disqualificationReason: LeadDisqualificationReason | null;
   disqualificationNotes: string | null;
   disqualifiedAt: string | null;
@@ -131,7 +151,7 @@ export type LeadInput = Partial<{
 
 export type LeadListFilters = Partial<{
   view: LeadViewKey; search: string; status: string; stage: string; priority: string; rating: string;
-  ownerId: string; teamId: string; sourceId: string; tagId: string; createdFrom: string; createdTo: string;
+  ownerId: string; teamId: string; sourceId: string; tagId: string; createdFrom: string; createdTo: string; qualificationStatus: LeadQualificationStatus; disqualificationReason: string;
   countryCode: string; state: string; city: string; productInterest: string; olderThanDays: number | string; assignedFrom: string; assignedTo: string;
   ids: string[]; sortBy: string; sortDirection: "asc" | "desc"; limit: number; offset: number;
 }>;
@@ -197,6 +217,7 @@ export type LeadConversionPreview = {
   blockedReason: string | null;
   accountMatches: Array<{ id: string; name: string; code: string; strength: string }>;
   contactMatches: Array<{ id: string; partyId: string | null; name: string; accountName: string | null; email: string | null; phone: string | null; strength: string }>;
+  opportunityMatches: Array<{ id: string; code: string; name: string; amount: number; currencyCode: string | null; partyId: string; stageName: string | null }>;
   stages: Array<{ id: string; name: string; pipelineName: string }>;
   defaults: {
     accountName: string | null; opportunityName: string; amount: number; ownerUserId: string | null;
@@ -215,7 +236,10 @@ export type LeadDashboard = {
   totals: {
     open: number; new: number; unassigned: number; assignedToday: number; noActivity: number; createdInPeriod: number; followUpsDueToday: number; overdueFollowUps: number;
     qualified: number; disqualified: number; converted: number;
+    awaitingQualification: number; inQualification: number; qualifiedTotal: number; qualificationRate: number; averageDaysToQualify: number | null;
   };
+  qualifiedByOwner: Array<{ label: string; total: number }>;
+  qualifiedBySource: Array<{ label: string; total: number }>;
   byStatus: Array<{ key: LeadStatus; label: string; total: number }>;
   byStage: Array<{ key: LeadStage; label: string; total: number }>;
   bySource: Array<{ label: string; total: number }>;
@@ -281,8 +305,26 @@ export function evaluateLeadAssignment(client: QueryClient, context: CrmContext,
 export function runLeadAssignmentRules(client: QueryClient, context: CrmContext, leadId: string, input?: { reason?: string }): Promise<{ changed: boolean; matched: boolean; ruleName?: string | null; method?: LeadAssignmentMethod; message?: string }>;
 
 // qualification
-export function saveLeadQualification(client: QueryClient, context: CrmContext, leadId: string, input: Record<string, unknown>): Promise<{ changed: boolean }>;
-export function qualifyLead(client: QueryClient, context: CrmContext, leadId: string, input?: Record<string, unknown>): Promise<{ status: "qualified" }>;
+export type LeadQualificationEvent = {
+  id: string; eventType: string; summary: string; field: string | null; oldValue: string | null; newValue: string | null; notes: string | null;
+  changedAt: string; changedByName: string | null;
+};
+export type LeadQualificationChecklistItem = { key: string; label: string; done: boolean; required: boolean; value: string | null };
+export type LeadQualificationView = {
+  leadId: string; status: LeadQualificationStatus; requirements: LeadQualificationRequirements; checklist: LeadQualificationChecklistItem[];
+  missing: Array<{ key: LeadQualificationCriterion; label: string }>; score: number; suggestedRating: LeadRating; canOverride: boolean; history: LeadQualificationEvent[];
+};
+export function evaluateLeadQualification(row: Record<string, unknown>, requirements?: LeadQualificationRequirements): Pick<LeadQualificationView, "checklist" | "missing" | "score" | "suggestedRating">;
+export function getLeadQualificationSettings(client: QueryClient, context: CrmContext): Promise<LeadQualificationRequirements>;
+export function saveLeadQualificationSettings(client: QueryClient, context: CrmContext, input: Partial<LeadQualificationRequirements>): Promise<LeadQualificationRequirements>;
+export function getLeadQualification(client: QueryClient, context: CrmContext, leadId: string): Promise<LeadQualificationView>;
+export function listLeadQualificationHistory(client: QueryClient, context: CrmContext, leadId: string): Promise<LeadQualificationEvent[]>;
+export function startQualification(client: QueryClient, context: CrmContext, leadId: string): Promise<{ started: boolean }>;
+export function updateQualification(client: QueryClient, context: CrmContext, leadId: string, input: Record<string, unknown>): Promise<{ changed: boolean; fields: string[] }>;
+export function saveLeadQualification(client: QueryClient, context: CrmContext, leadId: string, input: Record<string, unknown>): Promise<{ changed: boolean; fields: string[] }>;
+export function rateLead(client: QueryClient, context: CrmContext, leadId: string, input: { rating: string }): Promise<{ changed: boolean; fields: string[] }>;
+export function qualifyLead(client: QueryClient, context: CrmContext, leadId: string, input?: Record<string, unknown>): Promise<{ status: "qualified"; overridden: boolean }>;
+export function overrideQualification(client: QueryClient, context: CrmContext, leadId: string, input: Record<string, unknown>): Promise<{ status: "qualified"; overridden: boolean }>;
 export function disqualifyLead(client: QueryClient, context: CrmContext, leadId: string, input: Record<string, unknown>): Promise<{ status: "disqualified" }>;
 export function reopenLead(client: QueryClient, context: CrmContext, leadId: string, input?: Record<string, unknown>): Promise<{ status: "open" }>;
 export function bulkDisqualifyLeads(client: QueryClient, context: CrmContext, input: { leadIds: string[]; reason: string; notes?: string }): Promise<LeadBulkResult>;
@@ -293,6 +335,7 @@ export function mergeLeads(client: QueryClient, context: CrmContext, duplicateLe
 
 // conversion
 export function previewLeadConversion(client: QueryClient, context: CrmContext, leadId: string): Promise<LeadConversionPreview>;
+export function convertQualifiedLead(client: QueryClient, context: CrmContext, leadId: string, input?: LeadConversionInput): Promise<{ leadId: string; partyId: string; contactId: string | null; opportunityId: string | null }>;
 export function convertLead(client: QueryClient, context: CrmContext, leadId: string, input?: LeadConversionInput): Promise<{ leadId: string; partyId: string; contactId: string | null; opportunityId: string | null }>;
 
 // activities and history
@@ -334,6 +377,12 @@ export type LeadOptions = {
   statuses: ReadonlyArray<CodeLabel<LeadStatus>>;
   purchaseTimeframes: ReadonlyArray<CodeLabel<LeadPurchaseTimeframe>>;
   disqualificationReasons: ReadonlyArray<CodeLabel<LeadDisqualificationReason>>;
+  qualificationStatuses: ReadonlyArray<CodeLabel<LeadQualificationStatus>>;
+  needStatuses: ReadonlyArray<CodeLabel<LeadNeedStatus>>;
+  budgetStatuses: ReadonlyArray<CodeLabel<LeadBudgetStatus>>;
+  authorityStatuses: ReadonlyArray<CodeLabel<LeadAuthorityStatus>>;
+  qualificationCriteria: Array<{ key: LeadQualificationCriterion; label: string }>;
+  qualificationRequirements: LeadQualificationRequirements;
   activityTypes: ReadonlyArray<CodeLabel>;
   followUpTypes: ReadonlyArray<string>;
   assignmentMethods: ReadonlyArray<CodeLabel<LeadAssignmentMethod>>;

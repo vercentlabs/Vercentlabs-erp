@@ -18,30 +18,56 @@ export const LEAD_STATUSES = Object.freeze([
 
 export const LEAD_PRIORITIES = Object.freeze(["low", "medium", "high"]);
 export const LEAD_RATINGS = Object.freeze(["cold", "warm", "hot"]);
-export const LEAD_TRI_STATE = Object.freeze(["yes", "no", "unknown"]);
-export const LEAD_BUDGET_STATUSES = Object.freeze(["known", "unknown"]);
+// Qualification status is derived from the lead's status and whether
+// qualification has started; it is never stored on its own.
+export const LEAD_QUALIFICATION_STATUSES = Object.freeze([
+  { code: "not_started", label: "Not Qualified Yet" },
+  { code: "in_progress", label: "In Qualification" },
+  { code: "qualified", label: "Qualified" },
+  { code: "disqualified", label: "Disqualified" },
+]);
+
+export const LEAD_NEED_STATUSES = Object.freeze([
+  { code: "yes", label: "Yes" },
+  { code: "no", label: "No" },
+  { code: "unknown", label: "Unknown" },
+]);
+
+export const LEAD_BUDGET_STATUSES = Object.freeze([
+  { code: "confirmed", label: "Confirmed" },
+  { code: "likely", label: "Likely" },
+  { code: "unknown", label: "Unknown" },
+  { code: "no_budget", label: "No Budget" },
+]);
+
+export const LEAD_AUTHORITY_STATUSES = Object.freeze([
+  { code: "decision_maker", label: "Decision Maker" },
+  { code: "influencer", label: "Influencer" },
+  { code: "unknown", label: "Unknown" },
+  { code: "no_authority", label: "No Authority" },
+]);
 
 export const LEAD_PURCHASE_TIMEFRAMES = Object.freeze([
-  { code: "immediate", label: "Immediately" },
+  { code: "immediate", label: "Immediate" },
   { code: "within_1_month", label: "Within 1 month" },
-  { code: "within_3_months", label: "Within 3 months" },
-  { code: "within_6_months", label: "Within 6 months" },
-  { code: "within_12_months", label: "Within 12 months" },
-  { code: "later", label: "Later than 12 months" },
+  { code: "within_3_months", label: "1–3 months" },
+  { code: "within_6_months", label: "3–6 months" },
+  { code: "within_12_months", label: "6–12 months" },
+  { code: "later", label: "More than 12 months" },
   { code: "unknown", label: "Unknown" },
 ]);
 
 export const LEAD_DISQUALIFICATION_REASONS = Object.freeze([
-  { code: "not_interested", label: "Not interested" },
-  { code: "no_requirement", label: "No requirement" },
-  { code: "no_budget", label: "No budget" },
-  { code: "not_decision_maker", label: "Not decision maker" },
-  { code: "bad_fit", label: "Bad fit" },
+  { code: "no_requirement", label: "No Requirement" },
+  { code: "no_budget", label: "No Budget" },
+  { code: "not_decision_maker", label: "No Authority" },
+  { code: "timing_not_suitable", label: "Timing Not Suitable" },
+  { code: "not_interested", label: "Not Interested" },
+  { code: "unable_to_contact", label: "Unable to Contact" },
+  { code: "invalid_contact", label: "Invalid Lead" },
   { code: "duplicate", label: "Duplicate" },
-  { code: "invalid_contact", label: "Invalid contact information" },
-  { code: "unable_to_contact", label: "Unable to contact" },
-  { code: "competitor_selected", label: "Competitor selected" },
-  { code: "timing_not_suitable", label: "Timing not suitable" },
+  { code: "competitor_selected", label: "Competitor Selected" },
+  { code: "bad_fit", label: "Poor Fit" },
   { code: "other", label: "Other" },
 ]);
 
@@ -86,6 +112,7 @@ export const LEAD_PERMISSIONS = Object.freeze({
   disqualify: "crm.leads.disqualify",
   reopen: "crm.leads.reopen",
   convert: "crm.leads.convert",
+  overrideQualification: "crm.leads.override_qualification",
   assignSelf: "crm.leads.assign_self",
   bulkAssign: "crm.leads.bulk_assign",
   assignAcrossTeams: "crm.leads.assign_across_teams",
@@ -140,3 +167,4 @@ const REASON_LABELS = label(LEAD_DISQUALIFICATION_REASONS);
 export const leadStageLabel = (code) => STAGE_LABELS.get(code) ?? code;
 export const leadStatusLabel = (code) => STATUS_LABELS.get(code) ?? code;
 export const leadDisqualificationReasonLabel = (code) => REASON_LABELS.get(code) ?? code;
+export const leadQualificationStatusLabel = (code) => LEAD_QUALIFICATION_STATUSES.find((entry) => entry.code === code)?.label ?? code;

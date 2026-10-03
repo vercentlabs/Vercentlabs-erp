@@ -93,12 +93,7 @@ CREATE TABLE tenant.crm_leads (
   stage_changed_at timestamp with time zone DEFAULT now() NOT NULL,
   status text DEFAULT 'open' NOT NULL,
 
-  -- qualification
-  need_identified text DEFAULT 'unknown' NOT NULL,
-  budget_status text DEFAULT 'unknown' NOT NULL,
-  budget_amount numeric(18,2),
-  decision_authority text DEFAULT 'unknown' NOT NULL,
-  qualification_notes text,
+  -- qualification decision (the answers live in tenant.crm_lead_qualifications, 0009)
   qualified_at timestamp with time zone,
   qualified_by uuid REFERENCES public.users(id) ON DELETE SET NULL,
 
@@ -152,10 +147,6 @@ CREATE TABLE tenant.crm_leads (
   CONSTRAINT crm_leads_purchase_timeframe_check CHECK (purchase_timeframe IS NULL OR purchase_timeframe = ANY (ARRAY['immediate', 'within_1_month', 'within_3_months', 'within_6_months', 'within_12_months', 'later', 'unknown'])),
   CONSTRAINT crm_leads_stage_check CHECK (stage = ANY (ARRAY['new', 'attempting_contact', 'contacted', 'nurturing', 'ready_to_qualify'])),
   CONSTRAINT crm_leads_status_check CHECK (status = ANY (ARRAY['open', 'qualified', 'disqualified', 'converted'])),
-  CONSTRAINT crm_leads_need_identified_check CHECK (need_identified = ANY (ARRAY['yes', 'no', 'unknown'])),
-  CONSTRAINT crm_leads_budget_status_check CHECK (budget_status = ANY (ARRAY['known', 'unknown'])),
-  CONSTRAINT crm_leads_budget_amount_check CHECK (budget_amount IS NULL OR budget_amount >= 0),
-  CONSTRAINT crm_leads_decision_authority_check CHECK (decision_authority = ANY (ARRAY['yes', 'no', 'unknown'])),
   -- A disqualified lead always carries its reason; no other status does.
   CONSTRAINT crm_leads_disqualification_check CHECK ((status = 'disqualified') = (disqualification_reason IS NOT NULL)),
   CONSTRAINT crm_leads_disqualification_reason_check CHECK (disqualification_reason IS NULL OR disqualification_reason = ANY (ARRAY['not_interested', 'no_requirement', 'no_budget', 'not_decision_maker', 'bad_fit', 'duplicate', 'invalid_contact', 'unable_to_contact', 'competitor_selected', 'timing_not_suitable', 'other'])),

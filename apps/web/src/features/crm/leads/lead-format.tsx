@@ -38,12 +38,6 @@ export const RATING_OPTIONS = [
   { value: "hot", label: "Hot" },
 ];
 
-export const TRI_STATE_OPTIONS = [
-  { value: "yes", label: "Yes" },
-  { value: "no", label: "No" },
-  { value: "unknown", label: "Unknown" },
-];
-
 // A lead may have only a person, only a company, or both.
 export function leadName(lead: Pick<Lead, "fullName" | "companyName" | "code">) {
   return lead.fullName || lead.companyName || lead.code;

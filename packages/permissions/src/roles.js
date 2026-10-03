@@ -27,7 +27,8 @@ const crmReader = [...businessReader, "crm.view", "crm.leads.view", "crm.account
 // Working a lead day to day: everything a salesperson does to their own leads.
 const leadWorker = ["crm.leads.create", "crm.leads.edit", "crm.leads.assign", "crm.leads.assign_self", "crm.leads.qualify", "crm.leads.disqualify", "crm.leads.reopen", "crm.leads.convert"];
 // Running the lead desk: moving leads between people, archiving, import and export.
-const leadManager = [...leadWorker, "crm.leads.reassign", "crm.leads.bulk_assign", "crm.leads.delete", "crm.leads.import", "crm.leads.export"];
+// Managers may also qualify a lead whose required criteria are still missing.
+const leadManager = [...leadWorker, "crm.leads.reassign", "crm.leads.bulk_assign", "crm.leads.override_qualification", "crm.leads.delete", "crm.leads.import", "crm.leads.export"];
 // Deciding how leads are routed: the assignment rules and the fallback, giving
 // leads to anyone in the organization, and transferring a user's leads.
 const leadRouting = ["crm.leads.assign_across_teams", "crm.leads.manage_assignment_rules"];

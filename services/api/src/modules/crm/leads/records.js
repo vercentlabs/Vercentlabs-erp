@@ -13,6 +13,7 @@ import { applyLeadAssignment } from "./assignment.js";
 import { evaluateLeadAssignment, fallbackLeadAssignment, getLeadAssignmentSettings } from "./assignment-rules.js";
 import { LEAD_NUMBER_DOCUMENT_TYPE, LEAD_PERMISSIONS, LEAD_STAGES, leadStageLabel } from "./constants.js";
 import { assertNoBlockingLeadDuplicate } from "./duplicates.js";
+import { leadQualificationScore, leadQualificationStatus, suggestedLeadRating } from "./qualification-criteria.js";
 import { recordLeadHistory } from "./history.js";
 import { assertActiveLeadSource } from "./sources.js";
 import { LEAD_WRITABLE_COLUMNS, assertValidLead, isUuid, normalizeLeadInput, requireUuid } from "./validation.js";
@@ -28,6 +29,11 @@ export const LEAD_SELECT = `
   SELECT lead.*, source.name AS source_name, owner.full_name AS owner_name, team.name AS team_name,
          creator.full_name AS created_by_name, updater.full_name AS updated_by_name,
          assigner.full_name AS assigned_by_name, assignment_rule.name AS assignment_rule_name,
+         qualifier.full_name AS qualified_by_name, disqualifier.full_name AS disqualified_by_name,
+         qualification.need_status AS q_need_status, qualification.need_description AS q_need_description,
+         qualification.budget_status AS q_budget_status, qualification.budget_min AS q_budget_min, qualification.budget_max AS q_budget_max,
+         qualification.authority_status AS q_authority_status, qualification.authority_detail AS q_authority_detail,
+         qualification.notes AS q_notes, qualification.started_at AS q_started_at, qualification.override_reason AS q_override_reason,
          follow_up.next_follow_up_at AS pending_follow_up_at,
          COALESCE((SELECT jsonb_agg(jsonb_build_object('id', tag.id, 'name', tag.name, 'color', tag.color) ORDER BY tag.name)
                      FROM tenant.crm_lead_tags lead_tag
@@ -39,6 +45,9 @@ export const LEAD_SELECT = `
     LEFT JOIN public.users creator ON creator.id = lead.created_by
     LEFT JOIN public.users updater ON updater.id = lead.updated_by
     LEFT JOIN public.users assigner ON assigner.id = lead.assigned_by
+    LEFT JOIN public.users qualifier ON qualifier.id = lead.qualified_by
+    LEFT JOIN public.users disqualifier ON disqualifier.id = lead.disqualified_by
+    LEFT JOIN tenant.crm_lead_qualifications qualification ON qualification.organization_id = lead.organization_id AND qualification.lead_id = lead.id
     LEFT JOIN tenant.crm_lead_assignment_rules assignment_rule ON assignment_rule.organization_id = lead.organization_id AND assignment_rule.id = lead.assignment_rule_id
     LEFT JOIN tenant.crm_sales_teams team ON team.organization_id = lead.organization_id AND team.id = lead.team_id
     LEFT JOIN LATERAL (
@@ -48,7 +57,10 @@ export const LEAD_SELECT = `
          AND activity.activity_type = 'follow_up' AND activity.status IN ('planned', 'in_progress', 'overdue')
     ) follow_up ON true`;
 
+const numberOrNull = (value) => (value === null || value === undefined ? null : Number(value));
+
 export function toLead(row) {
+  const qualificationScore = leadQualificationScore(row);
   return {
     id: row.id,
     code: row.code,
@@ -90,15 +102,27 @@ export function toLead(row) {
     stage: row.stage,
     stageChangedAt: row.stage_changed_at,
     status: row.status,
-    needIdentified: row.need_identified,
-    budgetStatus: row.budget_status,
-    budgetAmount: row.budget_amount === null || row.budget_amount === undefined ? null : Number(row.budget_amount),
-    decisionAuthority: row.decision_authority,
-    qualificationNotes: row.qualification_notes,
+    // qualification: the answers, and what they add up to
+    qualificationStatus: leadQualificationStatus(row),
+    qualificationStartedAt: row.q_started_at ?? null,
+    needStatus: row.q_need_status ?? "unknown",
+    businessNeed: row.q_need_description ?? null,
+    budgetStatus: row.q_budget_status ?? "unknown",
+    budgetMin: numberOrNull(row.q_budget_min),
+    budgetMax: numberOrNull(row.q_budget_max),
+    authorityStatus: row.q_authority_status ?? "unknown",
+    authorityDetail: row.q_authority_detail ?? null,
+    qualificationNotes: row.q_notes ?? null,
+    qualificationScore,
+    suggestedRating: suggestedLeadRating(qualificationScore),
+    qualificationOverrideReason: row.q_override_reason ?? null,
     qualifiedAt: row.qualified_at,
+    qualifiedBy: row.qualified_by ?? null,
+    qualifiedByName: row.qualified_by_name ?? null,
     disqualificationReason: row.disqualification_reason,
     disqualificationNotes: row.disqualification_notes,
     disqualifiedAt: row.disqualified_at,
+    disqualifiedByName: row.disqualified_by_name ?? null,
     convertedAt: row.converted_at,
     convertedBy: row.converted_by,
     convertedPartyId: row.converted_party_id,
@@ -128,6 +152,11 @@ async function loadLeadRow(client, context, leadId, { lock = false, includeArchi
   );
   if (!rows[0]) throw new CrmError(404, "Lead not found.", "CRM_LEAD_NOT_FOUND");
   return rows[0];
+}
+
+// The raw row (the lead with its qualification answers) without locking it.
+export async function readLeadRow(client, context, leadId) {
+  return loadLeadRow(client, context, leadId, { includeArchived: true });
 }
 
 // Locks and returns the raw row for the domain operations in this folder.
@@ -177,6 +206,14 @@ const SORT_COLUMNS = Object.freeze({
   updatedAt: "lead.updated_at",
 });
 
+// The derived qualification status as SQL over the LEAD_SELECT aliases.
+export const QUALIFICATION_STATUS_SQL = Object.freeze({
+  not_started: "(lead.status = 'open' AND qualification.lead_id IS NULL)",
+  in_progress: "(lead.status = 'open' AND qualification.lead_id IS NOT NULL)",
+  qualified: "lead.status IN ('qualified', 'converted')",
+  disqualified: "lead.status = 'disqualified'",
+});
+
 // The WHERE clause shared by the list, the export and the bulk operations,
 // so "what I see" and "what I export" can never differ.
 export function buildLeadListWhere(context, filters = {}, values = []) {
@@ -193,6 +230,9 @@ export function buildLeadListWhere(context, filters = {}, values = []) {
   if (view === "due_today") where.push("follow_up.next_follow_up_at >= current_date AND follow_up.next_follow_up_at < current_date + interval '1 day'");
   if (view === "overdue") where.push("follow_up.next_follow_up_at < now()");
   if (["qualified", "disqualified", "converted"].includes(view)) where.push(`lead.status = ${bind(view)}`);
+  const qualification = QUALIFICATION_STATUS_SQL[filters.qualificationStatus];
+  if (qualification) where.push(qualification);
+  if (filters.disqualificationReason) where.push(`lead.disqualification_reason = ${bind(String(filters.disqualificationReason))}`);
 
   const exact = { status: "lead.status", stage: "lead.stage", priority: "lead.priority", rating: "lead.rating" };
   for (const [key, column] of Object.entries(exact)) if (filters[key]) where.push(`${column} = ${bind(String(filters[key]))}`);

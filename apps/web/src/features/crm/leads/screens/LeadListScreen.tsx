@@ -56,9 +56,9 @@ function storedVisibility(): VisibilityState {
   }
 }
 
-type FilterKey = "stage" | "ownerId" | "sourceId" | "priority" | "rating" | "teamId";
+type FilterKey = "stage" | "ownerId" | "sourceId" | "priority" | "rating" | "teamId" | "qualificationStatus";
 type Filters = Record<FilterKey, string>;
-const NO_FILTERS: Filters = { stage: ANY, ownerId: ANY, sourceId: ANY, priority: ANY, rating: ANY, teamId: ANY };
+const NO_FILTERS: Filters = { stage: ANY, ownerId: ANY, sourceId: ANY, priority: ANY, rating: ANY, teamId: ANY, qualificationStatus: ANY };
 
 // Where the lead is, what it wants and how long it has waited: the filters
 // the unassigned queue is worked by.
@@ -88,6 +88,7 @@ export function LeadListScreen() {
     priority: params.get("priority") ?? ANY,
     rating: params.get("rating") ?? ANY,
     teamId: params.get("teamId") ?? ANY,
+    qualificationStatus: params.get("qualificationStatus") ?? ANY,
   });
   const [queue, setQueueState] = useState<QueueFilters>({
     state: params.get("state") ?? "", city: params.get("city") ?? "", productInterest: params.get("productInterest") ?? "", olderThanDays: params.get("olderThanDays") ?? "",
@@ -218,9 +219,10 @@ export function LeadListScreen() {
     if (key === "ownerId") return ownerOptions.find((entry) => entry.value === value)?.label ?? value;
     if (key === "sourceId") return options.sources.find((entry) => entry.id === value)?.name ?? value;
     if (key === "teamId") return options.teams.find((entry) => entry.id === value)?.name ?? value;
+    if (key === "qualificationStatus") return options.qualificationStatuses.find((entry) => entry.code === value)?.label ?? value;
     return value.charAt(0).toUpperCase() + value.slice(1);
   };
-  const FILTER_NAMES: Record<FilterKey, string> = { stage: "Stage", ownerId: "Owner", sourceId: "Source", priority: "Priority", rating: "Rating", teamId: "Team" };
+  const FILTER_NAMES: Record<FilterKey, string> = { stage: "Stage", ownerId: "Owner", sourceId: "Source", priority: "Priority", rating: "Rating", teamId: "Team", qualificationStatus: "Qualification" };
   const activeFilters: ActiveFilter[] = [
     ...(Object.keys(filters) as FilterKey[])
       .filter((key) => filters[key] !== ANY)
@@ -297,19 +299,21 @@ export function LeadListScreen() {
                   <Select aria-label="Source" size="compact" selectedKey={filters.sourceId} onSelectionChange={(key) => setFilters({ ...filters, sourceId: String(key) })}
                     options={filterOptions(options.sources.map((entry) => ({ value: entry.id, label: entry.name })), "Any source")} />
                   <Select aria-label="Priority" size="compact" selectedKey={filters.priority} onSelectionChange={(key) => setFilters({ ...filters, priority: String(key) })} options={filterOptions(PRIORITY_OPTIONS, "Any priority")} />
+                  <Select aria-label="Qualification" size="compact" selectedKey={filters.qualificationStatus} onSelectionChange={(key) => setFilters({ ...filters, qualificationStatus: String(key) })}
+                    options={filterOptions(options.qualificationStatuses.map((entry) => ({ value: entry.code, label: entry.label })), "Any qualification")} />
                   <Select aria-label="Rating" size="compact" selectedKey={filters.rating} onSelectionChange={(key) => setFilters({ ...filters, rating: String(key) })} options={filterOptions(RATING_OPTIONS, "Any rating")} />
                   <PopoverTrigger>
                     <Button variant="outline" size="compact"><Filter className="size-4" aria-hidden="true" />Location, interest and age</Button>
-                    <Popover>
-                      <div className="flex w-72 flex-col gap-3 p-1">
-                        <Select label="Team" size="compact" selectedKey={filters.teamId} onSelectionChange={(key) => setFilters({ ...filters, teamId: String(key) })}
+                    <Popover placement="bottom start">
+                      <div className="grid w-[min(22rem,calc(100vw-4rem))] grid-cols-2 gap-3">
+                        <Select label="Team" className="col-span-2" selectedKey={filters.teamId} onSelectionChange={(key) => setFilters({ ...filters, teamId: String(key) })}
                           options={filterOptions(options.teams.map((entry) => ({ value: entry.id, label: entry.name })), "Any team")} />
                         <TextField label="State" value={queueDraft.state} onChange={(state) => setQueueDraft({ ...queueDraft, state })} />
                         <TextField label="City" value={queueDraft.city} onChange={(city) => setQueueDraft({ ...queueDraft, city })} />
-                        <TextField label="Product / service interest" value={queueDraft.productInterest} onChange={(productInterest) => setQueueDraft({ ...queueDraft, productInterest })} />
-                        <Select label="Waiting" size="compact" selectedKey={queueDraft.olderThanDays || ANY}
+                        <TextField label="Product / service interest" className="col-span-2" value={queueDraft.productInterest} onChange={(productInterest) => setQueueDraft({ ...queueDraft, productInterest })} />
+                        <Select label="Waiting" className="col-span-2" selectedKey={queueDraft.olderThanDays || ANY}
                           onSelectionChange={(key) => setQueueDraft({ ...queueDraft, olderThanDays: String(key) === ANY ? "" : String(key) })} options={AGE_OPTIONS} />
-                        <div className="flex justify-end gap-2">
+                        <div className="col-span-2 flex justify-end gap-2">
                           <Button variant="ghost" size="compact" onPress={() => setQueue(NO_QUEUE_FILTERS)}>Clear</Button>
                           <Button variant="primary" size="compact" onPress={() => setQueue(queueDraft)}>Apply</Button>
                         </div>

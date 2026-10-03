@@ -5,9 +5,12 @@ import { leadCapabilities, requireLeadPermission } from "./access.js";
 import { listLeadAssignmentOptions } from "./assignment.js";
 import { getLeadAssignmentSettings } from "./assignment-rules.js";
 import {
-  LEAD_ACTIVITY_TYPES, LEAD_ASSIGNMENT_METHODS, LEAD_DISQUALIFICATION_REASONS, LEAD_FOLLOW_UP_TYPES, LEAD_PERMISSIONS, LEAD_PURCHASE_TIMEFRAMES, LEAD_RULE_FIELDS, LEAD_RULE_OPERATORS,
+  LEAD_ACTIVITY_TYPES, LEAD_ASSIGNMENT_METHODS, LEAD_AUTHORITY_STATUSES, LEAD_BUDGET_STATUSES, LEAD_DISQUALIFICATION_REASONS, LEAD_NEED_STATUSES,
+  LEAD_QUALIFICATION_STATUSES, LEAD_FOLLOW_UP_TYPES, LEAD_PERMISSIONS, LEAD_PURCHASE_TIMEFRAMES, LEAD_RULE_FIELDS, LEAD_RULE_OPERATORS,
   LEAD_STAGES, LEAD_STATUSES,
 } from "./constants.js";
+import { QUALIFICATION_CRITERIA } from "./qualification-criteria.js";
+import { getLeadQualificationSettings } from "./qualification.js";
 import { LEAD_VIEWS } from "./records.js";
 import { listLeadSources } from "./sources.js";
 
@@ -29,6 +32,12 @@ export async function getLeadOptions(client, context) {
     statuses: LEAD_STATUSES,
     purchaseTimeframes: LEAD_PURCHASE_TIMEFRAMES,
     disqualificationReasons: LEAD_DISQUALIFICATION_REASONS,
+    qualificationStatuses: LEAD_QUALIFICATION_STATUSES,
+    needStatuses: LEAD_NEED_STATUSES,
+    budgetStatuses: LEAD_BUDGET_STATUSES,
+    authorityStatuses: LEAD_AUTHORITY_STATUSES,
+    qualificationCriteria: QUALIFICATION_CRITERIA.map(({ key, label }) => ({ key, label })),
+    qualificationRequirements: await getLeadQualificationSettings(client, context),
     activityTypes: LEAD_ACTIVITY_TYPES,
     followUpTypes: LEAD_FOLLOW_UP_TYPES,
     assignmentMethods: LEAD_ASSIGNMENT_METHODS,

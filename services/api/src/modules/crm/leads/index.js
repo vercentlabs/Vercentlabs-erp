@@ -14,10 +14,14 @@ export {
   deleteLeadAssignmentRule, evaluateLeadAssignment, getLeadAssignmentSettings, listLeadAssignmentRules, reorderLeadAssignmentRules,
   runLeadAssignmentRules, saveLeadAssignmentRule, saveLeadAssignmentSettings, setLeadAssignmentRuleActive,
 } from "./assignment-rules.js";
-export { bulkDisqualifyLeads, disqualifyLead, qualifyLead, reopenLead, saveLeadQualification } from "./qualification.js";
+export {
+  bulkDisqualifyLeads, disqualifyLead, getLeadQualification, getLeadQualificationSettings, listLeadQualificationHistory, overrideQualification, qualifyLead,
+  rateLead, reopenLead, saveLeadQualification, saveLeadQualificationSettings, startQualification, updateQualification,
+} from "./qualification.js";
+export { DEFAULT_QUALIFICATION_REQUIREMENTS, QUALIFICATION_CRITERIA, evaluateLeadQualification } from "./qualification-criteria.js";
 export { findLeadDuplicates } from "./duplicates.js";
 export { mergeLeads } from "./merge.js";
-export { convertLead, previewLeadConversion } from "./conversion.js";
+export { convertLead, convertQualifiedLead, previewLeadConversion } from "./conversion.js";
 export { addLeadActivity, listLeadActivities, scheduleLeadFollowUp } from "./activities.js";
 export { listLeadHistory } from "./history.js";
 export { createLeadSource, ensureDefaultLeadSources, listLeadSources, updateLeadSource } from "./sources.js";

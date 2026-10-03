@@ -24,12 +24,14 @@ import { linkContactToAccount } from "../contacts/relationships.js";
 import { ensureDefaultSalesPipeline } from "../pipeline/default-pipeline.js";
 import { requireLeadPermission } from "./access.js";
 import { assertEligibleLeadAssignee } from "./assignment.js";
-import { LEAD_PERMISSIONS, LEAD_PURCHASE_TIMEFRAMES } from "./constants.js";
+import { LEAD_AUTHORITY_STATUSES, LEAD_BUDGET_STATUSES, LEAD_NEED_STATUSES, LEAD_PERMISSIONS, LEAD_PURCHASE_TIMEFRAMES } from "./constants.js";
+import { recordLeadQualificationEvent } from "./qualification-history.js";
 import { recordLeadHistory } from "./history.js";
 import { getLead, lockLead } from "./records.js";
 import { requireUuid } from "./validation.js";
 
 const TIMEFRAME_LABELS = new Map(LEAD_PURCHASE_TIMEFRAMES.map((entry) => [entry.code, entry.label]));
+const labelIn = (list, code) => list.find((entry) => entry.code === code)?.label ?? "Unknown";
 const text = (value) => String(value ?? "").trim();
 
 const accountMatch = (match) => ({ id: match.id, name: match.name, code: match.code, strength: match.strength });
@@ -78,12 +80,15 @@ function opportunityDescription(lead) {
   const lines = [];
   if (lead.description) lines.push(lead.description);
   if (lead.product_interest) lines.push(`Product / service interest: ${lead.product_interest}`);
+  const budgetRange = [lead.q_budget_min, lead.q_budget_max].filter((value) => value !== null && value !== undefined).map(Number);
   const qualification = [
-    `Need identified: ${lead.need_identified}`,
-    `Budget: ${lead.budget_status}${lead.budget_amount !== null ? ` (${lead.budget_amount})` : ""}`,
-    `Decision authority: ${lead.decision_authority}`,
+    `Need identified: ${labelIn(LEAD_NEED_STATUSES, lead.q_need_status)}`,
+    lead.q_need_description ? `Business need: ${lead.q_need_description}` : null,
+    `Budget: ${labelIn(LEAD_BUDGET_STATUSES, lead.q_budget_status)}${budgetRange.length ? ` (${[...new Set(budgetRange)].join(" – ")}${lead.currency_code ? ` ${lead.currency_code.trim()}` : ""})` : ""}`,
+    `Decision authority: ${labelIn(LEAD_AUTHORITY_STATUSES, lead.q_authority_status)}${lead.q_authority_detail ? ` — ${lead.q_authority_detail}` : ""}`,
     lead.purchase_timeframe ? `Purchase timeframe: ${TIMEFRAME_LABELS.get(lead.purchase_timeframe) ?? lead.purchase_timeframe}` : null,
-    lead.qualification_notes ? `Notes: ${lead.qualification_notes}` : null,
+    lead.q_notes ? `Notes: ${lead.q_notes}` : null,
+    lead.q_override_reason ? `Qualified with an override: ${lead.q_override_reason}` : null,
   ].filter(Boolean);
   lines.push(`Qualification (from lead ${lead.code})\n${qualification.join("\n")}`);
   return lines.join("\n\n").slice(0, 10000);
@@ -98,6 +103,15 @@ export async function previewLeadConversion(client, context, leadId) {
   const accounts = lead.companyName ? (await accountMatches(client, context, lead, lead.companyName)).filter((match) => match.canOpen) : [];
   const leadPerson = { first_name: lead.firstName, last_name: lead.lastName, email: lead.email, mobile: lead.mobile, phone: lead.phone };
   const contacts = lead.fullName ? (await contactMatches(client, context, leadPerson, accounts[0]?.id)).filter((match) => match.canOpen) : [];
+  // Open deals the matching accounts already have: a warning, never a block.
+  const opportunities = accounts.length ? (await client.query(
+    `SELECT opportunity.id, opportunity.code, opportunity.name, opportunity.amount, opportunity.currency_code, opportunity.party_id, stage.name AS stage_name
+       FROM tenant.crm_opportunities opportunity
+       LEFT JOIN tenant.crm_pipeline_stages stage ON stage.organization_id = opportunity.organization_id AND stage.id = opportunity.stage_id
+      WHERE opportunity.organization_id = $1 AND opportunity.party_id = ANY ($2::uuid[]) AND opportunity.status = 'open'
+      ORDER BY opportunity.updated_at DESC LIMIT 10`,
+    [context.organizationId, accounts.map((match) => match.id)],
+  )).rows : [];
   const stages = await client.query(
     `SELECT stage.id, stage.name, pipeline.name AS pipeline_name
        FROM tenant.crm_pipelines pipeline
@@ -114,6 +128,9 @@ export async function previewLeadConversion(client, context, leadId) {
       : lead.status !== "qualified" ? "Qualify this lead before converting it." : null,
     accountMatches: accounts,
     contactMatches: contacts,
+    opportunityMatches: opportunities.map((row) => ({
+      id: row.id, code: row.code, name: row.name, amount: Number(row.amount ?? 0), currencyCode: row.currency_code?.trim() ?? null, partyId: row.party_id, stageName: row.stage_name ?? null,
+    })),
     stages: stages.rows.map((row) => ({ id: row.id, name: row.name, pipelineName: row.pipeline_name })),
     defaults: {
       accountName: lead.companyName || lead.fullName,
@@ -253,6 +270,12 @@ export async function convertLead(client, context, leadId, input = {}) {
     from: lead.status, to: "converted", partyId, contactId, opportunityId,
     accountLinked: Boolean(accountInput.id), contactLinked: Boolean(contactInput.id),
   });
+  const opportunityCode = opportunityId ? (await client.query(`SELECT code FROM tenant.crm_opportunities WHERE id = $1`, [opportunityId])).rows[0]?.code : null;
+  await recordLeadQualificationEvent(client, context, lead.id, { type: "converted", newValue: opportunityCode ? `Opportunity ${opportunityCode} created` : "Account and contact, no opportunity" });
   await queueOutboxEvent(client, context, "crm.lead.converted", "lead", lead.id, { partyId, contactId, opportunityId });
   return { leadId: lead.id, partyId, contactId, opportunityId };
 }
+
+// The second half of qualifying: a qualified lead becomes its account,
+// contact and opportunity.
+export const convertQualifiedLead = convertLead;

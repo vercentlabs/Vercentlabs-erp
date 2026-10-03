@@ -102,6 +102,8 @@ function ConversionForm({ leadId, preview, options, onCancel, onMatchesChanged, 
     },
   });
 
+  // Open deals on the chosen account: worth a look before creating another one.
+  const similarOpportunities = account === CREATE ? [] : preview.opportunityMatches.filter((match) => match.partyId === account);
   const accountNeedsConfirmation = account === CREATE && preview.accountMatches.length > 0 && !confirmNewAccount;
   const contactNeedsConfirmation = contact === CREATE && preview.canCreateContact && preview.contactMatches.length > 0 && !confirmNewContact;
   const incomplete = (account === CREATE && !accountName.trim()) || (createOpportunity && !opportunityName.trim());
@@ -151,6 +153,17 @@ function ConversionForm({ leadId, preview, options, onCancel, onMatchesChanged, 
 
           <div className="flex flex-col gap-4 rounded-[var(--radius-control)] border border-border p-4">
             <Checkbox isSelected={createOpportunity} onChange={setCreateOpportunity}>Create an opportunity</Checkbox>
+            {createOpportunity && similarOpportunities.length > 0 && (
+              <div role="note" className="rounded-[var(--radius-control)] border border-warning-emphasis/30 bg-warning-soft px-3 py-2 text-sm">
+                <p className="font-medium">This account already has {similarOpportunities.length === 1 ? "an open opportunity" : "open opportunities"}:</p>
+                <ul className="list-disc pl-5">
+                  {similarOpportunities.map((match) => (
+                    <li key={match.id}>{[match.name, match.code, match.amount ? String(match.amount) : null, match.stageName].filter(Boolean).join(" · ")}</li>
+                  ))}
+                </ul>
+                <p>You can still create a new one if this is a separate deal.</p>
+              </div>
+            )}
             {createOpportunity && (
               <div className="grid gap-4 sm:grid-cols-2">
                 <TextField label="Opportunity name" isRequired className="sm:col-span-2" value={opportunityName} onChange={setOpportunityName} />

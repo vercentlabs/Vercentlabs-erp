@@ -193,6 +193,14 @@ export const MODULE_NAVIGATION: readonly ModuleNavigation[] = [
             aliases: ["outcome reasons"],
             requiredPermission: "crm.settings.manage",
           },
+          {
+            ...available("Lead Qualification", "/crm/settings/qualification"),
+            parent: "crm-setup",
+            group: "sales-process",
+            description: "What must be known about a lead before it can be qualified.",
+            aliases: ["qualification requirements", "bant"],
+            requiredPermission: "crm.settings.manage",
+          },
           // Routing & organization
           {
             ...available("Assignment Rules", "/crm/settings/assignment"),

@@ -5,7 +5,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
-import { ErrorState, LinkButton, MetricCard, PageHeader, Select } from "@vercentlabs/design-system";
+import { ErrorState, LinkButton, MetricCard, PageHeader, Select, TextField } from "@vercentlabs/design-system";
 
 import { DateInput } from "@/features/crm/shared/ui/DateTimeInput";
 import { formatMoney } from "@/shared/format/human";
@@ -20,6 +20,8 @@ const ANY = "any";
 const GROUP_OPTIONS = [
   { value: "status", label: "Status" },
   { value: "stage", label: "Stage" },
+  { value: "qualification", label: "Qualification" },
+  { value: "disqualificationReason", label: "Disqualification reason" },
   { value: "owner", label: "Owner" },
   { value: "team", label: "Team" },
   { value: "source", label: "Source" },
@@ -84,12 +86,26 @@ export function LeadDashboardScreen() {
               </div>
             </section>
 
+            <section className="flex flex-col gap-3">
+              <h2 className="text-base font-semibold">Qualification</h2>
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-6">
+                <MetricLink href="/crm/leads?qualificationStatus=not_started" label="Awaiting qualification" value={dashboard.totals.awaitingQualification} />
+                <MetricLink href="/crm/leads?qualificationStatus=in_progress" label="In qualification" value={dashboard.totals.inQualification} />
+                <MetricLink href="/crm/leads?qualificationStatus=qualified" label="Qualified (incl. converted)" value={dashboard.totals.qualifiedTotal} />
+                <MetricLink href="/crm/leads?qualificationStatus=disqualified" label="Disqualified" value={dashboard.totals.disqualified} />
+                <MetricCard label="Qualification rate" value={`${dashboard.totals.qualificationRate}%`} />
+                <MetricCard label="Average days to qualify" value={dashboard.totals.averageDaysToQualify === null ? "–" : dashboard.totals.averageDaysToQualify} />
+              </div>
+            </section>
+
             <div className="grid gap-6 lg:grid-cols-2">
               <Breakdown title="Leads by status" rows={dashboard.byStatus.map((row) => ({ label: row.label, total: row.total }))} />
               <Breakdown title="Leads by stage" rows={dashboard.byStage.map((row) => ({ label: row.label, total: row.total }))} />
               <Breakdown title="Leads by source" rows={dashboard.bySource} />
               <Breakdown title="Leads by owner" rows={dashboard.byOwner} />
               <Breakdown title="Leads by team" rows={dashboard.byTeam} />
+              <Breakdown title="Qualified leads by owner" rows={dashboard.qualifiedByOwner} />
+              <Breakdown title="Qualified leads by source" rows={dashboard.qualifiedBySource} />
               <section className="flex flex-col gap-3 rounded-[var(--radius-card)] border border-border bg-surface p-4">
                 <h2 className="text-base font-semibold">Active leads per salesperson</h2>
                 {dashboard.workload.length === 0 ? <p className="text-sm text-text-secondary">No active leads.</p> : (
@@ -158,6 +174,11 @@ function LeadsByStatusReport() {
   const [ownerId, setOwnerId] = useState(ANY);
   const [sourceId, setSourceId] = useState(ANY);
   const [teamId, setTeamId] = useState(ANY);
+  const [qualificationStatus, setQualificationStatus] = useState(ANY);
+  const [disqualificationReason, setDisqualificationReason] = useState(ANY);
+  const [productInterest, setProductInterest] = useState("");
+  const [qualifiedFrom, setQualifiedFrom] = useState("");
+  const [qualifiedTo, setQualifiedTo] = useState("");
   const [assignedFrom, setAssignedFrom] = useState("");
   const [assignedTo, setAssignedTo] = useState("");
   const [status, setStatus] = useState(ANY);
@@ -169,11 +190,14 @@ function LeadsByStatusReport() {
   const options = optionsQuery.data;
 
   const filters: Record<string, string> = { groupBy };
-  for (const [key, value] of Object.entries({ ownerId, teamId, sourceId, status, stage, converted })) if (value !== ANY) filters[key] = value;
+  for (const [key, value] of Object.entries({ ownerId, teamId, sourceId, status, stage, converted, qualificationStatus, disqualificationReason })) if (value !== ANY) filters[key] = value;
   if (createdFrom) filters.createdFrom = createdFrom;
   if (createdTo) filters.createdTo = createdTo;
   if (assignedFrom) filters.assignedFrom = assignedFrom;
   if (assignedTo) filters.assignedTo = assignedTo;
+  if (qualifiedFrom) filters.qualifiedFrom = qualifiedFrom;
+  if (qualifiedTo) filters.qualifiedTo = qualifiedTo;
+  if (productInterest.trim()) filters.productInterest = productInterest.trim();
 
   const reportQuery = useQuery({ queryKey: scopedQueryKey(workspace, "crm", "leads", "report", filters), queryFn: () => getLeadReport(filters), ...LIVE_LEAD_QUERY });
   const report = reportQuery.data;
@@ -203,6 +227,13 @@ function LeadsByStatusReport() {
         <DateInput label="Created to" value={createdTo} onChange={setCreatedTo} />
         <DateInput label="Assigned from" value={assignedFrom} onChange={setAssignedFrom} />
         <DateInput label="Assigned to" value={assignedTo} onChange={setAssignedTo} />
+        <Select label="Qualification" selectedKey={qualificationStatus} onSelectionChange={(key) => setQualificationStatus(String(key))}
+          options={any("Any qualification", (options?.qualificationStatuses ?? []).map((entry) => ({ value: entry.code, label: entry.label })))} />
+        <Select label="Disqualification reason" selectedKey={disqualificationReason} onSelectionChange={(key) => setDisqualificationReason(String(key))}
+          options={any("Any reason", (options?.disqualificationReasons ?? []).map((entry) => ({ value: entry.code, label: entry.label })))} />
+        <DateInput label="Qualified from" value={qualifiedFrom} onChange={setQualifiedFrom} />
+        <DateInput label="Qualified to" value={qualifiedTo} onChange={setQualifiedTo} />
+        <TextField label="Product / service interest" value={productInterest} onChange={setProductInterest} />
       </div>
 
       {reportQuery.isLoading ? <LoadingState label="Loading report" rows={4} />
