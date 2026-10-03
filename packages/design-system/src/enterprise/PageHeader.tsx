@@ -24,13 +24,13 @@ export function PageHeader({ className, breadcrumbs, title, description, primary
   return (
     <header className={cn("flex flex-col gap-3", className)}>
       {breadcrumbs && <Breadcrumbs>{breadcrumbs}</Breadcrumbs>}
-      <div className="flex items-start justify-between gap-4">
-        <div className="flex flex-col gap-1">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
+        <div className="flex min-w-0 flex-col gap-1">
           <Heading className={headingLevel === 1 ? "text-2xl font-semibold text-text" : "text-xl font-semibold text-text"}>{title}</Heading>
           {description && <p className="text-sm text-text-secondary">{description}</p>}
         </div>
         {(primaryAction || secondaryActions) && (
-          <div className="flex shrink-0 items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2 sm:shrink-0 sm:justify-end">
             {secondaryActions}
             {primaryAction}
           </div>

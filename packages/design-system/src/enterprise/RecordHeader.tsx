@@ -32,13 +32,13 @@ export function RecordHeader({ className, breadcrumbs, title, status, fields, pr
   return (
     <header className={cn("flex flex-col gap-3", className)}>
       {breadcrumbs && <Breadcrumbs>{breadcrumbs}</Breadcrumbs>}
-      <div className="flex items-start justify-between gap-4">
-        <div className="flex items-center gap-2.5">
-          <h1 className="text-2xl font-semibold text-text">{title}</h1>
+      <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between md:gap-4">
+        <div className="flex min-w-0 flex-wrap items-center gap-2.5">
+          <h1 className="min-w-0 text-2xl font-semibold break-words text-text">{title}</h1>
           {status}
         </div>
         {(primaryAction || secondaryActions) && (
-          <div className="flex shrink-0 items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2 md:shrink-0 md:justify-end">
             {secondaryActions}
             {primaryAction}
           </div>

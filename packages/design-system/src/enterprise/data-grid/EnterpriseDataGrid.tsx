@@ -236,14 +236,38 @@ export function EnterpriseDataGrid<TRow>({
 
   if (!renderMobileCard) return table_;
 
+  // Below md the rows become cards. They keep what the table offers:
+  // selection (when enabled), opening a row, and the same pagination.
   return (
     <>
       <div className="hidden md:block">{table_}</div>
-      <ul className="flex flex-col gap-2 md:hidden">
-        {rows.map((row) => (
-          <li key={row.id}>{renderMobileCard(row.original)}</li>
-        ))}
-      </ul>
+      <div className={cn("flex flex-col gap-2 md:hidden", className)} role="group" aria-label={gridId}>
+        <ul className="flex flex-col gap-2">
+          {rows.map((row) => (
+            <li
+              key={row.id}
+              className={cn(
+                "flex items-start gap-3 rounded-[var(--radius-card)] border bg-surface p-3",
+                row.getIsSelected() ? "border-brand" : "border-border",
+                onRowClick && "cursor-pointer",
+              )}
+              onClick={onRowClick ? () => onRowClick(row.original) : undefined}
+            >
+              {enableRowSelection && (
+                <span className="pt-0.5" onClick={(event) => event.stopPropagation()}>
+                  <Checkbox aria-label="Select row" isSelected={row.getIsSelected()} onChange={(value) => row.toggleSelected(value)} />
+                </span>
+              )}
+              <div className="min-w-0 flex-1">{renderMobileCard(row.original)}</div>
+            </li>
+          ))}
+        </ul>
+        {pageCount !== undefined && onPageChange !== undefined && (
+          <div className="rounded-[var(--radius-card)] border border-border bg-surface px-3 py-2">
+            <Pagination page={pageIndex + 1} pageCount={pageCount} onPageChange={(p) => onPageChange(p - 1)} totalItems={totalRowCount} pageSize={pageSize} />
+          </div>
+        )}
+      </div>
     </>
   );
 }

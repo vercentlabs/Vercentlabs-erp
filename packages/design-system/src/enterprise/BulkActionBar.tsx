@@ -22,7 +22,7 @@ export function BulkActionBar({ className, selectedCount, onClearSelection, acti
   return (
     <div
       className={cn(
-        "flex items-center justify-between gap-3 rounded-[var(--radius-control)] border border-brand-border bg-brand-soft px-3 py-2",
+        "flex flex-wrap items-center justify-between gap-3 rounded-[var(--radius-control)] border border-brand-border bg-brand-soft px-3 py-2",
         className,
       )}
     >
@@ -34,7 +34,7 @@ export function BulkActionBar({ className, selectedCount, onClearSelection, acti
           <span className="tabular-nums">{selectedCount}</span> selected
         </span>
       </div>
-      <div className="flex items-center gap-2">{actions}</div>
+      <div className="flex flex-wrap items-center gap-2">{actions}</div>
     </div>
   );
 }
