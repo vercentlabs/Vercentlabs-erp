@@ -1,7 +1,7 @@
 // Identity-lifecycle flows (SP004/SP005): email verification, password
 // reset, and organization invitations. The schema for all three
 // (email_verification_tokens, password_reset_tokens,
-// organization_invitations) is in database/schema.sql and delivery goes
+// organization_invitations) is in database/migrations/0001_baseline.sql and delivery goes
 // through the mailer (auth-mailer.js, deliverAuthMessage). This module is
 // the domain layer between them: it generates, stores, validates and
 // consumes the tokens.

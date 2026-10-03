@@ -1,12 +1,32 @@
--- Reference snapshot of the current database schema (schema only, no data),
--- generated with pg_dump from a database at migration
--- 0002_normalize_schema_names.sql. Regenerate after each new migration.
+-- Baseline: the complete database from scratch.
+--
+-- Structure (schemas, tables, row-level security policies, functions,
+-- triggers, grants) plus the global reference data every installation needs:
+-- the permission catalog, separation-of-duties conflict rules, and the billing
+-- plans and their prices. No organization, user or business data.
+--
+-- Run as a superuser (or the database owner) on an empty database, then apply
+-- the later files in this folder in order. The runtime roles are created
+-- without login; before the app connects, give them LOGIN and a password:
+--   ALTER ROLE vercent_app LOGIN PASSWORD '...';
+--   ALTER ROLE vercent_worker LOGIN PASSWORD '...';
+
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'vercent_app') THEN
+    CREATE ROLE vercent_app NOLOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOBYPASSRLS;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'vercent_worker') THEN
+    CREATE ROLE vercent_worker NOLOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOBYPASSRLS;
+  END IF;
+END
+$$;
 
 --
 -- PostgreSQL database dump
 --
 
-\restrict hki4pJd3a34wH7m0dQe5LCa3ZGP6H60v8OXSyuHtWONNpLsigoQLKc6mIJEpIlU
+\restrict E47DidOUBCfrwlAFlKWDdPfsgG44qyJYfmncabmdx9flpxsSCxliij8cgIvf9iy
 
 -- Dumped from database version 16.15
 -- Dumped by pg_dump version 16.15
@@ -3026,6 +3046,17 @@ CREATE TABLE public.sales_public_quote_tokens (
 );
 
 ALTER TABLE ONLY public.sales_public_quote_tokens FORCE ROW LEVEL SECURITY;
+
+
+--
+-- Name: schema_migrations; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.schema_migrations (
+    filename text NOT NULL,
+    checksum text NOT NULL,
+    applied_at timestamp with time zone DEFAULT now() NOT NULL
+);
 
 
 --
@@ -21732,6 +21763,14 @@ ALTER TABLE ONLY public.roles
 
 ALTER TABLE ONLY public.sales_public_quote_tokens
     ADD CONSTRAINT sales_public_quote_tokens_pkey PRIMARY KEY (token_hash);
+
+
+--
+-- Name: schema_migrations schema_migrations_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.schema_migrations
+    ADD CONSTRAINT schema_migrations_pkey PRIMARY KEY (filename);
 
 
 --
@@ -64326,8 +64365,6189 @@ ALTER TABLE tenant.webhook_deliveries ENABLE ROW LEVEL SECURITY;
 ALTER TABLE tenant.webhook_subscriptions ENABLE ROW LEVEL SECURITY;
 
 --
+-- Name: SCHEMA public; Type: ACL; Schema: -; Owner: -
+--
+
+GRANT USAGE ON SCHEMA public TO vercent_app;
+GRANT USAGE ON SCHEMA public TO vercent_worker;
+
+
+--
+-- Name: SCHEMA tenant; Type: ACL; Schema: -; Owner: -
+--
+
+GRANT USAGE ON SCHEMA tenant TO vercent_app;
+GRANT USAGE ON SCHEMA tenant TO vercent_worker;
+
+
+--
+-- Name: FUNCTION billable_user_count(p_organization_id uuid, p_exclude_invitation_id uuid); Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON FUNCTION public.billable_user_count(p_organization_id uuid, p_exclude_invitation_id uuid) TO vercent_app;
+GRANT ALL ON FUNCTION public.billable_user_count(p_organization_id uuid, p_exclude_invitation_id uuid) TO vercent_worker;
+
+
+--
+-- Name: FUNCTION link_billing_price_provider_plan(p_price_id uuid, p_provider_plan_id text); Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON FUNCTION public.link_billing_price_provider_plan(p_price_id uuid, p_provider_plan_id text) TO vercent_app;
+GRANT ALL ON FUNCTION public.link_billing_price_provider_plan(p_price_id uuid, p_provider_plan_id text) TO vercent_worker;
+
+
+--
+-- Name: FUNCTION pending_invitations_for_email(p_email text); Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON FUNCTION public.pending_invitations_for_email(p_email text) TO vercent_app;
+
+
+--
+-- Name: FUNCTION record_billing_audit_event(p_organization_id uuid, p_actor_user_id uuid, p_event_type text, p_entity_id text, p_metadata jsonb, p_before_data jsonb, p_after_data jsonb); Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON FUNCTION public.record_billing_audit_event(p_organization_id uuid, p_actor_user_id uuid, p_event_type text, p_entity_id text, p_metadata jsonb, p_before_data jsonb, p_after_data jsonb) TO vercent_app;
+GRANT ALL ON FUNCTION public.record_billing_audit_event(p_organization_id uuid, p_actor_user_id uuid, p_event_type text, p_entity_id text, p_metadata jsonb, p_before_data jsonb, p_after_data jsonb) TO vercent_worker;
+
+
+--
+-- Name: FUNCTION resolve_api_key_organization(p_key_hash text); Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON FUNCTION public.resolve_api_key_organization(p_key_hash text) TO vercent_app;
+
+
+--
+-- Name: FUNCTION resolve_inbound_mail_route_organization(p_route_key_hash text); Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON FUNCTION public.resolve_inbound_mail_route_organization(p_route_key_hash text) TO vercent_app;
+
+
+--
+-- Name: FUNCTION resolve_invitation_organization(p_token_hash text); Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON FUNCTION public.resolve_invitation_organization(p_token_hash text) TO vercent_app;
+
+
+--
+-- Name: FUNCTION resolve_public_quote_organization(p_token_hash text); Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON FUNCTION public.resolve_public_quote_organization(p_token_hash text) TO vercent_app;
+
+
+--
+-- Name: FUNCTION crm_lead_search_ids(search_pattern text, include_contact_details boolean); Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT ALL ON FUNCTION tenant.crm_lead_search_ids(search_pattern text, include_contact_details boolean) TO vercent_app;
+GRANT ALL ON FUNCTION tenant.crm_lead_search_ids(search_pattern text, include_contact_details boolean) TO vercent_worker;
+
+
+--
+-- Name: FUNCTION crm_public_capture_form(form_key text); Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT ALL ON FUNCTION tenant.crm_public_capture_form(form_key text) TO vercent_app;
+
+
+--
+-- Name: FUNCTION crm_public_meeting_booking(token text); Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT ALL ON FUNCTION tenant.crm_public_meeting_booking(token text) TO vercent_app;
+
+
+--
+-- Name: FUNCTION crm_public_meeting_link(token text); Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT ALL ON FUNCTION tenant.crm_public_meeting_link(token text) TO vercent_app;
+
+
+--
+-- Name: TABLE access_assignment_events; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.access_assignment_events TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.access_assignment_events TO vercent_worker;
+
+
+--
+-- Name: TABLE access_conflict_rules; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT ON TABLE public.access_conflict_rules TO vercent_app;
+GRANT SELECT ON TABLE public.access_conflict_rules TO vercent_worker;
+
+
+--
+-- Name: TABLE activities; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.activities TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.activities TO vercent_worker;
+
+
+--
+-- Name: TABLE ai_evaluations; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.ai_evaluations TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.ai_evaluations TO vercent_worker;
+
+
+--
+-- Name: TABLE ai_policies; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.ai_policies TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.ai_policies TO vercent_worker;
+
+
+--
+-- Name: TABLE ai_requests; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.ai_requests TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.ai_requests TO vercent_worker;
+
+
+--
+-- Name: TABLE api_keys; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.api_keys TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.api_keys TO vercent_worker;
+
+
+--
+-- Name: TABLE approval_decisions; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.approval_decisions TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.approval_decisions TO vercent_worker;
+
+
+--
+-- Name: TABLE approval_requests; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.approval_requests TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.approval_requests TO vercent_worker;
+
+
+--
+-- Name: TABLE attachments; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.attachments TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.attachments TO vercent_worker;
+
+
+--
+-- Name: TABLE audit_events; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT,INSERT ON TABLE public.audit_events TO vercent_app;
+GRANT SELECT,INSERT ON TABLE public.audit_events TO vercent_worker;
+
+
+--
+-- Name: TABLE auth_rate_limits; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.auth_rate_limits TO vercent_app;
+
+
+--
+-- Name: TABLE billing_checkout_sessions; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.billing_checkout_sessions TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.billing_checkout_sessions TO vercent_worker;
+
+
+--
+-- Name: TABLE billing_customers; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.billing_customers TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.billing_customers TO vercent_worker;
+
+
+--
+-- Name: TABLE billing_entitlement_overrides; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.billing_entitlement_overrides TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.billing_entitlement_overrides TO vercent_worker;
+
+
+--
+-- Name: TABLE billing_invoices; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.billing_invoices TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.billing_invoices TO vercent_worker;
+
+
+--
+-- Name: TABLE billing_payments; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.billing_payments TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.billing_payments TO vercent_worker;
+
+
+--
+-- Name: TABLE billing_plan_prices; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT ON TABLE public.billing_plan_prices TO vercent_app;
+GRANT SELECT ON TABLE public.billing_plan_prices TO vercent_worker;
+
+
+--
+-- Name: TABLE billing_plans; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT ON TABLE public.billing_plans TO vercent_app;
+GRANT SELECT ON TABLE public.billing_plans TO vercent_worker;
+
+
+--
+-- Name: TABLE billing_seat_changes; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.billing_seat_changes TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.billing_seat_changes TO vercent_worker;
+
+
+--
+-- Name: TABLE billing_usage_events; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.billing_usage_events TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.billing_usage_events TO vercent_worker;
+
+
+--
+-- Name: TABLE billing_usage_monthly; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.billing_usage_monthly TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.billing_usage_monthly TO vercent_worker;
+
+
+--
+-- Name: TABLE billing_webhook_events; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT,INSERT,UPDATE ON TABLE public.billing_webhook_events TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.billing_webhook_events TO vercent_worker;
+
+
+--
+-- Name: TABLE comments; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.comments TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.comments TO vercent_worker;
+
+
+--
+-- Name: TABLE configuration_versions; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.configuration_versions TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.configuration_versions TO vercent_worker;
+
+
+--
+-- Name: TABLE cost_centers; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.cost_centers TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.cost_centers TO vercent_worker;
+
+
+--
+-- Name: TABLE custom_field_definitions; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.custom_field_definitions TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.custom_field_definitions TO vercent_worker;
+
+
+--
+-- Name: TABLE custom_field_value_history; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.custom_field_value_history TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.custom_field_value_history TO vercent_worker;
+
+
+--
+-- Name: TABLE custom_field_values; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.custom_field_values TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.custom_field_values TO vercent_worker;
+
+
+--
+-- Name: TABLE departments; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.departments TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.departments TO vercent_worker;
+
+
+--
+-- Name: TABLE developer_apps; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.developer_apps TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.developer_apps TO vercent_worker;
+
+
+--
+-- Name: TABLE email_verification_tokens; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.email_verification_tokens TO vercent_app;
+
+
+--
+-- Name: TABLE entity_tags; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.entity_tags TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.entity_tags TO vercent_worker;
+
+
+--
+-- Name: TABLE favourites; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.favourites TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.favourites TO vercent_worker;
+
+
+--
+-- Name: TABLE feature_flags; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.feature_flags TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.feature_flags TO vercent_worker;
+
+
+--
+-- Name: TABLE inbound_mail_events; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.inbound_mail_events TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.inbound_mail_events TO vercent_worker;
+
+
+--
+-- Name: TABLE inbound_mail_routes; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.inbound_mail_routes TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.inbound_mail_routes TO vercent_worker;
+
+
+--
+-- Name: TABLE login_events; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.login_events TO vercent_app;
+
+
+--
+-- Name: TABLE membership_department_access; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.membership_department_access TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.membership_department_access TO vercent_worker;
+
+
+--
+-- Name: TABLE membership_team_access; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.membership_team_access TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.membership_team_access TO vercent_worker;
+
+
+--
+-- Name: TABLE mfa_recovery_codes; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.mfa_recovery_codes TO vercent_app;
+
+
+--
+-- Name: TABLE mobile_refresh_token_history; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.mobile_refresh_token_history TO vercent_app;
+
+
+--
+-- Name: TABLE notification_preferences; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.notification_preferences TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.notification_preferences TO vercent_worker;
+
+
+--
+-- Name: TABLE notifications; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.notifications TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.notifications TO vercent_worker;
+
+
+--
+-- Name: TABLE oauth_connections; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.oauth_connections TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.oauth_connections TO vercent_worker;
+
+
+--
+-- Name: TABLE oauth_states; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.oauth_states TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.oauth_states TO vercent_worker;
+
+
+--
+-- Name: TABLE organization_invitation_department_access; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.organization_invitation_department_access TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.organization_invitation_department_access TO vercent_worker;
+
+
+--
+-- Name: TABLE organization_invitation_roles; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.organization_invitation_roles TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.organization_invitation_roles TO vercent_worker;
+
+
+--
+-- Name: TABLE organization_invitation_team_access; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.organization_invitation_team_access TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.organization_invitation_team_access TO vercent_worker;
+
+
+--
+-- Name: TABLE organization_invitations; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.organization_invitations TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.organization_invitations TO vercent_worker;
+
+
+--
+-- Name: TABLE organization_memberships; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.organization_memberships TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.organization_memberships TO vercent_worker;
+
+
+--
+-- Name: TABLE organization_modules; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.organization_modules TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.organization_modules TO vercent_worker;
+
+
+--
+-- Name: TABLE organization_subscriptions; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.organization_subscriptions TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.organization_subscriptions TO vercent_worker;
+
+
+--
+-- Name: TABLE organizations; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT,INSERT,UPDATE ON TABLE public.organizations TO vercent_app;
+GRANT SELECT ON TABLE public.organizations TO vercent_worker;
+
+
+--
+-- Name: TABLE password_history; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.password_history TO vercent_app;
+
+
+--
+-- Name: TABLE password_reset_tokens; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.password_reset_tokens TO vercent_app;
+
+
+--
+-- Name: TABLE permissions; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT ON TABLE public.permissions TO vercent_app;
+GRANT SELECT ON TABLE public.permissions TO vercent_worker;
+
+
+--
+-- Name: TABLE privacy_requests; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.privacy_requests TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.privacy_requests TO vercent_worker;
+
+
+--
+-- Name: TABLE privacy_retention_policies; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.privacy_retention_policies TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.privacy_retention_policies TO vercent_worker;
+
+
+--
+-- Name: TABLE recent_records; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.recent_records TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.recent_records TO vercent_worker;
+
+
+--
+-- Name: TABLE report_definitions; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.report_definitions TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.report_definitions TO vercent_worker;
+
+
+--
+-- Name: TABLE report_deliveries; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.report_deliveries TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.report_deliveries TO vercent_worker;
+
+
+--
+-- Name: TABLE report_runs; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.report_runs TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.report_runs TO vercent_worker;
+
+
+--
+-- Name: TABLE report_schedules; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.report_schedules TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.report_schedules TO vercent_worker;
+
+
+--
+-- Name: TABLE role_permissions; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.role_permissions TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.role_permissions TO vercent_worker;
+
+
+--
+-- Name: TABLE role_version_snapshots; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.role_version_snapshots TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.role_version_snapshots TO vercent_worker;
+
+
+--
+-- Name: TABLE roles; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.roles TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.roles TO vercent_worker;
+
+
+--
+-- Name: TABLE sales_public_quote_tokens; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.sales_public_quote_tokens TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.sales_public_quote_tokens TO vercent_worker;
+
+
+--
+-- Name: TABLE schema_migrations; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT ON TABLE public.schema_migrations TO vercent_app;
+GRANT SELECT ON TABLE public.schema_migrations TO vercent_worker;
+
+
+--
+-- Name: TABLE sessions; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.sessions TO vercent_app;
+
+
+--
+-- Name: TABLE tag_definitions; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.tag_definitions TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.tag_definitions TO vercent_worker;
+
+
+--
+-- Name: TABLE teams; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.teams TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.teams TO vercent_worker;
+
+
+--
+-- Name: TABLE user_preferences; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.user_preferences TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.user_preferences TO vercent_worker;
+
+
+--
+-- Name: TABLE user_role_assignments; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.user_role_assignments TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.user_role_assignments TO vercent_worker;
+
+
+--
+-- Name: TABLE users; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.users TO vercent_app;
+GRANT SELECT ON TABLE public.users TO vercent_worker;
+
+
+--
+-- Name: TABLE workflow_definition_versions; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.workflow_definition_versions TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.workflow_definition_versions TO vercent_worker;
+
+
+--
+-- Name: TABLE workflow_definitions; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.workflow_definitions TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.workflow_definitions TO vercent_worker;
+
+
+--
+-- Name: TABLE workflow_runs; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.workflow_runs TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.workflow_runs TO vercent_worker;
+
+
+--
+-- Name: TABLE accounting_account_mappings; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.accounting_account_mappings TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.accounting_account_mappings TO vercent_worker;
+
+
+--
+-- Name: TABLE accounting_accounts; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.accounting_accounts TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.accounting_accounts TO vercent_worker;
+
+
+--
+-- Name: TABLE accounting_accrual_recognitions; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.accounting_accrual_recognitions TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.accounting_accrual_recognitions TO vercent_worker;
+
+
+--
+-- Name: TABLE accounting_accrual_schedules; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.accounting_accrual_schedules TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.accounting_accrual_schedules TO vercent_worker;
+
+
+--
+-- Name: TABLE accounting_asset_categories; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.accounting_asset_categories TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.accounting_asset_categories TO vercent_worker;
+
+
+--
+-- Name: TABLE accounting_asset_depreciation_schedule; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.accounting_asset_depreciation_schedule TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.accounting_asset_depreciation_schedule TO vercent_worker;
+
+
+--
+-- Name: TABLE accounting_asset_transactions; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.accounting_asset_transactions TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.accounting_asset_transactions TO vercent_worker;
+
+
+--
+-- Name: TABLE accounting_assets; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.accounting_assets TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.accounting_assets TO vercent_worker;
+
+
+--
+-- Name: TABLE accounting_bank_accounts; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.accounting_bank_accounts TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.accounting_bank_accounts TO vercent_worker;
+
+
+--
+-- Name: TABLE accounting_bank_statement_lines; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.accounting_bank_statement_lines TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.accounting_bank_statement_lines TO vercent_worker;
+
+
+--
+-- Name: TABLE accounting_bank_statements; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.accounting_bank_statements TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.accounting_bank_statements TO vercent_worker;
+
+
+--
+-- Name: TABLE accounting_banking_governance_policies; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.accounting_banking_governance_policies TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.accounting_banking_governance_policies TO vercent_worker;
+
+
+--
+-- Name: TABLE accounting_banking_governance_snapshots; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.accounting_banking_governance_snapshots TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.accounting_banking_governance_snapshots TO vercent_worker;
+
+
+--
+-- Name: TABLE accounting_banking_saved_views; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.accounting_banking_saved_views TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.accounting_banking_saved_views TO vercent_worker;
+
+
+--
+-- Name: TABLE accounting_budget_lines; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.accounting_budget_lines TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.accounting_budget_lines TO vercent_worker;
+
+
+--
+-- Name: TABLE accounting_budgets; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.accounting_budgets TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.accounting_budgets TO vercent_worker;
+
+
+--
+-- Name: TABLE accounting_cash_forecast_lines; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.accounting_cash_forecast_lines TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.accounting_cash_forecast_lines TO vercent_worker;
+
+
+--
+-- Name: TABLE accounting_cash_forecast_scenarios; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.accounting_cash_forecast_scenarios TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.accounting_cash_forecast_scenarios TO vercent_worker;
+
+
+--
+-- Name: TABLE accounting_cash_position_snapshots; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.accounting_cash_position_snapshots TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.accounting_cash_position_snapshots TO vercent_worker;
+
+
+--
+-- Name: TABLE accounting_close_readiness_snapshots; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.accounting_close_readiness_snapshots TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.accounting_close_readiness_snapshots TO vercent_worker;
+
+
+--
+-- Name: TABLE accounting_close_runs; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.accounting_close_runs TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.accounting_close_runs TO vercent_worker;
+
+
+--
+-- Name: TABLE accounting_close_tasks; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.accounting_close_tasks TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.accounting_close_tasks TO vercent_worker;
+
+
+--
+-- Name: TABLE accounting_collection_cases; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.accounting_collection_cases TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.accounting_collection_cases TO vercent_worker;
+
+
+--
+-- Name: TABLE accounting_compliance_requests; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.accounting_compliance_requests TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.accounting_compliance_requests TO vercent_worker;
+
+
+--
+-- Name: TABLE accounting_consolidation_adjustments; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.accounting_consolidation_adjustments TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.accounting_consolidation_adjustments TO vercent_worker;
+
+
+--
+-- Name: TABLE accounting_consolidation_balances; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.accounting_consolidation_balances TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.accounting_consolidation_balances TO vercent_worker;
+
+
+--
+-- Name: TABLE accounting_consolidation_groups; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.accounting_consolidation_groups TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.accounting_consolidation_groups TO vercent_worker;
+
+
+--
+-- Name: TABLE accounting_consolidation_members; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.accounting_consolidation_members TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.accounting_consolidation_members TO vercent_worker;
+
+
+--
+-- Name: TABLE accounting_consolidation_runs; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.accounting_consolidation_runs TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.accounting_consolidation_runs TO vercent_worker;
+
+
+--
+-- Name: TABLE accounting_customer_credit_allocations; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.accounting_customer_credit_allocations TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.accounting_customer_credit_allocations TO vercent_worker;
+
+
+--
+-- Name: TABLE accounting_customer_invoice_lines; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.accounting_customer_invoice_lines TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.accounting_customer_invoice_lines TO vercent_worker;
+
+
+--
+-- Name: TABLE accounting_customer_invoice_schedules; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.accounting_customer_invoice_schedules TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.accounting_customer_invoice_schedules TO vercent_worker;
+
+
+--
+-- Name: TABLE accounting_customer_invoices; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.accounting_customer_invoices TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.accounting_customer_invoices TO vercent_worker;
+
+
+--
+-- Name: TABLE accounting_customer_receipt_allocations; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.accounting_customer_receipt_allocations TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.accounting_customer_receipt_allocations TO vercent_worker;
+
+
+--
+-- Name: TABLE accounting_customer_receipts; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.accounting_customer_receipts TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.accounting_customer_receipts TO vercent_worker;
+
+
+--
+-- Name: TABLE accounting_dimension_values; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.accounting_dimension_values TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.accounting_dimension_values TO vercent_worker;
+
+
+--
+-- Name: TABLE accounting_dimensions; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.accounting_dimensions TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.accounting_dimensions TO vercent_worker;
+
+
+--
+-- Name: TABLE accounting_dunning_actions; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.accounting_dunning_actions TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.accounting_dunning_actions TO vercent_worker;
+
+
+--
+-- Name: TABLE accounting_dunning_runs; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.accounting_dunning_runs TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.accounting_dunning_runs TO vercent_worker;
+
+
+--
+-- Name: TABLE accounting_events; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.accounting_events TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.accounting_events TO vercent_worker;
+
+
+--
+-- Name: TABLE accounting_financial_reporting_snapshots; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.accounting_financial_reporting_snapshots TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.accounting_financial_reporting_snapshots TO vercent_worker;
+
+
+--
+-- Name: TABLE accounting_journal_entries; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.accounting_journal_entries TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.accounting_journal_entries TO vercent_worker;
+
+
+--
+-- Name: TABLE accounting_journal_lines; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.accounting_journal_lines TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.accounting_journal_lines TO vercent_worker;
+
+
+--
+-- Name: TABLE accounting_journals; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.accounting_journals TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.accounting_journals TO vercent_worker;
+
+
+--
+-- Name: TABLE accounting_ledgers; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.accounting_ledgers TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.accounting_ledgers TO vercent_worker;
+
+
+--
+-- Name: TABLE accounting_line_dimensions; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.accounting_line_dimensions TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.accounting_line_dimensions TO vercent_worker;
+
+
+--
+-- Name: TABLE accounting_payables_exception_cases; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.accounting_payables_exception_cases TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.accounting_payables_exception_cases TO vercent_worker;
+
+
+--
+-- Name: TABLE accounting_payables_governance_policies; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.accounting_payables_governance_policies TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.accounting_payables_governance_policies TO vercent_worker;
+
+
+--
+-- Name: TABLE accounting_payables_governance_snapshots; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.accounting_payables_governance_snapshots TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.accounting_payables_governance_snapshots TO vercent_worker;
+
+
+--
+-- Name: TABLE accounting_payables_saved_views; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.accounting_payables_saved_views TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.accounting_payables_saved_views TO vercent_worker;
+
+
+--
+-- Name: TABLE accounting_posting_rules; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.accounting_posting_rules TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.accounting_posting_rules TO vercent_worker;
+
+
+--
+-- Name: TABLE accounting_receivables_governance_policies; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.accounting_receivables_governance_policies TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.accounting_receivables_governance_policies TO vercent_worker;
+
+
+--
+-- Name: TABLE accounting_receivables_governance_snapshots; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.accounting_receivables_governance_snapshots TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.accounting_receivables_governance_snapshots TO vercent_worker;
+
+
+--
+-- Name: TABLE accounting_receivables_saved_views; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.accounting_receivables_saved_views TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.accounting_receivables_saved_views TO vercent_worker;
+
+
+--
+-- Name: TABLE accounting_reconciliation_exception_cases; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.accounting_reconciliation_exception_cases TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.accounting_reconciliation_exception_cases TO vercent_worker;
+
+
+--
+-- Name: TABLE accounting_reconciliation_matches; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.accounting_reconciliation_matches TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.accounting_reconciliation_matches TO vercent_worker;
+
+
+--
+-- Name: TABLE accounting_reconciliations; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.accounting_reconciliations TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.accounting_reconciliations TO vercent_worker;
+
+
+--
+-- Name: TABLE accounting_recurring_executions; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.accounting_recurring_executions TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.accounting_recurring_executions TO vercent_worker;
+
+
+--
+-- Name: TABLE accounting_recurring_template_lines; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.accounting_recurring_template_lines TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.accounting_recurring_template_lines TO vercent_worker;
+
+
+--
+-- Name: TABLE accounting_recurring_templates; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.accounting_recurring_templates TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.accounting_recurring_templates TO vercent_worker;
+
+
+--
+-- Name: TABLE accounting_revaluation_lines; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.accounting_revaluation_lines TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.accounting_revaluation_lines TO vercent_worker;
+
+
+--
+-- Name: TABLE accounting_revaluation_runs; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.accounting_revaluation_runs TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.accounting_revaluation_runs TO vercent_worker;
+
+
+--
+-- Name: TABLE accounting_settings; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.accounting_settings TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.accounting_settings TO vercent_worker;
+
+
+--
+-- Name: TABLE accounting_subledger_events; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.accounting_subledger_events TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.accounting_subledger_events TO vercent_worker;
+
+
+--
+-- Name: TABLE accounting_tax_exception_cases; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.accounting_tax_exception_cases TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.accounting_tax_exception_cases TO vercent_worker;
+
+
+--
+-- Name: TABLE accounting_tax_governance_snapshots; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.accounting_tax_governance_snapshots TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.accounting_tax_governance_snapshots TO vercent_worker;
+
+
+--
+-- Name: TABLE accounting_tax_ledger; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.accounting_tax_ledger TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.accounting_tax_ledger TO vercent_worker;
+
+
+--
+-- Name: TABLE accounting_tax_reporting_policies; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.accounting_tax_reporting_policies TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.accounting_tax_reporting_policies TO vercent_worker;
+
+
+--
+-- Name: TABLE accounting_tax_return_lines; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.accounting_tax_return_lines TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.accounting_tax_return_lines TO vercent_worker;
+
+
+--
+-- Name: TABLE accounting_tax_returns; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.accounting_tax_returns TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.accounting_tax_returns TO vercent_worker;
+
+
+--
+-- Name: TABLE accounting_tax_saved_views; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.accounting_tax_saved_views TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.accounting_tax_saved_views TO vercent_worker;
+
+
+--
+-- Name: TABLE accounting_vendor_bill_lines; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.accounting_vendor_bill_lines TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.accounting_vendor_bill_lines TO vercent_worker;
+
+
+--
+-- Name: TABLE accounting_vendor_bill_matches; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.accounting_vendor_bill_matches TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.accounting_vendor_bill_matches TO vercent_worker;
+
+
+--
+-- Name: TABLE accounting_vendor_bill_schedules; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.accounting_vendor_bill_schedules TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.accounting_vendor_bill_schedules TO vercent_worker;
+
+
+--
+-- Name: TABLE accounting_vendor_bills; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.accounting_vendor_bills TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.accounting_vendor_bills TO vercent_worker;
+
+
+--
+-- Name: TABLE accounting_vendor_credit_allocations; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.accounting_vendor_credit_allocations TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.accounting_vendor_credit_allocations TO vercent_worker;
+
+
+--
+-- Name: TABLE accounting_vendor_payment_allocations; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.accounting_vendor_payment_allocations TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.accounting_vendor_payment_allocations TO vercent_worker;
+
+
+--
+-- Name: TABLE accounting_vendor_payment_proposal_items; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.accounting_vendor_payment_proposal_items TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.accounting_vendor_payment_proposal_items TO vercent_worker;
+
+
+--
+-- Name: TABLE accounting_vendor_payment_proposals; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.accounting_vendor_payment_proposals TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.accounting_vendor_payment_proposals TO vercent_worker;
+
+
+--
+-- Name: TABLE accounting_vendor_payments; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.accounting_vendor_payments TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.accounting_vendor_payments TO vercent_worker;
+
+
+--
+-- Name: TABLE addresses; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.addresses TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.addresses TO vercent_worker;
+
+
+--
+-- Name: TABLE asset_assignments; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.asset_assignments TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.asset_assignments TO vercent_worker;
+
+
+--
+-- Name: TABLE asset_calibrations; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.asset_calibrations TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.asset_calibrations TO vercent_worker;
+
+
+--
+-- Name: TABLE asset_categories; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.asset_categories TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.asset_categories TO vercent_worker;
+
+
+--
+-- Name: TABLE asset_depreciation_runs; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.asset_depreciation_runs TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.asset_depreciation_runs TO vercent_worker;
+
+
+--
+-- Name: TABLE asset_depreciation_schedules; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.asset_depreciation_schedules TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.asset_depreciation_schedules TO vercent_worker;
+
+
+--
+-- Name: TABLE asset_disposals; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.asset_disposals TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.asset_disposals TO vercent_worker;
+
+
+--
+-- Name: TABLE asset_documents; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.asset_documents TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.asset_documents TO vercent_worker;
+
+
+--
+-- Name: TABLE asset_downtime; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.asset_downtime TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.asset_downtime TO vercent_worker;
+
+
+--
+-- Name: TABLE asset_events; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.asset_events TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.asset_events TO vercent_worker;
+
+
+--
+-- Name: TABLE asset_inspections; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.asset_inspections TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.asset_inspections TO vercent_worker;
+
+
+--
+-- Name: TABLE asset_locations; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.asset_locations TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.asset_locations TO vercent_worker;
+
+
+--
+-- Name: TABLE asset_maintenance_orders; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.asset_maintenance_orders TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.asset_maintenance_orders TO vercent_worker;
+
+
+--
+-- Name: TABLE asset_maintenance_parts; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.asset_maintenance_parts TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.asset_maintenance_parts TO vercent_worker;
+
+
+--
+-- Name: TABLE asset_maintenance_plans; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.asset_maintenance_plans TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.asset_maintenance_plans TO vercent_worker;
+
+
+--
+-- Name: TABLE asset_movements; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.asset_movements TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.asset_movements TO vercent_worker;
+
+
+--
+-- Name: TABLE asset_settings; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.asset_settings TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.asset_settings TO vercent_worker;
+
+
+--
+-- Name: TABLE asset_transfers; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.asset_transfers TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.asset_transfers TO vercent_worker;
+
+
+--
+-- Name: TABLE asset_usage_readings; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.asset_usage_readings TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.asset_usage_readings TO vercent_worker;
+
+
+--
+-- Name: TABLE asset_value_adjustments; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.asset_value_adjustments TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.asset_value_adjustments TO vercent_worker;
+
+
+--
+-- Name: TABLE asset_verification_campaigns; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.asset_verification_campaigns TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.asset_verification_campaigns TO vercent_worker;
+
+
+--
+-- Name: TABLE asset_verification_lines; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.asset_verification_lines TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.asset_verification_lines TO vercent_worker;
+
+
+--
+-- Name: TABLE asset_warranties; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.asset_warranties TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.asset_warranties TO vercent_worker;
+
+
+--
+-- Name: TABLE asset_warranty_claims; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.asset_warranty_claims TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.asset_warranty_claims TO vercent_worker;
+
+
+--
+-- Name: TABLE assets; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.assets TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.assets TO vercent_worker;
+
+
+--
+-- Name: TABLE background_jobs; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.background_jobs TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.background_jobs TO vercent_worker;
+
+
+--
+-- Name: TABLE business_parties; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.business_parties TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.business_parties TO vercent_worker;
+
+
+--
+-- Name: TABLE contacts; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.contacts TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.contacts TO vercent_worker;
+
+
+--
+-- Name: TABLE crm_account_duplicate_overrides; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_account_duplicate_overrides TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_account_duplicate_overrides TO vercent_worker;
+
+
+--
+-- Name: TABLE crm_account_hierarchy_events; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_account_hierarchy_events TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_account_hierarchy_events TO vercent_worker;
+
+
+--
+-- Name: TABLE crm_account_intelligence_acceptance_runs; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_account_intelligence_acceptance_runs TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_account_intelligence_acceptance_runs TO vercent_worker;
+
+
+--
+-- Name: TABLE crm_account_merge_history; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_account_merge_history TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_account_merge_history TO vercent_worker;
+
+
+--
+-- Name: TABLE crm_account_plans; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_account_plans TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_account_plans TO vercent_worker;
+
+
+--
+-- Name: TABLE crm_account_signals; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_account_signals TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_account_signals TO vercent_worker;
+
+
+--
+-- Name: TABLE crm_account_stakeholders; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_account_stakeholders TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_account_stakeholders TO vercent_worker;
+
+
+--
+-- Name: TABLE crm_activities; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_activities TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_activities TO vercent_worker;
+
+
+--
+-- Name: TABLE crm_activity_attendees; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_activity_attendees TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_activity_attendees TO vercent_worker;
+
+
+--
+-- Name: TABLE crm_activity_reminders; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_activity_reminders TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_activity_reminders TO vercent_worker;
+
+
+--
+-- Name: TABLE crm_ai_acceptance_evidence; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_ai_acceptance_evidence TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_ai_acceptance_evidence TO vercent_worker;
+
+
+--
+-- Name: TABLE crm_ai_assistant_drafts; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_ai_assistant_drafts TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_ai_assistant_drafts TO vercent_worker;
+
+
+--
+-- Name: TABLE crm_ai_deal_risk_snapshots; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_ai_deal_risk_snapshots TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_ai_deal_risk_snapshots TO vercent_worker;
+
+
+--
+-- Name: TABLE crm_ai_feedback; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_ai_feedback TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_ai_feedback TO vercent_worker;
+
+
+--
+-- Name: TABLE crm_ai_model_registry; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_ai_model_registry TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_ai_model_registry TO vercent_worker;
+
+
+--
+-- Name: TABLE crm_ai_predictions; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_ai_predictions TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_ai_predictions TO vercent_worker;
+
+
+--
+-- Name: TABLE crm_ai_recommendations; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_ai_recommendations TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_ai_recommendations TO vercent_worker;
+
+
+--
+-- Name: TABLE crm_assignment_rules; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_assignment_rules TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_assignment_rules TO vercent_worker;
+
+
+--
+-- Name: TABLE crm_automation_rules; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_automation_rules TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_automation_rules TO vercent_worker;
+
+
+--
+-- Name: TABLE crm_automation_runs; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_automation_runs TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_automation_runs TO vercent_worker;
+
+
+--
+-- Name: TABLE crm_buying_committee_members; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_buying_committee_members TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_buying_committee_members TO vercent_worker;
+
+
+--
+-- Name: TABLE crm_buying_committees; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_buying_committees TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_buying_committees TO vercent_worker;
+
+
+--
+-- Name: TABLE crm_calendar_attendees; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_calendar_attendees TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_calendar_attendees TO vercent_worker;
+
+
+--
+-- Name: TABLE crm_calendar_events; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_calendar_events TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_calendar_events TO vercent_worker;
+
+
+--
+-- Name: TABLE crm_call_events; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_call_events TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_call_events TO vercent_worker;
+
+
+--
+-- Name: TABLE crm_campaign_members; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_campaign_members TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_campaign_members TO vercent_worker;
+
+
+--
+-- Name: TABLE crm_campaigns; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_campaigns TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_campaigns TO vercent_worker;
+
+
+--
+-- Name: TABLE crm_capture_forms; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_capture_forms TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_capture_forms TO vercent_worker;
+
+
+--
+-- Name: TABLE crm_capture_rate_limits; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_capture_rate_limits TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_capture_rate_limits TO vercent_worker;
+
+
+--
+-- Name: TABLE crm_chat_messages; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_chat_messages TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_chat_messages TO vercent_worker;
+
+
+--
+-- Name: TABLE crm_chat_sessions; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_chat_sessions TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_chat_sessions TO vercent_worker;
+
+
+--
+-- Name: TABLE crm_churn_interventions; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_churn_interventions TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_churn_interventions TO vercent_worker;
+
+
+--
+-- Name: TABLE crm_coaching_scorecards; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_coaching_scorecards TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_coaching_scorecards TO vercent_worker;
+
+
+--
+-- Name: TABLE crm_communication_acceptance_runs; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_communication_acceptance_runs TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_communication_acceptance_runs TO vercent_worker;
+
+
+--
+-- Name: TABLE crm_communication_participants; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_communication_participants TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_communication_participants TO vercent_worker;
+
+
+--
+-- Name: TABLE crm_communications; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_communications TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_communications TO vercent_worker;
+
+
+--
+-- Name: TABLE crm_competitors; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_competitors TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_competitors TO vercent_worker;
+
+
+--
+-- Name: TABLE crm_consent_events; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_consent_events TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_consent_events TO vercent_worker;
+
+
+--
+-- Name: TABLE crm_contact_account_relationships; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_contact_account_relationships TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_contact_account_relationships TO vercent_worker;
+
+
+--
+-- Name: TABLE crm_contact_duplicate_overrides; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_contact_duplicate_overrides TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_contact_duplicate_overrides TO vercent_worker;
+
+
+--
+-- Name: TABLE crm_contact_merge_history; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_contact_merge_history TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_contact_merge_history TO vercent_worker;
+
+
+--
+-- Name: TABLE crm_conversation_insights; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_conversation_insights TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_conversation_insights TO vercent_worker;
+
+
+--
+-- Name: TABLE crm_conversations; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_conversations TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_conversations TO vercent_worker;
+
+
+--
+-- Name: TABLE crm_conversion_records; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_conversion_records TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_conversion_records TO vercent_worker;
+
+
+--
+-- Name: TABLE crm_core_acceptance_runs; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_core_acceptance_runs TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_core_acceptance_runs TO vercent_worker;
+
+
+--
+-- Name: TABLE crm_core_acceptance_snapshots; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_core_acceptance_snapshots TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_core_acceptance_snapshots TO vercent_worker;
+
+
+--
+-- Name: TABLE crm_custom_field_definitions; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_custom_field_definitions TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_custom_field_definitions TO vercent_worker;
+
+
+--
+-- Name: TABLE crm_custom_object_definitions; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_custom_object_definitions TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_custom_object_definitions TO vercent_worker;
+
+
+--
+-- Name: TABLE crm_custom_records; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_custom_records TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_custom_records TO vercent_worker;
+
+
+--
+-- Name: TABLE crm_customer_feedback_responses; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_customer_feedback_responses TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_customer_feedback_responses TO vercent_worker;
+
+
+--
+-- Name: TABLE crm_customer_health_snapshots; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_customer_health_snapshots TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_customer_health_snapshots TO vercent_worker;
+
+
+--
+-- Name: TABLE crm_customer_service_events; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_customer_service_events TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_customer_service_events TO vercent_worker;
+
+
+--
+-- Name: TABLE crm_customer_success_acceptance_runs; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_customer_success_acceptance_runs TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_customer_success_acceptance_runs TO vercent_worker;
+
+
+--
+-- Name: TABLE crm_customer_success_milestones; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_customer_success_milestones TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_customer_success_milestones TO vercent_worker;
+
+
+--
+-- Name: TABLE crm_customer_success_plans; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_customer_success_plans TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_customer_success_plans TO vercent_worker;
+
+
+--
+-- Name: TABLE crm_dashboard_widgets; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_dashboard_widgets TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_dashboard_widgets TO vercent_worker;
+
+
+--
+-- Name: TABLE crm_dashboards; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_dashboards TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_dashboards TO vercent_worker;
+
+
+--
+-- Name: TABLE crm_data_quality_scores; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_data_quality_scores TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_data_quality_scores TO vercent_worker;
+
+
+--
+-- Name: TABLE crm_deal_risks; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_deal_risks TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_deal_risks TO vercent_worker;
+
+
+--
+-- Name: TABLE crm_duplicate_rules; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_duplicate_rules TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_duplicate_rules TO vercent_worker;
+
+
+--
+-- Name: TABLE crm_duplicate_scan_matches; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_duplicate_scan_matches TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_duplicate_scan_matches TO vercent_worker;
+
+
+--
+-- Name: TABLE crm_email_events; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_email_events TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_email_events TO vercent_worker;
+
+
+--
+-- Name: TABLE crm_email_messages; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_email_messages TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_email_messages TO vercent_worker;
+
+
+--
+-- Name: TABLE crm_email_signatures; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_email_signatures TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_email_signatures TO vercent_worker;
+
+
+--
+-- Name: TABLE crm_email_suppressions; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_email_suppressions TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_email_suppressions TO vercent_worker;
+
+
+--
+-- Name: TABLE crm_email_threads; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_email_threads TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_email_threads TO vercent_worker;
+
+
+--
+-- Name: TABLE crm_engagement_templates; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_engagement_templates TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_engagement_templates TO vercent_worker;
+
+
+--
+-- Name: TABLE crm_enrichment_jobs; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_enrichment_jobs TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_enrichment_jobs TO vercent_worker;
+
+
+--
+-- Name: TABLE crm_enrichment_reviews; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_enrichment_reviews TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_enrichment_reviews TO vercent_worker;
+
+
+--
+-- Name: TABLE crm_entity_merge_aliases; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_entity_merge_aliases TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_entity_merge_aliases TO vercent_worker;
+
+
+--
+-- Name: TABLE crm_field_sales_visits; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_field_sales_visits TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_field_sales_visits TO vercent_worker;
+
+
+--
+-- Name: TABLE crm_field_visits; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_field_visits TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_field_visits TO vercent_worker;
+
+
+--
+-- Name: TABLE crm_final_acceptance_runs; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_final_acceptance_runs TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_final_acceptance_runs TO vercent_worker;
+
+
+--
+-- Name: TABLE crm_follow_up_events; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_follow_up_events TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_follow_up_events TO vercent_worker;
+
+
+--
+-- Name: TABLE crm_forecast_periods; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_forecast_periods TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_forecast_periods TO vercent_worker;
+
+
+--
+-- Name: TABLE crm_forecast_snapshot_captures; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_forecast_snapshot_captures TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_forecast_snapshot_captures TO vercent_worker;
+
+
+--
+-- Name: TABLE crm_forecast_snapshots; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_forecast_snapshots TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_forecast_snapshots TO vercent_worker;
+
+
+--
+-- Name: TABLE crm_forecast_submission_events; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_forecast_submission_events TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_forecast_submission_events TO vercent_worker;
+
+
+--
+-- Name: TABLE crm_forecast_submissions; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_forecast_submissions TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_forecast_submissions TO vercent_worker;
+
+
+--
+-- Name: TABLE crm_forecast_targets; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_forecast_targets TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_forecast_targets TO vercent_worker;
+
+
+--
+-- Name: TABLE crm_gamification_events; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_gamification_events TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_gamification_events TO vercent_worker;
+
+
+--
+-- Name: TABLE crm_gamification_programs; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_gamification_programs TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_gamification_programs TO vercent_worker;
+
+
+--
+-- Name: TABLE crm_import_receipts; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_import_receipts TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_import_receipts TO vercent_worker;
+
+
+--
+-- Name: TABLE crm_inbound_email_conversions; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_inbound_email_conversions TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_inbound_email_conversions TO vercent_worker;
+
+
+--
+-- Name: TABLE crm_inbound_email_routes; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_inbound_email_routes TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_inbound_email_routes TO vercent_worker;
+
+
+--
+-- Name: TABLE crm_integrations; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_integrations TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_integrations TO vercent_worker;
+
+
+--
+-- Name: TABLE crm_lead_acquisition_acceptance_runs; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_lead_acquisition_acceptance_runs TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_lead_acquisition_acceptance_runs TO vercent_worker;
+
+
+--
+-- Name: TABLE crm_lead_acquisition_connections; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_lead_acquisition_connections TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_lead_acquisition_connections TO vercent_worker;
+
+
+--
+-- Name: TABLE crm_lead_acquisition_events; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_lead_acquisition_events TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_lead_acquisition_events TO vercent_worker;
+
+
+--
+-- Name: TABLE crm_lead_assignee_availability; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_lead_assignee_availability TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_lead_assignee_availability TO vercent_worker;
+
+
+--
+-- Name: TABLE crm_lead_assignment_events; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_lead_assignment_events TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_lead_assignment_events TO vercent_worker;
+
+
+--
+-- Name: TABLE crm_lead_assignment_fallback; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_lead_assignment_fallback TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_lead_assignment_fallback TO vercent_worker;
+
+
+--
+-- Name: TABLE crm_lead_assignment_policies; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_lead_assignment_policies TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_lead_assignment_policies TO vercent_worker;
+
+
+--
+-- Name: TABLE crm_lead_assignment_state; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_lead_assignment_state TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_lead_assignment_state TO vercent_worker;
+
+
+--
+-- Name: TABLE crm_lead_behavior_events; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_lead_behavior_events TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_lead_behavior_events TO vercent_worker;
+
+
+--
+-- Name: TABLE crm_lead_bulk_job_items; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_lead_bulk_job_items TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_lead_bulk_job_items TO vercent_worker;
+
+
+--
+-- Name: TABLE crm_lead_duplicate_overrides; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_lead_duplicate_overrides TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_lead_duplicate_overrides TO vercent_worker;
+
+
+--
+-- Name: TABLE crm_lead_field_definitions; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_lead_field_definitions TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_lead_field_definitions TO vercent_worker;
+
+
+--
+-- Name: TABLE crm_lead_import_batches; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_lead_import_batches TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_lead_import_batches TO vercent_worker;
+
+
+--
+-- Name: TABLE crm_lead_import_rows; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_lead_import_rows TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_lead_import_rows TO vercent_worker;
+
+
+--
+-- Name: TABLE crm_lead_intelligence_acceptance_runs; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_lead_intelligence_acceptance_runs TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_lead_intelligence_acceptance_runs TO vercent_worker;
+
+
+--
+-- Name: TABLE crm_lead_layouts; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_lead_layouts TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_lead_layouts TO vercent_worker;
+
+
+--
+-- Name: TABLE crm_lead_nurture_policies; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_lead_nurture_policies TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_lead_nurture_policies TO vercent_worker;
+
+
+--
+-- Name: TABLE crm_lead_nurture_queue; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_lead_nurture_queue TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_lead_nurture_queue TO vercent_worker;
+
+
+--
+-- Name: TABLE crm_lead_provenance; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_lead_provenance TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_lead_provenance TO vercent_worker;
+
+
+--
+-- Name: TABLE crm_lead_qualification_criteria; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_lead_qualification_criteria TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_lead_qualification_criteria TO vercent_worker;
+
+
+--
+-- Name: TABLE crm_lead_qualification_events; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_lead_qualification_events TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_lead_qualification_events TO vercent_worker;
+
+
+--
+-- Name: TABLE crm_lead_record_types; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_lead_record_types TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_lead_record_types TO vercent_worker;
+
+
+--
+-- Name: TABLE crm_lead_score_history; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_lead_score_history TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_lead_score_history TO vercent_worker;
+
+
+--
+-- Name: TABLE crm_lead_score_recalc_items; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_lead_score_recalc_items TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_lead_score_recalc_items TO vercent_worker;
+
+
+--
+-- Name: TABLE crm_lead_score_snapshots; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_lead_score_snapshots TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_lead_score_snapshots TO vercent_worker;
+
+
+--
+-- Name: TABLE crm_lead_scoring_model_priors; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_lead_scoring_model_priors TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_lead_scoring_model_priors TO vercent_worker;
+
+
+--
+-- Name: TABLE crm_lead_scoring_model_rules; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_lead_scoring_model_rules TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_lead_scoring_model_rules TO vercent_worker;
+
+
+--
+-- Name: TABLE crm_lead_scoring_models; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_lead_scoring_models TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_lead_scoring_models TO vercent_worker;
+
+
+--
+-- Name: TABLE crm_lead_sla_cases; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_lead_sla_cases TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_lead_sla_cases TO vercent_worker;
+
+
+--
+-- Name: TABLE crm_lead_sla_events; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_lead_sla_events TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_lead_sla_events TO vercent_worker;
+
+
+--
+-- Name: TABLE crm_lead_sla_policies; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_lead_sla_policies TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_lead_sla_policies TO vercent_worker;
+
+
+--
+-- Name: TABLE crm_lead_sources; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_lead_sources TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_lead_sources TO vercent_worker;
+
+
+--
+-- Name: TABLE crm_lead_stage_events; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_lead_stage_events TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_lead_stage_events TO vercent_worker;
+
+
+--
+-- Name: TABLE crm_lead_stage_migration_items; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_lead_stage_migration_items TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_lead_stage_migration_items TO vercent_worker;
+
+
+--
+-- Name: TABLE crm_lead_stage_transition_reasons; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_lead_stage_transition_reasons TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_lead_stage_transition_reasons TO vercent_worker;
+
+
+--
+-- Name: TABLE crm_lead_stage_transitions; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_lead_stage_transitions TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_lead_stage_transitions TO vercent_worker;
+
+
+--
+-- Name: TABLE crm_lead_stages; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_lead_stages TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_lead_stages TO vercent_worker;
+
+
+--
+-- Name: TABLE crm_lead_tags; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_lead_tags TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_lead_tags TO vercent_worker;
+
+
+--
+-- Name: TABLE crm_leads; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_leads TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_leads TO vercent_worker;
+
+
+--
+-- Name: TABLE crm_lost_reasons; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_lost_reasons TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_lost_reasons TO vercent_worker;
+
+
+--
+-- Name: TABLE crm_marketing_acceptance_runs; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_marketing_acceptance_runs TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_marketing_acceptance_runs TO vercent_worker;
+
+
+--
+-- Name: TABLE crm_marketing_campaign_runs; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_marketing_campaign_runs TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_marketing_campaign_runs TO vercent_worker;
+
+
+--
+-- Name: TABLE crm_marketing_deliveries; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_marketing_deliveries TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_marketing_deliveries TO vercent_worker;
+
+
+--
+-- Name: TABLE crm_marketing_event_registrations; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_marketing_event_registrations TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_marketing_event_registrations TO vercent_worker;
+
+
+--
+-- Name: TABLE crm_marketing_events; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_marketing_events TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_marketing_events TO vercent_worker;
+
+
+--
+-- Name: TABLE crm_marketing_experiment_variants; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_marketing_experiment_variants TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_marketing_experiment_variants TO vercent_worker;
+
+
+--
+-- Name: TABLE crm_marketing_experiments; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_marketing_experiments TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_marketing_experiments TO vercent_worker;
+
+
+--
+-- Name: TABLE crm_marketing_frequency_policies; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_marketing_frequency_policies TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_marketing_frequency_policies TO vercent_worker;
+
+
+--
+-- Name: TABLE crm_marketing_journey_enrollments; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_marketing_journey_enrollments TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_marketing_journey_enrollments TO vercent_worker;
+
+
+--
+-- Name: TABLE crm_marketing_journey_steps; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_marketing_journey_steps TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_marketing_journey_steps TO vercent_worker;
+
+
+--
+-- Name: TABLE crm_marketing_journeys; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_marketing_journeys TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_marketing_journeys TO vercent_worker;
+
+
+--
+-- Name: TABLE crm_marketing_segment_members; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_marketing_segment_members TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_marketing_segment_members TO vercent_worker;
+
+
+--
+-- Name: TABLE crm_marketing_segments; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_marketing_segments TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_marketing_segments TO vercent_worker;
+
+
+--
+-- Name: TABLE crm_marketing_survey_responses; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_marketing_survey_responses TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_marketing_survey_responses TO vercent_worker;
+
+
+--
+-- Name: TABLE crm_marketing_surveys; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_marketing_surveys TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_marketing_surveys TO vercent_worker;
+
+
+--
+-- Name: TABLE crm_marketing_touchpoints; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_marketing_touchpoints TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_marketing_touchpoints TO vercent_worker;
+
+
+--
+-- Name: TABLE crm_meeting_bookings; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_meeting_bookings TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_meeting_bookings TO vercent_worker;
+
+
+--
+-- Name: TABLE crm_meeting_events; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_meeting_events TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_meeting_events TO vercent_worker;
+
+
+--
+-- Name: TABLE crm_meeting_links; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_meeting_links TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_meeting_links TO vercent_worker;
+
+
+--
+-- Name: TABLE crm_merge_records; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_merge_records TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_merge_records TO vercent_worker;
+
+
+--
+-- Name: TABLE crm_mobile_acceptance_evidence; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_mobile_acceptance_evidence TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_mobile_acceptance_evidence TO vercent_worker;
+
+
+--
+-- Name: TABLE crm_mobile_change_log; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_mobile_change_log TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_mobile_change_log TO vercent_worker;
+
+
+--
+-- Name: SEQUENCE crm_mobile_change_log_sequence_seq; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT ALL ON SEQUENCE tenant.crm_mobile_change_log_sequence_seq TO vercent_app;
+GRANT ALL ON SEQUENCE tenant.crm_mobile_change_log_sequence_seq TO vercent_worker;
+
+
+--
+-- Name: TABLE crm_mobile_conflicts; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_mobile_conflicts TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_mobile_conflicts TO vercent_worker;
+
+
+--
+-- Name: TABLE crm_mobile_devices; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_mobile_devices TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_mobile_devices TO vercent_worker;
+
+
+--
+-- Name: TABLE crm_mobile_mutations; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_mobile_mutations TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_mobile_mutations TO vercent_worker;
+
+
+--
+-- Name: TABLE crm_mutual_action_plan_milestones; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_mutual_action_plan_milestones TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_mutual_action_plan_milestones TO vercent_worker;
+
+
+--
+-- Name: TABLE crm_mutual_action_plans; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_mutual_action_plans TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_mutual_action_plans TO vercent_worker;
+
+
+--
+-- Name: TABLE crm_note_versions; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_note_versions TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_note_versions TO vercent_worker;
+
+
+--
+-- Name: TABLE crm_notes; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_notes TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_notes TO vercent_worker;
+
+
+--
+-- Name: TABLE crm_opportunities; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_opportunities TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_opportunities TO vercent_worker;
+
+
+--
+-- Name: TABLE crm_opportunity_bulk_job_items; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_opportunity_bulk_job_items TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_opportunity_bulk_job_items TO vercent_worker;
+
+
+--
+-- Name: TABLE crm_opportunity_clone_events; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_opportunity_clone_events TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_opportunity_clone_events TO vercent_worker;
+
+
+--
+-- Name: TABLE crm_opportunity_competitors; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_opportunity_competitors TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_opportunity_competitors TO vercent_worker;
+
+
+--
+-- Name: TABLE crm_opportunity_contact_roles; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_opportunity_contact_roles TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_opportunity_contact_roles TO vercent_worker;
+
+
+--
+-- Name: TABLE crm_opportunity_forecast_snapshots; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_opportunity_forecast_snapshots TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_opportunity_forecast_snapshots TO vercent_worker;
+
+
+--
+-- Name: TABLE crm_opportunity_items; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_opportunity_items TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_opportunity_items TO vercent_worker;
+
+
+--
+-- Name: TABLE crm_opportunity_probability_history; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_opportunity_probability_history TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_opportunity_probability_history TO vercent_worker;
+
+
+--
+-- Name: TABLE crm_opportunity_revenue_acceptance_evidence; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_opportunity_revenue_acceptance_evidence TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_opportunity_revenue_acceptance_evidence TO vercent_worker;
+
+
+--
+-- Name: TABLE crm_opportunity_revenue_schedules; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_opportunity_revenue_schedules TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_opportunity_revenue_schedules TO vercent_worker;
+
+
+--
+-- Name: TABLE crm_opportunity_revenue_splits; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_opportunity_revenue_splits TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_opportunity_revenue_splits TO vercent_worker;
+
+
+--
+-- Name: TABLE crm_opportunity_saved_views; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_opportunity_saved_views TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_opportunity_saved_views TO vercent_worker;
+
+
+--
+-- Name: TABLE crm_opportunity_stage_history; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_opportunity_stage_history TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_opportunity_stage_history TO vercent_worker;
+
+
+--
+-- Name: TABLE crm_opportunity_stage_migration_items; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_opportunity_stage_migration_items TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_opportunity_stage_migration_items TO vercent_worker;
+
+
+--
+-- Name: TABLE crm_opportunity_stage_sla_policies; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_opportunity_stage_sla_policies TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_opportunity_stage_sla_policies TO vercent_worker;
+
+
+--
+-- Name: TABLE crm_opportunity_team_members; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_opportunity_team_members TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_opportunity_team_members TO vercent_worker;
+
+
+--
+-- Name: TABLE crm_opportunity_templates; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_opportunity_templates TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_opportunity_templates TO vercent_worker;
+
+
+--
+-- Name: TABLE crm_outbox_events; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_outbox_events TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_outbox_events TO vercent_worker;
+
+
+--
+-- Name: TABLE crm_partner_accounts; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_partner_accounts TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_partner_accounts TO vercent_worker;
+
+
+--
+-- Name: TABLE crm_partner_deal_registrations; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_partner_deal_registrations TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_partner_deal_registrations TO vercent_worker;
+
+
+--
+-- Name: TABLE crm_partner_deals; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_partner_deals TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_partner_deals TO vercent_worker;
+
+
+--
+-- Name: TABLE crm_partner_engagement_acceptance_evidence; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_partner_engagement_acceptance_evidence TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_partner_engagement_acceptance_evidence TO vercent_worker;
+
+
+--
+-- Name: TABLE crm_partner_incentive_events; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_partner_incentive_events TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_partner_incentive_events TO vercent_worker;
+
+
+--
+-- Name: TABLE crm_partner_mdf_programs; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_partner_mdf_programs TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_partner_mdf_programs TO vercent_worker;
+
+
+--
+-- Name: TABLE crm_partner_mdf_requests; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_partner_mdf_requests TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_partner_mdf_requests TO vercent_worker;
+
+
+--
+-- Name: TABLE crm_partner_portal_profiles; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_partner_portal_profiles TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_partner_portal_profiles TO vercent_worker;
+
+
+--
+-- Name: TABLE crm_pipeline_inspections; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_pipeline_inspections TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_pipeline_inspections TO vercent_worker;
+
+
+--
+-- Name: TABLE crm_pipeline_stage_snapshots; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_pipeline_stage_snapshots TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_pipeline_stage_snapshots TO vercent_worker;
+
+
+--
+-- Name: TABLE crm_pipeline_stages; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_pipeline_stages TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_pipeline_stages TO vercent_worker;
+
+
+--
+-- Name: TABLE crm_pipelines; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_pipelines TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_pipelines TO vercent_worker;
+
+
+--
+-- Name: TABLE crm_playbook_questions; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_playbook_questions TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_playbook_questions TO vercent_worker;
+
+
+--
+-- Name: TABLE crm_playbook_responses; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_playbook_responses TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_playbook_responses TO vercent_worker;
+
+
+--
+-- Name: TABLE crm_playbooks; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_playbooks TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_playbooks TO vercent_worker;
+
+
+--
+-- Name: TABLE crm_predictive_forecast_snapshots; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_predictive_forecast_snapshots TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_predictive_forecast_snapshots TO vercent_worker;
+
+
+--
+-- Name: TABLE crm_privacy_execution_runs; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_privacy_execution_runs TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_privacy_execution_runs TO vercent_worker;
+
+
+--
+-- Name: TABLE crm_privacy_requests; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_privacy_requests TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_privacy_requests TO vercent_worker;
+
+
+--
+-- Name: TABLE crm_privacy_retention_policies; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_privacy_retention_policies TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_privacy_retention_policies TO vercent_worker;
+
+
+--
+-- Name: TABLE crm_product_acceptance_runs; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_product_acceptance_runs TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_product_acceptance_runs TO vercent_worker;
+
+
+--
+-- Name: TABLE crm_product_usage_events; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_product_usage_events TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_product_usage_events TO vercent_worker;
+
+
+--
+-- Name: TABLE crm_provider_execution_receipts; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_provider_execution_receipts TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_provider_execution_receipts TO vercent_worker;
+
+
+--
+-- Name: TABLE crm_provider_oauth_states; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_provider_oauth_states TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_provider_oauth_states TO vercent_worker;
+
+
+--
+-- Name: TABLE crm_provider_sync_jobs; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_provider_sync_jobs TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_provider_sync_jobs TO vercent_worker;
+
+
+--
+-- Name: TABLE crm_quota_plans; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_quota_plans TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_quota_plans TO vercent_worker;
+
+
+--
+-- Name: TABLE crm_quota_seasonality_allocations; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_quota_seasonality_allocations TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_quota_seasonality_allocations TO vercent_worker;
+
+
+--
+-- Name: TABLE crm_recommendations; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_recommendations TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_recommendations TO vercent_worker;
+
+
+--
+-- Name: TABLE crm_relationship_edges; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_relationship_edges TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_relationship_edges TO vercent_worker;
+
+
+--
+-- Name: TABLE crm_relationship_intelligence_snapshots; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_relationship_intelligence_snapshots TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_relationship_intelligence_snapshots TO vercent_worker;
+
+
+--
+-- Name: TABLE crm_renewal_cases; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_renewal_cases TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_renewal_cases TO vercent_worker;
+
+
+--
+-- Name: TABLE crm_report_definitions; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_report_definitions TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_report_definitions TO vercent_worker;
+
+
+--
+-- Name: TABLE crm_round_robin_state; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_round_robin_state TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_round_robin_state TO vercent_worker;
+
+
+--
+-- Name: TABLE crm_sales_stage_configuration_history; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_sales_stage_configuration_history TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_sales_stage_configuration_history TO vercent_worker;
+
+
+--
+-- Name: TABLE crm_sales_team_members; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_sales_team_members TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_sales_team_members TO vercent_worker;
+
+
+--
+-- Name: TABLE crm_sales_teams; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_sales_teams TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_sales_teams TO vercent_worker;
+
+
+--
+-- Name: TABLE crm_scoring_rules; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_scoring_rules TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_scoring_rules TO vercent_worker;
+
+
+--
+-- Name: TABLE crm_sequence_enrollments; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_sequence_enrollments TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_sequence_enrollments TO vercent_worker;
+
+
+--
+-- Name: TABLE crm_sequence_steps; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_sequence_steps TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_sequence_steps TO vercent_worker;
+
+
+--
+-- Name: TABLE crm_sequences; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_sequences TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_sequences TO vercent_worker;
+
+
+--
+-- Name: TABLE crm_settings; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_settings TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_settings TO vercent_worker;
+
+
+--
+-- Name: TABLE crm_shared_inbox_members; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_shared_inbox_members TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_shared_inbox_members TO vercent_worker;
+
+
+--
+-- Name: TABLE crm_shared_inboxes; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_shared_inboxes TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_shared_inboxes TO vercent_worker;
+
+
+--
+-- Name: TABLE crm_success_plan_template_milestones; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_success_plan_template_milestones TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_success_plan_template_milestones TO vercent_worker;
+
+
+--
+-- Name: TABLE crm_success_plan_templates; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_success_plan_templates TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_success_plan_templates TO vercent_worker;
+
+
+--
+-- Name: TABLE crm_sync_accounts; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_sync_accounts TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_sync_accounts TO vercent_worker;
+
+
+--
+-- Name: TABLE crm_tags; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_tags TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_tags TO vercent_worker;
+
+
+--
+-- Name: TABLE crm_task_dependencies; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_task_dependencies TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_task_dependencies TO vercent_worker;
+
+
+--
+-- Name: TABLE crm_task_events; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_task_events TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_task_events TO vercent_worker;
+
+
+--
+-- Name: TABLE crm_task_recurrence_occurrences; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_task_recurrence_occurrences TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_task_recurrence_occurrences TO vercent_worker;
+
+
+--
+-- Name: TABLE crm_territories; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_territories TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_territories TO vercent_worker;
+
+
+--
+-- Name: TABLE crm_territory_assignments; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_territory_assignments TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_territory_assignments TO vercent_worker;
+
+
+--
+-- Name: TABLE crm_webhook_subscriptions; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_webhook_subscriptions TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_webhook_subscriptions TO vercent_worker;
+
+
+--
+-- Name: TABLE crm_win_loss_reviews; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_win_loss_reviews TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.crm_win_loss_reviews TO vercent_worker;
+
+
+--
+-- Name: TABLE currencies; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.currencies TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.currencies TO vercent_worker;
+
+
+--
+-- Name: TABLE document_numbering_policies; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.document_numbering_policies TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.document_numbering_policies TO vercent_worker;
+
+
+--
+-- Name: TABLE document_sequences; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.document_sequences TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.document_sequences TO vercent_worker;
+
+
+--
+-- Name: TABLE exchange_rates; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.exchange_rates TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.exchange_rates TO vercent_worker;
+
+
+--
+-- Name: TABLE fiscal_periods; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.fiscal_periods TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.fiscal_periods TO vercent_worker;
+
+
+--
+-- Name: TABLE hr_applications; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.hr_applications TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.hr_applications TO vercent_worker;
+
+
+--
+-- Name: TABLE hr_appraisal_peer_feedback; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.hr_appraisal_peer_feedback TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.hr_appraisal_peer_feedback TO vercent_worker;
+
+
+--
+-- Name: TABLE hr_appraisals; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.hr_appraisals TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.hr_appraisals TO vercent_worker;
+
+
+--
+-- Name: TABLE hr_attendance; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.hr_attendance TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.hr_attendance TO vercent_worker;
+
+
+--
+-- Name: TABLE hr_attendance_punches; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.hr_attendance_punches TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.hr_attendance_punches TO vercent_worker;
+
+
+--
+-- Name: TABLE hr_attendance_regularizations; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.hr_attendance_regularizations TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.hr_attendance_regularizations TO vercent_worker;
+
+
+--
+-- Name: TABLE hr_bank_files; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.hr_bank_files TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.hr_bank_files TO vercent_worker;
+
+
+--
+-- Name: TABLE hr_candidates; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.hr_candidates TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.hr_candidates TO vercent_worker;
+
+
+--
+-- Name: TABLE hr_courses; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.hr_courses TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.hr_courses TO vercent_worker;
+
+
+--
+-- Name: TABLE hr_departments; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.hr_departments TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.hr_departments TO vercent_worker;
+
+
+--
+-- Name: TABLE hr_designations; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.hr_designations TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.hr_designations TO vercent_worker;
+
+
+--
+-- Name: TABLE hr_document_types; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.hr_document_types TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.hr_document_types TO vercent_worker;
+
+
+--
+-- Name: TABLE hr_employee_changes; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.hr_employee_changes TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.hr_employee_changes TO vercent_worker;
+
+
+--
+-- Name: TABLE hr_employee_compensation; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.hr_employee_compensation TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.hr_employee_compensation TO vercent_worker;
+
+
+--
+-- Name: TABLE hr_employee_documents; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.hr_employee_documents TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.hr_employee_documents TO vercent_worker;
+
+
+--
+-- Name: TABLE hr_employee_expenses; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.hr_employee_expenses TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.hr_employee_expenses TO vercent_worker;
+
+
+--
+-- Name: TABLE hr_employee_shift_assignments; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.hr_employee_shift_assignments TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.hr_employee_shift_assignments TO vercent_worker;
+
+
+--
+-- Name: TABLE hr_employee_skills; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.hr_employee_skills TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.hr_employee_skills TO vercent_worker;
+
+
+--
+-- Name: TABLE hr_employees; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.hr_employees TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.hr_employees TO vercent_worker;
+
+
+--
+-- Name: TABLE hr_expense_categories; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.hr_expense_categories TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.hr_expense_categories TO vercent_worker;
+
+
+--
+-- Name: TABLE hr_final_settlements; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.hr_final_settlements TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.hr_final_settlements TO vercent_worker;
+
+
+--
+-- Name: TABLE hr_goal_checkins; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.hr_goal_checkins TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.hr_goal_checkins TO vercent_worker;
+
+
+--
+-- Name: TABLE hr_goals; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.hr_goals TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.hr_goals TO vercent_worker;
+
+
+--
+-- Name: TABLE hr_gratuity_records; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.hr_gratuity_records TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.hr_gratuity_records TO vercent_worker;
+
+
+--
+-- Name: TABLE hr_holiday_calendars; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.hr_holiday_calendars TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.hr_holiday_calendars TO vercent_worker;
+
+
+--
+-- Name: TABLE hr_holidays; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.hr_holidays TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.hr_holidays TO vercent_worker;
+
+
+--
+-- Name: TABLE hr_interviews; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.hr_interviews TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.hr_interviews TO vercent_worker;
+
+
+--
+-- Name: TABLE hr_job_openings; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.hr_job_openings TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.hr_job_openings TO vercent_worker;
+
+
+--
+-- Name: TABLE hr_leave_balances; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.hr_leave_balances TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.hr_leave_balances TO vercent_worker;
+
+
+--
+-- Name: TABLE hr_leave_ledger; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.hr_leave_ledger TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.hr_leave_ledger TO vercent_worker;
+
+
+--
+-- Name: TABLE hr_leave_policies; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.hr_leave_policies TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.hr_leave_policies TO vercent_worker;
+
+
+--
+-- Name: TABLE hr_leave_policy_entries; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.hr_leave_policy_entries TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.hr_leave_policy_entries TO vercent_worker;
+
+
+--
+-- Name: TABLE hr_leave_requests; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.hr_leave_requests TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.hr_leave_requests TO vercent_worker;
+
+
+--
+-- Name: TABLE hr_leave_types; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.hr_leave_types TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.hr_leave_types TO vercent_worker;
+
+
+--
+-- Name: TABLE hr_lifecycle_tasks; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.hr_lifecycle_tasks TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.hr_lifecycle_tasks TO vercent_worker;
+
+
+--
+-- Name: TABLE hr_loan_installments; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.hr_loan_installments TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.hr_loan_installments TO vercent_worker;
+
+
+--
+-- Name: TABLE hr_loans; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.hr_loans TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.hr_loans TO vercent_worker;
+
+
+--
+-- Name: TABLE hr_offers; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.hr_offers TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.hr_offers TO vercent_worker;
+
+
+--
+-- Name: TABLE hr_overtime; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.hr_overtime TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.hr_overtime TO vercent_worker;
+
+
+--
+-- Name: TABLE hr_payroll_events; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.hr_payroll_events TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.hr_payroll_events TO vercent_worker;
+
+
+--
+-- Name: TABLE hr_payroll_exceptions; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.hr_payroll_exceptions TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.hr_payroll_exceptions TO vercent_worker;
+
+
+--
+-- Name: TABLE hr_payroll_inputs; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.hr_payroll_inputs TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.hr_payroll_inputs TO vercent_worker;
+
+
+--
+-- Name: TABLE hr_payroll_periods; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.hr_payroll_periods TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.hr_payroll_periods TO vercent_worker;
+
+
+--
+-- Name: TABLE hr_payroll_runs; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.hr_payroll_runs TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.hr_payroll_runs TO vercent_worker;
+
+
+--
+-- Name: TABLE hr_payroll_settings; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.hr_payroll_settings TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.hr_payroll_settings TO vercent_worker;
+
+
+--
+-- Name: TABLE hr_payslip_lines; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.hr_payslip_lines TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.hr_payslip_lines TO vercent_worker;
+
+
+--
+-- Name: TABLE hr_payslips; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.hr_payslips TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.hr_payslips TO vercent_worker;
+
+
+--
+-- Name: TABLE hr_profile_change_requests; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.hr_profile_change_requests TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.hr_profile_change_requests TO vercent_worker;
+
+
+--
+-- Name: TABLE hr_review_cycles; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.hr_review_cycles TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.hr_review_cycles TO vercent_worker;
+
+
+--
+-- Name: TABLE hr_salary_components; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.hr_salary_components TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.hr_salary_components TO vercent_worker;
+
+
+--
+-- Name: TABLE hr_salary_structure_lines; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.hr_salary_structure_lines TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.hr_salary_structure_lines TO vercent_worker;
+
+
+--
+-- Name: TABLE hr_salary_structures; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.hr_salary_structures TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.hr_salary_structures TO vercent_worker;
+
+
+--
+-- Name: TABLE hr_separations; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.hr_separations TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.hr_separations TO vercent_worker;
+
+
+--
+-- Name: TABLE hr_shifts; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.hr_shifts TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.hr_shifts TO vercent_worker;
+
+
+--
+-- Name: TABLE hr_skills; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.hr_skills TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.hr_skills TO vercent_worker;
+
+
+--
+-- Name: TABLE hr_statutory_components; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.hr_statutory_components TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.hr_statutory_components TO vercent_worker;
+
+
+--
+-- Name: TABLE hr_statutory_slabs; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.hr_statutory_slabs TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.hr_statutory_slabs TO vercent_worker;
+
+
+--
+-- Name: TABLE hr_training_enrolments; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.hr_training_enrolments TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.hr_training_enrolments TO vercent_worker;
+
+
+--
+-- Name: TABLE hr_training_sessions; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.hr_training_sessions TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.hr_training_sessions TO vercent_worker;
+
+
+--
+-- Name: TABLE item_groups; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.item_groups TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.item_groups TO vercent_worker;
+
+
+--
+-- Name: TABLE item_uom_conversions; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.item_uom_conversions TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.item_uom_conversions TO vercent_worker;
+
+
+--
+-- Name: TABLE item_variants; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.item_variants TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.item_variants TO vercent_worker;
+
+
+--
+-- Name: TABLE items; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.items TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.items TO vercent_worker;
+
+
+--
+-- Name: TABLE manufacturing_bom_component_alternates; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.manufacturing_bom_component_alternates TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.manufacturing_bom_component_alternates TO vercent_worker;
+
+
+--
+-- Name: TABLE manufacturing_bom_components; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.manufacturing_bom_components TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.manufacturing_bom_components TO vercent_worker;
+
+
+--
+-- Name: TABLE manufacturing_bom_outputs; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.manufacturing_bom_outputs TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.manufacturing_bom_outputs TO vercent_worker;
+
+
+--
+-- Name: TABLE manufacturing_boms; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.manufacturing_boms TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.manufacturing_boms TO vercent_worker;
+
+
+--
+-- Name: TABLE manufacturing_calendar_exceptions; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.manufacturing_calendar_exceptions TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.manufacturing_calendar_exceptions TO vercent_worker;
+
+
+--
+-- Name: TABLE manufacturing_calendars; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.manufacturing_calendars TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.manufacturing_calendars TO vercent_worker;
+
+
+--
+-- Name: TABLE manufacturing_cost_snapshots; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.manufacturing_cost_snapshots TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.manufacturing_cost_snapshots TO vercent_worker;
+
+
+--
+-- Name: TABLE manufacturing_downtime_events; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.manufacturing_downtime_events TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.manufacturing_downtime_events TO vercent_worker;
+
+
+--
+-- Name: TABLE manufacturing_engineering_changes; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.manufacturing_engineering_changes TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.manufacturing_engineering_changes TO vercent_worker;
+
+
+--
+-- Name: TABLE manufacturing_events; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.manufacturing_events TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.manufacturing_events TO vercent_worker;
+
+
+--
+-- Name: TABLE manufacturing_inspections; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.manufacturing_inspections TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.manufacturing_inspections TO vercent_worker;
+
+
+--
+-- Name: TABLE manufacturing_material_requirements; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.manufacturing_material_requirements TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.manufacturing_material_requirements TO vercent_worker;
+
+
+--
+-- Name: TABLE manufacturing_planning_runs; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.manufacturing_planning_runs TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.manufacturing_planning_runs TO vercent_worker;
+
+
+--
+-- Name: TABLE manufacturing_production_postings; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.manufacturing_production_postings TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.manufacturing_production_postings TO vercent_worker;
+
+
+--
+-- Name: TABLE manufacturing_routing_operations; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.manufacturing_routing_operations TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.manufacturing_routing_operations TO vercent_worker;
+
+
+--
+-- Name: TABLE manufacturing_routings; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.manufacturing_routings TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.manufacturing_routings TO vercent_worker;
+
+
+--
+-- Name: TABLE manufacturing_scrap_records; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.manufacturing_scrap_records TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.manufacturing_scrap_records TO vercent_worker;
+
+
+--
+-- Name: TABLE manufacturing_settings; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.manufacturing_settings TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.manufacturing_settings TO vercent_worker;
+
+
+--
+-- Name: TABLE manufacturing_shifts; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.manufacturing_shifts TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.manufacturing_shifts TO vercent_worker;
+
+
+--
+-- Name: TABLE manufacturing_subcontract_jobs; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.manufacturing_subcontract_jobs TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.manufacturing_subcontract_jobs TO vercent_worker;
+
+
+--
+-- Name: TABLE manufacturing_time_entries; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.manufacturing_time_entries TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.manufacturing_time_entries TO vercent_worker;
+
+
+--
+-- Name: TABLE manufacturing_work_centers; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.manufacturing_work_centers TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.manufacturing_work_centers TO vercent_worker;
+
+
+--
+-- Name: TABLE manufacturing_work_order_materials; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.manufacturing_work_order_materials TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.manufacturing_work_order_materials TO vercent_worker;
+
+
+--
+-- Name: TABLE manufacturing_work_order_operations; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.manufacturing_work_order_operations TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.manufacturing_work_order_operations TO vercent_worker;
+
+
+--
+-- Name: TABLE manufacturing_work_orders; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.manufacturing_work_orders TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.manufacturing_work_orders TO vercent_worker;
+
+
+--
+-- Name: TABLE master_data_external_ids; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.master_data_external_ids TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.master_data_external_ids TO vercent_worker;
+
+
+--
+-- Name: TABLE master_data_import_jobs; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.master_data_import_jobs TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.master_data_import_jobs TO vercent_worker;
+
+
+--
+-- Name: TABLE operation_idempotency; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.operation_idempotency TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.operation_idempotency TO vercent_worker;
+
+
+--
+-- Name: TABLE payment_term_lines; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.payment_term_lines TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.payment_term_lines TO vercent_worker;
+
+
+--
+-- Name: TABLE payment_terms; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.payment_terms TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.payment_terms TO vercent_worker;
+
+
+--
+-- Name: TABLE platform_events; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.platform_events TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.platform_events TO vercent_worker;
+
+
+--
+-- Name: TABLE pos_cart_discount_approvals; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.pos_cart_discount_approvals TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.pos_cart_discount_approvals TO vercent_worker;
+
+
+--
+-- Name: TABLE pos_cart_lines; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.pos_cart_lines TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.pos_cart_lines TO vercent_worker;
+
+
+--
+-- Name: TABLE pos_carts; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.pos_carts TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.pos_carts TO vercent_worker;
+
+
+--
+-- Name: TABLE pos_cash_movements; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.pos_cash_movements TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.pos_cash_movements TO vercent_worker;
+
+
+--
+-- Name: TABLE pos_coupon_redemptions; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.pos_coupon_redemptions TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.pos_coupon_redemptions TO vercent_worker;
+
+
+--
+-- Name: TABLE pos_coupons; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.pos_coupons TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.pos_coupons TO vercent_worker;
+
+
+--
+-- Name: TABLE pos_day_end_report_corrections; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.pos_day_end_report_corrections TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.pos_day_end_report_corrections TO vercent_worker;
+
+
+--
+-- Name: TABLE pos_day_end_reports; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.pos_day_end_reports TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.pos_day_end_reports TO vercent_worker;
+
+
+--
+-- Name: TABLE pos_events; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.pos_events TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.pos_events TO vercent_worker;
+
+
+--
+-- Name: TABLE pos_loyalty_balances; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.pos_loyalty_balances TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.pos_loyalty_balances TO vercent_worker;
+
+
+--
+-- Name: TABLE pos_loyalty_ledger; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.pos_loyalty_ledger TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.pos_loyalty_ledger TO vercent_worker;
+
+
+--
+-- Name: TABLE pos_loyalty_programs; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.pos_loyalty_programs TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.pos_loyalty_programs TO vercent_worker;
+
+
+--
+-- Name: TABLE pos_offline_device_keys; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.pos_offline_device_keys TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.pos_offline_device_keys TO vercent_worker;
+
+
+--
+-- Name: TABLE pos_offline_sync_conflicts; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.pos_offline_sync_conflicts TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.pos_offline_sync_conflicts TO vercent_worker;
+
+
+--
+-- Name: TABLE pos_payment_provider_configs; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.pos_payment_provider_configs TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.pos_payment_provider_configs TO vercent_worker;
+
+
+--
+-- Name: TABLE pos_payment_webhook_events; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.pos_payment_webhook_events TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.pos_payment_webhook_events TO vercent_worker;
+
+
+--
+-- Name: TABLE pos_payments; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.pos_payments TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.pos_payments TO vercent_worker;
+
+
+--
+-- Name: TABLE pos_promotion_applications; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.pos_promotion_applications TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.pos_promotion_applications TO vercent_worker;
+
+
+--
+-- Name: TABLE pos_promotions; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.pos_promotions TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.pos_promotions TO vercent_worker;
+
+
+--
+-- Name: TABLE pos_receipt_print_events; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.pos_receipt_print_events TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.pos_receipt_print_events TO vercent_worker;
+
+
+--
+-- Name: TABLE pos_reconciliation_corrections; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.pos_reconciliation_corrections TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.pos_reconciliation_corrections TO vercent_worker;
+
+
+--
+-- Name: TABLE pos_reconciliations; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.pos_reconciliations TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.pos_reconciliations TO vercent_worker;
+
+
+--
+-- Name: TABLE pos_return_lines; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.pos_return_lines TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.pos_return_lines TO vercent_worker;
+
+
+--
+-- Name: TABLE pos_return_payment_refunds; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.pos_return_payment_refunds TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.pos_return_payment_refunds TO vercent_worker;
+
+
+--
+-- Name: TABLE pos_returns; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.pos_returns TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.pos_returns TO vercent_worker;
+
+
+--
+-- Name: TABLE pos_sale_lines; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.pos_sale_lines TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.pos_sale_lines TO vercent_worker;
+
+
+--
+-- Name: TABLE pos_sales; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.pos_sales TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.pos_sales TO vercent_worker;
+
+
+--
+-- Name: TABLE pos_settings; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.pos_settings TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.pos_settings TO vercent_worker;
+
+
+--
+-- Name: TABLE pos_settlement_batches; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.pos_settlement_batches TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.pos_settlement_batches TO vercent_worker;
+
+
+--
+-- Name: TABLE pos_settlement_entries; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.pos_settlement_entries TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.pos_settlement_entries TO vercent_worker;
+
+
+--
+-- Name: TABLE pos_shifts; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.pos_shifts TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.pos_shifts TO vercent_worker;
+
+
+--
+-- Name: TABLE pos_store_access; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.pos_store_access TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.pos_store_access TO vercent_worker;
+
+
+--
+-- Name: TABLE pos_stores; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.pos_stores TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.pos_stores TO vercent_worker;
+
+
+--
+-- Name: TABLE pos_terminals; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.pos_terminals TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.pos_terminals TO vercent_worker;
+
+
+--
+-- Name: TABLE price_list_items; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.price_list_items TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.price_list_items TO vercent_worker;
+
+
+--
+-- Name: TABLE price_lists; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.price_lists TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.price_lists TO vercent_worker;
+
+
+--
+-- Name: TABLE procurement_advance_shipping_notices; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.procurement_advance_shipping_notices TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.procurement_advance_shipping_notices TO vercent_worker;
+
+
+--
+-- Name: TABLE procurement_agreement_lines; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.procurement_agreement_lines TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.procurement_agreement_lines TO vercent_worker;
+
+
+--
+-- Name: TABLE procurement_agreements; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.procurement_agreements TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.procurement_agreements TO vercent_worker;
+
+
+--
+-- Name: TABLE procurement_catalog_items; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.procurement_catalog_items TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.procurement_catalog_items TO vercent_worker;
+
+
+--
+-- Name: TABLE procurement_catalogs; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.procurement_catalogs TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.procurement_catalogs TO vercent_worker;
+
+
+--
+-- Name: TABLE procurement_categories; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.procurement_categories TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.procurement_categories TO vercent_worker;
+
+
+--
+-- Name: TABLE procurement_document_links; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.procurement_document_links TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.procurement_document_links TO vercent_worker;
+
+
+--
+-- Name: TABLE procurement_events; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.procurement_events TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.procurement_events TO vercent_worker;
+
+
+--
+-- Name: TABLE procurement_governance_exception_cases; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.procurement_governance_exception_cases TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.procurement_governance_exception_cases TO vercent_worker;
+
+
+--
+-- Name: TABLE procurement_governance_policies; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.procurement_governance_policies TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.procurement_governance_policies TO vercent_worker;
+
+
+--
+-- Name: TABLE procurement_governance_saved_views; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.procurement_governance_saved_views TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.procurement_governance_saved_views TO vercent_worker;
+
+
+--
+-- Name: TABLE procurement_governance_snapshots; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.procurement_governance_snapshots TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.procurement_governance_snapshots TO vercent_worker;
+
+
+--
+-- Name: TABLE procurement_invoice_matches; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.procurement_invoice_matches TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.procurement_invoice_matches TO vercent_worker;
+
+
+--
+-- Name: TABLE procurement_landed_costs; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.procurement_landed_costs TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.procurement_landed_costs TO vercent_worker;
+
+
+--
+-- Name: TABLE procurement_match_exceptions; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.procurement_match_exceptions TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.procurement_match_exceptions TO vercent_worker;
+
+
+--
+-- Name: TABLE procurement_matching_records; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.procurement_matching_records TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.procurement_matching_records TO vercent_worker;
+
+
+--
+-- Name: TABLE procurement_outbox; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.procurement_outbox TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.procurement_outbox TO vercent_worker;
+
+
+--
+-- Name: TABLE procurement_policies; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.procurement_policies TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.procurement_policies TO vercent_worker;
+
+
+--
+-- Name: TABLE procurement_portal_users; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.procurement_portal_users TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.procurement_portal_users TO vercent_worker;
+
+
+--
+-- Name: TABLE procurement_purchase_order_lines; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.procurement_purchase_order_lines TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.procurement_purchase_order_lines TO vercent_worker;
+
+
+--
+-- Name: TABLE procurement_purchase_order_schedules; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.procurement_purchase_order_schedules TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.procurement_purchase_order_schedules TO vercent_worker;
+
+
+--
+-- Name: TABLE procurement_purchase_orders; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.procurement_purchase_orders TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.procurement_purchase_orders TO vercent_worker;
+
+
+--
+-- Name: TABLE procurement_receipt_lines; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.procurement_receipt_lines TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.procurement_receipt_lines TO vercent_worker;
+
+
+--
+-- Name: TABLE procurement_receipts; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.procurement_receipts TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.procurement_receipts TO vercent_worker;
+
+
+--
+-- Name: TABLE procurement_reorder_requests; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.procurement_reorder_requests TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.procurement_reorder_requests TO vercent_worker;
+
+
+--
+-- Name: TABLE procurement_reporting_facts; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.procurement_reporting_facts TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.procurement_reporting_facts TO vercent_worker;
+
+
+--
+-- Name: TABLE procurement_requisition_distributions; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.procurement_requisition_distributions TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.procurement_requisition_distributions TO vercent_worker;
+
+
+--
+-- Name: TABLE procurement_requisition_lines; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.procurement_requisition_lines TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.procurement_requisition_lines TO vercent_worker;
+
+
+--
+-- Name: TABLE procurement_requisitions; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.procurement_requisitions TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.procurement_requisitions TO vercent_worker;
+
+
+--
+-- Name: TABLE procurement_return_lines; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.procurement_return_lines TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.procurement_return_lines TO vercent_worker;
+
+
+--
+-- Name: TABLE procurement_returns; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.procurement_returns TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.procurement_returns TO vercent_worker;
+
+
+--
+-- Name: TABLE procurement_service_entries; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.procurement_service_entries TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.procurement_service_entries TO vercent_worker;
+
+
+--
+-- Name: TABLE procurement_service_entry_lines; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.procurement_service_entry_lines TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.procurement_service_entry_lines TO vercent_worker;
+
+
+--
+-- Name: TABLE procurement_source_rules; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.procurement_source_rules TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.procurement_source_rules TO vercent_worker;
+
+
+--
+-- Name: TABLE procurement_sourcing_awards; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.procurement_sourcing_awards TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.procurement_sourcing_awards TO vercent_worker;
+
+
+--
+-- Name: TABLE procurement_sourcing_bids; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.procurement_sourcing_bids TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.procurement_sourcing_bids TO vercent_worker;
+
+
+--
+-- Name: TABLE procurement_sourcing_evaluations; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.procurement_sourcing_evaluations TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.procurement_sourcing_evaluations TO vercent_worker;
+
+
+--
+-- Name: TABLE procurement_sourcing_events; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.procurement_sourcing_events TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.procurement_sourcing_events TO vercent_worker;
+
+
+--
+-- Name: TABLE procurement_sourcing_invitations; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.procurement_sourcing_invitations TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.procurement_sourcing_invitations TO vercent_worker;
+
+
+--
+-- Name: TABLE procurement_subcontract_orders; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.procurement_subcontract_orders TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.procurement_subcontract_orders TO vercent_worker;
+
+
+--
+-- Name: TABLE procurement_supplier_certifications; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.procurement_supplier_certifications TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.procurement_supplier_certifications TO vercent_worker;
+
+
+--
+-- Name: TABLE procurement_supplier_lead_times; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.procurement_supplier_lead_times TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.procurement_supplier_lead_times TO vercent_worker;
+
+
+--
+-- Name: TABLE procurement_supplier_prices; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.procurement_supplier_prices TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.procurement_supplier_prices TO vercent_worker;
+
+
+--
+-- Name: TABLE procurement_supplier_qualifications; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.procurement_supplier_qualifications TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.procurement_supplier_qualifications TO vercent_worker;
+
+
+--
+-- Name: TABLE procurement_supplier_scorecards; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.procurement_supplier_scorecards TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.procurement_supplier_scorecards TO vercent_worker;
+
+
+--
+-- Name: TABLE procurement_supplier_sites; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.procurement_supplier_sites TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.procurement_supplier_sites TO vercent_worker;
+
+
+--
+-- Name: TABLE procurement_suppliers; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.procurement_suppliers TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.procurement_suppliers TO vercent_worker;
+
+
+--
+-- Name: TABLE project_baselines; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.project_baselines TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.project_baselines TO vercent_worker;
+
+
+--
+-- Name: TABLE project_billing_milestones; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.project_billing_milestones TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.project_billing_milestones TO vercent_worker;
+
+
+--
+-- Name: TABLE project_budgets; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.project_budgets TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.project_budgets TO vercent_worker;
+
+
+--
+-- Name: TABLE project_comments; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.project_comments TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.project_comments TO vercent_worker;
+
+
+--
+-- Name: TABLE project_documents; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.project_documents TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.project_documents TO vercent_worker;
+
+
+--
+-- Name: TABLE project_events; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.project_events TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.project_events TO vercent_worker;
+
+
+--
+-- Name: TABLE project_expenses; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.project_expenses TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.project_expenses TO vercent_worker;
+
+
+--
+-- Name: TABLE project_issues; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.project_issues TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.project_issues TO vercent_worker;
+
+
+--
+-- Name: TABLE project_materials; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.project_materials TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.project_materials TO vercent_worker;
+
+
+--
+-- Name: TABLE project_members; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.project_members TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.project_members TO vercent_worker;
+
+
+--
+-- Name: TABLE project_milestones; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.project_milestones TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.project_milestones TO vercent_worker;
+
+
+--
+-- Name: TABLE project_procurement_links; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.project_procurement_links TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.project_procurement_links TO vercent_worker;
+
+
+--
+-- Name: TABLE project_profitability_snapshots; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.project_profitability_snapshots TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.project_profitability_snapshots TO vercent_worker;
+
+
+--
+-- Name: TABLE project_risks; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.project_risks TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.project_risks TO vercent_worker;
+
+
+--
+-- Name: TABLE project_settings; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.project_settings TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.project_settings TO vercent_worker;
+
+
+--
+-- Name: TABLE project_status_reports; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.project_status_reports TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.project_status_reports TO vercent_worker;
+
+
+--
+-- Name: TABLE project_task_dependencies; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.project_task_dependencies TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.project_task_dependencies TO vercent_worker;
+
+
+--
+-- Name: TABLE project_tasks; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.project_tasks TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.project_tasks TO vercent_worker;
+
+
+--
+-- Name: TABLE project_template_items; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.project_template_items TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.project_template_items TO vercent_worker;
+
+
+--
+-- Name: TABLE project_templates; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.project_templates TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.project_templates TO vercent_worker;
+
+
+--
+-- Name: TABLE project_time_entries; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.project_time_entries TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.project_time_entries TO vercent_worker;
+
+
+--
+-- Name: TABLE project_timesheets; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.project_timesheets TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.project_timesheets TO vercent_worker;
+
+
+--
+-- Name: TABLE projects; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.projects TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.projects TO vercent_worker;
+
+
+--
+-- Name: TABLE quality_audit_findings; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.quality_audit_findings TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.quality_audit_findings TO vercent_worker;
+
+
+--
+-- Name: TABLE quality_audits; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.quality_audits TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.quality_audits TO vercent_worker;
+
+
+--
+-- Name: TABLE quality_calibration_records; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.quality_calibration_records TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.quality_calibration_records TO vercent_worker;
+
+
+--
+-- Name: TABLE quality_capa; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.quality_capa TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.quality_capa TO vercent_worker;
+
+
+--
+-- Name: TABLE quality_certificates; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.quality_certificates TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.quality_certificates TO vercent_worker;
+
+
+--
+-- Name: TABLE quality_customer_complaints; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.quality_customer_complaints TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.quality_customer_complaints TO vercent_worker;
+
+
+--
+-- Name: TABLE quality_documents; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.quality_documents TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.quality_documents TO vercent_worker;
+
+
+--
+-- Name: TABLE quality_events; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.quality_events TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.quality_events TO vercent_worker;
+
+
+--
+-- Name: TABLE quality_hold_releases; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.quality_hold_releases TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.quality_hold_releases TO vercent_worker;
+
+
+--
+-- Name: TABLE quality_holds; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.quality_holds TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.quality_holds TO vercent_worker;
+
+
+--
+-- Name: TABLE quality_inspection_points; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.quality_inspection_points TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.quality_inspection_points TO vercent_worker;
+
+
+--
+-- Name: TABLE quality_inspection_results; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.quality_inspection_results TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.quality_inspection_results TO vercent_worker;
+
+
+--
+-- Name: TABLE quality_inspections; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.quality_inspections TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.quality_inspections TO vercent_worker;
+
+
+--
+-- Name: TABLE quality_nonconformances; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.quality_nonconformances TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.quality_nonconformances TO vercent_worker;
+
+
+--
+-- Name: TABLE quality_plans; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.quality_plans TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.quality_plans TO vercent_worker;
+
+
+--
+-- Name: TABLE quality_sampling_plans; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.quality_sampling_plans TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.quality_sampling_plans TO vercent_worker;
+
+
+--
+-- Name: TABLE quality_settings; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.quality_settings TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.quality_settings TO vercent_worker;
+
+
+--
+-- Name: TABLE quality_supplier_records; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.quality_supplier_records TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.quality_supplier_records TO vercent_worker;
+
+
+--
+-- Name: TABLE release_governance_check_runs; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.release_governance_check_runs TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.release_governance_check_runs TO vercent_worker;
+
+
+--
+-- Name: TABLE release_governance_incident_cases; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.release_governance_incident_cases TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.release_governance_incident_cases TO vercent_worker;
+
+
+--
+-- Name: TABLE release_governance_policies; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.release_governance_policies TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.release_governance_policies TO vercent_worker;
+
+
+--
+-- Name: TABLE release_governance_snapshots; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.release_governance_snapshots TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.release_governance_snapshots TO vercent_worker;
+
+
+--
+-- Name: TABLE sales_advance_payments; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.sales_advance_payments TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.sales_advance_payments TO vercent_worker;
+
+
+--
+-- Name: TABLE sales_approval_delegations; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.sales_approval_delegations TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.sales_approval_delegations TO vercent_worker;
+
+
+--
+-- Name: TABLE sales_commission_entries; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.sales_commission_entries TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.sales_commission_entries TO vercent_worker;
+
+
+--
+-- Name: TABLE sales_commission_rules; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.sales_commission_rules TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.sales_commission_rules TO vercent_worker;
+
+
+--
+-- Name: TABLE sales_credit_adjustment_requests; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.sales_credit_adjustment_requests TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.sales_credit_adjustment_requests TO vercent_worker;
+
+
+--
+-- Name: TABLE sales_document_events; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.sales_document_events TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.sales_document_events TO vercent_worker;
+
+
+--
+-- Name: TABLE sales_drop_ship_requests; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.sales_drop_ship_requests TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.sales_drop_ship_requests TO vercent_worker;
+
+
+--
+-- Name: TABLE sales_fulfillment_requests; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.sales_fulfillment_requests TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.sales_fulfillment_requests TO vercent_worker;
+
+
+--
+-- Name: TABLE sales_invoice_requests; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.sales_invoice_requests TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.sales_invoice_requests TO vercent_worker;
+
+
+--
+-- Name: TABLE sales_order_amendments; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.sales_order_amendments TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.sales_order_amendments TO vercent_worker;
+
+
+--
+-- Name: TABLE sales_order_governance_policies; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.sales_order_governance_policies TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.sales_order_governance_policies TO vercent_worker;
+
+
+--
+-- Name: TABLE sales_order_governance_snapshots; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.sales_order_governance_snapshots TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.sales_order_governance_snapshots TO vercent_worker;
+
+
+--
+-- Name: TABLE sales_order_holds; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.sales_order_holds TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.sales_order_holds TO vercent_worker;
+
+
+--
+-- Name: TABLE sales_order_line_progress; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.sales_order_line_progress TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.sales_order_line_progress TO vercent_worker;
+
+
+--
+-- Name: TABLE sales_order_lines; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.sales_order_lines TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.sales_order_lines TO vercent_worker;
+
+
+--
+-- Name: TABLE sales_order_saved_views; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.sales_order_saved_views TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.sales_order_saved_views TO vercent_worker;
+
+
+--
+-- Name: TABLE sales_order_schedules; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.sales_order_schedules TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.sales_order_schedules TO vercent_worker;
+
+
+--
+-- Name: TABLE sales_order_versions; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.sales_order_versions TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.sales_order_versions TO vercent_worker;
+
+
+--
+-- Name: TABLE sales_orders; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.sales_orders TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.sales_orders TO vercent_worker;
+
+
+--
+-- Name: TABLE sales_pricing_rules; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.sales_pricing_rules TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.sales_pricing_rules TO vercent_worker;
+
+
+--
+-- Name: TABLE sales_quotation_charges; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.sales_quotation_charges TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.sales_quotation_charges TO vercent_worker;
+
+
+--
+-- Name: TABLE sales_quotation_governance_policies; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.sales_quotation_governance_policies TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.sales_quotation_governance_policies TO vercent_worker;
+
+
+--
+-- Name: TABLE sales_quotation_governance_snapshots; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.sales_quotation_governance_snapshots TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.sales_quotation_governance_snapshots TO vercent_worker;
+
+
+--
+-- Name: TABLE sales_quotation_lines; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.sales_quotation_lines TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.sales_quotation_lines TO vercent_worker;
+
+
+--
+-- Name: TABLE sales_quotation_saved_views; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.sales_quotation_saved_views TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.sales_quotation_saved_views TO vercent_worker;
+
+
+--
+-- Name: TABLE sales_quotation_tax_lines; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.sales_quotation_tax_lines TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.sales_quotation_tax_lines TO vercent_worker;
+
+
+--
+-- Name: TABLE sales_quotation_versions; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.sales_quotation_versions TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.sales_quotation_versions TO vercent_worker;
+
+
+--
+-- Name: TABLE sales_quotations; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.sales_quotations TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.sales_quotations TO vercent_worker;
+
+
+--
+-- Name: TABLE sales_quote_decisions; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.sales_quote_decisions TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.sales_quote_decisions TO vercent_worker;
+
+
+--
+-- Name: TABLE sales_quote_share_links; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.sales_quote_share_links TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.sales_quote_share_links TO vercent_worker;
+
+
+--
+-- Name: TABLE sales_return_requests; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.sales_return_requests TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.sales_return_requests TO vercent_worker;
+
+
+--
+-- Name: TABLE sales_settings; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.sales_settings TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.sales_settings TO vercent_worker;
+
+
+--
+-- Name: TABLE stock_balances; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.stock_balances TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.stock_balances TO vercent_worker;
+
+
+--
+-- Name: TABLE stock_batches; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.stock_batches TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.stock_batches TO vercent_worker;
+
+
+--
+-- Name: TABLE stock_count_lines; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.stock_count_lines TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.stock_count_lines TO vercent_worker;
+
+
+--
+-- Name: TABLE stock_counts; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.stock_counts TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.stock_counts TO vercent_worker;
+
+
+--
+-- Name: TABLE stock_landed_cost_allocations; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.stock_landed_cost_allocations TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.stock_landed_cost_allocations TO vercent_worker;
+
+
+--
+-- Name: TABLE stock_movements; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.stock_movements TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.stock_movements TO vercent_worker;
+
+
+--
+-- Name: TABLE stock_package_lines; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.stock_package_lines TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.stock_package_lines TO vercent_worker;
+
+
+--
+-- Name: TABLE stock_packages; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.stock_packages TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.stock_packages TO vercent_worker;
+
+
+--
+-- Name: TABLE stock_pick_lines; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.stock_pick_lines TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.stock_pick_lines TO vercent_worker;
+
+
+--
+-- Name: TABLE stock_pick_lists; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.stock_pick_lists TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.stock_pick_lists TO vercent_worker;
+
+
+--
+-- Name: TABLE stock_reorder_rules; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.stock_reorder_rules TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.stock_reorder_rules TO vercent_worker;
+
+
+--
+-- Name: TABLE stock_reservations; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.stock_reservations TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.stock_reservations TO vercent_worker;
+
+
+--
+-- Name: TABLE stock_serials; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.stock_serials TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.stock_serials TO vercent_worker;
+
+
+--
+-- Name: TABLE stock_settings; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.stock_settings TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.stock_settings TO vercent_worker;
+
+
+--
+-- Name: TABLE stock_transfers; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.stock_transfers TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.stock_transfers TO vercent_worker;
+
+
+--
+-- Name: TABLE stock_valuation_layers; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.stock_valuation_layers TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.stock_valuation_layers TO vercent_worker;
+
+
+--
+-- Name: TABLE support_attachments; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.support_attachments TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.support_attachments TO vercent_worker;
+
+
+--
+-- Name: TABLE support_canned_responses; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.support_canned_responses TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.support_canned_responses TO vercent_worker;
+
+
+--
+-- Name: TABLE support_categories; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.support_categories TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.support_categories TO vercent_worker;
+
+
+--
+-- Name: TABLE support_communications; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.support_communications TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.support_communications TO vercent_worker;
+
+
+--
+-- Name: TABLE support_entitlements; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.support_entitlements TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.support_entitlements TO vercent_worker;
+
+
+--
+-- Name: TABLE support_escalation_policies; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.support_escalation_policies TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.support_escalation_policies TO vercent_worker;
+
+
+--
+-- Name: TABLE support_escalations; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.support_escalations TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.support_escalations TO vercent_worker;
+
+
+--
+-- Name: TABLE support_events; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.support_events TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.support_events TO vercent_worker;
+
+
+--
+-- Name: TABLE support_knowledge_articles; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.support_knowledge_articles TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.support_knowledge_articles TO vercent_worker;
+
+
+--
+-- Name: TABLE support_portal_users; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.support_portal_users TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.support_portal_users TO vercent_worker;
+
+
+--
+-- Name: TABLE support_queue_members; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.support_queue_members TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.support_queue_members TO vercent_worker;
+
+
+--
+-- Name: TABLE support_queues; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.support_queues TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.support_queues TO vercent_worker;
+
+
+--
+-- Name: TABLE support_routing_rules; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.support_routing_rules TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.support_routing_rules TO vercent_worker;
+
+
+--
+-- Name: TABLE support_settings; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.support_settings TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.support_settings TO vercent_worker;
+
+
+--
+-- Name: TABLE support_sla_policies; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.support_sla_policies TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.support_sla_policies TO vercent_worker;
+
+
+--
+-- Name: TABLE support_ticket_assignments; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.support_ticket_assignments TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.support_ticket_assignments TO vercent_worker;
+
+
+--
+-- Name: TABLE support_ticket_knowledge_links; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.support_ticket_knowledge_links TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.support_ticket_knowledge_links TO vercent_worker;
+
+
+--
+-- Name: TABLE support_ticket_status_history; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.support_ticket_status_history TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.support_ticket_status_history TO vercent_worker;
+
+
+--
+-- Name: TABLE support_tickets; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.support_tickets TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.support_tickets TO vercent_worker;
+
+
+--
+-- Name: TABLE tax_categories; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.tax_categories TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.tax_categories TO vercent_worker;
+
+
+--
+-- Name: TABLE tax_rates; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.tax_rates TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.tax_rates TO vercent_worker;
+
+
+--
+-- Name: TABLE units_of_measure; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.units_of_measure TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.units_of_measure TO vercent_worker;
+
+
+--
+-- Name: TABLE warehouse_locations; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.warehouse_locations TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.warehouse_locations TO vercent_worker;
+
+
+--
+-- Name: TABLE warehouses; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.warehouses TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.warehouses TO vercent_worker;
+
+
+--
+-- Name: TABLE webhook_deliveries; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.webhook_deliveries TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.webhook_deliveries TO vercent_worker;
+
+
+--
+-- Name: TABLE webhook_subscriptions; Type: ACL; Schema: tenant; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.webhook_subscriptions TO vercent_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE tenant.webhook_subscriptions TO vercent_worker;
+
+
+--
 -- PostgreSQL database dump complete
 --
 
-\unrestrict hki4pJd3a34wH7m0dQe5LCa3ZGP6H60v8OXSyuHtWONNpLsigoQLKc6mIJEpIlU
+\unrestrict E47DidOUBCfrwlAFlKWDdPfsgG44qyJYfmncabmdx9flpxsSCxliij8cgIvf9iy
 
+
+-- Reference data
+--
+-- PostgreSQL database dump
+--
+
+\restrict w6bsYpQ5Y98zYp3ktp2eS6AzDCpYr0XvJedUY3oAowGxDIhAwKccysS4k8uSJRI
+
+-- Dumped from database version 16.15
+-- Dumped by pg_dump version 16.15
+
+SET statement_timeout = 0;
+SET lock_timeout = 0;
+SET idle_in_transaction_session_timeout = 0;
+SET client_encoding = 'UTF8';
+SET standard_conforming_strings = on;
+SELECT pg_catalog.set_config('search_path', '', false);
+SET check_function_bodies = false;
+SET xmloption = content;
+SET client_min_messages = warning;
+SET row_security = off;
+
+--
+-- Data for Name: permissions; Type: TABLE DATA; Schema: public; Owner: vercentlabs
+--
+
+INSERT INTO public.permissions VALUES ('workspace.view', 'View workspace', 'Workspace', 'Access the authenticated ERP workspace.') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('organization.manage', 'Manage organisation', 'Organisation', 'Edit organisation settings and ownership.') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('department.manage', 'Manage departments', 'Organisation', 'Create and maintain departments.') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('cost_center.manage', 'Manage cost centres', 'Organisation', 'Create and maintain cost centres.') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('team.manage', 'Manage teams', 'Organisation', 'Create and maintain operating teams.') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('users.view', 'View users', 'Access', 'View organisation members and invitations.') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('users.manage', 'Manage users', 'Access', 'Invite, disable and scope users.') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('roles.manage', 'Manage roles', 'Access', 'Create roles and assign permissions.') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('audit.view', 'View audit log', 'Governance', 'Review organisation audit events.') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('notifications.view', 'View notifications', 'Workspace', 'View personal notifications.') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('modules.manage', 'Manage modules', 'Platform', 'Manage the organisation module registry.') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('numbering.manage', 'Manage numbering', 'Platform', 'Configure document numbering series.') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('approvals.manage', 'Manage approvals', 'Governance', 'Review and decide approval requests.') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('profile.manage', 'Manage profile', 'Account', 'Manage personal profile and preferences.') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('sessions.manage', 'Manage sessions', 'Account', 'Review and revoke account sessions.') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('business_data.view', 'View business data', 'Master data', 'View shared business partners, products, warehouses and finance master data.') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('parties.manage', 'Manage business partners', 'Master data', 'Create and maintain customers, suppliers, contacts and addresses.') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('items.manage', 'Manage item masters', 'Master data', 'Create and maintain items, services, groups and units of measure.') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('inventory_setup.manage', 'Manage inventory setup', 'Master data', 'Create and maintain warehouses and warehouse locations.') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('finance_setup.manage', 'Manage finance setup', 'Master data', 'Create and maintain currencies, taxes, fiscal periods, payment terms and price lists.') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('business_data.import', 'Import business data', 'Master data', 'Run governed master-data imports and review import outcomes.') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('crm.view', 'View CRM', 'CRM', 'View CRM dashboards, leads, opportunities, activities and reports.') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('crm.leads.manage', 'Manage CRM leads', 'CRM', 'Create, assign, qualify, merge, import and convert leads.') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('crm.opportunities.manage', 'Manage opportunities', 'CRM', 'Create and progress opportunities through governed pipelines.') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('crm.activities.manage', 'Manage CRM activities', 'CRM', 'Schedule and complete calls, tasks, meetings, messages and follow-ups.') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('crm.campaigns.manage', 'Manage CRM campaigns', 'CRM', 'Create campaigns and maintain campaign membership and attribution.') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('crm.communications.manage', 'Manage CRM communications', 'CRM', 'Record omnichannel customer communications and provider-neutral outbox events.') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('crm.automation.manage', 'Manage CRM automation', 'CRM', 'Configure assignment, scoring, sequences and deterministic automation rules.') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('crm.capture.manage', 'Manage lead capture', 'CRM', 'Configure public lead-capture forms, origins, routing and rate limits.') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('crm.import', 'Import CRM data', 'CRM', 'Run governed CRM imports and review row outcomes.') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('crm.export', 'Export CRM data', 'CRM', 'Export permitted CRM records.') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('crm.reports.view', 'View CRM reports', 'CRM', 'View pipeline, conversion, activity, campaign and forecast reports.') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('crm.settings.manage', 'Manage CRM settings', 'CRM', 'Configure pipelines, stages, sources, tags, loss reasons, targets and saved views.') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('billing.view', 'View billing', 'Billing', 'View the organisation subscription, invoices, payments, usage and plan limits.') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('billing.manage', 'Manage billing', 'Billing', 'Maintain billing profile, subscription changes and cancellation preferences.') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('billing.checkout', 'Start checkout', 'Billing', 'Create and authorise a paid subscription through the configured payment provider.') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('billing.audit', 'Audit billing', 'Billing', 'Review provider events, payment reconciliation and billing history.') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('crm.revenue.manage', 'Manage CRM revenue operations', 'CRM', 'Manage sales teams, territories, quotas, forecast periods, submissions and manager adjustments.') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('crm.accounts.manage', 'Manage strategic accounts', 'CRM', 'Manage account plans, stakeholder maps, health, renewals and expansion opportunities.') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('crm.playbooks.manage', 'Manage sales playbooks', 'CRM', 'Configure qualification frameworks, required stage evidence and guided selling playbooks.') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('crm.privacy.manage', 'Manage CRM privacy', 'CRM', 'Manage consent evidence, suppression, privacy requests, retention and data-subject workflows.') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('crm.data-quality.manage', 'Manage CRM data quality', 'CRM', 'Manage data-quality scoring, duplicates, completeness, validation and remediation.') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('crm.integrations.manage', 'Manage CRM integrations', 'CRM', 'Manage inbox, calendar, telephony, messaging and provider-neutral synchronization settings.') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('crm.ai.manage', 'Manage CRM AI', 'CRM', 'Configure approved AI providers, suggestions, coaching, predictions and human review controls.') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('crm.analytics.manage', 'Manage CRM analytics', 'CRM', 'Create governed report definitions, dashboards and dashboard widgets.') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('crm.customization.manage', 'Manage CRM customization', 'CRM', 'Configure tenant-scoped custom objects, custom fields and custom records.') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('crm.partners.manage', 'Manage partner selling', 'CRM', 'Manage partner accounts, registered partner deals and channel attribution.') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('crm.field-sales.manage', 'Manage CRM field sales', 'CRM', 'Plan and record governed customer visits and field-sales execution.') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('sales.view', 'View Sales', 'Sales', 'View Sales dashboards, quotations and sales orders.') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('sales.quotation.create', 'Create quotations', 'Sales', 'Create and revise governed sales quotations.') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('sales.quotation.send', 'Send quotations', 'Sales', 'Issue approved quotation revisions to customers.') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('sales.quotation.approve', 'Approve quotations', 'Sales', 'Approve the exact commercial revision of a quotation.') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('sales.quotation.accept_on_behalf', 'Record quotation decisions', 'Sales', 'Record an authorised customer acceptance or rejection.') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('sales.order.create', 'Create sales orders', 'Sales', 'Create sales orders directly or from accepted quotations.') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('sales.order.confirm', 'Confirm sales orders', 'Sales', 'Confirm governed sales orders.') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('sales.order.approve', 'Approve sales orders', 'Sales', 'Approve sales orders and amendments.') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('sales.order.amend', 'Amend sales orders', 'Sales', 'Create governed amendments to confirmed sales orders.') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('sales.order.hold', 'Manage order holds', 'Sales', 'Place and release operational holds on sales orders.') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('pos.sale.create', 'Create POS sales', 'Point of Sale', 'Complete retail sales') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('sales.order.cancel', 'Cancel sales orders', 'Sales', 'Cancel eligible sales orders with an audit reason.') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('sales.fulfillment.request', 'Request fulfilment', 'Sales', 'Create durable fulfilment requests for Inventory.') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('sales.invoice.request', 'Request invoicing', 'Sales', 'Create durable invoice requests for Accounting.') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('sales.price.override', 'Override sales prices', 'Sales', 'Override calculated prices with a documented reason.') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('sales.margin.view', 'View sales margin', 'Sales', 'View protected cost and gross-margin information.') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('sales.credit.override', 'Override credit controls', 'Sales', 'Override customer credit blocks with a documented reason.') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('sales.reports.view', 'View Sales reports', 'Sales', 'View Sales operational and commercial reports.') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('sales.settings.manage', 'Manage Sales settings', 'Sales', 'Configure Sales controls, approvals, pricing and tax behaviour.') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('accounting.view', 'View Accounting', 'Accounting', 'View accounting dashboards, ledgers, subledgers and reports.') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('accounting.journal.create', 'Create journal entries', 'Accounting', 'Create and edit draft journal entries.') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('accounting.journal.submit', 'Submit journal entries', 'Accounting', 'Submit balanced journal entries for approval or posting.') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('accounting.journal.approve', 'Approve journal entries', 'Accounting', 'Approve governed journal entries.') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('accounting.journal.post', 'Post journal entries', 'Accounting', 'Post approved journal entries to the general ledger.') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('accounting.journal.reverse', 'Reverse journal entries', 'Accounting', 'Create governed reversal entries for posted journals.') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('accounting.receivables.manage', 'Manage receivables', 'Accounting', 'Create, post, credit and manage customer invoices.') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('accounting.receivables.approve', 'Approve receivables', 'Accounting', 'Approve governed customer invoices before posting.') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('accounting.receipts.manage', 'Manage customer receipts', 'Accounting', 'Record, post and allocate customer receipts.') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('accounting.collections.manage', 'Manage collections', 'Accounting', 'Manage disputes, dunning and customer collection activity.') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('accounting.payables.manage', 'Manage payables', 'Accounting', 'Create and manage supplier bills and adjustments.') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('accounting.payables.approve', 'Approve payables', 'Accounting', 'Approve governed supplier bills before posting.') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('accounting.payments.manage', 'Manage supplier payments', 'Accounting', 'Create, post and allocate supplier payments.') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('accounting.payments.approve', 'Approve supplier payments', 'Accounting', 'Approve governed supplier payments before posting.') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('accounting.bank.manage', 'Manage bank accounts', 'Accounting', 'Manage bank accounts, statements, transfers and cash journals.') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('accounting.bank.reconcile', 'Reconcile bank accounts', 'Accounting', 'Match and reconcile bank statement transactions.') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('accounting.period.manage', 'Manage accounting periods', 'Accounting', 'Open, soft-close, lock and reopen accounting periods.') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('accounting.close.manage', 'Manage financial close', 'Accounting', 'Run governed month, quarter and year-end close checklists.') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('accounting.budget.manage', 'Manage budgets', 'Accounting', 'Create, approve and control accounting budgets and forecasts.') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('accounting.tax.manage', 'Manage tax accounting', 'Accounting', 'Configure tax accounts and manage tax ledgers and returns.') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('accounting.fx.manage', 'Manage foreign currency accounting', 'Accounting', 'Run foreign-currency revaluations and review gains and losses.') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('accounting.assets.manage', 'Manage fixed assets', 'Accounting', 'Capitalize, depreciate, transfer, impair and dispose fixed assets.') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('accounting.recurring.manage', 'Manage recurring accounting', 'Accounting', 'Manage recurring journals, accruals and deferrals.') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('accounting.reports.view', 'View accounting reports', 'Accounting', 'View general ledger, financial statements, aging and reconciliation reports.') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('accounting.settings.manage', 'Manage Accounting settings', 'Accounting', 'Configure ledgers, journals, chart of accounts and posting rules.') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('accounting.audit.view', 'View accounting audit trail', 'Accounting', 'View protected accounting source-to-ledger audit information.') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('procurement.view', 'View', 'Procurement', 'Enterprise Procurement permission.') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('procurement.settings.manage', 'Manage', 'Procurement', 'Enterprise Procurement permission.') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('procurement.suppliers.view', 'View', 'Procurement', 'Enterprise Procurement permission.') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('procurement.suppliers.manage', 'Manage', 'Procurement', 'Enterprise Procurement permission.') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('procurement.suppliers.qualify', 'Qualify', 'Procurement', 'Enterprise Procurement permission.') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('procurement.suppliers.sensitive', 'Sensitive', 'Procurement', 'Enterprise Procurement permission.') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('procurement.catalog.manage', 'Manage', 'Procurement', 'Enterprise Procurement permission.') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('procurement.requisition.create', 'Create', 'Procurement', 'Enterprise Procurement permission.') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('procurement.requisition.manage', 'Manage', 'Procurement', 'Enterprise Procurement permission.') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('procurement.requisition.approve', 'Approve', 'Procurement', 'Enterprise Procurement permission.') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('procurement.sourcing.manage', 'Manage', 'Procurement', 'Enterprise Procurement permission.') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('procurement.sourcing.evaluate', 'Evaluate', 'Procurement', 'Enterprise Procurement permission.') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('procurement.sourcing.award', 'Award', 'Procurement', 'Enterprise Procurement permission.') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('procurement.contracts.manage', 'Manage', 'Procurement', 'Enterprise Procurement permission.') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('procurement.contracts.approve', 'Approve', 'Procurement', 'Enterprise Procurement permission.') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('procurement.po.create', 'Create', 'Procurement', 'Enterprise Procurement permission.') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('procurement.po.manage', 'Manage', 'Procurement', 'Enterprise Procurement permission.') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('procurement.po.approve', 'Approve', 'Procurement', 'Enterprise Procurement permission.') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('procurement.po.dispatch', 'Dispatch', 'Procurement', 'Enterprise Procurement permission.') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('procurement.po.amend', 'Amend', 'Procurement', 'Enterprise Procurement permission.') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('procurement.po.cancel', 'Cancel', 'Procurement', 'Enterprise Procurement permission.') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('procurement.receipts.manage', 'Manage', 'Procurement', 'Enterprise Procurement permission.') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('procurement.receipts.approve', 'Approve', 'Procurement', 'Enterprise Procurement permission.') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('procurement.inspection.manage', 'Manage', 'Procurement', 'Enterprise Procurement permission.') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('procurement.returns.manage', 'Manage', 'Procurement', 'Enterprise Procurement permission.') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('procurement.matching.manage', 'Manage', 'Procurement', 'Enterprise Procurement permission.') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('procurement.matching.override', 'Override', 'Procurement', 'Enterprise Procurement permission.') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('procurement.supplier_portal.manage', 'Manage', 'Procurement', 'Enterprise Procurement permission.') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('procurement.reports.view', 'View', 'Procurement', 'Enterprise Procurement permission.') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('procurement.audit.view', 'View', 'Procurement', 'Enterprise Procurement permission.') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('accounting.close.waive', 'Waive financial close tasks', 'Accounting', 'Waive a close task only with a documented reason and supporting evidence.') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('roles.view', 'View roles', 'Access', 'View organisation role templates, custom roles and effective permissions.') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('roles.assign', 'Assign roles', 'Access', 'Assign one or more roles and access scopes to organisation users.') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('access.sod.override', 'Override access conflict warnings', 'Access', 'Acknowledge warning-level segregation-of-duties conflicts during access administration.') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('stock.view', 'View stock', 'Stock', 'View stock balances and movements') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('stock.manage', 'Manage stock', 'Stock', 'Manage stock operations') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('stock.receive', 'Receive stock', 'Stock', 'Post stock receipts') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('stock.issue', 'Issue stock', 'Stock', 'Post stock issues') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('stock.transfer', 'Transfer stock', 'Stock', 'Transfer stock between locations') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('stock.adjust', 'Adjust stock', 'Stock', 'Post controlled stock adjustments') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('stock.reserve', 'Reserve stock', 'Stock', 'Create and release reservations') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('stock.count', 'Count stock', 'Stock', 'Run cycle and physical counts') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('stock.valuation.view', 'View stock valuation', 'Stock', 'View inventory valuation') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('stock.reports.view', 'View stock reports', 'Stock', 'View inventory reports') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('stock.settings.manage', 'Manage stock settings', 'Stock', 'Manage inventory policies') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('stock.audit.view', 'View stock audit', 'Stock', 'View stock audit evidence') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('manufacturing.view', 'View manufacturing', 'Manufacturing', 'View manufacturing plans and execution') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('manufacturing.manage', 'Manage manufacturing', 'Manufacturing', 'Manage manufacturing records') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('manufacturing.bom.view', 'View bills of material', 'Manufacturing', 'View BOM versions and components') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('manufacturing.bom.manage', 'Manage bills of material', 'Manufacturing', 'Create and activate BOM versions') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('manufacturing.routing.manage', 'Manage routings', 'Manufacturing', 'Manage operations and work-center routing') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('manufacturing.planning.run', 'Run material planning', 'Manufacturing', 'Run governed material requirement planning') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('manufacturing.work_order.manage', 'Manage work orders', 'Manufacturing', 'Create and schedule production work orders') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('manufacturing.work_order.release', 'Release work orders', 'Manufacturing', 'Release planned work to production') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('manufacturing.production.post', 'Post production', 'Manufacturing', 'Issue materials and receive finished goods') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('manufacturing.scrap.post', 'Post manufacturing scrap', 'Manufacturing', 'Record governed production scrap') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('manufacturing.costing.view', 'View manufacturing costing', 'Manufacturing', 'View standard and actual manufacturing cost') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('manufacturing.reports.view', 'View manufacturing reports', 'Manufacturing', 'View manufacturing planning and performance reports') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('manufacturing.settings.manage', 'Manage manufacturing settings', 'Manufacturing', 'Manage manufacturing policies and defaults') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('manufacturing.audit.view', 'View manufacturing audit', 'Manufacturing', 'View manufacturing audit evidence') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('projects.view', 'View projects', 'Projects', 'View project delivery and financial summaries') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('projects.manage', 'Manage projects', 'Projects', 'Manage project delivery records') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('projects.create', 'Create projects', 'Projects', 'Create project workspaces') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('projects.approve', 'Approve projects', 'Projects', 'Approve project baselines and closure') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('projects.tasks.manage', 'Manage project tasks', 'Projects', 'Manage task delivery and dependencies') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('projects.milestones.manage', 'Manage milestones', 'Projects', 'Manage project milestones') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('projects.resources.manage', 'Manage project resources', 'Projects', 'Assign members and capacity') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('projects.time.enter', 'Enter project time', 'Projects', 'Record project time') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('projects.time.approve', 'Approve project time', 'Projects', 'Approve submitted time') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('projects.expense.enter', 'Enter project expenses', 'Projects', 'Record project expenses') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('projects.expense.approve', 'Approve project expenses', 'Projects', 'Approve project expenses') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('projects.budget.manage', 'Manage project budgets', 'Projects', 'Manage project financial baselines') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('projects.procurement.link', 'Link project procurement', 'Projects', 'Link procurement documents to projects') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('projects.billing.manage', 'Manage project billing', 'Projects', 'Manage governed project billing requests') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('projects.profitability.view', 'View project profitability', 'Projects', 'View project margin and cost performance') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('projects.reports.view', 'View project reports', 'Projects', 'View project portfolio reports') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('projects.settings.manage', 'Manage project settings', 'Projects', 'Manage project policies and defaults') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('projects.audit.view', 'View project audit', 'Projects', 'View project audit events') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('assets.view', 'View assets', 'Assets', 'View asset lifecycle records') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('assets.manage', 'Manage assets', 'Assets', 'Manage operational asset records') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('assets.create', 'Create assets', 'Assets', 'Create asset master records') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('assets.capitalize', 'Capitalize assets', 'Assets', 'Approve asset capitalization') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('assets.assign', 'Assign assets', 'Assets', 'Assign assets to users and locations') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('assets.transfer', 'Transfer assets', 'Assets', 'Transfer asset custody or location') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('assets.maintain', 'Maintain assets', 'Assets', 'Plan and complete maintenance') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('assets.inspect', 'Inspect assets', 'Assets', 'Record asset inspections and audits') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('assets.depreciate', 'Run asset depreciation', 'Assets', 'Create governed depreciation schedules') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('assets.dispose', 'Dispose assets', 'Assets', 'Approve asset retirement and disposal') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('assets.accounting.handoff', 'Send asset accounting events', 'Assets', 'Send capitalization, depreciation and disposal events to Accounting') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('assets.reports.view', 'View asset reports', 'Assets', 'View lifecycle, maintenance and valuation reports') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('assets.settings.manage', 'Manage asset settings', 'Assets', 'Manage asset policies and defaults') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('assets.audit.view', 'View asset audit', 'Assets', 'View asset audit history') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('pos.view', 'View Point of Sale', 'Point of Sale', 'View stores, terminals, shifts and sales') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('pos.operate', 'Operate Point of Sale', 'Point of Sale', 'Use a POS terminal') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('pos.shift.open', 'Open POS shifts', 'Point of Sale', 'Open a controlled cashier shift') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('pos.shift.close', 'Close POS shifts', 'Point of Sale', 'Close and reconcile cashier shifts') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('pos.discount.apply', 'Apply POS discounts', 'Point of Sale', 'Apply allowed retail discounts') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('pos.return.create', 'Create POS returns', 'Point of Sale', 'Create customer returns') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('pos.return.approve', 'Approve POS returns', 'Point of Sale', 'Approve governed returns') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('pos.cash.adjust', 'Adjust POS cash', 'Point of Sale', 'Record cash paid-in and paid-out movements') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('pos.price.override', 'Override POS prices', 'Point of Sale', 'Override retail prices with evidence') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('pos.terminal.manage', 'Manage POS terminals', 'Point of Sale', 'Manage POS terminal configuration') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('pos.store.manage', 'Manage POS stores', 'Point of Sale', 'Manage stores and retail warehouses') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('pos.payment.manage', 'Manage POS payments', 'Point of Sale', 'Manage payment methods and reconciliation') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('pos.reports.view', 'View POS reports', 'Point of Sale', 'View retail sales and reconciliation reports') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('pos.settings.manage', 'Manage POS settings', 'Point of Sale', 'Manage POS policies and defaults') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('pos.audit.view', 'View POS audit', 'Point of Sale', 'View POS audit history') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('quality.view', 'View quality', 'Quality', 'View quality plans, inspections and outcomes') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('quality.manage', 'Manage quality', 'Quality', 'Manage operational quality records') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('quality.plan.manage', 'Manage quality plans', 'Quality', 'Create and maintain quality plans') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('quality.inspect', 'Perform inspections', 'Quality', 'Perform incoming, in-process and final inspections') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('quality.release', 'Release inspected material', 'Quality', 'Approve release after inspection') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('quality.hold', 'Place quality holds', 'Quality', 'Place inventory or documents on quality hold') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('quality.nonconformance.manage', 'Manage non-conformance', 'Quality', 'Manage defects, containment and disposition') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('quality.capa.manage', 'Manage CAPA', 'Quality', 'Manage corrective and preventive actions') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('quality.sampling.manage', 'Manage sampling', 'Quality', 'Manage inspection sampling rules') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('quality.supplier.manage', 'Manage supplier quality', 'Quality', 'Manage supplier quality evidence and scorecards') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('quality.audit.manage', 'Manage quality audits', 'Quality', 'Plan and execute internal quality audits') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('quality.reports.view', 'View quality reports', 'Quality', 'View quality performance reports') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('quality.settings.manage', 'Manage quality settings', 'Quality', 'Manage quality policies and defaults') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('quality.audit.view', 'View quality audit trail', 'Quality', 'View quality audit history') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('support.view', 'View support', 'Support', 'View support tickets and service history') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('support.manage', 'Manage support', 'Support', 'Manage service operations') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('support.ticket.create', 'Create support tickets', 'Support', 'Create customer and internal support tickets') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('support.ticket.assign', 'Assign support tickets', 'Support', 'Assign tickets to users and queues') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('support.ticket.resolve', 'Resolve support tickets', 'Support', 'Resolve tickets with evidence') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('support.ticket.close', 'Close support tickets', 'Support', 'Close resolved tickets') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('support.queue.manage', 'Manage support queues', 'Support', 'Manage queues, ownership and routing') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('support.sla.manage', 'Manage support SLAs', 'Support', 'Manage response and resolution targets') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('support.escalation.manage', 'Manage support escalation', 'Support', 'Manage escalation policies and actions') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('support.knowledge.manage', 'Manage knowledge base', 'Support', 'Create and publish support knowledge') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('support.communication.manage', 'Manage support communication', 'Support', 'Record customer and internal communications') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('support.sensitive.view', 'View sensitive support data', 'Support', 'View sensitive customer service details') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('support.reports.view', 'View support reports', 'Support', 'View service performance reports') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('support.settings.manage', 'Manage support settings', 'Support', 'Manage service policies and defaults') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('support.audit.view', 'View support audit', 'Support', 'View support audit history') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('hr_payroll.view', 'View HR and Payroll', 'HR & Payroll', 'View workforce and payroll summaries') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('hr_payroll.employee.view', 'View employees', 'HR & Payroll', 'View employee records') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('hr_payroll.employee.manage', 'Manage employees', 'HR & Payroll', 'Create and update employee records') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('hr_payroll.sensitive.view', 'View sensitive HR data', 'HR & Payroll', 'View bank, tax and personal employee details') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('hr_payroll.attendance.manage', 'Manage attendance', 'HR & Payroll', 'Manage employee attendance') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('hr_payroll.shift.manage', 'Manage shifts', 'HR & Payroll', 'Manage workforce shifts and calendars') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('hr_payroll.leave.manage', 'Manage leave', 'HR & Payroll', 'Create and maintain leave requests') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('hr_payroll.leave.approve', 'Approve leave', 'HR & Payroll', 'Approve or reject leave requests') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('hr_payroll.expense.manage', 'Manage employee expenses', 'HR & Payroll', 'Create and maintain employee expenses') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('hr_payroll.expense.approve', 'Approve employee expenses', 'HR & Payroll', 'Approve or reject employee expenses') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('hr_payroll.payroll.prepare', 'Prepare payroll', 'HR & Payroll', 'Calculate payroll runs') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('hr_payroll.payroll.approve', 'Approve payroll', 'HR & Payroll', 'Approve calculated payroll') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('hr_payroll.payroll.post', 'Post payroll', 'HR & Payroll', 'Send approved payroll to Accounting') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('hr_payroll.payslip.view', 'View payslips', 'HR & Payroll', 'View employee payslips') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('hr_payroll.compensation.manage', 'Manage compensation', 'HR & Payroll', 'Manage salary structures and assignments') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('hr_payroll.statutory.manage', 'Manage statutory payroll', 'HR & Payroll', 'Manage statutory payroll components') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('hr_payroll.reports.view', 'View HR and payroll reports', 'HR & Payroll', 'View workforce and payroll reports') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('hr_payroll.settings.manage', 'Manage HR and payroll settings', 'HR & Payroll', 'Manage HR and payroll policies') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('hr_payroll.audit.view', 'View HR and payroll audit', 'HR & Payroll', 'View HR and payroll audit history') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('compliance.view', 'View compliance workspace', 'Compliance', 'View the cross-module Compliance overview, retention configuration, consent records and privacy request status.') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('automation.view', 'View automation workspace', 'Automation', 'View automation rule status and execution history.') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('integrations.view', 'View integrations workspace', 'Integrations', 'View configured integrations, webhook subscriptions and delivery-queue status.') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('data_management.view', 'View data management workspace', 'Data Management', 'View import/export, bulk-update and data-operations tooling.') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('crm.records.view_all', 'View all CRM team records', 'CRM', 'See every CRM lead, opportunity and activity within company/branch scope, not just records owned by or assigned to the caller.') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('crm.leads.view_sensitive', 'View sensitive CRM Lead content', 'CRM', 'View Lead contact details, consent evidence, private notes/communications and sensitive Lead intelligence within normal record scope.') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('crm.saved_views.share', 'Share CRM saved views', 'CRM', 'Publish governed CRM Lead saved views to an authorized sales team or organization audience.') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('integrations.manage', 'Manage integrations', 'Integrations', 'Create/revoke tenant API keys and OAuth connections.') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('platform.configuration.manage', 'Manage platform configuration', 'Platform', 'Manage effective-dated shared configuration and feature flags.') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('platform.extensibility.manage', 'Manage controlled extensibility', 'Platform', 'Manage shared tag definitions and governed extensibility metadata.') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('platform.privacy.manage', 'Manage shared privacy controls', 'Governance', 'Manage tenant-level retention policies and data-subject requests.') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('platform.reports.manage', 'Manage shared reports', 'Reporting', 'Manage shared report definitions and execution evidence.') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('platform.ai.manage', 'Manage AI governance', 'AI', 'Manage AI policies, request evidence and evaluations.') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('platform.workflows.manage', 'Manage platform workflows', 'Automation', 'Manage and execute shared workflow definitions.') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('crm.contacts.view_sensitive', 'View sensitive CRM Contact content', 'CRM', 'View Contact email, phone, mobile and private notes within normal record scope.') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('crm.accounts.view_sensitive', 'View sensitive CRM Account content', 'CRM', 'View Account GSTIN, PAN and MSME registration number within normal record scope.') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('pos.discount.approve', 'Approve POS discounts', 'Point of Sale', 'Decide a pending above-threshold discount request as the required separate approver') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('pos.payment.refund', 'Refund a POS payment', 'Point of Sale', 'Issue a refund against a captured POS payment, routed back to its original tender method.') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('pos.payment.override', 'Override a POS payment', 'Point of Sale', 'Request (or, held by a different identity, decide) a manual force-capture override for a POS payment a provider could not confirm.') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('pos.report.generate', 'Generate POS day-end reports', 'Point of Sale', 'Generate/review a draft day-end (Z) report') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('pos.report.finalize', 'Finalize POS day-end reports', 'Point of Sale', 'Finalize and lock a reviewed day-end (Z) report') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('pos.report.view', 'View POS day-end reports', 'Point of Sale', 'View day-end (Z) reports') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('pos.offline.sync', 'Sync offline POS sales', 'Point of Sale', 'Drain a device''s own queued offline sales against the server once back online') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('pos.offline.resolve', 'Resolve offline sync conflicts', 'Point of Sale', 'View and resolve offline-sync conflicts (price/stock/shift divergence) for any device') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('pos.loyalty.manage', 'Manage POS loyalty program', 'Point of Sale', 'Configure the loyalty program''s earn rate, redemption value and eligibility rules') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('pos.loyalty.redeem', 'Redeem POS loyalty points', 'Point of Sale', 'Redeem a customer''s loyalty points against a sale at checkout') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('pos.invoice.generate', 'Generate POS invoice', 'Point of Sale', 'Generate a formal tax invoice document for a completed POS sale') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('pos.invoice.view', 'View POS invoices', 'Point of Sale', 'View or reprint an already-generated POS invoice') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('pos.reconciliation.manage', 'Manage POS payment reconciliation', 'Point of Sale', 'Import settlement evidence and generate/match POS payment reconciliation') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('pos.reconciliation.approve', 'Approve POS reconciliation exceptions', 'Point of Sale', 'Investigate and resolve a POS payment reconciliation variance') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('pos.reconciliation.view', 'View POS payment reconciliation', 'Point of Sale', 'View POS payment reconciliation records and exceptions') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('pos.accounting.post', 'Post POS transactions to accounting', 'Point of Sale', 'Trigger or retry posting a completed POS sale/return to the Accounting general ledger') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('pos.accounting.view', 'View POS accounting posting status', 'Point of Sale', 'View POS accounting posting status, including failed/pending postings') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('pos.analytics.view', 'View POS analytics', 'Point of Sale', 'View POS sales, tender, return, reconciliation and accounting-posting analytics') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('platform.security.manage', 'Manage organization security policy', 'Platform', 'Enforce organization-wide MFA and other shared security policy.') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('crm.leads.view_all', 'View all CRM Leads', 'CRM', 'See every Lead in the permitted companies/branches regardless of owner. Does not widen Opportunities, Accounts or Activities.') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('crm.customers.view_all', 'View all customer Accounts', 'CRM', 'See every customer Account (not prospects), its Contacts and the Activities logged on them, regardless of owner.') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('crm.coverage.view', 'View sales coverage', 'CRM', 'See sales teams, territories, coverage gaps and unassigned records') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('crm.teams.manage', 'Manage sales teams', 'CRM', 'Create and change sales teams, managers and memberships') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('crm.territories.manage', 'Manage territories', 'CRM', 'Create and change the territory hierarchy and territory assignments') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('crm.coverage.assign', 'Reassign coverage', 'CRM', 'Move ownership of leads, accounts and opportunities and transfer territory coverage') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('crm.forecast.submit', 'Submit forecasts', 'CRM', 'Submit your own forecast for an open period') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('crm.forecast.review', 'Review forecasts', 'CRM', 'Review, adjust and approve forecasts for the teams you manage') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('crm.forecast.manage', 'Govern forecast periods', 'CRM', 'Open, lock and close forecast periods and capture forecast snapshots') ON CONFLICT DO NOTHING;
+INSERT INTO public.permissions VALUES ('crm.reports.schedule', 'Schedule CRM reports', 'CRM', 'Schedule saved CRM reports for recurring delivery') ON CONFLICT DO NOTHING;
+
+
+--
+-- Data for Name: access_conflict_rules; Type: TABLE DATA; Schema: public; Owner: vercentlabs
+--
+
+INSERT INTO public.access_conflict_rules VALUES ('journal_prepare_approve', 'accounting.journal.create', 'accounting.journal.approve', 'blocking', 'The same access profile must not prepare and approve journals.', 'active', '2026-10-02 18:44:34.714668+00', '2026-10-02 18:44:34.714668+00') ON CONFLICT DO NOTHING;
+INSERT INTO public.access_conflict_rules VALUES ('payment_prepare_approve', 'accounting.payments.manage', 'accounting.payments.approve', 'blocking', 'Payment execution and payment approval must be separated.', 'active', '2026-10-02 18:44:34.714668+00', '2026-10-02 18:44:34.714668+00') ON CONFLICT DO NOTHING;
+INSERT INTO public.access_conflict_rules VALUES ('sales_order_create_approve', 'sales.order.create', 'sales.order.approve', 'blocking', 'Sales-order creation and approval must be separated.', 'active', '2026-10-02 18:44:34.714668+00', '2026-10-02 18:44:34.714668+00') ON CONFLICT DO NOTHING;
+INSERT INTO public.access_conflict_rules VALUES ('purchase_order_create_approve', 'procurement.po.create', 'procurement.po.approve', 'blocking', 'Purchase-order creation and approval must be separated.', 'active', '2026-10-02 18:44:34.714668+00', '2026-10-02 18:44:34.714668+00') ON CONFLICT DO NOTHING;
+INSERT INTO public.access_conflict_rules VALUES ('quotation_create_approve', 'sales.quotation.create', 'sales.quotation.approve', 'warning', 'Quotation creation and approval should normally be separated.', 'active', '2026-10-02 18:44:34.714668+00', '2026-10-02 18:44:34.714668+00') ON CONFLICT DO NOTHING;
+INSERT INTO public.access_conflict_rules VALUES ('supplier_manage_sensitive', 'procurement.suppliers.manage', 'procurement.suppliers.sensitive', 'warning', 'Supplier maintenance and sensitive supplier access should be reviewed.', 'active', '2026-10-02 18:44:34.714668+00', '2026-10-02 18:44:34.714668+00') ON CONFLICT DO NOTHING;
+INSERT INTO public.access_conflict_rules VALUES ('sourcing_evaluate_award', 'procurement.sourcing.evaluate', 'procurement.sourcing.award', 'warning', 'Bid evaluation and award authority should normally be separated.', 'active', '2026-10-02 18:44:34.714668+00', '2026-10-02 18:44:34.714668+00') ON CONFLICT DO NOTHING;
+
+
+--
+-- Data for Name: billing_plans; Type: TABLE DATA; Schema: public; Owner: vercentlabs
+--
+
+INSERT INTO public.billing_plans VALUES ('0b785e41-3575-423e-a738-9c313d22b3aa', 'founder-preview', 'Founder Preview', 'Internal preview access to the released CRM and platform foundation.', 'active', 0, 0, false, '["Unlimited users", "Released CRM capabilities", "Development support", "Sales order-to-cash", "Financial accounting and close", "Governed source-to-pay"]', '["accounting", "accounting", "crm", "crm", "procurement", "sales", "sales"]', '{"branches": 100, "companies": 25, "storage_gb": 1000, "api_requests_monthly": 10000000, "imports_rows_monthly": 1000000, "outbound_messages_monthly": 1000000, "automation_actions_monthly": 1000000}', '{"minimum_margin_percent": 0, "gateway_reserve_percent": 0, "estimated_direct_cost_paise": 0}', '2026-10-02 18:44:33.701435+00', '2026-10-02 18:44:34.610771+00', 'available', 'flat', NULL) ON CONFLICT DO NOTHING;
+INSERT INTO public.billing_plans VALUES ('d872bf9a-7144-40ba-8feb-d90a89aae902', 'launch', 'Launch', 'For small businesses adopting CRM and governed master data.', 'archived', 10, 14, false, '["Unlimited users", "1 company and 2 branches", "CRM and master data", "Core platform controls", "Email support", "Sales order-to-cash", "Financial accounting and close", "Governed source-to-pay"]', '["accounting", "accounting", "crm", "crm", "procurement", "sales", "sales"]', '{"branches": 2, "companies": 1, "storage_gb": 25, "api_requests_monthly": 100000, "imports_rows_monthly": 25000, "outbound_messages_monthly": 5000, "automation_actions_monthly": 5000}', '{"minimum_margin_percent": 70, "gateway_reserve_percent": 4, "estimated_direct_cost_paise": 70000}', '2026-10-02 18:44:33.701435+00', '2026-10-02 18:44:36.222374+00', 'available', 'flat', NULL) ON CONFLICT DO NOTHING;
+INSERT INTO public.billing_plans VALUES ('e4369c8e-66e6-47a7-923c-f23e3b253cad', 'growth', 'Growth', 'For multi-team businesses scaling CRM usage and governance.', 'archived', 20, 14, false, '["Unlimited users", "3 companies and 10 branches", "Advanced CRM controls", "Higher automation limits", "Priority email support", "Sales order-to-cash", "Financial accounting and close", "Governed source-to-pay"]', '["accounting", "accounting", "crm", "crm", "procurement", "sales", "sales"]', '{"branches": 10, "companies": 3, "storage_gb": 100, "api_requests_monthly": 500000, "imports_rows_monthly": 150000, "outbound_messages_monthly": 25000, "automation_actions_monthly": 25000}', '{"minimum_margin_percent": 70, "gateway_reserve_percent": 4, "estimated_direct_cost_paise": 180000}', '2026-10-02 18:44:33.701435+00', '2026-10-02 18:44:36.222374+00', 'available', 'flat', NULL) ON CONFLICT DO NOTHING;
+INSERT INTO public.billing_plans VALUES ('53b7d904-d3a3-4310-b64a-478b9cba2622', 'scale', 'Scale', 'For growing multi-company organisations requiring deeper CRM controls and higher usage.', 'archived', 30, 14, false, '["Unlimited users", "10 companies and 50 branches", "CRM analytics and governance", "Integration allowances", "Priority support", "Sales order-to-cash", "Financial accounting and close", "Governed source-to-pay"]', '["accounting", "accounting", "crm", "crm", "procurement", "sales", "sales"]', '{"branches": 50, "companies": 10, "storage_gb": 500, "api_requests_monthly": 2000000, "imports_rows_monthly": 1000000, "outbound_messages_monthly": 100000, "automation_actions_monthly": 100000}', '{"minimum_margin_percent": 70, "gateway_reserve_percent": 4, "estimated_direct_cost_paise": 450000}', '2026-10-02 18:44:33.701435+00', '2026-10-02 18:44:36.222374+00', 'available', 'flat', NULL) ON CONFLICT DO NOTHING;
+INSERT INTO public.billing_plans VALUES ('38ee774c-3db9-4fde-abc0-584c15a93dba', 'free', 'Free', 'For one person getting started: 1 user at no charge.', 'active', 10, 0, true, '["1 user included", "All released modules", "Email support"]', '["*"]', '{"branches": 10, "companies": 3, "storage_gb": 50, "api_requests_monthly": 200000, "imports_rows_monthly": 100000, "outbound_messages_monthly": 10000, "automation_actions_monthly": 10000}', '{"minimum_margin_percent": 0, "gateway_reserve_percent": 0, "estimated_direct_cost_paise": 0}', '2026-10-02 18:44:36.222374+00', '2026-10-02 18:44:36.481902+00', 'available', 'free', 1) ON CONFLICT DO NOTHING;
+INSERT INTO public.billing_plans VALUES ('b26f6d0b-b212-455a-bdd7-e202f638d53e', 'standard', 'Standard', 'Your first user is included. Each additional user is ₹1,000 per month.', 'active', 20, 0, true, '["First user included", "₹1,000 per additional user per month", "All released modules", "Add or remove users any time", "Priority email support"]', '["*"]', '{"branches": 50, "companies": 10, "storage_gb": 500, "api_requests_monthly": 2000000, "imports_rows_monthly": 1000000, "outbound_messages_monthly": 100000, "automation_actions_monthly": 100000}', '{"minimum_margin_percent": 0, "gateway_reserve_percent": 4, "estimated_direct_cost_paise": 0}', '2026-10-02 18:44:36.222374+00', '2026-10-02 18:44:36.481902+00', 'available', 'per_seat', 1) ON CONFLICT DO NOTHING;
+INSERT INTO public.billing_plans VALUES ('fcb99860-e75a-48b7-ad6a-a700a080abc7', 'enterprise', 'Custom', 'Contracted pricing, users, modules and limits for larger organisations.', 'active', 30, 0, true, '["Contracted users and limits", "Selected modules", "Custom onboarding and support"]', '["accounting", "accounting", "crm", "crm", "procurement", "sales", "sales"]', '{"branches": 10000, "companies": 1000, "storage_gb": 10000, "api_requests_monthly": 100000000, "imports_rows_monthly": 10000000, "outbound_messages_monthly": 10000000, "automation_actions_monthly": 10000000}', '{"minimum_margin_percent": 70, "gateway_reserve_percent": 4, "estimated_direct_cost_paise": 1800000}', '2026-10-02 18:44:33.701435+00', '2026-10-02 18:44:36.481902+00', 'contact_sales', 'custom', NULL) ON CONFLICT DO NOTHING;
+
+
+--
+-- Data for Name: billing_plan_prices; Type: TABLE DATA; Schema: public; Owner: vercentlabs
+--
+
+INSERT INTO public.billing_plan_prices VALUES ('83648301-e9aa-4ef4-bde8-d88fdb227b61', '0b785e41-3575-423e-a738-9c313d22b3aa', 'custom', 'INR', 0, 0, 1, 'razorpay', NULL, true, '2026-10-02 18:44:33.701435+00', NULL, '2026-10-02 18:44:33.701435+00', '2026-10-02 18:44:33.701435+00', NULL) ON CONFLICT DO NOTHING;
+INSERT INTO public.billing_plan_prices VALUES ('7ec9d636-5136-4978-975c-26d4a4ee7844', 'fcb99860-e75a-48b7-ad6a-a700a080abc7', 'custom', 'INR', 6000000, 20000000, 1, 'razorpay', NULL, true, '2026-10-02 18:44:33.701435+00', NULL, '2026-10-02 18:44:33.701435+00', '2026-10-02 18:44:33.701435+00', NULL) ON CONFLICT DO NOTHING;
+INSERT INTO public.billing_plan_prices VALUES ('3bf8d8c7-fa2e-440b-8622-e12d35c8ffc1', 'd872bf9a-7144-40ba-8feb-d90a89aae902', 'yearly', 'INR', 3999000, 0, 1, 'razorpay', NULL, false, '2026-10-02 18:44:33.701435+00', '2026-10-02 18:44:36.481902+00', '2026-10-02 18:44:33.701435+00', '2026-10-02 18:44:36.481902+00', NULL) ON CONFLICT DO NOTHING;
+INSERT INTO public.billing_plan_prices VALUES ('465458f3-7d97-4c3f-b925-4060b93e8c8c', 'd872bf9a-7144-40ba-8feb-d90a89aae902', 'monthly', 'INR', 399900, 0, 1, 'razorpay', NULL, false, '2026-10-02 18:44:33.701435+00', '2026-10-02 18:44:36.481902+00', '2026-10-02 18:44:33.701435+00', '2026-10-02 18:44:36.481902+00', NULL) ON CONFLICT DO NOTHING;
+INSERT INTO public.billing_plan_prices VALUES ('4977b6ca-3441-41c8-a58a-31d14d64aae6', 'e4369c8e-66e6-47a7-923c-f23e3b253cad', 'yearly', 'INR', 9999000, 1999900, 1, 'razorpay', NULL, false, '2026-10-02 18:44:33.701435+00', '2026-10-02 18:44:36.481902+00', '2026-10-02 18:44:33.701435+00', '2026-10-02 18:44:36.481902+00', NULL) ON CONFLICT DO NOTHING;
+INSERT INTO public.billing_plan_prices VALUES ('d2ecd34e-0523-4753-945f-751a1644d6bc', 'e4369c8e-66e6-47a7-923c-f23e3b253cad', 'monthly', 'INR', 999900, 1999900, 1, 'razorpay', NULL, false, '2026-10-02 18:44:33.701435+00', '2026-10-02 18:44:36.481902+00', '2026-10-02 18:44:33.701435+00', '2026-10-02 18:44:36.481902+00', NULL) ON CONFLICT DO NOTHING;
+INSERT INTO public.billing_plan_prices VALUES ('52d13770-920c-491f-821f-1c7a0110b82e', '53b7d904-d3a3-4310-b64a-478b9cba2622', 'yearly', 'INR', 24999000, 7499900, 1, 'razorpay', NULL, false, '2026-10-02 18:44:33.701435+00', '2026-10-02 18:44:36.481902+00', '2026-10-02 18:44:33.701435+00', '2026-10-02 18:44:36.481902+00', NULL) ON CONFLICT DO NOTHING;
+INSERT INTO public.billing_plan_prices VALUES ('c198949d-b9a1-4690-80dc-c2be8bd37d94', '53b7d904-d3a3-4310-b64a-478b9cba2622', 'monthly', 'INR', 2499900, 7499900, 1, 'razorpay', NULL, false, '2026-10-02 18:44:33.701435+00', '2026-10-02 18:44:36.481902+00', '2026-10-02 18:44:33.701435+00', '2026-10-02 18:44:36.481902+00', NULL) ON CONFLICT DO NOTHING;
+INSERT INTO public.billing_plan_prices VALUES ('3f2222d9-7e9b-4dc2-aa50-3ad9cdda5d74', '38ee774c-3db9-4fde-abc0-584c15a93dba', 'monthly', 'INR', 0, 0, 1, 'razorpay', NULL, false, '2026-10-02 18:44:36.222374+00', '2026-10-02 18:44:36.481902+00', '2026-10-02 18:44:36.222374+00', '2026-10-02 18:44:36.481902+00', 3) ON CONFLICT DO NOTHING;
+INSERT INTO public.billing_plan_prices VALUES ('6191a95e-cf37-4a28-be1b-3930eaac942e', 'b26f6d0b-b212-455a-bdd7-e202f638d53e', 'monthly', 'INR', 100000, 0, 1, 'razorpay', NULL, false, '2026-10-02 18:44:36.222374+00', '2026-10-02 18:44:36.481902+00', '2026-10-02 18:44:36.222374+00', '2026-10-02 18:44:36.481902+00', 3) ON CONFLICT DO NOTHING;
+INSERT INTO public.billing_plan_prices VALUES ('05ad527a-0ffc-4598-8b0f-0418bb650bd4', '38ee774c-3db9-4fde-abc0-584c15a93dba', 'monthly', 'INR', 0, 0, 2, 'razorpay', NULL, true, '2026-10-02 18:44:36.481902+00', NULL, '2026-10-02 18:44:36.481902+00', '2026-10-02 18:44:36.481902+00', 1) ON CONFLICT DO NOTHING;
+INSERT INTO public.billing_plan_prices VALUES ('69289d9c-ea92-4d68-aa56-1e745141ab17', 'b26f6d0b-b212-455a-bdd7-e202f638d53e', 'monthly', 'INR', 100000, 0, 2, 'razorpay', NULL, true, '2026-10-02 18:44:36.481902+00', NULL, '2026-10-02 18:44:36.481902+00', '2026-10-02 18:44:36.481902+00', 1) ON CONFLICT DO NOTHING;
+
+
+--
+-- PostgreSQL database dump complete
+--
+
+\unrestrict w6bsYpQ5Y98zYp3ktp2eS6AzDCpYr0XvJedUY3oAowGxDIhAwKccysS4k8uSJRI
+
+
+INSERT INTO public.schema_migrations (filename, checksum) VALUES ('0001_baseline.sql', 'baseline') ON CONFLICT (filename) DO NOTHING;
