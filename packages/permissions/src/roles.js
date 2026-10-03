@@ -23,7 +23,11 @@ export const CURRENT_MODULE_KEYS = Object.freeze([
 
 const base = ["workspace.view", "notifications.view", "profile.manage"];
 const businessReader = [...base, "business_data.view"];
-const crmReader = [...businessReader, "crm.view", "crm.reports.view"];
+const crmReader = [...businessReader, "crm.view", "crm.leads.view", "crm.reports.view"];
+// Working a lead day to day: everything a salesperson does to their own leads.
+const leadWorker = ["crm.leads.create", "crm.leads.edit", "crm.leads.assign", "crm.leads.qualify", "crm.leads.disqualify", "crm.leads.reopen", "crm.leads.convert"];
+// Running the lead desk: moving leads between people, archiving, import and export.
+const leadManager = [...leadWorker, "crm.leads.reassign", "crm.leads.delete", "crm.leads.import", "crm.leads.export"];
 const salesReader = [...businessReader, "sales.view", "sales.reports.view"];
 const accountingReader = [
   ...businessReader,
@@ -185,7 +189,7 @@ export const ROLE_TEMPLATES = Object.freeze([
       "crm.accounts.view_sensitive",
       "crm.records.view_all",
       "parties.manage",
-      "crm.leads.manage",
+      ...leadManager,
       "crm.leads.view_sensitive",
       "crm.saved_views.share",
       "crm.opportunities.manage",
@@ -235,7 +239,7 @@ export const ROLE_TEMPLATES = Object.freeze([
       "crm.records.view_all",
       "approvals.manage",
       "parties.manage",
-      "crm.leads.manage",
+      ...leadManager,
       "crm.leads.view_sensitive",
       "crm.saved_views.share",
       "crm.opportunities.manage",
@@ -284,7 +288,7 @@ export const ROLE_TEMPLATES = Object.freeze([
       "crm.accounts.view_sensitive",
       "approvals.manage",
       "parties.manage",
-      "crm.leads.manage",
+      ...leadManager,
       "crm.leads.view_sensitive",
       "crm.saved_views.share",
       "crm.opportunities.manage",
@@ -325,7 +329,7 @@ export const ROLE_TEMPLATES = Object.freeze([
       "crm.contacts.view_sensitive",
       "crm.accounts.view_sensitive",
       "parties.manage",
-      "crm.leads.manage",
+      ...leadWorker,
       "crm.leads.view_sensitive",
       "crm.opportunities.manage",
       "crm.activities.manage",
@@ -356,7 +360,7 @@ export const ROLE_TEMPLATES = Object.freeze([
       "crm.accounts.view_sensitive",
       "crm.records.view_all",
       "parties.manage",
-      "crm.leads.manage",
+      ...leadManager,
       "crm.leads.view_sensitive",
       "crm.saved_views.share",
       "crm.opportunities.manage",
@@ -392,7 +396,7 @@ export const ROLE_TEMPLATES = Object.freeze([
       "crm.leads.view_all",
       "crm.contacts.view_sensitive",
       "parties.manage",
-      "crm.leads.manage",
+      ...leadManager,
       "crm.leads.view_sensitive",
       "crm.saved_views.share",
       "crm.activities.manage",

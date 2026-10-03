@@ -1,26 +1,8 @@
-import { READINESS_FIELD_COLUMNS } from "../lead-management/qualification-fields.js";
-import { canViewSensitiveLeadContent } from "../lead-management/lead-security.js";
+import { canViewSensitiveLeadContent } from "../leads/access.js";
 import { CrmError } from "./errors.js";
 import { normalizeTerritoryCoverage, normalizeTerritoryType } from "../sales-organization/territory-coverage.js";
-import { LEAD_LINKED_GENERIC_RESOURCES, canViewCustomField, recordScope } from "./record-policy.js";
-import { resources } from "./resource-registry.js";
-import { camelizeRow } from "./record-utils.js";
+import { LEAD_LINKED_GENERIC_RESOURCES, canViewCustomField } from "./record-policy.js";
 import { getCrmRecord } from "./resource-query-service.js";
-
-
-
-export async function getLeadRecordForUpdate(client, context, id) {
-  const parameters = [context.organizationId, id];
-  const result = await client.query(
-    `SELECT record.* FROM tenant.crm_leads record
-      WHERE record.organization_id=$1 AND record.id=$2${recordScope(resources.leads, context, parameters)}
-      FOR UPDATE`,
-    parameters,
-  );
-  if (!result.rows[0])
-    throw new CrmError(404, "CRM record not found.", "CRM_LEAD_NOT_FOUND");
-  return camelizeRow(result.rows[0]);
-}
 
 
 
@@ -64,9 +46,6 @@ export function assertRecordExpectedVersion(
 }
 
 
-export function assertLeadExpectedVersion(record, expectedUpdatedAt, required = false) {
-  return assertRecordExpectedVersion(record, expectedUpdatedAt, required, "Lead", "CRM_LEAD");
-}
 
 
 
@@ -94,7 +73,6 @@ export function assertLeadExpectedVersion(record, expectedUpdatedAt, required = 
 // dedicated, already-enforced version checks — see sales-stage-operations.js
 // and lead-source-operations.js — so they are deliberately not added here.)
 export const GENERIC_VERSIONED_RESOURCES = {
-  "qualification-criteria": { entityLabel: "Qualification criterion", codePrefix: "CRM_QUALIFICATION_CRITERIA" },
   "lost-reasons": { entityLabel: "Won/Lost reason", codePrefix: "CRM_LOST_REASON" },
   "sales-teams": { entityLabel: "Sales team", codePrefix: "CRM_SALES_TEAM" },
   "sales-team-members": { entityLabel: "Team membership", codePrefix: "CRM_TEAM_MEMBERSHIP" },
@@ -105,8 +83,6 @@ export const GENERIC_VERSIONED_RESOURCES = {
   "account-stakeholders": { entityLabel: "Account stakeholder", codePrefix: "CRM_ACCOUNT_STAKEHOLDER" },
   "forecast-periods": { entityLabel: "Forecast period", codePrefix: "CRM_FORECAST_PERIOD" },
   "forecast-submissions": { entityLabel: "Forecast submission", codePrefix: "CRM_FORECAST_SUBMISSION" },
-  "assignment-rules": { entityLabel: "Assignment rule", codePrefix: "CRM_ASSIGNMENT_RULE" },
-  "scoring-rules": { entityLabel: "Scoring rule", codePrefix: "CRM_SCORING_RULE" },
   pipelines: { entityLabel: "Pipeline", codePrefix: "CRM_PIPELINE" },
 };
 
@@ -348,42 +324,6 @@ export async function assertCustomFieldRequiredRolloutSafe(
       `${missing} existing record(s) have no value for "${fieldKey}". Confirm to make it required anyway.`,
       "CRM_CUSTOM_FIELD_REQUIRED_ROLLOUT_GAP",
       { missing, fieldKey },
-    );
-}
-
-
-
-// F006: field_keys is a caller-editable text[] column, so it's validated
-// against the same fixed allowlist evaluateLeadQualificationReadiness reads
-// from — a typo becomes a clear 400 here instead of a criterion that
-// silently never matches.
-export function assertQualificationCriterionFieldsValid(prepared) {
-  if (!Object.prototype.hasOwnProperty.call(prepared, "fieldKeys")) return;
-  const keys = Array.isArray(prepared.fieldKeys) ? prepared.fieldKeys : [];
-  const invalid = keys.filter((key) => !READINESS_FIELD_COLUMNS[key]);
-  if (!keys.length || invalid.length)
-    throw new CrmError(
-      400,
-      invalid.length
-        ? `Unknown Lead field key(s): ${invalid.join(", ")}.`
-        : "At least one field key is required.",
-      "CRM_QUALIFICATION_CRITERION_FIELD_INVALID",
-    );
-  if ((prepared.checkType === "positive_number" || prepared.checkType === "minimum_threshold") && keys.length !== 1)
-    throw new CrmError(
-      400,
-      "A positive-number or minimum-threshold criterion must reference exactly one field.",
-      "CRM_QUALIFICATION_CRITERION_FIELD_COUNT_INVALID",
-    );
-  if (
-    Object.prototype.hasOwnProperty.call(prepared, "checkType") &&
-    prepared.checkType === "minimum_threshold" &&
-    !Number.isFinite(Number(prepared.threshold))
-  )
-    throw new CrmError(
-      400,
-      "A minimum-threshold criterion requires a numeric threshold.",
-      "CRM_QUALIFICATION_CRITERION_THRESHOLD_INVALID",
     );
 }
 

@@ -2,6 +2,7 @@
 // module's own list function, which applies record ownership/team rules and sensitive-field projection; search never bypasses
 // that. Providers return a small safe DTO only (no email, phone, bank, cost...).
 // Register a provider here only when its domain list function is proven safe.
+import { listLeads } from "../../modules/crm/leads/index.js";
 import { listBusinessDataRecords } from "../../core/master-data.js";
 import { listCrmAccounts, listCrmContacts, listCrmRecords } from "../../modules/crm/index.js";
 
@@ -14,10 +15,10 @@ export const SEARCH_PROVIDERS = Object.freeze([
     key: "crm.leads",
     label: "Leads",
     moduleKey: "crm",
-    requiredPermission: "crm.view",
+    requiredPermission: "crm.leads.view",
     async execute(client, context, term, limit) {
-      const { rows } = await listCrmRecords(client, context, "leads", { search: term, limit });
-      return rows.map((row) => ({ recordId: row.id, title: text(row.fullName) || joined(row.firstName, row.lastName) || "Lead", detail: text(row.companyName), href: `/crm/leads/${row.id}` }));
+      const { leads } = await listLeads(client, context, { search: term, limit });
+      return leads.map((lead) => ({ recordId: lead.id, title: text(lead.fullName) || text(lead.companyName) || "Lead", detail: text(lead.fullName ? lead.companyName : lead.code), href: `/crm/leads/${lead.id}` }));
     },
   },
   {

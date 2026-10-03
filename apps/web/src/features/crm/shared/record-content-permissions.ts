@@ -3,7 +3,7 @@
 // kind of record, or crm.activities.manage — seeing the record is not enough.
 // Display only; the server decides.
 const CONTENT_WRITE_PERMISSION: Record<string, string> = {
-  lead: "crm.leads.manage",
+  lead: "crm.leads.edit",
   opportunity: "crm.opportunities.manage",
   party: "crm.accounts.manage",
   contact: "crm.accounts.manage",

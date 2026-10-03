@@ -60,6 +60,8 @@ export const completeTask = (
 ) => action(id, "complete", { outcome, expectedUpdatedAt });
 export const cancelTask = (id: string, expectedUpdatedAt?: string) =>
   action(id, "cancel", { expectedUpdatedAt });
+export const reopenTask = (id: string, expectedUpdatedAt?: string) =>
+  action(id, "reopen", { expectedUpdatedAt });
 export const claimTask = (id: string, expectedUpdatedAt?: string) =>
   action(id, "claim", { expectedUpdatedAt });
 export const releaseTask = (id: string, expectedUpdatedAt?: string) =>

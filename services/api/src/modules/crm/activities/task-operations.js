@@ -2,9 +2,10 @@ import { canViewAllCrmResource, managedTeamMemberSql, relationshipGrantSql } fro
 import { CrmError } from "../data-management/errors.js";
 import { managedTeamMembersSql } from "../data-management/record-utils.js";
 import { queueOutboxEvent } from "../data-management/outbox.js";
-import { assertEligibleLeadAssignee } from "../lead-management/lead-governance.js";
-import { canViewSensitiveLeadContent, leadScopeSql } from "../lead-management/lead-security.js";
+import { assertEligibleLeadAssignee } from "../leads/assignment.js";
+import { canViewSensitiveLeadContent, leadScopeSql } from "../leads/access.js";
 import { taskOverdueSql } from "../data-management/activity-query-rules.js";
+import { cancelPendingRemindersForActivity, createRemindersForActivity } from "./follow-ups/follow-up-operations.js";
 
 export { taskOverdueSql };
 
@@ -306,7 +307,7 @@ async function relationRecord(client, context, entityType, entityId) {
     const values = [context.organizationId, entityId];
     const scope = leadScopeSql(context, values, "lead");
     result = await client.query(
-      `SELECT lead.id FROM tenant.crm_leads lead WHERE lead.organization_id=$1 AND lead.id=$2 AND lead.record_status <> 'archived'${scope} LIMIT 1`,
+      `SELECT lead.id FROM tenant.crm_leads lead WHERE lead.organization_id=$1 AND lead.id=$2 AND lead.archived_at IS NULL${scope} LIMIT 1`,
       values,
     );
   } else if (specs[entityType]) {
@@ -445,6 +446,8 @@ export async function createCrmTask(client, context, input = {}) {
   const result = await client.query(`INSERT INTO tenant.crm_activities(organization_id,entity_type,entity_id,activity_type,subject,description,status,priority,assigned_to,team_id,start_at,due_at,reminder_at,recurring_rule,recurrence_config,created_by,updated_by) VALUES($1,$2,$3,'task',$4,$5,'planned',$6,$7,$8,$9,$10,$11,$12,$13::jsonb,$14,$14) RETURNING *`, [context.organizationId, effective.entityType, effective.entityId || null, effective.subject, effective.description || null, effective.priority, effective.assignedTo, effective.teamId || null, effective.startAt || null, effective.dueAt || null, effective.reminderAt || null, effective.recurringRule || null, effective.recurrenceConfig ? JSON.stringify(effective.recurrenceConfig) : null, context.userId]);
   const task = dto(result.rows[0]);
   await event(client, context, task.id, "created", null, task);
+  // "Task due" notification: one reminder at the due time.
+  if (task.dueAt) await createRemindersForActivity(client, context, task.id, task.dueAt, { offsets: [0] });
   await queueOutboxEvent(client, context, "crm.task.created", "task", task.id, safe(task));
   return task;
 }
@@ -468,6 +471,10 @@ export async function updateCrmTask(client, context, id, input = {}) {
   const result = await client.query(`UPDATE tenant.crm_activities SET ${pairs.join(",")},updated_by=$${values.length - 2},updated_at=now() WHERE organization_id=$${values.length - 1} AND id=$${values.length} AND activity_type='task' RETURNING *`, values);
   const task = dto(result.rows[0]);
   await event(client, context, task.id, "updated", before, task, { changedFields: Object.keys(prepared) });
+  if (hasOwn(prepared, "dueAt")) {
+    await cancelPendingRemindersForActivity(client, context, task.id);
+    if (task.dueAt) await createRemindersForActivity(client, context, task.id, task.dueAt, { offsets: [0] });
+  }
   await queueOutboxEvent(client, context, "crm.task.updated", "task", task.id, safe(task));
   return task;
 }
@@ -495,6 +502,7 @@ async function transition(client, context, id, nextStatus, type, input = {}) {
   const result = await client.query(`UPDATE tenant.crm_activities SET status=$3,completed_at=${nextStatus === "completed" ? "now()" : "NULL"},outcome=CASE WHEN $3='completed' THEN COALESCE($4,outcome) ELSE outcome END,updated_by=$5,updated_at=now() WHERE organization_id=$1 AND id=$2 AND activity_type='task' RETURNING *`, [context.organizationId, id, nextStatus, outcome, context.userId]);
   const task = dto(result.rows[0]);
   await event(client, context, id, type, before, task);
+  if (nextStatus === "completed" || nextStatus === "cancelled") await cancelPendingRemindersForActivity(client, context, id);
   if (nextStatus === "completed") {
     await touchParent(client, context, task);
     if (task.recurrenceConfig) await generateNextTaskOccurrence(client, context, task);
@@ -506,6 +514,24 @@ async function transition(client, context, id, nextStatus, type, input = {}) {
 export const startCrmTask = (client, context, id, input = {}) => transition(client, context, id, "in_progress", "started", input);
 export const completeCrmTask = (client, context, id, input = {}) => transition(client, context, id, "completed", "completed", input);
 export const cancelCrmTask = (client, context, id, input = {}) => transition(client, context, id, "cancelled", "cancelled", input);
+
+// Reopens a completed or cancelled Task: it becomes planned again and, when
+// it has a due time, gets its due reminder back.
+export async function reopenCrmTask(client, context, id, input = {}) {
+  assertAllowed(input, new Set(EXPECTATION_FIELDS));
+  const before = await getCrmTask(client, context, id, { lock: true });
+  stale(before, input.expectedUpdatedAt, input.expectedStatus);
+  if (!TERMINAL.has(before.status)) throw new CrmError(409, "Only a completed or cancelled Task can be reopened.", "CRM_TASK_TRANSITION_INVALID");
+  const result = await client.query(
+    `UPDATE tenant.crm_activities SET status='planned',completed_at=NULL,updated_by=$3,updated_at=now() WHERE organization_id=$1 AND id=$2 AND activity_type='task' RETURNING *`,
+    [context.organizationId, id, context.userId],
+  );
+  const task = dto(result.rows[0]);
+  await event(client, context, id, "reopened", before, task);
+  if (task.dueAt) await createRemindersForActivity(client, context, id, task.dueAt, { offsets: [0] });
+  await queueOutboxEvent(client, context, "crm.task.reopened", "task", id, safe(task));
+  return task;
+}
 
 export async function listCrmTaskHistory(client, context, id) {
   await getCrmTask(client, context, id);

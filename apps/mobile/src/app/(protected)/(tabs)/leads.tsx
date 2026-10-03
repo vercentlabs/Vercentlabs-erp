@@ -11,7 +11,7 @@ export default function LeadsScreen() {
   const auth = useAuth();
   const { colors, radii, spacing, type } = useTheme();
   const canManage = Boolean(
-    auth.session?.access.permissions.includes("crm.leads.manage"),
+    auth.session?.access.permissions.includes("crm.leads.create"),
   );
   return (
     <CrmListScreen

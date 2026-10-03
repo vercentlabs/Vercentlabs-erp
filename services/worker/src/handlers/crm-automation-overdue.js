@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { createNotification } from "@vercentlabs/api";
 import { runCrmAutomation } from "@vercentlabs/api/crm";
 
 export const JOB_TYPE = "crm.automation.detect_overdue_activities";
@@ -46,6 +47,21 @@ export async function detectOverdueActivitiesHandler(client, context, _payload) 
     const row = transitioned.rows[0];
     if (!row) continue; // already transitioned by a concurrent tick — skip, do not re-fire
 
+    // "Follow-up overdue" / "Task overdue": written in the same transaction
+    // as the status change, so an activity is announced exactly once.
+    if (row.assigned_to && (row.activity_type === "follow_up" || row.activity_type === "task")) {
+      const task = row.activity_type === "task";
+      await createNotification(client, {
+        organizationId: context.organizationId,
+        userId: row.assigned_to,
+        category: task ? "crm_task_overdue" : "crm_follow_up_overdue",
+        title: task ? "Task overdue" : "Follow-up overdue",
+        message: `${row.subject} was due ${new Date(row.due_at).toLocaleString()}.`,
+        href: task ? `/crm/tasks/${row.id}` : `/crm/follow-ups/${row.id}`,
+        entityType: "crm_activity",
+        entityId: row.id,
+      });
+    }
     await runCrmAutomation(client, context, "activity.overdue", "activity", row.id, row);
     fired += 1;
   }

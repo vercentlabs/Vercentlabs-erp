@@ -3,7 +3,7 @@
 // is the one membership gate; every thread operation here calls it.
 
 import { canOverridePrivateCrmContent } from "../../data-management/crm-access-scope.js";
-import { canViewSensitiveLeadContent } from "../../lead-management/lead-security.js";
+import { canViewSensitiveLeadContent } from "../../leads/access.js";
 import { communicationVisibilitySql, resolveCallerParticipantCommunicationIds } from "../../data-management/communication-access.js";
 import { CrmCommunicationsError, assertId } from "./communications-error.js";
 import { optionalEmail } from "./email-address.js";

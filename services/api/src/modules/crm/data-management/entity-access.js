@@ -5,7 +5,7 @@
 
 import { crmAccountVisibleSql, crmContactVisibleSql, crmOwnerScopeSql } from "./crm-access-scope.js";
 import { CrmError } from "./errors.js";
-import { canViewSensitiveLeadContent, leadScopeSql } from "../lead-management/lead-security.js";
+import { canViewSensitiveLeadContent, leadScopeSql } from "../leads/access.js";
 import { canViewSensitiveAccountContent } from "../master-data/account-security.js";
 import { canViewSensitiveContactContent } from "../master-data/contact-security.js";
 
@@ -31,7 +31,7 @@ export async function resolveCrmEntityAccess(client, context, entityType, entity
     const values = [context.organizationId, entityId];
     const scope = leadScopeSql(context, values, "lead");
     const result = await client.query(
-      `SELECT lead.id FROM tenant.crm_leads lead WHERE lead.organization_id=$1 AND lead.id=$2 AND lead.record_status <> 'archived'${scope} LIMIT 1`,
+      `SELECT lead.id FROM tenant.crm_leads lead WHERE lead.organization_id=$1 AND lead.id=$2 AND lead.archived_at IS NULL${scope} LIMIT 1`,
       values,
     );
     return Boolean(result.rows[0]);

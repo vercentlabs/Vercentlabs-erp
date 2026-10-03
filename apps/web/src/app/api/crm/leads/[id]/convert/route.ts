@@ -1,42 +1,23 @@
-import { convertCrmLead } from "@vercentlabs/api/crm";
+import { convertLead, previewLeadConversion } from "@vercentlabs/api/crm";
 import { CRM_PERMISSIONS } from "@vercentlabs/permissions";
 
-import { ok, readJson } from "@/core/http";
-import { crmContext } from "@/features/crm/shared/crm-context";
+import { ok } from "@/core/http";
 import { workspaceRoute } from "@/core/workspace-route";
+import { crmContext } from "@/features/crm/shared/crm-context";
+import { readBody, type LeadRouteParams } from "@/features/crm/leads/server/lead-http";
 
-// F022 lead-to-opportunity conversion. Idempotency/duplicate-reuse and
-// what-gets-created-vs-reused is entirely convertCrmLead's authority
-// (services/api/src/modules/crm/conversions/
-// lead-conversion.js, covered by crm-lead-conversion-f022.test.mjs and
-// crm-lead-conversion-duplicate-reuse-f022.test.mjs) — this route never
-// re-derives any of that. This route enforces crm.leads.manage; convertCrmLead
-// additionally requires a qualified Lead and the permission to create each
-// record the conversion would create (Account/Contact, Opportunity).
-export async function POST(
-  request: Request,
-  context: { params: Promise<{ id: string }> },
-) {
-  return workspaceRoute(
-    request,
-    {
-      module: "crm",
-      permission: CRM_PERMISSIONS.leadsManage,
-      billingWrite: true,
-    },
-    async ({ client, session }) => {
-      const { id } = await context.params;
-      const input = (await readJson(request).catch(() => ({}))) as Record<
-        string,
-        unknown
-      >;
-      const result = await convertCrmLead(
-        client,
-        crmContext(session),
-        id,
-        input,
-      );
-      return ok({ result });
-    },
+// What the conversion dialog shows: matching accounts and contacts, sales
+// stages and suggested values.
+export async function GET(request: Request, route: LeadRouteParams) {
+  return workspaceRoute(request, { module: "crm", permission: CRM_PERMISSIONS.leadsConvert }, async ({ client, session }) =>
+    ok({ preview: await previewLeadConversion(client, crmContext(session), (await route.params).id) }),
+  );
+}
+
+// Lead → account + contact + opportunity in this request's one transaction:
+// any failure rolls the whole conversion back.
+export async function POST(request: Request, route: LeadRouteParams) {
+  return workspaceRoute(request, { module: "crm", permission: CRM_PERMISSIONS.leadsConvert, billingWrite: true }, async ({ client, session }) =>
+    ok({ conversion: await convertLead(client, crmContext(session), (await route.params).id, await readBody(request)) }),
   );
 }

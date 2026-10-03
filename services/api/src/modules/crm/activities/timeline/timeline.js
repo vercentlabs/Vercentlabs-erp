@@ -39,7 +39,7 @@ import { resolveCrmEntityAccess } from "../../data-management/entity-access.js";
 import { recordScope } from "../../data-management/record-policy.js";
 import { resources } from "../../data-management/resource-registry.js";
 import { CrmError } from "../../data-management/errors.js";
-import { canViewSensitiveLeadContent } from "../../lead-management/lead-security.js";
+import { canViewSensitiveLeadContent } from "../../leads/access.js";
 import { canViewSensitiveAccountContent } from "../../master-data/account-security.js";
 import { canViewSensitiveContactContent } from "../../master-data/contact-security.js";
 import { communicationVisibilitySql, projectCrmCommunications } from "../../data-management/communication-access.js";
@@ -49,10 +49,10 @@ import { communicationVisibilitySql, projectCrmCommunications } from "../../data
 export { resolveCrmEntityAccess };
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-const SOURCE_KINDS = new Set(["activity", "communication", "note", "attachment", "stage", "assignment", "qualification"]);
+const SOURCE_KINDS = new Set(["activity", "communication", "note", "attachment", "stage", "history"]);
 // Kinds getCrmTimelinePageBySource can serve as full-row single-kind lists;
-// the audit-event kinds (stage/assignment/qualification) exist only in the
-// merged feed's narrow envelope.
+// the audit-event kinds (stage, history) exist only in the merged feed's
+// narrow envelope.
 const SINGLE_SOURCE_KINDS = new Set(["activity", "communication", "note", "attachment"]);
 const COMMUNICATION_COLUMN = { lead: "lead_id", opportunity: "opportunity_id", party: "party_id", contact: "contact_id", campaign: null };
 
@@ -61,6 +61,15 @@ function camelize(key) { return key.replace(/_([a-z])/g, (_m, ch) => ch.toUpperC
 function dto(row) { return Object.fromEntries(Object.entries(row || {}).map(([key, value]) => [camelize(key), value])); }
 
 function add(values, value) { values.push(value); return `$${values.length}`; }
+
+// The record itself, plus — for an opportunity converted from a lead — that
+// lead: its completed activities and files stay on the lead and are shown
+// on the opportunity through the conversion link.
+function entityMatchSql(entityType, entityIdParam, typeColumn, idColumn, { typePrefix = "", idCast = "" } = {}) {
+  const own = `(${typeColumn}='${typePrefix}${entityType}' AND ${idColumn}=${entityIdParam}${idCast})`;
+  if (entityType !== "opportunity") return own;
+  return `(${own} OR (${typeColumn}='${typePrefix}lead' AND ${idColumn}=(SELECT source.lead_id FROM tenant.crm_opportunities source WHERE source.organization_id=$1 AND source.id=${entityIdParam}::uuid)${idCast}))`;
+}
 
 // The ONE place each source kind's visibility predicate is written — a
 // private Note/communication is invisible to anyone but its author or an
@@ -103,7 +112,7 @@ function buildBranch(kind, entityType, entityId, context, values) {
     // activities keep their own rule (assignee/team/unassigned)
     // exactly as in the Activities list — recordScope.
     return `SELECT activity.id,'activity'::text AS kind,activity.activity_type AS subtype,activity.subject AS title,COALESCE(activity.completed_at,activity.due_at,activity.created_at) AS occurred_at,activity.status,activity.assigned_to AS actor_user_id,activity.created_by
-       FROM tenant.crm_activities activity WHERE activity.organization_id=$1 AND activity.entity_type='${entityType}' AND activity.entity_id=${entityIdParam}${recordScope(resources.activities, context, values, "activity")}`;
+       FROM tenant.crm_activities activity WHERE activity.organization_id=$1 AND ${entityMatchSql(entityType, entityIdParam, "activity.entity_type", "activity.entity_id")}${recordScope(resources.activities, context, values, "activity")}`;
   }
   if (kind === "communication") {
     const communicationColumn = COMMUNICATION_COLUMN[entityType];
@@ -123,16 +132,6 @@ function buildBranch(kind, entityType, entityId, context, values) {
          AND ${visibilityPredicate("note", context, values)}`;
   }
   if (kind === "stage") {
-    if (entityType === "lead") {
-      const entityIdParam = add(values, entityId);
-      return `SELECT e.id,'stage'::text AS kind,CASE WHEN e.override_used THEN 'override' END AS subtype,
-           COALESCE(fs.name,e.from_stage_code,'Start') || ' → ' || COALESCE(ts.name,e.to_stage_code,'Unknown') || COALESCE(' — ' || e.reason_label,'') AS title,
-           e.created_at AS occurred_at,NULL::text AS status,e.changed_by_user_id AS actor_user_id,e.changed_by_user_id AS created_by
-         FROM tenant.crm_lead_stage_events e
-         LEFT JOIN tenant.crm_lead_stages fs ON fs.organization_id=e.organization_id AND fs.id=e.from_stage_id
-         LEFT JOIN tenant.crm_lead_stages ts ON ts.organization_id=e.organization_id AND ts.id=e.to_stage_id
-         WHERE e.organization_id=$1 AND e.lead_id=${entityIdParam}`;
-    }
     if (entityType === "opportunity") {
       const entityIdParam = add(values, entityId);
       // F026 — the review context travels with the event: a close shows its
@@ -149,30 +148,18 @@ function buildBranch(kind, entityType, entityId, context, values) {
     }
     return null;
   }
-  if (kind === "assignment") {
+  if (kind === "history") {
     if (entityType !== "lead") return null;
     const entityIdParam = add(values, entityId);
-    return `SELECT e.id,'assignment'::text AS kind,CASE WHEN e.is_override THEN 'override' END AS subtype,
-         'Owner: ' || COALESCE(pu.full_name,'Unassigned') || ' → ' || COALESCE(nu.full_name,'Unassigned') AS title,
-         e.created_at AS occurred_at,NULL::text AS status,e.created_by AS actor_user_id,e.created_by
-       FROM tenant.crm_lead_assignment_events e
-       LEFT JOIN public.users pu ON pu.id=e.previous_owner_user_id
-       LEFT JOIN public.users nu ON nu.id=e.new_owner_user_id
-       WHERE e.organization_id=$1 AND e.lead_id=${entityIdParam}`;
-  }
-  if (kind === "qualification") {
-    if (entityType !== "lead") return null;
-    const entityIdParam = add(values, entityId);
-    return `SELECT e.id,'qualification'::text AS kind,CASE WHEN e.override_used THEN 'override' END AS subtype,
-         COALESCE(e.previous_state,'new') || ' → ' || e.new_state || COALESCE(' — ' || e.reason_text,'') AS title,
-         e.created_at AS occurred_at,e.new_state AS status,e.decided_by_user_id AS actor_user_id,e.decided_by_user_id AS created_by
-       FROM tenant.crm_lead_qualification_events e
-       WHERE e.organization_id=$1 AND e.lead_id=${entityIdParam}`;
+    return `SELECT history.id,'history'::text AS kind,history.event_type AS subtype,history.summary AS title,
+         history.created_at AS occurred_at,NULL::text AS status,history.actor_user_id,history.actor_user_id AS created_by
+       FROM tenant.crm_lead_history history
+       WHERE history.organization_id=$1 AND history.lead_id=${entityIdParam}`;
   }
   if (kind === "attachment") {
     const entityIdParam = add(values, entityId);
     return `SELECT id,'attachment'::text AS kind,mime_type AS subtype,file_name AS title,created_at AS occurred_at,lifecycle_status AS status,NULL::uuid AS actor_user_id,uploaded_by AS created_by
-       FROM public.attachments WHERE organization_id=$1 AND entity_type='crm.${entityType}' AND entity_id=${entityIdParam}`;
+       FROM public.attachments WHERE organization_id=$1 AND ${entityMatchSql(entityType, entityIdParam, "entity_type", "entity_id", { typePrefix: "crm.", idCast: "::text" })}`;
   }
   return null;
 }

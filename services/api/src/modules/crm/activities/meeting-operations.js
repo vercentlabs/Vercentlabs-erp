@@ -1,8 +1,8 @@
 import { crmOwnerScopeSql } from "../data-management/crm-access-scope.js";
 import { CrmError } from "../data-management/errors.js";
 import { queueOutboxEvent } from "../data-management/outbox.js";
-import { assertEligibleLeadAssignee } from "../lead-management/lead-governance.js";
-import { canViewSensitiveLeadContent, leadScopeSql } from "../lead-management/lead-security.js";
+import { assertEligibleLeadAssignee } from "../leads/assignment.js";
+import { canViewSensitiveLeadContent, leadScopeSql } from "../leads/access.js";
 import { upsertMeetingCalendarEvent, markMeetingCalendarEventCancelling, enqueueCalendarPushJob } from "./meetings/meeting-calendar.js";
 import { createRemindersForActivity, cancelPendingRemindersForActivity } from "./follow-ups/follow-up-operations.js";
 
@@ -142,7 +142,7 @@ async function relationRecord(client, context, entityType, entityId) {
     const scope = leadScopeSql(context, values, "lead");
     result = await client.query(
       `SELECT lead.id FROM tenant.crm_leads lead
-       WHERE lead.organization_id=$1 AND lead.id=$2 AND lead.record_status <> 'archived'${scope} LIMIT 1`,
+       WHERE lead.organization_id=$1 AND lead.id=$2 AND lead.archived_at IS NULL${scope} LIMIT 1`,
       values,
     );
   } else if (entityType === "contact") {
@@ -287,7 +287,7 @@ async function touchParentOnCompletion(client, context, meeting) {
   if (meeting.entityType === "lead" && meeting.entityId)
     await client.query(
       `UPDATE tenant.crm_leads
-          SET last_contacted_at=now(),first_responded_at=COALESCE(first_responded_at,now()),updated_at=now()
+          SET last_activity_at=now(),updated_at=now()
         WHERE organization_id=$1 AND id=$2`,
       [context.organizationId, meeting.entityId],
     );

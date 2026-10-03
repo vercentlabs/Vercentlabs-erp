@@ -1,4 +1,6 @@
-import { listEligibleLeadAssigneesForPicker } from "../lead-management/assignment/eligibility.js";
+import { listLeadAssignmentOptions } from "../leads/assignment.js";
+import { LEAD_STAGES } from "../leads/constants.js";
+import { ensureDefaultLeadSources } from "../leads/sources.js";
 import { canViewAllCrmRecords } from "./record-policy.js";
 import { canViewAllCrmResource, crmAccountAccessSql, crmOwnerScopeSql, managedTeamMemberIds } from "./crm-access-scope.js";
 import { camelizeRow } from "./record-utils.js";
@@ -48,20 +50,7 @@ export async function getCrmOptions(client, context) {
     `SELECT stage.id, stage.pipeline_id, stage.name, stage.sequence, stage.probability, stage.is_won, stage.is_lost, stage.stale_after_days FROM tenant.crm_pipeline_stages stage JOIN tenant.crm_pipelines pipeline ON pipeline.id = stage.pipeline_id AND pipeline.organization_id = stage.organization_id WHERE stage.organization_id = $1 AND stage.status = 'active' ORDER BY stage.pipeline_id, stage.sequence`,
     parameters,
   );
-  const leadStages = await queryOptions(
-    `SELECT stage.id,stage.code,stage.name,stage.description,stage.sort_order,stage.status,stage.is_initial,stage.is_system,
-            coalesce(array_agg(source.code ORDER BY source.sort_order,source.id)
-              FILTER (WHERE transition.from_stage_id IS NOT NULL),'{}'::text[]) AS allowed_from_codes
-       FROM tenant.crm_lead_stages stage
-       LEFT JOIN tenant.crm_lead_stage_transitions transition
-         ON transition.organization_id=stage.organization_id AND transition.to_stage_id=stage.id
-       LEFT JOIN tenant.crm_lead_stages source
-         ON source.organization_id=transition.organization_id AND source.id=transition.from_stage_id
-      WHERE stage.organization_id=$1
-      GROUP BY stage.id
-      ORDER BY stage.status='active' DESC,stage.sort_order,stage.id`,
-    parameters,
-  );
+  await ensureDefaultLeadSources(client, context);
   const sources = await queryOptions(
     `SELECT id, name, status FROM tenant.crm_lead_sources WHERE organization_id = $1 AND status = 'active' ORDER BY is_default DESC, sort_order, name`,
     parameters,
@@ -74,7 +63,7 @@ export async function getCrmOptions(client, context) {
     `SELECT campaign.id, campaign.name FROM tenant.crm_campaigns campaign WHERE campaign.organization_id = $1 AND campaign.status IN ('planned','active','paused') ORDER BY campaign.name`,
     parameters,
   );
-  const users = await listEligibleLeadAssigneesForPicker(client, context);
+  const users = (await listLeadAssignmentOptions(client, context)).users;
   // Whom the caller may make a record owner (assertCrmOwnerAssignable):
   // null = anyone eligible (view-all); otherwise self + managed team members.
   // Lead ownership follows the Lead rule (crm.leads.view_all may route any
@@ -118,7 +107,7 @@ export async function getCrmOptions(client, context) {
     parameters,
   );
   const leads = await queryOptions(
-    `SELECT lead.id, btrim(lead.first_name || ' ' || COALESCE(lead.last_name,'')) AS name FROM tenant.crm_leads lead WHERE lead.organization_id = $1 AND lead.record_status='active' AND ${ownerVisible("lead", "leads")} ORDER BY lead.updated_at DESC LIMIT 500`,
+    `SELECT lead.id, COALESCE(lead.full_name, lead.company_name, lead.code) AS name FROM tenant.crm_leads lead WHERE lead.organization_id = $1 AND lead.archived_at IS NULL AND lead.status <> 'converted' AND ${ownerVisible("lead", "leads")} ORDER BY lead.updated_at DESC LIMIT 500`,
     ownerScopedParameters,
   );
   const opportunities = await queryOptions(
@@ -183,12 +172,12 @@ export async function getCrmOptions(client, context) {
     currencies: map(currencies),
     pipelines: map(pipelines),
     stages: map(stages),
-    leadStages: map(leadStages),
+    leadStages: LEAD_STAGES,
     sources: map(sources),
     allSources: map(allSources),
     campaigns: map(campaigns),
-    users: users.items.map(camelizeRow),
-    usersTruncated: users.truncated,
+    users,
+    usersTruncated: false,
     assignableOwnerIds,
     assignableLeadOwnerIds,
     members: members.rows.map(camelizeRow),

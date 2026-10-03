@@ -1,5 +1,3 @@
-import { LeadSourceError, validateLeadSourceAssignment } from "../master-data/lead-source-validation.js";
-import { CrmError } from "./errors.js";
 
 
 export function camelize(value) {
@@ -39,24 +37,3 @@ export function addParameter(parameters, value) {
   return `$${parameters.length}`;
 }
 
-
-
-export async function assertLeadSourceAssignment(client, context, sourceId, options) {
-  try {
-    return await validateLeadSourceAssignment(
-      client,
-      context,
-      sourceId,
-      options,
-    );
-  } catch (error) {
-    if (error instanceof LeadSourceError)
-      throw new CrmError(
-        error.status,
-        error.message,
-        error.code,
-        error.details,
-      );
-    throw error;
-  }
-}

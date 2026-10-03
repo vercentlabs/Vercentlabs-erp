@@ -7,9 +7,6 @@
 export type { QueryClient } from "../index.js";
 export * from "../modules/crm/master-data/account-operations.js";
 export * from "../modules/crm/master-data/contact-operations.js";
-export * from "../modules/crm/master-data/lead-source-operations.js";
-export * from "../modules/crm/lead-management/lead-qualification.js";
-export * from "../modules/crm/lead-management/lead-operations.js";
 export * from "../modules/crm/pipeline/opportunity-operations.js";
 export * from "../modules/crm/pipeline/sales-stage-operations.js";
 export * from "../modules/crm/pipeline/stage-aging.js";
@@ -30,10 +27,6 @@ export {
   recordContactDuplicateOverride,
 } from "../modules/crm/master-data/duplicate-matching.js";
 export * from "../modules/crm/activities/communications.js";
-export * from "../modules/crm/master-data/lead-acquisition.js";
-export * from "../modules/crm/data-management/import-export/lead-import.js";
-export * from "../modules/crm/data-management/import-export/lead-export.js";
-export * from "../modules/crm/lead-management/lead-intelligence.js";
 export * from "../modules/crm/pipeline/opportunity-revenue-intelligence.js";
 export * from "../modules/crm/pipeline/opportunity-contacts.js";
 export * from "../modules/crm/data-management/offline-sync.js";

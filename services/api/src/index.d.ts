@@ -11,97 +11,43 @@ export type QueryClient = {
   }>;
 };
 
-export class LeadDuplicateError extends Error {
-  readonly status: number;
-  readonly code: string;
-  readonly details?: Record<string, unknown>;
-}
-export function canOverrideLeadDuplicate(context: any): boolean;
-export function evaluateLeadDuplicateRisk(
-  client: QueryClient,
-  context: any,
-  input: Record<string, unknown>,
-  options?: { excludeLeadId?: string | null; lock?: boolean },
-): Promise<{
-  classification: "none" | "probable" | "exact";
-  matches: Array<Record<string, unknown>>;
-  internalMatches: Array<any>;
-  canOverride: boolean;
-}>;
-export function assertLeadDuplicatePolicy(
-  client: QueryClient,
-  context: any,
-  input: Record<string, unknown>,
-  options?: {
-    excludeLeadId?: string | null;
-    lock?: boolean;
-    overrideReason?: string | null;
-  },
-): Promise<any>;
-export function recordLeadDuplicateOverride(
-  client: QueryClient,
-  context: any,
-  leadId: string,
-  evaluation: any,
-  operation: "create" | "update",
-): Promise<any>;
-export function hasLeadDuplicateIdentityChange(
-  input: Record<string, unknown>,
-): boolean;
 
-export class LeadAttributionError extends Error {
-  readonly status: number;
-  readonly code: string;
-}
-export function recordLeadTouchpoint(
-  client: QueryClient,
-  context: any,
-  leadId: string,
-  input?: Record<string, unknown>,
-): Promise<any>;
-export function calculateAttributionWeights(
-  touchpoints: Array<{ event_at: string | Date }>,
-  model?: "first_touch" | "last_touch" | "linear" | "position_based" | "time_decay",
-): number[];
 
-export function listLeadStages(client: QueryClient, context: any, options?: { status?: string }): Promise<any>;
-export function classifyLeadStageCustomization(client: QueryClient, context: any, stages: any[]): Promise<"CUSTOMIZED" | "UNTOUCHED_STANDARD_3_STAGE">;
-export function previewLeadStageTemplateUpgrade(client: QueryClient, context: any): Promise<{
-  stagesToCreate: Array<{ code: string; name: string; description: string }>;
-  labelsToChange: unknown[];
-  edgesToAdd: Array<{ fromCode: string; toCode: string }>;
-  edgesToRemove: unknown[];
-  affectedLeadCount: number;
-  requiresLeadMigration: boolean;
-  conflicts: Array<{ code: string; issue: string }>;
-}>;
-export function applyLeadStageTemplateUpgrade(client: QueryClient, context: any, input?: { confirm?: boolean }): Promise<{
-  applied: boolean;
-  stagesCreated: Array<{ code: string; name: string; description: string }>;
-  edgesAdded: Array<{ fromCode: string; toCode: string }>;
-}>;
-export const FIVE_STAGE_LEAD_TEMPLATE: ReadonlyArray<{ code: string; name: string; description: string; sortOrder: number; isInitial: boolean }>;
-export const FIVE_STAGE_LEAD_GRAPH: ReadonlyArray<readonly [string, string]>;
-export function getLeadStage(client: QueryClient, context: any, idOrCode: string): Promise<any>;
-export function createLeadStage(client: QueryClient, context: any, input?: Record<string, unknown>): Promise<any>;
-export function updateLeadStage(client: QueryClient, context: any, id: string, input?: Record<string, unknown>): Promise<any>;
-export function reactivateLeadStage(client: QueryClient, context: any, id: string): Promise<any>;
-export function deactivateLeadStageWithMigration(client: QueryClient, context: any, id: string, options?: { migrateToStageId?: string }): Promise<any>;
-export function enqueueLeadStageMigrationJob(client: QueryClient, context: any, fromStageId: string, toStageId: string): Promise<any>;
-export function getLeadStageMigrationJob(client: QueryClient, context: any, jobId: string): Promise<any>;
-export function processLeadStageMigrationBatch(client: QueryClient, systemContext: any, jobId: string): Promise<any>;
-export const STAGE_MIGRATION_JOB_TYPE: string;
-export const STAGE_MIGRATION_BATCH_SIZE: number;
-export function transitionLeadStage(client: QueryClient, context: any, leadId: string, input?: Record<string, unknown>, options?: { skipTransitionGraphCheck?: boolean; source?: string }): Promise<any>;
-export function listLeadStageHistory(client: QueryClient, context: any, leadId: string): Promise<any[]>;
-export function getLeadStageDwell(client: QueryClient, context: any, leadId: string): Promise<any>;
-export function listLeadStageTransitions(client: QueryClient, context: any): Promise<any[]>;
-export function addLeadStageTransition(client: QueryClient, context: any, fromStageId: string, toStageId: string, input?: { reasonRequired?: boolean }): Promise<any>;
-export function removeLeadStageTransition(client: QueryClient, context: any, fromStageId: string, toStageId: string): Promise<any>;
-export function listLeadStageTransitionReasons(client: QueryClient, context: any): Promise<any[]>;
-export function createLeadStageTransitionReason(client: QueryClient, context: any, input?: Record<string, unknown>): Promise<any>;
-export function setLeadStageTransitionReasonActive(client: QueryClient, context: any, id: string, active: boolean): Promise<any>;
-export function findApplicableTransitionReasons(client: QueryClient, context: any, fromStageId: string, toStageId: string): Promise<any[]>;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 export function listSalesStagePipelines(client: QueryClient, context: any, options?: { status?: string }): Promise<any[]>;
 export function listSalesStages(client: QueryClient, context: any, options: { pipelineId: string; status?: string }): Promise<{ rows: any[]; total: number }>;
 export function getSalesStage(client: QueryClient, context: any, id: string): Promise<any>;
@@ -298,51 +244,13 @@ export function getRelationshipGraph(
   context: CrmFoundationContext,
   partyId: string,
 ): Promise<Array<Record<string, unknown>>>;
-export class LeadGovernanceError extends Error {
-  readonly status: number;
-  readonly code: string;
-  readonly details: Array<Record<string, unknown>>;
-}
-export function getLeadConfiguration(
-  client: QueryClient,
-  context: CrmFoundationContext,
-  recordTypeKey?: string,
-): Promise<Record<string, unknown>>;
-export function validateLeadInput(
-  client: QueryClient,
-  context: CrmFoundationContext,
-  input: Record<string, unknown>,
-  recordTypeKey?: string,
-): Promise<Record<string, unknown>>;
-export function resolveLeadOwner(
-  client: QueryClient,
-  context: CrmFoundationContext,
-  input: Record<string, unknown>,
-): Promise<string | null>;
-export function resolveLeadAssignment(
-  client: QueryClient,
-  context: CrmFoundationContext,
-  input: Record<string, unknown>,
-): Promise<{
-  ownerUserId: string | null;
-  policyId: string | null;
-  reason: string;
-}>;
-export function listEligibleLeadAssignees(
-  client: QueryClient,
-  context: CrmFoundationContext,
-  input?: Record<string, unknown>,
-): Promise<{
-  items: Array<Record<string, unknown>>;
-  total: number;
-  limit: number;
-  offset: number;
-}>;
-export function getEligibleLeadAssignee(
-  client: QueryClient,
-  context: CrmFoundationContext,
-  userId: string,
-): Promise<Record<string, unknown> | null>;
+
+
+
+
+
+
+
 export function assertEligibleLeadAssignee(
   client: QueryClient,
   context: CrmFoundationContext,
@@ -376,9 +284,9 @@ export function publicQuoteTokenHash(token: string): string;
 export function resolvePublicQuoteOrganization(queryable: QueryClient, tokenHash: string): Promise<string>;
 // F014 public meeting pages (token-resolved, anonymous host context).
 export class PublicMeetingError extends Error { readonly status: number; readonly code: string }
-export function enqueueLeadScoreRecalcJob(client: QueryClient, context: any, modelId: string): Promise<any>;
-export function getLeadScoreRecalcJob(client: QueryClient, context: any, jobId: string): Promise<any>;
-export const SCORE_RECALC_BATCH_SIZE: number;
+
+
+
 export * from "./modules/stock/index.js";
 export * from "./modules/stock/master-operations.js";
 export * from "./modules/sales/record-lookups.js";

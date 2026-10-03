@@ -6,7 +6,7 @@
 
 import { randomBytes } from "node:crypto";
 import { publishDomainEvent } from "../../../../core/platform/events/index.js";
-import { leadScopeSql } from "../../lead-management/lead-security.js";
+import { leadScopeSql } from "../../leads/access.js";
 import { resolveCrmEntityAccess } from "../../data-management/entity-access.js";
 import { communicationVisibilitySql, projectCrmCommunications } from "../../data-management/communication-access.js";
 import { resolveCommunicationParticipants } from "./communication-projection.js";

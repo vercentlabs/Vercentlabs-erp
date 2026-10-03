@@ -19,7 +19,7 @@
 // (record-policy.js) apply it to the "communications" resource; the
 // communication services in activities/ import it from here.
 import { canOverridePrivateCrmContent } from "./crm-access-scope.js";
-import { canViewSensitiveLeadContent } from "../lead-management/lead-security.js";
+import { canViewSensitiveLeadContent } from "../leads/access.js";
 
 
 function addParam(values, value) {

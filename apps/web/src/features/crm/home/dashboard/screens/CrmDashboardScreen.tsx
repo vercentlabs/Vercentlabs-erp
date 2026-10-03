@@ -291,7 +291,7 @@ export function CrmDashboardScreen({
         label: "New leads",
         value: metrics.leadsInPeriod.toLocaleString("en-IN"),
         href: withOwner(
-          `/crm/leads?includeConverted=true&${periodQuery("createdFrom", "createdTo")}`,
+          `/crm/leads?${periodQuery("createdFrom", "createdTo")}`,
         ),
         change: change(
           metrics.leadsInPeriod,
@@ -304,7 +304,7 @@ export function CrmDashboardScreen({
         label: "Leads converted",
         value: metrics.conversionsInPeriod.toLocaleString("en-IN"),
         href: withOwner(
-          `/crm/leads?status=converted&${periodQuery("convertedFrom", "convertedTo")}`,
+          "/crm/leads?view=converted",
         ),
         change: change(
           metrics.conversionsInPeriod,
@@ -335,32 +335,25 @@ export function CrmDashboardScreen({
         urgent: true,
       },
       {
-        id: "dwell",
-        label: "Leads stuck in a stage",
-        count: metrics.dwellBreachedLeads,
-        href: withOwner("/crm/leads?dwellBreached=true"),
-        hint: "Leads that stayed longer than the stage allows",
-      },
-      {
         id: "unassigned",
         label: "Unassigned leads",
         count: metrics.unassignedLeads,
-        href: "/crm/leads?ownerId=unassigned",
+        href: "/crm/leads?view=unassigned",
         hint: "Nobody owns these yet",
       },
       {
         id: "unqualified",
-        label: "Leads not yet qualified",
+        label: "Leads ready to qualify",
         count: metrics.needsQualificationLeads,
-        href: withOwner("/crm/leads?qualification=not_reviewed"),
-        hint: "Waiting for a qualification decision",
+        href: withOwner("/crm/leads?stage=ready_to_qualify"),
+        hint: "Open leads waiting for a qualification decision",
       },
       {
         id: "priority",
-        label: "Hot and qualified-grade leads",
+        label: "Hot leads",
         count: metrics.highPriorityLeads,
-        href: withOwner("/crm/leads?highPriority=true"),
-        hint: "Graded hot or qualified by lead scoring",
+        href: withOwner("/crm/leads?rating=hot"),
+        hint: "Open leads rated hot",
       },
       {
         id: "territories",

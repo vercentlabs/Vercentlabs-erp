@@ -29,7 +29,7 @@ import { workspaceRoute } from "@/core/workspace-route";
 // than silently letting an under-permissioned mutation through inside the
 // batch.
 const RESOURCE_OPERATION_PERMISSIONS: Record<string, string> = {
-  "leads:create": CRM_PERMISSIONS.leadsManage,
+  "leads:create": CRM_PERMISSIONS.leadsCreate,
   "opportunities:stage": CRM_PERMISSIONS.opportunitiesManage,
   "activities:create": CRM_PERMISSIONS.activitiesManage,
   "activities:complete": CRM_PERMISSIONS.activitiesManage,

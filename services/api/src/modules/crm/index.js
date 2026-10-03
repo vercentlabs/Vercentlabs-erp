@@ -6,17 +6,13 @@ export { analyticsFiltersFromSearchParams, normalizeAnalyticsFilters } from "./a
 export { buildForecastRollup, captureForecastPeriodSnapshot, captureScheduledForecastSnapshots, getForecastAccuracy, getForecastSnapshot, getForecastWorkspace, listForecastSubmissionEvents, reviewForecast, setForecastPeriodStatus, submitForecast } from "./analytics/forecast-service.js";
 export { COVERAGE_REASSIGN_LIMIT, getSalesCoverage, listUnassignedRecords, reassignCoverage, transferTerritoryCoverage } from "./sales-organization/coverage-service.js";
 export { BREAKDOWN_DIMENSIONS, listMetricDefinitions, METRIC_VERSION, PIPELINE_METRICS } from "./analytics/metric-definitions.js";
-export { findCrmDuplicates } from "./master-data/duplicate-search.js";
 export { CrmError } from "./data-management/errors.js";
-export { assignLeadOwner } from "./lead-management/lead-assignment.js";
-export { captureCrmLead, resolvePublicCaptureOrganization } from "./master-data/lead-capture.js";
-export { convertCrmLead, mergeCrmLead } from "./conversions/lead-conversion.js";
 export { archiveCrmRecord, createCrmRecord, runCrmAutomation, updateCrmRecord } from "./data-management/resource-mutation-service.js";
 export { moveOpportunityStage, updateOpportunityProbability, restoreOpportunity, listOpportunityProbabilityHistory, getOpportunityPredictiveProbability } from "./pipeline/opportunity-transitions.js";
 export { getCrmOptions } from "./data-management/resource-options.js";
-export { leadOutboxChangedFields, queueOutboxEvent } from "./data-management/outbox.js";
+export { queueOutboxEvent } from "./data-management/outbox.js";
 export { canViewAllCrmRecords, recordScope } from "./data-management/record-policy.js";
-export { getCrmRecord, listCrmRecords, snapshotLeadBulkJobSelection, snapshotOpportunityBulkJobSelection } from "./data-management/resource-query-service.js";
+export { getCrmRecord, listCrmRecords, snapshotOpportunityBulkJobSelection } from "./data-management/resource-query-service.js";
 export { isCrmResource, resources } from "./data-management/resource-registry.js";
 
 export {
@@ -56,6 +52,7 @@ export {
 // call-operations.js/meeting-operations.js above.
 export {
   cancelCrmTask,
+  reopenCrmTask,
   claimCrmTask,
   completeCrmTask,
   createCrmTask,
@@ -215,24 +212,6 @@ export {
   processDuplicateFullScanBatch,
 } from "./master-data/duplicate-scan.js";
 export {
-  queueLeadEnrichment,
-  reviewLeadEnrichment,
-} from "./master-data/lead-acquisition.js";
-export {
-  getLeadAttributionTimeline,
-} from "./master-data/lead-attribution.js";
-export {
-  dismissLeadDuplicateMatch,
-  evaluateLeadDuplicateRisk,
-  LeadDuplicateError,
-} from "./master-data/lead-duplicates.js";
-export {
-  createCrmLeadSource,
-  listCrmLeadSources,
-  setCrmLeadSourceActive,
-  updateCrmLeadSource,
-} from "./master-data/lead-source-operations.js";
-export {
   mergeAccountsGoverned,
   mergeContactsGoverned,
   previewAccountMergeForCaller,
@@ -248,98 +227,6 @@ export {
   updatePrivacyRetentionPolicy,
 } from "./master-data/privacy/privacy-retention.js";
 
-// F005/F006/F007/F027 Lead assignment, qualification, lifecycle stages, bulk jobs, intelligence and scoring.
-export {
-  archiveLeadAssignmentPolicy,
-  listLeadAssignmentPolicies,
-  saveLeadAssignmentPolicy,
-  setLeadAssignmentPolicyStatus,
-} from "./lead-management/assignment/assignment-engine.js";
-export {
-  clearLeadAssigneeAvailability,
-  getLeadAssignmentFallback,
-  listLeadAssigneeAvailability,
-  setLeadAssigneeAvailability,
-  setLeadAssignmentFallback,
-} from "./lead-management/assignment/availability.js";
-export {
-  explainLeadAssignmentCandidates,
-} from "./lead-management/assignment/eligibility.js";
-export {
-  addBusinessMinutes,
-  claimDueNurtureQueueItems,
-  openLeadSlaCase,
-  recordLeadResponse,
-  scanLeadSlaBreaches,
-} from "./lead-management/lead-intelligence.js";
-export {
-  bulkUpdateLeads,
-  enqueueLeadBulkUpdateJob,
-  getLeadBulkJob,
-  LEAD_BULK_SYNC_LIMIT,
-  resolveLeadBulkExecutionContext,
-} from "./lead-management/lead-operations.js";
-export {
-  decideLeadQualification,
-  getLeadQualification,
-} from "./lead-management/lead-qualification.js";
-export {
-  scanLeadStageDwellBreaches,
-} from "./lead-management/lifecycle/dwell-scan.js";
-export {
-  getLeadStage,
-  isElevatedLifecycleActor,
-} from "./lead-management/lifecycle/shared.js";
-export {
-  applyLeadStageTemplateUpgrade,
-  classifyLeadStageCustomization,
-  createLeadStage,
-  FIVE_STAGE_LEAD_GRAPH,
-  FIVE_STAGE_LEAD_TEMPLATE,
-  getLeadStageDwell,
-  listLeadStageHistory,
-  listLeadStages,
-  previewLeadStageTemplateUpgrade,
-  reactivateLeadStage,
-  updateLeadStage,
-} from "./lead-management/lifecycle/stage-catalog.js";
-export {
-  deactivateLeadStageWithMigration,
-  enqueueLeadStageMigrationJob,
-  getLeadStageMigrationJob,
-  processLeadStageMigrationBatch,
-  STAGE_MIGRATION_BATCH_SIZE,
-  STAGE_MIGRATION_JOB_TYPE,
-} from "./lead-management/lifecycle/stage-migration.js";
-export {
-  transitionLeadStage,
-} from "./lead-management/lifecycle/transition-engine.js";
-export {
-  addLeadStageTransition,
-  createLeadStageTransitionReason,
-  findApplicableTransitionReasons,
-  listLeadStageTransitionReasons,
-  listLeadStageTransitions,
-  removeLeadStageTransition,
-  setLeadStageTransitionReasonActive,
-} from "./lead-management/lifecycle/transition-graph.js";
-export {
-  processLeadScoreRecalcBatch,
-  SCORE_RECALC_JOB_TYPE,
-} from "./lead-management/scoring/bulk-recalc.js";
-export {
-  activateLeadScoringModel,
-  createLeadScoringModel,
-  createLeadScoringModelRule,
-  listLeadScoringModels,
-  setLeadScoringModelRuleStatus,
-  trainLeadScoringModel,
-  updateLeadScoringModel,
-} from "./lead-management/scoring/model-config.js";
-export {
-  getLeadScoreExplanation,
-  recalculateLeadScore,
-} from "./lead-management/scoring/scoring-engine.js";
 
 // F009-F012 Opportunity bulk jobs, contact roles, stage ageing, snapshots, forecasts and stage migration.
 export {
@@ -411,23 +298,8 @@ export {
 
 // F021/F029 Lead import/export jobs and mobile offline sync.
 export {
-  buildCrmLeadExportCsv,
-  completeCrmLeadExportJob,
-  enqueueCrmLeadExportJob,
-  getCrmLeadExportJob,
-  readCrmLeadExportArtifact,
-} from "./data-management/import-export/lead-export.js";
-export {
-  commitLeadImport,
-  finalizeLeadImport,
-  getLeadImportBatch,
-  getLeadImportErrorsCsv,
-  LEAD_IMPORT_LIMITS,
-  listCrmLeadImportBatches,
-  previewLeadImport,
-  processLeadImportChunk,
-  rollbackLeadImport,
-} from "./data-management/import-export/lead-import.js";
-export {
   applyOfflineBatch,
 } from "./data-management/offline-sync.js";
+// Leads: the record, lifecycle, assignment, qualification, duplicates,
+// conversion, activities, sources, import/export, dashboard and report.
+export * from "./leads/index.js";

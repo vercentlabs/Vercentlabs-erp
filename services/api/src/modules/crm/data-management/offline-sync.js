@@ -1,6 +1,6 @@
 import { moveOpportunityStage } from "../pipeline/opportunity-transitions.js";
 import { createHash, randomUUID } from "node:crypto";
-import { createCrmRecord } from "./resource-mutation-service.js";
+import { createLead } from "../leads/records.js";
 import { createCrmTask, completeCrmTask } from "../activities/task-operations.js";
 import { createCrmFollowUp, completeCrmFollowUp } from "../activities/follow-ups/follow-up-operations.js";
 export const CRM_OFFLINE_CAPABILITY_IDS = Object.freeze(["CRM-072"]);
@@ -223,18 +223,11 @@ export async function applyOfflineMutation(client, context, input = {}) {
         "Offline Lead creation cannot choose a lifecycle stage; the initial stage is assigned by the server.",
         "CRM_OFFLINE_LEAD_STAGE_GOVERNED",
       );
-    if (!text(p.code) || !text(p.firstName || p.first_name))
-      throw new CrmOfflineSyncError(
-        400,
-        "Offline lead creation requires code and first name.",
-        "CRM_OFFLINE_LEAD_INVALID",
-      );
     const ownerProvided =
       Object.prototype.hasOwnProperty.call(p, "ownerUserId") ||
       Object.prototype.hasOwnProperty.call(p, "owner_user_id");
-    row = await createCrmRecord(client, context, "leads", {
-      code: text(p.code),
-      firstName: text(p.firstName || p.first_name),
+    row = await createLead(client, context, {
+      firstName: text(p.firstName || p.first_name) || null,
       lastName: text(p.lastName || p.last_name) || null,
       email: text(p.email) || null,
       phone: text(p.phone) || null,
@@ -242,11 +235,10 @@ export async function applyOfflineMutation(client, context, input = {}) {
       companyName: text(p.companyName || p.company_name) || null,
       priority: text(p.priority || "medium"),
       rating: text(p.rating || "warm"),
-      customData: object(p.customData || p.custom_data),
       ...(ownerProvided
         ? { ownerUserId: p.ownerUserId || p.owner_user_id || null }
         : {}),
-    });
+    }, { origin: "integration" });
   } else if (m.resource === "opportunities" && m.operation === "stage") {
     if (!m.recordId || !text(m.payload.stageId || m.payload.stage_id))
       throw new CrmOfflineSyncError(

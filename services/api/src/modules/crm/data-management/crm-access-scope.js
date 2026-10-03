@@ -62,7 +62,7 @@ export function canOverridePrivateCrmContent(context) {
 // enough: the caller must manage that kind of record, or log CRM work
 // (crm.activities.manage).
 const CONTENT_WRITE_PERMISSION = Object.freeze({
-  lead: "crm.leads.manage",
+  lead: "crm.leads.edit",
   opportunity: "crm.opportunities.manage",
   party: "crm.accounts.manage",
   contact: "crm.accounts.manage",

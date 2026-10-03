@@ -78,25 +78,21 @@ export async function getCrmDashboard(client, context, options = {}) {
     `WITH scoped_leads AS (
        -- Visibility is evaluated once per lead (it can contain a managed-team
        -- EXISTS for restricted users), not once per figure below.
-       SELECT lead.organization_id, lead.record_status, lead.qualification_state, lead.created_at, lead.converted_at,
-              lead.owner_user_id, lead.status, lead.stage_entered_at, lead.lead_grade, (${leadVisible}) AS visible
+       SELECT lead.organization_id, lead.status, lead.stage, lead.rating, lead.created_at, lead.converted_at,
+              lead.owner_user_id, (${leadVisible}) AS visible
          FROM tenant.crm_leads lead
-        WHERE lead.organization_id = $1
+        WHERE lead.organization_id = $1 AND lead.archived_at IS NULL
      ), lead_counts AS (
        SELECT
-         count(*) FILTER (WHERE lead.record_status = 'active' AND lead.visible)::int AS open_leads,
-         count(*) FILTER (WHERE lead.record_status = 'active' AND lead.qualification_state = 'qualified' AND lead.visible)::int AS qualified_leads,
-         count(*) FILTER (WHERE lead.record_status IN ('active','converted') AND ${inPeriod("lead.created_at")} AND lead.visible)::int AS leads_in_period,
-         count(*) FILTER (WHERE lead.record_status IN ('active','converted') AND ${inPeriod("lead.created_at", "$6", "$7")} AND lead.visible)::int AS leads_previous_period,
-         count(*) FILTER (WHERE lead.record_status = 'converted' AND ${inPeriod("lead.converted_at")} AND lead.visible)::int AS conversions_in_period,
-         count(*) FILTER (WHERE lead.record_status = 'converted' AND ${inPeriod("lead.converted_at", "$6", "$7")} AND lead.visible)::int AS conversions_previous_period,
-         count(*) FILTER (WHERE lead.record_status = 'active' AND lead.owner_user_id IS NULL AND ${orgWide})::int AS unassigned_leads,
-         count(*) FILTER (WHERE lead.record_status = 'active' AND lead.visible AND EXISTS (
-           SELECT 1 FROM tenant.crm_lead_stages stage
-            WHERE stage.organization_id = lead.organization_id AND stage.code = lead.status AND stage.dwell_breach_hours IS NOT NULL
-              AND lead.stage_entered_at <= now() - (stage.dwell_breach_hours || ' hours')::interval))::int AS dwell_breached_leads,
-         count(*) FILTER (WHERE lead.record_status = 'active' AND lead.qualification_state = 'not_reviewed' AND lead.visible)::int AS needs_qualification_leads,
-         count(*) FILTER (WHERE lead.record_status = 'active' AND lead.lead_grade IN ('hot','qualified') AND lead.visible)::int AS high_priority_leads
+         count(*) FILTER (WHERE lead.status = 'open' AND lead.visible)::int AS open_leads,
+         count(*) FILTER (WHERE lead.status = 'qualified' AND lead.visible)::int AS qualified_leads,
+         count(*) FILTER (WHERE ${inPeriod("lead.created_at")} AND lead.visible)::int AS leads_in_period,
+         count(*) FILTER (WHERE ${inPeriod("lead.created_at", "$6", "$7")} AND lead.visible)::int AS leads_previous_period,
+         count(*) FILTER (WHERE lead.status = 'converted' AND ${inPeriod("lead.converted_at")} AND lead.visible)::int AS conversions_in_period,
+         count(*) FILTER (WHERE lead.status = 'converted' AND ${inPeriod("lead.converted_at", "$6", "$7")} AND lead.visible)::int AS conversions_previous_period,
+         count(*) FILTER (WHERE lead.status = 'open' AND lead.owner_user_id IS NULL AND ${orgWide})::int AS unassigned_leads,
+         count(*) FILTER (WHERE lead.status = 'open' AND lead.stage = 'ready_to_qualify' AND lead.visible)::int AS needs_qualification_leads,
+         count(*) FILTER (WHERE lead.status = 'open' AND lead.rating = 'hot' AND lead.visible)::int AS high_priority_leads
        FROM scoped_leads lead
      ), activity_counts AS (
        SELECT
@@ -134,7 +130,7 @@ export async function getCrmDashboard(client, context, options = {}) {
     [context.organizationId],
   );
   const sources = await client.query(
-    `SELECT COALESCE(source.name,'Unspecified') AS name, count(lead.id)::int AS lead_count, count(lead.id) FILTER (WHERE lead.record_status = 'converted')::int AS converted_count FROM tenant.crm_leads lead LEFT JOIN tenant.crm_lead_sources source ON source.id = lead.source_id WHERE lead.organization_id = $1 AND ${ownerVisible("lead", "owner_user_id")} GROUP BY source.name ORDER BY lead_count DESC LIMIT 10`,
+    `SELECT COALESCE(source.name,'Unspecified') AS name, count(lead.id)::int AS lead_count, count(lead.id) FILTER (WHERE lead.status = 'converted')::int AS converted_count FROM tenant.crm_leads lead LEFT JOIN tenant.crm_lead_sources source ON source.id = lead.source_id WHERE lead.organization_id = $1 AND ${ownerVisible("lead", "owner_user_id")} GROUP BY source.name ORDER BY lead_count DESC LIMIT 10`,
     baseParameters,
   );
   const activities = await client.query(
@@ -276,11 +272,11 @@ export async function getCrmReport(client, context, report, filters = {}) {
   if (CANONICAL_REPORTS.has(report)) return canonicalReport(client, context, report, { from, to });
   let sql;
   if (report === "conversion")
-    sql = `SELECT date_trunc('month', lead.created_at)::date AS period, count(*)::int AS leads, count(*) FILTER (WHERE lead.record_status='converted')::int AS converted, round((count(*) FILTER (WHERE lead.record_status='converted')::numeric / NULLIF(count(*),0))*100,2) AS conversion_rate FROM tenant.crm_leads lead WHERE lead.organization_id=$1 ${dateClause("lead.created_at")} AND ${ownerVisible("lead", "owner_user_id")} GROUP BY period ORDER BY period`;
+    sql = `SELECT date_trunc('month', lead.created_at)::date AS period, count(*)::int AS leads, count(*) FILTER (WHERE lead.status='converted')::int AS converted, round((count(*) FILTER (WHERE lead.status='converted')::numeric / NULLIF(count(*),0))*100,2) AS conversion_rate FROM tenant.crm_leads lead WHERE lead.organization_id=$1 ${dateClause("lead.created_at")} AND ${ownerVisible("lead", "owner_user_id")} GROUP BY period ORDER BY period`;
   else if (report === "sources")
     // source.id is selected for the same reason as
     // pipeline's stage.id above.
-    sql = `SELECT source.id AS source_id, COALESCE(source.name,'Unspecified') AS source, count(lead.id)::int AS leads, count(lead.id) FILTER (WHERE lead.record_status='converted')::int AS converted, COALESCE(sum(opportunity.amount) FILTER (WHERE opportunity.status='won'),0)::numeric AS won_revenue FROM tenant.crm_leads lead LEFT JOIN tenant.crm_lead_sources source ON source.id=lead.source_id LEFT JOIN tenant.crm_opportunities opportunity ON opportunity.lead_id=lead.id AND opportunity.organization_id=lead.organization_id AND ${ownerVisible("opportunity", "owner_user_id")} WHERE lead.organization_id=$1 ${dateClause("lead.created_at")} AND ${ownerVisible("lead", "owner_user_id")} GROUP BY source.id, source.name ORDER BY leads DESC`;
+    sql = `SELECT source.id AS source_id, COALESCE(source.name,'Unspecified') AS source, count(lead.id)::int AS leads, count(lead.id) FILTER (WHERE lead.status='converted')::int AS converted, COALESCE(sum(opportunity.amount) FILTER (WHERE opportunity.status='won'),0)::numeric AS won_revenue FROM tenant.crm_leads lead LEFT JOIN tenant.crm_lead_sources source ON source.id=lead.source_id LEFT JOIN tenant.crm_opportunities opportunity ON opportunity.lead_id=lead.id AND opportunity.organization_id=lead.organization_id AND ${ownerVisible("opportunity", "owner_user_id")} WHERE lead.organization_id=$1 ${dateClause("lead.created_at")} AND ${ownerVisible("lead", "owner_user_id")} GROUP BY source.id, source.name ORDER BY leads DESC`;
   else if (report === "activities")
     sql = `SELECT activity.activity_type, count(*)::int AS total, count(*) FILTER (WHERE activity.status='completed')::int AS completed, count(*) FILTER (WHERE ${taskOverdueSql("activity")})::int AS overdue FROM tenant.crm_activities activity WHERE activity.organization_id=$1 ${dateClause("activity.created_at")} AND ${ownerVisible("activity", "assigned_to")} GROUP BY activity.activity_type ORDER BY total DESC`;
   else if (report === "win-loss")

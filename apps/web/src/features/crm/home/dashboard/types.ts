@@ -27,7 +27,6 @@ type CrmDashboardMetrics = {
   lostInPeriod: number;
   lostPreviousPeriod: number;
   unassignedLeads: number;
-  dwellBreachedLeads: number;
   stalledOpportunities: number;
   needsQualificationLeads: number;
   highPriorityLeads: number;

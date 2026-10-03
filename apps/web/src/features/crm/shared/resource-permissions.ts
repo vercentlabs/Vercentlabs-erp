@@ -22,7 +22,7 @@ import { CRM_PERMISSIONS } from "@vercentlabs/permissions";
 const SELF_SCOPED_CRM_RESOURCES = new Set<string>([]);
 
 const RESOURCE_MANAGE_PERMISSIONS: Partial<Record<string, string>> = {
-  leads: CRM_PERMISSIONS.leadsManage,
+  leads: CRM_PERMISSIONS.leadsEdit,
   opportunities: CRM_PERMISSIONS.opportunitiesManage,
   // F020: team structure and territory structure are separate authorities
   // (crm.teams.manage / crm.territories.manage), no longer crm.settings.manage.
@@ -40,8 +40,7 @@ const RESOURCE_MANAGE_PERMISSIONS: Partial<Record<string, string>> = {
   // module-access-only).
   "account-plans": CRM_PERMISSIONS.accountsManage,
   "account-stakeholders": CRM_PERMISSIONS.accountsManage,
-  // F006/F027 — qualification-criteria/playbooks setup UI.
-  "qualification-criteria": CRM_PERMISSIONS.settingsManage,
+  // Playbooks setup UI.
   playbooks: CRM_PERMISSIONS.settingsManage,
   // F025 — forecast-periods is admin-configured; forecast-
   // submissions is rep-authored (own Opportunity-derived numbers), so it

@@ -7,25 +7,20 @@ import { crmOwnerScopeSql } from "../../data-management/crm-access-scope.js";
 import { CrmError } from "../../data-management/errors.js";
 import { taskOverdueSql } from "../../data-management/activity-query-rules.js";
 import { queueOutboxEvent } from "../../data-management/outbox.js";
-import { assertEligibleLeadAssignee } from "../../lead-management/lead-governance.js";
-import { canViewSensitiveLeadContent, leadScopeSql } from "../../lead-management/lead-security.js";
-import { addBusinessMinutes } from "../../lead-management/lead-intelligence.js";
+import { assertEligibleLeadAssignee } from "../../leads/assignment.js";
+import { canViewSensitiveLeadContent, leadScopeSql } from "../../leads/access.js";
+import { addBusinessMinutes } from "../../activities/shared/business-hours.js";
 import { createNotification } from "../../../../core/platform/notifications/index.js";
 import { getManagerForUser } from "../shared/notify.js";
 
-// Same default business-hours shape crm_lead_sla_policies already uses
-// (018/035) — reused rather than re-invented so working-hours behavior is
-// consistent across F005 SLA timers and F016 reminders. No per-organization
-// override exists for reminder delivery specifically (crm_lead_sla_policies
-// itself is criteria-matched per-Lead, not a general org setting) — using
-// this fixed default rather than building a new configurable policy engine
-// for it is a deliberate, proportionate scope decision for this pass.
+// Working hours used to time reminder delivery. There is no per-organization
+// override yet.
 const DEFAULT_BUSINESS_HOURS = { timezone: "Asia/Kolkata", weekdays: [1, 2, 3, 4, 5], start: "09:00", end: "18:00" };
 
 // Reminder delivery must respect working hours: if the
 // naive offset-before-due instant falls outside the configured window, defer
 // it to the next window rather than firing at 2am. addBusinessMinutes's own
-// window-seeking logic (lead-intelligence.js) already does exactly this —
+// window-seeking logic (shared/business-hours.js) already does exactly this —
 // called with a nominal 1-minute add so a fire_at already inside the window
 // passes through effectively unchanged (+1 minute), while one outside it is
 // moved to the start of the next valid window + 1 minute.
@@ -150,7 +145,7 @@ async function relationRecord(client, context, entityType, entityId) {
     const values = [context.organizationId, entityId];
     const scope = leadScopeSql(context, values, "lead");
     result = await client.query(
-      `SELECT lead.id FROM tenant.crm_leads lead WHERE lead.organization_id=$1 AND lead.id=$2 AND lead.record_status <> 'archived'${scope} LIMIT 1`,
+      `SELECT lead.id FROM tenant.crm_leads lead WHERE lead.organization_id=$1 AND lead.id=$2 AND lead.archived_at IS NULL${scope} LIMIT 1`,
       values,
     );
   } else if (specs[entityType]) {
@@ -230,7 +225,13 @@ export async function createRemindersForActivity(client, context, activityId, du
     const result = await client.query(
       `INSERT INTO tenant.crm_activity_reminders(organization_id,activity_id,offset_minutes,channel,fire_at,created_by)
        VALUES($1,$2,$3,$4,$5,$6)
-       ON CONFLICT (organization_id,activity_id,offset_minutes,channel) DO NOTHING
+       ON CONFLICT (organization_id,activity_id,offset_minutes,channel) DO UPDATE
+         SET fire_at=EXCLUDED.fire_at,status='pending',sent_at=NULL,delivered_at=NULL,acknowledged_at=NULL,failure_reason=NULL,updated_at=now()
+         -- Re-arm a reminder that was cancelled (the activity was closed and
+         -- reopened) or that already fired for an earlier time (the activity was
+         -- rescheduled). A reminder still waiting or being sent is left alone.
+         WHERE tenant.crm_activity_reminders.status='cancelled'
+            OR (tenant.crm_activity_reminders.status NOT IN ('pending','dispatching') AND tenant.crm_activity_reminders.fire_at<>EXCLUDED.fire_at)
        RETURNING *`,
       [context.organizationId, activityId, offsetMinutes, channel, fireAt.toISOString(), context.userId],
     );
@@ -272,7 +273,7 @@ export async function claimDueReminders(client, context, { limit = 200 } = {}) {
   if (!result.rows.length) return [];
   const activityIds = [...new Set(result.rows.map((row) => row.activity_id))];
   const activities = await client.query(
-    `SELECT activity.id,activity.subject,activity.entity_type,activity.entity_id,activity.due_at,activity.assigned_to,
+    `SELECT activity.id,activity.activity_type,activity.subject,activity.entity_type,activity.entity_id,activity.due_at,activity.assigned_to,
             u.full_name AS assigned_name,u.email AS assigned_email
        FROM tenant.crm_activities activity
        LEFT JOIN public.users u ON u.id=activity.assigned_to

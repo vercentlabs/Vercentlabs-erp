@@ -1,28 +1,17 @@
-import { findCrmDuplicates } from "@vercentlabs/api/crm";
+import { findLeadDuplicates } from "@vercentlabs/api/crm";
+import { CRM_PERMISSIONS } from "@vercentlabs/permissions";
 
-import { ok, readJson } from "@/core/http";
-import { crmContext } from "@/features/crm/shared/crm-context";
+import { ok } from "@/core/http";
 import { workspaceRoute } from "@/core/workspace-route";
+import { crmContext } from "@/features/crm/shared/crm-context";
+import { readBody } from "@/features/crm/leads/server/lead-http";
 
-// F008 possible-duplicate check, called while composing a new/edited
-// lead — never auto-merges; the UI shows candidates and requires an
-// explicit authorized decision (see /api/crm/leads/[id]/merge).
+// Duplicate check while typing a lead. Body: the lead fields, and
+// excludeLeadId when editing an existing lead. Nothing is stored.
 export async function POST(request: Request) {
-  return workspaceRoute(
-    request,
-    { module: "crm" },
-    async ({ client, session }) => {
-      const body = (await readJson(request)) as {
-        input: Record<string, unknown>;
-        excludeId?: string | null;
-      };
-      const duplicates = await findCrmDuplicates(
-        client,
-        crmContext(session),
-        body.input,
-        body.excludeId ?? null,
-      );
-      return ok({ duplicates });
-    },
-  );
+  return workspaceRoute(request, { module: "crm", permission: CRM_PERMISSIONS.leadsView }, async ({ client, session }) => {
+    const context = crmContext(session);
+    const { excludeLeadId, ...input } = await readBody(request);
+    return ok(await findLeadDuplicates(client, context, input, { excludeLeadId: typeof excludeLeadId === "string" ? excludeLeadId : null }));
+  });
 }

@@ -3,7 +3,6 @@
 // DEFINITIONS (tenant.crm_tags) already go through the generic
 // resource-mutation-service (see resource-registry.js's "tags" entry);
 // this module assigns a defined tag to an actual record.
-// (conversions/lead-conversion.js also copies tags on conversion.)
 //
 // Lead-scoped only, deliberately: crm_lead_tags is the ONLY tag
 // junction table that exists in the schema (no crm_account_tags /
@@ -28,7 +27,7 @@ function assertEntityType(entityType) {
 function assertCanManageTags(context) {
   const allowed =
     Boolean(context.roleSlugs?.includes("organization_owner")) ||
-    Boolean(context.permissions?.includes("crm.leads.manage"));
+    Boolean(context.permissions?.includes("crm.leads.edit"));
   if (!allowed) throw new CrmError(403, "You do not have permission to manage tags on this record.", "CRM_TAG_PERMISSION_DENIED");
 }
 

@@ -1,4 +1,4 @@
-import { leadSearchColumnsForContext } from "../lead-management/lead-security.js";
+import { canViewSensitiveLeadContent } from "../leads/access.js";
 import { nextDocumentNumber } from "../../../core/platform/numbering/index.js";
 import { taskOverdueSql } from "./activity-query-rules.js";
 import { CrmError } from "./errors.js";
@@ -25,21 +25,13 @@ export function buildSearch(
 ) {
   const value = String(search || "").trim();
   if (!value || !definition.search?.length) return "";
+  // Lead contact details are searchable only by callers allowed to see them.
   const columns =
-    definition.table === "tenant.crm_leads"
-      ? leadSearchColumnsForContext(context, definition.search)
+    definition.table === "tenant.crm_leads" && !canViewSensitiveLeadContent(context)
+      ? definition.search.filter((column) => !["email", "phone", "mobile"].includes(column))
       : definition.search;
   if (!columns.length) return "";
   const escaped = value.replaceAll("\\", "\\\\").replaceAll("%", "\\%").replaceAll("_", "\\_");
-  // Leads: one lower-cased text over the searchable columns, matched by the
-  // trigram indexes of migrations 190/191.
-  if (definition.table === "tenant.crm_leads") {
-    const parameter = addParameter(parameters, `%${escaped.toLowerCase()}%`);
-    // Ids come from the index-backed tenant.crm_lead_search_ids (migration 191);
-    // with contact details only when the caller may see them.
-    const withContactDetails = columns.includes("email");
-    return ` AND ${alias}.id IN (SELECT tenant.crm_lead_search_ids(${parameter}, ${withContactDetails}))`;
-  }
   const parameter = addParameter(parameters, `%${escaped}%`);
   return ` AND (${columns.map((column) => `COALESCE(${alias}.${column}::text, '') ILIKE ${parameter}`).join(" OR ")})`;
 }
@@ -76,13 +68,8 @@ export function buildFilters(
 ) {
   let sql = "";
   if (filters.status && filters.status !== "all" && definition.statusColumn) {
-    if (
-      definition.table === "tenant.crm_leads" &&
-      ["archived", "converted"].includes(String(filters.status))
-    )
-      sql += ` AND ${alias}.record_status = ${addParameter(parameters, filters.status)}`;
     // F024 — "closed" = won + lost, the deals behind a win rate.
-    else if (definition.table === "tenant.crm_opportunities" && String(filters.status) === "closed")
+    if (definition.table === "tenant.crm_opportunities" && String(filters.status) === "closed")
       sql += ` AND ${alias}.status IN ('won','lost')`;
     else
       sql += ` AND ${alias}.${definition.statusColumn} = ${addParameter(parameters, filters.status)}`;
@@ -150,63 +137,8 @@ export function buildFilters(
     if (filters[key] && Object.values(definition.fields).includes(column))
       sql += ` AND ${alias}.${column} = ${addParameter(parameters, filters[key])}`;
   }
-  if (definition.table === "tenant.crm_leads") {
-    // Lifecycle stage is independent from conversion/archive record state.
-    // Preserve the historical status=archived|converted query contract while
-    // using record_status as the canonical retention boundary.
-    // F024 — includeConverted=true widens the default active-only view to
-    // active + converted, matching the dashboard's "new leads in period".
-    if (String(filters.includeConverted) === "true" && !filters.status)
-      sql += ` AND ${alias}.record_status IN ('active','converted')`;
-    else if (
-      !["archived", "converted"].includes(String(filters.status || ""))
-    )
-      sql += ` AND ${alias}.record_status = 'active'`;
-    for (const [fromKey, toKey, column] of [
-      ["createdFrom", "createdTo", "created_at"],
-      ["convertedFrom", "convertedTo", "converted_at"],
-    ]) {
-      if (ISO_DATE.test(String(filters[fromKey] || ""))) sql += ` AND ${alias}.${column} >= ${addParameter(parameters, filters[fromKey])}::date`;
-      if (ISO_DATE.test(String(filters[toKey] || ""))) sql += ` AND ${alias}.${column} < ${addParameter(parameters, filters[toKey])}::date + 1`;
-    }
-    for (const [key, column] of [
-      ["priority", "priority"],
-      ["rating", "rating"],
-    ]) {
-      if (filters[key] && filters[key] !== "all")
-        sql += ` AND ${alias}.${column} = ${addParameter(parameters, filters[key])}`;
-    }
-    if (
-      filters.qualification &&
-      ["not_reviewed", "qualified", "unqualified"].includes(
-        String(filters.qualification),
-      )
-    )
-      sql += ` AND ${alias}.qualification_state = ${addParameter(parameters, filters.qualification)}`;
-    const followup = filters.followup || "all";
-    if (followup === "overdue")
-      sql += ` AND ${alias}.next_follow_up_at < now()`;
-    if (followup === "today")
-      sql += ` AND ${alias}.next_follow_up_at >= current_date AND ${alias}.next_follow_up_at < current_date + interval '1 day'`;
-    if (followup === "upcoming")
-      sql += ` AND ${alias}.next_follow_up_at >= now()`;
-    if (followup === "none") sql += ` AND ${alias}.next_follow_up_at IS NULL`;
-    // F024 — list filters behind the CRM dashboard's "dwell-breached"/
-    // "high-priority" Lead counts, so both metrics can drill down. These
-    // reuse the EXACT predicates
-    // getCrmDashboard already uses (analytics-service.js), never a
-    // semantically different approximation, so the drilled list's count
-    // always reconciles to the dashboard's own number.
-    if (String(filters.dwellBreached) === "true")
-      sql += ` AND EXISTS (
-        SELECT 1 FROM tenant.crm_lead_stages dwell_stage
-         WHERE dwell_stage.organization_id=${alias}.organization_id AND dwell_stage.code=${alias}.status
-           AND dwell_stage.dwell_breach_hours IS NOT NULL
-           AND ${alias}.stage_entered_at <= now() - (dwell_stage.dwell_breach_hours || ' hours')::interval
-      )`;
-    if (String(filters.highPriority) === "true")
-      sql += ` AND ${alias}.lead_grade IN ('hot','qualified')`;
-  }
+  // Archived leads never appear through the generic read path.
+  if (definition.table === "tenant.crm_leads") sql += ` AND ${alias}.archived_at IS NULL`;
   if (definition.table === "tenant.crm_opportunities") {
     // F024 — dashboard won/lost-in-period drill-down (actual_close_date).
     if (ISO_DATE.test(String(filters.closedFrom || ""))) sql += ` AND ${alias}.actual_close_date >= ${addParameter(parameters, filters.closedFrom)}::date`;
@@ -452,64 +384,6 @@ export async function listCrmRecords(client, context, resource, filters = {}) {
 
 
 
-export async function snapshotLeadBulkJobSelection(
-  client,
-  context,
-  jobId,
-  selection = {},
-  { maximum = 50_000 } = {},
-) {
-  const definition = resources.leads;
-  const parameters = [context.organizationId, jobId];
-  let where = "record.organization_id = $1";
-  where += recordScope(definition, context, parameters);
-
-  const type = String(selection.type || "explicit");
-  if (type === "explicit") {
-    const ids = Array.isArray(selection.ids)
-      ? [...new Set(selection.ids.map((value) => String(value)))]
-      : [];
-    if (!ids.length) return { requested: 0, snapshotted: 0 };
-    where += ` AND record.id = ANY(${addParameter(parameters, ids)}::uuid[])`;
-    // Explicit bulk edits are only valid for active Lead records.
-    where += buildFilters(definition, {}, parameters, "record", context);
-  } else if (type === "filter") {
-    const filters = selection.filters && typeof selection.filters === "object"
-      ? selection.filters
-      : {};
-    where += buildSearch(definition, filters.search, parameters, "record", context);
-    where += buildFilters(definition, filters, parameters, "record", context);
-  } else {
-    throw new CrmError(400, "Unsupported Lead bulk selection.", "CRM_LEAD_BULK_SELECTION_INVALID");
-  }
-
-  const countResult = await client.query(
-    `SELECT count(*)::int AS total FROM tenant.crm_leads record WHERE ${where}`,
-    parameters,
-  );
-  const total = Number(countResult.rows[0]?.total || 0);
-  if (total > maximum) {
-    throw new CrmError(
-      413,
-      `This bulk operation matches ${total} Leads. Narrow the selection to ${maximum} or fewer records.`,
-      "CRM_LEAD_BULK_SELECTION_TOO_LARGE",
-      { total, maximum },
-    );
-  }
-  if (!total) return { requested: 0, snapshotted: 0 };
-
-  const inserted = await client.query(
-    `INSERT INTO tenant.crm_lead_bulk_job_items
-       (organization_id,job_id,lead_id,expected_updated_at)
-     SELECT $1,$2,record.id,record.updated_at
-       FROM tenant.crm_leads record
-      WHERE ${where}
-      ORDER BY record.id
-     ON CONFLICT (organization_id,job_id,lead_id) DO NOTHING`,
-    parameters,
-  );
-  return { requested: total, snapshotted: inserted.rowCount };
-}
 
 
 

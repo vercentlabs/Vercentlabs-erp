@@ -12,12 +12,8 @@ import { CRM_PERMISSIONS } from "@vercentlabs/permissions";
 
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
-import {
-  getLead,
-  listLeads,
-} from "@/features/crm/customers/leads/api/leads-api";
-import type { Lead } from "@/features/crm/customers/leads/types";
-import { LeadDuplicatesWorkspacePanel } from "@/features/crm/customers/leads/components/LeadDuplicatesWorkspacePanel";
+import { getLead, listLeads, type Lead } from "@/features/crm/leads/api/leads-api";
+import { LeadDuplicatesPanel } from "@/features/crm/leads/components/LeadDuplicatesPanel";
 import {
   getAccount,
   listAccounts,
@@ -47,7 +43,7 @@ import { FullDuplicateScan } from "../components/FullDuplicateScan";
 export function DuplicatesWorkspaceScreen() {
   const workspace = useWorkspaceContext();
   const canView =
-    workspace.permissions.includes(CRM_PERMISSIONS.leadsManage) ||
+    workspace.permissions.includes(CRM_PERMISSIONS.leadsEdit) ||
     workspace.permissions.includes(CRM_PERMISSIONS.accountsManage);
   const [entityType, setEntityType] = useState<EntityType>("lead");
   const [search, setSearch] = useState("");
@@ -132,7 +128,7 @@ export function DuplicatesWorkspaceScreen() {
     return (
       <PermissionState
         title="You don't have access to duplicate management"
-        description="Ask an administrator to grant crm.leads.manage or crm.accounts.manage."
+        description="Ask an administrator for the Edit leads or Manage accounts permission."
       />
     );
 
@@ -149,7 +145,7 @@ export function DuplicatesWorkspaceScreen() {
   const selectedLead: Lead | undefined =
     entityType === "lead"
       ? (leadRows.find((row) => row.id === selectedId) ??
-        reviewedLeadQuery.data?.record)
+        reviewedLeadQuery.data)
       : undefined;
   const selectedAccount: Account | undefined =
     entityType === "account"
@@ -167,7 +163,7 @@ export function DuplicatesWorkspaceScreen() {
       const lead = row as Lead;
       // Enough detail to tell same-named records apart.
       return [
-        lead.fullName || `${lead.firstName} ${lead.lastName || ""}`.trim(),
+        lead.fullName || lead.code,
         lead.companyName,
         lead.email,
         lead.city,
@@ -292,11 +288,9 @@ export function DuplicatesWorkspaceScreen() {
         )}
 
         {selectedLead && (
-          <LeadDuplicatesWorkspacePanel
+          <LeadDuplicatesPanel
             lead={selectedLead}
-            canResolve={workspace.permissions.includes(
-              CRM_PERMISSIONS.dataQualityManage,
-            )}
+            canResolve={workspace.permissions.includes(CRM_PERMISSIONS.leadsEdit)}
           />
         )}
         {selectedAccount && (

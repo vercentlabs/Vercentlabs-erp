@@ -10,8 +10,7 @@ export type TimelineKind =
   | "note"
   | "attachment"
   | "stage"
-  | "assignment"
-  | "qualification";
+  | "history";
 
 export type RecordTimelineRow = {
   id: string;

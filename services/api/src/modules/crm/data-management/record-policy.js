@@ -1,4 +1,4 @@
-import { canViewSensitiveLeadContent, firstSensitiveLeadInputField, projectLeadForContext } from "../lead-management/lead-security.js";
+import { canViewSensitiveLeadContent, firstSensitiveLeadInputField, projectLeadForContext } from "../leads/access.js";
 import { communicationVisibilitySql, projectCrmCommunication } from "./communication-access.js";
 import { CrmError } from "./errors.js";
 import { comparable } from "./condition-matching.js";
@@ -158,14 +158,12 @@ export async function assertOwnerAssignmentAllowed(client, definition, context, 
 
 
 
-// Who may use the Lead assignment action at all: Lead managers. WHOM they
-// may assign to is decided per target by assertCrmOwnerAssignable (self,
-// own team, or anyone for view-all holders), and which Leads they can reach
-// by recordScope.
+// Who may use the Lead assignment action at all (crm.leads.assign). WHOM
+// they may assign to is decided per target by assertCrmOwnerAssignable.
 export function canAssignLeadOwners(context) {
   return (
     Boolean(context.roleSlugs?.includes("organization_owner")) ||
-    Boolean(context.permissions?.includes("crm.leads.manage"))
+    Boolean(context.permissions?.includes("crm.leads.assign"))
   );
 }
 
@@ -300,7 +298,6 @@ export function assertLeadLinkedContentAllowed(context, resource, input, before 
 
 export const LEAD_LINKED_GENERIC_RESOURCES = new Set([
   "data-quality-scores",
-  "enrichment-jobs",
   "ai-predictions",
 ]);
 

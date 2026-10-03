@@ -8,10 +8,7 @@ export const CRM_RESOURCE_KEYS: readonly [
   "stages",
   "sources",
   "lost-reasons",
-  "qualification-criteria",
   "tags",
-  "scoring-rules",
-  "assignment-rules",
   "sequences",
   "sequence-steps",
   "sequence-enrollments",
@@ -53,7 +50,6 @@ export const CRM_RESOURCE_KEYS: readonly [
   "custom-field-definitions",
   "custom-records",
   "field-visits",
-  "enrichment-jobs",
   "ai-predictions",
   "ai-feedback",
 ];

@@ -6,7 +6,7 @@ import { ComboBox, Select } from "@vercentlabs/design-system";
 
 import { listAccounts } from "@/features/crm/customers/accounts/api/accounts-api";
 import { listContacts } from "@/features/crm/customers/contacts/api/contacts-api";
-import { listLeads } from "@/features/crm/customers/leads/api/leads-api";
+import { listLeads } from "@/features/crm/leads/api/leads-api";
 import { listOpportunities } from "@/features/crm/pipeline/opportunities/api/opportunities-api";
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
@@ -34,7 +34,7 @@ const rowLabel = (type: string, row: Row) => {
   if (type === "opportunity") return String(row.name ?? row.id);
   return (
     [row.firstName, row.lastName].filter(Boolean).join(" ") ||
-    String(row.email ?? row.id)
+    String(row.companyName ?? row.email ?? row.id)
   );
 };
 

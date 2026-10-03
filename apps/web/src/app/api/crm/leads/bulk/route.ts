@@ -1,61 +1,24 @@
-import {
-  bulkUpdateLeads,
-  enqueueLeadBulkUpdateJob,
-  LEAD_BULK_SYNC_LIMIT,
-} from "@vercentlabs/api/crm";
+import { bulkAssignLeads, bulkChangeLeadStage, bulkDisqualifyLeads } from "@vercentlabs/api/crm";
 import { CRM_PERMISSIONS } from "@vercentlabs/permissions";
 
-import { HttpError, ok, readJson } from "@/core/http";
+import { HttpError, ok } from "@/core/http";
 import { workspaceRoute } from "@/core/workspace-route";
 import { crmContext } from "@/features/crm/shared/crm-context";
+import { readBody } from "@/features/crm/leads/server/lead-http";
 
-// Bulk Lead update: up to LEAD_BULK_SYNC_LIMIT synchronously (with an
-// optional preview), larger selections as an idempotent background job.
+// Bulk operations on selected leads. Body: { action, leadIds, ... }
+//   assign      { ownerUserId?, teamId? }
+//   stage       { stage }
+//   disqualify  { reason, notes? }
+// Each lead succeeds or fails on its own; the response lists every outcome.
 export async function POST(request: Request) {
-  return workspaceRoute(
-    request,
-    {
-      module: "crm",
-      permission: CRM_PERMISSIONS.leadsManage,
-      billingWrite: true,
-      action: "crm.leads.bulk_update",
-    },
-    async ({ client, session }) => {
-      const input = (await readJson(request)) as {
-        ids?: string[];
-        changes?: Record<string, unknown>;
-        expectedVersions?: Record<string, string>;
-        idempotencyKey?: string;
-        preview?: boolean;
-      };
-      const ids = Array.isArray(input.ids) ? input.ids : [];
-      if (!ids.length) throw new HttpError(400, "Select at least one Lead.");
-      if (ids.length <= LEAD_BULK_SYNC_LIMIT) {
-        return ok(
-          await bulkUpdateLeads(client, crmContext(session), {
-            ids,
-            changes: input.changes,
-            expectedVersions: input.expectedVersions,
-            preview: input.preview === true,
-          }),
-        );
-      }
-      if (input.preview)
-        throw new HttpError(
-          400,
-          `Preview is available for up to ${LEAD_BULK_SYNC_LIMIT} Leads at a time.`,
-        );
-      if (!input.idempotencyKey)
-        throw new HttpError(
-          400,
-          "A large Lead selection requires an idempotency key.",
-        );
-      const job = await enqueueLeadBulkUpdateJob(client, crmContext(session), {
-        selection: { type: "explicit", ids },
-        changes: input.changes,
-        idempotencyKey: input.idempotencyKey,
-      });
-      return ok(job, 202);
-    },
-  );
+  return workspaceRoute(request, { module: "crm", permission: CRM_PERMISSIONS.leadsEdit, billingWrite: true }, async ({ client, session }) => {
+    const context = crmContext(session);
+    const { action, ...input } = await readBody(request);
+    const payload = input as { leadIds: string[] } & Record<string, unknown>;
+    if (action === "assign") return ok(await bulkAssignLeads(client, context, payload));
+    if (action === "stage") return ok(await bulkChangeLeadStage(client, context, payload as { leadIds: string[]; stage: string }));
+    if (action === "disqualify") return ok(await bulkDisqualifyLeads(client, context, payload as { leadIds: string[]; reason: string }));
+    throw new HttpError(400, "Unknown bulk action.");
+  });
 }

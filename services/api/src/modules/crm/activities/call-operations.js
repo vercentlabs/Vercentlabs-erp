@@ -2,8 +2,8 @@ import { crmOwnerScopeSql } from "../data-management/crm-access-scope.js";
 import { CrmError } from "../data-management/errors.js";
 import { taskOverdueSql } from "../data-management/activity-query-rules.js";
 import { queueOutboxEvent } from "../data-management/outbox.js";
-import { assertEligibleLeadAssignee } from "../lead-management/lead-governance.js";
-import { canViewSensitiveLeadContent, leadScopeSql } from "../lead-management/lead-security.js";
+import { assertEligibleLeadAssignee } from "../leads/assignment.js";
+import { canViewSensitiveLeadContent, leadScopeSql } from "../leads/access.js";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const DIRECTIONS = new Set(["inbound", "outbound"]);
@@ -132,7 +132,7 @@ async function relationRecord(client, context, entityType, entityId) {
     query = await client.query(
       `SELECT lead.id,COALESCE(lead.mobile,lead.phone) AS phone,lead.do_not_contact
          FROM tenant.crm_leads lead
-        WHERE lead.organization_id=$1 AND lead.id=$2 AND lead.record_status <> 'archived'${scope} LIMIT 1`,
+        WHERE lead.organization_id=$1 AND lead.id=$2 AND lead.archived_at IS NULL${scope} LIMIT 1`,
       values,
     );
   } else if (entityType === "contact") {
@@ -231,7 +231,7 @@ async function touchParentOnCompletion(client, context, call) {
   if (call.entityType === "lead" && call.entityId)
     await client.query(
       `UPDATE tenant.crm_leads
-          SET last_contacted_at=now(),first_responded_at=COALESCE(first_responded_at,now()),updated_at=now()
+          SET last_activity_at=now(),updated_at=now()
         WHERE organization_id=$1 AND id=$2`,
       [context.organizationId, call.entityId],
     );

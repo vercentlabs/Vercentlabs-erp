@@ -5,13 +5,12 @@ import { useInfiniteQuery } from "@tanstack/react-query";
 import {
   Activity as ActivityIcon,
   ArrowRightLeft,
-  CheckCircle2,
+  History,
   Mail,
   MessageCircle,
   Paperclip,
   Phone,
   StickyNote,
-  UserCog,
 } from "lucide-react";
 import {
   Button,
@@ -42,7 +41,7 @@ const FILTERS: { id: string; label: string; kinds?: TimelineKind[] }[] = [
   {
     id: "changes",
     label: "Changes",
-    kinds: ["stage", "assignment", "qualification"],
+    kinds: ["stage", "history"],
   },
 ];
 
@@ -52,8 +51,7 @@ const KIND_ICON = {
   note: StickyNote,
   attachment: Paperclip,
   stage: ArrowRightLeft,
-  assignment: UserCog,
-  qualification: CheckCircle2,
+  history: History,
 } as const;
 
 const KIND_TONE: Record<TimelineKind, TimelineEntry["tone"]> = {
@@ -62,8 +60,7 @@ const KIND_TONE: Record<TimelineKind, TimelineEntry["tone"]> = {
   note: "neutral",
   attachment: "neutral",
   stage: "warning",
-  assignment: "warning",
-  qualification: "success",
+  history: "warning",
 };
 
 // Communication icons follow the channel, not just "message".
@@ -75,15 +72,8 @@ const CHANNEL_ICON: Record<string, typeof Mail> = {
 };
 
 function describe(row: RecordTimelineRow): string {
-  // Qualification events store state codes (not_reviewed → unqualified); show words.
-  if (row.kind === "qualification" && row.title) {
-    const [change, ...rest] = row.title.split(" — ");
-    const words = change
-      .split(" → ")
-      .map((code) => humanize(code))
-      .join(" → ");
-    return `Qualification: ${[words, ...rest].join(" — ")}`;
-  }
+  // A lead history entry is already a sentence ("Stage: New → Contacted").
+  if (row.kind === "history") return row.title ?? "Lead changed";
   const label = humanize(
     row.kind === "activity" && row.subtype ? row.subtype : row.kind,
   );
@@ -145,7 +135,6 @@ export function RecordTimelinePanel({
                   ? `By ${row.actorName}`
                   : null,
               row.status &&
-              row.kind !== "qualification" &&
               !(row.kind === "communication" && row.status === "received")
                 ? `Status: ${humanize(row.status)}`
                 : null,

@@ -1,27 +1,17 @@
-import { enqueueCrmLeadExportJob } from "@vercentlabs/api/crm";
+import { exportLeads } from "@vercentlabs/api/crm";
 import { CRM_PERMISSIONS } from "@vercentlabs/permissions";
 
-import { ok, readJson } from "@/core/http";
-import { crmContext } from "@/features/crm/shared/crm-context";
 import { workspaceRoute } from "@/core/workspace-route";
+import { crmContext } from "@/features/crm/shared/crm-context";
+import { csvResponse, leadFiltersFromUrl } from "@/features/crm/leads/server/lead-http";
 
-// F021. Enqueues a real async export job (tenant.background_jobs,
-// job_type='crm.leads.export') rather than building the CSV in the
-// browser. Same crm.leads.manage
-// gate the rest of this import/export screen already uses — plus the
-// dedicated crm.export permission (checked again in enqueue and worker).
-export async function POST(request: Request) {
-  return workspaceRoute(
-    request,
-    { module: "crm", permission: CRM_PERMISSIONS.export },
-    async ({ client, session }) => {
-      const input = (await readJson(request)) as {
-        filters?: Record<string, string>;
-      };
-      const job = await enqueueCrmLeadExportJob(client, crmContext(session), {
-        filters: input.filters || {},
-      });
-      return ok({ job }, 202);
-    },
-  );
+// Downloads the leads the list shows for the same view and filters.
+export async function GET(request: Request) {
+  return workspaceRoute(request, { module: "crm", permission: CRM_PERMISSIONS.leadsExport }, async ({ client, session }) => {
+    const context = crmContext(session);
+    const url = new URL(request.url);
+    const ids = url.searchParams.get("ids");
+    const exported = await exportLeads(client, context, { ...leadFiltersFromUrl(url), ...(ids ? { ids: ids.split(",") } : {}) });
+    return csvResponse(exported.csv, exported.fileName);
+  });
 }

@@ -1,4 +1,4 @@
-import { assertEligibleLeadAssignee } from "../lead-management/lead-governance.js";
+import { assertEligibleLeadAssignee } from "../leads/assignment.js";
 import { CrmError } from "../data-management/errors.js";
 import { getCrmRecord } from "../data-management/resource-query-service.js";
 import { validationErrorDetails } from "../data-management/resource-validation.js";
@@ -98,9 +98,8 @@ export async function validateOpportunityRelationships(client, context, prepared
   const effective = { ...existing, ...prepared };
 
   if (effective.leadId) {
-    const lead = await getCrmRecord(client, context, "leads", effective.leadId);
-    if (lead.recordStatus === "archived")
-      throw new CrmError(409, "Archived Leads cannot be linked to an Opportunity.", "CRM_OPPORTUNITY_LEAD_ARCHIVED");
+    // getCrmRecord applies the caller's lead scope and excludes archived leads.
+    await getCrmRecord(client, context, "leads", effective.leadId);
   }
 
   let selectedParty = null;

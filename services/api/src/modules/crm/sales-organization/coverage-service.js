@@ -6,7 +6,7 @@ import { recordScope } from "../data-management/record-policy.js";
 import { addParameter, camelizeRow } from "../data-management/record-utils.js";
 import { definitionFor } from "../data-management/resource-registry.js";
 import { updateCrmRecord } from "../data-management/resource-mutation-service.js";
-import { assignLeadOwner } from "../lead-management/lead-assignment.js";
+import { assignLead } from "../leads/assignment.js";
 import { ownerTeamCte } from "../analytics/opportunity-facts.js";
 import { getMetricRollup, getQuotaSummary } from "../analytics/pipeline-metrics.js";
 import { updateCrmAccount } from "../master-data/account-operations.js";
@@ -92,7 +92,7 @@ export async function getSalesCoverage(client, context, { asOf } = {}) {
      SELECT owner_team.team_id::text AS team_id, count(*)::int AS open_leads
        FROM tenant.crm_leads record
        LEFT JOIN owner_team ON owner_team.user_id=record.owner_user_id
-      WHERE record.organization_id=$1 AND record.record_status='active'${leadScope}
+      WHERE record.organization_id=$1 AND record.archived_at IS NULL AND record.status='open'${leadScope}
       GROUP BY 1`,
     leadParameters,
   );
@@ -158,7 +158,7 @@ async function countUnassigned(client, context) {
   const accountParameters = [context.organizationId];
   const accountScope = crmAccountAccessSql(context, (value) => addParameter(accountParameters, value), "record");
   // Sequential: one client never runs overlapping queries.
-  const leads = await client.query(`SELECT count(*)::int AS total FROM tenant.crm_leads record WHERE record.organization_id=$1 AND record.record_status='active' AND record.owner_user_id IS NULL${leadScope}`, leadParameters);
+  const leads = await client.query(`SELECT count(*)::int AS total FROM tenant.crm_leads record WHERE record.organization_id=$1 AND record.archived_at IS NULL AND record.status='open' AND record.owner_user_id IS NULL${leadScope}`, leadParameters);
   const opportunities = await client.query(`SELECT count(*)::int AS total FROM tenant.crm_opportunities record WHERE record.organization_id=$1 AND record.status='open' AND record.owner_user_id IS NULL${opportunityScope}`, opportunityParameters);
   const accounts = await client.query(`SELECT count(*)::int AS total FROM tenant.business_parties record WHERE record.organization_id=$1 AND record.status='active' AND record.party_type IN ('customer','prospect') AND record.owner_user_id IS NULL${accountScope}`, accountParameters);
   return { leads: leads.rows[0].total, opportunities: opportunities.rows[0].total, accounts: accounts.rows[0].total };
@@ -186,7 +186,7 @@ export async function listUnassignedRecords(client, context, { type, cursor = nu
   if (type === "leads") {
     const scope = recordScope(definitionFor("leads"), context, parameters, "record");
     sql = `SELECT record.id, record.code, trim(concat_ws(' ', record.first_name, record.last_name)) AS name, record.company_name AS detail, record.city, record.country_code, record.created_at, record.updated_at
-             FROM tenant.crm_leads record WHERE record.organization_id=$1 AND record.record_status='active' AND record.owner_user_id IS NULL${scope}`;
+             FROM tenant.crm_leads record WHERE record.organization_id=$1 AND record.archived_at IS NULL AND record.status='open' AND record.owner_user_id IS NULL${scope}`;
   } else if (type === "opportunities") {
     const scope = recordScope(definitionFor("opportunities"), context, parameters, "record");
     sql = `SELECT record.id, record.code, record.name, record.amount::text || ' ' || COALESCE(record.currency_code,'') AS detail, NULL::text AS city, NULL::text AS country_code, record.created_at, record.updated_at
@@ -246,7 +246,7 @@ export async function reassignCoverage(client, context, input = {}) {
     await client.query("SAVEPOINT crm_coverage_reassign");
     try {
       const version = expected[id] ? { expectedUpdatedAt: String(expected[id]), requireVersion: true } : {};
-      if (type === "leads") await assignLeadOwner(client, context, id, ownerUserId, { ...version, reason: `coverage:${reason.slice(0, 80)}` });
+      if (type === "leads") await assignLead(client, context, id, { ownerUserId, reason: `coverage:${reason.slice(0, 80)}` });
       else if (type === "accounts") await updateCrmAccount(client, context, id, { ownerUserId }, version);
       else await updateCrmRecord(client, context, "opportunities", id, { ownerUserId }, version);
       await client.query("RELEASE SAVEPOINT crm_coverage_reassign");

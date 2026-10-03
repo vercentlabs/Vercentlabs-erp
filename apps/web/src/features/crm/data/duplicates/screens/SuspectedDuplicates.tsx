@@ -13,10 +13,7 @@ import {
   findContactDuplicates,
   listContacts,
 } from "@/features/crm/customers/contacts/api/contacts-api";
-import {
-  findLeadDuplicates,
-  listLeads,
-} from "@/features/crm/customers/leads/api/leads-api";
+import { checkLeadDuplicates, listLeads } from "@/features/crm/leads/api/leads-api";
 import { humanize } from "@/shared/format/human";
 import { LoadingState } from "@/shared/ui/LoadingState";
 
@@ -71,29 +68,26 @@ async function scan(type: EntityType): Promise<Suspect[]> {
   };
 
   if (type === "lead") {
-    const { rows } = await listLeads({ limit: SCAN_SIZE } as never);
+    const { rows } = await listLeads({ limit: SCAN_SIZE });
     await inBatches(rows, 5, async (lead) => {
-      const name =
-        lead.fullName || `${lead.firstName} ${lead.lastName ?? ""}`.trim();
-      const { duplicates } = await findLeadDuplicates(
-        {
-          firstName: lead.firstName,
-          lastName: lead.lastName,
-          email: lead.email,
-          mobile: lead.mobile,
-          phone: lead.phone,
-          companyName: lead.companyName,
-        },
-        lead.id,
-      ).catch(() => ({ duplicates: [] }));
-      for (const d of duplicates)
-        if (!("restricted" in d && d.restricted) && "id" in d)
+      const name = lead.fullName || lead.companyName || lead.code;
+      const { matches } = await checkLeadDuplicates({
+        firstName: lead.firstName,
+        lastName: lead.lastName,
+        email: lead.email,
+        mobile: lead.mobile,
+        phone: lead.phone,
+        companyName: lead.companyName,
+        excludeLeadId: lead.id,
+      }).catch(() => ({ matches: [] }));
+      for (const match of matches)
+        if (match.kind === "lead" && match.canOpen)
           add(
             lead.id,
             name,
-            d.id,
-            d.fullName || d.name,
-            d.classification === "exact" ? ["exact", ...d.signals] : d.signals,
+            match.id,
+            match.name || match.companyName || match.code || "Lead",
+            match.strength === "exact" ? ["exact", ...match.signals] : match.signals,
           );
     });
   } else if (type === "account") {

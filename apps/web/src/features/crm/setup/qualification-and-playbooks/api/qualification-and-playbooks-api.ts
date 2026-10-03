@@ -3,7 +3,6 @@
 import type {
   CrmListResponse,
   CrmPlaybook,
-  QualificationCriterion,
 } from "../types";
 import { CrmApiError } from "../../../shared/http/crm-api-error.ts";
 import { crmApiClient } from "../../../shared/http/crm-request.ts";
@@ -14,29 +13,6 @@ const { request, parseResponse } = crmApiClient(SettingsApiError);
 
 // Both resources reuse the generic /api/crm/[resource] boundary
 // (crm.settings.manage, RESOURCE_MANAGE_PERMISSIONS).
-export async function listQualificationCriteria(): Promise<
-  CrmListResponse<QualificationCriterion>
-> {
-  return request("/api/crm/qualification-criteria?limit=100");
-}
-export async function createQualificationCriterion(
-  input: Record<string, unknown>,
-): Promise<{ record: QualificationCriterion }> {
-  return request("/api/crm/qualification-criteria", {
-    method: "POST",
-    json: input,
-  });
-}
-export async function archiveQualificationCriterion(
-  id: string,
-  expectedUpdatedAt: string,
-): Promise<{ record: QualificationCriterion }> {
-  const response = await fetch(
-    `/api/crm/qualification-criteria/${id}?expectedUpdatedAt=${encodeURIComponent(expectedUpdatedAt)}`,
-    { method: "DELETE" },
-  );
-  return parseResponse(response);
-}
 
 export async function listPlaybooks(): Promise<CrmListResponse<CrmPlaybook>> {
   return request("/api/crm/playbooks?limit=100");

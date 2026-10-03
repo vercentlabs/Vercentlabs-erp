@@ -3,13 +3,13 @@
 // only ever looks at the 40 most-recently-changed records via the
 // frontend). This is a real background job that pages through every
 // active record of a given entity type and calls the SAME governed
-// matching engine (evaluateLeadDuplicateRisk / findAccountDuplicates /
+// matching engine (findLeadDuplicates / findAccountDuplicates /
 // findContactDuplicates) per record — no separate/simplified matching
 // logic is introduced here, exactly the constraint the workspace's own
 // code comments already establish for this feature.
 import { CrmError } from "../data-management/errors.js";
 import { queueOutboxEvent } from "../data-management/outbox.js";
-import { evaluateLeadDuplicateRisk } from "./lead-duplicates.js";
+import { findLeadDuplicates } from "../leads/duplicates.js";
 import { findAccountDuplicates, findContactDuplicates } from "./duplicate-matching.js";
 import { canViewAllCrmRecords, crmAccountVisibleSql, crmContactVisibleSql } from "../data-management/crm-access-scope.js";
 import { recordScope } from "../data-management/record-policy.js";
@@ -160,7 +160,7 @@ async function fetchPage(client, organizationId, entityType, lastId, limit) {
   if (entityType === "lead") {
     const result = await client.query(
       `SELECT id,first_name,last_name,email,mobile,phone,company_name FROM tenant.crm_leads
-        WHERE organization_id=$1 AND record_status='active' AND ($2::uuid IS NULL OR id>$2)
+        WHERE organization_id=$1 AND archived_at IS NULL AND status<>'converted' AND ($2::uuid IS NULL OR id>$2)
         ORDER BY id LIMIT $3`,
       [organizationId, lastId, limit],
     );
@@ -186,13 +186,13 @@ async function fetchPage(client, organizationId, entityType, lastId, limit) {
 
 async function matchesFor(client, context, entityType, row) {
   if (entityType === "lead") {
-    const evaluation = await evaluateLeadDuplicateRisk(
+    const { matches } = await findLeadDuplicates(
       client,
       context,
       { firstName: row.first_name, lastName: row.last_name, email: row.email, mobile: row.mobile, phone: row.phone, companyName: row.company_name },
-      { excludeLeadId: row.id, lock: false },
+      { excludeLeadId: row.id, limit: 25 },
     );
-    return evaluation.internalMatches.map((match) => ({ id: match.row.id, classification: match.classification, signals: match.signals }));
+    return matches.filter((match) => match.kind === "lead").map((match) => ({ id: match.id, classification: match.strength === "exact" ? "exact" : "probable", signals: match.signals }));
   }
   if (entityType === "account") {
     const rows = await findAccountDuplicates(client, context, { displayName: row.display_name, legalName: row.legal_name, gstin: row.gstin, pan: row.pan, excludeId: row.id });

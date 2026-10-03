@@ -15,7 +15,7 @@ import {
   recordAccountDuplicateOverride,
 } from "./duplicate-matching.js";
 import { assertExpectedRecordVersion } from "./record-version.js";
-import { getEligibleLeadAssignee } from "../lead-management/assignment/eligibility.js";
+import { assertEligibleLeadAssignee } from "../leads/assignment.js";
 import { assertCrmOwnerAssignable, crmAccountVisibleSql } from "../data-management/crm-access-scope.js";
 import { crmChildScopes } from "../data-management/record-policy.js";
 import { nextDocumentNumber } from "../../../core/platform/numbering/index.js";
@@ -436,8 +436,11 @@ async function resolveAccountOwner(client, context, input) {
   const ownerUserId = input.ownerUserId ? String(input.ownerUserId) : null;
   if (!ownerUserId) return null;
   await assertCrmOwnerAssignable(client, context, ownerUserId, "You can only make yourself or a member of a team you manage the Account owner.");
-  if (!(await getEligibleLeadAssignee(client, context, ownerUserId)))
+  try {
+    await assertEligibleLeadAssignee(client, context, ownerUserId);
+  } catch {
     throw new CrmError(409, "The selected owner is not an active CRM member.", "CRM_ACCOUNT_OWNER_INVALID", { errors: { ownerUserId: ["Choose an active CRM member."] } });
+  }
   return ownerUserId;
 }
 

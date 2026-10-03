@@ -1,0 +1,322 @@
+"use client";
+
+// Browser client for the lead routes under /api/crm/leads. One function per
+// lead operation; a failed request throws LeadApiError carrying the server's
+// message, code and (for duplicates) the matching records.
+import { CrmApiErrorWithBody } from "@/features/crm/shared/http/crm-api-error";
+import { crmApiClient } from "@/features/crm/shared/http/crm-request";
+
+export class LeadApiError extends CrmApiErrorWithBody {}
+
+const { request, parseResponse } = crmApiClient(LeadApiError, "body");
+
+export type LeadStage = "new" | "attempting_contact" | "contacted" | "nurturing" | "ready_to_qualify";
+export type LeadStatus = "open" | "qualified" | "disqualified" | "converted";
+export type LeadViewKey = "all" | "mine" | "unassigned" | "new" | "follow_up" | "due_today" | "overdue" | "qualified" | "disqualified" | "converted" | "archived";
+export type TriState = "yes" | "no" | "unknown";
+
+export type LeadTag = { id: string; name: string; color: string };
+
+export type Lead = {
+  id: string;
+  code: string;
+  firstName: string | null;
+  lastName: string | null;
+  fullName: string | null;
+  companyName: string | null;
+  jobTitle: string | null;
+  email?: string | null;
+  phone?: string | null;
+  mobile?: string | null;
+  website: string | null;
+  city: string | null;
+  state: string | null;
+  countryCode: string | null;
+  sourceId: string | null;
+  sourceName: string | null;
+  sourceDetail: string | null;
+  industry: string | null;
+  productInterest: string | null;
+  estimatedValue: number;
+  currencyCode: string | null;
+  purchaseTimeframe: string | null;
+  priority: "low" | "medium" | "high";
+  rating: "cold" | "warm" | "hot";
+  description: string | null;
+  tags: LeadTag[];
+  ownerUserId: string | null;
+  ownerName: string | null;
+  teamId: string | null;
+  teamName: string | null;
+  assignedAt: string | null;
+  stage: LeadStage;
+  stageChangedAt: string;
+  status: LeadStatus;
+  needIdentified: TriState;
+  budgetStatus: "known" | "unknown";
+  budgetAmount: number | null;
+  decisionAuthority: TriState;
+  qualificationNotes: string | null;
+  qualifiedAt: string | null;
+  disqualificationReason: string | null;
+  disqualificationNotes: string | null;
+  disqualifiedAt: string | null;
+  convertedAt: string | null;
+  convertedPartyId: string | null;
+  convertedContactId: string | null;
+  convertedOpportunityId: string | null;
+  lastActivityAt: string | null;
+  nextFollowUpAt: string | null;
+  archivedAt: string | null;
+  createdByName: string | null;
+  createdAt: string;
+  updatedByName: string | null;
+  updatedAt: string;
+  sensitiveDataRestricted?: boolean;
+};
+
+export type LeadCapabilities = Record<
+  "view" | "viewAll" | "viewSensitive" | "create" | "edit" | "delete" | "assign" | "reassign" | "import" | "export" | "qualify" | "disqualify" | "reopen" | "convert",
+  boolean
+>;
+
+type CodeLabel = { code: string; label: string };
+
+export type LeadOptions = {
+  views: Array<{ key: LeadViewKey; label: string }>;
+  stages: CodeLabel[];
+  statuses: CodeLabel[];
+  purchaseTimeframes: CodeLabel[];
+  disqualificationReasons: CodeLabel[];
+  activityTypes: CodeLabel[];
+  followUpTypes: string[];
+  sources: LeadSource[];
+  users: Array<{ id: string; name: string; email: string }>;
+  teams: Array<{ id: string; name: string }>;
+  tags: LeadTag[];
+  currencies: string[];
+  baseCurrency: string;
+  currentUserId: string;
+  capabilities: LeadCapabilities;
+};
+
+export type LeadSource = { id: string; code: string; name: string; description: string | null; isActive: boolean; isSystem: boolean; sortOrder: number; leadCount?: number };
+
+export type LeadListFilters = {
+  view?: LeadViewKey;
+  search?: string;
+  status?: string;
+  stage?: string;
+  priority?: string;
+  rating?: string;
+  ownerId?: string;
+  teamId?: string;
+  sourceId?: string;
+  tagId?: string;
+  createdFrom?: string;
+  createdTo?: string;
+  sortBy?: string;
+  sortDirection?: "asc" | "desc";
+  limit?: number;
+  offset?: number;
+};
+
+export type LeadDuplicateMatch = {
+  kind: "lead" | "contact";
+  id: string;
+  signals: string[];
+  strength: "exact" | "possible";
+  canOpen: boolean;
+  name?: string | null;
+  companyName?: string | null;
+  email?: string | null;
+  phone?: string | null;
+  code?: string;
+  status?: LeadStatus;
+  ownerName?: string | null;
+  partyId?: string | null;
+};
+
+export type LeadBulkResult = { results: Array<{ leadId: string; ok: boolean; message?: string }>; succeeded: number; failed: number };
+
+export type LeadHistoryEntry = { id: string; eventType: string; summary: string; changes: Record<string, unknown>; createdAt: string; actorName: string | null };
+
+export type LeadActivity = {
+  id: string;
+  type: string;
+  subject: string;
+  notes: string | null;
+  status: string;
+  priority: string;
+  outcome: string | null;
+  dueAt: string | null;
+  completedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+  channel: string | null;
+  assignedTo: string | null;
+  assignedName: string | null;
+  createdByName: string | null;
+};
+
+export type ConversionMatch = { id: string; name: string; strength: string; code?: string; partyId?: string | null; accountName?: string | null; email?: string | null; phone?: string | null };
+
+export type LeadConversionPreview = {
+  lead: Lead;
+  canConvert: boolean;
+  canCreateContact: boolean;
+  blockedReason: string | null;
+  accountMatches: ConversionMatch[];
+  contactMatches: ConversionMatch[];
+  stages: Array<{ id: string; name: string; pipelineName: string }>;
+  defaults: { accountName: string | null; opportunityName: string; amount: number; ownerUserId: string | null };
+};
+
+export type LeadConversionInput = {
+  account?: { id?: string; name?: string; allowDuplicate?: boolean };
+  contact?: { id?: string; allowDuplicate?: boolean };
+  opportunity?: { create?: boolean; name?: string; amount?: number | string; productInterest?: string; ownerUserId?: string; stageId?: string; expectedCloseDate?: string | null };
+};
+
+export type LeadDashboard = {
+  period: { from: string; to: string };
+  totals: Record<"open" | "new" | "unassigned" | "createdInPeriod" | "followUpsDueToday" | "overdueFollowUps" | "qualified" | "disqualified" | "converted", number>;
+  byStatus: Array<{ key: string; label: string; total: number }>;
+  byStage: Array<{ key: string; label: string; total: number }>;
+  bySource: Array<{ label: string; total: number }>;
+  byOwner: Array<{ label: string; total: number }>;
+};
+
+export type LeadReportRow = { group: string; total: number; open: number; qualified: number; disqualified: number; converted: number; conversionRate: number; estimatedValue: number };
+export type LeadReport = { groupBy: string; groupLabel: string; rows: LeadReportRow[]; totals: Omit<LeadReportRow, "group" | "conversionRate"> };
+
+export type LeadAssignmentRule = {
+  id: string;
+  name: string;
+  priority: number;
+  isActive: boolean;
+  sourceId: string | null;
+  sourceName: string | null;
+  countryCode: string | null;
+  state: string | null;
+  city: string | null;
+  productKeyword: string | null;
+  ownerUserId: string | null;
+  ownerName: string | null;
+  teamId: string | null;
+  teamName: string | null;
+};
+
+export type LeadImportAnalysis = {
+  fileName: string;
+  headers: string[];
+  rowCount: number;
+  sampleRows: Array<Record<string, string>>;
+  suggestedMapping: Record<string, string>;
+  fields: Array<{ key: string; label: string }>;
+};
+
+export type LeadImportResult = {
+  total: number;
+  created: number;
+  failed: number;
+  duplicates: number;
+  errors: Array<{ row: number; message: string; duplicate?: boolean }>;
+  errorCsv: string | null;
+};
+
+const BASE = "/api/crm/leads";
+
+function query(params: Record<string, unknown>) {
+  const search = new URLSearchParams();
+  for (const [key, value] of Object.entries(params)) {
+    if (value !== undefined && value !== null && value !== "") search.set(key, String(value));
+  }
+  const text = search.toString();
+  return text ? `?${text}` : "";
+}
+
+const post = <T>(url: string, json: unknown = {}) => request<T>(url, { method: "POST", json });
+
+// ---- options, list, record
+export const getLeadOptions = () => request<{ options: LeadOptions }>(`${BASE}/options`).then((result) => result.options);
+export const listLeads = (filters: LeadListFilters = {}) =>
+  request<{ rows: Lead[]; total: number; limit: number; offset: number; capabilities: LeadCapabilities }>(`${BASE}${query(filters)}`);
+export const getLead = (id: string) => request<{ record: Lead }>(`${BASE}/${id}`).then((result) => result.record);
+export const createLead = (input: Record<string, unknown>) => post<{ record: Lead }>(BASE, input).then((result) => result.record);
+export const updateLead = (id: string, input: Record<string, unknown>) =>
+  request<{ record: Lead }>(`${BASE}/${id}`, { method: "PATCH", json: input }).then((result) => result.record);
+export const archiveLead = (id: string) => request<{ changed: boolean }>(`${BASE}/${id}`, { method: "DELETE" });
+export const restoreLead = (id: string) => post<{ changed: boolean }>(`${BASE}/${id}/restore`);
+export const checkLeadDuplicates = (input: Record<string, unknown>) =>
+  post<{ matches: LeadDuplicateMatch[]; hasBlockingMatch: boolean }>(`${BASE}/duplicates`, input);
+export const mergeLead = (duplicateId: string, keepLeadId: string) => post<{ keptLeadId: string }>(`${BASE}/${duplicateId}/merge`, { keepLeadId });
+
+// ---- lifecycle
+export const changeLeadStage = (id: string, stage: string, note?: string) => post<{ changed: boolean }>(`${BASE}/${id}/stage`, { stage, note });
+export const assignLead = (id: string, input: { ownerUserId?: string | null; teamId?: string | null }) => post<{ changed: boolean }>(`${BASE}/${id}/assign`, input);
+export const saveLeadQualification = (id: string, input: Record<string, unknown>) =>
+  request<{ changed: boolean }>(`${BASE}/${id}/qualification`, { method: "PUT", json: input });
+export const qualifyLead = (id: string, input: Record<string, unknown> = {}) => post<{ status: string }>(`${BASE}/${id}/qualify`, input);
+export const disqualifyLead = (id: string, input: { reason: string; notes?: string }) => post<{ status: string }>(`${BASE}/${id}/disqualify`, input);
+export const reopenLead = (id: string, note?: string) => post<{ status: string }>(`${BASE}/${id}/reopen`, { note });
+export const bulkLeadAction = (input: { action: "assign" | "stage" | "disqualify"; leadIds: string[] } & Record<string, unknown>) =>
+  post<LeadBulkResult>(`${BASE}/bulk`, input);
+
+// ---- conversion
+export const getLeadConversionPreview = (id: string) => request<{ preview: LeadConversionPreview }>(`${BASE}/${id}/convert`).then((result) => result.preview);
+export const convertLead = (id: string, input: LeadConversionInput) =>
+  post<{ conversion: { leadId: string; partyId: string; contactId: string | null; opportunityId: string | null } }>(`${BASE}/${id}/convert`, input).then((result) => result.conversion);
+
+// ---- work on the lead
+export const listLeadActivities = (id: string) => request<{ activities: LeadActivity[] }>(`${BASE}/${id}/activities`).then((result) => result.activities);
+export const logLeadActivity = (id: string, input: Record<string, unknown>) => post<{ activityId: string; followUpId: string | null }>(`${BASE}/${id}/activities`, input);
+export const scheduleLeadFollowUp = (id: string, input: Record<string, unknown>) => post<{ followUp: { id: string } }>(`${BASE}/${id}/follow-ups`, input);
+export const listLeadHistory = (id: string) => request<{ history: LeadHistoryEntry[] }>(`${BASE}/${id}/history`).then((result) => result.history);
+
+// ---- dashboard and report
+export const getLeadDashboard = (period: { from?: string; to?: string } = {}) =>
+  request<{ dashboard: LeadDashboard }>(`${BASE}/dashboard${query(period)}`).then((result) => result.dashboard);
+export const getLeadReport = (filters: Record<string, string>) => request<{ report: LeadReport }>(`${BASE}/report${query(filters)}`).then((result) => result.report);
+
+// ---- sources and assignment rules
+export const listLeadSources = (includeInactive = false) =>
+  request<{ sources: LeadSource[] }>(`${BASE}/sources${query({ includeInactive: includeInactive || undefined })}`).then((result) => result.sources);
+export const createLeadSource = (input: { name: string; description?: string }) => post<{ source: LeadSource }>(`${BASE}/sources`, input);
+export const updateLeadSource = (id: string, input: Record<string, unknown>) => request<{ source: LeadSource }>(`${BASE}/sources/${id}`, { method: "PATCH", json: input });
+export const listLeadAssignmentRules = () => request<{ rules: LeadAssignmentRule[] }>(`${BASE}/assignment-rules`).then((result) => result.rules);
+export const saveLeadAssignmentRule = (id: string | null, input: Record<string, unknown>) =>
+  id
+    ? request<{ rule: LeadAssignmentRule }>(`${BASE}/assignment-rules/${id}`, { method: "PATCH", json: input })
+    : post<{ rule: LeadAssignmentRule }>(`${BASE}/assignment-rules`, input);
+export const deleteLeadAssignmentRule = (id: string) => request<Record<string, never>>(`${BASE}/assignment-rules/${id}`, { method: "DELETE" });
+
+// ---- import and export
+export const leadImportTemplateUrl = `${BASE}/import/template`;
+export const leadExportUrl = (filters: LeadListFilters & { ids?: string }) => `${BASE}/export${query({ ...filters, limit: undefined, offset: undefined })}`;
+
+async function upload<T>(url: string, file: File, fields: Record<string, string> = {}): Promise<T> {
+  const form = new FormData();
+  form.set("file", file);
+  for (const [key, value] of Object.entries(fields)) form.set(key, value);
+  return parseResponse<T>(await fetch(url, { method: "POST", body: form }));
+}
+
+export const analyzeLeadImport = (file: File) => upload<{ analysis: LeadImportAnalysis }>(`${BASE}/import/analyze`, file).then((result) => result.analysis);
+export const importLeads = (file: File, options: { mapping: Record<string, string>; defaultSourceId?: string; defaultOwnerUserId?: string; skipDuplicates: boolean }) =>
+  upload<{ result: LeadImportResult }>(`${BASE}/import`, file, {
+    mapping: JSON.stringify(options.mapping),
+    defaultSourceId: options.defaultSourceId ?? "",
+    defaultOwnerUserId: options.defaultOwnerUserId ?? "",
+    skipDuplicates: String(options.skipDuplicates),
+  }).then((result) => result.result);
+
+// The duplicate matches carried by a refused save, if that is why it failed.
+export function duplicateMatchesOf(error: unknown): LeadDuplicateMatch[] | null {
+  if (error instanceof LeadApiError && error.code === "CRM_LEAD_DUPLICATE") return (error.details.matches as LeadDuplicateMatch[]) ?? [];
+  return null;
+}
+
+export function errorMessage(error: unknown, fallback = "Something went wrong. Try again.") {
+  return error instanceof Error && error.message ? error.message : fallback;
+}

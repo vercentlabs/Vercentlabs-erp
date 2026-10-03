@@ -165,18 +165,6 @@ export const MODULE_NAVIGATION: readonly ModuleNavigation[] = [
               "crm.import",
             ],
           },
-          // Sales process
-          {
-            ...available(
-              "Lead Lifecycle Stages",
-              "/crm/settings/lead-lifecycle",
-            ),
-            parent: "crm-setup",
-            group: "sales-process",
-            description:
-              "The stages a lead moves through and which moves are allowed.",
-            requiredPermission: "crm.settings.manage",
-          },
           {
             ...available(
               "Qualification / Playbooks",
@@ -244,13 +232,6 @@ export const MODULE_NAVIGATION: readonly ModuleNavigation[] = [
             parent: "crm-setup",
             group: "lead-management",
             description: "Where leads come from, for routing and attribution.",
-            requiredPermission: "crm.settings.manage",
-          },
-          {
-            ...available("Lead Scoring", "/crm/settings/lead-scoring"),
-            parent: "crm-setup",
-            group: "lead-management",
-            description: "Scoring models, grades and recalculation.",
             requiredPermission: "crm.settings.manage",
           },
           {

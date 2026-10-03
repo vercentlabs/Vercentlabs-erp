@@ -8,22 +8,19 @@ export const DATA_EXCHANGE_DEFINITIONS = Object.freeze([
     key: "crm.leads.import",
     kind: "import",
     moduleKey: "crm",
-    label: "Import leads (CSV)",
-    permissions: Object.freeze(["crm.import", "crm.leads.manage"]),
-    // Lead imports above LEAD_IMPORT_LIMITS.syncCommitRows run as a durable
-    // background job (lead-import.js).
-    maximumRows: 50000,
-    stages: Object.freeze(["analyze", "preview", "commit", "rollback"]),
+    label: "Import leads (CSV or XLSX)",
+    permissions: Object.freeze(["crm.leads.import", "crm.leads.create"]),
+    maximumRows: 2000,
+    stages: Object.freeze(["analyze", "import"]),
   }),
   Object.freeze({
     key: "crm.leads.export",
     kind: "export",
     moduleKey: "crm",
     label: "Export leads (CSV)",
-    permissions: Object.freeze(["crm.export"]),
+    permissions: Object.freeze(["crm.leads.export"]),
     maximumRows: 10000,
-    artifactTtlHours: 24,
-    stages: Object.freeze(["enqueue", "build", "download"]),
+    stages: Object.freeze(["download"]),
   }),
 ]);
 

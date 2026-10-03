@@ -4,6 +4,7 @@
 // (record scope, ownership rules, margin redaction). Columns
 // are an explicit allow-list: contact PII (email, phone) is not exportable
 // through shared reports at all.
+import { getLeadsByStatusReport, listLeads } from "../../modules/crm/leads/index.js";
 import { listSalesOrders } from "../../modules/sales/index.js";
 import { BREAKDOWN_DIMENSIONS, getMetricDrilldown, getMetricRollup, listCrmRecords, PIPELINE_METRICS } from "../../modules/crm/index.js";
 
@@ -32,15 +33,17 @@ export const REPORT_DATASETS = Object.freeze([
     moduleKey: "crm",
     schedulePermission: "crm.reports.schedule",
     label: "CRM leads",
-    description: "Leads you can see in CRM, with status, rating and value.",
-    requiredPermissions: Object.freeze(["crm.view", "crm.reports.view"]),
+    description: "Leads you can see in CRM, with stage, status, owner, source and value.",
+    requiredPermissions: Object.freeze(["crm.leads.view", "crm.reports.view"]),
     maxRows: 10_000,
     columns: Object.freeze([
-      { key: "code", label: "Code" },
-      { key: "firstName", label: "First name" },
-      { key: "lastName", label: "Last name" },
+      { key: "code", label: "Lead number" },
+      { key: "fullName", label: "Name" },
       { key: "companyName", label: "Company" },
+      { key: "stage", label: "Stage" },
       { key: "status", label: "Status" },
+      { key: "ownerName", label: "Owner" },
+      { key: "sourceName", label: "Source" },
       { key: "priority", label: "Priority" },
       { key: "rating", label: "Rating" },
       { key: "estimatedValue", label: "Estimated value" },
@@ -49,19 +52,57 @@ export const REPORT_DATASETS = Object.freeze([
       { key: "state", label: "State" },
       { key: "countryCode", label: "Country" },
       { key: "createdAt", label: "Created" },
+      { key: "convertedAt", label: "Converted" },
     ]),
     filters: Object.freeze([
       { key: "status", label: "Status" },
+      { key: "stage", label: "Stage" },
+      { key: "ownerId", label: "Owner" },
+      { key: "sourceId", label: "Source" },
+      { key: "createdFrom", label: "Created from (YYYY-MM-DD)" },
+      { key: "createdTo", label: "Created to (YYYY-MM-DD)" },
       { key: "search", label: "Search" },
     ]),
     async execute(client, context, filters, maxRows) {
       const rows = [];
-      for (let offset = 0; rows.length < maxRows; offset += PAGE) {
-        const page = await listCrmRecords(client, context, "leads", { ...filters, limit: PAGE, offset });
-        rows.push(...page.rows);
-        if (page.rows.length < PAGE || offset + PAGE >= page.total) break;
+      for (let offset = 0; rows.length < maxRows; offset += 200) {
+        const page = await listLeads(client, context, { ...filters, sortBy: "createdAt", limit: 200, offset });
+        rows.push(...page.leads);
+        if (page.leads.length < 200 || offset + 200 >= page.total) break;
       }
       return rows.slice(0, maxRows);
+    },
+  }),
+  Object.freeze({
+    key: "crm.leads_by_status",
+    moduleKey: "crm",
+    schedulePermission: "crm.reports.schedule",
+    label: "CRM leads by status",
+    description: "Lead counts and estimated value by status, stage, owner, source or created month.",
+    requiredPermissions: Object.freeze(["crm.leads.view", "crm.reports.view"]),
+    maxRows: 1_000,
+    columns: Object.freeze([
+      { key: "group", label: "Group" },
+      { key: "total", label: "Leads" },
+      { key: "open", label: "Open" },
+      { key: "qualified", label: "Qualified" },
+      { key: "disqualified", label: "Disqualified" },
+      { key: "converted", label: "Converted" },
+      { key: "conversionRate", label: "Conversion %" },
+      { key: "estimatedValue", label: "Estimated value" },
+    ]),
+    filters: Object.freeze([
+      { key: "groupBy", label: "Group by (status, stage, owner, source, month)" },
+      { key: "ownerId", label: "Owner" },
+      { key: "sourceId", label: "Source" },
+      { key: "status", label: "Status" },
+      { key: "stage", label: "Stage" },
+      { key: "converted", label: "Converted (yes / no)" },
+      { key: "createdFrom", label: "Created from (YYYY-MM-DD)" },
+      { key: "createdTo", label: "Created to (YYYY-MM-DD)" },
+    ]),
+    async execute(client, context, filters, maxRows) {
+      return (await getLeadsByStatusReport(client, context, filters)).rows.slice(0, maxRows);
     },
   }),
   Object.freeze({

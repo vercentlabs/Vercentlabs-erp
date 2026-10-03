@@ -1,22 +1,14 @@
 import { registerJobHandler } from "../registry.js";
 import { internalJobBackoff } from "../backoff.js";
 import { detectOverdueActivitiesHandler, JOB_TYPE as OVERDUE_ACTIVITY_JOB_TYPE, payloadSchema as overdueActivityPayloadSchema } from "./crm-automation-overdue.js";
-import { leadBulkUpdateHandler, JOB_TYPE as LEAD_BULK_JOB_TYPE, payloadSchema as leadBulkPayloadSchema } from "./crm-lead-bulk-update.js";
 import { opportunityBulkUpdateHandler, JOB_TYPE as OPPORTUNITY_BULK_JOB_TYPE, payloadSchema as opportunityBulkPayloadSchema } from "./crm-opportunity-bulk-update.js";
-import { detectLeadSlaBreachesHandler, JOB_TYPE as LEAD_SLA_SCAN_JOB_TYPE, payloadSchema as leadSlaScanPayloadSchema } from "./crm-lead-sla-scan.js";
-import { leadStageMigrationHandler, JOB_TYPE as LEAD_STAGE_MIGRATION_JOB_TYPE, payloadSchema as leadStageMigrationPayloadSchema } from "./crm-lead-stage-migration.js";
-import { detectLeadStageDwellBreachesHandler, JOB_TYPE as LEAD_DWELL_SCAN_JOB_TYPE, payloadSchema as leadDwellScanPayloadSchema } from "./crm-lead-stage-dwell-scan.js";
-import { leadScoreRecalcHandler, JOB_TYPE as LEAD_SCORE_RECALC_JOB_TYPE, payloadSchema as leadScoreRecalcPayloadSchema } from "./crm-lead-score-recalc.js";
 import { detectExpiredQuotationsHandler, JOB_TYPE as QUOTATION_EXPIRY_SCAN_JOB_TYPE, payloadSchema as quotationExpiryScanPayloadSchema } from "./sales-quotation-expiry-scan.js";
 import { opportunityStageMigrationHandler, JOB_TYPE as OPPORTUNITY_STAGE_MIGRATION_JOB_TYPE, payloadSchema as opportunityStageMigrationPayloadSchema } from "./crm-opportunity-stage-migration.js";
 import { capturePipelineDailySnapshotHandler, JOB_TYPE as PIPELINE_SNAPSHOT_CAPTURE_JOB_TYPE, payloadSchema as pipelineSnapshotCapturePayloadSchema } from "./crm-pipeline-snapshot-capture.js";
 import { dispatchFollowUpRemindersHandler, JOB_TYPE as FOLLOW_UP_REMINDER_DISPATCH_JOB_TYPE, payloadSchema as followUpReminderDispatchPayloadSchema } from "./crm-follow-up-reminder-dispatch.js";
 import { pushMeetingCalendarEventHandler, JOB_TYPE as MEETING_CALENDAR_PUSH_JOB_TYPE, payloadSchema as meetingCalendarPushPayloadSchema } from "./crm-meeting-calendar-push.js";
-import { dispatchNurtureQueueNotificationsHandler, JOB_TYPE as NURTURE_QUEUE_DISPATCH_JOB_TYPE, payloadSchema as nurtureQueueDispatchPayloadSchema } from "./crm-nurture-queue-dispatch.js";
-import { leadExportHandler, JOB_TYPE as LEAD_EXPORT_JOB_TYPE, payloadSchema as leadExportPayloadSchema } from "./crm-lead-export.js";
 import { duplicateFullScanHandler, JOB_TYPE as DUPLICATE_FULL_SCAN_JOB_TYPE, payloadSchema as duplicateFullScanPayloadSchema } from "./crm-duplicate-full-scan.js";
 import { reportRunHandler, JOB_TYPE as REPORT_RUN_JOB_TYPE, payloadSchema as reportRunPayloadSchema } from "./platform-report-run.js";
-import { leadImportHandler, JOB_TYPE as LEAD_IMPORT_JOB_TYPE, payloadSchema as leadImportPayloadSchema } from "./crm-lead-import.js";
 import { captureForecastSnapshotsHandler, JOB_TYPE as FORECAST_SNAPSHOT_JOB_TYPE, payloadSchema as forecastSnapshotPayloadSchema } from "./crm-forecast-snapshot-capture.js";
 import { syncCalendarAccountsHandler, JOB_TYPE as CALENDAR_SYNC_JOB_TYPE, payloadSchema as calendarSyncPayloadSchema } from "./crm-calendar-sync.js";
 
@@ -33,47 +25,9 @@ export function registerBuiltinHandlers() {
     idempotency: "NATURALLY_IDEMPOTENT", // the status-transition WHERE clause makes re-running this handler for the same org always safe
     maxAttempts: 3,
   });
-  registerJobHandler(LEAD_BULK_JOB_TYPE, {
-    schema: leadBulkPayloadSchema,
-    handler: leadBulkUpdateHandler,
-    backoff: internalJobBackoff,
-    idempotency: "IDEMPOTENCY_KEY_REQUIRED",
-    maxAttempts: 5,
-    transactionMode: "managed",
-  });
   registerJobHandler(OPPORTUNITY_BULK_JOB_TYPE, {
     schema: opportunityBulkPayloadSchema,
     handler: opportunityBulkUpdateHandler,
-    backoff: internalJobBackoff,
-    idempotency: "IDEMPOTENCY_KEY_REQUIRED",
-    maxAttempts: 5,
-    transactionMode: "managed",
-  });
-  registerJobHandler(LEAD_SLA_SCAN_JOB_TYPE, {
-    schema: leadSlaScanPayloadSchema,
-    handler: detectLeadSlaBreachesHandler,
-    backoff: internalJobBackoff,
-    idempotency: "NATURALLY_IDEMPOTENT", // same status-transition guarantee as the overdue-activity tick
-    maxAttempts: 3,
-  });
-  registerJobHandler(LEAD_STAGE_MIGRATION_JOB_TYPE, {
-    schema: leadStageMigrationPayloadSchema,
-    handler: leadStageMigrationHandler,
-    backoff: internalJobBackoff,
-    idempotency: "IDEMPOTENCY_KEY_REQUIRED",
-    maxAttempts: 5,
-    transactionMode: "managed",
-  });
-  registerJobHandler(LEAD_DWELL_SCAN_JOB_TYPE, {
-    schema: leadDwellScanPayloadSchema,
-    handler: detectLeadStageDwellBreachesHandler,
-    backoff: internalJobBackoff,
-    idempotency: "NATURALLY_IDEMPOTENT", // dwell_breach_notified_at makes a re-run of the same tick a no-op for leads already notified
-    maxAttempts: 3,
-  });
-  registerJobHandler(LEAD_SCORE_RECALC_JOB_TYPE, {
-    schema: leadScoreRecalcPayloadSchema,
-    handler: leadScoreRecalcHandler,
     backoff: internalJobBackoff,
     idempotency: "IDEMPOTENCY_KEY_REQUIRED",
     maxAttempts: 5,
@@ -83,7 +37,7 @@ export function registerBuiltinHandlers() {
     schema: quotationExpiryScanPayloadSchema,
     handler: detectExpiredQuotationsHandler,
     backoff: internalJobBackoff,
-    idempotency: "NATURALLY_IDEMPOTENT", // same status-transition guarantee as the overdue-activity/lead-SLA ticks
+    idempotency: "NATURALLY_IDEMPOTENT", // same status-transition guarantee as the overdue-activity tick
     maxAttempts: 3,
   });
   registerJobHandler(OPPORTUNITY_STAGE_MIGRATION_JOB_TYPE, {
@@ -122,25 +76,6 @@ export function registerBuiltinHandlers() {
     maxAttempts: 5,
     transactionMode: "managed",
   });
-  registerJobHandler(NURTURE_QUEUE_DISPATCH_JOB_TYPE, {
-    schema: nurtureQueueDispatchPayloadSchema,
-    handler: dispatchNurtureQueueNotificationsHandler,
-    backoff: internalJobBackoff,
-    idempotency: "NATURALLY_IDEMPOTENT", // claimDueNurtureQueueItems() uses FOR UPDATE SKIP LOCKED and marks notified_at atomically in the same claim UPDATE, so an overlapping/re-run tick can never claim or re-notify an item another tick already claimed
-    maxAttempts: 3,
-  });
-  registerJobHandler(LEAD_EXPORT_JOB_TYPE, {
-    schema: leadExportPayloadSchema,
-    handler: leadExportHandler,
-    backoff: internalJobBackoff,
-    // Re-running the same job id just regenerates and overwrites the same
-    // job row's own CSV/manifest — no side effect on any other data, so no
-    // caller-supplied idempotency key is required (unlike bulk-update,
-    // which mutates many other Leads).
-    idempotency: "NATURALLY_IDEMPOTENT",
-    maxAttempts: 3,
-    transactionMode: "managed",
-  });
   registerJobHandler(DUPLICATE_FULL_SCAN_JOB_TYPE, {
     schema: duplicateFullScanPayloadSchema,
     handler: duplicateFullScanHandler,
@@ -148,7 +83,7 @@ export function registerBuiltinHandlers() {
     // Re-running the same job id just re-pages from its own stored keyset
     // position and ON CONFLICT-upserts the same match rows — no side
     // effect on any other data, so no caller-supplied idempotency key is
-    // required (same reasoning as crm-lead-export.js's own job).
+    // required.
     idempotency: "NATURALLY_IDEMPOTENT",
     maxAttempts: 3,
     transactionMode: "managed",
@@ -180,16 +115,5 @@ export function registerBuiltinHandlers() {
     backoff: internalJobBackoff,
     idempotency: "NATURALLY_IDEMPOTENT", // UNIQUE(organization, period, capture_key='scheduled:<date>') makes a re-run a no-op
     maxAttempts: 3,
-  });
-  registerJobHandler(LEAD_IMPORT_JOB_TYPE, {
-    schema: leadImportPayloadSchema,
-    handler: leadImportHandler,
-    backoff: internalJobBackoff,
-    // One job per batch, keyed crm.leads.import:<batch>. Rows are
-    // claimed with SKIP LOCKED and marked processed in the same transaction as
-    // the lead they create, so retries resume without duplicates.
-    idempotency: "IDEMPOTENCY_KEY_REQUIRED",
-    maxAttempts: 5,
-    transactionMode: "managed",
   });
 }

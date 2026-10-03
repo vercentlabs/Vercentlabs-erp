@@ -1,9 +1,10 @@
 import { requireWorkspace } from "@/core/session";
-import { CrmImportExportScreen } from "@/features/crm/data/import-export/screens/CrmImportExportScreen";
+import { LeadImportScreen } from "@/features/crm/leads/screens/LeadImportScreen";
 
-export const metadata = { title: "Import & Export" };
+export const metadata = { title: "Import leads" };
 
+// Lead export is on the Leads list (Export), for the view and filters shown there.
 export default async function CrmImportExportPage() {
   await requireWorkspace();
-  return <CrmImportExportScreen />;
+  return <LeadImportScreen />;
 }

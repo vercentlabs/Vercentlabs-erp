@@ -98,7 +98,7 @@ export default function RecordDetailScreen() {
   const contact = String(record?.callPhone ?? record?.mobile ?? record?.phone ?? "");
   const email = String(record?.email ?? "");
   const permissions = new Set(auth.session?.access.permissions || []);
-  const canManageLead = permissions.has("crm.leads.manage");
+  const canManageLead = permissions.has("crm.leads.edit");
   const canManageOpportunity = permissions.has("crm.opportunities.manage");
   const canManageActivity = permissions.has("crm.activities.manage");
   async function move(stageId: string) {

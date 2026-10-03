@@ -10,15 +10,8 @@
 // a deliberate breaking change (see services/api/tests/crm-public-api-exports.test.mjs).
 
 export * from "../modules/crm/master-data/foundation.js";
-export * from "../modules/crm/lead-management/lead-governance.js";
-export * from "../modules/crm/lead-management/lead-operations.js";
 export * from "../modules/crm/master-data/account-operations.js";
 export * from "../modules/crm/master-data/contact-operations.js";
-export * from "../modules/crm/master-data/lead-source-operations.js";
-export * from "../modules/crm/lead-management/lead-qualification.js";
-export * from "../modules/crm/lead-management/lifecycle/index.js";
-export * from "../modules/crm/master-data/lead-duplicates.js";
-export * from "../modules/crm/master-data/lead-attribution.js";
 export * from "../modules/crm/pipeline/opportunity-operations.js";
 export * from "../modules/crm/pipeline/sales-stage-operations.js";
 export * from "../modules/crm/activities/attachments/attachments-operations.js";
@@ -39,24 +32,6 @@ export {
 export * from "../modules/crm/master-data/duplicate-scan.js";
 export * from "../modules/crm/activities/communications.js";
 export * from "../modules/crm/activities/public-meetings.js";
-export * from "../modules/crm/master-data/lead-acquisition.js";
-export * from "../modules/crm/data-management/import-export/lead-import.js";
-export * from "../modules/crm/data-management/import-export/lead-export.js";
-export * from "../modules/crm/lead-management/lead-intelligence.js";
-export {
-  listLeadScoringModels,
-  createLeadScoringModel,
-  updateLeadScoringModel,
-  activateLeadScoringModel,
-  createLeadScoringModelRule,
-  setLeadScoringModelRuleStatus,
-  trainLeadScoringModel,
-  enqueueLeadScoreRecalcJob,
-  getLeadScoreRecalcJob,
-  processLeadScoreRecalcBatch,
-  SCORE_RECALC_JOB_TYPE,
-  SCORE_RECALC_BATCH_SIZE,
-} from "../modules/crm/lead-management/scoring/index.js";
 export * from "../modules/crm/pipeline/opportunity-revenue-intelligence.js";
 export * from "../modules/crm/data-management/offline-sync.js";
 export * from "../modules/crm/data-management/notification-visibility.js";
