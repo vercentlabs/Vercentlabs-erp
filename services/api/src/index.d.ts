@@ -176,12 +176,6 @@ export * from "./compat/crm-root-legacy.js";
 // Named so the boundary declarations win over the legacy per-file
 // declarations reachable through the compatibility barrel.
 export {
-  createCrmAttachment,
-  crmAttachmentStorageEntityType,
-  deleteCrmAttachment,
-  getCrmAttachmentContent,
-  listCrmAttachmentVersions,
-  listCrmAttachments,
 } from "./modules/crm/index.js";
 export * from "./modules/sales/index.js";
 

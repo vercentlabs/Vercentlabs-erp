@@ -154,6 +154,7 @@ export async function mergeAccounts(client, context, input = {}, { linkingCustom
   await client.query(`UPDATE tenant.crm_activities SET entity_id = $3 WHERE organization_id = $1 AND entity_type = 'party' AND entity_id = $2`, move);
   await client.query(`UPDATE tenant.crm_notes SET entity_id = $3 WHERE organization_id = $1 AND entity_type = 'party' AND entity_id = $2`, move);
   await client.query(`UPDATE public.attachments SET entity_id = $3::text WHERE organization_id = $1 AND entity_type = 'crm.party' AND entity_id = $2::text`, move);
+  await client.query(`UPDATE tenant.crm_attachment_details SET entity_id = $3 WHERE organization_id = $1 AND entity_type = 'party' AND entity_id = $2`, move);
   for (const table of ["crm_communications", "crm_email_threads", "crm_calendar_events", "crm_conversations", "crm_field_visits", "crm_campaign_members"])
     await client.query(`UPDATE tenant.${table} SET party_id = $3 WHERE organization_id = $1 AND party_id = $2`, move);
   await client.query(

@@ -15,6 +15,18 @@ function startsWith(bytes, signature) {
   return signature.every((value, index) => bytes[index] === value);
 }
 
+const OOXML_PART = Object.freeze({
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document": "word/",
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": "xl/",
+  "application/vnd.openxmlformats-officedocument.presentationml.presentation": "ppt/",
+});
+const OLE_TYPES = new Set(["application/msword", "application/vnd.ms-excel", "application/vnd.ms-powerpoint"]);
+
+// ZIP entry names are stored as plain text, so the part a format needs can be found in the archive's bytes.
+function containsAscii(bytes, value) {
+  return Buffer.from(bytes).includes(Buffer.from(value, "ascii"));
+}
+
 export function verifyAttachmentContent(bytes, mimeType) {
   if (!bytes.length) throw new AttachmentSecurityError(400, "Attachment content is empty.", "ATTACHMENT_CONTENT_EMPTY");
   const normalized = String(mimeType || "").toLowerCase();
@@ -22,7 +34,10 @@ export function verifyAttachmentContent(bytes, mimeType) {
     (normalized === "application/pdf" && startsWith(bytes, [0x25, 0x50, 0x44, 0x46, 0x2d])) ||
     (normalized === "image/png" && startsWith(bytes, [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])) ||
     (normalized === "image/jpeg" && startsWith(bytes, [0xff, 0xd8, 0xff])) ||
-    ((normalized === "text/plain" || normalized === "text/csv") && !bytes.includes(0));
+    ((normalized === "text/plain" || normalized === "text/csv") && !bytes.includes(0)) ||
+    // Office files: the 2007+ formats are ZIP containers holding their own XML part; the older ones are OLE compound files.
+    (OOXML_PART[normalized] && startsWith(bytes, [0x50, 0x4b, 0x03, 0x04]) && containsAscii(bytes, OOXML_PART[normalized])) ||
+    (OLE_TYPES.has(normalized) && startsWith(bytes, [0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1]));
   if (!valid) {
     throw new AttachmentSecurityError(400, "Attachment content does not match its declared file type.", "ATTACHMENT_CONTENT_TYPE_MISMATCH");
   }

@@ -18,6 +18,8 @@ export * from "./pipeline/index.js";
 export * from "./sales-stages/index.js";
 export * from "./tasks/index.js";
 export * from "./follow-ups/index.js";
+export * from "./notes/index.js";
+export * from "./attachments/index.js";
 
 export {
   cancelCrmCall,
@@ -42,14 +44,6 @@ export {
 } from "./activities/meeting-operations.js";
 
 
-export {
-  archiveCrmNote,
-  createCrmNote,
-  getCrmNote,
-  listCrmNoteVersions,
-  listCrmNotes,
-  updateCrmNote,
-} from "./activities/notes/notes-operations.js";
 
 export { taskOverdueSql } from "./data-management/activity-query-rules.js";
 
@@ -63,14 +57,6 @@ export {
 } from "./data-management/communication-access.js";
 export { resolveCommunicationParticipants } from "./activities/communications/communication-projection.js";
 
-export {
-  createCrmAttachment,
-  crmAttachmentStorageEntityType,
-  deleteCrmAttachment,
-  getCrmAttachmentContent,
-  listCrmAttachments,
-  listCrmAttachmentVersions,
-} from "./activities/attachments/attachments-operations.js";
 
 // F028 — runtime custom fields bound to built-in CRM entities, using the
 // platform-level custom_field_definitions/custom_field_values tables

@@ -9,9 +9,9 @@ import {
   AlertDialog, Badge, Button, ErrorState, LinkButton, Menu, MenuItem, MenuTrigger, RecordDetailsPage, Tab, TabList, TabPanel, Tabs,
 } from "@vercentlabs/design-system";
 
-import { CrmAttachmentPanel } from "@/features/crm/shared/CrmAttachmentPanel";
+import { RecordAttachmentsPanel } from "@/features/crm/attachments/components/RecordAttachmentsPanel";
 import { RelatedFollowUpsPanel, ScheduleFollowUpForRecord } from "@/features/crm/follow-ups/components/RelatedFollowUpsPanel";
-import { NotesPanel } from "@/features/crm/shared/NotesPanel";
+import { RecordNotesPanel } from "@/features/crm/notes/components/RecordNotesPanel";
 import { RecordTimelinePanel } from "@/features/crm/shared/RecordTimelinePanel";
 import { PropertyList } from "@/features/crm/shared/ui/PropertyList";
 import { countryName, formatDateTime } from "@/shared/format/human";
@@ -221,8 +221,8 @@ export function ContactDetailScreen({ contactId }: { contactId: string }) {
           <TabPanel id="activities"><ContactActivitiesPanel contactId={contact.id} options={options} canEdit={canEdit} /></TabPanel>
           <TabPanel id="tasks"><ContactTasksPanel contactId={contact.id} options={options} canEdit={canEdit} /></TabPanel>
           <TabPanel id="followUps"><RelatedFollowUpsPanel related={{ type: "contact", id: contact.id, name: contact.displayName, accountId: contact.accountId }} canCreate={canEdit} onChanged={refresh} /></TabPanel>
-          <TabPanel id="notes"><NotesPanel entityType="contact" entityId={contact.id} /></TabPanel>
-          <TabPanel id="attachments"><CrmAttachmentPanel entityType="contact" entityId={contact.id} /></TabPanel>
+          <TabPanel id="notes"><RecordNotesPanel relatedType="contact" relatedId={contact.id} /></TabPanel>
+          <TabPanel id="attachments"><RecordAttachmentsPanel relatedType="contact" relatedId={contact.id} /></TabPanel>
           {relatedTabs.filter((entry) => entry.show).map((entry) => (
             <TabPanel key={entry.id} id={entry.id}><ContactRelatedListPanel contactId={contact.id} list={entry.id} /></TabPanel>
           ))}

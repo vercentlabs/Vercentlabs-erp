@@ -174,6 +174,7 @@ export async function mergeContacts(client, context, input = {}) {
   await client.query(`UPDATE tenant.crm_activities SET entity_id = $3 WHERE organization_id = $1 AND entity_type = 'contact' AND entity_id = $2`, move);
   await client.query(`UPDATE tenant.crm_notes SET entity_id = $3 WHERE organization_id = $1 AND entity_type = 'contact' AND entity_id = $2`, move);
   await client.query(`UPDATE public.attachments SET entity_id = $3::text WHERE organization_id = $1 AND entity_type = 'crm.contact' AND entity_id = $2::text`, move);
+  await client.query(`UPDATE tenant.crm_attachment_details SET entity_id = $3 WHERE organization_id = $1 AND entity_type = 'contact' AND entity_id = $2`, move);
   await client.query(
     `INSERT INTO tenant.crm_contact_tags (organization_id, contact_id, tag_id, created_by)
      SELECT organization_id, $3, tag_id, created_by FROM tenant.crm_contact_tags WHERE organization_id = $1 AND contact_id = $2 ON CONFLICT DO NOTHING`,

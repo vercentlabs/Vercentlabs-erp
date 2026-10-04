@@ -143,7 +143,7 @@ export async function anonymizeSubject(client, context, subjectType, subjectId) 
       [context.userId, context.organizationId, subjectId],
     );
     await client.query(
-      `UPDATE tenant.crm_notes SET body='[redacted by privacy execution]',updated_at=now()
+      `UPDATE tenant.crm_notes SET body='[redacted by privacy execution]',body_format='text',body_text='[redacted by privacy execution]',title=NULL,updated_at=now()
        WHERE organization_id=$1 AND entity_type='lead' AND entity_id=$2`,
       [context.organizationId, subjectId],
     );

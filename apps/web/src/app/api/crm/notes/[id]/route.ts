@@ -1,52 +1,25 @@
-import {
-  archiveCrmNote,
-  getCrmNote,
-  updateCrmNote,
-} from "@vercentlabs/api/crm";
+import { deleteNote, getNote, updateNote } from "@vercentlabs/api/crm";
 
-import { ok, readJson } from "@/core/http";
-import { crmContext } from "@/features/crm/shared/crm-context";
+import { ok } from "@/core/http";
 import { workspaceRoute } from "@/core/workspace-route";
+import { crmContext } from "@/features/crm/shared/crm-context";
+import { optionalNumber, readBody, type ContentRouteParams } from "@/features/crm/notes/server/content-http";
 
-type RouteContext = { params: Promise<{ id: string }> };
+export async function GET(request: Request, { params }: ContentRouteParams) {
+  return workspaceRoute(request, { module: "crm" }, async ({ client, session }) => ok({ note: await getNote(client, crmContext(session), (await params).id) }));
+}
 
-export async function GET(request: Request, context: RouteContext) {
-  return workspaceRoute(
-    request,
-    { module: "crm" },
-    async ({ client, session }) => {
-      const { id } = await context.params;
-      const note = await getCrmNote(client, crmContext(session), id);
-      return ok({ note });
-    },
+// Body: { title?, body?, visibility?, expectedVersion }
+export async function PATCH(request: Request, { params }: ContentRouteParams) {
+  return workspaceRoute(request, { module: "crm", billingWrite: true }, async ({ client, session }) =>
+    ok({ note: await updateNote(client, crmContext(session), (await params).id, await readBody(request)) }),
   );
 }
 
-export async function PATCH(request: Request, context: RouteContext) {
-  return workspaceRoute(
-    request,
-    { module: "crm", billingWrite: true },
-    async ({ client, session }) => {
-      const { id } = await context.params;
-      const input = (await readJson(request)) as Record<string, unknown>;
-      const note = await updateCrmNote(client, crmContext(session), id, input);
-      return ok({ note });
-    },
-  );
-}
-
-export async function DELETE(request: Request, context: RouteContext) {
-  return workspaceRoute(
-    request,
-    { module: "crm", billingWrite: true },
-    async ({ client, session }) => {
-      const { id } = await context.params;
-      const url = new URL(request.url);
-      const expectedVersion = url.searchParams.get("expectedVersion");
-      const note = await archiveCrmNote(client, crmContext(session), id, {
-        expectedVersion: expectedVersion ? Number(expectedVersion) : undefined,
-      });
-      return ok({ note });
-    },
-  );
+// Soft delete: ?expectedVersion
+export async function DELETE(request: Request, { params }: ContentRouteParams) {
+  return workspaceRoute(request, { module: "crm", billingWrite: true }, async ({ client, session }) => {
+    const expectedVersion = optionalNumber(new URL(request.url).searchParams.get("expectedVersion"));
+    return ok(await deleteNote(client, crmContext(session), (await params).id, { expectedVersion }));
+  });
 }

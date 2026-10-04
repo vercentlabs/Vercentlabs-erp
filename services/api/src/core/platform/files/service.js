@@ -113,7 +113,9 @@ export async function storeFile(client, input, { storage, env = process.env } = 
     storageFailed("put", organizationId, error);
     throw error;
   }
-  const row = (
+  let row;
+  try {
+    row = (
     await client.query(
       `INSERT INTO public.attachments (
          id, organization_id, entity_type, entity_id, file_name, storage_key, mime_type, size_bytes, uploaded_by,
@@ -124,7 +126,12 @@ export async function storeFile(client, input, { storage, env = process.env } = 
       [id, organizationId, entityType, String(entityId), prepared.fileName, storageKey, prepared.mimeType, prepared.sizeBytes, uploadedBy,
         prepared.contentSha256, prepared.scanStatus, logicalId, version, store.name, purpose, expiresAt, classification],
     )
-  ).rows[0];
+    ).rows[0];
+  } catch (error) {
+    // no row points at these bytes: remove them rather than leave an orphan in storage
+    await store.remove(storageKey).catch((removeError) => storageFailed("remove_orphan", organizationId, removeError));
+    throw error;
+  }
   return camel(row);
 }
 

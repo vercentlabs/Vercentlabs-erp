@@ -9,9 +9,9 @@ import {
 } from "@vercentlabs/design-system";
 
 import { FollowUpCell } from "@/features/crm/leads/lead-format";
-import { CrmAttachmentPanel } from "@/features/crm/shared/CrmAttachmentPanel";
+import { RecordAttachmentsPanel } from "@/features/crm/attachments/components/RecordAttachmentsPanel";
 import { RelatedFollowUpsPanel, ScheduleFollowUpForRecord } from "@/features/crm/follow-ups/components/RelatedFollowUpsPanel";
-import { NotesPanel } from "@/features/crm/shared/NotesPanel";
+import { RecordNotesPanel } from "@/features/crm/notes/components/RecordNotesPanel";
 import { RecordTimelinePanel } from "@/features/crm/shared/RecordTimelinePanel";
 import { PropertyList } from "@/features/crm/shared/ui/PropertyList";
 import { formatDate, formatDateTime, formatMoney } from "@/shared/format/human";
@@ -232,8 +232,8 @@ export function AccountDetailScreen({ accountId }: { accountId: string }) {
           {relatedTabs.filter((entry) => entry.show).map((entry) => (
             <TabPanel key={entry.id} id={entry.id}><AccountRelatedListPanel accountId={account.id} list={entry.id} currency={currency} /></TabPanel>
           ))}
-          <TabPanel id="notes"><NotesPanel entityType="party" entityId={account.id} /></TabPanel>
-          <TabPanel id="attachments"><CrmAttachmentPanel entityType="party" entityId={account.id} /></TabPanel>
+          <TabPanel id="notes"><RecordNotesPanel relatedType="party" relatedId={account.id} /></TabPanel>
+          <TabPanel id="attachments"><RecordAttachmentsPanel relatedType="party" relatedId={account.id} /></TabPanel>
           <TabPanel id="history">
             <div className="flex flex-col gap-6">
               <RecordTimelinePanel entityType="party" entityId={account.id} />

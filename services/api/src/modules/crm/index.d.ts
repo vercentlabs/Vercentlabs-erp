@@ -166,12 +166,6 @@ export {
 } from "./pipeline/opportunity-revenue-intelligence.js";
 
 // Declarations previously written inline in services/api/src/index.d.ts.
-export function createCrmAttachment(client: QueryClient, context: any, entityType: string, entityId: string, input: { prepared: import("../../core/platform/files/index.js").PreparedUpload; replacesLogicalId?: string | null }, options?: { storage?: import("@vercentlabs/document-engine").ObjectStorage }): Promise<any>;
-export function crmAttachmentStorageEntityType(entityType: string): string;
-export function deleteCrmAttachment(client: QueryClient, context: any, entityType: string, entityId: string, attachmentId: string): Promise<any>;
-export function getCrmAttachmentContent(client: QueryClient, context: any, entityType: string, entityId: string, attachmentId: string, options?: { storage?: import("@vercentlabs/document-engine").ObjectStorage }): Promise<{ id: string; fileName: string; mimeType: string; sizeBytes: number; contentSha256: string | null; body: Buffer }>;
-export function listCrmAttachmentVersions(client: QueryClient, context: any, entityType: string, entityId: string, logicalId: string): Promise<any[]>;
-export function listCrmAttachments(client: QueryClient, context: any, entityType: string, entityId: string): Promise<any[]>;
 // F005 — hand-written signature for a runtime export reached through
 // lead-governance.js's re-export of assignment/index.js.
 export function matchLeadTerritory(client: QueryClient, context: any, lead: Record<string, unknown>): Promise<{ territoryId: string; code: string; name: string; matchedOn: string[]; alternatives: Array<{ territoryId: string; name: string; matchedOn: string[] }> } | null>;
@@ -216,13 +210,6 @@ export function resolveCrmEntityAccess(
   entityType: "lead" | "opportunity" | "party" | "contact" | "campaign",
   entityId: string,
 ): Promise<boolean>;
-// F017 canonical Notes domain.
-export function listCrmNotes(client: QueryClient, context: any, entityType: string, entityId: string, options?: { includeArchived?: boolean; limit?: number }): Promise<any[]>;
-export function getCrmNote(client: QueryClient, context: any, id: string): Promise<any>;
-export function createCrmNote(client: QueryClient, context: any, entityType: string, entityId: string, input?: Record<string, unknown>): Promise<any>;
-export function updateCrmNote(client: QueryClient, context: any, id: string, input?: Record<string, unknown>): Promise<any>;
-export function archiveCrmNote(client: QueryClient, context: any, id: string, input?: Record<string, unknown>): Promise<any>;
-export function listCrmNoteVersions(client: QueryClient, context: any, id: string): Promise<any[]>;
 
 // Declarations kept with the F014/F018 and account-intelligence compatibility
 // boundary (activities/communications.d.ts), and the privacy operations.
@@ -304,6 +291,8 @@ export * from "./pipeline/index.js";
 export * from "./sales-stages/index.js";
 export * from "./tasks/index.js";
 export * from "./follow-ups/index.js";
+export * from "./notes/index.js";
+export * from "./attachments/index.js";
 export * from "./accounts/index.js";
 export * from "./contacts/index.js";
 export * from "./duplicates/index.js";

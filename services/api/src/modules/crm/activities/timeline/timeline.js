@@ -128,7 +128,7 @@ function buildBranch(kind, entityType, entityId, context, values) {
   }
   if (kind === "note") {
     const entityIdParam = add(values, entityId);
-    return `SELECT id,'note'::text AS kind,CASE WHEN visibility='private' THEN 'private' END AS subtype,LEFT(body,160) AS title,created_at AS occurred_at,NULL::text AS status,NULL::uuid AS actor_user_id,created_by
+    return `SELECT id,'note'::text AS kind,CASE WHEN visibility='private' THEN 'private' END AS subtype,LEFT(COALESCE(NULLIF(title, ''), body_text, body),160) AS title,created_at AS occurred_at,NULL::text AS status,NULL::uuid AS actor_user_id,created_by
        FROM tenant.crm_notes WHERE organization_id=$1 AND entity_type='${entityType}' AND entity_id=${entityIdParam}
          AND ${visibilityPredicate("note", context, values)}`;
   }

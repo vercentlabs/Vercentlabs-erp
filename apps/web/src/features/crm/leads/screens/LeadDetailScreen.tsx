@@ -9,9 +9,9 @@ import {
   AlertDialog, Badge, Button, ErrorState, LinkButton, Menu, MenuItem, MenuTrigger, RecordDetailsPage, Tab, TabList, TabPanel, Tabs,
 } from "@vercentlabs/design-system";
 
-import { CrmAttachmentPanel } from "@/features/crm/shared/CrmAttachmentPanel";
+import { RecordAttachmentsPanel } from "@/features/crm/attachments/components/RecordAttachmentsPanel";
 import { RelatedFollowUpsPanel, ScheduleFollowUpForRecord } from "@/features/crm/follow-ups/components/RelatedFollowUpsPanel";
-import { NotesPanel } from "@/features/crm/shared/NotesPanel";
+import { RecordNotesPanel } from "@/features/crm/notes/components/RecordNotesPanel";
 import { RecordTimelinePanel } from "@/features/crm/shared/RecordTimelinePanel";
 import { PropertyList } from "@/features/crm/shared/ui/PropertyList";
 import { countryName, formatDateTime, formatMoney } from "@/shared/format/human";
@@ -232,8 +232,8 @@ export function LeadDetailScreen({ leadId }: { leadId: string }) {
           <TabPanel id="activities"><LeadActivitiesPanel leadId={lead.id} options={options} canEdit={canEdit} /></TabPanel>
           <TabPanel id="tasks"><LeadTasksPanel leadId={lead.id} options={options} canEdit={canEdit} /></TabPanel>
           <TabPanel id="followUps"><RelatedFollowUpsPanel related={{ type: "lead", id: lead.id, name: leadName(lead) }} canCreate={canEdit} onChanged={refresh} /></TabPanel>
-          <TabPanel id="notes"><NotesPanel entityType="lead" entityId={lead.id} /></TabPanel>
-          <TabPanel id="attachments"><CrmAttachmentPanel entityType="lead" entityId={lead.id} /></TabPanel>
+          <TabPanel id="notes"><RecordNotesPanel relatedType="lead" relatedId={lead.id} /></TabPanel>
+          <TabPanel id="attachments"><RecordAttachmentsPanel relatedType="lead" relatedId={lead.id} /></TabPanel>
           <TabPanel id="history">
             <div className="flex flex-col gap-6">
               <RecordTimelinePanel entityType="lead" entityId={lead.id} />

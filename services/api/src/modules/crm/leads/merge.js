@@ -42,6 +42,7 @@ export async function mergeLeads(client, context, duplicateLeadId, keepLeadId, {
   await client.query(`UPDATE tenant.crm_activities SET entity_id = $3 WHERE organization_id = $1 AND entity_type = 'lead' AND entity_id = $2`, move);
   await client.query(`UPDATE tenant.crm_notes SET entity_id = $3 WHERE organization_id = $1 AND entity_type = 'lead' AND entity_id = $2`, move);
   await client.query(`UPDATE public.attachments SET entity_id = $3::text WHERE organization_id = $1 AND entity_type = 'crm.lead' AND entity_id = $2::text`, move);
+  await client.query(`UPDATE tenant.crm_attachment_details SET entity_id = $3 WHERE organization_id = $1 AND entity_type = 'lead' AND entity_id = $2`, move);
   await client.query(`UPDATE tenant.crm_communications SET lead_id = $3 WHERE organization_id = $1 AND lead_id = $2`, move);
   await client.query(`UPDATE tenant.crm_email_threads SET lead_id = $3 WHERE organization_id = $1 AND lead_id = $2`, move);
   await client.query(

@@ -9,8 +9,8 @@ import {
   AlertDialog, Button, Dialog, ErrorState, Menu, MenuItem, MenuTrigger, RecordDetailsPage, Tab, TabList, TabPanel, Tabs, TextArea, TextField,
 } from "@vercentlabs/design-system";
 
-import { CrmAttachmentPanel } from "@/features/crm/shared/CrmAttachmentPanel";
-import { NotesPanel } from "@/features/crm/shared/NotesPanel";
+import { RecordAttachmentsPanel } from "@/features/crm/attachments/components/RecordAttachmentsPanel";
+import { RecordNotesPanel } from "@/features/crm/notes/components/RecordNotesPanel";
 import { RecordTimelinePanel } from "@/features/crm/shared/RecordTimelinePanel";
 import { PropertyList } from "@/features/crm/shared/ui/PropertyList";
 import { formatDate, formatDateTime, formatMoney } from "@/shared/format/human";
@@ -248,8 +248,8 @@ function OpportunityDetail({ opportunity, options, tab, setTab, dialog, setDialo
           <TabPanel id="tasks"><RelatedTasksPanel relatedType="opportunity" relatedId={opportunity.id} relatedName={opportunity.name} canCreate={can.edit && !archived} onChanged={refresh} /></TabPanel>
           <TabPanel id="followUps"><RelatedFollowUpsPanel related={{ type: "opportunity", id: opportunity.id, name: opportunity.name, accountId: opportunity.accountId }} canCreate={can.edit && !archived} onChanged={refresh} /></TabPanel>
           <TabPanel id="quotations"><OpportunityQuotationsPanel opportunity={opportunity} options={options} canEdit={can.edit && !archived} onChanged={refresh} /></TabPanel>
-          <TabPanel id="notes"><NotesPanel entityType="opportunity" entityId={opportunity.id} /></TabPanel>
-          <TabPanel id="attachments"><CrmAttachmentPanel entityType="opportunity" entityId={opportunity.id} /></TabPanel>
+          <TabPanel id="notes"><RecordNotesPanel relatedType="opportunity" relatedId={opportunity.id} /></TabPanel>
+          <TabPanel id="attachments"><RecordAttachmentsPanel relatedType="opportunity" relatedId={opportunity.id} /></TabPanel>
           <TabPanel id="history">
             <div className="flex flex-col gap-6">
               <RecordTimelinePanel entityType="opportunity" entityId={opportunity.id} />

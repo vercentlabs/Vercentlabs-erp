@@ -245,16 +245,10 @@ export async function convertLead(client, context, leadId, input = {}) {
     }, { origin: "lead_conversion", historySummary: `Opportunity created from lead ${lead.code}` });
     opportunityId = opportunity.id;
 
-    // Carry the working record forward: notes are copied, and work still to
-    // be done (open tasks and follow-ups) moves to the opportunity. Completed
-    // activities and files stay on the lead, which remains readable and is
-    // shown on the opportunity's timeline through its lead link.
-    await client.query(
-      `INSERT INTO tenant.crm_notes (organization_id, entity_type, entity_id, body, is_pinned, visibility, created_by, updated_by, created_at, updated_at)
-       SELECT organization_id, 'opportunity', $3, body, is_pinned, visibility, created_by, updated_by, created_at, updated_at
-         FROM tenant.crm_notes WHERE organization_id = $1 AND entity_type = 'lead' AND entity_id = $2 AND archived_at IS NULL`,
-      [context.organizationId, lead.id, opportunityId],
-    );
+    // Work still to be done (open tasks and follow-ups) moves to the
+    // opportunity. Notes, files and completed activities stay on the lead,
+    // which remains readable; the opportunity shows the lead's notes and
+    // files through its lead link, without copying them.
     await client.query(
       `UPDATE tenant.crm_activities SET entity_type = 'opportunity', entity_id = $3, updated_by = $4,
               origin_lead_id = CASE WHEN activity_type = 'follow_up' THEN $2 ELSE origin_lead_id END
