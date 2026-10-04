@@ -81,6 +81,14 @@ export type Opportunity = {
   lossNotes: string | null;
   outcomeNotes: string | null;
   competitorName: string | null;
+  closeReasonId: string | null;
+  closeReasonName: string | null;
+  closeNotes: string | null;
+  closedAt: string | null;
+  closedByName: string | null;
+  duplicateOfOpportunityId: string | null;
+  duplicateOfCode: string | null;
+  duplicateOfName: string | null;
   winningQuotationId: string | null;
   primaryQuotationId: string | null;
   latestQuotationId: string | null;
@@ -111,14 +119,19 @@ export type OpportunityStage = {
   // what the stage means, its goals (one per line), and the actions worth putting forward in it
   description: string | null; guidance: string | null; suggestedActions: OpportunityStageAction[];
 };
-export type OpportunityLostReason = { id: string; name: string; code: string; requiresNotes: boolean; asksCompetitor: boolean };
+// A won or a lost reason, with its own rules (see Won / Lost Reasons).
+export type OpportunityCloseReason = {
+  id: string; name: string; code: string; outcome: "won" | "lost"; category: string; active: boolean;
+  requiresNotes: boolean; capturesCompetitor: boolean; requiresCompetitor: boolean; offersFollowUp: boolean; linksDuplicate: boolean;
+};
 
 export type OpportunityOptions = {
   views: Array<{ key: OpportunityViewKey; label: string }>;
   statuses: CodeLabel[];
   priorities: CodeLabel[];
   stages: OpportunityStage[];
-  lostReasons: OpportunityLostReason[];
+  wonReasons: OpportunityCloseReason[];
+  lostReasons: OpportunityCloseReason[];
   contactRoles: CodeLabel[];
   activityTypes: CodeLabel[];
   followUpTypes: string[];
@@ -161,15 +174,6 @@ export type OpportunityContact = {
   id: string; contactId: string; name: string; jobTitle: string | null; email: string | null; mobile: string | null; role: string | null; roleLabel: string | null;
   isPrimary: boolean; notes: string | null; isInactive: boolean;
 };
-export type OpportunityQuotation = {
-  id: string; number: string; version: number; status: string; validUntil: string | null; total: number | null; currencyCode: string | null; ownerName: string | null;
-  createdAt: string; salesOrderId: string | null; salesOrderNumber: string | null; isLatest: boolean; isPrimary: boolean; isWinning: boolean;
-};
-export type OpportunityQuotationDraft = {
-  opportunityId: string; partyId: string; contactId: string | null; accountName: string | null; accountIsCustomer: boolean; ownerUserId: string | null;
-  currencyCode: string | null; notes: string | null;
-  lines: Array<{ itemId: string; name: string; quantity: number; unitPrice: number; discountPercent: number }>;
-};
 export type OpportunityActivity = {
   id: string; type: string; subject: string; notes: string | null; status: string; outcome: string | null; dueAt: string | null; completedAt: string | null;
   createdAt: string; channel: string | null; assignedTo: string | null; assignedName: string | null; createdByName: string | null;
@@ -180,7 +184,7 @@ export type OpportunityDuplicate = {
 };
 export type OpportunityDashboard = {
   totals: {
-    open: number; openValue: number; weightedValue: number; closingThisMonth: number; wonThisMonth: number; wonValueThisMonth: number; lostThisMonth: number;
+    open: number; openValue: number; weightedValue: number; closingThisMonth: number; wonThisMonth: number; wonValueThisMonth: number; lostThisMonth: number; lostValueThisMonth: number; topLostReasonThisMonth: string | null;
     overdue: number; stale: number; staleDays: number; averageDealSize: number; winRate: number; lossRate: number; averageSalesCycleDays: number | null;
   };
   byStage: Array<{ stageId: string; label: string; total: number; value: number; weightedValue: number }>;
@@ -218,9 +222,9 @@ export const findDuplicateOpportunities = (input: { accountId: string; name?: st
 export const changeOpportunityStage = (id: string, input: { stageId: string; note?: string; expectedUpdatedAt?: string; warn?: boolean }) =>
   post<{ changed: boolean }>(`${BASE}/${id}/stage`, input);
 export const setOpportunityProbability = (id: string, input: { probability: number; reason?: string }) => post<{ changed: boolean }>(`${BASE}/${id}/probability`, input);
-export const markOpportunityWon = (id: string, input: { actualCloseDate: string; finalValue?: string | number; winningQuotationId?: string; notes?: string; expectedUpdatedAt?: string; openTasks?: "keep" | "cancel"; openFollowUps?: "keep" | "cancel" }) =>
+export const markOpportunityWon = (id: string, input: { reasonId: string; actualCloseDate?: string; finalValue?: string | number; winningQuotationId?: string; notes?: string; competitorName?: string; expectedUpdatedAt?: string; openTasks?: "keep" | "cancel"; openFollowUps?: "keep" | "cancel" }) =>
   post<{ status: string }>(`${BASE}/${id}/won`, input);
-export const markOpportunityLost = (id: string, input: { reasonId: string; actualCloseDate?: string; notes?: string; competitorName?: string; expectedUpdatedAt?: string; openTasks?: "keep" | "cancel"; openFollowUps?: "keep" | "cancel" }) =>
+export const markOpportunityLost = (id: string, input: { reasonId: string; actualCloseDate?: string; notes?: string; competitorName?: string; duplicateOfOpportunityId?: string; followUp?: { date: string; subject?: string }; expectedUpdatedAt?: string; openTasks?: "keep" | "cancel"; openFollowUps?: "keep" | "cancel" }) =>
   post<{ status: string }>(`${BASE}/${id}/lost`, input);
 export const reopenOpportunity = (id: string, input: { reason: string; stageId?: string }) => post<{ status: string }>(`${BASE}/${id}/reopen`, input);
 export const assignOpportunity = (id: string, input: { ownerUserId?: string | null; teamId?: string | null; reason?: string; expectedUpdatedAt?: string; moveOpenActivities?: boolean }) =>
@@ -253,10 +257,6 @@ export const updateOpportunityContact = (id: string, linkId: string, input: Reco
 export const removeOpportunityContact = (id: string, linkId: string) => request<{ contacts: OpportunityContact[] }>(`${BASE}/${id}/contacts/${linkId}`, { method: "DELETE" });
 
 // ---- quotations
-export const listOpportunityQuotations = (id: string) => request<{ quotations: OpportunityQuotation[] }>(`${BASE}/${id}/quotations`).then((result) => result.quotations);
-export const startOpportunityQuotation = (id: string) => post<{ draft: OpportunityQuotationDraft }>(`${BASE}/${id}/quotations`).then((result) => result.draft);
-export const setPrimaryOpportunityQuotation = (id: string, quotationId: string | null) =>
-  request<{ primaryQuotationId: string | null }>(`${BASE}/${id}/quotations`, { method: "PATCH", json: { quotationId } });
 
 // ---- work on the deal
 export const listOpportunityActivities = (id: string) => request<{ activities: OpportunityActivity[] }>(`${BASE}/${id}/activities`).then((result) => result.activities);
@@ -269,7 +269,6 @@ export const getOpportunityReport = (filters: Record<string, string>) => request
 export const opportunityExportUrl = (filters: OpportunityListFilters) => `${BASE}/export${query({ ...filters, limit: undefined, offset: undefined })}`;
 
 // Where the Sales quotation form reads the lines of a quotation started from an opportunity.
-export const quotationDraftStorageKey = (opportunityId: string) => `crm.opportunity.quotation-draft.${opportunityId}`;
 
 // A stage move the server wants confirmed first ("No quotation exists yet"). null for any other failure.
 export function stageWarningOf(error: unknown): { warnings: string[]; stageName: string } | null {

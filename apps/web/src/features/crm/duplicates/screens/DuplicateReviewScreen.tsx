@@ -43,7 +43,8 @@ function RecordCard({ record }: { record: DuplicateQueueRecord }) {
   );
 }
 
-export function DuplicateReviewScreen() {
+// embedded: shown as the first tab of Data Quality, which has its own heading and permission check.
+export function DuplicateReviewScreen({ embedded = false }: { embedded?: boolean }) {
   const workspace = useWorkspaceContext();
   const queryClient = useQueryClient();
   const canReview = workspace.roleSlugs?.includes("organization_owner") || workspace.permissions.includes(CRM_PERMISSIONS.duplicatesReview);
@@ -57,10 +58,12 @@ export function DuplicateReviewScreen() {
   const queue = query.data;
   return (
     <div className="flex flex-col gap-6">
-      <PageHeader
-        title="Potential duplicates"
-        description="Records that share an email, a mobile number, a GSTIN, a website or a company name. Merge the ones that are the same, and mark the ones that are not so they stop appearing."
-      />
+      {!embedded && (
+        <PageHeader
+          title="Potential duplicates"
+          description="Records that share an email, a mobile number, a GSTIN, a website or a company name. Merge the ones that are the same, and mark the ones that are not so they stop appearing."
+        />
+      )}
       {query.isLoading ? <LoadingState label="Looking for duplicates" rows={5} />
         : query.isError || !queue ? <ErrorState title="Could not load the duplicate queue" description="Refresh to try again." action={{ label: "Try again", onPress: () => void query.refetch() }} />
         : (
@@ -102,7 +105,7 @@ export function DuplicateReviewScreen() {
             })}
           </Tabs>
         )}
-      {clearing && <NotDuplicateDialog pair={clearing} onClose={() => setClearing(null)} onDone={() => void queryClient.invalidateQueries({ queryKey: key })} />}
+      {clearing && <NotDuplicateDialog pair={clearing} onClose={() => setClearing(null)} onDone={() => { void queryClient.invalidateQueries({ queryKey: key }); void queryClient.invalidateQueries({ queryKey: scopedQueryKey(workspace, "crm", "not-duplicates") }); }} />}
     </div>
   );
 }

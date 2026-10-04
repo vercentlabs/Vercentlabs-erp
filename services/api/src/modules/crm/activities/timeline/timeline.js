@@ -138,8 +138,11 @@ function buildBranch(kind, entityType, entityId, context, values) {
       // F026 — the review context travels with the event: a close shows its
       // reason label (snapshotted at the time) and notes; a reopen (leaving a
       // won/lost stage) carries the "reopen" subtype with the reason the user gave.
-      return `SELECT h.id,'stage'::text AS kind,CASE WHEN fs.is_won OR fs.is_lost THEN 'reopen' END AS subtype,
-           COALESCE(fs.name,'Start') || ' → ' || COALESCE(ts.name,'Unknown') || COALESCE(' — ' || h.outcome_reason_label,'')
+      // A close is recorded in the stage the deal closed in: it reads as the outcome, not a move.
+      return `SELECT h.id,'stage'::text AS kind,CASE WHEN h.status IN ('won','lost') THEN h.status WHEN fs.is_won OR fs.is_lost THEN 'reopen' END AS subtype,
+           CASE WHEN h.status IN ('won','lost') AND h.from_stage_id IS NOT DISTINCT FROM h.to_stage_id
+                THEN 'Marked ' || initcap(h.status) || ' in ' || COALESCE(ts.name,'its stage')
+                ELSE COALESCE(fs.name,'Start') || ' → ' || COALESCE(ts.name,'Unknown') END || COALESCE(' — ' || h.outcome_reason_label,'')
              || COALESCE(' — "' || COALESCE(h.outcome_notes, CASE WHEN fs.is_won OR fs.is_lost THEN h.note END) || '"','') AS title,
            h.changed_at AS occurred_at,h.status AS status,h.changed_by AS actor_user_id,h.changed_by AS created_by
          FROM tenant.crm_opportunity_stage_history h
@@ -165,7 +168,31 @@ function buildBranch(kind, entityType, entityId, context, values) {
        JOIN tenant.crm_activities task ON task.organization_id=history.organization_id AND task.id=history.task_id
        WHERE history.organization_id=$1 AND task.entity_type='${entityType}' AND task.entity_id=${taskIdParam}
          AND history.event_type IN ('created','assigned','reassigned','completed','reopened','cancelled')${taskScopeSql(context, values, "task")}`;
-    return `${own} UNION ALL ${tasks}`;
+    // An opportunity's quotations, in words, for whoever may see Sales documents.
+    const seesSales = context.roleSlugs?.includes("organization_owner") || context.permissions?.includes("sales.view");
+    if (entityType !== "opportunity" || !seesSales) return `${own} UNION ALL ${tasks}`;
+    const quoteIdParam = add(values, entityId);
+    const quotations = `SELECT event.id,'history'::text AS kind,'quotation_' || replace(event.event_type,'quotation.','') AS subtype,
+         'Quotation ' || quote.quotation_number || ' ' || CASE event.event_type
+           WHEN 'quotation.created' THEN 'created'
+           WHEN 'quotation.revised' THEN 'revised (revision ' || COALESCE(event.metadata->>'versionNumber','') || ')'
+           WHEN 'quotation.submitted' THEN 'submitted for approval'
+           WHEN 'quotation.approved' THEN 'approved'
+           WHEN 'quotation.approved_automatically' THEN 'confirmed'
+           WHEN 'quotation.sent' THEN 'sent' || COALESCE(' to ' || NULLIF(event.metadata->>'recipient',''),'')
+           WHEN 'quotation.viewed' THEN 'viewed by the customer'
+           WHEN 'quotation.accepted' THEN 'accepted' || COALESCE(' (' || NULLIF(event.metadata->>'reference','') || ')','')
+           WHEN 'quotation.rejected' THEN 'rejected' || COALESCE(': ' || NULLIF(event.metadata->>'notes',''),'')
+           WHEN 'quotation.cancelled' THEN 'cancelled' || COALESCE(': ' || NULLIF(event.metadata->>'reason',''),'')
+           WHEN 'quotation.expired' THEN 'expired'
+           WHEN 'quotation.converted' THEN 'became sales order ' || COALESCE(sales_order.sales_order_number,'')
+           ELSE replace(replace(event.event_type,'quotation.',''),'_',' ') END AS title,
+         event.occurred_at,event.to_status AS status,event.actor_user_id,event.actor_user_id AS created_by
+       FROM tenant.sales_document_events event
+       JOIN tenant.sales_quotations quote ON quote.organization_id=event.organization_id AND quote.id=event.entity_id
+       LEFT JOIN tenant.sales_orders sales_order ON sales_order.organization_id=quote.organization_id AND sales_order.id=quote.converted_order_id
+       WHERE event.organization_id=$1 AND event.entity_type='quotation' AND event.event_type <> 'quotation.created' AND quote.source_opportunity_id=${quoteIdParam}`;
+    return `${own} UNION ALL ${tasks} UNION ALL ${quotations}`;
   }
   if (kind === "attachment") {
     const entityIdParam = add(values, entityId);

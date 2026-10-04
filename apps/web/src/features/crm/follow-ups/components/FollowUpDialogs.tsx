@@ -65,12 +65,13 @@ export function ScheduleFollowUpDialog({ isOpen, onOpenChange, options, related,
   isOpen: boolean; onOpenChange: (open: boolean) => void; options: FollowUpOptions; onSaved: (followUp: FollowUp) => void; related?: RelatedRecord; followUp?: FollowUp;
 }) {
   const editing = Boolean(followUp);
-  const [type, setType] = useState<FollowUpType>(followUp?.type ?? "call");
+  const [type, setType] = useState<FollowUpType>(followUp?.type ?? options.defaults?.type ?? "call");
   const [subject, setSubject] = useState(followUp?.subject ?? "");
   const [notes, setNotes] = useState(followUp?.notes ?? "");
   const [scheduledDate, setScheduledDate] = useState(today());
   const [scheduledTime, setScheduledTime] = useState("");
-  const [reminder, setReminder] = useState(followUp ? (followUp.reminderOffsetMinutes === null ? NONE : String(followUp.reminderOffsetMinutes)) : "15");
+  const [reminder, setReminder] = useState(followUp ? (followUp.reminderOffsetMinutes === null ? NONE : String(followUp.reminderOffsetMinutes))
+    : options.defaults ? (options.defaults.reminderOffsetMinutes === null ? NONE : String(options.defaults.reminderOffsetMinutes)) : "15");
   const [reminderAt, setReminderAt] = useState("");
   const [assignedTo, setAssignedTo] = useState<string>("");
   const [contactId, setContactId] = useState(followUp?.contactId ?? NONE);

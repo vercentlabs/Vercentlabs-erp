@@ -67,13 +67,14 @@ export function escapeHtml(value) {
 }
 
 /**
- * Sends one message. `{ sent: false, reason: "SMTP_NOT_CONFIGURED" }` is an
+ * Sends one message, optionally with CC recipients and attachments. `{ sent: false, reason: "SMTP_NOT_CONFIGURED" }` is an
  * honest outcome for an environment without mail, never a pretend send.
  */
-export async function sendMail({ to, subject, text, html, replyTo }, env = process.env) {
+export async function sendMail({ to, cc, subject, text, html, replyTo, attachments }, env = process.env) {
   const transport = getMailTransport(env);
   if (!transport) return { sent: false, reason: "SMTP_NOT_CONFIGURED" };
-  const info = await transport.transporter.sendMail({ from: transport.from, replyTo: replyTo ?? transport.replyTo ?? undefined, to, subject, text, html });
+  // attachments: [{ filename, content (Buffer), contentType }] — a document a feature sends on purpose, such as a quotation PDF.
+  const info = await transport.transporter.sendMail({ from: transport.from, replyTo: replyTo ?? transport.replyTo ?? undefined, to, cc, subject, text, html, attachments });
   return { sent: true, messageId: info?.messageId ?? null };
 }
 

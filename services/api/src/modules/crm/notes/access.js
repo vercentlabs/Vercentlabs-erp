@@ -86,3 +86,15 @@ export async function recordContentHistory(client, context, { entityType, entity
     [context.organizationId, entityType, entityId, subjectType, subjectId, eventType, String(summary).slice(0, 500), JSON.stringify(changes), context.userId ?? null],
   );
 }
+
+// The name of the record a note or file belongs to, for lists across records.
+export const relatedNameSql = (alias) => `CASE ${alias}.entity_type
+  WHEN 'lead' THEN (SELECT COALESCE(l.full_name, l.company_name, l.code) FROM tenant.crm_leads l WHERE l.organization_id = ${alias}.organization_id AND l.id = ${alias}.entity_id)
+  WHEN 'party' THEN (SELECT p.display_name FROM tenant.business_parties p WHERE p.organization_id = ${alias}.organization_id AND p.id = ${alias}.entity_id)
+  WHEN 'contact' THEN (SELECT c.display_name FROM tenant.contacts c WHERE c.organization_id = ${alias}.organization_id AND c.id = ${alias}.entity_id)
+  WHEN 'opportunity' THEN (SELECT o.name FROM tenant.crm_opportunities o WHERE o.organization_id = ${alias}.organization_id AND o.id = ${alias}.entity_id) END`;
+
+// " AND (…)": only rows whose record (lead, account, contact or opportunity) the caller can see.
+export function contentRecordScopeSql(context, values, alias) {
+  return ` AND ${alias}.entity_type IN ('lead', 'party', 'contact', 'opportunity')${taskRelatedScopeSql(context, values, alias)}`;
+}

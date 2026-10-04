@@ -1,9 +1,6 @@
-import { requireWorkspace } from "@/core/session";
-import { SalesStagesSettingsScreen } from "@/features/crm/sales-stages/screens/SalesStagesSettingsScreen";
+import { redirect } from "next/navigation";
 
-export const metadata = { title: "Sales stages" };
-
-export default async function Page() {
-  await requireWorkspace();
-  return <SalesStagesSettingsScreen />;
+// This page moved; the old address keeps working.
+export default function Page() {
+  redirect("/crm/settings/opportunities/stages");
 }

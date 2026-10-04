@@ -140,10 +140,13 @@ export const DOCUMENT_RENDERERS = Object.freeze([
         organizationName: await organizationName(client, session.organizationId),
         parties: [
           { label: "Customer", lines: [customer.displayName ?? customer.display_name ?? customer.name, customer.gstin ? `GSTIN ${customer.gstin}` : null].filter(Boolean) },
+          // The person the offer is addressed to.
+          { label: "Attention", lines: [[quote.contact_snapshot?.first_name, quote.contact_snapshot?.last_name].filter(Boolean).join(" "), quote.contact_snapshot?.designation, quote.contact_snapshot?.email].filter(Boolean) },
           { label: "Bill to", lines: addressLines(quote.billing_address_snapshot) },
           { label: "Ship to", lines: addressLines(quote.shipping_address_snapshot) },
         ].filter((party) => party.lines.length),
         fields: [
+          { label: "Your reference", value: quote.customer_reference ?? "" },
           { label: "Valid until", value: day(quote.valid_until) ?? "" },
           { label: "Place of supply", value: quote.place_of_supply ?? "" },
           { label: "Payment terms", value: quote.payment_term_snapshot?.name ?? "" },

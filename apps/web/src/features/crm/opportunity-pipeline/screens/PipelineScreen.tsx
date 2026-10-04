@@ -18,8 +18,10 @@ import {
   getOpportunityOptions, listOpportunities, opportunityExportUrl,
   type Opportunity, type OpportunityBulkResult, type OpportunityListFilters, type OpportunityViewKey,
 } from "@/features/crm/opportunities/api/opportunities-api";
-import { AssignOpportunitiesDialog, ChangeStageDialog, MarkLostDialog, MarkWonDialog } from "@/features/crm/opportunities/components/OpportunityActionDialogs";
-import { LogActivityDialog, useStartQuotation } from "@/features/crm/opportunities/components/OpportunityPanels";
+import { AssignOpportunitiesDialog, ChangeStageDialog } from "@/features/crm/opportunities/components/OpportunityActionDialogs";
+import { MarkLostDialog, MarkWonDialog } from "@/features/crm/close-reasons/components/CloseDialogs";
+import { LogActivityDialog } from "@/features/crm/opportunities/components/OpportunityPanels";
+import { CreateQuotationDialog } from "@/features/crm/quotations/components/CreateQuotationDialog";
 import { ScheduleFollowUpForRecord } from "@/features/crm/follow-ups/components/RelatedFollowUpsPanel";
 import { getTaskOptions } from "@/features/crm/tasks/api/tasks-api";
 import { TaskFormDialog } from "@/features/crm/tasks/components/TaskDialogs";
@@ -160,12 +162,10 @@ export function PipelineScreen() {
     void queryClient.invalidateQueries({ queryKey: scopedQueryKey(workspace, "crm", "opportunities") });
     void queryClient.invalidateQueries({ queryKey: scopedQueryKey(workspace, "crm", "opportunity") });
   };
-  const startQuotation = useStartQuotation(setError);
   const taskOptions = useQuery({ queryKey: scopedQueryKey(workspace, "crm", "task-options"), queryFn: getTaskOptions, staleTime: 60_000, enabled: dialog?.kind === "task" }).data;
   const onCardAction = (kind: CardAction, card: Opportunity) => {
     setError(null);
-    if (kind === "quotation") startQuotation.mutate(card);
-    else setDialog({ kind, card });
+    setDialog({ kind, card });
   };
   const close = (isOpen: boolean) => !isOpen && setDialog(null);
   const card = dialog && "card" in dialog ? dialog.card : null;
@@ -268,7 +268,7 @@ export function PipelineScreen() {
           secondaryActions: (
             <>
               <LinkButton href="/crm/opportunities/dashboard" variant="outline">Reports</LinkButton>
-              {can?.manageStages && <LinkButton href="/crm/settings/sales-stages" variant="outline"><Settings2 className="size-4" aria-hidden="true" />Sales stages</LinkButton>}
+              {can?.manageStages && <LinkButton href="/crm/settings/opportunities/stages" variant="outline"><Settings2 className="size-4" aria-hidden="true" />Sales stages</LinkButton>}
               {can?.export && (
                 <a className={buttonVariants({ variant: "outline" })} href={opportunityExportUrl(listFilters)} download>
                   <Download className="size-4" aria-hidden="true" />Export
@@ -402,8 +402,9 @@ export function PipelineScreen() {
             opportunity={selectedIds.length === 1 ? rows.find((entry) => entry.id === selectedIds[0]) : undefined} options={options} onDone={refresh} />
           <ChangeStageDialog isOpen={dialog?.kind === "stage"} onOpenChange={close} opportunityIds={selectedIds} options={options} onDone={refresh} />
           {card && dialog?.kind === "quickEdit" && <QuickEditDialog opportunity={card} options={options} onClose={() => setDialog(null)} onSaved={() => refresh()} />}
-          {card && dialog?.kind === "won" && <MarkWonDialog isOpen onOpenChange={close} opportunity={card} onDone={() => refresh()} />}
+          {card && dialog?.kind === "won" && <MarkWonDialog isOpen onOpenChange={close} options={options} opportunity={card} onDone={() => refresh()} />}
           {card && dialog?.kind === "lost" && <MarkLostDialog isOpen onOpenChange={close} options={options} opportunity={card} onDone={() => refresh()} />}
+          {card && dialog?.kind === "quotation" && <CreateQuotationDialog opportunityId={card.id} isOpen onOpenChange={close} onCreated={() => refresh()} />}
           {card && dialog?.kind === "activity" && <LogActivityDialog isOpen onOpenChange={close} opportunity={card} options={options} onDone={() => refresh()} />}
           {card && dialog?.kind === "followUp" && (
             <ScheduleFollowUpForRecord isOpen onOpenChange={close} related={{ type: "opportunity", id: card.id, name: card.name, accountId: card.accountId }} onDone={() => refresh()} />

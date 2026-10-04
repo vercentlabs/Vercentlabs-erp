@@ -31,3 +31,7 @@ export function listNoteVersions(client: QueryClient, context: CrmContext, noteI
 export function listContentHistory(client: QueryClient, context: CrmContext, relatedType: string, relatedId: string): Promise<CrmContentEvent[]>;
 export function sanitizeNoteHtml(input: unknown): string;
 export function noteHtmlToText(html: unknown): string;
+
+// Notes across every record the caller can see (the Notes & Files page).
+export function searchNotes(client: QueryClient, context: CrmContext, filters?: { search?: string; relatedType?: string; createdBy?: string; createdFrom?: string; createdTo?: string; pinned?: boolean | string; limit?: number; offset?: number }):
+  Promise<{ notes: Array<CrmNote & { relatedName: string | null }>; total: number; limit: number; offset: number }>;

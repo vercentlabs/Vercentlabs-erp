@@ -73,7 +73,6 @@ export function assertRecordExpectedVersion(
 // dedicated, already-enforced version checks — see sales-stage-operations.js
 // and lead-source-operations.js — so they are deliberately not added here.)
 export const GENERIC_VERSIONED_RESOURCES = {
-  "lost-reasons": { entityLabel: "Won/Lost reason", codePrefix: "CRM_LOST_REASON" },
   "sales-teams": { entityLabel: "Sales team", codePrefix: "CRM_SALES_TEAM" },
   "sales-team-members": { entityLabel: "Team membership", codePrefix: "CRM_TEAM_MEMBERSHIP" },
   territories: { entityLabel: "Territory", codePrefix: "CRM_TERRITORY" },

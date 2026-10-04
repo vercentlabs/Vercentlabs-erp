@@ -12,7 +12,7 @@ import {
 } from "@/shell/navigation/navigation-resolution";
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 
-const SETUP_WORKSPACE = "crm-setup";
+const SETUP_WORKSPACE = "crm-settings";
 
 // CRM Setup: every CRM configuration page on one screen, grouped under its
 // category heading, in the MAIN CONTENT area — never a third sidebar. Each
@@ -47,13 +47,13 @@ export function CrmSetupScreen({ section }: { section: string | null }) {
     .filter((entry) => entry.items.length > 0);
 
   if (groups.length === 0)
-    return <PermissionState title="You don't have access to CRM Setup" />;
+    return <PermissionState title="You do not have access to CRM Settings" />;
 
   return (
     <div className="flex flex-1 flex-col gap-8">
       <PageHeader
-        title="CRM Setup"
-        description="Configure your sales process, teams, data, integrations and controls."
+        title="CRM Settings"
+        description="Lead management, opportunity management, data quality and defaults."
       />
       {groups.map(({ group, items }) => {
         const Icon = group.icon;

@@ -69,14 +69,22 @@ export function changeOpportunityStage(client: QueryClient, context: CrmContext,
 export function bulkChangeOpportunityStage(client: QueryClient, context: CrmContext, input?: Input): Promise<OpportunityBulkResult>;
 export function setOpportunityProbability(client: QueryClient, context: CrmContext, opportunityId: string, input?: Input): Promise<{ changed: boolean }>;
 export function listOpportunityStageHistory(client: QueryClient, context: CrmContext, opportunityId: string): Promise<any[]>;
-export function ensureDefaultLostReasons(client: QueryClient, context: CrmContext): Promise<void>;
-export function listOpportunityLostReasons(client: QueryClient, context: CrmContext): Promise<any[]>;
-// input.openTasks: "keep" (default) or "cancel" — what happens to the deal's open tasks.
+// Mark won: { reasonId (won reason, required), actualCloseDate?, finalValue?, winningQuotationId?, notes?, competitorName?, openTasks?, openFollowUps? }
+// Mark lost: { reasonId (lost reason, required), actualCloseDate?, notes?, competitorName?, duplicateOfOpportunityId?, followUp?: { date, subject? }, openTasks?, openFollowUps? }
 export function markOpportunityWon(client: QueryClient, context: CrmContext, opportunityId: string, input?: Input): Promise<any>;
 export function markOpportunityLost(client: QueryClient, context: CrmContext, opportunityId: string, input?: Input): Promise<any>;
 export function reopenOpportunity(client: QueryClient, context: CrmContext, opportunityId: string, input?: Input): Promise<any>;
-// For callers that hold only a target stage (offline sync, stage migration,
-// the Sales order sync): routes to change stage, mark won or mark lost.
+export function correctOpportunityCloseReason(client: QueryClient, context: CrmContext, opportunityId: string,
+  input: { reasonId: string; notes?: string; competitorName?: string; correctionReason: string }): Promise<{ status: string; reasonId: string }>;
+export type OpportunityCloseEvent = {
+  id: string; outcome: "won" | "lost"; reasonId: string | null; reasonName: string | null; notes: string | null; competitorName: string | null;
+  duplicateOfOpportunityId: string | null; duplicateOfCode: string | null; finalStageName: string | null; estimatedValue: number | null; finalValue: number | null;
+  winningQuotationId: string | null; winningQuotationNumber: string | null; actualCloseDate: string; closedByName: string | null; closedAt: string;
+  correctedAt: string | null; correctedByName: string | null; correctionReason: string | null;
+  reopenedAt: string | null; reopenedByName: string | null; reopenReason: string | null; reopenedToStageName: string | null;
+};
+export function listOpportunityCloseHistory(client: QueryClient, context: CrmContext, opportunityId: string): Promise<OpportunityCloseEvent[]>;
+// For callers that hold only a target stage (offline sync, the board): routes to change stage, reopen, mark won or mark lost.
 export function moveOpportunityStage(
   client: QueryClient, context: CrmContext, opportunityId: string, stageId: string, note?: string | null,
   expectations?: { expectedUpdatedAt?: string; expectedStageId?: string | null; outcomeReasonId?: string | null; outcomeNotes?: string | null },
@@ -98,12 +106,6 @@ export function listOpportunityContacts(client: QueryClient, context: CrmContext
 export function addOpportunityContact(client: QueryClient, context: CrmContext, opportunityId: string, input?: Input): Promise<any[]>;
 export function updateOpportunityContact(client: QueryClient, context: CrmContext, opportunityId: string, linkId: string, input?: Input): Promise<any[]>;
 export function removeOpportunityContact(client: QueryClient, context: CrmContext, opportunityId: string, linkId: string): Promise<any[]>;
-export function listOpportunityQuotations(client: QueryClient, context: CrmContext, opportunityId: string): Promise<any[]>;
-export function createQuotationFromOpportunity(client: QueryClient, context: CrmContext, opportunityId: string): Promise<Record<string, any> & {
-  opportunityId: string; idempotencyKey: string; partyId: string; contactId: string | null; currencyCode: string | null;
-  lines: Array<{ itemId: string; name: string; quantity: number; unitPrice: number; discountPercent: number }>;
-}>;
-export function setPrimaryOpportunityQuotation(client: QueryClient, context: CrmContext, opportunityId: string, input?: Input): Promise<{ primaryQuotationId: string | null }>;
 
 // ---- work on the deal
 export function listOpportunityActivities(client: QueryClient, context: CrmContext, opportunityId: string): Promise<any[]>;

@@ -66,3 +66,11 @@ export function getSalesOrderLineReservationContext(client: SalesQueryClient, co
 
 export function getSalesSettings(client: SalesQueryClient, context: SalesContext): Promise<Record<string, any>>;
 export function updateSalesSettings(client: SalesQueryClient, context: SalesContext, input?: Record<string, any>): Promise<Record<string, any>>;
+
+// Quotation life after confirmation: sent by another channel or by email with its PDF, the customer's answer recorded by staff, cancellation.
+export function markQuotationSent(client: SalesQueryClient, context: SalesContext, quotationId: string, input?: { recipient?: string; note?: string }): Promise<{ quotationId: string; status: "sent" }>;
+export function emailQuotation(client: SalesQueryClient, context: SalesContext, quotationId: string, input: { to: string; cc?: string; subject?: string; message?: string },
+  attachment: { fileName: string; content: Uint8Array } | null, env?: Record<string, string | undefined>): Promise<{ quotationId: string; status: "sent"; messageId: string | null }>;
+export function recordQuotationDecision(client: SalesQueryClient, context: SalesContext, quotationId: string,
+  input: { decision: "accepted" | "rejected"; reference?: string; notes?: string; customerName?: string }): Promise<{ quotationId: string; decision: "accepted" | "rejected" }>;
+export function cancelQuotation(client: SalesQueryClient, context: SalesContext, quotationId: string, input: { reason: string }): Promise<{ quotationId: string; status: "cancelled"; changed: boolean }>;

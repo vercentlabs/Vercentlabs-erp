@@ -40,7 +40,8 @@ export const OPPORTUNITY_SELECT = `
          stage.name AS stage_name, stage.code AS stage_code, stage.sequence AS stage_sequence, stage.probability AS stage_probability,
          stage.is_won AS stage_is_won, stage.is_lost AS stage_is_lost, pipeline.name AS pipeline_name,
          before_close.name AS stage_before_close_name, source.name AS source_name, lead.code AS lead_code,
-         reason.name AS lost_reason_name, reason.code AS lost_reason_code,
+         reason.name AS lost_reason_name, reason.code AS lost_reason_code, close_reason.name AS outcome_reason_name, close_reason.code AS outcome_reason_code,
+         closer.full_name AS closed_by_name, duplicate_of.code AS duplicate_of_code, duplicate_of.name AS duplicate_of_name,
          creator.full_name AS created_by_name, updater.full_name AS updated_by_name, winner.full_name AS won_by_name, loser.full_name AS lost_by_name,
          follow_up.next_follow_up_at AS pending_follow_up_at,
          next_activity.subject AS next_activity_subject, next_activity.due_at AS next_activity_due_at, next_activity.activity_type AS next_activity_type,
@@ -75,6 +76,9 @@ export const OPPORTUNITY_SELECT = `
     LEFT JOIN tenant.crm_lead_sources source ON source.organization_id = opportunity.organization_id AND source.id = opportunity.source_id
     LEFT JOIN tenant.crm_leads lead ON lead.organization_id = opportunity.organization_id AND lead.id = opportunity.lead_id
     LEFT JOIN tenant.crm_lost_reasons reason ON reason.organization_id = opportunity.organization_id AND reason.id = opportunity.lost_reason_id
+    LEFT JOIN tenant.crm_lost_reasons close_reason ON close_reason.organization_id = opportunity.organization_id AND close_reason.id = opportunity.outcome_reason_id
+    LEFT JOIN public.users closer ON closer.id = opportunity.closed_by
+    LEFT JOIN tenant.crm_opportunities duplicate_of ON duplicate_of.organization_id = opportunity.organization_id AND duplicate_of.id = opportunity.duplicate_of_opportunity_id
     LEFT JOIN LATERAL (
       SELECT min(activity.due_at) AS next_follow_up_at
         FROM tenant.crm_activities activity
@@ -101,7 +105,7 @@ export const OPPORTUNITY_SELECT = `
         FROM tenant.sales_quotations quote
         LEFT JOIN tenant.sales_quotation_versions version ON version.organization_id = quote.organization_id AND version.id = quote.current_version_id
        WHERE quote.organization_id = opportunity.organization_id AND quote.source_opportunity_id = opportunity.id
-       ORDER BY (quote.id = opportunity.primary_quotation_id) DESC, quote.created_at DESC
+       ORDER BY (quote.lifecycle_status = 'cancelled'), (quote.id = opportunity.primary_quotation_id) DESC, quote.created_at DESC
        LIMIT 1
     ) quotation ON true`;
 
@@ -185,6 +189,16 @@ export function toOpportunity(row) {
     lostReasonId: row.lost_reason_id,
     lostReasonName: row.lost_reason_name ?? null,
     lostReasonCode: row.lost_reason_code ?? null,
+    // Why the deal ended (won or lost), who closed it and, for a duplicate, the original.
+    closeReasonId: row.outcome_reason_id ?? null,
+    closeReasonName: row.outcome_reason_name ?? null,
+    closeReasonCode: row.outcome_reason_code ?? null,
+    closeNotes: row.outcome_notes ?? null,
+    closedBy: row.closed_by ?? null,
+    closedByName: row.closed_by_name ?? null,
+    duplicateOfOpportunityId: row.duplicate_of_opportunity_id ?? null,
+    duplicateOfCode: row.duplicate_of_code ?? null,
+    duplicateOfName: row.duplicate_of_name ?? null,
     lossNotes: row.loss_notes,
     outcomeNotes: row.outcome_notes,
     competitorName: row.competitor_name,

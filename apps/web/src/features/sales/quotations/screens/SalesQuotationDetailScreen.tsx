@@ -9,7 +9,6 @@ import {
   ArrowLeft,
   Check,
   Copy,
-  Download,
   Pencil,
   Send,
   ShoppingCart,
@@ -18,7 +17,6 @@ import {
 import {
   Button,
   Dialog,
-  LinkButton,
   EnterpriseDataGrid,
   ErrorState,
   MetricStrip,
@@ -44,6 +42,7 @@ import {
   statusTone,
 } from "@/features/sales/shared/format";
 import { SUPPLY_TYPE_OPTIONS } from "@/features/sales/shared/document-defaults";
+import { QuotationLifecycleActions } from "@/features/sales/quotations/components/QuotationLifecycleActions";
 import {
   SalesAlert,
   SalesFacts,
@@ -312,8 +311,8 @@ export function SalesQuotationDetailScreen({
         header={{
           title: quote.quotation_number,
           status: (
-            <StatusBadge tone={statusTone(state)}>
-              {statusLabel(state)}
+            <StatusBadge tone={quote.is_expired ? "warning" : statusTone(state)}>
+              {quote.is_expired ? "Expired" : statusLabel(state)}
             </StatusBadge>
           ),
           fields: [
@@ -323,6 +322,10 @@ export function SalesQuotationDetailScreen({
             },
             { label: "Version", value: `v${quote.version_number}` },
             { label: "Valid until", value: calendarDate(quote.valid_until) },
+            ...(quote.source_opportunity_id
+              ? [{ label: "Source opportunity", value: <Link className="hover:underline" href={`/crm/opportunities/${quote.source_opportunity_id}`}>{[quote.source_opportunity_code, quote.source_opportunity_name].filter(Boolean).join(" · ") || "Open opportunity"}</Link> }]
+              : []),
+            ...(quote.customer_reference ? [{ label: "Customer reference", value: quote.customer_reference }] : []),
           ],
           primaryAction:
             state === "draft" && can(SALES_PERMISSIONS.quotationCreate) ? (
@@ -386,14 +389,16 @@ export function SalesQuotationDetailScreen({
             ) : undefined,
           secondaryActions: (
             <div className="flex items-center gap-2">
-              <LinkButton
-                variant="secondary"
-                href={`/api/documents/sales.quotation/${quotationId}/pdf`}
-                download
-              >
-                <Download className="size-4" aria-hidden="true" />
-                Download PDF
-              </LinkButton>
+              <QuotationLifecycleActions
+                quotation={{
+                  id: quotationId, number: quote.quotation_number, status: state, isExpired: Boolean(quote.is_expired), convertedOrderId: quote.converted_order_id,
+                  contactName: [quote.contact_snapshot?.first_name, quote.contact_snapshot?.last_name].filter(Boolean).join(" ") || null,
+                  contactEmail: quote.contact_snapshot?.email ?? null,
+                }}
+                can={can}
+                onChanged={refresh}
+                showOrder={false}
+              />
               {state === "pending_approval" &&
                 can(SALES_PERMISSIONS.quotationApprove) && (
                   <Button
@@ -412,7 +417,7 @@ export function SalesQuotationDetailScreen({
                 "rejected",
                 "expired",
               ].includes(state) &&
-                can(SALES_PERMISSIONS.quotationCreate) && (
+                can(state === "draft" ? SALES_PERMISSIONS.quotationCreate : SALES_PERMISSIONS.quotationRevise) && (
                   <Button
                     variant="secondary"
                     onPress={() =>

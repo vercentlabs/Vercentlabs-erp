@@ -21,6 +21,9 @@ export * from "./follow-ups/index.js";
 export * from "./notes/index.js";
 export * from "./attachments/index.js";
 export * from "./conversion/index.js";
+export * from "./quotations/index.js";
+export * from "./close-reasons/index.js";
+export * from "./workspace/index.js";
 
 export {
   cancelCrmCall,

@@ -1,20 +1,15 @@
 "use client";
 
-// The decisions made on a deal: assign it, move its stage, mark it won or
-// lost, reopen it. Each is its own operation on the server; these dialogs
-// collect what that operation needs.
+// The decisions made on an open deal: assign it and move its stage. Each is
+// its own operation on the server. Mark won, Mark lost and Reopen live with
+// Won / Lost Reasons (features/crm/close-reasons).
 import { useState } from "react";
-import { useMutation, useQuery } from "@tanstack/react-query";
-import { Button, Checkbox, Dialog, Select, TextArea, TextField } from "@vercentlabs/design-system";
+import { useMutation } from "@tanstack/react-query";
+import { Button, Checkbox, Dialog, Select, TextArea } from "@vercentlabs/design-system";
 
-import { DateInput } from "@/features/crm/shared/ui/DateTimeInput";
-import { formatMoney } from "@/shared/format/human";
-import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
-import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 
 import {
-  assignOpportunity, bulkOpportunityAction, changeOpportunityStage, errorMessage, listOpportunityQuotations, markOpportunityLost, markOpportunityWon,
-  reopenOpportunity, type Opportunity, type OpportunityBulkResult, type OpportunityOptions,
+  assignOpportunity, bulkOpportunityAction, changeOpportunityStage, errorMessage, type Opportunity, type OpportunityBulkResult, type OpportunityOptions,
 } from "../api/opportunities-api";
 import { ErrorBanner } from "../opportunity-format";
 
@@ -115,137 +110,6 @@ export function ChangeStageDialog({ isOpen, onOpenChange, options, opportunityId
 
 // Winning needs the date it closed and the final value. The estimate is kept
 // beside it, so the two can be compared later.
-export function MarkWonDialog({ isOpen, onOpenChange, opportunity, onDone }: {
-  isOpen: boolean; onOpenChange: (open: boolean) => void; opportunity: Opportunity; onDone: () => void;
-}) {
-  const workspace = useWorkspaceContext();
-  const [closeDate, setCloseDate] = useState(() => new Date().toISOString().slice(0, 10));
-  const [finalValue, setFinalValue] = useState(String(opportunity.amount || ""));
-  const [quotationId, setQuotationId] = useState(NONE);
-  const [notes, setNotes] = useState("");
-  const [openTasks, setOpenTasks] = useState("keep");
-  const [openFollowUps, setOpenFollowUps] = useState("keep");
-  const [error, setError] = useState<string | null>(null);
-  const quotations = useQuery({
-    queryKey: scopedQueryKey(workspace, "crm", "opportunity", opportunity.id, "quotations"),
-    queryFn: () => listOpportunityQuotations(opportunity.id),
-    enabled: isOpen && opportunity.quotationCount > 0,
-  });
-  const mutation = useMutation({
-    mutationFn: () => markOpportunityWon(opportunity.id, {
-      actualCloseDate: closeDate, finalValue, winningQuotationId: quotationId || undefined, notes: notes.trim() || undefined, expectedUpdatedAt: opportunity.updatedAt,
-      openTasks: openTasks as "keep" | "cancel",
-      openFollowUps: openFollowUps as "keep" | "cancel",
-    }),
-    onSuccess: () => { setError(null); onDone(); onOpenChange(false); },
-    onError: (failure) => setError(errorMessage(failure)),
-  });
-  // Choosing the winning quotation offers its total as the final value.
-  const chooseQuotation = (id: string) => {
-    setQuotationId(id);
-    const chosen = quotations.data?.find((entry) => entry.id === id);
-    if (chosen?.total) setFinalValue(String(chosen.total));
-  };
-  return (
-    <Dialog isOpen={isOpen} onOpenChange={onOpenChange} title="Mark opportunity won"
-      description={`${opportunity.name} · estimated ${formatMoney(opportunity.currencyCode ?? undefined, opportunity.amount)}. The probability becomes 100%.`}>
-      <div className="flex flex-col gap-4">
-        <ErrorBanner message={error} />
-        <div className="grid gap-4 sm:grid-cols-2">
-          <DateInput label="Close date" isRequired value={closeDate} onChange={setCloseDate} />
-          <TextField label={`Final deal value (${opportunity.currencyCode ?? ""})`} isRequired inputMode="decimal" value={finalValue} onChange={setFinalValue} />
-        </div>
-        {(quotations.data?.length ?? 0) > 0 && (
-          <Select label="Winning quotation" selectedKey={quotationId} onSelectionChange={(key) => chooseQuotation(String(key ?? NONE))}
-            options={[{ value: NONE, label: "None chosen" }, ...(quotations.data ?? []).map((entry) => ({
-              value: entry.id, label: `${entry.number}${entry.total !== null ? ` · ${formatMoney(entry.currencyCode ?? undefined, entry.total)}` : ""} · ${entry.status}`,
-            }))]} />
-        )}
-        <TextArea label="Notes" value={notes} onChange={setNotes} />
-        <OpenTasksChoice count={opportunity.openTaskCount} value={openTasks} onChange={setOpenTasks} won />
-        <OpenTasksChoice count={opportunity.openFollowUpCount} value={openFollowUps} onChange={setOpenFollowUps} won kind="follow-up" />
-        <Actions onCancel={() => onOpenChange(false)} onConfirm={() => mutation.mutate()} label="Mark won" isLoading={mutation.isPending} isDisabled={!closeDate || finalValue.trim() === ""} />
-      </div>
-    </Dialog>
-  );
-}
-
-// Losing always has a reason. "Other" needs a note; a competitor can be named.
-export function MarkLostDialog({ isOpen, onOpenChange, options, opportunity, onDone }: DialogProps & { opportunity: Opportunity; onDone: () => void }) {
-  const [reasonId, setReasonId] = useState(NONE);
-  const [notes, setNotes] = useState("");
-  const [competitorName, setCompetitorName] = useState("");
-  const [closeDate, setCloseDate] = useState(() => new Date().toISOString().slice(0, 10));
-  const [openTasks, setOpenTasks] = useState("cancel");
-  const [openFollowUps, setOpenFollowUps] = useState("cancel");
-  const [error, setError] = useState<string | null>(null);
-  const reason = options.lostReasons.find((entry) => entry.id === reasonId);
-  const mutation = useMutation({
-    mutationFn: () => markOpportunityLost(opportunity.id, {
-      reasonId, actualCloseDate: closeDate, notes: notes.trim() || undefined, competitorName: competitorName.trim() || undefined, expectedUpdatedAt: opportunity.updatedAt,
-      openTasks: openTasks as "keep" | "cancel",
-      openFollowUps: openFollowUps as "keep" | "cancel",
-    }),
-    onSuccess: () => { setError(null); onDone(); onOpenChange(false); },
-    onError: (failure) => setError(errorMessage(failure)),
-  });
-  return (
-    <Dialog isOpen={isOpen} onOpenChange={onOpenChange} title="Mark opportunity lost"
-      description="The opportunity is kept with its history and can be reopened later. The probability becomes 0%.">
-      <div className="flex flex-col gap-4">
-        <ErrorBanner message={error} />
-        <div className="grid gap-4 sm:grid-cols-2">
-          <Select label="Lost reason" isRequired selectedKey={reasonId} onSelectionChange={(key) => setReasonId(String(key ?? NONE))}
-            options={options.lostReasons.map((entry) => ({ value: entry.id, label: entry.name }))} />
-          <DateInput label="Close date" isRequired value={closeDate} onChange={setCloseDate} />
-        </div>
-        {reason?.asksCompetitor && <TextField label="Competitor" description="Optional. Who won the deal." value={competitorName} onChange={setCompetitorName} />}
-        <TextArea label="Notes" isRequired={reason?.requiresNotes} description={reason?.requiresNotes ? "Explain the reason." : "What happened? Useful for pricing and product decisions later."} value={notes} onChange={setNotes} />
-        <OpenTasksChoice count={opportunity.openTaskCount} value={openTasks} onChange={setOpenTasks} />
-        <OpenTasksChoice count={opportunity.openFollowUpCount} value={openFollowUps} onChange={setOpenFollowUps} kind="follow-up" />
-        <Actions danger onCancel={() => onOpenChange(false)} onConfirm={() => mutation.mutate()} label="Mark lost" isLoading={mutation.isPending}
-          isDisabled={!reasonId || !closeDate || (Boolean(reason?.requiresNotes) && !notes.trim())} />
-      </div>
-    </Dialog>
-  );
-}
-
-export function ReopenOpportunityDialog({ isOpen, onOpenChange, options, opportunity, onDone }: DialogProps & { opportunity: Opportunity; onDone: () => void }) {
-  const [reason, setReason] = useState("");
-  const [stageId, setStageId] = useState(NONE);
-  const [error, setError] = useState<string | null>(null);
-  const mutation = useMutation({
-    mutationFn: () => reopenOpportunity(opportunity.id, { reason, stageId: stageId || undefined }),
-    onSuccess: () => { setError(null); onDone(); onOpenChange(false); },
-    onError: (failure) => setError(errorMessage(failure)),
-  });
-  return (
-    <Dialog isOpen={isOpen} onOpenChange={onOpenChange} title="Reopen opportunity"
-      description={opportunity.status === "won"
-        ? "A won deal can be reopened only while it has no sales order or accepted quotation. Otherwise, create a new opportunity."
-        : "The lost reason and close date stay in the history."}>
-      <div className="flex flex-col gap-4">
-        <ErrorBanner message={error} />
-        <TextArea label="Why is it being reopened?" isRequired value={reason} onChange={setReason} />
-        <Select label="Reopen into stage" selectedKey={stageId} onSelectionChange={(key) => setStageId(String(key ?? NONE))}
-          options={[{ value: NONE, label: `The stage it was in${opportunity.stageBeforeCloseName ? ` (${opportunity.stageBeforeCloseName})` : ""}` },
-            ...options.stages.map((stage) => ({ value: stage.id, label: stage.name }))]} />
-        <Actions onCancel={() => onOpenChange(false)} onConfirm={() => mutation.mutate()} label="Reopen" isLoading={mutation.isPending} isDisabled={!reason.trim()} />
-      </div>
-    </Dialog>
-  );
-}
-
-// Closing a deal never removes its open tasks silently: they are kept or cancelled.
-function OpenTasksChoice({ count, value, onChange, won, kind = "task" }: { count: number; value: string; onChange: (value: string) => void; won?: boolean; kind?: "task" | "follow-up" }) {
-  if (!count) return null;
-  return (
-    <Select label={`${count} open ${count === 1 ? kind : `${kind}s`} on this opportunity`} selectedKey={value} onSelectionChange={(key) => onChange(String(key))}
-      description={won ? (kind === "task" ? "A won deal may still need work, such as the implementation handoff." : "A handoff or customer call can stay.") : kind === "follow-up" ? "Keep one if the customer may come back later." : undefined}
-      options={[{ value: "keep", label: "Keep them open" }, { value: "cancel", label: "Cancel them" }]} />
-  );
-}
-
 // A single stage move from the opportunity page.
 export async function moveStage(opportunity: Opportunity, stageId: string) {
   return changeOpportunityStage(opportunity.id, { stageId, expectedUpdatedAt: opportunity.updatedAt });

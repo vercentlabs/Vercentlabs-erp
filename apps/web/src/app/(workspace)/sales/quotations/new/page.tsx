@@ -8,18 +8,14 @@ export default async function Page({
   searchParams: Promise<{
     customer?: string;
     contact?: string;
-    opportunity?: string;
-    opportunityName?: string;
   }>;
 }) {
-  const { customer, contact, opportunity, opportunityName } =
+  const { customer, contact } =
     await searchParams;
   return (
     <SalesQuotationFormScreen
       initialPartyId={customer}
       initialContactId={contact}
-      initialOpportunityId={opportunity}
-      initialOpportunityName={opportunityName}
     />
   );
 }

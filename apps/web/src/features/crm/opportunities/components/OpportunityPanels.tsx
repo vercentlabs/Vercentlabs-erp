@@ -5,23 +5,22 @@
 // histories. Each reads and writes through the opportunity operations.
 import { useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Plus, Trash2 } from "lucide-react";
 import { Badge, Button, ComboBox, Dialog, Select, StatusBadge, TextArea, TextField } from "@vercentlabs/design-system";
 
 import { listContacts } from "@/features/crm/contacts/api/contacts-api";
 import { DateTimeInput } from "@/features/crm/shared/ui/DateTimeInput";
-import { formatDate, formatDateTime, formatMoney, humanize } from "@/shared/format/human";
+import { formatDateTime, formatMoney, humanize } from "@/shared/format/human";
 import { LoadingState } from "@/shared/ui/LoadingState";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 
 import {
   addOpportunityContact, addOpportunityProduct, errorMessage, listOpportunityActivities, listOpportunityAssignmentHistory, listOpportunityContacts,
-  listOpportunityHistory, listOpportunityProducts, listOpportunityQuotations, listOpportunityStageHistory, logOpportunityActivity, quotationDraftStorageKey,
-  removeOpportunityContact, removeOpportunityProduct, searchOpportunityProducts, setPrimaryOpportunityQuotation,
-  startOpportunityQuotation, updateOpportunity, updateOpportunityContact, updateOpportunityProduct,
+  listOpportunityHistory, listOpportunityProducts, listOpportunityStageHistory, logOpportunityActivity,
+  removeOpportunityContact, removeOpportunityProduct, searchOpportunityProducts,
+  updateOpportunity, updateOpportunityContact, updateOpportunityProduct,
   type Opportunity, type OpportunityOptions, type OpportunityProductLine,
 } from "../api/opportunities-api";
 import { ErrorBanner } from "../opportunity-format";
@@ -233,72 +232,6 @@ export function OpportunityContactsPanel({ opportunity, options, canEdit, onChan
             options={[{ value: NONE, label: "No role" }, ...options.contactRoles.map((entry) => ({ value: entry.code, label: entry.label }))]} />
           <Button variant="secondary" isDisabled={!contactId || change.isPending} onPress={() => change.mutate(() => addOpportunityContact(opportunity.id, { contactId, role: role || null }))}>Add</Button>
         </div>
-      )}
-    </section>
-  );
-}
-
-// ------------------------------------------------------------------ quotations
-
-// "Create quotation": the opportunity hands Sales its customer, contact,
-// currency, salesperson and product lines, and the quotation form opens with them.
-// The opportunity is given when the action runs, so one hook serves a page of cards.
-export function useStartQuotation(onError: (message: string) => void) {
-  const router = useRouter();
-  return useMutation({
-    mutationFn: (opportunity: Pick<Opportunity, "id" | "name">) => startOpportunityQuotation(opportunity.id),
-    onSuccess: (draft, opportunity) => {
-      try { window.sessionStorage.setItem(quotationDraftStorageKey(opportunity.id), JSON.stringify(draft)); } catch { /* the form simply starts without lines */ }
-      const params = new URLSearchParams({ customer: draft.partyId, opportunity: opportunity.id, opportunityName: opportunity.name });
-      if (draft.contactId) params.set("contact", draft.contactId);
-      router.push(`/sales/quotations/new?${params.toString()}`);
-    },
-    onError: (failure) => onError(errorMessage(failure)),
-  });
-}
-
-export function OpportunityQuotationsPanel({ opportunity, options, canEdit, onChanged }: PanelProps) {
-  const queryClient = useQueryClient();
-  const key = useKey(opportunity.id, "quotations");
-  const query = useQuery({ queryKey: key, queryFn: () => listOpportunityQuotations(opportunity.id) });
-  const [error, setError] = useState<string | null>(null);
-  const canQuote = options.capabilities.createQuotation && opportunity.status === "open" && !opportunity.archivedAt;
-  const start = useStartQuotation(setError);
-  const primary = useMutation({
-    mutationFn: (quotationId: string | null) => setPrimaryOpportunityQuotation(opportunity.id, quotationId),
-    onSuccess: () => { setError(null); void queryClient.invalidateQueries({ queryKey: key }); onChanged(); },
-    onError: (failure) => setError(errorMessage(failure)),
-  });
-  const quotations = query.data ?? [];
-
-  return (
-    <section className="flex flex-col gap-3">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="text-sm text-text-secondary">A deal can have several quotations. Creating one does not win the deal; mark it won when the customer agrees.</p>
-        {canQuote && <Button variant="primary" size="compact" onPress={() => start.mutate(opportunity)} isLoading={start.isPending}><Plus className="size-4" aria-hidden="true" />Create quotation</Button>}
-      </div>
-      <ErrorBanner message={error} />
-      {query.isLoading ? <LoadingState label="Loading quotations" rows={2} /> : quotations.length === 0 ? empty("No quotations yet.") : (
-        <ul className="flex flex-col divide-y divide-border rounded-[var(--radius-card)] border border-border bg-surface text-sm">
-          {quotations.map((entry) => (
-            <li key={entry.id} className="flex flex-col gap-2 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
-              <div className="flex min-w-0 flex-col gap-0.5">
-                <span className="flex flex-wrap items-center gap-2">
-                  <Link href={`/sales/quotations/${entry.id}`} className="font-medium text-brand underline-offset-2 hover:underline">{entry.number} · v{entry.version}</Link>
-                  <StatusBadge tone={entry.status === "accepted" || entry.status === "converted" ? "success" : entry.status === "cancelled" ? "neutral" : "info"}>{humanize(entry.status)}</StatusBadge>
-                  {entry.isWinning && <Badge tone="success">Winning</Badge>}
-                  {entry.isPrimary && <Badge tone="brand">Primary</Badge>}
-                  {entry.isLatest && !entry.isPrimary && <Badge tone="neutral">Latest</Badge>}
-                </span>
-                <span className="text-text-secondary">
-                  {[entry.total !== null ? formatMoney(entry.currencyCode ?? undefined, entry.total) : null, entry.validUntil ? `Valid until ${formatDate(entry.validUntil)}` : null,
-                    `Created ${formatDate(entry.createdAt)}`, entry.salesOrderNumber ? `Sales order ${entry.salesOrderNumber}` : null].filter(Boolean).join(" · ")}
-                </span>
-              </div>
-              {canEdit && !entry.isPrimary && <Button variant="ghost" size="compact" isDisabled={primary.isPending} onPress={() => primary.mutate(entry.id)}>Make primary</Button>}
-            </li>
-          ))}
-        </ul>
       )}
     </section>
   );

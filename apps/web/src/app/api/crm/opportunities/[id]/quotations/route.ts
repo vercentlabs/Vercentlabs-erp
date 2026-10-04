@@ -1,4 +1,4 @@
-import { createQuotationFromOpportunity, listOpportunityQuotations, setPrimaryOpportunityQuotation } from "@vercentlabs/api/crm";
+import { createQuotationFromOpportunity, listOpportunityQuotations, setPrimaryOpportunityQuotation, type QuotationFromOpportunityInput } from "@vercentlabs/api/crm";
 import { CRM_PERMISSIONS } from "@vercentlabs/permissions";
 
 import { ok } from "@/core/http";
@@ -6,17 +6,18 @@ import { workspaceRoute } from "@/core/workspace-route";
 import { crmContext } from "@/features/crm/shared/crm-context";
 import { readBody, type OpportunityRouteParams } from "@/features/crm/opportunities/server/opportunity-http";
 
+// Every quotation raised from the opportunity (shown only to users who may see Sales).
 export async function GET(request: Request, route: OpportunityRouteParams) {
   return workspaceRoute(request, { module: "crm", permission: CRM_PERMISSIONS.opportunitiesView }, async ({ client, session }) =>
-    ok({ quotations: await listOpportunityQuotations(client, crmContext(session), (await route.params).id) }),
+    ok(await listOpportunityQuotations(client, crmContext(session), (await route.params).id)),
   );
 }
 
-// Starts a quotation: returns what the Sales quotation form begins with
-// (customer, contact, product lines). The quotation itself is saved by Sales.
+// Creates the Draft quotation from the opportunity in one transaction: customer
+// resolution, lines, Sales pricing and tax. Body: see createQuotationFromOpportunity.
 export async function POST(request: Request, route: OpportunityRouteParams) {
   return workspaceRoute(request, { module: "crm", permission: CRM_PERMISSIONS.opportunitiesCreateQuotation, billingWrite: true }, async ({ client, session }) =>
-    ok({ draft: await createQuotationFromOpportunity(client, crmContext(session), (await route.params).id) }),
+    ok({ result: await createQuotationFromOpportunity(client, crmContext(session), (await route.params).id, (await readBody(request)) as unknown as QuotationFromOpportunityInput) }, 201),
   );
 }
 

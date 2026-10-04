@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { MoreHorizontal } from "lucide-react";
 import {
@@ -39,7 +39,9 @@ export function AccountDetailScreen({ accountId }: { accountId: string }) {
   const router = useRouter();
   const queryClient = useQueryClient();
   const [dialog, setDialog] = useState<DialogKind>(null);
-  const [tab, setTab] = useState("overview");
+  // ?tab=notes or ?tab=attachments opens that tab (links from search and from Notes & Files).
+  const requestedTab = useSearchParams().get("tab");
+  const [tab, setTab] = useState(requestedTab === "notes" || requestedTab === "attachments" ? requestedTab : "overview");
   const [error, setError] = useState<string | null>(null);
 
   const accountKey = scopedQueryKey(workspace, "crm", "account", accountId);

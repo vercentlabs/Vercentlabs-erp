@@ -314,7 +314,7 @@ async function loadDocumentContext(client, context, input, options = {}) {
   };
 }
 
-async function calculateLine(client, context, master, line, sequence, input) {
+async function calculateLine(client, context, master, line, sequence, input, options = {}) {
   const itemId = uuid(line.itemId, `Line ${sequence} item`);
   const itemResult = await client.query(
     `SELECT item.id,item.code,item.name,item.description,item.hsn_sac_code,item.uom_id,item.standard_cost,item.sales_price,item.tax_category_id,uom.code AS uom_code,uom.name AS uom_name FROM tenant.items item JOIN tenant.units_of_measure uom ON uom.id=item.uom_id WHERE item.organization_id=$1 AND item.id=$2 AND item.status='active'`,
@@ -424,8 +424,9 @@ async function calculateLine(client, context, master, line, sequence, input) {
     line.unitPrice == null || line.unitPrice === ""
       ? calculatedUnitPrice
       : decimal(line.unitPrice);
-  const manualOverride = requestedUnitPrice !== calculatedUnitPrice;
-  if (manualOverride) {
+  // carryQuotedPrices: the price was settled (and, if overridden, authorised) on the quotation.
+  const manualOverride = options.carryQuotedPrices ? line.manualPriceOverride === true : requestedUnitPrice !== calculatedUnitPrice;
+  if (manualOverride && !options.carryQuotedPrices) {
     requirePermission(context, "sales.price.override");
     if (!text(line.manualPriceReason, 1000))
       throw new SalesError(
@@ -439,6 +440,8 @@ async function calculateLine(client, context, master, line, sequence, input) {
       400,
       `Line ${sequence} discount must be between 0 and 100.`,
     );
+  if (discountPercent > 0n && !options.carryQuotedPrices && !hasPermission(context, "sales.discount.apply") && !hasPermission(context, "sales.price.override"))
+    throw new SalesError(403, `Line ${sequence}: you do not have permission to give discounts.`, "SALES_DISCOUNT_FORBIDDEN");
   const gross = mul(quantity, requestedUnitPrice);
   const discountAmount = roundMoney(
     percent(gross, discountPercent),
@@ -590,7 +593,7 @@ export async function previewSalesDocument(
   const headerDiscountPercent = decimal(input.headerDiscountPercent || 0);
   if (headerDiscountPercent < 0n || headerDiscountPercent > decimal(100))
     throw new SalesError(400, "Header discount must be between 0 and 100.");
-  if (headerDiscountPercent > 0n)
+  if (headerDiscountPercent > 0n && !options.carryQuotedPrices)
     requirePermission(context, "sales.price.override");
   const lines = [];
   for (let i = 0; i < input.lines.length; i++)
@@ -602,6 +605,7 @@ export async function previewSalesDocument(
         input.lines[i],
         i + 1,
         input,
+        options,
       ),
     );
   let subtotal = decimal(0),
@@ -904,7 +908,7 @@ export async function createQuotation(client, context, input) {
     "quotation",
   );
   const result = await client.query(
-    `INSERT INTO tenant.sales_quotations (organization_id,quotation_number,source_opportunity_id,party_id,contact_id,owner_user_id,valid_until,created_by,updated_by) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$8) RETURNING id,quotation_number`,
+    `INSERT INTO tenant.sales_quotations (organization_id,quotation_number,source_opportunity_id,party_id,contact_id,owner_user_id,valid_until,created_by,updated_by,customer_reference) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$8,$9) RETURNING id,quotation_number`,
     [
       context.organizationId,
       number,
@@ -914,6 +918,7 @@ export async function createQuotation(client, context, input) {
       preview.master.ownerUserId,
       date(input.validUntil, "Valid until", true),
       context.userId,
+      text(input.customerReference, 200),
     ],
   );
   const quotation = result.rows[0];
@@ -943,10 +948,15 @@ export async function createQuotation(client, context, input) {
   return response;
 }
 export async function reviseQuotation(client, context, id, input) {
-  requirePermission(context, "sales.quotation.create");
   const quote = await lockQuotation(client, context, id);
+  requirePermission(context, quote.lifecycle_status === "draft" ? "sales.quotation.create" : "sales.quotation.revise");
   if (["accepted", "converted", "cancelled"].includes(quote.lifecycle_status))
     throw new SalesError(409, "This quotation can no longer be revised.");
+  if (input.expectedVersionNumber !== undefined && input.expectedVersionNumber !== null) {
+    const current = (await client.query(`SELECT version_number FROM tenant.sales_quotation_versions WHERE organization_id=$1 AND id=$2`, [context.organizationId, quote.current_version_id])).rows[0];
+    if (current && Number(current.version_number) !== Number(input.expectedVersionNumber))
+      throw new SalesError(409, "Someone else changed this quotation. Reload it and make your change again.", "SALES_QUOTATION_VERSION_CONFLICT");
+  }
   // F037: every revision is a new immutable version; say why it changed,
   // and keep it an offer to the same customer (a new customer is a new quotation).
   if (!text(input.revisionReason, 1000))
@@ -967,6 +977,8 @@ export async function reviseQuotation(client, context, id, input) {
     input,
     preview,
   );
+  if (input.customerReference !== undefined)
+    await client.query(`UPDATE tenant.sales_quotations SET customer_reference=$3 WHERE organization_id=$1 AND id=$2`, [context.organizationId, id, text(input.customerReference, 200)]);
   await event(
     client,
     context,
@@ -1097,7 +1109,7 @@ export async function listQuotations(client, context, filters = {}) {
   const offset = Math.max(0, Number.parseInt(filters.offset, 10) || 0);
   values.push(limit, offset);
   const result = await client.query(
-    `SELECT quotation.id,quotation.quotation_number,quotation.lifecycle_status,quotation.approval_status,quotation.acceptance_status,quotation.valid_until,quotation.updated_at,version.version_number,version.currency_code,version.grand_total,version.base_currency_total,version.customer_snapshot->>'displayName' AS customer_name,quotation.owner_user_id FROM tenant.sales_quotations quotation JOIN tenant.sales_quotation_versions version ON version.id=quotation.current_version_id WHERE quotation.organization_id=$1${where} ORDER BY quotation.updated_at DESC LIMIT $${values.length - 1} OFFSET $${values.length}`,
+    `SELECT quotation.id,quotation.quotation_number,quotation.lifecycle_status,quotation.approval_status,quotation.acceptance_status,quotation.valid_until,quotation.updated_at,version.version_number,version.currency_code,version.grand_total,version.base_currency_total,version.customer_snapshot->>'displayName' AS customer_name,quotation.owner_user_id,(quotation.valid_until < current_date AND quotation.lifecycle_status IN ('draft','pending_approval','approved','sent','viewed')) AS is_expired FROM tenant.sales_quotations quotation JOIN tenant.sales_quotation_versions version ON version.id=quotation.current_version_id WHERE quotation.organization_id=$1${where} ORDER BY quotation.updated_at DESC LIMIT $${values.length - 1} OFFSET $${values.length}`,
     values,
   );
   return result.rows.map((row) => redactMargin(row, context));
@@ -1105,7 +1117,7 @@ export async function listQuotations(client, context, filters = {}) {
 export async function getQuotation(client, context, id, publicView = false) {
   if (!publicView) requirePermission(context, "sales.view");
   const result = await client.query(
-    `SELECT quotation.*,version.*,quotation.id AS quotation_id,quotation.created_at AS quotation_created_at,quotation.updated_at AS quotation_updated_at FROM tenant.sales_quotations quotation JOIN tenant.sales_quotation_versions version ON version.id=quotation.current_version_id WHERE quotation.organization_id=$1 AND quotation.id=$2`,
+    `SELECT quotation.*,version.*,quotation.id AS quotation_id,quotation.created_at AS quotation_created_at,quotation.updated_at AS quotation_updated_at,(quotation.valid_until < current_date AND quotation.lifecycle_status IN ('draft','pending_approval','approved','sent','viewed')) AS is_expired,opportunity.code AS source_opportunity_code,opportunity.name AS source_opportunity_name FROM tenant.sales_quotations quotation JOIN tenant.sales_quotation_versions version ON version.id=quotation.current_version_id LEFT JOIN tenant.crm_opportunities opportunity ON opportunity.organization_id=quotation.organization_id AND opportunity.id=quotation.source_opportunity_id WHERE quotation.organization_id=$1 AND quotation.id=$2`,
     [context.organizationId, uuid(id, "Quotation")],
   );
   const quote = result.rows[0];
@@ -1332,7 +1344,7 @@ export async function sendQuotation(client, context, id, expiresInDays = 30) {
     ],
   );
   await client.query(
-    `UPDATE tenant.sales_quotations SET lifecycle_status='sent',acceptance_status='pending',updated_by=$1,updated_at=now() WHERE organization_id=$2 AND id=$3`,
+    `UPDATE tenant.sales_quotations SET lifecycle_status='sent',acceptance_status='pending',sent_at=now(),sent_by=$1,sent_channel='link',updated_by=$1,updated_at=now() WHERE organization_id=$2 AND id=$3`,
     [context.userId, context.organizationId, id],
   );
   await event(
@@ -1727,6 +1739,7 @@ export async function convertQuotationToOrder(client, context, id) {
       unitPrice: line.unit_price,
       discountPercent: line.discount_percent,
       requestedDeliveryDate: line.requested_delivery_date,
+      manualPriceOverride: line.manual_price_override,
       manualPriceReason: line.manual_price_reason,
     })),
     charges: detail.charges.map((charge) => ({
@@ -1739,6 +1752,7 @@ export async function convertQuotationToOrder(client, context, id) {
   };
   const preview = await previewSalesDocument(client, context, input, {
     order: true,
+    carryQuotedPrices: true,
   });
   const order = await insertOrderFromPreview(client, context, input, preview, {
     quotationId: id,
@@ -3209,3 +3223,4 @@ export * from "./pass1-operations.js";
 export * from "./price-lists.js";
 export * from "./order-execution.js";
 export * from "./after-sales.js";
+export * from "./quotation-lifecycle.js";

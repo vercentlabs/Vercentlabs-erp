@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
+import { CrmCreateMenu } from "@/features/crm/shared/CrmCreateMenu";
 import { Breadcrumbs } from "@/shell/navigation/Breadcrumbs";
 import {
   GLOBAL_NAV_TOP,
@@ -98,7 +99,7 @@ function TopBarIconLink({
 }
 
 // Persistent strip above every workspace page (desktop and mobile) —
-// breadcrumbs on the left; on the right, search, the company/branch
+// breadcrumbs on the left; on the right, the CRM Create menu (on CRM pages), search, the company/branch
 // context switcher, Settings and the profile menu. One
 // place for all of it rather than each page building its own header.
 //
@@ -119,6 +120,12 @@ export function WorkspaceTopBar() {
           Home, which would otherwise leave this cluster as the row's only
           child, stranded on the left. */}
       <div className="ml-auto flex items-center gap-2">
+        {/* Inside CRM: start a lead, account, contact, opportunity, task or follow-up from any page. */}
+        {isActive(pathname, "/crm") && pathname !== "/crm" ? (
+          <span className="hidden lg:flex">
+            <CrmCreateMenu size="compact" />
+          </span>
+        ) : null}
         {SEARCH_ENTRY ? (
           <Link
             href={SEARCH_ENTRY.href}

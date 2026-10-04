@@ -23,6 +23,12 @@ export async function getOpportunityDashboard(client, context) {
             count(*) FILTER (WHERE opportunity.status = 'won' AND opportunity.actual_close_date >= ${month})::int AS won_this_month,
             COALESCE(sum(COALESCE(opportunity.won_amount, opportunity.amount)) FILTER (WHERE opportunity.status = 'won' AND opportunity.actual_close_date >= ${month}), 0)::float8 AS won_value_this_month,
             count(*) FILTER (WHERE opportunity.status = 'lost' AND opportunity.actual_close_date >= ${month})::int AS lost_this_month,
+            -- what was lost keeps its estimated value
+            COALESCE(sum(opportunity.amount) FILTER (WHERE opportunity.status = 'lost' AND opportunity.actual_close_date >= ${month}), 0)::float8 AS lost_value_this_month,
+            (SELECT reason.name FROM tenant.crm_opportunities lost JOIN tenant.crm_lost_reasons reason ON reason.organization_id = lost.organization_id AND reason.id = lost.outcome_reason_id
+              WHERE lost.organization_id = $1 AND lost.status = 'lost' AND lost.archived_at IS NULL AND lost.actual_close_date >= ${month}
+                AND lost.id IN (SELECT opportunity.id FROM tenant.crm_opportunities opportunity WHERE opportunity.organization_id = $1${scope})
+              GROUP BY reason.name ORDER BY count(*) DESC, reason.name LIMIT 1) AS top_lost_reason_this_month,
             count(*) FILTER (WHERE opportunity.status = 'open' AND opportunity.expected_close_date < current_date)::int AS overdue,
             count(*) FILTER (WHERE opportunity.status = 'open' AND COALESCE(opportunity.last_activity_at, opportunity.created_at) < now() - interval '${OPPORTUNITY_STALE_DAYS} days')::int AS stale,
             count(*) FILTER (WHERE opportunity.status = 'won')::int AS won,
@@ -60,6 +66,8 @@ export async function getOpportunityDashboard(client, context) {
       wonThisMonth: totals.won_this_month,
       wonValueThisMonth: money(totals.won_value_this_month),
       lostThisMonth: totals.lost_this_month,
+      lostValueThisMonth: money(totals.lost_value_this_month),
+      topLostReasonThisMonth: totals.top_lost_reason_this_month ?? null,
       overdue: totals.overdue,
       stale: totals.stale,
       staleDays: OPPORTUNITY_STALE_DAYS,

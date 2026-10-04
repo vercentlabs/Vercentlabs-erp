@@ -491,6 +491,12 @@ export async function deleteTask(client, context, taskId) {
 
 // ------------------------------------------------------------------ options
 
+async function taskDefaults(client, context) {
+  const { getWorkDefaults } = await import("../workspace/defaults.js");
+  const defaults = await getWorkDefaults(client, context);
+  return { priority: defaults.taskPriority, reminderOffsetMinutes: defaults.taskReminderMinutes };
+}
+
 export async function getTaskOptions(client, context) {
   requireTaskPermission(context, TASK_PERMISSIONS.view, "You do not have permission to view tasks.");
   const { listLeadAssignmentOptions } = await import("../leads/assignment.js");
@@ -503,6 +509,8 @@ export async function getTaskOptions(client, context) {
     priorities: TASK_PRIORITIES,
     relatedTypes: TASK_RELATED_TYPES,
     reminderOptions: TASK_REMINDER_OPTIONS,
+    // What a new task starts with (CRM Settings, Task Defaults).
+    defaults: await taskDefaults(client, context),
     followUpTypes: ["call", "email", "meeting", "other"],
     users,
     teams,

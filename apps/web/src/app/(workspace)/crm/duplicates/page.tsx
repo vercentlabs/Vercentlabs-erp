@@ -1,9 +1,6 @@
-import { requireWorkspace } from "@/core/session";
-import { DuplicateReviewScreen } from "@/features/crm/duplicates/screens/DuplicateReviewScreen";
+import { redirect } from "next/navigation";
 
-export const metadata = { title: "Potential duplicates" };
-
-export default async function Page() {
-  await requireWorkspace();
-  return <DuplicateReviewScreen />;
+// Duplicate review lives under Data Quality; the old address keeps working.
+export default function Page() {
+  redirect("/crm/data-quality");
 }

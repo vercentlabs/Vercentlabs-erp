@@ -160,9 +160,11 @@ export async function getPipelineSummary(client, context, filters = {}) {
     `SELECT spans.stage_id, count(*)::int AS entered, count(*) FILTER (WHERE spans.days IS NOT NULL)::int AS left_stage,
             round(avg(spans.days)::numeric, 1)::float8 AS average_days, count(*) FILTER (WHERE spans.moved_forward)::int AS moved_forward
        FROM (
-         SELECT history.to_stage_id AS stage_id, (stage.is_won OR stage.is_lost) AS is_outcome,
+         -- A close is an outcome, not a stage entry (it is recorded in the stage the deal closed in); a win counts as moving forward.
+         SELECT history.to_stage_id AS stage_id, (stage.is_won OR stage.is_lost OR history.status IN ('won', 'lost')) AS is_outcome,
                 EXTRACT(epoch FROM lead(history.changed_at) OVER moves - history.changed_at) / 86400 AS days,
-                (lead(stage.sequence) OVER moves > stage.sequence AND NOT lead(stage.is_lost) OVER moves) AS moved_forward
+                ((lead(stage.sequence) OVER moves > stage.sequence AND NOT lead(stage.is_lost) OVER moves AND lead(history.status) OVER moves IS DISTINCT FROM 'lost')
+                  OR lead(history.status) OVER moves = 'won') AS moved_forward
            FROM tenant.crm_opportunity_stage_history history
            JOIN tenant.crm_pipeline_stages stage ON stage.organization_id = history.organization_id AND stage.id = history.to_stage_id
            JOIN tenant.crm_opportunities opportunity ON opportunity.organization_id = history.organization_id AND opportunity.id = history.opportunity_id

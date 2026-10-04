@@ -271,7 +271,7 @@ export function UsersScreen({
               {leadsOwned > 0 && (
                 <span className="mt-2 block font-medium text-text">
                   {`${statusTarget?.full_name} has ${leadsOwned} active ${leadsOwned === 1 ? "lead" : "leads"}. `}
-                  <Link className="text-brand underline" href={`/crm/settings/assignment?transferFrom=${statusTarget?.user_id}`}>
+                  <Link className="text-brand underline" href={`/crm/settings/leads/assignment?transferFrom=${statusTarget?.user_id}`}>
                     Transfer active leads
                   </Link>
                   {" before disabling, or they stay with a user who cannot work them."}

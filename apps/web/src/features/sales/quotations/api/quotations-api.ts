@@ -20,6 +20,7 @@ export type SalesQuotationRow = {
   base_currency_total: string;
   customer_name: string | null;
   owner_user_id: string | null;
+  is_expired?: boolean;
 };
 
 export type SalesQuotationLine = {
@@ -116,6 +117,21 @@ export type SalesQuotationDetail = {
     price_list_id: string | null;
     payment_term_id: string | null;
     exchange_rate: string;
+    is_expired?: boolean;
+    customer_reference?: string | null;
+    source_opportunity_id?: string | null;
+    source_opportunity_code?: string | null;
+    source_opportunity_name?: string | null;
+    contact_snapshot?: { first_name?: string; last_name?: string; designation?: string; email?: string } | null;
+    sent_at?: string | null;
+    sent_to?: string | null;
+    sent_channel?: string | null;
+    accepted_at?: string | null;
+    rejected_at?: string | null;
+    decision_reference?: string | null;
+    decision_notes?: string | null;
+    cancelled_at?: string | null;
+    cancel_reason?: string | null;
   };
   lines: SalesQuotationLine[];
   charges: Array<{
@@ -321,6 +337,17 @@ export const sendSalesQuotation = (id: string, expiresInDays?: number) =>
   post<{
     result: { token: string; expiresAt: string; quotationNumber: string };
   }>(`/quotations/${id}/send`, { expiresInDays });
+// The quotation went out another way (WhatsApp, the customer's email, in person).
+export const markSalesQuotationSent = (id: string, input: { recipient?: string; note?: string }) =>
+  post<{ result: { status: string } }>(`/quotations/${id}/mark-sent`, input);
+// Emails the quotation with its PDF attached.
+export const emailSalesQuotation = (id: string, input: { to: string; cc?: string; subject?: string; message?: string }) =>
+  post<{ result: { status: string } }>(`/quotations/${id}/email`, input);
+// The customer's answer, recorded by staff.
+export const recordSalesQuotationDecision = (id: string, input: { decision: "accepted" | "rejected"; reference?: string; notes?: string }) =>
+  post<{ result: { decision: string } }>(`/quotations/${id}/decision`, input);
+export const cancelSalesQuotation = (id: string, reason: string) =>
+  post<{ result: { status: string } }>(`/quotations/${id}/cancel`, { reason });
 export const convertSalesQuotation = (id: string) =>
   post<{ result: { orderId: string; idempotent?: boolean } }>(
     `/quotations/${id}/convert`,

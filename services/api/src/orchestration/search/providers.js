@@ -6,8 +6,9 @@ import { listLeads } from "../../modules/crm/leads/index.js";
 import { listBusinessDataRecords } from "../../core/master-data.js";
 import { listAccounts } from "../../modules/crm/accounts/index.js";
 import { listContacts } from "../../modules/crm/contacts/index.js";
-import { listCrmRecords } from "../../modules/crm/index.js";
+import { listOpportunities, listTasks, searchAttachments, searchNotes } from "../../modules/crm/index.js";
 
+const CRM_RECORD_PATHS = Object.freeze({ lead: "/crm/leads", party: "/crm/accounts", contact: "/crm/contacts", opportunity: "/crm/opportunities" });
 const SALES_CUSTOMER_TYPES = ["customer", "prospect", "both"];
 const text = (value) => (value === null || value === undefined || value === "" ? null : String(value).slice(0, 160));
 const joined = (...parts) => text(parts.filter(Boolean).join(" ").trim());
@@ -50,8 +51,38 @@ export const SEARCH_PROVIDERS = Object.freeze([
     moduleKey: "crm",
     requiredPermission: "crm.view",
     async execute(client, context, term, limit) {
-      const { rows } = await listCrmRecords(client, context, "opportunities", { search: term, limit });
-      return rows.map((row) => ({ recordId: row.id, title: text(row.name) || "Opportunity", detail: text(row.code), href: `/crm/opportunities/${row.id}` }));
+      const { opportunities } = await listOpportunities(client, context, { search: term, limit });
+      return opportunities.map((row) => ({ recordId: row.id, title: text(row.name) || "Opportunity", detail: joined(row.code, row.accountName ? `· ${row.accountName}` : null), href: `/crm/opportunities/${row.id}` }));
+    },
+  },
+  {
+    key: "crm.tasks",
+    label: "Tasks",
+    moduleKey: "crm",
+    requiredPermission: "crm.tasks.view",
+    async execute(client, context, term, limit) {
+      const { tasks } = await listTasks(client, context, { view: "mine", search: term, limit });
+      return tasks.map((task) => ({ recordId: task.id, title: text(task.title) || "Task", detail: joined(task.number, task.relatedName ? `· ${task.relatedName}` : null), href: `/crm/tasks/${task.id}` }));
+    },
+  },
+  {
+    key: "crm.notes",
+    label: "Notes",
+    moduleKey: "crm",
+    requiredPermission: "crm.view",
+    async execute(client, context, term, limit) {
+      const { notes } = await searchNotes(client, context, { search: term, limit });
+      return notes.map((note) => ({ recordId: note.id, title: text(note.title) || text(note.bodyText) || "Note", detail: text(note.relatedName), href: `${CRM_RECORD_PATHS[note.relatedType] ?? "/crm"}/${note.relatedId}?tab=notes` }));
+    },
+  },
+  {
+    key: "crm.files",
+    label: "Files",
+    moduleKey: "crm",
+    requiredPermission: "crm.view",
+    async execute(client, context, term, limit) {
+      const { attachments } = await searchAttachments(client, context, { search: term, limit });
+      return attachments.map((file) => ({ recordId: file.id, title: text(file.fileName) || "File", detail: text(file.relatedName), href: `${CRM_RECORD_PATHS[file.relatedType] ?? "/crm"}/${file.relatedId}?tab=attachments` }));
     },
   },
   {

@@ -39,10 +39,12 @@ export function TaskFormDialog({ isOpen, onOpenChange, options, related, task, o
   const editing = Boolean(task);
   const [title, setTitle] = useState(task?.title ?? "");
   const [description, setDescription] = useState(task?.description ?? "");
-  const [priority, setPriority] = useState<TaskPriority>(task?.priority ?? "medium");
+  const [priority, setPriority] = useState<TaskPriority>(task?.priority ?? options.defaults?.priority ?? "medium");
   const [dueDate, setDueDate] = useState(task?.dueDate ?? today());
   const [dueTime, setDueTime] = useState(task?.dueTime ?? "");
-  const [reminder, setReminder] = useState(task?.reminderOffsetMinutes === null || task?.reminderOffsetMinutes === undefined ? NONE : String(task.reminderOffsetMinutes));
+  const [reminder, setReminder] = useState(task
+    ? (task.reminderOffsetMinutes === null || task.reminderOffsetMinutes === undefined ? NONE : String(task.reminderOffsetMinutes))
+    : options.defaults?.reminderOffsetMinutes === null || options.defaults?.reminderOffsetMinutes === undefined ? NONE : String(options.defaults.reminderOffsetMinutes));
   const [reminderAt, setReminderAt] = useState("");
   const [assignedTo, setAssignedTo] = useState(task?.assignedTo ?? options.currentUserId);
   const [link, setLink] = useState<RelatedValue>({

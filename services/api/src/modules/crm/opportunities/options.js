@@ -9,7 +9,7 @@ import {
   OPPORTUNITY_ACTIVITY_TYPES, OPPORTUNITY_CONTACT_ROLES, OPPORTUNITY_FOLLOW_UP_TYPES, OPPORTUNITY_PERMISSIONS, OPPORTUNITY_PRIORITIES, OPPORTUNITY_STALE_DAYS,
   OPPORTUNITY_STATUSES,
 } from "./constants.js";
-import { listOpportunityLostReasons } from "./outcome.js";
+import { listCloseReasons } from "../close-reasons/records.js";
 import { OPPORTUNITY_VIEWS } from "./records.js";
 import { listOpportunityStages } from "./stages.js";
 
@@ -28,7 +28,9 @@ export async function getOpportunityOptions(client, context) {
     priorities: OPPORTUNITY_PRIORITIES,
     // The sales process: open stages only. Won and lost are outcomes, reached through Mark won and Mark lost.
     stages: stages.filter((stage) => stage.isOpen),
-    lostReasons: await listOpportunityLostReasons(client, context),
+    // Separate lists: a lost reason never appears when marking won, and the other way round.
+    wonReasons: await listCloseReasons(client, context, { outcome: "won" }),
+    lostReasons: await listCloseReasons(client, context, { outcome: "lost" }),
     contactRoles: OPPORTUNITY_CONTACT_ROLES,
     activityTypes: OPPORTUNITY_ACTIVITY_TYPES.map(({ code, label }) => ({ code, label })),
     followUpTypes: OPPORTUNITY_FOLLOW_UP_TYPES,

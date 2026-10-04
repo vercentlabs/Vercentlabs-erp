@@ -1,7 +1,7 @@
 import { requireWorkspace } from "@/core/session";
 import { CrmSetupScreen } from "@/features/crm/setup/hub/screens/CrmSetupScreen";
 
-export const metadata = { title: "CRM Setup" };
+export const metadata = { title: "CRM Settings" };
 
 export default async function CrmSetupPage({
   searchParams,

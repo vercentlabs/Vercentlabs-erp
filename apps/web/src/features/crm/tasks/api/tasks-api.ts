@@ -63,6 +63,8 @@ export type TaskOptions = {
   priorities: CodeLabel<TaskPriority>[];
   relatedTypes: CodeLabel<TaskRelatedType>[];
   reminderOptions: Array<{ minutes: number; label: string }>;
+  // what a new task starts with (CRM Settings, Task Defaults)
+  defaults?: { priority: TaskPriority; reminderOffsetMinutes: number | null };
   followUpTypes: string[];
   users: Array<{ id: string; name: string; email: string }>;
   teams: Array<{ id: string; name: string; memberIds: string[] }>;

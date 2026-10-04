@@ -1,9 +1,6 @@
-import { requireWorkspace } from "@/core/session";
-import { LeadAssignmentSettingsScreen } from "@/features/crm/leads/screens/LeadAssignmentSettingsScreen";
+import { redirect } from "next/navigation";
 
-export const metadata = { title: "Lead assignment" };
-
-export default async function Page() {
-  await requireWorkspace();
-  return <LeadAssignmentSettingsScreen />;
+// This page moved; the old address keeps working.
+export default function Page() {
+  redirect("/crm/settings/leads/assignment");
 }

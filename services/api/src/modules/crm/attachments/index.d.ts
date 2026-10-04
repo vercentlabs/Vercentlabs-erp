@@ -29,3 +29,7 @@ export function downloadAttachment(client: QueryClient, context: CrmContext, att
 export function getAttachmentPreview(client: QueryClient, context: CrmContext, attachmentId: string, options?: StorageOptions): Promise<{ fileName: string; mimeType: string; body: Buffer; inline: boolean; preview: string | null }>;
 export function updateAttachment(client: QueryClient, context: CrmContext, attachmentId: string, input?: Input): Promise<CrmAttachment>;
 export function deleteAttachment(client: QueryClient, context: CrmContext, attachmentId: string): Promise<{ deleted: boolean }>;
+
+// Files across every record the caller can see (the Notes & Files page).
+export function searchAttachments(client: QueryClient, context: CrmContext, filters?: { search?: string; kind?: string; relatedType?: string; uploadedBy?: string; limit?: number; offset?: number }):
+  Promise<{ attachments: Array<CrmAttachment & { relatedName: string | null }>; total: number; limit: number; offset: number }>;

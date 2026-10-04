@@ -198,7 +198,7 @@ function Breakdown({ title, rows }: { title: string; rows: Array<{ label: string
   );
 }
 
-function LeadsByStatusReport() {
+export function LeadsByStatusReport() {
   const workspace = useWorkspaceContext();
   const [groupBy, setGroupBy] = useState("status");
   const [ownerId, setOwnerId] = useState(ANY);

@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { MoreHorizontal } from "lucide-react";
 import {
@@ -22,25 +22,30 @@ import {
   archiveOpportunity, deleteOpportunity, errorMessage, getOpportunity, getOpportunityOptions, restoreOpportunity, setOpportunityProbability,
   type Opportunity, type OpportunityOptions, type OpportunityStageAction,
 } from "../api/opportunities-api";
-import { AssignOpportunitiesDialog, MarkLostDialog, MarkWonDialog, ReopenOpportunityDialog } from "../components/OpportunityActionDialogs";
+import { AssignOpportunitiesDialog } from "../components/OpportunityActionDialogs";
+import { CorrectCloseReasonDialog, MarkLostDialog, MarkWonDialog, ReopenOpportunityDialog } from "@/features/crm/close-reasons/components/CloseDialogs";
+import { CloseSummaryPanel } from "@/features/crm/close-reasons/components/CloseSummaryPanel";
 import {
-  LogActivityDialog, OpportunityContactsPanel, OpportunityHistoryPanel, OpportunityProductsPanel, OpportunityQuotationsPanel, OpportunityWorkPanel,
-  useStartQuotation,
+  LogActivityDialog, OpportunityContactsPanel, OpportunityHistoryPanel, OpportunityProductsPanel, OpportunityWorkPanel,
 } from "../components/OpportunityPanels";
+import { CreateQuotationDialog } from "@/features/crm/quotations/components/CreateQuotationDialog";
+import { OpportunityQuotationsPanel } from "@/features/crm/quotations/components/OpportunityQuotationsPanel";
 import { useStageChange } from "@/features/crm/sales-stages/components/StageChange";
 import { RelatedTasksPanel } from "@/features/crm/tasks/components/RelatedTasksPanel";
 import { RelatedFollowUpsPanel, ScheduleFollowUpForRecord } from "@/features/crm/follow-ups/components/RelatedFollowUpsPanel";
 import { LIVE_OPPORTUNITY_QUERY } from "../live-query";
 import { ErrorBanner, OpportunityFlags, OpportunityStageBadge, OpportunityStatusBadge, PriorityBadge, days } from "../opportunity-format";
 
-type DialogKind = "assign" | "won" | "lost" | "reopen" | "activity" | "followUp" | "probability" | "archive" | "delete" | null;
+type DialogKind = "assign" | "won" | "lost" | "reopen" | "activity" | "followUp" | "probability" | "archive" | "delete" | "quotation" | "correctReason" | null;
 
 export function OpportunityDetailScreen({ opportunityId }: { opportunityId: string }) {
   const workspace = useWorkspaceContext();
   const router = useRouter();
   const queryClient = useQueryClient();
   const [dialog, setDialog] = useState<DialogKind>(null);
-  const [tab, setTab] = useState("overview");
+  // ?tab=notes or ?tab=attachments opens that tab (links from search and from Notes & Files).
+  const requestedTab = useSearchParams().get("tab");
+  const [tab, setTab] = useState(requestedTab === "notes" || requestedTab === "attachments" ? requestedTab : "overview");
   const [error, setError] = useState<string | null>(null);
 
   const key = scopedQueryKey(workspace, "crm", "opportunity", opportunityId);
@@ -78,7 +83,10 @@ function OpportunityDetail({ opportunity, options, tab, setTab, dialog, setDialo
   error: string | null; setError: (message: string | null) => void; refresh: () => void; run: (work: () => Promise<unknown>) => void; isRunning: boolean;
 }) {
   const router = useRouter();
-  const startQuotation = useStartQuotation(setError);
+  const workspace = useWorkspaceContext();
+  // Set when Mark won is started from an accepted quotation.
+  const [winningQuotationId, setWinningQuotationId] = useState<string | undefined>(undefined);
+  const canCorrectReason = workspace.roleSlugs.includes("organization_owner") || workspace.permissions.includes("crm.opportunities.edit_close_reason");
   // The stage bar, Next stage and the pipeline all move a deal through the same operation.
   const stageChange = useStageChange({ onDone: refresh, onError: setError });
   const can = options.capabilities;
@@ -98,7 +106,7 @@ function OpportunityDetail({ opportunity, options, tab, setTab, dialog, setDialo
     schedule_follow_up: { label: "Schedule follow-up", show: can.edit, run: () => setDialog("followUp") },
     edit_details: { label: "Add requirements", show: can.edit, run: () => router.push(`/crm/opportunities/${opportunity.id}/edit`) },
     add_products: { label: "Add products", show: can.edit, run: () => setTab("products") },
-    create_quotation: { label: opportunity.quotationCount ? "Create revised quotation" : "Create quotation", show: can.createQuotation, run: () => startQuotation.mutate(opportunity) },
+    create_quotation: { label: opportunity.quotationCount ? "Create revised quotation" : "Create quotation", show: can.createQuotation, run: () => setDialog("quotation") },
     view_quotations: { label: "View quotations", show: opportunity.quotationCount > 0, run: () => setTab("quotations") },
     mark_won: { label: "Mark won", show: can.markWon, run: () => setDialog("won") },
     mark_lost: { label: "Mark lost", show: can.markLost, run: () => setDialog("lost") },
@@ -147,7 +155,7 @@ function OpportunityDetail({ opportunity, options, tab, setTab, dialog, setDialo
           secondaryActions: (
             <>
               {open && can.markLost && <Button variant="secondary" onPress={() => setDialog("lost")}>Mark lost</Button>}
-              {open && can.createQuotation && <Button variant="secondary" onPress={() => startQuotation.mutate(opportunity)} isLoading={startQuotation.isPending}>Create quotation</Button>}
+              {open && can.createQuotation && <Button variant="secondary" onPress={() => setDialog("quotation")}>Create quotation</Button>}
               {can.edit && !archived && <Button variant="secondary" onPress={() => setDialog("activity")}>Log activity</Button>}
               {canEdit && <Button variant="secondary" onPress={() => setDialog("followUp")}>Schedule follow-up</Button>}
               {menuActions.length > 0 && (
@@ -201,6 +209,7 @@ function OpportunityDetail({ opportunity, options, tab, setTab, dialog, setDialo
 
           <TabPanel id="overview">
             <div className="flex flex-col gap-6">
+              <CloseSummaryPanel opportunity={opportunity} canCorrect={canCorrectReason && !archived} onCorrect={() => setDialog("correctReason")} />
               <PropertyList title="Next step" columns={3} items={[
                 { label: "Next step", value: opportunity.nextStep },
                 { label: "Next step due", value: opportunity.nextStepDueAt ? formatDateTime(opportunity.nextStepDueAt) : null },
@@ -247,7 +256,8 @@ function OpportunityDetail({ opportunity, options, tab, setTab, dialog, setDialo
           <TabPanel id="activities"><OpportunityWorkPanel kind="activities" opportunity={opportunity} options={options} canEdit={canEdit} onChanged={refresh} /></TabPanel>
           <TabPanel id="tasks"><RelatedTasksPanel relatedType="opportunity" relatedId={opportunity.id} relatedName={opportunity.name} canCreate={can.edit && !archived} onChanged={refresh} /></TabPanel>
           <TabPanel id="followUps"><RelatedFollowUpsPanel related={{ type: "opportunity", id: opportunity.id, name: opportunity.name, accountId: opportunity.accountId }} canCreate={can.edit && !archived} onChanged={refresh} /></TabPanel>
-          <TabPanel id="quotations"><OpportunityQuotationsPanel opportunity={opportunity} options={options} canEdit={can.edit && !archived} onChanged={refresh} /></TabPanel>
+          <TabPanel id="quotations"><OpportunityQuotationsPanel opportunity={{ id: opportunity.id, status: opportunity.status, archivedAt: opportunity.archivedAt, estimatedValue: opportunity.amount, currencyCode: opportunity.currencyCode }} canCreate={can.createQuotation} canEdit={can.edit && !archived} onChanged={refresh}
+            onMarkWon={can.markWon ? (quotationId) => { setWinningQuotationId(quotationId); setDialog("won"); } : undefined} /></TabPanel>
           <TabPanel id="notes"><RecordNotesPanel relatedType="opportunity" relatedId={opportunity.id} /></TabPanel>
           <TabPanel id="attachments"><RecordAttachmentsPanel relatedType="opportunity" relatedId={opportunity.id} /></TabPanel>
           <TabPanel id="history">
@@ -262,7 +272,9 @@ function OpportunityDetail({ opportunity, options, tab, setTab, dialog, setDialo
       {stageChange.dialog}
       <AssignOpportunitiesDialog isOpen={dialog === "assign"} onOpenChange={close} opportunityIds={[opportunity.id]} opportunity={opportunity} options={options} onDone={refresh} />
       {/* Re-created when the deal changes, so each dialog starts from its current value and version. */}
-      <MarkWonDialog key={`won:${opportunity.updatedAt}`} isOpen={dialog === "won"} onOpenChange={close} opportunity={opportunity} onDone={refresh} />
+      <CreateQuotationDialog opportunityId={opportunity.id} isOpen={dialog === "quotation"} onOpenChange={close} onCreated={() => { refresh(); setTab("quotations"); }} />
+      <MarkWonDialog key={`won:${opportunity.updatedAt}:${winningQuotationId ?? ""}`} isOpen={dialog === "won"} onOpenChange={close} options={options} opportunity={opportunity} onDone={refresh} winningQuotationId={winningQuotationId} />
+      <CorrectCloseReasonDialog key={`correct:${opportunity.updatedAt}`} isOpen={dialog === "correctReason"} onOpenChange={close} options={options} opportunity={opportunity} onDone={refresh} />
       <MarkLostDialog key={`lost:${opportunity.updatedAt}`} isOpen={dialog === "lost"} onOpenChange={close} options={options} opportunity={opportunity} onDone={refresh} />
       <ReopenOpportunityDialog isOpen={dialog === "reopen"} onOpenChange={close} options={options} opportunity={opportunity} onDone={refresh} />
       <LogActivityDialog isOpen={dialog === "activity"} onOpenChange={close} opportunity={opportunity} options={options} onDone={refresh} />

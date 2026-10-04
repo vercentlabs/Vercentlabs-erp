@@ -74,6 +74,8 @@ export type FollowUpOptions = {
   outcomes: CodeLabel[];
   relatedTypes: CodeLabel<FollowUpRelatedType>[];
   reminderOptions: Array<{ minutes: number; label: string }>;
+  // what a new follow-up starts with (CRM Settings, Follow-up Defaults)
+  defaults?: { type: FollowUpType; reminderOffsetMinutes: number | null };
   users: Array<{ id: string; name: string; email: string }>;
   teams: Array<{ id: string; name: string; memberIds: string[] }>;
   currentUserId: string;

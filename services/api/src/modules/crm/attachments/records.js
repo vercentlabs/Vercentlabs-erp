@@ -10,7 +10,10 @@
 import { archiveFile, prepareFileUpload, readFileContent, storeFile } from "../../../core/platform/files/index.js";
 import { CrmError } from "../data-management/errors.js";
 import { queueOutboxEvent } from "../data-management/outbox.js";
-import { ATTACHMENT_PERMISSIONS, contentCan, convertedFromLead, recordContentHistory, recordVisible, requireContentPermission, requireRecordVisible } from "../notes/access.js";
+import {
+  ATTACHMENT_PERMISSIONS, RECORD_TYPES, contentCan, contentRecordScopeSql, convertedFromLead, recordContentHistory, recordVisible, relatedNameSql, requireContentPermission,
+  requireRecordVisible,
+} from "../notes/access.js";
 import { CRM_ALLOWED_EXTENSIONS, CRM_ALLOWED_MIME_TYPES, crmAttachmentMaxBytes, fileTypeOf, kindOfMime, previewOfMime } from "./file-types.js";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -198,3 +201,25 @@ export async function deleteAttachment(client, context, attachmentId) {
 }
 
 export { CRM_ALLOWED_EXTENSIONS, crmAttachmentMaxBytes };
+
+// ------------------------------------------------------------------ across records
+
+// Notes & Files: the files on every record the caller can see, newest first.
+// filters: { search? (file name or description), kind?, relatedType?, uploadedBy?, limit?, offset? }
+export async function searchAttachments(client, context, filters = {}) {
+  requireContentPermission(context, ATTACHMENT_PERMISSIONS.view, "You do not have permission to view attachments.");
+  const values = [context.organizationId];
+  const bind = (value) => { values.push(value); return `$${values.length}`; };
+  let where = `detail.organization_id = $1 AND ${ACTIVE}`;
+  if (RECORD_TYPES.includes(filters.relatedType)) where += ` AND detail.entity_type = ${bind(filters.relatedType)}`;
+  if (UUID.test(String(filters.uploadedBy ?? ""))) where += ` AND file.uploaded_by = ${bind(filters.uploadedBy)}`;
+  const term = text(filters.search).toLowerCase();
+  if (term) where += ` AND lower(COALESCE(detail.display_name, file.file_name) || ' ' || COALESCE(detail.description, '')) LIKE ${bind(`%${term.replace(/[\%_]/g, "\$&")}%`)}`;
+  where += contentRecordScopeSql(context, values, "detail");
+  const { rows } = await client.query(`SELECT listed.*, ${relatedNameSql("listed")} AS related_name FROM (${FILE_SELECT.replace("SELECT file.id,", "SELECT detail.organization_id, file.id,")} WHERE ${where}) listed ORDER BY listed.created_at DESC LIMIT 500`, values);
+  const all = rows.map((row) => ({ ...toAttachment(row, context), relatedName: row.related_name ?? null }));
+  const matching = filters.kind ? all.filter((entry) => entry.kind === filters.kind) : all;
+  const limit = Math.min(100, Math.max(1, Number(filters.limit) || 50));
+  const offset = Math.max(0, Number(filters.offset) || 0);
+  return { attachments: matching.slice(offset, offset + limit), total: matching.length, limit, offset };
+}

@@ -8,6 +8,8 @@ import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import { ErrorState, LinkButton, MetricCard, PageHeader, Select, TextField } from "@vercentlabs/design-system";
 
+import { WinLossReportPanel } from "@/features/crm/close-reasons/components/WinLossReportPanel";
+
 import { AccountPicker } from "@/features/crm/accounts/components/AccountPicker";
 import { DateInput } from "@/features/crm/shared/ui/DateTimeInput";
 import { formatMoney } from "@/shared/format/human";
@@ -75,13 +77,16 @@ export function OpportunityDashboardScreen() {
               <h2 className="text-base font-semibold">Results</h2>
               <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
                 <MetricLink href="/crm/opportunities?view=won" label="Won this month" value={`${dashboard.totals.wonThisMonth} · ${money(dashboard.totals.wonValueThisMonth)}`} />
-                <MetricLink href="/crm/opportunities?view=lost" label="Lost this month" value={dashboard.totals.lostThisMonth} />
+                <MetricLink href="/crm/opportunities?view=lost" label="Lost this month" value={`${dashboard.totals.lostThisMonth} · ${money(dashboard.totals.lostValueThisMonth)}`} />
+                <MetricCard label="Top lost reason this month" value={dashboard.totals.topLostReasonThisMonth ?? "–"} />
                 <MetricCard label="Win rate" value={`${dashboard.totals.winRate}%`} />
                 <MetricCard label="Loss rate" value={`${dashboard.totals.lossRate}%`} />
                 <MetricCard label="Average deal size (won)" value={money(dashboard.totals.averageDealSize)} />
                 <MetricCard label="Average sales cycle" value={dashboard.totals.averageSalesCycleDays === null ? "–" : days(dashboard.totals.averageSalesCycleDays)} />
               </div>
             </section>
+
+            {currency && <WinLossReportPanel currency={currency} />}
 
             <section className="flex flex-col gap-3 rounded-[var(--radius-card)] border border-border bg-surface p-4">
               <h2 className="text-base font-semibold">Open opportunities by stage</h2>
@@ -120,7 +125,7 @@ function MetricLink({ href, label, value }: { href: string; label: string; value
   );
 }
 
-function OpportunitiesByStageReport() {
+export function OpportunitiesByStageReport() {
   const workspace = useWorkspaceContext();
   const [groupBy, setGroupBy] = useState("stage");
   const [choices, setChoices] = useState({ status: ANY, stageId: ANY, ownerId: ANY, teamId: ANY, sourceId: ANY, priority: ANY, lostReasonId: ANY });

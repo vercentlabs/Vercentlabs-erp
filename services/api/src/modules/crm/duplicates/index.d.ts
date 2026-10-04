@@ -42,3 +42,15 @@ export function recordDuplicateOverride(client: QueryClient, context: CrmContext
 export function markNotDuplicate(client: QueryClient, context: CrmContext, input: { recordTypeA: string; recordIdA: string; recordTypeB: string; recordIdB: string; reason?: string }): Promise<{ marked: boolean }>;
 export function unmarkNotDuplicate(client: QueryClient, context: CrmContext, input: { recordTypeA: string; recordIdA: string; recordTypeB: string; recordIdB: string }): Promise<{ removed: boolean }>;
 export function listDuplicateQueue(client: QueryClient, context: CrmContext, input?: { type?: string }): Promise<{ pairs: DuplicateQueuePair[]; counts: Record<DuplicateQueueType, number>; limit: number }>;
+
+// Data Quality: what was already decided, and the rules in plain words.
+type ReviewedRecord = { type: string; id: string; name: string; href: string };
+export function listMergedRecords(client: QueryClient, context: CrmContext, options?: { limit?: number }):
+  Promise<Array<{ id: string; type: string; merged: ReviewedRecord; kept: ReviewedRecord; mergedAt: string | null; mergedByName: string | null }>>;
+export function listNotDuplicates(client: QueryClient, context: CrmContext, options?: { limit?: number }):
+  Promise<Array<{ id: string; a: ReviewedRecord; b: ReviewedRecord; reason: string | null; decidedAt: string; decidedByName: string | null }>>;
+export function getDuplicateRules(): {
+  people: { label: string; rules: Array<{ signal: string; label: string; strength: "strong" | "possible" }> };
+  companies: { label: string; rules: Array<{ signal: string; label: string; strength: "strong" | "possible" }> };
+  behaviour: { strong: string; possible: string };
+};

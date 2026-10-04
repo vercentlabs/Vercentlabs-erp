@@ -52,7 +52,7 @@ const opportunityWorker = [
 ];
 // Running the pipeline: moving deals between people, reopening closed deals,
 // archiving or deleting mistakes, and export.
-const opportunityManager = [...opportunityWorker, "crm.opportunities.reassign", "crm.opportunities.reopen", "crm.opportunities.delete", "crm.opportunities.export", "crm.opportunities.bulk_update", ...taskManager, ...followUpManager, ...contentManager];
+const opportunityManager = [...opportunityWorker, "crm.opportunities.reassign", "crm.opportunities.reopen", "crm.opportunities.edit_close_reason", "crm.opportunities.delete", "crm.opportunities.export", "crm.opportunities.bulk_update", ...taskManager, ...followUpManager, ...contentManager];
 // Working accounts day to day: adding companies, keeping them current and
 // giving an unowned account an owner.
 const accountWorker = ["crm.accounts.create", "crm.accounts.edit", "crm.accounts.assign"];
@@ -250,6 +250,7 @@ export const ROLE_TEMPLATES = Object.freeze([
       "crm.import",
       "crm.export",
       "crm.settings.manage",
+      "crm.opportunities.manage_close_reasons",
       "crm.revenue.manage",
       ...accountManager,
       ...contactManager,
@@ -313,6 +314,9 @@ export const ROLE_TEMPLATES = Object.freeze([
       "sales.quotation.send",
       "sales.quotation.approve",
       "sales.quotation.accept_on_behalf",
+      "sales.quotation.reject",
+      "sales.quotation.cancel",
+      "sales.discount.apply",
       "sales.order.confirm",
       "sales.order.approve",
       "sales.order.amend",
@@ -363,6 +367,10 @@ export const ROLE_TEMPLATES = Object.freeze([
       "crm.analytics.manage",
       "sales.quotation.send",
       "sales.quotation.approve",
+      "sales.quotation.accept_on_behalf",
+      "sales.quotation.reject",
+      "sales.quotation.cancel",
+      "sales.discount.apply",
       "sales.order.confirm",
       "sales.order.approve",
       "sales.order.amend",
@@ -404,6 +412,11 @@ export const ROLE_TEMPLATES = Object.freeze([
       "crm.field-sales.manage",
       "sales.quotation.create",
       "sales.quotation.send",
+      "sales.quotation.revise",
+      "sales.quotation.reject",
+      "sales.quotation.accept_on_behalf",
+      "sales.quotation.cancel",
+      "sales.discount.apply",
       "sales.order.create",
       "sales.fulfillment.request",
       "sales.invoice.request",
@@ -443,6 +456,7 @@ export const ROLE_TEMPLATES = Object.freeze([
       "crm.import",
       "crm.export",
       "crm.settings.manage",
+      "crm.opportunities.manage_close_reasons",
       "crm.data-quality.manage",
       "crm.analytics.manage",
       "crm.customization.manage",

@@ -91,3 +91,16 @@ export function formatSize(bytes: number) {
   if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
   return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
 }
+
+// ---- across records (the Notes & Files page)
+export type LibraryNote = CrmNote & { relatedName: string | null };
+export type LibraryAttachment = CrmAttachment & { relatedName: string | null };
+export const searchNotes = (filters: { search?: string; relatedType?: string; createdBy?: string; createdFrom?: string; createdTo?: string; pinned?: string; limit?: number; offset?: number } = {}) =>
+  request<{ notes: LibraryNote[]; total: number; limit: number; offset: number }>(`/api/crm/notes/library${query(filters)}`);
+export const searchAttachments = (filters: { search?: string; kind?: string; relatedType?: string; uploadedBy?: string; limit?: number; offset?: number } = {}) =>
+  request<{ attachments: LibraryAttachment[]; total: number; limit: number; offset: number }>(`/api/crm/attachments/library${query(filters)}`);
+
+// Where a note or file lives: the record it belongs to.
+export const RELATED_TYPE_LABELS: Record<string, string> = { lead: "Lead", party: "Account", contact: "Contact", opportunity: "Opportunity" };
+export const relatedRecordHref = (relatedType: string, relatedId: string, tab?: "notes" | "attachments") =>
+  `/crm/${{ lead: "leads", party: "accounts", contact: "contacts", opportunity: "opportunities" }[relatedType] ?? "leads"}/${relatedId}${tab ? `?tab=${tab}` : ""}`;

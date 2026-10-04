@@ -60,25 +60,6 @@ type ChargeDraft = {
 let draftKey = 0;
 const nextKey = () => ++draftKey;
 
-// A quotation started from a CRM opportunity ("Create quotation") arrives with
-// the deal's currency and product lines; the opportunity page leaves them in
-// this browser tab under a key named after the opportunity. Prices are not
-// taken from it: Sales prices every line itself, from the price list.
-type OpportunityDraft = {
-  currencyCode?: string | null;
-  lines?: Array<{ itemId: string; quantity: number; discountPercent: number }>;
-};
-function readOpportunityDraft(opportunityId?: string): OpportunityDraft | null {
-  if (!opportunityId || typeof window === "undefined") return null;
-  try {
-    const stored = window.sessionStorage.getItem(
-      `crm.opportunity.quotation-draft.${opportunityId}`,
-    );
-    return stored ? (JSON.parse(stored) as OpportunityDraft) : null;
-  } catch {
-    return null;
-  }
-}
 const isoInDays = (days: number) =>
   new Date(Date.now() + days * 86400000).toISOString().slice(0, 10);
 
@@ -91,14 +72,10 @@ export function SalesQuotationFormScreen({
   quotationId,
   initialPartyId,
   initialContactId,
-  initialOpportunityId,
-  initialOpportunityName,
 }: {
   quotationId?: string;
   initialPartyId?: string;
   initialContactId?: string;
-  initialOpportunityId?: string;
-  initialOpportunityName?: string;
 }) {
   const workspace = useWorkspaceContext();
   const router = useRouter();
@@ -140,8 +117,6 @@ export function SalesQuotationFormScreen({
       quotationId={quotationId}
       initialPartyId={initialPartyId}
       initialContactId={initialContactId}
-      initialOpportunityId={initialOpportunityId}
-      initialOpportunityName={initialOpportunityName}
       onDone={(id) => {
         queryClient.invalidateQueries({
           queryKey: scopedQueryKey(workspace, "sales", "quotations"),
@@ -168,8 +143,6 @@ function FormBody({
   quotationId,
   initialPartyId,
   initialContactId,
-  initialOpportunityId,
-  initialOpportunityName,
   onDone,
   onCancel,
 }: {
@@ -184,8 +157,6 @@ function FormBody({
   quotationId?: string;
   initialPartyId?: string;
   initialContactId?: string;
-  initialOpportunityId?: string;
-  initialOpportunityName?: string;
   onDone: (id: string) => void;
   onCancel: () => void;
 }) {
@@ -233,13 +204,8 @@ function FormBody({
         SHIPPING_ADDRESS_TYPES,
       ),
   );
-  const [opportunityDraft] = useState(() =>
-    existing ? null : readOpportunityDraft(initialOpportunityId),
-  );
   const [currencyCode, setCurrencyCode] = useState(
-    existing?.quotation.currency_code ??
-      opportunityDraft?.currencyCode ??
-      baseCurrency,
+    existing?.quotation.currency_code ?? baseCurrency,
   );
   const [priceListId, setPriceListId] = useState(
     existing?.quotation.price_list_id ??
@@ -293,16 +259,7 @@ function FormBody({
           quantity: Number(line.quantity),
           discountPercent: Number(line.discount_percent),
         }))
-      : opportunityDraft?.lines?.length
-        ? opportunityDraft.lines.map((line) => ({
-            key: nextKey(),
-            itemId: line.itemId,
-            variantId: "",
-            uomId: "",
-            quantity: Number(line.quantity) || 1,
-            discountPercent: Number(line.discountPercent) || 0,
-          }))
-        : [
+      : [
           {
             key: nextKey(),
             itemId: "",
@@ -452,8 +409,6 @@ function FormBody({
     return {
       partyId,
       contactId: contactId || undefined,
-      opportunityId:
-        !revising && initialOpportunityId ? initialOpportunityId : undefined,
       billingAddressId: billingAddressId || undefined,
       shippingAddressId: shippingAddressId || undefined,
       currencyCode,
@@ -504,8 +459,6 @@ function FormBody({
     supplyType,
     validLines,
     charges,
-    revising,
-    initialOpportunityId,
   ]);
 
   // Debounce so typing a quantity doesn't fire a pricing request per keystroke.
@@ -599,15 +552,6 @@ function FormBody({
       />
 
       {error && <SalesAlert>{error}</SalesAlert>}
-
-      {!revising && initialOpportunityId && (
-        <p className="rounded-[var(--radius-control)] border border-info-emphasis/30 bg-info-soft px-3 py-2 text-sm text-info">
-          {`This quotation will be linked to the Opportunity${initialOpportunityName ? ` "${initialOpportunityName}"` : ""}.`}
-          {opportunityDraft?.lines?.length
-            ? " Its products and quantities are filled in below; prices come from your price list."
-            : ""}
-        </p>
-      )}
 
       <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-[minmax(0,1fr)_22rem]">
         <div className="flex min-w-0 flex-col gap-4">

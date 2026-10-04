@@ -515,6 +515,12 @@ export async function deleteFollowUp(client, context, followUpId) {
 
 // ------------------------------------------------------------------ options
 
+async function followUpDefaults(client, context) {
+  const { getWorkDefaults } = await import("../workspace/defaults.js");
+  const defaults = await getWorkDefaults(client, context);
+  return { type: defaults.followUpType, reminderOffsetMinutes: defaults.followUpReminderMinutes };
+}
+
 export async function getFollowUpOptions(client, context) {
   requireFollowUpPermission(context, FOLLOW_UP_PERMISSIONS.view, "You do not have permission to view follow-ups.");
   const { listLeadAssignmentOptions } = await import("../leads/assignment.js");
@@ -527,6 +533,8 @@ export async function getFollowUpOptions(client, context) {
     outcomes: FOLLOW_UP_OUTCOMES,
     relatedTypes: FOLLOW_UP_RELATED_TYPES,
     reminderOptions: FOLLOW_UP_REMINDER_OPTIONS,
+    // What a new follow-up starts with (CRM Settings, Follow-up Defaults).
+    defaults: await followUpDefaults(client, context),
     users,
     teams,
     currentUserId: context.userId,

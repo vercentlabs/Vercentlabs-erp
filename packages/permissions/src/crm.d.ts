@@ -44,6 +44,8 @@ export const CRM_PERMISSIONS: Readonly<{
   opportunitiesMarkWon: "crm.opportunities.mark_won";
   opportunitiesMarkLost: "crm.opportunities.mark_lost";
   opportunitiesReopen: "crm.opportunities.reopen";
+  opportunitiesEditCloseReason: "crm.opportunities.edit_close_reason";
+  opportunitiesManageCloseReasons: "crm.opportunities.manage_close_reasons";
   opportunitiesDelete: "crm.opportunities.delete";
   opportunitiesExport: "crm.opportunities.export";
   opportunitiesChangeProbability: "crm.opportunities.change_probability";

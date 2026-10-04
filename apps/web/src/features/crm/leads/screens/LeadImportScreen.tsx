@@ -214,7 +214,7 @@ export function LeadImportScreen() {
               </ul>
               <div className="flex flex-wrap gap-2">
                 <Button variant="outline" onPress={downloadErrors}><Download className="size-4" aria-hidden="true" />Download review file</Button>
-                {result.possibleDuplicates > 0 && <LinkButton variant="outline" href="/crm/duplicates">Review possible duplicates</LinkButton>}
+                {result.possibleDuplicates > 0 && <LinkButton variant="outline" href="/crm/data-quality">Review possible duplicates</LinkButton>}
               </div>
             </>
           )}

@@ -60,6 +60,8 @@ export async function createCrmRecord(client, context, resource, input) {
       "Use the governed Lead Source operations.",
       "CRM_LEAD_SOURCE_API_MOVED",
     );
+  if (resource === "lost-reasons")
+    throw new CrmError(410, "Use the governed Won and Lost Reasons operations.", "CRM_CLOSE_REASON_API_MOVED");
   // F025: submissions change only through forecast-service.js (versioned,
   // reviewed, period-locked); the generic path could set a seller's own
   // manager_adjustment and skip review entirely.
@@ -168,6 +170,8 @@ export async function updateCrmRecord(
       "Use the governed Lead Source operations.",
       "CRM_LEAD_SOURCE_API_MOVED",
     );
+  if (resource === "lost-reasons")
+    throw new CrmError(410, "Use the governed Won and Lost Reasons operations.", "CRM_CLOSE_REASON_API_MOVED");
   const definition = definitionFor(resource);
   const before = await getCrmRecord(client, context, resource, id);
   assertLeadLinkedContentAllowed(context, resource, input, before);
@@ -331,23 +335,14 @@ export async function archiveCrmRecord(
       "Use the governed Lead Source operations.",
       "CRM_LEAD_SOURCE_API_MOVED",
     );
+  if (resource === "lost-reasons")
+    throw new CrmError(410, "Use the governed Won and Lost Reasons operations.", "CRM_CLOSE_REASON_API_MOVED");
   if (resource === "leads")
     throw new CrmError(410, "Use the Lead operations.", "CRM_LEAD_API_MOVED");
   if (resource === "opportunities")
     throw new CrmError(410, "Use the Opportunity operations.", "CRM_OPPORTUNITY_API_MOVED");
   const definition = definitionFor(resource);
   const before = await getCrmRecord(client, context, resource, id);
-  // Qualification criteria is deliberately excluded here (GENERIC_VERSIONED_
-  // RESOURCES covers updateCrmRecord above) — it has no archive/DELETE
-  // transition (see archiveStatuses below), so only lost-reasons applies.
-  if (resource === "lost-reasons")
-    assertRecordExpectedVersion(
-      before,
-      expectations.expectedUpdatedAt,
-      expectations.requireVersion === true,
-      GENERIC_VERSIONED_RESOURCES["lost-reasons"].entityLabel,
-      GENERIC_VERSIONED_RESOURCES["lost-reasons"].codePrefix,
-    );
   if (resource === "activities" && before.activityType === "call")
     throw new CrmError(410, "Use the governed Calls operations.", "CRM_CALL_API_MOVED");
   if (resource === "activities" && before.activityType === "meeting")
@@ -390,7 +385,6 @@ export async function archiveCrmRecord(
     pipelines: "inactive",
     stages: "inactive",
     sources: "inactive",
-    "lost-reasons": "inactive",
     tags: "inactive",
     sequences: "archived",
     "sequence-enrollments": "cancelled",

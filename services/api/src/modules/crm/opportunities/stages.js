@@ -63,16 +63,6 @@ export async function pipelineStage(client, context, pipelineId, stageId) {
   return rows[0];
 }
 
-export async function terminalStage(client, context, pipelineId, kind) {
-  const { rows } = await client.query(
-    `SELECT * FROM tenant.crm_pipeline_stages WHERE organization_id = $1 AND pipeline_id = $2 AND status = 'active' AND ${kind === "won" ? "is_won" : "is_lost"}
-      ORDER BY sequence LIMIT 1`,
-    [context.organizationId, pipelineId],
-  );
-  if (!rows[0]) throw new CrmError(409, `This pipeline has no ${kind} stage. Add one under CRM settings, Pipeline stages.`, "CRM_OPPORTUNITY_STAGE_MISSING");
-  return rows[0];
-}
-
 // A question marked "must be answered before leaving this stage" (CRM
 // settings, Playbooks) holds the deal in the stage until it is answered.
 async function assertStageExitAllowed(client, context, opportunity) {

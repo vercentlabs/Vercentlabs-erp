@@ -13,6 +13,10 @@ export declare const SALES_PERMISSIONS: Readonly<{
   fulfillmentRequest: "sales.fulfillment.request";
   invoiceRequest: "sales.invoice.request";
   priceOverride: "sales.price.override";
+  discountApply: "sales.discount.apply";
+  quotationRevise: "sales.quotation.revise";
+  quotationReject: "sales.quotation.reject";
+  quotationCancel: "sales.quotation.cancel";
   marginView: "sales.margin.view";
   creditOverride: "sales.credit.override";
   reportsView: "sales.reports.view";

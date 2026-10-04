@@ -6,7 +6,8 @@
 import { CrmError } from "../data-management/errors.js";
 import { queueOutboxEvent } from "../data-management/outbox.js";
 import {
-  NOTE_PERMISSIONS, canSeePrivateNotes, contentCan, convertedFromLead, recordContentHistory, recordVisible, requireContentPermission, requireRecordVisible,
+  NOTE_PERMISSIONS, RECORD_TYPES, canSeePrivateNotes, contentCan, contentRecordScopeSql, convertedFromLead, recordContentHistory, recordVisible, relatedNameSql,
+  requireContentPermission, requireRecordVisible,
 } from "./access.js";
 import { noteHtmlToText, sanitizeNoteHtml } from "./sanitize.js";
 
@@ -226,4 +227,33 @@ export async function listContentHistory(client, context, relatedType, relatedId
     [context.organizationId, relatedType, relatedId],
   );
   return rows.map((row) => ({ id: row.id, subjectType: row.subject_type, subjectId: row.subject_id, eventType: row.event_type, summary: row.summary, createdAt: row.created_at, actorName: row.actor_name ?? null }));
+}
+
+// ------------------------------------------------------------------ across records
+
+// Notes & Files: the notes on every record the caller can see, newest first.
+// filters: { search?, relatedType?, createdBy?, createdFrom?, createdTo?, pinned?, limit?, offset? }
+export async function searchNotes(client, context, filters = {}) {
+  requireContentPermission(context, NOTE_PERMISSIONS.view, "You do not have permission to view notes.");
+  const values = [context.organizationId];
+  const bind = (value) => { values.push(value); return `$${values.length}`; };
+  let where = "note.organization_id = $1 AND note.archived_at IS NULL";
+  if (RECORD_TYPES.includes(filters.relatedType)) where += ` AND note.entity_type = ${bind(filters.relatedType)}`;
+  if (UUID.test(String(filters.createdBy ?? ""))) where += ` AND note.created_by = ${bind(filters.createdBy)}`;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(String(filters.createdFrom ?? ""))) where += ` AND note.created_at >= ${bind(filters.createdFrom)}::date`;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(String(filters.createdTo ?? ""))) where += ` AND note.created_at < ${bind(filters.createdTo)}::date + interval '1 day'`;
+  if (filters.pinned === true || filters.pinned === "yes") where += " AND note.is_pinned";
+  const term = text(filters.search).toLowerCase();
+  if (term) where += ` AND lower(COALESCE(note.title, '') || ' ' || COALESCE(note.body_text, note.body)) LIKE ${bind(`%${term.replace(/[\%_]/g, "\$&")}%`)}`;
+  where += visible(context, values);
+  where += contentRecordScopeSql(context, values, "note");
+  const limit = Math.min(100, Math.max(1, Number(filters.limit) || 50));
+  const offset = Math.max(0, Number(filters.offset) || 0);
+  const total = (await client.query(`SELECT count(*)::int AS total FROM tenant.crm_notes note WHERE ${where}`, values)).rows[0].total;
+  const { rows } = await client.query(
+    `SELECT listed.*, ${relatedNameSql("listed")} AS related_name FROM (${NOTE_SELECT} WHERE ${where}) listed
+      ORDER BY listed.created_at DESC LIMIT ${limit} OFFSET ${offset}`,
+    values,
+  );
+  return { notes: rows.map((row) => ({ ...toNote(row, context), relatedName: row.related_name ?? null })), total, limit, offset };
 }

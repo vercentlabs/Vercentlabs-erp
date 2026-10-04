@@ -20,6 +20,7 @@ export { DUPLICATE_SIGNALS, gradeMatch } from "./scoring.js";
 export { DUPLICATE_PERMISSIONS, DUPLICATE_RECORD_TYPES, canOverrideDuplicates, recordDuplicateOverride } from "./policy.js";
 export { markNotDuplicate, unmarkNotDuplicate } from "./decisions.js";
 export { DUPLICATE_QUEUE_TYPES, listDuplicateQueue } from "./queue.js";
+export { getDuplicateRules, listMergedRecords, listNotDuplicates } from "./review.js";
 
 const MATCHERS = Object.freeze({
   lead: { find: (client, context, input, options) => findLeadDuplicates(client, context, input, { excludeLeadId: options.excludeId, limit: options.limit ?? 10 }),
