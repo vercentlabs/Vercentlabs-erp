@@ -149,6 +149,7 @@ export async function mergeAccounts(client, context, input = {}, { linkingCustom
   await client.query(`UPDATE tenant.crm_activities SET related_party_id = $3 WHERE organization_id = $1 AND related_party_id = $2`, move);
   await client.query(`UPDATE tenant.crm_opportunities SET party_id = $3 WHERE organization_id = $1 AND party_id = $2`, move);
   await client.query(`UPDATE tenant.crm_leads SET converted_party_id = $3 WHERE organization_id = $1 AND converted_party_id = $2`, move);
+  await client.query(`UPDATE tenant.crm_lead_conversions SET party_id = $3 WHERE organization_id = $1 AND party_id = $2`, move);
   await client.query(`UPDATE tenant.business_parties SET parent_party_id = $3 WHERE organization_id = $1 AND parent_party_id = $2 AND id <> $3`, move);
   await client.query(`UPDATE tenant.addresses SET party_id = $3, is_default_billing = false, is_default_shipping = false, is_primary = false WHERE organization_id = $1 AND party_id = $2`, move);
   await client.query(`UPDATE tenant.crm_activities SET entity_id = $3 WHERE organization_id = $1 AND entity_type = 'party' AND entity_id = $2`, move);

@@ -1,7 +1,7 @@
 // The lead record: create, read, list, update, change stage, archive.
 //
 // Owner and team change only through assignment.js; status only through
-// qualification.js (qualify / disqualify / reopen) and conversion.js. This
+// qualification.js (qualify / disqualify / reopen) and ../conversion. This
 // file never writes those columns except to set the initial owner on create.
 import { nextDocumentNumber } from "../../../core/platform/numbering/index.js";
 import { assertCrmOwnerAssignable } from "../data-management/crm-access-scope.js";
@@ -203,7 +203,7 @@ export async function getLead(client, context, leadId) {
 // ------------------------------------------------------------------ list
 
 export const LEAD_VIEWS = Object.freeze([
-  { key: "all", label: "All Leads" },
+  { key: "all", label: "All Active Leads" },
   { key: "mine", label: "My Leads" },
   { key: "unassigned", label: "Unassigned Leads" },
   { key: "no_activity", label: "Assigned, No Activity" },
@@ -253,6 +253,10 @@ export function buildLeadListWhere(context, filters = {}, values = []) {
   const where = [`lead.organization_id = ${bind(context.organizationId)}`];
   const view = filters.view || "all";
   where.push(view === "archived" ? "lead.archived_at IS NOT NULL" : "lead.archived_at IS NULL");
+  // The working list views leave converted leads out; they stay under Converted Leads, in search,
+  // exports of chosen leads and the reports (which ask without a view).
+  if ((filters.view === "all" || filters.view === "mine") && !filters.status && !(Array.isArray(filters.ids) && filters.ids.length))
+    where.push("lead.status <> 'converted'");
   if (view === "mine") where.push(`lead.owner_user_id = ${bind(context.userId)}`);
   if (view === "unassigned") where.push("lead.owner_user_id IS NULL AND lead.status = 'open'");
   // Has an owner, but nobody has logged a call, email or meeting yet.

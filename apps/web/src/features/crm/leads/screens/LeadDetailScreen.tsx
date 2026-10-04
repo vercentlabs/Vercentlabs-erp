@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { MoreHorizontal } from "lucide-react";
@@ -10,6 +9,8 @@ import {
 } from "@vercentlabs/design-system";
 
 import { RecordAttachmentsPanel } from "@/features/crm/attachments/components/RecordAttachmentsPanel";
+import { ConversionSummary } from "@/features/crm/conversion/components/ConversionSummary";
+import { ConvertLeadDialog } from "@/features/crm/conversion/components/ConvertLeadDialog";
 import { RelatedFollowUpsPanel, ScheduleFollowUpForRecord } from "@/features/crm/follow-ups/components/RelatedFollowUpsPanel";
 import { RecordNotesPanel } from "@/features/crm/notes/components/RecordNotesPanel";
 import { RecordTimelinePanel } from "@/features/crm/shared/RecordTimelinePanel";
@@ -23,7 +24,6 @@ import {
   archiveLead, assignLeadToMe, changeLeadStage, errorMessage, getLead, getLeadOptions, listLeadHistory, listLeadStageHistory, reopenLead, restoreLead,
   runLeadAssignmentRules, unassignLead, type Lead, type LeadOptions,
 } from "../api/leads-api";
-import { ConvertLeadDialog } from "../components/ConvertLeadDialog";
 import { LeadDuplicatesPanel } from "../components/LeadDuplicatesPanel";
 import { DisqualifyLeadsDialog } from "../components/LeadActionDialogs";
 import { AssignLeadsDialog, LeadAssignmentPanel } from "../components/LeadAssignment";
@@ -87,7 +87,7 @@ export function LeadDetailScreen({ leadId }: { leadId: string }) {
     : lead.status === "open" && can.qualify
       ? <Button variant="primary" onPress={() => setDialog("qualify")}>Qualify</Button>
       : lead.status === "qualified" && can.convert
-        ? <Button variant="primary" onPress={() => setDialog("convert")}>Convert</Button>
+        ? <Button variant="primary" onPress={() => setDialog("convert")}>Convert lead</Button>
         : lead.status === "disqualified" && can.reopen
           ? <Button variant="primary" onPress={() => action.mutate(() => reopenLead(lead.id))} isLoading={action.isPending}>Reopen lead</Button>
           : lead.convertedOpportunityId
@@ -99,6 +99,7 @@ export function LeadDetailScreen({ leadId }: { leadId: string }) {
     { id: "assign", label: lead.ownerUserId ? "Reassign" : "Assign", show: canAssign, run: () => setDialog("assign") },
     { id: "runRules", label: "Run assignment rules", show: canAssign, run: runRules },
     { id: "unassign", label: "Return to unassigned queue", show: working && can.reassign && Boolean(lead.ownerUserId), run: () => action.mutate(() => unassignLead(lead.id, { expectedUpdatedAt: lead.updatedAt })) },
+    { id: "convertOverride", label: "Convert without full qualification", show: working && lead.status === "open" && can.convert && can.overrideQualification, run: () => setDialog("convert") },
     { id: "disqualify", label: "Disqualify", show: working && can.disqualify && lead.status !== "disqualified", run: () => setDialog("disqualify") },
     { id: "reopen", label: "Reopen lead", show: working && can.reopen && lead.status === "qualified", run: () => action.mutate(() => reopenLead(lead.id)) },
     { id: "archive", label: "Archive lead", show: working && can.delete, run: () => setDialog("archive") },
@@ -254,7 +255,7 @@ export function LeadDetailScreen({ leadId }: { leadId: string }) {
         currentStage={working && can.changeStage && lead.status === "open" ? lead.stage : undefined} />
       <ScheduleFollowUpForRecord isOpen={dialog === "followUp"} onOpenChange={(open) => !open && setDialog(null)} related={{ type: "lead", id: lead.id, name: leadName(lead) }} onDone={refresh} />
       <ConvertLeadDialog isOpen={dialog === "convert"} onOpenChange={(open) => !open && setDialog(null)} leadId={lead.id} options={options}
-        onConverted={() => { refresh(); setTab("related"); }} />
+        onConverted={() => refresh()} />
       <AlertDialog
         isOpen={dialog === "archive"}
         onOpenChange={(open) => !open && setDialog(null)}
@@ -308,32 +309,6 @@ function StageBar({ lead, options, canChange, isChanging, onChange }: {
   );
 }
 
-function ConversionSummary({ lead }: { lead: Lead }) {
-  const opportunity = [lead.convertedOpportunityName, lead.convertedOpportunityAmount ? formatMoney(lead.currencyCode ?? undefined, lead.convertedOpportunityAmount) : null].filter(Boolean).join(" — ");
-  const links = [
-    lead.convertedPartyId && { label: "Account", name: lead.convertedAccountName, href: `/crm/accounts/${lead.convertedPartyId}` },
-    lead.convertedContactId && { label: "Contact", name: lead.convertedContactName, href: `/crm/contacts/${lead.convertedContactId}` },
-    lead.convertedOpportunityId && { label: "Opportunity", name: opportunity, href: `/crm/opportunities/${lead.convertedOpportunityId}` },
-  ].filter((entry): entry is { label: string; name: string | null; href: string } => Boolean(entry));
-  return (
-    <section className="flex flex-col gap-3 rounded-[var(--radius-card)] border border-border bg-surface-muted p-4">
-      <div>
-        <h2 className="text-base font-semibold">Converted</h2>
-        <p className="text-sm text-text-secondary">This lead is kept as a read-only record. Continue the work on the records it became.</p>
-      </div>
-      <dl className="grid gap-x-6 gap-y-2 text-sm sm:grid-cols-2 lg:grid-cols-3">
-        {links.map((link) => (
-          <div key={link.href} className="flex flex-col">
-            <dt className="text-text-secondary">{link.label}</dt>
-            <dd><Link className="font-medium text-brand hover:underline" href={link.href}>{link.name || `Open ${link.label.toLowerCase()}`}</Link></dd>
-          </div>
-        ))}
-        <div className="flex flex-col"><dt className="text-text-secondary">Converted by</dt><dd className="font-medium">{lead.convertedByName ?? "Unknown"}</dd></div>
-        <div className="flex flex-col"><dt className="text-text-secondary">Converted at</dt><dd className="font-medium">{formatDateTime(lead.convertedAt)}</dd></div>
-      </dl>
-    </section>
-  );
-}
 
 // Each stage the lead has been in, newest first, with how long it stayed.
 function StageHistory({ leadId, version }: { leadId: string; version: string }) {

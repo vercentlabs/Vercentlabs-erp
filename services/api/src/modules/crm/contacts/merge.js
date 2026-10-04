@@ -38,6 +38,7 @@ const FILL_ONLY_COLUMNS = Object.freeze(["address_line1", "address_line2", "city
 const SIMPLE_MOVES = Object.freeze([
   ["crm_opportunities", "contact_id"],
   ["crm_leads", "converted_contact_id"],
+  ["crm_lead_conversions", "contact_id"],
   ["crm_activities", "related_contact_id"],
   ["crm_communications", "contact_id"],
   ["crm_email_threads", "contact_id"],

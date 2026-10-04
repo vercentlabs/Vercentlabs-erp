@@ -27,6 +27,11 @@ export const CRM_PERMISSIONS: Readonly<{
   leadsChangeStage: "crm.leads.change_stage";
   leadsManageStages: "crm.leads.manage_stages";
   leadsOverrideQualification: "crm.leads.override_qualification";
+  leadsConvertUseExisting: "crm.leads.convert_use_existing";
+  leadsConvertCreateAccount: "crm.leads.convert_create_account";
+  leadsConvertCreateContact: "crm.leads.convert_create_contact";
+  leadsConvertChangeOwner: "crm.leads.convert_change_owner";
+  leadsConvertOverrideDuplicate: "crm.leads.convert_override_duplicate";
   opportunitiesManage: "crm.opportunities.manage";
   opportunitiesView: "crm.opportunities.view";
   opportunitiesViewAll: "crm.opportunities.view_all";

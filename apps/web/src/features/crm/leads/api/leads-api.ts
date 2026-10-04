@@ -237,31 +237,6 @@ export type LeadQualificationView = {
   history: Array<{ id: string; eventType: string; summary: string; notes: string | null; changedAt: string; changedByName: string | null }>;
 };
 
-export type OpportunityMatch = { id: string; code: string; name: string; amount: number; currencyCode: string | null; partyId: string; stageName: string | null };
-
-export type ConversionMatch = { id: string; name: string; strength: string; code?: string; partyId?: string | null; accountName?: string | null; email?: string | null; phone?: string | null };
-
-export type LeadConversionPreview = {
-  lead: Lead;
-  canConvert: boolean;
-  canCreateContact: boolean;
-  blockedReason: string | null;
-  accountMatches: ConversionMatch[];
-  contactMatches: ConversionMatch[];
-  opportunityMatches: OpportunityMatch[];
-  stages: Array<{ id: string; name: string; pipelineName: string }>;
-  defaults: {
-    accountName: string | null; opportunityName: string; amount: number; ownerUserId: string | null;
-    accountOwnerUserId: string | null; contactOwnerUserId: string | null; opportunityOwnerUserId: string | null;
-  };
-};
-
-export type LeadConversionInput = {
-  account?: { id?: string; name?: string; ownerUserId?: string; allowDuplicate?: boolean; duplicateReason?: string };
-  contact?: { id?: string; ownerUserId?: string; allowDuplicate?: boolean; duplicateReason?: string };
-  opportunity?: { create?: boolean; name?: string; amount?: number | string; productInterest?: string; ownerUserId?: string; stageId?: string; expectedCloseDate?: string | null };
-};
-
 export type LeadDashboard = {
   period: { from: string; to: string };
   totals: Record<"open" | "new" | "unassigned" | "assignedToday" | "noActivity" | "createdInPeriod" | "followUpsDueToday" | "overdueFollowUps" | "qualified" | "disqualified" | "converted" | "awaitingQualification" | "inQualification" | "qualifiedTotal" | "qualificationRate" | "conversionRate" | "stale" | "staleDays", number> & { averageDaysToQualify: number | null };
@@ -425,10 +400,6 @@ export const reopenLead = (id: string, note?: string) => post<{ status: string }
 export const bulkLeadAction = (input: { action: "assign" | "stage" | "disqualify"; leadIds: string[] } & Record<string, unknown>) =>
   post<LeadBulkResult>(`${BASE}/bulk`, input);
 
-// ---- conversion
-export const getLeadConversionPreview = (id: string) => request<{ preview: LeadConversionPreview }>(`${BASE}/${id}/convert`).then((result) => result.preview);
-export const convertLead = (id: string, input: LeadConversionInput) =>
-  post<{ conversion: { leadId: string; partyId: string; contactId: string | null; opportunityId: string | null } }>(`${BASE}/${id}/convert`, input).then((result) => result.conversion);
 
 // ---- work on the lead
 export const listLeadActivities = (id: string) => request<{ activities: LeadActivity[] }>(`${BASE}/${id}/activities`).then((result) => result.activities);

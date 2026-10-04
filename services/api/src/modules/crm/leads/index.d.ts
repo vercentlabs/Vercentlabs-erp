@@ -238,27 +238,6 @@ export type LeadAssignmentInput = {
   ownerUserId?: string | null; teamId?: string | null; reason?: string | null; expectedUpdatedAt?: string | null; moveOpenActivities?: boolean; requestKey?: string | null;
 };
 
-export type LeadConversionPreview = {
-  lead: Lead;
-  canConvert: boolean;
-  canCreateContact: boolean;
-  blockedReason: string | null;
-  accountMatches: Array<{ id: string; name: string; code: string; strength: string }>;
-  contactMatches: Array<{ id: string; partyId: string | null; name: string; accountName: string | null; email: string | null; phone: string | null; strength: string }>;
-  opportunityMatches: Array<{ id: string; code: string; name: string; amount: number; currencyCode: string | null; partyId: string; stageName: string | null }>;
-  stages: Array<{ id: string; name: string; pipelineName: string }>;
-  defaults: {
-    accountName: string | null; opportunityName: string; amount: number; ownerUserId: string | null;
-    accountOwnerUserId: string | null; contactOwnerUserId: string | null; opportunityOwnerUserId: string | null;
-  };
-};
-
-export type LeadConversionInput = {
-  account?: { id?: string; name?: string; ownerUserId?: string; allowDuplicate?: boolean; duplicateReason?: string };
-  contact?: { id?: string; ownerUserId?: string; allowDuplicate?: boolean; duplicateReason?: string };
-  opportunity?: { create?: boolean; name?: string; amount?: number | string | null; productInterest?: string; ownerUserId?: string; stageId?: string; expectedCloseDate?: string | null };
-};
-
 export type LeadDashboard = {
   period: { from: string; to: string };
   totals: {
@@ -370,10 +349,6 @@ export function findLeadDuplicates(client: QueryClient, context: CrmContext, inp
 export const LEAD_MERGE_FIELDS: Readonly<Record<string, string>>;
 export function mergeLeads(client: QueryClient, context: CrmContext, duplicateLeadId: string, keepLeadId: string, options?: { choices?: Record<string, "keep" | "duplicate"> }): Promise<{ keptLeadId: string; mergedLeadId: string }>;
 
-// conversion
-export function previewLeadConversion(client: QueryClient, context: CrmContext, leadId: string): Promise<LeadConversionPreview>;
-export function convertQualifiedLead(client: QueryClient, context: CrmContext, leadId: string, input?: LeadConversionInput): Promise<{ leadId: string; partyId: string; contactId: string | null; opportunityId: string | null }>;
-export function convertLead(client: QueryClient, context: CrmContext, leadId: string, input?: LeadConversionInput): Promise<{ leadId: string; partyId: string; contactId: string | null; opportunityId: string | null }>;
 
 // activities and history
 export type LeadActivity = {

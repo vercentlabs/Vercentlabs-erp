@@ -25,12 +25,12 @@ const base = ["workspace.view", "notifications.view", "profile.manage"];
 const businessReader = [...base, "business_data.view"];
 const crmReader = [...businessReader, "crm.view", "crm.tasks.view", "crm.follow_ups.view", "crm.notes.view", "crm.attachments.view", "crm.attachments.download", "crm.leads.view", "crm.opportunities.view", "crm.accounts.view", "crm.contacts.view", "crm.reports.view"];
 // Working a lead day to day: everything a salesperson does to their own leads.
-const leadWorker = ["crm.leads.create", "crm.leads.edit", "crm.leads.change_stage", "crm.leads.assign", "crm.leads.assign_self", "crm.leads.qualify", "crm.leads.disqualify", "crm.leads.reopen", "crm.leads.convert"];
+const leadWorker = ["crm.leads.create", "crm.leads.edit", "crm.leads.change_stage", "crm.leads.assign", "crm.leads.assign_self", "crm.leads.qualify", "crm.leads.disqualify", "crm.leads.reopen", "crm.leads.convert", "crm.leads.convert_use_existing", "crm.leads.convert_create_account", "crm.leads.convert_create_contact"];
 // Running the lead desk: moving leads between people, archiving, import and export.
 // Managers may also qualify a lead whose required criteria are still missing.
 // Managers also resolve duplicates: merge leads, review the duplicate queue and
 // save a record that matches an existing one, with a reason.
-const leadManager = [...leadWorker, "crm.leads.merge", "crm.duplicates.override", "crm.duplicates.review", "crm.leads.reassign", "crm.leads.bulk_assign", "crm.leads.override_qualification", "crm.leads.delete", "crm.leads.import", "crm.leads.export"];
+const leadManager = [...leadWorker, "crm.leads.merge", "crm.duplicates.override", "crm.duplicates.review", "crm.leads.reassign", "crm.leads.bulk_assign", "crm.leads.override_qualification", "crm.leads.convert_change_owner", "crm.leads.convert_override_duplicate", "crm.leads.delete", "crm.leads.import", "crm.leads.export"];
 // Deciding how leads are routed: the assignment rules and the fallback, giving
 // leads to anyone in the organization, and transferring a user's leads.
 const leadRouting = ["crm.leads.assign_across_teams", "crm.leads.manage_assignment_rules", "crm.leads.manage_stages"];

@@ -7,6 +7,7 @@ import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import { ErrorState, LinkButton, MetricCard, PageHeader, Select, TextField } from "@vercentlabs/design-system";
 
+import { ConversionMetricsPanel } from "@/features/crm/conversion/components/ConversionMetricsPanel";
 import { DateInput } from "@/features/crm/shared/ui/DateTimeInput";
 import { formatMoney } from "@/shared/format/human";
 import { LoadingState } from "@/shared/ui/LoadingState";
@@ -100,6 +101,8 @@ export function LeadDashboardScreen() {
                 <MetricCard label="Average days to qualify" value={dashboard.totals.averageDaysToQualify === null ? "–" : dashboard.totals.averageDaysToQualify} />
               </div>
             </section>
+
+            <ConversionMetricsPanel from={from} to={to} />
 
             <div className="grid gap-6 lg:grid-cols-2">
               <Breakdown title="Leads by status" rows={dashboard.byStatus.map((row) => ({ label: row.label, total: row.total }))} />

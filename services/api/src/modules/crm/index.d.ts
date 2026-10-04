@@ -293,6 +293,7 @@ export * from "./tasks/index.js";
 export * from "./follow-ups/index.js";
 export * from "./notes/index.js";
 export * from "./attachments/index.js";
+export * from "./conversion/index.js";
 export * from "./accounts/index.js";
 export * from "./contacts/index.js";
 export * from "./duplicates/index.js";

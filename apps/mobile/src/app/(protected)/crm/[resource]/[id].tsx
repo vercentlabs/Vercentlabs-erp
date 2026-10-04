@@ -290,15 +290,27 @@ export default function RecordDetailScreen() {
     setBusy(true);
     setMessage("");
     try {
-      const result = await mobileApi.apiRequest<{ message?: string }>(
-        `/crm/leads/${params.id}/convert`,
-        { method: "POST", body: JSON.stringify({ createOpportunity: true }) },
-      );
+      // The suggested account, contact and opportunity from the conversion
+      // preview. Anything that needs a decision (a possible duplicate, a
+      // missing close date or qualification) is refused by the server and
+      // finished in the web Convert dialog.
+      const { preview } = await mobileApi.apiRequest<{
+        preview: { blocked: { message: string } | null; canConvert?: boolean; defaults?: Record<string, unknown> };
+      }>(`/crm/leads/${params.id}/convert`);
+      if (preview.blocked) throw new Error(preview.blocked.message);
+      if (!preview.canConvert || !preview.defaults)
+        throw new Error("This lead is not ready to convert. Open it on the web to finish qualification.");
+      await mobileApi.apiRequest(`/crm/leads/${params.id}/convert`, {
+        method: "POST",
+        body: JSON.stringify({ ...preview.defaults, idempotencyKey: `mobile-${params.id}-${Date.now()}` }),
+      });
       await query.refetch();
-      setMessage(result.message || "Lead converted.");
+      setMessage("Lead converted.");
     } catch (error) {
       setMessage(
-        error instanceof Error ? error.message : "Could not convert lead.",
+        error instanceof Error
+          ? `${error.message} Open the lead on the web to choose the account, contact and close date.`
+          : "Could not convert lead.",
       );
     } finally {
       setBusy(false);
