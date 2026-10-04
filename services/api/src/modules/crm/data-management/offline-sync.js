@@ -1,4 +1,4 @@
-import { moveOpportunityStage } from "../pipeline/opportunity-transitions.js";
+import { moveOpportunityStage } from "../opportunities/outcome.js";
 import { createHash, randomUUID } from "node:crypto";
 import { createLead } from "../leads/records.js";
 import { createCrmTask, completeCrmTask } from "../activities/task-operations.js";

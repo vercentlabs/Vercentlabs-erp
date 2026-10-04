@@ -99,6 +99,9 @@ export type Lead = {
   lastActivityAt: string | null;
   nextFollowUpAt: string | null;
   archivedAt: string | null;
+  mergedIntoLeadId: string | null;
+  mergedIntoLeadCode: string | null;
+  mergedIntoLeadName: string | null;
   createdByName: string | null;
   createdAt: string;
   updatedByName: string | null;
@@ -108,7 +111,7 @@ export type Lead = {
 
 export type LeadCapabilities = Record<
   "view" | "viewAll" | "viewSensitive" | "create" | "edit" | "delete" | "assign" | "reassign" | "import" | "export" | "qualify" | "disqualify" | "reopen" | "convert"
-  | "changeStage" | "manageStages" | "overrideQualification" | "assignSelf" | "bulkAssign" | "assignAcrossTeams" | "manageAssignmentRules",
+  | "merge" | "changeStage" | "manageStages" | "overrideQualification" | "assignSelf" | "bulkAssign" | "assignAcrossTeams" | "manageAssignmentRules",
   boolean
 >;
 
@@ -180,10 +183,15 @@ export type LeadListFilters = {
 };
 
 export type LeadDuplicateMatch = {
-  kind: "lead" | "contact";
+  kind: "lead" | "contact" | "account";
   id: string;
   signals: string[];
   strength: "exact" | "possible";
+  matchStrength?: "strong" | "possible";
+  score?: number;
+  reasons?: Array<{ signal: string; label: string; strong: boolean }>;
+  isArchived?: boolean;
+  isInactive?: boolean;
   canOpen: boolean;
   name?: string | null;
   companyName?: string | null;
@@ -249,8 +257,8 @@ export type LeadConversionPreview = {
 };
 
 export type LeadConversionInput = {
-  account?: { id?: string; name?: string; ownerUserId?: string; allowDuplicate?: boolean };
-  contact?: { id?: string; ownerUserId?: string; allowDuplicate?: boolean };
+  account?: { id?: string; name?: string; ownerUserId?: string; allowDuplicate?: boolean; duplicateReason?: string };
+  contact?: { id?: string; ownerUserId?: string; allowDuplicate?: boolean; duplicateReason?: string };
   opportunity?: { create?: boolean; name?: string; amount?: number | string; productInterest?: string; ownerUserId?: string; stageId?: string; expectedCloseDate?: string | null };
 };
 
@@ -342,7 +350,9 @@ export type LeadImportResult = {
   ownerFallbacks: number;
   failed: number;
   duplicates: number;
-  errors: Array<{ row: number; message: string; duplicate?: boolean }>;
+  possibleDuplicates: number;
+  invalid: number;
+  errors: Array<{ row: number; message: string; duplicate?: boolean; matchingRecord?: string | null; matchField?: string | null }>;
   errorCsv: string | null;
 };
 
@@ -371,7 +381,8 @@ export const archiveLead = (id: string) => request<{ changed: boolean }>(`${BASE
 export const restoreLead = (id: string) => post<{ changed: boolean }>(`${BASE}/${id}/restore`);
 export const checkLeadDuplicates = (input: Record<string, unknown>) =>
   post<{ matches: LeadDuplicateMatch[]; hasBlockingMatch: boolean }>(`${BASE}/duplicates`, input);
-export const mergeLead = (duplicateId: string, keepLeadId: string) => post<{ keptLeadId: string }>(`${BASE}/${duplicateId}/merge`, { keepLeadId });
+export const mergeLead = (duplicateId: string, keepLeadId: string, choices: Record<string, "keep" | "duplicate"> = {}) =>
+  post<{ keptLeadId: string }>(`${BASE}/${duplicateId}/merge`, { keepLeadId, choices });
 
 // ---- lifecycle
 export const changeLeadStage = (id: string, stage: string, note?: string) => post<{ changed: boolean }>(`${BASE}/${id}/stage`, { stage, note });

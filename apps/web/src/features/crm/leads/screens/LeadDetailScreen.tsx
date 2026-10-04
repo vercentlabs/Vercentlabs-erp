@@ -144,6 +144,12 @@ export function LeadDetailScreen({ leadId }: { leadId: string }) {
         tabs={
           <div className="flex flex-col gap-3">
             <ErrorBanner message={error} />
+            {lead.mergedIntoLeadId && (
+              <div role="status" className="flex flex-wrap items-center justify-between gap-3 rounded-[var(--radius-control)] border border-warning-emphasis/30 bg-warning-soft px-3 py-2 text-sm">
+                <p>This lead was merged into <span className="font-medium">{lead.mergedIntoLeadName ?? lead.mergedIntoLeadCode}</span>. It is kept here for its history.</p>
+                <LinkButton variant="outline" href={`/crm/leads/${lead.mergedIntoLeadId}`}>Open {lead.mergedIntoLeadCode ?? "the primary lead"}</LinkButton>
+              </div>
+            )}
             {notice && (
               <div role="status" className="flex items-start justify-between gap-3 rounded-[var(--radius-control)] border border-border bg-surface-muted px-3 py-2 text-sm">
                 <p>{notice}</p>
@@ -172,7 +178,7 @@ export function LeadDetailScreen({ leadId }: { leadId: string }) {
           <TabPanel id="overview">
             <div className="flex flex-col gap-6">
               {lead.status === "converted" && <ConversionSummary lead={lead} />}
-              <LeadDuplicatesPanel lead={lead} canResolve={canEdit && can.disqualify} hideWhenEmpty onMerged={refresh} />
+              <LeadDuplicatesPanel lead={lead} canResolve={working && can.merge} hideWhenEmpty onMerged={refresh} />
               <PropertyList
                 title="Lead details"
                 columns={3}

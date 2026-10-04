@@ -16,6 +16,7 @@ import {
   checkContactDuplicates, createContact, duplicateMatchesOf, errorMessage, getContact, getContactOptions, updateContact,
   type Contact, type ContactDuplicateMatch, type ContactOptions,
 } from "../api/contacts-api";
+import { DuplicateOverride } from "@/features/crm/duplicates/DuplicateParts";
 import { ContactDuplicateWarning } from "../components/ContactDuplicateWarning";
 import { ErrorBanner } from "../contact-format";
 
@@ -103,6 +104,7 @@ function ContactForm({ contact, options, initialAccountId }: { contact?: Contact
   const [error, setError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [blockingMatches, setBlockingMatches] = useState<ContactDuplicateMatch[] | null>(null);
+  const [duplicateReason, setDuplicateReason] = useState("");
   const [liveMatches, setLiveMatches] = useState<ContactDuplicateMatch[]>([]);
   const sensitiveHidden = Boolean(contact?.sensitiveDataRestricted);
 
@@ -129,7 +131,7 @@ function ContactForm({ contact, options, initialAccountId }: { contact?: Contact
 
   const mutation = useMutation({
     mutationFn: (allowDuplicate: boolean) => {
-      const input = { ...toInput(values, mode, sensitiveHidden, contact), allowDuplicate };
+      const input = { ...toInput(values, mode, sensitiveHidden, contact), allowDuplicate, ...(allowDuplicate ? { duplicateReason } : {}) };
       return mode === "edit" ? updateContact(contactId as string, { ...input, expectedUpdatedAt: contact?.updatedAt }) : createContact(input);
     },
     onSuccess: (saved) => {
@@ -168,10 +170,8 @@ function ContactForm({ contact, options, initialAccountId }: { contact?: Contact
           <ErrorBanner message={error} />
           {blockingMatches ? (
             <ContactDuplicateWarning matches={blockingMatches} blocking>
-              <div className="flex flex-wrap gap-2">
-                <Button variant="outline" onPress={() => mutation.mutate(true)} isLoading={mutation.isPending}>Save anyway — this is a different person</Button>
-                <Button variant="ghost" onPress={() => setBlockingMatches(null)}>Go back and edit</Button>
-              </div>
+              <DuplicateOverride subject="person" reason={duplicateReason} onReasonChange={setDuplicateReason}
+                onConfirm={() => mutation.mutate(true)} onCancel={() => setBlockingMatches(null)} isLoading={mutation.isPending} />
             </ContactDuplicateWarning>
           ) : (
             <ContactDuplicateWarning matches={similarMatches} blocking={similarMatches.some((match) => match.strength === "exact")} />

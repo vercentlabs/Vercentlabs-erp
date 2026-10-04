@@ -195,8 +195,9 @@ export function LeadImportScreen() {
           <dl className="grid grid-cols-2 gap-4 sm:grid-cols-4">
             <Count label="Rows read" value={result.total} />
             <Count label="Leads created" value={result.created} />
-            <Count label="Rows failed" value={result.failed} />
-            <Count label="Of which duplicates" value={result.duplicates} />
+            <Count label="Duplicates skipped" value={result.duplicates} />
+            <Count label="Possible duplicates created" value={result.possibleDuplicates} />
+            <Count label="Failed validation" value={result.invalid} />
             <Count label="Assigned to an owner" value={result.assigned} />
             <Count label="Left unassigned" value={result.unassigned} />
             {result.ownerFallbacks > 0 && <Count label="Sent to the default owner" value={result.ownerFallbacks} />}
@@ -205,10 +206,16 @@ export function LeadImportScreen() {
             <>
               <ul className="flex max-h-64 flex-col gap-1 overflow-y-auto text-sm">
                 {result.errors.map((entry) => (
-                  <li key={entry.row}><span className="font-medium">Row {entry.row}:</span> {entry.message}</li>
+                  <li key={entry.row}>
+                    <span className="font-medium">Row {entry.row}:</span> {entry.message}
+                    {entry.matchField && <span className="text-text-secondary"> Matched on: {entry.matchField}.</span>}
+                  </li>
                 ))}
               </ul>
-              <div><Button variant="outline" onPress={downloadErrors}><Download className="size-4" aria-hidden="true" />Download failed rows</Button></div>
+              <div className="flex flex-wrap gap-2">
+                <Button variant="outline" onPress={downloadErrors}><Download className="size-4" aria-hidden="true" />Download review file</Button>
+                {result.possibleDuplicates > 0 && <LinkButton variant="outline" href="/crm/duplicates">Review possible duplicates</LinkButton>}
+              </div>
             </>
           )}
           <div><LinkButton variant="primary" href="/crm/leads">View leads</LinkButton></div>

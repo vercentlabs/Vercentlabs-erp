@@ -10,6 +10,7 @@
 import { parseCsvUpload } from "../../../core/platform/data-exchange/csv.js";
 import { isXlsxFileName, parseXlsxUpload } from "../../../core/platform/data-exchange/xlsx.js";
 import { CrmError } from "../data-management/errors.js";
+import { importDuplicateColumns } from "../duplicates/index.js";
 import { assertEligibleLeadAssignee as assertEligibleMember } from "../leads/assignment.js";
 import { findLeadSourceByName } from "../leads/sources.js";
 import { requireAccountPermission } from "./access.js";
@@ -125,6 +126,7 @@ export async function importAccounts(client, context, { bytes, fileName, mapping
   for (const [index, record] of parsed.records.entries()) {
     const rowNumber = index + 2;
     const input = rowToInput(record, mapping);
+    let possibleDuplicate = false;
     await client.query("SAVEPOINT account_import_row");
     try {
       const { source, ownerEmail, ...rest } = input;
@@ -151,12 +153,15 @@ export async function importAccounts(client, context, { bytes, fileName, mapping
         account.ownerUserId = ownerByEmail.get(key);
       } else if (defaultOwnerUserId) account.ownerUserId = defaultOwnerUserId;
 
-      const created = await createAccount(client, context, account, { allowDuplicate: !skipDuplicates, origin: "import" });
+      const created = await createAccount(client, context, account, {
+        allowDuplicate: !skipDuplicates, duplicateReason: "Imported with Create anyway", origin: "import",
+        onDuplicateCheck: (found) => { possibleDuplicate = found.matches.length > 0; } ,
+      });
       // A partial address is ignored rather than failing the row; a complete one must be valid.
       if (address.line1 && address.city && address.state && address.postalCode && address.countryCode)
         await addAccountAddress(client, context, created.id, { ...address, addressType: "office" });
       await client.query("RELEASE SAVEPOINT account_import_row");
-      results.push({ row: rowNumber, ok: true, accountId: created.id, code: created.code });
+      results.push({ row: rowNumber, ok: true, possibleDuplicate, accountId: created.id, code: created.code });
     } catch (error) {
       await client.query("ROLLBACK TO SAVEPOINT account_import_row");
       if (!(error instanceof CrmError)) throw error;
@@ -168,6 +173,7 @@ export async function importAccounts(client, context, { bytes, fileName, mapping
         duplicate,
         message: duplicate ? `Duplicate of ${match?.name ?? "an existing account"}${match?.code ? ` (${match.code})` : ""}.` : error.message,
         data: record,
+        ...importDuplicateColumns(match),
       });
     }
   }
@@ -178,9 +184,13 @@ export async function importAccounts(client, context, { bytes, fileName, mapping
     created: results.length - failed.length,
     failed: failed.length,
     duplicates: failed.filter((entry) => entry.duplicate).length,
-    errors: failed.map(({ row, message, duplicate }) => ({ row, message, duplicate })),
+    // created, but similar to an existing record: worth a look in the duplicate review
+    possibleDuplicates: results.filter((entry) => entry.ok && entry.possibleDuplicate).length,
+    invalid: failed.filter((entry) => !entry.duplicate).length,
+    errors: failed.map(({ row, message, duplicate, matchingRecord, matchField }) => ({ row, message, duplicate, matchingRecord, matchField })),
     // The failed rows as a file the user can fix and re-import.
-    errorCsv: failed.length ? toCsv([[...parsed.headers, "Row", "Error"], ...failed.map((entry) => [...parsed.headers.map((header) => entry.data[header] ?? ""), entry.row, entry.message])]) : null,
+    errorCsv: failed.length ? toCsv([[...parsed.headers, "Row", "Reason", "Matching Record", "Match Field"],
+      ...failed.map((entry) => [...parsed.headers.map((header) => entry.data[header] ?? ""), entry.row, entry.message, entry.matchingRecord ?? "", entry.matchField ?? ""])]) : null,
   };
 }
 

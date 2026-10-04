@@ -52,7 +52,7 @@ export const LEAD_PERMISSIONS: Readonly<{
   view: "crm.leads.view"; viewAll: "crm.leads.view_all"; viewSensitive: "crm.leads.view_sensitive"; create: "crm.leads.create";
   edit: "crm.leads.edit"; delete: "crm.leads.delete"; assign: "crm.leads.assign"; reassign: "crm.leads.reassign";
   import: "crm.leads.import"; export: "crm.leads.export"; qualify: "crm.leads.qualify"; disqualify: "crm.leads.disqualify";
-  reopen: "crm.leads.reopen"; convert: "crm.leads.convert"; changeStage: "crm.leads.change_stage"; manageStages: "crm.leads.manage_stages";
+  reopen: "crm.leads.reopen"; convert: "crm.leads.convert"; merge: "crm.leads.merge"; changeStage: "crm.leads.change_stage"; manageStages: "crm.leads.manage_stages";
   overrideQualification: "crm.leads.override_qualification";
   assignSelf: "crm.leads.assign_self"; bulkAssign: "crm.leads.bulk_assign"; assignAcrossTeams: "crm.leads.assign_across_teams";
   manageAssignmentRules: "crm.leads.manage_assignment_rules";
@@ -150,6 +150,9 @@ export type Lead = {
   lastActivityAt: string | null;
   nextFollowUpAt: string | null;
   archivedAt: string | null;
+  mergedIntoLeadId: string | null;
+  mergedIntoLeadCode: string | null;
+  mergedIntoLeadName: string | null;
   createdBy: string | null;
   createdByName: string | null;
   createdAt: string;
@@ -175,11 +178,17 @@ export type LeadListFilters = Partial<{
   ids: string[]; sortBy: string; sortDirection: "asc" | "desc"; limit: number; offset: number;
 }>;
 
+export type DuplicateReason = { signal: string; label: string; strong: boolean };
 export type LeadDuplicateMatch = {
-  kind: "lead" | "contact";
+  kind: "lead" | "contact" | "account";
   id: string;
-  signals: Array<"email" | "phone" | "name_company" | "name">;
+  signals: string[];
   strength: "exact" | "possible";
+  matchStrength: "strong" | "possible";
+  score: number;
+  reasons: DuplicateReason[];
+  isArchived?: boolean;
+  isInactive?: boolean;
   canOpen: boolean;
   name?: string | null;
   companyName?: string | null;
@@ -245,8 +254,8 @@ export type LeadConversionPreview = {
 };
 
 export type LeadConversionInput = {
-  account?: { id?: string; name?: string; ownerUserId?: string; allowDuplicate?: boolean };
-  contact?: { id?: string; ownerUserId?: string; allowDuplicate?: boolean };
+  account?: { id?: string; name?: string; ownerUserId?: string; allowDuplicate?: boolean; duplicateReason?: string };
+  contact?: { id?: string; ownerUserId?: string; allowDuplicate?: boolean; duplicateReason?: string };
   opportunity?: { create?: boolean; name?: string; amount?: number | string | null; productInterest?: string; ownerUserId?: string; stageId?: string; expectedCloseDate?: string | null };
 };
 
@@ -277,7 +286,8 @@ export type LeadImportAnalysis = {
 };
 export type LeadImportResult = {
   total: number; created: number; assigned: number; unassigned: number; ownerFallbacks: number; failed: number; duplicates: number;
-  errors: Array<{ row: number; message: string; duplicate?: boolean }>; errorCsv: string | null;
+  possibleDuplicates: number; invalid: number;
+  errors: Array<{ row: number; message: string; duplicate?: boolean; matchingRecord?: string | null; matchField?: string | null }>; errorCsv: string | null;
 };
 
 // access
@@ -291,7 +301,7 @@ export function projectLeadForContext<T>(context: CrmContext, record: T): T;
 // records
 export function listLeads(client: QueryClient, context: CrmContext, filters?: LeadListFilters): Promise<{ leads: Lead[]; total: number; limit: number; offset: number; capabilities: LeadCapabilities }>;
 export function getLead(client: QueryClient, context: CrmContext, leadId: string): Promise<Lead>;
-export function createLead(client: QueryClient, context: CrmContext, input: LeadInput, options?: { allowDuplicate?: boolean; origin?: "manual" | "import" | "integration"; routing?: "auto" | "rules" | "fallback" | "none"; assignmentReason?: string | null }): Promise<Lead>;
+export function createLead(client: QueryClient, context: CrmContext, input: LeadInput, options?: { allowDuplicate?: boolean; duplicateReason?: string | null; onDuplicateCheck?: (found: { matches: LeadDuplicateMatch[]; hasBlockingMatch: boolean }) => void; origin?: "manual" | "import" | "integration"; routing?: "auto" | "rules" | "fallback" | "none"; assignmentReason?: string | null }): Promise<Lead>;
 export function updateLead(client: QueryClient, context: CrmContext, leadId: string, input: LeadInput, options?: { allowDuplicate?: boolean; expectedUpdatedAt?: string | null }): Promise<Lead>;
 export function changeLeadStage(client: QueryClient, context: CrmContext, leadId: string, input: Record<string, unknown>): Promise<{ changed: boolean }>;
 export function ensureDefaultLeadStages(client: QueryClient, context: CrmContext): Promise<void>;
@@ -357,7 +367,8 @@ export function bulkDisqualifyLeads(client: QueryClient, context: CrmContext, in
 
 // duplicates and merge
 export function findLeadDuplicates(client: QueryClient, context: CrmContext, input: LeadInput, options?: { excludeLeadId?: string | null; limit?: number }): Promise<{ matches: LeadDuplicateMatch[]; hasBlockingMatch: boolean }>;
-export function mergeLeads(client: QueryClient, context: CrmContext, duplicateLeadId: string, keepLeadId: string): Promise<{ keptLeadId: string; mergedLeadId: string }>;
+export const LEAD_MERGE_FIELDS: Readonly<Record<string, string>>;
+export function mergeLeads(client: QueryClient, context: CrmContext, duplicateLeadId: string, keepLeadId: string, options?: { choices?: Record<string, "keep" | "duplicate"> }): Promise<{ keptLeadId: string; mergedLeadId: string }>;
 
 // conversion
 export function previewLeadConversion(client: QueryClient, context: CrmContext, leadId: string): Promise<LeadConversionPreview>;

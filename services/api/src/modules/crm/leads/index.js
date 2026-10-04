@@ -24,7 +24,7 @@ export {
 } from "./stages.js";
 export { listLeadStageHistory } from "./stage-history.js";
 export { findLeadDuplicates } from "./duplicates.js";
-export { mergeLeads } from "./merge.js";
+export { LEAD_MERGE_FIELDS, mergeLeads } from "./merge.js";
 export { convertLead, convertQualifiedLead, previewLeadConversion } from "./conversion.js";
 export { addLeadActivity, listLeadActivities, scheduleLeadFollowUp } from "./activities.js";
 export { listLeadHistory } from "./history.js";

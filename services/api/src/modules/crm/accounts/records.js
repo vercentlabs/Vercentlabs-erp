@@ -10,6 +10,7 @@ import { managedTeamMembersSql } from "../data-management/record-utils.js";
 import { accountCan, accountCapabilities, accountScopeSql, projectAccountForContext, requireAccountPermission } from "./access.js";
 import { applyAccountAssignment } from "./assignment.js";
 import { ACCOUNT_NUMBER_DOCUMENT_TYPE, ACCOUNT_PERMISSIONS, CRM_ACCOUNT_PARTY_SQL, accountStatusLabel, accountTypeLabel } from "./constants.js";
+import { recordDuplicateOverride } from "../duplicates/policy.js";
 import { assertNoBlockingAccountDuplicate } from "./duplicates.js";
 import { recordAccountHistory } from "./history.js";
 import { ACCOUNT_WRITABLE_COLUMNS, assertValidAccount, isUuid, normalizeAccountInput, requireUuid } from "./validation.js";
@@ -261,10 +262,12 @@ async function assertActiveSource(client, context, sourceId) {
 //   allowDuplicate  the caller confirmed a strong duplicate is a different company
 //   origin          recorded in history: "manual" | "import" | "lead_conversion"
 //   historySummary  overrides the created event's summary
-export async function createAccount(client, context, input = {}, { allowDuplicate = false, origin = "manual", historySummary = null } = {}) {
+//   duplicateReason   why a strong duplicate is saved anyway (with allowDuplicate; needs crm.duplicates.override)
+//   onDuplicateCheck  receives what the duplicate check found (imports count possible duplicates)
+export async function createAccount(client, context, input = {}, { allowDuplicate = false, duplicateReason = null, onDuplicateCheck = null, origin = "manual", historySummary = null } = {}) {
   requireAccountPermission(context, ACCOUNT_PERMISSIONS.create, "You do not have permission to create accounts.");
   // Owner, team and tags are set below through their own rules.
-  const { ownerUserId: _owner, teamId: _team, tagIds: _tags, ...accountFields } = input;
+  const { ownerUserId: _owner, teamId: _team, tagIds: _tags, duplicateReason: inputReason, ...accountFields } = input;
   const normalized = normalizeAccountInput(accountFields);
   if (!normalized.accountType) normalized.accountType = "prospect";
   // A customer account comes into being through Create customer, which gives
@@ -273,7 +276,8 @@ export async function createAccount(client, context, input = {}, { allowDuplicat
     throw new CrmError(409, "Create the account as a prospect, then use Create customer.", "CRM_ACCOUNT_TYPE_GOVERNED");
   assertValidAccount(normalized);
   await assertActiveSource(client, context, normalized.sourceId);
-  const duplicates = await assertNoBlockingAccountDuplicate(client, context, normalized, { allowDuplicate });
+  const duplicates = await assertNoBlockingAccountDuplicate(client, context, normalized, { allowDuplicate, reason: duplicateReason ?? inputReason });
+  onDuplicateCheck?.(duplicates);
 
   let ownerUserId = context.userId;
   if (has(input, "ownerUserId")) {
@@ -293,6 +297,7 @@ export async function createAccount(client, context, input = {}, { allowDuplicat
     values,
   );
   const account = inserted.rows[0];
+  await recordDuplicateOverride(client, context, "account", account.id, duplicates);
   await recordAccountHistory(client, context, account.id, "created", historySummary ?? `Account ${code} created`, {
     origin,
     ...(duplicates.hasBlockingMatch ? { duplicateConfirmed: duplicates.matches.filter((match) => match.strength === "exact").map((match) => match.id) } : {}),
@@ -321,7 +326,8 @@ export async function updateAccount(client, context, partyId, input = {}, { allo
 
   const changed = Object.keys(normalized).filter((field) => ACCOUNT_WRITABLE_COLUMNS[field] && String(normalized[field] ?? "") !== String(before[field] ?? ""));
   if (changed.some((field) => DUPLICATE_IDENTITY_FIELDS.includes(field)))
-    await assertNoBlockingAccountDuplicate(client, context, { ...before, ...normalized }, { excludeId: row.id, allowDuplicate });
+    await recordDuplicateOverride(client, context, "account", row.id,
+      await assertNoBlockingAccountDuplicate(client, context, { ...before, ...normalized }, { excludeId: row.id, allowDuplicate, reason: input.duplicateReason }));
   if (changed.length) {
     await client.query(
       `UPDATE tenant.business_parties SET ${changed.map((field, index) => `${ACCOUNT_WRITABLE_COLUMNS[field]} = $${index + 3}`).join(", ")}, updated_by = $${changed.length + 3}, updated_at = now()

@@ -215,7 +215,7 @@ export function ContactDetailScreen({ contactId }: { contactId: string }) {
           <TabPanel id="companies"><ContactCompaniesPanel contact={contact} options={options} canEdit={canEdit} /></TabPanel>
           <TabPanel id="opportunities">
             <ContactRelatedListPanel contactId={contact.id} list="opportunities"
-              action={canEdit && contact.accountId && <LinkButton variant="primary" size="compact" href={`/crm/opportunities/new?partyId=${contact.accountId}`}>New opportunity</LinkButton>} />
+              action={canEdit && contact.accountId && <LinkButton variant="primary" size="compact" href={`/crm/opportunities/new?accountId=${contact.accountId}`}>New opportunity</LinkButton>} />
           </TabPanel>
           <TabPanel id="activities"><ContactActivitiesPanel contactId={contact.id} options={options} canEdit={canEdit} /></TabPanel>
           <TabPanel id="tasks"><ContactTasksPanel contactId={contact.id} options={options} canEdit={canEdit} /></TabPanel>

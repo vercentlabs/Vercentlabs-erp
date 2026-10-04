@@ -120,6 +120,11 @@ export type AccountDuplicateMatch = {
   id: string;
   signals: string[];
   strength: "exact" | "possible";
+  matchStrength?: "strong" | "possible";
+  score?: number;
+  reasons?: Array<{ signal: string; label: string; strong: boolean }>;
+  isArchived?: boolean;
+  isInactive?: boolean;
   canOpen: boolean;
   code?: string;
   name?: string;

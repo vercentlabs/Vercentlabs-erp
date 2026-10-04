@@ -62,64 +62,6 @@ export function archiveCrmRecord(
   id: string,
   expectations?: { expectedUpdatedAt?: string; requireVersion?: boolean },
 ): Promise<any>;
-export function updateOpportunityProbability(
-  client: QueryClient,
-  context: CrmContext,
-  opportunityId: string,
-  probability: number,
-  note?: string | null,
-  expectations?: { expectedUpdatedAt?: string; expectedProbability?: number | null },
-): Promise<any>;
-export function moveOpportunityStage(
-  client: QueryClient,
-  context: CrmContext,
-  opportunityId: string,
-  stageId: string,
-  note?: string | null,
-  expectations?: {
-    expectedUpdatedAt?: string;
-    expectedStageId?: string | null;
-    outcomeReasonId?: string | null;
-    outcomeNotes?: string | null;
-  },
-): Promise<any>;
-export function restoreOpportunity(
-  client: QueryClient,
-  context: CrmContext,
-  opportunityId: string,
-  reason: string,
-  expectations?: { expectedUpdatedAt?: string },
-): Promise<any>;
-export type CrmOpportunityProbabilityHistoryEntry = Record<string, unknown> & {
-  id: string;
-  opportunityId: string;
-  fromProbability: number;
-  toProbability: number;
-  expectedRevenue: number;
-  note: string | null;
-  changedBy: string | null;
-  changedByName: string | null;
-  changedAt: string;
-  source: "manual_override" | "stage_default" | "terminal_won" | "terminal_lost" | "reopen" | "restored" | null;
-};
-export function listOpportunityProbabilityHistory(
-  client: QueryClient,
-  context: CrmContext,
-  opportunityId: string,
-  limit?: number,
-): Promise<CrmOpportunityProbabilityHistoryEntry[]>;
-export type CrmOpportunityPredictiveProbability = {
-  predictedProbability: number;
-  predictedAmount: number;
-  factors: Record<string, unknown> | null;
-  modelVersion: string;
-  capturedAt: string;
-};
-export function getOpportunityPredictiveProbability(
-  client: QueryClient,
-  context: CrmContext,
-  opportunityId: string,
-): Promise<CrmOpportunityPredictiveProbability | null>;
 export function completeCrmActivity(
   client: QueryClient,
   context: CrmContext,
@@ -235,20 +177,6 @@ export function listCrmTaskHistory(client: QueryClient, context: CrmContext, id:
 export {
   applyOfflineBatch,
 } from "./data-management/offline-sync.js";
-export {
-  addOpportunityContactRole,
-  listContactOpportunityRoles,
-  listOpportunityContactRoles,
-  removeOpportunityContactRole,
-  setPrimaryOpportunityContactRole,
-  updateOpportunityContactRole,
-} from "./pipeline/opportunity-contacts.js";
-export {
-  bulkUpdateOpportunities,
-  enqueueOpportunityBulkUpdateJob,
-  getOpportunityBulkJob,
-  resolveOpportunityBulkExecutionContext,
-} from "./pipeline/opportunity-operations.js";
 export {
   capturePredictiveForecast,
   getForecastCalibration,
@@ -418,15 +346,6 @@ export function resolveCommunicationParticipants(
   participants: Array<{ role: string; email: string }>,
 ): Promise<void>;
 
-// F029 bulk jobs: snapshot the selection a queued job will process.
-export function snapshotOpportunityBulkJobSelection(
-  client: QueryClient,
-  context: CrmContext,
-  jobId: string,
-  selection?: Record<string, unknown>,
-  options?: { maximum?: number },
-): Promise<{ requested: number; snapshotted: number | null }>;
-
 // Worker entry points (nurture notifications, scheduled calendar sync).
 export function claimCalendarSyncAccounts(
   client: QueryClient,
@@ -446,5 +365,7 @@ export function failCalendarSync(
   error: unknown,
 ): Promise<{ failed: true; code: string }>;
 export * from "./leads/index.js";
+export * from "./opportunities/index.js";
 export * from "./accounts/index.js";
 export * from "./contacts/index.js";
+export * from "./duplicates/index.js";

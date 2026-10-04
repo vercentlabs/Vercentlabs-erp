@@ -1,15 +1,8 @@
 import Link from "next/link";
-import { Badge } from "@vercentlabs/design-system";
+
+import { MatchReasons, MatchStateBadge, MatchStrengthBadge } from "@/features/crm/duplicates/DuplicateParts";
 
 import type { ContactDuplicateMatch } from "../api/contacts-api";
-
-const SIGNAL_LABELS: Record<string, string> = {
-  email: "same email",
-  phone: "same phone number",
-  name_company: "similar name at the same company",
-  name_email_domain: "similar name and same email domain",
-  similar_name: "nearly the same name",
-};
 
 // Existing contacts that look like the person being saved. A match the user
 // is not allowed to open is named without its details.
@@ -23,7 +16,7 @@ export function ContactDuplicateWarning({ matches, blocking, children }: { match
       <ul className="flex flex-col gap-2">
         {matches.map((match) => (
           <li key={match.id} className="flex flex-wrap items-center gap-2">
-            <Badge tone={match.strength === "exact" ? "warning" : "neutral"}>{match.strength === "exact" ? "Match" : "Possible"}</Badge>
+            <MatchStrengthBadge match={match} />
             {match.canOpen ? (
               <Link href={`/crm/contacts/${match.id}`} target="_blank" className="font-medium text-brand underline-offset-2 hover:underline">
                 {match.name || match.code || "Open contact"}
@@ -36,7 +29,8 @@ export function ContactDuplicateWarning({ matches, blocking, children }: { match
                 {[match.code, match.jobTitle, match.accountName, match.email, match.mobile, match.ownerName ? `Owner: ${match.ownerName}` : null].filter(Boolean).join(" · ")}
               </span>
             )}
-            <span className="text-xs text-text-muted">({match.signals.map((signal) => SIGNAL_LABELS[signal] ?? signal).join(", ")})</span>
+            <MatchStateBadge match={match} />
+            <span className="basis-full"><MatchReasons match={match} /></span>
           </li>
         ))}
       </ul>

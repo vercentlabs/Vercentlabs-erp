@@ -15,6 +15,7 @@ import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext"
 import {
   checkLeadDuplicates, createLead, duplicateMatchesOf, errorMessage, getLead, getLeadOptions, updateLead, type Lead, type LeadDuplicateMatch, type LeadOptions,
 } from "../api/leads-api";
+import { DuplicateOverride } from "@/features/crm/duplicates/DuplicateParts";
 import { DuplicateWarning } from "../components/DuplicateWarning";
 import { ErrorBanner, PRIORITY_OPTIONS, RATING_OPTIONS } from "../lead-format";
 
@@ -88,6 +89,7 @@ function LeadForm({ lead, options }: { lead?: Lead; options: LeadOptions }) {
   const [error, setError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [blockingMatches, setBlockingMatches] = useState<LeadDuplicateMatch[] | null>(null);
+  const [duplicateReason, setDuplicateReason] = useState("");
   const [liveMatches, setLiveMatches] = useState<LeadDuplicateMatch[]>([]);
 
   // Warn about likely duplicates while the identifying fields are typed.
@@ -99,7 +101,7 @@ function LeadForm({ lead, options }: { lead?: Lead; options: LeadOptions }) {
     const timer = setTimeout(() => {
       checkLeadDuplicates({
         email: values.email, mobile: values.mobile, phone: values.phone, firstName: values.firstName, lastName: values.lastName,
-        companyName: values.companyName, excludeLeadId: leadId,
+        companyName: values.companyName, website: values.website, excludeLeadId: leadId,
       }).then((result) => setLiveMatches(result.matches)).catch(() => setLiveMatches([]));
     }, 500);
     return () => clearTimeout(timer);
@@ -113,7 +115,7 @@ function LeadForm({ lead, options }: { lead?: Lead; options: LeadOptions }) {
 
   const mutation = useMutation({
     mutationFn: (allowDuplicate: boolean) => {
-      const input = { ...toInput(values, mode), allowDuplicate };
+      const input = { ...toInput(values, mode), allowDuplicate, ...(allowDuplicate ? { duplicateReason } : {}) };
       return mode === "edit" ? updateLead(leadId as string, { ...input, expectedUpdatedAt: lead?.updatedAt }) : createLead(input);
     },
     onSuccess: (saved) => {
@@ -153,10 +155,8 @@ function LeadForm({ lead, options }: { lead?: Lead; options: LeadOptions }) {
           <ErrorBanner message={error} />
           {blockingMatches ? (
             <DuplicateWarning matches={blockingMatches} blocking>
-              <div className="flex flex-wrap gap-2">
-                <Button variant="outline" onPress={() => mutation.mutate(true)} isLoading={mutation.isPending}>Save anyway — this is a different person</Button>
-                <Button variant="ghost" onPress={() => setBlockingMatches(null)}>Go back and edit</Button>
-              </div>
+              <DuplicateOverride subject="person" reason={duplicateReason} onReasonChange={setDuplicateReason}
+                onConfirm={() => mutation.mutate(true)} onCancel={() => setBlockingMatches(null)} isLoading={mutation.isPending} />
             </DuplicateWarning>
           ) : (
             <DuplicateWarning matches={similarMatches} blocking={similarMatches.some((match) => match.strength === "exact")} />

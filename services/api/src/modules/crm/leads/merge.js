@@ -1,8 +1,10 @@
 // Merging a duplicate lead into the lead that should be kept. Everything
 // recorded against the duplicate (activities, notes, files, tags, emails)
-// moves to the kept lead, blank fields on the kept lead are filled from the
-// duplicate, and the duplicate is disqualified as "Duplicate" and archived —
-// never deleted, so its history survives.
+// moves to the kept lead. The user chooses, field by field, which value
+// survives; blank fields on the kept lead are filled from the duplicate. The
+// duplicate is disqualified as "Duplicate" and archived — never deleted — and
+// it remembers the lead it became, so its page points to the kept lead. Its
+// own assignment, stage and qualification history stay with it, readable.
 import { CrmError } from "../data-management/errors.js";
 import { requireLeadPermission } from "./access.js";
 import { LEAD_PERMISSIONS } from "./constants.js";
@@ -10,15 +12,20 @@ import { recordLeadHistory } from "./history.js";
 import { lockLead } from "./records.js";
 import { requireUuid } from "./validation.js";
 
-// Copied from the duplicate only where the kept lead has no value.
-const FILLABLE_COLUMNS = Object.freeze([
-  "first_name", "last_name", "company_name", "job_title", "email", "phone", "mobile", "website", "city", "state", "country_code",
-  "source_id", "source_detail", "industry", "product_interest", "purchase_timeframe", "description", "currency_code",
-]);
+// field -> column: the choices offered on the merge screen. A field not
+// chosen keeps the kept lead's value, unless that is blank.
+export const LEAD_MERGE_FIELDS = Object.freeze({
+  firstName: "first_name", lastName: "last_name", companyName: "company_name", jobTitle: "job_title", email: "email", phone: "phone", mobile: "mobile",
+  website: "website", city: "city", state: "state", countryCode: "country_code", sourceId: "source_id", sourceDetail: "source_detail", industry: "industry",
+  productInterest: "product_interest", purchaseTimeframe: "purchase_timeframe", description: "description", currencyCode: "currency_code",
+});
+const FILLABLE_COLUMNS = Object.freeze(Object.values(LEAD_MERGE_FIELDS));
+const FIELD_OF_COLUMN = Object.freeze(Object.fromEntries(Object.entries(LEAD_MERGE_FIELDS).map(([field, column]) => [column, field])));
+const blank = (value) => value === null || value === undefined || value === "";
 
-export async function mergeLeads(client, context, duplicateLeadId, keepLeadId) {
-  requireLeadPermission(context, LEAD_PERMISSIONS.edit, "You do not have permission to merge leads.");
-  requireLeadPermission(context, LEAD_PERMISSIONS.disqualify, "You do not have permission to merge leads.");
+// options.choices: { [field]: "keep" | "duplicate" }
+export async function mergeLeads(client, context, duplicateLeadId, keepLeadId, { choices = {} } = {}) {
+  requireLeadPermission(context, LEAD_PERMISSIONS.merge, "You do not have permission to merge leads.");
   if (requireUuid(duplicateLeadId, "Lead") === requireUuid(keepLeadId, "Lead"))
     throw new CrmError(400, "Choose two different leads to merge.", "CRM_LEAD_MERGE_INVALID");
   // Lock in a stable order so two opposite merges cannot deadlock.
@@ -45,7 +52,8 @@ export async function mergeLeads(client, context, duplicateLeadId, keepLeadId) {
   );
   await client.query(`DELETE FROM tenant.crm_lead_tags WHERE organization_id = $1 AND lead_id = $2`, [organizationId, duplicate.id]);
 
-  const filled = FILLABLE_COLUMNS.filter((column) => (keep[column] === null || keep[column] === "") && duplicate[column] !== null && duplicate[column] !== "");
+  const filled = FILLABLE_COLUMNS.filter((column) => !blank(duplicate[column]) && String(duplicate[column]) !== String(keep[column] ?? "")
+    && (choices?.[FIELD_OF_COLUMN[column]] === "duplicate" || (choices?.[FIELD_OF_COLUMN[column]] !== "keep" && blank(keep[column]))));
   // The duplicate gives up its identity first so the kept lead can take its
   // email or phone without the two colliding in duplicate detection.
   await client.query(
@@ -63,7 +71,10 @@ export async function mergeLeads(client, context, duplicateLeadId, keepLeadId) {
       [organizationId, keep.id, ...filled.map((column) => duplicate[column]), duplicate.last_activity_at, context.userId ?? null],
     );
   }
+  // Leads merged into the duplicate earlier now point to the kept lead too.
+  await client.query(`UPDATE tenant.crm_leads SET merged_into_lead_id = $3 WHERE organization_id = $1 AND (id = $2 OR merged_into_lead_id = $2)`, move);
+  const fieldDecisions = Object.fromEntries(filled.map((column) => [FIELD_OF_COLUMN[column], { from: keep[column] ?? null, to: duplicate[column] }]));
   await recordLeadHistory(client, context, duplicate.id, "merged", `Merged into ${keep.code}`, { mergedInto: keep.id });
-  await recordLeadHistory(client, context, keep.id, "merged", `Merged ${duplicate.code} into this lead`, { mergedFrom: duplicate.id, filledFields: filled });
+  await recordLeadHistory(client, context, keep.id, "merged", `Merged ${duplicate.code} into this lead`, { mergedFrom: duplicate.id, filledFields: filled, fieldDecisions });
   return { keptLeadId: keep.id, mergedLeadId: duplicate.id };
 }

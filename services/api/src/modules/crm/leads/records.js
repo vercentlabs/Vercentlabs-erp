@@ -12,6 +12,7 @@ import { leadCan, leadCapabilities, leadScopeSql, projectLeadForContext, require
 import { applyLeadAssignment } from "./assignment.js";
 import { evaluateLeadAssignment, fallbackLeadAssignment, getLeadAssignmentSettings } from "./assignment-rules.js";
 import { LEAD_NUMBER_DOCUMENT_TYPE, LEAD_PERMISSIONS, LEAD_STALE_DAYS } from "./constants.js";
+import { recordDuplicateOverride } from "../duplicates/policy.js";
 import { assertNoBlockingLeadDuplicate } from "./duplicates.js";
 import { leadQualificationScore, leadQualificationStatus, suggestedLeadRating } from "./qualification-criteria.js";
 import { recordLeadHistory } from "./history.js";
@@ -40,6 +41,8 @@ export const LEAD_SELECT = `
          converter.full_name AS converted_by_name, converted_account.display_name AS converted_account_name,
          converted_contact.display_name AS converted_contact_name, converted_opportunity.name AS converted_opportunity_name,
          converted_opportunity.code AS converted_opportunity_code, converted_opportunity.amount AS converted_opportunity_amount,
+         lead.merged_into_lead_id AS merged_into_id, merged_lead.code AS merged_into_code,
+         COALESCE(merged_lead.full_name, merged_lead.company_name) AS merged_into_name,
          follow_up.next_follow_up_at AS pending_follow_up_at,
          COALESCE((SELECT jsonb_agg(jsonb_build_object('id', tag.id, 'name', tag.name, 'color', tag.color) ORDER BY tag.name)
                      FROM tenant.crm_lead_tags lead_tag
@@ -56,6 +59,7 @@ export const LEAD_SELECT = `
     LEFT JOIN tenant.business_parties converted_account ON converted_account.organization_id = lead.organization_id AND converted_account.id = lead.converted_party_id
     LEFT JOIN tenant.contacts converted_contact ON converted_contact.organization_id = lead.organization_id AND converted_contact.id = lead.converted_contact_id
     LEFT JOIN tenant.crm_opportunities converted_opportunity ON converted_opportunity.organization_id = lead.organization_id AND converted_opportunity.id = lead.converted_opportunity_id
+    LEFT JOIN tenant.crm_leads merged_lead ON merged_lead.organization_id = lead.organization_id AND merged_lead.id = lead.merged_into_lead_id
     LEFT JOIN public.users qualifier ON qualifier.id = lead.qualified_by
     LEFT JOIN public.users disqualifier ON disqualifier.id = lead.disqualified_by
     LEFT JOIN tenant.crm_lead_qualifications qualification ON qualification.organization_id = lead.organization_id AND qualification.lead_id = lead.id
@@ -153,6 +157,10 @@ export function toLead(row) {
     lastActivityAt: row.last_activity_at,
     nextFollowUpAt: row.pending_follow_up_at ?? null,
     archivedAt: row.archived_at,
+    // set when this lead was merged into another: the lead that carries on
+    mergedIntoLeadId: row.merged_into_id ?? null,
+    mergedIntoLeadCode: row.merged_into_code ?? null,
+    mergedIntoLeadName: row.merged_into_name ?? null,
     createdBy: row.created_by,
     createdByName: row.created_by_name ?? null,
     createdAt: row.created_at,
@@ -373,12 +381,17 @@ async function initialLeadAssignment(client, context, input, normalized, { origi
 //   origin          "manual" | "import" | "integration": recorded in history and as the assignment method
 //   routing         see initialLeadAssignment
 //   assignmentReason  recorded in the assignment history
-export async function createLead(client, context, input = {}, { allowDuplicate = false, origin = "manual", routing = "auto", assignmentReason = null } = {}) {
+//   duplicateReason   why a strong duplicate is saved anyway (with allowDuplicate; needs crm.duplicates.override)
+//   onDuplicateCheck  receives what the duplicate check found (imports count possible duplicates)
+export async function createLead(client, context, input = {}, {
+  allowDuplicate = false, duplicateReason = null, onDuplicateCheck = null, origin = "manual", routing = "auto", assignmentReason = null,
+} = {}) {
   requireLeadPermission(context, LEAD_PERMISSIONS.create, "You do not have permission to create leads.");
   const normalized = normalizeLeadInput(input);
   assertValidLead(normalized);
   await assertActiveLeadSource(client, context, normalized.sourceId);
-  const duplicates = await assertNoBlockingLeadDuplicate(client, context, normalized, { allowDuplicate });
+  const duplicates = await assertNoBlockingLeadDuplicate(client, context, normalized, { allowDuplicate, reason: duplicateReason ?? input.duplicateReason });
+  onDuplicateCheck?.(duplicates);
   const assignment = await initialLeadAssignment(client, context, input, normalized, { origin, routing });
 
   await ensureDefaultLeadStages(client, context);
@@ -396,6 +409,7 @@ export async function createLead(client, context, input = {}, { allowDuplicate =
     origin,
     ...(duplicates.hasBlockingMatch ? { duplicateConfirmed: duplicates.matches.filter((match) => match.strength === "exact").map((match) => ({ kind: match.kind, id: match.id })) } : {}),
   });
+  await recordDuplicateOverride(client, context, "lead", lead.id, duplicates);
   await recordLeadStageEntry(client, context, lead.id, { to: lead.stage });
   if (assignment.method)
     await applyLeadAssignment(client, context, lead, { ownerUserId: assignment.ownerUserId, teamId: assignment.teamId }, {
@@ -434,7 +448,8 @@ export async function updateLead(client, context, leadId, input = {}, { allowDup
 
   const changedFields = Object.keys(normalized).filter((field) => LEAD_WRITABLE_COLUMNS[field] && (normalized[field] ?? null) !== (before[field] ?? null));
   if (changedFields.some((field) => DUPLICATE_IDENTITY_FIELDS.includes(field)))
-    await assertNoBlockingLeadDuplicate(client, context, { ...before, ...normalized }, { excludeLeadId: row.id, allowDuplicate });
+    await recordDuplicateOverride(client, context, "lead", row.id,
+      await assertNoBlockingLeadDuplicate(client, context, { ...before, ...normalized }, { excludeLeadId: row.id, allowDuplicate, reason: input.duplicateReason }));
 
   if (changedFields.length) {
     const assignments = changedFields.map((field, index) => `${LEAD_WRITABLE_COLUMNS[field]} = $${index + 3}`);

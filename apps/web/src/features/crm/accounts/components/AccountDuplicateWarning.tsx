@@ -1,18 +1,9 @@
 import Link from "next/link";
-import { Badge } from "@vercentlabs/design-system";
+
+import { MatchReasons, MatchStateBadge, MatchStrengthBadge } from "@/features/crm/duplicates/DuplicateParts";
 
 import type { AccountDuplicateMatch } from "../api/accounts-api";
 import { TYPE_LABELS } from "../account-format";
-
-const SIGNAL_LABELS: Record<string, string> = {
-  website: "same website",
-  gstin: "same GSTIN",
-  name: "same company name",
-  similar_name: "similar name",
-  name_city: "similar name in the same city",
-  name_phone: "similar name and same phone",
-  name_email_domain: "similar name and same email domain",
-};
 
 // Existing accounts that look like the one being saved. A match the user is
 // not allowed to open is named without its details.
@@ -26,7 +17,7 @@ export function AccountDuplicateWarning({ matches, blocking, children }: { match
       <ul className="flex flex-col gap-2">
         {matches.map((match) => (
           <li key={match.id} className="flex flex-wrap items-center gap-2">
-            <Badge tone={match.strength === "exact" ? "warning" : "neutral"}>{match.strength === "exact" ? "Match" : "Possible"}</Badge>
+            <MatchStrengthBadge match={match} />
             {match.canOpen ? (
               <Link href={`/crm/accounts/${match.id}`} target="_blank" className="font-medium text-brand underline-offset-2 hover:underline">
                 {match.name || match.code || "Open account"}
@@ -40,7 +31,8 @@ export function AccountDuplicateWarning({ matches, blocking, children }: { match
                   .filter(Boolean).join(" · ")}
               </span>
             )}
-            <span className="text-xs text-text-muted">({match.signals.map((signal) => SIGNAL_LABELS[signal] ?? signal).join(", ")})</span>
+            <MatchStateBadge match={match} />
+            <span className="basis-full"><MatchReasons match={match} /></span>
           </li>
         ))}
       </ul>

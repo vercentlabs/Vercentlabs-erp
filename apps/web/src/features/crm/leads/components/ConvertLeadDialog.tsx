@@ -8,6 +8,8 @@ import { useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { Button, Checkbox, Dialog, Radio, RadioGroup, Select, TextField } from "@vercentlabs/design-system";
 
+import { useCanOverrideDuplicates } from "@/features/crm/duplicates/DuplicateParts";
+
 import { DateInput } from "@/features/crm/shared/ui/DateTimeInput";
 import { LoadingState } from "@/shared/ui/LoadingState";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
@@ -73,6 +75,10 @@ function ConversionForm({ leadId, preview, options, onCancel, onMatchesChanged, 
   const [confirmNewAccount, setConfirmNewAccount] = useState(false);
   const [contact, setContact] = useState(preview.contactMatches[0]?.id ?? CREATE);
   const [confirmNewContact, setConfirmNewContact] = useState(false);
+  // Creating a new record beside a match is a duplicate override: it needs the permission and a reason.
+  const canOverride = useCanOverrideDuplicates();
+  const [accountReason, setAccountReason] = useState("");
+  const [contactReason, setContactReason] = useState("");
   const [createOpportunity, setCreateOpportunity] = useState(true);
   const [opportunityName, setOpportunityName] = useState(preview.defaults.opportunityName);
   const [amount, setAmount] = useState(preview.defaults.amount ? String(preview.defaults.amount) : "");
@@ -88,8 +94,8 @@ function ConversionForm({ leadId, preview, options, onCancel, onMatchesChanged, 
 
   const mutation = useMutation({
     mutationFn: () => convertLead(leadId, {
-      account: account === CREATE ? { name: accountName, ownerUserId: accountOwnerUserId, allowDuplicate: confirmNewAccount } : { id: account },
-      contact: contact === CREATE ? { ownerUserId: contactOwnerUserId, allowDuplicate: confirmNewContact } : { id: contact },
+      account: account === CREATE ? { name: accountName, ownerUserId: accountOwnerUserId, allowDuplicate: confirmNewAccount, ...(confirmNewAccount ? { duplicateReason: accountReason } : {}) } : { id: account },
+      contact: contact === CREATE ? { ownerUserId: contactOwnerUserId, allowDuplicate: confirmNewContact, ...(confirmNewContact ? { duplicateReason: contactReason } : {}) } : { id: contact },
       opportunity: createOpportunity
         ? { name: opportunityName, amount, productInterest, ownerUserId, expectedCloseDate: expectedCloseDate || null, ...(stageId !== DEFAULT_STAGE ? { stageId } : {}) }
         : { create: false },
@@ -104,8 +110,8 @@ function ConversionForm({ leadId, preview, options, onCancel, onMatchesChanged, 
 
   // Open deals on the chosen account: worth a look before creating another one.
   const similarOpportunities = account === CREATE ? [] : preview.opportunityMatches.filter((match) => match.partyId === account);
-  const accountNeedsConfirmation = account === CREATE && preview.accountMatches.length > 0 && !confirmNewAccount;
-  const contactNeedsConfirmation = contact === CREATE && preview.canCreateContact && preview.contactMatches.length > 0 && !confirmNewContact;
+  const accountNeedsConfirmation = account === CREATE && preview.accountMatches.length > 0 && !(confirmNewAccount && accountReason.trim());
+  const contactNeedsConfirmation = contact === CREATE && preview.canCreateContact && preview.contactMatches.length > 0 && !(confirmNewContact && contactReason.trim());
   const incomplete = (account === CREATE && !accountName.trim()) || (createOpportunity && !opportunityName.trim());
 
   return (
@@ -125,9 +131,14 @@ function ConversionForm({ leadId, preview, options, onCancel, onMatchesChanged, 
                 <Select label="Account owner" isRequired selectedKey={accountOwnerUserId} onSelectionChange={(key) => setAccountOwnerUserId(String(key))} options={ownerOptions} />
               </div>
               {preview.accountMatches.length > 0 && (
-                <Checkbox isSelected={confirmNewAccount} onChange={setConfirmNewAccount}>
-                  This is a different company from the existing {preview.accountMatches.length === 1 ? "account" : "accounts"} above
-                </Checkbox>
+                canOverride ? (
+                  <>
+                    <Checkbox isSelected={confirmNewAccount} onChange={setConfirmNewAccount}>
+                      This is a different company from the existing {preview.accountMatches.length === 1 ? "account" : "accounts"} above
+                    </Checkbox>
+                    {confirmNewAccount && <TextField label="Why is this a separate company?" isRequired value={accountReason} onChange={setAccountReason} />}
+                  </>
+                ) : <p className="text-sm text-text-secondary">A matching account exists. Use it, or ask a manager to create a separate one.</p>
               )}
             </div>
           )}
@@ -144,9 +155,14 @@ function ConversionForm({ leadId, preview, options, onCancel, onMatchesChanged, 
             <div className="flex flex-col gap-3 pl-6">
               <Select label="Contact owner" isRequired className="sm:max-w-xs" selectedKey={contactOwnerUserId} onSelectionChange={(key) => setContactOwnerUserId(String(key))} options={ownerOptions} />
               {preview.contactMatches.length > 0 && (
-                <Checkbox isSelected={confirmNewContact} onChange={setConfirmNewContact}>
-                  This is a different person from the existing {preview.contactMatches.length === 1 ? "contact" : "contacts"} above
-                </Checkbox>
+                canOverride ? (
+                  <>
+                    <Checkbox isSelected={confirmNewContact} onChange={setConfirmNewContact}>
+                      This is a different person from the existing {preview.contactMatches.length === 1 ? "contact" : "contacts"} above
+                    </Checkbox>
+                    {confirmNewContact && <TextField label="Why is this a separate person?" isRequired value={contactReason} onChange={setContactReason} />}
+                  </>
+                ) : <p className="text-sm text-text-secondary">A matching contact exists. Use it, or ask a manager to create a separate one.</p>
               )}
             </div>
           )}

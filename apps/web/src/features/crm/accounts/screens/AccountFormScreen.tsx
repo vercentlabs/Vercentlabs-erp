@@ -16,6 +16,7 @@ import {
   checkAccountDuplicates, createAccount, duplicateMatchesOf, errorMessage, getAccount, getAccountOptions, updateAccount,
   type Account, type AccountDuplicateMatch, type AccountOptions,
 } from "../api/accounts-api";
+import { DuplicateOverride } from "@/features/crm/duplicates/DuplicateParts";
 import { AccountDuplicateWarning } from "../components/AccountDuplicateWarning";
 import { AccountPicker } from "../components/AccountPicker";
 import { ErrorBanner } from "../account-format";
@@ -98,6 +99,7 @@ function AccountForm({ account, options }: { account?: Account; options: Account
   const [error, setError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [blockingMatches, setBlockingMatches] = useState<AccountDuplicateMatch[] | null>(null);
+  const [duplicateReason, setDuplicateReason] = useState("");
   const [liveMatches, setLiveMatches] = useState<AccountDuplicateMatch[]>([]);
   const sensitiveHidden = Boolean(account?.sensitiveDataRestricted);
 
@@ -127,7 +129,7 @@ function AccountForm({ account, options }: { account?: Account; options: Account
 
   const mutation = useMutation({
     mutationFn: (allowDuplicate: boolean) => {
-      const input = { ...toInput(values, mode, sensitiveHidden, options), allowDuplicate };
+      const input = { ...toInput(values, mode, sensitiveHidden, options), allowDuplicate, ...(allowDuplicate ? { duplicateReason } : {}) };
       return mode === "edit" ? updateAccount(accountId as string, { ...input, expectedUpdatedAt: account?.updatedAt }) : createAccount(input);
     },
     onSuccess: (saved) => {
@@ -169,10 +171,8 @@ function AccountForm({ account, options }: { account?: Account; options: Account
           <ErrorBanner message={error} />
           {blockingMatches ? (
             <AccountDuplicateWarning matches={blockingMatches} blocking>
-              <div className="flex flex-wrap gap-2">
-                <Button variant="outline" onPress={() => mutation.mutate(true)} isLoading={mutation.isPending}>Save anyway — this is a different company</Button>
-                <Button variant="ghost" onPress={() => setBlockingMatches(null)}>Go back and edit</Button>
-              </div>
+              <DuplicateOverride subject="company" reason={duplicateReason} onReasonChange={setDuplicateReason}
+                onConfirm={() => mutation.mutate(true)} onCancel={() => setBlockingMatches(null)} isLoading={mutation.isPending} />
             </AccountDuplicateWarning>
           ) : (
             <AccountDuplicateWarning matches={similarMatches} blocking={similarMatches.some((match) => match.strength === "exact")} />

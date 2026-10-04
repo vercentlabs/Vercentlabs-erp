@@ -1,19 +1,27 @@
 // Duplicate company detection, used by manual creation, editing, import,
 // lead conversion and customer creation.
 //
-// Strong matches (block the save unless the user confirms):
-//   website domain, GSTIN, exact normalized company or legal name
+// Strong matches (the save is refused unless overridden):
+//   the same GSTIN, the same normalized company or legal name, or the same
+//   website domain together with a similar name
 // Possible matches (a warning only):
+//   the same website domain alone (two legal entities can share a site), a
 //   similar name, or a related name at the same city, phone or email domain
+//
+// Archived accounts are matched too, so an existing company is restored
+// rather than recreated; accounts merged into another are not. A customer is
+// the same row as its account, so a Customer Master is matched here as well.
 //
 // Names are normalized in the database (tenant.crm_normalize_company_name),
 // so "ABC Pvt. Ltd." and "ABC Private Limited" are the same name.
-import { CrmError } from "../data-management/errors.js";
+import { mergedSql, withoutClearedPairs } from "../duplicates/decisions.js";
+import { normalizeCompanyName, normalizeDomain, normalizeGstin } from "../duplicates/normalize.js";
+import { enforceDuplicatePolicy, lockDuplicateKeys } from "../duplicates/policy.js";
+import { gradeMatch, sortMatches } from "../duplicates/scoring.js";
 import { accountScopeSql } from "./access.js";
 import { CRM_ACCOUNT_PARTY_SQL } from "./constants.js";
 import { isUuid } from "./validation.js";
 
-const STRONG = new Set(["website", "gstin", "name"]);
 // A shared mailbox domain says nothing about the company.
 const FREE_EMAIL_DOMAINS = ["gmail.com", "googlemail.com", "yahoo.com", "yahoo.co.in", "outlook.com", "hotmail.com", "live.com", "icloud.com",
   "rediffmail.com", "protonmail.com", "proton.me", "aol.com", "zoho.com", "yandex.com", "msn.com"];
@@ -53,7 +61,7 @@ export async function findDuplicateAccounts(client, context, input = {}, { exclu
               GREATEST(similarity(COALESCE(account.normalized_company_name, ''), COALESCE(probe.p_name, probe.p_legal_name, '')),
                        similarity(COALESCE(account.normalized_legal_company_name, ''), COALESCE(probe.p_legal_name, probe.p_name, ''))) AS name_similarity
          FROM tenant.business_parties account CROSS JOIN probe
-        WHERE account.organization_id = $1 AND ${CRM_ACCOUNT_PARTY_SQL("account")} AND account.status <> 'archived'
+        WHERE account.organization_id = $1 AND ${CRM_ACCOUNT_PARTY_SQL("account")} AND NOT ${mergedSql("account", "account")}
           AND ($10::uuid IS NULL OR account.id <> $10)
           AND ((probe.p_domain IS NOT NULL AND account.website_domain = probe.p_domain)
             OR (probe.p_gstin IS NOT NULL AND upper(account.gstin) = probe.p_gstin)
@@ -64,7 +72,8 @@ export async function findDuplicateAccounts(client, context, input = {}, { exclu
      SELECT candidate.id, candidate.code, candidate.display_name, candidate.legal_name, candidate.website, candidate.account_type, candidate.status,
             candidate.customer_number, owner.full_name AS owner_name, address.city AS address_city, (true${visible}) AS can_open,
             array_remove(ARRAY[
-              CASE WHEN candidate.p_domain IS NOT NULL AND candidate.website_domain = candidate.p_domain THEN 'website' END,
+              CASE WHEN candidate.p_domain IS NOT NULL AND candidate.website_domain = candidate.p_domain
+                   THEN (CASE WHEN candidate.name_similarity >= $11 THEN 'website_name' ELSE 'website' END) END,
               CASE WHEN candidate.p_gstin IS NOT NULL AND upper(candidate.gstin) = candidate.p_gstin THEN 'gstin' END,
               CASE WHEN candidate.normalized_company_name IN (candidate.p_name, candidate.p_legal_name)
                      OR candidate.normalized_legal_company_name IN (candidate.p_name, candidate.p_legal_name) THEN 'name' END,
@@ -88,23 +97,25 @@ export async function findDuplicateAccounts(client, context, input = {}, { exclu
     .filter((row) => row.signals.length)
     .slice(0, Number(limit))
     .map((row) => {
-      const strength = row.signals.some((signal) => STRONG.has(signal)) ? "exact" : "possible";
-      const match = { id: row.id, signals: row.signals, strength, canOpen: row.can_open };
+      const match = { kind: "account", id: row.id, signals: row.signals, ...gradeMatch("account", row.signals), canOpen: row.can_open };
       if (!row.can_open) return match;
       return {
         ...match, code: row.code, name: row.display_name, legalName: row.legal_name, website: row.website, city: row.address_city,
-        accountType: row.account_type, status: row.status, customerNumber: row.customer_number, ownerName: row.owner_name,
+        accountType: row.account_type, status: row.status, isArchived: row.status === "archived", isCustomer: Boolean(row.customer_number), customerNumber: row.customer_number, ownerName: row.owner_name,
       };
-    })
-    .sort((left, right) => (left.strength === right.strength ? 0 : left.strength === "exact" ? -1 : 1));
-  return { matches, hasBlockingMatch: matches.some((match) => match.strength === "exact") };
+    });
+  // Pairs already reviewed and marked "not duplicate" are not reported again.
+  const kept = await withoutClearedPairs(client, context, "account", isUuid(excludeId) ? excludeId : null, sortMatches(matches));
+  return { matches: kept, hasBlockingMatch: kept.some((match) => match.strength === "exact") };
 }
 
-// Refuses an obvious duplicate. `allowDuplicate` is the caller's explicit
-// "this is a different company" confirmation.
-export async function assertNoBlockingAccountDuplicate(client, context, input, { excludeId = null, allowDuplicate = false } = {}) {
+// The single duplicate check for saving an account. Refuses a strong
+// duplicate unless the caller may override and says why (allowDuplicate +
+// reason); the caller records the override against the saved account.
+export async function assertNoBlockingAccountDuplicate(client, context, input, { excludeId = null, allowDuplicate = false, reason = null } = {}) {
+  await lockDuplicateKeys(client, context, "company", [
+    normalizeGstin(input.gstin), normalizeDomain(input.website), normalizeCompanyName(input.displayName), normalizeCompanyName(input.legalName),
+  ]);
   const result = await findDuplicateAccounts(client, context, input, { excludeId });
-  if (result.hasBlockingMatch && !allowDuplicate)
-    throw new CrmError(409, "An account like this already exists.", "CRM_ACCOUNT_DUPLICATE", { matches: result.matches });
-  return result;
+  return enforceDuplicatePolicy(context, result, { allowDuplicate, reason, code: "CRM_ACCOUNT_DUPLICATE", message: "An account like this already exists." });
 }

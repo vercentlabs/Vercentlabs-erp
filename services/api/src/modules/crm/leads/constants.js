@@ -119,6 +119,7 @@ export const LEAD_PERMISSIONS = Object.freeze({
   disqualify: "crm.leads.disqualify",
   reopen: "crm.leads.reopen",
   convert: "crm.leads.convert",
+  merge: "crm.leads.merge",
   changeStage: "crm.leads.change_stage",
   manageStages: "crm.leads.manage_stages",
   overrideQualification: "crm.leads.override_qualification",

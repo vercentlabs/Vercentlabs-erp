@@ -7,11 +7,8 @@
 // projection). Behaviour that belongs to one aggregate lives with its owner
 // and is called here at fixed points:
 //   Leads         -> not handled here: leads/ owns every lead operation
-//   Opportunities -> pipeline/opportunity-record-rules.js
+//   Opportunities -> not handled here: opportunities/ owns every opportunity operation
 //   Automation    -> automation/automation-engine.js (runCrmAutomation)
-import { afterOpportunityRowUpdated, assertOpportunityCreateInput, assertOpportunityExpectedRevenueNotSupplied, assertOpportunityUpdateAllowed, completeOpportunityCreate, normalizeOpportunityRecordInput, opportunityChangedFields, opportunityOutboxSnapshot, prepareOpportunityForCreate, validateOpportunityForUpdate, withOpportunityArchiveTransition } from "../pipeline/opportunity-record-rules.js";
-import { recordAccountHistory } from "../accounts/history.js";
-import { recordContactHistory } from "../contacts/history.js";
 import { runCrmAutomation } from "./automation/automation-engine.js";
 import { CrmError } from "./errors.js";
 import { assertSalesTeamParentAllowed, assertTerritoryParentAllowed } from "../sales-organization/hierarchy-rules.js";
@@ -55,6 +52,8 @@ export async function createCrmRecord(client, context, resource, input) {
     );
   if (resource === "leads")
     throw new CrmError(410, "Use the Lead operations.", "CRM_LEAD_API_MOVED");
+  if (resource === "opportunities")
+    throw new CrmError(410, "Use the Opportunity operations.", "CRM_OPPORTUNITY_API_MOVED");
   if (resource === "sources")
     throw new CrmError(
       410,
@@ -70,12 +69,8 @@ export async function createCrmRecord(client, context, resource, input) {
     throw new CrmError(410, "Use the governed forecast operations (submit, review, period lifecycle).", "CRM_FORECAST_API_MOVED");
   const definition = definitionFor(resource);
   assertLeadLinkedContentAllowed(context, resource, input);
-  if (resource === "opportunities") assertOpportunityCreateInput(input);
   await assertOwnerAssignmentAllowed(client, definition, context, input);
-  const prepared =
-    resource === "opportunities"
-      ? normalizeOpportunityRecordInput(input)
-      : normalizeStorageInput(resource, input);
+  const prepared = normalizeStorageInput(resource, input);
   if (definition.codeEntity && !prepared[definition.codeField])
     prepared[definition.codeField] = await nextCode(
       client,
@@ -92,7 +87,6 @@ export async function createCrmRecord(client, context, resource, input) {
     );
   }
   await assertGenericLeadLinkedTarget(client, context, resource, prepared);
-  if (resource === "opportunities") await prepareOpportunityForCreate(client, context, prepared);
   if (resource === "custom-records")
     await validateCustomRecord(client, context, prepared);
   await validateOrganizationUserReferences(
@@ -134,28 +128,13 @@ export async function createCrmRecord(client, context, resource, input) {
     values,
   );
   const created = camelizeRow(result.rows[0]);
-  if (resource === "opportunities") {
-    await completeOpportunityCreate(client, context, created);
-    if (created.partyId)
-      await recordAccountHistory(client, context, created.partyId, "opportunity_created", `Opportunity ${created.code ?? ""} created: ${created.name}`.replace("  ", " "), { opportunityId: created.id });
-    if (created.contactId)
-      await recordContactHistory(client, context, created.contactId, "opportunity_associated", `Primary contact of opportunity ${created.code ?? ""} ${created.name}`.replace("  ", " "), { opportunityId: created.id });
-    await runCrmAutomation(
-      client,
-      context,
-      "opportunity.created",
-      "opportunity",
-      created.id,
-      created,
-    );
-  }
   await queueOutboxEvent(
     client,
     context,
     `crm.${resource}.created`,
     resource,
     created.id,
-    resource === "opportunities" ? opportunityOutboxSnapshot(created) : created,
+    created,
   );
   return projectCrmRecord(client, context, resource, created);
 }
@@ -181,6 +160,8 @@ export async function updateCrmRecord(
     );
   if (resource === "leads")
     throw new CrmError(410, "Use the Lead operations.", "CRM_LEAD_API_MOVED");
+  if (resource === "opportunities")
+    throw new CrmError(410, "Use the Opportunity operations.", "CRM_OPPORTUNITY_API_MOVED");
   if (resource === "sources")
     throw new CrmError(
       410,
@@ -190,14 +171,6 @@ export async function updateCrmRecord(
   const definition = definitionFor(resource);
   const before = await getCrmRecord(client, context, resource, id);
   assertLeadLinkedContentAllowed(context, resource, input, before);
-  if (resource === "opportunities")
-    assertRecordExpectedVersion(
-      before,
-      expectations.expectedUpdatedAt,
-      expectations.requireVersion === true,
-      "Opportunity",
-      "CRM_OPPORTUNITY",
-    );
   if (GENERIC_VERSIONED_RESOURCES[resource])
     assertRecordExpectedVersion(
       before,
@@ -222,22 +195,9 @@ export async function updateCrmRecord(
     if (before.activityType === "task" || requestedActivityType === "task")
       throw new CrmError(410, "Use the governed Tasks operations.", "CRM_TASK_API_MOVED");
   }
-  if (resource === "opportunities") assertOpportunityUpdateAllowed(context, before, input);
-  // No Opportunity controlled-field guard is needed here: record-policy.js's
-  // assertLifecycleUpdate already blocks the full controlled-field set
-  // (pipelineId/stageId/probability/forecastCategory/status/actualCloseDate/
-  // lostReasonId/lossNotes/outcomeReasonId/outcomeNotes) further down this
-  // same call chain, and crm-opportunities-f009.test.mjs already covers it
-  // ("outcome and stage-owned fields cannot be forged through generic
-  // PATCH"). Do not add a redundant/conflicting guard here.
   await assertOwnerAssignmentAllowed(client, definition, context, input);
-  if (resource === "opportunities") assertOpportunityExpectedRevenueNotSupplied(input);
   assertLifecycleUpdate(resource, before, input, context);
-  const prepared =
-    resource === "opportunities"
-      ? normalizeOpportunityRecordInput(input)
-      : normalizeStorageInput(resource, input);
-  if (resource === "opportunities") await validateOpportunityForUpdate(client, context, prepared, before);
+  const prepared = normalizeStorageInput(resource, input);
   if (resource === "custom-records") {
     const callerSuppliedData = Object.prototype.hasOwnProperty.call(prepared, "data");
     prepared.objectDefinitionId ??= before.objectDefinitionId;
@@ -290,15 +250,13 @@ export async function updateCrmRecord(
   const organizationParameter = entries.length + (stampsUser ? 2 : 1);
   const idParameter = entries.length + (stampsUser ? 3 : 2);
   const scope = recordScope(definition, context, parameters);
-  // Checked-write: when a version was actually asserted above (opportunities
-  // and the versioned generic resources), the UPDATE's own WHERE clause re-confirms updated_at
+  // Checked-write: when a version was actually asserted above (the versioned
+  // generic resources), the UPDATE's own WHERE clause re-confirms updated_at
   // still matches — closing the read-then-write race window atomically. A
   // zero-row result then unambiguously means a concurrent writer won that
   // race (existence was already confirmed by the `before` read), not a
   // genuine 404.
-  const versionChecked =
-    expectations.expectedUpdatedAt &&
-    (resource === "opportunities" || Boolean(GENERIC_VERSIONED_RESOURCES[resource]));
+  const versionChecked = expectations.expectedUpdatedAt && Boolean(GENERIC_VERSIONED_RESOURCES[resource]);
   // Optimistic-concurrency precision: `updated_at` is `timestamptz`
   // with genuine microsecond precision (e.g. `.700902`), but `before`
   // (read moments earlier via getCrmRecord/camelizeRow) comes
@@ -326,8 +284,7 @@ export async function updateCrmRecord(
     );
     if (!result.rows[0]) {
       if (versionChecked) {
-        const entityLabel =
-          resource === "opportunities" ? "Opportunity" : GENERIC_VERSIONED_RESOURCES[resource].entityLabel;
+        const entityLabel = GENERIC_VERSIONED_RESOURCES[resource].entityLabel;
         throw new CrmError(
           409,
           `This ${entityLabel} changed after you loaded it. Refresh and try again.`,
@@ -337,18 +294,14 @@ export async function updateCrmRecord(
       throw new CrmError(404, "CRM record not found.");
     }
     updated = camelizeRow(result.rows[0]);
-    if (resource === "opportunities") await afterOpportunityRowUpdated(client, context, id, input, updated);
   }
-  const changedFields = resource === "opportunities" ? opportunityChangedFields(before, updated, Object.keys(input)) : undefined;
   await queueOutboxEvent(
       client,
       context,
       `crm.${resource}.updated`,
       resource,
       id,
-      resource === "opportunities"
-        ? { before: opportunityOutboxSnapshot(before), after: opportunityOutboxSnapshot(updated), changedFields }
-        : { before, after: updated, changedFields },
+      { before, after: updated },
     );
   return projectCrmRecord(client, context, resource, updated);
 }
@@ -380,16 +333,10 @@ export async function archiveCrmRecord(
     );
   if (resource === "leads")
     throw new CrmError(410, "Use the Lead operations.", "CRM_LEAD_API_MOVED");
+  if (resource === "opportunities")
+    throw new CrmError(410, "Use the Opportunity operations.", "CRM_OPPORTUNITY_API_MOVED");
   const definition = definitionFor(resource);
   const before = await getCrmRecord(client, context, resource, id);
-  if (resource === "opportunities")
-    assertRecordExpectedVersion(
-      before,
-      expectations.expectedUpdatedAt,
-      expectations.requireVersion === true,
-      "Opportunity",
-      "CRM_OPPORTUNITY",
-    );
   // Qualification criteria is deliberately excluded here (GENERIC_VERSIONED_
   // RESOURCES covers updateCrmRecord above) — it has no archive/DELETE
   // transition (see archiveStatuses below), so only lost-reasons applies.
@@ -415,8 +362,6 @@ export async function archiveCrmRecord(
   const parameters = [context.organizationId, id];
   const scope = recordScope(definition, context, parameters);
 
-  if (resource === "opportunities" && before.status === "archived") return before;
-
   if (
     resource === "consent-events" ||
     resource === "communications" ||
@@ -440,7 +385,6 @@ export async function archiveCrmRecord(
   }
 
   const archiveStatuses = {
-    opportunities: "archived",
     activities: "cancelled",
     campaigns: "cancelled",
     pipelines: "inactive",
@@ -503,8 +447,7 @@ export async function archiveCrmRecord(
   // edit-concurrency protection now also gets it on archive, with no risk of
   // the two lists drifting apart.
   const archiveVersionChecked =
-    (resource === "opportunities" || Boolean(GENERIC_VERSIONED_RESOURCES[resource])) &&
-    Boolean(expectations.expectedUpdatedAt);
+    Boolean(GENERIC_VERSIONED_RESOURCES[resource]) && Boolean(expectations.expectedUpdatedAt);
   // Same millisecond-truncation rule as the PATCH versionGuard above:
   // `before.updatedAt` can only ever carry millisecond precision (it
   // came back through pg's default Date parser), while the stored
@@ -514,20 +457,15 @@ export async function archiveCrmRecord(
   const archiveVersionGuard = archiveVersionChecked
     ? ` AND date_trunc('milliseconds', record.updated_at) = date_trunc('milliseconds', ${addParameter(parameters, before.updatedAt)}::timestamptz)`
     : "";
-  // Opportunities: the status write is allowed only inside the governed
-  // lifecycle-transition flag (see withOpportunityArchiveTransition).
-  const archive = () =>
-    client.query(
-      `UPDATE ${definition.table} record SET ${[`${definition.statusColumn} = ${statusParameter}`, ...updateStamps(resource, userParameter)].join(", ")} WHERE record.organization_id = $1 AND record.id = $2${scope}${archiveVersionGuard} RETURNING record.*`,
-      parameters,
-    );
-  const result =
-    resource === "opportunities" ? await withOpportunityArchiveTransition(client, archive) : await archive();
+  const result = await client.query(
+    `UPDATE ${definition.table} record SET ${[`${definition.statusColumn} = ${statusParameter}`, ...updateStamps(resource, userParameter)].join(", ")} WHERE record.organization_id = $1 AND record.id = $2${scope}${archiveVersionGuard} RETURNING record.*`,
+    parameters,
+  );
   if (!result.rows[0]) {
     if (archiveVersionChecked)
       throw new CrmError(
         409,
-        `This ${resource === "opportunities" ? "Opportunity" : GENERIC_VERSIONED_RESOURCES[resource].entityLabel} changed after you loaded it. Refresh and try again.`,
+        `This ${GENERIC_VERSIONED_RESOURCES[resource].entityLabel} changed after you loaded it. Refresh and try again.`,
         "CRM_STALE_WRITE",
       );
     throw new CrmError(404, "CRM record not found.");
@@ -539,7 +477,7 @@ export async function archiveCrmRecord(
     `crm.${resource}.archived`,
     resource,
     id,
-    resource === "opportunities" ? opportunityOutboxSnapshot(record) : record,
+    record,
   );
   return record;
 }

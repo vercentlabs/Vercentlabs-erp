@@ -94,6 +94,7 @@ export const MODULE_NAVIGATION: readonly ModuleNavigation[] = [
           available("Leads", "/crm/leads"),
           available("Accounts", "/crm/accounts"),
           available("Contacts", "/crm/contacts"),
+          { ...available("Potential Duplicates", "/crm/duplicates"), requiredPermission: "crm.duplicates.review" },
         ],
       },
       {

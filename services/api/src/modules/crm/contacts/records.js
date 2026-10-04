@@ -11,6 +11,7 @@ import { managedTeamMembersSql } from "../data-management/record-utils.js";
 import { contactCan, contactCapabilities, contactScopeValues, projectContactForContext, requireContactPermission } from "./access.js";
 import { applyContactAssignment } from "./assignment.js";
 import { CONTACT_NUMBER_DOCUMENT_TYPE, CONTACT_PERMISSIONS, contactRoleLabel, contactStatusLabel } from "./constants.js";
+import { recordDuplicateOverride } from "../duplicates/policy.js";
 import { assertNoBlockingContactDuplicate } from "./duplicates.js";
 import { recordContactHistory } from "./history.js";
 import { CONTACT_WRITABLE_COLUMNS, ROLE_FIELDS, assertValidContact, composeDisplayName, isUuid, normalizeContactInput, requireUuid } from "./validation.js";
@@ -280,14 +281,19 @@ export async function loadLinkableAccount(client, context, accountId) {
 //   allowDuplicate  the caller confirmed a strong duplicate is a different person
 //   origin          recorded in history: "manual" | "import" | "lead_conversion" | "account"
 //   makePrimary     the contact becomes the account's primary contact
-export async function createContact(client, context, input = {}, { allowDuplicate = false, origin = "manual", makePrimary = false, historySummary = null } = {}) {
+//   duplicateReason   why a strong duplicate is saved anyway (with allowDuplicate; needs crm.duplicates.override)
+//   onDuplicateCheck  receives what the duplicate check found (imports count possible duplicates)
+export async function createContact(client, context, input = {}, {
+  allowDuplicate = false, duplicateReason = null, onDuplicateCheck = null, origin = "manual", makePrimary = false, historySummary = null,
+} = {}) {
   requireContactPermission(context, CONTACT_PERMISSIONS.create, "You do not have permission to create contacts.");
-  const { ownerUserId: requestedOwner, teamId, accountId, tagIds, ...fields } = input;
+  const { ownerUserId: requestedOwner, teamId, accountId, tagIds, duplicateReason: inputReason, ...fields } = input;
   const normalized = normalizeContactInput(fields);
   assertValidContact(normalized);
   await assertActiveSource(client, context, normalized.sourceId);
   const account = accountId ? await loadLinkableAccount(client, context, accountId) : null;
-  const duplicates = await assertNoBlockingContactDuplicate(client, context, { ...normalized, accountId: account?.id }, { allowDuplicate });
+  const duplicates = await assertNoBlockingContactDuplicate(client, context, { ...normalized, accountId: account?.id }, { allowDuplicate, reason: duplicateReason ?? inputReason });
+  onDuplicateCheck?.(duplicates);
 
   // The owner defaults to the account's owner, else the creator.
   let ownerUserId = account?.owner_user_id || context.userId;
@@ -312,6 +318,7 @@ export async function createContact(client, context, input = {}, { allowDuplicat
     values,
   );
   const contact = inserted.rows[0];
+  await recordDuplicateOverride(client, context, "contact", contact.id, duplicates);
   await recordContactHistory(client, context, contact.id, "created", historySummary ?? `Contact ${contactNumber} created`, {
     origin,
     ...(duplicates.hasBlockingMatch ? { duplicateConfirmed: duplicates.matches.filter((match) => match.strength === "exact").map((match) => match.id) } : {}),
@@ -371,7 +378,8 @@ export async function updateContact(client, context, contactId, input = {}, { al
     const probe = Object.fromEntries(changedIdentity.map((field) => [field, normalized[field]]));
     if (probe.firstName !== undefined || probe.lastName !== undefined)
       Object.assign(probe, { firstName: normalized.firstName ?? before.firstName, lastName: normalized.lastName ?? before.lastName, accountId: before.accountId });
-    await assertNoBlockingContactDuplicate(client, context, probe, { excludeId: row.id, allowDuplicate });
+    await recordDuplicateOverride(client, context, "contact", row.id,
+      await assertNoBlockingContactDuplicate(client, context, probe, { excludeId: row.id, allowDuplicate, reason: input.duplicateReason }));
   }
 
   if (changedColumns.length)

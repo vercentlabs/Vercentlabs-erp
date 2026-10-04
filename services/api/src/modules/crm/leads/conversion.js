@@ -11,7 +11,6 @@
 // each module's own duplicate rules apply as well.
 import { CrmError } from "../data-management/errors.js";
 import { queueOutboxEvent } from "../data-management/outbox.js";
-import { createCrmRecord } from "../data-management/resource-mutation-service.js";
 import { accountScopeSql } from "../accounts/access.js";
 import { findDuplicateAccounts } from "../accounts/duplicates.js";
 import { recordAccountHistory } from "../accounts/history.js";
@@ -21,6 +20,7 @@ import { findDuplicateContacts } from "../contacts/duplicates.js";
 import { recordContactHistory } from "../contacts/history.js";
 import { createContact } from "../contacts/records.js";
 import { linkContactToAccount } from "../contacts/relationships.js";
+import { createOpportunity } from "../opportunities/records.js";
 import { ensureDefaultSalesPipeline } from "../pipeline/default-pipeline.js";
 import { requireLeadPermission } from "./access.js";
 import { assertEligibleLeadAssignee } from "./assignment.js";
@@ -186,7 +186,7 @@ export async function convertLead(client, context, leadId, input = {}) {
       sourceDetail: lead.source_detail,
       currencyCode: lead.currency_code?.trim() || null,
       ownerUserId: accountOwnerUserId,
-    }, { allowDuplicate: accountInput.allowDuplicate === true, origin: "lead_conversion", historySummary: `Account created from lead ${lead.code}` });
+    }, { allowDuplicate: accountInput.allowDuplicate === true, duplicateReason: accountInput.duplicateReason, origin: "lead_conversion", historySummary: `Account created from lead ${lead.code}` });
     partyId = account.id;
   }
 
@@ -214,7 +214,7 @@ export async function convertLead(client, context, leadId, input = {}) {
       mobile: lead.mobile,
       sourceId: lead.source_id,
       ownerUserId: contactOwnerUserId,
-    }, { allowDuplicate: contactInput.allowDuplicate === true, origin: "lead_conversion", historySummary: `Contact created from lead ${lead.code}` });
+    }, { allowDuplicate: contactInput.allowDuplicate === true, duplicateReason: contactInput.duplicateReason, origin: "lead_conversion", historySummary: `Contact created from lead ${lead.code}` });
     contactId = contact.id;
   }
 
@@ -223,20 +223,26 @@ export async function convertLead(client, context, leadId, input = {}) {
   if (opportunityInput.create !== false) {
     await ensureDefaultSalesPipeline(client, context);
     const productInterest = text(opportunityInput.productInterest) || lead.product_interest;
-    const opportunity = await createCrmRecord(client, context, "opportunities", {
+    // The deal inherits what the lead already established: source, owner,
+    // team, interest, the business need and the estimated value.
+    const opportunity = await createOpportunity(client, context, {
       leadId: lead.id,
-      partyId,
+      accountId: partyId,
       contactId,
       sourceId: lead.source_id,
       campaignId: lead.campaign_id,
       ownerUserId,
-      name: text(opportunityInput.name) || `${leadDisplayName(lead)} opportunity`,
+      ...(lead.team_id ? { teamId: lead.team_id } : {}),
+      name: (text(opportunityInput.name) || `${leadDisplayName(lead)} opportunity`).slice(0, 200),
       description: opportunityDescription({ ...lead, product_interest: productInterest }),
+      productInterest,
+      businessProblem: lead.q_need_description,
+      priority: lead.priority,
       amount: opportunityInput.amount ?? lead.estimated_value ?? 0,
-      currencyCode: lead.currency_code?.trim() || undefined,
+      ...(lead.currency_code?.trim() ? { currencyCode: lead.currency_code.trim() } : {}),
       expectedCloseDate: opportunityInput.expectedCloseDate || null,
       ...(opportunityInput.stageId ? { stageId: requireUuid(opportunityInput.stageId, "Sales stage") } : {}),
-    });
+    }, { origin: "lead_conversion", historySummary: `Opportunity created from lead ${lead.code}` });
     opportunityId = opportunity.id;
 
     // Carry the working record forward: notes are copied, and work still to

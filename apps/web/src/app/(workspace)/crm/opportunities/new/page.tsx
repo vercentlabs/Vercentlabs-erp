@@ -1,14 +1,11 @@
-import { CRM_PERMISSIONS } from "@vercentlabs/permissions";
 import { requireWorkspace } from "@/core/session";
-import { OpportunityFormScreen } from "@/features/crm/pipeline/opportunities/screens/OpportunityFormScreen";
+import { OpportunityFormScreen } from "@/features/crm/opportunities/screens/OpportunityFormScreen";
 
 export const metadata = { title: "New opportunity" };
 
-export default async function NewOpportunityPage({ searchParams }: { searchParams: Promise<{ partyId?: string }> }) {
-  const session = await requireWorkspace();
-  const canManage =
-    session.roleSlugs.includes("organization_owner") ||
-    session.permissions.includes(CRM_PERMISSIONS.opportunitiesManage);
-  const { partyId } = await searchParams;
-  return <OpportunityFormScreen mode="create" canManage={canManage} initialPartyId={typeof partyId === "string" ? partyId : undefined} />;
+// ?accountId= preselects the account when opened from an account.
+export default async function Page({ searchParams }: { searchParams: Promise<{ accountId?: string }> }) {
+  await requireWorkspace();
+  const { accountId } = await searchParams;
+  return <OpportunityFormScreen initialAccountId={typeof accountId === "string" ? accountId : undefined} />;
 }

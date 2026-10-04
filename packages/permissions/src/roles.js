@@ -23,15 +23,26 @@ export const CURRENT_MODULE_KEYS = Object.freeze([
 
 const base = ["workspace.view", "notifications.view", "profile.manage"];
 const businessReader = [...base, "business_data.view"];
-const crmReader = [...businessReader, "crm.view", "crm.leads.view", "crm.accounts.view", "crm.contacts.view", "crm.reports.view"];
+const crmReader = [...businessReader, "crm.view", "crm.leads.view", "crm.opportunities.view", "crm.accounts.view", "crm.contacts.view", "crm.reports.view"];
 // Working a lead day to day: everything a salesperson does to their own leads.
 const leadWorker = ["crm.leads.create", "crm.leads.edit", "crm.leads.change_stage", "crm.leads.assign", "crm.leads.assign_self", "crm.leads.qualify", "crm.leads.disqualify", "crm.leads.reopen", "crm.leads.convert"];
 // Running the lead desk: moving leads between people, archiving, import and export.
 // Managers may also qualify a lead whose required criteria are still missing.
-const leadManager = [...leadWorker, "crm.leads.reassign", "crm.leads.bulk_assign", "crm.leads.override_qualification", "crm.leads.delete", "crm.leads.import", "crm.leads.export"];
+// Managers also resolve duplicates: merge leads, review the duplicate queue and
+// save a record that matches an existing one, with a reason.
+const leadManager = [...leadWorker, "crm.leads.merge", "crm.duplicates.override", "crm.duplicates.review", "crm.leads.reassign", "crm.leads.bulk_assign", "crm.leads.override_qualification", "crm.leads.delete", "crm.leads.import", "crm.leads.export"];
 // Deciding how leads are routed: the assignment rules and the fallback, giving
 // leads to anyone in the organization, and transferring a user's leads.
 const leadRouting = ["crm.leads.assign_across_teams", "crm.leads.manage_assignment_rules", "crm.leads.manage_stages"];
+// Working a deal day to day: creating it, moving it through the stages,
+// quoting it and closing it as won or lost.
+const opportunityWorker = [
+  "crm.opportunities.view", "crm.opportunities.create", "crm.opportunities.edit", "crm.opportunities.assign", "crm.opportunities.change_stage",
+  "crm.opportunities.create_quotation", "crm.opportunities.mark_won", "crm.opportunities.mark_lost",
+];
+// Running the pipeline: moving deals between people, reopening closed deals,
+// archiving or deleting mistakes, and export.
+const opportunityManager = [...opportunityWorker, "crm.opportunities.reassign", "crm.opportunities.reopen", "crm.opportunities.delete", "crm.opportunities.export"];
 // Working accounts day to day: adding companies, keeping them current and
 // giving an unowned account an owner.
 const accountWorker = ["crm.accounts.create", "crm.accounts.edit", "crm.accounts.assign"];
@@ -216,6 +227,8 @@ export const ROLE_TEMPLATES = Object.freeze([
       "crm.leads.view_sensitive",
       "crm.saved_views.share",
       "crm.opportunities.manage",
+      ...opportunityManager,
+      "crm.opportunities.view_all",
       "crm.activities.manage",
       "crm.campaigns.manage",
       "crm.communications.manage",
@@ -270,6 +283,8 @@ export const ROLE_TEMPLATES = Object.freeze([
       "crm.leads.view_sensitive",
       "crm.saved_views.share",
       "crm.opportunities.manage",
+      ...opportunityManager,
+      "crm.opportunities.view_all",
       "crm.activities.manage",
       "crm.communications.manage",
       "crm.revenue.manage",
@@ -322,6 +337,7 @@ export const ROLE_TEMPLATES = Object.freeze([
       "crm.leads.view_sensitive",
       "crm.saved_views.share",
       "crm.opportunities.manage",
+      ...opportunityManager,
       "crm.activities.manage",
       "crm.communications.manage",
       "crm.revenue.manage",
@@ -363,6 +379,7 @@ export const ROLE_TEMPLATES = Object.freeze([
       ...leadWorker,
       "crm.leads.view_sensitive",
       "crm.opportunities.manage",
+      ...opportunityWorker,
       "crm.activities.manage",
       "crm.communications.manage",
       ...accountWorker,
@@ -401,6 +418,8 @@ export const ROLE_TEMPLATES = Object.freeze([
       "crm.leads.view_sensitive",
       "crm.saved_views.share",
       "crm.opportunities.manage",
+      ...opportunityManager,
+      "crm.opportunities.view_all",
       "crm.activities.manage",
       "crm.import",
       "crm.export",
@@ -485,6 +504,7 @@ export const ROLE_TEMPLATES = Object.freeze([
       ...crmReader,
       "parties.manage",
       "crm.opportunities.manage",
+      ...opportunityWorker,
       "crm.activities.manage",
       "crm.partners.manage",
       "crm.field-sales.manage",

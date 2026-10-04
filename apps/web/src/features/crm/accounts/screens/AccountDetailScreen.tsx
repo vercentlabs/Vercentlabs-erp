@@ -80,11 +80,11 @@ export function AccountDetailScreen({ accountId }: { accountId: string }) {
     ? can.archive && <Button variant="primary" onPress={() => setDialog("active")}>Reactivate</Button>
     : canBecomeCustomer
       ? <Button variant="primary" onPress={() => setDialog("customer")}>Create customer</Button>
-      : can.edit ? <LinkButton variant="primary" href={`/crm/opportunities/new?partyId=${account.id}`}>New opportunity</LinkButton> : undefined;
+      : can.edit ? <LinkButton variant="primary" href={`/crm/opportunities/new?accountId=${account.id}`}>New opportunity</LinkButton> : undefined;
 
   const menuActions: Array<{ id: string; label: string; show: boolean; run: () => void }> = [
     { id: "edit", label: "Edit account", show: canEdit, run: () => router.push(`/crm/accounts/${account.id}/edit`) },
-    { id: "opportunity", label: "New opportunity", show: canEdit && canBecomeCustomer, run: () => router.push(`/crm/opportunities/new?partyId=${account.id}`) },
+    { id: "opportunity", label: "New opportunity", show: canEdit && canBecomeCustomer, run: () => router.push(`/crm/opportunities/new?accountId=${account.id}`) },
     { id: "assign", label: account.ownerUserId ? "Reassign" : "Assign", show: canAssign, run: () => setDialog("assign") },
     { id: "merge", label: "Merge a duplicate into this account", show: can.merge && !archived, run: () => setDialog("merge") },
     { id: "linkCustomer", label: "Link existing customer", show: canBecomeCustomer && can.merge, run: () => setDialog("linkCustomer") },
@@ -221,7 +221,7 @@ export function AccountDetailScreen({ accountId }: { accountId: string }) {
           <TabPanel id="contacts"><AccountContactsPanel account={account} canEdit={canEdit} /></TabPanel>
           <TabPanel id="opportunities">
             <AccountRelatedListPanel accountId={account.id} list="opportunities" currency={currency}
-              action={canEdit && <LinkButton variant="primary" size="compact" href={`/crm/opportunities/new?partyId=${account.id}`}>New opportunity</LinkButton>} />
+              action={canEdit && <LinkButton variant="primary" size="compact" href={`/crm/opportunities/new?accountId=${account.id}`}>New opportunity</LinkButton>} />
           </TabPanel>
           <TabPanel id="activities"><AccountActivitiesPanel accountId={account.id} options={options} canEdit={canEdit} /></TabPanel>
           <TabPanel id="tasks"><AccountTasksPanel accountId={account.id} options={options} canEdit={canEdit} /></TabPanel>

@@ -4,7 +4,6 @@ export { registerJobHandler, getJobHandler, listRegisteredJobTypes, validatePayl
 export { internalJobBackoff, webhookBackoff, boundedRetryAfterMilliseconds } from "./backoff.js";
 export { dispatchOrganizationEvents, processWebhookDelivery, processOrganizationWebhooks, processOrganizationWorkflows } from "./webhooks.js";
 export { detectOverdueActivitiesHandler, JOB_TYPE as OVERDUE_ACTIVITY_JOB_TYPE, payloadSchema as overdueActivityPayloadSchema } from "./handlers/crm-automation-overdue.js";
-export { opportunityBulkUpdateHandler, JOB_TYPE as OPPORTUNITY_BULK_JOB_TYPE, payloadSchema as opportunityBulkPayloadSchema } from "./handlers/crm-opportunity-bulk-update.js";
 export { buildSystemContext, SYSTEM_ACTOR_ROLE_SLUG } from "./system-context.js";
 export { runSchedulerTick } from "./scheduler.js";
 export { createWorker, generateWorkerId } from "./worker.js";

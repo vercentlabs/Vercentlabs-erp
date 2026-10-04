@@ -1,7 +1,6 @@
 import { registerJobHandler } from "../registry.js";
 import { internalJobBackoff } from "../backoff.js";
 import { detectOverdueActivitiesHandler, JOB_TYPE as OVERDUE_ACTIVITY_JOB_TYPE, payloadSchema as overdueActivityPayloadSchema } from "./crm-automation-overdue.js";
-import { opportunityBulkUpdateHandler, JOB_TYPE as OPPORTUNITY_BULK_JOB_TYPE, payloadSchema as opportunityBulkPayloadSchema } from "./crm-opportunity-bulk-update.js";
 import { detectExpiredQuotationsHandler, JOB_TYPE as QUOTATION_EXPIRY_SCAN_JOB_TYPE, payloadSchema as quotationExpiryScanPayloadSchema } from "./sales-quotation-expiry-scan.js";
 import { opportunityStageMigrationHandler, JOB_TYPE as OPPORTUNITY_STAGE_MIGRATION_JOB_TYPE, payloadSchema as opportunityStageMigrationPayloadSchema } from "./crm-opportunity-stage-migration.js";
 import { capturePipelineDailySnapshotHandler, JOB_TYPE as PIPELINE_SNAPSHOT_CAPTURE_JOB_TYPE, payloadSchema as pipelineSnapshotCapturePayloadSchema } from "./crm-pipeline-snapshot-capture.js";
@@ -23,14 +22,6 @@ export function registerBuiltinHandlers() {
     backoff: internalJobBackoff,
     idempotency: "NATURALLY_IDEMPOTENT", // the status-transition WHERE clause makes re-running this handler for the same org always safe
     maxAttempts: 3,
-  });
-  registerJobHandler(OPPORTUNITY_BULK_JOB_TYPE, {
-    schema: opportunityBulkPayloadSchema,
-    handler: opportunityBulkUpdateHandler,
-    backoff: internalJobBackoff,
-    idempotency: "IDEMPOTENCY_KEY_REQUIRED",
-    maxAttempts: 5,
-    transactionMode: "managed",
   });
   registerJobHandler(QUOTATION_EXPIRY_SCAN_JOB_TYPE, {
     schema: quotationExpiryScanPayloadSchema,

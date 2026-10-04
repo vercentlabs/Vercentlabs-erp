@@ -11,6 +11,7 @@ import { parseCsvUpload } from "../../../core/platform/data-exchange/csv.js";
 import { isXlsxFileName, parseXlsxUpload } from "../../../core/platform/data-exchange/xlsx.js";
 import { accountScopeSql } from "../accounts/access.js";
 import { CrmError } from "../data-management/errors.js";
+import { importDuplicateColumns } from "../duplicates/index.js";
 import { assertEligibleLeadAssignee as assertEligibleMember } from "../leads/assignment.js";
 import { findLeadSourceByName } from "../leads/sources.js";
 import { requireContactPermission } from "./access.js";
@@ -142,6 +143,7 @@ export async function importContacts(client, context, { bytes, fileName, mapping
   for (const [index, record] of parsed.records.entries()) {
     const rowNumber = index + 2;
     const input = rowToInput(record, mapping);
+    let possibleDuplicate = false;
     await client.query("SAVEPOINT contact_import_row");
     try {
       const { source, ownerEmail, company, ...contact } = input;
@@ -174,9 +176,12 @@ export async function importContacts(client, context, { bytes, fileName, mapping
         contact.ownerUserId = ownerByEmail.get(key);
       } else if (defaultOwnerUserId) contact.ownerUserId = defaultOwnerUserId;
 
-      const created = await createContact(client, context, contact, { allowDuplicate: !skipDuplicates, origin: "import" });
+      const created = await createContact(client, context, contact, {
+        allowDuplicate: !skipDuplicates, duplicateReason: "Imported with Create anyway", origin: "import",
+        onDuplicateCheck: (found) => { possibleDuplicate = found.matches.length > 0; } ,
+      });
       await client.query("RELEASE SAVEPOINT contact_import_row");
-      results.push({ row: rowNumber, ok: true, contactId: created.id, code: created.contactNumber, warning });
+      results.push({ row: rowNumber, ok: true, possibleDuplicate, contactId: created.id, code: created.contactNumber, warning });
     } catch (error) {
       await client.query("ROLLBACK TO SAVEPOINT contact_import_row");
       if (!(error instanceof CrmError)) throw error;
@@ -188,6 +193,7 @@ export async function importContacts(client, context, { bytes, fileName, mapping
         duplicate,
         message: duplicate ? `Duplicate of ${match?.name ?? "an existing contact"}${match?.code ? ` (${match.code})` : ""}.` : error.message,
         data: record,
+        ...importDuplicateColumns(match),
       });
     }
   }
@@ -198,9 +204,13 @@ export async function importContacts(client, context, { bytes, fileName, mapping
     created: results.length - failed.length,
     failed: failed.length,
     duplicates: failed.filter((entry) => entry.duplicate).length,
-    errors: failed.map(({ row, message, duplicate }) => ({ row, message, duplicate })),
+    // created, but similar to an existing record: worth a look in the duplicate review
+    possibleDuplicates: results.filter((entry) => entry.ok && entry.possibleDuplicate).length,
+    invalid: failed.filter((entry) => !entry.duplicate).length,
+    errors: failed.map(({ row, message, duplicate, matchingRecord, matchField }) => ({ row, message, duplicate, matchingRecord, matchField })),
     warnings: results.filter((entry) => entry.ok && entry.warning).map(({ row, warning }) => ({ row, message: warning })),
-    errorCsv: failed.length ? toCsv([[...parsed.headers, "Row", "Error"], ...failed.map((entry) => [...parsed.headers.map((header) => entry.data[header] ?? ""), entry.row, entry.message])]) : null,
+    errorCsv: failed.length ? toCsv([[...parsed.headers, "Row", "Reason", "Matching Record", "Match Field"],
+      ...failed.map((entry) => [...parsed.headers.map((header) => entry.data[header] ?? ""), entry.row, entry.message, entry.matchingRecord ?? "", entry.matchField ?? ""])]) : null,
   };
 }
 

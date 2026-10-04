@@ -68,6 +68,22 @@ export const NOTIFICATION_CATEGORIES = Object.freeze([
     userConfigurable: true,
   },
   {
+    key: "crm_opportunity_assignment",
+    displayName: "Opportunity assigned to me",
+    description: "When an opportunity is assigned or reassigned to you.",
+    moduleKey: "crm",
+    defaultInAppEnabled: true,
+    userConfigurable: true,
+  },
+  {
+    key: "crm_opportunity_outcome",
+    displayName: "Opportunity won or lost",
+    description: "When someone else marks an opportunity you own as won or lost.",
+    moduleKey: "crm",
+    defaultInAppEnabled: true,
+    userConfigurable: true,
+  },
+  {
     key: "crm_lead_outcome",
     displayName: "Lead qualified, disqualified or converted",
     description: "When someone else qualifies, disqualifies or converts a lead you own.",

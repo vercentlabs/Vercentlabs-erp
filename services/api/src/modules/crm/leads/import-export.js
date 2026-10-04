@@ -9,6 +9,7 @@
 import { parseCsvUpload } from "../../../core/platform/data-exchange/csv.js";
 import { isXlsxFileName, parseXlsxUpload } from "../../../core/platform/data-exchange/xlsx.js";
 import { CrmError } from "../data-management/errors.js";
+import { importDuplicateColumns } from "../duplicates/index.js";
 import { requireLeadPermission } from "./access.js";
 import { assertEligibleLeadAssignee } from "./assignment.js";
 import { LEAD_PERMISSIONS, LEAD_PURCHASE_TIMEFRAMES, leadAssignmentMethodLabel, leadDisqualificationReasonLabel, leadQualificationStatusLabel, leadStatusLabel } from "./constants.js";
@@ -160,6 +161,7 @@ export async function importLeads(client, context, {
   for (const [index, record] of parsed.records.entries()) {
     const rowNumber = index + 2;
     const input = rowToInput(record, mapping);
+    let possibleDuplicate = false;
     await client.query("SAVEPOINT lead_import_row");
     try {
       const { source, ownerEmail, ...lead } = input;
@@ -179,9 +181,12 @@ export async function importLeads(client, context, {
         else throw new CrmError(400, owner.error, "CRM_LEAD_IMPORT_OWNER");
       } else if (!useRules && defaultOwnerUserId) lead.ownerUserId = defaultOwnerUserId;
 
-      const created = await createLead(client, context, lead, { allowDuplicate: !skipDuplicates, origin: "import", routing, assignmentReason });
+      const created = await createLead(client, context, lead, {
+        allowDuplicate: !skipDuplicates, duplicateReason: "Imported with Create anyway", origin: "import",
+        onDuplicateCheck: (found) => { possibleDuplicate = found.matches.length > 0; }, routing, assignmentReason ,
+      });
       await client.query("RELEASE SAVEPOINT lead_import_row");
-      results.push({ row: rowNumber, ok: true, leadId: created.id, code: created.code, assigned: Boolean(created.ownerUserId), fellBack: routing === "fallback" });
+      results.push({ row: rowNumber, ok: true, possibleDuplicate, leadId: created.id, code: created.code, assigned: Boolean(created.ownerUserId), fellBack: routing === "fallback" });
     } catch (error) {
       await client.query("ROLLBACK TO SAVEPOINT lead_import_row");
       if (!(error instanceof CrmError)) throw error;
@@ -193,6 +198,7 @@ export async function importLeads(client, context, {
         duplicate,
         message: duplicate ? `Duplicate of an existing ${match?.kind ?? "record"}${match?.code ? ` (${match.code})` : match?.name ? ` (${match.name})` : ""}.` : error.message,
         data: record,
+        ...importDuplicateColumns(match),
       });
     }
   }
@@ -206,9 +212,13 @@ export async function importLeads(client, context, {
     ownerFallbacks: results.filter((entry) => entry.ok && entry.fellBack).length,
     failed: failed.length,
     duplicates: failed.filter((entry) => entry.duplicate).length,
-    errors: failed.map(({ row, message, duplicate }) => ({ row, message, duplicate })),
+    // created, but similar to an existing record: worth a look in the duplicate review
+    possibleDuplicates: results.filter((entry) => entry.ok && entry.possibleDuplicate).length,
+    invalid: failed.filter((entry) => !entry.duplicate).length,
+    errors: failed.map(({ row, message, duplicate, matchingRecord, matchField }) => ({ row, message, duplicate, matchingRecord, matchField })),
     // The failed rows as a file the user can fix and re-import.
-    errorCsv: failed.length ? toCsv([[...parsed.headers, "Row", "Error"], ...failed.map((entry) => [...parsed.headers.map((header) => entry.data[header] ?? ""), entry.row, entry.message])]) : null,
+    errorCsv: failed.length ? toCsv([[...parsed.headers, "Row", "Reason", "Matching Record", "Match Field"],
+      ...failed.map((entry) => [...parsed.headers.map((header) => entry.data[header] ?? ""), entry.row, entry.message, entry.matchingRecord ?? "", entry.matchField ?? ""])]) : null,
   };
 }
 

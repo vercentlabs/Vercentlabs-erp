@@ -3,10 +3,11 @@
 // (lead conversion, the conversion dialog); administrators can change its
 // stages afterwards. Idempotent: does nothing once any active pipeline exists.
 const DEFAULT_STAGES = Object.freeze([
-  { code: "QUALIFICATION", name: "Qualification", probability: 10, forecastCategory: "pipeline" },
+  { code: "DISCOVERY", name: "Discovery", probability: 10, forecastCategory: "pipeline" },
   { code: "NEEDS_ANALYSIS", name: "Needs Analysis", probability: 25, forecastCategory: "pipeline" },
   { code: "PROPOSAL", name: "Proposal", probability: 50, forecastCategory: "best_case" },
   { code: "NEGOTIATION", name: "Negotiation", probability: 75, forecastCategory: "committed" },
+  { code: "CLOSING", name: "Closing", probability: 90, forecastCategory: "committed" },
   { code: "WON", name: "Closed Won", probability: 100, forecastCategory: "closed", isWon: true },
   { code: "LOST", name: "Closed Lost", probability: 0, forecastCategory: "closed", isLost: true },
 ]);
