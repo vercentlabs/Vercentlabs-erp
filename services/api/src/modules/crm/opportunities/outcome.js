@@ -107,7 +107,7 @@ export async function markOpportunityWon(client, context, opportunityId, input =
 
 // ------------------------------------------------------------------ lost
 
-// input: { reasonId (required), notes? (required for Other), competitorName?, expectedUpdatedAt? }
+// input: { reasonId (required), actualCloseDate? (today unless given), notes? (required for Other), competitorName?, expectedUpdatedAt? }
 export async function markOpportunityLost(client, context, opportunityId, input = {}) {
   requireOpportunityPermission(context, OPPORTUNITY_PERMISSIONS.markLost, "You do not have permission to mark opportunities as lost.");
   const opportunity = await lockOpportunity(client, context, opportunityId);
@@ -123,18 +123,21 @@ export async function markOpportunityLost(client, context, opportunityId, input 
   const notes = text(input.notes).slice(0, 4000) || null;
   if (reason.code === "other" && !notes) throw new CrmError(400, "Add a note explaining the reason.", "CRM_OPPORTUNITY_LOST_NOTES_REQUIRED");
   const competitorName = text(input.competitorName).slice(0, 200) || null;
+  const closeDate = text(input.actualCloseDate).slice(0, 10) || today();
+  if (!DATE.test(closeDate)) throw new CrmError(400, "Enter the date the deal was lost.", "CRM_OPPORTUNITY_CLOSE_DATE_REQUIRED");
+  if (closeDate > today()) throw new CrmError(400, "The close date cannot be in the future.", "CRM_OPPORTUNITY_CLOSE_DATE_REQUIRED");
   const stage = await terminalStage(client, context, opportunity.pipeline_id, "lost");
 
   await writeStage(client, context, opportunity, stage, {
     status: "lost", probability: 0, note: notes,
     columns: {
-      stage_before_close_id: opportunity.stage_id, actual_close_date: today(), lost_reason_id: reason.id, loss_notes: notes, outcome_reason_id: reason.id,
+      stage_before_close_id: opportunity.stage_id, actual_close_date: closeDate, lost_reason_id: reason.id, loss_notes: notes, outcome_reason_id: reason.id,
       outcome_notes: notes, competitor_name: competitorName, lost_at: new Date(), lost_by: context.userId ?? null, closed_at: new Date(),
     },
     outcome: { reasonId: reason.id, reasonLabel: reason.name, notes },
   });
   await recordOpportunityHistory(client, context, opportunity.id, "lost", `Opportunity lost — ${reason.name}`, {
-    from: "open", to: "lost", stage: opportunity.stage_name, reason: reason.name, reasonId: reason.id, notes, competitorName, estimatedValue: Number(opportunity.amount),
+    from: "open", to: "lost", stage: opportunity.stage_name, closeDate, reason: reason.name, reasonId: reason.id, notes, competitorName, estimatedValue: Number(opportunity.amount),
   });
   await notifyOutcome(client, context, opportunity, "Your opportunity was marked lost", `Reason: ${reason.name}`);
   await queueOutboxEvent(client, context, "crm.opportunity.lost", "opportunities", opportunity.id, { reasonId: reason.id });

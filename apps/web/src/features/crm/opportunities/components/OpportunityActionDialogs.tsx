@@ -169,11 +169,12 @@ export function MarkLostDialog({ isOpen, onOpenChange, options, opportunity, onD
   const [reasonId, setReasonId] = useState(NONE);
   const [notes, setNotes] = useState("");
   const [competitorName, setCompetitorName] = useState("");
+  const [closeDate, setCloseDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [error, setError] = useState<string | null>(null);
   const reason = options.lostReasons.find((entry) => entry.id === reasonId);
   const mutation = useMutation({
     mutationFn: () => markOpportunityLost(opportunity.id, {
-      reasonId, notes: notes.trim() || undefined, competitorName: competitorName.trim() || undefined, expectedUpdatedAt: opportunity.updatedAt,
+      reasonId, actualCloseDate: closeDate, notes: notes.trim() || undefined, competitorName: competitorName.trim() || undefined, expectedUpdatedAt: opportunity.updatedAt,
     }),
     onSuccess: () => { setError(null); onDone(); onOpenChange(false); },
     onError: (failure) => setError(errorMessage(failure)),
@@ -183,12 +184,15 @@ export function MarkLostDialog({ isOpen, onOpenChange, options, opportunity, onD
       description="The opportunity is kept with its history and can be reopened later. The probability becomes 0%.">
       <div className="flex flex-col gap-4">
         <ErrorBanner message={error} />
-        <Select label="Lost reason" isRequired selectedKey={reasonId} onSelectionChange={(key) => setReasonId(String(key ?? NONE))}
-          options={options.lostReasons.map((entry) => ({ value: entry.id, label: entry.name }))} />
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Select label="Lost reason" isRequired selectedKey={reasonId} onSelectionChange={(key) => setReasonId(String(key ?? NONE))}
+            options={options.lostReasons.map((entry) => ({ value: entry.id, label: entry.name }))} />
+          <DateInput label="Close date" isRequired value={closeDate} onChange={setCloseDate} />
+        </div>
         {reason?.asksCompetitor && <TextField label="Competitor" description="Optional. Who won the deal." value={competitorName} onChange={setCompetitorName} />}
         <TextArea label="Notes" isRequired={reason?.requiresNotes} description={reason?.requiresNotes ? "Explain the reason." : "What happened? Useful for pricing and product decisions later."} value={notes} onChange={setNotes} />
         <Actions danger onCancel={() => onOpenChange(false)} onConfirm={() => mutation.mutate()} label="Mark lost" isLoading={mutation.isPending}
-          isDisabled={!reasonId || (Boolean(reason?.requiresNotes) && !notes.trim())} />
+          isDisabled={!reasonId || !closeDate || (Boolean(reason?.requiresNotes) && !notes.trim())} />
       </div>
     </Dialog>
   );

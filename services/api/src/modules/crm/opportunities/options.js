@@ -3,7 +3,7 @@
 // sources, people, teams and currencies, and what the caller may do.
 import { listLeadAssignmentOptions } from "../leads/assignment.js";
 import { listLeadSources } from "../leads/sources.js";
-import { ensureDefaultSalesPipeline } from "../pipeline/default-pipeline.js";
+import { ensureDefaultSalesPipeline } from "../sales-stages/defaults.js";
 import { opportunityCapabilities, requireOpportunityPermission } from "./access.js";
 import {
   OPPORTUNITY_ACTIVITY_TYPES, OPPORTUNITY_CONTACT_ROLES, OPPORTUNITY_FOLLOW_UP_TYPES, OPPORTUNITY_PERMISSIONS, OPPORTUNITY_PRIORITIES, OPPORTUNITY_STALE_DAYS,

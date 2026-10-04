@@ -178,7 +178,7 @@ export const MODULE_NAVIGATION: readonly ModuleNavigation[] = [
             requiredPermission: "crm.settings.manage",
           },
           {
-            ...available("Pipeline Stages", "/crm/settings/pipeline-stages"),
+            ...available("Sales Stages", "/crm/settings/sales-stages"),
             parent: "crm-setup",
             group: "sales-process",
             description:

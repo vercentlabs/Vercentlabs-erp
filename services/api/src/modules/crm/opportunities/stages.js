@@ -5,10 +5,12 @@
 // An open deal moves freely, forwards or backwards. Each stage carries a
 // default probability, which the deal takes on unless someone has set its
 // probability by hand. Every move is one row in the stage history.
+import { createNotification } from "../../../core/platform/notifications/index.js";
 import { CrmError } from "../data-management/errors.js";
 import { queueOutboxEvent } from "../data-management/outbox.js";
 import { requireOpportunityPermission } from "./access.js";
 import { OPPORTUNITY_PERMISSIONS } from "./constants.js";
+import { stageEntryBlockers, stageEntryWarnings, suggestedStageActions } from "../sales-stages/rules.js";
 import { recordOpportunityHistory } from "./history.js";
 import { assertNotStale, assertOpen, getOpportunity, lockOpportunity, requireUuid, toOpportunity, readOpportunityRow } from "./records.js";
 
@@ -28,6 +30,9 @@ export async function withLifecycleWrite(client, work) {
 function toStage(row) {
   return {
     id: row.id, code: row.code, name: row.name, sequence: row.sequence, probability: Number(row.probability ?? 0), pipelineId: row.pipeline_id,
+    description: row.description ?? null, guidance: row.guidance ?? null,
+    // the actions worth putting forward while a deal is in this stage
+    suggestedActions: suggestedStageActions(row),
     isWon: row.is_won, isLost: row.is_lost, isOpen: !row.is_won && !row.is_lost,
     openCount: row.open_count === undefined ? undefined : Number(row.open_count),
   };
@@ -103,16 +108,20 @@ export async function writeStage(client, context, opportunity, stage, { status =
   ));
   await client.query(
     `INSERT INTO tenant.crm_opportunity_stage_history (organization_id, opportunity_id, from_stage_id, to_stage_id, probability, changed_by, note, status,
-                                                       outcome_reason_id, outcome_reason_label, outcome_notes, changed_at)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, clock_timestamp())`,
+                                                       outcome_reason_id, outcome_reason_label, outcome_notes, probability_before, changed_at)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, clock_timestamp())`,
     [context.organizationId, opportunity.id, opportunity.stage_id, stage.id, nextProbability, context.userId ?? null, text(note).slice(0, 2000) || null, status,
-      outcome.reasonId ?? null, outcome.reasonLabel ?? null, outcome.notes ?? null],
+      outcome.reasonId ?? null, outcome.reasonLabel ?? null, outcome.notes ?? null, Number(opportunity.probability ?? 0)],
   );
   return nextProbability;
 }
 
-// input: { stageId, note?, expectedUpdatedAt? }. Only open stages: a deal is
-// closed with Mark won or Mark lost.
+// input: { stageId, note?, expectedUpdatedAt?, warn? }. Only sales stages: a deal
+// is closed with Mark won or Mark lost. Any stage can follow any other,
+// forwards or backwards, skipping freely.
+//   warn: true  refuses with CRM_OPPORTUNITY_STAGE_WARNING when the move deserves a second
+//               look (no quotation yet, nothing scheduled); the caller confirms and repeats
+//               the call without it. Requirements are refused either way.
 export async function changeOpportunityStage(client, context, opportunityId, input = {}) {
   requireOpportunityPermission(context, OPPORTUNITY_PERMISSIONS.changeStage, "You do not have permission to change the stage of opportunities.");
   const opportunity = await lockOpportunity(client, context, opportunityId);
@@ -124,17 +133,34 @@ export async function changeOpportunityStage(client, context, opportunityId, inp
   if (stage.is_won || stage.is_lost)
     throw new CrmError(409, `Use Mark ${stage.is_won ? "won" : "lost"} to close this opportunity.`, "CRM_OPPORTUNITY_STAGE_TERMINAL");
   await assertStageExitAllowed(client, context, opportunity);
+  const blockers = stageEntryBlockers(opportunity, stage);
+  if (blockers.length) throw new CrmError(409, blockers[0], "CRM_OPPORTUNITY_STAGE_REQUIREMENTS", { missingRequirements: blockers });
+  const warnings = input.warn ? stageEntryWarnings(opportunity, stage) : [];
+  if (warnings.length) throw new CrmError(409, warnings.join(" "), "CRM_OPPORTUNITY_STAGE_WARNING", { warnings, stageId: stage.id, stageName: stage.name });
   const probability = await writeStage(client, context, opportunity, stage, { note: input.note });
   await recordOpportunityHistory(client, context, opportunity.id, "stage_changed", `Stage: ${opportunity.stage_name} → ${stage.name}`, {
-    from: opportunity.stage_id, to: stage.id, fromName: opportunity.stage_name, toName: stage.name, probability, note: text(input.note).slice(0, 500) || null,
+    from: opportunity.stage_id, to: stage.id, fromName: opportunity.stage_name, toName: stage.name, probabilityBefore: Number(opportunity.probability), probability,
+    note: text(input.note).slice(0, 500) || null,
   });
+  // One stage is worth a word to the owner: someone else brought their deal to the point of decision.
+  if (String(stage.code).toUpperCase() === "CLOSING" && opportunity.owner_user_id && opportunity.owner_user_id !== context.userId)
+    await createNotification(client, {
+      organizationId: context.organizationId,
+      userId: opportunity.owner_user_id,
+      category: "crm_opportunity_stage",
+      title: `Your opportunity reached ${stage.name}`,
+      message: `${opportunity.name} (${opportunity.code})`,
+      href: `/crm/opportunities/${opportunity.id}`,
+      entityType: "opportunity",
+      entityId: opportunity.id,
+    });
   await queueOutboxEvent(client, context, "crm.opportunity.stage_changed", "opportunities", opportunity.id, { fromStageId: opportunity.stage_id, toStageId: stage.id });
   return { changed: true, probability };
 }
 
 // Overrides the stage's default probability for this deal. input: { probability, reason? }
 export async function setOpportunityProbability(client, context, opportunityId, input = {}) {
-  requireOpportunityPermission(context, OPPORTUNITY_PERMISSIONS.edit, "You do not have permission to edit opportunities.");
+  requireOpportunityPermission(context, OPPORTUNITY_PERMISSIONS.changeProbability, "You do not have permission to change the probability of opportunities.");
   const probability = Number(input.probability);
   if (!Number.isFinite(probability) || probability < 0 || probability > 100)
     throw new CrmError(400, "Enter a probability from 0 to 100.", "CRM_OPPORTUNITY_VALIDATION");
@@ -155,10 +181,11 @@ export async function setOpportunityProbability(client, context, opportunityId, 
 }
 
 // Runs one operation per opportunity; each succeeds or fails on its own.
-export async function runOpportunityBulkOperation(client, opportunityIds, operation) {
+export async function runOpportunityBulkOperation(client, opportunityIds, operation, context = null) {
   const ids = [...new Set(Array.isArray(opportunityIds) ? opportunityIds : [])];
   if (!ids.length) throw new CrmError(400, "Select at least one opportunity.", "CRM_OPPORTUNITY_VALIDATION");
   if (ids.length > 200) throw new CrmError(400, "Select up to 200 opportunities at a time.", "CRM_OPPORTUNITY_BULK_LIMIT");
+  if (ids.length > 1 && context) requireOpportunityPermission(context, OPPORTUNITY_PERMISSIONS.bulkUpdate, "You do not have permission to change several opportunities at once.");
   const results = [];
   for (const opportunityId of ids) {
     await client.query("SAVEPOINT opportunity_bulk_operation");
@@ -176,14 +203,14 @@ export async function runOpportunityBulkOperation(client, opportunityIds, operat
 }
 
 export async function bulkChangeOpportunityStage(client, context, input = {}) {
-  return runOpportunityBulkOperation(client, input.opportunityIds, (id) => changeOpportunityStage(client, context, id, { stageId: input.stageId, note: input.note }));
+  return runOpportunityBulkOperation(client, input.opportunityIds, (id) => changeOpportunityStage(client, context, id, { stageId: input.stageId, note: input.note }), context);
 }
 
 // Each stage the deal has been in, newest first, with how long it stayed.
 export async function listOpportunityStageHistory(client, context, opportunityId) {
   const opportunity = await getOpportunity(client, context, opportunityId);
   const { rows } = await client.query(
-    `SELECT history.id, history.changed_at, history.note, history.status, history.probability, history.outcome_reason_label, history.outcome_notes,
+    `SELECT history.id, history.changed_at, history.note, history.status, history.probability, history.probability_before, history.outcome_reason_label, history.outcome_notes,
             from_stage.name AS from_name, to_stage.name AS to_name, actor.full_name AS changed_by_name,
             lead(history.changed_at) OVER (ORDER BY history.changed_at, history.id) AS left_at
        FROM tenant.crm_opportunity_stage_history history
@@ -196,6 +223,7 @@ export async function listOpportunityStageHistory(client, context, opportunityId
   );
   return rows.map((row) => ({
     id: row.id, fromStageName: row.from_name ?? null, toStageName: row.to_name, status: row.status, probability: Number(row.probability ?? 0),
+    probabilityBefore: row.probability_before === null ? null : Number(row.probability_before),
     note: row.note, outcomeReason: row.outcome_reason_label, outcomeNotes: row.outcome_notes, enteredAt: row.changed_at, leftAt: row.left_at,
     changedByName: row.changed_by_name ?? null,
   }));

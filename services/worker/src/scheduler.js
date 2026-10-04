@@ -4,7 +4,6 @@ import { enqueueJob } from "./queue.js";
 import { withTenantClient, listActiveOrganizationIds } from "./db.js";
 import { JOB_TYPE as OVERDUE_ACTIVITY_JOB_TYPE } from "./handlers/crm-automation-overdue.js";
 import { JOB_TYPE as QUOTATION_EXPIRY_SCAN_JOB_TYPE } from "./handlers/sales-quotation-expiry-scan.js";
-import { JOB_TYPE as PIPELINE_SNAPSHOT_CAPTURE_JOB_TYPE } from "./handlers/crm-pipeline-snapshot-capture.js";
 import { JOB_TYPE as FOLLOW_UP_REMINDER_DISPATCH_JOB_TYPE } from "./handlers/crm-follow-up-reminder-dispatch.js";
 import { JOB_TYPE as CALENDAR_SYNC_JOB_TYPE } from "./handlers/crm-calendar-sync.js";
 import { JOB_TYPE as FORECAST_SNAPSHOT_JOB_TYPE } from "./handlers/crm-forecast-snapshot-capture.js";
@@ -13,10 +12,9 @@ const logger = createLogger("worker-scheduler");
 
 // Scheduled sources: the activity.overdue detection tick, the Sales
 // quotation-expiry scan (F038 — see sales-quotation-expiry-scan.js), the
-// follow-up reminder dispatch, and the F010 daily pipeline-snapshot capture (see
-// crm-pipeline-snapshot-capture.js — uses a calendar-date idempotency key,
-// `snapshotDay` below, rather than `bucket`, since it must fire once a day
-// rather than once per tick). crm_automation_rules has no
+// follow-up reminder dispatch, and the daily forecast snapshot (which uses a
+// calendar-date idempotency key, `snapshotDay` below, rather than `bucket`,
+// since it must fire once a day rather than once per tick). crm_automation_rules has no
 // schedule/cron/interval column, so there is deliberately no generic
 // per-rule scheduling DSL — these are one-off, system-level ticks on the
 // same fixed interval.
@@ -32,12 +30,8 @@ const logger = createLogger("worker-scheduler");
 // of creating a duplicate (see queue.js's enqueueJob doc comment).
 export async function runSchedulerTick(pool, config) {
   const bucket = Math.floor(Date.now() / config.worker.schedulerTickMilliseconds);
-  // F010: the daily pipeline-snapshot baseline uses a
-  // calendar-date idempotency key (UTC) rather than `bucket` — the tick may
-  // fire many times a day (schedulerTickMilliseconds is on the order of
-  // minutes), but only the FIRST tick each day should actually enqueue the
-  // capture job; every later tick that day dedupes against the same
-  // tenant.background_jobs UNIQUE(organization_id, idempotency_key) row.
+  // A calendar date (UTC): a once-a-day job enqueued on every tick dedupes
+  // against the first one of the day.
   const snapshotDay = new Date().toISOString().slice(0, 10);
   const organizationIds = await listActiveOrganizationIds(pool);
   let enqueued = 0;
@@ -68,19 +62,6 @@ export async function runSchedulerTick(pool, config) {
       else enqueued += 1;
     } catch (error) {
       logger.error("quotation expiry scan tick failed for organization", { organizationId, error: String(error?.message || error) });
-    }
-    try {
-      const { deduped: wasDeduped } = await withTenantClient(pool, organizationId, (client) =>
-        enqueueJob(client, organizationId, {
-          jobType: PIPELINE_SNAPSHOT_CAPTURE_JOB_TYPE,
-          idempotencyKey: `pipeline-snapshot-tick:${snapshotDay}`,
-          maxAttempts: 3,
-        }),
-      );
-      if (wasDeduped) deduped += 1;
-      else enqueued += 1;
-    } catch (error) {
-      logger.error("pipeline snapshot capture tick failed for organization", { organizationId, error: String(error?.message || error) });
     }
     try {
       // F016: reminders need frequent (per-tick), not daily, checking —
@@ -115,7 +96,7 @@ export async function runSchedulerTick(pool, config) {
       logger.error("calendar sync tick failed for organization", { organizationId, error: String(error?.message || error) });
     }
     try {
-      // F025 daily forecast snapshot (calendar-date key, like the pipeline snapshot).
+      // F025 daily forecast snapshot (calendar-date key).
       const { deduped: wasDeduped } = await withTenantClient(pool, organizationId, (client) =>
         enqueueJob(client, organizationId, {
           jobType: FORECAST_SNAPSHOT_JOB_TYPE,

@@ -46,7 +46,7 @@ export function OpportunityDashboardScreen() {
       <PageHeader
         title="Opportunity dashboard"
         description="The open pipeline, what is closing, and which deals need attention."
-        secondaryActions={<><LinkButton variant="outline" href="/crm/opportunities">Open opportunities</LinkButton><LinkButton variant="outline" href="/crm/opportunities?layout=board">Open board</LinkButton></>}
+        secondaryActions={<><LinkButton variant="outline" href="/crm/opportunities">Open opportunities</LinkButton><LinkButton variant="outline" href="/crm/pipeline">Open pipeline</LinkButton></>}
       />
 
       {dashboardQuery.isLoading ? <LoadingState label="Loading dashboard" rows={6} />

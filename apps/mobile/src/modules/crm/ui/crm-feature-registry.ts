@@ -34,7 +34,7 @@ export const CRM_MOBILE_FEATURES: readonly CrmMobileFeature[] = [
   { id: "F009", label: "Opportunities", group: "Pipeline", support: "native", description: "Qualified revenue opportunities.", nativeHref: "/(protected)/(tabs)/pipeline", webPath: "/crm/opportunities" },
   { id: "F010", label: "Pipeline", group: "Pipeline", support: "native", description: "Stage-based revenue execution.", nativeHref: "/(protected)/(tabs)/pipeline", webPath: "/crm/pipeline" },
   { id: "F011", label: "Probability & expected revenue", group: "Pipeline", support: "native-read", description: "Probability-weighted opportunity value.", nativeHref: "/(protected)/(tabs)/pipeline", webPath: "/crm/pipeline" },
-  { id: "F012", label: "Sales stages", group: "Setup", support: "web-workspace", description: "Govern pipeline stages and defaults.", webPath: "/crm/settings/pipeline-stages" },
+  { id: "F012", label: "Sales stages", group: "Setup", support: "web-workspace", description: "Govern pipeline stages and defaults.", webPath: "/crm/settings/sales-stages" },
   { id: "F013", label: "Calls", group: "Work", support: "native-action", description: "Log and review customer calls.", nativeHref: "/(protected)/(tabs)/activities", webPath: "/crm/calls" },
   { id: "F014", label: "Meetings", group: "Work", support: "native-action", description: "Schedule and review meetings.", nativeHref: "/(protected)/(tabs)/activities", webPath: "/crm/meetings" },
   { id: "F015", label: "Tasks", group: "Work", support: "native-action", description: "Daily CRM work queue.", nativeHref: "/(protected)/(tabs)/activities", webPath: "/crm/tasks" },

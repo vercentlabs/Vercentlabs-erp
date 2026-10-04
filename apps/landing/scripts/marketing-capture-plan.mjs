@@ -19,7 +19,7 @@
 export const CAPTURE_VIEWPORT = Object.freeze({ width: 1440, height: 900 });
 
 export const MARKETING_CAPTURE_PLAN = Object.freeze([
-  { id: "crm-opportunity-pipeline", module: "crm", route: "/crm/opportunities?view=pipeline", ready: "Negotiation", evidence: "Opportunities grouped by sales stage with value and probability" },
+  { id: "crm-opportunity-pipeline", module: "crm", route: "/crm/pipeline", ready: "Negotiation", evidence: "Opportunities grouped by sales stage with value and probability" },
   { id: "sales-order-list", module: "sales", route: "/sales/orders", clip: { x: 64, y: 140, width: 1376, height: 290 }, clipReason: "subtitle lists credit checks, holds and amendments", ready: "SO-00001", evidence: "Sales orders with status, fulfilment and billing state" },
   { id: "inventory-stock-valuation", module: "stock", route: "/inventory/valuation", ready: "Total stock value", evidence: "Stock on hand and value by item and warehouse" },
   { id: "accounting-customer-invoices", module: "accounting", route: "/accounting/customer-invoices", ready: "INV-00001", evidence: "Posted customer invoices with outstanding amounts" },

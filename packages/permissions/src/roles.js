@@ -36,13 +36,14 @@ const leadManager = [...leadWorker, "crm.leads.merge", "crm.duplicates.override"
 const leadRouting = ["crm.leads.assign_across_teams", "crm.leads.manage_assignment_rules", "crm.leads.manage_stages"];
 // Working a deal day to day: creating it, moving it through the stages,
 // quoting it and closing it as won or lost.
+const pipelineAdmin = ["crm.pipeline.manage_stages"];
 const opportunityWorker = [
   "crm.opportunities.view", "crm.opportunities.create", "crm.opportunities.edit", "crm.opportunities.assign", "crm.opportunities.change_stage",
-  "crm.opportunities.create_quotation", "crm.opportunities.mark_won", "crm.opportunities.mark_lost",
+  "crm.opportunities.create_quotation", "crm.opportunities.mark_won", "crm.opportunities.mark_lost", "crm.opportunities.change_probability",
 ];
 // Running the pipeline: moving deals between people, reopening closed deals,
 // archiving or deleting mistakes, and export.
-const opportunityManager = [...opportunityWorker, "crm.opportunities.reassign", "crm.opportunities.reopen", "crm.opportunities.delete", "crm.opportunities.export"];
+const opportunityManager = [...opportunityWorker, "crm.opportunities.reassign", "crm.opportunities.reopen", "crm.opportunities.delete", "crm.opportunities.export", "crm.opportunities.bulk_update"];
 // Working accounts day to day: adding companies, keeping them current and
 // giving an unowned account an owner.
 const accountWorker = ["crm.accounts.create", "crm.accounts.edit", "crm.accounts.assign"];
@@ -224,6 +225,7 @@ export const ROLE_TEMPLATES = Object.freeze([
       "parties.manage",
       ...leadManager,
       ...leadRouting,
+      ...pipelineAdmin,
       "crm.leads.view_sensitive",
       "crm.saved_views.share",
       "crm.opportunities.manage",
@@ -280,6 +282,7 @@ export const ROLE_TEMPLATES = Object.freeze([
       "parties.manage",
       ...leadManager,
       ...leadRouting,
+      ...pipelineAdmin,
       "crm.leads.view_sensitive",
       "crm.saved_views.share",
       "crm.opportunities.manage",
@@ -411,6 +414,7 @@ export const ROLE_TEMPLATES = Object.freeze([
       "parties.manage",
       ...leadManager,
       ...leadRouting,
+      ...pipelineAdmin,
       ...accountManager,
       ...contactManager,
       "crm.accounts.view_all",

@@ -242,11 +242,12 @@ export function OpportunityContactsPanel({ opportunity, options, canEdit, onChan
 
 // "Create quotation": the opportunity hands Sales its customer, contact,
 // currency, salesperson and product lines, and the quotation form opens with them.
-export function useStartQuotation(opportunity: Opportunity, onError: (message: string) => void) {
+// The opportunity is given when the action runs, so one hook serves a page of cards.
+export function useStartQuotation(onError: (message: string) => void) {
   const router = useRouter();
   return useMutation({
-    mutationFn: () => startOpportunityQuotation(opportunity.id),
-    onSuccess: (draft) => {
+    mutationFn: (opportunity: Pick<Opportunity, "id" | "name">) => startOpportunityQuotation(opportunity.id),
+    onSuccess: (draft, opportunity) => {
       try { window.sessionStorage.setItem(quotationDraftStorageKey(opportunity.id), JSON.stringify(draft)); } catch { /* the form simply starts without lines */ }
       const params = new URLSearchParams({ customer: draft.partyId, opportunity: opportunity.id, opportunityName: opportunity.name });
       if (draft.contactId) params.set("contact", draft.contactId);
@@ -262,7 +263,7 @@ export function OpportunityQuotationsPanel({ opportunity, options, canEdit, onCh
   const query = useQuery({ queryKey: key, queryFn: () => listOpportunityQuotations(opportunity.id) });
   const [error, setError] = useState<string | null>(null);
   const canQuote = options.capabilities.createQuotation && opportunity.status === "open" && !opportunity.archivedAt;
-  const start = useStartQuotation(opportunity, setError);
+  const start = useStartQuotation(setError);
   const primary = useMutation({
     mutationFn: (quotationId: string | null) => setPrimaryOpportunityQuotation(opportunity.id, quotationId),
     onSuccess: () => { setError(null); void queryClient.invalidateQueries({ queryKey: key }); onChanged(); },
@@ -274,7 +275,7 @@ export function OpportunityQuotationsPanel({ opportunity, options, canEdit, onCh
     <section className="flex flex-col gap-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-sm text-text-secondary">A deal can have several quotations. Creating one does not win the deal; mark it won when the customer agrees.</p>
-        {canQuote && <Button variant="primary" size="compact" onPress={() => start.mutate()} isLoading={start.isPending}><Plus className="size-4" aria-hidden="true" />Create quotation</Button>}
+        {canQuote && <Button variant="primary" size="compact" onPress={() => start.mutate(opportunity)} isLoading={start.isPending}><Plus className="size-4" aria-hidden="true" />Create quotation</Button>}
       </div>
       <ErrorBanner message={error} />
       {query.isLoading ? <LoadingState label="Loading quotations" rows={2} /> : quotations.length === 0 ? empty("No quotations yet.") : (
@@ -399,12 +400,13 @@ export function LogActivityDialog({ isOpen, onOpenChange, opportunity, options, 
   );
 }
 
-export function ScheduleFollowUpDialog({ isOpen, onOpenChange, opportunity, options, onDone }: {
-  isOpen: boolean; onOpenChange: (open: boolean) => void; opportunity: Opportunity; options: OpportunityOptions; onDone: () => void;
+// initialType: "task" opens it as Add task.
+export function ScheduleFollowUpDialog({ isOpen, onOpenChange, opportunity, options, onDone, initialType = "call" }: {
+  isOpen: boolean; onOpenChange: (open: boolean) => void; opportunity: Opportunity; options: OpportunityOptions; onDone: () => void; initialType?: string;
 }) {
   const queryClient = useQueryClient();
   const key = useKey(opportunity.id, "activities");
-  const [type, setType] = useState("call");
+  const [type, setType] = useState(initialType);
   const [dueAt, setDueAt] = useState("");
   const [assignedTo, setAssignedTo] = useState(opportunity.ownerUserId ?? options.currentUserId);
   const [notes, setNotes] = useState("");
@@ -457,7 +459,7 @@ export function OpportunityHistoryPanel({ opportunity }: { opportunity: Opportun
               <li key={entry.id} className="flex flex-col gap-1 px-4 py-3">
                 <span className="font-medium">
                   {entry.toStageName}{entry.fromStageName ? <span className="font-normal text-text-secondary"> from {entry.fromStageName}</span> : null}
-                  <span className="font-normal text-text-secondary"> · {entry.probability}%</span>
+                  <span className="font-normal text-text-secondary"> · {entry.probabilityBefore !== null && entry.probabilityBefore !== entry.probability ? `${entry.probabilityBefore}% → ` : ""}{entry.probability}%</span>
                   {!entry.leftAt && <span className="font-normal text-text-secondary"> · current</span>}
                 </span>
                 {(entry.outcomeReason || entry.note) && <span className="text-text-secondary">{[entry.outcomeReason, entry.note].filter(Boolean).join(" — ")}</span>}

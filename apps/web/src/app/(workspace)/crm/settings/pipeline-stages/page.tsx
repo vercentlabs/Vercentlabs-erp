@@ -1,9 +1,6 @@
-import { requireWorkspace } from "@/core/session";
-import { PipelineStagesSettingsScreen } from "@/features/crm/setup/pipeline-stages/screens/PipelineStagesSettingsScreen";
+import { redirect } from "next/navigation";
 
-export const metadata = { title: "Pipeline Stages" };
-
-export default async function PipelineStagesSettingsPage() {
-  await requireWorkspace();
-  return <PipelineStagesSettingsScreen />;
+// The pipeline's stages are the sales stages; this address keeps old links working.
+export default function Page() {
+  redirect("/crm/settings/sales-stages");
 }

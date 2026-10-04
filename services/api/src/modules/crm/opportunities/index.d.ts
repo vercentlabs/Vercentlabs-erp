@@ -11,7 +11,8 @@ export type OpportunityPriority = "low" | "medium" | "high";
 export type OpportunityViewKey =
   | "all" | "mine" | "team" | "open" | "closing_this_month" | "overdue" | "won" | "lost" | "recent" | "stale" | "archived";
 export type OpportunityCapabilities = Record<
-  "view" | "viewAll" | "create" | "edit" | "assign" | "reassign" | "changeStage" | "createQuotation" | "markWon" | "markLost" | "reopen" | "delete" | "export",
+  | "view" | "viewAll" | "create" | "edit" | "assign" | "reassign" | "changeStage" | "createQuotation" | "markWon" | "markLost" | "reopen" | "delete" | "export"
+  | "changeProbability" | "bulkUpdate" | "manageStages",
   boolean
 >;
 // An opportunity as the operations return it (see toOpportunity in records.js).
@@ -28,7 +29,8 @@ export const DEFAULT_LOST_REASONS: ReadonlyArray<{ code: string; name: string; r
 export const OPPORTUNITY_ACTIVITY_TYPES: ReadonlyArray<CodeLabel & { activityType: string }>;
 export const OPPORTUNITY_FOLLOW_UP_TYPES: ReadonlyArray<string>;
 export const OPPORTUNITY_PERMISSIONS: Readonly<Record<
-  "view" | "viewAll" | "create" | "edit" | "assign" | "reassign" | "changeStage" | "createQuotation" | "markWon" | "markLost" | "reopen" | "delete" | "export",
+  | "view" | "viewAll" | "create" | "edit" | "assign" | "reassign" | "changeStage" | "createQuotation" | "markWon" | "markLost" | "reopen" | "delete" | "export"
+  | "changeProbability" | "bulkUpdate" | "manageStages",
   string
 >>;
 export const OPPORTUNITY_NUMBER_DOCUMENT_TYPE: string;

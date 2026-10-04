@@ -69,6 +69,11 @@ export const OPPORTUNITY_PERMISSIONS = Object.freeze({
   reopen: "crm.opportunities.reopen",
   delete: "crm.opportunities.delete",
   export: "crm.opportunities.export",
+  changeProbability: "crm.opportunities.change_probability",
+  // changing many opportunities in one action
+  bulkUpdate: "crm.opportunities.bulk_update",
+  // renaming, reordering, adding and deactivating the sales stages
+  manageStages: "crm.pipeline.manage_stages",
 });
 
 export const OPPORTUNITY_NUMBER_DOCUMENT_TYPE = "crm_opportunity";
@@ -76,6 +81,8 @@ export const OPPORTUNITY_NUMBER_DOCUMENT_TYPE = "crm_opportunity";
 // An open opportunity with no activity for this many days is shown as stale.
 // Stale and overdue are calculated, never stored as a status.
 export const OPPORTUNITY_STALE_DAYS = 14;
+// An open opportunity expected to close within this many days is "closing soon".
+export const OPPORTUNITY_CLOSING_SOON_DAYS = 7;
 
 const labels = (list) => new Map(list.map((entry) => [entry.code, entry.label]));
 const STATUS_LABELS = labels(OPPORTUNITY_STATUSES);

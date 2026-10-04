@@ -21,7 +21,7 @@ import { recordContactHistory } from "../contacts/history.js";
 import { createContact } from "../contacts/records.js";
 import { linkContactToAccount } from "../contacts/relationships.js";
 import { createOpportunity } from "../opportunities/records.js";
-import { ensureDefaultSalesPipeline } from "../pipeline/default-pipeline.js";
+import { ensureDefaultSalesPipeline } from "../sales-stages/defaults.js";
 import { requireLeadPermission } from "./access.js";
 import { assertEligibleLeadAssignee } from "./assignment.js";
 import { LEAD_AUTHORITY_STATUSES, LEAD_BUDGET_STATUSES, LEAD_NEED_STATUSES, LEAD_PERMISSIONS, LEAD_PURCHASE_TIMEFRAMES } from "./constants.js";

@@ -100,7 +100,7 @@ export async function bulkAssignOpportunities(client, context, input = {}) {
     const outcome = await assignOpportunity(client, context, id, assignment, { notify: false });
     if (outcome.changed && outcome.ownerUserId && outcome.ownerUserId !== outcome.previousOwnerUserId) received += 1;
     return outcome;
-  });
+  }, context);
   if (received && assignment.ownerUserId && assignment.ownerUserId !== context.userId)
     await createNotification(client, {
       organizationId: context.organizationId,

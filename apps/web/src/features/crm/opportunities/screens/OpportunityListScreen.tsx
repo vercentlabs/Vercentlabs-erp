@@ -13,7 +13,6 @@ import {
 import { AccountPicker } from "@/features/crm/accounts/components/AccountPicker";
 import { listContacts } from "@/features/crm/contacts/api/contacts-api";
 import { DateInput } from "@/features/crm/shared/ui/DateTimeInput";
-import { ViewToggle } from "@/features/crm/shared/ui/ViewToggle";
 import { formatDate, formatDateTime, formatMoney } from "@/shared/format/human";
 import { LoadingState } from "@/shared/ui/LoadingState";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
@@ -24,7 +23,6 @@ import {
   type Opportunity, type OpportunityBulkResult, type OpportunityListFilters, type OpportunityViewKey,
 } from "../api/opportunities-api";
 import { AssignOpportunitiesDialog, ChangeStageDialog } from "../components/OpportunityActionDialogs";
-import { OpportunityBoard } from "../components/OpportunityBoard";
 import { LIVE_OPPORTUNITY_QUERY } from "../live-query";
 import { ErrorBanner, OpportunityFlags, OpportunityStageBadge, OpportunityStatusBadge, PRIORITY_OPTIONS, PriorityBadge, STATUS_LABELS, days } from "../opportunity-format";
 
@@ -43,6 +41,7 @@ const OPTIONAL_COLUMNS: Array<{ id: string; label: string; hiddenByDefault?: boo
   { id: "ownerName", label: "Owner" },
   { id: "priority", label: "Priority" },
   { id: "nextStep", label: "Next step", hiddenByDefault: true },
+  { id: "nextActivity", label: "Next activity" },
   { id: "nextFollowUpAt", label: "Next follow-up", hiddenByDefault: true },
   { id: "lastActivityAt", label: "Last activity", hiddenByDefault: true },
   { id: "contactName", label: "Primary contact", hiddenByDefault: true },
@@ -76,7 +75,6 @@ const MORE_KEYS: MoreKey[] = ["accountId", "contactId", "product", "expectedClos
 const NO_MORE: MoreFilters = { accountId: "", contactId: "", product: "", expectedCloseFrom: "", expectedCloseTo: "", valueMin: "", valueMax: "", createdFrom: "", createdTo: "" };
 const range = (from: string, to: string, show: (value: string) => string) => `${from ? show(from) : "any"} – ${to ? show(to) : "any"}`;
 
-type Layout = "list" | "board";
 type DialogKind = "assign" | "stage" | null;
 
 export function OpportunityListScreen() {
@@ -85,7 +83,6 @@ export function OpportunityListScreen() {
   const params = useSearchParams();
   const queryClient = useQueryClient();
 
-  const [layout, setLayout] = useState<Layout>(params.get("layout") === "board" ? "board" : "list");
   const [view, setViewState] = useState<OpportunityViewKey>((params.get("view") as OpportunityViewKey) || "all");
   const [search, setSearch] = useState(params.get("search") ?? "");
   const [submittedSearch, setSubmittedSearchState] = useState(params.get("search") ?? "");
@@ -150,7 +147,6 @@ export function OpportunityListScreen() {
     queryKey: scopedQueryKey(workspace, "crm", "opportunities", listFilters, pageIndex),
     queryFn: () => listOpportunities({ ...listFilters, limit: PAGE_SIZE, offset: pageIndex * PAGE_SIZE }),
     placeholderData: keepPreviousData,
-    enabled: layout === "list",
     ...LIVE_OPPORTUNITY_QUERY,
   });
   const opportunities = listQuery.data?.rows ?? [];
@@ -192,6 +188,12 @@ export function OpportunityListScreen() {
       { id: "ownerName", accessorKey: "ownerName", header: "Owner", cell: ({ row }) => <span className="whitespace-nowrap">{row.original.ownerName ?? <span className="text-text-muted">Unassigned</span>}</span> },
       { id: "priority", accessorKey: "priority", header: "Priority", cell: ({ row }) => <PriorityBadge priority={row.original.priority} /> },
       { id: "nextStep", accessorKey: "nextStep", header: "Next step", enableSorting: false, cell: ({ row }) => <span className="block max-w-56 truncate">{row.original.nextStep ?? ""}</span> },
+      {
+        id: "nextActivity", header: "Next activity", enableSorting: false,
+        cell: ({ row }) => row.original.nextActivity
+          ? <span className="block max-w-56 truncate">{row.original.nextActivity.subject}{row.original.nextActivity.dueAt ? ` · ${formatDate(row.original.nextActivity.dueAt)}` : ""}</span>
+          : row.original.hasNoNextActivity ? <span className="whitespace-nowrap text-warning">No next activity</span> : "",
+      },
       { id: "nextFollowUpAt", accessorKey: "nextFollowUpAt", header: "Next follow-up", cell: ({ row }) => <span className="whitespace-nowrap">{row.original.nextFollowUpAt ? formatDateTime(row.original.nextFollowUpAt) : ""}</span> },
       { id: "lastActivityAt", accessorKey: "lastActivityAt", header: "Last activity", cell: ({ row }) => formatDate(row.original.lastActivityAt) },
       { id: "contactName", accessorKey: "contactName", header: "Primary contact", enableSorting: false, cell: ({ row }) => row.original.contactName ?? "" },
@@ -271,6 +273,7 @@ export function OpportunityListScreen() {
           primaryAction: can?.create ? <LinkButton href="/crm/opportunities/new" variant="primary"><Plus className="size-4" aria-hidden="true" />New opportunity</LinkButton> : undefined,
           secondaryActions: (
             <>
+              <LinkButton href="/crm/pipeline" variant="outline">Pipeline</LinkButton>
               <LinkButton href="/crm/opportunities/dashboard" variant="outline">Dashboard</LinkButton>
               {can?.export && (
                 <a className={buttonVariants({ variant: "outline" })} href={opportunityExportUrl(listFilters)} download>
@@ -333,26 +336,21 @@ export function OpportunityListScreen() {
             </>
           ),
           end: (
-            <>
-              <ViewToggle label="Layout" value={layout} onChange={(id) => { setLayout(id as Layout); setSelection({}); }} options={[{ id: "list", label: "List" }, { id: "board", label: "Board" }]} />
-              {layout === "list" && (
-                <PopoverTrigger>
-                  <Button variant="outline" size="compact"><Columns3 className="size-4" aria-hidden="true" />Columns</Button>
-                  <Popover>
-                    <div className="flex flex-col gap-2 p-1">
-                      <p className="text-xs font-medium text-text-secondary">Show columns</p>
-                      {OPTIONAL_COLUMNS.map((column) => (
-                        <Checkbox key={column.id} isSelected={visibility[column.id] !== false} onChange={(checked) => changeVisibility({ ...visibility, [column.id]: checked })}>{column.label}</Checkbox>
-                      ))}
-                    </div>
-                  </Popover>
-                </PopoverTrigger>
-              )}
-            </>
+            <PopoverTrigger>
+                <Button variant="outline" size="compact"><Columns3 className="size-4" aria-hidden="true" />Columns</Button>
+                <Popover>
+                  <div className="flex flex-col gap-2 p-1">
+                    <p className="text-xs font-medium text-text-secondary">Show columns</p>
+                    {OPTIONAL_COLUMNS.map((column) => (
+                      <Checkbox key={column.id} isSelected={visibility[column.id] !== false} onChange={(checked) => changeVisibility({ ...visibility, [column.id]: checked })}>{column.label}</Checkbox>
+                    ))}
+                  </div>
+                </Popover>
+            </PopoverTrigger>
           ),
         }}
         filterBar={activeFilters.length ? { filters: activeFilters, onRemove: removeFilter, onClearAll: clearFilters } : undefined}
-        bulkActionBar={layout === "list" && selectedIds.length ? {
+        bulkActionBar={selectedIds.length ? {
           selectedCount: selectedIds.length,
           onClearSelection: () => setSelection({}),
           actions: (
@@ -368,8 +366,7 @@ export function OpportunityListScreen() {
           ),
         } : undefined}
       >
-        {layout === "board" ? (options ? <OpportunityBoard filters={listFilters} options={options} /> : <LoadingState label="Loading pipeline" rows={6} />) : (
-          <div className="flex flex-col gap-2">
+        <div className="flex flex-col gap-2">
             {listQuery.data && total > 0 && (
               <p className="text-sm text-text-secondary">
                 {total} {total === 1 ? "opportunity" : "opportunities"} · value {formatMoney(baseCurrency, listQuery.data.totalValue)} · weighted {formatMoney(baseCurrency, listQuery.data.weightedValue)}
@@ -413,8 +410,7 @@ export function OpportunityListScreen() {
                 </div>
               )}
             />
-          </div>
-        )}
+        </div>
       </EnterpriseListPage>
 
       {options && (

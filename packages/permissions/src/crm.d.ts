@@ -41,6 +41,9 @@ export const CRM_PERMISSIONS: Readonly<{
   opportunitiesReopen: "crm.opportunities.reopen";
   opportunitiesDelete: "crm.opportunities.delete";
   opportunitiesExport: "crm.opportunities.export";
+  opportunitiesChangeProbability: "crm.opportunities.change_probability";
+  opportunitiesBulkUpdate: "crm.opportunities.bulk_update";
+  pipelineManageStages: "crm.pipeline.manage_stages";
   activitiesManage: "crm.activities.manage";
   campaignsManage: "crm.campaigns.manage";
   communicationsManage: "crm.communications.manage";

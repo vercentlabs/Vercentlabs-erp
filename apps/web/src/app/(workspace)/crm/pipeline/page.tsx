@@ -1,21 +1,11 @@
-import { redirect } from "next/navigation";
-
 import { requireWorkspace } from "@/core/session";
+import { PipelineScreen } from "@/features/crm/opportunity-pipeline/screens/PipelineScreen";
 
-// Pipeline is a view of the Opportunities workspace. This address keeps
-// working (bookmarks, mobile web links) and opens the board layout.
-export default async function PipelinePage({
-  searchParams,
-}: {
-  searchParams: Promise<Record<string, string | string[] | undefined>>;
-}) {
+export const metadata = { title: "Pipeline" };
+
+// The opportunity pipeline: the board by sales stage (default) and the same
+// deals as a list (?layout=list). ?preset=mine opens My Pipeline.
+export default async function Page() {
   await requireWorkspace();
-  const query = new URLSearchParams();
-  for (const [key, value] of Object.entries(await searchParams)) {
-    for (const item of Array.isArray(value) ? value : [value])
-      if (item !== undefined) query.append(key, item);
-  }
-  query.delete("view");
-  query.set("layout", "board");
-  redirect(`/crm/opportunities?${query.toString()}`);
+  return <PipelineScreen />;
 }

@@ -32,6 +32,7 @@ export type Opportunity = {
   teamName: string | null;
   stageId: string;
   stageName: string | null;
+  stageCode: string | null;
   stageSequence: number | null;
   stageEnteredAt: string;
   stageAgeDays: number;
@@ -43,6 +44,7 @@ export type Opportunity = {
   currencyCode: string | null;
   probability: number;
   probabilityOverridden: boolean;
+  probabilitySource: "stage_default" | "manual_override";
   weightedValue: number;
   productsTotal: number;
   productCount: number;
@@ -60,6 +62,11 @@ export type Opportunity = {
   nextStep: string | null;
   nextStepDueAt: string | null;
   nextFollowUpAt: string | null;
+  // the open task, follow-up, call or meeting due first
+  nextActivity: { subject: string; dueAt: string | null; type: string } | null;
+  hasNoNextActivity: boolean;
+  isClosingSoon: boolean;
+  hasAcceptedQuotation: boolean;
   lastActivityAt: string | null;
   daysSinceActivity: number;
   isStale: boolean;
@@ -90,12 +97,18 @@ export type Opportunity = {
 };
 
 export type OpportunityCapabilities = Record<
-  "view" | "viewAll" | "create" | "edit" | "assign" | "reassign" | "changeStage" | "createQuotation" | "markWon" | "markLost" | "reopen" | "delete" | "export",
+  | "view" | "viewAll" | "create" | "edit" | "assign" | "reassign" | "changeStage" | "createQuotation" | "markWon" | "markLost" | "reopen" | "delete" | "export"
+  | "changeProbability" | "bulkUpdate" | "manageStages",
   boolean
 >;
 
 type CodeLabel = { code: string; label: string };
-export type OpportunityStage = { id: string; code: string; name: string; sequence: number; probability: number; isOpen: boolean; openCount?: number };
+export type OpportunityStageAction = "log_activity" | "schedule_follow_up" | "edit_details" | "add_products" | "create_quotation" | "view_quotations" | "mark_won" | "mark_lost";
+export type OpportunityStage = {
+  id: string; code: string; name: string; sequence: number; probability: number; isOpen: boolean; openCount?: number;
+  // what the stage means, its goals (one per line), and the actions worth putting forward in it
+  description: string | null; guidance: string | null; suggestedActions: OpportunityStageAction[];
+};
 export type OpportunityLostReason = { id: string; name: string; code: string; requiresNotes: boolean; asksCompetitor: boolean };
 
 export type OpportunityOptions = {
@@ -120,7 +133,7 @@ export type OpportunityOptions = {
 export type OpportunityListFilters = Partial<{
   view: OpportunityViewKey; search: string; status: string; stageId: string; ownerId: string; teamId: string; accountId: string; contactId: string;
   product: string; sourceId: string; priority: string; expectedCloseFrom: string; expectedCloseTo: string; valueMin: string; valueMax: string;
-  createdFrom: string; createdTo: string; stale: string; ids: string; sortBy: string; sortDirection: "asc" | "desc"; limit: number; offset: number;
+  createdFrom: string; createdTo: string; stale: string; highValue: string; noNextActivity: string; ids: string; sortBy: string; sortDirection: "asc" | "desc"; limit: number; offset: number;
 }>;
 
 export type OpportunityList = {
@@ -130,7 +143,7 @@ export type OpportunityList = {
 export type OpportunityBulkResult = { results: Array<{ opportunityId: string; ok: boolean; message?: string }>; succeeded: number; failed: number };
 export type OpportunityHistoryEntry = { id: string; eventType: string; summary: string; changes: Record<string, unknown>; createdAt: string; actorName: string | null };
 export type OpportunityStageHistoryEntry = {
-  id: string; fromStageName: string | null; toStageName: string; status: string; probability: number; note: string | null; outcomeReason: string | null;
+  id: string; fromStageName: string | null; toStageName: string; status: string; probability: number; probabilityBefore: number | null; note: string | null; outcomeReason: string | null;
   enteredAt: string; leftAt: string | null; changedByName: string | null;
 };
 export type OpportunityAssignmentEntry = {
@@ -199,12 +212,13 @@ export const findDuplicateOpportunities = (input: { accountId: string; name?: st
   post<{ matches: OpportunityDuplicate[] }>(`${BASE}/duplicates`, input).then((result) => result.matches);
 
 // ---- lifecycle
-export const changeOpportunityStage = (id: string, input: { stageId: string; note?: string; expectedUpdatedAt?: string }) =>
+// warn: true asks the server to refuse a move that deserves a second look; see stageWarningOf.
+export const changeOpportunityStage = (id: string, input: { stageId: string; note?: string; expectedUpdatedAt?: string; warn?: boolean }) =>
   post<{ changed: boolean }>(`${BASE}/${id}/stage`, input);
 export const setOpportunityProbability = (id: string, input: { probability: number; reason?: string }) => post<{ changed: boolean }>(`${BASE}/${id}/probability`, input);
 export const markOpportunityWon = (id: string, input: { actualCloseDate: string; finalValue?: string | number; winningQuotationId?: string; notes?: string; expectedUpdatedAt?: string }) =>
   post<{ status: string }>(`${BASE}/${id}/won`, input);
-export const markOpportunityLost = (id: string, input: { reasonId: string; notes?: string; competitorName?: string; expectedUpdatedAt?: string }) =>
+export const markOpportunityLost = (id: string, input: { reasonId: string; actualCloseDate?: string; notes?: string; competitorName?: string; expectedUpdatedAt?: string }) =>
   post<{ status: string }>(`${BASE}/${id}/lost`, input);
 export const reopenOpportunity = (id: string, input: { reason: string; stageId?: string }) => post<{ status: string }>(`${BASE}/${id}/reopen`, input);
 export const assignOpportunity = (id: string, input: { ownerUserId?: string | null; teamId?: string | null; reason?: string; expectedUpdatedAt?: string; moveOpenActivities?: boolean }) =>
@@ -254,6 +268,13 @@ export const opportunityExportUrl = (filters: OpportunityListFilters) => `${BASE
 
 // Where the Sales quotation form reads the lines of a quotation started from an opportunity.
 export const quotationDraftStorageKey = (opportunityId: string) => `crm.opportunity.quotation-draft.${opportunityId}`;
+
+// A stage move the server wants confirmed first ("No quotation exists yet"). null for any other failure.
+export function stageWarningOf(error: unknown): { warnings: string[]; stageName: string } | null {
+  if (!(error instanceof OpportunityApiError) || error.code !== "CRM_OPPORTUNITY_STAGE_WARNING") return null;
+  const details = (error.details.details ?? error.details) as { warnings?: string[]; stageName?: string };
+  return { warnings: details.warnings ?? [error.message], stageName: details.stageName ?? "this stage" };
+}
 
 export function errorMessage(error: unknown, fallback = "Something went wrong. Try again.") {
   return error instanceof Error && error.message ? error.message : fallback;

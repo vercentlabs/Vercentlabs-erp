@@ -3,8 +3,7 @@ import { OpportunityListScreen } from "@/features/crm/opportunities/screens/Oppo
 
 export const metadata = { title: "Opportunities" };
 
-// One Opportunities workspace with two layouts of the same records: the list
-// (default) and the stage board (?layout=board). /crm/pipeline opens the board.
+// The opportunity list. The same deals by sales stage are at /crm/pipeline.
 export default async function Page() {
   await requireWorkspace();
   return <OpportunityListScreen />;

@@ -2,8 +2,6 @@ import { registerJobHandler } from "../registry.js";
 import { internalJobBackoff } from "../backoff.js";
 import { detectOverdueActivitiesHandler, JOB_TYPE as OVERDUE_ACTIVITY_JOB_TYPE, payloadSchema as overdueActivityPayloadSchema } from "./crm-automation-overdue.js";
 import { detectExpiredQuotationsHandler, JOB_TYPE as QUOTATION_EXPIRY_SCAN_JOB_TYPE, payloadSchema as quotationExpiryScanPayloadSchema } from "./sales-quotation-expiry-scan.js";
-import { opportunityStageMigrationHandler, JOB_TYPE as OPPORTUNITY_STAGE_MIGRATION_JOB_TYPE, payloadSchema as opportunityStageMigrationPayloadSchema } from "./crm-opportunity-stage-migration.js";
-import { capturePipelineDailySnapshotHandler, JOB_TYPE as PIPELINE_SNAPSHOT_CAPTURE_JOB_TYPE, payloadSchema as pipelineSnapshotCapturePayloadSchema } from "./crm-pipeline-snapshot-capture.js";
 import { dispatchFollowUpRemindersHandler, JOB_TYPE as FOLLOW_UP_REMINDER_DISPATCH_JOB_TYPE, payloadSchema as followUpReminderDispatchPayloadSchema } from "./crm-follow-up-reminder-dispatch.js";
 import { pushMeetingCalendarEventHandler, JOB_TYPE as MEETING_CALENDAR_PUSH_JOB_TYPE, payloadSchema as meetingCalendarPushPayloadSchema } from "./crm-meeting-calendar-push.js";
 import { reportRunHandler, JOB_TYPE as REPORT_RUN_JOB_TYPE, payloadSchema as reportRunPayloadSchema } from "./platform-report-run.js";
@@ -28,21 +26,6 @@ export function registerBuiltinHandlers() {
     handler: detectExpiredQuotationsHandler,
     backoff: internalJobBackoff,
     idempotency: "NATURALLY_IDEMPOTENT", // same status-transition guarantee as the overdue-activity tick
-    maxAttempts: 3,
-  });
-  registerJobHandler(OPPORTUNITY_STAGE_MIGRATION_JOB_TYPE, {
-    schema: opportunityStageMigrationPayloadSchema,
-    handler: opportunityStageMigrationHandler,
-    backoff: internalJobBackoff,
-    idempotency: "IDEMPOTENCY_KEY_REQUIRED",
-    maxAttempts: 5,
-    transactionMode: "managed",
-  });
-  registerJobHandler(PIPELINE_SNAPSHOT_CAPTURE_JOB_TYPE, {
-    schema: pipelineSnapshotCapturePayloadSchema,
-    handler: capturePipelineDailySnapshotHandler,
-    backoff: internalJobBackoff,
-    idempotency: "NATURALLY_IDEMPOTENT", // the scheduled partial-unique-index ON CONFLICT DO NOTHING makes a re-run for the same org/day always safe
     maxAttempts: 3,
   });
   registerJobHandler(FOLLOW_UP_REMINDER_DISPATCH_JOB_TYPE, {

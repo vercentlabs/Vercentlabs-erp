@@ -48,14 +48,6 @@ export type QueryClient = {
 
 
 
-export function listSalesStagePipelines(client: QueryClient, context: any, options?: { status?: string }): Promise<any[]>;
-export function listSalesStages(client: QueryClient, context: any, options: { pipelineId: string; status?: string }): Promise<{ rows: any[]; total: number }>;
-export function getSalesStage(client: QueryClient, context: any, id: string): Promise<any>;
-export function createSalesStage(client: QueryClient, context: any, input?: Record<string, unknown>): Promise<any>;
-export function updateSalesStage(client: QueryClient, context: any, id: string, input?: Record<string, unknown>): Promise<any>;
-export function setSalesStageActive(client: QueryClient, context: any, id: string, active: boolean, expectedUpdatedAt: string): Promise<any>;
-export function reorderSalesStages(client: QueryClient, context: any, pipelineId: string, entries: Array<{ id: string; expectedUpdatedAt: string }>): Promise<{ changed: boolean; rows: any[] }>;
-export function listSalesStageHistory(client: QueryClient, context: any, pipelineId: string, limit?: number): Promise<any[]>;
 
 // F009 opportunity commercial-record child entities.
 export function listOpportunityItems(client: QueryClient, context: any, opportunityId: string): Promise<any[]>;
@@ -68,14 +60,6 @@ export function removeOpportunityTeamMember(client: QueryClient, context: any, o
 export function listOpportunityCompetitors(client: QueryClient, context: any, opportunityId: string): Promise<any[]>;
 export function addOpportunityCompetitor(client: QueryClient, context: any, opportunityId: string, input?: Record<string, unknown>): Promise<any>;
 export function removeOpportunityCompetitor(client: QueryClient, context: any, opportunityId: string, competitorId: string): Promise<{ removed: boolean }>;
-export const OPPORTUNITY_STAGE_MIGRATION_BATCH_SIZE: number;
-export function enqueueOpportunityStageMigrationJob(client: QueryClient, context: any, fromStageId: string, toStageId: string): Promise<any>;
-export function getOpportunityStageMigrationJob(client: QueryClient, context: any, jobId: string): Promise<any>;
-
-// F010/F012 stage-age computation.
-export function computeStageAge(row: Record<string, unknown>, now?: Date): { enteredAt: string | null; ageDays: number | null; maximumDays: number | null; status: "unknown" | "ok" | "warning" | "breached" };
-
-// F010 historical pipeline snapshots.
 
 export type BusinessDataContext = {
   organizationId: string;
@@ -192,17 +176,12 @@ export * from "./compat/crm-root-legacy.js";
 // Named so the boundary declarations win over the legacy per-file
 // declarations reachable through the compatibility barrel.
 export {
-  CrmPipelineStageSnapshot,
-  capturePipelineSnapshots,
   createCrmAttachment,
   crmAttachmentStorageEntityType,
   deleteCrmAttachment,
   getCrmAttachmentContent,
   listCrmAttachmentVersions,
   listCrmAttachments,
-  listOpportunityPipelineStageTotals,
-  listOpportunityStageAges,
-  listPipelineSnapshots,
 } from "./modules/crm/index.js";
 export * from "./modules/sales/index.js";
 

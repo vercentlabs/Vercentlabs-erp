@@ -41,8 +41,8 @@ const ROUTES = [
   ["lead-sources", "/crm/settings/lead-sources", "CRM Settings — Lead Sources"],
   [
     "pipeline-stages",
-    "/crm/settings/pipeline-stages",
-    "CRM Settings — Pipeline Stages",
+    "/crm/settings/sales-stages",
+    "CRM Settings — Sales Stages",
   ],
 ];
 

@@ -10,7 +10,7 @@ export type OpportunityRouteParams = { params: Promise<{ id: string }> };
 
 const FILTER_KEYS = [
   "view", "search", "status", "stageId", "ownerId", "teamId", "accountId", "contactId", "product", "sourceId", "priority", "lostReasonId", "leadId",
-  "expectedCloseFrom", "expectedCloseTo", "closedFrom", "closedTo", "valueMin", "valueMax", "createdFrom", "createdTo", "stale", "sortBy", "sortDirection", "groupBy",
+  "expectedCloseFrom", "expectedCloseTo", "closedFrom", "closedTo", "valueMin", "valueMax", "createdFrom", "createdTo", "stale", "highValue", "noNextActivity", "sortBy", "sortDirection", "groupBy", "cardSort", "cardsPerStage",
 ] as const;
 
 // The list filters accepted from the query string (list, report and export).

@@ -5,9 +5,6 @@
 // The package root declares its own QueryClient; name one here so the
 // re-exported files' QueryClient declarations are not ambiguous.
 export type { QueryClient } from "../index.js";
-export * from "../modules/crm/pipeline/sales-stage-operations.js";
-export * from "../modules/crm/pipeline/stage-aging.js";
-export * from "../modules/crm/pipeline/pipeline-snapshots.js";
 export * from "../modules/crm/activities/attachments/attachments-operations.js";
 export * from "../modules/crm/data-management/core-acceptance.js";
 export * from "../modules/crm/activities/communications.js";

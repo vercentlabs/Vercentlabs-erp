@@ -131,14 +131,6 @@ export function runCrmAutomation(
   entityId: string,
   payload: Record<string, unknown>,
 ): Promise<any[]>;
-export function listSalesStagePipelines(client: QueryClient, context: CrmContext, options?: { status?: string }): Promise<any[]>;
-export function listSalesStages(client: QueryClient, context: CrmContext, options: { pipelineId: string; status?: string }): Promise<{ rows: any[]; total: number }>;
-export function getSalesStage(client: QueryClient, context: CrmContext, id: string): Promise<any>;
-export function createSalesStage(client: QueryClient, context: CrmContext, input?: Record<string, unknown>): Promise<any>;
-export function updateSalesStage(client: QueryClient, context: CrmContext, id: string, input?: Record<string, unknown>): Promise<any>;
-export function setSalesStageActive(client: QueryClient, context: CrmContext, id: string, active: boolean, expectedUpdatedAt: string): Promise<any>;
-export function reorderSalesStages(client: QueryClient, context: CrmContext, pipelineId: string, entries: Array<{ id: string; expectedUpdatedAt: string }>): Promise<{ changed: boolean; rows: any[] }>;
-export function listSalesStageHistory(client: QueryClient, context: CrmContext, pipelineId: string, limit?: number): Promise<any[]>;
 
 export function listCrmCalls(client: QueryClient, context: CrmContext, filters?: Record<string, unknown>): Promise<{ rows: any[]; total: number; limit: number; offset: number }>;
 export function getCrmCall(client: QueryClient, context: CrmContext, id: string, options?: { lock?: boolean }): Promise<any>;
@@ -181,41 +173,14 @@ export {
   capturePredictiveForecast,
   getForecastCalibration,
 } from "./pipeline/opportunity-revenue-intelligence.js";
-export {
-  listOpportunityStageBottlenecks,
-  listStageSlaPolicies,
-  upsertStageSlaPolicy,
-} from "./pipeline/stage-aging.js";
 
 // Declarations previously written inline in services/api/src/index.d.ts.
-export type CrmPipelineStageSnapshot = {
-  id: string;
-  organization_id: string;
-  pipeline_id: string;
-  stage_id: string;
-  currency_code: string;
-  snapshot_date: string;
-  opportunity_count: number;
-  amount: string;
-  weighted_amount: string;
-  source: "scheduled" | "manual";
-  captured_by: string | null;
-  captured_at: string;
-};
 export function createCrmAttachment(client: QueryClient, context: any, entityType: string, entityId: string, input: { prepared: import("../../core/platform/files/index.js").PreparedUpload; replacesLogicalId?: string | null }, options?: { storage?: import("@vercentlabs/document-engine").ObjectStorage }): Promise<any>;
 export function crmAttachmentStorageEntityType(entityType: string): string;
 export function deleteCrmAttachment(client: QueryClient, context: any, entityType: string, entityId: string, attachmentId: string): Promise<any>;
 export function getCrmAttachmentContent(client: QueryClient, context: any, entityType: string, entityId: string, attachmentId: string, options?: { storage?: import("@vercentlabs/document-engine").ObjectStorage }): Promise<{ id: string; fileName: string; mimeType: string; sizeBytes: number; contentSha256: string | null; body: Buffer }>;
 export function listCrmAttachmentVersions(client: QueryClient, context: any, entityType: string, entityId: string, logicalId: string): Promise<any[]>;
 export function listCrmAttachments(client: QueryClient, context: any, entityType: string, entityId: string): Promise<any[]>;
-export function capturePipelineSnapshots(client: QueryClient, context: any, options?: { pipelineId?: string; source?: "scheduled" | "manual"; capturedBy?: string | null; snapshotDate?: string }): Promise<{ snapshotDate: string; source: "scheduled" | "manual"; pipelinesProcessed: number; rowsWritten: number; rowsSkippedDuplicate: number }>;
-export function listPipelineSnapshots(client: QueryClient, context: any, options?: { pipelineId?: string; limit?: number }): Promise<CrmPipelineStageSnapshot[]>;
-export function listOpportunityPipelineStageTotals(client: QueryClient, context: any, pipelineId: string | null): Promise<Record<string, { opportunityCount: number; byCurrency: Record<string, { opportunityCount: number; amount: number; weightedAmount: number }> }>>;
-export function listOpportunityStageAges(client: QueryClient, context: any, pipelineId?: string): Promise<Record<string, { enteredAt: string | null; ageDays: number | null; maximumDays: number | null; status: string }>>;
-export function processOpportunityStageMigrationBatch(client: QueryClient, systemContext: any, jobId: string): Promise<any>;
-// F012 safe stage deactivation + migration job (mirrors the F007 lead-stage-migration shape).
-export const OPPORTUNITY_STAGE_MIGRATION_JOB_TYPE: string;
-export function deactivateSalesStageWithMigration(client: QueryClient, context: any, id: string, options?: { migrateToStageId?: string; expectedUpdatedAt?: string }): Promise<{ deactivated: boolean; stage: any; migrationJob?: any }>;
 // F005 — hand-written signature for a runtime export reached through
 // lead-governance.js's re-export of assignment/index.js.
 export function matchLeadTerritory(client: QueryClient, context: any, lead: Record<string, unknown>): Promise<{ territoryId: string; code: string; name: string; matchedOn: string[]; alternatives: Array<{ territoryId: string; name: string; matchedOn: string[] }> } | null>;
@@ -366,6 +331,8 @@ export function failCalendarSync(
 ): Promise<{ failed: true; code: string }>;
 export * from "./leads/index.js";
 export * from "./opportunities/index.js";
+export * from "./pipeline/index.js";
+export * from "./sales-stages/index.js";
 export * from "./accounts/index.js";
 export * from "./contacts/index.js";
 export * from "./duplicates/index.js";

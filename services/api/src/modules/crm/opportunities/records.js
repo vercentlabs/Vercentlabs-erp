@@ -12,9 +12,9 @@ import { CrmError } from "../data-management/errors.js";
 import { queueOutboxEvent } from "../data-management/outbox.js";
 import { managedTeamMembersSql } from "../data-management/record-utils.js";
 import { assertActiveTeam, assertEligibleLeadAssignee } from "../leads/assignment.js";
-import { ensureDefaultSalesPipeline } from "../pipeline/default-pipeline.js";
+import { ensureDefaultSalesPipeline } from "../sales-stages/defaults.js";
 import { opportunityCan, opportunityCapabilities, opportunityScopeSql, requireOpportunityPermission } from "./access.js";
-import { OPPORTUNITY_NUMBER_DOCUMENT_TYPE, OPPORTUNITY_PERMISSIONS, OPPORTUNITY_PRIORITIES, OPPORTUNITY_STALE_DAYS } from "./constants.js";
+import { OPPORTUNITY_CLOSING_SOON_DAYS, OPPORTUNITY_NUMBER_DOCUMENT_TYPE, OPPORTUNITY_PERMISSIONS, OPPORTUNITY_PRIORITIES, OPPORTUNITY_STALE_DAYS } from "./constants.js";
 import { recordOpportunityHistory } from "./history.js";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -43,6 +43,11 @@ export const OPPORTUNITY_SELECT = `
          reason.name AS lost_reason_name, reason.code AS lost_reason_code,
          creator.full_name AS created_by_name, updater.full_name AS updated_by_name, winner.full_name AS won_by_name, loser.full_name AS lost_by_name,
          follow_up.next_follow_up_at AS pending_follow_up_at,
+         next_activity.subject AS next_activity_subject, next_activity.due_at AS next_activity_due_at, next_activity.activity_type AS next_activity_type,
+         (opportunity.expected_close_date >= current_date AND opportunity.expected_close_date <= current_date + ${OPPORTUNITY_CLOSING_SOON_DAYS}) AS closing_soon,
+         EXISTS (SELECT 1 FROM tenant.sales_quotations accepted
+                  WHERE accepted.organization_id = opportunity.organization_id AND accepted.source_opportunity_id = opportunity.id
+                    AND accepted.lifecycle_status IN ('accepted', 'converted')) AS has_accepted_quotation,
          -- calendar days, as text: a date has no time zone to shift it
          to_char(opportunity.expected_close_date, 'YYYY-MM-DD') AS expected_close_on, to_char(opportunity.actual_close_date, 'YYYY-MM-DD') AS actual_close_on,
          (opportunity.expected_close_date < current_date) AS past_expected_close,
@@ -72,6 +77,15 @@ export const OPPORTUNITY_SELECT = `
        WHERE activity.organization_id = opportunity.organization_id AND activity.entity_type = 'opportunity' AND activity.entity_id = opportunity.id
          AND activity.activity_type = 'follow_up' AND activity.status IN ('planned', 'in_progress', 'overdue')
     ) follow_up ON true
+    -- the next thing planned on the deal: the open task, follow-up, call or meeting due first
+    LEFT JOIN LATERAL (
+      SELECT activity.subject, activity.due_at, activity.activity_type
+        FROM tenant.crm_activities activity
+       WHERE activity.organization_id = opportunity.organization_id AND activity.entity_type = 'opportunity' AND activity.entity_id = opportunity.id
+         AND activity.status IN ('planned', 'in_progress', 'overdue')
+       ORDER BY activity.due_at NULLS LAST, activity.created_at
+       LIMIT 1
+    ) next_activity ON true
     LEFT JOIN LATERAL (
       SELECT sum(item.line_subtotal) AS total, count(*) AS lines
         FROM tenant.crm_opportunity_items item
@@ -127,6 +141,8 @@ export function toOpportunity(row) {
     currencyCode: row.currency_code?.trim() ?? null,
     probability,
     probabilityOverridden: row.probability_overridden,
+    // where the probability comes from: the stage's default, or someone's own figure
+    probabilitySource: row.probability_overridden ? "manual_override" : "stage_default",
     // estimated value × probability
     weightedValue: Math.round(amount * probability) / 100,
     productsTotal: Number(row.products_total ?? 0),
@@ -145,6 +161,11 @@ export function toOpportunity(row) {
     nextStep: row.next_step,
     nextStepDueAt: row.next_step_due_at,
     nextFollowUpAt: row.pending_follow_up_at ?? null,
+    nextActivity: row.next_activity_subject ? { subject: row.next_activity_subject, dueAt: row.next_activity_due_at, type: row.next_activity_type } : null,
+    // an open deal with nothing planned; calculated, never stored
+    hasNoNextActivity: open && !row.next_activity_subject,
+    isClosingSoon: open && row.closing_soon === true,
+    hasAcceptedQuotation: row.has_accepted_quotation === true,
     lastActivityAt: row.last_activity_at,
     // calculated, never stored as a status
     daysSinceActivity: row.days_since_activity ?? 0,
@@ -277,6 +298,13 @@ export function buildOpportunityListWhere(context, filters = {}, values = []) {
     where.push(`opportunity.status = 'open' AND COALESCE(opportunity.last_activity_at, opportunity.created_at) < now() - interval '${OPPORTUNITY_STALE_DAYS} days'`);
   if (view === "won" || view === "lost") where.push(`opportunity.status = ${bind(view)}`);
   if (view === "recent") where.push("opportunity.created_at >= now() - interval '14 days'");
+  // High value: the top fifth of the organization's open deals by estimated value.
+  if (filters.highValue === "yes")
+    where.push(`opportunity.amount > 0 AND opportunity.amount >= (SELECT percentile_cont(0.8) WITHIN GROUP (ORDER BY peer.amount) FROM tenant.crm_opportunities peer
+      WHERE peer.organization_id = opportunity.organization_id AND peer.status = 'open' AND peer.archived_at IS NULL AND peer.amount > 0)`);
+  if (filters.noNextActivity === "yes")
+    where.push(`opportunity.status = 'open' AND NOT EXISTS (SELECT 1 FROM tenant.crm_activities activity
+      WHERE activity.organization_id = opportunity.organization_id AND activity.entity_type = 'opportunity' AND activity.entity_id = opportunity.id AND activity.status IN ('planned', 'in_progress', 'overdue'))`);
 
   if (["open", "won", "lost"].includes(filters.status)) where.push(`opportunity.status = ${bind(filters.status)}`);
   if (PRIORITY_CODES.includes(filters.priority)) where.push(`opportunity.priority = ${bind(filters.priority)}`);

@@ -76,6 +76,14 @@ export const NOTIFICATION_CATEGORIES = Object.freeze([
     userConfigurable: true,
   },
   {
+    key: "crm_opportunity_stage",
+    displayName: "Opportunity reached Closing",
+    description: "When someone else moves an opportunity you own to the Closing stage.",
+    moduleKey: "crm",
+    defaultInAppEnabled: true,
+    userConfigurable: true,
+  },
+  {
     key: "crm_opportunity_outcome",
     displayName: "Opportunity won or lost",
     description: "When someone else marks an opportunity you own as won or lost.",

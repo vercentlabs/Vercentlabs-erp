@@ -14,16 +14,8 @@ export { canViewAllCrmRecords, recordScope } from "./data-management/record-poli
 export { getCrmRecord, listCrmRecords } from "./data-management/resource-query-service.js";
 export { isCrmResource, resources } from "./data-management/resource-registry.js";
 
-export {
-  createSalesStage,
-  getSalesStage,
-  listSalesStageHistory,
-  listSalesStagePipelines,
-  listSalesStages,
-  reorderSalesStages,
-  setSalesStageActive,
-  updateSalesStage,
-} from "./pipeline/sales-stage-operations.js";
+export * from "./pipeline/index.js";
+export * from "./sales-stages/index.js";
 
 export {
   cancelCrmCall,
@@ -169,22 +161,6 @@ export {
   capturePredictiveForecast,
   getForecastCalibration,
 } from "./pipeline/opportunity-revenue-intelligence.js";
-export {
-  capturePipelineSnapshots,
-  listPipelineSnapshots,
-} from "./pipeline/pipeline-snapshots.js";
-export {
-  listOpportunityPipelineStageTotals,
-  listOpportunityStageAges,
-  listOpportunityStageBottlenecks,
-  listStageSlaPolicies,
-  upsertStageSlaPolicy,
-} from "./pipeline/stage-aging.js";
-export {
-  deactivateSalesStageWithMigration,
-  OPPORTUNITY_STAGE_MIGRATION_JOB_TYPE,
-  processOpportunityStageMigrationBatch,
-} from "./pipeline/stage-migration.js";
 
 // F014/F018 Meetings, public booking links, calendar sync and email history.
 export {

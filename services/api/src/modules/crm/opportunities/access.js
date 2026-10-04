@@ -15,6 +15,7 @@ const LEGACY_MANAGE = "crm.opportunities.manage";
 const COVERED_BY_MANAGE = new Set([
   OPPORTUNITY_PERMISSIONS.view, OPPORTUNITY_PERMISSIONS.create, OPPORTUNITY_PERMISSIONS.edit, OPPORTUNITY_PERMISSIONS.assign,
   OPPORTUNITY_PERMISSIONS.changeStage, OPPORTUNITY_PERMISSIONS.createQuotation, OPPORTUNITY_PERMISSIONS.markWon, OPPORTUNITY_PERMISSIONS.markLost,
+  OPPORTUNITY_PERMISSIONS.changeProbability,
 ]);
 
 const isOwner = (context) => Boolean(context.roleSlugs?.includes("organization_owner"));
@@ -23,6 +24,8 @@ const holds = (context, permission) => Boolean(context.permissions?.includes(per
 export function opportunityCan(context, permission) {
   if (isOwner(context) || holds(context, permission)) return true;
   if (permission === OPPORTUNITY_PERMISSIONS.view && (holds(context, "crm.view") || holds(context, OPPORTUNITY_PERMISSIONS.viewAll))) return true;
+  // Whoever manages CRM settings can configure the sales stages.
+  if (permission === OPPORTUNITY_PERMISSIONS.manageStages && holds(context, "crm.settings.manage")) return true;
   return COVERED_BY_MANAGE.has(permission) && holds(context, LEGACY_MANAGE);
 }
 
