@@ -20,7 +20,7 @@ import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext"
 import {
   addOpportunityContact, addOpportunityProduct, errorMessage, listOpportunityActivities, listOpportunityAssignmentHistory, listOpportunityContacts,
   listOpportunityHistory, listOpportunityProducts, listOpportunityQuotations, listOpportunityStageHistory, logOpportunityActivity, quotationDraftStorageKey,
-  removeOpportunityContact, removeOpportunityProduct, scheduleOpportunityFollowUp, searchOpportunityProducts, setPrimaryOpportunityQuotation,
+  removeOpportunityContact, removeOpportunityProduct, searchOpportunityProducts, setPrimaryOpportunityQuotation,
   startOpportunityQuotation, updateOpportunity, updateOpportunityContact, updateOpportunityProduct,
   type Opportunity, type OpportunityOptions, type OpportunityProductLine,
 } from "../api/opportunities-api";
@@ -306,13 +306,13 @@ export function OpportunityQuotationsPanel({ opportunity, options, canEdit, onCh
 
 // ------------------------------------------------------------------ work: activities, tasks, follow-ups
 
-// kind: what the tab shows. Logged activities are done; follow-ups are planned. Tasks have their own panel (CRM Tasks).
-export function OpportunityWorkPanel({ opportunity, canEdit, kind }: PanelProps & { kind: "activities" | "followUps" }) {
+// The activities logged on the deal. Tasks and follow-ups have their own panels (CRM Tasks, CRM Follow-ups).
+export function OpportunityWorkPanel({ opportunity, canEdit }: PanelProps & { kind: "activities" }) {
   const key = useKey(opportunity.id, "activities");
   const query = useQuery({ queryKey: key, queryFn: () => listOpportunityActivities(opportunity.id) });
   const all = query.data ?? [];
-  const rows = all.filter((entry) => (kind === "followUps" ? entry.type === "follow_up" : !["task", "follow_up"].includes(entry.type)));
-  const label = kind === "activities" ? "activities logged" : "follow-ups";
+  const rows = all.filter((entry) => !["task", "follow_up"].includes(entry.type));
+  const label = "activities logged";
   return (
     <section className="flex flex-col gap-3">
       {!canEdit && opportunity.status !== "open" && <p className="text-sm text-text-secondary">This opportunity is {opportunity.status}. Reopen it to plan more work.</p>}
@@ -398,42 +398,6 @@ export function LogActivityDialog({ isOpen, onOpenChange, opportunity, options, 
 }
 
 // initialType: "task" opens it as Add task.
-export function ScheduleFollowUpDialog({ isOpen, onOpenChange, opportunity, options, onDone, initialType = "call" }: {
-  isOpen: boolean; onOpenChange: (open: boolean) => void; opportunity: Opportunity; options: OpportunityOptions; onDone: () => void; initialType?: string;
-}) {
-  const queryClient = useQueryClient();
-  const key = useKey(opportunity.id, "activities");
-  const [type, setType] = useState(initialType);
-  const [dueAt, setDueAt] = useState("");
-  const [assignedTo, setAssignedTo] = useState(opportunity.ownerUserId ?? options.currentUserId);
-  const [notes, setNotes] = useState("");
-  const [error, setError] = useState<string | null>(null);
-  const mutation = useMutation({
-    mutationFn: () => scheduleOpportunityFollowUp(opportunity.id, { type, dueAt, assignedTo, notes }),
-    onSuccess: () => { setDueAt(""); setNotes(""); setError(null); void queryClient.invalidateQueries({ queryKey: key }); onDone(); onOpenChange(false); },
-    onError: (failure) => setError(errorMessage(failure)),
-  });
-  return (
-    <Dialog isOpen={isOpen} onOpenChange={onOpenChange} title="Schedule follow-up or task" description="A reminder is sent to the person it is assigned to.">
-      <div className="flex flex-col gap-4">
-        <ErrorBanner message={error} />
-        <div className="grid gap-4 sm:grid-cols-2">
-          <Select label="Type" isRequired selectedKey={type} onSelectionChange={(selected) => setType(String(selected))}
-            options={options.followUpTypes.map((entry) => ({ value: entry, label: FOLLOW_UP_LABELS[entry] ?? entry }))} />
-          <DateTimeInput label="Date and time" isRequired value={dueAt} onChange={setDueAt} />
-        </div>
-        <Select label="Assigned to" selectedKey={assignedTo} onSelectionChange={(selected) => setAssignedTo(String(selected))}
-          options={options.users.map((user) => ({ value: user.id, label: user.id === options.currentUserId ? `${user.name} (me)` : user.name }))} />
-        <TextArea label="Notes" value={notes} onChange={setNotes} />
-        <div className="flex justify-end gap-2">
-          <Button variant="secondary" onPress={() => onOpenChange(false)}>Cancel</Button>
-          <Button variant="primary" onPress={() => mutation.mutate()} isLoading={mutation.isPending} isDisabled={!dueAt}>Schedule</Button>
-        </div>
-      </div>
-    </Dialog>
-  );
-}
-
 // ------------------------------------------------------------------ history
 
 // The stage path, the ownership changes and the audit trail. Entries are never edited or removed.

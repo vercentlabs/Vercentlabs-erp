@@ -1,28 +1,11 @@
-import { listCrmFollowUpHistory } from "@vercentlabs/api/crm";
+import { listFollowUpHistory } from "@vercentlabs/api/crm";
 import { CRM_PERMISSIONS } from "@vercentlabs/permissions";
 
 import { ok } from "@/core/http";
-import { crmContext } from "@/features/crm/shared/crm-context";
 import { workspaceRoute } from "@/core/workspace-route";
+import { crmContext } from "@/features/crm/shared/crm-context";
+import { type FollowUpRouteParams } from "@/features/crm/follow-ups/server/follow-up-http";
 
-// F016. listCrmFollowUpHistory — covers "escalation history" (escalateOverdueFollowUps
-// writes an 'escalated' event into the same ledger) alongside the rest of
-// the Follow-up's lifecycle events.
-export async function GET(
-  request: Request,
-  context: { params: Promise<{ id: string }> },
-) {
-  return workspaceRoute(
-    request,
-    { module: "crm", permission: CRM_PERMISSIONS.activitiesManage },
-    async ({ client, session }) => {
-      const { id } = await context.params;
-      const rows = await listCrmFollowUpHistory(
-        client,
-        crmContext(session),
-        id,
-      );
-      return ok({ rows });
-    },
-  );
+export async function GET(request: Request, route: FollowUpRouteParams) {
+  return workspaceRoute(request, { module: "crm", permission: CRM_PERMISSIONS.followUpsView }, async ({ client, session }) => ok({ history: await listFollowUpHistory(client, crmContext(session), (await route.params).id) }));
 }

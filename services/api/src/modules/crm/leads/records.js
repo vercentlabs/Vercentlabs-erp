@@ -211,6 +211,7 @@ export const LEAD_VIEWS = Object.freeze([
   { key: "follow_up", label: "Requiring Follow-up" },
   { key: "due_today", label: "Follow-ups Due Today" },
   { key: "overdue", label: "Overdue Follow-ups" },
+  { key: "no_follow_up", label: "No Follow-up Scheduled" },
   { key: "qualified", label: "Qualified Leads" },
   { key: "disqualified", label: "Disqualified Leads" },
   { key: "converted", label: "Converted Leads" },
@@ -260,6 +261,7 @@ export function buildLeadListWhere(context, filters = {}, values = []) {
   if (view === "follow_up") where.push("follow_up.next_follow_up_at IS NOT NULL");
   if (view === "due_today") where.push("follow_up.next_follow_up_at >= current_date AND follow_up.next_follow_up_at < current_date + interval '1 day'");
   if (view === "overdue") where.push("follow_up.next_follow_up_at < now()");
+  if (view === "no_follow_up") where.push("lead.status = 'open' AND follow_up.next_follow_up_at IS NULL");
   if (["qualified", "disqualified", "converted"].includes(view)) where.push(`lead.status = ${bind(view)}`);
   const qualification = QUALIFICATION_STATUS_SQL[filters.qualificationStatus];
   if (qualification) where.push(qualification);

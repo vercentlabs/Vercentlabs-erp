@@ -65,6 +65,11 @@ export function PipelineCard({ card, baseCurrency, can, canDrag, isDragging, onD
             : card.nextStep ? <>Next step: {card.nextStep}</> : "No next activity"}
         </span>
       )}
+      {open && (
+        <span className={`text-xs ${card.nextFollowUpAt ? "text-text-secondary" : "text-warning"}`}>
+          {card.nextFollowUpAt ? <>Next follow-up: {shortDate(card.nextFollowUpAt)}</> : "No next follow-up"}
+        </span>
+      )}
       {card.quotationCount > 0 && (
         <span className="text-xs text-text-secondary">
           {card.quotationCount} {card.quotationCount === 1 ? "quotation" : "quotations"}

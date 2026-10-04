@@ -10,6 +10,7 @@ import {
 
 import { FollowUpCell } from "@/features/crm/leads/lead-format";
 import { CrmAttachmentPanel } from "@/features/crm/shared/CrmAttachmentPanel";
+import { RelatedFollowUpsPanel, ScheduleFollowUpForRecord } from "@/features/crm/follow-ups/components/RelatedFollowUpsPanel";
 import { NotesPanel } from "@/features/crm/shared/NotesPanel";
 import { RecordTimelinePanel } from "@/features/crm/shared/RecordTimelinePanel";
 import { PropertyList } from "@/features/crm/shared/ui/PropertyList";
@@ -26,7 +27,7 @@ import { CreateCustomerDialog, LinkCustomerDialog } from "../components/AccountC
 import { AccountDuplicatesPanel } from "../components/AccountDuplicatesPanel";
 import { AccountAddressesPanel, AccountContactsPanel, AccountHierarchyPanel } from "../components/AccountRelationshipPanels";
 import {
-  AccountActivitiesPanel, AccountFollowUpsPanel, AccountTasksPanel, LogAccountActivityDialog, ScheduleAccountFollowUpDialog,
+  AccountActivitiesPanel, AccountTasksPanel, LogAccountActivityDialog,
 } from "../components/AccountWorkPanels";
 import { MergeAccountsDialog } from "../components/MergeAccountsDialog";
 import { LIVE_ACCOUNT_QUERY } from "../live-query";
@@ -225,7 +226,7 @@ export function AccountDetailScreen({ accountId }: { accountId: string }) {
           </TabPanel>
           <TabPanel id="activities"><AccountActivitiesPanel accountId={account.id} options={options} canEdit={canEdit} /></TabPanel>
           <TabPanel id="tasks"><AccountTasksPanel accountId={account.id} options={options} canEdit={canEdit} /></TabPanel>
-          <TabPanel id="followUps"><AccountFollowUpsPanel accountId={account.id} options={options} canEdit={canEdit} /></TabPanel>
+          <TabPanel id="followUps"><RelatedFollowUpsPanel related={{ type: "party", id: account.id, name: account.displayName, accountId: account.id }} canCreate={canEdit} onChanged={refresh} /></TabPanel>
           <TabPanel id="addresses"><AccountAddressesPanel account={account} options={options} canEdit={canEdit} /></TabPanel>
           <TabPanel id="leads"><AccountRelatedListPanel accountId={account.id} list="leads" currency={currency} /></TabPanel>
           {relatedTabs.filter((entry) => entry.show).map((entry) => (
@@ -247,7 +248,7 @@ export function AccountDetailScreen({ accountId }: { accountId: string }) {
         <AccountStatusDialog isOpen onOpenChange={(open) => !open && setDialog(null)} partyIds={[account.id]} status={dialog} onDone={refresh} />
       )}
       <LogAccountActivityDialog isOpen={dialog === "activity"} onOpenChange={(open) => !open && setDialog(null)} accountId={account.id} options={options} onDone={refresh} />
-      <ScheduleAccountFollowUpDialog isOpen={dialog === "followUp"} onOpenChange={(open) => !open && setDialog(null)} accountId={account.id} options={options} onDone={refresh} />
+      <ScheduleFollowUpForRecord isOpen={dialog === "followUp"} onOpenChange={(open) => !open && setDialog(null)} related={{ type: "party", id: account.id, name: account.displayName, accountId: account.id }} onDone={refresh} />
       <CreateCustomerDialog account={account} options={options} isOpen={dialog === "customer"} onOpenChange={(open) => !open && setDialog(null)} onDone={refresh} />
       <LinkCustomerDialog account={account} isOpen={dialog === "linkCustomer"} onOpenChange={(open) => !open && setDialog(null)}
         onLinked={(customerId) => { refresh(); router.replace(`/crm/accounts/${customerId}`); }} />

@@ -18,7 +18,7 @@ export type LeadStageHistoryEntry = {
   enteredAt: string; leftAt: string | null; changedByName: string | null;
 };
 export type LeadStatus = "open" | "qualified" | "disqualified" | "converted";
-export type LeadViewKey = "all" | "mine" | "unassigned" | "no_activity" | "new" | "follow_up" | "due_today" | "overdue" | "qualified" | "disqualified" | "converted" | "archived";
+export type LeadViewKey = "all" | "mine" | "unassigned" | "no_activity" | "new" | "follow_up" | "due_today" | "overdue" | "no_follow_up" | "qualified" | "disqualified" | "converted" | "archived";
 export type LeadQualificationStatus = "not_started" | "in_progress" | "qualified" | "disqualified";
 export type LeadQualificationRequirements = Record<"need" | "budget" | "authority" | "timeline", boolean>;
 

@@ -11,6 +11,7 @@
 // deletes anything, and every answer and decision is kept in the
 // qualification history.
 import { CrmError } from "../data-management/errors.js";
+import { settleOpenFollowUps } from "../follow-ups/lifecycle.js";
 import { leadCan, requireLeadPermission } from "./access.js";
 import {
   LEAD_AUTHORITY_STATUSES, LEAD_BUDGET_STATUSES, LEAD_DISQUALIFICATION_REASONS, LEAD_NEED_STATUSES, LEAD_PERMISSIONS, LEAD_PURCHASE_TIMEFRAMES,
@@ -274,6 +275,8 @@ export async function overrideQualification(client, context, leadId, input = {})
   return qualifyLead(client, context, leadId, { ...input, override: true });
 }
 
+// input: { reason, notes?, openFollowUps?: "keep" | "cancel" }. Open follow-ups are cancelled unless kept:
+// by default they are kept only when the timing was wrong, so the salesperson can come back later.
 export async function disqualifyLead(client, context, leadId, input = {}) {
   requireLeadPermission(context, LEAD_PERMISSIONS.disqualify, "You do not have permission to disqualify leads.");
   const reason = text(input.reason);
@@ -293,8 +296,10 @@ export async function disqualifyLead(client, context, leadId, input = {}) {
   await recordLeadHistory(client, context, lead.id, "disqualified", `Lead disqualified — ${leadDisqualificationReasonLabel(reason)}`, {
     from: lead.status, to: "disqualified", reason, notes,
   });
+  const openFollowUps = ["keep", "cancel"].includes(input.openFollowUps) ? input.openFollowUps : reason === "timing_not_suitable" ? "keep" : "cancel";
+  const { cancelled } = await settleOpenFollowUps(client, context, "lead", lead.id, { action: openFollowUps, reason: `Lead disqualified — ${leadDisqualificationReasonLabel(reason)}` });
   await notifyLeadOutcome(client, context, lead, "Your lead was disqualified", `Reason: ${leadDisqualificationReasonLabel(reason)}`);
-  return { status: "disqualified" };
+  return { status: "disqualified", cancelledFollowUps: cancelled };
 }
 
 // Returns a qualified or disqualified lead to open so qualification can

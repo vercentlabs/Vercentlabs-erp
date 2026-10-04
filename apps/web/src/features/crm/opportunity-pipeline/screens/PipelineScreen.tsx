@@ -19,7 +19,10 @@ import {
   type Opportunity, type OpportunityBulkResult, type OpportunityListFilters, type OpportunityViewKey,
 } from "@/features/crm/opportunities/api/opportunities-api";
 import { AssignOpportunitiesDialog, ChangeStageDialog, MarkLostDialog, MarkWonDialog } from "@/features/crm/opportunities/components/OpportunityActionDialogs";
-import { LogActivityDialog, ScheduleFollowUpDialog, useStartQuotation } from "@/features/crm/opportunities/components/OpportunityPanels";
+import { LogActivityDialog, useStartQuotation } from "@/features/crm/opportunities/components/OpportunityPanels";
+import { ScheduleFollowUpForRecord } from "@/features/crm/follow-ups/components/RelatedFollowUpsPanel";
+import { getTaskOptions } from "@/features/crm/tasks/api/tasks-api";
+import { TaskFormDialog } from "@/features/crm/tasks/components/TaskDialogs";
 import { LIVE_OPPORTUNITY_QUERY } from "@/features/crm/opportunities/live-query";
 import { ErrorBanner, OpportunityFlags, OpportunityStageBadge, OpportunityStatusBadge, PRIORITY_OPTIONS } from "@/features/crm/opportunities/opportunity-format";
 import { DateInput } from "@/features/crm/shared/ui/DateTimeInput";
@@ -158,6 +161,7 @@ export function PipelineScreen() {
     void queryClient.invalidateQueries({ queryKey: scopedQueryKey(workspace, "crm", "opportunity") });
   };
   const startQuotation = useStartQuotation(setError);
+  const taskOptions = useQuery({ queryKey: scopedQueryKey(workspace, "crm", "task-options"), queryFn: getTaskOptions, staleTime: 60_000, enabled: dialog?.kind === "task" }).data;
   const onCardAction = (kind: CardAction, card: Opportunity) => {
     setError(null);
     if (kind === "quotation") startQuotation.mutate(card);
@@ -401,8 +405,11 @@ export function PipelineScreen() {
           {card && dialog?.kind === "won" && <MarkWonDialog isOpen onOpenChange={close} opportunity={card} onDone={() => refresh()} />}
           {card && dialog?.kind === "lost" && <MarkLostDialog isOpen onOpenChange={close} options={options} opportunity={card} onDone={() => refresh()} />}
           {card && dialog?.kind === "activity" && <LogActivityDialog isOpen onOpenChange={close} opportunity={card} options={options} onDone={() => refresh()} />}
-          {card && (dialog?.kind === "followUp" || dialog?.kind === "task") && (
-            <ScheduleFollowUpDialog key={dialog.kind} isOpen onOpenChange={close} opportunity={card} options={options} onDone={() => refresh()} initialType={dialog.kind === "task" ? "task" : "call"} />
+          {card && dialog?.kind === "followUp" && (
+            <ScheduleFollowUpForRecord isOpen onOpenChange={close} related={{ type: "opportunity", id: card.id, name: card.name, accountId: card.accountId }} onDone={() => refresh()} />
+          )}
+          {card && dialog?.kind === "task" && taskOptions && (
+            <TaskFormDialog isOpen onOpenChange={close} options={taskOptions} related={{ type: "opportunity", id: card.id, name: card.name }} onSaved={() => refresh()} />
           )}
         </>
       )}

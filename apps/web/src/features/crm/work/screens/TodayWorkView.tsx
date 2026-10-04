@@ -11,7 +11,7 @@ import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import { listTasks } from "@/features/crm/tasks/api/tasks-api";
 import { listCalls } from "@/features/crm/work/calls/api/calls-api";
 import { listMeetings } from "@/features/crm/work/meetings/api/meetings-api";
-import { listFollowUps } from "@/features/crm/work/follow-ups/api/follow-ups-api";
+import { listFollowUps } from "@/features/crm/follow-ups/api/follow-ups-api";
 
 // Today's queue from the existing, permission-scoped activity lists — the
 // same endpoints and filters the Tasks/Calls/Meetings/Follow-ups views use,
@@ -121,11 +121,11 @@ const BUCKETS: Bucket[] = [
     title: "Follow-ups due",
     empty: "No follow-ups due today or overdue.",
     detail: (id) => `/crm/follow-ups/${id}`,
-    allHref: "/crm/work?view=follow-ups",
+    allHref: "/crm/follow-ups",
     load: async () => {
       const [overdue, today] = await Promise.all([
-        listFollowUps({ due: "overdue", limit: LIMIT, offset: 0 }),
-        listFollowUps({ due: "today", limit: LIMIT, offset: 0 }),
+        listFollowUps({ view: "overdue", limit: LIMIT, offset: 0 }),
+        listFollowUps({ view: "due_today", limit: LIMIT, offset: 0 }),
       ]);
       const rows = [...overdue.rows, ...today.rows].slice(0, LIMIT);
       return {
@@ -133,7 +133,7 @@ const BUCKETS: Bucket[] = [
           id: row.id,
           subject: row.subject,
           status: row.status,
-          at: row.dueAt,
+          at: row.scheduledAt,
         })),
         total: overdue.total + today.total,
       };

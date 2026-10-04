@@ -5,17 +5,18 @@
 // Every operation locks the task first. Repeating one that has already
 // happened (a double click on Complete, a retried request) changes nothing
 // and records nothing a second time.
-import { cancelPendingRemindersForActivity, createCrmFollowUp } from "../activities/follow-ups/follow-up-operations.js";
+import { scheduleFollowUp } from "../follow-ups/records.js";
+import { cancelPendingRemindersForActivity } from "../reminders/index.js";
 import { CrmError } from "../data-management/errors.js";
 import { queueOutboxEvent } from "../data-management/outbox.js";
 import { requireTaskPermission } from "./access.js";
 import { TASK_PERMISSIONS } from "./constants.js";
 import { listTaskHistoryEntries, recordTaskHistory } from "./history.js";
 import { notifyTaskAssigned, notifyTaskCompleted } from "./notify.js";
-import { assertNotStale, assertOpen, getTask, isOpenRow, lockTask, requireAssigneeFor, scheduleTaskReminder } from "./records.js";
+import { assertNotStale, assertOpen, getTask, isOpenRow, lockTask, readTaskForNotice, requireAssigneeFor, scheduleTaskReminder } from "./records.js";
 
 const text = (value) => String(value ?? "").trim();
-const FOLLOW_UP_CHANNELS = new Set(["call", "email", "meeting", "other"]);
+const FOLLOW_UP_CHANNELS = new Set(["call", "email", "meeting", "demo", "other"]);
 
 // Completing work on a lead or opportunity counts as activity on it.
 async function touchRelated(client, context, row) {
@@ -42,7 +43,7 @@ export async function assignTask(client, context, taskId, input = {}, { notify =
     `UPDATE tenant.crm_activities SET assigned_to = $3, overdue_notified_at = NULL, updated_by = $4 WHERE organization_id = $1 AND id = $2`,
     [context.organizationId, row.id, assignedTo, context.userId ?? null],
   );
-  const task = await getTask(client, context, row.id).catch(() => null);
+  const task = await readTaskForNotice(client, context, row.id);
   const name = task?.assignedName ?? (await client.query(`SELECT full_name FROM public.users WHERE id = $1`, [assignedTo])).rows[0]?.full_name ?? "someone";
   await recordTaskHistory(client, context, row.id, reassigning ? "reassigned" : "assigned",
     reassigning ? `Reassigned: ${row.assigned_name ?? "Unassigned"} → ${name}` : `Assigned to ${name}`,
@@ -68,7 +69,7 @@ export async function startTask(client, context, taskId, input = {}) {
   return { changed: true };
 }
 
-// input: { note?, expectedUpdatedAt?, nextFollowUp?: { type, dueAt, notes? } }
+// input: { note?, expectedUpdatedAt?, nextFollowUp?: { type, scheduledDate, scheduledTime? | dueAt, notes? } }
 // The next follow-up is created on the same record, for the same person.
 export async function completeTask(client, context, taskId, input = {}) {
   requireTaskPermission(context, TASK_PERMISSIONS.complete, "You do not have permission to complete tasks.");
@@ -78,7 +79,7 @@ export async function completeTask(client, context, taskId, input = {}) {
   assertNotStale(row, input.expectedUpdatedAt);
   const note = text(input.note).slice(0, 1000) || null;
   const next = input.nextFollowUp;
-  if (next && (!next.dueAt || Number.isNaN(new Date(next.dueAt).getTime())))
+  if (next && !next.scheduledDate && (!next.dueAt || Number.isNaN(new Date(next.dueAt).getTime())))
     throw new CrmError(400, "Choose when to follow up.", "CRM_TASK_VALIDATION", { issues: [{ field: "nextFollowUp.dueAt", message: "Choose when to follow up." }] });
   if (next && !row.entity_id) throw new CrmError(409, "A follow-up is about a lead, account, contact or opportunity. This task is not linked to one.", "CRM_TASK_VALIDATION");
 
@@ -94,10 +95,10 @@ export async function completeTask(client, context, taskId, input = {}) {
   if (task) await notifyTaskCompleted(client, context, task);
   let followUpId = null;
   if (next) {
-    const channel = FOLLOW_UP_CHANNELS.has(text(next.type).toLowerCase()) ? text(next.type).toLowerCase() : "call";
-    const followUp = await createCrmFollowUp(client, context, {
-      entityType: row.entity_type, entityId: row.entity_id, subject: `Follow up: ${row.subject}`.slice(0, 300), description: text(next.notes) || null,
-      assignedTo: row.assigned_to ?? context.userId, dueAt: new Date(next.dueAt).toISOString(), followUpChannel: channel,
+    const followUp = await scheduleFollowUp(client, context, {
+      relatedType: row.entity_type, relatedId: row.entity_id, subject: `Follow up: ${row.subject}`.slice(0, 300), notes: text(next.notes) || null,
+      assignedTo: row.assigned_to ?? context.userId, type: FOLLOW_UP_CHANNELS.has(text(next.type).toLowerCase()) ? text(next.type).toLowerCase() : "call",
+      scheduledDate: next.scheduledDate, scheduledTime: next.scheduledTime, scheduledAt: next.dueAt, reminderOffsetMinutes: next.reminderOffsetMinutes ?? 0,
     });
     followUpId = followUp.id;
   }

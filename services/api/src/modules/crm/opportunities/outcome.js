@@ -10,6 +10,7 @@
 // reopening returns it there. Nothing about the earlier outcome is erased:
 // it stays in the stage history and the audit trail.
 import { createNotification } from "../../../core/platform/notifications/index.js";
+import { settleOpenFollowUps } from "../follow-ups/lifecycle.js";
 import { settleOpenTasks } from "../tasks/lifecycle.js";
 import { CrmError } from "../data-management/errors.js";
 import { queueOutboxEvent } from "../data-management/outbox.js";
@@ -103,6 +104,7 @@ export async function markOpportunityWon(client, context, opportunityId, input =
     from: "open", to: "won", stage: opportunity.stage_name, closeDate, estimatedValue: Number(opportunity.amount), finalValue, quotationId: quotation?.id ?? null, notes,
   });
   await settleOpenTasks(client, context, "opportunity", opportunity.id, { action: input.openTasks, reason: "Opportunity won" });
+  await settleOpenFollowUps(client, context, "opportunity", opportunity.id, { action: input.openFollowUps, reason: "Opportunity won" });
   await notifyOutcome(client, context, opportunity, "Your opportunity was marked won", null);
   await queueOutboxEvent(client, context, "crm.opportunity.won", "opportunities", opportunity.id, { amount: finalValue, closeDate });
   return { status: "won" };
@@ -144,6 +146,7 @@ export async function markOpportunityLost(client, context, opportunityId, input 
     from: "open", to: "lost", stage: opportunity.stage_name, closeDate, reason: reason.name, reasonId: reason.id, notes, competitorName, estimatedValue: Number(opportunity.amount),
   });
   await settleOpenTasks(client, context, "opportunity", opportunity.id, { action: input.openTasks, reason: "Opportunity lost" });
+  await settleOpenFollowUps(client, context, "opportunity", opportunity.id, { action: input.openFollowUps, reason: "Opportunity lost" });
   await notifyOutcome(client, context, opportunity, "Your opportunity was marked lost", `Reason: ${reason.name}`);
   await queueOutboxEvent(client, context, "crm.opportunity.lost", "opportunities", opportunity.id, { reasonId: reason.id });
   return { status: "lost" };

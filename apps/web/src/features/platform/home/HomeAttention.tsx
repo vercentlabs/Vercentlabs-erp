@@ -64,7 +64,7 @@ export function HomeAttention({
   const overdueFollowUps = useQuery({
     queryKey: scopedQueryKey(workspace, "home", "overdue-follow-ups"),
     queryFn: async () =>
-      (await listFollowUps({ due: "overdue", limit: 1 })).total,
+      (await listFollowUps({ view: "overdue", limit: 1 })).total,
     enabled: hasCrm,
     retry: false,
   });

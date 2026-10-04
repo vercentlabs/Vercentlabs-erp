@@ -10,6 +10,7 @@ import {
 } from "@vercentlabs/design-system";
 
 import { CrmAttachmentPanel } from "@/features/crm/shared/CrmAttachmentPanel";
+import { RelatedFollowUpsPanel, ScheduleFollowUpForRecord } from "@/features/crm/follow-ups/components/RelatedFollowUpsPanel";
 import { NotesPanel } from "@/features/crm/shared/NotesPanel";
 import { RecordTimelinePanel } from "@/features/crm/shared/RecordTimelinePanel";
 import { PropertyList } from "@/features/crm/shared/ui/PropertyList";
@@ -26,7 +27,7 @@ import { ContactCompaniesPanel } from "../components/ContactCompaniesPanel";
 import { ContactDuplicatesPanel, MergeContactsDialog } from "../components/ContactMergeAndDuplicates";
 import { ContactRelatedListPanel, ContactSummaryCards } from "../components/ContactOverviewPanels";
 import {
-  ContactActivitiesPanel, ContactFollowUpsPanel, ContactTasksPanel, LogContactActivityDialog, ScheduleContactFollowUpDialog,
+  ContactActivitiesPanel, ContactTasksPanel, LogContactActivityDialog,
 } from "../components/ContactWorkPanels";
 
 type DialogKind = "assign" | "activity" | "followUp" | "merge" | "delete" | ContactStatus | null;
@@ -219,7 +220,7 @@ export function ContactDetailScreen({ contactId }: { contactId: string }) {
           </TabPanel>
           <TabPanel id="activities"><ContactActivitiesPanel contactId={contact.id} options={options} canEdit={canEdit} /></TabPanel>
           <TabPanel id="tasks"><ContactTasksPanel contactId={contact.id} options={options} canEdit={canEdit} /></TabPanel>
-          <TabPanel id="followUps"><ContactFollowUpsPanel contactId={contact.id} options={options} canEdit={canEdit} /></TabPanel>
+          <TabPanel id="followUps"><RelatedFollowUpsPanel related={{ type: "contact", id: contact.id, name: contact.displayName, accountId: contact.accountId }} canCreate={canEdit} onChanged={refresh} /></TabPanel>
           <TabPanel id="notes"><NotesPanel entityType="contact" entityId={contact.id} /></TabPanel>
           <TabPanel id="attachments"><CrmAttachmentPanel entityType="contact" entityId={contact.id} /></TabPanel>
           {relatedTabs.filter((entry) => entry.show).map((entry) => (
@@ -239,7 +240,7 @@ export function ContactDetailScreen({ contactId }: { contactId: string }) {
         <ContactStatusDialog isOpen onOpenChange={(open) => !open && setDialog(null)} contactIds={[contact.id]} status={dialog} onDone={refresh} />
       )}
       <LogContactActivityDialog isOpen={dialog === "activity"} onOpenChange={(open) => !open && setDialog(null)} contactId={contact.id} options={options} onDone={refresh} />
-      <ScheduleContactFollowUpDialog isOpen={dialog === "followUp"} onOpenChange={(open) => !open && setDialog(null)} contactId={contact.id} options={options} onDone={refresh} />
+      <ScheduleFollowUpForRecord isOpen={dialog === "followUp"} onOpenChange={(open) => !open && setDialog(null)} related={{ type: "contact", id: contact.id, name: contact.displayName, accountId: contact.accountId }} onDone={refresh} />
       <MergeContactsDialog keep={contact} isOpen={dialog === "merge"} onOpenChange={(open) => !open && setDialog(null)} onMerged={refresh} />
       <AlertDialog
         isOpen={dialog === "delete"}

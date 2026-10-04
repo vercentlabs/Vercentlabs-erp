@@ -116,6 +116,14 @@ export const NOTIFICATION_CATEGORIES = Object.freeze([
     userConfigurable: true,
   },
   {
+    key: "crm_follow_up_assignment",
+    displayName: "Follow-up assigned to me",
+    description: "When someone gives you a follow-up, or reassigns one to you.",
+    moduleKey: "crm",
+    defaultInAppEnabled: true,
+    userConfigurable: true,
+  },
+  {
     key: "crm_task_assignment",
     displayName: "Task assigned to me",
     description: "When someone gives you a task, or reassigns one to you.",

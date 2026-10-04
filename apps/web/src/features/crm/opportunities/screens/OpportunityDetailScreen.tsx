@@ -25,10 +25,11 @@ import {
 import { AssignOpportunitiesDialog, MarkLostDialog, MarkWonDialog, ReopenOpportunityDialog } from "../components/OpportunityActionDialogs";
 import {
   LogActivityDialog, OpportunityContactsPanel, OpportunityHistoryPanel, OpportunityProductsPanel, OpportunityQuotationsPanel, OpportunityWorkPanel,
-  ScheduleFollowUpDialog, useStartQuotation,
+  useStartQuotation,
 } from "../components/OpportunityPanels";
 import { useStageChange } from "@/features/crm/sales-stages/components/StageChange";
 import { RelatedTasksPanel } from "@/features/crm/tasks/components/RelatedTasksPanel";
+import { RelatedFollowUpsPanel, ScheduleFollowUpForRecord } from "@/features/crm/follow-ups/components/RelatedFollowUpsPanel";
 import { LIVE_OPPORTUNITY_QUERY } from "../live-query";
 import { ErrorBanner, OpportunityFlags, OpportunityStageBadge, OpportunityStatusBadge, PriorityBadge, days } from "../opportunity-format";
 
@@ -245,7 +246,7 @@ function OpportunityDetail({ opportunity, options, tab, setTab, dialog, setDialo
           <TabPanel id="products"><OpportunityProductsPanel key={opportunity.updatedAt} opportunity={opportunity} options={options} canEdit={canEdit} onChanged={refresh} /></TabPanel>
           <TabPanel id="activities"><OpportunityWorkPanel kind="activities" opportunity={opportunity} options={options} canEdit={canEdit} onChanged={refresh} /></TabPanel>
           <TabPanel id="tasks"><RelatedTasksPanel relatedType="opportunity" relatedId={opportunity.id} relatedName={opportunity.name} canCreate={can.edit && !archived} onChanged={refresh} /></TabPanel>
-          <TabPanel id="followUps"><OpportunityWorkPanel kind="followUps" opportunity={opportunity} options={options} canEdit={canEdit} onChanged={refresh} /></TabPanel>
+          <TabPanel id="followUps"><RelatedFollowUpsPanel related={{ type: "opportunity", id: opportunity.id, name: opportunity.name, accountId: opportunity.accountId }} canCreate={can.edit && !archived} onChanged={refresh} /></TabPanel>
           <TabPanel id="quotations"><OpportunityQuotationsPanel opportunity={opportunity} options={options} canEdit={can.edit && !archived} onChanged={refresh} /></TabPanel>
           <TabPanel id="notes"><NotesPanel entityType="opportunity" entityId={opportunity.id} /></TabPanel>
           <TabPanel id="attachments"><CrmAttachmentPanel entityType="opportunity" entityId={opportunity.id} /></TabPanel>
@@ -265,7 +266,7 @@ function OpportunityDetail({ opportunity, options, tab, setTab, dialog, setDialo
       <MarkLostDialog key={`lost:${opportunity.updatedAt}`} isOpen={dialog === "lost"} onOpenChange={close} options={options} opportunity={opportunity} onDone={refresh} />
       <ReopenOpportunityDialog isOpen={dialog === "reopen"} onOpenChange={close} options={options} opportunity={opportunity} onDone={refresh} />
       <LogActivityDialog isOpen={dialog === "activity"} onOpenChange={close} opportunity={opportunity} options={options} onDone={refresh} />
-      <ScheduleFollowUpDialog isOpen={dialog === "followUp"} onOpenChange={close} opportunity={opportunity} options={options} onDone={refresh} />
+      <ScheduleFollowUpForRecord isOpen={dialog === "followUp"} onOpenChange={close} related={{ type: "opportunity", id: opportunity.id, name: opportunity.name, accountId: opportunity.accountId }} onDone={refresh} />
       <ProbabilityDialog key={`probability:${opportunity.updatedAt}`} isOpen={dialog === "probability"} onOpenChange={close} opportunity={opportunity} options={options} onDone={refresh} />
       <AlertDialog
         isOpen={dialog === "archive"} onOpenChange={close} tone="danger" confirmLabel="Archive opportunity" isConfirming={isRunning}

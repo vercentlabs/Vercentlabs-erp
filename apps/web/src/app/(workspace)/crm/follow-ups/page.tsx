@@ -1,21 +1,10 @@
-import { redirect } from "next/navigation";
-
 import { requireWorkspace } from "@/core/session";
+import { FollowUpListScreen } from "@/features/crm/follow-ups/screens/FollowUpListScreen";
 
-// A view of the My Work workspace (/crm/work?view=follow-ups). This address keeps
-// working — bookmarks, detail-page back links and dashboard drill-downs such
-// as ?due=overdue — and opens that view with its query intact.
-export default async function FollowUpsPage({
-  searchParams,
-}: {
-  searchParams: Promise<Record<string, string | string[] | undefined>>;
-}) {
+export const metadata = { title: "Follow-ups" };
+
+// CRM Follow-ups. Due Today is the default; ?view=overdue | upcoming | mine | … opens another view.
+export default async function Page() {
   await requireWorkspace();
-  const query = new URLSearchParams();
-  for (const [key, value] of Object.entries(await searchParams)) {
-    for (const item of Array.isArray(value) ? value : [value])
-      if (item !== undefined) query.append(key, item);
-  }
-  query.set("view", "follow-ups");
-  redirect(`/crm/work?${query.toString()}`);
+  return <FollowUpListScreen />;
 }

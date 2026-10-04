@@ -1,34 +1,14 @@
-import { cancelCrmFollowUp } from "@vercentlabs/api/crm";
+import { cancelFollowUp } from "@vercentlabs/api/crm";
 import { CRM_PERMISSIONS } from "@vercentlabs/permissions";
 
-import { ok, readJson } from "@/core/http";
-import { crmContext } from "@/features/crm/shared/crm-context";
+import { ok } from "@/core/http";
 import { workspaceRoute } from "@/core/workspace-route";
+import { crmContext } from "@/features/crm/shared/crm-context";
+import { readBody, type FollowUpRouteParams } from "@/features/crm/follow-ups/server/follow-up-http";
 
-export async function POST(
-  request: Request,
-  context: { params: Promise<{ id: string }> },
-) {
-  return workspaceRoute(
-    request,
-    {
-      module: "crm",
-      permission: CRM_PERMISSIONS.activitiesManage,
-      billingWrite: true,
-    },
-    async ({ client, session }) => {
-      const { id } = await context.params;
-      const input = (await readJson(request).catch(() => ({}))) as Record<
-        string,
-        unknown
-      >;
-      const record = await cancelCrmFollowUp(
-        client,
-        crmContext(session),
-        id,
-        input,
-      );
-      return ok({ record });
-    },
+// Body: { reason?, expectedUpdatedAt? }
+export async function POST(request: Request, route: FollowUpRouteParams) {
+  return workspaceRoute(request, { module: "crm", permission: CRM_PERMISSIONS.followUpsView, billingWrite: true }, async ({ client, session }) =>
+    ok(await cancelFollowUp(client, crmContext(session), (await route.params).id, await readBody(request))),
   );
 }

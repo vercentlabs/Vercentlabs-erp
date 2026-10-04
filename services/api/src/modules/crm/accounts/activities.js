@@ -3,7 +3,7 @@
 // scheduled on it. The account's activity list also shows what was logged on
 // its contacts and opportunities, so the whole relationship reads in one
 // place.
-import { createCrmFollowUp } from "../activities/follow-ups/follow-up-operations.js";
+import { scheduleFollowUp } from "../follow-ups/records.js";
 import { CrmError } from "../data-management/errors.js";
 import { requireAccountPermission } from "./access.js";
 import { ACCOUNT_ACTIVITY_TYPES, ACCOUNT_FOLLOW_UP_TYPES, ACCOUNT_PERMISSIONS } from "./constants.js";
@@ -74,24 +74,15 @@ async function assertAccountContact(client, context, partyId, contactId) {
 // input: { type: call | email | meeting | task | other, dueAt, assignedTo?, notes?, subject?, contactId? }
 export async function scheduleAccountFollowUp(client, context, partyId, input = {}) {
   requireAccountPermission(context, ACCOUNT_PERMISSIONS.edit, "You do not have permission to schedule follow-ups on accounts.");
-  const type = text(input.type).toLowerCase() || "call";
-  if (!ACCOUNT_FOLLOW_UP_TYPES.includes(type)) throw new CrmError(400, "Choose a follow-up type.", "CRM_ACCOUNT_FOLLOW_UP_VALIDATION");
-  if (!input.dueAt) throw new CrmError(400, "Choose the follow-up date and time.", "CRM_ACCOUNT_FOLLOW_UP_VALIDATION");
+  if (!input.dueAt && !input.scheduledDate) throw new CrmError(400, "Choose the follow-up date.", "CRM_ACCOUNT_FOLLOW_UP_VALIDATION");
   const account = await lockAccount(client, context, partyId);
   if (account.status === "archived") throw new CrmError(409, "Reactivate this account before scheduling work on it.", "CRM_ACCOUNT_ARCHIVED");
   const contactId = await assertAccountContact(client, context, account.id, input.contactId);
-  const followUp = await createCrmFollowUp(client, context, {
-    entityType: "party",
-    entityId: account.id,
-    subject: text(input.subject) || `${type === "task" ? "Task" : `Follow-up ${type}`}: ${account.display_name}`.slice(0, 300),
-    description: text(input.notes) || null,
-    assignedTo: input.assignedTo || account.owner_user_id || context.userId,
-    dueAt: input.dueAt,
-    followUpChannel: FOLLOW_UP_CHANNEL[type],
-    followUpReason: type === "task" ? "Task" : null,
+  return scheduleFollowUp(client, context, {
+    relatedType: "party", relatedId: account.id, type: input.type, subject: input.subject, notes: input.notes, contactId: input.contactId, assignedTo: input.assignedTo,
+    scheduledDate: input.scheduledDate, scheduledTime: input.scheduledTime, scheduledAt: input.dueAt, reminderOffsetMinutes: input.reminderOffsetMinutes,
+    reminderAt: input.reminderAt, idempotencyKey: input.idempotencyKey,
   });
-  if (contactId) await client.query(`UPDATE tenant.crm_activities SET related_contact_id = $3 WHERE organization_id = $1 AND id = $2`, [context.organizationId, followUp.id, contactId]);
-  return followUp;
 }
 
 // input: { type: call | email | meeting | other, subject?, notes?, outcome?, occurredAt?, contactId?, nextAction?: { type, dueAt, assignedTo?, notes? } }

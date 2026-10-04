@@ -55,7 +55,7 @@ export async function detectOverdueActivitiesHandler(client, context, _payload) 
   const due = await client.query(
     `SELECT * FROM tenant.crm_activities
       WHERE organization_id = $1
-        AND status IN ('planned', 'in_progress') AND activity_type <> 'task'
+        AND status IN ('planned', 'in_progress') AND activity_type NOT IN ('task', 'follow_up')
         AND due_at IS NOT NULL AND due_at < now()
       ORDER BY due_at ASC
       LIMIT 200`,

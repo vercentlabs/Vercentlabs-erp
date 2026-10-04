@@ -2,7 +2,7 @@ import { moveOpportunityStage } from "../opportunities/outcome.js";
 import { createHash, randomUUID } from "node:crypto";
 import { createLead } from "../leads/records.js";
 import { completeTask, createTask } from "../tasks/index.js";
-import { createCrmFollowUp, completeCrmFollowUp } from "../activities/follow-ups/follow-up-operations.js";
+import { completeFollowUp, scheduleFollowUp } from "../follow-ups/index.js";
 export const CRM_OFFLINE_CAPABILITY_IDS = Object.freeze(["CRM-072"]);
 export class CrmOfflineSyncError extends Error {
   constructor(status, message, code = "CRM_OFFLINE_SYNC_ERROR", details = []) {
@@ -287,17 +287,15 @@ export async function applyOfflineMutation(client, context, input = {}) {
         idempotencyKey: m.clientMutationId || m.id || undefined,
       });
     } else if (activityType === "follow_up") {
-      // Routed through createCrmFollowUp rather than the generic raw INSERT
-      // below, so an offline-queued Follow-up gets the same validation
-      // (parent scope, reminder-offset/channel handling). createCrmFollowUp itself rejects activityType/status in
-      // its input (server-governed), so those keys are stripped here.
-      const { activityType: _activityType, status: _status, ...rest } = p;
-      row = await createCrmFollowUp(client, context, {
-        ...rest,
-        entityType: text(p.entityType || p.entity_type || "general"),
-        entityId: p.entityId || p.entity_id || null,
+      // Through the follow-up operation, so an offline follow-up gets the same checks and reminder.
+      const scheduled = await scheduleFollowUp(client, context, {
+        relatedType: text(p.entityType || p.entity_type), relatedId: p.entityId || p.entity_id || null, subject: text(p.subject) || undefined,
+        notes: text(p.description) || undefined, type: text(p.followUpChannel || p.follow_up_channel || p.type) || "call",
         assignedTo: p.assignedTo || p.assigned_to || context.userId,
+        ...(p.dueAt || p.due_at ? { scheduledAt: p.dueAt || p.due_at } : { scheduledDate: new Date().toISOString().slice(0, 10) }),
+        idempotencyKey: m.clientMutationId || m.id || undefined,
       });
+      row = (await client.query(`SELECT * FROM tenant.crm_activities WHERE organization_id = $1 AND id = $2`, [context.organizationId, scheduled.id])).rows[0];
     } else {
       row = (
         await client.query(
@@ -328,10 +326,9 @@ export async function applyOfflineMutation(client, context, input = {}) {
       await completeTask(client, context, m.recordId, { note: text(m.payload.outcome) || null });
       row = (await client.query(`SELECT * FROM tenant.crm_activities WHERE organization_id = $1 AND id = $2`, [context.organizationId, m.recordId])).rows[0];
     } else if (target?.activity_type === "follow_up") {
-      // Routed through completeCrmFollowUp rather than the generic raw
-      // UPDATE below, so an offline-queued completion still cancels its
-      // reminders.
-      row = await completeCrmFollowUp(client, context, m.recordId, { outcome: text(m.payload.outcome) || null });
+      // Through the follow-up operation, so its reminder is cancelled and its history kept.
+      await completeFollowUp(client, context, m.recordId, { notes: text(m.payload.outcome) || null });
+      row = (await client.query(`SELECT * FROM tenant.crm_activities WHERE organization_id = $1 AND id = $2`, [context.organizationId, m.recordId])).rows[0];
     } else {
       row = (
         await client.query(

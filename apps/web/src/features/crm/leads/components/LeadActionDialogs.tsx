@@ -89,8 +89,11 @@ export function ChangeStageDialog({ isOpen, onOpenChange, leadIds, options, onDo
 export function DisqualifyLeadsDialog({ isOpen, onOpenChange, leadIds, options, onDone }: ActionDialogProps) {
   const [reason, setReason] = useState("");
   const [notes, setNotes] = useState("");
+  // Open follow-ups are cancelled, unless the timing was wrong and the salesperson wants to come back later.
+  const [followUps, setFollowUps] = useState("");
   const { error, mutation } = useBulkAction(leadIds, onDone, () => onOpenChange(false));
   const notesRequired = reason === "other";
+  const openFollowUps = followUps || (reason === "timing_not_suitable" ? "keep" : "cancel");
 
   return (
     <Dialog isOpen={isOpen} onOpenChange={onOpenChange} title={`Disqualify ${plural(leadIds.length)}`} description="The lead is kept with its history and can be reopened later.">
@@ -104,13 +107,16 @@ export function DisqualifyLeadsDialog({ isOpen, onOpenChange, leadIds, options, 
           options={options.disqualificationReasons.map((entry) => ({ value: entry.code, label: entry.label }))}
         />
         <TextArea label="Notes" isRequired={notesRequired} value={notes} onChange={setNotes} description={notesRequired ? "Explain the reason." : undefined} />
+        <Select label="Open follow-ups" selectedKey={openFollowUps} onSelectionChange={(key) => setFollowUps(String(key))}
+          description={reason === "timing_not_suitable" ? "Keep a future follow-up to come back when the timing is right." : undefined}
+          options={[{ value: "cancel", label: "Cancel them" }, { value: "keep", label: "Keep them scheduled" }]} />
         <DialogActions
           danger
           onCancel={() => onOpenChange(false)}
           confirmLabel="Disqualify"
           isLoading={mutation.isPending}
           isDisabled={!reason || (notesRequired && !notes.trim())}
-          onConfirm={() => mutation.mutate({ action: "disqualify", reason, notes })}
+          onConfirm={() => mutation.mutate({ action: "disqualify", reason, notes, openFollowUps })}
         />
       </div>
     </Dialog>

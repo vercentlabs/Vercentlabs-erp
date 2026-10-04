@@ -4,7 +4,7 @@ import { queueOutboxEvent } from "../data-management/outbox.js";
 import { assertEligibleLeadAssignee } from "../leads/assignment.js";
 import { canViewSensitiveLeadContent, leadScopeSql } from "../leads/access.js";
 import { upsertMeetingCalendarEvent, markMeetingCalendarEventCancelling, enqueueCalendarPushJob } from "./meetings/meeting-calendar.js";
-import { createRemindersForActivity, cancelPendingRemindersForActivity } from "./follow-ups/follow-up-operations.js";
+import { createRemindersForActivity, cancelPendingRemindersForActivity } from "../reminders/index.js";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const PRIORITIES = new Set(["low", "medium", "high", "urgent"]);

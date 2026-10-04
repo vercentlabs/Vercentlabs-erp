@@ -1,7 +1,7 @@
 // F017 — Notes & Files. This module is the ONE canonical Notes domain — list/create/read/update/archive,
 // history/versioning, parent-record authorization, private-visibility
 // enforcement — that every entity type's routes call into, mirroring
-// task-operations.js/follow-up-operations.js's established structure.
+// the tasks and follow-ups modules' established structure.
 //
 // Authorization reuses resolveCrmEntityAccess (data-management/entity-access.js) verbatim —
 // the SAME per-entity-type sensitive-content gate and owner scope

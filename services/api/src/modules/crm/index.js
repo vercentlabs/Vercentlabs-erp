@@ -17,6 +17,7 @@ export { isCrmResource, resources } from "./data-management/resource-registry.js
 export * from "./pipeline/index.js";
 export * from "./sales-stages/index.js";
 export * from "./tasks/index.js";
+export * from "./follow-ups/index.js";
 
 export {
   cancelCrmCall,
@@ -93,23 +94,9 @@ export {
 } from "./data-management/tag-assignment.js";
 
 export {
-  acknowledgeReminder,
-  cancelCrmFollowUp,
-  claimDueReminders,
-  completeCrmFollowUp,
-  createCrmFollowUp,
-  createRemindersForActivity,
-  cancelPendingRemindersForActivity,
-  escalateOverdueFollowUps,
-  getCrmFollowUp,
-  listCrmFollowUpHistory,
-  listCrmFollowUps,
-  listRemindersForActivity,
-  markReminderOutcome,
-  resetStuckDispatchingReminders,
-  snoozeCrmFollowUp,
-  updateCrmFollowUp,
-} from "./activities/follow-ups/follow-up-operations.js";
+  claimDueReminders, createRemindersForActivity, cancelPendingRemindersForActivity, listRemindersForActivity, markReminderOutcome, resetStuckDispatchingReminders,
+  replaceActivityReminder, snoozeActivityReminder,
+} from "./reminders/index.js";
 
 export { getManagerForUser } from "./activities/shared/notify.js";
 

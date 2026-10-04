@@ -16,6 +16,7 @@ import {
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import { getTaskSummary } from "@/features/crm/tasks/api/tasks-api";
+import { getFollowUpSummary } from "@/features/crm/follow-ups/api/follow-ups-api";
 import { CrmDashboardScreen } from "@/features/crm/home/dashboard/screens/CrmDashboardScreen";
 
 const CREATE_LINKS = [
@@ -58,6 +59,7 @@ export function CrmHomeScreen() {
           </MenuTrigger>
         }
       />
+      <MyFollowUpsStrip />
       <MyTasksStrip />
       <CrmDashboardScreen embedded />
     </div>
@@ -77,6 +79,28 @@ function MyTasksStrip() {
   ];
   return (
     <section aria-label="My tasks" className="grid grid-cols-2 gap-3 md:grid-cols-4">
+      {cards.map((card) => (
+        <Link key={card.href} href={card.href} className="rounded-[var(--radius-card)] outline-none transition-shadow hover:shadow-md focus-visible:ring-2 focus-visible:ring-brand">
+          <MetricCard label={card.label} value={card.value} />
+        </Link>
+      ))}
+    </section>
+  );
+}
+
+// Who to contact today, and who was missed: the follow-ups waiting for the caller (and a manager's team).
+function MyFollowUpsStrip() {
+  const workspace = useWorkspaceContext();
+  const summary = useQuery({ queryKey: scopedQueryKey(workspace, "crm", "follow-ups", "summary"), queryFn: getFollowUpSummary, retry: false, refetchOnWindowFocus: true });
+  if (!summary.data) return null;
+  const cards = [
+    { label: "Follow-ups due today", value: summary.data.dueToday, href: "/crm/follow-ups?view=due_today" },
+    { label: "Overdue follow-ups", value: summary.data.overdue, href: "/crm/follow-ups?view=overdue" },
+    { label: "Upcoming follow-ups", value: summary.data.upcoming, href: "/crm/follow-ups?view=upcoming" },
+    ...(summary.data.teamOverdue === null ? [] : [{ label: "Team overdue follow-ups", value: summary.data.teamOverdue, href: "/crm/follow-ups?view=team&status=overdue" }]),
+  ];
+  return (
+    <section aria-label="My follow-ups" className="grid grid-cols-2 gap-3 md:grid-cols-4">
       {cards.map((card) => (
         <Link key={card.href} href={card.href} className="rounded-[var(--radius-card)] outline-none transition-shadow hover:shadow-md focus-visible:ring-2 focus-visible:ring-brand">
           <MetricCard label={card.label} value={card.value} />

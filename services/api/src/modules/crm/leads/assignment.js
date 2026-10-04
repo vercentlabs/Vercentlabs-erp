@@ -22,6 +22,7 @@ import { canViewAllLeadRecords, leadCan, leadScopeSql, requireLeadPermission } f
 import { LEAD_PERMISSIONS, leadAssignmentMethodLabel } from "./constants.js";
 import { recordLeadHistory } from "./history.js";
 import { requireUuid } from "./validation.js";
+import { transferOpenFollowUps } from "../follow-ups/lifecycle.js";
 
 const BULK_LIMIT = 200;
 const OPEN_STATUSES = "('open', 'qualified')";
@@ -187,10 +188,12 @@ export async function applyLeadAssignment(client, context, lead, target, {
     // Open work the previous owner had on this lead follows the lead; tasks
     // given to someone else (a demo for a colleague) and completed work stay.
     if (moveOpenActivities && lead.owner_user_id && ownerUserId)
+      await transferOpenFollowUps(client, context, { entityType: "lead", entityId: lead.id, fromUserId: lead.owner_user_id, toUserId: ownerUserId });
+    if (moveOpenActivities && lead.owner_user_id && ownerUserId)
       await client.query(
         `UPDATE tenant.crm_activities SET assigned_to = $4, updated_by = $5
           WHERE organization_id = $1 AND entity_type = 'lead' AND entity_id = $2 AND assigned_to = $3
-            AND activity_type IN ('task', 'follow_up') AND status IN ('planned', 'in_progress', 'overdue')`,
+            AND activity_type = 'task' AND status IN ('planned', 'in_progress', 'overdue')`,
         [context.organizationId, lead.id, lead.owner_user_id, ownerUserId, context.userId ?? null],
       );
     if (notify) await notifyAssignment(client, context, lead, { previousOwnerId: lead.owner_user_id, newOwnerId: ownerUserId });

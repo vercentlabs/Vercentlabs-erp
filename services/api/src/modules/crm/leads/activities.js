@@ -3,9 +3,9 @@
 // These are completed activities in the shared CRM activity table, so they
 // appear in the lead's timeline next to tasks, follow-ups and notes. Tasks
 // and follow-ups themselves are created through their own CRM operations
-// (createTask / createCrmFollowUp); scheduleLeadFollowUp is the lead-side
+// (createTask / scheduleFollowUp); scheduleLeadFollowUp is the lead-side
 // shortcut for the latter.
-import { createCrmFollowUp } from "../activities/follow-ups/follow-up-operations.js";
+import { scheduleFollowUp } from "../follow-ups/records.js";
 import { CrmError } from "../data-management/errors.js";
 import { requireLeadPermission } from "./access.js";
 import { LEAD_ACTIVITY_TYPES, LEAD_FOLLOW_UP_TYPES, LEAD_PERMISSIONS } from "./constants.js";
@@ -60,21 +60,14 @@ function leadLabel(lead) {
 // input: { type: call | email | meeting | task | other, dueAt, assignedTo?, notes?, subject? }
 export async function scheduleLeadFollowUp(client, context, leadId, input = {}) {
   requireLeadPermission(context, LEAD_PERMISSIONS.edit, "You do not have permission to schedule follow-ups on leads.");
-  const type = text(input.type).toLowerCase() || "call";
-  if (!LEAD_FOLLOW_UP_TYPES.includes(type)) throw new CrmError(400, "Choose a follow-up type.", "CRM_LEAD_FOLLOW_UP_VALIDATION");
-  if (!input.dueAt) throw new CrmError(400, "Choose the follow-up date and time.", "CRM_LEAD_FOLLOW_UP_VALIDATION");
+  if (!input.dueAt && !input.scheduledDate) throw new CrmError(400, "Choose the follow-up date.", "CRM_LEAD_FOLLOW_UP_VALIDATION");
   const lead = await lockLead(client, context, leadId);
   if (lead.status === "converted")
     throw new CrmError(409, "This lead is converted. Schedule the follow-up on its opportunity.", "CRM_LEAD_CONVERTED");
-  return createCrmFollowUp(client, context, {
-    entityType: "lead",
-    entityId: lead.id,
-    subject: text(input.subject) || `${type === "task" ? "Task" : `Follow-up ${type}`}: ${leadLabel(lead)}`.slice(0, 300),
-    description: text(input.notes) || null,
-    assignedTo: input.assignedTo || lead.owner_user_id || context.userId,
-    dueAt: input.dueAt,
-    followUpChannel: FOLLOW_UP_CHANNEL[type],
-    followUpReason: type === "task" ? "Task" : null,
+  return scheduleFollowUp(client, context, {
+    relatedType: "lead", relatedId: lead.id, type: input.type, subject: input.subject, notes: input.notes, contactId: input.contactId, assignedTo: input.assignedTo,
+    scheduledDate: input.scheduledDate, scheduledTime: input.scheduledTime, scheduledAt: input.dueAt, reminderOffsetMinutes: input.reminderOffsetMinutes,
+    reminderAt: input.reminderAt, idempotencyKey: input.idempotencyKey,
   });
 }
 

@@ -16,6 +16,7 @@ import { OPPORTUNITY_PERMISSIONS } from "./constants.js";
 import { recordOpportunityHistory } from "./history.js";
 import { assertNotStale, getOpportunity, lockOpportunity } from "./records.js";
 import { runOpportunityBulkOperation } from "./stages.js";
+import { transferOpenFollowUps } from "../follow-ups/lifecycle.js";
 
 const has = (object, key) => Object.prototype.hasOwnProperty.call(object, key);
 const text = (value) => String(value ?? "").trim();
@@ -63,10 +64,12 @@ export async function assignOpportunity(client, context, opportunityId, input = 
     });
     // Open work the previous owner had on this deal follows the deal; completed work keeps its owner.
     if (input.moveOpenActivities !== false && opportunity.owner_user_id && ownerUserId)
+      await transferOpenFollowUps(client, context, { entityType: "opportunity", entityId: opportunity.id, fromUserId: opportunity.owner_user_id, toUserId: ownerUserId });
+    if (input.moveOpenActivities !== false && opportunity.owner_user_id && ownerUserId)
       await client.query(
         `UPDATE tenant.crm_activities SET assigned_to = $4, updated_by = $5
           WHERE organization_id = $1 AND entity_type = 'opportunity' AND entity_id = $2 AND assigned_to = $3
-            AND activity_type IN ('task', 'follow_up') AND status IN ('planned', 'in_progress', 'overdue')`,
+            AND activity_type = 'task' AND status IN ('planned', 'in_progress', 'overdue')`,
         [context.organizationId, opportunity.id, opportunity.owner_user_id, ownerUserId, context.userId ?? null],
       );
     if (notify && ownerUserId && ownerUserId !== context.userId)

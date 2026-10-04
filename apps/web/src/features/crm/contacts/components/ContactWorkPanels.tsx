@@ -7,23 +7,21 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Badge, Button, Dialog, EmptyState, Select, StatusBadge, TextArea, TextField } from "@vercentlabs/design-system";
+import { Badge, Button, Dialog, EmptyState, Select, TextArea, TextField } from "@vercentlabs/design-system";
 
 import { DateTimeInput } from "@/features/crm/shared/ui/DateTimeInput";
-import { completeFollowUp, snoozeFollowUp } from "@/features/crm/work/follow-ups/api/follow-ups-api";
 import { RelatedTasksPanel } from "@/features/crm/tasks/components/RelatedTasksPanel";
-import { dueLabel, dueState, formatDateTime, humanize } from "@/shared/format/human";
+import { formatDateTime, humanize } from "@/shared/format/human";
 import { LoadingState } from "@/shared/ui/LoadingState";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 
 import {
-  errorMessage, listContactActivities, listContactRelated, logContactActivity, scheduleContactFollowUp,
+  errorMessage, listContactActivities, listContactRelated, logContactActivity,
   type ContactActivity, type ContactOptions,
 } from "../api/contacts-api";
 import { ErrorBanner, LIVE_CONTACT_QUERY } from "../contact-format";
 
-const OPEN_STATUSES = new Set(["planned", "in_progress", "overdue"]);
 const FOLLOW_UP_TYPE_LABELS: Record<string, string> = { call: "Call", email: "Email", meeting: "Meeting", task: "Task", other: "Other" };
 const NO_NEXT_ACTION = "none";
 const NO_OPPORTUNITY = "__none__";
@@ -55,9 +53,6 @@ function useOpportunityOptions(contactId: string, enabled: boolean) {
   return (query.data ?? []).filter((row) => row.status === "open");
 }
 
-function userOptions(options: ContactOptions) {
-  return options.users.map((user) => ({ value: user.id, label: user.id === options.currentUserId ? `${user.name} (me)` : user.name }));
-}
 
 function PanelShell({ title, action, query, isEmpty, emptyTitle, emptyDescription, children }: {
   title: string;
@@ -92,20 +87,7 @@ function SourceLine({ activity }: { activity: ContactActivity }) {
   return <p className="flex flex-wrap gap-x-3 text-xs text-text-secondary">{parts}</p>;
 }
 
-function DueText({ activity }: { activity: ContactActivity }) {
-  if (!activity.dueAt) return <span className="text-text-muted">No due date</span>;
-  const open = OPEN_STATUSES.has(activity.status);
-  const state = open ? dueState(activity.dueAt) : "none";
-  return (
-    <span className={state === "overdue" ? "font-medium text-danger" : state === "today" ? "font-medium text-warning" : "text-text-secondary"}>
-      {open ? `${dueLabel(activity.dueAt)} · ` : ""}{formatDateTime(activity.dueAt)}
-    </span>
-  );
-}
 
-function statusTone(status: string): "success" | "danger" | "info" | "neutral" {
-  return status === "completed" ? "success" : status === "overdue" ? "danger" : status === "cancelled" ? "neutral" : "info";
-}
 
 // ------------------------------------------------------------------ logged activities
 
@@ -198,121 +180,6 @@ export function LogContactActivityDialog({ isOpen, onOpenChange, contactId, opti
         <div className="flex justify-end gap-2">
           <Button variant="secondary" onPress={() => onOpenChange(false)}>Cancel</Button>
           <Button variant="primary" onPress={() => mutation.mutate()} isLoading={mutation.isPending} isDisabled={nextActionIncomplete}>Log activity</Button>
-        </div>
-      </div>
-    </Dialog>
-  );
-}
-
-// ------------------------------------------------------------------ follow-ups
-
-export function ContactFollowUpsPanel({ contactId, options, canEdit }: PanelProps) {
-  const { query, refresh } = useContactActivities(contactId);
-  const [isScheduling, setScheduling] = useState(false);
-  const [rescheduling, setRescheduling] = useState<ContactActivity | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const followUps = (query.data ?? []).filter((activity) => activity.type === "follow_up");
-  const complete = useMutation({
-    mutationFn: (activity: ContactActivity) => completeFollowUp(activity.id, activity.updatedAt),
-    onSuccess: () => { setError(null); refresh(); },
-    onError: (failure) => setError(errorMessage(failure)),
-  });
-
-  return (
-    <>
-      <ErrorBanner message={error} />
-      <PanelShell
-        title="Follow-ups"
-        action={canEdit && <Button variant="primary" size="compact" onPress={() => setScheduling(true)}>Schedule follow-up</Button>}
-        query={query}
-        isEmpty={followUps.length === 0}
-        emptyTitle="No follow-ups"
-        emptyDescription="Schedule the next conversation with this person. You are reminded when it is due."
-      >
-        {followUps.map((activity) => (
-          <li key={activity.id} className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 text-sm">
-            <div className="flex flex-col gap-1">
-              <div className="flex flex-wrap items-center gap-2">
-                <Badge tone="info">{FOLLOW_UP_TYPE_LABELS[activity.channel ?? "other"] ?? "Follow-up"}</Badge>
-                <Link href={`/crm/follow-ups/${activity.id}`} className="font-medium hover:underline">{activity.subject}</Link>
-                <StatusBadge tone={statusTone(activity.status)}>{OPEN_STATUSES.has(activity.status) ? (activity.status === "overdue" ? "Overdue" : "Pending") : humanize(activity.status)}</StatusBadge>
-              </div>
-              <DueText activity={activity} />
-              <SourceLine activity={activity} />
-              {activity.notes && <p className="text-text-secondary">{activity.notes}</p>}
-              <p className="text-xs text-text-muted">Assigned to {activity.assignedName ?? "nobody"}</p>
-            </div>
-            {canEdit && OPEN_STATUSES.has(activity.status) && (
-              <div className="flex gap-2">
-                <Button variant="secondary" size="compact" onPress={() => setRescheduling(activity)}>Reschedule</Button>
-                <Button variant="primary" size="compact" onPress={() => complete.mutate(activity)} isLoading={complete.isPending && complete.variables?.id === activity.id}>Mark done</Button>
-              </div>
-            )}
-          </li>
-        ))}
-      </PanelShell>
-      <ScheduleContactFollowUpDialog isOpen={isScheduling} onOpenChange={setScheduling} contactId={contactId} options={options} onDone={refresh} />
-      {rescheduling && <RescheduleDialog activity={rescheduling} onClose={() => setRescheduling(null)} onDone={refresh} />}
-    </>
-  );
-}
-
-export function ScheduleContactFollowUpDialog({ isOpen, onOpenChange, contactId, options, onDone }: {
-  isOpen: boolean; onOpenChange: (open: boolean) => void; contactId: string; options: ContactOptions; onDone: () => void;
-}) {
-  const [type, setType] = useState("call");
-  const [dueAt, setDueAt] = useState("");
-  const [assignedTo, setAssignedTo] = useState(options.currentUserId);
-  const [notes, setNotes] = useState("");
-  const [error, setError] = useState<string | null>(null);
-  const mutation = useMutation({
-    mutationFn: () => scheduleContactFollowUp(contactId, { type, dueAt, assignedTo, notes }),
-    onSuccess: () => { onDone(); setDueAt(""); setNotes(""); setError(null); onOpenChange(false); },
-    onError: (failure) => setError(errorMessage(failure)),
-  });
-
-  return (
-    <Dialog isOpen={isOpen} onOpenChange={onOpenChange} title="Schedule follow-up">
-      <div className="flex flex-col gap-4">
-        <ErrorBanner message={error} />
-        <Select label="Type" isRequired selectedKey={type} onSelectionChange={(key) => setType(String(key))}
-          options={options.followUpTypes.map((entry) => ({ value: entry, label: FOLLOW_UP_TYPE_LABELS[entry] ?? entry }))} />
-        <DateTimeInput label="Date and time" isRequired value={dueAt} onChange={setDueAt} />
-        <Select label="Assigned to" isRequired selectedKey={assignedTo} onSelectionChange={(key) => setAssignedTo(String(key))} options={userOptions(options)} />
-        <TextArea label="Notes" value={notes} onChange={setNotes} />
-        <div className="flex justify-end gap-2">
-          <Button variant="secondary" onPress={() => onOpenChange(false)}>Cancel</Button>
-          <Button variant="primary" onPress={() => mutation.mutate()} isLoading={mutation.isPending} isDisabled={!dueAt || !assignedTo}>Schedule</Button>
-        </div>
-      </div>
-    </Dialog>
-  );
-}
-
-function RescheduleDialog({ activity, onClose, onDone }: { activity: ContactActivity; onClose: () => void; onDone: () => void }) {
-  const [dueAt, setDueAt] = useState("");
-  const [error, setError] = useState<string | null>(null);
-  const mutation = useMutation({
-    mutationFn: () => snoozeFollowUp(activity.id, dueAt, activity.updatedAt),
-    onSuccess: () => { onDone(); onClose(); },
-    onError: (failure) => setError(errorMessage(failure)),
-  });
-  const snooze = (hours: number) => setDueAt(new Date(Date.now() + hours * 3_600_000).toISOString());
-
-  return (
-    <Dialog isOpen onOpenChange={(open) => !open && onClose()} title="Reschedule follow-up" description={activity.subject}>
-      <div className="flex flex-col gap-4">
-        <ErrorBanner message={error} />
-        <div className="flex flex-wrap gap-2">
-          <Button variant="outline" size="compact" onPress={() => snooze(1)}>In 1 hour</Button>
-          <Button variant="outline" size="compact" onPress={() => snooze(24)}>Tomorrow</Button>
-          <Button variant="outline" size="compact" onPress={() => snooze(72)}>In 3 days</Button>
-          <Button variant="outline" size="compact" onPress={() => snooze(168)}>Next week</Button>
-        </div>
-        <DateTimeInput label="New date and time" isRequired value={dueAt} onChange={setDueAt} />
-        <div className="flex justify-end gap-2">
-          <Button variant="secondary" onPress={onClose}>Cancel</Button>
-          <Button variant="primary" onPress={() => mutation.mutate()} isLoading={mutation.isPending} isDisabled={!dueAt}>Reschedule</Button>
         </div>
       </div>
     </Dialog>

@@ -6,7 +6,7 @@
 import { publishDomainEvent } from "../../../../core/platform/events/index.js";
 import { CrmCommunicationsError, assertId } from "../communications/communications-error.js";
 import { normalizeEmailAddress } from "../communications/email-address.js";
-import { createRemindersForActivity, cancelPendingRemindersForActivity } from "../follow-ups/follow-up-operations.js";
+import { createRemindersForActivity, cancelPendingRemindersForActivity } from "../../reminders/index.js";
 import { enqueueCalendarPushJob, upsertMeetingCalendarEvent } from "./meeting-calendar.js";
 
 const text = (value) => String(value ?? "").trim();

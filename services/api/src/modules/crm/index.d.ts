@@ -186,23 +186,15 @@ export function getPublicMeetingBookingView(client: QueryClient, booking: Public
 export function getPublicRescheduleAvailability(client: QueryClient, booking: PublicMeetingBookingRow, date: string | null): Promise<any>;
 // The canonical overdue rule for activities.
 export function taskOverdueSql(alias?: string): string;
-// F016 Follow-ups and reminders.
-export function listCrmFollowUps(client: QueryClient, context: any, filters?: Record<string, unknown>): Promise<{ rows: any[]; total: number; limit: number; offset: number }>;
-export function getCrmFollowUp(client: QueryClient, context: any, id: string, options?: { lock?: boolean }): Promise<any>;
-export function createCrmFollowUp(client: QueryClient, context: any, input?: Record<string, unknown>): Promise<any>;
-export function updateCrmFollowUp(client: QueryClient, context: any, id: string, input?: Record<string, unknown>): Promise<any>;
-export function snoozeCrmFollowUp(client: QueryClient, context: any, id: string, input?: Record<string, unknown>): Promise<any>;
-export function completeCrmFollowUp(client: QueryClient, context: any, id: string, input?: Record<string, unknown>): Promise<any>;
-export function cancelCrmFollowUp(client: QueryClient, context: any, id: string, input?: Record<string, unknown>): Promise<any>;
-export function listCrmFollowUpHistory(client: QueryClient, context: any, id: string): Promise<any[]>;
-export function createRemindersForActivity(client: QueryClient, context: any, activityId: string, dueAt: string, options?: { offsets?: number[]; channel?: "in_app" | "email" }): Promise<any[]>;
+// The shared reminder mechanism (reminders/index.js).
+export function createRemindersForActivity(client: QueryClient, context: any, activityId: string, dueAt: string | Date, options?: { offsets?: number[]; channel?: "in_app" | "email"; workingHours?: boolean }): Promise<any[]>;
 export function cancelPendingRemindersForActivity(client: QueryClient, context: any, activityId: string): Promise<void>;
+export function replaceActivityReminder(client: QueryClient, context: any, activityId: string, dueAt: string | Date, offsetMinutes: number | null): Promise<any | null>;
+export function snoozeActivityReminder(client: QueryClient, context: any, activityId: string, until: string | Date): Promise<any>;
 export function listRemindersForActivity(client: QueryClient, context: any, activityId: string): Promise<any[]>;
-export function acknowledgeReminder(client: QueryClient, context: any, activityId: string, reminderId: string): Promise<any>;
 export function claimDueReminders(client: QueryClient, context: any, options?: { limit?: number }): Promise<any[]>;
 export function markReminderOutcome(client: QueryClient, context: any, reminderId: string, options: { status: "sent" | "failed"; failureReason?: string | null }): Promise<void>;
 export function resetStuckDispatchingReminders(client: QueryClient, context: any, options?: { olderThanMinutes?: number }): Promise<number>;
-export function escalateOverdueFollowUps(client: QueryClient, context: any): Promise<number>;
 export function getManagerForUser(client: QueryClient, organizationId: string, userId: string | null): Promise<string | null>;
 export function getCrmRecordTimelinePage(
   client: QueryClient,
@@ -311,6 +303,7 @@ export * from "./opportunities/index.js";
 export * from "./pipeline/index.js";
 export * from "./sales-stages/index.js";
 export * from "./tasks/index.js";
+export * from "./follow-ups/index.js";
 export * from "./accounts/index.js";
 export * from "./contacts/index.js";
 export * from "./duplicates/index.js";

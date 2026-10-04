@@ -5,7 +5,7 @@ import Link from "next/link";
 import { TaskListScreen } from "@/features/crm/tasks/screens/TaskListScreen";
 import { CallListScreen } from "@/features/crm/work/calls/screens/CallListScreen";
 import { MeetingListScreen } from "@/features/crm/work/meetings/screens/MeetingListScreen";
-import { FollowUpListScreen } from "@/features/crm/work/follow-ups/screens/FollowUpListScreen";
+import { FollowUpListScreen } from "@/features/crm/follow-ups/screens/FollowUpListScreen";
 import { CommunicationListScreen } from "@/features/crm/inbox/communications/screens/CommunicationListScreen";
 
 import { MY_WORK_VIEWS, type MyWorkView } from "../my-work-views";

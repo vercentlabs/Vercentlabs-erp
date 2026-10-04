@@ -10,6 +10,7 @@ import {
 } from "@vercentlabs/design-system";
 
 import { CrmAttachmentPanel } from "@/features/crm/shared/CrmAttachmentPanel";
+import { RelatedFollowUpsPanel, ScheduleFollowUpForRecord } from "@/features/crm/follow-ups/components/RelatedFollowUpsPanel";
 import { NotesPanel } from "@/features/crm/shared/NotesPanel";
 import { RecordTimelinePanel } from "@/features/crm/shared/RecordTimelinePanel";
 import { PropertyList } from "@/features/crm/shared/ui/PropertyList";
@@ -26,7 +27,7 @@ import { ConvertLeadDialog } from "../components/ConvertLeadDialog";
 import { LeadDuplicatesPanel } from "../components/LeadDuplicatesPanel";
 import { DisqualifyLeadsDialog } from "../components/LeadActionDialogs";
 import { AssignLeadsDialog, LeadAssignmentPanel } from "../components/LeadAssignment";
-import { LeadActivitiesPanel, LeadFollowUpsPanel, LeadTasksPanel, LogActivityDialog, ScheduleFollowUpDialog } from "../components/LeadWorkPanels";
+import { LeadActivitiesPanel, LeadTasksPanel, LogActivityDialog } from "../components/LeadWorkPanels";
 import { QualificationPanel, QualificationSummary, QualifyLeadDialog } from "../components/QualificationPanel";
 import { ErrorBanner, FollowUpCell, LeadStageBadge, LeadStatusBadge, PriorityBadge, RatingBadge, StaleBadge, days, leadName } from "../lead-format";
 import { LIVE_LEAD_QUERY } from "../live-query";
@@ -230,7 +231,7 @@ export function LeadDetailScreen({ leadId }: { leadId: string }) {
           </TabPanel>
           <TabPanel id="activities"><LeadActivitiesPanel leadId={lead.id} options={options} canEdit={canEdit} /></TabPanel>
           <TabPanel id="tasks"><LeadTasksPanel leadId={lead.id} options={options} canEdit={canEdit} /></TabPanel>
-          <TabPanel id="followUps"><LeadFollowUpsPanel leadId={lead.id} options={options} canEdit={canEdit} /></TabPanel>
+          <TabPanel id="followUps"><RelatedFollowUpsPanel related={{ type: "lead", id: lead.id, name: leadName(lead) }} canCreate={canEdit} onChanged={refresh} /></TabPanel>
           <TabPanel id="notes"><NotesPanel entityType="lead" entityId={lead.id} /></TabPanel>
           <TabPanel id="attachments"><CrmAttachmentPanel entityType="lead" entityId={lead.id} /></TabPanel>
           <TabPanel id="history">
@@ -251,7 +252,7 @@ export function LeadDetailScreen({ leadId }: { leadId: string }) {
       <DisqualifyLeadsDialog isOpen={dialog === "disqualify"} onOpenChange={(open) => !open && setDialog(null)} leadIds={[lead.id]} options={options} onDone={refresh} />
       <LogActivityDialog isOpen={dialog === "activity"} onOpenChange={(open) => !open && setDialog(null)} leadId={lead.id} options={options} onDone={refresh}
         currentStage={working && can.changeStage && lead.status === "open" ? lead.stage : undefined} />
-      <ScheduleFollowUpDialog isOpen={dialog === "followUp"} onOpenChange={(open) => !open && setDialog(null)} leadId={lead.id} options={options} onDone={refresh} />
+      <ScheduleFollowUpForRecord isOpen={dialog === "followUp"} onOpenChange={(open) => !open && setDialog(null)} related={{ type: "lead", id: lead.id, name: leadName(lead) }} onDone={refresh} />
       <ConvertLeadDialog isOpen={dialog === "convert"} onOpenChange={(open) => !open && setDialog(null)} leadId={lead.id} options={options}
         onConverted={() => { refresh(); setTab("related"); }} />
       <AlertDialog

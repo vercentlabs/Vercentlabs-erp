@@ -8,7 +8,7 @@
 // tenant.crm_task_history.
 import { nextDocumentNumber } from "../../../core/platform/numbering/index.js";
 import { resolveMemberExecutionContext } from "../../../core/platform/reporting/execution-context.js";
-import { cancelPendingRemindersForActivity, createRemindersForActivity } from "../activities/follow-ups/follow-up-operations.js";
+import { replaceActivityReminder } from "../reminders/index.js";
 import { CrmError } from "../data-management/errors.js";
 import { queueOutboxEvent } from "../data-management/outbox.js";
 import { assertEligibleLeadAssignee } from "../leads/assignment.js";
@@ -124,6 +124,12 @@ async function loadTaskRow(client, context, taskId, { lock = false } = {}) {
   );
   if (!rows[0]) throw new CrmError(404, "Task not found.", "CRM_TASK_NOT_FOUND");
   return rows[0];
+}
+
+// The task as just written, for its notification: the caller may no longer see it.
+export async function readTaskForNotice(client, context, taskId) {
+  const { rows } = await client.query(`${TASK_SELECT} WHERE task.organization_id = $1 AND task.id = $2`, [context.organizationId, taskId]);
+  return rows[0] ? toTask(rows[0]) : null;
 }
 
 export async function lockTask(client, context, taskId) {
@@ -317,10 +323,7 @@ function resolveReminder(input, dueAt) {
 // Replaces the task's pending reminder. Only one per task, and only one row per
 // moment: a retried request or a double click never adds a second.
 export async function scheduleTaskReminder(client, context, taskId, dueAt, offsetMinutes) {
-  await cancelPendingRemindersForActivity(client, context, taskId);
-  if (offsetMinutes === null || offsetMinutes === undefined) return;
-  if (new Date(dueAt).getTime() - offsetMinutes * 60000 < Date.now() - 60000) return;
-  await createRemindersForActivity(client, context, taskId, dueAt, { offsets: [offsetMinutes], channel: "in_app" });
+  await replaceActivityReminder(client, context, taskId, dueAt, offsetMinutes);
 }
 
 function validTitle(value) {

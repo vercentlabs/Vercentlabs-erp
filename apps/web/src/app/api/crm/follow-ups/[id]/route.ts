@@ -1,42 +1,22 @@
-import { getCrmFollowUp, updateCrmFollowUp } from "@vercentlabs/api/crm";
+import { deleteFollowUp, getFollowUp, updateFollowUp } from "@vercentlabs/api/crm";
 import { CRM_PERMISSIONS } from "@vercentlabs/permissions";
 
-import { ok, readJson } from "@/core/http";
-import { crmContext } from "@/features/crm/shared/crm-context";
+import { ok } from "@/core/http";
 import { workspaceRoute } from "@/core/workspace-route";
+import { crmContext } from "@/features/crm/shared/crm-context";
+import { readBody, type FollowUpRouteParams } from "@/features/crm/follow-ups/server/follow-up-http";
 
-type RouteContext = { params: Promise<{ id: string }> };
+export async function GET(request: Request, route: FollowUpRouteParams) {
+  return workspaceRoute(request, { module: "crm", permission: CRM_PERMISSIONS.followUpsView }, async ({ client, session }) => ok({ record: await getFollowUp(client, crmContext(session), (await route.params).id) }));
+}
 
-export async function GET(request: Request, context: RouteContext) {
-  return workspaceRoute(
-    request,
-    { module: "crm", permission: CRM_PERMISSIONS.activitiesManage },
-    async ({ client, session }) => {
-      const { id } = await context.params;
-      const record = await getCrmFollowUp(client, crmContext(session), id);
-      return ok({ record });
-    },
+// Body: any of { subject, notes, type, contactId, reminderOffsetMinutes, reminderAt }, plus expectedUpdatedAt.
+export async function PATCH(request: Request, route: FollowUpRouteParams) {
+  return workspaceRoute(request, { module: "crm", permission: CRM_PERMISSIONS.followUpsView, billingWrite: true }, async ({ client, session }) =>
+    ok({ record: await updateFollowUp(client, crmContext(session), (await route.params).id, await readBody(request)) }),
   );
 }
 
-export async function PATCH(request: Request, context: RouteContext) {
-  return workspaceRoute(
-    request,
-    {
-      module: "crm",
-      permission: CRM_PERMISSIONS.activitiesManage,
-      billingWrite: true,
-    },
-    async ({ client, session }) => {
-      const { id } = await context.params;
-      const input = (await readJson(request)) as Record<string, unknown>;
-      const record = await updateCrmFollowUp(
-        client,
-        crmContext(session),
-        id,
-        input,
-      );
-      return ok({ record });
-    },
-  );
+export async function DELETE(request: Request, route: FollowUpRouteParams) {
+  return workspaceRoute(request, { module: "crm", permission: CRM_PERMISSIONS.followUpsView, billingWrite: true }, async ({ client, session }) => ok(await deleteFollowUp(client, crmContext(session), (await route.params).id)));
 }

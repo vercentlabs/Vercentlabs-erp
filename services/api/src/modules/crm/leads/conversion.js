@@ -256,7 +256,8 @@ export async function convertLead(client, context, leadId, input = {}) {
       [context.organizationId, lead.id, opportunityId],
     );
     await client.query(
-      `UPDATE tenant.crm_activities SET entity_type = 'opportunity', entity_id = $3, updated_by = $4
+      `UPDATE tenant.crm_activities SET entity_type = 'opportunity', entity_id = $3, updated_by = $4,
+              origin_lead_id = CASE WHEN activity_type = 'follow_up' THEN $2 ELSE origin_lead_id END
         WHERE organization_id = $1 AND entity_type = 'lead' AND entity_id = $2
           AND activity_type IN ('task', 'follow_up') AND status IN ('planned', 'in_progress', 'overdue')`,
       [context.organizationId, lead.id, opportunityId, context.userId ?? null],

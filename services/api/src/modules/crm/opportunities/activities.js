@@ -5,7 +5,7 @@
 // follow-ups and notes. Tasks and follow-ups themselves belong to the shared
 // CRM Tasks and Follow-ups capabilities; scheduleOpportunityFollowUp is the
 // deal-side shortcut for the latter.
-import { createCrmFollowUp } from "../activities/follow-ups/follow-up-operations.js";
+import { scheduleFollowUp } from "../follow-ups/records.js";
 import { CrmError } from "../data-management/errors.js";
 import { requireOpportunityPermission } from "./access.js";
 import { OPPORTUNITY_ACTIVITY_TYPES, OPPORTUNITY_FOLLOW_UP_TYPES, OPPORTUNITY_PERMISSIONS } from "./constants.js";
@@ -42,20 +42,13 @@ export async function listOpportunityActivities(client, context, opportunityId) 
 // input: { type: call | email | meeting | task | other, dueAt, assignedTo?, notes?, subject? }
 export async function scheduleOpportunityFollowUp(client, context, opportunityId, input = {}) {
   requireOpportunityPermission(context, OPPORTUNITY_PERMISSIONS.edit, "You do not have permission to schedule follow-ups on opportunities.");
-  const type = text(input.type).toLowerCase() || "call";
-  if (!OPPORTUNITY_FOLLOW_UP_TYPES.includes(type)) throw new CrmError(400, "Choose a follow-up type.", "CRM_OPPORTUNITY_FOLLOW_UP_VALIDATION");
-  if (!input.dueAt) throw new CrmError(400, "Choose the follow-up date and time.", "CRM_OPPORTUNITY_FOLLOW_UP_VALIDATION");
+  if (!input.dueAt && !input.scheduledDate) throw new CrmError(400, "Choose the follow-up date.", "CRM_OPPORTUNITY_FOLLOW_UP_VALIDATION");
   const opportunity = await lockOpportunity(client, context, opportunityId);
   if (opportunity.status !== "open") throw new CrmError(409, `This opportunity is ${opportunity.status}. Reopen it to schedule more work.`, "CRM_OPPORTUNITY_CLOSED");
-  return createCrmFollowUp(client, context, {
-    entityType: "opportunity",
-    entityId: opportunity.id,
-    subject: (text(input.subject) || `${type === "task" ? "Task" : `Follow-up ${type}`}: ${opportunity.name}`).slice(0, 300),
-    description: text(input.notes) || null,
-    assignedTo: input.assignedTo || opportunity.owner_user_id || context.userId,
-    dueAt: input.dueAt,
-    followUpChannel: FOLLOW_UP_CHANNEL[type],
-    followUpReason: type === "task" ? "Task" : null,
+  return scheduleFollowUp(client, context, {
+    relatedType: "opportunity", relatedId: opportunity.id, type: input.type, subject: input.subject, notes: input.notes, contactId: input.contactId, assignedTo: input.assignedTo,
+    scheduledDate: input.scheduledDate, scheduledTime: input.scheduledTime, scheduledAt: input.dueAt, reminderOffsetMinutes: input.reminderOffsetMinutes,
+    reminderAt: input.reminderAt, idempotencyKey: input.idempotencyKey,
   });
 }
 

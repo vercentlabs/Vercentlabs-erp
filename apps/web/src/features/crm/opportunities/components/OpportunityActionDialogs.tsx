@@ -124,6 +124,7 @@ export function MarkWonDialog({ isOpen, onOpenChange, opportunity, onDone }: {
   const [quotationId, setQuotationId] = useState(NONE);
   const [notes, setNotes] = useState("");
   const [openTasks, setOpenTasks] = useState("keep");
+  const [openFollowUps, setOpenFollowUps] = useState("keep");
   const [error, setError] = useState<string | null>(null);
   const quotations = useQuery({
     queryKey: scopedQueryKey(workspace, "crm", "opportunity", opportunity.id, "quotations"),
@@ -134,6 +135,7 @@ export function MarkWonDialog({ isOpen, onOpenChange, opportunity, onDone }: {
     mutationFn: () => markOpportunityWon(opportunity.id, {
       actualCloseDate: closeDate, finalValue, winningQuotationId: quotationId || undefined, notes: notes.trim() || undefined, expectedUpdatedAt: opportunity.updatedAt,
       openTasks: openTasks as "keep" | "cancel",
+      openFollowUps: openFollowUps as "keep" | "cancel",
     }),
     onSuccess: () => { setError(null); onDone(); onOpenChange(false); },
     onError: (failure) => setError(errorMessage(failure)),
@@ -161,6 +163,7 @@ export function MarkWonDialog({ isOpen, onOpenChange, opportunity, onDone }: {
         )}
         <TextArea label="Notes" value={notes} onChange={setNotes} />
         <OpenTasksChoice count={opportunity.openTaskCount} value={openTasks} onChange={setOpenTasks} won />
+        <OpenTasksChoice count={opportunity.openFollowUpCount} value={openFollowUps} onChange={setOpenFollowUps} won kind="follow-up" />
         <Actions onCancel={() => onOpenChange(false)} onConfirm={() => mutation.mutate()} label="Mark won" isLoading={mutation.isPending} isDisabled={!closeDate || finalValue.trim() === ""} />
       </div>
     </Dialog>
@@ -174,12 +177,14 @@ export function MarkLostDialog({ isOpen, onOpenChange, options, opportunity, onD
   const [competitorName, setCompetitorName] = useState("");
   const [closeDate, setCloseDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [openTasks, setOpenTasks] = useState("cancel");
+  const [openFollowUps, setOpenFollowUps] = useState("cancel");
   const [error, setError] = useState<string | null>(null);
   const reason = options.lostReasons.find((entry) => entry.id === reasonId);
   const mutation = useMutation({
     mutationFn: () => markOpportunityLost(opportunity.id, {
       reasonId, actualCloseDate: closeDate, notes: notes.trim() || undefined, competitorName: competitorName.trim() || undefined, expectedUpdatedAt: opportunity.updatedAt,
       openTasks: openTasks as "keep" | "cancel",
+      openFollowUps: openFollowUps as "keep" | "cancel",
     }),
     onSuccess: () => { setError(null); onDone(); onOpenChange(false); },
     onError: (failure) => setError(errorMessage(failure)),
@@ -197,6 +202,7 @@ export function MarkLostDialog({ isOpen, onOpenChange, options, opportunity, onD
         {reason?.asksCompetitor && <TextField label="Competitor" description="Optional. Who won the deal." value={competitorName} onChange={setCompetitorName} />}
         <TextArea label="Notes" isRequired={reason?.requiresNotes} description={reason?.requiresNotes ? "Explain the reason." : "What happened? Useful for pricing and product decisions later."} value={notes} onChange={setNotes} />
         <OpenTasksChoice count={opportunity.openTaskCount} value={openTasks} onChange={setOpenTasks} />
+        <OpenTasksChoice count={opportunity.openFollowUpCount} value={openFollowUps} onChange={setOpenFollowUps} kind="follow-up" />
         <Actions danger onCancel={() => onOpenChange(false)} onConfirm={() => mutation.mutate()} label="Mark lost" isLoading={mutation.isPending}
           isDisabled={!reasonId || !closeDate || (Boolean(reason?.requiresNotes) && !notes.trim())} />
       </div>
@@ -231,11 +237,11 @@ export function ReopenOpportunityDialog({ isOpen, onOpenChange, options, opportu
 }
 
 // Closing a deal never removes its open tasks silently: they are kept or cancelled.
-function OpenTasksChoice({ count, value, onChange, won }: { count: number; value: string; onChange: (value: string) => void; won?: boolean }) {
+function OpenTasksChoice({ count, value, onChange, won, kind = "task" }: { count: number; value: string; onChange: (value: string) => void; won?: boolean; kind?: "task" | "follow-up" }) {
   if (!count) return null;
   return (
-    <Select label={`${count} open ${count === 1 ? "task" : "tasks"} on this opportunity`} selectedKey={value} onSelectionChange={(key) => onChange(String(key))}
-      description={won ? "A won deal may still need work, such as the implementation handoff." : undefined}
+    <Select label={`${count} open ${count === 1 ? kind : `${kind}s`} on this opportunity`} selectedKey={value} onSelectionChange={(key) => onChange(String(key))}
+      description={won ? (kind === "task" ? "A won deal may still need work, such as the implementation handoff." : "A handoff or customer call can stay.") : kind === "follow-up" ? "Keep one if the customer may come back later." : undefined}
       options={[{ value: "keep", label: "Keep them open" }, { value: "cancel", label: "Cancel them" }]} />
   );
 }

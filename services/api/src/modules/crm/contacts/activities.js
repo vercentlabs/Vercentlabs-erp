@@ -3,7 +3,7 @@
 // optionally, the opportunity it was about); follow-ups and tasks are
 // scheduled on the contact. The contact's activity list also shows work
 // logged elsewhere that names this person.
-import { createCrmFollowUp } from "../activities/follow-ups/follow-up-operations.js";
+import { scheduleFollowUp } from "../follow-ups/records.js";
 import { CrmError } from "../data-management/errors.js";
 import { requireContactPermission } from "./access.js";
 import { CONTACT_ACTIVITY_TYPES, CONTACT_FOLLOW_UP_TYPES, CONTACT_PERMISSIONS } from "./constants.js";
@@ -63,24 +63,14 @@ export async function listContactActivities(client, context, contactId) {
 // input: { type: call | email | meeting | task | other, dueAt, assignedTo?, notes?, subject? }
 export async function scheduleContactFollowUp(client, context, contactId, input = {}) {
   requireContactPermission(context, CONTACT_PERMISSIONS.edit, "You do not have permission to schedule follow-ups on contacts.");
-  const type = text(input.type).toLowerCase() || "call";
-  if (!CONTACT_FOLLOW_UP_TYPES.includes(type)) throw new CrmError(400, "Choose a follow-up type.", "CRM_CONTACT_FOLLOW_UP_VALIDATION");
-  if (!input.dueAt) throw new CrmError(400, "Choose the follow-up date and time.", "CRM_CONTACT_FOLLOW_UP_VALIDATION");
+  if (!input.dueAt && !input.scheduledDate) throw new CrmError(400, "Choose the follow-up date.", "CRM_CONTACT_FOLLOW_UP_VALIDATION");
   const contact = await lockContact(client, context, contactId);
   if (contact.status === "archived") throw new CrmError(409, "Reactivate this contact before scheduling work with them.", "CRM_CONTACT_ARCHIVED");
-  const followUp = await createCrmFollowUp(client, context, {
-    entityType: "contact",
-    entityId: contact.id,
-    subject: text(input.subject) || `${type === "task" ? "Task" : `Follow-up ${type}`}: ${nameOf(contact)}`.slice(0, 300),
-    description: text(input.notes) || null,
-    assignedTo: input.assignedTo || contact.owner_user_id || context.userId,
-    dueAt: input.dueAt,
-    followUpChannel: FOLLOW_UP_CHANNEL[type],
-    followUpReason: type === "task" ? "Task" : null,
+  return scheduleFollowUp(client, context, {
+    relatedType: "contact", relatedId: contact.id, type: input.type, subject: input.subject, notes: input.notes, contactId: input.contactId, assignedTo: input.assignedTo,
+    scheduledDate: input.scheduledDate, scheduledTime: input.scheduledTime, scheduledAt: input.dueAt, reminderOffsetMinutes: input.reminderOffsetMinutes,
+    reminderAt: input.reminderAt, idempotencyKey: input.idempotencyKey,
   });
-  // The follow-up also belongs to the person's company.
-  if (contact.party_id) await client.query(`UPDATE tenant.crm_activities SET related_party_id = $3 WHERE organization_id = $1 AND id = $2`, [context.organizationId, followUp.id, contact.party_id]);
-  return followUp;
 }
 
 async function assertContactOpportunity(client, context, contact, opportunityId) {
