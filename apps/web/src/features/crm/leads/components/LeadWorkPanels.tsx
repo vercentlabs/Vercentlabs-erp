@@ -113,9 +113,15 @@ export function LeadActivitiesPanel({ leadId, options, canEdit }: PanelProps) {
   );
 }
 
-export function LogActivityDialog({ isOpen, onOpenChange, leadId, options, onDone }: {
-  isOpen: boolean; onOpenChange: (open: boolean) => void; leadId: string; options: LeadOptions; onDone: () => void;
+// currentStage: given when the caller may change the lead's stage, so the
+// activity can move it ("connected — move to Contacted"). Logging an activity
+// never moves the stage by itself.
+const KEEP_STAGE = "__keep__";
+
+export function LogActivityDialog({ isOpen, onOpenChange, leadId, options, onDone, currentStage }: {
+  isOpen: boolean; onOpenChange: (open: boolean) => void; leadId: string; options: LeadOptions; onDone: () => void; currentStage?: string;
 }) {
+  const [stage, setStage] = useState(KEEP_STAGE);
   const [type, setType] = useState("call");
   const [subject, setSubject] = useState("");
   const [outcome, setOutcome] = useState("");
@@ -127,11 +133,12 @@ export function LogActivityDialog({ isOpen, onOpenChange, leadId, options, onDon
   const [error, setError] = useState<string | null>(null);
 
   const reset = () => {
-    setSubject(""); setOutcome(""); setNotes(""); setOccurredAt(""); setNextType(NO_NEXT_ACTION); setNextDueAt(""); setNextNotes(""); setError(null);
+    setSubject(""); setOutcome(""); setNotes(""); setOccurredAt(""); setNextType(NO_NEXT_ACTION); setNextDueAt(""); setNextNotes(""); setStage(KEEP_STAGE); setError(null);
   };
   const mutation = useMutation({
     mutationFn: () => logLeadActivity(leadId, {
       type, subject, outcome, notes, occurredAt: occurredAt || undefined,
+      ...(stage !== KEEP_STAGE ? { stage } : {}),
       ...(nextType !== NO_NEXT_ACTION ? { nextAction: { type: nextType, dueAt: nextDueAt, notes: nextNotes } } : {}),
     }),
     onSuccess: () => { onDone(); reset(); onOpenChange(false); },
@@ -151,6 +158,10 @@ export function LogActivityDialog({ isOpen, onOpenChange, leadId, options, onDon
         <TextField label="Subject" description="Leave empty to use the activity type and lead name." value={subject} onChange={setSubject} />
         <TextField label="Outcome" value={outcome} onChange={setOutcome} placeholder="For example: Interested, asked for a quote" />
         <TextArea label="Notes" value={notes} onChange={setNotes} />
+        {currentStage && (
+          <Select label="Update lead stage" description="Optional. For example, move to Contacted once you have spoken to them." selectedKey={stage} onSelectionChange={(key) => setStage(String(key))}
+            options={[{ value: KEEP_STAGE, label: "Keep the current stage" }, ...options.stages.filter((entry) => entry.code !== currentStage).map((entry) => ({ value: entry.code, label: `Move to ${entry.label}` }))]} />
+        )}
         <div className="flex flex-col gap-4 rounded-[var(--radius-control)] border border-border p-3">
           <Select label="Next action" selectedKey={nextType} onSelectionChange={(key) => setNextType(String(key))}
             options={[{ value: NO_NEXT_ACTION, label: "None" }, ...options.followUpTypes.map((entry) => ({ value: entry, label: `Follow-up: ${FOLLOW_UP_TYPE_LABELS[entry] ?? entry}` }))]} />

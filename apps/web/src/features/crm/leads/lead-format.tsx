@@ -2,15 +2,7 @@ import { Badge, StatusBadge } from "@vercentlabs/design-system";
 
 import { formatDateTime, dueLabel, dueState } from "@/shared/format/human";
 
-import type { Lead, LeadStage, LeadStatus } from "./api/leads-api";
-
-export const STAGE_LABELS: Record<LeadStage, string> = {
-  new: "New",
-  attempting_contact: "Attempting Contact",
-  contacted: "Contacted",
-  nurturing: "Nurturing",
-  ready_to_qualify: "Ready to Qualify",
-};
+import type { Lead, LeadStatus } from "./api/leads-api";
 
 export const STATUS_LABELS: Record<LeadStatus, string> = {
   open: "Open",
@@ -47,8 +39,17 @@ export function LeadStatusBadge({ status }: { status: LeadStatus }) {
   return <StatusBadge tone={STATUS_TONE[status]}>{STATUS_LABELS[status]}</StatusBadge>;
 }
 
-export function LeadStageBadge({ stage }: { stage: LeadStage }) {
-  return <Badge tone="brand">{STAGE_LABELS[stage]}</Badge>;
+// The stage's name is whatever the organization calls it; the lead carries it.
+export function LeadStageBadge({ name }: { name: string }) {
+  return <Badge tone="brand">{name}</Badge>;
+}
+
+export const days = (count: number) => `${count} ${count === 1 ? "day" : "days"}`;
+
+// Stale is calculated (an open lead with no activity for a while), never a status.
+export function StaleBadge({ lead }: { lead: Pick<Lead, "isStale" | "daysSinceActivity"> }) {
+  if (!lead.isStale) return null;
+  return <Badge tone="warning">Stale · no activity for {days(lead.daysSinceActivity)}</Badge>;
 }
 
 export function RatingBadge({ rating }: { rating: Lead["rating"] }) {

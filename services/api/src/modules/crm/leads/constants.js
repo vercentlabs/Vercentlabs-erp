@@ -1,13 +1,20 @@
 // The fixed vocabulary of a lead. Stage answers "where are we in the
 // process?"; status answers "what is the outcome of this record?". They are
 // separate columns and change through separate operations.
-export const LEAD_STAGES = Object.freeze([
+// The system stages every organization starts with. The stage list itself
+// lives in the database (stages.js): administrators can rename and reorder
+// these and add their own, so code tests the stage code, never the name.
+export const DEFAULT_LEAD_STAGES = Object.freeze([
   { code: "new", label: "New" },
   { code: "attempting_contact", label: "Attempting Contact" },
   { code: "contacted", label: "Contacted" },
   { code: "nurturing", label: "Nurturing" },
-  { code: "ready_to_qualify", label: "Ready to Qualify" },
+  { code: "qualification", label: "Qualification" },
 ]);
+
+// An open lead with no activity for this many days is shown as stale, and a
+// lead this long in one stage as stuck. Both are calculated, never stored.
+export const LEAD_STALE_DAYS = 7;
 
 export const LEAD_STATUSES = Object.freeze([
   { code: "open", label: "Open" },
@@ -112,6 +119,8 @@ export const LEAD_PERMISSIONS = Object.freeze({
   disqualify: "crm.leads.disqualify",
   reopen: "crm.leads.reopen",
   convert: "crm.leads.convert",
+  changeStage: "crm.leads.change_stage",
+  manageStages: "crm.leads.manage_stages",
   overrideQualification: "crm.leads.override_qualification",
   assignSelf: "crm.leads.assign_self",
   bulkAssign: "crm.leads.bulk_assign",
@@ -160,11 +169,9 @@ export const leadAssignmentMethodLabel = (code) => LEAD_ASSIGNMENT_METHODS.find(
 export const LEAD_NUMBER_DOCUMENT_TYPE = "crm_lead";
 
 const label = (list) => new Map(list.map((entry) => [entry.code, entry.label]));
-const STAGE_LABELS = label(LEAD_STAGES);
 const STATUS_LABELS = label(LEAD_STATUSES);
 const REASON_LABELS = label(LEAD_DISQUALIFICATION_REASONS);
 
-export const leadStageLabel = (code) => STAGE_LABELS.get(code) ?? code;
 export const leadStatusLabel = (code) => STATUS_LABELS.get(code) ?? code;
 export const leadDisqualificationReasonLabel = (code) => REASON_LABELS.get(code) ?? code;
 export const leadQualificationStatusLabel = (code) => LEAD_QUALIFICATION_STATUSES.find((entry) => entry.code === code)?.label ?? code;

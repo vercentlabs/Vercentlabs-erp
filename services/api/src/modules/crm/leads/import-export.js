@@ -11,7 +11,7 @@ import { isXlsxFileName, parseXlsxUpload } from "../../../core/platform/data-exc
 import { CrmError } from "../data-management/errors.js";
 import { requireLeadPermission } from "./access.js";
 import { assertEligibleLeadAssignee } from "./assignment.js";
-import { LEAD_PERMISSIONS, LEAD_PURCHASE_TIMEFRAMES, leadAssignmentMethodLabel, leadDisqualificationReasonLabel, leadQualificationStatusLabel, leadStageLabel, leadStatusLabel } from "./constants.js";
+import { LEAD_PERMISSIONS, LEAD_PURCHASE_TIMEFRAMES, leadAssignmentMethodLabel, leadDisqualificationReasonLabel, leadQualificationStatusLabel, leadStatusLabel } from "./constants.js";
 import { LEAD_SELECT, buildLeadListWhere, createLead, toLead } from "./records.js";
 import { assertActiveLeadSource, findLeadSourceByName } from "./sources.js";
 
@@ -236,7 +236,8 @@ const EXPORT_COLUMNS = Object.freeze([
   ["Purchase Timeframe", (lead) => TIMEFRAME_LABELS.get(lead.purchaseTimeframe) ?? ""],
   ["Priority", (lead) => lead.priority],
   ["Rating", (lead) => lead.rating],
-  ["Stage", (lead) => leadStageLabel(lead.stage)],
+  ["Stage", (lead) => lead.stageName],
+  ["Stage Entered At", (lead) => lead.stageChangedAt],
   ["Status", (lead) => leadStatusLabel(lead.status)],
   ["Qualification", (lead) => leadQualificationStatusLabel(lead.qualificationStatus)],
   ["Qualified At", (lead) => lead.qualifiedAt],

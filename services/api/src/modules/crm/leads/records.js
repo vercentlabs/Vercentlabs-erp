@@ -11,14 +11,14 @@ import { managedTeamMembersSql } from "../data-management/record-utils.js";
 import { leadCan, leadCapabilities, leadScopeSql, projectLeadForContext, requireLeadPermission } from "./access.js";
 import { applyLeadAssignment } from "./assignment.js";
 import { evaluateLeadAssignment, fallbackLeadAssignment, getLeadAssignmentSettings } from "./assignment-rules.js";
-import { LEAD_NUMBER_DOCUMENT_TYPE, LEAD_PERMISSIONS, LEAD_STAGES, leadStageLabel } from "./constants.js";
+import { LEAD_NUMBER_DOCUMENT_TYPE, LEAD_PERMISSIONS, LEAD_STALE_DAYS } from "./constants.js";
 import { assertNoBlockingLeadDuplicate } from "./duplicates.js";
 import { leadQualificationScore, leadQualificationStatus, suggestedLeadRating } from "./qualification-criteria.js";
 import { recordLeadHistory } from "./history.js";
 import { assertActiveLeadSource } from "./sources.js";
+import { applyLeadStage, ensureDefaultLeadStages, recordLeadStageEntry, requireStageChangePermission } from "./stages.js";
 import { LEAD_WRITABLE_COLUMNS, assertValidLead, isUuid, normalizeLeadInput, requireUuid } from "./validation.js";
 
-const STAGE_CODES = new Set(LEAD_STAGES.map((stage) => stage.code));
 const DUPLICATE_IDENTITY_FIELDS = ["email", "phone", "mobile", "firstName", "lastName", "companyName"];
 const BULK_LIMIT = 200;
 const has = (object, key) => Object.prototype.hasOwnProperty.call(object, key);
@@ -34,6 +34,12 @@ export const LEAD_SELECT = `
          qualification.budget_status AS q_budget_status, qualification.budget_min AS q_budget_min, qualification.budget_max AS q_budget_max,
          qualification.authority_status AS q_authority_status, qualification.authority_detail AS q_authority_detail,
          qualification.notes AS q_notes, qualification.started_at AS q_started_at, qualification.override_reason AS q_override_reason,
+         stage_def.name AS stage_name, stage_def.sequence AS stage_sequence,
+         floor(EXTRACT(epoch FROM now() - lead.stage_changed_at) / 86400)::int AS stage_age_days,
+         floor(EXTRACT(epoch FROM now() - COALESCE(lead.last_activity_at, lead.created_at)) / 86400)::int AS days_since_activity,
+         converter.full_name AS converted_by_name, converted_account.display_name AS converted_account_name,
+         converted_contact.display_name AS converted_contact_name, converted_opportunity.name AS converted_opportunity_name,
+         converted_opportunity.code AS converted_opportunity_code, converted_opportunity.amount AS converted_opportunity_amount,
          follow_up.next_follow_up_at AS pending_follow_up_at,
          COALESCE((SELECT jsonb_agg(jsonb_build_object('id', tag.id, 'name', tag.name, 'color', tag.color) ORDER BY tag.name)
                      FROM tenant.crm_lead_tags lead_tag
@@ -45,6 +51,11 @@ export const LEAD_SELECT = `
     LEFT JOIN public.users creator ON creator.id = lead.created_by
     LEFT JOIN public.users updater ON updater.id = lead.updated_by
     LEFT JOIN public.users assigner ON assigner.id = lead.assigned_by
+    LEFT JOIN tenant.crm_lead_stages stage_def ON stage_def.organization_id = lead.organization_id AND stage_def.code = lead.stage
+    LEFT JOIN public.users converter ON converter.id = lead.converted_by
+    LEFT JOIN tenant.business_parties converted_account ON converted_account.organization_id = lead.organization_id AND converted_account.id = lead.converted_party_id
+    LEFT JOIN tenant.contacts converted_contact ON converted_contact.organization_id = lead.organization_id AND converted_contact.id = lead.converted_contact_id
+    LEFT JOIN tenant.crm_opportunities converted_opportunity ON converted_opportunity.organization_id = lead.organization_id AND converted_opportunity.id = lead.converted_opportunity_id
     LEFT JOIN public.users qualifier ON qualifier.id = lead.qualified_by
     LEFT JOIN public.users disqualifier ON disqualifier.id = lead.disqualified_by
     LEFT JOIN tenant.crm_lead_qualifications qualification ON qualification.organization_id = lead.organization_id AND qualification.lead_id = lead.id
@@ -100,7 +111,12 @@ export function toLead(row) {
     assignmentRuleName: row.assignment_rule_name ?? null,
     firstActivityAt: row.first_activity_at ?? null,
     stage: row.stage,
+    stageName: row.stage_name ?? row.stage,
     stageChangedAt: row.stage_changed_at,
+    // calculated, never stored: how long in this stage, and whether it has gone quiet
+    stageAgeDays: row.stage_age_days ?? 0,
+    daysSinceActivity: row.days_since_activity ?? 0,
+    isStale: row.status === "open" && !row.archived_at && (row.days_since_activity ?? 0) >= LEAD_STALE_DAYS,
     status: row.status,
     // qualification: the answers, and what they add up to
     qualificationStatus: leadQualificationStatus(row),
@@ -125,6 +141,12 @@ export function toLead(row) {
     disqualifiedByName: row.disqualified_by_name ?? null,
     convertedAt: row.converted_at,
     convertedBy: row.converted_by,
+    convertedByName: row.converted_by_name ?? null,
+    convertedAccountName: row.converted_account_name ?? null,
+    convertedContactName: row.converted_contact_name ?? null,
+    convertedOpportunityName: row.converted_opportunity_name ?? null,
+    convertedOpportunityCode: row.converted_opportunity_code ?? null,
+    convertedOpportunityAmount: numberOrNull(row.converted_opportunity_amount),
     convertedPartyId: row.converted_party_id,
     convertedContactId: row.converted_contact_id,
     convertedOpportunityId: row.converted_opportunity_id,
@@ -191,7 +213,8 @@ const SORT_COLUMNS = Object.freeze({
   code: "lead.code",
   name: "lower(COALESCE(lead.full_name, lead.company_name))",
   companyName: "lower(lead.company_name)",
-  stage: "lead.stage",
+  stage: "stage_def.sequence",
+  stageChangedAt: "lead.stage_changed_at",
   status: "lead.status",
   priority: "CASE lead.priority WHEN 'high' THEN 3 WHEN 'medium' THEN 2 ELSE 1 END",
   rating: "CASE lead.rating WHEN 'hot' THEN 3 WHEN 'warm' THEN 2 ELSE 1 END",
@@ -255,6 +278,10 @@ export function buildLeadListWhere(context, filters = {}, values = []) {
     if (String(filters[key] ?? "").trim()) where.push(`lower(COALESCE(${column}, '')) LIKE ${bind(contains(filters[key]))}`);
   const olderThanDays = Number(filters.olderThanDays);
   if (Number.isInteger(olderThanDays) && olderThanDays > 0 && olderThanDays <= 3650) where.push(`lead.created_at < now() - make_interval(days => ${bind(olderThanDays)}::int)`);
+  if (filters.stale === "yes" || filters.stale === true)
+    where.push(`lead.status = 'open' AND COALESCE(lead.last_activity_at, lead.created_at) < now() - interval '${LEAD_STALE_DAYS} days'`);
+  if (filters.stageEnteredFrom) where.push(`lead.stage_changed_at >= ${bind(filters.stageEnteredFrom)}::date`);
+  if (filters.stageEnteredTo) where.push(`lead.stage_changed_at < ${bind(filters.stageEnteredTo)}::date + interval '1 day'`);
   if (filters.assignedFrom) where.push(`lead.assigned_at >= ${bind(filters.assignedFrom)}::date`);
   if (filters.assignedTo) where.push(`lead.assigned_at < ${bind(filters.assignedTo)}::date + interval '1 day'`);
   if (filters.createdFrom) where.push(`lead.created_at >= ${bind(filters.createdFrom)}::date`);
@@ -354,6 +381,7 @@ export async function createLead(client, context, input = {}, { allowDuplicate =
   const duplicates = await assertNoBlockingLeadDuplicate(client, context, normalized, { allowDuplicate });
   const assignment = await initialLeadAssignment(client, context, input, normalized, { origin, routing });
 
+  await ensureDefaultLeadStages(client, context);
   const code = await nextDocumentNumber(client, { organizationId: context.organizationId }, { documentType: LEAD_NUMBER_DOCUMENT_TYPE });
   const fields = Object.keys(normalized).filter((field) => LEAD_WRITABLE_COLUMNS[field] && normalized[field] !== null);
   const columns = ["organization_id", "code", "created_by", "updated_by", ...fields.map((field) => LEAD_WRITABLE_COLUMNS[field])];
@@ -368,6 +396,7 @@ export async function createLead(client, context, input = {}, { allowDuplicate =
     origin,
     ...(duplicates.hasBlockingMatch ? { duplicateConfirmed: duplicates.matches.filter((match) => match.strength === "exact").map((match) => ({ kind: match.kind, id: match.id })) } : {}),
   });
+  await recordLeadStageEntry(client, context, lead.id, { to: lead.stage });
   if (assignment.method)
     await applyLeadAssignment(client, context, lead, { ownerUserId: assignment.ownerUserId, teamId: assignment.teamId }, {
       method: assignment.method, rule: assignment.rule, reason: assignmentReason,
@@ -423,25 +452,17 @@ export async function updateLead(client, context, leadId, input = {}, { allowDup
 
 // ------------------------------------------------------------------ stage
 
-// Stage moves freely between the five stages while the lead is open. A
-// qualified, disqualified or converted lead keeps the stage it ended in.
+// Stage moves freely, forwards or backwards, between the organization's
+// stages while the lead is open. A qualified, disqualified or converted lead
+// keeps the stage it ended in. input: { stage: code, note? }
 export async function changeLeadStage(client, context, leadId, input = {}) {
-  requireLeadPermission(context, LEAD_PERMISSIONS.edit, "You do not have permission to change the stage of leads.");
-  const stage = String(input.stage ?? "");
-  if (!STAGE_CODES.has(stage)) throw new CrmError(400, "Choose a stage.", "CRM_LEAD_STAGE_INVALID");
+  requireStageChangePermission(context);
+  const stage = String(input.stage ?? "").trim();
+  if (!stage) throw new CrmError(400, "Choose a stage.", "CRM_LEAD_STAGE_INVALID");
   const row = await loadLeadRow(client, context, leadId, { lock: true });
-  if (row.status !== "open")
-    throw new CrmError(409, `The stage cannot change while the lead is ${row.status}. Reopen the lead first.`, "CRM_LEAD_STAGE_STATUS_CONFLICT");
-  if (row.stage === stage) return { changed: false };
-  await client.query(
-    `UPDATE tenant.crm_leads SET stage = $3, stage_changed_at = now(), updated_by = $4 WHERE organization_id = $1 AND id = $2`,
-    [context.organizationId, row.id, stage, context.userId ?? null],
-  );
-  await recordLeadHistory(client, context, row.id, "stage_changed", `Stage: ${leadStageLabel(row.stage)} → ${leadStageLabel(stage)}`, {
-    from: row.stage, to: stage, note: String(input.note ?? "").trim().slice(0, 500) || null,
-  });
-  await queueOutboxEvent(client, context, "crm.lead.stage_changed", "leads", row.id, { source: "manual", before: { status: row.stage }, after: { status: stage } });
-  return { changed: true };
+  const changed = await applyLeadStage(client, context, row, stage, { note: input.note });
+  if (changed) await queueOutboxEvent(client, context, "crm.lead.stage_changed", "leads", row.id, { source: "manual", before: { status: row.stage }, after: { status: stage } });
+  return { changed };
 }
 
 // Runs one operation per lead; each lead succeeds or fails on its own.

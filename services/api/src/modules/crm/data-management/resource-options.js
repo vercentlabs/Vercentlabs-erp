@@ -1,5 +1,5 @@
 import { listLeadAssignmentOptions } from "../leads/assignment.js";
-import { LEAD_STAGES } from "../leads/constants.js";
+import { listLeadStages } from "../leads/stages.js";
 import { ensureDefaultLeadSources } from "../leads/sources.js";
 import { canViewAllCrmRecords } from "./record-policy.js";
 import { canViewAllCrmResource, crmAccountAccessSql, crmOwnerScopeSql, managedTeamMemberIds } from "./crm-access-scope.js";
@@ -172,7 +172,7 @@ export async function getCrmOptions(client, context) {
     currencies: map(currencies),
     pipelines: map(pipelines),
     stages: map(stages),
-    leadStages: LEAD_STAGES,
+    leadStages: await listLeadStages(client, context),
     sources: map(sources),
     allSources: map(allSources),
     campaigns: map(campaigns),

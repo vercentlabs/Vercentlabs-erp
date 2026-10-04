@@ -345,7 +345,7 @@ export function CrmDashboardScreen({
         id: "unqualified",
         label: "Leads ready to qualify",
         count: metrics.needsQualificationLeads,
-        href: withOwner("/crm/leads?stage=ready_to_qualify"),
+        href: withOwner("/crm/leads?stage=qualification"),
         hint: "Open leads waiting for a qualification decision",
       },
       {

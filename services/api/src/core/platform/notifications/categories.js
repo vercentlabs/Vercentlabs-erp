@@ -68,6 +68,14 @@ export const NOTIFICATION_CATEGORIES = Object.freeze([
     userConfigurable: true,
   },
   {
+    key: "crm_lead_outcome",
+    displayName: "Lead qualified, disqualified or converted",
+    description: "When someone else qualifies, disqualifies or converts a lead you own.",
+    moduleKey: "crm",
+    defaultInAppEnabled: true,
+    userConfigurable: true,
+  },
+  {
     key: "crm_lead_assignment_failed",
     displayName: "Lead assignment rule failed",
     description: "When an assignment rule you manage could not assign a lead, for example because its user or team is inactive.",

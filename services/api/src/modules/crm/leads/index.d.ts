@@ -4,7 +4,13 @@ type QueryClient = {
   query(text: string, values?: unknown[]): Promise<{ rows: any[]; rowCount?: number | null }>;
 };
 
-export type LeadStage = "new" | "attempting_contact" | "contacted" | "nurturing" | "ready_to_qualify";
+// A stage code: one of the five system stages or an organization's own.
+export type LeadStage = string;
+export type LeadStageDefinition = { id: string; code: string; label: string; name: string; sequence: number; isActive: boolean; isSystem: boolean; leadCount?: number };
+export type LeadStageHistoryEntry = {
+  id: string; fromStage: string | null; fromStageName: string | null; toStage: string; toStageName: string; note: string | null; isAutomatic: boolean;
+  enteredAt: string; leftAt: string | null; changedByName: string | null;
+};
 export type LeadStatus = "open" | "qualified" | "disqualified" | "converted";
 export type LeadPriority = "low" | "medium" | "high";
 export type LeadRating = "cold" | "warm" | "hot";
@@ -22,7 +28,10 @@ export type LeadViewKey = "all" | "mine" | "unassigned" | "no_activity" | "new" 
 
 type CodeLabel<Code extends string = string> = { code: Code; label: string };
 
-export const LEAD_STAGES: ReadonlyArray<CodeLabel<LeadStage>>;
+export const DEFAULT_LEAD_STAGES: ReadonlyArray<CodeLabel>;
+export const LEAD_STALE_DAYS: number;
+export const NEW_STAGE: "new";
+export const QUALIFICATION_STAGE: "qualification";
 export const LEAD_STATUSES: ReadonlyArray<CodeLabel<LeadStatus>>;
 export const LEAD_PRIORITIES: ReadonlyArray<LeadPriority>;
 export const LEAD_RATINGS: ReadonlyArray<LeadRating>;
@@ -43,7 +52,8 @@ export const LEAD_PERMISSIONS: Readonly<{
   view: "crm.leads.view"; viewAll: "crm.leads.view_all"; viewSensitive: "crm.leads.view_sensitive"; create: "crm.leads.create";
   edit: "crm.leads.edit"; delete: "crm.leads.delete"; assign: "crm.leads.assign"; reassign: "crm.leads.reassign";
   import: "crm.leads.import"; export: "crm.leads.export"; qualify: "crm.leads.qualify"; disqualify: "crm.leads.disqualify";
-  reopen: "crm.leads.reopen"; convert: "crm.leads.convert"; overrideQualification: "crm.leads.override_qualification";
+  reopen: "crm.leads.reopen"; convert: "crm.leads.convert"; changeStage: "crm.leads.change_stage"; manageStages: "crm.leads.manage_stages";
+  overrideQualification: "crm.leads.override_qualification";
   assignSelf: "crm.leads.assign_self"; bulkAssign: "crm.leads.bulk_assign"; assignAcrossTeams: "crm.leads.assign_across_teams";
   manageAssignmentRules: "crm.leads.manage_assignment_rules";
 }>;
@@ -54,7 +64,6 @@ export const LEAD_RULE_FIELDS: ReadonlyArray<{ code: string; label: string; colu
 export const LEAD_RULE_OPERATORS: ReadonlyArray<CodeLabel<LeadRuleOperator>>;
 export function leadAssignmentMethodLabel(code: string): string;
 export const LEAD_VIEWS: ReadonlyArray<{ key: LeadViewKey; label: string }>;
-export function leadStageLabel(code: string): string;
 export function leadStatusLabel(code: string): string;
 export function leadDisqualificationReasonLabel(code: string): string;
 
@@ -101,7 +110,11 @@ export type Lead = {
   assignmentRuleName: string | null;
   firstActivityAt: string | null;
   stage: LeadStage;
+  stageName: string;
   stageChangedAt: string;
+  stageAgeDays: number;
+  daysSinceActivity: number;
+  isStale: boolean;
   status: LeadStatus;
   qualificationStatus: LeadQualificationStatus;
   qualificationStartedAt: string | null;
@@ -125,6 +138,12 @@ export type Lead = {
   disqualifiedAt: string | null;
   convertedAt: string | null;
   convertedBy: string | null;
+  convertedByName: string | null;
+  convertedAccountName: string | null;
+  convertedContactName: string | null;
+  convertedOpportunityName: string | null;
+  convertedOpportunityCode: string | null;
+  convertedOpportunityAmount: number | null;
   convertedPartyId: string | null;
   convertedContactId: string | null;
   convertedOpportunityId: string | null;
@@ -151,7 +170,7 @@ export type LeadInput = Partial<{
 
 export type LeadListFilters = Partial<{
   view: LeadViewKey; search: string; status: string; stage: string; priority: string; rating: string;
-  ownerId: string; teamId: string; sourceId: string; tagId: string; createdFrom: string; createdTo: string; qualificationStatus: LeadQualificationStatus; disqualificationReason: string;
+  ownerId: string; teamId: string; sourceId: string; tagId: string; createdFrom: string; createdTo: string; qualificationStatus: LeadQualificationStatus; disqualificationReason: string; stale: string; stageEnteredFrom: string; stageEnteredTo: string;
   countryCode: string; state: string; city: string; productInterest: string; olderThanDays: number | string; assignedFrom: string; assignedTo: string;
   ids: string[]; sortBy: string; sortDirection: "asc" | "desc"; limit: number; offset: number;
 }>;
@@ -236,12 +255,13 @@ export type LeadDashboard = {
   totals: {
     open: number; new: number; unassigned: number; assignedToday: number; noActivity: number; createdInPeriod: number; followUpsDueToday: number; overdueFollowUps: number;
     qualified: number; disqualified: number; converted: number;
+    conversionRate: number; stale: number; staleDays: number;
     awaitingQualification: number; inQualification: number; qualifiedTotal: number; qualificationRate: number; averageDaysToQualify: number | null;
   };
   qualifiedByOwner: Array<{ label: string; total: number }>;
   qualifiedBySource: Array<{ label: string; total: number }>;
   byStatus: Array<{ key: LeadStatus; label: string; total: number }>;
-  byStage: Array<{ key: LeadStage; label: string; total: number }>;
+  byStage: Array<{ key: LeadStage; label: string; total: number; mine: number; stuck: number; averageAgeDays: number | null }>;
   bySource: Array<{ label: string; total: number }>;
   byOwner: Array<{ label: string; total: number }>;
   byTeam: Array<{ label: string; total: number }>;
@@ -274,6 +294,12 @@ export function getLead(client: QueryClient, context: CrmContext, leadId: string
 export function createLead(client: QueryClient, context: CrmContext, input: LeadInput, options?: { allowDuplicate?: boolean; origin?: "manual" | "import" | "integration"; routing?: "auto" | "rules" | "fallback" | "none"; assignmentReason?: string | null }): Promise<Lead>;
 export function updateLead(client: QueryClient, context: CrmContext, leadId: string, input: LeadInput, options?: { allowDuplicate?: boolean; expectedUpdatedAt?: string | null }): Promise<Lead>;
 export function changeLeadStage(client: QueryClient, context: CrmContext, leadId: string, input: Record<string, unknown>): Promise<{ changed: boolean }>;
+export function ensureDefaultLeadStages(client: QueryClient, context: CrmContext): Promise<void>;
+export function listLeadStages(client: QueryClient, context: CrmContext, options?: { includeInactive?: boolean }): Promise<LeadStageDefinition[]>;
+export function createLeadStage(client: QueryClient, context: CrmContext, input: { name: string }): Promise<LeadStageDefinition>;
+export function updateLeadStage(client: QueryClient, context: CrmContext, id: string, input: { name?: string; isActive?: boolean }): Promise<LeadStageDefinition>;
+export function reorderLeadStages(client: QueryClient, context: CrmContext, orderedIds: string[]): Promise<LeadStageDefinition[]>;
+export function listLeadStageHistory(client: QueryClient, context: CrmContext, leadId: string): Promise<LeadStageHistoryEntry[]>;
 export function bulkChangeLeadStage(client: QueryClient, context: CrmContext, input: { leadIds: string[]; stage: string }): Promise<LeadBulkResult>;
 export function archiveLead(client: QueryClient, context: CrmContext, leadId: string): Promise<{ changed: boolean }>;
 export function restoreLead(client: QueryClient, context: CrmContext, leadId: string): Promise<{ changed: boolean }>;
@@ -319,7 +345,7 @@ export function getLeadQualificationSettings(client: QueryClient, context: CrmCo
 export function saveLeadQualificationSettings(client: QueryClient, context: CrmContext, input: Partial<LeadQualificationRequirements>): Promise<LeadQualificationRequirements>;
 export function getLeadQualification(client: QueryClient, context: CrmContext, leadId: string): Promise<LeadQualificationView>;
 export function listLeadQualificationHistory(client: QueryClient, context: CrmContext, leadId: string): Promise<LeadQualificationEvent[]>;
-export function startQualification(client: QueryClient, context: CrmContext, leadId: string): Promise<{ started: boolean }>;
+export function startQualification(client: QueryClient, context: CrmContext, leadId: string): Promise<{ started: boolean; stageChanged: boolean }>;
 export function updateQualification(client: QueryClient, context: CrmContext, leadId: string, input: Record<string, unknown>): Promise<{ changed: boolean; fields: string[] }>;
 export function saveLeadQualification(client: QueryClient, context: CrmContext, leadId: string, input: Record<string, unknown>): Promise<{ changed: boolean; fields: string[] }>;
 export function rateLead(client: QueryClient, context: CrmContext, leadId: string, input: { rating: string }): Promise<{ changed: boolean; fields: string[] }>;
@@ -373,7 +399,9 @@ export function captureCrmLead(client: QueryClient, formKey: string, input: Reco
 // picker options for the lead screens
 export type LeadOptions = {
   views: ReadonlyArray<{ key: LeadViewKey; label: string }>;
-  stages: ReadonlyArray<CodeLabel<LeadStage>>;
+  stages: LeadStageDefinition[];
+  qualificationStage: string;
+  staleDays: number;
   statuses: ReadonlyArray<CodeLabel<LeadStatus>>;
   purchaseTimeframes: ReadonlyArray<CodeLabel<LeadPurchaseTimeframe>>;
   disqualificationReasons: ReadonlyArray<CodeLabel<LeadDisqualificationReason>>;

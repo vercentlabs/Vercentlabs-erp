@@ -91,7 +91,7 @@ export async function getCrmDashboard(client, context, options = {}) {
          count(*) FILTER (WHERE lead.status = 'converted' AND ${inPeriod("lead.converted_at")} AND lead.visible)::int AS conversions_in_period,
          count(*) FILTER (WHERE lead.status = 'converted' AND ${inPeriod("lead.converted_at", "$6", "$7")} AND lead.visible)::int AS conversions_previous_period,
          count(*) FILTER (WHERE lead.status = 'open' AND lead.owner_user_id IS NULL AND ${orgWide})::int AS unassigned_leads,
-         count(*) FILTER (WHERE lead.status = 'open' AND lead.stage = 'ready_to_qualify' AND lead.visible)::int AS needs_qualification_leads,
+         count(*) FILTER (WHERE lead.status = 'open' AND lead.stage = 'qualification' AND lead.visible)::int AS needs_qualification_leads,
          count(*) FILTER (WHERE lead.status = 'open' AND lead.rating = 'hot' AND lead.visible)::int AS high_priority_leads
        FROM scoped_leads lead
      ), activity_counts AS (

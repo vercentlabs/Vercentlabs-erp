@@ -2,7 +2,8 @@
 // the leads the caller can see, using the same scope as the lead list, so a
 // figure and the list behind it always agree.
 import { leadScopeSql, requireLeadPermission } from "./access.js";
-import { LEAD_DISQUALIFICATION_REASONS, LEAD_PERMISSIONS, LEAD_QUALIFICATION_STATUSES, LEAD_STAGES, LEAD_STATUSES } from "./constants.js";
+import { LEAD_DISQUALIFICATION_REASONS, LEAD_PERMISSIONS, LEAD_QUALIFICATION_STATUSES, LEAD_RATINGS, LEAD_STALE_DAYS, LEAD_STATUSES } from "./constants.js";
+import { ensureDefaultLeadStages } from "./stages.js";
 import { QUALIFICATION_STATUS_SQL } from "./records.js";
 import { isUuid } from "./validation.js";
 
@@ -36,6 +37,8 @@ export async function getLeadDashboard(client, context, input = {}) {
             count(*) FILTER (WHERE follow_up.due_at >= current_date AND follow_up.due_at < current_date + interval '1 day')::int AS follow_ups_due_today,
             count(*) FILTER (WHERE follow_up.due_at < now())::int AS overdue_follow_ups,
             count(*) FILTER (WHERE lead.status = 'qualified')::int AS qualified,
+            count(*)::int AS total,
+            count(*) FILTER (WHERE lead.status = 'open' AND COALESCE(lead.last_activity_at, lead.created_at) < now() - interval '${LEAD_STALE_DAYS} days')::int AS stale,
             count(*) FILTER (WHERE ${QUALIFICATION_STATUS_SQL.not_started})::int AS awaiting_qualification,
             count(*) FILTER (WHERE ${QUALIFICATION_STATUS_SQL.in_progress})::int AS in_qualification,
             count(*) FILTER (WHERE lead.status IN ('qualified', 'converted'))::int AS qualified_total,
@@ -56,7 +59,24 @@ export async function getLeadDashboard(client, context, input = {}) {
   )).rows;
 
   const byStatus = await grouped("lead.status");
-  const byStage = await grouped("lead.stage");
+  // Open leads in each stage, in process order: how many, how long they have
+  // been there on average, how many are stuck, and how many are the caller's.
+  await ensureDefaultLeadStages(client, context);
+  const byStage = (await client.query(
+    `SELECT stage.code, stage.name,
+            count(lead.id)::int AS total,
+            count(lead.id) FILTER (WHERE lead.owner_user_id = $${values.length + 1}::uuid)::int AS mine,
+            count(lead.id) FILTER (WHERE lead.stage_changed_at < now() - interval '${LEAD_STALE_DAYS} days')::int AS stuck,
+            round((avg(EXTRACT(epoch FROM now() - lead.stage_changed_at)) / 86400)::numeric, 1)::float8 AS average_age_days
+       FROM tenant.crm_lead_stages stage
+       LEFT JOIN tenant.crm_leads lead ON lead.organization_id = stage.organization_id AND lead.stage = stage.code
+             AND lead.status = 'open' AND lead.archived_at IS NULL${scope}
+      WHERE stage.organization_id = $1 AND $2::date IS NOT NULL AND $3::date IS NOT NULL
+      GROUP BY stage.code, stage.name, stage.sequence, stage.is_active
+     HAVING stage.is_active OR count(lead.id) > 0
+      ORDER BY stage.sequence`,
+    [...values, context.userId ?? null],
+  )).rows;
   const bySource = await grouped("COALESCE(source.name, 'No source')", "LEFT JOIN tenant.crm_lead_sources source ON source.organization_id = lead.organization_id AND source.id = lead.source_id");
   const byOwner = await grouped("COALESCE(owner.full_name, 'Unassigned')", "LEFT JOIN public.users owner ON owner.id = lead.owner_user_id");
   const qualifiedBy = async (expression, joins) => (await client.query(
@@ -105,9 +125,13 @@ export async function getLeadDashboard(client, context, input = {}) {
       qualificationRate: decided ? Math.round((totals.qualified_total / decided) * 1000) / 10 : 0,
       averageDaysToQualify: totals.avg_days_to_qualify ?? null,
       converted: totals.converted,
+      // converted ÷ every lead, as a percentage
+      conversionRate: totals.total ? Math.round((totals.converted / totals.total) * 1000) / 10 : 0,
+      stale: totals.stale,
+      staleDays: LEAD_STALE_DAYS,
     },
     byStatus: LEAD_STATUSES.map((status) => ({ key: status.code, label: status.label, total: count(byStatus, status.code) })),
-    byStage: LEAD_STAGES.map((stage) => ({ key: stage.code, label: stage.label, total: count(byStage, stage.code) })),
+    byStage: byStage.map((row) => ({ key: row.code, label: row.name, total: row.total, mine: row.mine, stuck: row.stuck, averageAgeDays: row.average_age_days ?? null })),
     bySource: bySource.map((row) => ({ label: row.key, total: row.total })),
     byOwner: byOwner.slice(0, 15).map((row) => ({ label: row.key, total: row.total })),
     qualifiedByOwner,
@@ -119,7 +143,8 @@ export async function getLeadDashboard(client, context, input = {}) {
 
 const REPORT_GROUPS = Object.freeze({
   status: { expression: "lead.status", label: "Status" },
-  stage: { expression: "lead.stage", label: "Stage" },
+  stage: { expression: "COALESCE(stage_def.name, lead.stage)", label: "Stage" },
+  rating: { expression: "lead.rating", label: "Rating" },
   owner: { expression: "COALESCE(owner.full_name, 'Unassigned')", label: "Owner" },
   team: { expression: "COALESCE(team.name, 'No team')", label: "Team" },
   qualification: {
@@ -154,7 +179,10 @@ export async function getLeadsByStatusReport(client, context, input = {}) {
   if (/^\d{4}-\d{2}-\d{2}$/.test(String(input.assignedFrom ?? ""))) where.push(`lead.assigned_at >= ${bind(input.assignedFrom)}::date`);
   if (/^\d{4}-\d{2}-\d{2}$/.test(String(input.assignedTo ?? ""))) where.push(`lead.assigned_at < ${bind(input.assignedTo)}::date + interval '1 day'`);
   if (LEAD_STATUSES.some((status) => status.code === input.status)) where.push(`lead.status = ${bind(input.status)}`);
-  if (LEAD_STAGES.some((stage) => stage.code === input.stage)) where.push(`lead.stage = ${bind(input.stage)}`);
+  if (String(input.stage ?? "").trim() && input.stage !== "any") where.push(`lead.stage = ${bind(String(input.stage))}`);
+  if (LEAD_RATINGS.includes(input.rating)) where.push(`lead.rating = ${bind(input.rating)}`);
+  if (/^\d{4}-\d{2}-\d{2}$/.test(String(input.stageEnteredFrom ?? ""))) where.push(`lead.stage_changed_at >= ${bind(input.stageEnteredFrom)}::date`);
+  if (/^\d{4}-\d{2}-\d{2}$/.test(String(input.stageEnteredTo ?? ""))) where.push(`lead.stage_changed_at < ${bind(input.stageEnteredTo)}::date + interval '1 day'`);
   if (input.converted === "yes") where.push("lead.status = 'converted'");
   if (input.converted === "no") where.push("lead.status <> 'converted'");
   if (/^\d{4}-\d{2}-\d{2}$/.test(String(input.createdFrom ?? ""))) where.push(`lead.created_at >= ${bind(input.createdFrom)}::date`);
@@ -173,15 +201,16 @@ export async function getLeadsByStatusReport(client, context, input = {}) {
        LEFT JOIN public.users owner ON owner.id = lead.owner_user_id
        LEFT JOIN tenant.crm_sales_teams team ON team.organization_id = lead.organization_id AND team.id = lead.team_id
        LEFT JOIN tenant.crm_lead_qualifications qualification ON qualification.organization_id = lead.organization_id AND qualification.lead_id = lead.id
+       LEFT JOIN tenant.crm_lead_stages stage_def ON stage_def.organization_id = lead.organization_id AND stage_def.code = lead.stage
       WHERE ${where.join(" AND ")}${leadScopeSql(context, values, "lead")}
       GROUP BY 1 ORDER BY ${groupBy === "month" || groupBy === "assignedMonth" ? "1 DESC" : "total DESC, 1"}`,
     values,
   );
   const labels = new Map([
-    ...LEAD_STATUSES, ...LEAD_STAGES, ...LEAD_QUALIFICATION_STATUSES, ...LEAD_DISQUALIFICATION_REASONS, { code: "not_disqualified", label: "Not disqualified" },
+    ...LEAD_STATUSES, { code: "cold", label: "Cold" }, { code: "warm", label: "Warm" }, { code: "hot", label: "Hot" }, ...LEAD_QUALIFICATION_STATUSES, ...LEAD_DISQUALIFICATION_REASONS, { code: "not_disqualified", label: "Not disqualified" },
   ].map((entry) => [entry.code, entry.label]));
   const reportRows = rows.map((row) => ({
-    group: ["status", "stage", "qualification", "disqualificationReason"].includes(groupBy) ? labels.get(row.group_key) ?? row.group_key : row.group_key,
+    group: ["status", "rating", "qualification", "disqualificationReason"].includes(groupBy) ? labels.get(row.group_key) ?? row.group_key : row.group_key,
     total: row.total,
     open: row.open,
     qualified: row.qualified,

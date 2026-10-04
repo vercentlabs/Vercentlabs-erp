@@ -18,7 +18,7 @@ import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext"
 import { getLeadOptions, leadExportUrl, listLeads, type Lead, type LeadBulkResult, type LeadListFilters, type LeadViewKey } from "../api/leads-api";
 import { ChangeStageDialog, DisqualifyLeadsDialog } from "../components/LeadActionDialogs";
 import { AssignLeadsDialog } from "../components/LeadAssignment";
-import { ErrorBanner, FollowUpCell, LeadStageBadge, LeadStatusBadge, PRIORITY_OPTIONS, PriorityBadge, RATING_OPTIONS, RatingBadge, leadName } from "../lead-format";
+import { ErrorBanner, FollowUpCell, LeadStageBadge, LeadStatusBadge, PRIORITY_OPTIONS, PriorityBadge, RATING_OPTIONS, RatingBadge, STATUS_LABELS, StaleBadge, days, leadName } from "../lead-format";
 import { LIVE_LEAD_QUERY } from "../live-query";
 
 const PAGE_SIZE = 25;
@@ -56,9 +56,9 @@ function storedVisibility(): VisibilityState {
   }
 }
 
-type FilterKey = "stage" | "ownerId" | "sourceId" | "priority" | "rating" | "teamId" | "qualificationStatus";
+type FilterKey = "status" | "stage" | "ownerId" | "sourceId" | "priority" | "rating" | "teamId" | "qualificationStatus";
 type Filters = Record<FilterKey, string>;
-const NO_FILTERS: Filters = { stage: ANY, ownerId: ANY, sourceId: ANY, priority: ANY, rating: ANY, teamId: ANY, qualificationStatus: ANY };
+const NO_FILTERS: Filters = { status: ANY, stage: ANY, ownerId: ANY, sourceId: ANY, priority: ANY, rating: ANY, teamId: ANY, qualificationStatus: ANY };
 
 // Where the lead is, what it wants and how long it has waited: the filters
 // the unassigned queue is worked by.
@@ -82,6 +82,7 @@ export function LeadListScreen() {
   const [search, setSearch] = useState(params.get("search") ?? "");
   const [submittedSearch, setSubmittedSearchState] = useState(params.get("search") ?? "");
   const [filters, setFiltersState] = useState<Filters>({
+    status: params.get("status") ?? ANY,
     stage: params.get("stage") ?? ANY,
     ownerId: params.get("ownerId") ?? ANY,
     sourceId: params.get("sourceId") ?? ANY,
@@ -95,6 +96,8 @@ export function LeadListScreen() {
   });
   const [queueDraft, setQueueDraft] = useState<QueueFilters>(queue);
   const [created, setCreated] = useState({ from: params.get("createdFrom") ?? "", to: params.get("createdTo") ?? "" });
+  // Open leads with no activity for a while; set from the dashboard or the filter panel.
+  const [staleOnly, setStaleOnlyState] = useState(params.get("stale") === "yes");
   const [sorting, setSortingState] = useState<SortingState>([{ id: "updatedAt", desc: true }]);
   const [pageIndex, setPageIndex] = useState(0);
   const [selection, setSelection] = useState<RowSelectionState>({});
@@ -110,6 +113,7 @@ export function LeadListScreen() {
   const setView = (next: LeadViewKey) => { setViewState(next); restart(); };
   const setFilters = (next: Filters) => { setFiltersState(next); restart(); };
   const setSorting = (next: SortingState) => { setSortingState(next); restart(); };
+  const setStaleOnly = (next: boolean) => { setStaleOnlyState(next); restart(); };
   const setQueue = (next: QueueFilters) => { setQueueState(next); setQueueDraft(next); restart(); };
   const setSubmittedSearch = (next: string) => {
     if (next === submittedSearch) return;
@@ -137,10 +141,11 @@ export function LeadListScreen() {
     ...Object.fromEntries(Object.entries(filters).filter(([, value]) => value !== ANY)),
     createdFrom: created.from || undefined,
     createdTo: created.to || undefined,
+    stale: staleOnly ? "yes" : undefined,
     ...Object.fromEntries(Object.entries(queue).filter(([, value]) => value.trim())),
     sortBy: sorting[0]?.id,
     sortDirection: sorting[0]?.desc === false ? "asc" : "desc",
-  }), [view, submittedSearch, filters, created, queue, sorting]);
+  }), [view, submittedSearch, filters, created, staleOnly, queue, sorting]);
 
   const listQuery = useQuery({
     queryKey: scopedQueryKey(workspace, "crm", "leads", listFilters, pageIndex),
@@ -161,14 +166,24 @@ export function LeadListScreen() {
       enableHiding: false,
       cell: ({ row }) => (
         <span className="flex min-w-40 flex-col">
-          <span className="font-medium text-text">{leadName(row.original)}</span>
+          <span className="flex flex-wrap items-center gap-1.5 font-medium text-text">{leadName(row.original)}<StaleBadge lead={row.original} /></span>
           <span className="text-xs whitespace-nowrap text-text-muted">{row.original.code}{row.original.jobTitle ? ` · ${row.original.jobTitle}` : ""}</span>
         </span>
       ),
     },
     { id: "companyName", accessorKey: "companyName", header: "Company", cell: ({ row }) => <span className="block min-w-36">{row.original.companyName ?? ""}</span> },
     { id: "status", accessorKey: "status", header: "Status", enableHiding: false, cell: ({ row }) => <LeadStatusBadge status={row.original.status} /> },
-    { id: "stage", accessorKey: "stage", header: "Stage", cell: ({ row }) => <LeadStageBadge stage={row.original.stage} /> },
+    {
+      id: "stage",
+      accessorKey: "stage",
+      header: "Stage",
+      cell: ({ row }) => (
+        <span className="flex items-center gap-1.5 whitespace-nowrap">
+          <LeadStageBadge name={row.original.stageName} />
+          {row.original.status === "open" && <span className="text-xs text-text-muted">{days(row.original.stageAgeDays)}</span>}
+        </span>
+      ),
+    },
     { id: "ownerName", accessorKey: "ownerName", header: "Owner", cell: ({ row }) => <span className="whitespace-nowrap">{row.original.ownerName ?? <span className="text-text-muted">Unassigned</span>}</span> },
     { id: "sourceName", accessorKey: "sourceName", header: "Source", cell: ({ row }) => row.original.sourceName ?? "" },
     { id: "priority", accessorKey: "priority", header: "Priority", cell: ({ row }) => <PriorityBadge priority={row.original.priority} /> },
@@ -216,13 +231,14 @@ export function LeadListScreen() {
   const labelOf = (key: FilterKey, value: string) => {
     if (!options) return value;
     if (key === "stage") return options.stages.find((entry) => entry.code === value)?.label ?? value;
+    if (key === "status") return STATUS_LABELS[value as Lead["status"]] ?? value;
     if (key === "ownerId") return ownerOptions.find((entry) => entry.value === value)?.label ?? value;
     if (key === "sourceId") return options.sources.find((entry) => entry.id === value)?.name ?? value;
     if (key === "teamId") return options.teams.find((entry) => entry.id === value)?.name ?? value;
     if (key === "qualificationStatus") return options.qualificationStatuses.find((entry) => entry.code === value)?.label ?? value;
     return value.charAt(0).toUpperCase() + value.slice(1);
   };
-  const FILTER_NAMES: Record<FilterKey, string> = { stage: "Stage", ownerId: "Owner", sourceId: "Source", priority: "Priority", rating: "Rating", teamId: "Team", qualificationStatus: "Qualification" };
+  const FILTER_NAMES: Record<FilterKey, string> = { status: "Status", stage: "Stage", ownerId: "Owner", sourceId: "Source", priority: "Priority", rating: "Rating", teamId: "Team", qualificationStatus: "Qualification" };
   const activeFilters: ActiveFilter[] = [
     ...(Object.keys(filters) as FilterKey[])
       .filter((key) => filters[key] !== ANY)
@@ -230,6 +246,7 @@ export function LeadListScreen() {
     ...(Object.keys(queue) as Array<keyof QueueFilters>)
       .filter((key) => queue[key].trim())
       .map((key) => ({ id: `queue:${key}`, label: key === "olderThanDays" ? `Waiting: more than ${queue[key]} ${queue[key] === "1" ? "day" : "days"}` : `${QUEUE_FILTER_NAMES[key]}: ${queue[key]}` })),
+    ...(staleOnly ? [{ id: "stale", label: `Stale: no activity for ${options?.staleDays ?? 7}+ days` }] : []),
     // Set by links from the dashboards; removable here.
     ...(created.from || created.to ? [{ id: "created", label: `Created: ${created.from ? formatDate(created.from) : "start"} – ${created.to ? formatDate(created.to) : "today"}` }] : []),
   ];
@@ -237,14 +254,17 @@ export function LeadListScreen() {
     if (id === "created") {
       setCreated({ from: "", to: "" });
       restart();
-    } else if (id.startsWith("queue:")) setQueue({ ...queue, [id.slice("queue:".length)]: "" });
+    } else if (id === "stale") setStaleOnly(false);
+    else if (id.startsWith("queue:")) setQueue({ ...queue, [id.slice("queue:".length)]: "" });
     else setFilters({ ...filters, [id]: ANY });
   };
   const clearFilters = () => {
     setCreated({ from: "", to: "" });
+    setStaleOnlyState(false);
     setQueue(NO_QUEUE_FILTERS);
     setFilters(NO_FILTERS);
   };
+  const statusOptions = [{ value: ANY, label: "Any status" }, ...(options?.statuses ?? []).map((entry) => ({ value: entry.code, label: entry.label }))];
   const hasCriteria = Boolean(submittedSearch) || activeFilters.length > 0 || view !== "all";
 
   if (optionsQuery.isError && !workspace.permissions.includes("crm.leads.view"))
@@ -293,6 +313,7 @@ export function LeadListScreen() {
               <SearchField aria-label="Search leads" placeholder="Search name, company, email, phone or lead number" className="w-full sm:w-80" value={search} onChange={setSearch} onSubmit={(value) => setSubmittedSearch(value.trim())} />
               {options && (
                 <>
+                  <Select aria-label="Status" size="compact" selectedKey={filters.status} onSelectionChange={(key) => setFilters({ ...filters, status: String(key) })} options={statusOptions} />
                   <Select aria-label="Stage" size="compact" selectedKey={filters.stage} onSelectionChange={(key) => setFilters({ ...filters, stage: String(key) })}
                     options={filterOptions(options.stages.map((entry) => ({ value: entry.code, label: entry.label })), "Any stage")} />
                   <Select aria-label="Owner" size="compact" selectedKey={filters.ownerId} onSelectionChange={(key) => setFilters({ ...filters, ownerId: String(key) })} options={ownerOptions} />
@@ -313,6 +334,9 @@ export function LeadListScreen() {
                         <TextField label="Product / service interest" className="col-span-2" value={queueDraft.productInterest} onChange={(productInterest) => setQueueDraft({ ...queueDraft, productInterest })} />
                         <Select label="Waiting" className="col-span-2" selectedKey={queueDraft.olderThanDays || ANY}
                           onSelectionChange={(key) => setQueueDraft({ ...queueDraft, olderThanDays: String(key) === ANY ? "" : String(key) })} options={AGE_OPTIONS} />
+                        <Checkbox className="col-span-2" isSelected={staleOnly} onChange={setStaleOnly}>
+                          Only stale leads (open, no activity for {options.staleDays}+ days)
+                        </Checkbox>
                         <div className="col-span-2 flex justify-end gap-2">
                           <Button variant="ghost" size="compact" onPress={() => setQueue(NO_QUEUE_FILTERS)}>Clear</Button>
                           <Button variant="primary" size="compact" onPress={() => setQueue(queueDraft)}>Apply</Button>
@@ -392,7 +416,7 @@ export function LeadListScreen() {
             <div className="flex flex-col gap-1">
               <span className="font-medium">{leadName(row)}</span>
               <span className="text-xs text-text-muted">{row.code}{row.companyName && row.fullName ? ` · ${row.companyName}` : ""}</span>
-              <span className="flex flex-wrap gap-1"><LeadStatusBadge status={row.status} /><LeadStageBadge stage={row.stage} /></span>
+              <span className="flex flex-wrap gap-1"><LeadStatusBadge status={row.status} /><LeadStageBadge name={row.stageName} /><StaleBadge lead={row} /></span>
               {(row.ownerName || row.nextFollowUpAt) && (
                 <span className="text-xs text-text-secondary">{row.ownerName ?? "Unassigned"}{row.nextFollowUpAt ? ` · Follow-up ${formatDate(row.nextFollowUpAt)}` : ""}</span>
               )}

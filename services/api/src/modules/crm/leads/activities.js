@@ -10,6 +10,7 @@ import { CrmError } from "../data-management/errors.js";
 import { requireLeadPermission } from "./access.js";
 import { LEAD_ACTIVITY_TYPES, LEAD_FOLLOW_UP_TYPES, LEAD_PERMISSIONS } from "./constants.js";
 import { getLead, lockLead } from "./records.js";
+import { applyLeadStage, requireStageChangePermission } from "./stages.js";
 
 const ACTIVITY_TYPES = new Map(LEAD_ACTIVITY_TYPES.map((entry) => [entry.code, entry.label]));
 // The follow-up record stores its type as a channel; "task" has no channel.
@@ -77,7 +78,10 @@ export async function scheduleLeadFollowUp(client, context, leadId, input = {}) 
   });
 }
 
-// input: { type: call | email | meeting | other, subject?, notes?, outcome?, occurredAt?, nextAction?: { type, dueAt, assignedTo?, notes? } }
+// input: { type: call | email | meeting | other, subject?, notes?, outcome?, occurredAt?, nextAction?: { type, dueAt, assignedTo?, notes? },
+//          stage?: code }
+// Logging an activity never moves the stage by itself; `stage` is the
+// salesperson's explicit choice ("connected — move to Contacted").
 export async function addLeadActivity(client, context, leadId, input = {}) {
   requireLeadPermission(context, LEAD_PERMISSIONS.edit, "You do not have permission to log activities on leads.");
   const type = text(input.type).toLowerCase();
@@ -105,6 +109,11 @@ export async function addLeadActivity(client, context, leadId, input = {}) {
       WHERE organization_id = $1 AND id = $2`,
     [context.organizationId, lead.id, occurredAt.toISOString(), context.userId],
   );
+  const stage = text(input.stage);
+  if (stage && stage !== lead.stage) {
+    requireStageChangePermission(context);
+    await applyLeadStage(client, context, lead, stage, { note: `After ${ACTIVITY_TYPES.get(type).toLowerCase()}: ${subject}` });
+  }
   const followUp = input.nextAction?.dueAt ? await scheduleLeadFollowUp(client, context, lead.id, input.nextAction) : null;
   return { activityId: rows[0].id, followUpId: followUp?.id ?? null };
 }

@@ -20,6 +20,7 @@ const ANY = "any";
 const GROUP_OPTIONS = [
   { value: "status", label: "Status" },
   { value: "stage", label: "Stage" },
+  { value: "rating", label: "Rating" },
   { value: "qualification", label: "Qualification" },
   { value: "disqualificationReason", label: "Disqualification reason" },
   { value: "owner", label: "Owner" },
@@ -83,6 +84,8 @@ export function LeadDashboardScreen() {
                 <MetricLink href="/crm/leads?view=qualified" label="Qualified leads" value={dashboard.totals.qualified} />
                 <MetricLink href="/crm/leads?view=disqualified" label="Disqualified leads" value={dashboard.totals.disqualified} />
                 <MetricLink href="/crm/leads?view=converted" label="Converted leads" value={dashboard.totals.converted} />
+                <MetricCard label="Conversion rate" value={`${dashboard.totals.conversionRate}%`} />
+                <MetricLink href="/crm/leads?stale=yes" label={`Stale (no activity ${dashboard.totals.staleDays}+ days)`} value={dashboard.totals.stale} />
               </div>
             </section>
 
@@ -100,7 +103,31 @@ export function LeadDashboardScreen() {
 
             <div className="grid gap-6 lg:grid-cols-2">
               <Breakdown title="Leads by status" rows={dashboard.byStatus.map((row) => ({ label: row.label, total: row.total }))} />
-              <Breakdown title="Leads by stage" rows={dashboard.byStage.map((row) => ({ label: row.label, total: row.total }))} />
+              <section className="flex flex-col gap-3 rounded-[var(--radius-card)] border border-border bg-surface p-4">
+                <div>
+                  <h2 className="text-base font-semibold">Open leads by stage</h2>
+                  <p className="text-sm text-text-secondary">Stuck means in the same stage for more than {dashboard.totals.staleDays} days.</p>
+                </div>
+                <table className="w-full text-sm">
+                  <thead className="text-left text-text-secondary">
+                    <tr>
+                      <th className="py-1 font-medium">Stage</th>
+                      {["Open", "Mine", "Average days", "Stuck"].map((heading) => <th key={heading} className="py-1 text-right font-medium">{heading}</th>)}
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-border">
+                    {dashboard.byStage.map((row) => (
+                      <tr key={row.key}>
+                        <td className="py-1.5"><Link className="hover:underline" href={`/crm/leads?status=open&stage=${row.key}`}>{row.label}</Link></td>
+                        <td className="py-1.5 text-right tabular-nums">{row.total}</td>
+                        <td className="py-1.5 text-right tabular-nums"><Link className="hover:underline" href={`/crm/leads?view=mine&status=open&stage=${row.key}`}>{row.mine}</Link></td>
+                        <td className="py-1.5 text-right tabular-nums">{row.averageAgeDays ?? "–"}</td>
+                        <td className="py-1.5 text-right tabular-nums">{row.stuck}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </section>
               <Breakdown title="Leads by source" rows={dashboard.bySource} />
               <Breakdown title="Leads by owner" rows={dashboard.byOwner} />
               <Breakdown title="Leads by team" rows={dashboard.byTeam} />
@@ -174,6 +201,9 @@ function LeadsByStatusReport() {
   const [ownerId, setOwnerId] = useState(ANY);
   const [sourceId, setSourceId] = useState(ANY);
   const [teamId, setTeamId] = useState(ANY);
+  const [rating, setRating] = useState(ANY);
+  const [stageEnteredFrom, setStageEnteredFrom] = useState("");
+  const [stageEnteredTo, setStageEnteredTo] = useState("");
   const [qualificationStatus, setQualificationStatus] = useState(ANY);
   const [disqualificationReason, setDisqualificationReason] = useState(ANY);
   const [productInterest, setProductInterest] = useState("");
@@ -190,11 +220,13 @@ function LeadsByStatusReport() {
   const options = optionsQuery.data;
 
   const filters: Record<string, string> = { groupBy };
-  for (const [key, value] of Object.entries({ ownerId, teamId, sourceId, status, stage, converted, qualificationStatus, disqualificationReason })) if (value !== ANY) filters[key] = value;
+  for (const [key, value] of Object.entries({ ownerId, teamId, sourceId, status, stage, rating, converted, qualificationStatus, disqualificationReason })) if (value !== ANY) filters[key] = value;
   if (createdFrom) filters.createdFrom = createdFrom;
   if (createdTo) filters.createdTo = createdTo;
   if (assignedFrom) filters.assignedFrom = assignedFrom;
   if (assignedTo) filters.assignedTo = assignedTo;
+  if (stageEnteredFrom) filters.stageEnteredFrom = stageEnteredFrom;
+  if (stageEnteredTo) filters.stageEnteredTo = stageEnteredTo;
   if (qualifiedFrom) filters.qualifiedFrom = qualifiedFrom;
   if (qualifiedTo) filters.qualifiedTo = qualifiedTo;
   if (productInterest.trim()) filters.productInterest = productInterest.trim();
@@ -221,10 +253,14 @@ function LeadsByStatusReport() {
           options={any("Any status", (options?.statuses ?? []).map((entry) => ({ value: entry.code, label: entry.label })))} />
         <Select label="Stage" selectedKey={stage} onSelectionChange={(key) => setStage(String(key))}
           options={any("Any stage", (options?.stages ?? []).map((entry) => ({ value: entry.code, label: entry.label })))} />
+        <Select label="Rating" selectedKey={rating} onSelectionChange={(key) => setRating(String(key))}
+          options={any("Any rating", [{ value: "cold", label: "Cold" }, { value: "warm", label: "Warm" }, { value: "hot", label: "Hot" }])} />
         <Select label="Converted" selectedKey={converted} onSelectionChange={(key) => setConverted(String(key))}
           options={any("Converted or not", [{ value: "yes", label: "Converted only" }, { value: "no", label: "Not converted" }])} />
         <DateInput label="Created from" value={createdFrom} onChange={setCreatedFrom} />
         <DateInput label="Created to" value={createdTo} onChange={setCreatedTo} />
+        <DateInput label="Stage entered from" value={stageEnteredFrom} onChange={setStageEnteredFrom} />
+        <DateInput label="Stage entered to" value={stageEnteredTo} onChange={setStageEnteredTo} />
         <DateInput label="Assigned from" value={assignedFrom} onChange={setAssignedFrom} />
         <DateInput label="Assigned to" value={assignedTo} onChange={setAssignedTo} />
         <Select label="Qualification" selectedKey={qualificationStatus} onSelectionChange={(key) => setQualificationStatus(String(key))}

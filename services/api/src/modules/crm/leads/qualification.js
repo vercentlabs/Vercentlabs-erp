@@ -19,9 +19,28 @@ import {
 import { recordLeadHistory } from "./history.js";
 import { DEFAULT_QUALIFICATION_REQUIREMENTS, evaluateLeadQualification, leadQualificationStatus } from "./qualification-criteria.js";
 import { listLeadQualificationEvents, recordLeadQualificationEvent } from "./qualification-history.js";
+import { createNotification } from "../../../core/platform/notifications/index.js";
 import { getLead, lockLead, readLeadRow, runLeadBulkOperation } from "./records.js";
+import { QUALIFICATION_STAGE, applyLeadStage, requireStageChangePermission } from "./stages.js";
 
 const REASONS = LEAD_DISQUALIFICATION_REASONS.map((entry) => entry.code);
+
+// Qualified, disqualified and converted are the lifecycle moments worth a
+// notification; ordinary stage changes are not. The owner is told when
+// someone else decides the outcome of their lead.
+export async function notifyLeadOutcome(client, context, lead, title, message) {
+  if (!lead.owner_user_id || lead.owner_user_id === context.userId) return;
+  await createNotification(client, {
+    organizationId: context.organizationId,
+    userId: lead.owner_user_id,
+    category: "crm_lead_outcome",
+    title,
+    message: `${lead.full_name || lead.company_name || lead.code} (${lead.code})${message ? `. ${message}` : ""}`,
+    href: `/crm/leads/${lead.id}`,
+    entityType: "lead",
+    entityId: lead.id,
+  });
+}
 const RATING_LABELS = { cold: "Cold", warm: "Warm", hot: "Hot" };
 const MAX_AMOUNT = 1_000_000_000_000;
 const has = (object, key) => Object.prototype.hasOwnProperty.call(object, key);
@@ -125,7 +144,9 @@ async function writeAnswers(client, context, lead, input) {
   const changed = fields.filter((field) => !same(stored(lead, field), next[field]));
   if (!changed.length) return [];
   // A rating alone is a judgement about the lead, not the start of qualifying it.
-  if (changed.some((field) => field !== "rating")) await ensureStarted(client, context, lead);
+  // The first answer starts qualification, which is the Qualification stage.
+  if (changed.some((field) => field !== "rating") && await ensureStarted(client, context, lead) && lead.status === "open")
+    await applyLeadStage(client, context, lead, QUALIFICATION_STAGE, { automatic: true, note: "Qualification started" });
 
   for (const on of ["qualification", "lead"]) {
     const subset = changed.filter((field) => FIELDS[field].on === on);
@@ -178,7 +199,9 @@ export async function startQualification(client, context, leadId) {
   const lead = await lockLead(client, context, leadId);
   assertWorkable(lead);
   if (lead.status !== "open") throw new CrmError(409, `Reopen this lead before qualifying it again. It is ${lead.status}.`, "CRM_LEAD_STATUS_CONFLICT");
-  return { started: await ensureStarted(client, context, lead) };
+  const started = await ensureStarted(client, context, lead);
+  const moved = await applyLeadStage(client, context, lead, QUALIFICATION_STAGE, { automatic: true, note: "Qualification started" });
+  return { started, stageChanged: moved };
 }
 
 // Saves the qualification answers without deciding anything.
@@ -225,6 +248,8 @@ export async function qualifyLead(client, context, leadId, input = {}) {
   }
 
   await ensureStarted(client, context, lead);
+  // A lead that is qualified went through qualification, wherever it was.
+  await applyLeadStage(client, context, lead, QUALIFICATION_STAGE, { automatic: true, note: "Lead qualified" });
   await client.query(
     `UPDATE tenant.crm_leads SET status = 'qualified', qualified_at = now(), qualified_by = $3, updated_by = $3 WHERE organization_id = $1 AND id = $2`,
     [context.organizationId, lead.id, context.userId ?? null],
@@ -240,6 +265,7 @@ export async function qualifyLead(client, context, leadId, input = {}) {
   await recordLeadHistory(client, context, lead.id, "qualified", override ? "Lead qualified with an override" : "Lead qualified", {
     from: lead.status, to: "qualified", ...(override ? { override: true, missing: missing.map((entry) => entry.key), reason: overrideReason } : {}),
   });
+  await notifyLeadOutcome(client, context, lead, "Your lead was qualified", override ? `Qualified with missing information: ${overrideReason}` : null);
   return { status: "qualified", overridden: override };
 }
 
@@ -267,13 +293,17 @@ export async function disqualifyLead(client, context, leadId, input = {}) {
   await recordLeadHistory(client, context, lead.id, "disqualified", `Lead disqualified — ${leadDisqualificationReasonLabel(reason)}`, {
     from: lead.status, to: "disqualified", reason, notes,
   });
+  await notifyLeadOutcome(client, context, lead, "Your lead was disqualified", `Reason: ${leadDisqualificationReasonLabel(reason)}`);
   return { status: "disqualified" };
 }
 
 // Returns a qualified or disqualified lead to open so qualification can
-// resume. The answers stay; the earlier decision stays in the history.
+// resume. The answers stay; the earlier decision stays in the history. The
+// lead returns to the stage it was in unless input.stage names another.
 export async function reopenLead(client, context, leadId, input = {}) {
   requireLeadPermission(context, LEAD_PERMISSIONS.reopen, "You do not have permission to reopen leads.");
+  const stage = text(input.stage);
+  if (stage) requireStageChangePermission(context);
   const lead = await lockLead(client, context, leadId);
   if (lead.status === "converted") throw new CrmError(409, "A converted lead cannot be reopened.", "CRM_LEAD_CONVERTED");
   if (lead.status === "open") throw new CrmError(409, "This lead is already open.", "CRM_LEAD_STATUS_CONFLICT");
@@ -295,6 +325,7 @@ export async function reopenLead(client, context, leadId, input = {}) {
     oldValue: lead.status === "disqualified" ? `Disqualified — ${leadDisqualificationReasonLabel(lead.disqualification_reason)}` : "Qualified",
     notes: note,
   });
+  if (stage) await applyLeadStage(client, context, { ...lead, status: "open" }, stage, { note: "Lead reopened" });
   await recordLeadHistory(client, context, lead.id, "reopened", "Lead reopened", {
     from: lead.status, to: "open", previousReason: lead.disqualification_reason, note,
   });

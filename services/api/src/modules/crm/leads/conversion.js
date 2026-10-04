@@ -25,6 +25,7 @@ import { ensureDefaultSalesPipeline } from "../pipeline/default-pipeline.js";
 import { requireLeadPermission } from "./access.js";
 import { assertEligibleLeadAssignee } from "./assignment.js";
 import { LEAD_AUTHORITY_STATUSES, LEAD_BUDGET_STATUSES, LEAD_NEED_STATUSES, LEAD_PERMISSIONS, LEAD_PURCHASE_TIMEFRAMES } from "./constants.js";
+import { notifyLeadOutcome } from "./qualification.js";
 import { recordLeadQualificationEvent } from "./qualification-history.js";
 import { recordLeadHistory } from "./history.js";
 import { getLead, lockLead } from "./records.js";
@@ -272,6 +273,7 @@ export async function convertLead(client, context, leadId, input = {}) {
   });
   const opportunityCode = opportunityId ? (await client.query(`SELECT code FROM tenant.crm_opportunities WHERE id = $1`, [opportunityId])).rows[0]?.code : null;
   await recordLeadQualificationEvent(client, context, lead.id, { type: "converted", newValue: opportunityCode ? `Opportunity ${opportunityCode} created` : "Account and contact, no opportunity" });
+  await notifyLeadOutcome(client, context, lead, "Your lead was converted", opportunityCode ? `Opportunity ${opportunityCode} was created` : null);
   await queueOutboxEvent(client, context, "crm.lead.converted", "lead", lead.id, { partyId, contactId, opportunityId });
   return { leadId: lead.id, partyId, contactId, opportunityId };
 }

@@ -15,7 +15,7 @@ import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 
 import {
-  LeadApiError, errorMessage, getLeadQualification, qualifyLead, saveLeadQualification,
+  LeadApiError, errorMessage, getLeadQualification, qualifyLead, saveLeadQualification, startLeadQualification,
   type Lead, type LeadOptions, type LeadQualificationStatus, type LeadQualificationView,
 } from "../api/leads-api";
 import { ErrorBanner, RATING_OPTIONS, RatingBadge, leadName } from "../lead-format";
@@ -157,6 +157,12 @@ export function QualificationPanel({ lead, options, onChanged, onQualify, onDisq
     onSuccess: (then) => { setError(null); setSaved(true); onChanged(); then?.(); },
     onError: (failure: unknown) => setError(errorMessage(failure)),
   });
+  const start = useMutation({
+    mutationFn: () => startLeadQualification(lead.id),
+    onSuccess: () => { setError(null); onChanged(); },
+    onError: (failure: unknown) => setError(errorMessage(failure)),
+  });
+  const qualificationStageName = options.stages.find((stage) => stage.code === options.qualificationStage)?.label ?? "Qualification";
   const currency = lead.currencyCode ?? options.baseCurrency;
   const codeOptions = (list: Array<{ code: string; label: string }>) => list.map((entry) => ({ value: entry.code, label: entry.label }));
 
@@ -175,6 +181,13 @@ export function QualificationPanel({ lead, options, onChanged, onQualify, onDisq
           Disqualified on {formatDateTime(lead.disqualifiedAt)}{lead.disqualifiedByName ? ` by ${lead.disqualifiedByName}` : ""} — {labelOf(options.disqualificationReasons, lead.disqualificationReason)}
           {lead.disqualificationNotes ? `. ${lead.disqualificationNotes}` : ""} Reopen the lead to qualify it again.
         </p>
+      )}
+
+      {editable && lead.stage !== options.qualificationStage && (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-[var(--radius-control)] border border-border bg-surface-muted px-3 py-2 text-sm">
+          <p>Ready to work out need, budget, authority and timeline? Starting qualification moves this lead to the {qualificationStageName} stage.</p>
+          <Button variant="secondary" size="compact" onPress={() => start.mutate()} isLoading={start.isPending}>Start qualification</Button>
+        </div>
       )}
 
       <div className="grid gap-6 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">

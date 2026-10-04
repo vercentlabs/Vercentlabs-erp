@@ -23,6 +23,8 @@ export const CRM_PERMISSIONS = Object.freeze({
   leadsDisqualify: "crm.leads.disqualify",
   leadsReopen: "crm.leads.reopen",
   leadsConvert: "crm.leads.convert",
+  leadsChangeStage: "crm.leads.change_stage",
+  leadsManageStages: "crm.leads.manage_stages",
   leadsOverrideQualification: "crm.leads.override_qualification",
   opportunitiesManage: "crm.opportunities.manage",
   activitiesManage: "crm.activities.manage",

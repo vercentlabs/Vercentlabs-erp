@@ -7,12 +7,13 @@ import { getLeadAssignmentSettings } from "./assignment-rules.js";
 import {
   LEAD_ACTIVITY_TYPES, LEAD_ASSIGNMENT_METHODS, LEAD_AUTHORITY_STATUSES, LEAD_BUDGET_STATUSES, LEAD_DISQUALIFICATION_REASONS, LEAD_NEED_STATUSES,
   LEAD_QUALIFICATION_STATUSES, LEAD_FOLLOW_UP_TYPES, LEAD_PERMISSIONS, LEAD_PURCHASE_TIMEFRAMES, LEAD_RULE_FIELDS, LEAD_RULE_OPERATORS,
-  LEAD_STAGES, LEAD_STATUSES,
+  LEAD_STALE_DAYS, LEAD_STATUSES,
 } from "./constants.js";
 import { QUALIFICATION_CRITERIA } from "./qualification-criteria.js";
 import { getLeadQualificationSettings } from "./qualification.js";
 import { LEAD_VIEWS } from "./records.js";
 import { listLeadSources } from "./sources.js";
+import { QUALIFICATION_STAGE, listLeadStages } from "./stages.js";
 
 export async function getLeadOptions(client, context) {
   requireLeadPermission(context, LEAD_PERMISSIONS.view, "You do not have permission to view leads.");
@@ -28,7 +29,9 @@ export async function getLeadOptions(client, context) {
   );
   return {
     views: LEAD_VIEWS,
-    stages: LEAD_STAGES,
+    stages: await listLeadStages(client, context),
+    qualificationStage: QUALIFICATION_STAGE,
+    staleDays: LEAD_STALE_DAYS,
     statuses: LEAD_STATUSES,
     purchaseTimeframes: LEAD_PURCHASE_TIMEFRAMES,
     disqualificationReasons: LEAD_DISQUALIFICATION_REASONS,

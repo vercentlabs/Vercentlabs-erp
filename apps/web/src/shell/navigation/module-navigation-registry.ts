@@ -194,6 +194,14 @@ export const MODULE_NAVIGATION: readonly ModuleNavigation[] = [
             requiredPermission: "crm.settings.manage",
           },
           {
+            ...available("Lead Stages", "/crm/settings/lead-stages"),
+            parent: "crm-setup",
+            group: "sales-process",
+            description: "The steps a lead moves through while it is being worked.",
+            aliases: ["lead pipeline", "lead process"],
+            requiredPermission: "crm.settings.manage",
+          },
+          {
             ...available("Lead Qualification", "/crm/settings/qualification"),
             parent: "crm-setup",
             group: "sales-process",

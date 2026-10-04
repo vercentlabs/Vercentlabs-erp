@@ -145,7 +145,7 @@ CREATE TABLE tenant.crm_leads (
   CONSTRAINT crm_leads_priority_check CHECK (priority = ANY (ARRAY['low', 'medium', 'high'])),
   CONSTRAINT crm_leads_rating_check CHECK (rating = ANY (ARRAY['cold', 'warm', 'hot'])),
   CONSTRAINT crm_leads_purchase_timeframe_check CHECK (purchase_timeframe IS NULL OR purchase_timeframe = ANY (ARRAY['immediate', 'within_1_month', 'within_3_months', 'within_6_months', 'within_12_months', 'later', 'unknown'])),
-  CONSTRAINT crm_leads_stage_check CHECK (stage = ANY (ARRAY['new', 'attempting_contact', 'contacted', 'nurturing', 'ready_to_qualify'])),
+  -- stage is one of the organization's lead stages: see 0010_crm_lead_stages.sql
   CONSTRAINT crm_leads_status_check CHECK (status = ANY (ARRAY['open', 'qualified', 'disqualified', 'converted'])),
   -- A disqualified lead always carries its reason; no other status does.
   CONSTRAINT crm_leads_disqualification_check CHECK ((status = 'disqualified') = (disqualification_reason IS NOT NULL)),

@@ -10,7 +10,13 @@ export class LeadApiError extends CrmApiErrorWithBody {}
 
 const { request, parseResponse } = crmApiClient(LeadApiError, "body");
 
-export type LeadStage = "new" | "attempting_contact" | "contacted" | "nurturing" | "ready_to_qualify";
+// A stage code: one of the standard stages or one the organization added.
+export type LeadStage = string;
+export type LeadStageDefinition = { id: string; code: string; label: string; name: string; sequence: number; isActive: boolean; isSystem: boolean; leadCount?: number };
+export type LeadStageHistoryEntry = {
+  id: string; fromStage: string | null; fromStageName: string | null; toStage: string; toStageName: string; note: string | null; isAutomatic: boolean;
+  enteredAt: string; leftAt: string | null; changedByName: string | null;
+};
 export type LeadStatus = "open" | "qualified" | "disqualified" | "converted";
 export type LeadViewKey = "all" | "mine" | "unassigned" | "no_activity" | "new" | "follow_up" | "due_today" | "overdue" | "qualified" | "disqualified" | "converted" | "archived";
 export type LeadQualificationStatus = "not_started" | "in_progress" | "qualified" | "disqualified";
@@ -55,7 +61,11 @@ export type Lead = {
   assignmentRuleName: string | null;
   firstActivityAt: string | null;
   stage: LeadStage;
+  stageName: string;
   stageChangedAt: string;
+  stageAgeDays: number;
+  daysSinceActivity: number;
+  isStale: boolean;
   status: LeadStatus;
   qualificationStatus: LeadQualificationStatus;
   qualificationStartedAt: string | null;
@@ -80,6 +90,12 @@ export type Lead = {
   convertedPartyId: string | null;
   convertedContactId: string | null;
   convertedOpportunityId: string | null;
+  convertedByName: string | null;
+  convertedAccountName: string | null;
+  convertedContactName: string | null;
+  convertedOpportunityName: string | null;
+  convertedOpportunityCode: string | null;
+  convertedOpportunityAmount: number | null;
   lastActivityAt: string | null;
   nextFollowUpAt: string | null;
   archivedAt: string | null;
@@ -92,7 +108,7 @@ export type Lead = {
 
 export type LeadCapabilities = Record<
   "view" | "viewAll" | "viewSensitive" | "create" | "edit" | "delete" | "assign" | "reassign" | "import" | "export" | "qualify" | "disqualify" | "reopen" | "convert"
-  | "overrideQualification" | "assignSelf" | "bulkAssign" | "assignAcrossTeams" | "manageAssignmentRules",
+  | "changeStage" | "manageStages" | "overrideQualification" | "assignSelf" | "bulkAssign" | "assignAcrossTeams" | "manageAssignmentRules",
   boolean
 >;
 
@@ -100,7 +116,9 @@ type CodeLabel = { code: string; label: string };
 
 export type LeadOptions = {
   views: Array<{ key: LeadViewKey; label: string }>;
-  stages: CodeLabel[];
+  stages: LeadStageDefinition[];
+  qualificationStage: string;
+  staleDays: number;
   statuses: CodeLabel[];
   purchaseTimeframes: CodeLabel[];
   disqualificationReasons: CodeLabel[];
@@ -145,6 +163,9 @@ export type LeadListFilters = {
   createdTo?: string;
   qualificationStatus?: string;
   disqualificationReason?: string;
+  stale?: string;
+  stageEnteredFrom?: string;
+  stageEnteredTo?: string;
   countryCode?: string;
   state?: string;
   city?: string;
@@ -235,11 +256,11 @@ export type LeadConversionInput = {
 
 export type LeadDashboard = {
   period: { from: string; to: string };
-  totals: Record<"open" | "new" | "unassigned" | "assignedToday" | "noActivity" | "createdInPeriod" | "followUpsDueToday" | "overdueFollowUps" | "qualified" | "disqualified" | "converted" | "awaitingQualification" | "inQualification" | "qualifiedTotal" | "qualificationRate", number> & { averageDaysToQualify: number | null };
+  totals: Record<"open" | "new" | "unassigned" | "assignedToday" | "noActivity" | "createdInPeriod" | "followUpsDueToday" | "overdueFollowUps" | "qualified" | "disqualified" | "converted" | "awaitingQualification" | "inQualification" | "qualifiedTotal" | "qualificationRate" | "conversionRate" | "stale" | "staleDays", number> & { averageDaysToQualify: number | null };
   qualifiedByOwner: Array<{ label: string; total: number }>;
   qualifiedBySource: Array<{ label: string; total: number }>;
   byStatus: Array<{ key: string; label: string; total: number }>;
-  byStage: Array<{ key: string; label: string; total: number }>;
+  byStage: Array<{ key: string; label: string; total: number; mine: number; stuck: number; averageAgeDays: number | null }>;
   bySource: Array<{ label: string; total: number }>;
   byOwner: Array<{ label: string; total: number }>;
   byTeam: Array<{ label: string; total: number }>;
@@ -354,6 +375,14 @@ export const mergeLead = (duplicateId: string, keepLeadId: string) => post<{ kep
 
 // ---- lifecycle
 export const changeLeadStage = (id: string, stage: string, note?: string) => post<{ changed: boolean }>(`${BASE}/${id}/stage`, { stage, note });
+export const listLeadStageHistory = (id: string) => request<{ history: LeadStageHistoryEntry[] }>(`${BASE}/${id}/stage-history`).then((result) => result.history);
+export const startLeadQualification = (id: string) => post<{ started: boolean; stageChanged: boolean }>(`${BASE}/${id}/qualification/start`);
+export const listLeadStages = (includeInactive = false) =>
+  request<{ stages: LeadStageDefinition[] }>(`${BASE}/stages${query({ includeInactive: includeInactive || undefined })}`).then((result) => result.stages);
+export const createLeadStage = (name: string) => post<{ stage: LeadStageDefinition }>(`${BASE}/stages`, { name });
+export const updateLeadStage = (id: string, input: { name?: string; isActive?: boolean }) =>
+  request<{ stage: LeadStageDefinition }>(`${BASE}/stages/${id}`, { method: "PATCH", json: input });
+export const reorderLeadStages = (ids: string[]) => post<{ stages: LeadStageDefinition[] }>(`${BASE}/stages/reorder`, { ids });
 // ---- assignment
 export const assignLead = (id: string, input: LeadAssignmentInput) => post<{ changed: boolean }>(`${BASE}/${id}/assign`, input);
 export const assignLeadToMe = (id: string, expectedUpdatedAt?: string) => post<{ changed: boolean }>(`${BASE}/${id}/assign-to-me`, { expectedUpdatedAt });

@@ -5,8 +5,9 @@ import { requireUuid } from "./validation.js";
 
 export async function recordLeadHistory(client, context, leadId, eventType, summary, changes = {}) {
   await client.query(
-    `INSERT INTO tenant.crm_lead_history (organization_id, lead_id, event_type, summary, changes, actor_user_id)
-     VALUES ($1, $2, $3, $4, $5, $6)`,
+    // clock_timestamp(): several events in one transaction keep their order.
+    `INSERT INTO tenant.crm_lead_history (organization_id, lead_id, event_type, summary, changes, actor_user_id, created_at)
+     VALUES ($1, $2, $3, $4, $5, $6, clock_timestamp())`,
     [context.organizationId, leadId, eventType, String(summary).slice(0, 500), JSON.stringify(changes), context.userId ?? null],
   );
 }

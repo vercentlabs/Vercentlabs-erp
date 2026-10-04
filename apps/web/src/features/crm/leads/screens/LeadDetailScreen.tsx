@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { MoreHorizontal } from "lucide-react";
@@ -18,7 +19,7 @@ import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 
 import {
-  archiveLead, assignLeadToMe, changeLeadStage, errorMessage, getLead, getLeadOptions, listLeadHistory, reopenLead, restoreLead,
+  archiveLead, assignLeadToMe, changeLeadStage, errorMessage, getLead, getLeadOptions, listLeadHistory, listLeadStageHistory, reopenLead, restoreLead,
   runLeadAssignmentRules, unassignLead, type Lead, type LeadOptions,
 } from "../api/leads-api";
 import { ConvertLeadDialog } from "../components/ConvertLeadDialog";
@@ -27,7 +28,7 @@ import { DisqualifyLeadsDialog } from "../components/LeadActionDialogs";
 import { AssignLeadsDialog, LeadAssignmentPanel } from "../components/LeadAssignment";
 import { LeadActivitiesPanel, LeadFollowUpsPanel, LeadTasksPanel, LogActivityDialog, ScheduleFollowUpDialog } from "../components/LeadWorkPanels";
 import { QualificationPanel, QualificationSummary, QualifyLeadDialog } from "../components/QualificationPanel";
-import { ErrorBanner, FollowUpCell, LeadStageBadge, LeadStatusBadge, PriorityBadge, RatingBadge, STAGE_LABELS, leadName } from "../lead-format";
+import { ErrorBanner, FollowUpCell, LeadStageBadge, LeadStatusBadge, PriorityBadge, RatingBadge, StaleBadge, days, leadName } from "../lead-format";
 import { LIVE_LEAD_QUERY } from "../live-query";
 
 type DialogKind = "assign" | "qualify" | "disqualify" | "convert" | "activity" | "followUp" | "archive" | null;
@@ -110,7 +111,8 @@ export function LeadDetailScreen({ leadId }: { leadId: string }) {
           status: (
             <span className="flex flex-wrap items-center gap-2">
               <LeadStatusBadge status={lead.status} />
-              <LeadStageBadge stage={lead.stage} />
+              <LeadStageBadge name={lead.stageName} />
+              <StaleBadge lead={lead} />
               {archived && <Badge tone="warning">Archived</Badge>}
             </span>
           ),
@@ -149,7 +151,7 @@ export function LeadDetailScreen({ leadId }: { leadId: string }) {
               </div>
             )}
             <QualificationSummary lead={lead} options={options} />
-            <StageBar lead={lead} options={options} canChange={canEdit && lead.status === "open"} isChanging={action.isPending}
+            <StageBar lead={lead} options={options} canChange={working && can.changeStage && lead.status === "open"} isChanging={action.isPending}
               onChange={(stage) => action.mutate(() => changeLeadStage(lead.id, stage))} />
           </div>
         }
@@ -228,6 +230,7 @@ export function LeadDetailScreen({ leadId }: { leadId: string }) {
           <TabPanel id="history">
             <div className="flex flex-col gap-6">
               <RecordTimelinePanel entityType="lead" entityId={lead.id} />
+              <StageHistory leadId={lead.id} version={lead.stageChangedAt} />
               <AuditTrail leadId={lead.id} />
             </div>
           </TabPanel>
@@ -240,7 +243,8 @@ export function LeadDetailScreen({ leadId }: { leadId: string }) {
       <QualifyLeadDialog isOpen={dialog === "qualify"} onOpenChange={(open) => !open && setDialog(null)} lead={lead} options={options}
         onQualified={(convert) => { refresh(); setDialog(convert ? "convert" : null); }} />
       <DisqualifyLeadsDialog isOpen={dialog === "disqualify"} onOpenChange={(open) => !open && setDialog(null)} leadIds={[lead.id]} options={options} onDone={refresh} />
-      <LogActivityDialog isOpen={dialog === "activity"} onOpenChange={(open) => !open && setDialog(null)} leadId={lead.id} options={options} onDone={refresh} />
+      <LogActivityDialog isOpen={dialog === "activity"} onOpenChange={(open) => !open && setDialog(null)} leadId={lead.id} options={options} onDone={refresh}
+        currentStage={working && can.changeStage && lead.status === "open" ? lead.stage : undefined} />
       <ScheduleFollowUpDialog isOpen={dialog === "followUp"} onOpenChange={(open) => !open && setDialog(null)} leadId={lead.id} options={options} onDone={refresh} />
       <ConvertLeadDialog isOpen={dialog === "convert"} onOpenChange={(open) => !open && setDialog(null)} leadId={lead.id} options={options}
         onConverted={() => { refresh(); setTab("related"); }} />
@@ -258,16 +262,23 @@ export function LeadDetailScreen({ leadId }: { leadId: string }) {
   );
 }
 
-// The five stages as a clickable track. Stage shows where the lead is in the
-// process; it is separate from status (the outcome), shown in the header.
+// The stages as a clickable track: done, current (with how long the lead has
+// been there), still ahead. Stage shows where the lead is in the process; it
+// is separate from status (the outcome), shown in the header. A lead can move
+// to any stage, forwards or backwards, while it is open.
 function StageBar({ lead, options, canChange, isChanging, onChange }: {
   lead: Lead; options: LeadOptions; canChange: boolean; isChanging: boolean; onChange: (stage: string) => void;
 }) {
-  const currentIndex = options.stages.findIndex((stage) => stage.code === lead.stage);
+  // A lead may still sit in a stage that has since been deactivated.
+  const stages = options.stages.some((stage) => stage.code === lead.stage)
+    ? options.stages
+    : [{ code: lead.stage, label: lead.stageName }, ...options.stages];
+  const currentIndex = stages.findIndex((stage) => stage.code === lead.stage);
   return (
     <ol aria-label="Lead stage" className="flex flex-wrap gap-1">
-      {options.stages.map((stage, index) => {
+      {stages.map((stage, index) => {
         const isCurrent = index === currentIndex;
+        const mark = isCurrent ? "●" : index < currentIndex ? "✓" : "○";
         const className = `flex-1 rounded-[var(--radius-control)] border px-3 py-2 text-center text-sm font-medium transition-colors ${
           isCurrent ? "border-brand bg-brand text-text-inverse" : index < currentIndex ? "border-brand-border bg-brand-soft text-brand-active" : "border-border bg-surface text-text-secondary"}`;
         return (
@@ -275,10 +286,13 @@ function StageBar({ lead, options, canChange, isChanging, onChange }: {
             {canChange && !isCurrent ? (
               <button type="button" disabled={isChanging} className={`${className} hover:border-brand disabled:opacity-60`} onClick={() => onChange(stage.code)}
                 title={`Move to ${stage.label}`}>
-                {stage.label}
+                <span aria-hidden="true">{mark} </span>{stage.label}
               </button>
             ) : (
-              <span className={className}>{STAGE_LABELS[stage.code as Lead["stage"]] ?? stage.label}</span>
+              <span className={className}>
+                <span aria-hidden="true">{mark} </span>{stage.label}
+                {isCurrent && lead.status === "open" && <span className="font-normal"> · {days(lead.stageAgeDays)}</span>}
+              </span>
             )}
           </li>
         );
@@ -288,20 +302,57 @@ function StageBar({ lead, options, canChange, isChanging, onChange }: {
 }
 
 function ConversionSummary({ lead }: { lead: Lead }) {
+  const opportunity = [lead.convertedOpportunityName, lead.convertedOpportunityAmount ? formatMoney(lead.currencyCode ?? undefined, lead.convertedOpportunityAmount) : null].filter(Boolean).join(" — ");
   const links = [
-    lead.convertedPartyId && { label: "Account", href: `/crm/accounts/${lead.convertedPartyId}` },
-    lead.convertedContactId && { label: "Contact", href: `/crm/contacts/${lead.convertedContactId}` },
-    lead.convertedOpportunityId && { label: "Opportunity", href: `/crm/opportunities/${lead.convertedOpportunityId}` },
-  ].filter((entry): entry is { label: string; href: string } => Boolean(entry));
+    lead.convertedPartyId && { label: "Account", name: lead.convertedAccountName, href: `/crm/accounts/${lead.convertedPartyId}` },
+    lead.convertedContactId && { label: "Contact", name: lead.convertedContactName, href: `/crm/contacts/${lead.convertedContactId}` },
+    lead.convertedOpportunityId && { label: "Opportunity", name: opportunity, href: `/crm/opportunities/${lead.convertedOpportunityId}` },
+  ].filter((entry): entry is { label: string; name: string | null; href: string } => Boolean(entry));
   return (
     <section className="flex flex-col gap-3 rounded-[var(--radius-card)] border border-border bg-surface-muted p-4">
       <div>
-        <h2 className="text-base font-semibold">Converted on {formatDateTime(lead.convertedAt)}</h2>
+        <h2 className="text-base font-semibold">Converted</h2>
         <p className="text-sm text-text-secondary">This lead is kept as a read-only record. Continue the work on the records it became.</p>
       </div>
-      <div className="flex flex-wrap gap-2">
-        {links.map((link) => <LinkButton key={link.href} variant="outline" href={link.href}>Open {link.label.toLowerCase()}</LinkButton>)}
-      </div>
+      <dl className="grid gap-x-6 gap-y-2 text-sm sm:grid-cols-2 lg:grid-cols-3">
+        {links.map((link) => (
+          <div key={link.href} className="flex flex-col">
+            <dt className="text-text-secondary">{link.label}</dt>
+            <dd><Link className="font-medium text-brand hover:underline" href={link.href}>{link.name || `Open ${link.label.toLowerCase()}`}</Link></dd>
+          </div>
+        ))}
+        <div className="flex flex-col"><dt className="text-text-secondary">Converted by</dt><dd className="font-medium">{lead.convertedByName ?? "Unknown"}</dd></div>
+        <div className="flex flex-col"><dt className="text-text-secondary">Converted at</dt><dd className="font-medium">{formatDateTime(lead.convertedAt)}</dd></div>
+      </dl>
+    </section>
+  );
+}
+
+// Each stage the lead has been in, newest first, with how long it stayed.
+function StageHistory({ leadId, version }: { leadId: string; version: string }) {
+  const workspace = useWorkspaceContext();
+  const query = useQuery({ queryKey: scopedQueryKey(workspace, "crm", "lead", leadId, "stage-history", version), queryFn: () => listLeadStageHistory(leadId) });
+  const entries = query.data ?? [];
+  return (
+    <section className="flex flex-col gap-3">
+      <h2 className="text-base font-semibold">Stage history</h2>
+      {query.isLoading ? <LoadingState label="Loading stage history" rows={2} /> : query.isError ? <ErrorBanner message="Could not load the stage history." />
+        : entries.length === 0 ? <p className="text-sm text-text-secondary">No stage changes recorded for this lead.</p> : (
+          <ul className="flex flex-col divide-y divide-border rounded-[var(--radius-card)] border border-border bg-surface text-sm">
+            {entries.map((entry) => (
+              <li key={entry.id} className="flex flex-col gap-1 px-4 py-3">
+                <span className="font-medium">
+                  {entry.toStageName}{entry.fromStageName ? <span className="font-normal text-text-secondary"> from {entry.fromStageName}</span> : null}
+                  {!entry.leftAt && <span className="font-normal text-text-secondary"> · current stage</span>}
+                </span>
+                {entry.note && <span className="text-text-secondary">{entry.note}</span>}
+                <span className="text-xs text-text-muted">
+                  Entered {formatDateTime(entry.enteredAt)}{entry.leftAt ? ` · left ${formatDateTime(entry.leftAt)}` : ""} · {entry.isAutomatic ? "Automatic" : entry.changedByName ?? "System"}
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
     </section>
   );
 }

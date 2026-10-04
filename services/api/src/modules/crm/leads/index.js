@@ -19,6 +19,10 @@ export {
   rateLead, reopenLead, saveLeadQualification, saveLeadQualificationSettings, startQualification, updateQualification,
 } from "./qualification.js";
 export { DEFAULT_QUALIFICATION_REQUIREMENTS, QUALIFICATION_CRITERIA, evaluateLeadQualification } from "./qualification-criteria.js";
+export {
+  NEW_STAGE, QUALIFICATION_STAGE, createLeadStage, ensureDefaultLeadStages, listLeadStages, reorderLeadStages, updateLeadStage,
+} from "./stages.js";
+export { listLeadStageHistory } from "./stage-history.js";
 export { findLeadDuplicates } from "./duplicates.js";
 export { mergeLeads } from "./merge.js";
 export { convertLead, convertQualifiedLead, previewLeadConversion } from "./conversion.js";
