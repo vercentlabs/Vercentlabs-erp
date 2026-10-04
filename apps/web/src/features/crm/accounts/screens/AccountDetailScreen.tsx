@@ -79,10 +79,16 @@ export function AccountDetailScreen({ accountId }: { accountId: string }) {
   const modules = options.moduleAccess;
   const canBecomeCustomer = can.createCustomer && !account.isCustomer && account.status === "active";
 
+  // Someone who maintains the Customer Master gets its full form, prefilled
+  // from this account; others get the short CRM dialog.
+  const hasPermission = (key: string) => workspace.roleSlugs.includes("organization_owner") || workspace.permissions.includes(key);
+  const usesCustomerForm = modules.sales && hasPermission("sales.customers.create") && hasPermission("sales.customers.link_account");
   const primaryAction = archived
     ? can.archive && <Button variant="primary" onPress={() => setDialog("active")}>Reactivate</Button>
     : canBecomeCustomer
-      ? <Button variant="primary" onPress={() => setDialog("customer")}>Create customer</Button>
+      ? usesCustomerForm
+        ? <LinkButton variant="primary" href={`/sales/customers/new?accountId=${account.id}`}>Create customer</LinkButton>
+        : <Button variant="primary" onPress={() => setDialog("customer")}>Create customer</Button>
       : can.edit ? <LinkButton variant="primary" href={`/crm/opportunities/new?accountId=${account.id}`}>New opportunity</LinkButton> : undefined;
 
   const menuActions: Array<{ id: string; label: string; show: boolean; run: () => void }> = [

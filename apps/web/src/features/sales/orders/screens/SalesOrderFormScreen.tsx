@@ -24,6 +24,10 @@ import {
   BILLING_ADDRESS_TYPES,
   defaultAddress,
   SHIPPING_ADDRESS_TYPES,
+  contactLabel,
+  usableAddresses,
+  defaultLineDescription,
+  defaultLineUom,
 } from "@/features/sales/shared/document-defaults";
 import {
   SalesAlert,
@@ -51,6 +55,7 @@ type LineDraft = {
   uomId: string;
   quantity: number;
   discountPercent: number;
+  description: string;
   warehouseId: string;
 };
 type ChargeDraft = {
@@ -70,7 +75,13 @@ const isoInDays = (days: number) =>
 // previewSalesDocument (the same pricing/tax/discount code that will run on
 // save), debounced -- the browser never computes a price, so what you see is
 // what is stored.
-export function SalesOrderFormScreen({ orderId }: { orderId?: string }) {
+export function SalesOrderFormScreen({
+  orderId,
+  initialPartyId,
+}: {
+  orderId?: string;
+  initialPartyId?: string;
+}) {
   const workspace = useWorkspaceContext();
   const router = useRouter();
   const queryClient = useQueryClient();
@@ -105,10 +116,11 @@ export function SalesOrderFormScreen({ orderId }: { orderId?: string }) {
 
   return (
     <FormBody
-      key={orderId ?? "new"}
+      key={orderId ?? `new-${initialPartyId ?? ""}`}
       options={optionsQuery.data}
       existing={existingQuery.data ?? null}
       orderId={orderId}
+      initialPartyId={initialPartyId}
       onDone={(id) => {
         queryClient.invalidateQueries({
           queryKey: scopedQueryKey(workspace, "sales", "orders"),
@@ -129,6 +141,7 @@ function FormBody({
   options,
   existing,
   orderId,
+  initialPartyId,
   onDone,
   onCancel,
 }: {
@@ -141,6 +154,7 @@ function FormBody({
   >;
   existing: SalesOrderDetail | null;
   orderId?: string;
+  initialPartyId?: string;
   onDone: (id: string) => void;
   onCancel: () => void;
 }) {
@@ -151,22 +165,40 @@ function FormBody({
     options.currencies[0]?.code ??
     "INR";
 
-  const [partyId, setPartyId] = useState(existing?.order.party_id ?? "");
-  const [contactId, setContactId] = useState(existing?.order.contact_id ?? "");
+  // A new order opened from a customer starts with that customer, its
+  // primary contact, default addresses and commercial terms.
+  const seedParty = existing
+    ? undefined
+    : options.parties.find((party) => party.id === initialPartyId);
+  const seedAddresses = options.addresses.filter(
+    (address) => address.party_id === seedParty?.id,
+  );
+  const [partyId, setPartyId] = useState(
+    existing?.order.party_id ?? seedParty?.id ?? "",
+  );
+  const [contactId, setContactId] = useState(
+    existing?.order.contact_id ??
+      options.contacts.find(
+        (contact) => contact.party_id === seedParty?.id && contact.is_primary,
+      )?.id ??
+      "",
+  );
   const [billingAddressId, setBillingAddressId] = useState(
-    existing?.order.billing_address_id ?? "",
+    existing?.order.billing_address_id ??
+      defaultAddress(seedAddresses, BILLING_ADDRESS_TYPES),
   );
   const [shippingAddressId, setShippingAddressId] = useState(
-    existing?.order.shipping_address_id ?? "",
+    existing?.order.shipping_address_id ??
+      defaultAddress(seedAddresses, SHIPPING_ADDRESS_TYPES),
   );
   const [currencyCode, setCurrencyCode] = useState(
-    existing?.order.currency_code ?? baseCurrency,
+    existing?.order.currency_code ?? seedParty?.currency_code ?? baseCurrency,
   );
   const [priceListId, setPriceListId] = useState(
-    existing?.order.price_list_id ?? "",
+    existing?.order.price_list_id ?? seedParty?.default_price_list_id ?? "",
   );
   const [paymentTermId, setPaymentTermId] = useState(
-    existing?.order.payment_term_id ?? "",
+    existing?.order.payment_term_id ?? seedParty?.payment_term_id ?? "",
   );
   const [deliveryDate, setDeliveryDate] = useState(
     existing?.order.requested_delivery_date?.slice(0, 10) ?? isoInDays(14),
@@ -198,6 +230,7 @@ function FormBody({
           quantity: Number(line.quantity),
           discountPercent: Number(line.discount_percent),
           warehouseId: line.warehouse_id ?? "",
+          description: line.description_snapshot ?? "",
         }))
       : [
           {
@@ -208,6 +241,7 @@ function FormBody({
             quantity: 1,
             discountPercent: 0,
             warehouseId: "",
+            description: "",
           },
         ],
   );
@@ -245,21 +279,21 @@ function FormBody({
     { value: "", label: "None" },
     ...partyContacts.map((contact) => ({
       value: contact.id,
-      label:
-        `${contact.first_name} ${contact.last_name ?? ""}`.trim() +
-        (contact.is_primary ? " (primary)" : ""),
+      label: contactLabel(contact),
     })),
   ];
   const addressOptionsFor = (types: string[]): SelectOption[] => [
     { value: "", label: "None" },
-    ...partyAddresses
-      .filter((address) => types.includes(address.address_type))
-      .map((address) => ({
-        value: address.id,
-        label:
-          `${statusLabel(address.address_type)} — ${address.line1}${address.city ? `, ${address.city}` : ""}` +
-          (address.is_primary ? " (primary)" : ""),
-      })),
+    ...usableAddresses(partyAddresses, types).map((address) => ({
+      value: address.id,
+      label:
+        `${address.label || statusLabel(address.address_type)} — ${address.line1}${address.city ? `, ${address.city}` : ""}` +
+        ((types === BILLING_ADDRESS_TYPES
+          ? address.is_default_billing
+          : address.is_default_shipping)
+          ? " (default)"
+          : ""),
+    })),
   ];
   const billingAddressOptions = addressOptionsFor(BILLING_ADDRESS_TYPES);
   const shippingAddressOptions = addressOptionsFor(SHIPPING_ADDRESS_TYPES);
@@ -300,7 +334,7 @@ function FormBody({
   }
   function selectLineItem(key: number, itemId: string) {
     const item = options.items.find((candidate) => candidate.id === itemId);
-    updateLine(key, { itemId, variantId: "", uomId: item?.uom_id ?? "" });
+    updateLine(key, { itemId, variantId: "", uomId: defaultLineUom(item, options.itemUomConversions), description: defaultLineDescription(item) });
   }
   const warehouseOptions: SelectOption[] = [
     { value: "", label: "No warehouse yet" },
@@ -374,6 +408,7 @@ function FormBody({
         itemId: line.itemId,
         variantId: line.variantId || undefined,
         uomId: line.uomId || undefined,
+        description: line.description.trim() || undefined,
         quantity: line.quantity,
         discountPercent: line.discountPercent || undefined,
         warehouseId: line.warehouseId || undefined,
@@ -622,6 +657,7 @@ function FormBody({
                       quantity: 1,
                       discountPercent: 0,
                       warehouseId: "",
+                      description: "",
                     },
                   ])
                 }
@@ -719,6 +755,15 @@ function FormBody({
                     >
                       <Trash2 className="size-4" aria-hidden="true" />
                     </IconButton>
+                    {line.itemId && (
+                      <TextField
+                        className="sm:col-span-7"
+                        aria-label={`Description ${index + 1}`}
+                        placeholder="Description on the document"
+                        value={line.description}
+                        onChange={(value) => updateLine(line.key, { description: value })}
+                      />
+                    )}
                     {priced && (
                       <p className="text-xs text-text-muted sm:col-span-7">
                         {money(currencyCode, priced.unitPrice)} each · net{" "}

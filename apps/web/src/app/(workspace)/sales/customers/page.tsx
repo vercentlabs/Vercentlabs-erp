@@ -1,7 +1,7 @@
-import { SalesCustomersScreen } from "@/features/sales/master/screens/SalesCustomersScreen";
+import { CustomerListScreen } from "@/features/sales/customers/screens/CustomerListScreen";
 
 export const metadata = { title: "Customers" };
 
 export default function Page() {
-  return <SalesCustomersScreen />;
+  return <CustomerListScreen />;
 }

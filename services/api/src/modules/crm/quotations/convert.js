@@ -118,8 +118,10 @@ export async function createQuotationFromOpportunity(client, context, opportunit
   const customer = await resolveCustomer(client, context, opportunity, input.customer);
   const defaults = (await client.query(
     `SELECT (SELECT id FROM tenant.addresses WHERE organization_id = $1 AND party_id = $2 AND status = 'active' AND is_default_billing LIMIT 1) AS billing_id,
-            (SELECT id FROM tenant.addresses WHERE organization_id = $1 AND party_id = $2 AND status = 'active' AND is_default_shipping AND address_type IN ('shipping', 'plant', 'office', 'registered') LIMIT 1) AS shipping_id,
-            (SELECT id FROM tenant.contacts WHERE organization_id = $1 AND party_id = $2 AND id = $3 AND status = 'active') AS contact_id`,
+            (SELECT id FROM tenant.addresses WHERE organization_id = $1 AND party_id = $2 AND status = 'active' AND is_default_shipping LIMIT 1) AS shipping_id,
+            (SELECT contact.id FROM tenant.contacts contact WHERE contact.organization_id = $1 AND contact.id = $3 AND contact.status = 'active'
+               AND EXISTS (SELECT 1 FROM tenant.crm_contact_account_relationships link WHERE link.organization_id = contact.organization_id AND link.contact_id = contact.id
+                            AND link.party_id = $2 AND link.status = 'active')) AS contact_id`,
     [context.organizationId, customer.partyId, opportunity.contact_id],
   )).rows[0];
   const quotation = await createQuotation(client, context, {

@@ -127,7 +127,7 @@ export async function getQuotationReadiness(client, context, opportunityId) {
   const contactIds = new Set(contacts.rows.map((row) => row.id));
   const billing = addresses.rows.find((row) => row.is_default_billing) ?? addresses.rows.find((row) => ["billing", "registered"].includes(row.address_type)) ?? null;
   // Shipping is optional at quotation stage; only an address Sales accepts as a ship-to is suggested.
-  const shipping = addresses.rows.find((row) => row.is_default_shipping && ["shipping", "plant", "office", "registered"].includes(row.address_type)) ?? null;
+  const shipping = addresses.rows.find((row) => row.is_default_shipping) ?? null;
   const defaultPriceListId = [account?.default_price_list_id, settings.default_price_list_id]
     .find((id) => id && priceLists.rows.some((row) => row.id === id && String(row.currency_code).trim() === currencyCode)) ?? null;
   const matches = account && !customer ? await customerMatches(client, context, account) : [];

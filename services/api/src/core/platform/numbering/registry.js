@@ -24,7 +24,8 @@ export const DOCUMENT_TYPES = Object.freeze(
     org("crm_follow_up", "crm", "Follow-up", "FUP-"),
     org("business_party", "crm", "Account", "ACC-"),
     org("crm_contact", "crm", "Contact", "CON-"),
-    org("customer", "sales", "Customer", "CUST-"),
+    org("customer", "sales", "Customer", "CUS-", 6),
+    org("product", "sales", "Product / service", "PRD-"),
     // Sales
     org("quotation", "sales", "Sales quotation", "QUO-"),
     org("sales_order", "sales", "Sales order", "SO-"),

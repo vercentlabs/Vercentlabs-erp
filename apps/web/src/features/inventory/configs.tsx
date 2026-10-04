@@ -58,128 +58,14 @@ const itemName = (options: InvOptions | undefined, id: unknown) => {
 const text = (row: Row, keys: string[]) =>
   keys.map((key) => String(row[key] ?? "")).join(" ");
 
-const TRACKING = [
-  { value: "none", label: "None" },
-  { value: "batch", label: "Batch / lot" },
-  { value: "serial", label: "Serial number" },
-];
 const yes = (value: unknown) =>
   value === true || value === "true" ? "Yes" : "No";
 const QTY_STEP = 0.001;
 
 // ---------------------------------------------------------------- master data
-const items: RegisterConfig = {
-  key: "items",
-  title: "Items",
-  description: "The item master: what you stock, how it is tracked and valued.",
-  searchLabel: "Search items",
-  emptyTitle: "No items yet",
-  emptyDescription: "Add your first item to start tracking stock.",
-  source: { kind: "master", resource: "items" },
-  createLabel: "Add item",
-  createPermission: "items.manage",
-  archive: true,
-  save: { master: "items" },
-  fields: [
-    {
-      name: "code",
-      label: "Code",
-      kind: "text",
-      required: true,
-      createOnly: true,
-    },
-    { name: "name", label: "Name", kind: "text", required: true },
-    { name: "description", label: "Description", kind: "textarea" },
-    {
-      name: "itemType",
-      label: "Item type",
-      kind: "select",
-      defaultValue: "product",
-      options: [
-        { value: "product", label: "Product" },
-        { value: "consumable", label: "Consumable" },
-        { value: "asset", label: "Asset" },
-        { value: "service", label: "Service" },
-      ],
-    },
-    { name: "groupId", label: "Category", kind: "select", options: "groups" },
-    {
-      name: "uomId",
-      label: "Unit of measure",
-      kind: "select",
-      required: true,
-      options: "uoms",
-    },
-    { name: "barcode", label: "Barcode", kind: "text" },
-    { name: "hsnSacCode", label: "HSN / SAC code", kind: "text" },
-    {
-      name: "taxCategoryId",
-      label: "Tax category",
-      kind: "select",
-      options: "taxCategories",
-    },
-    {
-      name: "trackInventory",
-      label: "Track inventory",
-      kind: "bool",
-      defaultValue: "true",
-    },
-    {
-      name: "trackingType",
-      label: "Tracking",
-      kind: "select",
-      defaultValue: "none",
-      options: TRACKING,
-      showIf: (v) => v.trackInventory !== "false",
-    },
-    {
-      name: "valuationMethod",
-      label: "Valuation method",
-      kind: "select",
-      defaultValue: "moving_average",
-      options: [
-        { value: "moving_average", label: "Moving average" },
-        { value: "fifo", label: "FIFO" },
-        { value: "standard", label: "Standard cost" },
-      ],
-    },
-    {
-      name: "allowNegativeStock",
-      label: "Allow negative stock",
-      kind: "bool",
-      defaultValue: "false",
-    },
-    {
-      name: "standardCost",
-      label: "Standard cost",
-      kind: "number",
-      step: 0.01,
-    },
-    {
-      name: "purchasePrice",
-      label: "Purchase price",
-      kind: "number",
-      step: 0.01,
-    },
-    { name: "salesPrice", label: "Sales price", kind: "number", step: 0.01 },
-  ],
-  columns: (o) => [
-    strong("code", "Code", (r) => String(r.code)),
-    col("name", "Name", (r) => String(r.name)),
-    col("group", "Category", (r) => name(o?.groups, r.groupId)),
-    col("uom", "Unit", (r) => name(o?.uoms, r.uomId)),
-    col("taxCategory", "Tax category", (r) =>
-      name(o?.taxCategories, r.taxCategoryId),
-    ),
-    col("tracking", "Tracking", (r) =>
-      r.trackInventory === false ? "Not tracked" : label(r.trackingType),
-    ),
-    col("valuation", "Valuation", (r) => label(r.valuationMethod)),
-    col("barcode", "Barcode", (r) => String(r.barcode ?? "—")),
-    badge("status", "Status", (r) => r.status),
-  ],
-  searchText: (r) => text(r, ["code", "name", "barcode", "hsnSacCode"]),
-};
+// Items are the shared product master (features/sales/products); the
+// Inventory Items page shows it, filtered to what Inventory cares about.
+
 
 const categories: RegisterConfig = {
   key: "item-groups",
@@ -1255,7 +1141,6 @@ const movement: RegisterConfig = {
 };
 
 export const REGISTERS: Record<string, RegisterConfig> = {
-  items,
   categories,
   variants,
   "units-of-measure": uoms,

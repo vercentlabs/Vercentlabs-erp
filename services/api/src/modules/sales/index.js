@@ -169,7 +169,13 @@ async function loadDocumentContext(client, context, input, options = {}) {
   let contact = null;
   if (input.contactId) {
     const result = await client.query(
-      `SELECT id,first_name,last_name,designation,email,phone,mobile,privacy_status,archived_at FROM tenant.contacts WHERE organization_id=$1 AND party_id=$2 AND id=$3 AND status='active'`,
+      // A contact belongs to a customer through its relationship: the same
+      // person can be a contact of several companies. The job title and role
+      // are the ones held at this customer.
+      `SELECT contact.id,contact.first_name,contact.last_name,COALESCE(link.job_title,contact.designation) AS designation,contact.email,contact.phone,contact.mobile,link.role,contact.privacy_status,contact.archived_at
+         FROM tenant.contacts contact
+         JOIN tenant.crm_contact_account_relationships link ON link.organization_id=contact.organization_id AND link.contact_id=contact.id AND link.party_id=$2 AND link.status='active'
+        WHERE contact.organization_id=$1 AND contact.id=$3 AND contact.status='active'`,
       [context.organizationId, partyId, uuid(input.contactId, "Contact")],
     );
     contact = result.rows[0];
@@ -191,14 +197,17 @@ async function loadDocumentContext(client, context, input, options = {}) {
   }
   // F032: the bill-to must be an invoicing address and the ship-to a
   // delivery address (D365 address purposes, Odoo invoice/delivery contacts).
+  // The address the Customer Master marks as the default for a purpose is
+  // always usable for it, whatever its type.
   const ADDRESS_PURPOSES = {
     "Billing address": ["billing", "registered"],
     "Shipping address": ["shipping", "plant", "office", "registered"],
   };
+  const ADDRESS_DEFAULTS = { "Billing address": "is_default_billing", "Shipping address": "is_default_shipping" };
   async function addressSnapshot(addressId, label) {
     if (!addressId) return { id: null, row: null };
     const result = await client.query(
-      `SELECT id,address_type,line1,line2,city,district,state,state_code,postal_code,country_code,gstin FROM tenant.addresses WHERE organization_id=$1 AND party_id=$2 AND id=$3 AND status='active'`,
+      `SELECT id,address_type,label,line1,line2,city,district,state,state_code,postal_code,country_code,gstin,is_default_billing,is_default_shipping FROM tenant.addresses WHERE organization_id=$1 AND party_id=$2 AND id=$3 AND status='active'`,
       [context.organizationId, partyId, uuid(addressId, label)],
     );
     if (!result.rows[0])
@@ -207,7 +216,10 @@ async function loadDocumentContext(client, context, input, options = {}) {
         `The selected ${label.toLowerCase()} does not belong to the customer.`,
       );
     const allowed = ADDRESS_PURPOSES[label];
-    if (allowed && !allowed.includes(result.rows[0].address_type))
+    const isDefault = Boolean(result.rows[0][ADDRESS_DEFAULTS[label]]);
+    delete result.rows[0].is_default_billing;
+    delete result.rows[0].is_default_shipping;
+    if (allowed && !isDefault && !allowed.includes(result.rows[0].address_type))
       throw new SalesError(
         409,
         `A ${result.rows[0].address_type} address cannot be used as the ${label.toLowerCase()}. Use a ${allowed.join(", ")} address.`,
@@ -317,12 +329,16 @@ async function loadDocumentContext(client, context, input, options = {}) {
 async function calculateLine(client, context, master, line, sequence, input, options = {}) {
   const itemId = uuid(line.itemId, `Line ${sequence} item`);
   const itemResult = await client.query(
-    `SELECT item.id,item.code,item.name,item.description,item.hsn_sac_code,item.uom_id,item.standard_cost,item.sales_price,item.tax_category_id,uom.code AS uom_code,uom.name AS uom_name FROM tenant.items item JOIN tenant.units_of_measure uom ON uom.id=item.uom_id WHERE item.organization_id=$1 AND item.id=$2 AND item.status='active'`,
+    `SELECT item.id,item.code,item.name,item.description,item.sales_description,item.hsn_sac_code,item.uom_id,item.sales_uom_id,item.is_sellable,item.track_inventory,item.standard_cost,item.sales_price,item.tax_category_id,uom.code AS uom_code,uom.name AS uom_name FROM tenant.items item JOIN tenant.units_of_measure uom ON uom.id=item.uom_id WHERE item.organization_id=$1 AND item.id=$2 AND item.status='active'`,
     [context.organizationId, itemId],
   );
   const item = itemResult.rows[0];
   if (!item)
     throw new SalesError(409, `Line ${sequence} item is inactive.`);
+  // A line carried over from a quotation keeps its product even if it has
+  // since stopped being sold; a new line must be a sellable product.
+  if (!item.is_sellable && !options.carryQuotedPrices)
+    throw new SalesError(409, `Line ${sequence}: ${item.name} is not sold.`, "SALES_ITEM_NOT_SELLABLE");
   let variant = null;
   if (line.variantId) {
     const variantResult = await client.query(
@@ -336,9 +352,19 @@ async function calculateLine(client, context, master, line, sequence, input, opt
         `Line ${sequence} variant does not belong to this item.`,
       );
   }
+  // Without a unit on the line, the product's sales unit (when it converts to
+  // the base unit), else the base unit.
+  let defaultUomId = item.uom_id;
+  if (item.sales_uom_id && item.sales_uom_id !== item.uom_id) {
+    const salesConversion = await client.query(
+      `SELECT 1 FROM tenant.item_uom_conversions WHERE organization_id=$1 AND item_id=$2 AND status='active' AND ((from_uom_id=$3 AND to_uom_id=$4) OR (from_uom_id=$4 AND to_uom_id=$3)) LIMIT 1`,
+      [context.organizationId, itemId, item.sales_uom_id, item.uom_id],
+    );
+    if (salesConversion.rows[0]) defaultUomId = item.sales_uom_id;
+  }
   const uomId = line.uomId
     ? uuid(line.uomId, `Line ${sequence} UOM`)
-    : item.uom_id;
+    : defaultUomId;
   let conversionFactor = decimal(1);
   let uomCode = item.uom_code;
   if (uomId !== item.uom_id) {
@@ -516,6 +542,8 @@ async function calculateLine(client, context, master, line, sequence, input, opt
   const marginAmount = sub(netAmount, costAmount);
   const marginPercent =
     netAmount === 0n ? 0n : mul(div(marginAmount, netAmount), 100);
+  // Services and non-stock items have no stock to reserve or issue.
+  if (line.warehouseId && !item.track_inventory) line = { ...line, warehouseId: null };
   if (line.warehouseId) {
     const warehouse = await client.query(
       `SELECT 1 FROM tenant.warehouses WHERE organization_id=$1 AND id=$2 AND status='active'`,
@@ -539,7 +567,7 @@ async function calculateLine(client, context, master, line, sequence, input, opt
     warehouseId: line.warehouseId || null,
     itemCodeSnapshot: variant?.sku || item.code,
     itemNameSnapshot: variant ? `${item.name} — ${variant.name}` : item.name,
-    descriptionSnapshot: text(line.description, 4000) || item.description,
+    descriptionSnapshot: text(line.description, 4000) || item.sales_description || item.description,
     hsnSacSnapshot: item.hsn_sac_code,
     uomSnapshot: uomCode,
     quantity: asDatabaseDecimal(quantity),
@@ -2619,25 +2647,26 @@ export async function getSalesOptions(
       [context.organizationId],
     ),
     client.query(
-      `SELECT contact.id,contact.party_id,contact.first_name,contact.last_name,contact.email,contact.mobile,contact.designation,contact.phone,contact.is_primary
-         FROM tenant.contacts contact
-         JOIN tenant.business_parties party ON party.organization_id=contact.organization_id AND party.id=contact.party_id
-        WHERE contact.organization_id=$1 AND contact.status='active'${partyFilterId ? ` AND contact.party_id=$2` : ""} ORDER BY contact.is_primary DESC,contact.first_name LIMIT 500`,
+      `SELECT contact.id,link.party_id,contact.first_name,contact.last_name,contact.email,contact.mobile,COALESCE(link.job_title,contact.designation) AS designation,contact.phone,
+              link.is_primary_contact AS is_primary,link.role,link.department,link.is_billing_contact,link.is_shipping_contact,link.address_id
+         FROM tenant.crm_contact_account_relationships link
+         JOIN tenant.contacts contact ON contact.organization_id=link.organization_id AND contact.id=link.contact_id
+        WHERE link.organization_id=$1 AND link.status='active' AND contact.status='active'${partyFilterId ? ` AND link.party_id=$2` : ""} ORDER BY link.is_primary_contact DESC,contact.first_name LIMIT 1000`,
       partyFilterId
         ? [context.organizationId, partyFilterId]
         : [context.organizationId],
     ),
     client.query(
-      `SELECT address.id,address.party_id,address.address_type,address.line1,address.city,address.state,address.state_code,address.postal_code,address.line2,address.district,address.country_code,address.gstin,address.is_primary
+      `SELECT address.id,address.party_id,address.address_type,address.line1,address.city,address.state,address.state_code,address.postal_code,address.line2,address.district,address.country_code,address.gstin,address.is_primary,address.label,address.is_default_billing,address.is_default_shipping
          FROM tenant.addresses address
          JOIN tenant.business_parties party ON party.organization_id=address.organization_id AND party.id=address.party_id
-        WHERE address.organization_id=$1 AND address.status='active'${partyFilterId ? ` AND address.party_id=$2` : ""} ORDER BY address.is_primary DESC,address.city LIMIT 500`,
+        WHERE address.organization_id=$1 AND address.status='active'${partyFilterId ? ` AND address.party_id=$2` : ""} ORDER BY address.is_default_billing DESC,address.is_primary DESC,address.city LIMIT 500`,
       partyFilterId
         ? [context.organizationId, partyFilterId]
         : [context.organizationId],
     ),
     client.query(
-      `SELECT id,code,name,item_type,uom_id,sales_price,standard_cost,tax_category_id FROM tenant.items WHERE organization_id=$1 AND status='active' ORDER BY name LIMIT 500`,
+      `SELECT id,code,name,item_type,uom_id,sales_uom_id,sales_description,description,track_inventory,sku,sales_price,standard_cost,tax_category_id FROM tenant.items WHERE organization_id=$1 AND status='active' AND is_sellable ORDER BY name LIMIT 2000`,
       [context.organizationId],
     ),
     client.query(

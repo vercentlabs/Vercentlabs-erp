@@ -111,7 +111,7 @@ export const USER_ADMINISTRATOR_PERMISSIONS = Object.freeze([
   "roles.assign",
 ]);
 
-export const ROLE_TEMPLATES = Object.freeze([
+const ROLE_DEFINITIONS = [
   {
     name: "Organisation Owner",
     slug: "organization_owner",
@@ -1172,7 +1172,66 @@ export const ROLE_TEMPLATES = Object.freeze([
       "hr_payroll.audit.view",
     ]),
   },
-]);
+];
+
+// The Customer Master permissions follow from what a role already does in
+// Sales, by the same rules the migration that introduced them used for
+// existing roles: whoever opens Sales sees customers; whoever writes
+// quotations maintains them; approvers and Sales administrators control
+// status, tax and commercial terms; finance users see the receivable figures.
+const customerReader = ["sales.customers.view", "sales.customers.view_all", "sales.customers.addresses.view", "sales.customers.contacts.view"];
+const customerWorker = [
+  "sales.customers.create", "sales.customers.edit", "sales.customers.manage_addresses", "sales.customers.manage_contacts", "sales.customers.link_account",
+  "sales.customers.addresses.inactivate", "sales.customers.addresses.set_default_billing", "sales.customers.addresses.set_default_shipping",
+  "sales.customers.contacts.inactivate", "sales.customers.contacts.set_primary",
+];
+const customerManager = [
+  ...customerWorker, "sales.customers.view_team", "sales.customers.inactivate", "sales.customers.reactivate", "sales.customers.block", "sales.customers.unblock",
+  "sales.customers.delete", "sales.customers.import", "sales.customers.export", "sales.customers.edit_gstin", "sales.customers.change_currency",
+  "sales.customers.change_payment_terms", "sales.customers.change_price_list", "sales.customers.view_financials", "sales.customers.addresses.edit_gstin",
+];
+// Products follow the same idea, by the rules of the migration that added
+// them: whoever uses Sales, Procurement, Inventory or business data sees the
+// catalogue; whoever maintains items, or administers Sales, maintains
+// products; whoever sees margin
+// or stock valuation sees cost.
+const productMaintainer = [
+  "products.create", "products.edit", "products.activate", "products.delete", "products.import", "products.export", "products.edit_pricing", "products.edit_tax",
+  "products.edit_inventory",
+];
+function withProductPermissions(role) {
+  if (!Array.isArray(role.permissions)) return role;
+  const has = (key) => role.permissions.includes(key);
+  const cost = has("sales.margin.view") || has("stock.valuation.view");
+  return {
+    ...role,
+    permissions: unique([
+      ...role.permissions,
+      ...(["sales.view", "procurement.view", "stock.view", "business_data.view", "items.manage"].some(has) ? ["products.view"] : []),
+      // Sales administrators keep the catalogue they sell from.
+      ...(has("items.manage") || has("sales.settings.manage") ? productMaintainer : []),
+      ...(cost ? ["products.view_cost"] : []),
+      ...(cost && has("items.manage") ? ["products.edit_cost"] : []),
+    ]),
+  };
+}
+
+function withCustomerPermissions(role) {
+  if (!Array.isArray(role.permissions)) return role;
+  const has = (key) => role.permissions.includes(key);
+  if (!has("sales.view")) return role;
+  return {
+    ...role,
+    permissions: unique([
+      ...role.permissions, ...customerReader,
+      ...(has("sales.quotation.create") ? customerWorker : []),
+      ...(has("sales.quotation.approve") || has("sales.settings.manage") ? customerManager : []),
+      ...(has("accounting.view") ? ["sales.customers.view_financials"] : []),
+    ]),
+  };
+}
+
+export const ROLE_TEMPLATES = Object.freeze(ROLE_DEFINITIONS.map(withCustomerPermissions).map(withProductPermissions));
 
 export const ROLE_TEMPLATE_BY_SLUG = new Map(
   ROLE_TEMPLATES.map((template) => [template.slug, template]),

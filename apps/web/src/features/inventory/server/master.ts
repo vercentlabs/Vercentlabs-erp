@@ -27,6 +27,13 @@ export function masterResource(resource: string): InventoryMasterResource {
   return resource as InventoryMasterResource;
 }
 
+// Items are read here for Inventory's pickers but created and changed only
+// through the product master, so its rules apply to every module.
+export function assertItemsReadOnly(resource: InventoryMasterResource) {
+  if (resource === "items")
+    throw new HttpError(410, "Products are created and changed under Products & Services.", "INVENTORY_ITEMS_MOVED");
+}
+
 // The engine writes every mapped column, so anything omitted would be inserted as NULL and hit a
 // NOT NULL constraint. These are the tables' own defaults, applied here for a create.
 const DEFAULTS: Record<InventoryMasterResource, Record<string, unknown>> = {
@@ -198,4 +205,3 @@ export function shapeMasterUpdate(raw: Record<string, unknown>) {
 
 // Refuses identity changes (tracking, unit of measure, valuation) once an item has movements; the rule
 // lives in the Stock domain.
-export { guardStockItemIdentity as guardItemIdentity } from "@vercentlabs/api";

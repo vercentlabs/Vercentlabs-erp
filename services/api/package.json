@@ -15,6 +15,14 @@
     "./crm": {
       "types": "./src/modules/crm/index.d.ts",
       "default": "./src/modules/crm/index.js"
+    },
+    "./sales/customers": {
+      "types": "./src/modules/sales/customers/index.d.ts",
+      "default": "./src/modules/sales/customers/index.js"
+    },
+    "./products": {
+      "types": "./src/modules/products/index.d.ts",
+      "default": "./src/modules/products/index.js"
     }
   },
   "scripts": {},

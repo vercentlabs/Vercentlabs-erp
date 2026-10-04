@@ -341,7 +341,7 @@ export const MODULE_NAVIGATION: readonly ModuleNavigation[] = [
         featureRange: "F031-F040",
         items: [
           available("Customers", "/sales/customers"),
-          available("Products", "/sales/products"),
+          available("Products & Services", "/sales/products"),
           available("Quotations", "/sales/quotations"),
           available("Sales Orders", "/sales/orders"),
           planned("Availability", "/sales/availability"),

@@ -1,12 +1,8 @@
-import { SalesCustomerDetailScreen } from "@/features/sales/master/screens/SalesCustomerDetailScreen";
+import { CustomerDetailScreen } from "@/features/sales/customers/screens/CustomerDetailScreen";
 
 export const metadata = { title: "Customer" };
 
-export default async function Page({
-  params,
-}: {
-  params: Promise<{ id: string }>;
-}) {
+export default async function Page({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  return <SalesCustomerDetailScreen customerId={id} />;
+  return <CustomerDetailScreen key={id} customerId={id} />;
 }

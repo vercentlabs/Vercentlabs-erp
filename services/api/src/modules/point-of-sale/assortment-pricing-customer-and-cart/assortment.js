@@ -28,8 +28,8 @@ export async function searchPointOfSalePosProducts(client, context, storeId, inp
         item.sales_price, item.uom_id, item.tracking_type
       FROM tenant.items item
       WHERE item.organization_id=$1
-        AND item.status='active'
-        AND (lower(item.name) LIKE $2 OR lower(item.code) LIKE $2 OR item.barcode=$3)
+        AND item.status='active' AND item.is_sellable
+        AND (lower(item.name) LIKE $2 OR lower(item.code) LIKE $2 OR lower(item.sku) LIKE $2 OR item.barcode=$3)
       LIMIT $4)
      UNION ALL
      (SELECT
@@ -88,7 +88,7 @@ export async function lookupPointOfSaleBarcode(client, context, storeId, barcode
     `SELECT id AS item_id, NULL::uuid AS variant_id, name, code, barcode, sales_price, uom_id, tracking_type
      FROM tenant.items
      WHERE organization_id=$1
-       AND status='active' AND barcode=$2
+       AND status='active' AND is_sellable AND barcode=$2
      LIMIT 1`,
     [context.organizationId, normalized],
   );

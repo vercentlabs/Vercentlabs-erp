@@ -2,6 +2,11 @@ import { SalesOrderFormScreen } from "@/features/sales/orders/screens/SalesOrder
 
 export const metadata = { title: "New sales order" };
 
-export default function Page() {
-  return <SalesOrderFormScreen />;
+export default async function Page({
+  searchParams,
+}: {
+  searchParams: Promise<{ customer?: string }>;
+}) {
+  const { customer } = await searchParams;
+  return <SalesOrderFormScreen initialPartyId={customer} />;
 }

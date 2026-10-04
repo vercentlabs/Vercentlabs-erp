@@ -78,7 +78,7 @@ export async function createTicket(client, c, input) {
   if (customerId) await resolveParty(client, c, customerId);
   const contactId = uuidOrNull(input.contactId, "Contact");
   if (contactId) {
-    const cx = await qx(client, `SELECT id FROM tenant.contacts WHERE organization_id=$1 AND id=$2 AND ($3::uuid IS NULL OR party_id=$3)`, [c.organizationId, contactId, customerId]);
+    const cx = await qx(client, `SELECT contact.id FROM tenant.contacts contact WHERE contact.organization_id=$1 AND contact.id=$2 AND ($3::uuid IS NULL OR EXISTS (SELECT 1 FROM tenant.crm_contact_account_relationships link WHERE link.organization_id=contact.organization_id AND link.contact_id=contact.id AND link.party_id=$3 AND link.status='active'))`, [c.organizationId, contactId, customerId]);
     if (!cx.rows[0]) throw new SupportError(400, "Contact was not found for this customer.", "SUPPORT_CONTACT_INVALID");
   }
 

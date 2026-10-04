@@ -25,8 +25,9 @@ export async function completeFulfillmentRequestWithStockMovement(
   const lineContext = new Map();
   if (lineIds.length) {
     const found = await client.query(
-      `SELECT line.id, line.item_id, line.warehouse_id, line.conversion_factor, sales_order.id AS order_id
+      `SELECT line.id, line.item_id, line.warehouse_id, line.conversion_factor, sales_order.id AS order_id, item.track_inventory
          FROM tenant.sales_order_lines line
+         JOIN tenant.items item ON item.organization_id = line.organization_id AND item.id = line.item_id
          JOIN tenant.sales_order_versions version ON version.id = line.sales_order_version_id
          JOIN tenant.sales_orders sales_order ON sales_order.id = version.sales_order_id
         WHERE line.organization_id = $1 AND line.id = ANY($2::uuid[])`,
@@ -43,7 +44,7 @@ export async function completeFulfillmentRequestWithStockMovement(
 
   for (const lineInput of lineInputs) {
     const line = lineContext.get(String(lineInput.salesOrderLineId));
-    if (!line || !line.warehouse_id) continue; // not a stock-tracked line
+    if (!line || !line.warehouse_id || !line.track_inventory) continue; // not a stock-tracked line
     // Shipped quantity is in the selling unit; Stock issues base units.
     const baseQuantity = Number(lineInput.fulfilledQuantity) * (Number(line.conversion_factor) || 1);
     const consumed = await consumeSalesOrderReservation(client, stockContext, {

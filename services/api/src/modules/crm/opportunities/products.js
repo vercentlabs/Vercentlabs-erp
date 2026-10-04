@@ -46,7 +46,7 @@ export async function searchOpportunityProducts(client, context, search = "") {
   requireOpportunityPermission(context, OPPORTUNITY_PERMISSIONS.view, "You do not have permission to view opportunities.");
   const { rows } = await client.query(
     `SELECT id, code, name, item_type, sales_price FROM tenant.items
-      WHERE organization_id = $1 AND status = 'active' AND ($2 = '' OR lower(name || ' ' || code) LIKE $2)
+      WHERE organization_id = $1 AND status = 'active' AND is_sellable AND ($2 = '' OR lower(name || ' ' || code || ' ' || COALESCE(sku, '')) LIKE $2)
       ORDER BY lower(name) LIMIT 50`,
     [context.organizationId, text(search) ? `%${text(search).toLowerCase().replace(/[\\%_]/g, "\\$&")}%` : ""],
   );
@@ -68,7 +68,7 @@ export async function addOpportunityProduct(client, context, opportunityId, inpu
   requireOpportunityPermission(context, OPPORTUNITY_PERMISSIONS.edit, "You do not have permission to edit opportunities.");
   const opportunity = await lockOpportunity(client, context, opportunityId);
   assertOpen(opportunity, "changed");
-  const product = (await client.query(`SELECT id, name, sales_price FROM tenant.items WHERE organization_id = $1 AND id = $2 AND status = 'active'`,
+  const product = (await client.query(`SELECT id, name, sales_price FROM tenant.items WHERE organization_id = $1 AND id = $2 AND status = 'active' AND is_sellable`,
     [context.organizationId, requireUuid(input.productId, "Product")])).rows[0];
   if (!product) throw invalid("Choose a product or service from the list.");
   const line = amounts({ quantity: 1, unitPrice: product.sales_price ?? 0, ...input });

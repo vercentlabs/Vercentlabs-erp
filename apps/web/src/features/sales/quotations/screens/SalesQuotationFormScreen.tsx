@@ -17,6 +17,7 @@ import {
 } from "@vercentlabs/design-system";
 
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
+import { CustomerQuickCreateDialog } from "@/features/sales/customers/components/CustomerDialogs";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import { SalesApiError } from "@/features/sales/shared/http";
 import { money, statusLabel } from "@/features/sales/shared/format";
@@ -24,6 +25,10 @@ import {
   BILLING_ADDRESS_TYPES,
   defaultAddress,
   SHIPPING_ADDRESS_TYPES,
+  contactLabel,
+  usableAddresses,
+  defaultLineDescription,
+  defaultLineUom,
   SUPPLY_TYPE_OPTIONS,
   supplyTypeFor,
 } from "@/features/sales/shared/document-defaults";
@@ -49,6 +54,7 @@ type LineDraft = {
   uomId: string;
   quantity: number;
   discountPercent: number;
+  description: string;
 };
 type ChargeDraft = {
   key: number;
@@ -111,7 +117,7 @@ export function SalesQuotationFormScreen({
 
   return (
     <FormBody
-      key={quotationId ?? "new"}
+      key={quotationId ?? `new-${initialPartyId ?? ""}`}
       options={optionsQuery.data}
       existing={existingQuery.data ?? null}
       quotationId={quotationId}
@@ -133,6 +139,12 @@ export function SalesQuotationFormScreen({
             : "/sales/quotations",
         )
       }
+      onCustomerCreated={async (customerId) => {
+        // The new customer joins the options, then the form restarts with it
+        // chosen so its terms, contact and addresses are defaulted.
+        await optionsQuery.refetch();
+        router.replace(`/sales/quotations/new?customer=${customerId}`);
+      }}
     />
   );
 }
@@ -145,6 +157,7 @@ function FormBody({
   initialContactId,
   onDone,
   onCancel,
+  onCustomerCreated,
 }: {
   options: NonNullable<
     ReturnType<typeof getSalesOptions> extends Promise<infer R>
@@ -159,9 +172,14 @@ function FormBody({
   initialContactId?: string;
   onDone: (id: string) => void;
   onCancel: () => void;
+  onCustomerCreated: (customerId: string) => void;
 }) {
   const workspace = useWorkspaceContext();
   const revising = Boolean(quotationId);
+  const canCreateCustomer =
+    workspace.roleSlugs.includes("organization_owner") ||
+    workspace.permissions.includes("sales.customers.create");
+  const [creatingCustomer, setCreatingCustomer] = useState(false);
   const baseCurrency =
     options.currencies.find((currency) => currency.is_base)?.code ??
     options.currencies[0]?.code ??
@@ -258,6 +276,7 @@ function FormBody({
           uomId: line.uom_id ?? "",
           quantity: Number(line.quantity),
           discountPercent: Number(line.discount_percent),
+          description: line.description_snapshot ?? "",
         }))
       : [
           {
@@ -267,6 +286,7 @@ function FormBody({
             uomId: "",
             quantity: 1,
             discountPercent: 0,
+            description: "",
           },
         ],
   );
@@ -300,21 +320,21 @@ function FormBody({
     { value: "", label: "None" },
     ...partyContacts.map((contact) => ({
       value: contact.id,
-      label:
-        `${contact.first_name} ${contact.last_name ?? ""}`.trim() +
-        (contact.is_primary ? " (primary)" : ""),
+      label: contactLabel(contact),
     })),
   ];
   const addressOptionsFor = (types: string[]): SelectOption[] => [
     { value: "", label: "None" },
-    ...partyAddresses
-      .filter((address) => types.includes(address.address_type))
-      .map((address) => ({
-        value: address.id,
-        label:
-          `${statusLabel(address.address_type)} — ${address.line1}${address.city ? `, ${address.city}` : ""}` +
-          (address.is_primary ? " (primary)" : ""),
-      })),
+    ...usableAddresses(partyAddresses, types).map((address) => ({
+      value: address.id,
+      label:
+        `${address.label || statusLabel(address.address_type)} — ${address.line1}${address.city ? `, ${address.city}` : ""}` +
+        ((types === BILLING_ADDRESS_TYPES
+          ? address.is_default_billing
+          : address.is_default_shipping)
+          ? " (default)"
+          : ""),
+    })),
   ];
   const billingAddressOptions = addressOptionsFor(BILLING_ADDRESS_TYPES);
   const shippingAddressOptions = addressOptionsFor(SHIPPING_ADDRESS_TYPES);
@@ -355,7 +375,7 @@ function FormBody({
   }
   function selectLineItem(key: number, itemId: string) {
     const item = options.items.find((candidate) => candidate.id === itemId);
-    updateLine(key, { itemId, variantId: "", uomId: item?.uom_id ?? "" });
+    updateLine(key, { itemId, variantId: "", uomId: defaultLineUom(item, options.itemUomConversions), description: defaultLineDescription(item) });
   }
   const currencyOptions: SelectOption[] = options.currencies.map(
     (currency) => ({
@@ -428,6 +448,7 @@ function FormBody({
         itemId: line.itemId,
         variantId: line.variantId || undefined,
         uomId: line.uomId || undefined,
+        description: line.description.trim() || undefined,
         quantity: line.quantity,
         discountPercent: line.discountPercent || undefined,
       })),
@@ -565,6 +586,17 @@ function FormBody({
                 onSelectionChange={(key) => selectParty(String(key ?? ""))}
                 placeholder="Select a customer"
                 isDisabled={revising}
+                description={
+                  !revising && canCreateCustomer ? (
+                    <button
+                      type="button"
+                      className="text-brand underline-offset-2 hover:underline"
+                      onClick={() => setCreatingCustomer(true)}
+                    >
+                      New customer
+                    </button>
+                  ) : undefined
+                }
               />
               <Select
                 label="Contact"
@@ -674,6 +706,7 @@ function FormBody({
                       uomId: "",
                       quantity: 1,
                       discountPercent: 0,
+                      description: "",
                     },
                   ])
                 }
@@ -762,6 +795,15 @@ function FormBody({
                     >
                       <Trash2 className="size-4" aria-hidden="true" />
                     </IconButton>
+                    {line.itemId && (
+                      <TextField
+                        className="sm:col-span-6"
+                        aria-label={`Description ${index + 1}`}
+                        placeholder="Description on the document"
+                        value={line.description}
+                        onChange={(value) => updateLine(line.key, { description: value })}
+                      />
+                    )}
                     {priced && (
                       <p className="text-xs text-text-muted sm:col-span-6">
                         {money(currencyCode, priced.unitPrice)} each · net{" "}
@@ -955,6 +997,14 @@ function FormBody({
           </SalesPanel>
         </div>
       </div>
+      <CustomerQuickCreateDialog
+        isOpen={creatingCustomer}
+        onClose={() => setCreatingCustomer(false)}
+        onCreated={(customer) => {
+          setCreatingCustomer(false);
+          onCustomerCreated(customer.id);
+        }}
+      />
     </div>
   );
 }

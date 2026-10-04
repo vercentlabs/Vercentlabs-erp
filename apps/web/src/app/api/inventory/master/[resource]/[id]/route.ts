@@ -6,7 +6,7 @@ import {
 } from "@vercentlabs/api";
 
 import {
-  guardItemIdentity,
+  assertItemsReadOnly,
   INVENTORY_MASTER,
   masterResource,
   shapeMasterUpdate,
@@ -24,10 +24,9 @@ export async function PATCH(
     z.record(z.string(), z.unknown()),
     async (client, context, input, session) => {
       const name = masterResource(resource);
+      assertItemsReadOnly(name);
       requireSessionPermission(session, INVENTORY_MASTER[name].permission);
       const shaped = shapeMasterUpdate(input);
-      if (name === "items")
-        await guardItemIdentity(client, context.organizationId, id, shaped);
       return {
         record: await updateBusinessDataRecord(
           client,

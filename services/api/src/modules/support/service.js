@@ -33,6 +33,6 @@ export async function listSupportOptions(client, c) {
 }
 export async function listCustomerContacts(client, c, partyId) {
   needAny(c, ["support.view", "support.ticket.create", MANAGE]);
-  const { rows } = await qx(client, `SELECT id, trim(first_name || ' ' || coalesce(last_name,'')) AS name, email FROM tenant.contacts WHERE organization_id=$1 AND party_id=$2 AND status='active' ORDER BY is_primary DESC, first_name`, [c.organizationId, uuid(partyId, "Customer")]);
+  const { rows } = await qx(client, `SELECT contact.id, trim(contact.first_name || ' ' || coalesce(contact.last_name,'')) AS name, contact.email FROM tenant.contacts contact JOIN tenant.crm_contact_account_relationships link ON link.organization_id=contact.organization_id AND link.contact_id=contact.id AND link.party_id=$2 AND link.status='active' WHERE contact.organization_id=$1 AND contact.status='active' ORDER BY link.is_primary_contact DESC, contact.first_name`, [c.organizationId, uuid(partyId, "Customer")]);
   return rows;
 }

@@ -171,6 +171,10 @@ export type SalesOptions = {
     last_name: string | null;
     email: string | null;
     is_primary: boolean;
+    designation: string | null;
+    role: string | null;
+    is_billing_contact: boolean;
+    is_shipping_contact: boolean;
   }>;
   addresses: Array<{
     id: string;
@@ -179,6 +183,9 @@ export type SalesOptions = {
     line1: string;
     city: string | null;
     is_primary: boolean;
+    label: string | null;
+    is_default_billing: boolean;
+    is_default_shipping: boolean;
   }>;
   items: Array<{
     id: string;
@@ -186,6 +193,11 @@ export type SalesOptions = {
     name: string;
     item_type: string;
     uom_id: string | null;
+    sales_uom_id: string | null;
+    sales_description: string | null;
+    description: string | null;
+    track_inventory: boolean;
+    sku: string | null;
     sales_price: string | null;
     standard_cost?: string | null;
   }>;

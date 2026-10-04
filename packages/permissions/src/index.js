@@ -3,6 +3,7 @@ export * from "./catalog.js";
 export * from "./accounting.js";
 export * from "./crm.js";
 export * from "./sales.js";
+export * from "./products.js";
 export * from "./procurement.js";
 export * from "./billing.js";
 export * from "./stock.js";

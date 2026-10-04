@@ -7,6 +7,7 @@ import {
 } from "@vercentlabs/api";
 
 import {
+  assertItemsReadOnly,
   INVENTORY_MASTER,
   masterResource,
   shapeMasterCreate,
@@ -65,6 +66,7 @@ export async function POST(
     z.record(z.string(), z.unknown()),
     async (client, context, input, session) => {
       const name = masterResource(resource);
+      assertItemsReadOnly(name);
       requireSessionPermission(session, INVENTORY_MASTER[name].permission);
       return {
         record: await createBusinessDataRecord(

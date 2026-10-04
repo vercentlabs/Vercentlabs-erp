@@ -79,12 +79,12 @@ export async function resolveBuyerStateCode(client, context, customerId, sellerS
 
 async function resolveItemAndVariant(client, context, itemId, variantId) {
   const itemResult = await client.query(
-    `SELECT id,code,name,description,sales_price,standard_cost,tax_category_id,group_id,status,tracking_type
+    `SELECT id,code,name,description,sales_price,standard_cost,tax_category_id,group_id,status,tracking_type,is_sellable
      FROM tenant.items WHERE organization_id=$1 AND id=$2`,
     [context.organizationId, itemId],
   );
   const item = itemResult.rows[0];
-  if (!item || item.status !== "active") {
+  if (!item || item.status !== "active" || !item.is_sellable) {
     throw posError(404, "One or more POS sale items were not found.", "POS_SALE_ITEM_NOT_FOUND");
   }
   let variant = null;

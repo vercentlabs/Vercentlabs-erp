@@ -3,13 +3,13 @@
 // that. Providers return a small safe DTO only (no email, phone, bank, cost...).
 // Register a provider here only when its domain list function is proven safe.
 import { listLeads } from "../../modules/crm/leads/index.js";
-import { listBusinessDataRecords } from "../../core/master-data.js";
 import { listAccounts } from "../../modules/crm/accounts/index.js";
 import { listContacts } from "../../modules/crm/contacts/index.js";
+import { searchCustomers } from "../../modules/sales/customers/index.js";
+import { listProducts } from "../../modules/products/index.js";
 import { listOpportunities, listTasks, searchAttachments, searchNotes } from "../../modules/crm/index.js";
 
 const CRM_RECORD_PATHS = Object.freeze({ lead: "/crm/leads", party: "/crm/accounts", contact: "/crm/contacts", opportunity: "/crm/opportunities" });
-const SALES_CUSTOMER_TYPES = ["customer", "prospect", "both"];
 const text = (value) => (value === null || value === undefined || value === "" ? null : String(value).slice(0, 160));
 const joined = (...parts) => text(parts.filter(Boolean).join(" ").trim());
 
@@ -89,20 +89,23 @@ export const SEARCH_PROVIDERS = Object.freeze([
     key: "sales.customers",
     label: "Customers",
     moduleKey: "sales",
-    requiredPermission: "sales.view",
+    requiredPermission: "sales.customers.view",
+    // The Customer Master search: number, name, legal name, GSTIN, scoped to
+    // the customers the caller can see.
     async execute(client, context, term, limit) {
-      const { rows } = await listBusinessDataRecords(client, context, "parties", { search: term, status: "active", limit, offset: 0, partyTypes: SALES_CUSTOMER_TYPES });
-      return rows.map((row) => ({ recordId: row.id, title: text(row.displayName) || "Customer", detail: text(row.code), href: `/sales/customers/${row.id}` }));
+      const rows = await searchCustomers(client, context, term, { limit });
+      return rows.map((row) => ({ recordId: row.id, title: text(row.displayName) || "Customer", detail: [row.customerNumber, row.gstin].filter(Boolean).join(" · "), href: `/sales/customers/${row.id}` }));
     },
   },
   {
     key: "sales.products",
     label: "Products and services",
     moduleKey: "sales",
-    requiredPermission: "sales.view",
+    requiredPermission: "products.view",
+    // The shared catalogue: code, name, SKU, barcode, HSN / SAC, category.
     async execute(client, context, term, limit) {
-      const { rows } = await listBusinessDataRecords(client, context, "items", { search: term, status: "active", limit, offset: 0 });
-      return rows.map((row) => ({ recordId: row.id, title: text(row.name) || "Item", detail: text(row.code), href: "/sales/products" }));
+      const { products } = await listProducts(client, context, { search: term, status: "active", limit });
+      return products.map((row) => ({ recordId: row.id, title: text(row.name) || "Product", detail: [row.code, row.typeLabel].filter(Boolean).join(" · "), href: `/sales/products/${row.id}` }));
     },
   },
 ]);

@@ -9,6 +9,8 @@ export const FILE_ENTITY_TYPES = Object.freeze({
   "crm.contact": { moduleKey: "crm", purposes: ["attachment"] },
   "crm.campaign": { moduleKey: "crm", purposes: ["attachment"] },
   "support.ticket": { moduleKey: "support", purposes: ["attachment", "inbound_mail"] },
+  // Shared by every module that uses the catalogue; the product module checks access.
+  "products.item": { moduleKey: null, purposes: ["attachment"] },
   "platform.export": { moduleKey: null, purposes: ["export"] },
   "platform.report_run": { moduleKey: null, purposes: ["report_output"] },
 });

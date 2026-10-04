@@ -140,7 +140,9 @@ export async function updateContactRelationship(client, context, contactId, acco
     if (!["active", "inactive"].includes(input.status)) throw new CrmError(400, "Choose active or inactive.", "CRM_CONTACT_VALIDATION");
     fields.status = input.status;
     fields.ended_at = input.status === "inactive" ? new Date().toISOString() : null;
-    if (input.status === "inactive") Object.assign(fields, { is_primary_account: false, is_primary_contact: false });
+    // An ended link holds no role at the company, including the Customer
+    // Master's billing and delivery contact.
+    if (input.status === "inactive") Object.assign(fields, { is_primary_account: false, is_primary_contact: false, is_billing_contact: false, is_shipping_contact: false, is_procurement_contact: false });
   }
   const assignments = Object.entries(fields);
   if (!assignments.length) return { changed: false };

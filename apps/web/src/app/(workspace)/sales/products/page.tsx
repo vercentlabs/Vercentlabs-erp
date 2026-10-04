@@ -1,7 +1,7 @@
-import { SalesProductsScreen } from "@/features/sales/master/screens/SalesProductsScreen";
+import { ProductListScreen } from "@/features/sales/products/screens/ProductListScreen";
 
-export const metadata = { title: "Products and services" };
+export const metadata = { title: "Products & Services" };
 
 export default function Page() {
-  return <SalesProductsScreen />;
+  return <ProductListScreen />;
 }
