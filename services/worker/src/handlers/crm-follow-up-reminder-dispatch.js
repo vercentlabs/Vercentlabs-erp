@@ -75,7 +75,7 @@ export async function dispatchFollowUpRemindersHandler(_client, _systemContext, 
             category: activity.activityType === "task" ? "crm_task_due" : "crm_follow_up_reminder",
             entityType: "crm_activity",
             entityId: activity.id,
-            title: activity.activityType === "task" ? "Task due" : "Follow-up reminder",
+            title: activity.activityType === "task" ? "Task reminder" : "Follow-up reminder",
             message: `${activity.subject || (activity.activityType === "task" ? "A task" : "A follow-up")} is due ${new Date(activity.dueAt).toLocaleString()}.`,
             href: activity.activityType === "task" ? `/crm/tasks/${activity.id}` : `/crm/follow-ups/${activity.id}`,
           });

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 
-import { TaskListScreen } from "@/features/crm/work/tasks/screens/TaskListScreen";
+import { TaskListScreen } from "@/features/crm/tasks/screens/TaskListScreen";
 import { CallListScreen } from "@/features/crm/work/calls/screens/CallListScreen";
 import { MeetingListScreen } from "@/features/crm/work/meetings/screens/MeetingListScreen";
 import { FollowUpListScreen } from "@/features/crm/work/follow-ups/screens/FollowUpListScreen";

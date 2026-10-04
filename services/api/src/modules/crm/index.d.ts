@@ -153,15 +153,6 @@ export function cancelCrmMeeting(client: QueryClient, context: CrmContext, id: s
 export * from "./data-management/custom-field-runtime.js";
 export * from "./data-management/tag-assignment.js";
 
-export function listCrmTasks(client: QueryClient, context: CrmContext, filters?: Record<string, unknown>): Promise<{ rows: any[]; total: number; limit: number; offset: number }>;
-export function getCrmTask(client: QueryClient, context: CrmContext, id: string, options?: { lock?: boolean }): Promise<any>;
-export function createCrmTask(client: QueryClient, context: CrmContext, input?: Record<string, unknown>): Promise<any>;
-export function updateCrmTask(client: QueryClient, context: CrmContext, id: string, input?: Record<string, unknown>): Promise<any>;
-export function startCrmTask(client: QueryClient, context: CrmContext, id: string, input?: Record<string, unknown>): Promise<any>;
-export function completeCrmTask(client: QueryClient, context: CrmContext, id: string, input?: Record<string, unknown>): Promise<any>;
-export function cancelCrmTask(client: QueryClient, context: CrmContext, id: string, input?: Record<string, unknown>): Promise<any>;
-export function reopenCrmTask(client: QueryClient, context: CrmContext, id: string, input?: Record<string, unknown>): Promise<any>;
-export function listCrmTaskHistory(client: QueryClient, context: CrmContext, id: string): Promise<any[]>;
 
 // Declarations for the commands and queries added to the boundary for package
 // consumers (@vercentlabs/api/crm); most are re-exported from their owning
@@ -193,22 +184,8 @@ export function assertPublicDate(date: string | null): string;
 export function getPublicMeetingLinkView(client: QueryClient, link: PublicMeetingLinkRow): Promise<Record<string, unknown>>;
 export function getPublicMeetingBookingView(client: QueryClient, booking: PublicMeetingBookingRow): Promise<Record<string, unknown>>;
 export function getPublicRescheduleAvailability(client: QueryClient, booking: PublicMeetingBookingRow, date: string | null): Promise<any>;
-// F015 recurrence, dependencies, canonical overdue formula.
+// The canonical overdue rule for activities.
 export function taskOverdueSql(alias?: string): string;
-export function computeNextTaskOccurrence(
-  config: { freq: "daily" | "weekly" | "monthly"; interval?: number; count?: number; until?: string; byWeekday?: number[] } | null,
-  fromDueAt: string,
-  occurrenceIndex: number,
-): string | null;
-export function generateNextTaskOccurrence(client: QueryClient, context: any, completedTask: any): Promise<any | null>;
-export function addTaskDependency(client: QueryClient, context: any, taskId: string, dependsOnTaskId: string): Promise<any | null>;
-export function removeTaskDependency(client: QueryClient, context: any, taskId: string, dependsOnTaskId: string): Promise<void>;
-export function listTaskDependencies(client: QueryClient, context: any, taskId: string): Promise<any[]>;
-// F015 team/queue Tasks — real assignment model.
-export function claimCrmTask(client: QueryClient, context: any, id: string, input?: Record<string, unknown>): Promise<any>;
-export function releaseCrmTask(client: QueryClient, context: any, id: string, input?: Record<string, unknown>): Promise<any>;
-export function listMyTaskTeams(client: QueryClient, context: any): Promise<any[]>;
-export function listTeamMembers(client: QueryClient, context: any, teamId: string): Promise<any[]>;
 // F016 Follow-ups and reminders.
 export function listCrmFollowUps(client: QueryClient, context: any, filters?: Record<string, unknown>): Promise<{ rows: any[]; total: number; limit: number; offset: number }>;
 export function getCrmFollowUp(client: QueryClient, context: any, id: string, options?: { lock?: boolean }): Promise<any>;
@@ -333,6 +310,7 @@ export * from "./leads/index.js";
 export * from "./opportunities/index.js";
 export * from "./pipeline/index.js";
 export * from "./sales-stages/index.js";
+export * from "./tasks/index.js";
 export * from "./accounts/index.js";
 export * from "./contacts/index.js";
 export * from "./duplicates/index.js";

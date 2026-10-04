@@ -25,10 +25,37 @@ export const payloadSchema = z.object({}).strict();
 // activities table's own CHECK constraint has always allowed
 // (002_crm_module.sql) but which nothing previously set.
 export async function detectOverdueActivitiesHandler(client, context, _payload) {
+  // Tasks: overdue is calculated from the due date, never stored. The assignee
+  // is told once; overdue_notified_at is the marker, cleared when the task is
+  // rescheduled, reassigned or reopened.
+  const lateTasks = await client.query(
+    `UPDATE tenant.crm_activities SET overdue_notified_at = now()
+      WHERE id IN (SELECT id FROM tenant.crm_activities
+                    WHERE organization_id = $1 AND activity_type = 'task' AND status IN ('planned', 'in_progress', 'overdue')
+                      AND due_at < now() AND overdue_notified_at IS NULL
+                    ORDER BY due_at LIMIT 200 FOR UPDATE SKIP LOCKED)
+      RETURNING *`,
+    [context.organizationId],
+  );
+  for (const task of lateTasks.rows) {
+    if (task.assigned_to)
+      await createNotification(client, {
+        organizationId: context.organizationId,
+        userId: task.assigned_to,
+        category: "crm_task_overdue",
+        title: "Task overdue",
+        message: `${task.task_number ? `${task.task_number} · ` : ""}${task.subject} was due ${new Date(task.due_at).toLocaleString()}.`,
+        href: `/crm/tasks/${task.id}`,
+        entityType: "crm_activity",
+        entityId: task.id,
+      });
+    await runCrmAutomation(client, context, "activity.overdue", "activity", task.id, task);
+  }
+
   const due = await client.query(
     `SELECT * FROM tenant.crm_activities
       WHERE organization_id = $1
-        AND status IN ('planned', 'in_progress')
+        AND status IN ('planned', 'in_progress') AND activity_type <> 'task'
         AND due_at IS NOT NULL AND due_at < now()
       ORDER BY due_at ASC
       LIMIT 200`,
@@ -66,5 +93,5 @@ export async function detectOverdueActivitiesHandler(client, context, _payload) 
     fired += 1;
   }
 
-  return { scanned: due.rows.length, fired };
+  return { scanned: due.rows.length + lateTasks.rows.length, fired: fired + lateTasks.rows.length };
 }

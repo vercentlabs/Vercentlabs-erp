@@ -1,29 +1,14 @@
-import { startCrmTask } from "@vercentlabs/api/crm";
+import { startTask } from "@vercentlabs/api/crm";
 import { CRM_PERMISSIONS } from "@vercentlabs/permissions";
 
-import { ok, readJson } from "@/core/http";
-import { crmContext } from "@/features/crm/shared/crm-context";
+import { ok } from "@/core/http";
 import { workspaceRoute } from "@/core/workspace-route";
+import { crmContext } from "@/features/crm/shared/crm-context";
+import { readBody, type TaskRouteParams } from "@/features/crm/tasks/server/task-http";
 
-export async function POST(
-  request: Request,
-  context: { params: Promise<{ id: string }> },
-) {
-  return workspaceRoute(
-    request,
-    {
-      module: "crm",
-      permission: CRM_PERMISSIONS.activitiesManage,
-      billingWrite: true,
-    },
-    async ({ client, session }) => {
-      const { id } = await context.params;
-      const input = (await readJson(request).catch(() => ({}))) as Record<
-        string,
-        unknown
-      >;
-      const record = await startCrmTask(client, crmContext(session), id, input);
-      return ok({ record });
-    },
+// Body: { expectedUpdatedAt? }
+export async function POST(request: Request, route: TaskRouteParams) {
+  return workspaceRoute(request, { module: "crm", permission: CRM_PERMISSIONS.tasksView, billingWrite: true }, async ({ client, session }) =>
+    ok(await startTask(client, crmContext(session), (await route.params).id, await readBody(request))),
   );
 }

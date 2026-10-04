@@ -1,7 +1,7 @@
 import { moveOpportunityStage } from "../opportunities/outcome.js";
 import { createHash, randomUUID } from "node:crypto";
 import { createLead } from "../leads/records.js";
-import { createCrmTask, completeCrmTask } from "../activities/task-operations.js";
+import { completeTask, createTask } from "../tasks/index.js";
 import { createCrmFollowUp, completeCrmFollowUp } from "../activities/follow-ups/follow-up-operations.js";
 export const CRM_OFFLINE_CAPABILITY_IDS = Object.freeze(["CRM-072"]);
 export class CrmOfflineSyncError extends Error {
@@ -274,17 +274,17 @@ export async function applyOfflineMutation(client, context, input = {}) {
     if (activityType === "meeting")
       throw new CrmOfflineSyncError(410, "Use the governed Meetings mobile endpoint for offline Meeting creation.", "CRM_MEETING_API_MOVED");
     if (activityType === "task") {
-      row = await createCrmTask(client, context, {
-        entityType: text(p.entityType || p.entity_type || "general"),
-        entityId: p.entityId || p.entity_id || null,
-        subject: text(p.subject),
+      const entityType = text(p.entityType || p.entity_type);
+      // A task queued without a due time is due by the end of the day it was queued.
+      row = await createTask(client, context, {
+        relatedType: entityType && entityType !== "general" ? entityType : null,
+        relatedId: p.entityId || p.entity_id || null,
+        title: text(p.subject),
         description: text(p.description) || null,
-        priority: text(p.priority || "medium"),
+        priority: ["low", "medium", "high"].includes(text(p.priority)) ? text(p.priority) : "high",
         assignedTo: p.assignedTo || p.assigned_to || context.userId,
-        startAt: p.startAt || p.start_at || null,
-        dueAt: p.dueAt || p.due_at || null,
-        reminderAt: p.reminderAt || p.reminder_at || null,
-        recurringRule: p.recurringRule || p.recurring_rule || null,
+        ...(p.dueAt || p.due_at ? { dueAt: p.dueAt || p.due_at } : { dueDate: new Date().toISOString().slice(0, 10) }),
+        idempotencyKey: m.clientMutationId || m.id || undefined,
       });
     } else if (activityType === "follow_up") {
       // Routed through createCrmFollowUp rather than the generic raw INSERT
@@ -325,7 +325,8 @@ export async function applyOfflineMutation(client, context, input = {}) {
     if (target?.activity_type === "meeting")
       throw new CrmOfflineSyncError(410, "Use the governed Meetings mobile endpoint for offline Meeting completion.", "CRM_MEETING_API_MOVED");
     if (target?.activity_type === "task") {
-      row = await completeCrmTask(client, context, m.recordId, { outcome: text(m.payload.outcome) || null });
+      await completeTask(client, context, m.recordId, { note: text(m.payload.outcome) || null });
+      row = (await client.query(`SELECT * FROM tenant.crm_activities WHERE organization_id = $1 AND id = $2`, [context.organizationId, m.recordId])).rows[0];
     } else if (target?.activity_type === "follow_up") {
       // Routed through completeCrmFollowUp rather than the generic raw
       // UPDATE below, so an offline-queued completion still cancels its

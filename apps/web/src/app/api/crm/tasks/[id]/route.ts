@@ -1,42 +1,23 @@
-import { getCrmTask, updateCrmTask } from "@vercentlabs/api/crm";
+import { deleteTask, getTask, updateTask } from "@vercentlabs/api/crm";
 import { CRM_PERMISSIONS } from "@vercentlabs/permissions";
 
-import { ok, readJson } from "@/core/http";
-import { crmContext } from "@/features/crm/shared/crm-context";
+import { ok } from "@/core/http";
 import { workspaceRoute } from "@/core/workspace-route";
+import { crmContext } from "@/features/crm/shared/crm-context";
+import { readBody, type TaskRouteParams } from "@/features/crm/tasks/server/task-http";
 
-type RouteContext = { params: Promise<{ id: string }> };
+export async function GET(request: Request, route: TaskRouteParams) {
+  return workspaceRoute(request, { module: "crm", permission: CRM_PERMISSIONS.tasksView }, async ({ client, session }) => ok({ record: await getTask(client, crmContext(session), (await route.params).id) }));
+}
 
-export async function GET(request: Request, context: RouteContext) {
-  return workspaceRoute(
-    request,
-    { module: "crm", permission: CRM_PERMISSIONS.activitiesManage },
-    async ({ client, session }) => {
-      const { id } = await context.params;
-      const record = await getCrmTask(client, crmContext(session), id);
-      return ok({ record });
-    },
+// Body: any of { title, description, priority, dueDate, dueTime, reminderOffsetMinutes, reminderAt, relatedType, relatedId, reason }, plus expectedUpdatedAt.
+export async function PATCH(request: Request, route: TaskRouteParams) {
+  return workspaceRoute(request, { module: "crm", permission: CRM_PERMISSIONS.tasksView, billingWrite: true }, async ({ client, session }) =>
+    ok({ record: await updateTask(client, crmContext(session), (await route.params).id, await readBody(request)) }),
   );
 }
 
-export async function PATCH(request: Request, context: RouteContext) {
-  return workspaceRoute(
-    request,
-    {
-      module: "crm",
-      permission: CRM_PERMISSIONS.activitiesManage,
-      billingWrite: true,
-    },
-    async ({ client, session }) => {
-      const { id } = await context.params;
-      const input = (await readJson(request)) as Record<string, unknown>;
-      const record = await updateCrmTask(
-        client,
-        crmContext(session),
-        id,
-        input,
-      );
-      return ok({ record });
-    },
-  );
+// Only a task that was never worked on; anything else is cancelled.
+export async function DELETE(request: Request, route: TaskRouteParams) {
+  return workspaceRoute(request, { module: "crm", permission: CRM_PERMISSIONS.tasksView, billingWrite: true }, async ({ client, session }) => ok(await deleteTask(client, crmContext(session), (await route.params).id)));
 }

@@ -57,7 +57,7 @@ export function HomeAttention({
   const overdueTasks = useQuery({
     queryKey: scopedQueryKey(workspace, "home", "overdue-tasks"),
     queryFn: async () =>
-      (await listTasks({ mine: true, due: "overdue", limit: 1 })).total,
+      (await listTasks({ view: "overdue", limit: 1 })).total,
     enabled: hasCrm,
     retry: false,
   });
@@ -95,7 +95,7 @@ export function HomeAttention({
       count: overdueTasks.data ?? null,
       loading: overdueTasks.isLoading,
       failed: overdueTasks.isError,
-      href: "/crm/tasks?due=overdue",
+      href: "/crm/tasks?view=overdue",
       hint: overdueTasks.data === 0 ? "None overdue" : "Open your tasks",
     });
     cards.push({

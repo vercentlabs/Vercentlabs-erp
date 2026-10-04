@@ -59,10 +59,6 @@ export {
 export {
   getSupportDeskDashboard, listSupportOptions, listCustomerContacts,
 } from "./modules/support/service.js";
-// task-operations.js is now also re-exported from ./modules/crm/index.js
-// (line 6's `export *` already covers it) — the direct re-export here was
-// removed rather than kept alongside it to avoid an ambiguous/duplicate
-// star-export binding for the same symbols.
 
 export * from "./modules/sales/pass1-operations.js";
 

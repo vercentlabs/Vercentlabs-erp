@@ -1,22 +1,11 @@
-import { listCrmTaskHistory } from "@vercentlabs/api/crm";
+import { listTaskHistory } from "@vercentlabs/api/crm";
 import { CRM_PERMISSIONS } from "@vercentlabs/permissions";
 
 import { ok } from "@/core/http";
-import { crmContext } from "@/features/crm/shared/crm-context";
 import { workspaceRoute } from "@/core/workspace-route";
+import { crmContext } from "@/features/crm/shared/crm-context";
+import { type TaskRouteParams } from "@/features/crm/tasks/server/task-http";
 
-type RouteContext = { params: Promise<{ id: string }> };
-
-// F015 gap-closure — listCrmTaskHistory (the crm_task_events lifecycle
-// ledger reader) existed with no route and no frontend caller.
-export async function GET(request: Request, context: RouteContext) {
-  return workspaceRoute(
-    request,
-    { module: "crm", permission: CRM_PERMISSIONS.activitiesManage },
-    async ({ client, session }) => {
-      const { id } = await context.params;
-      const rows = await listCrmTaskHistory(client, crmContext(session), id);
-      return ok({ rows });
-    },
-  );
+export async function GET(request: Request, route: TaskRouteParams) {
+  return workspaceRoute(request, { module: "crm", permission: CRM_PERMISSIONS.tasksView }, async ({ client, session }) => ok({ history: await listTaskHistory(client, crmContext(session), (await route.params).id) }));
 }

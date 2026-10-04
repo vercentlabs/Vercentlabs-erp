@@ -23,7 +23,7 @@ export const CURRENT_MODULE_KEYS = Object.freeze([
 
 const base = ["workspace.view", "notifications.view", "profile.manage"];
 const businessReader = [...base, "business_data.view"];
-const crmReader = [...businessReader, "crm.view", "crm.leads.view", "crm.opportunities.view", "crm.accounts.view", "crm.contacts.view", "crm.reports.view"];
+const crmReader = [...businessReader, "crm.view", "crm.tasks.view", "crm.leads.view", "crm.opportunities.view", "crm.accounts.view", "crm.contacts.view", "crm.reports.view"];
 // Working a lead day to day: everything a salesperson does to their own leads.
 const leadWorker = ["crm.leads.create", "crm.leads.edit", "crm.leads.change_stage", "crm.leads.assign", "crm.leads.assign_self", "crm.leads.qualify", "crm.leads.disqualify", "crm.leads.reopen", "crm.leads.convert"];
 // Running the lead desk: moving leads between people, archiving, import and export.
@@ -37,13 +37,16 @@ const leadRouting = ["crm.leads.assign_across_teams", "crm.leads.manage_assignme
 // Working a deal day to day: creating it, moving it through the stages,
 // quoting it and closing it as won or lost.
 const pipelineAdmin = ["crm.pipeline.manage_stages"];
+const taskWorker = ["crm.tasks.view", "crm.tasks.create", "crm.tasks.edit", "crm.tasks.complete", "crm.tasks.reopen", "crm.tasks.cancel", "crm.tasks.assign"];
+const taskManager = [...taskWorker, "crm.tasks.reassign", "crm.tasks.delete", "crm.tasks.view_team"];
 const opportunityWorker = [
+  ...taskWorker,
   "crm.opportunities.view", "crm.opportunities.create", "crm.opportunities.edit", "crm.opportunities.assign", "crm.opportunities.change_stage",
   "crm.opportunities.create_quotation", "crm.opportunities.mark_won", "crm.opportunities.mark_lost", "crm.opportunities.change_probability",
 ];
 // Running the pipeline: moving deals between people, reopening closed deals,
 // archiving or deleting mistakes, and export.
-const opportunityManager = [...opportunityWorker, "crm.opportunities.reassign", "crm.opportunities.reopen", "crm.opportunities.delete", "crm.opportunities.export", "crm.opportunities.bulk_update"];
+const opportunityManager = [...opportunityWorker, "crm.opportunities.reassign", "crm.opportunities.reopen", "crm.opportunities.delete", "crm.opportunities.export", "crm.opportunities.bulk_update", ...taskManager];
 // Working accounts day to day: adding companies, keeping them current and
 // giving an unowned account an owner.
 const accountWorker = ["crm.accounts.create", "crm.accounts.edit", "crm.accounts.assign"];
@@ -231,6 +234,7 @@ export const ROLE_TEMPLATES = Object.freeze([
       "crm.opportunities.manage",
       ...opportunityManager,
       "crm.opportunities.view_all",
+      "crm.tasks.view_all",
       "crm.activities.manage",
       "crm.campaigns.manage",
       "crm.communications.manage",
@@ -288,6 +292,7 @@ export const ROLE_TEMPLATES = Object.freeze([
       "crm.opportunities.manage",
       ...opportunityManager,
       "crm.opportunities.view_all",
+      "crm.tasks.view_all",
       "crm.activities.manage",
       "crm.communications.manage",
       "crm.revenue.manage",
@@ -424,6 +429,7 @@ export const ROLE_TEMPLATES = Object.freeze([
       "crm.opportunities.manage",
       ...opportunityManager,
       "crm.opportunities.view_all",
+      "crm.tasks.view_all",
       "crm.activities.manage",
       "crm.import",
       "crm.export",

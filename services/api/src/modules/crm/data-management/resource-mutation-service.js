@@ -39,7 +39,7 @@ export async function createCrmRecord(client, context, resource, input) {
       throw new CrmError(410, "Use the governed Follow-ups operations.", "CRM_FOLLOW_UP_API_MOVED");
     // Tasks are redirected too — otherwise POST /api/crm/activities with
     // {activityType:"task",...} would insert a crm_activities row directly,
-    // bypassing createCrmTask's own governance (status always 'planned', activityType/status rejected
+    // bypassing createTask's own governance (status always 'planned', activityType/status rejected
     // as caller-supplied input, recurrenceConfig validation).
     if (activityType === "task")
       throw new CrmError(410, "Use the governed Tasks operations.", "CRM_TASK_API_MOVED");

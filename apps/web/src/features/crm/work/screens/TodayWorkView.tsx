@@ -8,7 +8,7 @@ import { LoadingState } from "@/shared/ui/LoadingState";
 import { formatDate } from "@/shared/format/human";
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
-import { listTasks } from "@/features/crm/work/tasks/api/tasks-api";
+import { listTasks } from "@/features/crm/tasks/api/tasks-api";
 import { listCalls } from "@/features/crm/work/calls/api/calls-api";
 import { listMeetings } from "@/features/crm/work/meetings/api/meetings-api";
 import { listFollowUps } from "@/features/crm/work/follow-ups/api/follow-ups-api";
@@ -41,18 +41,13 @@ const BUCKETS: Bucket[] = [
     title: "Overdue tasks",
     empty: "No overdue tasks.",
     detail: (id) => `/crm/tasks/${id}`,
-    allHref: "/crm/work?view=tasks&due=overdue",
+    allHref: "/crm/tasks?view=overdue",
     load: async () => {
-      const result = await listTasks({
-        due: "overdue",
-        mine: true,
-        limit: LIMIT,
-        offset: 0,
-      });
+      const result = await listTasks({ view: "overdue", limit: LIMIT, offset: 0 });
       return {
         rows: result.rows.map((row) => ({
           id: row.id,
-          subject: row.subject,
+          subject: row.title,
           status: row.status,
           at: row.dueAt,
         })),
@@ -65,18 +60,13 @@ const BUCKETS: Bucket[] = [
     title: "Tasks due today",
     empty: "No tasks due today.",
     detail: (id) => `/crm/tasks/${id}`,
-    allHref: "/crm/work?view=tasks&due=today",
+    allHref: "/crm/tasks?view=due_today",
     load: async () => {
-      const result = await listTasks({
-        due: "today",
-        mine: true,
-        limit: LIMIT,
-        offset: 0,
-      });
+      const result = await listTasks({ view: "due_today", limit: LIMIT, offset: 0 });
       return {
         rows: result.rows.map((row) => ({
           id: row.id,
-          subject: row.subject,
+          subject: row.title,
           status: row.status,
           at: row.dueAt,
         })),

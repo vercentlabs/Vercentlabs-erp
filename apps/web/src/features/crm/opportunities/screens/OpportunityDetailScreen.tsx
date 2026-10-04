@@ -28,6 +28,7 @@ import {
   ScheduleFollowUpDialog, useStartQuotation,
 } from "../components/OpportunityPanels";
 import { useStageChange } from "@/features/crm/sales-stages/components/StageChange";
+import { RelatedTasksPanel } from "@/features/crm/tasks/components/RelatedTasksPanel";
 import { LIVE_OPPORTUNITY_QUERY } from "../live-query";
 import { ErrorBanner, OpportunityFlags, OpportunityStageBadge, OpportunityStatusBadge, PriorityBadge, days } from "../opportunity-format";
 
@@ -243,7 +244,7 @@ function OpportunityDetail({ opportunity, options, tab, setTab, dialog, setDialo
           <TabPanel id="contacts"><OpportunityContactsPanel opportunity={opportunity} options={options} canEdit={can.edit && !archived} onChanged={refresh} /></TabPanel>
           <TabPanel id="products"><OpportunityProductsPanel key={opportunity.updatedAt} opportunity={opportunity} options={options} canEdit={canEdit} onChanged={refresh} /></TabPanel>
           <TabPanel id="activities"><OpportunityWorkPanel kind="activities" opportunity={opportunity} options={options} canEdit={canEdit} onChanged={refresh} /></TabPanel>
-          <TabPanel id="tasks"><OpportunityWorkPanel kind="tasks" opportunity={opportunity} options={options} canEdit={canEdit} onChanged={refresh} /></TabPanel>
+          <TabPanel id="tasks"><RelatedTasksPanel relatedType="opportunity" relatedId={opportunity.id} relatedName={opportunity.name} canCreate={can.edit && !archived} onChanged={refresh} /></TabPanel>
           <TabPanel id="followUps"><OpportunityWorkPanel kind="followUps" opportunity={opportunity} options={options} canEdit={canEdit} onChanged={refresh} /></TabPanel>
           <TabPanel id="quotations"><OpportunityQuotationsPanel opportunity={opportunity} options={options} canEdit={can.edit && !archived} onChanged={refresh} /></TabPanel>
           <TabPanel id="notes"><NotesPanel entityType="opportunity" entityId={opportunity.id} /></TabPanel>

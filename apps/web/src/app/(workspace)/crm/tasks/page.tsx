@@ -1,21 +1,10 @@
-import { redirect } from "next/navigation";
-
 import { requireWorkspace } from "@/core/session";
+import { TaskListScreen } from "@/features/crm/tasks/screens/TaskListScreen";
 
-// A view of the My Work workspace (/crm/work?view=tasks). This address keeps
-// working — bookmarks, detail-page back links and dashboard drill-downs such
-// as ?due=overdue — and opens that view with its query intact.
-export default async function TasksPage({
-  searchParams,
-}: {
-  searchParams: Promise<Record<string, string | string[] | undefined>>;
-}) {
+export const metadata = { title: "Tasks" };
+
+// CRM Tasks. ?view=overdue | due_today | upcoming | … opens a view; My Tasks is the default.
+export default async function Page() {
   await requireWorkspace();
-  const query = new URLSearchParams();
-  for (const [key, value] of Object.entries(await searchParams)) {
-    for (const item of Array.isArray(value) ? value : [value])
-      if (item !== undefined) query.append(key, item);
-  }
-  query.set("view", "tasks");
-  redirect(`/crm/work?${query.toString()}`);
+  return <TaskListScreen />;
 }

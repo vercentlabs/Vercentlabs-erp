@@ -16,7 +16,7 @@ import { workspaceRoute } from "@/core/workspace-route";
 // Mobile-audit finding (same bypass class as Checkpoint #2's HTTP-route
 // authorization gap, found via a different entry point): applyOfflineBatch/
 // applyOfflineMutation dispatch straight to createCrmRecord("leads",...)/
-// moveOpportunityStage/createCrmTask/createCrmFollowUp/completeCrmTask/
+// moveOpportunityStage/createTask/createCrmFollowUp/completeTask/
 // completeCrmFollowUp per mutation, and NONE of those (nor offline-sync.js
 // itself) check an organizational manage-permission internally — confirmed
 // by grepping the entire services/api/src/modules/crm tree for any

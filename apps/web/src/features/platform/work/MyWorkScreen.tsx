@@ -47,13 +47,13 @@ async function fetchCrmWork(
   due: "overdue" | "today" | "upcoming",
 ): Promise<WorkItem[]> {
   const [tasks, followUps] = await Promise.all([
-    listTasks({ mine: true, due, limit: 10 }),
+    listTasks({ view: due === "overdue" ? "overdue" : due === "today" ? "due_today" : "mine", limit: 10 }),
     listFollowUps({ due, limit: 10 }),
   ]);
   return [
     ...tasks.rows.map((row) => ({
       id: row.id,
-      subject: row.subject,
+      subject: row.title,
       dueAt: row.dueAt,
       href: `/crm/tasks/${row.id}`,
       kind: "Task",

@@ -9,10 +9,9 @@ import Link from "next/link";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Badge, Button, Dialog, EmptyState, Select, StatusBadge, TextArea, TextField } from "@vercentlabs/design-system";
 
-import { PRIORITY_OPTIONS } from "@/features/crm/leads/lead-format";
 import { DateTimeInput } from "@/features/crm/shared/ui/DateTimeInput";
 import { completeFollowUp, snoozeFollowUp } from "@/features/crm/work/follow-ups/api/follow-ups-api";
-import { completeTask, createTask, reopenTask } from "@/features/crm/work/tasks/api/tasks-api";
+import { RelatedTasksPanel } from "@/features/crm/tasks/components/RelatedTasksPanel";
 import { dueLabel, dueState, formatDateTime, humanize } from "@/shared/format/human";
 import { LoadingState } from "@/shared/ui/LoadingState";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
@@ -28,7 +27,6 @@ const OPEN_STATUSES = new Set(["planned", "in_progress", "overdue"]);
 const FOLLOW_UP_TYPE_LABELS: Record<string, string> = { call: "Call", email: "Email", meeting: "Meeting", task: "Task", other: "Other" };
 const NO_NEXT_ACTION = "none";
 const NO_OPPORTUNITY = "__none__";
-const ON_CONTACT = "__contact__";
 
 type PanelProps = { contactId: string; options: ContactOptions; canEdit: boolean };
 
@@ -323,92 +321,7 @@ function RescheduleDialog({ activity, onClose, onDone }: { activity: ContactActi
 
 // ------------------------------------------------------------------ tasks
 
-export function ContactTasksPanel({ contactId, options, canEdit }: PanelProps) {
-  const { query, refresh } = useContactActivities(contactId);
-  const [isCreating, setCreating] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const tasks = (query.data ?? []).filter((activity) => activity.type === "task");
-  const toggle = useMutation({
-    mutationFn: (task: ContactActivity) => (OPEN_STATUSES.has(task.status) ? completeTask(task.id, undefined, task.updatedAt) : reopenTask(task.id, task.updatedAt)),
-    onSuccess: () => { setError(null); refresh(); },
-    onError: (failure) => setError(errorMessage(failure)),
-  });
-
-  return (
-    <>
-      <ErrorBanner message={error} />
-      <PanelShell
-        title="Tasks"
-        action={canEdit && <Button variant="primary" size="compact" onPress={() => setCreating(true)}>New task</Button>}
-        query={query}
-        isEmpty={tasks.length === 0}
-        emptyTitle="No tasks"
-        emptyDescription="Add the things that need doing for this person, such as sending a proposal. Tasks also appear in CRM Tasks."
-      >
-        {tasks.map((task) => (
-          <li key={task.id} className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 text-sm">
-            <div className="flex flex-col gap-1">
-              <div className="flex flex-wrap items-center gap-2">
-                <Link href={`/crm/tasks/${task.id}`} className="font-medium hover:underline">{task.subject}</Link>
-                <StatusBadge tone={statusTone(task.status)}>{humanize(task.status)}</StatusBadge>
-                <Badge tone={task.priority === "high" || task.priority === "urgent" ? "danger" : "neutral"}>{task.priority}</Badge>
-              </div>
-              <DueText activity={task} />
-              <SourceLine activity={task} />
-              {task.notes && <p className="text-text-secondary">{task.notes}</p>}
-              <p className="text-xs text-text-muted">Assigned to {task.assignedName ?? "nobody"}</p>
-            </div>
-            {canEdit && task.status !== "cancelled" && (
-              <Button variant={OPEN_STATUSES.has(task.status) ? "primary" : "secondary"} size="compact" onPress={() => toggle.mutate(task)} isLoading={toggle.isPending && toggle.variables?.id === task.id}>
-                {OPEN_STATUSES.has(task.status) ? "Complete" : "Reopen"}
-              </Button>
-            )}
-          </li>
-        ))}
-      </PanelShell>
-      <NewTaskDialog isOpen={isCreating} onOpenChange={setCreating} contactId={contactId} options={options} onDone={refresh} />
-    </>
-  );
-}
-
-function NewTaskDialog({ isOpen, onOpenChange, contactId, options, onDone }: {
-  isOpen: boolean; onOpenChange: (open: boolean) => void; contactId: string; options: ContactOptions; onDone: () => void;
-}) {
-  const openOpportunities = useOpportunityOptions(contactId, isOpen);
-  const [relatedTo, setRelatedTo] = useState(ON_CONTACT);
-  const [subject, setSubject] = useState("");
-  const [description, setDescription] = useState("");
-  const [assignedTo, setAssignedTo] = useState(options.currentUserId);
-  const [dueAt, setDueAt] = useState("");
-  const [priority, setPriority] = useState("medium");
-  const [error, setError] = useState<string | null>(null);
-  const mutation = useMutation({
-    // A task with a due time notifies its assignee when it falls due.
-    mutationFn: () => createTask({
-      entityType: relatedTo === ON_CONTACT ? "contact" : "opportunity",
-      entityId: relatedTo === ON_CONTACT ? contactId : relatedTo,
-      subject, description: description || undefined, assignedTo, priority, ...(dueAt ? { dueAt } : {}),
-    }),
-    onSuccess: () => { onDone(); setSubject(""); setDescription(""); setDueAt(""); setRelatedTo(ON_CONTACT); setError(null); onOpenChange(false); },
-    onError: (failure) => setError(errorMessage(failure)),
-  });
-
-  return (
-    <Dialog isOpen={isOpen} onOpenChange={onOpenChange} title="New task">
-      <div className="flex flex-col gap-4">
-        <ErrorBanner message={error} />
-        <TextField label="Title" isRequired value={subject} onChange={setSubject} />
-        <Select label="Related to" selectedKey={relatedTo} onSelectionChange={(key) => setRelatedTo(String(key))}
-          options={[{ value: ON_CONTACT, label: "This contact" }, ...openOpportunities.map((row) => ({ value: row.id, label: `Opportunity: ${row.title ?? row.code}` }))]} />
-        <TextArea label="Description" value={description} onChange={setDescription} />
-        <Select label="Assigned to" isRequired selectedKey={assignedTo} onSelectionChange={(key) => setAssignedTo(String(key))} options={userOptions(options)} />
-        <DateTimeInput label="Due date and time" description="The assignee is reminded when the task is due." value={dueAt} onChange={setDueAt} />
-        <Select label="Priority" selectedKey={priority} onSelectionChange={(key) => setPriority(String(key))} options={PRIORITY_OPTIONS} />
-        <div className="flex justify-end gap-2">
-          <Button variant="secondary" onPress={() => onOpenChange(false)}>Cancel</Button>
-          <Button variant="primary" onPress={() => mutation.mutate()} isLoading={mutation.isPending} isDisabled={!subject.trim()}>Create task</Button>
-        </div>
-      </div>
-    </Dialog>
-  );
+// The tasks on this record, through CRM Tasks.
+export function ContactTasksPanel({ contactId, canEdit }: PanelProps) {
+  return <RelatedTasksPanel relatedType="contact" relatedId={contactId} canCreate={canEdit} />;
 }

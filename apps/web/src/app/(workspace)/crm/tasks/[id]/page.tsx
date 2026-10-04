@@ -1,13 +1,9 @@
 import { requireWorkspace } from "@/core/session";
-import { TaskDetailScreen } from "@/features/crm/work/tasks/screens/TaskDetailScreen";
+import { TaskDetailScreen } from "@/features/crm/tasks/screens/TaskDetailScreen";
 
 export const metadata = { title: "Task" };
 
-export default async function TaskDetailPage({
-  params,
-}: {
-  params: Promise<{ id: string }>;
-}) {
+export default async function Page({ params }: { params: Promise<{ id: string }> }) {
   await requireWorkspace();
   const { id } = await params;
   return <TaskDetailScreen taskId={id} />;

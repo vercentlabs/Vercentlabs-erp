@@ -52,6 +52,8 @@ export const OPPORTUNITY_SELECT = `
          to_char(opportunity.expected_close_date, 'YYYY-MM-DD') AS expected_close_on, to_char(opportunity.actual_close_date, 'YYYY-MM-DD') AS actual_close_on,
          (opportunity.expected_close_date < current_date) AS past_expected_close,
          COALESCE(products.total, 0) AS products_total, COALESCE(products.lines, 0) AS product_count,
+         (SELECT count(*) FROM tenant.crm_activities open_task WHERE open_task.organization_id = opportunity.organization_id AND open_task.activity_type = 'task'
+             AND open_task.entity_type = 'opportunity' AND open_task.entity_id = opportunity.id AND open_task.status IN ('planned', 'in_progress', 'overdue'))::int AS open_task_count,
          quotation.id AS latest_quotation_id, quotation.quotation_number AS latest_quotation_number, quotation.lifecycle_status AS latest_quotation_status,
          quotation.grand_total AS latest_quotation_total, quotation.currency_code AS latest_quotation_currency, COALESCE(quotation.total_count, 0) AS quotation_count,
          floor(EXTRACT(epoch FROM now() - opportunity.stage_entered_at) / 86400)::int AS stage_age_days,
@@ -192,6 +194,7 @@ export function toOpportunity(row) {
     latestQuotationTotal: number(row.latest_quotation_total),
     latestQuotationCurrency: row.latest_quotation_currency?.trim() ?? null,
     quotationCount: Number(row.quotation_count ?? 0),
+    openTaskCount: Number(row.open_task_count ?? 0),
     archivedAt: row.archived_at ?? (["archived", "abandoned"].includes(row.status) ? row.updated_at : null),
     createdBy: row.created_by,
     createdByName: row.created_by_name ?? null,

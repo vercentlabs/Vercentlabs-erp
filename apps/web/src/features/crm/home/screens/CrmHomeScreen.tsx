@@ -1,16 +1,21 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { useQuery } from "@tanstack/react-query";
 import { Plus } from "lucide-react";
 import {
   Button,
   Menu,
   MenuItem,
   MenuTrigger,
+  MetricCard,
   PageHeader,
 } from "@vercentlabs/design-system";
 
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
+import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
+import { getTaskSummary } from "@/features/crm/tasks/api/tasks-api";
 import { CrmDashboardScreen } from "@/features/crm/home/dashboard/screens/CrmDashboardScreen";
 
 const CREATE_LINKS = [
@@ -53,7 +58,30 @@ export function CrmHomeScreen() {
           </MenuTrigger>
         }
       />
+      <MyTasksStrip />
       <CrmDashboardScreen embedded />
     </div>
+  );
+}
+
+// The salesperson's own work, before the pipeline: what is overdue, due today and high priority.
+function MyTasksStrip() {
+  const workspace = useWorkspaceContext();
+  const summary = useQuery({ queryKey: scopedQueryKey(workspace, "crm", "tasks", "summary"), queryFn: getTaskSummary, retry: false, refetchOnWindowFocus: true });
+  if (!summary.data) return null;
+  const cards = [
+    { label: "My tasks due today", value: summary.data.dueToday, href: "/crm/tasks?view=due_today" },
+    { label: "My overdue tasks", value: summary.data.overdue, href: "/crm/tasks?view=overdue" },
+    { label: "My high-priority tasks", value: summary.data.highPriority, href: "/crm/tasks?view=high_priority" },
+    ...(summary.data.teamOverdue === null ? [] : [{ label: "Team overdue tasks", value: summary.data.teamOverdue, href: "/crm/tasks?view=team&status=overdue" }]),
+  ];
+  return (
+    <section aria-label="My tasks" className="grid grid-cols-2 gap-3 md:grid-cols-4">
+      {cards.map((card) => (
+        <Link key={card.href} href={card.href} className="rounded-[var(--radius-card)] outline-none transition-shadow hover:shadow-md focus-visible:ring-2 focus-visible:ring-brand">
+          <MetricCard label={card.label} value={card.value} />
+        </Link>
+      ))}
+    </section>
   );
 }

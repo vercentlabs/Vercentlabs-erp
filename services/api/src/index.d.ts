@@ -262,14 +262,6 @@ export {
   getSupportDeskDashboard, listSupportOptions, listCustomerContacts,
 } from "./modules/support/service.js";
 // F015-F114 public API declarations.
-export function listCrmTasks(client: QueryClient, context: any, filters?: Record<string, unknown>): Promise<{ rows: any[]; total: number; limit: number; offset: number }>;
-export function getCrmTask(client: QueryClient, context: any, id: string, options?: { lock?: boolean }): Promise<any>;
-export function createCrmTask(client: QueryClient, context: any, input?: Record<string, unknown>): Promise<any>;
-export function updateCrmTask(client: QueryClient, context: any, id: string, input?: Record<string, unknown>): Promise<any>;
-export function startCrmTask(client: QueryClient, context: any, id: string, input?: Record<string, unknown>): Promise<any>;
-export function completeCrmTask(client: QueryClient, context: any, id: string, input?: Record<string, unknown>): Promise<any>;
-export function cancelCrmTask(client: QueryClient, context: any, id: string, input?: Record<string, unknown>): Promise<any>;
-export function listCrmTaskHistory(client: QueryClient, context: any, id: string): Promise<any[]>;
 // F017 canonical governed-attachment domain.
 
 export function listSalesPass1Operations(client: QueryClient, context: any, options?: { kind?: string; limit?: number }): Promise<any[]>;

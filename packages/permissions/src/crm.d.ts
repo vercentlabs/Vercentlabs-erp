@@ -45,6 +45,17 @@ export const CRM_PERMISSIONS: Readonly<{
   opportunitiesBulkUpdate: "crm.opportunities.bulk_update";
   pipelineManageStages: "crm.pipeline.manage_stages";
   activitiesManage: "crm.activities.manage";
+  tasksView: "crm.tasks.view";
+  tasksViewTeam: "crm.tasks.view_team";
+  tasksViewAll: "crm.tasks.view_all";
+  tasksCreate: "crm.tasks.create";
+  tasksEdit: "crm.tasks.edit";
+  tasksComplete: "crm.tasks.complete";
+  tasksReopen: "crm.tasks.reopen";
+  tasksCancel: "crm.tasks.cancel";
+  tasksDelete: "crm.tasks.delete";
+  tasksAssign: "crm.tasks.assign";
+  tasksReassign: "crm.tasks.reassign";
   campaignsManage: "crm.campaigns.manage";
   communicationsManage: "crm.communications.manage";
   automationManage: "crm.automation.manage";

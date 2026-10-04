@@ -89,6 +89,7 @@ export type Opportunity = {
   latestQuotationTotal: number | null;
   latestQuotationCurrency: string | null;
   quotationCount: number;
+  openTaskCount: number;
   archivedAt: string | null;
   createdByName: string | null;
   createdAt: string;
@@ -216,9 +217,9 @@ export const findDuplicateOpportunities = (input: { accountId: string; name?: st
 export const changeOpportunityStage = (id: string, input: { stageId: string; note?: string; expectedUpdatedAt?: string; warn?: boolean }) =>
   post<{ changed: boolean }>(`${BASE}/${id}/stage`, input);
 export const setOpportunityProbability = (id: string, input: { probability: number; reason?: string }) => post<{ changed: boolean }>(`${BASE}/${id}/probability`, input);
-export const markOpportunityWon = (id: string, input: { actualCloseDate: string; finalValue?: string | number; winningQuotationId?: string; notes?: string; expectedUpdatedAt?: string }) =>
+export const markOpportunityWon = (id: string, input: { actualCloseDate: string; finalValue?: string | number; winningQuotationId?: string; notes?: string; expectedUpdatedAt?: string; openTasks?: "keep" | "cancel" }) =>
   post<{ status: string }>(`${BASE}/${id}/won`, input);
-export const markOpportunityLost = (id: string, input: { reasonId: string; actualCloseDate?: string; notes?: string; competitorName?: string; expectedUpdatedAt?: string }) =>
+export const markOpportunityLost = (id: string, input: { reasonId: string; actualCloseDate?: string; notes?: string; competitorName?: string; expectedUpdatedAt?: string; openTasks?: "keep" | "cancel" }) =>
   post<{ status: string }>(`${BASE}/${id}/lost`, input);
 export const reopenOpportunity = (id: string, input: { reason: string; stageId?: string }) => post<{ status: string }>(`${BASE}/${id}/reopen`, input);
 export const assignOpportunity = (id: string, input: { ownerUserId?: string | null; teamId?: string | null; reason?: string; expectedUpdatedAt?: string; moveOpenActivities?: boolean }) =>

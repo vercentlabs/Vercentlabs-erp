@@ -306,15 +306,13 @@ export function OpportunityQuotationsPanel({ opportunity, options, canEdit, onCh
 
 // ------------------------------------------------------------------ work: activities, tasks, follow-ups
 
-// kind: what the tab shows. Logged activities are done; tasks and follow-ups are planned.
-export function OpportunityWorkPanel({ opportunity, canEdit, kind }: PanelProps & { kind: "activities" | "tasks" | "followUps" }) {
+// kind: what the tab shows. Logged activities are done; follow-ups are planned. Tasks have their own panel (CRM Tasks).
+export function OpportunityWorkPanel({ opportunity, canEdit, kind }: PanelProps & { kind: "activities" | "followUps" }) {
   const key = useKey(opportunity.id, "activities");
   const query = useQuery({ queryKey: key, queryFn: () => listOpportunityActivities(opportunity.id) });
   const all = query.data ?? [];
-  // A task scheduled from the deal is a follow-up without a channel, named "Task: …".
-  const isTask = (entry: (typeof all)[number]) => entry.type === "task" || (entry.type === "follow_up" && entry.channel === "other" && entry.subject.startsWith("Task"));
-  const rows = all.filter((entry) => (kind === "tasks" ? isTask(entry) : kind === "followUps" ? entry.type === "follow_up" && !isTask(entry) : !["task", "follow_up"].includes(entry.type)));
-  const label = kind === "activities" ? "activities logged" : kind === "tasks" ? "tasks" : "follow-ups";
+  const rows = all.filter((entry) => (kind === "followUps" ? entry.type === "follow_up" : !["task", "follow_up"].includes(entry.type)));
+  const label = kind === "activities" ? "activities logged" : "follow-ups";
   return (
     <section className="flex flex-col gap-3">
       {!canEdit && opportunity.status !== "open" && <p className="text-sm text-text-secondary">This opportunity is {opportunity.status}. Reopen it to plan more work.</p>}
@@ -336,7 +334,6 @@ export function OpportunityWorkPanel({ opportunity, canEdit, kind }: PanelProps 
           ))}
         </ul>
       )}
-      {kind === "tasks" && <p className="text-sm text-text-secondary">Tasks are part of CRM Tasks. <Link className="text-brand underline-offset-2 hover:underline" href="/crm/tasks">Open all tasks</Link></p>}
     </section>
   );
 }

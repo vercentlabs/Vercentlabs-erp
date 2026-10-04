@@ -29,11 +29,9 @@ export async function completeCrmActivity(
     throw new CrmError(410, "Use the governed Meeting completion action.", "CRM_MEETING_API_MOVED");
   if (current.activity_type === "follow_up")
     throw new CrmError(410, "Use the governed Follow-up completion action.", "CRM_FOLLOW_UP_API_MOVED");
-  // Tasks are redirected like Calls/Meetings/Follow-ups: completeCrmTask in
-  // task-operations.js additionally enforces dependency-blocked completion
-  // and recurrence generation, neither of which this function knows about —
-  // completing a task id here directly would silently complete a Task with
-  // incomplete dependencies.
+  // Tasks are redirected like Calls/Meetings/Follow-ups: completeTask in
+  // tasks/lifecycle.js records who completed it, cancels its reminder and
+  // writes its history, none of which this function knows about.
   if (current.activity_type === "task")
     throw new CrmError(410, "Use the governed Task completion action.", "CRM_TASK_API_MOVED");
   if (

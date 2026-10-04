@@ -16,6 +16,7 @@ export { isCrmResource, resources } from "./data-management/resource-registry.js
 
 export * from "./pipeline/index.js";
 export * from "./sales-stages/index.js";
+export * from "./tasks/index.js";
 
 export {
   cancelCrmCall,
@@ -39,28 +40,6 @@ export {
   updateCrmMeeting,
 } from "./activities/meeting-operations.js";
 
-// task-operations.js is exported from this module's index.js, like
-// call-operations.js/meeting-operations.js above.
-export {
-  cancelCrmTask,
-  reopenCrmTask,
-  claimCrmTask,
-  completeCrmTask,
-  createCrmTask,
-  getCrmTask,
-  listCrmTaskHistory,
-  listCrmTasks,
-  listMyTaskTeams,
-  listTeamMembers,
-  releaseCrmTask,
-  startCrmTask,
-  updateCrmTask,
-  computeNextTaskOccurrence,
-  generateNextTaskOccurrence,
-  addTaskDependency,
-  removeTaskDependency,
-  listTaskDependencies,
-} from "./activities/task-operations.js";
 
 export {
   archiveCrmNote,

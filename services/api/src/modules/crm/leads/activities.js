@@ -3,7 +3,7 @@
 // These are completed activities in the shared CRM activity table, so they
 // appear in the lead's timeline next to tasks, follow-ups and notes. Tasks
 // and follow-ups themselves are created through their own CRM operations
-// (createCrmTask / createCrmFollowUp); scheduleLeadFollowUp is the lead-side
+// (createTask / createCrmFollowUp); scheduleLeadFollowUp is the lead-side
 // shortcut for the latter.
 import { createCrmFollowUp } from "../activities/follow-ups/follow-up-operations.js";
 import { CrmError } from "../data-management/errors.js";

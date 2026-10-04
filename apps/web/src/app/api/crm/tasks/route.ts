@@ -1,55 +1,22 @@
-import { createCrmTask, listCrmTasks } from "@vercentlabs/api/crm";
+import { createTask, listTasks } from "@vercentlabs/api/crm";
 import { CRM_PERMISSIONS } from "@vercentlabs/permissions";
 
-import { ok, readJson } from "@/core/http";
-import { crmContext } from "@/features/crm/shared/crm-context";
+import { ok } from "@/core/http";
 import { workspaceRoute } from "@/core/workspace-route";
+import { crmContext } from "@/features/crm/shared/crm-context";
+import { readBody, taskFiltersFromUrl } from "@/features/crm/tasks/server/task-http";
 
-// F015 Tasks. crm_activities with activity_type='task' — task-operations.js
-// is the ONE governed lifecycle authority (claim/release/dependencies/
-// recurrence), never duplicated here. Its own comments document that base
-// access ("crm.activities.manage") is expected to be enforced at the
-// route level, not inside the domain function — this route is that
-// enforcement point.
+// The tasks the caller can see, for one view and set of filters.
 export async function GET(request: Request) {
-  return workspaceRoute(
-    request,
-    { module: "crm", permission: CRM_PERMISSIONS.activitiesManage },
-    async ({ client, session }) => {
-      const url = new URL(request.url);
-      const filters = {
-        status: url.searchParams.get("status") || undefined,
-        due: url.searchParams.get("due") || undefined,
-        mine: url.searchParams.get("mine") === "true" || undefined,
-        myTeam: url.searchParams.get("myTeam") === "true" || undefined,
-        teamId: url.searchParams.get("teamId") || undefined,
-        queueOnly: url.searchParams.get("queueOnly") === "true" || undefined,
-        search: url.searchParams.get("search") || undefined,
-        limit: url.searchParams.get("limit")
-          ? Number(url.searchParams.get("limit"))
-          : undefined,
-        offset: url.searchParams.get("offset")
-          ? Number(url.searchParams.get("offset"))
-          : undefined,
-      };
-      const result = await listCrmTasks(client, crmContext(session), filters);
-      return ok(result);
-    },
-  );
+  return workspaceRoute(request, { module: "crm", permission: CRM_PERMISSIONS.tasksView }, async ({ client, session }) => {
+    const { tasks, ...page } = await listTasks(client, crmContext(session), taskFiltersFromUrl(new URL(request.url)));
+    return ok({ rows: tasks, ...page });
+  });
 }
 
+// Body: { title, dueDate, dueTime?, description?, priority?, reminderOffsetMinutes? | reminderAt?, relatedType?, relatedId?, assignedTo?, idempotencyKey? }
 export async function POST(request: Request) {
-  return workspaceRoute(
-    request,
-    {
-      module: "crm",
-      permission: CRM_PERMISSIONS.activitiesManage,
-      billingWrite: true,
-    },
-    async ({ client, session }) => {
-      const input = (await readJson(request)) as Record<string, unknown>;
-      const record = await createCrmTask(client, crmContext(session), input);
-      return ok({ record }, 201);
-    },
+  return workspaceRoute(request, { module: "crm", permission: CRM_PERMISSIONS.tasksView, billingWrite: true }, async ({ client, session }) =>
+    ok({ record: await createTask(client, crmContext(session), await readBody(request)) }, 201),
   );
 }

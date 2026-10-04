@@ -71,6 +71,7 @@ export function setOpportunityProbability(client: QueryClient, context: CrmConte
 export function listOpportunityStageHistory(client: QueryClient, context: CrmContext, opportunityId: string): Promise<any[]>;
 export function ensureDefaultLostReasons(client: QueryClient, context: CrmContext): Promise<void>;
 export function listOpportunityLostReasons(client: QueryClient, context: CrmContext): Promise<any[]>;
+// input.openTasks: "keep" (default) or "cancel" — what happens to the deal's open tasks.
 export function markOpportunityWon(client: QueryClient, context: CrmContext, opportunityId: string, input?: Input): Promise<any>;
 export function markOpportunityLost(client: QueryClient, context: CrmContext, opportunityId: string, input?: Input): Promise<any>;
 export function reopenOpportunity(client: QueryClient, context: CrmContext, opportunityId: string, input?: Input): Promise<any>;

@@ -10,17 +10,16 @@ import Link from "next/link";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Badge, Button, Dialog, EmptyState, Select, StatusBadge, TextArea, TextField } from "@vercentlabs/design-system";
 
-import { PRIORITY_OPTIONS } from "@/features/crm/leads/lead-format";
 import { DateTimeInput } from "@/features/crm/shared/ui/DateTimeInput";
 import { completeFollowUp, snoozeFollowUp } from "@/features/crm/work/follow-ups/api/follow-ups-api";
-import { completeTask, createTask, reopenTask } from "@/features/crm/work/tasks/api/tasks-api";
+import { RelatedTasksPanel } from "@/features/crm/tasks/components/RelatedTasksPanel";
 import { dueLabel, dueState, formatDateTime, humanize } from "@/shared/format/human";
 import { LoadingState } from "@/shared/ui/LoadingState";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 
 import {
-  errorMessage, listAccountActivities, listAccountContacts, listAccountRelated, logAccountActivity, scheduleAccountFollowUp,
+  errorMessage, listAccountActivities, listAccountContacts, logAccountActivity, scheduleAccountFollowUp,
   type AccountActivity, type AccountOptions,
 } from "../api/accounts-api";
 import { ErrorBanner } from "../account-format";
@@ -30,7 +29,6 @@ const OPEN_STATUSES = new Set(["planned", "in_progress", "overdue"]);
 const FOLLOW_UP_TYPE_LABELS: Record<string, string> = { call: "Call", email: "Email", meeting: "Meeting", task: "Task", other: "Other" };
 const NO_NEXT_ACTION = "none";
 const NO_CONTACT = "__none__";
-const ON_ACCOUNT = "__account__";
 
 type PanelProps = { accountId: string; options: AccountOptions; canEdit: boolean };
 
@@ -323,98 +321,7 @@ function RescheduleDialog({ activity, onClose, onDone }: { activity: AccountActi
 
 // ------------------------------------------------------------------ tasks
 
-export function AccountTasksPanel({ accountId, options, canEdit }: PanelProps) {
-  const { query, refresh } = useAccountActivities(accountId);
-  const [isCreating, setCreating] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const tasks = (query.data ?? []).filter((activity) => activity.type === "task");
-  const toggle = useMutation({
-    mutationFn: (task: AccountActivity) => (OPEN_STATUSES.has(task.status) ? completeTask(task.id, undefined, task.updatedAt) : reopenTask(task.id, task.updatedAt)),
-    onSuccess: () => { setError(null); refresh(); },
-    onError: (failure) => setError(errorMessage(failure)),
-  });
-
-  return (
-    <>
-      <ErrorBanner message={error} />
-      <PanelShell
-        title="Tasks"
-        action={canEdit && <Button variant="primary" size="compact" onPress={() => setCreating(true)}>New task</Button>}
-        query={query}
-        isEmpty={tasks.length === 0}
-        emptyTitle="No tasks"
-        emptyDescription="Add the things that need doing for this company or one of its opportunities. Tasks also appear in CRM Tasks."
-      >
-        {tasks.map((task) => (
-          <li key={task.id} className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 text-sm">
-            <div className="flex flex-col gap-1">
-              <div className="flex flex-wrap items-center gap-2">
-                <Link href={`/crm/tasks/${task.id}`} className="font-medium hover:underline">{task.subject}</Link>
-                <StatusBadge tone={statusTone(task.status)}>{humanize(task.status)}</StatusBadge>
-                <Badge tone={task.priority === "high" || task.priority === "urgent" ? "danger" : "neutral"}>{task.priority}</Badge>
-              </div>
-              <DueText activity={task} />
-              <SourceLine activity={task} />
-              {task.notes && <p className="text-text-secondary">{task.notes}</p>}
-              <p className="text-xs text-text-muted">Assigned to {task.assignedName ?? "nobody"}</p>
-            </div>
-            {canEdit && task.status !== "cancelled" && (
-              <Button variant={OPEN_STATUSES.has(task.status) ? "primary" : "secondary"} size="compact" onPress={() => toggle.mutate(task)} isLoading={toggle.isPending && toggle.variables?.id === task.id}>
-                {OPEN_STATUSES.has(task.status) ? "Complete" : "Reopen"}
-              </Button>
-            )}
-          </li>
-        ))}
-      </PanelShell>
-      <NewTaskDialog isOpen={isCreating} onOpenChange={setCreating} accountId={accountId} options={options} onDone={refresh} />
-    </>
-  );
-}
-
-function NewTaskDialog({ isOpen, onOpenChange, accountId, options, onDone }: {
-  isOpen: boolean; onOpenChange: (open: boolean) => void; accountId: string; options: AccountOptions; onDone: () => void;
-}) {
-  const workspace = useWorkspaceContext();
-  const opportunities = useQuery({
-    queryKey: scopedQueryKey(workspace, "crm", "account", accountId, "related", "opportunities"),
-    queryFn: () => listAccountRelated(accountId, "opportunities"),
-    enabled: isOpen,
-  });
-  const [relatedTo, setRelatedTo] = useState(ON_ACCOUNT);
-  const [subject, setSubject] = useState("");
-  const [description, setDescription] = useState("");
-  const [assignedTo, setAssignedTo] = useState(options.currentUserId);
-  const [dueAt, setDueAt] = useState("");
-  const [priority, setPriority] = useState("medium");
-  const [error, setError] = useState<string | null>(null);
-  const mutation = useMutation({
-    // A task with a due time notifies its assignee when it falls due.
-    mutationFn: () => createTask({
-      entityType: relatedTo === ON_ACCOUNT ? "party" : "opportunity",
-      entityId: relatedTo === ON_ACCOUNT ? accountId : relatedTo,
-      subject, description: description || undefined, assignedTo, priority, ...(dueAt ? { dueAt } : {}),
-    }),
-    onSuccess: () => { onDone(); setSubject(""); setDescription(""); setDueAt(""); setRelatedTo(ON_ACCOUNT); setError(null); onOpenChange(false); },
-    onError: (failure) => setError(errorMessage(failure)),
-  });
-  const openOpportunities = (opportunities.data ?? []).filter((row) => row.status === "open");
-
-  return (
-    <Dialog isOpen={isOpen} onOpenChange={onOpenChange} title="New task">
-      <div className="flex flex-col gap-4">
-        <ErrorBanner message={error} />
-        <TextField label="Title" isRequired value={subject} onChange={setSubject} />
-        <Select label="Related to" selectedKey={relatedTo} onSelectionChange={(key) => setRelatedTo(String(key))}
-          options={[{ value: ON_ACCOUNT, label: "This account" }, ...openOpportunities.map((row) => ({ value: row.id, label: `Opportunity: ${row.title ?? row.code}` }))]} />
-        <TextArea label="Description" value={description} onChange={setDescription} />
-        <Select label="Assigned to" isRequired selectedKey={assignedTo} onSelectionChange={(key) => setAssignedTo(String(key))} options={userOptions(options)} />
-        <DateTimeInput label="Due date and time" description="The assignee is reminded when the task is due." value={dueAt} onChange={setDueAt} />
-        <Select label="Priority" selectedKey={priority} onSelectionChange={(key) => setPriority(String(key))} options={PRIORITY_OPTIONS} />
-        <div className="flex justify-end gap-2">
-          <Button variant="secondary" onPress={() => onOpenChange(false)}>Cancel</Button>
-          <Button variant="primary" onPress={() => mutation.mutate()} isLoading={mutation.isPending} isDisabled={!subject.trim()}>Create task</Button>
-        </div>
-      </div>
-    </Dialog>
-  );
+// The tasks on this record, through CRM Tasks.
+export function AccountTasksPanel({ accountId, canEdit }: PanelProps) {
+  return <RelatedTasksPanel relatedType="party" relatedId={accountId} canCreate={canEdit} />;
 }

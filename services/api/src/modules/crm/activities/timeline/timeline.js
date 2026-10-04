@@ -34,6 +34,7 @@
 //    not OFFSET — the duplicate/skip risk under concurrent inserts (an OFFSET page shifts when a new row is inserted
 //    ahead of it) cannot happen here: a cursor value that already has a
 //    stable position never moves.
+import { taskScopeSql } from "../../tasks/access.js";
 import { canOverridePrivateCrmContent } from "../../data-management/crm-access-scope.js";
 import { resolveCrmEntityAccess } from "../../data-management/entity-access.js";
 import { recordScope } from "../../data-management/record-policy.js";
@@ -150,13 +151,21 @@ function buildBranch(kind, entityType, entityId, context, values) {
   }
   if (kind === "history") {
     const source = entityType === "lead" ? ["crm_lead_history", "lead_id"] : entityType === "party" ? ["crm_account_history", "party_id"]
-      : entityType === "contact" ? ["crm_contact_history", "contact_id"] : null;
+      : entityType === "contact" ? ["crm_contact_history", "contact_id"] : entityType === "opportunity" ? ["crm_opportunity_history", "opportunity_id"] : null;
     if (!source) return null;
     const entityIdParam = add(values, entityId);
-    return `SELECT history.id,'history'::text AS kind,history.event_type AS subtype,history.summary AS title,
+    const own = `SELECT history.id,'history'::text AS kind,history.event_type AS subtype,history.summary AS title,
          history.created_at AS occurred_at,NULL::text AS status,history.actor_user_id,history.actor_user_id AS created_by
        FROM tenant.${source[0]} history
        WHERE history.organization_id=$1 AND history.${source[1]}=${entityIdParam}`;
+    const taskIdParam = add(values, entityId);
+    const tasks = `SELECT history.id,'history'::text AS kind,'task_' || history.event_type AS subtype,'Task ' || COALESCE(task.task_number || ' ', '') || '"' || task.subject || '": ' || history.summary AS title,
+         history.created_at AS occurred_at,NULL::text AS status,history.actor_user_id,history.actor_user_id AS created_by
+       FROM tenant.crm_task_history history
+       JOIN tenant.crm_activities task ON task.organization_id=history.organization_id AND task.id=history.task_id
+       WHERE history.organization_id=$1 AND task.entity_type='${entityType}' AND task.entity_id=${taskIdParam}
+         AND history.event_type IN ('created','assigned','reassigned','completed','reopened','cancelled')${taskScopeSql(context, values, "task")}`;
+    return `${own} UNION ALL ${tasks}`;
   }
   if (kind === "attachment") {
     const entityIdParam = add(values, entityId);

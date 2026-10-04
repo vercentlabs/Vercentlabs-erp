@@ -10,6 +10,7 @@
 // reopening returns it there. Nothing about the earlier outcome is erased:
 // it stays in the stage history and the audit trail.
 import { createNotification } from "../../../core/platform/notifications/index.js";
+import { settleOpenTasks } from "../tasks/lifecycle.js";
 import { CrmError } from "../data-management/errors.js";
 import { queueOutboxEvent } from "../data-management/outbox.js";
 import { requireOpportunityPermission } from "./access.js";
@@ -73,7 +74,8 @@ async function requireOwnQuotation(client, context, opportunity, quotationId) {
 
 // ------------------------------------------------------------------ won
 
-// input: { actualCloseDate (required), finalValue?, winningQuotationId?, notes?, expectedUpdatedAt? }
+// input: { actualCloseDate (required), finalValue?, winningQuotationId?, notes?, expectedUpdatedAt?, openTasks?: "keep" | "cancel" }
+// Open tasks on the deal are never removed silently: kept (a won deal may still need its handoff) or cancelled.
 export async function markOpportunityWon(client, context, opportunityId, input = {}) {
   requireOpportunityPermission(context, OPPORTUNITY_PERMISSIONS.markWon, "You do not have permission to mark opportunities as won.");
   const opportunity = await lockOpportunity(client, context, opportunityId);
@@ -100,6 +102,7 @@ export async function markOpportunityWon(client, context, opportunityId, input =
   await recordOpportunityHistory(client, context, opportunity.id, "won", `Opportunity won${quotation ? ` with quotation ${quotation.quotation_number}` : ""}`, {
     from: "open", to: "won", stage: opportunity.stage_name, closeDate, estimatedValue: Number(opportunity.amount), finalValue, quotationId: quotation?.id ?? null, notes,
   });
+  await settleOpenTasks(client, context, "opportunity", opportunity.id, { action: input.openTasks, reason: "Opportunity won" });
   await notifyOutcome(client, context, opportunity, "Your opportunity was marked won", null);
   await queueOutboxEvent(client, context, "crm.opportunity.won", "opportunities", opportunity.id, { amount: finalValue, closeDate });
   return { status: "won" };
@@ -107,7 +110,8 @@ export async function markOpportunityWon(client, context, opportunityId, input =
 
 // ------------------------------------------------------------------ lost
 
-// input: { reasonId (required), actualCloseDate? (today unless given), notes? (required for Other), competitorName?, expectedUpdatedAt? }
+// input: { reasonId (required), actualCloseDate? (today unless given), notes? (required for Other), competitorName?, expectedUpdatedAt?,
+//          openTasks?: "keep" | "cancel" }
 export async function markOpportunityLost(client, context, opportunityId, input = {}) {
   requireOpportunityPermission(context, OPPORTUNITY_PERMISSIONS.markLost, "You do not have permission to mark opportunities as lost.");
   const opportunity = await lockOpportunity(client, context, opportunityId);
@@ -139,6 +143,7 @@ export async function markOpportunityLost(client, context, opportunityId, input 
   await recordOpportunityHistory(client, context, opportunity.id, "lost", `Opportunity lost — ${reason.name}`, {
     from: "open", to: "lost", stage: opportunity.stage_name, closeDate, reason: reason.name, reasonId: reason.id, notes, competitorName, estimatedValue: Number(opportunity.amount),
   });
+  await settleOpenTasks(client, context, "opportunity", opportunity.id, { action: input.openTasks, reason: "Opportunity lost" });
   await notifyOutcome(client, context, opportunity, "Your opportunity was marked lost", `Reason: ${reason.name}`);
   await queueOutboxEvent(client, context, "crm.opportunity.lost", "opportunities", opportunity.id, { reasonId: reason.id });
   return { status: "lost" };
