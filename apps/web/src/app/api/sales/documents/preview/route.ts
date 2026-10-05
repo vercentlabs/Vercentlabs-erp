@@ -18,7 +18,10 @@ export async function POST(request: Request) {
     documentSchema,
     async (client, context, input) => {
       // A line without a price is shown as a warning here; saving refuses it.
-      const preview = await previewSalesDocument(client, context, input, { allowMissingPrice: true });
+      // Discount limit and reason problems are reported too, so the totals stay visible while the user types.
+      const preview = await previewSalesDocument(client, context, input, { allowMissingPrice: true, preview: true });
+      const discount = preview.discount as Record<string, unknown>;
+      const tax = preview.tax as Record<string, unknown>;
       const master = preview.master as { priceList?: { id: string; code: string; name: string; currencyCode: string; taxInclusive: boolean; basis: string } | null };
       const canSeeMargin =
         context.roleSlugs.includes("organization_owner") ||
@@ -31,6 +34,13 @@ export async function POST(request: Request) {
             : null,
           totals: {
             subtotal: totals.subtotal,
+            grossTotal: totals.grossTotal,
+            lineDiscountTotal: totals.lineDiscountTotal,
+            documentDiscountType: totals.documentDiscountType,
+            documentDiscountValue: totals.documentDiscountValue,
+            documentDiscountPercent: totals.documentDiscountPercent,
+            documentDiscountAmount: totals.documentDiscountAmount,
+            taxableTotal: totals.taxableTotal,
             discountTotal: totals.discountTotal,
             chargeTotal: totals.chargeTotal,
             taxTotal: totals.taxTotal,
@@ -45,6 +55,18 @@ export async function POST(request: Request) {
                 }
               : {}),
           },
+          // Who issues the document, the place of supply, and the tax by component and rate.
+          tax: {
+            enabled: tax.enabled, seller: tax.seller, supplyType: tax.supplyType, derivedSupplyType: tax.derivedSupplyType, treatment: tax.treatment,
+            placeOfSupply: tax.placeOfSupply, supplyNature: tax.supplyNature, summary: tax.summary,
+          },
+          discount: {
+            requestedPercent: discount.requestedPercent,
+            limitPercent: discount.limitPercent,
+            limitExceeded: discount.limitExceeded,
+            reasonRequired: discount.reasonRequired,
+            message: discount.message,
+          },
           lines: (preview.lines as Array<Record<string, unknown>>).map(
             (line) => ({
               sequence: line.sequence,
@@ -57,9 +79,16 @@ export async function POST(request: Request) {
               priceMissing: line.priceMissing,
               priceMessage: line.priceMessage,
               priceSource: (line.pricingTrace as { priceSource?: string } | undefined)?.priceSource ?? null,
+              discountType: line.discountType,
+              discountValue: line.discountValue,
               discountPercent: line.discountPercent,
               discountAmount: line.discountAmount,
+              grossAmount: line.grossAmount,
               netAmount: line.netAmount,
+              documentDiscountAmount: line.documentDiscountAmount,
+              taxableAmount: line.taxableAmount,
+              taxRate: line.taxRate,
+              taxTreatment: line.taxTreatment,
               taxAmount: line.taxAmount,
               lineTotal: line.lineTotal,
             }),

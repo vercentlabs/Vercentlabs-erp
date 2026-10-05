@@ -79,7 +79,7 @@ function readLines(input) {
       ...(text(line.uomId) ? { uomId: requireUuid(line.uomId, `Line ${index + 1} unit`) } : {}),
       description: text(line.description, 4000),
       quantity,
-      discountPercent,
+      ...(discountPercent ? { discountType: "percent", discountValue: discountPercent } : {}),
       // No price: Sales prices the line from the price list. A price is an override, with a reason.
       ...(unitPrice !== null ? { unitPrice, manualPriceReason: text(line.manualPriceReason, 1000) } : {}),
     };
@@ -143,6 +143,10 @@ export async function createQuotationFromOpportunity(client, context, opportunit
     ...(input.termsAndConditions !== undefined ? { termsAndConditions: text(input.termsAndConditions, 20000) } : {}),
     internalNotes: text(input.internalNotes, 10000),
     lines,
+    documentDiscountType: input.documentDiscountType === "amount" ? "amount" : "percent",
+    documentDiscountValue: input.documentDiscountValue ?? undefined,
+    discountReasonCode: text(input.discountReasonCode, 40) ?? undefined,
+    discountReasonText: text(input.discountReasonText, 1000) ?? undefined,
     source: "opportunity",
     idempotencyKey: idempotencyKey ? `crm:${idempotencyKey}` : undefined,
   });

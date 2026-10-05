@@ -77,16 +77,3 @@ export function defaultLineUom(
 // The text a new line starts with.
 export const defaultLineDescription = (item: { sales_description?: string | null; description?: string | null } | undefined) =>
   item?.sales_description || item?.description || "";
-// F031/F040: the customer's GST treatment sets the starting supply type.
-export function supplyTypeFor(taxTreatment: string | null | undefined) {
-  if (taxTreatment === "overseas") return "export";
-  if (taxTreatment === "sez") return "sez";
-  return "domestic";
-}
-export const SUPPLY_TYPE_OPTIONS = [
-  { value: "domestic", label: "Domestic (GST applies)" },
-  { value: "export", label: "Export" },
-  { value: "sez", label: "Supply to SEZ" },
-  { value: "exempt", label: "Exempt supply" },
-  { value: "non_gst", label: "Non-GST supply" },
-];

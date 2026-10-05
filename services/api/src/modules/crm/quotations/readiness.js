@@ -122,6 +122,9 @@ export async function getQuotationReadiness(client, context, opportunityId) {
   for (const run of queries) results.push(await run());
   const [contacts, addresses, lines, priceLists, paymentTerms, currencies, settingsRow, today] = results;
   const settings = settingsRow.rows[0] ?? {};
+  // The company registration that issues the quotation; its state decides CGST + SGST or IGST.
+  const sellerRegistration = (await client.query(
+    `SELECT state_code FROM tenant.tax_registrations WHERE organization_id = $1 AND status = 'active' ORDER BY is_default DESC, created_at LIMIT 1`, [context.organizationId])).rows[0];
   const baseCurrency = String(currencies.rows.find((row) => row.is_base)?.code ?? currencies.rows[0]?.code ?? "INR").trim();
   const currencyCode = opportunity.currencyCode || account?.currency_code?.trim() || baseCurrency;
   const activeCurrencies = currencies.rows.map((row) => String(row.code).trim());
@@ -187,7 +190,7 @@ export async function getQuotationReadiness(client, context, opportunityId) {
     priceLists: priceLists.rows.map((row) => ({ id: row.id, code: row.code, name: row.name, currencyCode: String(row.currency_code).trim(), taxInclusive: row.tax_inclusive })),
     paymentTerms: paymentTerms.rows.map((row) => ({ id: row.id, code: row.code, name: row.name })),
     currencies: activeCurrencies,
-    sellerStateCode: settings.seller_state_code ?? null,
+    sellerStateCode: sellerRegistration?.state_code ?? null,
     stageSuggestion: await proposalStageSuggestion(client, context, opportunity),
     defaults: {
       contactId: opportunity.contactId && contactIds.has(opportunity.contactId) ? opportunity.contactId : contacts.rows[0]?.id ?? null,

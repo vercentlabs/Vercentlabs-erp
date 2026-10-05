@@ -191,7 +191,24 @@ export async function createCustomerInvoice(client, context, input, options = {}
     );
     if (!source.rows[0]) throw new AccountingError(409, "The source customer document does not belong to this ledger and customer.");
     if (source.rows[0].currency_code !== invoiceCurrency) throw new AccountingError(409, "The source customer document currency must match.");
-    if (invoiceType === "credit_note" && source.rows[0].invoice_type === "credit_note") throw new AccountingError(409, "A customer credit note cannot be credited again.");
+    if (invoiceType === "credit_note" && source.rows[0].invoice_type === "credit_note") throw new AccountingError(409, "A customer credit note cannot be credited again.");    // A credit note against an invoice reverses that invoice's own values: it
+    // cannot credit more taxable value or more tax than the invoice still carries.
+    if (invoiceType === "credit_note") {
+      const carried = (await client.query(
+        `SELECT source.subtotal - source.discount_total AS taxable, source.tax_total AS tax,
+                COALESCE(sum(credit.subtotal - credit.discount_total), 0) AS credited_taxable, COALESCE(sum(credit.tax_total), 0) AS credited_tax
+           FROM tenant.accounting_customer_invoices source
+           LEFT JOIN tenant.accounting_customer_invoices credit ON credit.organization_id=source.organization_id AND credit.source_invoice_id=source.id
+                AND credit.invoice_type='credit_note' AND credit.status NOT IN ('cancelled','reversed')
+          WHERE source.organization_id=$1 AND source.id=$2 GROUP BY source.id`,
+        [context.organizationId, sourceInvoiceId],
+      )).rows[0];
+      const creditTaxable = totals.subtotal - totals.discountTotal;
+      if (creditTaxable + decimal(carried.credited_taxable) > decimal(carried.taxable))
+        throw new AccountingError(409, "The credit note is for more than the taxable value left on the invoice.", "ACCOUNTING_CREDIT_EXCEEDS_INVOICE");
+      if (totals.taxTotal + decimal(carried.credited_tax) > decimal(carried.tax))
+        throw new AccountingError(409, "The credit note carries more tax than is left on the invoice.", "ACCOUNTING_CREDIT_TAX_EXCEEDS_INVOICE");
+    }
   }
   const entityType = invoiceType === "credit_note" ? "customer_credit_note" : "customer_invoice";
   const invoiceNumber = await allocateNumber(client, context.organizationId, entityType);
@@ -265,6 +282,21 @@ export async function createInvoiceFromSalesRequest(client, context, requestIdVa
         payloadLines.map((line) => uuid(line.salesOrderLineId, "Sales order line"))],
     );
     const sourceMap = new Map(sourceLines.rows.map((line) => [line.id, line]));
+    const orderPrecision = await getCurrencyPrecision(client, context, order.currency_code);
+    // The tax components each order line was calculated with (CGST, SGST, IGST, CESS …).
+    const orderTaxLines = await client.query(
+      `SELECT sales_order_line_id,tax_type,label,rate,taxable_amount,tax_amount FROM tenant.sales_order_tax_lines
+        WHERE organization_id=$1 AND sales_order_version_id=$2 ORDER BY sales_order_line_id,sequence`,
+      [context.organizationId, request.sales_order_version_id],
+    );
+    // The part of an order line's amount that belongs to the quantity invoiced
+    // now. Taken as a difference of running totals, so the partial invoices of
+    // a line add up to the line exactly, whatever the rounding.
+    const portion = (amount, source, invoiceQuantity) => {
+      const upTo = (quantity) => roundMoney(div(mul(decimal(amount), quantity), decimal(source.quantity)), orderPrecision);
+      const before = decimal(source.invoiced_quantity);
+      return sub(upTo(before + invoiceQuantity), upTo(before));
+    };
     const lines = payloadLines.map((payloadLine) => {
       const source = sourceMap.get(payloadLine.salesOrderLineId);
       if (!source) throw new AccountingError(409, "A requested sales-order line is unavailable.");
@@ -275,7 +307,15 @@ export async function createInvoiceFromSalesRequest(client, context, requestIdVa
       if (invoiceQuantity > available) {
         throw new AccountingError(409, `Requested invoice quantity exceeds the remaining ${request.quantity_basis} quantity for ${source.item_code_snapshot}.`);
       }
-      const ratio = div(invoiceQuantity, source.quantity);
+      // The order's agreed values are invoiced as they stand: the line discount
+      // and the line's share of the document discount follow the quantity.
+      const taxable = portion(source.taxable_amount, source, invoiceQuantity);
+      const gross = roundMoney(mul(invoiceQuantity, decimal(source.unit_price)), orderPrecision);
+      const taxDetails = orderTaxLines.rows.filter((component) => component.sales_order_line_id === source.id).map((component) => ({
+        taxType: component.tax_type, label: component.label, rate: component.rate,
+        taxableAmount: asDatabaseDecimal(portion(component.taxable_amount, source, invoiceQuantity)),
+        taxAmount: asDatabaseDecimal(portion(component.tax_amount, source, invoiceQuantity)),
+      }));
       return {
         sourceSalesOrderLineId: source.id,
         itemId: source.item_id,
@@ -284,9 +324,11 @@ export async function createInvoiceFromSalesRequest(client, context, requestIdVa
         quantity: asDatabaseDecimal(invoiceQuantity),
         uomId: source.uom_id,
         unitPrice: source.unit_price,
-        discountAmount: asDatabaseDecimal(mul(source.discount_amount, ratio)),
-        taxAmount: asDatabaseDecimal(mul(source.tax_amount, ratio)),
-        taxDetails: source.tax_trace,
+        discountAmount: asDatabaseDecimal(gross > taxable ? sub(gross, taxable) : decimal(0)),
+        // Each component follows the quantity; the line's tax is their sum, so the
+        // components always add up to the tax on the invoice line.
+        taxAmount: asDatabaseDecimal(taxDetails.reduce((total, component) => total + decimal(component.taxAmount), 0n)),
+        taxDetails,
       };
     });
     const invoice = await createCustomerInvoice(client, context, {

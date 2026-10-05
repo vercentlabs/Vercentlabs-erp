@@ -22,7 +22,7 @@ export const PRODUCT_SELECT = `
          category.name AS category_name, parent.name AS category_parent_name,
          base.code AS base_uom_code, base.name AS base_uom_name, sales_uom.code AS sales_uom_code, sales_uom.name AS sales_uom_name,
          purchase_uom.code AS purchase_uom_code, purchase_uom.name AS purchase_uom_name,
-         tax.name AS tax_category_name, tax_rate.rate AS gst_rate, cess.rate AS cess_rate,
+         tax.name AS tax_category_name, tax_rate.rate AS gst_rate, NULLIF(tax_rate.cess_rate, 0) AS cess_rate,
          sales_factor.factor AS sales_uom_factor, purchase_factor.factor AS purchase_uom_factor,
          creator.full_name AS created_by_name, updater.full_name AS updated_by_name
     FROM tenant.items item
@@ -32,13 +32,11 @@ export const PRODUCT_SELECT = `
     LEFT JOIN tenant.units_of_measure sales_uom ON sales_uom.organization_id = item.organization_id AND sales_uom.id = item.sales_uom_id
     LEFT JOIN tenant.units_of_measure purchase_uom ON purchase_uom.organization_id = item.organization_id AND purchase_uom.id = item.purchase_uom_id
     LEFT JOIN tenant.tax_categories tax ON tax.organization_id = item.organization_id AND tax.id = item.tax_category_id
+    -- The rate the category charges today.
     LEFT JOIN LATERAL (
-      SELECT rate FROM tenant.tax_rates r WHERE r.organization_id = item.organization_id AND r.tax_category_id = item.tax_category_id AND r.status = 'active'
-         AND r.tax_type IN ('gst', 'igst') AND (r.effective_from IS NULL OR r.effective_from <= current_date) AND (r.effective_to IS NULL OR r.effective_to >= current_date)
-       ORDER BY r.tax_type = 'gst' DESC, r.effective_from DESC NULLS LAST LIMIT 1) tax_rate ON true
-    LEFT JOIN LATERAL (
-      SELECT rate FROM tenant.tax_rates r WHERE r.organization_id = item.organization_id AND r.tax_category_id = item.tax_category_id AND r.status = 'active' AND r.tax_type = 'cess'
-         AND (r.effective_from IS NULL OR r.effective_from <= current_date) AND (r.effective_to IS NULL OR r.effective_to >= current_date) LIMIT 1) cess ON true
+      SELECT r.rate, r.cess_rate FROM tenant.tax_rates r WHERE r.organization_id = item.organization_id AND r.tax_category_id = item.tax_category_id AND r.status = 'active'
+         AND r.effective_from <= current_date AND (r.effective_to IS NULL OR r.effective_to >= current_date)
+       ORDER BY r.effective_from DESC LIMIT 1) tax_rate ON true
     LEFT JOIN LATERAL (
       SELECT conversion_factor AS factor FROM tenant.item_uom_conversions c WHERE c.organization_id = item.organization_id AND c.item_id = item.id AND c.status = 'active'
          AND c.from_uom_id = item.sales_uom_id AND c.to_uom_id = item.uom_id LIMIT 1) sales_factor ON true
@@ -196,7 +194,13 @@ async function assertReferences(client, context, next) {
   if (next.categoryId && !(await one(`SELECT 1 FROM tenant.item_groups WHERE organization_id = $1 AND id = $2 AND status = 'active'`, next.categoryId))) issue("categoryId", "Choose an active category.");
   for (const field of ["baseUomId", "salesUomId", "purchaseUomId"])
     if (next[field] && !(await one(`SELECT 1 FROM tenant.units_of_measure WHERE organization_id = $1 AND id = $2 AND status = 'active'`, next[field]))) issue(field, "Choose an active unit of measure.");
-  if (next.taxCategoryId && !(await one(`SELECT 1 FROM tenant.tax_categories WHERE organization_id = $1 AND id = $2 AND status = 'active'`, next.taxCategoryId))) issue("taxCategoryId", "Choose an active tax category.");
+  if (next.taxCategoryId) {
+    // A category may be for goods (HSN) or services (SAC) only.
+    const category = await one(`SELECT applies_to FROM tenant.tax_categories WHERE organization_id = $1 AND id = $2 AND status = 'active'`, next.taxCategoryId);
+    if (!category) issue("taxCategoryId", "Choose an active tax category.");
+    else if (category.applies_to === "goods" && next.type === "service") issue("taxCategoryId", "This tax category is for goods. Choose one for services.");
+    else if (category.applies_to === "services" && next.type !== "service") issue("taxCategoryId", "This tax category is for services. Choose one for goods.");
+  }
   if (next.imageAttachmentId && !(await one(`SELECT 1 FROM public.attachments WHERE organization_id = $1 AND id = $2 AND entity_type = 'products.item' AND is_current AND archived_at IS NULL AND mime_type LIKE 'image/%'`, next.imageAttachmentId)))
     issue("imageAttachmentId", "Choose an image uploaded to this product.");
 }
@@ -377,7 +381,9 @@ export async function updateProduct(client, context, productId, input = {}) {
   candidate.salesUomIdConverts = await hasConversion(client, context, row.id, candidate.salesUomId, candidate.baseUomId);
   candidate.purchaseUomIdConverts = await hasConversion(client, context, row.id, candidate.purchaseUomId, candidate.baseUomId);
   assertValidProduct(normalized, candidate);
-  await assertReferences(client, context, Object.fromEntries(changed.map((field) => [field, normalized[field]])));
+  // The type decides which tax categories fit, so a type change rechecks the tax category.
+  await assertReferences(client, context, { ...Object.fromEntries(changed.map((field) => [field, normalized[field]])),
+    ...(changed.includes("type") && candidate.taxCategoryId ? { taxCategoryId: candidate.taxCategoryId } : {}), type: candidate.type });
 
   if (changed.some((field) => ["code", "sku", "barcode"].includes(field)) || changed.includes("name"))
     await assertUnique(client, context, { code: candidate.code, sku: candidate.sku, barcode: candidate.barcode }, row.id);

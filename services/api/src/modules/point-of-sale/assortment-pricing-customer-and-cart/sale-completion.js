@@ -15,14 +15,14 @@
 import { nextDocumentNumber } from "../../../core/platform/numbering/index.js";
 import { beginIdempotentOperation, completeIdempotentOperation } from "../../../core/idempotency.js";
 import { add, sub, mul, div, percent, max, roundMoney, asDatabaseDecimal, decimal } from "../../../core/decimal.js";
-import { resolveTaxRateComponents } from "../../../core/tax-engine.js";
 import { postStockMovement as postCanonicalStockMovement } from "../../stock/index.js";
 import { posError } from "../shared/errors.js";
 import { requirePermission, assertPosStoreAccess } from "../shared/access-control.js";
 import { event } from "../shared/audit.js";
 import {
   resolveCurrencyDecimalPlaces,
-  resolveSellerStateCode,
+  resolvePosTaxContext,
+  posLineTax,
   resolveBuyerStateCode,
   normalizedDiscountAmount,
   priceCartLines,
@@ -238,7 +238,7 @@ export async function completePointOfSale(client, context, input) {
 
   // F278/PHASE 4: tax is ALWAYS derived server-side from tenant.tax_rates
   // via the same resolveTaxRateComponents helper Sales' calculateLine
-  // uses (services/api/src/core/tax-engine.js) — a client-supplied
+  // uses (services/api/src/core/tax) — a client-supplied
   // taxAmount is never persisted as-is; if one is present it is only
   // compared against the authoritative figure and rejected as a conflict
   // when it disagrees (POS_PRICE_CONFLICT), never silently trusted and
@@ -249,8 +249,8 @@ export async function completePointOfSale(client, context, input) {
   // legacy flat-lines path too, without requiring every existing caller
   // to migrate to the full cart aggregate in this same pass.
   const decimalPlaces = await resolveCurrencyDecimalPlaces(client, context, shift.currency_code);
-  const sellerStateCode = await resolveSellerStateCode(client, context);
-  const buyerStateCode = await resolveBuyerStateCode(client, context, input.customerId, sellerStateCode);
+  const taxContext = await resolvePosTaxContext(client, context);
+  const buyerStateCode = await resolveBuyerStateCode(client, context, input.customerId, taxContext.registration?.stateCode ?? null);
   const priceList = shift.price_list_id
     ? await client.query(`SELECT tax_inclusive FROM tenant.price_lists WHERE organization_id=$1 AND id=$2 AND status='active'`, [
         context.organizationId,
@@ -361,21 +361,11 @@ export async function completePointOfSale(client, context, input) {
       }
     }
     const taxableAmount = max(0, sub(lineSubtotal, discountAmount));
-    const { taxRate, components } = await resolveTaxRateComponents(client, {
-      organizationId: context.organizationId,
-      taxCategoryId: item.tax_category_id,
-      sellerStateCode,
-      buyerStateCode,
-      exempt: false,
-    });
-    let taxableBase = taxableAmount;
-    let taxAmount = decimal(0);
-    if (taxInclusive && taxRate > 0n) {
-      taxableBase = roundMoney(div(mul(taxableAmount, 100), add(100, taxRate)), decimalPlaces);
-      taxAmount = sub(taxableAmount, taxableBase);
-    } else if (taxRate > 0n) {
-      taxAmount = roundMoney(percent(taxableAmount, taxRate), decimalPlaces);
-    }
+    const calculated = await posLineTax(client, taxContext, { taxCategoryId: item.tax_category_id, buyerStateCode, base: taxableAmount, taxInclusive, decimalPlaces });
+    const taxRate = calculated.totalRate;
+    const components = calculated.components;
+    const taxableBase = calculated.taxableAmount;
+    const taxAmount = calculated.taxAmount;
     if (line.taxAmount != null) {
       const expected = decimal(line.taxAmount);
       const diff = expected > taxAmount ? expected - taxAmount : taxAmount - expected;
@@ -404,7 +394,8 @@ export async function completePointOfSale(client, context, input) {
         type: component.type,
         label: component.label,
         rate: asDatabaseDecimal(component.rate),
-        taxableAmount: asDatabaseDecimal(taxableBase),
+        taxableAmount: asDatabaseDecimal(component.taxableAmount),
+        taxAmount: asDatabaseDecimal(component.taxAmount),
       })),
       lineTotal: asDatabaseDecimal(lineTotal),
       warehouseId,

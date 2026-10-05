@@ -39,15 +39,18 @@ async function organizationName(client, organizationId) {
   return rows[0]?.name ?? null;
 }
 
-// The seller as printed on a quotation: name, legal name, GSTIN and GST state.
+// The organization as printed when a document has no company registration stored: name, legal name and tax id.
 async function companyDetails(client, organizationId) {
   const { rows } = await client.query(
-    `SELECT organization.name, organization.legal_name, organization.tax_id, settings.seller_state_code
-       FROM public.organizations organization
-       LEFT JOIN tenant.sales_settings settings ON settings.organization_id = organization.id
-      WHERE organization.id = $1`, [organizationId]);
+    `SELECT organization.name, organization.legal_name, organization.tax_id FROM public.organizations organization WHERE organization.id = $1`, [organizationId]);
   const row = rows[0] ?? {};
-  return { name: row.legal_name || row.name || null, legalName: row.legal_name && row.legal_name !== row.name ? row.name : null, taxId: row.tax_id ?? null, stateCode: row.seller_state_code ?? null };
+  return { name: row.legal_name || row.name || null, legalName: row.legal_name && row.legal_name !== row.name ? row.name : null, taxId: row.tax_id ?? null };
+}
+
+// The seller as printed: the registration stored on the document, else the organization.
+function sellerLines(seller, company) {
+  if (!seller?.name) return [company.legalName, company.taxId ? `GSTIN ${company.taxId}` : null].filter(Boolean);
+  return [seller.legalName ?? seller.name, seller.address, seller.gstin ? `GSTIN ${seller.gstin}` : null, seller.stateName ? `${seller.stateName}${seller.stateCode ? ` (${seller.stateCode})` : ""}` : null].filter(Boolean);
 }
 
 async function organizationTimezone(client, organizationId) {
@@ -58,31 +61,45 @@ async function organizationTimezone(client, organizationId) {
 function salesLines(lines, currency) {
   return {
     columns: [
-      { key: "item", label: "Item", width: "40%" },
+      { key: "item", label: "Item", width: "32%" },
       { key: "quantity", label: "Qty", align: "right", width: "10%" },
-      { key: "price", label: `Price (${currency})`, align: "right", width: "15%" },
-      { key: "discount", label: "Discount", align: "right", width: "10%" },
+      { key: "price", label: `Price (${currency})`, align: "right", width: "13%" },
+      { key: "discount", label: "Discount", align: "right", width: "9%" },
+      { key: "taxable", label: "Taxable", align: "right", width: "13%" },
       { key: "tax", label: "Tax", align: "right", width: "10%" },
-      { key: "total", label: "Amount", align: "right", width: "15%" },
+      { key: "total", label: "Amount", align: "right", width: "13%" },
     ],
     rows: lines.map((line) => ({
-      item: [line.item_name_snapshot, line.description_snapshot && line.description_snapshot !== line.item_name_snapshot ? line.description_snapshot : null, line.hsn_sac_snapshot ? `HSN/SAC ${line.hsn_sac_snapshot}` : null].filter(Boolean).join(" · "),
+      item: [line.item_name_snapshot, line.description_snapshot && line.description_snapshot !== line.item_name_snapshot ? line.description_snapshot : null, line.hsn_sac_snapshot ? `${line.hsn_sac_kind === "sac" ? "SAC" : "HSN"} ${line.hsn_sac_snapshot}` : null].filter(Boolean).join(" · "),
       quantity: `${Number(line.quantity)} ${line.uom_snapshot ?? ""}`.trim(),
       price: amount(line.unit_price),
-      discount: Number(line.discount_amount) ? amount(line.discount_amount) : "",
-      tax: amount(line.tax_amount),
+      // As it was entered: a percentage, or a fixed amount.
+      discount: !Number(line.discount_amount) ? "" : line.discount_type === "percent" ? `${Number(line.discount_value)}%` : amount(line.discount_amount),
+      taxable: amount(line.taxable_amount),
+      // The rate the line was taxed at, or why it was not.
+      tax: line.tax_treatment && line.tax_treatment !== "taxable" ? String(line.tax_treatment).replace(/_/g, " ") : `${amount(line.tax_amount)} (${Number(line.tax_rate)}%)`,
       total: amount(line.line_total),
     })),
   };
 }
 
-function salesTotals(header) {
+// How the amount was arrived at: gross, line discounts, the document
+// discount, the taxable value, tax (by component when given) and the total.
+function salesTotals(header, taxLines = []) {
   const currency = String(header.currency_code || "").trim();
+  const documentDiscount = Number(header.document_discount_amount);
+  const lineDiscounts = Number(header.line_discount_total);
   return [
-    { label: "Subtotal", value: amount(header.subtotal) },
-    ...(Number(header.discount_total) ? [{ label: "Discount", value: `-${amount(header.discount_total)}` }] : []),
+    { label: "Subtotal", value: amount(header.gross_total) },
+    ...(lineDiscounts ? [{ label: "Line discounts", value: `-${amount(lineDiscounts)}` }] : []),
+    ...(documentDiscount
+      ? [{ label: header.document_discount_type === "percent" ? `Additional discount ${Number(header.document_discount_value)}%` : "Additional discount", value: `-${amount(documentDiscount)}` }]
+      : []),
+    ...(lineDiscounts || documentDiscount ? [{ label: "Taxable value", value: amount(header.taxable_total) }] : []),
     ...(Number(header.charge_total) ? [{ label: "Charges", value: amount(header.charge_total) }] : []),
-    { label: "Tax", value: amount(header.tax_total) },
+    ...(taxLines.length
+      ? taxLines.map((tax) => ({ label: `${tax.label ?? String(tax.tax_type).toUpperCase()} ${Number(tax.rate)}%`, value: amount(tax.tax_amount) }))
+      : [{ label: "Tax", value: amount(header.tax_total) }]),
     ...(Number(header.rounding_adjustment) ? [{ label: "Rounding", value: amount(header.rounding_adjustment) }] : []),
     { label: `Total (${currency})`, value: amount(header.grand_total), emphasis: true },
   ];
@@ -156,7 +173,8 @@ export const DOCUMENT_RENDERERS = Object.freeze([
         organizationName: company.name,
         status: status ? `Status: ${status}` : null,
         parties: [
-          { label: "From", lines: [company.legalName, company.taxId ? `GSTIN ${company.taxId}` : null, company.stateCode ? `State code ${company.stateCode}` : null].filter(Boolean) },
+          // The company registration the quotation was issued from, as stored with it.
+          { label: "From", lines: sellerLines(quote.seller_snapshot, company) },
           { label: "Customer", lines: [customer.displayName ?? customer.display_name ?? customer.name, customer.customerNumber ? `Customer no. ${customer.customerNumber}` : null, customer.gstin ? `GSTIN ${customer.gstin}` : null].filter(Boolean) },
           // The person the offer is addressed to.
           { label: "Attention", lines: [[quote.contact_snapshot?.first_name, quote.contact_snapshot?.last_name].filter(Boolean).join(" "), quote.contact_snapshot?.designation, quote.contact_snapshot?.email].filter(Boolean) },
@@ -168,23 +186,13 @@ export const DOCUMENT_RENDERERS = Object.freeze([
           { label: "Valid until", value: day(quote.valid_until) ?? "" },
           { label: "Your reference", value: quote.customer_reference ?? "" },
           { label: "Revision of", value: quote.revision_of_number ?? "" },
-          { label: "Place of supply", value: quote.place_of_supply ?? quote.shipping_address_snapshot?.state ?? quote.billing_address_snapshot?.state ?? "" },
+          { label: "Place of supply", value: quote.place_of_supply ? `${quote.place_of_supply_name ?? ""} (${quote.place_of_supply})`.trim() : "" },
           { label: "Payment terms", value: quote.payment_term_snapshot?.name ?? "" },
           { label: "Prices", value: quote.price_list_tax_inclusive ? "Inclusive of tax" : "Exclusive of tax" },
           { label: "Sales person", value: quote.owner_name ?? "" },
         ].filter((field) => field.value),
         table: salesLines(data.lines, currency),
-        totals: [
-          { label: "Subtotal", value: amount(quote.subtotal) },
-          ...(Number(quote.discount_total) ? [{ label: "Discount", value: `-${amount(quote.discount_total)}` }] : []),
-          ...(Number(quote.charge_total) ? [{ label: "Charges", value: amount(quote.charge_total) }] : []),
-          // The tax breakdown by component and rate (CGST / SGST / IGST).
-          ...(data.taxLines?.length
-            ? data.taxLines.map((tax) => ({ label: `${tax.label ?? String(tax.tax_type).toUpperCase()} ${Number(tax.rate)}%`, value: amount(tax.tax_amount) }))
-            : [{ label: "Tax", value: amount(quote.tax_total) }]),
-          ...(Number(quote.rounding_adjustment) ? [{ label: "Rounding", value: amount(quote.rounding_adjustment) }] : []),
-          { label: `Total (${currency})`, value: amount(quote.grand_total), emphasis: true },
-        ],
+        totals: salesTotals(quote, data.taxLines ?? []),
         notes: [
           ...(quote.customer_notes ? [{ label: "Notes", text: quote.customer_notes }] : []),
           ...(quote.terms_and_conditions ? [{ label: "Terms and conditions", text: quote.terms_and_conditions }] : []),
@@ -212,17 +220,18 @@ export const DOCUMENT_RENDERERS = Object.freeze([
         issuedAt: day(order.order_date) ?? date(order.order_created_at, timezone),
         organizationName: await organizationName(client, session.organizationId),
         parties: [
+          { label: "From", lines: sellerLines(order.seller_snapshot, await companyDetails(client, session.organizationId)) },
           { label: "Customer", lines: [customer.displayName ?? customer.display_name ?? customer.name, customer.gstin ? `GSTIN ${customer.gstin}` : null].filter(Boolean) },
           { label: "Bill to", lines: addressLines(order.billing_address_snapshot) },
           { label: "Ship to", lines: addressLines(order.shipping_address_snapshot) },
         ].filter((party) => party.lines.length),
         fields: [
           { label: "Customer PO", value: order.customer_po_number ?? "" },
-          { label: "Place of supply", value: order.place_of_supply ?? "" },
+          { label: "Place of supply", value: order.place_of_supply ? `${order.place_of_supply_name ?? ""} (${order.place_of_supply})`.trim() : "" },
           { label: "Payment terms", value: order.payment_term_snapshot?.name ?? "" },
         ].filter((field) => field.value),
         table: salesLines(data.lines, String(order.currency_code || "").trim()),
-        totals: salesTotals(order),
+        totals: salesTotals(order, data.taxLines ?? []),
         notes: [
           ...(order.customer_notes ? [{ label: "Notes", text: order.customer_notes }] : []),
           ...(order.terms_and_conditions ? [{ label: "Terms and conditions", text: order.terms_and_conditions }] : []),

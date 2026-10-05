@@ -14,10 +14,13 @@ import {
   formatDecimal,
 } from "./money.js";
 import { beginIdempotentOperation, completeIdempotentOperation } from "../../core/idempotency.js";
-import { resolveTaxRateComponents, isExemptSupplyType } from "../../core/tax-engine.js";
+import {
+  GST_STATES, SUPPLY_TYPES, TAX_PERMISSIONS, TaxError, computeTax, derivePlaceOfSupply, gstStateName, loadTaxContext, resolveLineTax, summarizeTax, supplyTypeForCustomer, treatmentOfSupply,
+} from "../../core/tax/index.js";
 import { nextDocumentNumber } from "../../core/platform/numbering/index.js";
 import { PriceListError } from "./price-lists/constants.js";
 import { resolveSalesPrice, resolveSalesPriceList } from "./price-lists/resolver.js";
+import { allocateDocumentDiscount, checkDiscountRules, discountOptions, readDocumentDiscount } from "./discounts.js";
 
 export class SalesError extends Error {
   constructor(status, message, code = "SALES_ERROR") {
@@ -109,6 +112,52 @@ function stable(value) {
   return JSON.stringify(value);
 }
 
+// The tax context of a document: the company registration that issues it,
+// the kind of supply, and the place of supply. Each is worked out from the
+// customer and the addresses; changing one needs its own permission and a
+// reason. A document carried from a quotation keeps what was quoted.
+async function documentTaxContext(client, context, input, { party, billing, shipping }, options) {
+  const carried = Boolean(options.carryQuotedPrices);
+  let tax;
+  try {
+    tax = await loadTaxContext(client, { organizationId: context.organizationId, sellerRegistrationId: input.sellerRegistrationId || null });
+  } catch (error) {
+    // The quoted registration may have been made inactive since; the order falls back to the default one.
+    if (!(error instanceof TaxError) || !carried) throw error instanceof TaxError ? new SalesError(error.status, error.message, error.code) : error;
+    tax = await loadTaxContext(client, { organizationId: context.organizationId });
+  }
+  const derivedSupplyType = supplyTypeForCustomer(party.tax_treatment);
+  const supplyType = input.supplyType || derivedSupplyType;
+  if (!SUPPLY_TYPES.some((entry) => entry.code === supplyType)) throw new SalesError(400, "Choose the supply type.", "SALES_SUPPLY_TYPE_INVALID");
+  const supplyOverridden = supplyType !== derivedSupplyType;
+  const taxOverrideReason = supplyOverridden ? text(input.taxOverrideReason, 500) : null;
+  if (supplyOverridden && !carried) {
+    if (!hasPermission(context, TAX_PERMISSIONS.overrideTransaction))
+      throw new SalesError(403, "Only an authorised user can change the tax treatment of a document.", "SALES_TAX_OVERRIDE_FORBIDDEN");
+    if (!taxOverrideReason) throw new SalesError(422, "Give the reason for changing the tax treatment.", "SALES_TAX_OVERRIDE_REASON_REQUIRED");
+  }
+  const derived = derivePlaceOfSupply({
+    shippingStateCode: shipping.row?.state_code, billingStateCode: billing.row?.state_code, customerPlaceOfSupply: party.place_of_supply, customerStateCode: party.gst_state_code,
+  });
+  const requested = text(input.placeOfSupply, 10);
+  let placeOfSupply = derived ? { ...derived, source: "derived", reason: null } : null;
+  if (requested && requested !== derived?.code) {
+    if (tax.countryCode === "IN" && !gstStateName(requested)) throw new SalesError(400, "Choose a valid place of supply.", "SALES_PLACE_OF_SUPPLY_INVALID");
+    const reason = text(input.placeOfSupplyReason, 500);
+    if (!carried) {
+      if (!hasPermission(context, TAX_PERMISSIONS.overridePlaceOfSupply))
+        throw new SalesError(403, "Only an authorised user can change the place of supply.", "SALES_PLACE_OF_SUPPLY_FORBIDDEN");
+      if (!reason) throw new SalesError(422, "Give the reason for changing the place of supply.", "SALES_PLACE_OF_SUPPLY_REASON_REQUIRED");
+    }
+    placeOfSupply = { code: requested, name: gstStateName(requested), basis: "override", source: "override", reason, derivedCode: derived?.code ?? null };
+  }
+  const sellerState = String(tax.registration?.stateCode ?? "").trim();
+  return {
+    tax, supplyType, derivedSupplyType, taxOverrideReason, placeOfSupply,
+    supplyNature: sellerState && placeOfSupply?.code ? (sellerState === placeOfSupply.code ? "intra_state" : "inter_state") : null,
+  };
+}
+
 async function loadDocumentContext(client, context, input, options = {}) {
   const partyId = uuid(input.partyId, "Customer");
   const ownerUserId = uuid(input.ownerUserId || context.userId, "Owner");
@@ -127,7 +176,7 @@ async function loadDocumentContext(client, context, input, options = {}) {
 
   const partyResult = await client.query(
     `SELECT id,code,customer_number,party_type,display_name,legal_name,gstin,pan,currency_code,credit_limit,payment_term_id,status,
-            default_price_list_id,tax_treatment,sales_block,sales_block_reason
+            default_price_list_id,tax_treatment,sales_block,sales_block_reason,place_of_supply,gst_state_code
        FROM tenant.business_parties WHERE organization_id=$1 AND id=$2`,
     [context.organizationId, partyId],
   );
@@ -291,7 +340,9 @@ async function loadDocumentContext(client, context, input, options = {}) {
     [context.organizationId],
   );
   const settings = settingsResult.rows[0] || {};
+  const tax = await documentTaxContext(client, context, input, { party, billing, shipping }, options);
   return {
+    ...tax,
     partyId,
     ownerUserId,
     currencyCode,
@@ -313,7 +364,7 @@ async function loadDocumentContext(client, context, input, options = {}) {
 async function calculateLine(client, context, master, line, sequence, input, options = {}) {
   const itemId = uuid(line.itemId, `Line ${sequence} item`);
   const itemResult = await client.query(
-    `SELECT item.id,item.code,item.name,item.description,item.sales_description,item.hsn_sac_code,item.uom_id,item.sales_uom_id,item.is_sellable,item.track_inventory,item.standard_cost,item.sales_price,item.tax_category_id,uom.code AS uom_code,uom.name AS uom_name FROM tenant.items item JOIN tenant.units_of_measure uom ON uom.id=item.uom_id WHERE item.organization_id=$1 AND item.id=$2 AND item.status='active'`,
+    `SELECT item.id,item.code,item.name,item.description,item.sales_description,item.hsn_sac_code,item.uom_id,item.sales_uom_id,item.is_sellable,item.track_inventory,item.standard_cost,item.sales_price,item.tax_category_id,item.item_type,uom.code AS uom_code,uom.name AS uom_name FROM tenant.items item JOIN tenant.units_of_measure uom ON uom.id=item.uom_id WHERE item.organization_id=$1 AND item.id=$2 AND item.status='active'`,
     [context.organizationId, itemId],
   );
   const item = itemResult.rows[0];
@@ -446,8 +497,9 @@ async function calculateLine(client, context, master, line, sequence, input, opt
   // A line discount is a percentage (the default) or a fixed amount off the
   // line; either way the line keeps the amount and the equivalent percentage.
   const gross = mul(quantity, requestedUnitPrice);
+  // The entered type and value are kept; the amount is always calculated here.
   const discountType = line.discountType === "amount" ? "amount" : "percent";
-  const discountValue = decimal((discountType === "amount" ? line.discountValue ?? line.discountAmount : line.discountValue ?? line.discountPercent) || 0);
+  const discountValue = decimal(line.discountValue || 0);
   if (discountValue < 0n)
     throw new SalesError(400, `Line ${sequence}: the discount cannot be negative.`, "SALES_DISCOUNT_INVALID");
   let discountAmount;
@@ -463,77 +515,50 @@ async function calculateLine(client, context, master, line, sequence, input, opt
     discountPercent = discountValue;
     discountAmount = roundMoney(percent(gross, discountPercent), master.currency.decimal_places);
   }
-  if (discountAmount > 0n && !options.carryQuotedPrices && !hasPermission(context, "sales.discount.apply") && !hasPermission(context, "sales.price.override"))
-    throw new SalesError(403, `Line ${sequence}: you do not have permission to give discounts.`, "SALES_DISCOUNT_FORBIDDEN");
+  if (discountAmount > 0n && !options.carryQuotedPrices) {
+    if (!hasPermission(context, "sales.discount.apply"))
+      throw new SalesError(403, `Line ${sequence}: you do not have permission to give discounts.`, "SALES_DISCOUNT_FORBIDDEN");
+    if (master.settings.allow_line_discounts === false)
+      throw new SalesError(409, "Line discounts are switched off in Sales settings.", "SALES_DISCOUNT_NOT_ALLOWED");
+    if (master.settings[discountType === "amount" ? "allow_amount_discounts" : "allow_percent_discounts"] === false)
+      throw new SalesError(409, `${discountType === "amount" ? "Fixed amount" : "Percentage"} discounts are switched off in Sales settings.`, "SALES_DISCOUNT_NOT_ALLOWED");
+  }
   let netAmount = roundMoney(
     sub(gross, discountAmount),
     master.currency.decimal_places,
   );
 
-  const sellerStateCode = String(master.settings.seller_state_code || "").trim();
-  const buyerStateCode = String(input.placeOfSupply || master.shipping.row?.state_code || master.billing.row?.state_code || "").trim();
-  const { taxRate, components } = await resolveTaxRateComponents(client, {
-    organizationId: context.organizationId,
-    taxCategoryId: item.tax_category_id,
-    sellerStateCode,
-    buyerStateCode,
-    exempt: isExemptSupplyType(input.supplyType),
-  });
-  if (components.some((component) => ["igst", "cgst", "sgst"].includes(component.type)) && (!sellerStateCode || !buyerStateCode))
+  // Which tax applies: the product's tax category at the rate in force on the
+  // document date, split by the seller's state and the place of supply. A
+  // line carried from a quotation keeps the tax it was quoted with.
+  let resolvedTax;
+  if (options.carryQuotedPrices && line.carriedTax) {
+    resolvedTax = {
+      ...line.carriedTax,
+      rate: decimal(line.carriedTax.rate || 0),
+      components: line.carriedTax.components.map((component) => ({ type: component.type, label: component.label, rate: decimal(component.rate) })),
+      needsPlaceOfSupply: false,
+    };
+  } else {
+    try {
+      resolvedTax = await resolveLineTax(client, master.tax, {
+        taxCategoryId: item.tax_category_id ?? master.tax.defaultTaxCategoryId, date: master.documentDate, sellerStateCode: master.tax.registration?.stateCode,
+        placeOfSupply: master.placeOfSupply?.code, supplyType: master.supplyType, allowInactive: Boolean(options.carryQuotedPrices),
+      });
+    } catch (error) {
+      if (error instanceof TaxError) throw new SalesError(error.status, `Line ${sequence}: ${error.message}`, error.code);
+      throw error;
+    }
+  }
+  if (resolvedTax.needsPlaceOfSupply)
     throw new SalesError(
       422,
-      !sellerStateCode
-        ? "Set the seller's GST state in Sales settings before quoting taxable items."
+      !master.tax.registration?.stateCode
+        ? "Add the company's GST registration in Settings → Taxes before quoting taxable items."
         : `Line ${sequence}: choose a billing or shipping address with a state, or set the place of supply, so GST can be calculated.`,
       "SALES_PLACE_OF_SUPPLY_REQUIRED",
     );
-  // F039: the header discount reduces each line's taxable value before tax
-  // (GST is charged on the discounted value), shared pro rata by line value.
-  const headerDiscountPercent = decimal(input.headerDiscountPercent || 0);
-  const headerDiscountGross = roundMoney(percent(netAmount, headerDiscountPercent), master.currency.decimal_places);
-  const discountedNet = sub(netAmount, headerDiscountGross);
-  let headerDiscountShare = headerDiscountGross;
-  let taxableAmount = discountedNet;
-  let taxAmount = decimal(0);
-  if (master.priceList?.taxInclusive && taxRate > 0n) {
-    taxableAmount = roundMoney(
-      div(mul(discountedNet, 100), add(100, taxRate)),
-      master.currency.decimal_places,
-    );
-    taxAmount = sub(discountedNet, taxableAmount);
-    const netExcludingTax = roundMoney(
-      div(mul(netAmount, 100), add(100, taxRate)),
-      master.currency.decimal_places,
-    );
-    headerDiscountShare = sub(netExcludingTax, taxableAmount);
-    netAmount = netExcludingTax;
-  } else
-    taxAmount = roundMoney(
-      percent(taxableAmount, taxRate),
-      master.currency.decimal_places,
-    );
-  const taxLines = components.map((component, index) => ({
-    sequence: index + 1,
-    taxType: component.type,
-    label: component.label,
-    rate: asDatabaseDecimal(component.rate),
-    taxableAmount: asDatabaseDecimal(taxableAmount),
-    taxAmount: asDatabaseDecimal(
-      roundMoney(
-        percent(taxableAmount, component.rate),
-        master.currency.decimal_places,
-      ),
-    ),
-  }));
-  const effectiveStandardCost = decimal((variant?.standard_cost ?? item.standard_cost) || 0);
-  const costAmount = roundMoney(
-    mul(baseQuantity, effectiveStandardCost),
-    master.currency.decimal_places,
-  );
-  const lineTotal = add(sub(netAmount, headerDiscountShare), taxAmount);
-  const marginAmount = sub(netAmount, costAmount);
-  const marginPercent =
-    netAmount === 0n ? 0n : mul(div(marginAmount, netAmount), 100);
+  const components = resolvedTax.components;
   // Services and non-stock items have no stock to reserve or issue.
   if (line.warehouseId && !item.track_inventory) line = { ...line, warehouseId: null };
   if (line.warehouseId) {
@@ -550,6 +575,53 @@ async function calculateLine(client, context, master, line, sequence, input, opt
         `Line ${sequence} warehouse is inactive.`,
       );
   }
+  const lineNet = netAmount;
+  // The document discount reduces each line's taxable value before tax (GST
+  // is charged on the discounted value). The line's share is known only once
+  // every line is priced, so the line is finished in a second step.
+  const finish = (headerDiscountGross) => {
+  let netAmount = lineNet;
+  const discountedNet = sub(netAmount, headerDiscountGross);
+  let headerDiscountShare = headerDiscountGross;
+  const inclusive = Boolean(master.priceList?.taxInclusive);
+  // The shared calculation: each component rounded, the line's tax their sum;
+  // for tax-inclusive prices the tax is backed out of the value.
+  const calculated = computeTax({ base: discountedNet, inclusive, components, decimalPlaces: master.currency.decimal_places });
+  const taxableAmount = calculated.taxableAmount;
+  const taxAmount = calculated.taxAmount;
+  const taxRate = calculated.totalRate;
+  if (inclusive && taxRate > 0n) {
+    const netExcludingTax = roundMoney(
+      div(mul(netAmount, 100), add(100, taxRate)),
+      master.currency.decimal_places,
+    );
+    headerDiscountShare = sub(netExcludingTax, taxableAmount);
+    netAmount = netExcludingTax;
+  }
+  const taxLines = calculated.components.map((component, index) => ({
+    sequence: index + 1,
+    taxType: component.type,
+    label: component.label,
+    rate: asDatabaseDecimal(component.rate),
+    taxableAmount: asDatabaseDecimal(component.taxableAmount),
+    taxAmount: asDatabaseDecimal(component.taxAmount),
+    taxCategoryId: resolvedTax.categoryId,
+    taxRateId: resolvedTax.rateId,
+    // Why this tax: kept with the line for audit and debugging.
+    metadata: {
+      taxCategoryCode: resolvedTax.categoryCode, treatment: resolvedTax.treatment, supplyNature: resolvedTax.supplyNature, placeOfSupply: master.placeOfSupply?.code ?? null,
+      sellerStateCode: master.tax.registration?.stateCode ?? null, documentDate: master.documentDate, inclusive, reverseCharge: resolvedTax.reverseCharge,
+    },
+  }));
+  const effectiveStandardCost = decimal((variant?.standard_cost ?? item.standard_cost) || 0);
+  const costAmount = roundMoney(
+    mul(baseQuantity, effectiveStandardCost),
+    master.currency.decimal_places,
+  );
+  const lineTotal = add(sub(netAmount, headerDiscountShare), taxAmount);
+  const marginAmount = sub(netAmount, costAmount);
+  const marginPercent =
+    netAmount === 0n ? 0n : mul(div(marginAmount, netAmount), 100);
   return {
     sequence,
     itemId,
@@ -561,6 +633,12 @@ async function calculateLine(client, context, master, line, sequence, input, opt
     itemNameSnapshot: variant ? `${item.name} — ${variant.name}` : item.name,
     descriptionSnapshot: text(line.description, 4000) || item.sales_description || item.description,
     hsnSacSnapshot: item.hsn_sac_code,
+    // Goods carry an HSN code, services a SAC code.
+    hsnSacKind: item.hsn_sac_code ? (item.item_type === "service" ? "sac" : "hsn") : null,
+    taxRate: asDatabaseDecimal(taxRate),
+    taxRateId: resolvedTax.rateId,
+    taxCategoryCode: resolvedTax.categoryCode,
+    taxTreatment: resolvedTax.treatment,
     uomSnapshot: uomCode,
     quantity: asDatabaseDecimal(quantity),
     baseQuantity: asDatabaseDecimal(baseQuantity),
@@ -571,15 +649,19 @@ async function calculateLine(client, context, master, line, sequence, input, opt
     discountType,
     discountValue: asDatabaseDecimal(discountValue),
     discountAmount: asDatabaseDecimal(discountAmount),
+    grossAmount: asDatabaseDecimal(roundMoney(gross, master.currency.decimal_places)),
     netAmount: asDatabaseDecimal(netAmount),
-    headerDiscountShare: asDatabaseDecimal(headerDiscountShare),
+    documentDiscountAmount: asDatabaseDecimal(headerDiscountShare),
+    taxableAmount: asDatabaseDecimal(taxableAmount),
+    // (line discount + document discount share) as a percentage of the gross line amount
+    effectiveDiscountPercent: asDatabaseDecimal(gross > 0n ? div(mul(add(discountAmount, headerDiscountGross), 100), gross) : decimal(0)),
     taxAmount: asDatabaseDecimal(taxAmount),
     lineTotal: asDatabaseDecimal(lineTotal),
     standardCost: asDatabaseDecimal(effectiveStandardCost),
     costAmount: asDatabaseDecimal(costAmount),
     marginAmount: asDatabaseDecimal(marginAmount),
     marginPercent: asDatabaseDecimal(marginPercent),
-    taxCategoryId: item.tax_category_id,
+    taxCategoryId: resolvedTax.categoryId,
     requestedDeliveryDate: date(
       line.requestedDeliveryDate,
       `Line ${sequence} requested delivery date`,
@@ -604,6 +686,81 @@ async function calculateLine(client, context, master, line, sequence, input, opt
     taxTrace: taxLines,
     taxLines,
   };
+  };
+  return { eligibleNet: lineNet, finish };
+}
+
+// What a document form offers for tax: the company registrations, the supply
+// types and states, and whether this user may override what is worked out.
+async function documentTaxOptions(client, context) {
+  const tax = await loadTaxContext(client, { organizationId: context.organizationId });
+  const registrations = (await client.query(
+    `SELECT id, code, name, registration_number, state_code, is_default FROM tenant.tax_registrations WHERE organization_id=$1 AND status='active' ORDER BY is_default DESC, lower(name)`,
+    [context.organizationId])).rows;
+  return {
+    enabled: tax.enabled,
+    registrations: registrations.map((row) => ({ id: row.id, code: row.code, name: row.name, registrationNumber: row.registration_number, stateCode: row.state_code, isDefault: row.is_default })),
+    states: GST_STATES,
+    supplyTypes: SUPPLY_TYPES.map(({ code, label }) => ({ code, label })),
+    canOverrideTreatment: Boolean(hasPermission(context, TAX_PERMISSIONS.overrideTransaction)),
+    canOverridePlaceOfSupply: Boolean(hasPermission(context, TAX_PERMISSIONS.overridePlaceOfSupply)),
+  };
+}
+
+// The tax a document was calculated with: who issues it, the supply type and
+// treatment, the place of supply and how it was arrived at, and the tax by
+// component and rate.
+function documentTax(master, lines) {
+  const summary = summarizeTax(lines.flatMap((line) => line.taxLines)).map((entry) => ({
+    taxType: entry.taxType, label: entry.label, rate: asDatabaseDecimal(entry.rate), taxableAmount: asDatabaseDecimal(entry.taxableAmount), taxAmount: asDatabaseDecimal(entry.taxAmount),
+  }));
+  return {
+    enabled: master.tax.enabled,
+    seller: master.tax.registration,
+    supplyType: master.supplyType,
+    derivedSupplyType: master.derivedSupplyType,
+    treatment: treatmentOfSupply(master.supplyType),
+    overrideReason: master.taxOverrideReason,
+    placeOfSupply: master.placeOfSupply,
+    supplyNature: master.supplyNature,
+    summary,
+  };
+}
+
+// How a document's tax context is stored on its version (quotation and order alike).
+export function documentTaxColumns(preview) {
+  const { tax } = preview;
+  return [tax.seller?.id ?? null, JSON.stringify(tax.seller ?? {}), tax.treatment, tax.overrideReason, tax.placeOfSupply?.name ?? null, tax.placeOfSupply?.source ?? "derived",
+    tax.placeOfSupply?.reason ?? null, tax.supplyNature];
+}
+// The tax classification kept on each line.
+export const lineTaxColumns = (line) => [line.taxRate, line.taxRateId, line.taxCategoryCode, line.taxTreatment, line.hsnSacKind];
+
+// One row per tax component of an order line.
+async function insertOrderTaxLines(client, context, versionId, lineId, line) {
+  for (const tax of line.taxLines)
+    await client.query(
+      `INSERT INTO tenant.sales_order_tax_lines (organization_id,sales_order_version_id,sales_order_line_id,sequence,tax_type,label,rate,taxable_amount,tax_amount,tax_category_id,tax_rate_id,metadata)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12::jsonb)`,
+      [context.organizationId, versionId, lineId, tax.sequence, tax.taxType, tax.label, tax.rate, tax.taxableAmount, tax.taxAmount, tax.taxCategoryId, tax.taxRateId, JSON.stringify(tax.metadata)]);
+}
+
+// The discounts on a document, for its event trail.
+function discountAudit(preview) {
+  const { totals, discount } = preview;
+  return {
+    lineDiscountTotal: totals.lineDiscountTotal, documentDiscountType: totals.documentDiscountType, documentDiscountValue: totals.documentDiscountValue,
+    documentDiscountAmount: totals.documentDiscountAmount, highestLinePercent: discount.requestedPercent, limitOverridden: discount.limitOverridden,
+    reason: [discount.reasonCode, discount.reasonText].filter(Boolean).join(": ") || null,
+    priceOverrides: preview.lines.filter((line) => line.manualPriceOverride).map((line) => ({ line: line.sequence, listPrice: line.listUnitPrice, unitPrice: line.unitPrice })),
+  };
+}
+
+// How a document's discount is stored on its version (quotation and order alike).
+export function documentDiscountColumns(preview) {
+  const { totals, discount } = preview;
+  return [totals.documentDiscountType, totals.documentDiscountValue, totals.documentDiscountAmount, totals.grossTotal, totals.lineDiscountTotal, totals.taxableTotal,
+    discount.reasonCode, discount.reasonText];
 }
 
 export async function previewSalesDocument(
@@ -617,14 +774,10 @@ export async function previewSalesDocument(
   if (input.lines.length > 500)
     throw new SalesError(400, "A document cannot contain more than 500 lines.");
   const master = await loadDocumentContext(client, context, input, options);
-  const headerDiscountPercent = decimal(input.headerDiscountPercent || 0);
-  if (headerDiscountPercent < 0n || headerDiscountPercent > decimal(100))
-    throw new SalesError(400, "Header discount must be between 0 and 100.");
-  if (headerDiscountPercent > 0n && !options.carryQuotedPrices && !hasPermission(context, "sales.discount.apply") && !hasPermission(context, "sales.price.override"))
-    throw new SalesError(403, "You do not have permission to give a document discount.", "SALES_DISCOUNT_FORBIDDEN");
-  const lines = [];
+  // 1. every line: price, quantity, line discount
+  const priced = [];
   for (let i = 0; i < input.lines.length; i++)
-    lines.push(
+    priced.push(
       await calculateLine(
         client,
         context,
@@ -635,13 +788,24 @@ export async function previewSalesDocument(
         options,
       ),
     );
+  // 2. the document discount, shared across the lines in proportion to their value
+  const documentDiscount = readDocumentDiscount(context, master, input, priced.map((line) => line.eligibleNet), options);
+  const shares = allocateDocumentDiscount(documentDiscount.amount, priced.map((line) => line.eligibleNet), master.currency.decimal_places);
+  // 3. taxable value and tax, per line
+  const lines = priced.map((line, index) => line.finish(shares[index]));
+  const headerDiscountPercent = documentDiscount.percent;
+  const discountChecks = checkDiscountRules(context, master, input, lines, options);
   let subtotal = decimal(0),
+    grossTotal = decimal(0),
+    taxableTotal = decimal(0),
     discountTotal = decimal(0),
     taxTotal = decimal(0),
     costTotal = decimal(0),
     maximumDiscount = decimal(0);
   for (const line of lines) {
     subtotal = add(subtotal, line.netAmount);
+    grossTotal = add(grossTotal, line.grossAmount);
+    taxableTotal = add(taxableTotal, line.taxableAmount);
     discountTotal = add(discountTotal, line.discountAmount);
     taxTotal = add(taxTotal, line.taxAmount);
     costTotal = add(costTotal, line.costAmount);
@@ -676,9 +840,10 @@ export async function previewSalesDocument(
   // Folded into discountTotal/maximumDiscount so it stays visible in
   // reporting and is still caught by the discount-threshold approval gate.
   const headerDiscountAmount = lines.reduce(
-    (total, line) => add(total, line.headerDiscountShare),
+    (total, line) => add(total, line.documentDiscountAmount),
     decimal(0),
   );
+  const lineDiscountTotal = discountTotal;
   discountTotal = add(discountTotal, headerDiscountAmount);
   maximumDiscount = max(maximumDiscount, headerDiscountPercent);
   const beforeRounding = sub(
@@ -727,9 +892,16 @@ export async function previewSalesDocument(
       marginAmount: asDatabaseDecimal(marginAmount),
       marginPercent: asDatabaseDecimal(marginPercent),
       maximumDiscountPercent: asDatabaseDecimal(maximumDiscount),
-      headerDiscountPercent: asDatabaseDecimal(headerDiscountPercent),
-      headerDiscountAmount: asDatabaseDecimal(headerDiscountAmount),
+      grossTotal: asDatabaseDecimal(grossTotal),
+      lineDiscountTotal: asDatabaseDecimal(lineDiscountTotal),
+      documentDiscountType: documentDiscount.type,
+      documentDiscountValue: asDatabaseDecimal(documentDiscount.value),
+      documentDiscountPercent: asDatabaseDecimal(documentDiscount.percent),
+      documentDiscountAmount: asDatabaseDecimal(headerDiscountAmount),
+      taxableTotal: asDatabaseDecimal(taxableTotal),
     },
+    discount: discountChecks,
+    tax: documentTax(master, lines),
     pricingTrace: lines.map((line) => ({
       sequence: line.sequence,
       ...line.pricingTrace,
@@ -865,7 +1037,7 @@ export async function insertOrderFromPreview(
     }),
   );
   const versionResult = await client.query(
-    `INSERT INTO tenant.sales_order_versions (organization_id,sales_order_id,version_number,amendment_reason,currency_code,base_currency_code,exchange_rate,price_list_id,payment_term_id,billing_address_id,shipping_address_id,customer_snapshot,contact_snapshot,billing_address_snapshot,shipping_address_snapshot,payment_term_snapshot,customer_po_number,customer_po_date,priority,delivery_terms,shipping_method,incoterm,place_of_supply,supply_type,internal_notes,customer_notes,terms_and_conditions,subtotal,discount_total,charge_total,tax_total,rounding_adjustment,grand_total,base_currency_total,cost_total,margin_amount,margin_percent,pricing_trace,tax_trace,content_hash,created_by,header_discount_percent) VALUES ($1,$2,1,$3,$4,$5,$6,$7,$8,$9,$10,$11::jsonb,$12::jsonb,$13::jsonb,$14::jsonb,$15::jsonb,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32,$33,$34,$35,$36,$37::jsonb,$38::jsonb,$39,$40,$41) RETURNING *`,
+    `INSERT INTO tenant.sales_order_versions (organization_id,sales_order_id,version_number,amendment_reason,currency_code,base_currency_code,exchange_rate,price_list_id,payment_term_id,billing_address_id,shipping_address_id,customer_snapshot,contact_snapshot,billing_address_snapshot,shipping_address_snapshot,payment_term_snapshot,customer_po_number,customer_po_date,priority,delivery_terms,shipping_method,incoterm,place_of_supply,supply_type,internal_notes,customer_notes,terms_and_conditions,subtotal,discount_total,charge_total,tax_total,rounding_adjustment,grand_total,base_currency_total,cost_total,margin_amount,margin_percent,pricing_trace,tax_trace,content_hash,created_by,document_discount_type,document_discount_value,document_discount_amount,gross_total,line_discount_total,taxable_total,discount_reason_code,discount_reason_text,seller_registration_id,seller_snapshot,tax_treatment,tax_override_reason,place_of_supply_name,place_of_supply_source,place_of_supply_reason,supply_nature) VALUES ($1,$2,1,$3,$4,$5,$6,$7,$8,$9,$10,$11::jsonb,$12::jsonb,$13::jsonb,$14::jsonb,$15::jsonb,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32,$33,$34,$35,$36,$37::jsonb,$38::jsonb,$39,$40,$41,$42,$43,$44,$45,$46,$47,$48,$49,$50::jsonb,$51,$52,$53,$54,$55,$56) RETURNING *`,
     [
       context.organizationId,
       order.id,
@@ -888,8 +1060,8 @@ export async function insertOrderFromPreview(
       text(input.deliveryTerms),
       text(input.shippingMethod),
       text(input.incoterm, 40),
-      text(input.placeOfSupply, 80),
-      input.supplyType || "domestic",
+      preview.tax.placeOfSupply?.code ?? null,
+      preview.tax.supplyType,
       text(input.internalNotes, 10000),
       text(input.customerNotes, 10000),
       text(input.termsAndConditions, 20000),
@@ -907,13 +1079,14 @@ export async function insertOrderFromPreview(
       JSON.stringify(preview.taxTrace),
       contentHash,
       context.userId,
-      preview.totals.headerDiscountPercent,
+      ...documentDiscountColumns(preview),
+      ...documentTaxColumns(preview),
     ],
   );
   const version = versionResult.rows[0];
   for (const line of preview.lines) {
     const inserted = await client.query(
-      `INSERT INTO tenant.sales_order_lines (organization_id,sales_order_version_id,source_quotation_line_id,sequence,item_id,uom_id,warehouse_id,item_code_snapshot,item_name_snapshot,description_snapshot,hsn_sac_snapshot,uom_snapshot,quantity,base_quantity,conversion_factor,list_unit_price,unit_price,discount_percent,discount_amount,net_amount,tax_amount,line_total,standard_cost,cost_amount,margin_amount,margin_percent,tax_category_id,requested_delivery_date,promised_delivery_date,pricing_trace,tax_trace,variant_id,variant_sku_snapshot,created_by,discount_type,discount_value) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30::jsonb,$31::jsonb,$32,$33,$34,$35,$36) RETURNING id`,
+      `INSERT INTO tenant.sales_order_lines (organization_id,sales_order_version_id,source_quotation_line_id,sequence,item_id,uom_id,warehouse_id,item_code_snapshot,item_name_snapshot,description_snapshot,hsn_sac_snapshot,uom_snapshot,quantity,base_quantity,conversion_factor,list_unit_price,unit_price,discount_percent,discount_amount,net_amount,tax_amount,line_total,standard_cost,cost_amount,margin_amount,margin_percent,tax_category_id,requested_delivery_date,promised_delivery_date,pricing_trace,tax_trace,variant_id,variant_sku_snapshot,created_by,discount_type,discount_value,gross_amount,document_discount_amount,taxable_amount,tax_rate,tax_rate_id,tax_category_code,tax_treatment,hsn_sac_kind) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30::jsonb,$31::jsonb,$32,$33,$34,$35,$36,$37,$38,$39,$40,$41,$42,$43,$44) RETURNING id`,
       [
         context.organizationId,
         version.id,
@@ -949,10 +1122,15 @@ export async function insertOrderFromPreview(
         line.variantId,
         line.variantSkuSnapshot,
         context.userId,
-        line.discountType ?? "percent",
-        line.discountValue ?? line.discountPercent ?? 0,
+        line.discountType,
+        line.discountValue,
+        line.grossAmount,
+        line.documentDiscountAmount,
+        line.taxableAmount,
+        ...lineTaxColumns(line),
       ],
     );
+    await insertOrderTaxLines(client, context, version.id, inserted.rows[0].id, line);
     await client.query(
       `INSERT INTO tenant.sales_order_line_progress (organization_id,sales_order_line_id,confirmed_quantity,updated_by) VALUES ($1,$2,0,$3)`,
       [context.organizationId, inserted.rows[0].id, context.userId],
@@ -980,7 +1158,7 @@ export async function insertOrderFromPreview(
     "sales_order.created",
     null,
     "draft",
-    { versionId: version.id },
+    { versionId: version.id, discounts: discountAudit(preview) },
   );
   return { ...order, current_version_id: version.id };
 }
@@ -1057,10 +1235,16 @@ export async function getSalesOrder(client, context, id) {
     `SELECT version.id,version.version_number,version.amendment_reason,version.currency_code,version.grand_total,version.created_at,version.created_by,amendment.approval_request_id FROM tenant.sales_order_versions version LEFT JOIN tenant.sales_order_amendments amendment ON amendment.organization_id=version.organization_id AND amendment.to_version_id=version.id WHERE version.organization_id=$1 AND version.sales_order_id=$2 ORDER BY version.version_number DESC`,
     [context.organizationId, id],
   );
+  const taxLines = await client.query(
+    `SELECT tax_type,label,rate,sum(taxable_amount) AS taxable_amount,sum(tax_amount) AS tax_amount FROM tenant.sales_order_tax_lines
+      WHERE organization_id=$1 AND sales_order_version_id=$2 GROUP BY tax_type,label,rate ORDER BY tax_type,rate`,
+    [context.organizationId, order.current_version_id],
+  );
   return redactMargin(
     {
       order,
       lines: lines.rows,
+      taxLines: taxLines.rows,
       versions: versions.rows,
       holds: holds.rows,
       fulfillmentRequests: fulfillment.rows,
@@ -1934,6 +2118,8 @@ export async function getSalesOptions(
       settings: await client
         .query(`SELECT default_quote_validity_days,allow_direct_orders FROM tenant.sales_settings WHERE organization_id=$1`, [context.organizationId])
         .then((r) => r.rows[0] || { default_quote_validity_days: 15, allow_direct_orders: true }),
+      discounts: await discountOptions(client, context),
+      tax: await documentTaxOptions(client, context),
     },
     context,
   );
@@ -2011,10 +2197,12 @@ export async function amendSalesOrder(client, context, id, input) {
        customer_po_number,customer_po_date,priority,delivery_terms,shipping_method,incoterm,place_of_supply,supply_type,
        internal_notes,customer_notes,terms_and_conditions,subtotal,discount_total,charge_total,tax_total,
        rounding_adjustment,grand_total,base_currency_total,cost_total,margin_amount,margin_percent,
-       pricing_trace,tax_trace,content_hash,created_by,header_discount_percent
+       pricing_trace,tax_trace,content_hash,created_by,document_discount_type,document_discount_value,document_discount_amount,
+       gross_total,line_discount_total,taxable_total,discount_reason_code,discount_reason_text,
+       seller_registration_id,seller_snapshot,tax_treatment,tax_override_reason,place_of_supply_name,place_of_supply_source,place_of_supply_reason,supply_nature
      ) VALUES (
        $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12::jsonb,$13::jsonb,$14::jsonb,$15::jsonb,$16::jsonb,
-       $17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32,$33,$34,$35,$36,$37,$38::jsonb,$39::jsonb,$40,$41,$42
+       $17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32,$33,$34,$35,$36,$37,$38::jsonb,$39::jsonb,$40,$41,$42,$43,$44,$45,$46,$47,$48,$49,$50,$51::jsonb,$52,$53,$54,$55,$56,$57
      ) RETURNING *`,
     [
       context.organizationId,
@@ -2039,8 +2227,8 @@ export async function amendSalesOrder(client, context, id, input) {
       text(input.deliveryTerms),
       text(input.shippingMethod),
       text(input.incoterm, 40),
-      text(input.placeOfSupply, 80),
-      input.supplyType || "domestic",
+      preview.tax.placeOfSupply?.code ?? null,
+      preview.tax.supplyType,
       text(input.internalNotes, 10000),
       text(input.customerNotes, 10000),
       text(input.termsAndConditions, 20000),
@@ -2058,7 +2246,8 @@ export async function amendSalesOrder(client, context, id, input) {
       JSON.stringify(preview.taxTrace),
       contentHash,
       context.userId,
-      preview.totals.headerDiscountPercent,
+      ...documentDiscountColumns(preview),
+      ...documentTaxColumns(preview),
     ],
   );
   const version = versionResult.rows[0];
@@ -2069,8 +2258,9 @@ export async function amendSalesOrder(client, context, id, input) {
         item_code_snapshot,item_name_snapshot,description_snapshot,hsn_sac_snapshot,uom_snapshot,quantity,
         base_quantity,conversion_factor,list_unit_price,unit_price,discount_percent,discount_amount,net_amount,
         tax_amount,line_total,standard_cost,cost_amount,margin_amount,margin_percent,tax_category_id,
-        requested_delivery_date,promised_delivery_date,pricing_trace,tax_trace,variant_id,variant_sku_snapshot,created_by,discount_type,discount_value
-      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30::jsonb,$31::jsonb,$32,$33,$34,$35,$36) RETURNING id`,
+        requested_delivery_date,promised_delivery_date,pricing_trace,tax_trace,variant_id,variant_sku_snapshot,created_by,discount_type,discount_value,
+        gross_amount,document_discount_amount,taxable_amount,tax_rate,tax_rate_id,tax_category_code,tax_treatment,hsn_sac_kind
+      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30::jsonb,$31::jsonb,$32,$33,$34,$35,$36,$37,$38,$39,$40,$41,$42,$43,$44) RETURNING id`,
       [
         context.organizationId,
         version.id,
@@ -2106,10 +2296,15 @@ export async function amendSalesOrder(client, context, id, input) {
         line.variantId,
         line.variantSkuSnapshot,
         context.userId,
-        line.discountType ?? "percent",
-        line.discountValue ?? line.discountPercent ?? 0,
+        line.discountType,
+        line.discountValue,
+        line.grossAmount,
+        line.documentDiscountAmount,
+        line.taxableAmount,
+        ...lineTaxColumns(line),
       ],
     );
+    await insertOrderTaxLines(client, context, version.id, inserted.rows[0].id, line);
     await client.query(
       `INSERT INTO tenant.sales_order_line_progress (organization_id,sales_order_line_id,confirmed_quantity,updated_by)
        VALUES ($1,$2,$3,$4)`,
@@ -2197,6 +2392,7 @@ export async function amendSalesOrder(client, context, id, input) {
       approvalId,
       fromVersionId: order.current_version_id,
       toVersionId: version.id,
+      discounts: discountAudit(preview),
       reason,
       resumeStatus: order.lifecycle_status,
     },
@@ -2441,3 +2637,4 @@ export * from "./price-lists/index.js";
 export * from "./order-execution.js";
 export * from "./after-sales.js";
 export * from "./quotations/index.js";
+export { DISCOUNT_PERMISSIONS, DISCOUNT_REASONS } from "./discounts.js";

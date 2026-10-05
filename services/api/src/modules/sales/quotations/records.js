@@ -13,7 +13,8 @@ import { quotationCan, quotationCapabilities, quotationScopeSql, requireQuotatio
 import {
   ACTIVE_STATUSES, OPEN_STATUSES, QUOTATION_PERMISSIONS, QUOTATION_VIEWS, QuotationError, STATUS, dayOf, displayStatus, has, isUuid, requireUuid, text,
 } from "./constants.js";
-import { inputFromQuotation, insertQuotationVersion, lockQuotation, recordQuotationEvent } from "./versions.js";
+import { discountChanges } from "../discounts.js";
+import { discountSnapshot, inputFromQuotation, insertQuotationVersion, lockQuotation, recordQuotationEvent } from "./versions.js";
 
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
 // One connection runs one query at a time.
@@ -103,7 +104,8 @@ async function checkOpportunity(client, context, opportunityId, partyId) {
 }
 
 // input: partyId, contactId?, opportunityId?, ownerUserId?, quotationDate?, validUntil?, currencyCode?, priceListId?, paymentTermId?,
-//        billingAddressId?, shippingAddressId?, placeOfSupply?, supplyType?, customerReference?, headerDiscountPercent?,
+//        billingAddressId?, shippingAddressId?, placeOfSupply?, supplyType?, customerReference?,
+//        documentDiscountType? ("percent" | "amount"), documentDiscountValue?, discountReasonCode?, discountReasonText?,
 //        customerNotes?, termsAndConditions?, internalNotes?, lines[], charges[]?, idempotencyKey?
 export async function createQuotation(client, context, input = {}) {
   requireQuotationPermission(context, QUOTATION_PERMISSIONS.create, "You do not have permission to create quotations.");
@@ -127,6 +129,7 @@ export async function createQuotation(client, context, input = {}) {
   await client.query(`UPDATE tenant.sales_quotations SET current_version_id = $3 WHERE organization_id = $1 AND id = $2`, [context.organizationId, quotation.id, version.id]);
   await recordQuotationEvent(client, context, quotation.id, "quotation.created", null, STATUS.draft,
     { versionId: version.id, versionNumber: version.version_number, opportunityId: document.opportunityId || null, source: input.source ?? (document.opportunityId ? "opportunity" : "direct") });
+  await recordDiscountEvents(client, context, quotation.id, null, preview);
   const response = { id: quotation.id, quotation_number: quotation.quotation_number, quotationNumber: quotation.quotation_number, currentVersionId: version.id, versionNumber: 1, replayed: false };
   await completeIdempotentOperation(client, context, idempotency, { response, aggregateType: "sales_quotation", aggregateId: quotation.id });
   return response;
@@ -154,7 +157,9 @@ export async function updateQuotation(client, context, quotationId, input = {}) 
     throw new QuotationError(409, "A revision cannot change the customer. Create a new quotation instead.", "SALES_QUOTATION_CUSTOMER_LOCKED");
   const preview = await priced(client, context, document);
   await checkOpportunity(client, context, document.opportunityId, preview.master.partyId);
+  const before = await discountSnapshot(client, context, quote.current_version_id);
   const version = await insertQuotationVersion(client, context, quote.id, document, preview);
+  await recordDiscountEvents(client, context, quote.id, before, preview);
   await client.query(
     `UPDATE tenant.sales_quotations
         SET current_version_id = $3, party_id = $4, contact_id = $5, owner_user_id = $6, source_opportunity_id = $7, quotation_date = $8, valid_until = $9,
@@ -164,6 +169,24 @@ export async function updateQuotation(client, context, quotationId, input = {}) 
       document.quotationDate, document.validUntil, text(document.customerReference, 200), context.userId ?? null]);
   await recordQuotationEvent(client, context, quote.id, "quotation.updated", STATUS.draft, STATUS.draft, { versionId: version.id, versionNumber: version.version_number });
   return { id: quote.id, currentVersionId: version.id, versionNumber: Number(version.version_number) };
+}
+
+// Discount added / changed / removed, price overridden and limit overridden,
+// each with who, when, the old and new value and the reason.
+async function recordDiscountEvents(client, context, quotationId, before, preview) {
+  const after = {
+    documentDiscount: { type: preview.totals.documentDiscountType, value: preview.totals.documentDiscountValue, amount: preview.totals.documentDiscountAmount },
+    lines: preview.lines.map((line) => ({
+      sequence: line.sequence, itemId: line.itemId, name: line.itemNameSnapshot, listPrice: line.listUnitPrice, unitPrice: line.unitPrice, override: line.manualPriceOverride,
+      type: line.discountType, value: line.discountValue, amount: line.discountAmount,
+    })),
+  };
+  const reason = [preview.discount.reasonCode, preview.discount.reasonText].filter(Boolean).join(": ") || null;
+  for (const change of discountChanges(before, after))
+    await recordQuotationEvent(client, context, quotationId, `quotation.${change.event}`, STATUS.draft, STATUS.draft, { ...change, reason: change.event === "price_overridden" ? null : reason });
+  if (preview.discount.limitOverridden)
+    await recordQuotationEvent(client, context, quotationId, "quotation.discount_limit_overridden", STATUS.draft, STATUS.draft,
+      { requestedPercent: preview.discount.requestedPercent, standardLimitPercent: preview.master.settings.discount_limit_percent, reason });
 }
 
 async function assertVisible(client, context, quotationId) {

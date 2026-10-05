@@ -21,7 +21,6 @@ import { request, SalesApiError } from "@/features/sales/shared/http";
 import { SalesAlert, SalesPanel } from "@/features/sales/shared/SalesUi";
 
 type Settings = {
-  seller_state_code: string | null;
   default_quote_validity_days: number;
   quotation_approval_amount: string | number;
   quotation_approval_discount: string | number;
@@ -30,7 +29,17 @@ type Settings = {
   allow_direct_orders: boolean;
   invoice_quantity_basis: "ordered" | "fulfilled";
   default_quotation_terms: string | null;
+  allow_line_discounts: boolean;
+  allow_document_discounts: boolean;
+  allow_percent_discounts: boolean;
+  allow_amount_discounts: boolean;
+  discount_reason_above_percent: string | number | null;
+  discount_limit_percent: string | number | null;
+  discount_limit_elevated_percent: string | number | null;
 };
+// An empty field means "no limit" / "never required".
+const optionalPercent = (value: string | number | null) => (value === null || value === undefined ? "" : String(Number(value)));
+const percentOrNull = (value: string) => (value.trim() === "" ? null : Number(value));
 
 // F041/F043 -- the thresholds that decide when a quotation or order needs a
 // second person, plus document defaults. Zero on an amount means "no amount
@@ -75,7 +84,6 @@ function SettingsForm({ settings }: { settings: Settings }) {
   const canManage =
     workspace.roleSlugs.includes("organization_owner") ||
     workspace.permissions.includes(SALES_PERMISSIONS.settingsManage);
-  const [state, setState] = useState(settings.seller_state_code ?? "");
   const [validity, setValidity] = useState(
     settings.default_quote_validity_days,
   );
@@ -92,6 +100,17 @@ function SettingsForm({ settings }: { settings: Settings }) {
   const [direct, setDirect] = useState(settings.allow_direct_orders);
   const [basis, setBasis] = useState<string>(settings.invoice_quantity_basis);
   const [quotationTerms, setQuotationTerms] = useState(settings.default_quotation_terms ?? "");
+  const canManageDiscounts =
+    workspace.roleSlugs.includes("organization_owner") ||
+    workspace.permissions.includes(SALES_PERMISSIONS.discountManageSettings);
+  const [lineDiscounts, setLineDiscounts] = useState(settings.allow_line_discounts);
+  const [documentDiscounts, setDocumentDiscounts] = useState(settings.allow_document_discounts);
+  const [percentDiscounts, setPercentDiscounts] = useState(settings.allow_percent_discounts);
+  const [amountDiscounts, setAmountDiscounts] = useState(settings.allow_amount_discounts);
+  const [reasonAbove, setReasonAbove] = useState(optionalPercent(settings.discount_reason_above_percent));
+  const [discountLimit, setDiscountLimit] = useState(optionalPercent(settings.discount_limit_percent));
+  const [managerLimit, setManagerLimit] = useState(optionalPercent(settings.discount_limit_elevated_percent));
+  const percentInput = (value: string) => value.replace(/[^0-9.]/g, "");
   const [saved, setSaved] = useState(false);
 
   const save = useMutation({
@@ -99,7 +118,6 @@ function SettingsForm({ settings }: { settings: Settings }) {
       request<{ settings: Settings }>("/settings", {
         method: "PUT",
         body: JSON.stringify({
-          sellerStateCode: state || null,
           defaultQuoteValidityDays: validity,
           quotationApprovalAmount: quoteAmount,
           quotationApprovalDiscount: quoteDiscount,
@@ -108,6 +126,17 @@ function SettingsForm({ settings }: { settings: Settings }) {
           allowDirectOrders: direct,
           invoiceQuantityBasis: basis,
           defaultQuotationTerms: quotationTerms,
+          ...(canManageDiscounts
+            ? {
+                allowLineDiscounts: lineDiscounts,
+                allowDocumentDiscounts: documentDiscounts,
+                allowPercentDiscounts: percentDiscounts,
+                allowAmountDiscounts: amountDiscounts,
+                discountReasonAbovePercent: percentOrNull(reasonAbove),
+                discountLimitPercent: percentOrNull(discountLimit),
+                discountLimitElevatedPercent: percentOrNull(managerLimit),
+              }
+            : {}),
         }),
       }),
     onSuccess: () => {
@@ -213,6 +242,47 @@ function SettingsForm({ settings }: { settings: Settings }) {
         </Switch>
       </SalesPanel>
 
+      <SalesPanel
+        title="Pricing & Discounts"
+        description="A discount is given on a line or on the whole document, as a percentage or a fixed amount. Standard customer prices belong in price lists, not here."
+      >
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <Switch isSelected={lineDiscounts} onChange={touch(setLineDiscounts)} isDisabled={!canManageDiscounts}>Allow line discounts</Switch>
+          <Switch isSelected={documentDiscounts} onChange={touch(setDocumentDiscounts)} isDisabled={!canManageDiscounts}>Allow document discounts</Switch>
+          <Switch isSelected={percentDiscounts} onChange={touch(setPercentDiscounts)} isDisabled={!canManageDiscounts}>Percentage discounts</Switch>
+          <Switch isSelected={amountDiscounts} onChange={touch(setAmountDiscounts)} isDisabled={!canManageDiscounts}>Fixed amount discounts</Switch>
+        </div>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+          <TextField
+            label="Require a reason above (%)"
+            description="Leave empty to never require a reason."
+            inputMode="decimal"
+            value={reasonAbove}
+            onChange={(value) => touch(setReasonAbove)(percentInput(value))}
+            isDisabled={!canManageDiscounts}
+          />
+          <TextField
+            label="Salesperson maximum discount (%)"
+            description="Leave empty for no limit."
+            inputMode="decimal"
+            value={discountLimit}
+            onChange={(value) => touch(setDiscountLimit)(percentInput(value))}
+            isDisabled={!canManageDiscounts}
+          />
+          <TextField
+            label="Manager maximum discount (%)"
+            description="For users who may discount up to the higher limit. Leave empty for no limit."
+            inputMode="decimal"
+            value={managerLimit}
+            onChange={(value) => touch(setManagerLimit)(percentInput(value))}
+            isDisabled={!canManageDiscounts}
+          />
+        </div>
+        <p className="text-xs text-text-muted">
+          The limit applies to each line&apos;s total discount: its own discount plus its share of the document discount. Users who may override the limit are not restricted.
+        </p>
+      </SalesPanel>
+
       <SalesPanel title="Document defaults">
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
           <NumberField
@@ -222,12 +292,6 @@ function SettingsForm({ settings }: { settings: Settings }) {
             minValue={1}
             maxValue={365}
             step={1}
-            isDisabled={!canManage}
-          />
-          <TextField
-            label="Seller state code (GST place of supply)"
-            value={state}
-            onChange={touch(setState)}
             isDisabled={!canManage}
           />
           <Select

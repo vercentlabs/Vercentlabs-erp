@@ -30,14 +30,20 @@ import {
   usableAddresses,
   defaultLineDescription,
   defaultLineUom,
-  SUPPLY_TYPE_OPTIONS,
-  supplyTypeFor,
 } from "@/features/sales/shared/document-defaults";
 import {
   SalesAlert,
-  SalesFacts,
   SalesPanel,
 } from "@/features/sales/shared/SalesUi";
+import { AUTOMATIC_TAX, DocumentTaxPanel, taxDraftOf, taxInput, type DocumentTaxDraft } from "@/features/sales/shared/DocumentTax";
+import {
+  DocumentDiscountPanel,
+  DocumentTotals,
+  NO_DOCUMENT_DISCOUNT,
+  defaultDiscountType,
+  discountTypeOptions,
+  type DocumentDiscountDraft,
+} from "@/features/sales/shared/DocumentDiscounts";
 import {
   createSalesQuotation,
   getQuotationDefaults,
@@ -273,9 +279,15 @@ function FormBody({
   const [customerReference, setCustomerReference] = useState(
     existing?.quotation.customer_reference ?? "",
   );
-  const [headerDiscount, setHeaderDiscount] = useState(
-    Number(existing?.quotation.header_discount_percent ?? 0),
-  );
+  const [documentDiscount, setDocumentDiscount] = useState<DocumentDiscountDraft>(() => existing
+    ? {
+        type: existing.quotation.document_discount_type === "amount" ? "amount" : "percent",
+        value: Number(existing.quotation.document_discount_value ?? 0),
+        reasonCode: existing.quotation.discount_reason_code ?? "",
+        reasonText: existing.quotation.discount_reason_text ?? "",
+      }
+    : { ...NO_DOCUMENT_DISCOUNT, type: defaultDiscountType(options.discounts) });
+  const canDiscountLines = options.discounts.allowLine && options.discounts.canApplyLine;
   const [customerNotes, setCustomerNotes] = useState(
     existing?.quotation.customer_notes ?? "",
   );
@@ -300,10 +312,8 @@ function FormBody({
   const [incoterm, setIncoterm] = useState(
     existing?.quotation.incoterm ?? initialParty?.default_incoterm ?? "",
   );
-  const [supplyType, setSupplyType] = useState(
-    existing?.quotation.supply_type ??
-      supplyTypeFor(initialParty?.tax_treatment),
-  );
+  // Tax is worked out by the server; this holds only what the user overrides.
+  const [documentTax, setDocumentTax] = useState<DocumentTaxDraft>(() => (existing ? taxDraftOf(existing.quotation) : AUTOMATIC_TAX));
   const [lines, setLines] = useState<LineDraft[]>(() =>
     existing?.lines.length
       ? existing.lines.map((line) => ({
@@ -318,7 +328,7 @@ function FormBody({
           unitPrice: line.manual_price_override ? String(Number(line.unit_price)) : "",
           priceReason: line.manual_price_reason ?? "",
         }))
-      : [emptyLine()],
+      : [{ ...emptyLine(), discountType: defaultDiscountType(options.discounts) }],
   );
   const [charges, setCharges] = useState<ChargeDraft[]>(() =>
     (existing?.charges ?? []).map((charge) => ({
@@ -439,7 +449,7 @@ function FormBody({
     setShippingMethod(party?.default_shipping_method ?? "");
     setDeliveryTerms(party?.default_delivery_terms ?? "");
     setIncoterm(party?.default_incoterm ?? "");
-    setSupplyType(supplyTypeFor(party?.tax_treatment));
+    setDocumentTax((current) => ({ ...AUTOMATIC_TAX, sellerRegistrationId: current.sellerRegistrationId }));
     // Default to the new customer's primary contact/billing/shipping address
     // (still fully overridable below) -- the previous customer's selections
     // don't carry over.
@@ -469,14 +479,17 @@ function FormBody({
       priceListId: priceListId || null,
       paymentTermId: paymentTermId || null,
       validUntil: validUntil || null,
-      headerDiscountPercent: headerDiscount || undefined,
+      documentDiscountType: documentDiscount.type,
+      documentDiscountValue: documentDiscount.value || undefined,
+      discountReasonCode: documentDiscount.reasonCode || null,
+      discountReasonText: documentDiscount.reasonText.trim() || null,
       customerNotes: customerNotes || undefined,
       internalNotes: internalNotes || undefined,
       termsAndConditions: terms,
       shippingMethod: shippingMethod || undefined,
       deliveryTerms: deliveryTerms || undefined,
       incoterm: incoterm || undefined,
-      supplyType,
+      ...taxInput(documentTax),
       lines: validLines.map((line) => ({
         itemId: line.itemId,
         variantId: line.variantId || undefined,
@@ -508,14 +521,14 @@ function FormBody({
     quotationDate,
     customerReference,
     validUntil,
-    headerDiscount,
+    documentDiscount,
     customerNotes,
     internalNotes,
     terms,
     shippingMethod,
     deliveryTerms,
     incoterm,
-    supplyType,
+    documentTax,
     validLines,
     charges,
   ]);
@@ -726,7 +739,7 @@ function FormBody({
             </div>
           </SalesPanel>
 
-          <SalesPanel title="Delivery & tax">
+          <SalesPanel title="Delivery">
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <TextField
                 label="Shipping method"
@@ -743,16 +756,10 @@ function FormBody({
                 value={incoterm}
                 onChange={setIncoterm}
               />
-              <Select
-                label="Supply type"
-                options={SUPPLY_TYPE_OPTIONS}
-                selectedKey={supplyType}
-                onSelectionChange={(key) =>
-                  setSupplyType(String(key ?? "domestic"))
-                }
-              />
             </div>
           </SalesPanel>
+
+          <DocumentTaxPanel tax={options.tax} value={documentTax} onChange={setDocumentTax} preview={preview} />
 
           <SalesPanel
             title="Items"
@@ -761,7 +768,7 @@ function FormBody({
                 variant="secondary"
                 size="compact"
                 onPress={() =>
-                  setLines((current) => [...current, emptyLine()])
+                  setLines((current) => [...current, { ...emptyLine(), discountType: defaultDiscountType(options.discounts) }])
                 }
               >
                 <Plus className="size-3.5" aria-hidden="true" />
@@ -829,19 +836,22 @@ function FormBody({
                         label={index === 0 ? "Discount" : undefined}
                         value={line.discountValue}
                         onChange={(value) =>
-                          updateLine(line.key, { discountValue: value })
+                          updateLine(line.key, { discountValue: Number.isFinite(value) ? value : 0 })
                         }
                         minValue={0}
                         maxValue={line.discountType === "percent" ? 100 : undefined}
-                        step={line.discountType === "percent" ? 1 : 0.01}
+                        step={line.discountType === "percent" ? 0.5 : 0.01}
+                        isDisabled={!canDiscountLines}
                       />
                       <Select
                         aria-label={`Discount type ${index + 1}`}
-                        options={[{ value: "percent", label: "%" }, { value: "amount", label: currencyCode }]}
+                        options={discountTypeOptions(options.discounts, currencyCode)}
                         selectedKey={line.discountType}
+                        // The value entered for the other type is not carried over.
                         onSelectionChange={(key) =>
-                          updateLine(line.key, { discountType: key === "amount" ? "amount" : "percent" })
+                          updateLine(line.key, { discountType: key === "amount" ? "amount" : "percent", discountValue: 0 })
                         }
+                        isDisabled={!canDiscountLines}
                       />
                     </div>
                     <IconButton
@@ -895,8 +905,14 @@ function FormBody({
                     {priced && (
                       <p className="text-xs text-text-muted sm:col-span-6">
                         {priced.manualPriceOverride ? `List ${money(currencyCode, priced.listUnitPrice)} · overridden to ` : ""}
-                        {money(currencyCode, priced.unitPrice)} each · net{" "}
-                        {money(currencyCode, priced.netAmount)} · tax{" "}
+                        {money(currencyCode, priced.unitPrice)} each
+                        {Number(priced.discountAmount) > 0
+                          ? ` · gross ${money(currencyCode, priced.grossAmount)} · discount ${priced.discountType === "percent" ? `${Number(priced.discountValue)}% = ` : ""}${money(currencyCode, priced.discountAmount)}`
+                          : ""}
+                        {" · net "}
+                        {money(currencyCode, priced.netAmount)}
+                        {Number(priced.documentDiscountAmount) > 0 ? ` · additional discount ${money(currencyCode, priced.documentDiscountAmount)} · taxable ${money(currencyCode, priced.taxableAmount)}` : ""}
+                        {" · tax "}
                         {money(currencyCode, priced.taxAmount)} · line total{" "}
                         <span className="font-medium text-text">
                           {money(currencyCode, priced.lineTotal)}
@@ -910,8 +926,8 @@ function FormBody({
           </SalesPanel>
 
           <SalesPanel
-            title="Charges & discount"
-            description="Freight, handling, or a discount on the whole document (needs the discount permission)."
+            title="Charges"
+            description="Freight, handling and other charges."
             actions={
               <Button
                 variant="secondary"
@@ -999,16 +1015,16 @@ function FormBody({
                 </IconButton>
               </div>
             ))}
-            <NumberField
-              label="Whole-document discount (%)"
-              value={headerDiscount}
-              onChange={setHeaderDiscount}
-              minValue={0}
-              maxValue={100}
-              step={1}
-              className="sm:max-w-xs"
-            />
           </SalesPanel>
+
+          <DocumentDiscountPanel
+            discounts={options.discounts}
+            currencyCode={currencyCode}
+            value={documentDiscount}
+            onChange={setDocumentDiscount}
+            preview={preview}
+            hasAnyDiscount={documentDiscount.value > 0 || lines.some((line) => line.discountValue > 0)}
+          />
 
           <SalesPanel title="Notes & terms">
             <TextArea
@@ -1038,50 +1054,7 @@ function FormBody({
                 Choose a customer and add an item to see pricing.
               </p>
             ) : (
-              <>
-                <SalesFacts
-                  columns={2}
-                  items={[
-                    {
-                      label: "Subtotal",
-                      value: money(currencyCode, preview.totals.subtotal),
-                    },
-                    {
-                      label: "Discounts",
-                      value: money(currencyCode, preview.totals.discountTotal),
-                    },
-                    {
-                      label: "Charges",
-                      value: money(currencyCode, preview.totals.chargeTotal),
-                    },
-                    {
-                      label: "Tax",
-                      value: money(currencyCode, preview.totals.taxTotal),
-                    },
-                    {
-                      label: "Rounding",
-                      value: money(
-                        currencyCode,
-                        preview.totals.roundingAdjustment,
-                      ),
-                    },
-                    ...(preview.totals.marginPercent !== undefined
-                      ? [
-                          {
-                            label: "Margin",
-                            value: `${Number(preview.totals.marginPercent).toFixed(1)}%`,
-                          },
-                        ]
-                      : []),
-                  ]}
-                />
-                <div className="flex items-center justify-between border-t border-border pt-3 text-lg font-semibold text-text">
-                  <span>Grand total</span>
-                  <span className="tabular-nums">
-                    {money(currencyCode, preview.totals.grandTotal)}
-                  </span>
-                </div>
-              </>
+              <DocumentTotals currencyCode={currencyCode} preview={preview} />
             )}
           </SalesPanel>
         </div>

@@ -19,6 +19,7 @@ import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext"
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import { SalesApiError } from "@/features/sales/shared/http";
 import { calendarDate, dateTime, money } from "@/features/sales/shared/format";
+import { StoredTotals, discountReasonLabel } from "@/features/sales/shared/DocumentDiscounts";
 import { SalesAlert, SalesFacts, SalesPanel } from "@/features/sales/shared/SalesUi";
 
 import {
@@ -39,12 +40,15 @@ const EVENT_LABELS: Record<string, string> = {
   "quotation.approval_rejected": "Approval rejected, back to draft", "quotation.confirmed": "Confirmed", "quotation.sent": "Sent", "quotation.resent": "Sent again",
   "quotation.accepted": "Accepted by the customer", "quotation.rejected": "Rejected by the customer", "quotation.cancelled": "Cancelled",
   "quotation.revision_created": "Revision created", "quotation.superseded": "Superseded", "quotation.duplicated": "Duplicated from another quotation",
-  "quotation.order_created": "Sales order created", "quotation.note_added": "Note", "quotation.file_added": "File added", "quotation.file_removed": "File removed",
+  "quotation.order_created": "Sales order created", "quotation.discount_added": "Discount added", "quotation.discount_changed": "Discount changed",
+  "quotation.discount_removed": "Discount removed", "quotation.price_overridden": "Price overridden", "quotation.discount_limit_overridden": "Discount above the standard limit", "quotation.note_added": "Note", "quotation.file_added": "File added", "quotation.file_removed": "File removed",
 };
 function eventDetail(event: SalesDocumentEvent) {
   const m = (event.metadata ?? {}) as Record<string, unknown>;
   const text = (key: string) => (typeof m[key] === "string" && m[key] ? String(m[key]) : null);
   return [
+    text("scope") && `${text("scope")![0].toUpperCase()}${text("scope")!.slice(1)}`, text("from") && text("to") && `${text("from")} → ${text("to")}`,
+    text("requestedPercent") && `${Number(text("requestedPercent"))}% requested`,
     text("note"), text("reason"), text("notes"), text("recipient") && `To ${text("recipient")}`, text("channel") === "manual" ? "Sent outside Vercentlabs" : null,
     text("revisionNumber") && `Revision ${text("revisionNumber")}`, text("supersededByNumber") && `By ${text("supersededByNumber")}`,
     text("revisionOfNumber") && `Revises ${text("revisionOfNumber")}`, text("fromQuotationNumber") && `From ${text("fromQuotationNumber")}`,
@@ -194,12 +198,18 @@ function Overview({ detail }: { detail: SalesQuotationDetail }) {
           { label: "Currency", value: quote.currency_code },
           { label: "Price list", value: quote.price_list_name ? `${quote.price_list_name} (${quote.price_list_tax_inclusive ? "tax inclusive" : "tax exclusive"})` : "None" },
           { label: "Payment terms", value: quote.payment_term_snapshot?.name ?? "—" },
-          { label: "Place of supply", value: quote.place_of_supply ?? quote.shipping_address_snapshot?.state ?? quote.billing_address_snapshot?.state ?? "—" },
-          { label: "Supply type", value: quote.supply_type ?? "—" },
+          { label: "Issued by", value: quote.seller_snapshot?.name ? `${quote.seller_snapshot.name}${quote.seller_snapshot.gstin ? ` · GSTIN ${quote.seller_snapshot.gstin}` : ""}` : "—" },
+          { label: "Place of supply", value: quote.place_of_supply
+            ? `${quote.place_of_supply_name ?? quote.place_of_supply} (${quote.place_of_supply})${quote.place_of_supply_source === "override" ? ` · changed: ${quote.place_of_supply_reason ?? ""}` : ""}`
+            : "—" },
+          { label: "Supply type", value: `${({ domestic: "Domestic", export: "Export", sez: "Supply to SEZ", exempt: "Exempt supply", non_gst: "Non-GST supply" } as Record<string, string>)[quote.supply_type ?? ""] ?? quote.supply_type ?? "—"}${quote.tax_override_reason ? ` · changed: ${quote.tax_override_reason}` : ""}` },
+          { label: "GST", value: quote.tax_treatment !== "taxable" ? "No tax charged" : ({ intra_state: "Within the state: CGST + SGST", inter_state: "Between states: IGST" } as Record<string, string>)[quote.supply_nature ?? ""] ?? "—" },
           { label: "Customer reference", value: quote.customer_reference ?? "—" },
           { label: "Delivery terms", value: quote.delivery_terms ?? "—" },
           { label: "Shipping method", value: quote.shipping_method ?? "—" },
-          { label: "Document discount", value: Number(quote.header_discount_percent) ? `${Number(quote.header_discount_percent)}%` : "None" },
+          { label: "Additional discount", value: !Number(quote.document_discount_amount) ? "None" : quote.document_discount_type === "percent"
+            ? `${Number(quote.document_discount_value)}% (${money(quote.currency_code, quote.document_discount_amount)})` : money(quote.currency_code, quote.document_discount_amount) },
+          { label: "Discount reason", value: discountReasonLabel(quote.discount_reason_code, quote.discount_reason_text) ?? "—" },
         ]} />
       </SalesPanel>
       <SalesPanel title="Status history">
@@ -226,7 +236,7 @@ function Lines({ detail }: { detail: SalesQuotationDetail }) {
       cell: ({ row }) => (
         <span className="flex min-w-48 flex-col">
           <span className="font-medium">{row.original.item_name_snapshot}</span>
-          <span className="text-xs text-text-muted">{[row.original.item_code_snapshot, row.original.hsn_sac_snapshot && `HSN/SAC ${row.original.hsn_sac_snapshot}`].filter(Boolean).join(" · ")}</span>
+          <span className="text-xs text-text-muted">{[row.original.item_code_snapshot, row.original.hsn_sac_snapshot && `${row.original.hsn_sac_kind === "sac" ? "SAC" : "HSN"} ${row.original.hsn_sac_snapshot}`].filter(Boolean).join(" · ")}</span>
           {row.original.description_snapshot && row.original.description_snapshot !== row.original.item_name_snapshot && <span className="text-xs text-text-secondary">{row.original.description_snapshot}</span>}
         </span>
       ),
@@ -245,11 +255,22 @@ function Lines({ detail }: { detail: SalesQuotationDetail }) {
     {
       id: "discount", header: "Discount",
       cell: ({ row }) => Number(row.original.discount_amount)
-        ? <span className="tabular-nums">{row.original.discount_type === "amount" ? money(currency, row.original.discount_amount) : `${Number(row.original.discount_percent)}% (${money(currency, row.original.discount_amount)})`}</span>
+        ? <span className="tabular-nums">{row.original.discount_type === "amount" ? money(currency, row.original.discount_amount) : `${Number(row.original.discount_value)}% (${money(currency, row.original.discount_amount)})`}</span>
         : "",
     },
-    { id: "net", header: "Taxable", cell: ({ row }) => <span className="tabular-nums">{money(currency, row.original.net_amount)}</span> },
-    { id: "tax", header: "Tax", cell: ({ row }) => <span className="tabular-nums">{money(currency, row.original.tax_amount)}</span> },
+    { id: "net", header: "Net", cell: ({ row }) => <span className="tabular-nums">{money(currency, row.original.net_amount)}</span> },
+    { id: "taxable", header: "Taxable", cell: ({ row }) => (
+      <span className="flex flex-col tabular-nums">
+        {money(currency, row.original.taxable_amount)}
+        {Number(row.original.document_discount_amount) > 0 && <span className="text-xs text-text-muted">after {money(currency, row.original.document_discount_amount)} additional discount</span>}
+      </span>
+    ) },
+    { id: "tax", header: "Tax", cell: ({ row }) => (
+      <span className="flex flex-col tabular-nums">
+        {money(currency, row.original.tax_amount)}
+        <span className="text-xs text-text-muted">{row.original.tax_treatment && row.original.tax_treatment !== "taxable" ? row.original.tax_treatment.replace(/_/g, " ") : `${Number(row.original.tax_rate)}%`}</span>
+      </span>
+    ) },
     { id: "total", header: "Amount", cell: ({ row }) => <span className="font-medium tabular-nums">{money(currency, row.original.line_total)}</span> },
   ];
   return (
@@ -262,14 +283,7 @@ function Lines({ detail }: { detail: SalesQuotationDetail }) {
           ) : <p className="text-sm text-text-muted">No tax on this quotation.</p>}
         </SalesPanel>
         <SalesPanel title="Totals" description="Calculated by the server when the quotation was saved.">
-          <SalesFacts columns={2} items={[
-            { label: "Subtotal", value: money(currency, quote.subtotal) },
-            { label: "Discounts", value: money(currency, quote.discount_total) },
-            { label: "Charges", value: money(currency, quote.charge_total) },
-            { label: "Tax", value: money(currency, quote.tax_total) },
-            { label: "Rounding", value: money(currency, quote.rounding_adjustment) },
-            { label: "Grand total", value: <span className="font-semibold">{money(currency, quote.grand_total)}</span> },
-          ]} />
+          <StoredTotals currencyCode={currency} document={quote} taxLines={detail.taxLines} />
         </SalesPanel>
       </div>
     </div>

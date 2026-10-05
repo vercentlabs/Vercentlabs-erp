@@ -1269,8 +1269,44 @@ function withQuotationPermissions(role) {
   };
 }
 
+// Discounts: whoever could discount (or override prices) gives line and
+// document discounts; approvers go up to the higher limit; Sales
+// administrators set the rules and are not limited by them (as migration 0027 grants).
+function withDiscountPermissions(role) {
+  if (!Array.isArray(role.permissions)) return role;
+  const has = (key) => role.permissions.includes(key);
+  return {
+    ...role,
+    permissions: unique([
+      ...role.permissions,
+      ...(has("sales.discount.apply") || has("sales.price.override") ? ["sales.discount.apply", "sales.discount.apply_document"] : []),
+      ...(has("sales.quotation.approve") || has("sales.settings.manage") ? ["sales.discount.apply_above_limit"] : []),
+      ...(has("sales.settings.manage") ? ["sales.discount.override_limit", "sales.discount.manage_settings"] : []),
+    ]),
+  };
+}
+
+// Taxes: everyone who works with products, sales, the till or the books sees
+// the tax set-up; finance manages it; finance and Sales administrators may
+// override the tax on a document (as migration 0028 grants).
+function withTaxPermissions(role) {
+  if (!Array.isArray(role.permissions)) return role;
+  const has = (key) => role.permissions.includes(key);
+  const finance = has("accounting.tax.manage") || has("accounting.settings.manage");
+  return {
+    ...role,
+    permissions: unique([
+      ...role.permissions,
+      ...(has("sales.view") || has("products.view") || has("pos.view") || has("accounting.view") ? ["tax.view"] : []),
+      ...(finance ? ["tax.categories.manage", "tax.rates.manage", "tax.registrations.manage"] : []),
+      ...(finance || has("sales.settings.manage") ? ["tax.transaction.override", "tax.place_of_supply.override", "tax.audit.view"] : []),
+    ]),
+  };
+}
+
 export const ROLE_TEMPLATES = Object.freeze(
-  ROLE_DEFINITIONS.map(withCustomerPermissions).map(withProductPermissions).map(withPriceListPermissions).map(withQuotationPermissions),
+  ROLE_DEFINITIONS.map(withCustomerPermissions).map(withProductPermissions).map(withPriceListPermissions).map(withQuotationPermissions).map(withDiscountPermissions)
+    .map(withTaxPermissions),
 );
 
 export const ROLE_TEMPLATE_BY_SLUG = new Map(

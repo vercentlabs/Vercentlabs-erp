@@ -188,36 +188,6 @@ const resources = Object.freeze({
     relationField: "itemId",
     archiveStatus: "inactive",
   },
-  "tax-categories": {
-    table: "tenant.tax_categories",
-    searchColumns: ["code", "name", "description"],
-    orderBy: "name ASC, code ASC",
-    fields: {
-      code: "code",
-      name: "name",
-      description: "description",
-      status: "status",
-    },
-    scope: "organization",
-    archiveStatus: "inactive",
-  },
-  "tax-rates": {
-    table: "tenant.tax_rates",
-    searchColumns: ["code", "name", "tax_type"],
-    orderBy: "effective_from DESC NULLS LAST, rate ASC, name ASC",
-    fields: {
-      taxCategoryId: "tax_category_id",
-      name: "name",
-      code: "code",
-      taxType: "tax_type",
-      rate: "rate",
-      effectiveFrom: "effective_from",
-      effectiveTo: "effective_to",
-      status: "status",
-    },
-    scope: "organization",
-    archiveStatus: "inactive",
-  },
   warehouses: {
     table: "tenant.warehouses",
     searchColumns: ["code", "name", "warehouse_type"],
@@ -1201,22 +1171,22 @@ export async function seedBusinessDataFoundation(client, context) {
     );
   }
 
+  // Tax categories that charge nothing; the rated ones are added below for India.
   const categories = [
-    ["GST-TAXABLE", "GST taxable", "Standard taxable supply under GST."],
-    ["GST-EXEMPT", "GST exempt", "Exempt supply under GST."],
-    ["NON-GST", "Non-GST", "Supply outside GST scope."],
+    ["GST-EXEMPT", "GST exempt", "Exempt supply under GST.", "gst", "exempt"],
+    ["NON-GST", "Non-GST", "Supply outside GST scope.", "none", "non_taxable"],
   ];
 
-  for (const [code, name, description] of categories) {
+  for (const [code, name, description, taxType, treatment] of categories) {
     await client.query(
       `
         INSERT INTO tenant.tax_categories (
-          organization_id, code, name, description, created_by, updated_by
+          organization_id, code, name, description, tax_type, treatment, created_by, updated_by
         )
-        VALUES ($1, $2, $3, $4, $5, $5)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $7)
         ON CONFLICT (organization_id, code) DO NOTHING
       `,
-      [context.organizationId, code, name, description, context.userId],
+      [context.organizationId, code, name, description, taxType, treatment, context.userId],
     );
   }
 
@@ -1362,38 +1332,33 @@ export async function seedBusinessDataFoundation(client, context) {
     ],
   );
 
+  // India: one tax category per GST rate, each with its rate. A product
+  // points at a category; the rate in force on the document date is charged.
   if (String(organization.country_code).trim() === "IN") {
-    const categoryResult = await client.query(
-      `
-        SELECT id
-        FROM tenant.tax_categories
-        WHERE organization_id = $1 AND code = 'GST-TAXABLE'
-        LIMIT 1
-      `,
-      [context.organizationId],
-    );
-
     for (const rate of [0, 5, 12, 18, 28]) {
+      const category = await client.query(
+        `
+          INSERT INTO tenant.tax_categories (
+            organization_id, code, name, description, tax_type, treatment, country_code, created_by, updated_by
+          )
+          VALUES ($1, $2, $3, $4, 'gst', 'taxable', 'IN', $5, $5)
+          ON CONFLICT (organization_id, code) DO NOTHING
+          RETURNING id
+        `,
+        [context.organizationId, `GST-${rate}`, `GST ${rate}%`, `Goods and services taxed at ${rate}% GST.`, context.userId],
+      );
+      if (!category.rows[0]) continue;
       await client.query(
         `
           INSERT INTO tenant.tax_rates (
             organization_id, tax_category_id, name, code,
             tax_type, rate, effective_from, created_by, updated_by
           )
-          VALUES (
-            $1, $2, $3, $4, 'gst', $5, current_date, $6, $6
-          )
+          VALUES ($1, $2, $3, $4, 'gst', $5, DATE '2017-07-01', $6, $6)
           ON CONFLICT (organization_id, code, effective_from)
           DO NOTHING
         `,
-        [
-          context.organizationId,
-          categoryResult.rows[0].id,
-          `GST ${rate}%`,
-          `GST-${rate}`,
-          rate,
-          context.userId,
-        ],
+        [context.organizationId, category.rows[0].id, `GST ${rate}%`, `GST-${rate}-V1`, rate, context.userId],
       );
     }
   }

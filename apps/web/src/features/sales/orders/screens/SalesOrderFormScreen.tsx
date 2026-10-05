@@ -32,7 +32,6 @@ import {
 } from "@/features/sales/shared/document-defaults";
 import {
   SalesAlert,
-  SalesFacts,
   SalesPanel,
 } from "@/features/sales/shared/SalesUi";
 import {
@@ -40,6 +39,15 @@ import {
   previewSalesDocument,
   type SalesDocumentInput,
 } from "@/features/sales/quotations/api/quotations-api";
+import { AUTOMATIC_TAX, DocumentTaxPanel, taxDraftOf, taxInput, type DocumentTaxDraft } from "@/features/sales/shared/DocumentTax";
+import {
+  DocumentDiscountPanel,
+  DocumentTotals,
+  NO_DOCUMENT_DISCOUNT,
+  defaultDiscountType,
+  discountTypeOptions,
+  type DocumentDiscountDraft,
+} from "@/features/sales/shared/DocumentDiscounts";
 import {
   amendSalesOrder,
   createSalesOrder,
@@ -55,7 +63,8 @@ type LineDraft = {
   variantId: string;
   uomId: string;
   quantity: number;
-  discountPercent: number;
+  discountType: "percent" | "amount";
+  discountValue: number;
   description: string;
   // "" means the price list price; anything else is a manual price.
   unitPrice: string;
@@ -218,7 +227,17 @@ function FormBody({
   const [poDate, setPoDate] = useState(
     existing?.order.customer_po_date?.slice(0, 10) ?? "",
   );
-  const [headerDiscount, setHeaderDiscount] = useState(0);
+  const [documentDiscount, setDocumentDiscount] = useState<DocumentDiscountDraft>(() => existing
+    ? {
+        type: existing.order.document_discount_type === "amount" ? "amount" : "percent",
+        value: Number(existing.order.document_discount_value ?? 0),
+        reasonCode: existing.order.discount_reason_code ?? "",
+        reasonText: existing.order.discount_reason_text ?? "",
+      }
+    : { ...NO_DOCUMENT_DISCOUNT, type: defaultDiscountType(options.discounts) });
+  const canDiscountLines = options.discounts.allowLine && options.discounts.canApplyLine;
+  // Tax is worked out by the server; this holds only what the user overrides.
+  const [documentTax, setDocumentTax] = useState<DocumentTaxDraft>(() => (existing ? taxDraftOf(existing.order) : AUTOMATIC_TAX));
   const [customerNotes, setCustomerNotes] = useState(
     existing?.order.customer_notes ?? "",
   );
@@ -237,7 +256,8 @@ function FormBody({
           variantId: line.variant_id ?? "",
           uomId: line.uom_id ?? "",
           quantity: Number(line.quantity),
-          discountPercent: Number(line.discount_percent),
+          discountType: line.discount_type === "amount" ? "amount" : "percent",
+          discountValue: Number(line.discount_value),
           warehouseId: line.warehouse_id ?? "",
           description: line.description_snapshot ?? "",
           unitPrice: line.pricing_trace?.manualOverride ? String(Number(line.unit_price)) : "",
@@ -250,7 +270,8 @@ function FormBody({
             variantId: "",
             uomId: "",
             quantity: 1,
-            discountPercent: 0,
+            discountType: defaultDiscountType(options.discounts),
+            discountValue: 0,
             warehouseId: "",
             description: "",
             unitPrice: "",
@@ -412,9 +433,13 @@ function FormBody({
       requestedDeliveryDate: deliveryDate || null,
       customerPoNumber: poNumber || undefined,
       customerPoDate: poDate || null,
-      headerDiscountPercent: headerDiscount || undefined,
+      documentDiscountType: documentDiscount.type,
+      documentDiscountValue: documentDiscount.value || undefined,
+      discountReasonCode: documentDiscount.reasonCode || null,
+      discountReasonText: documentDiscount.reasonText.trim() || null,
       customerNotes: customerNotes || undefined,
       internalNotes: internalNotes || undefined,
+      ...taxInput(documentTax),
       termsAndConditions: terms || undefined,
       amendmentReason: amendmentReason || undefined,
       lines: validLines.map((line) => ({
@@ -426,7 +451,7 @@ function FormBody({
           ? { unitPrice: Number(line.unitPrice), manualPriceReason: line.priceReason.trim() || undefined }
           : {}),
         quantity: line.quantity,
-        discountPercent: line.discountPercent || undefined,
+        ...(line.discountValue ? { discountType: line.discountType, discountValue: line.discountValue } : {}),
         warehouseId: line.warehouseId || undefined,
       })),
       charges: charges
@@ -448,9 +473,10 @@ function FormBody({
     deliveryDate,
     poNumber,
     poDate,
-    headerDiscount,
+    documentDiscount,
     customerNotes,
     internalNotes,
+    documentTax,
     terms,
     amendmentReason,
     validLines,
@@ -666,6 +692,8 @@ function FormBody({
             </div>
           </SalesPanel>
 
+          <DocumentTaxPanel tax={options.tax} value={documentTax} onChange={setDocumentTax} preview={preview} />
+
           <SalesPanel
             title="Items"
             actions={
@@ -681,7 +709,8 @@ function FormBody({
                       variantId: "",
                       uomId: "",
                       quantity: 1,
-                      discountPercent: 0,
+                      discountType: defaultDiscountType(options.discounts),
+                      discountValue: 0,
                       warehouseId: "",
                       description: "",
                       unitPrice: "",
@@ -749,17 +778,30 @@ function FormBody({
                       minValue={0}
                       step={1}
                     />
-                    <NumberField
-                      aria-label={`Discount ${index + 1}`}
-                      label={index === 0 ? "Discount %" : undefined}
-                      value={line.discountPercent}
-                      onChange={(value) =>
-                        updateLine(line.key, { discountPercent: value })
-                      }
-                      minValue={0}
-                      maxValue={100}
-                      step={1}
-                    />
+                    <div className="grid grid-cols-[minmax(0,1fr)_4.5rem] items-end gap-1">
+                      <NumberField
+                        aria-label={`Discount ${index + 1}`}
+                        label={index === 0 ? "Discount" : undefined}
+                        value={line.discountValue}
+                        onChange={(value) =>
+                          updateLine(line.key, { discountValue: Number.isFinite(value) ? value : 0 })
+                        }
+                        minValue={0}
+                        maxValue={line.discountType === "percent" ? 100 : undefined}
+                        step={line.discountType === "percent" ? 0.5 : 0.01}
+                        isDisabled={!canDiscountLines}
+                      />
+                      <Select
+                        aria-label={`Discount type ${index + 1}`}
+                        options={discountTypeOptions(options.discounts, currencyCode)}
+                        selectedKey={line.discountType}
+                        // The value entered for the other type is not carried over.
+                        onSelectionChange={(key) =>
+                          updateLine(line.key, { discountType: key === "amount" ? "amount" : "percent", discountValue: 0 })
+                        }
+                        isDisabled={!canDiscountLines}
+                      />
+                    </div>
                     <Select
                       aria-label={`Warehouse ${index + 1}`}
                       label={index === 0 ? "Warehouse" : undefined}
@@ -819,8 +861,14 @@ function FormBody({
                     )}
                     {priced && (
                       <p className="text-xs text-text-muted sm:col-span-7">
-                        {money(currencyCode, priced.unitPrice)} each · net{" "}
-                        {money(currencyCode, priced.netAmount)} · tax{" "}
+                        {money(currencyCode, priced.unitPrice)} each
+                        {Number(priced.discountAmount) > 0
+                          ? ` · gross ${money(currencyCode, priced.grossAmount)} · discount ${priced.discountType === "percent" ? `${Number(priced.discountValue)}% = ` : ""}${money(currencyCode, priced.discountAmount)}`
+                          : ""}
+                        {" · net "}
+                        {money(currencyCode, priced.netAmount)}
+                        {Number(priced.documentDiscountAmount) > 0 ? ` · additional discount ${money(currencyCode, priced.documentDiscountAmount)} · taxable ${money(currencyCode, priced.taxableAmount)}` : ""}
+                        {" · tax "}
                         {money(currencyCode, priced.taxAmount)} · line total{" "}
                         <span className="font-medium text-text">
                           {money(currencyCode, priced.lineTotal)}
@@ -834,7 +882,7 @@ function FormBody({
           </SalesPanel>
 
           <SalesPanel
-            title="Charges & discount"
+            title="Charges"
             description={
               revising
                 ? "Orders keep only the charge total, so it is carried over as one line — adjust or itemise it here."
@@ -927,16 +975,16 @@ function FormBody({
                 </IconButton>
               </div>
             ))}
-            <NumberField
-              label="Whole-document discount (%)"
-              value={headerDiscount}
-              onChange={setHeaderDiscount}
-              minValue={0}
-              maxValue={100}
-              step={1}
-              className="sm:max-w-xs"
-            />
           </SalesPanel>
+
+          <DocumentDiscountPanel
+            discounts={options.discounts}
+            currencyCode={currencyCode}
+            value={documentDiscount}
+            onChange={setDocumentDiscount}
+            preview={preview}
+            hasAnyDiscount={documentDiscount.value > 0 || lines.some((line) => line.discountValue > 0)}
+          />
 
           <SalesPanel title="Notes & terms">
             <TextArea
@@ -1024,50 +1072,7 @@ function FormBody({
                 Choose a customer and add an item to see pricing.
               </p>
             ) : (
-              <>
-                <SalesFacts
-                  columns={2}
-                  items={[
-                    {
-                      label: "Subtotal",
-                      value: money(currencyCode, preview.totals.subtotal),
-                    },
-                    {
-                      label: "Discounts",
-                      value: money(currencyCode, preview.totals.discountTotal),
-                    },
-                    {
-                      label: "Charges",
-                      value: money(currencyCode, preview.totals.chargeTotal),
-                    },
-                    {
-                      label: "Tax",
-                      value: money(currencyCode, preview.totals.taxTotal),
-                    },
-                    {
-                      label: "Rounding",
-                      value: money(
-                        currencyCode,
-                        preview.totals.roundingAdjustment,
-                      ),
-                    },
-                    ...(preview.totals.marginPercent !== undefined
-                      ? [
-                          {
-                            label: "Margin",
-                            value: `${Number(preview.totals.marginPercent).toFixed(1)}%`,
-                          },
-                        ]
-                      : []),
-                  ]}
-                />
-                <div className="flex items-center justify-between border-t border-border pt-3 text-lg font-semibold text-text">
-                  <span>Grand total</span>
-                  <span className="tabular-nums">
-                    {money(currencyCode, preview.totals.grandTotal)}
-                  </span>
-                </div>
-              </>
+              <DocumentTotals currencyCode={currencyCode} preview={preview} />
             )}
           </SalesPanel>
         </div>

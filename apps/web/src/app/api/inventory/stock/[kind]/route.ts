@@ -8,6 +8,7 @@ import {
   getStockDashboard,
   getStockSettings,
   listBusinessDataRecords,
+  listTaxCategoryChoices,
   listStockBalancesDetailed,
   listStockBatchesWithBalance,
   listStockLedger,
@@ -58,17 +59,14 @@ export async function GET(
             status: "active",
             limit: 500,
           }),
-          listBusinessDataRecords(client, context, "tax-categories", {
-            status: "active",
-            limit: 500,
-          }),
+          listTaxCategoryChoices(client, context),
         ]);
         return {
           options: {
             ...base,
             uoms: uoms.rows,
             groups: groups.rows,
-            taxCategories: taxCategories.rows,
+            taxCategories,
           },
         };
       }

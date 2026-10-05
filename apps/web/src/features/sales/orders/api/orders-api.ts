@@ -42,8 +42,15 @@ export type SalesOrderLine = {
   unit_price: string;
   // Order lines record a manual price in their pricing trace.
   pricing_trace?: { manualOverride?: boolean } | null;
+  list_unit_price: string;
+  discount_type: "percent" | "amount";
+  discount_value: string;
   discount_percent: string;
+  discount_amount: string;
+  gross_amount: string;
   net_amount: string;
+  document_discount_amount: string;
+  taxable_amount: string;
   tax_amount: string;
   line_total: string;
   requested_delivery_date: string | null;
@@ -113,6 +120,24 @@ export type SalesOrderDetail = {
     currency_code: string;
     subtotal: string;
     discount_total: string;
+    gross_total: string;
+    line_discount_total: string;
+    document_discount_type: "percent" | "amount";
+    document_discount_value: string;
+    document_discount_amount: string;
+    taxable_total: string;
+    discount_reason_code: string | null;
+    discount_reason_text: string | null;
+    seller_registration_id: string | null;
+    seller_snapshot: { name?: string; gstin?: string | null; stateCode?: string | null; stateName?: string | null } | null;
+    supply_type: string | null;
+    tax_treatment: string;
+    tax_override_reason: string | null;
+    place_of_supply: string | null;
+    place_of_supply_name: string | null;
+    place_of_supply_source: "derived" | "override";
+    place_of_supply_reason: string | null;
+    supply_nature: "intra_state" | "inter_state" | null;
     charge_total: string;
     tax_total: string;
     rounding_adjustment: string;
@@ -134,6 +159,7 @@ export type SalesOrderDetail = {
     exchange_rate: string;
   };
   lines: SalesOrderLine[];
+  taxLines: Array<{ tax_type: string; label: string; rate: string; taxable_amount: string; tax_amount: string }>;
   versions: SalesOrderVersionSummary[];
   holds: SalesOrderHold[];
   fulfillmentRequests: SalesHandoffRequest[];

@@ -1,7 +1,7 @@
 export type SalesQueryClient = { query(text: string, values?: unknown[]): Promise<{ rows: any[]; rowCount?: number | null }> };
 export type SalesContext = { organizationId: string; userId: string | null; permissions: string[]; roleSlugs: string[] };
 export class SalesError extends Error { readonly status: number; readonly code: string; constructor(status: number, message: string, code?: string); }
-export function previewSalesDocument(client: SalesQueryClient, context: SalesContext, input: Record<string, any>, options?: { order?: boolean; allowMissingPrice?: boolean }): Promise<any>;
+export function previewSalesDocument(client: SalesQueryClient, context: SalesContext, input: Record<string, any>, options?: { order?: boolean; allowMissingPrice?: boolean; preview?: boolean; carryQuotedPrices?: boolean }): Promise<any>;
 export function createSalesOrder(client: SalesQueryClient, context: SalesContext, input: Record<string, any>): Promise<any>;
 export function listSalesOrders(client: SalesQueryClient, context: SalesContext, filters?: Record<string, any>): Promise<any[]>;
 export function getSalesOrder(client: SalesQueryClient, context: SalesContext, id: string): Promise<any>;
@@ -48,3 +48,5 @@ export function updateSalesSettings(client: SalesQueryClient, context: SalesCont
 export * from "./price-lists/index.js";
 
 export * from "./quotations/index.js";
+export const DISCOUNT_PERMISSIONS: Readonly<Record<"applyLine" | "applyDocument" | "aboveLimit" | "overrideLimit" | "manageSettings", string>>;
+export const DISCOUNT_REASONS: ReadonlyArray<{ code: string; label: string }>;

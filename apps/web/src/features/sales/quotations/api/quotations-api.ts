@@ -73,7 +73,14 @@ export type SalesQuotationLine = {
   discount_value: string;
   discount_percent: string;
   discount_amount: string;
+  gross_amount: string;
   net_amount: string;
+  document_discount_amount: string;
+  taxable_amount: string;
+  tax_rate: string;
+  tax_treatment: string | null;
+  tax_category_code: string | null;
+  hsn_sac_kind: "hsn" | "sac" | null;
   tax_amount: string;
   line_total: string;
   requested_delivery_date: string | null;
@@ -134,7 +141,22 @@ export type SalesQuotationDetail = {
     rounding_adjustment: string;
     grand_total: string;
     base_currency_total: string;
-    header_discount_percent: string;
+    gross_total: string;
+    line_discount_total: string;
+    document_discount_type: "percent" | "amount";
+    document_discount_value: string;
+    document_discount_amount: string;
+    taxable_total: string;
+    discount_reason_code: string | null;
+    discount_reason_text: string | null;
+    seller_registration_id: string | null;
+    seller_snapshot: { name?: string; gstin?: string | null; stateCode?: string | null; stateName?: string | null } | null;
+    tax_treatment: string;
+    tax_override_reason: string | null;
+    place_of_supply_name: string | null;
+    place_of_supply_source: "derived" | "override";
+    place_of_supply_reason: string | null;
+    supply_nature: "intra_state" | "inter_state" | null;
     margin_percent?: string;
     cost_total?: string;
     customer_snapshot: Snapshot | null;
@@ -304,13 +326,24 @@ export type SalesOptions = {
     default_quote_validity_days: number;
     allow_direct_orders: boolean;
   };
+  tax: {
+    enabled: boolean;
+    registrations: Array<{ id: string; code: string; name: string; registrationNumber: string | null; stateCode: string | null; isDefault: boolean }>;
+    states: Array<{ code: string; name: string }>;
+    supplyTypes: Array<{ code: string; label: string }>;
+    canOverrideTreatment: boolean; canOverridePlaceOfSupply: boolean;
+  };
+  discounts: {
+    allowLine: boolean; allowDocument: boolean; allowPercent: boolean; allowAmount: boolean;
+    canApplyLine: boolean; canApplyDocument: boolean; limitPercent: number | null; reasonAbovePercent: number | null;
+    reasons: Array<{ code: string; label: string }>;
+  };
 };
 
 type SalesDocumentLineInput = {
   itemId: string;
   variantId?: string | null;
   quantity: number;
-  discountPercent?: number;
   discountType?: "percent" | "amount";
   discountValue?: number;
   unitPrice?: number;
@@ -334,7 +367,10 @@ export type SalesDocumentInput = {
   priceListId?: string | null;
   paymentTermId?: string | null;
   validUntil?: string | null;
-  headerDiscountPercent?: number;
+  documentDiscountType?: "percent" | "amount";
+  documentDiscountValue?: number;
+  discountReasonCode?: string | null;
+  discountReasonText?: string | null;
   customerNotes?: string;
   internalNotes?: string;
   termsAndConditions?: string | null;
@@ -343,7 +379,10 @@ export type SalesDocumentInput = {
   shippingMethod?: string;
   incoterm?: string;
   supplyType?: string;
+  sellerRegistrationId?: string;
   placeOfSupply?: string;
+  placeOfSupplyReason?: string;
+  taxOverrideReason?: string;
   idempotencyKey?: string;
   lines: SalesDocumentLineInput[];
   charges?: Array<{
@@ -359,6 +398,13 @@ export type SalesDocumentPreview = {
   priceList: { id: string; code: string; name: string; currencyCode: string; taxInclusive: boolean; basis: "chosen" | "customer" | "default" } | null;
   totals: {
     subtotal: string;
+    grossTotal: string;
+    lineDiscountTotal: string;
+    documentDiscountType: "percent" | "amount";
+    documentDiscountValue: string;
+    documentDiscountPercent: string;
+    documentDiscountAmount: string;
+    taxableTotal: string;
     discountTotal: string;
     chargeTotal: string;
     taxTotal: string;
@@ -366,6 +412,17 @@ export type SalesDocumentPreview = {
     grandTotal: string;
     marginPercent?: string;
   };
+  // The tax the server worked out, and why.
+  tax: {
+    enabled: boolean;
+    seller: { id: string; name: string; gstin: string | null; stateCode: string | null; stateName: string | null } | null;
+    supplyType: string; derivedSupplyType: string; treatment: string;
+    placeOfSupply: { code: string; name: string | null; basis: string; source: "derived" | "override" } | null;
+    supplyNature: "intra_state" | "inter_state" | null;
+    summary: Array<{ taxType: string; label: string; rate: string; taxableAmount: string; taxAmount: string }>;
+  };
+  // What the discount rules say about this document; saving enforces them.
+  discount: { requestedPercent: string; limitPercent: string | null; limitExceeded: boolean; reasonRequired: boolean; message: string | null };
   lines: Array<{
     sequence: number;
     itemNameSnapshot: string;
@@ -376,8 +433,16 @@ export type SalesDocumentPreview = {
     priceMissing: boolean;
     priceMessage: string | null;
     priceSource: string | null;
+    discountType: "percent" | "amount";
+    discountValue: string;
     discountPercent: string;
+    discountAmount: string;
+    grossAmount: string;
     netAmount: string;
+    documentDiscountAmount: string;
+    taxableAmount: string;
+    taxRate: string;
+    taxTreatment: string;
     taxAmount: string;
     lineTotal: string;
   }>;

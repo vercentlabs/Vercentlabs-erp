@@ -81,6 +81,14 @@ export const SETTINGS_NAVIGATION: readonly SettingsNavSection[] = [
         description: "Prefixes and sequences for document numbers.",
         requiredPermission: "numbering.manage",
       },
+      {
+        id: "taxes",
+        label: "Taxes",
+        route: "/settings/taxes",
+        status: "AVAILABLE",
+        description: "Tax categories, rates and company GST registrations.",
+        requiredPermission: "tax.view",
+      },
     ],
   },
   {

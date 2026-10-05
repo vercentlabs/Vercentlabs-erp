@@ -8,7 +8,6 @@ import {
 } from "@/features/sales/shared/route-helpers";
 
 const schema = z.object({
-  sellerStateCode: z.string().trim().max(4).nullish(),
   defaultQuoteValidityDays: z.number().int().optional(),
   quotationApprovalAmount: z.number().optional(),
   quotationApprovalDiscount: z.number().optional(),
@@ -17,6 +16,14 @@ const schema = z.object({
   allowDirectOrders: z.boolean().optional(),
   invoiceQuantityBasis: z.enum(["ordered", "fulfilled"]).optional(),
   defaultQuotationTerms: z.string().max(20000).nullish(),
+  // Pricing & Discounts (needs sales.discount.manage_settings). A null limit or threshold switches it off.
+  allowLineDiscounts: z.boolean().optional(),
+  allowDocumentDiscounts: z.boolean().optional(),
+  allowPercentDiscounts: z.boolean().optional(),
+  allowAmountDiscounts: z.boolean().optional(),
+  discountReasonAbovePercent: z.number().min(0).max(100).nullable().optional(),
+  discountLimitPercent: z.number().min(0).max(100).nullable().optional(),
+  discountLimitElevatedPercent: z.number().min(0).max(100).nullable().optional(),
 });
 
 export async function GET(request: Request) {

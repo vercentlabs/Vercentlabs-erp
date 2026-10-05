@@ -22,7 +22,7 @@
 // price actually paid. This is a deliberate, documented divergence from Sales' header-discount
 // behavior, not an oversight.
 import { add, sub, mul, div, percent, max, min, roundMoney, asDatabaseDecimal, decimal, allocate } from "../../../core/decimal.js";
-import { resolveTaxRateComponents } from "../../../core/tax-engine.js";
+import { computeTax, loadTaxContext, resolveLineTax } from "../../../core/tax/index.js";
 import { posError } from "../shared/errors.js";
 import { resolveSalesPrice, resolveSalesPriceList } from "../../sales/price-lists/resolver.js";
 import {
@@ -54,12 +54,18 @@ async function resolvePriceListTaxInclusive(client, context, priceListId) {
   return Boolean(result.rows[0]?.tax_inclusive);
 }
 
-export async function resolveSellerStateCode(client, context) {
-  const result = await client.query(
-    `SELECT seller_state_code FROM tenant.sales_settings WHERE organization_id=$1`,
-    [context.organizationId],
-  );
-  return result.rows[0]?.seller_state_code || null;
+// The organization's tax set-up for a sale: whether tax applies and the
+// company registration (its state decides CGST + SGST or IGST).
+export async function resolvePosTaxContext(client, context) {
+  return loadTaxContext(client, { organizationId: context.organizationId });
+}
+
+// The tax on one sale line, from the shared tax engine Sales uses.
+export async function posLineTax(client, tax, { taxCategoryId, buyerStateCode, base, taxInclusive, decimalPlaces }) {
+  const resolved = await resolveLineTax(client, tax, {
+    taxCategoryId: taxCategoryId ?? tax.defaultTaxCategoryId, date: new Date(), sellerStateCode: tax.registration?.stateCode, placeOfSupply: buyerStateCode,
+  });
+  return { resolved, ...computeTax({ base, inclusive: taxInclusive, components: resolved.components, decimalPlaces }) };
 }
 
 // A walk-in sale has no shipping/billing address at all -- the customer
@@ -415,8 +421,8 @@ export async function priceCartLines(client, context, { store, policy, customerI
     throw posError(400, "A POS cart cannot contain more than 200 lines.", "POS_CART_LINE_LIMIT_EXCEEDED");
   }
   const decimalPlaces = await resolveCurrencyDecimalPlaces(client, context, store.currency_code);
-  const sellerStateCode = await resolveSellerStateCode(client, context);
-  const buyerStateCode = await resolveBuyerStateCode(client, context, customerId, sellerStateCode);
+  const taxContext = await resolvePosTaxContext(client, context);
+  const buyerStateCode = await resolveBuyerStateCode(client, context, customerId, taxContext.registration?.stateCode ?? null);
   const taxInclusive = await resolvePriceListTaxInclusive(client, context, store.price_list_id);
 
   const priced = [];
@@ -554,30 +560,18 @@ export async function priceCartLines(client, context, { store, policy, customerI
         line.loyaltyRedeemAmount,
       ),
     );
-    const { taxRate, components } = await resolveTaxRateComponents(client, {
-      organizationId: context.organizationId,
-      taxCategoryId: line.taxCategoryId,
-      sellerStateCode,
-      buyerStateCode,
-      exempt: false,
-    });
-    let taxableAmount = taxableBase;
-    let taxAmount = decimal(0);
-    if (taxInclusive && taxRate > 0n) {
-      taxableAmount = roundMoney(div(mul(taxableBase, 100), add(100, taxRate)), decimalPlaces);
-      taxAmount = sub(taxableBase, taxableAmount);
-    } else if (taxRate > 0n) {
-      taxAmount = roundMoney(percent(taxableBase, taxRate), decimalPlaces);
-    }
-    line.taxRate = taxRate;
+    const calculated = await posLineTax(client, taxContext, { taxCategoryId: line.taxCategoryId, buyerStateCode, base: taxableBase, taxInclusive, decimalPlaces });
+    const taxableAmount = calculated.taxableAmount;
+    const taxAmount = calculated.taxAmount;
+    line.taxRate = calculated.totalRate;
     line.taxableAmount = taxableAmount;
     line.taxAmount = taxAmount;
-    line.taxComponents = components.map((component) => ({
+    line.taxComponents = calculated.components.map((component) => ({
       type: component.type,
       label: component.label,
       rate: asDatabaseDecimal(component.rate),
-      taxableAmount: asDatabaseDecimal(taxableAmount),
-      taxAmount: asDatabaseDecimal(roundMoney(percent(taxableAmount, component.rate), decimalPlaces)),
+      taxableAmount: asDatabaseDecimal(component.taxableAmount),
+      taxAmount: asDatabaseDecimal(component.taxAmount),
     }));
     line.lineTotal = add(taxableAmount, taxAmount);
     line.loyaltyPointsEarned = computePosLoyaltyEarnPoints(loyaltyResult.program, taxableAmount);

@@ -174,7 +174,6 @@ export async function getSalesOrderLineReservationContext(client,c,input={}){
 const SETTINGS_DEFAULTS = Object.freeze({
   default_price_list_id: null,
   default_payment_term_id: null,
-  seller_state_code: null,
   default_quote_validity_days: 15,
   quotation_approval_amount: 0,
   quotation_approval_discount: 10,
@@ -183,6 +182,19 @@ const SETTINGS_DEFAULTS = Object.freeze({
   allow_direct_orders: true,
   invoice_quantity_basis: "ordered",
   default_quotation_terms: null,
+  allow_line_discounts: true,
+  allow_document_discounts: true,
+  allow_percent_discounts: true,
+  allow_amount_discounts: true,
+  // Empty: a reason is never required / there is no limit.
+  discount_reason_above_percent: null,
+  discount_limit_percent: null,
+  discount_limit_elevated_percent: null,
+});
+const DISCOUNT_SETTINGS = Object.freeze({
+  allowLineDiscounts: "allow_line_discounts", allowDocumentDiscounts: "allow_document_discounts", allowPercentDiscounts: "allow_percent_discounts",
+  allowAmountDiscounts: "allow_amount_discounts", discountReasonAbovePercent: "discount_reason_above_percent", discountLimitPercent: "discount_limit_percent",
+  discountLimitElevatedPercent: "discount_limit_elevated_percent",
 });
 
 export async function getSalesSettings(client, c) {
@@ -201,31 +213,39 @@ export async function updateSalesSettings(client, c, input = {}) {
   need(c, "sales.settings.manage");
   const current = await getSalesSettings(client, c);
   const next = { ...current };
-  if (input.sellerStateCode !== undefined) {
-    const code = text(input.sellerStateCode, 4).toUpperCase();
-    if (code && !/^[A-Z0-9]{2,4}$/.test(code)) throw new SalesError(400, "Seller state code is invalid.", "SALES_SETTINGS_INVALID");
-    next.seller_state_code = code || null;
-  }
   if (input.defaultQuoteValidityDays !== undefined) next.default_quote_validity_days = Math.trunc(boundedNumber(input.defaultQuoteValidityDays, "Default quotation validity (days)", { min: 1, max: 365 }));
   if (input.quotationApprovalAmount !== undefined) next.quotation_approval_amount = boundedNumber(input.quotationApprovalAmount, "Quotation approval amount", { min: 0, max: 1e12 });
   if (input.quotationApprovalDiscount !== undefined) next.quotation_approval_discount = boundedNumber(input.quotationApprovalDiscount, "Quotation approval discount %", { min: 0, max: 100 });
   if (input.minimumMarginPercent !== undefined) next.minimum_margin_percent = boundedNumber(input.minimumMarginPercent, "Minimum margin %", { min: -100, max: 100 });
   if (input.orderApprovalAmount !== undefined) next.order_approval_amount = boundedNumber(input.orderApprovalAmount, "Order approval amount", { min: 0, max: 1e12 });
   if (input.allowDirectOrders !== undefined) next.allow_direct_orders = Boolean(input.allowDirectOrders);
+  // Pricing & Discounts: which discounts are allowed, when a reason is needed and how much a user may give.
+  const discountKeys = Object.keys(DISCOUNT_SETTINGS).filter((key) => input[key] !== undefined);
+  if (discountKeys.length) {
+    need(c, "sales.discount.manage_settings");
+    for (const key of discountKeys) {
+      const column = DISCOUNT_SETTINGS[key];
+      if (column.startsWith("allow_")) next[column] = Boolean(input[key]);
+      else next[column] = input[key] === null || input[key] === "" ? null : boundedNumber(input[key], "A discount percentage", { min: 0, max: 100 });
+    }
+    if (!next.allow_percent_discounts && !next.allow_amount_discounts)
+      throw new SalesError(400, "Allow at least one discount type: percentage or fixed amount.", "SALES_SETTINGS_INVALID");
+    if (next.discount_limit_percent != null && next.discount_limit_elevated_percent != null && Number(next.discount_limit_elevated_percent) < Number(next.discount_limit_percent))
+      throw new SalesError(400, "The manager limit cannot be lower than the salesperson limit.", "SALES_SETTINGS_INVALID");
+  }
   // Copied onto each new quotation, where it can be changed.
   if (input.defaultQuotationTerms !== undefined) next.default_quotation_terms = text(input.defaultQuotationTerms, 20000) || null;
   if (input.invoiceQuantityBasis !== undefined) {
     if (!["ordered", "fulfilled"].includes(input.invoiceQuantityBasis)) throw new SalesError(400, "Invoice quantity basis is invalid.", "SALES_SETTINGS_INVALID");
     next.invoice_quantity_basis = input.invoiceQuantityBasis;
   }
+  const columns = ["default_quote_validity_days","quotation_approval_amount","quotation_approval_discount","minimum_margin_percent","order_approval_amount","allow_direct_orders","invoice_quantity_basis","default_price_list_id","default_quotation_terms","allow_line_discounts","allow_document_discounts","allow_percent_discounts","allow_amount_discounts","discount_reason_above_percent","discount_limit_percent","discount_limit_elevated_percent"];
   const result = await client.query(
-    `INSERT INTO tenant.sales_settings(organization_id,seller_state_code,default_quote_validity_days,quotation_approval_amount,quotation_approval_discount,minimum_margin_percent,order_approval_amount,allow_direct_orders,invoice_quantity_basis,default_price_list_id,default_quotation_terms,created_by,updated_by)
-     VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$11,$12,$10,$10)
-     ON CONFLICT (organization_id) DO UPDATE SET seller_state_code=EXCLUDED.seller_state_code,default_quote_validity_days=EXCLUDED.default_quote_validity_days,
-       quotation_approval_amount=EXCLUDED.quotation_approval_amount,quotation_approval_discount=EXCLUDED.quotation_approval_discount,minimum_margin_percent=EXCLUDED.minimum_margin_percent,
-       order_approval_amount=EXCLUDED.order_approval_amount,allow_direct_orders=EXCLUDED.allow_direct_orders,invoice_quantity_basis=EXCLUDED.invoice_quantity_basis,default_price_list_id=EXCLUDED.default_price_list_id,default_quotation_terms=EXCLUDED.default_quotation_terms,updated_by=EXCLUDED.updated_by,updated_at=now()
+    `INSERT INTO tenant.sales_settings(organization_id,${columns.join(",")},created_by,updated_by)
+     VALUES($1,${columns.map((_, index) => `$${index + 3}`).join(",")},$2,$2)
+     ON CONFLICT (organization_id) DO UPDATE SET ${columns.map((column) => `${column}=EXCLUDED.${column}`).join(",")},updated_by=EXCLUDED.updated_by,updated_at=now()
      RETURNING *`,
-    [c.organizationId, next.seller_state_code, next.default_quote_validity_days, next.quotation_approval_amount, next.quotation_approval_discount, next.minimum_margin_percent, next.order_approval_amount, next.allow_direct_orders, next.invoice_quantity_basis, c.userId, next.default_price_list_id ?? null, next.default_quotation_terms ?? null],
+    [c.organizationId, c.userId, ...columns.map((column) => next[column] ?? null)],
   );
   return { ...SETTINGS_DEFAULTS, ...result.rows[0], configured: true };
 }

@@ -38,6 +38,8 @@ import {
 } from "@vercentlabs/design-system";
 import { SALES_PERMISSIONS } from "@vercentlabs/permissions";
 
+import { StoredTotals } from "@/features/sales/shared/DocumentDiscounts";
+
 import { useWorkspaceContext } from "@/shell/workspace-context/WorkspaceContext";
 import { scopedQueryKey } from "@/shell/workspace-context/queryKeys";
 import { SalesApiError } from "@/features/sales/shared/http";
@@ -363,6 +365,18 @@ export function SalesOrderDetailScreen({ orderId }: { orderId: string }) {
       id: "price",
       header: "Unit price",
       accessorFn: (line) => money(currency, line.unit_price),
+    },
+    {
+      id: "discount",
+      header: "Discount",
+      accessorFn: (line) => !Number(line.discount_amount) ? "" : line.discount_type === "amount"
+        ? money(currency, line.discount_amount)
+        : `${Number(line.discount_value)}% (${money(currency, line.discount_amount)})`,
+    },
+    {
+      id: "taxable",
+      header: "Taxable",
+      accessorFn: (line) => money(currency, line.taxable_amount),
     },
     {
       id: "total",
@@ -707,6 +721,16 @@ export function SalesOrderDetailScreen({ orderId }: { orderId: string }) {
                   ) : null
                 }
               />
+            </SalesPanel>
+            <SalesPanel title="Totals" description="As agreed on the order; invoices use these values.">
+              <StoredTotals currencyCode={currency} document={order} taxLines={detail.taxLines} />
+              <p className="text-xs text-text-muted">
+                {[
+                  order.seller_snapshot?.name ? `Issued by ${order.seller_snapshot.name}${order.seller_snapshot.gstin ? ` (GSTIN ${order.seller_snapshot.gstin})` : ""}` : null,
+                  order.place_of_supply ? `Place of supply: ${order.place_of_supply_name ?? order.place_of_supply}${order.place_of_supply_source === "override" ? " (changed)" : ""}` : null,
+                  order.tax_treatment !== "taxable" ? `${({ domestic: "Domestic", export: "Export", sez: "Supply to SEZ", exempt: "Exempt supply", non_gst: "Non-GST supply" } as Record<string, string>)[order.supply_type ?? ""] ?? order.supply_type}: no tax charged` : ({ intra_state: "Within the state: CGST + SGST", inter_state: "Between states: IGST" } as Record<string, string>)[order.supply_nature ?? ""] ?? null,
+                ].filter(Boolean).join(" · ")}
+              </p>
             </SalesPanel>
             <SalesPanel title="Order details">
               <SalesFacts
